@@ -1,5 +1,5 @@
 /**
- * Test-only authenticated incremental checkpoint for v7 teacher parents.
+ * Authenticated incremental checkpoint for v7 teacher parents.
  *
  * This boundary accepts an already-authenticated training-row capability and
  * an authorized private stage lease. It authenticates a durable prefix before
@@ -27,6 +27,24 @@ import {
   type FloodgateV7CompletedParentInput,
 } from "./floodgate-v7-completed-parent";
 import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO,
+  type FloodgateV7TeacherCheckpointV3Gate,
+} from "./floodgate-v7-checkpoint-key-contract";
+import {
+  claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey,
+  claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests,
+  discardFloodgateV7DeploymentTeacherCheckpointV3Key,
+  FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+  type FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+  type FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization,
+  type FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+  type FloodgateV7DeploymentTeacherRunBinding,
+} from "./floodgate-v7-deployment-key-authority";
+import {
+  claimActiveAuthorizedFloodgateTeacherStageLease,
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
@@ -35,6 +53,7 @@ import {
   type FloodgateTeacherStageLease,
 } from "./floodgate-teacher-stage-authorization";
 import {
+  claimActiveVerifiedPinnedFloodgateTrainingRows,
   claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
   type AuthenticatedFloodgateTrainingRows,
@@ -76,12 +95,12 @@ export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS =
   "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published" as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY =
   "fixed-100-500-24000-gates-full-authenticated-input-domain-separated-milestone-chain-prefix-not-sealed-final-sealed-accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-anti-rollback-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence" as const;
-export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100 =
-  "durable-prefix-100" as const;
-export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500 =
-  "durable-prefix-500" as const;
-export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000 =
-  "sealed-final-24000" as const;
+export {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  type FloodgateV7TeacherCheckpointV3Gate,
+} from "./floodgate-v7-checkpoint-key-contract";
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS = 24_000 as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT_SCHEMA =
   "shogi-floodgate-v7-teacher-gate-contract-v1" as const;
@@ -111,7 +130,6 @@ const V3_MILESTONE_100_DOMAIN =
 const V3_MILESTONE_500_DOMAIN =
   "shogi-floodgate-v7-teacher-work-milestone-500-v3\0";
 const V3_SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v3\0";
-const V3_KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v3\0";
 const PARENT_STREAM_DOMAIN = "shogi-floodgate-v7-training-parents-v1\0";
 const EVIDENCE_DOMAIN = "shogi-floodgate-v7-completed-evidence-v1\0";
 const FORMAT = "canonical-jsonl-utf8-single-final-lf-v2" as const;
@@ -330,11 +348,6 @@ export interface FloodgateV7TeacherCheckpointOptions {
   readonly keyId: string;
 }
 
-export type FloodgateV7TeacherCheckpointV3Gate =
-  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
-  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500
-  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
-
 export type FloodgateV7TeacherCheckpointV3PrefixGate =
   | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
   | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500;
@@ -417,6 +430,9 @@ export interface FloodgateV7TeacherCheckpointV3Dependencies extends Omit<
     read: (maximumBytes?: number) => Promise<number>,
   ) => Promise<number>;
 }
+
+export type FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests =
+  Omit<FloodgateV7TeacherCheckpointV3Dependencies, "rootKey">;
 
 export type FloodgateV7TeacherProducerControlTimerPhase =
   "parent-deadline" | "abort-drain";
@@ -627,6 +643,17 @@ interface CapturedTraining {
   readonly parentIdsSha256: string;
 }
 
+type CapturedCheckpointKeyMaterial = Readonly<
+  | {
+      readonly kind: "root";
+      readonly bytes: Buffer;
+    }
+  | {
+      readonly kind: "v3-derived";
+      readonly bytes: Buffer;
+    }
+>;
+
 interface CapturedInvocation {
   readonly lease: Readonly<FloodgateTeacherStageLease>;
   readonly training: CapturedTraining;
@@ -634,7 +661,7 @@ interface CapturedInvocation {
   readonly producerController: Readonly<FloodgateV7TeacherProducerController>;
   readonly runId: string;
   readonly keyId: string;
-  readonly rootKey: Buffer;
+  readonly keyMaterial: CapturedCheckpointKeyMaterial;
   readonly effectiveUserId: number;
   readonly failpoint?: FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"];
   readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
@@ -644,7 +671,27 @@ interface CapturedInvocation {
   readonly persistenceState: { mayHaveStarted: boolean };
 }
 
+interface CapturedInvocationDependencies {
+  readonly keyMaterial: CapturedCheckpointKeyMaterial;
+  readonly effectiveUserId: number;
+  readonly failpoint?: FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"];
+  readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
+  readonly readForTests?: FloodgateV7TeacherCheckpointV3Dependencies["readForTests"];
+  readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
+  readonly scheduleProducerControlTimerForTests?: FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"];
+}
+
 interface CapturedV3Invocation extends CapturedInvocation {
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
+}
+
+interface CapturedV3InvocationArguments {
+  readonly lease: Readonly<FloodgateTeacherStageLease>;
+  readonly training: CapturedTraining;
+  readonly runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  readonly producerController: Readonly<FloodgateV7TeacherProducerController>;
+  readonly runId: string;
+  readonly keyId: string;
   readonly gate: FloodgateV7TeacherCheckpointV3Gate;
 }
 
@@ -701,6 +748,40 @@ function failure(message: string, cause?: unknown): never {
 
 function zeroBytes(value: Uint8Array): void {
   reflectApply(nativeTypedArrayFill, value, [0]);
+}
+
+function copyExactOwned32ByteKey(value: unknown, label: string): Buffer {
+  if (
+    !nodeIsUint8Array(value) ||
+    nodeIsProxy(value) ||
+    objectGetPrototypeOf(value) !== Uint8Array.prototype ||
+    typedArrayBufferGetter === undefined ||
+    typedArrayByteLengthGetter === undefined ||
+    typedArrayByteOffsetGetter === undefined
+  ) {
+    failure(`${label} must be a non-shared 32-byte Uint8Array`);
+  }
+  let buffer: ArrayBufferLike;
+  let byteLength: number;
+  let byteOffset: number;
+  try {
+    buffer = reflectApply(typedArrayBufferGetter, value, []) as ArrayBufferLike;
+    byteLength = reflectApply(typedArrayByteLengthGetter, value, []) as number;
+    byteOffset = reflectApply(typedArrayByteOffsetGetter, value, []) as number;
+  } catch (cause) {
+    return failure(`${label} typed-array state is inaccessible`, cause);
+  }
+  if (
+    nodeIsSharedArrayBuffer(buffer) ||
+    byteLength !== 32 ||
+    byteOffset !== 0 ||
+    buffer.byteLength !== 32
+  ) {
+    failure(`${label} must own exactly one non-shared 32-byte buffer`);
+  }
+  const copied = Buffer.alloc(32);
+  reflectApply(nativeTypedArraySet, copied, [value, 0]);
+  return copied;
 }
 
 function persistenceFailure(message: string, cause: unknown): never {
@@ -1188,6 +1269,40 @@ function captureRunBinding(
   });
 }
 
+function finishCapturedInvocation(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  trainingValue: AuthenticatedFloodgateTrainingRows,
+  runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
+  produce: FloodgateV7TeacherMissingParentProducer,
+  abortAndDrain: () => Promise<void>,
+  runId: string,
+  keyId: string,
+  dependencies: Readonly<CapturedInvocationDependencies>,
+): CapturedInvocation {
+  try {
+    return Object.freeze({
+      lease,
+      training: captureTraining(trainingValue),
+      runBinding: captureRunBinding(runBindingValue),
+      producerController: Object.freeze({ produce, abortAndDrain }),
+      runId,
+      keyId,
+      keyMaterial: dependencies.keyMaterial,
+      effectiveUserId: dependencies.effectiveUserId,
+      failpoint: dependencies.failpoint,
+      writeForTests: dependencies.writeForTests,
+      readForTests: dependencies.readForTests,
+      closeForTests: dependencies.closeForTests,
+      scheduleProducerControlTimerForTests:
+        dependencies.scheduleProducerControlTimerForTests,
+      persistenceState: { mayHaveStarted: false },
+    });
+  } catch (cause) {
+    zeroBytes(dependencies.keyMaterial.bytes);
+    throw cause;
+  }
+}
+
 function captureInvocation(
   lease: Readonly<FloodgateTeacherStageLease>,
   trainingValue: AuthenticatedFloodgateTrainingRows,
@@ -1196,7 +1311,9 @@ function captureInvocation(
   optionsValue: FloodgateV7TeacherCheckpointOptions,
   dependenciesValue:
     | FloodgateV7TeacherCheckpointDependencies
-    | FloodgateV7TeacherCheckpointV3Dependencies,
+    | FloodgateV7TeacherCheckpointV3Dependencies
+    | undefined,
+  capturedDependencies?: Readonly<CapturedInvocationDependencies>,
 ): CapturedInvocation {
   const stageReceipt = lease.receipt;
   if (
@@ -1229,6 +1346,18 @@ function captureInvocation(
   if (typeof abortAndDrain !== "function" || nodeIsProxy(abortAndDrain)) {
     failure("producerController.abortAndDrain must be a non-Proxy function");
   }
+  if (capturedDependencies !== undefined) {
+    return finishCapturedInvocation(
+      lease,
+      trainingValue,
+      runBindingValue,
+      produce as FloodgateV7TeacherMissingParentProducer,
+      abortAndDrain as () => Promise<void>,
+      options.runId as string,
+      options.keyId as string,
+      capturedDependencies,
+    );
+  }
   if (!isPlainRecord(dependenciesValue)) {
     failure("dependencies must be a plain non-Proxy object");
   }
@@ -1254,54 +1383,10 @@ function captureInvocation(
     dependencies.effectiveUserId,
     "dependencies.effectiveUserId",
   );
-  const rootKeyValue = dependencies.rootKey;
-  if (
-    !nodeIsUint8Array(rootKeyValue) ||
-    nodeIsProxy(rootKeyValue) ||
-    objectGetPrototypeOf(rootKeyValue) !== Uint8Array.prototype ||
-    typedArrayBufferGetter === undefined ||
-    typedArrayByteLengthGetter === undefined ||
-    typedArrayByteOffsetGetter === undefined
-  ) {
-    failure("dependencies.rootKey must be a non-shared 32-byte Uint8Array");
-  }
-  let rootBuffer: ArrayBufferLike;
-  let rootByteLength: number;
-  let rootByteOffset: number;
-  try {
-    rootBuffer = reflectApply(
-      typedArrayBufferGetter,
-      rootKeyValue,
-      [],
-    ) as ArrayBufferLike;
-    rootByteLength = reflectApply(
-      typedArrayByteLengthGetter,
-      rootKeyValue,
-      [],
-    ) as number;
-    rootByteOffset = reflectApply(
-      typedArrayByteOffsetGetter,
-      rootKeyValue,
-      [],
-    ) as number;
-  } catch (cause) {
-    return failure(
-      "dependencies.rootKey typed-array state is inaccessible",
-      cause,
-    );
-  }
-  if (
-    nodeIsSharedArrayBuffer(rootBuffer) ||
-    rootByteLength !== 32 ||
-    rootByteOffset !== 0 ||
-    rootBuffer.byteLength !== 32
-  ) {
-    failure(
-      "dependencies.rootKey must own exactly one non-shared 32-byte buffer",
-    );
-  }
-  const rootKey = Buffer.alloc(32);
-  reflectApply(nativeTypedArraySet, rootKey, [rootKeyValue, 0]);
+  const rootKey = copyExactOwned32ByteKey(
+    dependencies.rootKey,
+    "dependencies.rootKey",
+  );
   const failpoint = dependencies.failpointForTests as
     FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"] | undefined;
   const writeForTests = dependencies.writeForTests as
@@ -1352,30 +1437,24 @@ function captureInvocation(
       "dependencies.scheduleProducerControlTimerForTests must be a function",
     );
   }
-  try {
-    return Object.freeze({
-      lease,
-      training: captureTraining(trainingValue),
-      runBinding: captureRunBinding(runBindingValue),
-      producerController: Object.freeze({
-        produce: produce as FloodgateV7TeacherMissingParentProducer,
-        abortAndDrain: abortAndDrain as () => Promise<void>,
-      }),
-      runId: options.runId,
-      keyId: options.keyId,
-      rootKey,
+  return finishCapturedInvocation(
+    lease,
+    trainingValue,
+    runBindingValue,
+    produce as FloodgateV7TeacherMissingParentProducer,
+    abortAndDrain as () => Promise<void>,
+    options.runId as string,
+    options.keyId as string,
+    Object.freeze({
+      keyMaterial: Object.freeze({ kind: "root" as const, bytes: rootKey }),
       effectiveUserId,
       failpoint,
       writeForTests,
       readForTests,
       closeForTests,
       scheduleProducerControlTimerForTests,
-      persistenceState: { mayHaveStarted: false },
-    });
-  } catch (cause) {
-    zeroBytes(rootKey);
-    throw cause;
-  }
+    }),
+  );
 }
 
 function captureV3Gate(value: unknown): FloodgateV7TeacherCheckpointV3Gate {
@@ -1386,6 +1465,24 @@ function captureV3Gate(value: unknown): FloodgateV7TeacherCheckpointV3Gate {
       return value;
     default:
       return failure("options.gate is not a supported fixed v3 gate");
+  }
+}
+
+function finishCapturedV3Invocation(
+  invocation: CapturedInvocation,
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+): CapturedV3Invocation {
+  try {
+    if (
+      invocation.training.parents.length !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
+    ) {
+      failure("v3 gates require the exact full 24000-parent training input");
+    }
+    return Object.freeze({ ...invocation, gate });
+  } catch (cause) {
+    zeroBytes(invocation.keyMaterial.bytes);
+    throw cause;
   }
 }
 
@@ -1414,17 +1511,237 @@ function captureV3Invocation(
     }),
     dependenciesValue,
   );
+  return finishCapturedV3Invocation(invocation, gate);
+}
+
+function captureV3InvocationArguments(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  trainingValue: AuthenticatedFloodgateTrainingRows,
+  runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
+  producerControllerValue: FloodgateV7TeacherProducerController,
+  optionsValue: FloodgateV7TeacherCheckpointV3Options,
+): CapturedV3InvocationArguments {
+  const stageReceipt = lease.receipt;
+  if (
+    stageReceipt.contract !== FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT ||
+    stageReceipt.trust_boundary !==
+      FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY ||
+    stageReceipt.status !== FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS ||
+    canonicalJson(stageReceipt.allowed_entries) !==
+      canonicalJson(FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES)
+  ) {
+    failure("authorized stage lease receipt boundary is unsupported");
+  }
+  const options = strictRecord(
+    optionsValue,
+    ["gate", "keyId", "runId"],
+    "options",
+  );
+  const gate = captureV3Gate(options.gate);
+  if (typeof options.runId !== "string" || !RUN_ID_RE.test(options.runId)) {
+    failure("options.runId must be 32 bytes of lowercase hex");
+  }
+  if (typeof options.keyId !== "string" || !KEY_ID_RE.test(options.keyId)) {
+    failure("options.keyId is invalid");
+  }
+  const producerControllerRecord = strictRecord(
+    producerControllerValue,
+    ["abortAndDrain", "produce"],
+    "producerController",
+  );
+  const produce = producerControllerRecord.produce;
+  const abortAndDrain = producerControllerRecord.abortAndDrain;
+  if (typeof produce !== "function" || nodeIsProxy(produce)) {
+    failure("producerController.produce must be a non-Proxy function");
+  }
+  if (typeof abortAndDrain !== "function" || nodeIsProxy(abortAndDrain)) {
+    failure("producerController.abortAndDrain must be a non-Proxy function");
+  }
+  const training = captureTraining(trainingValue);
+  if (
+    training.parents.length !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
+  ) {
+    failure("v3 gates require the exact full 24000-parent training input");
+  }
+  return Object.freeze({
+    lease,
+    training,
+    runBinding: captureRunBinding(runBindingValue),
+    producerController: Object.freeze({
+      produce: produce as FloodgateV7TeacherMissingParentProducer,
+      abortAndDrain: abortAndDrain as () => Promise<void>,
+    }),
+    runId: options.runId,
+    keyId: options.keyId,
+    gate,
+  });
+}
+
+function captureV3InvocationWithDerivedKey(
+  captured: Readonly<CapturedV3InvocationArguments>,
+  derivedKey: Buffer,
+  dependencies: Omit<CapturedInvocationDependencies, "keyMaterial">,
+): CapturedV3Invocation {
   try {
-    if (
-      invocation.training.parents.length !==
-      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
-    ) {
-      failure("v3 gates require the exact full 24000-parent training input");
-    }
-    return Object.freeze({ ...invocation, gate });
+    return Object.freeze({
+      ...captured,
+      keyMaterial: Object.freeze({
+        kind: "v3-derived" as const,
+        bytes: derivedKey,
+      }),
+      effectiveUserId: dependencies.effectiveUserId,
+      failpoint: dependencies.failpoint,
+      writeForTests: dependencies.writeForTests,
+      readForTests: dependencies.readForTests,
+      closeForTests: dependencies.closeForTests,
+      scheduleProducerControlTimerForTests:
+        dependencies.scheduleProducerControlTimerForTests,
+      persistenceState: { mayHaveStarted: false },
+    });
   } catch (cause) {
-    zeroBytes(invocation.rootKey);
+    zeroBytes(derivedKey);
     throw cause;
+  }
+}
+
+function captureV3DeploymentKeyDependenciesForTests(
+  dependenciesValue: FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests,
+): Omit<CapturedInvocationDependencies, "keyMaterial"> {
+  if (!isPlainRecord(dependenciesValue)) {
+    failure("dependencies must be a plain non-Proxy object");
+  }
+  const optionalKeys = [
+    "closeForTests",
+    "failpointForTests",
+    "readForTests",
+    "scheduleProducerControlTimerForTests",
+    "writeForTests",
+  ];
+  const expectedDependencyKeys = ["effectiveUserId"];
+  for (const key of optionalKeys) {
+    if (Object.prototype.hasOwnProperty.call(dependenciesValue, key)) {
+      expectedDependencyKeys.push(key);
+    }
+  }
+  const dependencies = strictRecord(
+    dependenciesValue,
+    expectedDependencyKeys,
+    "dependencies",
+  );
+  const effectiveUserId = requiredInteger(
+    dependencies.effectiveUserId,
+    "dependencies.effectiveUserId",
+  );
+  const failpoint = dependencies.failpointForTests as
+    FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"] | undefined;
+  const writeForTests = dependencies.writeForTests as
+    FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
+  const readForTests = dependencies.readForTests as
+    FloodgateV7TeacherCheckpointV3Dependencies["readForTests"] | undefined;
+  const closeForTests = dependencies.closeForTests as
+    FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
+  const scheduleProducerControlTimerForTests =
+    dependencies.scheduleProducerControlTimerForTests as
+      | FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"]
+      | undefined;
+  if (
+    failpoint !== undefined &&
+    (typeof failpoint !== "function" || nodeIsProxy(failpoint))
+  ) {
+    failure("dependencies.failpointForTests must be a function");
+  }
+  if (
+    writeForTests !== undefined &&
+    (typeof writeForTests !== "function" || nodeIsProxy(writeForTests))
+  ) {
+    failure("dependencies.writeForTests must be a function");
+  }
+  if (
+    readForTests !== undefined &&
+    (typeof readForTests !== "function" || nodeIsProxy(readForTests))
+  ) {
+    failure("dependencies.readForTests must be a function");
+  }
+  if (
+    closeForTests !== undefined &&
+    (typeof closeForTests !== "function" || nodeIsProxy(closeForTests))
+  ) {
+    failure("dependencies.closeForTests must be a function");
+  }
+  if (
+    scheduleProducerControlTimerForTests !== undefined &&
+    (typeof scheduleProducerControlTimerForTests !== "function" ||
+      nodeIsProxy(scheduleProducerControlTimerForTests))
+  ) {
+    failure(
+      "dependencies.scheduleProducerControlTimerForTests must be a function",
+    );
+  }
+  return Object.freeze({
+    effectiveUserId,
+    failpoint,
+    writeForTests,
+    readForTests,
+    closeForTests,
+    scheduleProducerControlTimerForTests,
+  });
+}
+
+function deploymentV3KeyRequest(
+  captured: Readonly<CapturedV3InvocationArguments>,
+): Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyRequest> {
+  if (captured.keyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID) {
+    failure("options.keyId is not the fixed deployment key id");
+  }
+  return Object.freeze({
+    runId: captured.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding:
+      captured.runBinding as Readonly<FloodgateV7DeploymentTeacherRunBinding>,
+    stageAuthorizationReceipt: captured.lease.receipt,
+    gate: captured.gate,
+  });
+}
+
+type DeploymentV3KeyClaim<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> = (
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>
+  >,
+  request: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+) => Uint8Array;
+
+function claimAndCopyDeploymentV3Key<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  claim: DeploymentV3KeyClaim<TBoundary>,
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>
+  >,
+  request: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyRequest>,
+): Buffer {
+  let claimed: Uint8Array | undefined;
+  let copied: Buffer | undefined;
+  try {
+    claimed = claim(authorization, request);
+    copied = copyExactOwned32ByteKey(
+      claimed,
+      "claimed v3 checkpoint derived key",
+    );
+    return copied;
+  } finally {
+    if (claimed !== undefined) {
+      try {
+        zeroBytes(claimed);
+      } catch (cause) {
+        if (copied !== undefined) zeroBytes(copied);
+        failure(
+          "claimed v3 checkpoint derived key could not be zeroized",
+          cause,
+        );
+      }
+    }
   }
 }
 
@@ -3437,11 +3754,21 @@ async function executeCheckpoint(
   let stageHandle: fs.promises.FileHandle | undefined;
   let workHandle: fs.promises.FileHandle | undefined;
   let primaryFailure: unknown;
-  const salt = Buffer.from(invocation.runId, "hex");
-  let derived = Buffer.alloc(0);
+  let salt: Buffer | undefined;
+  let derived: Buffer | undefined;
   try {
+    salt = Buffer.from(invocation.runId, "hex");
+    if (invocation.keyMaterial.kind !== "root") {
+      failure("v2 checkpoint received non-root key material");
+    }
     derived = Buffer.from(
-      hkdfSync("sha256", invocation.rootKey, salt, Buffer.from(KEY_INFO), 32),
+      hkdfSync(
+        "sha256",
+        invocation.keyMaterial.bytes,
+        salt,
+        Buffer.from(KEY_INFO),
+        32,
+      ),
     );
     try {
       stageHandle = await fs.promises.open(
@@ -3694,9 +4021,9 @@ async function executeCheckpoint(
     primaryFailure = classified;
     throw classified;
   } finally {
-    zeroBytes(derived);
-    zeroBytes(salt);
-    zeroBytes(invocation.rootKey);
+    if (derived !== undefined) zeroBytes(derived);
+    if (salt !== undefined) zeroBytes(salt);
+    zeroBytes(invocation.keyMaterial.bytes);
     const closeFailures: Array<{
       readonly kind: "work" | "stage";
       readonly cause: unknown;
@@ -3841,18 +4168,22 @@ async function executeV3Checkpoint(
   let stageHandle: fs.promises.FileHandle | undefined;
   let workHandle: fs.promises.FileHandle | undefined;
   let primaryFailure: unknown;
-  const salt = Buffer.from(invocation.runId, "hex");
-  let derived = Buffer.alloc(0);
+  let salt: Buffer | undefined;
+  let derived: Buffer | undefined;
   try {
-    derived = Buffer.from(
-      hkdfSync(
-        "sha256",
-        invocation.rootKey,
-        salt,
-        Buffer.from(V3_KEY_INFO),
-        32,
-      ),
-    );
+    salt = Buffer.from(invocation.runId, "hex");
+    derived =
+      invocation.keyMaterial.kind === "v3-derived"
+        ? invocation.keyMaterial.bytes
+        : Buffer.from(
+            hkdfSync(
+              "sha256",
+              invocation.keyMaterial.bytes,
+              salt,
+              Buffer.from(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+              32,
+            ),
+          );
     try {
       stageHandle = await fs.promises.open(
         invocation.lease.stageRoot,
@@ -4177,9 +4508,11 @@ async function executeV3Checkpoint(
     primaryFailure = classified;
     throw classified;
   } finally {
-    zeroBytes(derived);
-    zeroBytes(salt);
-    zeroBytes(invocation.rootKey);
+    if (derived !== undefined && derived !== invocation.keyMaterial.bytes) {
+      zeroBytes(derived);
+    }
+    if (salt !== undefined) zeroBytes(salt);
+    zeroBytes(invocation.keyMaterial.bytes);
     const closeFailures: Array<{
       readonly kind: "work" | "stage";
       readonly cause: unknown;
@@ -4315,6 +4648,100 @@ async function closeAfterCaptureFailure(
   throw primary;
 }
 
+async function discardKeyAndCloseAfterCaptureFailure(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+  primary: unknown,
+): Promise<never> {
+  let discardFailure: unknown;
+  let closeFailure: unknown;
+  try {
+    discardFloodgateV7DeploymentTeacherCheckpointV3Key(authorization);
+  } catch (cause) {
+    discardFailure = cause;
+  }
+  try {
+    await lease.close();
+  } catch (cause) {
+    closeFailure = cause;
+  }
+  if (discardFailure !== undefined || closeFailure !== undefined) {
+    failure(
+      "argument capture failed and v3 deployment key or authorized stage cleanup also failed",
+      { primary, discardFailure, closeFailure },
+    );
+  }
+  throw primary;
+}
+
+function checkpointV3WithDeploymentKey<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  authenticatedTrainingRows: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  producerController: FloodgateV7TeacherProducerController,
+  options: FloodgateV7TeacherCheckpointV3Options,
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>
+  >,
+  testDependencies:
+    FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests | undefined,
+  claimStage: (lease: Readonly<FloodgateTeacherStageLease>) => void,
+  claimTraining: (input: Readonly<AuthenticatedFloodgateTrainingRows>) => void,
+  claimKey: DeploymentV3KeyClaim<TBoundary>,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  claimStage(lease);
+  let executionKey: Buffer | undefined;
+  let invocation: CapturedV3Invocation;
+  try {
+    claimTraining(authenticatedTrainingRows);
+    const captured = captureV3InvocationArguments(
+      lease,
+      authenticatedTrainingRows,
+      runBinding,
+      producerController,
+      options,
+    );
+    const capturedTestDependencies =
+      testDependencies === undefined
+        ? undefined
+        : captureV3DeploymentKeyDependenciesForTests(testDependencies);
+    const request = deploymentV3KeyRequest(captured);
+    executionKey = claimAndCopyDeploymentV3Key(
+      claimKey,
+      authorization,
+      request,
+    );
+    const ownerEffectiveUserId = requiredInteger(
+      authorization.authorization.key_deployment.owner_uid,
+      "v3 deployment key authorization owner uid",
+    );
+    if (
+      capturedTestDependencies !== undefined &&
+      capturedTestDependencies.effectiveUserId !== ownerEffectiveUserId
+    ) {
+      failure(
+        "dependencies.effectiveUserId differs from the v3 deployment key owner uid",
+      );
+    }
+    invocation = captureV3InvocationWithDerivedKey(captured, executionKey, {
+      effectiveUserId: ownerEffectiveUserId,
+      failpoint: capturedTestDependencies?.failpoint,
+      writeForTests: capturedTestDependencies?.writeForTests,
+      readForTests: capturedTestDependencies?.readForTests,
+      closeForTests: capturedTestDependencies?.closeForTests,
+      scheduleProducerControlTimerForTests:
+        capturedTestDependencies?.scheduleProducerControlTimerForTests,
+    });
+    executionKey = undefined;
+  } catch (cause) {
+    if (executionKey !== undefined) zeroBytes(executionKey);
+    return discardKeyAndCloseAfterCaptureFailure(lease, authorization, cause);
+  }
+  return executeV3AndClose(invocation);
+}
+
 /**
  * Claim authenticated training rows and a private authorized test stage, then
  * resume or create the HMAC-chained compact v7 completed-parent checkpoint.
@@ -4345,6 +4772,72 @@ export function checkpointFloodgateV7TeacherParentsCoreForTests(
     return closeAfterCaptureFailure(lease, cause);
   }
   return executeAndClose(invocation);
+}
+
+/**
+ * Advance one fixed v3 gate using a single-use capability issued by the fixed
+ * production deployment-key authority. This boundary accepts no key bytes,
+ * effective-user identity, filesystem origin, or injectable dependencies.
+ */
+export function checkpointFloodgateV7TeacherParentsV3(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  authenticatedTrainingRows: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  producerController: FloodgateV7TeacherProducerController,
+  options: FloodgateV7TeacherCheckpointV3Options,
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  if (arguments.length !== 6) {
+    failure("production v3 checkpoint accepts exactly six arguments");
+  }
+  return checkpointV3WithDeploymentKey(
+    lease,
+    authenticatedTrainingRows,
+    runBinding,
+    producerController,
+    options,
+    authorization,
+    undefined,
+    claimActiveAuthorizedFloodgateTeacherStageLease,
+    claimActiveVerifiedPinnedFloodgateTrainingRows,
+    claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey,
+  );
+}
+
+/**
+ * Test-only connector for an injected deployment-key capability. The seam may
+ * inject checkpoint I/O hooks, but it never accepts root or derived key bytes.
+ */
+export function checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  authenticatedTrainingRows: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  producerController: FloodgateV7TeacherProducerController,
+  options: FloodgateV7TeacherCheckpointV3Options,
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >,
+  dependencies: FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  if (arguments.length !== 7) {
+    failure(
+      "test v3 deployment-key checkpoint accepts exactly seven arguments",
+    );
+  }
+  return checkpointV3WithDeploymentKey(
+    lease,
+    authenticatedTrainingRows,
+    runBinding,
+    producerController,
+    options,
+    authorization,
+    dependencies,
+    claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
+    claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
+    claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests,
+  );
 }
 
 /**

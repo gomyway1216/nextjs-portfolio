@@ -1189,7 +1189,7 @@ describe("Floodgate stable-WASM proposer synthetic core", () => {
 });
 
 describe("Floodgate stable-WASM real child pool", () => {
-  it("passes the loader-free real-pool Object.prototype.then regression", async () => {
+  it("passes the loader-free one-shot and reusable-pool Object.prototype.then regressions", async () => {
     const temporaryRoot = await mkdtemp(
       join(tmpdir(), "stable-wasm-then-poison-"),
     );
@@ -1222,7 +1222,7 @@ describe("Floodgate stable-WASM real child pool", () => {
         },
       );
       expect(result.stderr).toBe("");
-      expect(result.stdout).toBe("real-pool-then-isolation-pass");
+      expect(result.stdout).toBe("real-and-reusable-pool-then-isolation-pass");
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
@@ -1682,7 +1682,7 @@ describe("Floodgate stable-WASM reusable proposal pool", () => {
     await pool.close();
   });
 
-  it("rejects Proxy, accessor, thenable, mutation, and after-close inputs safely", async () => {
+  it("rejects Proxy, accessor, mutation, and after-close inputs safely", async () => {
     const source = fakeWorkerSource(
       "success",
       packedMove(MATE_SFEN, MATE_MOVE),
@@ -1728,28 +1728,6 @@ describe("Floodgate stable-WASM reusable proposal pool", () => {
       ),
     ).rejects.toThrow(/enumerable own data property/);
     expect(getter).not.toHaveBeenCalled();
-
-    const inheritedThen = Object.getOwnPropertyDescriptor(
-      Object.prototype,
-      "then",
-    );
-    let thenCalls = 0;
-    Object.defineProperty(Object.prototype, "then", {
-      configurable: true,
-      enumerable: false,
-      value() {
-        thenCalls += 1;
-        throw new Error("parent thenable must not be assimilated");
-      },
-    });
-    try {
-      expect((await pool.propose(valid)).stable_move).toBe(MATE_MOVE);
-      expect(thenCalls).toBe(0);
-    } finally {
-      if (inheritedThen === undefined)
-        delete (Object.prototype as { then?: unknown }).then;
-      else Object.defineProperty(Object.prototype, "then", inheritedThen);
-    }
 
     await pool.close();
     await expect(pool.propose(valid)).rejects.toThrow(/closed/);

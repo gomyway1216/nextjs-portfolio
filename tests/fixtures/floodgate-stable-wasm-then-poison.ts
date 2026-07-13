@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { runFloodgateStableWasmWorkerPoolCoreForTests } from "../../ml/floodgate-stable-wasm-proposer";
+import {
+  createFloodgateStableWasmReusableProposalPool,
+  runFloodgateStableWasmWorkerPoolCoreForTests,
+} from "../../ml/floodgate-stable-wasm-proposer";
 
 const repositoryRoot = process.argv[2];
 if (typeof repositoryRoot !== "string" || repositoryRoot === "") {
@@ -50,6 +54,31 @@ const options = {
   startupTimeoutMilliseconds: 20_000,
   searchTimeoutMilliseconds: 20_000,
 };
+const reusableOptions = {
+  workers: 1,
+  queueBound: 2,
+  startupTimeoutMilliseconds: 20_000,
+  searchTimeoutMilliseconds: 20_000,
+  closeTimeoutMilliseconds: 5_000,
+};
+const parentSfen = "4k4/9/5G3/9/4+R4/9/9/9/4K4 b 3P 1";
+const stableMove = "4c5b";
+const parentPly = 0;
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+const gameId = `sha256:${sha256("isolated-reusable-then-poison")}`;
+const parent = {
+  schema_version: 1 as const,
+  game_id: gameId,
+  parent_id: `sha256:${sha256(`parent-occurrence-v1\0${gameId}\0${parentPly}`)}`,
+  position_id: `sha256:${sha256(`sfen-v1\0${parentSfen.slice(0, parentSfen.lastIndexOf(" "))}`)}`,
+  parent_sfen: parentSfen,
+  ply: parentPly,
+  played_move: stableMove,
+};
 
 function restoreThen(inherited: PropertyDescriptor | undefined): void {
   if (inherited === undefined) {
@@ -60,6 +89,10 @@ function restoreThen(inherited: PropertyDescriptor | undefined): void {
 }
 
 async function main(): Promise<void> {
+  const reusablePool = await createFloodgateStableWasmReusableProposalPool(
+    assets,
+    reusableOptions,
+  );
   const inherited = Object.getOwnPropertyDescriptor(Object.prototype, "then");
   let poisonCalls = 0;
   Object.defineProperty(Object.prototype, "then", {
@@ -80,6 +113,7 @@ async function main(): Promise<void> {
     );
     const resultCount = box.results.length;
     const packedMove = box.results[0]?.packed_move;
+    const reusableMove = (await reusablePool.propose(parent)).stable_move;
     restoreThen(inherited);
     if (poisonCalls !== 0) throw new Error(`then poison calls: ${poisonCalls}`);
     if (resultCount !== 1 || packedMove !== 1_347_797) {
@@ -87,9 +121,21 @@ async function main(): Promise<void> {
         `unexpected real-pool result: ${resultCount}/${packedMove}`,
       );
     }
-    process.stdout.write("real-pool-then-isolation-pass");
+    if (reusableMove !== stableMove) {
+      throw new Error(`unexpected reusable-pool move: ${reusableMove}`);
+    }
+    await reusablePool.close();
+    process.stdout.write("real-and-reusable-pool-then-isolation-pass");
   } catch (error) {
     restoreThen(inherited);
+    try {
+      await reusablePool.close();
+    } catch (closeError) {
+      throw new AggregateError(
+        [error, closeError],
+        "then isolation and reusable-pool cleanup both failed",
+      );
+    }
     throw error;
   }
 }

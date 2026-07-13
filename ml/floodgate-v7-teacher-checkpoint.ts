@@ -549,8 +549,15 @@ function requiredInteger(value: unknown, label: string, minimum = 0): number {
   if (!Number.isSafeInteger(value) || (value as number) < minimum) {
     failure(`${label} must be a safe integer at least ${minimum}`);
   }
-  return value as number;
+  // JSON.parse accepts the signed token `-0`, but the authenticated stream has
+  // one canonical representation for zero. Normalize it at capture so later
+  // parent IDs, bindings, and canonical hashes all observe the same value.
+  return Object.is(value, -0) ? 0 : (value as number);
 }
+
+/** Exact integer-capture seam for signed-zero and bound regression tests. */
+export const captureFloodgateV7TeacherCheckpointIntegerCoreForTests =
+  requiredInteger;
 
 function parentOccurrenceId(gameId: string, ply: number): string {
   return `sha256:${sha256Hex(`parent-occurrence-v1\0${gameId}\0${ply}`)}`;

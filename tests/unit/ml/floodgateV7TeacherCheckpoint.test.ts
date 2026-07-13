@@ -67,6 +67,7 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
   FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
   FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+  captureFloodgateV7TeacherCheckpointIntegerCoreForTests,
   checkpointFloodgateV7TeacherParentsCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
   type FloodgateV7TeacherCheckpointOptions,
@@ -834,6 +835,22 @@ afterEach(async () => {
 });
 
 describe("Floodgate v7 teacher parent checkpoint", () => {
+  it("normalizes parser-valid signed zero at integer capture", () => {
+    const captured = captureFloodgateV7TeacherCheckpointIntegerCoreForTests(
+      -0,
+      "synthetic signed zero",
+    );
+    expect(captured).toBe(0);
+    expect(Object.is(captured, -0)).toBe(false);
+    expect(() =>
+      captureFloodgateV7TeacherCheckpointIntegerCoreForTests(
+        0,
+        "synthetic positive minimum",
+        1,
+      ),
+    ).toThrow(/at least 1/);
+  });
+
   it("writes a private canonical parent chain in exact authenticated input order without touching a holdout sentinel", async () => {
     const value = await fixture();
     const requests: Array<

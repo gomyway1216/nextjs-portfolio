@@ -17,8 +17,22 @@ import {
 } from "../../../ml/floodgate-v7-checkpoint-scan-load";
 import { floodgateCanonicalUrlGameId } from "../../../ml/floodgate-raw-lock";
 import {
+  FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY,
+  FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT,
+  FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS,
+} from "../../../ml/floodgate-production-teacher-usi-runtime";
+import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_ALGORITHM,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
+  FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+  FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+  FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
+  FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
 } from "../../../ml/floodgate-v7-teacher-checkpoint";
 
 const evidenceRuntimeIt = process.version === "v22.13.0" ? it : it.skip;
@@ -34,6 +48,30 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
       expect(result).toMatchObject({
         schema: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
         status: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
+        checkpoint_identity: {
+          schema: FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
+          status: FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
+          claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY,
+          algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_ALGORITHM,
+          run_binding: {
+            schema: FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
+            producer_control: {
+              schema: FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+              parent_deadline_ms: 30 * 60 * 1_000,
+              abort_drain_ms: 30_000,
+              max_in_flight: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
+              cancel_policy: FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+              late_settlement_policy:
+                FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
+            },
+          },
+          teacher_usi_runtime: {
+            contract: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT,
+            status: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS,
+            claim_boundary:
+              FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY,
+          },
+        },
         data: {
           public_dataset_paths_accepted: false,
           network_reads: false,
@@ -219,7 +257,7 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
     );
   });
 
-  it("pins the accepted synthetic 24,000-parent evidence and exact arithmetic", async () => {
+  it("pins the historical v1 24,000-parent evidence without treating it as current v2 evidence", async () => {
     const bytes = await fs.promises.readFile(
       path.join(
         process.cwd(),
@@ -255,6 +293,12 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
         live_weight_changed: false,
       },
     });
+    expect(evidence.result.schema).toBe(
+      "shogi-floodgate-v7-checkpoint-semantic-scan-load-v1",
+    );
+    expect(String(evidence.result.schema)).not.toBe(
+      FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
+    );
     const stream = evidence.result.valid_stream;
     const lines = stream.line_statistics;
     expect(lines.records).toBe(24_002);

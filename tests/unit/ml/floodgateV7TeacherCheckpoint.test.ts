@@ -65,8 +65,15 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+  FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+  FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_MAX_TIMER_MS,
+  FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
   FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
+  FloodgateV7TeacherAbortDrainTimeoutError,
   FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+  FloodgateV7TeacherProducerCleanupError,
+  FloodgateV7TeacherProducerTimeoutError,
   captureFloodgateV7TeacherCheckpointIntegerCoreForTests,
   checkpointFloodgateV7TeacherParentsCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
@@ -74,6 +81,8 @@ import {
   type FloodgateV7TeacherCheckpointReceipt,
   type FloodgateV7TeacherCheckpointRunBinding,
   type FloodgateV7TeacherMissingParentProducer,
+  type FloodgateV7TeacherProducerController,
+  type FloodgateV7TeacherProducerControlTimerEvent,
 } from "../../../ml/floodgate-v7-teacher-checkpoint";
 import {
   childSfenAfterUsi,
@@ -92,10 +101,17 @@ const RUN_ID = "12".repeat(32);
 const OTHER_RUN_ID = "34".repeat(32);
 const KEY_ID = "synthetic-v7-checkpoint-key-1";
 const ROOT_KEY_BYTE = 0x4b;
-const HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v1\0";
-const ENTRY_DOMAIN = "shogi-floodgate-v7-teacher-work-parent-v1\0";
-const SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v1\0";
-const KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v1\0";
+const HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v2\0";
+const ENTRY_DOMAIN = "shogi-floodgate-v7-teacher-work-parent-v2\0";
+const SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v2\0";
+const KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v2\0";
+const HISTORICAL_V1_HEADER_DOMAIN =
+  "shogi-floodgate-v7-teacher-work-header-v1\0";
+const HISTORICAL_V1_KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v1\0";
+const HISTORICAL_V1_CLAIM_BOUNDARY =
+  "accepted-parent-exactly-once-search-at-least-once-trusted-producer-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence";
+const PRODUCER_PARENT_DEADLINE_MS = 60_000;
+const PRODUCER_ABORT_DRAIN_MS = 5_000;
 
 const temporaryRoots: string[] = [];
 
@@ -619,7 +635,16 @@ function completedParentInput(
   parent: Readonly<FloodgateTrainingParent>,
   stableMoveOverride?: string,
 ): Readonly<FloodgateV7CompletedParentInput> {
-  const source = candidateUnionInput(parent, stableMoveOverride);
+  const exactParent = Object.freeze({
+    schema_version: parent.schema_version,
+    game_id: parent.game_id,
+    parent_id: parent.parent_id,
+    position_id: parent.position_id,
+    parent_sfen: parent.parent_sfen,
+    ply: parent.ply,
+    played_move: parent.played_move,
+  });
+  const source = candidateUnionInput(exactParent, stableMoveOverride);
   const union = buildFloodgateV7CandidateUnionCoreForTests(source);
   const row = source.stable;
   return {
@@ -662,6 +687,15 @@ function runBinding(): FloodgateV7TeacherCheckpointRunBinding {
     plan: {
       bytes: FLOODGATE_FRESH_SIBLING_PLAN_BYTES,
       sha256: FLOODGATE_FRESH_SIBLING_PLAN_SHA256,
+    },
+    producer_control: {
+      schema: FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+      parent_deadline_ms: PRODUCER_PARENT_DEADLINE_MS,
+      abort_drain_ms: PRODUCER_ABORT_DRAIN_MS,
+      max_in_flight: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
+      cancel_policy: FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+      late_settlement_policy:
+        FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
     },
     stable_runtime_receipt_sha256: "c".repeat(64),
     teacher_usi_runtime_receipt_sha256: teacherRuntimeReceiptSha256(),
@@ -710,6 +744,13 @@ async function fileHandleSyncPrototype(
   }
 }
 
+function producerController(
+  produce: FloodgateV7TeacherMissingParentProducer,
+  abortAndDrain: () => Promise<void> = async () => undefined,
+): FloodgateV7TeacherProducerController {
+  return { produce, abortAndDrain };
+}
+
 async function runCheckpoint(
   value: CheckpointFixture,
   producer: FloodgateV7TeacherMissingParentProducer = async ({ parent }) =>
@@ -717,6 +758,7 @@ async function runCheckpoint(
   settings: Readonly<{
     readonly training?: TrainingFixture;
     readonly binding?: FloodgateV7TeacherCheckpointRunBinding;
+    readonly controller?: FloodgateV7TeacherProducerController;
     readonly options?: FloodgateV7TeacherCheckpointOptions;
     readonly dependencies?: FloodgateV7TeacherCheckpointDependencies;
   }> = {},
@@ -731,7 +773,7 @@ async function runCheckpoint(
         lease,
         input,
         settings.binding ?? runBinding(),
-        producer,
+        settings.controller ?? producerController(producer),
         settings.options ?? checkpointOptions(),
         settings.dependencies ?? checkpointDependencies(),
       );
@@ -762,6 +804,66 @@ function deferred<T>(): Readonly<{
     reject = decline;
   });
   return Object.freeze({ promise, resolve, reject });
+}
+
+interface ManualProducerTimerRecord {
+  readonly event: Readonly<FloodgateV7TeacherProducerControlTimerEvent>;
+  readonly fire: () => void;
+  cancelled: boolean;
+}
+
+function manualProducerTimers(): Readonly<{
+  readonly records: readonly ManualProducerTimerRecord[];
+  readonly schedule: NonNullable<
+    FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"]
+  >;
+  readonly matching: (
+    phase: FloodgateV7TeacherProducerControlTimerEvent["phase"],
+    inputIndex?: number,
+  ) => ManualProducerTimerRecord;
+}> {
+  const records: ManualProducerTimerRecord[] = [];
+  return Object.freeze({
+    records,
+    schedule: (event, fire) => {
+      const record: ManualProducerTimerRecord = {
+        event,
+        fire,
+        cancelled: false,
+      };
+      records.push(record);
+      return () => {
+        record.cancelled = true;
+      };
+    },
+    matching: (phase, inputIndex) => {
+      const record = records.find(
+        (candidate) =>
+          candidate.event.phase === phase &&
+          (inputIndex === undefined ||
+            candidate.event.input_index === inputIndex),
+      );
+      if (record === undefined) {
+        throw new Error(
+          `missing manual producer timer ${phase}:${String(inputIndex)}`,
+        );
+      }
+      return record;
+    },
+  });
+}
+
+function errorChain(value: unknown): unknown[] {
+  const values: unknown[] = [];
+  const seen = new Set<unknown>();
+  let current = value;
+  while (current instanceof Error && !seen.has(current)) {
+    values.push(current);
+    seen.add(current);
+    current = current.cause;
+  }
+  if (current !== undefined) values.push(current);
+  return values;
 }
 
 function hmacForRecord(
@@ -849,6 +951,96 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
         1,
       ),
     ).toThrow(/at least 1/);
+  });
+
+  it("captures producer-control timers only across Node's exact supported millisecond range", async () => {
+    for (const milliseconds of [
+      1,
+      FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_MAX_TIMER_MS,
+    ]) {
+      const value = await fixture(
+        forcedRows(40 + (milliseconds === 1 ? 0 : 1)),
+      );
+      const timers = manualProducerTimers();
+      const binding = runBinding();
+      const receipt = await runCheckpoint(value, undefined, {
+        binding: {
+          ...binding,
+          producer_control: {
+            ...binding.producer_control,
+            parent_deadline_ms: milliseconds,
+            abort_drain_ms: milliseconds,
+          },
+        },
+        dependencies: checkpointDependencies({
+          scheduleProducerControlTimerForTests: timers.schedule,
+        }),
+      });
+
+      expect(timers.matching("parent-deadline", 0).event.milliseconds).toBe(
+        milliseconds,
+      );
+      expect(timers.matching("parent-deadline", 0).cancelled).toBe(true);
+      expect(receipt.work.completed_parents).toBe(1);
+      expect(
+        (
+          parsedWork(value)[0].run_binding as {
+            producer_control: {
+              parent_deadline_ms: number;
+              abort_drain_ms: number;
+            };
+          }
+        ).producer_control,
+      ).toMatchObject({
+        parent_deadline_ms: milliseconds,
+        abort_drain_ms: milliseconds,
+      });
+    }
+
+    for (const [field, milliseconds] of [
+      ["parent_deadline_ms", 0],
+      [
+        "parent_deadline_ms",
+        FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_MAX_TIMER_MS + 1,
+      ],
+      ["parent_deadline_ms", Number.MAX_SAFE_INTEGER],
+      ["abort_drain_ms", 0],
+      [
+        "abort_drain_ms",
+        FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_MAX_TIMER_MS + 1,
+      ],
+      ["abort_drain_ms", Number.MAX_SAFE_INTEGER],
+    ] as const) {
+      const value = await fixture(forcedRows(42));
+      const binding = runBinding();
+      let producerCalls = 0;
+      let abortAndDrainCalls = 0;
+      await expect(
+        runCheckpoint(value, undefined, {
+          binding: {
+            ...binding,
+            producer_control: {
+              ...binding.producer_control,
+              [field]: milliseconds,
+            },
+          },
+          controller: producerController(
+            async ({ parent }) => {
+              producerCalls += 1;
+              return completedParentInput(parent);
+            },
+            async () => {
+              abortAndDrainCalls += 1;
+            },
+          ),
+        }),
+      ).rejects.toThrow(
+        milliseconds === 0 ? /at least 1/ : /at most 2147483647/,
+      );
+      expect(producerCalls).toBe(0);
+      expect(abortAndDrainCalls).toBe(0);
+      expect(fs.existsSync(workPath(value))).toBe(false);
+    }
   });
 
   it("writes a private canonical parent chain in exact authenticated input order without touching a holdout sentinel", async () => {
@@ -1117,6 +1309,125 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     ).rejects.toThrow();
     expect(await fs.promises.readFile(workPath(otherStage))).toEqual(copied);
     expect(producerCalls).toBe(0);
+  });
+
+  it("authenticates producer_control and rejects a resume with a changed parent deadline before production", async () => {
+    const value = await fixture(forcedRows(35));
+    await runCheckpoint(value);
+    const before = await fs.promises.readFile(workPath(value));
+    const binding = runBinding();
+    let producerCalls = 0;
+
+    await expect(
+      runCheckpoint(
+        value,
+        async () => {
+          producerCalls += 1;
+          throw new Error("mismatched producer control must not produce");
+        },
+        {
+          binding: {
+            ...binding,
+            producer_control: {
+              ...binding.producer_control,
+              parent_deadline_ms:
+                binding.producer_control.parent_deadline_ms + 1,
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow(
+      "work header is not the exact authenticated expected line",
+    );
+    expect(producerCalls).toBe(0);
+    expect(await fs.promises.readFile(workPath(value))).toEqual(before);
+  });
+
+  it("rejects a historical v1 work.jsonl byte-for-byte without invoking either producer capability", async () => {
+    const value = await fixture(forcedRows(43));
+    await runCheckpoint(value);
+    const currentHeader = parsedWork(value)[0];
+    const currentRunBinding = currentHeader.run_binding as Record<
+      string,
+      unknown
+    >;
+    const historicalRunBindingProjection = { ...currentRunBinding };
+    Reflect.deleteProperty(historicalRunBindingProjection, "producer_control");
+    historicalRunBindingProjection.schema =
+      "shogi-floodgate-v7-teacher-run-binding-v1";
+    const historicalRunBinding = Object.freeze(historicalRunBindingProjection);
+    const unsignedHistoricalHeader = Object.freeze({
+      ...currentHeader,
+      algorithm: "hmac-sha256-hkdf-sha256-v7-parent-chain-v1",
+      claim_boundary: HISTORICAL_V1_CLAIM_BOUNDARY,
+      header_mac: "",
+      run_binding: historicalRunBinding,
+      schema: "shogi-floodgate-v7-teacher-work-v1",
+    });
+    const historicalRootKey = rootKey();
+    const historicalSalt = Buffer.from(RUN_ID, "hex");
+    const historicalDerivedKey = Buffer.from(
+      hkdfSync(
+        "sha256",
+        historicalRootKey,
+        historicalSalt,
+        Buffer.from(HISTORICAL_V1_KEY_INFO),
+        32,
+      ),
+    );
+    let historicalV1: Buffer;
+    try {
+      const historicalHeader = Object.freeze({
+        ...unsignedHistoricalHeader,
+        header_mac: hmacForRecord(
+          historicalDerivedKey,
+          HISTORICAL_V1_HEADER_DOMAIN,
+          unsignedHistoricalHeader,
+          "header_mac",
+        ),
+      });
+      expect(Object.isFrozen(historicalHeader)).toBe(true);
+      expect(Object.isFrozen(historicalHeader.run_binding)).toBe(true);
+      expect(Object.keys(historicalHeader).sort()).toEqual(
+        Object.keys(currentHeader).sort(),
+      );
+      expect("producer_control" in historicalHeader.run_binding).toBe(false);
+      expect(historicalHeader.header_mac).toBe(
+        hmacForRecord(
+          historicalDerivedKey,
+          HISTORICAL_V1_HEADER_DOMAIN,
+          historicalHeader,
+          "header_mac",
+        ),
+      );
+      historicalV1 = Buffer.from(`${canonicalJson(historicalHeader)}\n`);
+    } finally {
+      historicalDerivedKey.fill(0);
+      historicalSalt.fill(0);
+      historicalRootKey.fill(0);
+    }
+    await fs.promises.writeFile(workPath(value), historicalV1);
+    await fs.promises.chmod(workPath(value), 0o600);
+    let producerCalls = 0;
+    let abortAndDrainCalls = 0;
+
+    await expect(
+      runCheckpoint(value, undefined, {
+        controller: producerController(
+          async ({ parent }) => {
+            producerCalls += 1;
+            return completedParentInput(parent);
+          },
+          async () => {
+            abortAndDrainCalls += 1;
+          },
+        ),
+      }),
+    ).rejects.toThrow();
+
+    expect(producerCalls).toBe(0);
+    expect(abortAndDrainCalls).toBe(0);
+    expect(await fs.promises.readFile(workPath(value))).toEqual(historicalV1);
   });
 
   it("rejects duplicate, reordered, post-seal, and fully re-signed wrong-parent records without changing them", async () => {
@@ -1582,6 +1893,122 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     ]);
   });
 
+  it.each(["produce", "abortAndDrain"] as const)(
+    "best-effort observes a decorated rejecting native Promise returned by %s without trusting its species result",
+    async (capability) => {
+      const value = await fixture(
+        forcedRows(capability === "produce" ? 49 : 50),
+      );
+      const primary = new Error(
+        `synthetic ${capability} decorated-Promise primary failure`,
+      );
+      const abandonedRejection = new Error(
+        `synthetic ${capability} decorated-Promise rejection`,
+      );
+      const originalSpecies = Object.getOwnPropertyDescriptor(
+        Promise,
+        Symbol.species,
+      );
+      const restoreSpecies = (): void => {
+        if (originalSpecies === undefined) {
+          Reflect.deleteProperty(Promise, Symbol.species);
+        } else {
+          Object.defineProperty(Promise, Symbol.species, originalSpecies);
+        }
+      };
+      let speciesConstructions = 0;
+      let substituteThenCalls = 0;
+      function SubstitutingSpecies(
+        this: unknown,
+        executor: (
+          resolve: (value: unknown) => void,
+          reject: (reason?: unknown) => void,
+        ) => void,
+      ): object {
+        speciesConstructions += 1;
+        executor(
+          () => undefined,
+          () => undefined,
+        );
+        return {
+          then(resolve: (value: unknown) => void): void {
+            substituteThenCalls += 1;
+            resolve("forged decorated-Promise species result");
+          },
+        };
+      }
+      const decoratedRejectingPromise = <T>(): Promise<T> => {
+        const promise = Promise.reject<T>(abandonedRejection);
+        Object.defineProperty(promise, "trace_id", {
+          configurable: true,
+          value: `trace-${capability}`,
+        });
+        Object.defineProperty(Promise, Symbol.species, {
+          configurable: true,
+          value: SubstitutingSpecies,
+        });
+        queueMicrotask(restoreSpecies);
+        return promise;
+      };
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown): void => {
+        unhandled.push(reason);
+      };
+      let pending: ReturnType<typeof runCheckpoint> | undefined;
+      process.on("unhandledRejection", onUnhandled);
+
+      try {
+        pending = runCheckpoint(value, undefined, {
+          controller:
+            capability === "produce"
+              ? producerController(() =>
+                  decoratedRejectingPromise<
+                    Readonly<FloodgateV7CompletedParentInput>
+                  >(),
+                )
+              : producerController(
+                  async () => {
+                    throw primary;
+                  },
+                  () => decoratedRejectingPromise<void>(),
+                ),
+        });
+        const error = await pending.then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+
+        expect(error).toBeInstanceOf(
+          FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+        );
+        const cleanup = errorChain(error).find(
+          (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+        ) as FloodgateV7TeacherProducerCleanupError | undefined;
+        const surfaced = [
+          ...errorChain(error),
+          ...(cleanup?.cleanupFailure.errors ?? []),
+        ];
+        expect(
+          surfaced.some((entry) =>
+            String(entry).includes("must return an exact native Promise"),
+          ),
+        ).toBe(true);
+        if (capability === "abortAndDrain") {
+          expect(cleanup?.primary).toBe(primary);
+          expect(cleanup?.cause).toBe(primary);
+        }
+        expect(speciesConstructions).toBeGreaterThan(0);
+        expect(substituteThenCalls).toBe(0);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(unhandled).toEqual([]);
+      } finally {
+        restoreSpecies();
+        if (pending !== undefined) await Promise.allSettled([pending]);
+        process.off("unhandledRejection", onUnhandled);
+      }
+    },
+  );
+
   it("isolates its copied key from caller mutation and never zeroizes or serializes the caller view", async () => {
     const value = await fixture(forcedRows());
     const callerKey = rootKey();
@@ -1634,64 +2061,648 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       }
     });
 
-    await vi.waitFor(
-      () => {
+    try {
+      await vi.waitFor(
+        () => {
+          expect(requested).toEqual(
+            Array.from(
+              { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT },
+              (_entry, index) => index,
+            ),
+          );
+        },
+        { timeout: 10_000 },
+      );
+      expect(active).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT);
+      for (
+        let index = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1;
+        index >= 1;
+        index -= 1
+      ) {
+        gates[index].resolve(undefined);
+      }
+      await vi.waitFor(
+        () => {
+          expect(completed).toEqual(
+            Array.from(
+              { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1 },
+              (_entry, offset) =>
+                FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1 - offset,
+            ),
+          );
+        },
+        { timeout: 10_000 },
+      );
+
+      gates[0].resolve(undefined);
+      await vi.waitFor(
+        () => {
+          expect(requested).toEqual(
+            Array.from({ length: count }, (_entry, index) => index),
+          );
+        },
+        { timeout: 10_000 },
+      );
+      gates[count - 1].resolve(undefined);
+      await pending;
+
+      expect(maximumActive).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT);
+      expect(maximumActive).toBeGreaterThan(1);
+      expect(active).toBe(0);
+      expect(
+        parsedWork(value)
+          .filter((record) => record.kind === "completed-parent")
+          .map((record) => record.input_index),
+      ).toEqual(Array.from({ length: count }, (_entry, index) => index));
+      expect(
+        parsedWork(value)
+          .filter((record) => record.kind === "completed-parent")
+          .map((record) => record.parent_id),
+      ).toEqual(value.training.rawRows.map((row) => row.parent_id));
+    } finally {
+      for (const gate of gates) gate.resolve(undefined);
+      await Promise.allSettled([pending]);
+    }
+  }, 30_000);
+
+  it("makes a fulfilled parent deadline timer permanently inert", async () => {
+    const value = await fixture(forcedRows(36));
+    const timers = manualProducerTimers();
+    let abortEvents = 0;
+    let abortAndDrainCalls = 0;
+    const receipt = await runCheckpoint(value, undefined, {
+      controller: producerController(
+        async ({ parent, signal }) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              abortEvents += 1;
+            },
+            { once: true },
+          );
+          return completedParentInput(parent);
+        },
+        async () => {
+          abortAndDrainCalls += 1;
+        },
+      ),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: timers.schedule,
+      }),
+    });
+    const deadline = timers.matching("parent-deadline", 0);
+
+    expect(deadline.cancelled).toBe(true);
+    deadline.fire();
+    await Promise.resolve();
+    expect(abortEvents).toBe(0);
+    expect(abortAndDrainCalls).toBe(0);
+    expect(receipt.work.completed_parents).toBe(1);
+    expect(parsedWork(value).map((record) => record.kind)).toEqual([
+      "header",
+      "completed-parent",
+      "seal",
+    ]);
+  });
+
+  it.each([
+    ["synchronous throw", "sync-error"],
+    ["synchronous throw undefined", "sync-undefined"],
+    ["non-Promise return", "invalid-return"],
+    ["Promise rejection", "reject-error"],
+    ["Promise rejection undefined", "reject-undefined"],
+  ] as const)(
+    "surfaces abortAndDrain %s as aggregate cleanup failure without replacing the first producer cause",
+    async (_label, mode) => {
+      const value = await fixture(forcedRows(44));
+      const primary = new Error(`synthetic primary producer failure: ${mode}`);
+      const abortFailure = mode.endsWith("undefined")
+        ? undefined
+        : new Error(`synthetic abortAndDrain failure: ${mode}`);
+      let abortAndDrainCalls = 0;
+      const abortAndDrain = (): Promise<void> => {
+        abortAndDrainCalls += 1;
+        if (mode === "sync-error" || mode === "sync-undefined") {
+          throw abortFailure;
+        }
+        if (mode === "invalid-return") return 42 as never;
+        return Promise.reject(abortFailure);
+      };
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown): void => {
+        unhandled.push(reason);
+      };
+      process.on("unhandledRejection", onUnhandled);
+      const pending = runCheckpoint(value, undefined, {
+        controller: producerController(async () => {
+          throw primary;
+        }, abortAndDrain),
+      });
+      const observed = pending.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      try {
+        const error = await observed;
+        expect(error).toBeInstanceOf(
+          FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+        );
+        const cleanup = errorChain(error).find(
+          (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+        ) as FloodgateV7TeacherProducerCleanupError | undefined;
+        expect(cleanup).toBeDefined();
+        expect(cleanup?.primary).toBe(primary);
+        expect(cleanup?.cause).toBe(primary);
+        expect(cleanup?.cleanupFailure).toBeInstanceOf(AggregateError);
+        expect(cleanup?.cleanupFailure.cause).toBe(primary);
+        expect(cleanup?.cleanupFailure.errors).toHaveLength(1);
+        const surfacedAbortFailure = cleanup?.cleanupFailure.errors[0];
+        expect(surfacedAbortFailure).toBeInstanceOf(Error);
+        if (mode === "invalid-return") {
+          expect(String(surfacedAbortFailure)).toMatch(/exact native Promise/);
+        } else {
+          expect((surfacedAbortFailure as Error).cause).toBe(abortFailure);
+        }
+        expect(abortAndDrainCalls).toBe(1);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(unhandled).toEqual([]);
+      } finally {
+        await Promise.allSettled([pending]);
+        process.off("unhandledRejection", onUnhandled);
+      }
+    },
+  );
+
+  it("preserves the exact first producer cause when abortAndDrain and every raw producer drain cleanly", async () => {
+    const value = await fixture(forcedRows(45));
+    const primary = new Error("synthetic clean-drain primary failure");
+    let abortAndDrainCalls = 0;
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(
+        async () => {
+          throw primary;
+        },
+        async () => {
+          abortAndDrainCalls += 1;
+        },
+      ),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      const error = await observed;
+      expect(error).toBeInstanceOf(
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+      );
+      expect((error as Error).cause).toBe(primary);
+      expect(
+        errorChain(error).some(
+          (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+        ),
+      ).toBe(false);
+      expect(abortAndDrainCalls).toBe(1);
+    } finally {
+      await Promise.allSettled([pending]);
+    }
+  });
+
+  it("surfaces abort-drain timer setup failure with the first producer cause intact", async () => {
+    const value = await fixture(forcedRows(46));
+    const drain = deferred<void>();
+    const primary = new Error("synthetic timer-setup primary failure");
+    const timerSetupFailure = new Error(
+      "synthetic abort-drain timer setup failure",
+    );
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(
+        async () => {
+          throw primary;
+        },
+        () => drain.promise,
+      ),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: (event) => {
+          if (event.phase === "abort-drain") throw timerSetupFailure;
+          return () => undefined;
+        },
+      }),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      const error = await observed;
+      const cleanup = errorChain(error).find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+      ) as FloodgateV7TeacherProducerCleanupError | undefined;
+      expect(cleanup?.primary).toBe(primary);
+      expect(cleanup?.cleanupFailure.errors).toHaveLength(1);
+      expect((cleanup?.cleanupFailure.errors[0] as Error).cause).toBe(
+        timerSetupFailure,
+      );
+    } finally {
+      drain.resolve(undefined);
+      await Promise.allSettled([pending]);
+    }
+  });
+
+  it("surfaces abort-drain timer cancellation failure while a reentrant fire remains inert", async () => {
+    const value = await fixture(forcedRows(51));
+    const drain = deferred<void>();
+    const primary = new Error("synthetic cancellation primary failure");
+    const cancellationFailure = new Error(
+      "synthetic abort-drain timer cancellation failure",
+    );
+    let abortScheduleCalls = 0;
+    let cancellationCalls = 0;
+    let reentrantFireAttempts = 0;
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(
+        async () => {
+          throw primary;
+        },
+        () => drain.promise,
+      ),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: (event, fire) => {
+          if (event.phase === "parent-deadline") return () => undefined;
+          abortScheduleCalls += 1;
+          return () => {
+            cancellationCalls += 1;
+            reentrantFireAttempts += 1;
+            fire();
+            throw cancellationFailure;
+          };
+        },
+      }),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(abortScheduleCalls).toBe(1);
+      });
+      drain.resolve(undefined);
+      const error = await observed;
+      const cleanup = errorChain(error).find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+      ) as FloodgateV7TeacherProducerCleanupError | undefined;
+      expect(cleanup?.primary).toBe(primary);
+      expect(cleanup?.cause).toBe(primary);
+      expect(cleanup?.cleanupFailure.errors).toHaveLength(1);
+      const cancellationError = cleanup?.cleanupFailure.errors[0] as Error;
+      expect(cancellationError.message).toMatch(/timer cancellation failed/);
+      expect(cancellationError.cause).toBe(cancellationFailure);
+      expect(
+        cleanup?.cleanupFailure.errors.some(
+          (entry) => entry instanceof FloodgateV7TeacherAbortDrainTimeoutError,
+        ),
+      ).toBe(false);
+      expect(cancellationCalls).toBe(1);
+      expect(reentrantFireAttempts).toBe(1);
+    } finally {
+      drain.resolve(undefined);
+      await Promise.allSettled([pending]);
+    }
+  });
+
+  it.each(["return", "throw"] as const)(
+    "keeps synchronous abort-drain timer fire authoritative across hook %s",
+    async (mode) => {
+      const value = await fixture(forcedRows(mode === "return" ? 52 : 53));
+      const drain = deferred<void>();
+      const primary = new Error(`synthetic sync-fire ${mode} primary failure`);
+      const setupFailure = new Error(
+        `synthetic sync-fire ${mode} timer setup failure`,
+      );
+      let abortScheduleCalls = 0;
+      let cancellationCalls = 0;
+      const pending = runCheckpoint(value, undefined, {
+        controller: producerController(
+          async () => {
+            throw primary;
+          },
+          () => drain.promise,
+        ),
+        dependencies: checkpointDependencies({
+          scheduleProducerControlTimerForTests: (event, fire) => {
+            if (event.phase === "parent-deadline") return () => undefined;
+            abortScheduleCalls += 1;
+            fire();
+            if (mode === "throw") throw setupFailure;
+            return () => {
+              cancellationCalls += 1;
+            };
+          },
+        }),
+      });
+      const observed = pending.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      try {
+        const error = await observed;
+        const cleanup = errorChain(error).find(
+          (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+        ) as FloodgateV7TeacherProducerCleanupError | undefined;
+        const timeout = cleanup?.cleanupFailure.errors.find(
+          (entry) => entry instanceof FloodgateV7TeacherAbortDrainTimeoutError,
+        ) as FloodgateV7TeacherAbortDrainTimeoutError | undefined;
+        expect(cleanup?.primary).toBe(primary);
+        expect(timeout).toMatchObject({
+          timeoutMilliseconds: PRODUCER_ABORT_DRAIN_MS,
+          pendingRawProducers: 0,
+          controllerStatus: "pending",
+        });
+        const setupError = cleanup?.cleanupFailure.errors.find(
+          (entry) =>
+            entry instanceof Error &&
+            entry.message.includes("timer setup failed"),
+        ) as Error | undefined;
+        if (mode === "throw") {
+          expect(cleanup?.cleanupFailure.errors).toHaveLength(2);
+          expect(setupError?.cause).toBe(setupFailure);
+        } else {
+          expect(cleanup?.cleanupFailure.errors).toHaveLength(1);
+          expect(setupError).toBeUndefined();
+        }
+        expect(abortScheduleCalls).toBe(1);
+        expect(cancellationCalls).toBe(0);
+      } finally {
+        drain.resolve(undefined);
+        await Promise.allSettled([pending]);
+      }
+    },
+  );
+
+  it("reports an unsettled abortAndDrain controller at the authenticated bound with zero raw producers pending", async () => {
+    const value = await fixture(forcedRows(47));
+    const timers = manualProducerTimers();
+    const drain = deferred<void>();
+    const primary = new Error("synthetic never-drained controller failure");
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(
+        async () => {
+          throw primary;
+        },
+        () => drain.promise,
+      ),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: timers.schedule,
+      }),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(timers.matching("abort-drain")).toBeDefined();
+      });
+      timers.matching("abort-drain").fire();
+      const error = await observed;
+      const cleanup = errorChain(error).find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+      ) as FloodgateV7TeacherProducerCleanupError | undefined;
+      const timeout = cleanup?.cleanupFailure.errors.find(
+        (entry) => entry instanceof FloodgateV7TeacherAbortDrainTimeoutError,
+      ) as FloodgateV7TeacherAbortDrainTimeoutError | undefined;
+      expect(cleanup?.primary).toBe(primary);
+      expect(timeout).toMatchObject({
+        timeoutMilliseconds: PRODUCER_ABORT_DRAIN_MS,
+        pendingRawProducers: 0,
+        controllerStatus: "pending",
+      });
+    } finally {
+      drain.resolve(undefined);
+      for (const timer of timers.records) timer.fire();
+      await Promise.allSettled([pending]);
+    }
+  });
+
+  it("times out a never-settling producer, aborts once, bounds drain, and closes held resources", async () => {
+    const value = await fixture(forcedRows(37));
+    const timers = manualProducerTimers();
+    const raw = deferred<Readonly<FloodgateV7CompletedParentInput>>();
+    const closeKinds: string[] = [];
+    let lateParent: Readonly<FloodgateTrainingParent> | undefined;
+    let abortEvents = 0;
+    let abortAndDrainCalls = 0;
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(
+        ({ parent, signal }) => {
+          lateParent = parent;
+          signal.addEventListener(
+            "abort",
+            () => {
+              abortEvents += 1;
+            },
+            { once: true },
+          );
+          return raw.promise;
+        },
+        async () => {
+          abortAndDrainCalls += 1;
+        },
+      ),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: timers.schedule,
+        closeForTests: async (kind, close) => {
+          await close();
+          closeKinds.push(kind);
+        },
+      }),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(timers.matching("parent-deadline", 0)).toBeDefined();
+      });
+      timers.matching("parent-deadline", 0).fire();
+      await vi.waitFor(() => {
+        expect(abortAndDrainCalls).toBe(1);
+        expect(timers.matching("abort-drain")).toBeDefined();
+      });
+      timers.matching("abort-drain").fire();
+      const error = await observed;
+
+      expect(error).toBeInstanceOf(
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+      );
+      const chain = errorChain(error);
+      const primaryTimeout = chain.find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerTimeoutError,
+      );
+      const cleanup = chain.find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+      ) as FloodgateV7TeacherProducerCleanupError | undefined;
+      const drainTimeout = cleanup?.cleanupFailure.errors.find(
+        (entry) => entry instanceof FloodgateV7TeacherAbortDrainTimeoutError,
+      ) as FloodgateV7TeacherAbortDrainTimeoutError | undefined;
+      expect(primaryTimeout).toBeInstanceOf(
+        FloodgateV7TeacherProducerTimeoutError,
+      );
+      expect(cleanup?.primary).toBe(primaryTimeout);
+      expect(drainTimeout).toMatchObject({
+        timeoutMilliseconds: PRODUCER_ABORT_DRAIN_MS,
+        pendingRawProducers: 1,
+        controllerStatus: "fulfilled",
+      });
+      expect(abortEvents).toBe(1);
+      expect(abortAndDrainCalls).toBe(1);
+      expect(new Set(closeKinds)).toEqual(new Set(["stage", "work"]));
+      expect(parsedWork(value).map((record) => record.kind)).toEqual([
+        "header",
+      ]);
+
+      if (lateParent === undefined)
+        throw new Error("producer parent was not captured");
+      raw.resolve(completedParentInput(lateParent));
+      await Promise.resolve();
+      expect(parsedWork(value).map((record) => record.kind)).toEqual([
+        "header",
+      ]);
+    } finally {
+      raw.resolve(completedParentInput(value.training.rawRows[0]));
+      for (const timer of timers.records) timer.fire();
+      await Promise.allSettled([pending]);
+    }
+  });
+
+  it("preserves the first middle rejection while quarantining never and late settlements without unhandled rejection", async () => {
+    const value = await fixture(
+      sequenceRows(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT + 1, 38),
+    );
+    const timers = manualProducerTimers();
+    const count = value.training.rawRows.length;
+    const gates = Array.from({ length: count }, () =>
+      deferred<Readonly<FloodgateV7CompletedParentInput>>(),
+    );
+    const requested: number[] = [];
+    const parents: FloodgateTrainingParent[] = [];
+    const abortEvents = Array.from({ length: count }, () => 0);
+    const middleFailure = new Error("synthetic middle producer failure");
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    let abortAndDrainCalls = 0;
+    let pending: ReturnType<typeof runCheckpoint> | undefined;
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      pending = runCheckpoint(value, undefined, {
+        controller: producerController(
+          ({ input_index, parent, signal }) => {
+            requested.push(input_index);
+            parents[input_index] = parent;
+            signal.addEventListener(
+              "abort",
+              () => {
+                abortEvents[input_index] += 1;
+              },
+              { once: true },
+            );
+            return gates[input_index].promise;
+          },
+          async () => {
+            abortAndDrainCalls += 1;
+          },
+        ),
+        dependencies: checkpointDependencies({
+          scheduleProducerControlTimerForTests: timers.schedule,
+        }),
+      });
+      const observed = pending.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      await vi.waitFor(() => {
         expect(requested).toEqual(
           Array.from(
             { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT },
             (_entry, index) => index,
           ),
         );
-      },
-      { timeout: 10_000 },
-    );
-    expect(active).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT);
-    for (
-      let index = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1;
-      index >= 1;
-      index -= 1
-    ) {
-      gates[index].resolve(undefined);
+      });
+      gates[5].reject(middleFailure);
+      await vi.waitFor(() => {
+        expect(abortAndDrainCalls).toBe(1);
+        expect(timers.matching("abort-drain")).toBeDefined();
+      });
+      timers.matching("abort-drain").fire();
+      const error = await observed;
+
+      expect(error).toBeInstanceOf(
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+      );
+      expect(errorChain(error)).toContain(middleFailure);
+      expect(requested).toEqual(
+        Array.from(
+          { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT },
+          (_entry, index) => index,
+        ),
+      );
+      expect(abortEvents[5]).toBe(0);
+      expect(
+        abortEvents
+          .slice(0, FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT)
+          .filter((_count, index) => index !== 5),
+      ).toEqual(
+        Array.from(
+          { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1 },
+          () => 1,
+        ),
+      );
+      expect(abortAndDrainCalls).toBe(1);
+      expect(parsedWork(value).map((record) => record.kind)).toEqual([
+        "header",
+      ]);
+
+      gates[0].resolve(42 as never);
+      gates[1].reject(new Error("synthetic quarantined late rejection"));
+      for (
+        let index = 2;
+        index < FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT;
+        index += 1
+      ) {
+        if (index !== 5)
+          gates[index].resolve(completedParentInput(parents[index]));
+      }
+      for (const timer of timers.records) timer.fire();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(unhandled).toEqual([]);
+      expect(abortAndDrainCalls).toBe(1);
+      expect(parsedWork(value).map((record) => record.kind)).toEqual([
+        "header",
+      ]);
+    } finally {
+      for (let inputIndex = 0; inputIndex < gates.length; inputIndex += 1) {
+        const parent =
+          parents[inputIndex] ?? value.training.rawRows[inputIndex];
+        gates[inputIndex].resolve(completedParentInput(parent));
+      }
+      for (const timer of timers.records) timer.fire();
+      if (pending !== undefined) await Promise.allSettled([pending]);
+      process.off("unhandledRejection", onUnhandled);
     }
-    await vi.waitFor(
-      () => {
-        expect(completed).toEqual(
-          Array.from(
-            { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1 },
-            (_entry, offset) =>
-              FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT - 1 - offset,
-          ),
-        );
-      },
-      { timeout: 10_000 },
-    );
-
-    gates[0].resolve(undefined);
-    await vi.waitFor(
-      () => {
-        expect(requested).toEqual(
-          Array.from({ length: count }, (_entry, index) => index),
-        );
-      },
-      { timeout: 10_000 },
-    );
-    gates[count - 1].resolve(undefined);
-    await pending;
-
-    expect(maximumActive).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT);
-    expect(maximumActive).toBeGreaterThan(1);
-    expect(active).toBe(0);
-    expect(
-      parsedWork(value)
-        .filter((record) => record.kind === "completed-parent")
-        .map((record) => record.input_index),
-    ).toEqual(Array.from({ length: count }, (_entry, index) => index));
-    expect(
-      parsedWork(value)
-        .filter((record) => record.kind === "completed-parent")
-        .map((record) => record.parent_id),
-    ).toEqual(value.training.rawRows.map((row) => row.parent_id));
-  }, 30_000);
+  });
 
   it("drains every launched producer after failure without scheduling or appending later parents", async () => {
     const value = await fixture(
@@ -1713,35 +2724,127 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       }
     });
 
-    await vi.waitFor(
-      () => {
-        expect(requested).toHaveLength(
-          FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
-        );
-      },
-      { timeout: 10_000 },
-    );
-    gates[0].reject(new Error("synthetic first-parent failure"));
-    for (
-      let index = 1;
-      index < FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT;
-      index += 1
-    ) {
-      gates[index].resolve(undefined);
-    }
+    try {
+      await vi.waitFor(
+        () => {
+          expect(requested).toHaveLength(
+            FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
+          );
+        },
+        { timeout: 10_000 },
+      );
+      gates[0].reject(new Error("synthetic first-parent failure"));
+      for (
+        let index = 1;
+        index < FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT;
+        index += 1
+      ) {
+        gates[index].resolve(undefined);
+      }
 
-    await expect(pending).rejects.toBeInstanceOf(
-      FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
-    );
-    expect(active).toBe(0);
-    expect(requested).toEqual(
-      Array.from(
-        { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT },
-        (_entry, index) => index,
-      ),
-    );
-    expect(parsedWork(value).map((record) => record.kind)).toEqual(["header"]);
+      await expect(pending).rejects.toBeInstanceOf(
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+      );
+      expect(active).toBe(0);
+      expect(requested).toEqual(
+        Array.from(
+          { length: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT },
+          (_entry, index) => index,
+        ),
+      );
+      expect(parsedWork(value).map((record) => record.kind)).toEqual([
+        "header",
+      ]);
+    } finally {
+      for (const gate of gates) gate.resolve(undefined);
+      await Promise.allSettled([pending]);
+    }
   }, 30_000);
+
+  it("keeps a durable prefix resumable under the same binding after producer and raw-drain timeout", async () => {
+    const value = await fixture(sequenceRows(2, 48));
+    const timers = manualProducerTimers();
+    const late = deferred<Readonly<FloodgateV7CompletedParentInput>>();
+    const firstRunCalls: number[] = [];
+    let lateParent: Readonly<FloodgateTrainingParent> | undefined;
+    const pending = runCheckpoint(value, undefined, {
+      controller: producerController(async ({ input_index, parent }) => {
+        firstRunCalls.push(input_index);
+        if (input_index === 0) return completedParentInput(parent);
+        lateParent = parent;
+        return late.promise;
+      }),
+      dependencies: checkpointDependencies({
+        scheduleProducerControlTimerForTests: timers.schedule,
+      }),
+    });
+    const observed = pending.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          parsedWork(value).filter(
+            (record) => record.kind === "completed-parent",
+          ),
+        ).toHaveLength(1);
+        expect(timers.matching("parent-deadline", 1)).toBeDefined();
+      });
+      timers.matching("parent-deadline", 1).fire();
+      await vi.waitFor(() => {
+        expect(timers.matching("abort-drain")).toBeDefined();
+      });
+      timers.matching("abort-drain").fire();
+      const error = await observed;
+      const cleanup = errorChain(error).find(
+        (entry) => entry instanceof FloodgateV7TeacherProducerCleanupError,
+      ) as FloodgateV7TeacherProducerCleanupError | undefined;
+      const drainTimeout = cleanup?.cleanupFailure.errors.find(
+        (entry) => entry instanceof FloodgateV7TeacherAbortDrainTimeoutError,
+      ) as FloodgateV7TeacherAbortDrainTimeoutError | undefined;
+      expect(drainTimeout).toMatchObject({
+        pendingRawProducers: 1,
+        controllerStatus: "fulfilled",
+      });
+      expect(
+        parsedWork(value)
+          .filter((record) => record.kind === "completed-parent")
+          .map((record) => record.input_index),
+      ).toEqual([0]);
+      const durablePrefix = await fs.promises.readFile(workPath(value));
+
+      if (lateParent === undefined)
+        throw new Error("late producer parent was not captured");
+      late.resolve(completedParentInput(lateParent));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(await fs.promises.readFile(workPath(value))).toEqual(
+        durablePrefix,
+      );
+
+      const resumedCalls: number[] = [];
+      const receipt = await runCheckpoint(
+        value,
+        async ({ input_index, parent }) => {
+          resumedCalls.push(input_index);
+          return completedParentInput(parent);
+        },
+      );
+      expect(receipt.work.resumed_parents).toBe(1);
+      expect(resumedCalls).toEqual([1]);
+      expect(
+        parsedWork(value)
+          .filter((record) => record.kind === "completed-parent")
+          .map((record) => record.input_index),
+      ).toEqual([0, 1]);
+      expect(firstRunCalls).toEqual([0, 1]);
+    } finally {
+      late.resolve(completedParentInput(value.training.rawRows[1]));
+      for (const timer of timers.records) timer.fire();
+      await Promise.allSettled([pending]);
+    }
+  });
 
   it("resumes from the exact durable cursor and schedules only the missing rolling window", async () => {
     const value = await fixture(

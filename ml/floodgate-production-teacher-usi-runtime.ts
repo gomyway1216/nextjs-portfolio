@@ -247,6 +247,7 @@ const MODE_MASK = BigInt(0o7777);
 const FILE_TYPE_MASK = BigInt(0o170000);
 const FILE_TYPE_REGULAR = BigInt(0o100000);
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CANONICAL_RECEIPT_KEY_RE = /^[\u0020-\u007e]+$/;
 const TEACHER_RUNTIME_RECEIPT_DIGEST_DOMAIN =
   "shogi-floodgate-v7-runtime-receipt-v1\0";
 const NativeWeakMap = WeakMap;
@@ -315,10 +316,14 @@ function canonicalRuntimeReceiptJson(value: unknown): string {
   if (typeof value !== "object")
     throw new Error("runtime receipt canonical JSON rejects this value");
   const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort((left, right) =>
-      Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
-    )
+  const keys = Object.keys(record);
+  if (keys.some((key) => !CANONICAL_RECEIPT_KEY_RE.test(key)))
+    throw new Error("runtime receipt canonical JSON requires ASCII keys");
+  // UTF-16 lexical and UTF-8 bytewise order are identical for accepted ASCII
+  // schema keys, avoiding per-comparison Buffer allocation without changing
+  // the existing digest domain or canonical bytes.
+  return `{${keys
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
     .map(
       (key) =>
         `${JSON.stringify(key)}:${canonicalRuntimeReceiptJson(record[key])}`,

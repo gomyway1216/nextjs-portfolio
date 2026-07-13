@@ -25,6 +25,8 @@ import {
   FloodgateProductionStableWasmRuntimeError,
   createFloodgateProductionStableWasmRuntime,
   createFloodgateProductionStableWasmRuntimeCoreForTests,
+  getFloodgateProductionStableWasmRuntimeReceiptDigest,
+  getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests,
   type FloodgateProductionStableWasmRuntimeCoreDependencies,
 } from "../../../ml/floodgate-production-stable-wasm-runtime";
 import type { FloodgateTrainingParent } from "../../../ml/floodgate-training-row-consumer";
@@ -271,6 +273,8 @@ function assetProvider(
   options: {
     readonly replaceResult?: boolean;
     readonly callTwice?: boolean;
+    readonly onResult?: (value: unknown) => void;
+    readonly afterResult?: () => void;
   } = {},
 ): TestAssetProvider {
   return async <TResult>(
@@ -281,7 +285,9 @@ function assetProvider(
   ): Promise<TResult> => {
     try {
       const result = await callback(fixture.assets);
+      options.onResult?.(result);
       if (options.callTwice) await callback(fixture.assets);
+      options.afterResult?.();
       if (options.replaceResult) return nullRecord({}) as TResult;
       return result;
     } finally {
@@ -472,6 +478,146 @@ describe("Floodgate production stable-WASM runtime", () => {
     ).rejects.toMatchObject({ phase: "capture" });
   });
 
+  it("authorizes a receipt digest only for the exact boundary facade without proposing", async () => {
+    expect(getFloodgateProductionStableWasmRuntimeReceiptDigest.length).toBe(1);
+    expect(
+      getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests.length,
+    ).toBe(1);
+
+    const fixture = assetFixture();
+    const state = controls();
+    const runtime =
+      await createFloodgateProductionStableWasmRuntimeCoreForTests({
+        assetProvider: assetProvider(fixture),
+        poolFactory: poolFactory(state),
+      });
+    const productionGetter =
+      getFloodgateProductionStableWasmRuntimeReceiptDigest as unknown as (
+        ...values: unknown[]
+      ) => string;
+    const testGetter =
+      getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests as unknown as (
+        ...values: unknown[]
+      ) => string;
+
+    expect(state.proposeCalls).toBe(0);
+    const digest = testGetter(runtime);
+    expect(digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(state.proposeCalls).toBe(0);
+
+    const clone = nullRecord({
+      receipt: runtime.receipt,
+      propose: runtime.propose,
+      close: runtime.close,
+    });
+    let proxyTrapCalls = 0;
+    const proxy = new Proxy(runtime, {
+      get() {
+        proxyTrapCalls += 1;
+        throw new Error("runtime Proxy getter must remain unused");
+      },
+      ownKeys() {
+        proxyTrapCalls += 1;
+        throw new Error("runtime Proxy ownKeys must remain unused");
+      },
+    });
+    for (const invalid of [clone, proxy, runtime.receipt]) {
+      expect(() => testGetter(invalid)).toThrow(
+        /exact factory-issued runtime facade/,
+      );
+    }
+    expect(proxyTrapCalls).toBe(0);
+    expect(() => productionGetter(runtime)).toThrow(
+      /exact factory-issued runtime facade/,
+    );
+    expect(() => testGetter()).toThrow(/accepts exactly one argument/);
+    expect(() => productionGetter()).toThrow(/accepts exactly one argument/);
+    expect(() => testGetter(runtime, "extra")).toThrow(
+      /accepts exactly one argument/,
+    );
+    expect(() => productionGetter(runtime, "extra")).toThrow(
+      /accepts exactly one argument/,
+    );
+
+    const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(
+      Reflect,
+      "apply",
+    );
+    if (reflectApplyDescriptor === undefined) {
+      throw new Error("Reflect.apply descriptor is required");
+    }
+    let registeredWithPoisonedReflect: unknown;
+    let forgedWithPoisonedReflect: unknown;
+    try {
+      Object.defineProperty(Reflect, "apply", {
+        ...reflectApplyDescriptor,
+        value: () => "a".repeat(64),
+      });
+      registeredWithPoisonedReflect = testGetter(runtime);
+      try {
+        productionGetter(Object.freeze({}));
+        forgedWithPoisonedReflect = "unexpected digest authority success";
+      } catch (failure) {
+        forgedWithPoisonedReflect = failure;
+      }
+    } finally {
+      Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+    }
+    expect(registeredWithPoisonedReflect).toBe(digest);
+    expect(forgedWithPoisonedReflect).toBeInstanceOf(Error);
+    expect(String(forgedWithPoisonedReflect)).toMatch(
+      /exact factory-issued runtime facade/,
+    );
+
+    const result = await runtime.propose(parent());
+    expect(state.proposeCalls).toBe(1);
+    expect(result.runtime_binding.runtime_receipt_sha256).toBe(digest);
+    expect(testGetter(runtime)).toBe(digest);
+    await runtime.close();
+  });
+
+  it("promotes the same captured digest only after the entire provider succeeds", async () => {
+    const fixture = assetFixture();
+    const state = controls();
+    const stringifyDescriptor = Object.getOwnPropertyDescriptor(
+      JSON,
+      "stringify",
+    );
+    if (stringifyDescriptor === undefined) {
+      throw new Error("JSON.stringify descriptor is required");
+    }
+    let runtime:
+      | Awaited<
+          ReturnType<
+            typeof createFloodgateProductionStableWasmRuntimeCoreForTests
+          >
+        >
+      | undefined;
+    try {
+      runtime = await createFloodgateProductionStableWasmRuntimeCoreForTests({
+        assetProvider: assetProvider(fixture, {
+          afterResult: () => {
+            Object.defineProperty(JSON, "stringify", {
+              ...stringifyDescriptor,
+              value: () => '"caller-mutated canonical JSON"',
+            });
+          },
+        }),
+        poolFactory: poolFactory(state),
+      });
+    } finally {
+      Object.defineProperty(JSON, "stringify", stringifyDescriptor);
+    }
+    if (runtime === undefined)
+      throw new Error("runtime factory did not return");
+    const digest =
+      getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests(runtime);
+    const result = await runtime.propose(parent());
+    expect(result.runtime_binding.runtime_receipt_sha256).toBe(digest);
+    expect(state.proposeCalls).toBe(1);
+    await runtime.close();
+  });
+
   it("fixes all production options, binds receipts, zeroizes handoff copies, and returns deep-frozen data", async () => {
     const fixture = assetFixture();
     const state = controls();
@@ -581,13 +727,27 @@ describe("Floodgate production stable-WASM runtime", () => {
 
     const replaced = assetFixture();
     const second = controls();
+    let facadeFromRejectedFactory: unknown;
     await expect(
       createFloodgateProductionStableWasmRuntimeCoreForTests({
-        assetProvider: assetProvider(replaced, { replaceResult: true }),
+        assetProvider: assetProvider(replaced, {
+          replaceResult: true,
+          onResult: (value) => {
+            facadeFromRejectedFactory = value;
+          },
+        }),
         poolFactory: poolFactory(second),
       }),
     ).rejects.toBeInstanceOf(FloodgateProductionStableWasmRuntimeError);
     expect(second.closeCalls).toBe(1);
+    expect(facadeFromRejectedFactory).toBeDefined();
+    expect(() =>
+      (
+        getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests as unknown as (
+          value: unknown,
+        ) => string
+      )(facadeFromRejectedFactory),
+    ).toThrow(/exact factory-issued runtime facade/);
 
     const multiple = assetFixture();
     const third = controls();

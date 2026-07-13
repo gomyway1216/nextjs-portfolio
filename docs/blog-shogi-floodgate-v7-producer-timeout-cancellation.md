@@ -1,5 +1,7 @@
 # v7 producer timeout・cancellationとUSI process回収をboundedに閉じる
 
+> **runtime digest authority update（現在の境界）:** stable / teacher production factoryのexact facadeをmodule-private registryへ登録し、plain receiptのSHA-256では代用できないorigin checkを追加した。production / test registryは分離し、clone、Proxy、plain object、別registry、誤arityをfail closedにする。schema / digest domainは変更していない。ただし、Attempt 6は引き続きtest-only synthetic scanner evidenceで、新authorityが遡ってofficial receiptやproduction originを与えることはない。production coordinator / all-settled owning adapterとcheckpoint配線も未実装である。詳細は[runtime digest authority](./blog-shogi-floodgate-production-runtime-digest-authority.md)を参照する。以下の本文・表はauthority追加前のhistorical recordとして残し、key、real label、training、weight、A/B、live、棋力を主張しない。
+
 > [v7 incremental checkpoint scanner](./blog-shogi-floodgate-v7-incremental-checkpoint-scan.md)は、24,000親のwork streamをfile sizeに比例するscanner bufferなしで再検証できるようにした。しかし、producerのraw Promiseが永遠にsettleしなければ、`Promise.allSettled`もcheckpointも永遠に終わらない。この変更ではcheckpointをv2へ上げ、親ごとのdeadline、first-terminal cancellation、bounded abort drainを認証対象にし、[production teacher USI runtime](./blog-shogi-floodgate-production-teacher-usi-runtime.md)へprocess-group reapとprivate snapshot cleanupを持たせた。synthetic v2 24,000-parent scan-loadは完了したが、official receipt、production coordinator、real label、training、weight、対局、棋力の証拠ではない。English version: [blog-shogi-floodgate-v7-producer-timeout-cancellation.en.md](./blog-shogi-floodgate-v7-producer-timeout-cancellation.en.md)
 
 ---

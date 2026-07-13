@@ -1,5 +1,7 @@
 # stable候補をproduction capabilityとして発行する固定WASM runtime
 
+> **digest authority update（現在の境界）:** production / test stable runtime factoryは、発行したexact facadeとreceipt digestを別々のmodule-private `WeakMap`へ登録する。production / test getterはそれぞれexact 1引数だけを受け、clone、Proxy、plain receipt、別registryのfacadeを拒否し、proposalを実行せずに登録済みdigestを返す。plain receiptから同じSHA-256を計算できること自体はproduction origin authorityではない。既存receipt / result schemaと`shogi-floodgate-production-stable-runtime-receipt-v1\0` domainは変更していない。詳細は[runtime digest authority](./blog-shogi-floodgate-production-runtime-digest-authority.md)に分離した。以下の本文はdigest authority追加前のhistorical recordとして残し、coordinator、checkpoint配線、real label、training、weight、live、棋力を主張しない。
+
 > [production asset authority](./blog-shogi-floodgate-production-teacher-asset-authority.md)はstable WASM / weights / workerの実在bytesを固定し、[stable proposer](./blog-shogi-floodgate-stable-wasm-proposer.md)は探索結果からstable候補rowを組み立てた。しかし従来のproposer / poolはdependency-injected test coreであり、完成済みrowだけを見ても「固定production assetから実行された」とは言えなかった。このPRはzero-argument production factory、ephemeral asset callback内で初期化するreusable 12-worker pool、direct capability resultのdomain-separated bindingを追加する。これはstable runtimeの構成・初期化境界であり、parent真正性、teacher label、training、holdout、棋力の証拠ではない。English version: [blog-shogi-floodgate-production-stable-wasm-runtime.en.md](./blog-shogi-floodgate-production-stable-wasm-runtime.en.md)
 
 ---

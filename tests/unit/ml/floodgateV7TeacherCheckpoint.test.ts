@@ -1199,12 +1199,60 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     expect(await fs.promises.readFile(workPath(value))).toEqual(oversized);
   });
 
-  it("rejects a complete-record overflow before retaining or decoding the excess line", async () => {
+  it("admits the exact total-byte ceiling to bounded framing but rejects one byte beyond it before reading", async () => {
+    const exact = await fixture(forcedRows(31));
+    await mkdir0700(exact.stageRoot);
+    const exactHandle = await fs.promises.open(workPath(exact), "w", 0o600);
+    await exactHandle.truncate(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES);
+    await exactHandle.close();
+    let exactReads = 0;
+    await expect(
+      runCheckpoint(exact, undefined, {
+        dependencies: checkpointDependencies({
+          readForTests: async (request, read) => {
+            exactReads += 1;
+            return read(request.length);
+          },
+        }),
+      }),
+    ).rejects.toThrow("work.jsonl line exceeds its exact bound");
+    expect(exactReads).toBe(1);
+
+    const overflow = await fixture(forcedRows(32));
+    await mkdir0700(overflow.stageRoot);
+    const overflowHandle = await fs.promises.open(
+      workPath(overflow),
+      "w",
+      0o600,
+    );
+    await overflowHandle.truncate(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES + 1,
+    );
+    await overflowHandle.close();
+    let overflowReads = 0;
+    await expect(
+      runCheckpoint(overflow, undefined, {
+        dependencies: checkpointDependencies({
+          readForTests: async (_request, read) => {
+            overflowReads += 1;
+            return read();
+          },
+        }),
+      }),
+    ).rejects.toThrow(
+      "work.jsonl owner, type, mode, link count, or size is invalid",
+    );
+    expect(overflowReads).toBe(0);
+  });
+
+  it("rejects a complete-record overflow before decoding or allocating excess-record storage", async () => {
     const value = await fixture(forcedRows(26));
-    await mkdir0700(value.stageRoot);
-    const tooMany = Buffer.from("{}\n{}\n{}\n{}\n");
+    await runCheckpoint(value);
+    const tooMany = Buffer.concat([
+      await fs.promises.readFile(workPath(value)),
+      Buffer.from("{}\n"),
+    ]);
     await fs.promises.writeFile(workPath(value), tooMany, { mode: 0o600 });
-    await fs.promises.chmod(workPath(value), 0o600);
     let producerCalls = 0;
 
     await expect(
@@ -1215,6 +1263,171 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     ).rejects.toThrow("work.jsonl contains too many complete records");
     expect(producerCalls).toBe(0);
     expect(await fs.promises.readFile(workPath(value))).toEqual(tooMany);
+  });
+
+  it("scans sealed work through bounded partial reads and returns the exact whole-stream digest", async () => {
+    const value = await fixture(forcedRows(27));
+    const first = await runCheckpoint(value);
+    const bytes = await fs.promises.readFile(workPath(value));
+    const purposes: string[] = [];
+    let maximumRequested = 0;
+    let producerCalls = 0;
+
+    const resumed = await runCheckpoint(
+      value,
+      async () => {
+        producerCalls += 1;
+        throw new Error("sealed partial-read retry must not produce");
+      },
+      {
+        dependencies: checkpointDependencies({
+          readForTests: async (request, read) => {
+            purposes.push(request.purpose);
+            maximumRequested = Math.max(maximumRequested, request.length);
+            return read(Math.min(257, request.length));
+          },
+        }),
+      },
+    );
+
+    expect(producerCalls).toBe(0);
+    expect(maximumRequested).toBeLessThanOrEqual(64 * 1024);
+    expect(new Set(purposes)).toEqual(
+      new Set(["resumable-prefix", "sealed-final"]),
+    );
+    expect(resumed.work.bytes).toBe(bytes.byteLength);
+    expect(resumed.work.sha256).toBe(sha256(bytes));
+    expect(resumed.work.sha256).toBe(first.work.sha256);
+  });
+
+  it("rejects a read hook that skips, repeats, or misreports the native positional read", async () => {
+    const value = await fixture(forcedRows(33));
+    await runCheckpoint(value);
+    let producerCalls = 0;
+    const producer: FloodgateV7TeacherMissingParentProducer = async () => {
+      producerCalls += 1;
+      throw new Error("invalid read hooks must fail before production");
+    };
+    const hooks: NonNullable<
+      FloodgateV7TeacherCheckpointDependencies["readForTests"]
+    >[] = [
+      async () => 1,
+      async (_request, read) => (await read(1)) + 1,
+      async (_request, read) => {
+        await read(1);
+        return read(1);
+      },
+    ];
+
+    for (const readForTests of hooks) {
+      await expect(
+        runCheckpoint(value, producer, {
+          dependencies: checkpointDependencies({ readForTests }),
+        }),
+      ).rejects.toThrow();
+    }
+    expect(producerCalls).toBe(0);
+  });
+
+  it("rejects raw BOM bytes, invalid UTF-8, and CRLF without rewriting the stream", async () => {
+    const value = await fixture(forcedRows(28));
+    await runCheckpoint(value);
+    const original = await fs.promises.readFile(workPath(value));
+    const firstLf = original.indexOf(0x0a);
+    if (firstLf < 0) throw new Error("sealed fixture has no header LF");
+    const mutations = [
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), original]),
+      Buffer.concat([
+        original.subarray(0, firstLf + 1),
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        original.subarray(firstLf + 1),
+      ]),
+      Buffer.concat([Buffer.from([0xff]), original.subarray(1)]),
+      Buffer.concat([
+        original.subarray(0, firstLf),
+        Buffer.from("\r\n"),
+        original.subarray(firstLf + 1),
+      ]),
+    ];
+    let producerCalls = 0;
+
+    for (const tampered of mutations) {
+      await fs.promises.writeFile(workPath(value), tampered, { mode: 0o600 });
+      await expect(
+        runCheckpoint(value, async () => {
+          producerCalls += 1;
+          throw new Error("byte-tampered work must fail before production");
+        }),
+      ).rejects.toThrow();
+      expect(await fs.promises.readFile(workPath(value))).toEqual(tampered);
+    }
+    expect(producerCalls).toBe(0);
+  });
+
+  it("detects a size mutation between the incremental read snapshot stats", async () => {
+    const value = await fixture(forcedRows(29));
+    await runCheckpoint(value);
+    let mutated = false;
+    let producerCalls = 0;
+
+    await expect(
+      runCheckpoint(
+        value,
+        async () => {
+          producerCalls += 1;
+          throw new Error("mutated work must fail before production");
+        },
+        {
+          dependencies: checkpointDependencies({
+            readForTests: async (request, read) => {
+              const bytesRead = await read();
+              if (request.purpose === "resumable-prefix" && !mutated) {
+                await fs.promises.appendFile(workPath(value), "x");
+                mutated = true;
+              }
+              return bytesRead;
+            },
+          }),
+        },
+      ),
+    ).rejects.toThrow("work.jsonl mutated during read");
+    expect(mutated).toBe(true);
+    expect(producerCalls).toBe(0);
+  });
+
+  it("reconfirms that the final pathname still names the scanned inode", async () => {
+    const value = await fixture(forcedRows(30));
+    await runCheckpoint(value);
+    const original = await fs.promises.readFile(workPath(value));
+    const displaced = path.join(value.root, "displaced-work.jsonl");
+    let swapped = false;
+    let producerCalls = 0;
+
+    await expect(
+      runCheckpoint(
+        value,
+        async () => {
+          producerCalls += 1;
+          throw new Error("swapped work must fail before production");
+        },
+        {
+          dependencies: checkpointDependencies({
+            failpointForTests: async (event) => {
+              if (event.phase === "after-final-scan-before-path-confirmation") {
+                await fs.promises.rename(workPath(value), displaced);
+                await fs.promises.writeFile(workPath(value), original, {
+                  mode: 0o600,
+                });
+                await fs.promises.chmod(workPath(value), 0o600);
+                swapped = true;
+              }
+            },
+          }),
+        },
+      ),
+    ).rejects.toThrow("work.jsonl path snapshot changed");
+    expect(swapped).toBe(true);
+    expect(producerCalls).toBe(0);
   });
 
   it("records a forced parent with a stable runtime binding and zero proposal rescores or labels", async () => {

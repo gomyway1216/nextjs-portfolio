@@ -495,13 +495,6 @@ function phaseForPly(ply: number): FloodgateParentPhase {
   return phase.phase;
 }
 
-function hasIntersection(
-  values: readonly string[],
-  blocked: ReadonlySet<string>,
-): boolean {
-  return values.some((value) => blocked.has(value));
-}
-
 function addAll(target: Set<string>, values: readonly string[]): void {
   for (const value of values) target.add(value);
 }
@@ -587,9 +580,13 @@ function decodePureGames(input: unknown): FloodgatePureGameInput[] {
       const parent = assertStrictPlainObject(rawParent, parentLabel);
       assertExactKeys(parent, PURE_PARENT_KEYS, parentLabel);
       const ply = parent.ply;
-      if (!Number.isSafeInteger(ply) || (ply as number) < 0) {
+      if (
+        !Number.isSafeInteger(ply) ||
+        Object.is(ply, -0) ||
+        (ply as number) < 0
+      ) {
         throw new Error(
-          `${parentLabel}.ply must be a nonnegative safe integer`,
+          `${parentLabel}.ply must be a nonnegative safe integer other than negative zero`,
         );
       }
       const parentId = assertPositionId(
@@ -672,14 +669,20 @@ function sampleGameParents(
 ): FloodgateAllocatedParent[] | null {
   const selected: FloodgateAllocatedParent[] = [];
   const selectedParentIds = new Set<string>();
-  const localBlocked = new Set(blocked);
+  // A tentative game must not clone or mutate the potentially multi-million-ID
+  // global set. Only this small overlay changes before all 24 parents succeed.
+  const localBlocked = new Set<string>();
 
   const attempt = (
     parent: PreparedParent,
     stage: "phase" | "fill",
   ): boolean => {
     if (selectedParentIds.has(parent.parent_id)) return false;
-    if (hasIntersection(parent.protected_position_ids, localBlocked))
+    if (
+      parent.protected_position_ids.some(
+        (id) => blocked.has(id) || localBlocked.has(id),
+      )
+    )
       return false;
     selectedParentIds.add(parent.parent_id);
     addAll(localBlocked, parent.protected_position_ids);
@@ -716,6 +719,31 @@ function sampleGameParents(
   return selected.sort(
     (left, right) =>
       left.ply - right.ply || compareBytewise(left.parent_id, right.parent_id),
+  );
+}
+
+/**
+ * Internal lazy role-lock probe under the exact preregistered seed and parent
+ * domains. It preserves the pure core's strict untrusted-game decode and exact
+ * semantic sampler, but intentionally emits no canonical artifact, digest, or
+ * option summary for each tentative game. The caller-owned blocked set is read
+ * only through membership checks and is never iterated or mutated here.
+ */
+export function sampleFloodgatePlannedGameParentsForRoleLock(
+  inputGame: unknown,
+  blockedPositionIds: ReadonlySet<string>,
+): FloodgateAllocatedParent[] | null {
+  const games = decodePureGames([inputGame]);
+  if (games.length !== 1) {
+    throw new Error("role-lock parent probe requires exactly one decoded game");
+  }
+  const game = games[0];
+  return sampleGameParents(
+    game,
+    prepareParents(game),
+    blockedPositionIds,
+    FLOODGATE_ALLOCATION_SEED,
+    DEFAULT_FLOODGATE_PARENT_RANK_DOMAINS,
   );
 }
 
@@ -759,9 +787,13 @@ function validatedOptions(input: unknown): {
     const result = {} as Record<FloodgateRole, number>;
     for (const role of FLOODGATE_ROLE_PRIORITY) {
       const value = raw[role];
-      if (!Number.isSafeInteger(value) || (value as number) < 0) {
+      if (
+        !Number.isSafeInteger(value) ||
+        Object.is(value, -0) ||
+        (value as number) < 0
+      ) {
         throw new Error(
-          `${role} game count must be a nonnegative safe integer`,
+          `${role} game count must be a nonnegative safe integer other than negative zero`,
         );
       }
       result[role] = value as number;

@@ -19,6 +19,7 @@ import {
   allocateFloodgateRolesFromLockedEvidence,
   allocateFloodgateRolesPure,
   protectedSemanticPositionIds,
+  sampleFloodgatePlannedGameParentsForRoleLock,
   type FloodgatePureGameInput,
   type FloodgateRole,
 } from "../../../ml/floodgate-roles";
@@ -220,6 +221,136 @@ describe("provenance-neutral Floodgate parent sampling", () => {
     );
     expect(sha256(forward.canonical_json)).toBe(forward.canonical_json_sha256);
     expect(JSON.parse(forward.canonical_json)).toEqual(forward.output);
+  });
+
+  it("keeps the planned lazy probe parent-exact without iterating the global blocked set", () => {
+    const game = makeGame(701, { plies: range(16, 47) });
+    const blockedIds = Array.from({ length: 256 }, (_, index) =>
+      shaId(`unrelated-global-block-${index}`),
+    );
+    class MembershipOnlySet extends Set<string> {
+      iterations = 0;
+
+      override [Symbol.iterator](): SetIterator<string> {
+        this.iterations += 1;
+        throw new Error("global blocked set must not be iterated");
+      }
+    }
+    const membershipOnly = new MembershipOnlySet();
+    for (const id of blockedIds) membershipOnly.add(id);
+
+    const sampled = sampleFloodgatePlannedGameParentsForRoleLock(
+      game,
+      membershipOnly,
+    );
+    const oracle = allocateFloodgateRolesPure([game], {
+      seed: FLOODGATE_ALLOCATION_SEED,
+      legacyProtectedPositionIds: blockedIds,
+      roleGameCounts: {
+        ...EMPTY_COUNTS,
+        fresh_final_holdout: 1,
+      },
+      gameRankDomains: DEFAULT_FLOODGATE_GAME_RANK_DOMAINS,
+      parentRankDomains: DEFAULT_FLOODGATE_PARENT_RANK_DOMAINS,
+    }).output.roles.fresh_final_holdout[0];
+
+    expect(sampled).toEqual(oracle.parents);
+    expect(membershipOnly.iterations).toBe(0);
+  });
+
+  it("rolls back a failed 23-parent probe without changing the global blocked set", () => {
+    const game = makeGame(702, { plies: range(16, 38) });
+    const globalBlocked = new Set([shaId("preexisting-global-block")]);
+    const before = [...globalBlocked];
+
+    expect(
+      sampleFloodgatePlannedGameParentsForRoleLock(game, globalBlocked),
+    ).toBeNull();
+    expect([...globalBlocked]).toEqual(before);
+  });
+
+  it("rejects negative-zero ply before the serialization-free probe", () => {
+    const game = makeGame(703, { plies: range(16, 39) });
+    const forged: FloodgatePureGameInput = {
+      ...game,
+      parents: [
+        {
+          parent_id: parentId(game.game_id, -0),
+          parent_sfen: fixtureSfen(703_000, -0),
+          ply: -0,
+        },
+        ...game.parents.slice(1),
+      ],
+    };
+
+    expect(() => allocateFloodgateRolesPure([forged], options({}))).toThrow(
+      /negative zero/,
+    );
+    expect(() =>
+      sampleFloodgatePlannedGameParentsForRoleLock(forged, new Set()),
+    ).toThrow(/negative zero/);
+    expect(() =>
+      allocateFloodgateRolesPure([], {
+        ...options({}),
+        roleGameCounts: {
+          ...EMPTY_COUNTS,
+          fresh_final_holdout: -0,
+        },
+      }),
+    ).toThrow(/negative zero/);
+  });
+
+  it("keeps the serialization-free probe behind the strict nested data boundary", () => {
+    const clean = makeGame(704);
+    let traps = 0;
+    const descriptors = Object.getOwnPropertyDescriptors(clean);
+    Reflect.set(descriptors, "game_id", {
+      configurable: true,
+      enumerable: true,
+      get(): never {
+        traps += 1;
+        throw new Error("accessor trap must not run");
+      },
+    });
+    const accessor = Object.create(
+      Object.getPrototypeOf(clean),
+      descriptors,
+    ) as FloodgatePureGameInput;
+    const proxy = new Proxy(clean, {
+      get(): never {
+        traps += 1;
+        throw new Error("Proxy trap must not run");
+      },
+      ownKeys(): never {
+        traps += 1;
+        throw new Error("Proxy trap must not run");
+      },
+    });
+    const sparseParents = [...clean.parents];
+    delete sparseParents[0];
+    const hidden = { ...clean };
+    Object.defineProperty(hidden, "teacher_score", {
+      configurable: true,
+      enumerable: false,
+      value: 100,
+      writable: true,
+    });
+    const inherited = Object.assign(Object.create({ inherited: true }), clean);
+
+    for (const malformed of [
+      accessor,
+      proxy,
+      { ...clean, teacher_score: 100 },
+      Object.assign({ ...clean }, { [Symbol("score")]: 100 }),
+      { ...clean, parents: sparseParents },
+      hidden,
+      inherited,
+    ]) {
+      expect(() =>
+        sampleFloodgatePlannedGameParentsForRoleLock(malformed, new Set()),
+      ).toThrow();
+    }
+    expect(traps).toBe(0);
   });
 
   it("materializes semantic groups only for ranked candidate games", () => {

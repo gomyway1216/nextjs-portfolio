@@ -1,0 +1,96 @@
+{
+  "schema": "shogi-floodgate-role-probe-benchmark-v1",
+  "generated_at": "2026-07-14T04:49:11.431Z",
+  "runtime": {
+    "node": "v22.13.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu_model": "Apple M4 Pro",
+    "logical_cpus": 14,
+    "available_parallelism": 14,
+    "total_memory_bytes": 51539607552,
+    "explicit_gc": true
+  },
+  "method": {
+    "fixture": "fixed-valid-32-parent-cheap-semantics-v1",
+    "clock": "process.hrtime.bigint",
+    "warmup": "three untimed legacy/sampler pairs at zero blocked IDs",
+    "ordering": "legacy-first for even samples; sampler-first for odd samples",
+    "blocked_set_construction_timed": false,
+    "legacy_set_to_array_conversion_timed": true,
+    "removed_sampler_set_clone_emulated": true,
+    "equality_check_timed": false,
+    "parity_scope": "current full-artifact allocator versus the direct shared sampler; not two independent parent algorithms",
+    "summary": "median"
+  },
+  "fixture_game_json_sha256": "bd5759c7d034f530de9fdefe15df1a2c3eae22854d487aff1b0e710160806956",
+  "samples_per_path": 4,
+  "measurements": [
+    {
+      "blocked_ids": 0,
+      "legacy_ms_samples": [5.01675, 3.133, 2.890542, 3.744875],
+      "sampler_ms_samples": [2.711166, 2.561542, 2.271208, 4.228125],
+      "legacy_ms_median": 3.4389374999999998,
+      "sampler_ms_median": 2.636354,
+      "median_speedup": 1.3044293368796451,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    },
+    {
+      "blocked_ids": 10000,
+      "legacy_ms_samples": [52.957917, 45.672792, 48.503375, 48.734959],
+      "sampler_ms_samples": [4.347167, 2.957875, 4.234584, 2.795541],
+      "legacy_ms_median": 48.619167000000004,
+      "sampler_ms_median": 3.5962294999999997,
+      "median_speedup": 13.51948394839651,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    },
+    {
+      "blocked_ids": 50000,
+      "legacy_ms_samples": [271.187084, 256.096, 253.765792, 260.042042],
+      "sampler_ms_samples": [4.287167, 2.888584, 4.258625, 2.715667],
+      "legacy_ms_median": 258.069021,
+      "sampler_ms_median": 3.5736045,
+      "median_speedup": 72.21532796928145,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    },
+    {
+      "blocked_ids": 100000,
+      "legacy_ms_samples": [564.218209, 554.719083, 553.628083, 541.761083],
+      "sampler_ms_samples": [4.498667, 2.974584, 4.411209, 2.806542],
+      "legacy_ms_median": 554.173583,
+      "sampler_ms_median": 3.6928965000000002,
+      "median_speedup": 150.06474809136947,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    },
+    {
+      "blocked_ids": 250000,
+      "legacy_ms_samples": [1717.326875, 1607.844, 1622.035125, 1606.208958],
+      "sampler_ms_samples": [4.321417, 3.253166, 4.311042, 2.895375],
+      "legacy_ms_median": 1614.9395625000002,
+      "sampler_ms_median": 3.7821039999999995,
+      "median_speedup": 426.9950171914893,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    },
+    {
+      "blocked_ids": 1000000,
+      "legacy_ms_samples": [8370.65975, 8154.844292, 8222.470208, 8280.309791],
+      "sampler_ms_samples": [4.498, 2.902292, 4.5535, 2.990708],
+      "legacy_ms_median": 8251.3899995,
+      "sampler_ms_median": 3.7443540000000004,
+      "median_speedup": 2203.6885399991556,
+      "exact_parent_parity": true,
+      "selected_parents": 24,
+      "parent_projection_sha256": "8a7bee9bba45eaa6a78c75260c3bdb138c7a912fbdaf399f1f516fe7940cb3f0"
+    }
+  ]
+}

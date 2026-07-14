@@ -1,23 +1,25 @@
 # Floodgate v7 deployment key instanceのinspectionとcontrol-plane enrollmentを分離する
 
-> [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)は意図的に`key_instance_id`を返さない一方、[production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)はkey authorityを開く前に`expectedKeyInstanceId`を要求する。本稿は、authorityと同じpublic instance IDを導出しながら観測を承認へ変えない、狭いcandidate inspectorを実装・検証する。source、operator CLI、focused / related / full tests、Python regression、TypeScript、production build、format、lint、audit、independent review、ready PR #459の実装head CIは完了した。merge、actual-home key-byte inspection、control-plane pinningは**pending / 0**である。実測7時間51分のfull-bundle verifierも別blockerとして残る。real data、teacher、training、weight、live evaluation function、対局、棋力のclaimは本稿から生じない。English version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md)
+> [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)は意図的に`key_instance_id`を返さない一方、本稿作成時のhistorical [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md) v1はkey authorityを開く前にcaller-supplied `expectedKeyInstanceId`を要求していた。本稿は、authorityと同じpublic instance IDを導出しながら観測を承認へ変えない、狭いcandidate inspectorを実装・検証した記録である。source、operator CLI、focused / related / full tests、Python regression、TypeScript、production build、format、lint、audit、independent review、PR #459の実装head CIは完了し、PRはregular merge commit `19e826f`で統合された。actual-home key-byte inspectionとcontrol-plane pinningは**0 / 0**である。実測7時間51分のfull-bundle verifierも別blockerとして残る。real data、teacher、training、weight、live evaluation function、対局、棋力のclaimは本稿から生じない。English version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md)
+
+後続のapproved record / opaque single-use capability境界の設計と現在地は、[approved-key enrollment control plane](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md)へ分離した。現行connector v2はraw `expectedKeyInstanceId`をpublic optionとして受けず、approved recordからmintされたopaque single-use capabilityだけを同期claimする。current head `599385e6`ではenrollment 21 / 21、connector 111 / 111、combined focused 132 / 132、maxWorkers 6のstable full 2,245 / 2,245、TypeScript、scoped lint / formatをlocalでPASSした。related 335 / 335のtimed runとproduction build、full lint、auditはsuccessfulな旧captureであり、599 revisionで再実行した値とは扱わない。final independent reviewは完了し、ready PR #463のactionable review 3 / 3も解決済みだが、CIとregular mergeはpendingである。actual production recordのcreation / installation / loadとconnector executionは、引き続き**0 / 0 / 0 / 0**であり、live weightと棋力claimも変わらない。
 
 ## 1. 現在地と、この境界が閉じる1つのgap
 
-| 項目                                     | current status           | 意味                                                     |
-| ---------------------------------------- | ------------------------ | -------------------------------------------------------- |
-| candidate-inspector contract             | implemented              | approval / persistenceを含まないcandidate-only境界       |
-| inspector source / operator CLI          | completed                | import-safe、argumentless、actual executionは0           |
-| focused / related tests                  | 9 / 9、116 / 116 PASS    | temporary-key cryptographyとactual-home metadata guard   |
-| TypeScript / Prettier / ESLint           | PASS                     | exact current diffのlocal validation                     |
-| full regression / build                  | PASS                     | 119 files / 2,156 testsとproduction build                |
-| Python regression / npm audit            | 58 / 58 PASS、0件        | stdlib suiteとdependency audit                           |
-| independent code / test review           | P0 = 0、P1 = 0、P2 = 0   | 2系統の修正後sealが完了                                  |
-| pull request / CI                        | #459 ready / 6 of 6 PASS | implementation head `4eda5f4`、review thread 3件解決済み |
-| actual fixed-home candidate inspection   | 0                        | このinspector候補はproduction key byteをまだ読んでいない |
-| approved control-plane enrollment record | 0                        | expected instanceは承認も固定もされていない              |
-| production connector gates               | 0                        | 100 / 500 / 24,000は未実行                               |
-| live weight / evaluation-function変更    | 0                        | 既存production bytesは不変                               |
+| 項目                                     | current status              | 意味                                                     |
+| ---------------------------------------- | --------------------------- | -------------------------------------------------------- |
+| candidate-inspector contract             | implemented                 | approval / persistenceを含まないcandidate-only境界       |
+| inspector source / operator CLI          | completed                   | import-safe、argumentless、actual executionは0           |
+| focused / related tests                  | 9 / 9、116 / 116 PASS       | temporary-key cryptographyとactual-home metadata guard   |
+| TypeScript / Prettier / ESLint           | PASS                        | exact current diffのlocal validation                     |
+| full regression / build                  | PASS                        | 119 files / 2,156 testsとproduction build                |
+| Python regression / npm audit            | 58 / 58 PASS、0件           | stdlib suiteとdependency audit                           |
+| independent code / test review           | P0 = 0、P1 = 0、P2 = 0      | 2系統の修正後sealが完了                                  |
+| pull request / CI / merge                | #459 / 6 of 6 PASS / merged | implementation head `4eda5f4`、regular merge `19e826f`   |
+| actual fixed-home candidate inspection   | 0                           | このinspector候補はproduction key byteをまだ読んでいない |
+| approved control-plane enrollment record | 0                           | expected instanceは承認も固定もされていない              |
+| production connector gates               | 0                           | 100 / 500 / 24,000は未実行                               |
+| live weight / evaluation-function変更    | 0                           | 既存production bytesは不変                               |
 
 metadata-only readiness probeはfixed slotに安全そうなfileがあるかを答えるが、key byteを読まずinstance IDも返さない。create-only provisionerはsecretを配置できるが、意図的にcryptographic readerにはならない。connectorが同じexecution中にinstanceを発見し、その値をexpectationとして無条件採用してはならない。
 
@@ -26,7 +28,7 @@ metadata-only readiness probeはfixed slotに安全そうなfileがあるかを�
 1. fixed keyをinspectし、non-secretな**enrollment candidate**を出す
 2. candidateを別にreviewし、approved trusted control-plane recordとして永続化する
 
-connectorへ`expectedKeyInstanceId`を渡せるのは2段目だけである。
+historical connector v1へraw `expectedKeyInstanceId`を渡せるのは2段目だけだった。現行v2はraw IDを受けず、2段目のapproved recordからmintされたopaque capabilityをclaimしてinternal expectationを得る。
 
 ## 2. Candidate-inspector APIとauthority境界
 
@@ -132,7 +134,7 @@ statusはexact `fixed-key-instance-candidate-observed-and-held-revalidated-not-a
 
 approved enrollmentは後続control-plane artifactである。そのworkflowはcandidateをreviewし、exact canonical receipt bytesとdigestを保存し、approved public IDをfixed `key_id` / deployment identityへbindしてapprovalをaudit可能にする必要がある。key bytesは保存しない。このinspector候補はtrusted storeを定義もwriteもしないため、有効なactual-home candidateを得ても`control_plane_approval = false`のままである。
 
-connectorはapproved public IDをpre-pinned expectationとして受け取る。authoritative prepareがIDを再導出し、exact equalityを要求する。したがってdifferent / rotated key materialを自動的にnew expectationへ変えず、mismatchとして拒否できる。同一bytesのfilesystem replacementは、別のdeployment-identity / operational audit concernとして残る。
+historical connector v1はapproved public IDをraw pre-pinned expectationとして受け取った。現行v2はapproved record由来のopaque capabilityを同期claimし、そのclaimからpublic ID、owner UID、parent / key device・inodeをinternal expectationとして得る。authoritative prepareがIDとdeployment identityを再導出し、exact equalityを要求する。したがってdifferent / rotated key materialを自動的にnew expectationへ変えず、mismatchとして拒否できる。同一bytesのfilesystem replacementもdevice / inode比較でapproved deployment identityと区別されるが、rotation / recoveryは別のoperational workflowである。
 
 ## 7. Failure / retry rules
 
@@ -179,12 +181,13 @@ review修正後に他のCPU調査と同時実行したlocal full rerunは、無�
 
 ## 10. 承認後に残るexecution order
 
-1. ready PR #459を通常のmerge commitで統合する。implementation headのCI 6 / 6とreview resolutionは完了済みである。
-2. keyがまだabsentなら、別のoperator approvalで`npm run --silent shogi:floodgate-v7-key-provision`を実行し、non-secret provision receiptを保存する。このwrite commandのactual executionは現在**0**である。
-3. freshな別承認processで`npm run --silent shogi:floodgate-v7-key-instance-inspect`を1回だけ実行し、stdoutへ出るone-line non-secret candidate JSONを保存する。このread-only actual-home commandのactual executionも**0**である。
-4. approved enrollment / trusted control-plane recordをreview / persistする。step 3をself-approvalとして扱わない。
-5. metadata-only readinessとexact approved expected IDを再確認し、7時間51分verifier blockerも別に解消する。
-6. その後にだけ100-parent connector gateの別承認を求める。
+PR #459のregular mergeは完了した。残るoperational orderは次である。
+
+1. keyがまだabsentなら、別のoperator approvalで`npm run --silent shogi:floodgate-v7-key-provision`を実行し、non-secret provision receiptを保存する。このwrite commandのactual executionは現在**0**である。
+2. freshな別承認processで`npm run --silent shogi:floodgate-v7-key-instance-inspect`を1回だけ実行し、stdoutへ出るone-line non-secret candidate JSONを保存する。このread-only actual-home commandのactual executionも**0**である。
+3. approved enrollment / trusted control-plane recordをreview / persistし、opaque capabilityをmintする。step 2をself-approvalとして扱わない。
+4. metadata-only readinessとclaimed approved identityを再確認し、7時間51分verifier blockerも別に解消する。
+5. その後にだけ100-parent connector gateの別承認を求める。
 
 どのstepもteacherを自動実行せず、modelをtrainせず、live weightを変更せず、stable high-dan strengthを確立しない。
-PR mergeやapplication deployもstep 2 / 3を実行しない。
+PR mergeやapplication deployもstep 1 / 2を実行しない。

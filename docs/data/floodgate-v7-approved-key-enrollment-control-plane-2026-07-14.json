@@ -1,0 +1,264 @@
+{
+  "schema": "shogi-floodgate-v7-approved-key-enrollment-control-plane-evidence-v1",
+  "generated_at": "2026-07-14T20:18:03Z",
+  "evidence_scope": {
+    "evidence_class": "local-validation-and-independent-security-review",
+    "base_revision": "55c781205305c5fadc1290c21375da145647f64d",
+    "implementation_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+    "source_and_test_bytes_match_implementation_revision": true,
+    "remote_ci_results_included": false,
+    "absolute_local_paths_included": false
+  },
+  "machine": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "operating_system": "macOS 15.1 (24B2082)",
+    "cpu_model": "Apple M4 Pro",
+    "logical_cpus": 14,
+    "memory_bytes": 51539607552
+  },
+  "runtime": {
+    "node_version": "v22.13.0",
+    "npm_version": "11.14.1"
+  },
+  "validation": {
+    "approved_enrollment_unit": {
+      "status": "pass",
+      "files": 1,
+      "tests": 21,
+      "passed": 21,
+      "failed": 0
+    },
+    "connector_unit": {
+      "status": "pass",
+      "files": 1,
+      "tests": 111,
+      "passed": 111,
+      "failed": 0
+    },
+    "combined_focused": {
+      "status": "pass",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "files": 2,
+      "tests": 132,
+      "passed": 132,
+      "failed": 0,
+      "vitest_duration_seconds": 0.736,
+      "command_wall_seconds": 1.073
+    },
+    "direct_related": {
+      "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "files": 10,
+      "tests": 335,
+      "passed": 335,
+      "failed": 0,
+      "vitest_duration_seconds": 146.22,
+      "wall_seconds": 147.12,
+      "maximum_resident_set_size_bytes": 4171988992
+    },
+    "full_vitest": {
+      "status": "pass",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "files": 122,
+      "tests": 2245,
+      "passed": 2245,
+      "failed": 0,
+      "workers": 6,
+      "vitest_duration_seconds": 150.69,
+      "wall_seconds": 151.2,
+      "maximum_resident_set_size_bytes": 4228874240
+    },
+    "python_stdlib": {
+      "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "suite_seconds": 0.106,
+      "command_wall_seconds": 0.415
+    },
+    "typescript": {
+      "status": "pass",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "wall_seconds": 14.517
+    },
+    "scoped_eslint": {
+      "status": "pass",
+      "baseline_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "review_fix_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "review_fix_file_rechecked": true,
+      "wall_seconds": 1.739
+    },
+    "full_eslint": {
+      "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "errors": 0,
+      "existing_warnings": 157,
+      "wall_seconds": 29.82
+    },
+    "targeted_prettier": {
+      "status": "pass",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
+    },
+    "git_diff_check": {
+      "status": "pass",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
+    },
+    "production_build": {
+      "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "builder": "Next.js Turbopack",
+      "next_version": "16.2.9",
+      "wall_seconds": 29.3,
+      "compile_seconds": 8.4,
+      "typescript_seconds": 18.3,
+      "static_pages": 193,
+      "static_generation_workers": 13,
+      "maximum_resident_set_size_bytes": 2525233152
+    },
+    "npm_audit": {
+      "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies_total": 1139,
+      "command_wall_seconds": 0.698
+    }
+  },
+  "security_review": {
+    "status": "pass",
+    "initial_p1_findings": 2,
+    "follow_on_p2_count_recorded": false,
+    "all_reported_findings_fixed": true,
+    "final_open_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "github_review": {
+      "pull_request": 463,
+      "actionable_threads": 3,
+      "fixed_threads": 3,
+      "resolved_threads": 3,
+      "fix_revisions": [
+        "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+        "599385e6bd194a71c0382fafe07fa3700d0fc893"
+      ],
+      "thread_state_audit_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
+    },
+    "final_delta_audit_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+    "final_delta_commit_ready": true
+  },
+  "intermediate_non_gating_attempts": [
+    {
+      "attempt": "unsupported-node-20-full-suite",
+      "gating": false,
+      "runtime": "v20.14.0",
+      "outcome": "terminated-incomplete",
+      "elapsed_seconds": 291,
+      "observation": "A teacher-asset test failed under unsupported structuredClone semantics before an idle worker left the run incomplete.",
+      "supported_runtime_isolation": {
+        "runtime": "v22.13.0",
+        "tests": 17,
+        "passed": 17
+      }
+    },
+    {
+      "attempt": "maximum-parallel-node-22-full-suite",
+      "gating": false,
+      "outcome": "transient-timeout",
+      "files_passed": 121,
+      "files_total": 122,
+      "tests_passed": 2244,
+      "tests_total": 2245,
+      "observation": "One unrelated USI transcript test timed out with its final usinewgame line absent.",
+      "isolated_rerun": {
+        "tests": 43,
+        "passed": 43,
+        "vitest_duration_seconds": 6.93
+      },
+      "authoritative_follow_up": "full_vitest"
+    },
+    {
+      "attempt": "post-review-eight-worker-node-22-full-suite",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "gating": false,
+      "workers": 8,
+      "outcome": "transient-worker-initialization-timeout",
+      "files_passed": 121,
+      "files_total": 122,
+      "tests_passed": 2244,
+      "tests_total": 2245,
+      "vitest_duration_seconds": 150.44,
+      "wall_seconds": 151.1,
+      "maximum_resident_set_size_bytes": 4064821248,
+      "observation": "One stable WASM proposer test reported a 30000 ms worker initialization timeout near the end of the full-suite run.",
+      "isolated_follow_up": {
+        "files": 1,
+        "tests": 53,
+        "passed": 53,
+        "vitest_duration_seconds": 14.1,
+        "wall_seconds": 14.63,
+        "maximum_resident_set_size_bytes": 347815936,
+        "interpretation": "The immediate isolated pass is consistent with transient worker-start contention but does not prove a root cause.",
+        "does_not_convert_full_attempt_to_pass": true
+      },
+      "authoritative_follow_up": "full_vitest"
+    },
+    {
+      "attempt": "initial-turbopack-build",
+      "gating": false,
+      "outcome": "environment-layout-failure",
+      "observation": "Dependencies were symlinked to another worktree and rejected as outside the repository root.",
+      "resolution": {
+        "action": "npm-ci-with-physical-local-dependencies",
+        "wall_seconds": 9.07,
+        "subsequent_build_status": "pass"
+      }
+    }
+  ],
+  "operational_status": {
+    "pull_request": {
+      "number": 463,
+      "state": "open",
+      "ready_for_review": true,
+      "unresolved_review_threads": 0
+    },
+    "remote_ci": "pending",
+    "merge": "pending"
+  },
+  "nonclaims": {
+    "production_loader_invocations": 0,
+    "production_preflight_invocations": 0,
+    "actual_home_root_identity_metadata_may_be_read_by_test_alias_guards": true,
+    "actual_deployment_key_file_opens": 0,
+    "actual_production_key_bytes_read": 0,
+    "actual_control_plane_record_file_opens": 0,
+    "actual_approved_record_loaded": false,
+    "real_production_claims_emitted": 0,
+    "real_checkpoint_gate_invocations": {
+      "100": 0,
+      "500": 0,
+      "24000": 0
+    },
+    "real_teacher_network_requests": 0,
+    "real_teacher_processes": 0,
+    "published_teacher_labels": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_games": 0,
+    "strength_change_measured": false,
+    "rating_established": false,
+    "stable_high_dan_established": false,
+    "production_readiness_established": false,
+    "live_weight_activation": "unchanged"
+  }
+}

@@ -640,6 +640,79 @@ describe("FD-held verified Floodgate training-row consumer", () => {
     expect(authenticated.rows.every((row) => Object.isFrozen(row))).toBe(true);
   });
 
+  it.runIf(typeof process.getuid === "function")(
+    "captures getuid without calling it at import and refreshes it exactly once per snapshot",
+    async () => {
+      const first = await fixture();
+      const second = await fixture();
+      const getuidDescriptor = Object.getOwnPropertyDescriptor(
+        process,
+        "getuid",
+      );
+      if (
+        getuidDescriptor === undefined ||
+        !("value" in getuidDescriptor) ||
+        typeof getuidDescriptor.value !== "function"
+      ) {
+        throw new Error("process.getuid data descriptor is unavailable");
+      }
+      const originalGetuid = getuidDescriptor.value as () => number;
+      const consumerModule = "../../../ml/floodgate-training-row-consumer";
+      let capturedCalls = 0;
+      let wrongThisCalls = 0;
+      let replacementCalls = 0;
+
+      Object.defineProperty(process, "getuid", {
+        ...getuidDescriptor,
+        value: function capturedGetuid(this: unknown): number {
+          capturedCalls += 1;
+          if (this !== process) {
+            wrongThisCalls += 1;
+            throw new Error("captured process.getuid received the wrong this");
+          }
+          return Reflect.apply(originalGetuid, this, []) as number;
+        },
+      });
+      vi.doUnmock(consumerModule);
+      vi.resetModules();
+
+      try {
+        const freshConsumer = await import(consumerModule);
+        expect(capturedCalls).toBe(0);
+
+        Object.defineProperty(process, "getuid", {
+          ...getuidDescriptor,
+          value: function replacementGetuid(): never {
+            replacementCalls += 1;
+            throw new Error("replacement process.getuid must not be called");
+          },
+        });
+
+        await freshConsumer.withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          first.options,
+          async () => undefined,
+          dependencies(first.identity),
+        );
+        expect(capturedCalls).toBe(1);
+        expect(wrongThisCalls).toBe(0);
+        expect(replacementCalls).toBe(0);
+
+        await freshConsumer.withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          second.options,
+          async () => undefined,
+          dependencies(second.identity),
+        );
+        expect(capturedCalls).toBe(2);
+        expect(wrongThisCalls).toBe(0);
+        expect(replacementCalls).toBe(0);
+      } finally {
+        Object.defineProperty(process, "getuid", getuidDescriptor);
+        vi.doUnmock(consumerModule);
+        vi.resetModules();
+      }
+    },
+  );
+
   it("rejects structural forgeries, active clones, and active proxies by exact identity", async () => {
     const input = await fixture();
     const forged = structurallyForgedAuthenticatedInput(input);

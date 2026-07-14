@@ -47,6 +47,8 @@ import {
   FLOODGATE_ROLE_PRIORITY,
   allocateFloodgateRolesPure,
   floodgateIdentifierDigest,
+  sampleFloodgatePlannedGameParentsForRoleLock,
+  type FloodgateAllocatedGame,
   type FloodgatePureAllocationArtifact,
   type FloodgatePureGameInput,
   type FloodgateRole,
@@ -567,8 +569,14 @@ function assertSha256(value: unknown, label: string): string {
 }
 
 function assertNonnegativeInteger(value: unknown, label: string): number {
-  if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    fail(`${label} must be a nonnegative safe integer`);
+  if (
+    !Number.isSafeInteger(value) ||
+    Object.is(value, -0) ||
+    (value as number) < 0
+  ) {
+    fail(
+      `${label} must be a nonnegative safe integer other than negative zero`,
+    );
   }
   return value as number;
 }
@@ -945,7 +953,7 @@ async function allocateFloodgateRoleLockCore(
   const semanticRejected = new Set<string>();
   const selectedGameIds = new Set<string>();
   const reservedProtectedIds = new Set(legacy);
-  const manuallySelected = new Map<FloodgateRole, string[]>();
+  const manuallySelected = new Map<FloodgateRole, FloodgateAllocatedGame[]>();
   let materializationAttempts = 0;
   let fullMaterializationRejections = 0;
   let identityCapSkips = 0;
@@ -963,15 +971,12 @@ async function allocateFloodgateRoleLockCore(
     );
     const identityCounts = new Map<string, number>();
     const pairCounts = new Map<string, number>();
-    const selectedForRole: string[] = [];
+    const selectedForRole: FloodgateAllocatedGame[] = [];
     manuallySelected.set(role, selectedForRole);
 
     for (const game of rankGamesForRole(inspected, role)) {
       if (selectedForRole.length >= requested) break;
-      if (
-        selectedGameIds.has(game.game_id) ||
-        semanticRejected.has(game.game_id)
-      ) {
+      if (selectedGameIds.has(game.game_id)) {
         continue;
       }
       if (
@@ -1003,21 +1008,28 @@ async function allocateFloodgateRoleLockCore(
       }
       if (pureGame === null) continue;
 
-      const oneGameCounts = { ...EMPTY_ROLE_COUNTS, [role]: 1 };
-      let selected;
-      try {
-        const probe = allocateFloodgateRolesPure(
-          [pureGame],
-          fixedAllocationOptions(oneGameCounts, [...reservedProtectedIds]),
-        );
-        selected = probe.output.roles[role][0];
-      } catch {
+      const selectedParents = sampleFloodgatePlannedGameParentsForRoleLock(
+        pureGame,
+        reservedProtectedIds,
+      );
+      if (selectedParents === null) {
         semanticRejected.add(game.game_id);
         continue;
       }
-      if (!selected) fail("one-game semantic probe returned no selected game");
 
-      selectedForRole.push(game.game_id);
+      const selected: FloodgateAllocatedGame = {
+        game_id: pureGame.game_id,
+        player_identities: [
+          pureGame.player_identities[0],
+          pureGame.player_identities[1],
+        ],
+        parents: selectedParents,
+      };
+
+      // This metric counts games that remain rejected, not a transient probe
+      // that becomes viable under a later role's blocked-set state.
+      semanticRejected.delete(game.game_id);
+      selectedForRole.push(selected);
       selectedGameIds.add(game.game_id);
       for (const identity of game.player_identities) {
         identityCounts.set(identity, (identityCounts.get(identity) ?? 0) + 1);
@@ -1046,10 +1058,10 @@ async function allocateFloodgateRoleLockCore(
   );
   for (const role of FLOODGATE_ROLE_PRIORITY) {
     const manual = manuallySelected.get(role) ?? [];
-    const reproduced = artifact.output.roles[role].map((game) => game.game_id);
+    const reproduced = artifact.output.roles[role];
     if (!isDeepStrictEqual(manual, reproduced)) {
       fail(
-        `${role} lazy allocation order did not reproduce in the final pure-core run`,
+        `${role} lazy full game/parent projection did not reproduce in the final pure-core run`,
       );
     }
   }

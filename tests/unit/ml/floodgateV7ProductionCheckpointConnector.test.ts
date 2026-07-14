@@ -1,8 +1,29 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CONTRACT,
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_STATUS,
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_TRUST_BOUNDARY,
+  createFloodgateV7ApprovedKeyEnrollmentCapabilityCoreForTests,
+  type FloodgateV7ApprovedKeyEnrollmentRecord,
+} from "../../../ml/floodgate-v7-approved-key-enrollment";
+import {
+  FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
+} from "../../../ml/floodgate-v7-deployment-key-authority";
+import {
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_ALGORITHM,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_CONTRACT,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_STATUS,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_TRUST_BOUNDARY,
+} from "../../../ml/floodgate-v7-deployment-key-instance-enrollment";
 import {
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CLAIM_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CONTRACT,
@@ -22,7 +43,12 @@ import {
   type FloodgateV7DeploymentKeyReadinessReceipt,
   type FloodgateV7DeploymentKeyReadinessStatus,
 } from "../../../ml/floodgate-v7-deployment-key-readiness";
-import { FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY } from "../../../ml/floodgate-v7-teacher-checkpoint";
+import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+} from "../../../ml/floodgate-v7-teacher-checkpoint";
 
 const CONNECTOR_SOURCE_PATH = path.resolve(
   process.cwd(),
@@ -31,6 +57,9 @@ const CONNECTOR_SOURCE_PATH = path.resolve(
 const RUN_ID = "12".repeat(32);
 const EXPECTED_KEY_INSTANCE_ID = "34".repeat(32);
 const OTHER_KEY_INSTANCE_ID = "56".repeat(32);
+const TEST_OWNER_UID = 501;
+const TEST_PARENT_IDENTITY = { dev: "1", ino: "20" } as const;
+const TEST_KEY_IDENTITY = { dev: "1", ino: "21" } as const;
 const VERIFIER_REVISION = "7".repeat(40);
 const AUTHORIZATION_MAC_CANARY =
   "9e8d7c6b5a4938271605f4e3d2c1b0a99e8d7c6b5a4938271605f4e3d2c1b0a9";
@@ -99,7 +128,15 @@ interface Calls {
 
 interface FixtureConfiguration {
   readonly readinessStatus?: FloodgateV7DeploymentKeyReadinessStatus;
+  readonly approvedOwnerUid?: number;
+  readonly actualKeyId?: string;
+  readonly actualLayout?: string;
   readonly actualKeyInstanceId?: string;
+  readonly actualKeyInstanceAlgorithm?: string;
+  readonly actualOwnerUid?: number;
+  readonly actualParentIdentity?: Readonly<{ dev: string; ino: string }>;
+  readonly actualKeyIdentity?: Readonly<{ dev: string; ino: string }>;
+  readonly gate?: FloodgateV7ProductionCheckpointConnectorOptions["gate"];
   readonly omitEvalDir?: boolean;
   readonly runBindingOverride?: Readonly<Record<string, unknown>>;
   readonly inputBindingOverride?: Readonly<Record<string, unknown>>;
@@ -292,8 +329,110 @@ function readinessReceipt(
   };
 }
 
+function approvedKeyEnrollmentCapability(ownerUid = TEST_OWNER_UID) {
+  const keyDeployment = {
+    layout: "fixed-current-euid-userinfo-home-v1" as const,
+    key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    owner_uid: ownerUid,
+    parent_identity: TEST_PARENT_IDENTITY,
+    key_identity: TEST_KEY_IDENTITY,
+    key_instance_id: EXPECTED_KEY_INSTANCE_ID,
+    key_instance_algorithm: FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
+  };
+  const candidate = {
+    contract: FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_CONTRACT,
+    status: FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_CLAIM_BOUNDARY,
+    trust_boundary:
+      FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_TRUST_BOUNDARY,
+    execution_boundary:
+      "test-only-injected-current-euid-home-key-instance-inspection",
+    algorithm: FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_ALGORITHM,
+    key_deployment: {
+      layout: keyDeployment.layout,
+      key_id: keyDeployment.key_id,
+      owner_uid: keyDeployment.owner_uid,
+      parent_mode: "0700",
+      key_mode: "0600",
+      key_bytes: 32,
+      key_nlink: 1,
+      parent_identity: keyDeployment.parent_identity,
+      key_identity: keyDeployment.key_identity,
+      key_instance_id: keyDeployment.key_instance_id,
+      key_instance_algorithm: keyDeployment.key_instance_algorithm,
+      held_descriptors_revalidated: true,
+    },
+    test_boundary: {
+      production_home_origin: false,
+      production_home_alias_rejected: true,
+      current_effective_uid_required: true,
+      test_hook_may_observe_key_copy: true,
+    },
+    nonclaims: {
+      key_created_or_written: false,
+      key_material_disclosed: false,
+      root_key_hash_disclosed: false,
+      key_path_disclosed: false,
+      authorization_mac: false,
+      run_authorization: false,
+      stage_authorization: false,
+      checkpoint_key_capability: false,
+      control_plane_approval: false,
+      record_persisted: false,
+      connector_execution: false,
+      checkpoint: false,
+      runtime: false,
+      dataset_read: false,
+      teacher_label: false,
+      training: false,
+      weight: false,
+      live_evaluation_activation: false,
+      playing_strength: false,
+    },
+  } as const;
+  const canonicalJson = `${JSON.stringify(candidate)}\n`;
+  const record: FloodgateV7ApprovedKeyEnrollmentRecord = {
+    contract: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CONTRACT,
+    status: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_STATUS,
+    claim_boundary: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY,
+    trust_boundary: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_TRUST_BOUNDARY,
+    approval: {
+      method: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
+      approval_id: "ab".repeat(32),
+      approved_at_utc: "2026-07-14T17:00:00.000Z",
+      candidate_receipt: {
+        bytes: Buffer.byteLength(canonicalJson),
+        sha256: createHash("sha256").update(canonicalJson).digest("hex"),
+        canonical_json: canonicalJson,
+      },
+    },
+    key_deployment: keyDeployment,
+    nonclaims: {
+      key_material: false,
+      key_path: false,
+      root_key_hash: false,
+      approval_signature_or_mac: false,
+      run_authorization: false,
+      gate_authorization: false,
+      checkpoint: false,
+      runtime: false,
+      dataset_read: false,
+      teacher_label: false,
+      training: false,
+      weight: false,
+      live_evaluation_activation: false,
+      match: false,
+      playing_strength: false,
+    },
+  };
+  return createFloodgateV7ApprovedKeyEnrollmentCapabilityCoreForTests(record);
+}
+
 function connectorOptions(
   omitEvalDir = false,
+  gate: FloodgateV7ProductionCheckpointConnectorOptions["gate"] = "durable-prefix-100",
+  approvedOwnerUid = TEST_OWNER_UID,
 ): FloodgateV7ProductionCheckpointConnectorOptions {
   const repositoryRoot = "/connector/repository";
   const rawLockRoot = "/connector/raw-lock";
@@ -316,8 +455,8 @@ function connectorOptions(
   };
   return {
     runId: RUN_ID,
-    gate: "durable-prefix-100",
-    expectedKeyInstanceId: EXPECTED_KEY_INSTANCE_ID,
+    gate,
+    keyEnrollment: approvedKeyEnrollmentCapability(approvedOwnerUid),
     stageAuthorization: omitEvalDir
       ? stageAuthorizationBase
       : { ...stageAuthorizationBase, evalDir: "/connector/assets/eval" },
@@ -375,16 +514,80 @@ function runBinding(): Readonly<Record<string, unknown>> {
   };
 }
 
-function checkpointReceipt(): Readonly<Record<string, unknown>> {
+interface CheckpointGateExpectation {
+  readonly gate: FloodgateV7ProductionCheckpointConnectorOptions["gate"];
+  readonly status: string;
+  readonly sealed: boolean;
+  readonly targetParents: number;
+  readonly records: number;
+  readonly bytes: number;
+  readonly acceptedResumeRange: readonly [number, number];
+}
+
+const CHECKPOINT_GATE_EXPECTATIONS = [
+  {
+    gate: "durable-prefix-100",
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+    sealed: false,
+    targetParents: 100,
+    records: 102,
+    bytes: 1_791_893,
+    acceptedResumeRange: [0, 100],
+  },
+  {
+    gate: "durable-prefix-500",
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+    sealed: false,
+    targetParents: 500,
+    records: 503,
+    bytes: 8_948_379,
+    acceptedResumeRange: [100, 500],
+  },
+  {
+    gate: "sealed-final-24000",
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+    sealed: true,
+    targetParents: 24_000,
+    records: 24_004,
+    bytes: 429_247_143,
+    acceptedResumeRange: [500, 24_000],
+  },
+] as const satisfies readonly CheckpointGateExpectation[];
+
+interface CheckpointReceiptOverrides {
+  readonly bytes?: unknown;
+  readonly status?: unknown;
+  readonly sealed?: unknown;
+  readonly targetParents?: unknown;
+  readonly completedParents?: unknown;
+  readonly resumedParents?: unknown;
+  readonly records?: unknown;
+}
+
+function checkpointGateExpectation(
+  gate: FloodgateV7ProductionCheckpointConnectorOptions["gate"],
+): CheckpointGateExpectation {
+  const expectation = CHECKPOINT_GATE_EXPECTATIONS.find(
+    (candidate) => candidate.gate === gate,
+  );
+  if (expectation === undefined) throw new Error(`unsupported gate: ${gate}`);
+  return expectation;
+}
+
+function checkpointReceipt(
+  gate: FloodgateV7ProductionCheckpointConnectorOptions["gate"] = "durable-prefix-100",
+  overrides: Readonly<CheckpointReceiptOverrides> = {},
+): Readonly<Record<string, unknown>> {
+  const expectation = checkpointGateExpectation(gate);
+  const [minimumResumedParents] = expectation.acceptedResumeRange;
   return {
     contract: "shogi-floodgate-v7-teacher-work-v3",
-    status:
-      "complete-authenticated-durable-private-v7-teacher-parent-prefix-not-sealed-not-published",
+    status: overrides.status ?? expectation.status,
     claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
     algorithm: "hmac-sha256-hkdf-sha256-v7-parent-gated-milestone-chain-v3",
     run_id: RUN_ID,
     key_id: "floodgate-v7-teacher-checkpoint-root-v1",
-    gate: "durable-prefix-100",
+    gate,
     gate_contract: {
       schema: "shogi-floodgate-v7-teacher-gate-contract-v1",
       durable_prefix_100_parents: 100,
@@ -399,17 +602,18 @@ function checkpointReceipt(): Readonly<Record<string, unknown>> {
       ino: "3",
       hidden_absolute_path_canary: ABSOLUTE_PATH_CANARY,
     },
-    sealed: false,
+    sealed: overrides.sealed ?? expectation.sealed,
     work: {
       filename: "work.jsonl",
       format: "canonical-jsonl-utf8-single-final-lf-v3",
       training_parents: 24_000,
-      records: 102,
-      bytes: 1_791_893,
+      records: overrides.records ?? expectation.records,
+      bytes: overrides.bytes ?? expectation.bytes,
       sha256: "0c".repeat(32),
-      target_parents: 100,
-      completed_parents: 100,
-      resumed_parents: 0,
+      target_parents: overrides.targetParents ?? expectation.targetParents,
+      completed_parents:
+        overrides.completedParents ?? expectation.targetParents,
+      resumed_parents: overrides.resumedParents ?? minimumResumedParents,
       durability:
         "append-parent-and-milestone-line-fsync-seal-directory-sync-final-reopen-v3",
       milestone_100_mac: "0d".repeat(32),
@@ -421,6 +625,7 @@ function checkpointReceipt(): Readonly<Record<string, unknown>> {
 function makeFixture(
   configuration: Readonly<FixtureConfiguration> = {},
 ): Fixture {
+  const gate = configuration.gate ?? "durable-prefix-100";
   const faults = configuration.faults ?? {};
   const calls: Calls = {
     readiness: 0,
@@ -481,17 +686,27 @@ function makeFixture(
     forbidden_rows_canary: input.rows,
   };
   const producedCheckpointReceipt =
-    configuration.checkpointReceiptOverride ?? checkpointReceipt();
+    configuration.checkpointReceiptOverride ?? checkpointReceipt(gate);
   const authorization = {
     contract:
       "shogi-floodgate-v7-deployment-teacher-checkpoint-v3-key-authorization-v1",
     status: "prepared-opaque-single-use-v3-derived-key-not-checkpointed",
     claim_boundary: "opaque-key-fixture",
-    gate: "durable-prefix-100",
+    gate,
     authorization: {
+      key_id: configuration.actualKeyId ?? FLOODGATE_V7_DEPLOYMENT_KEY_ID,
       key_deployment: {
+        layout:
+          configuration.actualLayout ?? "fixed-current-euid-userinfo-home-v1",
+        owner_uid: configuration.actualOwnerUid ?? TEST_OWNER_UID,
+        parent_identity:
+          configuration.actualParentIdentity ?? TEST_PARENT_IDENTITY,
+        key_identity: configuration.actualKeyIdentity ?? TEST_KEY_IDENTITY,
         key_instance_id:
           configuration.actualKeyInstanceId ?? EXPECTED_KEY_INSTANCE_ID,
+        key_instance_algorithm:
+          configuration.actualKeyInstanceAlgorithm ??
+          FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
         forbidden_key_bytes: KEY_BYTES_CANARY,
         forbidden_key_path: ABSOLUTE_PATH_CANARY,
       },
@@ -568,7 +783,11 @@ function makeFixture(
     runBinding: bindingReceipt,
   };
   const fixture: Fixture = {
-    options: connectorOptions(configuration.omitEvalDir),
+    options: connectorOptions(
+      configuration.omitEvalDir,
+      gate,
+      configuration.approvedOwnerUid,
+    ),
     dependencies:
       undefined as unknown as FloodgateV7ProductionCheckpointConnectorCoreDependencies,
     calls,
@@ -638,7 +857,7 @@ function makeFixture(
         "stageAuthorizationReceipt",
       ]);
       expect(captured).toMatchObject({
-        gate: "durable-prefix-100",
+        gate,
         keyId: "floodgate-v7-teacher-checkpoint-root-v1",
         runId: RUN_ID,
       });
@@ -854,6 +1073,179 @@ describe("Floodgate v7 production checkpoint connector", () => {
       },
     });
   });
+
+  it("accepts owner UID 0 when the approved enrollment and actual authority match", async () => {
+    const fixture = makeFixture({
+      approvedOwnerUid: 0,
+      actualOwnerUid: 0,
+    });
+
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        fixture.options,
+        fixture.dependencies,
+      ),
+    ).resolves.toMatchObject({
+      key_instance_id: EXPECTED_KEY_INSTANCE_ID,
+    });
+    expect(fixture.calls).toMatchObject({
+      prepareKey: 1,
+      consumer: 1,
+      checkpoint: 1,
+      claimPostflight: 1,
+    });
+  });
+
+  describe.each(CHECKPOINT_GATE_EXPECTATIONS)(
+    "checkpoint receipt matrix for $gate",
+    (expectation) => {
+      const [minimumResumedParents, maximumResumedParents] =
+        expectation.acceptedResumeRange;
+      const representativeResumedParents = Math.trunc(
+        (minimumResumedParents + maximumResumedParents) / 2,
+      );
+
+      it.each([
+        minimumResumedParents,
+        representativeResumedParents,
+        maximumResumedParents,
+      ])(
+        "accepts resumed_parents=%i within the inclusive gate range",
+        async (resumedParents) => {
+          const fixture = makeFixture({
+            gate: expectation.gate,
+            checkpointReceiptOverride: checkpointReceipt(expectation.gate, {
+              resumedParents,
+            }),
+          });
+
+          await expect(
+            runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+              fixture.options,
+              fixture.dependencies,
+            ),
+          ).resolves.toMatchObject({
+            gate: expectation.gate,
+            checkpoint: {
+              status: expectation.status,
+              sealed: expectation.sealed,
+              work: {
+                target_parents: expectation.targetParents,
+                completed_parents: expectation.targetParents,
+                resumed_parents: resumedParents,
+                records: expectation.records,
+              },
+            },
+          });
+        },
+      );
+
+      it.each([1, FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES])(
+        "accepts work.bytes=%i at an inclusive V3 endpoint",
+        async (bytes) => {
+          const fixture = makeFixture({
+            gate: expectation.gate,
+            checkpointReceiptOverride: checkpointReceipt(expectation.gate, {
+              bytes,
+            }),
+          });
+
+          await expect(
+            runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+              fixture.options,
+              fixture.dependencies,
+            ),
+          ).resolves.toMatchObject({
+            gate: expectation.gate,
+            checkpoint: { work: { bytes } },
+          });
+        },
+      );
+
+      const rejectionCases = [
+        {
+          field: "status",
+          overrides: {
+            status:
+              expectation.status === FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS
+                ? FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+                : FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+          },
+        },
+        {
+          field: "sealed",
+          overrides: { sealed: !expectation.sealed },
+        },
+        {
+          field: "target_parents",
+          overrides: { targetParents: expectation.targetParents - 1 },
+        },
+        {
+          field: "completed_parents",
+          overrides: { completedParents: expectation.targetParents - 1 },
+        },
+        {
+          field: "records",
+          overrides: { records: expectation.records - 1 },
+        },
+        {
+          field: "zero bytes",
+          overrides: { bytes: 0 },
+        },
+        {
+          field: "bytes above the V3 bound",
+          overrides: {
+            bytes: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES + 1,
+          },
+        },
+        {
+          field: "resumed_parents below the accepted range",
+          overrides: { resumedParents: minimumResumedParents - 1 },
+        },
+        {
+          field: "resumed_parents above the accepted range",
+          overrides: { resumedParents: maximumResumedParents + 1 },
+        },
+      ] as const satisfies readonly {
+        readonly field: string;
+        readonly overrides: Readonly<CheckpointReceiptOverrides>;
+      }[];
+
+      it.each(rejectionCases)(
+        "rejects an invalid $field receipt",
+        async ({ overrides }) => {
+          const fixture = makeFixture({
+            gate: expectation.gate,
+            checkpointReceiptOverride: checkpointReceipt(
+              expectation.gate,
+              overrides,
+            ),
+          });
+
+          const error = await rejectionOf(
+            runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+              fixture.options,
+              fixture.dependencies,
+            ),
+          );
+
+          expect(error).toMatchObject({
+            phase: "receipt",
+            checkpoint_may_have_persisted: true,
+            retry_disposition: "checkpoint-reconciliation-required",
+          });
+          expect(fixture.calls).toMatchObject({
+            checkpoint: 1,
+            claimPostflight: 0,
+            discardKey: 1,
+            leaseCloseCalls: 1,
+            coordinatorClose: 0,
+            coordinatorAbort: 1,
+          });
+        },
+      );
+    },
+  );
 
   it("preserves the optional absence of evalDir through stage authorization", async () => {
     const fixture = makeFixture({ omitEvalDir: true });
@@ -1278,6 +1670,48 @@ describe("Floodgate v7 production checkpoint connector", () => {
     },
   );
 
+  it.each([
+    {
+      field: "key_id",
+      configuration: { actualKeyId: "unexpected-checkpoint-key-id" },
+    },
+    {
+      field: "deployment layout",
+      configuration: { actualLayout: "unexpected-deployment-layout" },
+    },
+    {
+      field: "key_instance_algorithm",
+      configuration: {
+        actualKeyInstanceAlgorithm: "unexpected-key-instance-algorithm",
+      },
+    },
+  ] as const)(
+    "rejects invalid actual authority $field before exposing rows or invoking the sink",
+    async ({ configuration }) => {
+      const fixture = makeFixture(configuration);
+
+      const error = await rejectionOf(
+        runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+          fixture.options,
+          fixture.dependencies,
+        ),
+      );
+
+      expect(error).toMatchObject({
+        phase: "key-prepare",
+        checkpoint_may_have_persisted: false,
+        retry_disposition: "operator-reconciliation-required",
+      });
+      expect(fixture.calls).toMatchObject({
+        prepareKey: 1,
+        consumer: 0,
+        checkpoint: 0,
+        claimPostflight: 0,
+        discardKey: 1,
+      });
+    },
+  );
+
   it("rejects key rotation before exposing rows or invoking the sink", async () => {
     const fixture = makeFixture({ actualKeyInstanceId: OTHER_KEY_INSTANCE_ID });
 
@@ -1305,6 +1739,31 @@ describe("Floodgate v7 production checkpoint connector", () => {
       coordinatorClose: 0,
     });
   });
+
+  it.each([
+    { actualOwnerUid: TEST_OWNER_UID + 1 },
+    { actualParentIdentity: { dev: "9", ino: TEST_PARENT_IDENTITY.ino } },
+    { actualParentIdentity: { dev: TEST_PARENT_IDENTITY.dev, ino: "99" } },
+    { actualKeyIdentity: { dev: "9", ino: TEST_KEY_IDENTITY.ino } },
+    { actualKeyIdentity: { dev: TEST_KEY_IDENTITY.dev, ino: "99" } },
+  ])(
+    "rejects stale approved deployment identity before exposing rows",
+    async (configuration) => {
+      const fixture = makeFixture(configuration);
+
+      await expect(
+        runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+          fixture.options,
+          fixture.dependencies,
+        ),
+      ).rejects.toMatchObject({
+        phase: "key-instance",
+        retry_disposition: "operator-reconciliation-required",
+      });
+      expect(fixture.calls.consumer).toBe(0);
+      expect(fixture.calls.checkpoint).toBe(0);
+    },
+  );
 
   it("does not run postflight or cleanup until a delayed sink settles", async () => {
     const sink = deferred<unknown>();
@@ -1754,6 +2213,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
       "gate",
       "key_id",
       "key_instance_id",
+      "approved_key_enrollment",
       "run_binding",
       "input_binding",
       "checkpoint",
@@ -1770,6 +2230,14 @@ describe("Floodgate v7 production checkpoint connector", () => {
       "key_cleanup_settled",
       "lease_close_joined",
       "coordinator_closed",
+    ]);
+    expect(Reflect.ownKeys(receipt.approved_key_enrollment)).toEqual([
+      "claim_boundary",
+      "execution_boundary",
+      "record",
+      "candidate_receipt",
+      "approval",
+      "deployment_identity",
     ]);
     expect(Reflect.ownKeys(receipt.nonclaims)).toEqual([
       "key_bytes_or_key_hash",
@@ -2352,8 +2820,8 @@ describe("Floodgate v7 production checkpoint connector", () => {
     const accessorFixture = makeFixture();
     const missingOptions = {
       consumer: missingFixture.options.consumer,
-      expectedKeyInstanceId: missingFixture.options.expectedKeyInstanceId,
       gate: missingFixture.options.gate,
+      keyEnrollment: missingFixture.options.keyEnrollment,
       replacementRunId: RUN_ID,
       stageAuthorization: missingFixture.options.stageAuthorization,
     } as never;
@@ -2435,6 +2903,59 @@ describe("Floodgate v7 production checkpoint connector", () => {
     expect(accessorFixture.calls.readiness).toBe(0);
   });
 
+  it("captures engine arguments without consulting a poisoned live String constructor", async () => {
+    const fixture = makeFixture();
+    const stageAuthorization = {
+      ...fixture.options.stageAuthorization,
+      engineArgs: ["--connector-string-capture-canary"],
+    };
+    Object.defineProperty(fixture.options, "stageAuthorization", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: stageAuthorization,
+    });
+    const originalString = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "String",
+    );
+    let poisonCalls = 0;
+    let run!: ReturnType<
+      typeof runFloodgateV7ProductionCheckpointConnectorCoreForTests
+    >;
+
+    try {
+      Object.defineProperty(globalThis, "String", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: (): never => {
+          poisonCalls += 1;
+          throw new Error("live String constructor must not run");
+        },
+      });
+      run = runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        fixture.options,
+        fixture.dependencies,
+      );
+    } finally {
+      if (originalString === undefined) {
+        Reflect.deleteProperty(globalThis, "String");
+      } else {
+        Object.defineProperty(globalThis, "String", originalString);
+      }
+    }
+
+    await expect(run).resolves.toMatchObject({
+      status: FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_STATUS,
+    });
+    expect(poisonCalls).toBe(0);
+    expect(fixture.stageAuthorizationArguments).toHaveLength(1);
+    expect(fixture.stageAuthorizationArguments[0]).toMatchObject({
+      engineArgs: ["--connector-string-capture-canary"],
+    });
+  });
+
   it("rejects arity, extra keys, Proxies, and accessors before authority calls", async () => {
     expect(runFloodgateV7ProductionCheckpointConnector.length).toBe(1);
     expect(runFloodgateV7ProductionCheckpointConnectorCoreForTests.length).toBe(
@@ -2502,6 +3023,52 @@ describe("Floodgate v7 production checkpoint connector", () => {
     expect(fixture.calls.readiness).toBe(0);
   });
 
+  it("rejects a test-only enrollment capability at the production entry before readiness", async () => {
+    const fixture = makeFixture();
+
+    await expect(
+      runFloodgateV7ProductionCheckpointConnector(fixture.options),
+    ).rejects.toMatchObject({
+      phase: "enrollment",
+      retry_disposition: "fresh-invocation-required",
+    });
+    expect(fixture.calls.readiness).toBe(0);
+  });
+
+  it("rejects a cloned enrollment capability and consumes an authentic one once", async () => {
+    const cloneFixture = makeFixture();
+    const clonedOptions = {
+      ...cloneFixture.options,
+      keyEnrollment: { ...cloneFixture.options.keyEnrollment },
+    } as FloodgateV7ProductionCheckpointConnectorOptions;
+
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        clonedOptions,
+        cloneFixture.dependencies,
+      ),
+    ).rejects.toMatchObject({ phase: "enrollment" });
+    expect(cloneFixture.calls.readiness).toBe(0);
+
+    const singleUseFixture = makeFixture();
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        singleUseFixture.options,
+        singleUseFixture.dependencies,
+      ),
+    ).resolves.toMatchObject({
+      status: FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_STATUS,
+    });
+    const callsAfterSuccess = { ...singleUseFixture.calls };
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        singleUseFixture.options,
+        singleUseFixture.dependencies,
+      ),
+    ).rejects.toMatchObject({ phase: "enrollment" });
+    expect(singleUseFixture.calls).toEqual(callsAfterSuccess);
+  });
+
   it("imports only the capability owners required for the production composition", () => {
     const source = fs.readFileSync(CONNECTOR_SOURCE_PATH, "utf8");
     const imports = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map(
@@ -2510,6 +3077,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
 
     expect(imports).toEqual([
       "node:util",
+      "./floodgate-v7-approved-key-enrollment",
       "./floodgate-v7-deployment-key-authority",
       "./floodgate-v7-deployment-key-readiness",
       "./floodgate-teacher-stage-authorization",

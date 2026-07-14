@@ -11,7 +11,15 @@
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY,
+  claimFloodgateV7ApprovedKeyEnrollment,
+  claimFloodgateV7ApprovedKeyEnrollmentCoreForTests,
+  type FloodgateV7ApprovedKeyEnrollmentCapability,
+  type FloodgateV7ApprovedKeyEnrollmentClaim,
+} from "./floodgate-v7-approved-key-enrollment";
+import {
   FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+  FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
   discardFloodgateV7DeploymentTeacherCheckpointV3Key,
   prepareFloodgateV7DeploymentTeacherCheckpointV3Key,
   type FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization,
@@ -55,6 +63,7 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
@@ -71,13 +80,13 @@ import {
 } from "./floodgate-v7-teacher-checkpoint";
 
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CONTRACT =
-  "shogi-floodgate-v7-production-checkpoint-connector-v1" as const;
+  "shogi-floodgate-v7-production-checkpoint-connector-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_STATUS =
   "checkpoint-gate-and-training-postflight-complete-all-capabilities-closed" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CLAIM_BOUNDARY =
-  "exact-production-coordinator-stage-key-training-callback-v3-checkpoint-postflight-and-all-settled-cleanup-no-key-row-path-function-label-training-weight-live-or-playing-strength-evidence" as const;
+  "approved-key-enrollment-exact-production-coordinator-stage-key-training-callback-v3-checkpoint-postflight-and-all-settled-cleanup-no-key-row-path-function-label-training-weight-live-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_TRUST_BOUNDARY =
-  "trusted-current-process-js-realm-and-imported-production-capability-owners-v1" as const;
+  "trusted-current-process-js-realm-imported-approved-enrollment-and-production-capability-owners-v2" as const;
 
 export type FloodgateV7ProductionCheckpointConnectorExecutionBoundary =
   | "production-fixed-capability-composition"
@@ -85,6 +94,7 @@ export type FloodgateV7ProductionCheckpointConnectorExecutionBoundary =
 
 export type FloodgateV7ProductionCheckpointConnectorPhase =
   | "capture"
+  | "enrollment"
   | "readiness"
   | "coordinator-stage"
   | "handoff"
@@ -105,9 +115,18 @@ export type FloodgateV7ProductionCheckpointConnectorRetryDisposition =
 export interface FloodgateV7ProductionCheckpointConnectorOptions {
   readonly runId: string;
   readonly gate: FloodgateV7TeacherCheckpointV3Gate;
-  readonly expectedKeyInstanceId: string;
+  readonly keyEnrollment: FloodgateV7ApprovedKeyEnrollmentCapability;
   readonly stageAuthorization: FloodgateTeacherStageAuthorizationOptions;
   readonly consumer: FloodgateTrainingRowConsumerOptions;
+}
+
+interface CapturedConnectorOptions {
+  readonly runId: string;
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
+  readonly expectedKeyInstanceId: string;
+  readonly keyEnrollment: Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>;
+  readonly stageAuthorization: Readonly<FloodgateTeacherStageAuthorizationOptions>;
+  readonly consumer: Readonly<FloodgateTrainingRowConsumerOptions>;
 }
 
 export interface FloodgateV7ProductionCheckpointConnectorReceipt<
@@ -130,6 +149,14 @@ export interface FloodgateV7ProductionCheckpointConnectorReceipt<
   readonly gate: FloodgateV7TeacherCheckpointV3Gate;
   readonly key_id: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
   readonly key_instance_id: string;
+  readonly approved_key_enrollment: Readonly<{
+    readonly claim_boundary: typeof FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY;
+    readonly execution_boundary: FloodgateV7ApprovedKeyEnrollmentClaim["execution_boundary"];
+    readonly record: FloodgateV7ApprovedKeyEnrollmentClaim["record"];
+    readonly candidate_receipt: FloodgateV7ApprovedKeyEnrollmentClaim["candidate_receipt"];
+    readonly approval: FloodgateV7ApprovedKeyEnrollmentClaim["approval"];
+    readonly deployment_identity: FloodgateV7ApprovedKeyEnrollmentClaim["deployment_identity"];
+  }>;
   readonly run_binding: Readonly<{
     readonly schema: string;
     readonly plan: Readonly<{
@@ -317,6 +344,7 @@ export interface FloodgateV7ProductionCheckpointConnectorCoreDependencies<
 
 const NativePromise = Promise;
 const NativeError = Error;
+const NativeString = String;
 const NativeWeakSet = WeakSet;
 const nativePromisePrototype = Promise.prototype;
 const nativePromiseThen = Promise.prototype.then;
@@ -345,6 +373,7 @@ const promiseSpeciesSymbol = Symbol.species;
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const KEY_INSTANCE_RE = /^[0-9a-f]{64}$/;
 const REVISION_RE = /^[0-9a-f]{40}$/;
+const DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const ABSOLUTE_PATH_RE = /^\/(?:[^/]+(?:\/[^/]+)*)?$/;
 const DOT_PATH_SEGMENT_RE = /(?:^|\/)\.{1,2}(?:\/|$)/;
 const MAX_STRING_CODE_UNITS = 4_096;
@@ -355,8 +384,8 @@ const FIXED_RAW_PARENT_FORMAT: FloodgateTrainingInputBinding["raw_format"] =
   "shogi-floodgate-label-free-raw-parent-jsonl-v1";
 const OPTION_KEYS = objectFreeze([
   "consumer",
-  "expectedKeyInstanceId",
   "gate",
+  "keyEnrollment",
   "runId",
   "stageAuthorization",
 ] as const);
@@ -655,7 +684,7 @@ function captureStringArray(value: unknown, label: string): readonly string[] {
   }
   const output: string[] = [];
   for (let index = 0; index < value.length; index += 1) {
-    const descriptor = descriptorAt(descriptors, String(index));
+    const descriptor = descriptorAt(descriptors, NativeString(index));
     if (!isEnumerableDataDescriptor(descriptor)) {
       throw new NativeError(`${label} must contain enumerable data entries`);
     }
@@ -676,15 +705,6 @@ function captureOptions(
   const runId = requiredString(candidate.runId, "options.runId");
   if (!matches(RUN_ID_RE, runId)) {
     throw new NativeError("options.runId must be lowercase 32-byte hex");
-  }
-  const expectedKeyInstanceId = requiredString(
-    candidate.expectedKeyInstanceId,
-    "options.expectedKeyInstanceId",
-  );
-  if (!matches(KEY_INSTANCE_RE, expectedKeyInstanceId)) {
-    throw new NativeError(
-      "options.expectedKeyInstanceId must be lowercase 32-byte hex",
-    );
   }
   const gate = candidate.gate;
   if (
@@ -824,9 +844,33 @@ function captureOptions(
   return frozenRecord({
     runId,
     gate,
-    expectedKeyInstanceId,
+    keyEnrollment:
+      candidate.keyEnrollment as FloodgateV7ApprovedKeyEnrollmentCapability,
     stageAuthorization,
     consumer,
+  });
+}
+
+function bindKeyEnrollment(
+  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  claim: Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>,
+): Readonly<CapturedConnectorOptions> {
+  if (
+    claim === null ||
+    typeof claim !== "object" ||
+    nodeIsProxy(claim) ||
+    claim.key_id !== FLOODGATE_V7_DEPLOYMENT_KEY_ID ||
+    !matches(KEY_INSTANCE_RE, claim.key_instance_id)
+  ) {
+    throw new NativeError("approved key enrollment claim is invalid");
+  }
+  return frozenRecord({
+    runId: options.runId,
+    gate: options.gate,
+    expectedKeyInstanceId: claim.key_instance_id,
+    keyEnrollment: claim,
+    stageAuthorization: options.stageAuthorization,
+    consumer: options.consumer,
   });
 }
 
@@ -1104,7 +1148,16 @@ function captureStageLease(
   });
 }
 
-function captureKeyInstanceId(value: unknown): string {
+interface CapturedKeyDeployment {
+  readonly ownerUid: number;
+  readonly parentDev: string;
+  readonly parentIno: string;
+  readonly keyDev: string;
+  readonly keyIno: string;
+  readonly keyInstanceId: string;
+}
+
+function captureKeyDeployment(value: unknown): Readonly<CapturedKeyDeployment> {
   const authorizationDescriptors = safeDataDescriptors(
     value,
     "deployment key authorization",
@@ -1117,6 +1170,15 @@ function captureKeyInstanceId(value: unknown): string {
     ),
     "deployment key authorization receipt",
   );
+  requiredExact(
+    ownDataValue(
+      receiptDescriptors,
+      "key_id",
+      "deployment key authorization receipt",
+    ),
+    FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    "deployment key authorization key id",
+  );
   const deploymentDescriptors = safeDataDescriptors(
     ownDataValue(
       receiptDescriptors,
@@ -1125,15 +1187,80 @@ function captureKeyInstanceId(value: unknown): string {
     ),
     "deployment key metadata",
   );
-  return requiredHex(
+  requiredExact(
+    ownDataValue(deploymentDescriptors, "layout", "deployment key metadata"),
+    "fixed-current-euid-userinfo-home-v1",
+    "deployment key layout",
+  );
+  requiredExact(
     ownDataValue(
       deploymentDescriptors,
-      "key_instance_id",
+      "key_instance_algorithm",
       "deployment key metadata",
     ),
-    KEY_INSTANCE_RE,
-    "deployment key instance id",
+    FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
+    "deployment key instance algorithm",
   );
+  const parentDescriptors = safeDataDescriptors(
+    ownDataValue(
+      deploymentDescriptors,
+      "parent_identity",
+      "deployment key metadata",
+    ),
+    "deployment key parent identity",
+  );
+  const keyDescriptors = safeDataDescriptors(
+    ownDataValue(
+      deploymentDescriptors,
+      "key_identity",
+      "deployment key metadata",
+    ),
+    "deployment key identity",
+  );
+  return frozenRecord({
+    ownerUid: requiredSafeInteger(
+      ownDataValue(
+        deploymentDescriptors,
+        "owner_uid",
+        "deployment key metadata",
+      ),
+      "deployment key owner UID",
+      0,
+    ),
+    parentDev: requiredHexOrDecimal(
+      ownDataValue(parentDescriptors, "dev", "deployment key parent identity"),
+      "deployment key parent dev",
+    ),
+    parentIno: requiredHexOrDecimal(
+      ownDataValue(parentDescriptors, "ino", "deployment key parent identity"),
+      "deployment key parent ino",
+    ),
+    keyDev: requiredHexOrDecimal(
+      ownDataValue(keyDescriptors, "dev", "deployment key identity"),
+      "deployment key dev",
+    ),
+    keyIno: requiredHexOrDecimal(
+      ownDataValue(keyDescriptors, "ino", "deployment key identity"),
+      "deployment key ino",
+    ),
+    keyInstanceId: requiredHex(
+      ownDataValue(
+        deploymentDescriptors,
+        "key_instance_id",
+        "deployment key metadata",
+      ),
+      KEY_INSTANCE_RE,
+      "deployment key instance id",
+    ),
+  });
+}
+
+function requiredHexOrDecimal(value: unknown, label: string): string {
+  const output = requiredString(value, label);
+  if (!matches(DECIMAL_RE, output)) {
+    throw new NativeError(`${label} must be canonical decimal`);
+  }
+  return output;
 }
 
 function captureInputBinding(
@@ -1347,7 +1474,7 @@ type CapturedCheckpointReceipt = Readonly<
 
 function captureCheckpointReceipt(
   value: unknown,
-  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  options: Readonly<CapturedConnectorOptions>,
 ): CapturedCheckpointReceipt {
   const descriptors = safeDataDescriptors(value, "checkpoint receipt");
   requiredExact(
@@ -1423,6 +1550,18 @@ function captureCheckpointReceipt(
       : options.gate === "durable-prefix-500"
         ? 500
         : FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  const predecessorParents =
+    options.gate === "durable-prefix-100"
+      ? 0
+      : options.gate === "durable-prefix-500"
+        ? 100
+        : 500;
+  const expectedRecords =
+    options.gate === "durable-prefix-100"
+      ? 102
+      : options.gate === "durable-prefix-500"
+        ? 503
+        : 24_004;
   const status = requiredExact(
     ownDataValue(descriptors, "status", "checkpoint receipt"),
     finalGate
@@ -1472,6 +1611,29 @@ function captureCheckpointReceipt(
     FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
     "checkpoint durability",
   );
+  const records = requiredSafeInteger(
+    ownDataValue(workDescriptors, "records", "checkpoint work receipt"),
+    "checkpoint records",
+    1,
+  );
+  requiredExact(records, expectedRecords, "checkpoint record count");
+  const bytes = requiredSafeInteger(
+    ownDataValue(workDescriptors, "bytes", "checkpoint work receipt"),
+    "checkpoint bytes",
+    1,
+  );
+  if (bytes > FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES) {
+    throw new NativeError("checkpoint bytes exceed the fixed V3 bound");
+  }
+  const resumedParents = requiredSafeInteger(
+    ownDataValue(workDescriptors, "resumed_parents", "checkpoint work receipt"),
+    "checkpoint resumed parent count",
+  );
+  if (resumedParents < predecessorParents || resumedParents > targetParents) {
+    throw new NativeError(
+      "checkpoint resumed parent count is outside gate bounds",
+    );
+  }
   return frozenRecord({
     contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
     status,
@@ -1487,16 +1649,8 @@ function captureCheckpointReceipt(
     work: frozenRecord({
       format: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT,
       training_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-      records: requiredSafeInteger(
-        ownDataValue(workDescriptors, "records", "checkpoint work receipt"),
-        "checkpoint records",
-        1,
-      ),
-      bytes: requiredSafeInteger(
-        ownDataValue(workDescriptors, "bytes", "checkpoint work receipt"),
-        "checkpoint bytes",
-        1,
-      ),
+      records,
+      bytes,
       sha256: requiredHex(
         ownDataValue(workDescriptors, "sha256", "checkpoint work receipt"),
         RUN_ID_RE,
@@ -1504,14 +1658,7 @@ function captureCheckpointReceipt(
       ),
       target_parents: targetParents,
       completed_parents: targetParents,
-      resumed_parents: requiredSafeInteger(
-        ownDataValue(
-          workDescriptors,
-          "resumed_parents",
-          "checkpoint work receipt",
-        ),
-        "checkpoint resumed parent count",
-      ),
+      resumed_parents: resumedParents,
       durability: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
     }),
   });
@@ -1829,7 +1976,7 @@ function mayHavePersisted(error: unknown): boolean {
 }
 
 function checkpointOptions(
-  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  options: Readonly<CapturedConnectorOptions>,
 ): Readonly<FloodgateV7TeacherCheckpointV3Options> {
   return frozenRecord({
     gate: options.gate,
@@ -1839,7 +1986,7 @@ function checkpointOptions(
 }
 
 function keyRequest(
-  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  options: Readonly<CapturedConnectorOptions>,
   runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>,
   stageAuthorizationReceipt: Readonly<FloodgateTeacherStageLease>["receipt"],
 ): Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyRequest> {
@@ -1865,7 +2012,7 @@ function buildReceipt<
   TBoundary extends FloodgateV7ProductionCheckpointConnectorExecutionBoundary,
 >(
   boundary: TBoundary,
-  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  options: Readonly<CapturedConnectorOptions>,
   keyInstanceId: string,
   runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>,
   inputBinding: Readonly<FloodgateTrainingInputBinding>,
@@ -1891,6 +2038,14 @@ function buildReceipt<
     gate: options.gate,
     key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
     key_instance_id: keyInstanceId,
+    approved_key_enrollment: frozenRecord({
+      claim_boundary: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY,
+      execution_boundary: options.keyEnrollment.execution_boundary,
+      record: options.keyEnrollment.record,
+      candidate_receipt: options.keyEnrollment.candidate_receipt,
+      approval: options.keyEnrollment.approval,
+      deployment_identity: options.keyEnrollment.deployment_identity,
+    }),
     run_binding: runBinding,
     input_binding: inputBinding,
     checkpoint,
@@ -1932,7 +2087,7 @@ async function runCaptured<
   TAuthorization extends AnyKeyAuthorization,
   TBoundary extends FloodgateV7ProductionCheckpointConnectorExecutionBoundary,
 >(
-  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+  options: Readonly<CapturedConnectorOptions>,
   dependencies: Readonly<
     FloodgateV7ProductionCheckpointConnectorCoreDependencies<TAuthorization>
   >,
@@ -2059,10 +2214,21 @@ async function runCaptured<
         authorization = value;
       },
     );
-    keyInstanceId = captureKeyInstanceId(authorization);
+    const keyDeployment = captureKeyDeployment(authorization);
+    keyInstanceId = keyDeployment.keyInstanceId;
     activePhase = "key-instance";
-    if (keyInstanceId !== options.expectedKeyInstanceId) {
-      throw new NativeError("deployment key instance differs from expectation");
+    const expectedDeployment = options.keyEnrollment.deployment_identity;
+    if (
+      keyInstanceId !== options.expectedKeyInstanceId ||
+      keyDeployment.ownerUid !== expectedDeployment.owner_uid ||
+      keyDeployment.parentDev !== expectedDeployment.parent_dev ||
+      keyDeployment.parentIno !== expectedDeployment.parent_ino ||
+      keyDeployment.keyDev !== expectedDeployment.key_dev ||
+      keyDeployment.keyIno !== expectedDeployment.key_ino
+    ) {
+      throw new NativeError(
+        "deployment key identity differs from approved enrollment",
+      );
     }
 
     activePhase = "consumer";
@@ -2339,15 +2505,24 @@ export function runFloodgateV7ProductionCheckpointConnectorCoreForTests<
   if (arguments.length !== 2) {
     return rejected(publicFailure("capture"));
   }
-  let options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>;
+  let request: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>;
   let dependencies: Readonly<
     FloodgateV7ProductionCheckpointConnectorCoreDependencies<TAuthorization>
   >;
   try {
-    options = captureOptions(optionsValue);
+    request = captureOptions(optionsValue);
     dependencies = captureDependencies(dependenciesValue);
   } catch {
     return rejected(publicFailure("capture"));
+  }
+  let options: Readonly<CapturedConnectorOptions>;
+  try {
+    options = bindKeyEnrollment(
+      request,
+      claimFloodgateV7ApprovedKeyEnrollmentCoreForTests(request.keyEnrollment),
+    );
+  } catch {
+    return rejected(publicFailure("enrollment"));
   }
   return pinPromiseForObservation(
     runCaptured(
@@ -2369,11 +2544,20 @@ export function runFloodgateV7ProductionCheckpointConnector(
   if (arguments.length !== 1) {
     return rejected(publicFailure("capture"));
   }
-  let options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>;
+  let request: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>;
   try {
-    options = captureOptions(optionsValue);
+    request = captureOptions(optionsValue);
   } catch {
     return rejected(publicFailure("capture"));
+  }
+  let options: Readonly<CapturedConnectorOptions>;
+  try {
+    options = bindKeyEnrollment(
+      request,
+      claimFloodgateV7ApprovedKeyEnrollment(request.keyEnrollment),
+    );
+  } catch {
+    return rejected(publicFailure("enrollment"));
   }
   return pinPromiseForObservation(
     runCaptured(

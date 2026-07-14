@@ -35,7 +35,7 @@ The readiness receipt fixes `authoritative_reopen_required: true`. `ready` is no
 
 The read-only probe on the actual machine returned `not-provisioned`: the fixed parent was `absent`, the key was `absent`, and `key_bytes_read: false`. The probe creates no directory or file, and the connector never auto-provisions from `not-provisioned`. Any dedicated provisioner remains a separately approved step requiring current EUID, parent `0700`, key `0600`, a regular file, link count 1, exactly 32 random bytes, exclusive create, file / parent fsync, and never-overwrite behavior.
 
-Readiness discloses no key instance ID. The execution request's `expectedKeyInstanceId` must be pinned by a separate trusted control-plane record or approved provisioning receipt. The connector does not discover an instance at execution and silently accept it as the expectation.
+Readiness discloses no key instance ID. The execution request's `expectedKeyInstanceId` must be pinned by a separately approved enrollment receipt / trusted control-plane record. A provisioning receipt intentionally contains no instance ID. The connector does not discover an instance at execution and silently accept it as the expectation.
 
 ## 3. Capture the exact request before I/O
 

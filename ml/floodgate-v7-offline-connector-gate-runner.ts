@@ -6,6 +6,7 @@
 
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { types as nodeUtilTypes } from "node:util";
 
 import {
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
@@ -224,8 +225,22 @@ const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
 const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
+const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectHasOwn = Object.hasOwn;
+const objectIsFrozen = Object.isFrozen;
+const objectSetPrototypeOf = Object.setPrototypeOf;
 const reflectOwnKeys = Reflect.ownKeys;
+const nativeArrayIsArray = Array.isArray;
+const nodeIsProxy = nodeUtilTypes.isProxy;
+const nativeArrayPrototype = Array.prototype;
+const hardenedArrayPrototype = objectCreate(nativeArrayPrototype);
+objectDefineProperty(hardenedArrayPrototype, "toJSON", {
+  configurable: false,
+  enumerable: false,
+  writable: false,
+  value: undefined,
+});
+objectFreeze(hardenedArrayPrototype);
 
 const RUN_ID = "12".repeat(32);
 const KEY_INSTANCE_ID = "34".repeat(32);
@@ -236,6 +251,15 @@ const PARENT_IDENTITY = frozenRecord({ dev: "1", ino: "20" });
 const KEY_IDENTITY = frozenRecord({ dev: "1", ino: "21" });
 const VERIFIER_REVISION = "7".repeat(40);
 const SYNTHETIC_PATH_ROOT = "/offline-floodgate-v7-contract-fixture";
+const SYNTHETIC_REPOSITORY_ROOT = `${SYNTHETIC_PATH_ROOT}/repository`;
+const SYNTHETIC_RAW_LOCK_ROOT = `${SYNTHETIC_PATH_ROOT}/raw-lock`;
+const SYNTHETIC_ROLE_LOCK_ROOT = `${SYNTHETIC_PATH_ROOT}/role-lock`;
+const SYNTHETIC_ROLE_BUNDLE_ROOT = `${SYNTHETIC_PATH_ROOT}/role-bundle`;
+const SYNTHETIC_PROTECTED_IDS_PATH = `${SYNTHETIC_REPOSITORY_ROOT}/ml/protocols/wcsc36-policy-exposed-parent-ids.txt`;
+const SYNTHETIC_PUBLICATION_PARENT = `${SYNTHETIC_PATH_ROOT}/publication`;
+const SYNTHETIC_ENGINE_BIN = `${SYNTHETIC_PATH_ROOT}/assets/engine/yaneuraou`;
+const SYNTHETIC_ENGINE_RECEIPT = `${SYNTHETIC_PATH_ROOT}/assets/engine/receipt.json`;
+const SYNTHETIC_EVAL_DIR = `${SYNTHETIC_PATH_ROOT}/assets/eval`;
 const CONNECTOR_EXECUTION_BOUNDARY =
   "test-only-injected-capability-composition" as const;
 
@@ -282,10 +306,206 @@ function append<T>(values: T[], value: T): void {
 
 function frozenArray<T>(values: readonly T[]): readonly T[] {
   const output: T[] = [];
+  // JSON.stringify consults inherited toJSON before applying array semantics.
+  // An own undefined shadow on a dedicated prototype keeps normal Array
+  // methods/instanceof behavior while removing ambient toJSON authority.
+  objectSetPrototypeOf(output, hardenedArrayPrototype);
   for (let index = 0; index < values.length; index += 1) {
     append(output, values[index]);
   }
   return objectFreeze(output);
+}
+
+function frozenNativeArray<T>(values: readonly T[]): readonly T[] {
+  const output: T[] = [];
+  for (let index = 0; index < values.length; index += 1) {
+    append(output, values[index]);
+  }
+  return objectFreeze(output);
+}
+
+const EMPTY_NATIVE_ENGINE_ARGS = frozenNativeArray([]);
+
+function requireExactFrozenNativeEmptyArray(
+  value: unknown,
+  label: string,
+): asserts value is readonly never[] {
+  if (
+    !nativeArrayIsArray(value) ||
+    nodeIsProxy(value) ||
+    objectGetPrototypeOf(value) !== nativeArrayPrototype ||
+    !objectIsFrozen(value)
+  ) {
+    throw new NativeError(`synthetic ${label} capture boundary changed`);
+  }
+  const keys = reflectOwnKeys(value);
+  const lengthDescriptor = objectGetOwnPropertyDescriptor(value, "length");
+  if (
+    keys.length !== 1 ||
+    keys[0] !== "length" ||
+    lengthDescriptor === undefined ||
+    !objectHasOwn(lengthDescriptor, "value") ||
+    lengthDescriptor.value !== 0 ||
+    lengthDescriptor.writable !== false ||
+    lengthDescriptor.enumerable !== false ||
+    lengthDescriptor.configurable !== false
+  ) {
+    throw new NativeError(`synthetic ${label} shape changed`);
+  }
+}
+
+function requireSame(value: unknown, expected: unknown, label: string): void {
+  if (value !== expected) {
+    throw new NativeError(`synthetic ${label} changed`);
+  }
+}
+
+function requireDifferent(
+  value: unknown,
+  forbidden: unknown,
+  label: string,
+): void {
+  if (value === forbidden) {
+    throw new NativeError(`synthetic ${label} was not defensively captured`);
+  }
+}
+
+function requireExactOwnKeys(
+  value: unknown,
+  expected: readonly string[],
+  label: string,
+): asserts value is Readonly<Record<string, unknown>> {
+  requireFrozenNullDataRecord(value, expected, label);
+}
+
+function requireFrozenNullDataRecord(
+  value: unknown,
+  expected: readonly string[],
+  label: string,
+): asserts value is Readonly<Record<string, unknown>> {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    objectGetPrototypeOf(value) !== null ||
+    !objectIsFrozen(value)
+  ) {
+    throw new NativeError(`synthetic ${label} capture boundary changed`);
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  if (keys.length !== expected.length) {
+    throw new NativeError(`synthetic ${label} keys changed`);
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = keys[index];
+    if (key !== expected[index] || typeof key !== "string") {
+      throw new NativeError(`synthetic ${label} keys changed`);
+    }
+    const descriptor = descriptorAt(descriptors, key);
+    if (
+      descriptor === undefined ||
+      !objectHasOwn(descriptor, "value") ||
+      descriptor.enumerable !== true ||
+      descriptor.writable !== false ||
+      descriptor.configurable !== false
+    ) {
+      throw new NativeError(
+        `synthetic ${label} requires frozen enumerable data properties`,
+      );
+    }
+  }
+}
+
+function requireRunBinding(
+  value: unknown,
+  label: string,
+): asserts value is Readonly<{
+  readonly schema: unknown;
+  readonly plan: Readonly<Record<string, unknown>>;
+  readonly producer_control: Readonly<Record<string, unknown>>;
+  readonly stable_runtime_receipt_sha256: unknown;
+  readonly teacher_usi_runtime_receipt_sha256: unknown;
+}> {
+  requireFrozenNullDataRecord(
+    value,
+    [
+      "schema",
+      "plan",
+      "producer_control",
+      "stable_runtime_receipt_sha256",
+      "teacher_usi_runtime_receipt_sha256",
+    ],
+    label,
+  );
+  requireDifferent(value, RUN_BINDING, `${label} top-level record`);
+  requireSame(value.schema, RUN_BINDING.schema, `${label} schema`);
+  requireFrozenNullDataRecord(value.plan, ["bytes", "sha256"], `${label} plan`);
+  requireDifferent(value.plan, RUN_BINDING.plan, `${label} plan record`);
+  requireSame(value.plan.bytes, RUN_BINDING.plan.bytes, `${label} plan bytes`);
+  requireSame(
+    value.plan.sha256,
+    RUN_BINDING.plan.sha256,
+    `${label} plan sha256`,
+  );
+  requireFrozenNullDataRecord(
+    value.producer_control,
+    [
+      "schema",
+      "parent_deadline_ms",
+      "abort_drain_ms",
+      "max_in_flight",
+      "cancel_policy",
+      "late_settlement_policy",
+    ],
+    `${label} producer control`,
+  );
+  requireDifferent(
+    value.producer_control,
+    RUN_BINDING.producer_control,
+    `${label} producer control record`,
+  );
+  const actualControl = value.producer_control;
+  const expectedControl = RUN_BINDING.producer_control;
+  requireSame(
+    actualControl.schema,
+    expectedControl.schema,
+    `${label} producer control schema`,
+  );
+  requireSame(
+    actualControl.parent_deadline_ms,
+    expectedControl.parent_deadline_ms,
+    `${label} parent deadline`,
+  );
+  requireSame(
+    actualControl.abort_drain_ms,
+    expectedControl.abort_drain_ms,
+    `${label} abort drain`,
+  );
+  requireSame(
+    actualControl.max_in_flight,
+    expectedControl.max_in_flight,
+    `${label} max in flight`,
+  );
+  requireSame(
+    actualControl.cancel_policy,
+    expectedControl.cancel_policy,
+    `${label} cancel policy`,
+  );
+  requireSame(
+    actualControl.late_settlement_policy,
+    expectedControl.late_settlement_policy,
+    `${label} late settlement policy`,
+  );
+  requireSame(
+    value.stable_runtime_receipt_sha256,
+    RUN_BINDING.stable_runtime_receipt_sha256,
+    `${label} stable runtime receipt`,
+  );
+  requireSame(
+    value.teacher_usi_runtime_receipt_sha256,
+    RUN_BINDING.teacher_usi_runtime_receipt_sha256,
+    `${label} teacher runtime receipt`,
+  );
 }
 
 function resolved<T>(value: T): Promise<T> {
@@ -529,36 +749,31 @@ function connectorOptions(
   gate: OfflineGate,
   keyEnrollment: Readonly<FloodgateV7ApprovedKeyEnrollmentCapability>,
 ): Readonly<FloodgateV7ProductionCheckpointConnectorOptions> {
-  const repositoryRoot = `${SYNTHETIC_PATH_ROOT}/repository`;
-  const rawLockRoot = `${SYNTHETIC_PATH_ROOT}/raw-lock`;
-  const roleLockRoot = `${SYNTHETIC_PATH_ROOT}/role-lock`;
-  const roleBundleRoot = `${SYNTHETIC_PATH_ROOT}/role-bundle`;
-  const protectedIds = `${repositoryRoot}/ml/protocols/wcsc36-policy-exposed-parent-ids.txt`;
   return frozenRecord({
     runId: RUN_ID,
     gate,
     keyEnrollment,
     stageAuthorization: frozenRecord({
-      repositoryRoot,
-      rawLockRoot,
-      roleLockRoot,
-      roleBundleRoot,
-      legacyProtectedPositionIdsPath: protectedIds,
-      publicationParent: `${SYNTHETIC_PATH_ROOT}/publication`,
+      repositoryRoot: SYNTHETIC_REPOSITORY_ROOT,
+      rawLockRoot: SYNTHETIC_RAW_LOCK_ROOT,
+      roleLockRoot: SYNTHETIC_ROLE_LOCK_ROOT,
+      roleBundleRoot: SYNTHETIC_ROLE_BUNDLE_ROOT,
+      legacyProtectedPositionIdsPath: SYNTHETIC_PROTECTED_IDS_PATH,
+      publicationParent: SYNTHETIC_PUBLICATION_PARENT,
       stageBasename: `floodgate-v7-${RUN_ID}-stage`,
       destinationBasename: `floodgate-v7-${RUN_ID}-final`,
-      engineBin: `${SYNTHETIC_PATH_ROOT}/assets/engine/yaneuraou`,
-      engineReceipt: `${SYNTHETIC_PATH_ROOT}/assets/engine/receipt.json`,
-      engineArgs: frozenArray([]),
-      evalDir: `${SYNTHETIC_PATH_ROOT}/assets/eval`,
+      engineBin: SYNTHETIC_ENGINE_BIN,
+      engineReceipt: SYNTHETIC_ENGINE_RECEIPT,
+      engineArgs: EMPTY_NATIVE_ENGINE_ARGS,
+      evalDir: SYNTHETIC_EVAL_DIR,
     }),
     consumer: frozenRecord({
-      repositoryRoot,
+      repositoryRoot: SYNTHETIC_REPOSITORY_ROOT,
       verifierRevision: VERIFIER_REVISION,
-      rawLockRoot,
-      roleLockRoot,
-      legacyProtectedPositionIdsPath: protectedIds,
-      outputRoot: roleBundleRoot,
+      rawLockRoot: SYNTHETIC_RAW_LOCK_ROOT,
+      roleLockRoot: SYNTHETIC_ROLE_LOCK_ROOT,
+      legacyProtectedPositionIdsPath: SYNTHETIC_PROTECTED_IDS_PATH,
+      outputRoot: SYNTHETIC_ROLE_BUNDLE_ROOT,
     }),
   });
 }
@@ -620,6 +835,9 @@ function connectorDependencies(
   calls: MutableSyntheticLifecycleCalls,
 ): FloodgateV7ProductionCheckpointConnectorCoreDependencies {
   const checkpoint = checkpointReceipt(fixture);
+  const stageReceipt = frozenRecord({
+    synthetic_test_only_stage_receipt: true as const,
+  });
   const authorization = frozenRecord({
     authorization: frozenRecord({
       key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
@@ -667,9 +885,12 @@ function connectorDependencies(
     return resolved(undefined);
   });
   const lease = frozenRecord({
-    receipt: frozenRecord({ synthetic_test_only_stage_receipt: true }),
+    receipt: stageReceipt,
     close: closeLease,
   });
+  let preparedRunBinding: unknown;
+  let preparedRunBindingPlan: unknown;
+  let preparedRunBindingControl: unknown;
 
   return frozenRecord({
     inspectKeyReadiness: objectFreeze(function inspectKeyReadiness() {
@@ -689,12 +910,102 @@ function connectorDependencies(
       }
       return handoff;
     }),
-    authorizeStage: objectFreeze(function authorizeStage() {
+    authorizeStage: objectFreeze(function authorizeStage(options: unknown) {
       calls.authorizeStage += 1;
+      requireExactOwnKeys(
+        options,
+        [
+          "repositoryRoot",
+          "rawLockRoot",
+          "roleLockRoot",
+          "roleBundleRoot",
+          "legacyProtectedPositionIdsPath",
+          "publicationParent",
+          "stageBasename",
+          "destinationBasename",
+          "engineBin",
+          "engineReceipt",
+          "engineArgs",
+          "evalDir",
+        ],
+        "stage authorization options",
+      );
+      requireSame(
+        options.repositoryRoot,
+        SYNTHETIC_REPOSITORY_ROOT,
+        "stage repository root",
+      );
+      requireSame(
+        options.rawLockRoot,
+        SYNTHETIC_RAW_LOCK_ROOT,
+        "stage raw lock root",
+      );
+      requireSame(
+        options.roleLockRoot,
+        SYNTHETIC_ROLE_LOCK_ROOT,
+        "stage role lock root",
+      );
+      requireSame(
+        options.roleBundleRoot,
+        SYNTHETIC_ROLE_BUNDLE_ROOT,
+        "stage role bundle root",
+      );
+      requireSame(
+        options.legacyProtectedPositionIdsPath,
+        SYNTHETIC_PROTECTED_IDS_PATH,
+        "stage protected ids path",
+      );
+      requireSame(
+        options.publicationParent,
+        SYNTHETIC_PUBLICATION_PARENT,
+        "stage publication parent",
+      );
+      requireSame(
+        options.stageBasename,
+        `floodgate-v7-${RUN_ID}-stage`,
+        "stage basename",
+      );
+      requireSame(
+        options.destinationBasename,
+        `floodgate-v7-${RUN_ID}-final`,
+        "stage destination basename",
+      );
+      requireSame(options.engineBin, SYNTHETIC_ENGINE_BIN, "stage engine bin");
+      requireSame(
+        options.engineReceipt,
+        SYNTHETIC_ENGINE_RECEIPT,
+        "stage engine receipt",
+      );
+      requireExactFrozenNativeEmptyArray(
+        options.engineArgs,
+        "stage engine arguments",
+      );
+      requireSame(options.evalDir, SYNTHETIC_EVAL_DIR, "stage eval directory");
       return resolved(lease);
     }),
-    prepareKey: objectFreeze(function prepareKey() {
+    prepareKey: objectFreeze(function prepareKey(request: unknown) {
       calls.prepareKey += 1;
+      requireExactOwnKeys(
+        request,
+        ["gate", "keyId", "runBinding", "runId", "stageAuthorizationReceipt"],
+        "key preparation request",
+      );
+      requireSame(request.gate, fixture.gate, "key request gate");
+      requireSame(
+        request.keyId,
+        FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        "key request key id",
+      );
+      requireSame(request.runId, RUN_ID, "key request run id");
+      requireSame(
+        request.stageAuthorizationReceipt,
+        stageReceipt,
+        "key request stage receipt identity",
+      );
+      requireRunBinding(request.runBinding, "key request run binding");
+      preparedRunBinding = request.runBinding;
+      preparedRunBindingPlan = request.runBinding.plan;
+      preparedRunBindingControl = request.runBinding.producer_control;
       return resolved(authorization);
     }),
     discardKey: objectFreeze(function discardKey(value: unknown): void {
@@ -704,10 +1015,52 @@ function connectorDependencies(
       }
     }),
     consumeRowsAndPostflight: objectFreeze(function consumeRowsAndPostflight(
-      _options: unknown,
+      options: unknown,
       consume: (input: unknown) => Promise<void>,
     ): Promise<unknown> {
       calls.consumeRows += 1;
+      requireExactOwnKeys(
+        options,
+        [
+          "repositoryRoot",
+          "verifierRevision",
+          "rawLockRoot",
+          "roleLockRoot",
+          "legacyProtectedPositionIdsPath",
+          "outputRoot",
+        ],
+        "consumer options",
+      );
+      requireSame(
+        options.repositoryRoot,
+        SYNTHETIC_REPOSITORY_ROOT,
+        "consumer repository root",
+      );
+      requireSame(
+        options.verifierRevision,
+        VERIFIER_REVISION,
+        "consumer verifier revision",
+      );
+      requireSame(
+        options.rawLockRoot,
+        SYNTHETIC_RAW_LOCK_ROOT,
+        "consumer raw lock root",
+      );
+      requireSame(
+        options.roleLockRoot,
+        SYNTHETIC_ROLE_LOCK_ROOT,
+        "consumer role lock root",
+      );
+      requireSame(
+        options.legacyProtectedPositionIdsPath,
+        SYNTHETIC_PROTECTED_IDS_PATH,
+        "consumer protected ids path",
+      );
+      requireSame(
+        options.outputRoot,
+        SYNTHETIC_ROLE_BUNDLE_ROOT,
+        "consumer output root",
+      );
       let callback: Promise<void>;
       try {
         callback = consume(SYNTHETIC_INPUT);
@@ -734,23 +1087,60 @@ function connectorDependencies(
       }
     }),
     checkpoint: objectFreeze(function runCheckpoint(
-      _lease: unknown,
-      _input: unknown,
-      _runBinding: unknown,
-      _controller: unknown,
+      receivedLease: unknown,
+      input: unknown,
+      runBinding: unknown,
+      controller: unknown,
       options: unknown,
       value: unknown,
     ): Promise<unknown> {
       calls.checkpoint += 1;
+      requireSame(receivedLease, lease, "checkpoint lease identity");
+      requireSame(input, SYNTHETIC_INPUT, "checkpoint input identity");
+      requireSame(
+        runBinding,
+        preparedRunBinding,
+        "checkpoint prepared run binding identity",
+      );
+      requireRunBinding(runBinding, "checkpoint run binding");
+      requireSame(
+        runBinding.plan,
+        preparedRunBindingPlan,
+        "checkpoint prepared run binding plan identity",
+      );
+      requireSame(
+        runBinding.producer_control,
+        preparedRunBindingControl,
+        "checkpoint prepared run binding control identity",
+      );
+      requireExactOwnKeys(
+        controller,
+        ["produce", "abortAndDrain"],
+        "checkpoint controller",
+      );
+      requireSame(controller.produce, produce, "checkpoint producer identity");
+      requireSame(
+        controller.abortAndDrain,
+        abortCoordinator,
+        "checkpoint abort identity",
+      );
+      requireExactOwnKeys(
+        options,
+        ["gate", "keyId", "runId"],
+        "checkpoint options",
+      );
       if (value !== authorization) {
         return rejected(
           new NativeError("synthetic checkpoint key identity changed"),
         );
       }
-      const gate = (options as Readonly<{ readonly gate?: unknown }>).gate;
-      if (gate !== fixture.gate) {
-        return rejected(new NativeError("synthetic checkpoint gate changed"));
-      }
+      requireSame(options.gate, fixture.gate, "checkpoint gate");
+      requireSame(
+        options.keyId,
+        FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        "checkpoint key id",
+      );
+      requireSame(options.runId, RUN_ID, "checkpoint run id");
       return resolved(checkpoint);
     }),
     observeFailureForTests: objectFreeze(

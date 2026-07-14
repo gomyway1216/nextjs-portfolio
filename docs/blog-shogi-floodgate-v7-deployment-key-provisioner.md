@@ -1,6 +1,6 @@
 # fixed deployment keyを上書きせず配備する — Floodgate v7 provisioner設計
 
-> 前段の[metadata-only readiness probe](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)は、実machineのfixed key slotが`not-provisioned`であることをkey bytesを読まずに確認した。しかし「ない」と確認する権限と、32-byte secretを新規作成する権限は別である。この記事は、manual shell redirectionを禁止し、current EUIDに固定したprivate deploymentへ一度だけexclusive createする専用provisionerの実装と検証結果を固定する。source、focused / related / full test、Python regression、static check、build、code / test reviewは完了した。一方、ready PR、branch CI、merge、actual provisioning、production connector executionはまだ**pending / 0**であり、production weightとlive評価関数は変更していない。English version: [blog-shogi-floodgate-v7-deployment-key-provisioner.en.md](./blog-shogi-floodgate-v7-deployment-key-provisioner.en.md)
+> 前段の[metadata-only readiness probe](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)は、実machineのfixed key slotが`not-provisioned`であることをkey bytesを読まずに確認した。しかし「ない」と確認する権限と、32-byte secretを新規作成する権限は別である。この記事は、manual shell redirectionを禁止し、current EUIDに固定したprivate deploymentへ一度だけexclusive createする専用provisionerの実装と検証結果を固定する。source、focused / related / full test、Python regression、static check、build、code / test reviewに加え、ready [PR #458](https://github.com/gomyway1216/nextjs-portfolio/pull/458)のinitial branch CIまで完了した。一方、final docs-only head CI、merge、actual provisioning、production connector executionはまだ**pending / 0**であり、production weightとlive評価関数は変更していない。English version: [blog-shogi-floodgate-v7-deployment-key-provisioner.en.md](./blog-shogi-floodgate-v7-deployment-key-provisioner.en.md)
 
 ---
 
@@ -165,28 +165,31 @@ production provisionerをtestから呼ばないこと、test coreがfixed real h
 | manual redirectionはcontractを構成できない   | dedicated code / testsとsealed reviewが完了               | production execution                     |
 | live weight activation 0、対局0              | 現行live評価関数は不変                                    | 棋力向上                                 |
 
-| delivery check                                        | status                                                 |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| provisioner source implementation                     | **completed**                                          |
-| focused provisioner unit tests                        | **27 / 27 PASS**                                       |
-| related authority / readiness / provisioner Vitest    | **49 / 49 PASS、3 files**                              |
-| full Vitest                                           | **2,146 / 2,146 PASS、118 files、162.76s、12 workers** |
-| Python ML regression                                  | **58 / 58 PASS**                                       |
-| TypeScript / ESLint / Prettier / diff-check / build   | **PASS**                                               |
-| sealed code / test review                             | **P0 = 0、P1 = 0、P2 = 0**                             |
-| ready-for-review PR / review comments                 | **pending**                                            |
-| branch CI / merge                                     | **pending**                                            |
-| actual fixed-path provisioning                        | **0 / pending explicit approval**                      |
-| production connector execution                        | **0**                                                  |
-| training / candidate weight / live activation / games | **0 / 0 / 0 / 0**                                      |
+| delivery check                                        | status                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| provisioner source implementation                     | **completed**                                                                        |
+| focused provisioner unit tests                        | **27 / 27 PASS**                                                                     |
+| related authority / readiness / provisioner Vitest    | **49 / 49 PASS、3 files**                                                            |
+| full Vitest                                           | **2,146 / 2,146 PASS、118 files、162.76s、12 workers**                               |
+| Python ML regression                                  | **58 / 58 PASS**                                                                     |
+| TypeScript / ESLint / Prettier / diff-check / build   | **PASS**                                                                             |
+| sealed code / test review                             | **P0 = 0、P1 = 0、P2 = 0**                                                           |
+| ready-for-review PR / review comments                 | **#458 OPEN / ready、Gemini・Copilot actionable 0、unresolved threads 0**            |
+| branch CI on head `89ef381`                           | **PASS: Test/build 8m07s、E2E 3m53s、Darwin 49s、audit 18s、Vercel / Preview green** |
+| final docs-only head CI / merge                       | **pending / pending**                                                                |
+| actual fixed-path provisioning                        | **0 / pending explicit approval**                                                    |
+| production connector execution                        | **0**                                                                                |
+| training / candidate weight / live activation / games | **0 / 0 / 0 / 0**                                                                    |
 
-buildはNext compile 20.1s、TypeScript 18.2s、static generation 193 pages / 13 workersで完了した。出力は既存のFirebase / cookies warningだけで、新しいbuild errorはない。focused 27 testsにはsuccess / unsafe namespace / race / stale staging / real production home exclusion / zeroizationと11 failpointsが含まれる。PR、branch CI、merge、actual provisioningのpendingをPASSと読み替えない。
+buildはNext compile 20.1s、TypeScript 18.2s、static generation 193 pages / 13 workersで完了した。出力は既存のFirebase / cookies warningだけで、新しいbuild errorはない。focused 27 testsにはsuccess / unsafe namespace / race / stale staging / real production home exclusion / zeroizationと11 failpointsが含まれる。final-head CI、merge、actual provisioningのpendingをPASSと読み替えない。
+
+GitHub initial CI run `29299536980`ではhead `89ef381`に対してTest/build 8m07s、E2E 3m53s、Darwin 49sが成功し、Security Audit run `29299536976`も18sで成功した。Vercel / Preview Commentsもgreenである。GeminiとCopilotはsummary reviewを返したがinline / actionable commentは0、review threadも0だった。この段落を追加するdocs-only evidence reconciliation headも同じrequired checksを通してからmergeする。
 
 ## 11. provisioning後も100 → 500 → 24,000を飛ばさない
 
 provision成功はteacher-data productionを可能にするmetadata prerequisiteであって、評価関数を強くする処理ではない。順序は次で固定する。
 
-1. 完了したsource、fault tests、full regression、sealed reviewをready PRへ公開し、review commentsとbranch CIを完了する。
+1. ready PR #458のdocs-only final headでもrequired CIを完了し、通常merge commitで統合する。
 2. 別の明示承認でproduction wrapperを一度だけ実行し、non-secret provision receiptを保存する。
 3. fresh readinessが`ready`であることを確認し、別のaudited enrollmentで`key_instance_id`をtrusted recordへ固定してからconnectorへexpected instanceを事前入力する。
 4. holdoutを開かず100-parent durable prefixを実行し、throughput、candidate count、timeout、score / mate distribution、resume、残留process、durabilityを監査する。

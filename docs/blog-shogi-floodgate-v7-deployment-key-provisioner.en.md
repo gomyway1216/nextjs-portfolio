@@ -1,6 +1,6 @@
 # Provisioning the fixed deployment key without overwrite — Floodgate v7 provisioner design
 
-> The preceding [metadata-only readiness probe](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) confirmed without reading key bytes that the fixed key slot on the real machine is `not-provisioned`. The authority to observe absence and the authority to create a 32-byte secret are separate. This article records the implementation and verification results for a dedicated provisioner that forbids manual shell redirection and performs one exclusive create in the private deployment bound to the current EUID. Source, focused / related / full tests, Python regression, static checks, build, and code / test review are complete. The ready PR, branch CI, merge, actual provisioning, and production connector execution remain **pending / 0**; the production weight and live evaluation function are unchanged. Japanese version: [blog-shogi-floodgate-v7-deployment-key-provisioner.md](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)
+> The preceding [metadata-only readiness probe](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) confirmed without reading key bytes that the fixed key slot on the real machine is `not-provisioned`. The authority to observe absence and the authority to create a 32-byte secret are separate. This article records the implementation and verification results for a dedicated provisioner that forbids manual shell redirection and performs one exclusive create in the private deployment bound to the current EUID. Source, focused / related / full tests, Python regression, static checks, build, code / test review, and initial branch CI for ready [PR #458](https://github.com/gomyway1216/nextjs-portfolio/pull/458) are complete. Final docs-only-head CI, merge, actual provisioning, and production connector execution remain **pending / 0**; the production weight and live evaluation function are unchanged. Japanese version: [blog-shogi-floodgate-v7-deployment-key-provisioner.md](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)
 
 ---
 
@@ -165,28 +165,31 @@ Source-boundary tests include that tests cannot invoke the production provisione
 | manual redirection cannot construct the contract | dedicated code, tests, and sealed review are complete                | production execution                     |
 | live weight activations 0 and games 0            | the current live evaluation function is unchanged                    | playing-strength gain                    |
 
-| delivery check                                        | status                                                 |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| provisioner source implementation                     | **completed**                                          |
-| focused provisioner unit tests                        | **27 / 27 PASS**                                       |
-| related authority / readiness / provisioner Vitest    | **49 / 49 PASS; 3 files**                              |
-| full Vitest                                           | **2,146 / 2,146 PASS; 118 files; 162.76s; 12 workers** |
-| Python ML regression                                  | **58 / 58 PASS**                                       |
-| TypeScript / ESLint / Prettier / diff-check / build   | **PASS**                                               |
-| sealed code / test review                             | **P0 = 0; P1 = 0; P2 = 0**                             |
-| ready-for-review PR / review comments                 | **pending**                                            |
-| branch CI / merge                                     | **pending**                                            |
-| actual fixed-path provisioning                        | **0 / pending explicit approval**                      |
-| production connector execution                        | **0**                                                  |
-| training / candidate weight / live activation / games | **0 / 0 / 0 / 0**                                      |
+| delivery check                                        | status                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| provisioner source implementation                     | **completed**                                                                        |
+| focused provisioner unit tests                        | **27 / 27 PASS**                                                                     |
+| related authority / readiness / provisioner Vitest    | **49 / 49 PASS; 3 files**                                                            |
+| full Vitest                                           | **2,146 / 2,146 PASS; 118 files; 162.76s; 12 workers**                               |
+| Python ML regression                                  | **58 / 58 PASS**                                                                     |
+| TypeScript / ESLint / Prettier / diff-check / build   | **PASS**                                                                             |
+| sealed code / test review                             | **P0 = 0; P1 = 0; P2 = 0**                                                           |
+| ready-for-review PR / review comments                 | **#458 OPEN / ready; Gemini and Copilot actionable 0; unresolved threads 0**         |
+| branch CI on head `89ef381`                           | **PASS: Test/build 8m07s; E2E 3m53s; Darwin 49s; audit 18s; Vercel / Preview green** |
+| final docs-only-head CI / merge                       | **pending / pending**                                                                |
+| actual fixed-path provisioning                        | **0 / pending explicit approval**                                                    |
+| production connector execution                        | **0**                                                                                |
+| training / candidate weight / live activation / games | **0 / 0 / 0 / 0**                                                                    |
 
-The build completed with Next compilation in 20.1s, TypeScript in 18.2s, and static generation of 193 pages with 13 workers. Its only output warnings were the existing Firebase / cookies warnings; there was no new build error. The focused 27 tests cover success, unsafe namespace states, races, stale staging, exclusion of the real production home, zeroization, and 11 failpoints. Pending PR, branch CI, merge, and actual provisioning entries must not be read as PASS.
+The build completed with Next compilation in 20.1s, TypeScript in 18.2s, and static generation of 193 pages with 13 workers. Its only output warnings were the existing Firebase / cookies warnings; there was no new build error. The focused 27 tests cover success, unsafe namespace states, races, stale staging, exclusion of the real production home, zeroization, and 11 failpoints. Pending final-head CI, merge, and actual provisioning entries must not be read as PASS.
+
+GitHub initial CI run `29299536980` succeeded on head `89ef381`: Test/build in 8m07s, E2E in 3m53s, and Darwin in 49s. Security Audit run `29299536976` also succeeded in 18s, and Vercel / Preview Comments were green. Gemini and Copilot returned summary reviews with zero inline / actionable comments and zero review threads. The docs-only evidence-reconciliation head that adds this paragraph must pass the same required checks before merge.
 
 ## 11. Provisioning does not skip 100 → 500 → 24,000
 
 A successful provision is a metadata prerequisite that enables teacher-data production; it does not make the evaluation function stronger. The order remains fixed.
 
-1. Publish the completed source, fault tests, full regression, and sealed review in a ready PR, then resolve review comments and complete branch CI.
+1. Complete required CI on the docs-only final head of ready PR #458, then integrate it with a regular merge commit.
 2. With separate explicit approval, execute the production wrapper once and preserve its non-secret provision receipt.
 3. Confirm `ready` through fresh readiness, then use a separate audited enrollment to pin `key_instance_id` in a trusted record before supplying the expected instance to the connector.
 4. Without opening holdout data, execute the 100-parent durable prefix and audit throughput, candidate count, timeout, score / mate distribution, resume behavior, residual processes, and durability.

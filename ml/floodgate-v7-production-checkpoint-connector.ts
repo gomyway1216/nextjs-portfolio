@@ -1227,19 +1227,19 @@ function captureKeyDeployment(value: unknown): Readonly<CapturedKeyDeployment> {
       "deployment key owner UID",
       0,
     ),
-    parentDev: requiredHexOrDecimal(
+    parentDev: requiredCanonicalDecimal(
       ownDataValue(parentDescriptors, "dev", "deployment key parent identity"),
       "deployment key parent dev",
     ),
-    parentIno: requiredHexOrDecimal(
+    parentIno: requiredCanonicalDecimal(
       ownDataValue(parentDescriptors, "ino", "deployment key parent identity"),
       "deployment key parent ino",
     ),
-    keyDev: requiredHexOrDecimal(
+    keyDev: requiredCanonicalDecimal(
       ownDataValue(keyDescriptors, "dev", "deployment key identity"),
       "deployment key dev",
     ),
-    keyIno: requiredHexOrDecimal(
+    keyIno: requiredCanonicalDecimal(
       ownDataValue(keyDescriptors, "ino", "deployment key identity"),
       "deployment key ino",
     ),
@@ -1255,7 +1255,7 @@ function captureKeyDeployment(value: unknown): Readonly<CapturedKeyDeployment> {
   });
 }
 
-function requiredHexOrDecimal(value: unknown, label: string): string {
+function requiredCanonicalDecimal(value: unknown, label: string): string {
   const output = requiredString(value, label);
   if (!matches(DECIMAL_RE, output)) {
     throw new NativeError(`${label} must be canonical decimal`);

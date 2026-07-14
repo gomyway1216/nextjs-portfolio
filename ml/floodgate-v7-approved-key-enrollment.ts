@@ -428,10 +428,12 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
-function digest(value: unknown, label: string): string {
+function hex64(value: unknown, label: string): string {
   const output = requiredString(value, label);
   if (nativeReflectApply(nativeRegExpExec, SHA256_RE, [output]) === null)
-    throw new NativeError(`${label} must be lowercase SHA-256`);
+    throw new NativeError(
+      `${label} must be 64 lowercase hexadecimal characters`,
+    );
   return output;
 }
 
@@ -750,7 +752,7 @@ function candidateReceipt(
       "candidate parent identity",
     ),
     key_identity: identity(deployment.key_identity, "candidate key identity"),
-    key_instance_id: digest(
+    key_instance_id: hex64(
       deployment.key_instance_id,
       "candidate key instance id",
     ),
@@ -856,7 +858,7 @@ function captureRecord(
     FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
     "approval method",
   );
-  const approvalId = digest(approval.approval_id, "approval id");
+  const approvalId = hex64(approval.approval_id, "approval id");
   const approvedAtUtc = requiredString(
     approval.approved_at_utc,
     "approval timestamp",
@@ -892,7 +894,7 @@ function captureRecord(
   ) {
     throw new NativeError("candidate receipt byte count differs");
   }
-  const candidateSha256 = digest(
+  const candidateSha256 = hex64(
     candidateEnvelope.sha256,
     "candidate receipt sha256",
   );
@@ -918,7 +920,7 @@ function captureRecord(
       "record parent identity",
     ),
     key_identity: identity(deployment.key_identity, "record key identity"),
-    key_instance_id: digest(
+    key_instance_id: hex64(
       deployment.key_instance_id,
       "record key instance id",
     ),

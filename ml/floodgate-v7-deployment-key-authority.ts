@@ -45,6 +45,8 @@ export const FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_HKDF_INFO =
   "shogi-floodgate-v7-deployment-key-instance-key-v1\0" as const;
 export const FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_HMAC_DOMAIN =
   "shogi-floodgate-v7-deployment-key-instance-id-v1\0" as const;
+export const FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM =
+  "hkdf-sha256-domain-separated-hmac-sha256-v1" as const;
 export const FLOODGATE_V7_DEPLOYMENT_KEY_ID =
   "floodgate-v7-teacher-checkpoint-root-v1" as const;
 export const FLOODGATE_V7_DEPLOYMENT_KEY_BYTES = 32 as const;
@@ -257,7 +259,7 @@ export interface FloodgateV7DeploymentTeacherRunAuthorizationReceipt<
       readonly ino: string;
     }>;
     readonly key_instance_id: string;
-    readonly key_instance_algorithm: "hkdf-sha256-domain-separated-hmac-sha256-v1";
+    readonly key_instance_algorithm: typeof FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM;
     readonly held_descriptors_revalidated: true;
   }>;
   readonly authorization_mac: string;
@@ -837,6 +839,94 @@ function captureDependencies(
   });
 }
 
+async function assertTestBoundaryIsNotProductionHome(
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<void> {
+  if (getEffectiveUserId === null) {
+    fail("production-identity", "test boundary requires a POSIX effective uid");
+  }
+  let currentEffectiveUserId: number;
+  let productionHome: string;
+  try {
+    currentEffectiveUserId = getEffectiveUserId();
+    const userInfo = getUserInfo();
+    if (
+      dependencies.effectiveUserId !== currentEffectiveUserId ||
+      userInfo.uid !== currentEffectiveUserId
+    ) {
+      fail(
+        "production-identity",
+        "test boundary must use the current effective uid",
+      );
+    }
+    productionHome = userInfo.homedir;
+  } catch (error) {
+    throw sanitizeUnexpectedFailure(
+      error,
+      "production-identity",
+      "test boundary identity lookup failed",
+    );
+  }
+  if (dependencies.homeDirectory === productionHome) {
+    fail("production-identity", "test boundary rejects the production home");
+  }
+  try {
+    const injectedRealpath = await realpath(dependencies.homeDirectory);
+    const productionRealpath = await realpath(productionHome);
+    const injectedStat = await lstat(injectedRealpath, { bigint: true });
+    const productionStat = await lstat(productionRealpath, { bigint: true });
+    if (
+      injectedRealpath === productionRealpath ||
+      (injectedStat.dev === productionStat.dev &&
+        injectedStat.ino === productionStat.ino)
+    ) {
+      fail(
+        "production-identity",
+        "test boundary rejects a production-home alias",
+      );
+    }
+  } catch (error) {
+    throw sanitizeUnexpectedFailure(
+      error,
+      "production-identity",
+      "test boundary home identity check failed",
+    );
+  }
+}
+
+async function authorizeInsideTestBoundary(
+  request: Readonly<CapturedRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherRunAuthorizationReceipt<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  await assertTestBoundaryIsNotProductionHome(dependencies);
+  return authorizeInternal(
+    request,
+    dependencies,
+    "test-only-injected-current-euid-home-key-deployment",
+  );
+}
+
+async function prepareV3KeyInsideTestBoundary(
+  request: Readonly<CapturedV3KeyRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  await assertTestBoundaryIsNotProductionHome(dependencies);
+  return prepareV3KeyInternal(
+    request,
+    dependencies,
+    "test-only-injected-current-euid-home-key-deployment",
+    TEST_V3_KEY_REGISTRY,
+  );
+}
+
 function snapshot(stat: fs.BigIntStats): Readonly<StatSnapshot> {
   return frozenRecord({
     dev: stat.dev,
@@ -1087,8 +1177,7 @@ async function authorizeMaterialInternal<
         ino: keyHeldBefore.ino.toString(10),
       }),
       key_instance_id: keyInstanceId,
-      key_instance_algorithm:
-        "hkdf-sha256-domain-separated-hmac-sha256-v1" as const,
+      key_instance_algorithm: FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ALGORITHM,
       held_descriptors_revalidated: true as const,
     });
     const testBoundary =
@@ -1503,11 +1592,7 @@ export function authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
 > {
   const request = captureRequest(requestValue);
   const dependencies = captureDependencies(dependenciesValue);
-  return authorizeInternal(
-    request,
-    dependencies,
-    "test-only-injected-current-euid-home-key-deployment",
-  );
+  return authorizeInsideTestBoundary(request, dependencies);
 }
 
 /** Authorize exact metadata with the fixed current-EUID deployment key. */
@@ -1593,12 +1678,7 @@ export function prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
   }
   const request = captureV3KeyRequest(requestValue);
   const dependencies = captureDependencies(dependenciesValue);
-  return prepareV3KeyInternal(
-    request,
-    dependencies,
-    "test-only-injected-current-euid-home-key-deployment",
-    TEST_V3_KEY_REGISTRY,
-  );
+  return prepareV3KeyInsideTestBoundary(request, dependencies);
 }
 
 /**

@@ -35,7 +35,7 @@ readiness receiptは`authoritative_reopen_required: true`を固定する。`read
 
 実machineのread-only probeは`not-provisioned`で、fixed parentは`absent`、keyは`absent`、`key_bytes_read: false`だった。probeはdirectory / fileを作らず、connectorも`not-provisioned`から自動provisionしない。専用provisionerを追加する場合も別の明示承認段とし、current EUID、parent `0700`、key `0600`、regular file、link count 1、exact 32 random bytes、exclusive create、file / parent fsync、never overwriteを要求する。
 
-readinessはkey instance IDを公開しない。execution requestの`expectedKeyInstanceId`は、別のtrusted control-plane recordまたは承認済みprovision receiptから固定する必要がある。connectorが実行時に見つけたinstanceを無条件に採用する設計にはしない。
+readinessはkey instance IDを公開しない。execution requestの`expectedKeyInstanceId`は、別途承認されたenrollment receipt / trusted control-plane recordから固定する必要がある。provision receiptは意図的にinstance IDを持たない。connectorが実行時に見つけたinstanceを無条件に採用する設計にはしない。
 
 ## 3. exact requestをI/O前にcaptureする
 

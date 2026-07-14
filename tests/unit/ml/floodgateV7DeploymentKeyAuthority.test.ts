@@ -305,6 +305,34 @@ async function write0600(
   await fs.promises.chmod(filePath, 0o600);
 }
 
+async function metadataOnlySnapshot(filePath: string): Promise<unknown> {
+  try {
+    const stat = await fs.promises.lstat(filePath, { bigint: true });
+    return {
+      present: true,
+      dev: stat.dev.toString(10),
+      ino: stat.ino.toString(10),
+      mode: stat.mode.toString(8),
+      uid: stat.uid.toString(10),
+      size: stat.size.toString(10),
+      nlink: stat.nlink.toString(10),
+      entries: stat.isDirectory()
+        ? (await fs.promises.readdir(filePath)).sort()
+        : null,
+    };
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return { present: false };
+    }
+    throw error;
+  }
+}
+
 function canonicalJson(value: unknown): string {
   if (value === null) return "null";
   if (
@@ -513,6 +541,68 @@ afterEach(async () => {
 });
 
 posixDescribe("Floodgate v7 deployment key authority", () => {
+  it("rejects the real production home from both test key-reading seams before observers or mutation", async () => {
+    const productionHome = await fs.promises.realpath(os.userInfo().homedir);
+    const parentPath = path.dirname(deploymentKeyPath(productionHome));
+    const keyPath = deploymentKeyPath(productionHome);
+    const parentBefore = await metadataOnlySnapshot(parentPath);
+    const keyBefore = await metadataOnlySnapshot(keyPath);
+    let observerCalls = 0;
+    let revalidationCalls = 0;
+    const dependencies = dependencyFixture(productionHome, {
+      observeInternalKeyForTests(): void {
+        observerCalls += 1;
+      },
+      beforeFinalRevalidationForTests(): void {
+        revalidationCalls += 1;
+      },
+    });
+
+    async function expectBothSeamsRejected(
+      candidate: AuthorityDependencies,
+    ): Promise<void> {
+      for (const operation of [
+        () =>
+          authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+            requestFixture(),
+            candidate,
+          ),
+        () =>
+          authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+            v3KeyRequestFixture(),
+            candidate,
+          ),
+      ]) {
+        const failure = await captureFailure(operation);
+        expect(failure).toBeInstanceOf(
+          authority.FloodgateV7DeploymentKeyAuthorityError,
+        );
+        expect(failure).toMatchObject({ phase: "production-identity" });
+        expect(String(failure)).not.toContain(productionHome);
+      }
+    }
+    await expectBothSeamsRejected(dependencies);
+
+    const aliasRoot = await temporaryHome();
+    const productionAlias = path.join(aliasRoot, "production-home-alias");
+    await fs.promises.symlink(productionHome, productionAlias);
+    await expectBothSeamsRejected(
+      dependencyFixture(productionAlias, {
+        observeInternalKeyForTests(): void {
+          observerCalls += 1;
+        },
+        beforeFinalRevalidationForTests(): void {
+          revalidationCalls += 1;
+        },
+      }),
+    );
+
+    expect(observerCalls).toBe(0);
+    expect(revalidationCalls).toBe(0);
+    expect(await metadataOnlySnapshot(parentPath)).toEqual(parentBefore);
+    expect(await metadataOnlySnapshot(keyPath)).toEqual(keyBefore);
+  });
+
   it("returns the exact frozen test-boundary receipt and golden authorization MAC without leaking the key", async () => {
     let observedInternalKey: Uint8Array | undefined;
     const value = await fixture(KEY_BYTES, {
@@ -1064,7 +1154,10 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
       expect(failure, label).toBeInstanceOf(
         authority.FloodgateV7DeploymentKeyAuthorityError,
       );
-      expect(failure, label).toMatchObject({ phase: "namespace" });
+      expect(failure, label).toMatchObject({
+        phase:
+          label === "wrong claimed uid" ? "production-identity" : "namespace",
+      });
       expect(String(failure), label).not.toContain(KEY_BYTES.toString("hex"));
       expect(String(failure), label).not.toContain(home);
     }

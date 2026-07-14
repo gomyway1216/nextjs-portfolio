@@ -26,6 +26,7 @@ import {
   type FloodgatePureGameInput,
   type FloodgateRole,
 } from "./floodgate-roles";
+import { FLOODGATE_GIT_EXECUTABLE } from "./floodgate-git";
 import {
   FLOODGATE_ROLE_IDENTITY_GAME_CAP_RATIO,
   FLOODGATE_ROLE_UNORDERED_PAIR_GAME_CAP_RATIO,
@@ -143,12 +144,15 @@ function canonicalAbsoluteFile(input: string, label: string): string {
   ) {
     fail(`${label} must be a canonical absolute path`);
   }
-  const stat = fs.lstatSync(input);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    fs.realpathSync(input) !== input
-  ) {
+  let stat: fs.Stats;
+  let realPath: string;
+  try {
+    stat = fs.lstatSync(input);
+    realPath = fs.realpathSync(input);
+  } catch {
+    fail(`${label} does not exist or is inaccessible: ${input}`);
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || realPath !== input) {
     fail(`${label} must be a real regular file without symlink traversal`);
   }
   return input;
@@ -221,12 +225,22 @@ export function modelFloodgatePreFixManifestFromRetryCaps(
     historicalManifestText,
     "historical manifest",
   ) as unknown as HistoricalManifestCandidate;
+  const accountingCandidate = (historical as { accounting?: unknown })
+    .accounting;
+  if (
+    accountingCandidate === null ||
+    typeof accountingCandidate !== "object" ||
+    Array.isArray(accountingCandidate) ||
+    Object.getPrototypeOf(accountingCandidate) !== Object.prototype
+  ) {
+    fail("historical manifest accounting must be a plain JSON object");
+  }
+  const accounting =
+    accountingCandidate as HistoricalManifestCandidate["accounting"];
   const historicalIdentitySkips =
-    historical.accounting
-      .identity_cap_role_checks_skipped_before_materialization;
+    accounting.identity_cap_role_checks_skipped_before_materialization;
   const historicalPairSkips =
-    historical.accounting
-      .unordered_pair_cap_role_checks_skipped_before_materialization;
+    accounting.unordered_pair_cap_role_checks_skipped_before_materialization;
   if (
     !Number.isSafeInteger(historicalIdentitySkips) ||
     historicalIdentitySkips < 0 ||
@@ -247,6 +261,9 @@ export function modelFloodgatePreFixManifestFromRetryCaps(
     historicalIdentitySkips;
   reverted.accounting.unordered_pair_cap_role_checks_skipped_before_materialization =
     historicalPairSkips;
+  // Deliberately require byte-for-byte restoration of the canonical manifest.
+  // Semantic deep equality would miss whitespace or key-order drift in the
+  // evidence whose exact bytes and SHA-256 are part of this diagnostic.
   if (`${JSON.stringify(reverted)}\n` !== historicalManifestText) {
     fail("modeled manifest changed more than the two cap counters");
   }
@@ -467,7 +484,7 @@ export function replayFloodgateRoleLockAccounting(
 }
 
 function gitLine(repositoryRoot: string, args: readonly string[]): string {
-  return execFileSync("/usr/bin/git", args, {
+  return execFileSync(FLOODGATE_GIT_EXECUTABLE, args, {
     cwd: repositoryRoot,
     encoding: "utf8",
     env: {

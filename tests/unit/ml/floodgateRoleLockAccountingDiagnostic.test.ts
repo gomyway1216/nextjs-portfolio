@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
+import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import {
+  main,
   modelFloodgatePreFixManifestFromRetryCaps,
   replayFloodgateRoleLockAccounting,
 } from "../../../ml/diagnose-floodgate-role-lock-accounting";
@@ -224,6 +226,31 @@ describe("Floodgate role-lock accounting diagnostic", () => {
     ]);
     expect(sha256(modeled.modeled_manifest_text)).toBe(
       "46006e6cea3a0df5ef6a940b208cff49cdaacefbf37c8215c9b3529aea74b04d",
+    );
+  });
+
+  it("reports malformed manifest and file inputs as diagnostic errors", () => {
+    expect(() =>
+      modelFloodgatePreFixManifestFromRetryCaps('{"status":"fixture"}\n', 0, 0),
+    ).toThrow(
+      "invalid Floodgate accounting diagnostic: historical manifest accounting must be a plain JSON object",
+    );
+
+    const missing = path.join(
+      process.cwd(),
+      `.missing-floodgate-accounting-diagnostic-${process.pid}.json`,
+    );
+    expect(() =>
+      main([
+        "--materialized-input",
+        missing,
+        "--allocation",
+        missing,
+        "--manifest",
+        missing,
+      ]),
+    ).toThrow(
+      `invalid Floodgate accounting diagnostic: materialized input does not exist or is inaccessible: ${missing}`,
     );
   });
 });

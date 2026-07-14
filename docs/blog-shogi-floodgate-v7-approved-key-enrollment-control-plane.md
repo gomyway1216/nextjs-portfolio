@@ -1,6 +1,6 @@
 # candidate bytesをapproved capabilityへ閉じる — Floodgate v7 key enrollment control plane
 
-> [deployment-key instance inspector](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)は、fixed keyを短時間だけ読み、non-secretな`key_instance_id`を含むcandidate receiptを返す。しかしcandidate観測は承認ではない。本変更は、exact candidate bytesとSHA-256へbindingしたfixed private approved recordを読み、公開IDをown propertyに持たないopaque single-use capabilityをmintするsource境界を追加する。[production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)もv2へ更新し、public optionsからcaller-supplied `expectedKeyInstanceId`を除き、approved capabilityだけを同期claimする。focused validationは**132 / 132 PASS**、related regressionは**335 / 335 PASS**、stable full regressionは**2,245 / 2,245 PASS**で、production buildとfinal independent reviewも完了した。ready PR #463のactionable review 1 / 1は修正・resolve済みで、CIとmergeがpendingである。actual keyのprovision / inspection、record approval / installation / load、connector、teacher、training、weight、live activation、対局、棋力のexecution evidenceはすべて0のままである。English version: [blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.en.md](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.en.md)
+> [deployment-key instance inspector](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)は、fixed keyを短時間だけ読み、non-secretな`key_instance_id`を含むcandidate receiptを返す。しかしcandidate観測は承認ではない。本変更は、exact candidate bytesとSHA-256へbindingしたfixed private approved recordを読み、公開IDをown propertyに持たないopaque single-use capabilityをmintするsource境界を追加する。[production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)もv2へ更新し、public optionsからcaller-supplied `expectedKeyInstanceId`を除き、approved capabilityだけを同期claimする。focused validationは**132 / 132 PASS**、related regressionは**335 / 335 PASS**、stable full regressionは**2,245 / 2,245 PASS**で、production buildとfinal independent reviewも完了した。ready PR #463のactionable review 3 / 3は修正・resolve済みで、CIとmergeがpendingである。actual keyのprovision / inspection、record approval / installation / load、connector、teacher、training、weight、live activation、対局、棋力のexecution evidenceはすべて0のままである。English version: [blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.en.md](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.en.md)
 
 ## 1. 現在地
 
@@ -18,7 +18,7 @@
 | related / stable full validation          | PASS                            | 10 files / 335、122 files / 2,245                               |
 | local build / static validation           | PASS                            | production build、TypeScript、lint、format、audit               |
 | independent security review               | P0 / P1 / P2 = 0 / 0 / 0        | 初回2 P1とfollow-on P2を修正後にfinal seal                      |
-| PR review / CI / merge                    | #463 ready / resolved / pending | actionable thread 1 / 1を修正・resolve、CIとmergeは未完了       |
+| PR review / CI / merge                    | #463 ready / resolved / pending | actionable threads 3 / 3を修正・resolve、CIとmergeは未完了      |
 | real provision / inspection / enrollment  | 0 / 0 / 0                       | actual key byteもapproved recordも扱っていない                  |
 | 100 / 500 / 24,000 connector gates        | 0 / 0 / 0                       | real connector / teacher executionはない                        |
 | training / weight / live / strength claim | 0 / 0 / 0 / 0                   | production evaluation bytesは変更しない                         |
@@ -117,7 +117,7 @@ production entryはasync work開始前に`claimFloodgateV7ApprovedKeyEnrollment(
 
 mismatched claim origin、fake / consumed capability、wrong production / test claim APIは、actual key authorityを開く前にconnector `phase = enrollment`でfail closedになる。これらはkey-instance mismatchではない。claim成功後にactual authorityが返したpublic ID、owner UID、parent / key device・inodeのどれかがapproved deployment identityと異なる場合は`phase = key-instance`になる。capabilityはconnector開始時に一度消費されるため、その後のreadiness / key / checkpoint failureはfresh invocationとfresh capabilityを必要とする。connector v2はgate receiptのfixed status / sealed / target / completed / records、resumed-parent range、maximum total bytesもcaptureする。
 
-connector-focused integrationは**111 / 111 PASS**である。related / stable full regression、production build、final independent reviewもPASSした。ready PR #463のreviewは解決済みで、CIとmergeはまだpendingである。local synthetic evidenceだけからconnector-ready、production-ready、gate-readyとは書かない。
+connector-focused integrationは**111 / 111 PASS**である。related / stable full regression、production build、final independent reviewもPASSした。ready PR #463のactionable review 3 / 3は解決済みで、CIとmergeはまだpendingである。local synthetic evidenceだけからconnector-ready、production-ready、gate-readyとは書かない。
 
 ## 7. Failureとretry
 
@@ -143,24 +143,27 @@ connector-focused integrationは**111 / 111 PASS**である。related / stable f
 | adversarial record / filesystem tests  | PASS               | malformed UTF-8、BOM reject、reorder、>64 KiB、alias、ancestor swap、replacement / growth |
 | intrinsic-poison boundary tests        | PASS               | Promise / iterator / number / crypto / typed-array poison下でもlive access 0              |
 | connector-focused integration tests    | 111 / 111 PASS     | capability-only options、UID 0 / byte bounds、identity / layout / algorithm、gate bounds  |
-| combined focused                       | 132 / 132 PASS     | 2 files、duration `0.744 s`                                                               |
+| combined focused                       | 132 / 132 PASS     | 2 files、duration `0.736 s`、real `1.073 s`                                               |
 | related regression                     | 335 / 335 PASS     | 10 files、duration `146.22 s`、real `147.12 s`                                            |
-| stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files、8 workers、duration `151.14 s`                                           |
+| stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files、6 workers、duration `150.69 s`                                           |
 | Python stdlib                          | 58 / 58 PASS       | Node 22.13 runtime pathで再確認、suite `0.106 s`                                          |
-| TypeScript / scoped ESLint / Prettier  | PASS               | exact current source / test / document delta                                              |
-| full lint                              | PASS               | errors 0、今回のdiffと無関係な既存warnings 157、real `29.82 s`                            |
-| production Turbopack build             | PASS               | real `29.30 s`、compile `8.4 s`、TypeScript `18.3 s`、static 193 / 193（13 workers）      |
-| npm audit                              | PASS               | vulnerabilities 0                                                                         |
+| TypeScript                             | PASS               | revision `599385e6`、real `14.517 s`                                                      |
+| scoped ESLint / Prettier               | PASS               | revision `599385e6`、scoped lint real `1.739 s`、targeted format / diff-check PASS        |
+| full lint                              | PASS               | earlier capture: errors 0、既存warnings 157、real `29.82 s`                               |
+| production Turbopack build             | PASS               | earlier capture: real `29.30 s`、compile `8.4 s`、TS `18.3 s`、193 / 193（13 workers）    |
+| npm audit                              | PASS               | earlier capture: vulnerabilities 0。599での再実行とは扱わない                             |
 | independent security review            | P0/P1/P2 = 0       | 初回2 P1とfollow-on P2を修正し、final deltaをseal                                         |
-| ready PR / required CI / regular merge | #463 / pending     | review thread 1 / 1 resolved、checksとmerge commitはまだ未完了                            |
+| ready PR / required CI / regular merge | #463 / pending     | actionable threads 3 / 3 resolved、checksとmerge commitはまだ未完了                       |
 
-direct related 10 files / 335 testsのtimed runはimplementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`でcaptureした。その後のCLI listener cleanupを含むrevision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`ではfocused、TypeScript、対象static checkを再実行し、同じ10 filesを含むfinal full 122-file suiteも2,245 / 2,245 PASSした。したがってrelatedのtimingは旧captureの実測値として残し、current revisionの全体合否はfinal full runへ結び付ける。
+direct related 10 files / 335 testsのtimed runはimplementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`でcaptureした。identity validatorの表現を明確化したrevision `599385e6bd194a71c0382fafe07fa3700d0fc893`ではfocused、TypeScript、scoped ESLint、targeted Prettier / diff-checkを再実行し、同じ10 filesを含むfinal full 122-file suiteも2,245 / 2,245 PASSした。したがってrelatedのtimingは旧captureの実測値として残し、current revisionの全体合否はfinal full runへ結び付ける。build、full lint、auditの表中の値はsuccessfulな旧captureであり、599 revisionで再実行した値ではない。
 
-final post-review stable runのcommand real timeは`152.03 s`、maximum RSSは3,970,695,168 bytesだった。full suiteの最初のmaximum-parallel runは、無関係なUSI transcript timeoutで121 / 122 files、2,244 / 2,245 testsとなった。同じfileは直後の単独実行で43 / 43 PASSした。そのためこのtransientを隠さず途中dataとして残し、上表ではresource contentionを抑えたfinal 8-worker runの122 / 122 files、2,245 / 2,245 PASSをauthoritative local resultとしている。
+current revisionのfinal 6-worker full runはcommand real `151.20 s`、maximum RSS 4,228,874,240 bytesで122 / 122 files、2,245 / 2,245 PASSした。その前の8-worker attemptは、WASM worker initializationが30秒以内に完了せず121 / 122 files、2,244 / 2,245 testsとなった（duration `150.44 s`、real `151.10 s`、maximum RSS 4,064,821,248 bytes）。同じ53-test fileは直後の単独実行で53 / 53 PASSした（duration `14.10 s`、real `14.63 s`、maximum RSS 347,815,936 bytes）。この単独成功はtransientなworker-start contentionと整合する診断値だが、8-worker full attemptをPASSへ変えず、timeout原因を確定もしない。後続の6-worker full PASSだけをcurrent revisionのauthoritative local full resultとする。
+
+これとは別に、以前のmaximum-parallel full attemptもUSI transcript timeoutで121 / 122 files、2,244 / 2,245 testsとなり、同じfileは直後に43 / 43 PASSした。この旧USI transientと今回のWASM initialization timeoutは別attemptとしてmachine-readable evidenceに残し、同じaggregate countだけを見て同一failureとは扱わない。checkpoint trailing lineの自動破棄表示はexpected cleanup diagnosticであり、test failureには数えない。
 
 これらはsourceとtemporary fixtureのlocal validationである。actual production record、actual key、real connector gate、teacher、training、live weight、棋力を検証した値ではない。
 
-exact implementation revision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`、machine / runtime、全validation値、途中のnon-gating failure、明示的nonclaimsは、[machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json)へ固定した。ready PR #463と解決済みreview metadataも含むが、remote CIとmergeはpendingのままである。
+exact implementation revision `599385e6bd194a71c0382fafe07fa3700d0fc893`、machine / runtime、全validation値、途中のnon-gating failure、明示的nonclaimsは、[machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json)へ固定する。ready PR #463と解決済みreview metadataも含むが、remote CIとmergeはpendingのままである。
 
 ## 9. Explicit nonclaims
 

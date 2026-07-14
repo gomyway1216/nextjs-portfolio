@@ -6,7 +6,7 @@
 
 ## 1. Historical v1 boundary and current v2 delta
 
-This connector does not create a new search or evaluation function. Historical PR #456 implemented v1, passed its recorded local validation, resolved both duplicate findings, and was later integrated by regular merge commit `e543eb4`. Those numbers are historical v1 evidence. Current v2 additionally delegates approved-identity minting to the fixed approved-enrollment loader and module-private single-use registry, then lets the connector own exactly one synchronous claim. Its focused, related, and stable full validation, production build, and final independent review are complete, and the 1 / 1 actionable review thread on ready PR #463 is fixed and resolved. CI and merge remain pending. Neither revision establishes production readiness or a successful real run.
+This connector does not create a new search or evaluation function. Historical PR #456 implemented v1, passed its recorded local validation, resolved both duplicate findings, and was later integrated by regular merge commit `e543eb4`. Those numbers are historical v1 evidence. Current v2 additionally delegates approved-identity minting to the fixed approved-enrollment loader and module-private single-use registry, then lets the connector own exactly one synchronous claim. Its focused, related, and stable full validation, production build, and final independent review are complete, and all 3 / 3 actionable review threads on ready PR #463 are fixed and resolved. CI and merge remain pending. Neither revision establishes production readiness or a successful real run.
 
 | Capability          | Existing owner                                        | Connector action                                                             | Current execution evidence                   |
 | ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------- |
@@ -241,23 +241,26 @@ Connector focused 57 / 57 covers exact composition, metadata capture, Promise pi
 
 Historical v1 full regression passed at 117 files and 2,119 / 2,119 tests, and both duplicate PR #456 threads were resolved. Its article-time post-review branch-CI field remained pending; v1 later merged as `e543eb4`. None of that is reinterpreted as current-v2 validation or production-execution evidence.
 
-| Current v2 delta                    | Status             | Evidence / measured result                                                                 |
-| ----------------------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
-| Approved-enrollment focused         | 21 / 21 PASS       | Canonical bytes/SHA, BOM rejection/reorder/oversize/TOCTOU/poison, and single-use claiming |
-| Connector-focused integration       | 111 / 111 PASS     | Capability-only request, UID/byte bounds, identity/layout/algorithm, and gate bounds       |
-| Combined focused                    | 132 / 132 PASS     | 2 files, duration `0.744 s`                                                                |
-| Related regression                  | 335 / 335 PASS     | 10 files; duration `146.22 s`; real `147.12 s`                                             |
-| Stable full Vitest                  | 2,245 / 2,245 PASS | 122 / 122 files, 8 workers, duration `151.14 s`                                            |
-| Python stdlib                       | 58 / 58 PASS       | Node 22.13 runtime path, suite `0.106 s`                                                   |
-| TypeScript / scoped ESLint / format | PASS               | Exact current delta                                                                        |
-| Full lint / npm audit               | PASS / 0           | 0 errors, 157 pre-existing warnings, real `29.82 s` / 0 vulnerabilities                    |
-| Production Turbopack build          | PASS               | Real `29.30 s`; compile `8.4 s`; TS `18.3 s`; static 193 / 193 with 13 workers             |
-| Final independent review            | P0/P1/P2 = 0       | Sealed after fixing two initial P1s and the follow-on P2 findings                          |
-| Ready PR / required CI / merge      | #463 / Pending     | Actionable thread 1 / 1 resolved; checks and merge remain incomplete                       |
+| Current v2 delta               | Status             | Evidence / measured result                                                                 |
+| ------------------------------ | ------------------ | ------------------------------------------------------------------------------------------ |
+| Approved-enrollment focused    | 21 / 21 PASS       | Canonical bytes/SHA, BOM rejection/reorder/oversize/TOCTOU/poison, and single-use claiming |
+| Connector-focused integration  | 111 / 111 PASS     | Capability-only request, UID/byte bounds, identity/layout/algorithm, and gate bounds       |
+| Combined focused               | 132 / 132 PASS     | 2 files, duration `0.736 s`; real `1.073 s`                                                |
+| Related regression             | 335 / 335 PASS     | 10 files; duration `146.22 s`; real `147.12 s`                                             |
+| Stable full Vitest             | 2,245 / 2,245 PASS | 122 / 122 files, 6 workers, duration `150.69 s`                                            |
+| Python stdlib                  | 58 / 58 PASS       | Node 22.13 runtime path, suite `0.106 s`                                                   |
+| TypeScript                     | PASS               | Revision `599385e6`; real `14.517 s`                                                       |
+| Scoped ESLint / format         | PASS               | Revision `599385e6`; scoped lint real `1.739 s`; targeted format / diff-check PASS         |
+| Full lint / npm audit          | PASS / 0           | Earlier capture: 0 errors, 157 warnings, real `29.82 s` / 0 vulnerabilities                |
+| Production Turbopack build     | PASS               | Earlier capture: real `29.30 s`; compile `8.4 s`; TS `18.3 s`; 193 / 193 with 13 workers   |
+| Final independent review       | P0/P1/P2 = 0       | Sealed after fixing two initial P1s and the follow-on P2 findings                          |
+| Ready PR / required CI / merge | #463 / Pending     | Actionable threads 3 / 3 resolved; checks and merge remain incomplete                      |
 
-The timed direct-related run of 10 files / 335 tests was captured at revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`. After the CLI-listener cleanup, focused tests, TypeScript, and the targeted static check were rerun at revision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`, and the final 122-file full suite containing the same 10 files passed 2,245 / 2,245. The related timing is an earlier capture; current-revision overall pass status is bound to the final full run.
+The timed direct-related run of 10 files / 335 tests was captured at revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`. After the identity-validator wording was clarified, focused tests, TypeScript, scoped ESLint, and targeted format / diff-check were rerun at revision `599385e6bd194a71c0382fafe07fa3700d0fc893`, and the final 122-file full suite containing the same 10 files passed 2,245 / 2,245. The related timing is an earlier capture; current-revision overall pass status is bound to the final full run. The build, full-lint, and audit values in the table are successful earlier captures, not reruns at revision 599.
 
-The final post-review stable run took `152.03 s` real time and reached a maximum RSS of 3,970,695,168 bytes. The first maximum-parallel full run had reached 121 / 122 files and 2,244 / 2,245 tests because of an unrelated USI transcript timeout. The same file immediately passed 43 / 43; the final 8-worker rerun then passed 122 / 122 files and 2,245 / 2,245 tests. The former remains recorded as intermediate data, while the latter is the authoritative local result. All of these are source and temporary-fixture evidence, not execution results for an actual approved record, production connector gate, teacher, training, weight, or playing strength.
+The final 6-worker full run at the current revision took `151.20 s` real time, reached a maximum RSS of 4,228,874,240 bytes, and passed 122 / 122 files and 2,245 / 2,245 tests. The preceding 8-worker attempt reached only 121 / 122 files and 2,244 / 2,245 tests when WASM worker initialization did not complete within 30 seconds (duration `150.44 s`, real `151.10 s`, maximum RSS 4,064,821,248 bytes). The same 53-test file immediately passed 53 / 53 in isolation (duration `14.10 s`, real `14.63 s`, maximum RSS 347,815,936 bytes). This isolated success is diagnostic evidence consistent with transient worker-start contention; it neither converts the 8-worker full attempt into a pass nor establishes the timeout's cause. Only the subsequent 6-worker full pass is the authoritative current-revision local full result.
+
+Separately, an earlier maximum-parallel full attempt also reached 121 / 122 files and 2,244 / 2,245 tests, but because of a USI transcript timeout; that file immediately passed 43 / 43 in isolation. The machine-readable evidence preserves that older USI transient and the new WASM-initialization timeout as separate attempts rather than treating identical aggregate counts as one failure. The checkpoint trailing-line auto-discard message is an expected cleanup diagnostic, not a test failure. All of these are source and temporary-fixture evidence, not execution results for an actual approved record, production connector gate, teacher, training, weight, or playing strength.
 
 ## 11. Zero production execution and unchanged live state
 
@@ -279,7 +282,7 @@ The fixed key is not provisioned on the actual machine, so the production connec
 | Live evaluation-function / weight activation | Unchanged                     |
 | Matches / Elo / rating / rank evidence       | 0                             |
 
-Historical connector v1 landed through PR #456 merge `e543eb4`. Current v2 source, local validation, ready PR #463, and resolved review do not establish that its pending CI / merge work has completed. Neither a source merge nor a green application deployment is evidence that the production connector, real dataset, teacher engine, training, or weight activation ran.
+Historical connector v1 landed through PR #456 merge `e543eb4`. Current v2 source, local validation, ready PR #463, and its 3 / 3 resolved review threads do not establish that pending CI / merge work has completed. Neither a source merge nor a green application deployment is evidence that the production connector, real dataset, teacher engine, training, or weight activation ran.
 
 It therefore cannot support “the evaluation function became stronger,” “it did not regress,” or “it is stable at high-dan level.” The live weight remains the same bytes.
 
@@ -299,7 +302,7 @@ Because 100 / 500 / 24,000 resume the same work stream, the plan does not genera
 
 The next execution order is:
 
-1. Preserve the completed current-v2 local validation and resolved review on ready PR #463, then complete required CI and a regular merge
+1. Preserve the completed current-v2 local validation and 3 / 3 resolved review threads on ready PR #463, then complete required CI and a regular merge
 2. Under separate explicit operational approval, provision and inspect the fixed key, separately review the candidate, and create-only install the approved record
 3. Load and claim a fresh opaque capability, then confirm that read-only readiness is `ready`
 4. Run the holdout-free 100-parent gate and audit the enrollment projection, intermediate receipt, and cleanup

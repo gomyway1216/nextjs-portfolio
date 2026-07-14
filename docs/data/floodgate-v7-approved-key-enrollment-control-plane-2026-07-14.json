@@ -1,10 +1,10 @@
 {
   "schema": "shogi-floodgate-v7-approved-key-enrollment-control-plane-evidence-v1",
-  "generated_at": "2026-07-14T19:51:30Z",
+  "generated_at": "2026-07-14T20:18:03Z",
   "evidence_scope": {
     "evidence_class": "local-validation-and-independent-security-review",
     "base_revision": "55c781205305c5fadc1290c21375da145647f64d",
-    "implementation_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+    "implementation_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
     "source_and_test_bytes_match_implementation_revision": true,
     "remote_ci_results_included": false,
     "absolute_local_paths_included": false
@@ -38,13 +38,13 @@
     },
     "combined_focused": {
       "status": "pass",
-      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
       "files": 2,
       "tests": 132,
       "passed": 132,
       "failed": 0,
-      "vitest_duration_seconds": 0.744,
-      "command_wall_seconds": 1.456
+      "vitest_duration_seconds": 0.736,
+      "command_wall_seconds": 1.073
     },
     "direct_related": {
       "status": "pass",
@@ -59,18 +59,19 @@
     },
     "full_vitest": {
       "status": "pass",
-      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
       "files": 122,
       "tests": 2245,
       "passed": 2245,
       "failed": 0,
-      "workers": 8,
-      "vitest_duration_seconds": 151.14,
-      "wall_seconds": 152.03,
-      "maximum_resident_set_size_bytes": 3970695168
+      "workers": 6,
+      "vitest_duration_seconds": 150.69,
+      "wall_seconds": 151.2,
+      "maximum_resident_set_size_bytes": 4228874240
     },
     "python_stdlib": {
       "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
       "tests": 58,
       "passed": 58,
       "failed": 0,
@@ -79,31 +80,34 @@
     },
     "typescript": {
       "status": "pass",
-      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
-      "wall_seconds": 14.93
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "wall_seconds": 14.517
     },
     "scoped_eslint": {
       "status": "pass",
       "baseline_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
-      "review_fix_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
-      "review_fix_file_rechecked": true
+      "review_fix_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "review_fix_file_rechecked": true,
+      "wall_seconds": 1.739
     },
     "full_eslint": {
       "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
       "errors": 0,
       "existing_warnings": 157,
       "wall_seconds": 29.82
     },
     "targeted_prettier": {
       "status": "pass",
-      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
     },
     "git_diff_check": {
       "status": "pass",
-      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
     },
     "production_build": {
       "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
       "builder": "Next.js Turbopack",
       "next_version": "16.2.9",
       "wall_seconds": 29.3,
@@ -115,6 +119,7 @@
     },
     "npm_audit": {
       "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
       "vulnerabilities": {
         "info": 0,
         "low": 0,
@@ -139,11 +144,16 @@
     },
     "github_review": {
       "pull_request": 463,
-      "actionable_threads": 1,
-      "fixed_threads": 1,
-      "resolved_threads": 1,
-      "fix_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
+      "actionable_threads": 3,
+      "fixed_threads": 3,
+      "resolved_threads": 3,
+      "fix_revisions": [
+        "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+        "599385e6bd194a71c0382fafe07fa3700d0fc893"
+      ],
+      "thread_state_audit_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893"
     },
+    "final_delta_audit_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
     "final_delta_commit_ready": true
   },
   "intermediate_non_gating_attempts": [
@@ -173,6 +183,32 @@
         "tests": 43,
         "passed": 43,
         "vitest_duration_seconds": 6.93
+      },
+      "authoritative_follow_up": "full_vitest"
+    },
+    {
+      "attempt": "post-review-eight-worker-node-22-full-suite",
+      "capture_revision": "599385e6bd194a71c0382fafe07fa3700d0fc893",
+      "gating": false,
+      "workers": 8,
+      "outcome": "transient-worker-initialization-timeout",
+      "files_passed": 121,
+      "files_total": 122,
+      "tests_passed": 2244,
+      "tests_total": 2245,
+      "vitest_duration_seconds": 150.44,
+      "wall_seconds": 151.1,
+      "maximum_resident_set_size_bytes": 4064821248,
+      "observation": "One stable WASM proposer test reported a 30000 ms worker initialization timeout near the end of the full-suite run.",
+      "isolated_follow_up": {
+        "files": 1,
+        "tests": 53,
+        "passed": 53,
+        "vitest_duration_seconds": 14.1,
+        "wall_seconds": 14.63,
+        "maximum_resident_set_size_bytes": 347815936,
+        "interpretation": "The immediate isolated pass is consistent with transient worker-start contention but does not prove a root cause.",
+        "does_not_convert_full_attempt_to_pass": true
       },
       "authoritative_follow_up": "full_vitest"
     },

@@ -18,6 +18,7 @@ import {
 } from "../../../ml/floodgate-v7-deployment-key-readiness";
 
 const temporaryRoots: string[] = [];
+const posixDescribe = describe.runIf(typeof process.geteuid === "function");
 
 function effectiveUserId(): number {
   if (typeof process.geteuid !== "function") {
@@ -73,7 +74,7 @@ afterEach(async () => {
   );
 });
 
-describe("Floodgate v7 deployment-key metadata readiness", () => {
+posixDescribe("Floodgate v7 deployment-key metadata readiness", () => {
   it("reports a missing parent and a missing key without provisioning either", async () => {
     const home = await homeFixture();
     const receipt = await inspect(home);

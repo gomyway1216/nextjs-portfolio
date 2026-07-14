@@ -1,0 +1,107 @@
+{
+  "schema": "shogi-floodgate-role-bundle-verification-run-status-v1",
+  "evidence_class": "captured-clean-confirmation-run",
+  "generated_at": "2026-07-14T16:55:49.543Z",
+  "operation": "verify",
+  "command_argv": [
+    "/usr/bin/caffeinate",
+    "-i",
+    "/usr/bin/time",
+    "-lp",
+    "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node",
+    "-r",
+    "/Users/yudaiyaguchi/.codex/worktrees/compact-blog-post-header/node_modules/tsx/dist/cjs/index.cjs",
+    "/private/tmp/nextjs-portfolio-e8a9197-confirm/ml/create-floodgate-role-bundle.ts",
+    "verify",
+    "--raw-lock",
+    "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-raw-lock",
+    "--role-lock",
+    "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1",
+    "--output",
+    "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
+  ],
+  "cwd": "/private/tmp/nextjs-portfolio-e8a9197-confirm",
+  "verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+  "started_at": "2026-07-14T16:35:31Z",
+  "finished_at": "2026-07-14T16:53:41Z",
+  "process_exit_code": 0,
+  "tracked_worktree": {
+    "before": {
+      "clean": true,
+      "capture": {
+        "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.before-status.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "after": {
+      "clean": true,
+      "capture": {
+        "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.after-status.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "runtime": {
+    "node_version": "v22.13.0",
+    "node_executable": {
+      "path": "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node",
+      "bytes": 121593488,
+      "sha256": "5c79f8e198fd2456ea6660aaa6be218f9f44747f2306c7d0f5f97b087b2f2dfc"
+    },
+    "tsx_cjs_loader": {
+      "path": "/Users/yudaiyaguchi/.codex/worktrees/compact-blog-post-header/node_modules/tsx/dist/cjs/index.cjs",
+      "bytes": 545,
+      "sha256": "49069c795ff40f563ab0b1f3d32336e58f61f8d5dc7dece0173097eb0b4067ad"
+    }
+  },
+  "results": {
+    "stdout": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.stdout.json",
+      "bytes": 10109,
+      "sha256": "3fcd61d13399303e8b70594e144de136d16bb8127441751c073c786617da30ff"
+    },
+    "stderr_and_time": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.stderr-time.txt",
+      "bytes": 760,
+      "sha256": "a06b38f992ee508a991995dd9d6f8d778c3a56c3566afc180b6673718623c360"
+    },
+    "child_stderr_observed": "no content outside the /usr/bin/time -lp record",
+    "wall_seconds": 1089.52,
+    "user_seconds": 1074.03,
+    "system_seconds": 78.27,
+    "maximum_resident_set_size_bytes": 5492424704,
+    "peak_memory_footprint_bytes": 5120024144,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0
+  },
+  "capture_components": {
+    "head": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.head.txt",
+      "bytes": 41,
+      "sha256": "cb96bdf760ea1dba37a0357f884d4fa5653e3bb4077a99df67b4ef85957a4209"
+    },
+    "started_at": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.started-at.txt",
+      "bytes": 21,
+      "sha256": "0bf0085f89a7f4deb6a1fd06e68f1655966235dd9624e11b3ae759776c99e373"
+    },
+    "finished_at": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.finished-at.txt",
+      "bytes": 21,
+      "sha256": "217c81cbec5b7ac3391bde6a73dccd8f3f5cf84cedd8ea7e72ab31459ed48ad6"
+    },
+    "exit_code": {
+      "path": "/private/tmp/floodgate-role-bundle-verify-e8a9197-confirmation-3.exit-code.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  },
+  "raw_path_disclosure": {
+    "classification": "non-secret execution-provenance metadata",
+    "redacted": false,
+    "credential_like_values_detected": false
+  }
+}

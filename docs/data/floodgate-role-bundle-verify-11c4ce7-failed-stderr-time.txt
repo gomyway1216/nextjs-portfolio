@@ -1,0 +1,26 @@
+Error: invalid Floodgate role lock: role-lock manifest candidate does not match verified evidence
+    at fail (/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/floodgate-role-lock.ts:453:9)
+    at validateRoleLockManifestCandidate (/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/floodgate-role-lock.ts:3612:5)
+    at verifyExistingFloodgateRoleLock (/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/floodgate-role-lock.ts:4676:20)
+    at async Object.verifyExistingFloodgateRoleBundle (/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/floodgate-role-bundle.ts:2892:22)
+    at async executeCli (/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/create-floodgate-role-bundle.ts:323:22)
+real 448.86
+user 435.41
+sys 23.11
+          4163551232  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              827090  page reclaims
+                3822  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                1412  messages sent
+                1251  messages received
+                 143  signals received
+              148069  voluntary context switches
+             3151708  involuntary context switches
+       9245826147258  instructions retired
+       1874793537267  cycles elapsed
+          4794727672  peak memory footprint

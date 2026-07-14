@@ -18,6 +18,7 @@
     "shogi:floodgate-acquire": "node -r tsx/cjs ml/acquire-floodgate-q1.ts",
     "shogi:floodgate-role-lock": "node -r tsx/cjs ml/create-floodgate-role-lock.ts",
     "shogi:floodgate-role-bundle": "node -r tsx/cjs ml/create-floodgate-role-bundle.ts",
+    "shogi:floodgate-role-lock-accounting-diagnostic": "node -r tsx/cjs ml/diagnose-floodgate-role-lock-accounting.ts",
     "shogi:floodgate-role-probe-benchmark": "node --expose-gc -r tsx/cjs ml/benchmark-floodgate-role-probe.ts",
     "shogi:floodgate-v7-checkpoint-scan-load": "node --expose-gc -r tsx/cjs ml/floodgate-v7-checkpoint-scan-load.ts",
     "shogi:floodgate-v7-key-provision": "node -r tsx/cjs ml/provision-floodgate-v7-deployment-key.ts",

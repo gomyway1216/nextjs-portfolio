@@ -278,17 +278,12 @@ function withAccessor<T extends object>(
   onAccess: () => void,
 ): T {
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  Object.defineProperty(descriptors, key, {
+  Reflect.set(descriptors, key, {
     configurable: true,
     enumerable: true,
-    writable: true,
-    value: {
-      configurable: true,
-      enumerable: true,
-      get(): never {
-        onAccess();
-        throw new Error("accessor trap must not run");
-      },
+    get(): never {
+      onAccess();
+      throw new Error("accessor trap must not run");
     },
   });
   return Object.create(Object.getPrototypeOf(value), descriptors) as T;
@@ -698,15 +693,19 @@ posixDescribe(
       await writeKey(rejectedHome);
       let traps = 0;
       const base = dependencyFixture(rejectedHome);
+      const accessor = withAccessor(base, "homeDirectory", () => {
+        traps += 1;
+      });
+      expect(
+        Object.getOwnPropertyDescriptor(accessor, "homeDirectory")?.get,
+      ).toBeTypeOf("function");
       for (const malformed of [
         { ...base, extra: true } as never,
         Object.assign({ ...base }, { [Symbol("extra")]: true }) as never,
         dependencyFixture(rejectedHome, {
           homeDirectory: path.parse(rejectedHome).root,
         }),
-        withAccessor(base, "homeDirectory", () => {
-          traps += 1;
-        }),
+        accessor,
         trapProxy(base, () => {
           traps += 1;
         }),
@@ -794,6 +793,8 @@ describe("Floodgate v7 deployment-key instance enrollment source boundary", () =
       expect(cli).toContain("process.argv.length !== 2");
       expect(cli).toContain("JSON.stringify(receipt)");
       expect(cli).toContain("await writeOutput(process.stdout");
+      expect(cli).toContain('stream.on("error", onError)');
+      expect(cli).toContain('stream.off("error", onError)');
       expect(cli).toContain('process.stdout.on("error"');
       expect(cli).toContain('process.stderr.on("error"');
       expect(cli).not.toContain("console.log");

@@ -11,10 +11,33 @@ const FIXED_FAILURE_MESSAGE =
 
 function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    stream.write(value, (error) => {
-      if (error) reject(error);
-      else resolve();
-    });
+    let settled = false;
+    const onError = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    stream.on("error", onError);
+    try {
+      stream.write(value, (error) => {
+        if (error) {
+          // Keep the listener installed for the paired error event that Node
+          // may emit after invoking the callback with the same failure.
+          onError(error);
+          return;
+        }
+        if (settled) return;
+        settled = true;
+        stream.off("error", onError);
+        resolve();
+      });
+    } catch (error) {
+      onError(
+        error instanceof Error
+          ? error
+          : new Error("deployment-key provisioner output failed"),
+      );
+    }
   });
 }
 

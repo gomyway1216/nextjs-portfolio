@@ -979,18 +979,21 @@ async function allocateFloodgateRoleLockCore(
       if (selectedGameIds.has(game.game_id)) {
         continue;
       }
+      const wasSemanticRejected = semanticRejected.has(game.game_id);
       if (
         game.player_identities.some(
           (identity) => (identityCounts.get(identity) ?? 0) >= identityCap,
         )
       ) {
-        identityCapSkips += 1;
+        // A semantic retry is already materialized. The v1 historical
+        // "skipped before materialization" counters never included it.
+        if (!wasSemanticRejected) identityCapSkips += 1;
         continue;
       }
       const pair = sortedIdentityPair(game.player_identities);
       const pairKey = pair.join("\0");
       if ((pairCounts.get(pairKey) ?? 0) >= pairCap) {
-        pairCapSkips += 1;
+        if (!wasSemanticRejected) pairCapSkips += 1;
         continue;
       }
 

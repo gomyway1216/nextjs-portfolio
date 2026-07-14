@@ -109,6 +109,14 @@ function materializedGame(
   };
 }
 
+function permanentlyRejectedGame(
+  game: Readonly<FloodgateRoleLockInspectedGame>,
+  tag: number,
+): FloodgatePureGameInput {
+  const materialized = materializedGame(game, tag);
+  return { ...materialized, parents: materialized.parents.slice(0, 23) };
+}
+
 const GREEDY_HUB_PREDECESSOR_SFEN = "4k4/9/p8/9/9/9/9/5R3/K8 w - 17";
 
 function replaceMoveNumber(sfen: string, moveNumber: number): string {
@@ -180,10 +188,14 @@ function uniqueIdentities(
 }
 
 function finalRank(gameId: string): Buffer {
+  return roleRank("fresh_final_holdout", gameId);
+}
+
+function roleRank(role: FloodgateRole, gameId: string): Buffer {
   return createHash("sha256")
     .update(
       [
-        DEFAULT_FLOODGATE_GAME_RANK_DOMAINS.fresh_final_holdout,
+        DEFAULT_FLOODGATE_GAME_RANK_DOMAINS[role],
         FLOODGATE_ALLOCATION_SEED,
         gameId,
       ].join("\0"),
@@ -414,6 +426,172 @@ describe("Floodgate production role-lock core", () => {
       result.artifact.output.roles.fresh_selection.map((game) => game.game_id),
     ).toEqual([hubCandidate.game_id]);
     expect(result.accounting.semantic_or_parent_quota_rejections).toBe(0);
+  });
+
+  it("does not recount an already-materialized semantic retry as a pre-materialization cap skip", async () => {
+    const rejected = indexGroup("retry-cap-rejected", [csaUrl(157)])[0];
+    const holdout = indexGroup("retry-cap-holdout", [csaUrl(206)])[0];
+    const selectionFirst = indexGroup("retry-cap-selection-first", [
+      csaUrl(246),
+    ])[0];
+    const selectionLast = indexGroup("retry-cap-selection-last", [
+      csaUrl(15),
+    ])[0];
+    const games = [rejected, holdout, selectionFirst, selectionLast];
+    expect(
+      [...games]
+        .sort(
+          (left, right) =>
+            Buffer.compare(finalRank(left.game_id), finalRank(right.game_id)) ||
+            compareUtf8Bytes(left.game_id, right.game_id),
+        )
+        .map((game) => game.game_id),
+    ).toEqual(games.map((game) => game.game_id));
+    expect(
+      [...games]
+        .sort(
+          (left, right) =>
+            Buffer.compare(
+              roleRank("fresh_selection", left.game_id),
+              roleRank("fresh_selection", right.game_id),
+            ) || compareUtf8Bytes(left.game_id, right.game_id),
+        )
+        .map((game) => game.game_id),
+    ).toEqual(
+      [selectionFirst, holdout, rejected, selectionLast].map(
+        (game) => game.game_id,
+      ),
+    );
+
+    const sharedIdentity = identity("retry-cap-shared");
+    const materialize = vi.fn(
+      async (game: Readonly<FloodgateRoleLockInspectedGame>) =>
+        game.game_id === rejected.game_id
+          ? permanentlyRejectedGame(game, 60_000)
+          : materializedGame(
+              game,
+              game.game_id === holdout.game_id
+                ? 61_000
+                : game.game_id === selectionFirst.game_id
+                  ? 62_000
+                  : 63_000,
+            ),
+    );
+    const result = await allocateFloodgateRoleLockCoreForTests({
+      csaIndex: games,
+      legacyProtectedPositionIds: [],
+      roleGameCounts: {
+        fresh_final_holdout: 1,
+        fresh_selection: 2,
+        training: 0,
+      },
+      inspect: async (game) =>
+        game.game_id === rejected.game_id
+          ? [sharedIdentity, identity("retry-cap-rejected")]
+          : game.game_id === selectionFirst.game_id
+            ? [sharedIdentity, identity("retry-cap-selection")]
+            : uniqueIdentities(game),
+      materialize,
+    });
+
+    expect(materialize).toHaveBeenCalledTimes(4);
+    expect(
+      result.artifact.output.roles.fresh_final_holdout.map(
+        (game) => game.game_id,
+      ),
+    ).toEqual([holdout.game_id]);
+    expect(
+      result.artifact.output.roles.fresh_selection.map((game) => game.game_id),
+    ).toEqual([selectionFirst.game_id, selectionLast.game_id]);
+    expect(result.accounting.semantic_or_parent_quota_rejections).toBe(1);
+    expect(
+      result.accounting.identity_cap_role_checks_skipped_before_materialization,
+    ).toBe(0);
+    expect(
+      result.accounting
+        .unordered_pair_cap_role_checks_skipped_before_materialization,
+    ).toBe(0);
+  });
+
+  it("does not recount an already-materialized semantic retry at the pair cap", async () => {
+    const rejected = indexGroup("retry-pair-rejected", [csaUrl(157)])[0];
+    const holdout = indexGroup("retry-pair-holdout", [csaUrl(206)])[0];
+    const selectionFirst = indexGroup("retry-pair-selection-first", [
+      csaUrl(246),
+    ])[0];
+    const fillerIndices = [
+      380, 451, 335, 30, 28, 385, 59, 368, 489, 149, 99, 435, 389, 121, 196, 2,
+      265, 297, 356,
+    ];
+    const fillers = fillerIndices.map(
+      (index) => indexGroup(`retry-pair-filler-${index}`, [csaUrl(index)])[0],
+    );
+    const games = [rejected, holdout, selectionFirst, ...fillers];
+    expect(
+      [...games]
+        .sort(
+          (left, right) =>
+            Buffer.compare(finalRank(left.game_id), finalRank(right.game_id)) ||
+            compareUtf8Bytes(left.game_id, right.game_id),
+        )
+        .slice(0, 2)
+        .map((game) => game.game_id),
+    ).toEqual([rejected.game_id, holdout.game_id]);
+
+    const pairIdentities = [
+      identity("retry-pair-a"),
+      identity("retry-pair-b"),
+    ] as const;
+    const materializeTags = new Map(
+      games.map((game, index) => [game.game_id, 70_000 + index]),
+    );
+    const materialize = vi.fn(
+      async (game: Readonly<FloodgateRoleLockInspectedGame>) => {
+        const tag = materializeTags.get(game.game_id);
+        if (tag === undefined)
+          throw new Error("missing materialize fixture tag");
+        return game.game_id === rejected.game_id
+          ? permanentlyRejectedGame(game, tag)
+          : materializedGame(game, tag);
+      },
+    );
+    const result = await allocateFloodgateRoleLockCoreForTests({
+      csaIndex: games,
+      legacyProtectedPositionIds: [],
+      roleGameCounts: {
+        fresh_final_holdout: 1,
+        fresh_selection: 20,
+        training: 0,
+      },
+      inspect: async (game) =>
+        game.game_id === rejected.game_id ||
+        game.game_id === selectionFirst.game_id
+          ? pairIdentities
+          : uniqueIdentities(game),
+      materialize,
+    });
+
+    expect(materialize).toHaveBeenCalledTimes(games.length);
+    expect(
+      result.artifact.output.roles.fresh_final_holdout.map(
+        (game) => game.game_id,
+      ),
+    ).toEqual([holdout.game_id]);
+    expect(result.artifact.output.roles.fresh_selection).toHaveLength(20);
+    expect(
+      result.artifact.output.roles.fresh_selection.map((game) => game.game_id),
+    ).toContain(selectionFirst.game_id);
+    expect(
+      result.artifact.output.roles.fresh_selection.map((game) => game.game_id),
+    ).not.toContain(rejected.game_id);
+    expect(result.accounting.semantic_or_parent_quota_rejections).toBe(1);
+    expect(
+      result.accounting.identity_cap_role_checks_skipped_before_materialization,
+    ).toBe(0);
+    expect(
+      result.accounting
+        .unordered_pair_cap_role_checks_skipped_before_materialization,
+    ).toBe(0);
   });
 
   it("rejects forged duplicate/canonical bindings before either callback runs", async () => {

@@ -1,27 +1,32 @@
 # Floodgate full-bundle verifierの7時間51分を縮める
 
-> [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)を閉じても、production connectorの前には実測7時間51分20秒のfull-bundle verifierが残る。本稿は、2回のrole-lock replayがその約99.4%を説明すること、その内部では最大約297万件へ成長するblocked position ID集合を候補ごとにcopy・sort・serialize・hashする2度目のone-game probeが支配的な除去可能costであることをprofileし、同じparent selectionを巨大blocked Setのartifact生成なしで行う共有samplerへ置換する実装記録である。strict zero-quota normalizationは残す。source、focused 40 tests、再現可能benchmarkはlocal PASS、ready PR #460の重複2 review commentsは修正済みで、optimized production full verifierは**0**である。real teacher、training、weight、live evaluation、対局、棋力のclaimは生じない。English version: [blog-shogi-floodgate-role-probe-acceleration.en.md](./blog-shogi-floodgate-role-probe-acceleration.en.md)
+> [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)を閉じても残っていた実測7時間51分20秒のfull-bundle verifierを、巨大blocked Setのcandidateごとのcopy・sort・serialize・hashを除く共有samplerへ置換した。PR #460はreview / CI後にregular mergeした。最初の実データrunは、retry済みgameをhistorical pre-materialization cap counterへ6回再加算した1-field accounting不一致を448.86秒でfail-closed検出した。保存済み3 artifactから再実行できるnon-gating診断では、allocation 236,504,991 bytesと全game / parent / protected-ID digestが不変だったため、retryを保ったままcounterだけv1互換に修正した。clean revision `e8a9197`のproduction full verifierは**17分25.52秒、27.05x、96.30%短縮、exit 0、全9 bundle files exact**で60分gateを通過した。このexit-0 runが採用authorityであり、診断単独ではない。real teacher、training、weight、live evaluation、対局、棋力のclaimはまだ生じない。English version: [blog-shogi-floodgate-role-probe-acceleration.en.md](./blog-shogi-floodgate-role-probe-acceleration.en.md)
 
 ## 1. 現在地
 
-| 項目                               | current status         | 意味                                                 |
-| ---------------------------------- | ---------------------- | ---------------------------------------------------- |
-| 旧full-bundle verify               | 7:51:20 / 28,280.32 s  | accepted historical measurement                      |
-| role-lock replay 1回               | 3:54:19.5              | bundle verifierがexact 2回呼ぶ                       |
-| role-lock由来のwall-time           | 約99.4%                | bundle固有差分は約2分41秒                            |
-| peak RSS / average CPU             | 6.23 GB / 約1.06 cores | multi-process複製ではなくalgorithmを直すべきevidence |
-| optimized sampler source           | implemented            | global Setをiterate / clone / mutateしない           |
-| focused source + benchmark tests   | 40 / 40 PASS           | strict decode、rollback、retry、parity、harness      |
-| related suites                     | 14 files / 364 PASS    | role-lock / bundle / consumer / connector            |
-| full Vitest regression             | 120 files / 2,165 PASS | 8 workers / 146.93 s                                 |
-| Python stdlib                      | 58 / 58 PASS           | py_compile + unittest                                |
-| TypeScript                         | PASS                   | current local diff                                   |
-| ESLint / targeted format / diff    | PASS                   | role-lockの既存whole-file driftは除外                |
-| production build / npm audit       | PASS / 0 vulns         | full lintは0 errors / 既存157 warnings               |
-| independent final review           | PASS                   | 2 reviews / P0 = P1 = P2 = 0                         |
-| ready PR #460 review               | 2 duplicate / fixed    | protected IDsを1-passでunion check                   |
-| optimized production full verify   | 0                      | real bundleではまだ未実行                            |
-| teacher / training / weight / live | 0 / 0 / 0 / unchanged  | 棋力evidenceではない                                 |
+| 項目                               | current status         | 意味                                                  |
+| ---------------------------------- | ---------------------- | ----------------------------------------------------- |
+| 旧full-bundle verify               | 7:51:20 / 28,280.32 s  | accepted historical measurement                       |
+| role-lock replay 1回               | 3:54:19.5              | bundle verifierがexact 2回呼ぶ                        |
+| role-lock由来のwall-time           | 約99.4%                | bundle固有差分は約2分41秒                             |
+| peak RSS / average CPU             | 6.23 GB / 約1.06 cores | multi-process複製ではなくalgorithmを直すべきevidence  |
+| optimized sampler source           | merged / PR #460       | global Setをiterate / clone / mutateしない            |
+| first optimized real verify        | 448.86 s / exit 1      | accounting 1 fieldだけ1930 != 1924                    |
+| stored-input diagnostic replay     | 193.35 s / non-gating  | allocation 236,504,991 bytes / SHA exact              |
+| v1 accounting compatibility fix    | `e8a9197`              | retry / caps維持、既materialized retryを再countしない |
+| optimized real full verify         | 1,045.52 s / exit 0    | 全9 files exact / stderr 0 / swap 0                   |
+| wall speedup / reduction           | 27.05x / 96.30%        | 7:51:20から17:25.52                                   |
+| max RSS                            | 5.63 GB                | 旧6.23 GBから9.65%減                                  |
+| focused source + diagnostic tests  | 4 files / 44 PASS      | strict decode、retry、cap accounting、replay、parity  |
+| direct related suites              | 10 files / 166 PASS    | role-lock / bundle / diagnostic / CLI / result        |
+| full Vitest regression             | 121 files / 2,169 PASS | 8 workers / 162.40 s                                  |
+| Python stdlib                      | 58 / 58 PASS           | py_compile + unittest                                 |
+| TypeScript                         | PASS                   | current local diff                                    |
+| ESLint / targeted format / diff    | PASS                   | role-lockの既存whole-file driftは除外                 |
+| production build / npm audit       | PASS / 0 vulns         | full lintは0 errors / 既存157 warnings                |
+| independent compatibility review   | PASS                   | P0 = P1 = P2 = 0、pair coverage指摘も解決             |
+| algorithm-only 60-minute gate      | PASS                   | worker follow-up不要                                  |
+| teacher / training / weight / live | 0 / 0 / 0 / unchanged  | 棋力evidenceではない                                  |
 
 ## 2. ボトルネックはcore数不足ではなく二次的な再計算だった
 
@@ -82,57 +87,66 @@ new `sampleFloodgatePlannedGameParentsForRoleLock(game, blockedSet)`は次を固
 
 typed TypeScript objectはtrusted evidenceではない。new helperの引数型よりruntime captureがauthorityである。
 
-## 6. Failed candidateはglobal stateを汚さない
+## 6. Retryは残し、historical counterだけを互換にする
 
-samplingはlocal overlayへだけ追加する。23 parentsまで選んでquota failureになっても、global Setはbyte-for-byte不変でなければならない。intra-game parent-childまたはchild-child transpositionもglobal / localのOR membershipでrejectする。
+samplingはlocal overlayへだけ追加する。23 parentsまで選んでquota failureになってもglobal Setは不変で、intra-game parent-child / child-child transpositionはglobal / localのOR membershipでrejectする。
 
-さらにfailureはblocked Setが増えるほど単調ではない。early-ranked hub parent Hがtwo leaves L1 / L2と衝突すると、Hを選ぶ集合Sでは23 parentsで失敗する。しかし後のroleでH自体がglobal blockされるsuperset Tでは、HをskipしてL1 / L2と22 disjoint fillersの24 parentsを選べる。このためsemantic failureを全role共通のpermanent rejectにしてはならない。
+failureはblocked Setが増えるほど単調ではない。early-ranked hub parent Hがleaves L1 / L2と衝突すると、Hを選ぶ集合Sでは23 parentsで失敗する。一方、後のroleでHがglobal blockされたsuperset Tでは、HをskipしてL1 / L2と22 disjoint fillersを選べる。このためretry自体は必要であり、adversarial fixtureはfirst roleで失敗したcandidateがsecond roleでexact 24 parentsを得てfinal pure oracleとfull projection一致することを固定する。
 
-adversarial integration fixtureは次を証明する。
+最初のreal runはretry ruleではなくhistorical accounting compatibilityで停止した。semantic-rejected gameのlater-role encounterは12 events / 11 unique gamesだった。6 events / 6 unique gamesはidentity capで止まり、残る6 reprobe / re-rejection eventsは5 unique gamesに属し、pair-cap stopは0だった。同じ1 gameが`fresh_selection`と`training`の両方で再拒否されたため、event数とunique game数は同じではない。selection、parents、protected IDs、236,504,991-byte allocationはexact一致したが、すでにmaterialize済みのidentity-cap 6 eventsを`skipped_before_materialization`へ再加算したため、manifestの`accounting.identity_cap_role_checks_skipped_before_materialization`だけが`1924`から`1930`へ変わった。
 
-- candidate Cはfirst roleでhubをgreedy選択し23 parentsで失敗
-- predecessor game Bがfirst roleに選ばれ、Bのprotected setとCのcandidate semantic groupsとの唯一のoverlapがlegal child H
-- Cはsecond roleで再試行され、exact 24 parentsで成功
-- materializationはC / Bの2回だけで、Cのvalidated snapshotをreuse
-- final pure oracleはfirst role B、second role Cのfull projectionと一致
+compatibility fixはroleごとのidentity / pair capを必ず適用し、non-monotone retryも残す。ただし`wasSemanticRejected`がtrueならcandidateはすでにmaterialize済みなので、historicalな“before materialization” counterへ再加算しない。real dataで差が出たidentity capと、将来の対称性を守るpair capの両方をdeterministic regression fixtureで固定した。
 
-## 7. Workerはfollow-upに分離する
+## 7. Worker follow-upは不要になった
 
-current verifierをprocess単位で4 / 8 / 10 / 12並列にすると、historical peak RSS 6.23 GBから単純計算で約24.9 / 49.8 / 62.3 / 74.8 GBとなり、48 GB machineには不適切である。
+verifier全体をprocess単位で4 / 8 / 10 / 12並列にすると、旧peak RSS 6.23 GBから単純計算で約24.9 / 49.8 / 62.3 / 74.8 GBとなり、48 GB machineには不適切である。そこで先にalgorithmic wasteを除いた。
 
-algorithmic fix後もparent semanticsが支配的なら、persistent worker_threadsへ渡すのはSFENとsmall parent identityだけにする。raw path、key、23 MB raw manifest、236 MB allocation、multi-million blocked Setはworkerへ渡さない。global selection / ordered commit、raw verification、filesystem closureはmain threadに残す。exploratory ad-hoc one-shotでは8 workersが6.51x / peak約624 MB、10 workersは6.65x / 763 MB、12 workersは6.51x / 898 MBだった。source command / raw logは保存されていないため、これは8 workersをfollow-upの出発点にするdesign clueであり、採用判定やreproducible evidenceではない。follow-upでは改めてchecked-in harnessを作る。
+結果は1,045.52秒で60分gateを大幅に通過したため、worker implementationは作らない。将来入力規模が変わり再びparent semanticsが支配的になった場合だけ、SFENとsmall parent identityだけをpersistent workerへ渡し、global selection / ordered commit、raw verification、filesystem closureをmain threadに残す案を再検討する。
 
-## 8. Validationとstop conditions
+## 8. Validationとreal full-run evidence
 
-focused 40 testsは、new / full-wrapper parent parity、global Set non-iteration、23-parent rollback、negative zero、Proxy / accessor traps、score-like extras、sparse arrays、actual semantic transpositions、non-monotone cross-role retry、caller mutation後のsnapshot、full projection oracle、benchmark raw-sample contractを検査してPASSした。related 14 files / 364 tests、TypeScript、scoped ESLint、targeted formatting、diff checkもPASSした。`ml/floodgate-role-lock.ts`全体にはこのPRより前のPrettier driftがあり、whole-file writeは無関係な大量churnを生むため対象外とした。modified hunksと`git diff --check`はcleanである。
+PR #460ではfocused 40、related 364、full 2,165 tests、Python 58 tests、production build、TypeScript、full lint、npm audit、review / CIを通過した。compatibility fixとchecked-in diagnosticは4 focused files / 44 tests、direct-related 10 files / 166 tests、full 121 files / 2,169 testsをPASSし、full runは8 workers / 162.40秒だった。Python 58 tests、TypeScript、scoped ESLint、0 errors / 既存157 warningsのfull lint、0 vulnerabilitiesのnpm audit、format / diff checkもPASSし、独立reviewsはP0 / P1 / P2すべて0である。
 
-残るrequired evidenceは次である。
+最初のreal attempt `11c4ce7`は448.86秒でexit 1となりfail closedした。revision `a13365d`の[checked-in diagnostic](../ml/diagnose-floodgate-role-lock-accounting.ts)をclean detached worktreeで実行すると、193.35秒、exit 0、swap 0で、保存済みmaterialized input / allocationはbyte-exactに再現した。[diagnostic status](./data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json)、[raw output](./data/floodgate-role-lock-accounting-diagnostic-a13365d-output.json)、[time](./data/floodgate-role-lock-accounting-diagnostic-a13365d-time.txt)は、12 encounters / 11 unique games、identity / pair cap stops 6 / 0、6 reprobes / 5 unique games、1-field modeled counterfactualを固定する。これはderived non-gating診断であり、旧`11c4ce7` executableの再実行でもproduction artifactの独立承認でもない。exit 0のfull verifier、raw output / time、artifact identityが採用authorityである。失敗runのstdout 0 bytes、worktree clean、失敗後もbundle manifestが7,202 bytes / SHA-256 `2bafc01f...e3cf9`だった点はoperator observationとしてのみ記録し、採用判定には使わない。
 
-1. ready PRのreview / CIとregular merge
-2. clean merged revisionからreal production full verifierを1回だけ実行し、manifest / artifact identitiesをhistorical bytesと照合
-3. phase wall / CPU / RSSを記録し、algorithmic-only target **60分未満**を判定
+fix後のreal full verifyは2026-07-14 16:01:28Zから16:18:54Zまで実行した。
 
-first 12-worker full regressionは119 files / 2,163 tests中1件だけ、今回非関連のstable-proposal resume testで状態分類がずれた。同file単独は11 / 11 PASS、benchmark file追加後の低contention 8-worker full rerunは120 files / 2,165 tests全件PASSした。Python 58 tests、production build、TypeScript、full lint、npm auditもexit 0で、full lintの157 warningsは既存で0 errorsだった。full-run実測の事前ETAは中心約45分、幅35〜60分、悲観75分という推定であり、まだ計測値ではない。
+| metric                |      historical | optimized `e8a9197` | change              |
+| --------------------- | --------------: | ------------------: | ------------------- |
+| wall                  |     28,280.32 s |          1,045.52 s | 27.05x / -96.30%    |
+| user CPU              |     28,376.91 s |          1,040.35 s | -27,336.56 s        |
+| system CPU            |      1,564.28 s |             75.68 s | -1,488.60 s         |
+| maximum RSS           | 6,230,917,120 B |     5,629,476,864 B | -9.65%              |
+| peak memory footprint | 5,380,204,472 B |     5,079,357,328 B | -5.59%              |
+| swaps / block I/O     |           0 / 0 |               0 / 0 | no regression       |
+| exit / stderr         |    0 / accepted |         0 / 0 bytes | fail-closed success |
 
-real verifyが60分以上ならworker follow-upへ進む。artifact / selection parityが1 byteでもずれる、filesystem closureが弱まる、memory pressureでswapする、またはfail-closed errorが失われる場合は停止する。
+raw-lock manifest、role-lock manifest、legacy exclusion、bundle 9 filesはすべてhistorical bytes / SHA-256とexact一致した。さらに別のclean detached worktreeで2026-07-14 16:35:31Zから16:53:41Zまでconfirmationを実行した。こちらも`e8a9197`、exit 0、1,089.52秒、swap / block I/O 0、全artifact exactで、実行前後のtracked status captureはともに0 bytesだった。2つのsuccessful stdoutは`repository_root`を除けば同一である。[summary evidence JSON](./data/floodgate-role-bundle-verify-acceleration-2026-07-14.json)、[accepted raw output](./data/floodgate-role-bundle-verify-e8a9197-output.json)、[accepted time](./data/floodgate-role-bundle-verify-e8a9197-time.txt)、[confirmation status](./data/floodgate-role-bundle-verify-e8a9197-confirmation-status.json)、[confirmation raw output](./data/floodgate-role-bundle-verify-e8a9197-confirmation-output.json)、[confirmation time](./data/floodgate-role-bundle-verify-e8a9197-confirmation-time.txt)、[failed-attempt stderr / time](./data/floodgate-role-bundle-verify-11c4ce7-failed-stderr-time.txt)に固定した。
+
+raw filesには実行環境を固定するローカル絶対path（ユーザー名、worktree / data / bundle root）が含まれる。既存protocol evidenceと同じnon-secret execution-provenance metadataであり、credential-like valueは検出されなかった。raw bytes / SHA-256を保つためredactionしていない。
+
+事前のunder-60-minute、artifact exactness、no-swap gatesをすべて通過したためalgorithmic accelerationを採用し、worker follow-upは行わない。事前ETA 35〜60分は保守的で、実測17分25.52秒はその下限より速かった。
 
 ## 9. 現在のnonclaims
 
-- optimized production full-verifier executions: **0**
+- optimized real full-verifier attempts / accepted: **3 / 2**（1件はfail closed、1件はclean confirmation）
 - real role-bundle consumer callbacks: **0**
-- production key provision / inspection / enrollment: **0 / 0 / 0**
+- production key provision / inspection / approved enrollment: **0 / 0 / 0**
 - 100 / 500 / 24,000 gates: **0 / 0 / 0**
+- network requests / teacher or candidate scores read: **0 / false**
 - teacher labels / optimizer steps / candidate weights: **0 / 0 / 0**
-- formal games / rating / stable high-dan evidence: **0 / 0 / not established**
+- formal games / rating / stable high-dan evidence: **0 / not established / not established**
 - production weight overwrite / live activation: **unchanged**
+
+exact artifact parityが証明するのはverifierが既存データを保存したことだけであり、label qualityやmodel strengthではない。
 
 ## 10. 次のexecution order
 
-1. algorithmic parity PRをfocused / related / full validationとindependent reviewへ通す。
-2. ready PRをopenし、review / CIを完了してregular mergeする。
-3. clean merged revisionでoptimized real full verifierを1回測る。
-4. 60分未満かつexact artifact parityならworkerなしで採用する。
-5. 足りない場合だけ8-worker parent-semantics PRを別に実装・検証する。
-6. verifier blockerが閉じた後も、production key write / inspectionは別の明示承認まで実行しない。
+1. compatibility fix、failed / successful raw evidence、日英記事をready PRへまとめる。
+2. focused / related / full CIとreviewを通し、regular mergeする。
+3. `1,045.52 < 3,600`、9 / 9 exact、swap 0なのでworker PRは作らない。
+4. merge後はfull-verifier blockerをclosedとし、入力またはverifier codeが変わらない限り同じ高cost runを繰り返さない。
+5. production key provision / inspection / approved enrollmentは別の明示承認されたoperational stepとして扱う。
+6. key pinning後に100 → 500 → 24,000 connector gatesへ進み、その後だけteacher、training、selection、formal A/B、external calibrationを実行する。全adoption gateを通るまでlive weightsは変えない。
 
-この高速化は同じ入力を短時間で検証するだけであり、評価関数を強くしたevidenceではない。
+この高速化は同じ入力を短時間で検証するdata-integrity / performance evidenceであり、評価関数が強くなったevidenceではない。

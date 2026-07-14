@@ -1,0 +1,401 @@
+{
+  "schema": "shogi-floodgate-role-bundle-verify-acceleration-evidence-v1",
+  "generated_at": "2026-07-14T17:12:49Z",
+  "machine": {
+    "model": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "node_version": "v22.13.0",
+    "node_path": "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node"
+  },
+  "execution_provenance_disclosure": {
+    "classification": "non-secret execution-provenance metadata",
+    "raw_local_absolute_paths_preserved": true,
+    "credential_like_values_detected": false,
+    "reason_not_redacted": "Preserve the captured bytes and SHA-256 identities of the raw execution evidence."
+  },
+  "historical_baseline": {
+    "verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+    "process_exit_code": 0,
+    "wall_seconds": 28280.32,
+    "user_seconds": 28376.91,
+    "system_seconds": 1564.28,
+    "maximum_resident_set_size_bytes": 6230917120,
+    "peak_memory_footprint_bytes": 5380204472,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0,
+    "sources": [
+      {
+        "path": "ml/protocols/floodgate-q1-2026-role-bundle-verify-status.json",
+        "bytes": 629,
+        "sha256": "87284839df6171b369762499e6f71b8585c71202ff6dc869afecb1454dadcb18"
+      },
+      {
+        "path": "ml/protocols/floodgate-q1-2026-role-bundle-verify-output.json",
+        "bytes": 10125,
+        "sha256": "b753f4e7213ab6019d5de423ccaca84cd14b3727e778c9835c155b878060526a"
+      },
+      {
+        "path": "ml/protocols/floodgate-q1-2026-role-bundle-verify-time.log",
+        "bytes": 764,
+        "sha256": "70074923b2ab0a102de35e328234dbb81cd7736210b2bc03c8b932afacbbdbc4"
+      }
+    ]
+  },
+  "failed_attempt": {
+    "evidence_class": "raw-failure-time-with-operator-observations",
+    "gating": false,
+    "operator_observation_fields": [
+      "stdout",
+      "bundle_manifest_after_failure",
+      "worktree_clean_after_failure"
+    ],
+    "started_at": "2026-07-14T05:43:12Z",
+    "finished_at": "2026-07-14T05:50:41Z",
+    "verifier_revision": "11c4ce7829803a2d05c46fe69fc8cec526296a28",
+    "base_merge_revision": "0db56562cfb05f153d2169b9e5342a81d034b13b",
+    "process_exit_code": 1,
+    "stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderr_and_time": {
+      "path": "docs/data/floodgate-role-bundle-verify-11c4ce7-failed-stderr-time.txt",
+      "bytes": 1508,
+      "sha256": "a02b253bdc7a98efc0d103c03e83f08e72cfd5fdf798dbf65f013129832b1ef7"
+    },
+    "error": "invalid Floodgate role lock: role-lock manifest candidate does not match verified evidence",
+    "wall_seconds": 448.86,
+    "user_seconds": 435.41,
+    "system_seconds": 23.11,
+    "maximum_resident_set_size_bytes": 4163551232,
+    "peak_memory_footprint_bytes": 4794727672,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0,
+    "bundle_manifest_after_failure": {
+      "bytes": 7202,
+      "sha256": "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9"
+    },
+    "worktree_clean_after_failure": true
+  },
+  "forensics": {
+    "evidence_class": "reproducible-derived-diagnostic-non-gating",
+    "authoritative_gate": "successful-exit-zero-production-full-bundle-verifier",
+    "limitation": "The diagnostic exact-replays the unchanged pure allocation and models retry-cap deltas onto the historical manifest; it does not rerun the 11c4ce7 executable or independently approve production artifacts.",
+    "revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+    "process_exit_code": 0,
+    "tracked_worktree_clean_before": true,
+    "tracked_worktree_clean_after": true,
+    "script": {
+      "path": "ml/diagnose-floodgate-role-lock-accounting.ts",
+      "bytes": 26317,
+      "sha256": "89c1c33926f427f5656abcbbe584f03997dace4187191d7207100ef48f0c0010"
+    },
+    "status": {
+      "path": "docs/data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json",
+      "bytes": 3715,
+      "sha256": "2782895514cfb95433eb201fb5279f328b025ef82a8ad3a046c9efe22b93e890"
+    },
+    "output": {
+      "path": "docs/data/floodgate-role-lock-accounting-diagnostic-a13365d-output.json",
+      "bytes": 7382,
+      "sha256": "4e2806587726d760efc27591ab720fb36154ca105781f78ed02ff79537e6d69b"
+    },
+    "time": {
+      "path": "docs/data/floodgate-role-lock-accounting-diagnostic-a13365d-time.txt",
+      "bytes": 757,
+      "sha256": "812f4d291551e1d250c7c3aec3807f4d6bd2f81582973ad1a6e790234b22bc02"
+    },
+    "wall_seconds": 193.35,
+    "pure_replay_wall_seconds": 191.860670625,
+    "maximum_resident_set_size_bytes": 3548069888,
+    "peak_memory_footprint_bytes": 3384866808,
+    "swaps": 0,
+    "inputs": {
+      "materialized_input": {
+        "bytes": 31265897,
+        "sha256": "ed43d7a2f3918178472aea03f897d13d4bd526a6c82f79b1427d3e4f1e666719"
+      },
+      "historical_allocation": {
+        "bytes": 236504991,
+        "sha256": "e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4"
+      },
+      "historical_manifest": {
+        "bytes": 5516989,
+        "sha256": "e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e"
+      }
+    },
+    "exact_replay": {
+      "materialized_input_exact": true,
+      "allocation_exact": true,
+      "materialized_games": 1619,
+      "selected_games": 1400,
+      "selected_parents": 33600,
+      "candidate_attempt_events": 1625,
+      "final_semantic_rejections": 219
+    },
+    "control_flow_replay": {
+      "previously_rejected_later_role_encounters": 12,
+      "previously_rejected_later_role_unique_games": 11,
+      "identity_cap_stop_events": 6,
+      "identity_cap_stop_unique_games": 6,
+      "pair_cap_stop_events": 0,
+      "pair_cap_stop_unique_games": 0,
+      "actual_reprobe_events": 6,
+      "actual_reprobe_unique_games": 5,
+      "reprobe_rejected_again_events": 6,
+      "reprobe_rejected_again_unique_games": 5,
+      "encounter_unique_game_digest": "b1d78966f01aa3377b9414be550bb3b58fddff831abbabdf91f6d97567050082",
+      "identity_cap_stop_unique_game_digest": "cdceee3ac2ca13a532ed56f1c6eaa2288e23528ebd1432b92a2dd2bdf73d7791",
+      "reprobe_rejected_again_unique_game_digest": "b50746e398aa89c12e916a99770c2a3711bd170e5afef9bab0f18a88d58eb2ba",
+      "by_role": {
+        "fresh_final_holdout": [0, 0, 0, 0, 0],
+        "fresh_selection": [2, 1, 0, 1, 1],
+        "training": [10, 5, 0, 5, 5]
+      },
+      "by_role_order": [
+        "later_role_encounters",
+        "identity_cap_stops",
+        "pair_cap_stops",
+        "actual_reprobes",
+        "rejected_again"
+      ]
+    },
+    "modeled_pre_fix_counterfactual": {
+      "historical_identity_cap_counter": 1924,
+      "modeled_identity_cap_counter": 1930,
+      "historical_pair_cap_counter": 2,
+      "modeled_pair_cap_counter": 2,
+      "modeled_manifest": {
+        "bytes": 5516989,
+        "sha256": "42feccf9b12f50d93e2adb864ee76f86a8f0af4578e630b1551bc19ac7db4591"
+      },
+      "json_pointer_differences": [
+        {
+          "pointer": "/accounting/identity_cap_role_checks_skipped_before_materialization",
+          "historical": 1924,
+          "modeled": 1930
+        }
+      ],
+      "selection_digests_match_historical": true
+    }
+  },
+  "compatibility_fix": {
+    "revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "diagnostic_revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+    "validation_revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+    "base_revision": "0db56562cfb05f153d2169b9e5342a81d034b13b",
+    "behavior": "Keep non-monotone semantic retries and enforce both caps, but do not recount an already-materialized retry in the historical pre-materialization cap counters.",
+    "accounting_and_diagnostic_tests": {
+      "files": 2,
+      "tests": 17,
+      "passed": 17
+    },
+    "combined_focused_tests": {
+      "files": 4,
+      "tests": 44,
+      "passed": 44
+    },
+    "direct_related_tests": {
+      "files": 10,
+      "tests": 166,
+      "passed": 166
+    },
+    "full_vitest": {
+      "files": 121,
+      "tests": 2169,
+      "passed": 2169,
+      "workers": 8,
+      "wall_seconds": 162.4
+    },
+    "python_stdlib": {
+      "tests": 58,
+      "passed": 58
+    },
+    "typescript": "pass",
+    "scoped_eslint": "pass",
+    "full_eslint": {
+      "errors": 0,
+      "existing_warnings": 157
+    },
+    "production_build": "pass",
+    "npm_audit_vulnerabilities": 0,
+    "format_check": "pass",
+    "diff_check": "pass",
+    "independent_reviews": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    }
+  },
+  "successful_attempt": {
+    "evidence_role": "performance-and-artifact-acceptance-run",
+    "started_at": "2026-07-14T16:01:28Z",
+    "finished_at": "2026-07-14T16:18:54Z",
+    "verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "process_exit_code": 0,
+    "stdout": {
+      "path": "docs/data/floodgate-role-bundle-verify-e8a9197-output.json",
+      "bytes": 10122,
+      "sha256": "d070db7ade9d947a31b7a46aebd76fbb4cd942cd7c0dd9438b703c4107b6c32b"
+    },
+    "stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "time": {
+      "path": "docs/data/floodgate-role-bundle-verify-e8a9197-time.txt",
+      "bytes": 760,
+      "sha256": "6ca49e603a7a3845b2218da3ca340acc61694bb3d1107c8f6fb49b32eb3e2cfd"
+    },
+    "wall_seconds": 1045.52,
+    "user_seconds": 1040.35,
+    "system_seconds": 75.68,
+    "maximum_resident_set_size_bytes": 5629476864,
+    "peak_memory_footprint_bytes": 5079357328,
+    "page_reclaims": 3697541,
+    "page_faults": 6628,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0,
+    "messages_sent": 4142,
+    "messages_received": 3506,
+    "signals_received": 394,
+    "voluntary_context_switches": 423367,
+    "involuntary_context_switches": 11815953,
+    "instructions_retired": 21305067031870,
+    "cycles_elapsed": 4560407833397,
+    "cli_schema": "shogi-floodgate-role-bundle-cli-output-v2",
+    "mode": "verify",
+    "producer_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+    "manifest_schema": "shogi-floodgate-label-free-role-bundle-v2",
+    "manifest_status": "complete-label-free-role-bundle",
+    "worktree_clean_before": true,
+    "worktree_clean_after": true,
+    "worktree_clean_evidence": "operator observation independently repeated by confirmation_attempt"
+  },
+  "confirmation_attempt": {
+    "evidence_role": "captured-clean-revision-and-artifact-confirmation",
+    "started_at": "2026-07-14T16:35:31Z",
+    "finished_at": "2026-07-14T16:53:41Z",
+    "verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "process_exit_code": 0,
+    "tracked_worktree_clean_before": true,
+    "tracked_worktree_clean_after": true,
+    "status": {
+      "path": "docs/data/floodgate-role-bundle-verify-e8a9197-confirmation-status.json",
+      "bytes": 4104,
+      "sha256": "34dba82d346ebe29eeb848f7e29b45d01127f9f79bc2116771606ba8f29f1b33"
+    },
+    "stdout": {
+      "path": "docs/data/floodgate-role-bundle-verify-e8a9197-confirmation-output.json",
+      "bytes": 10109,
+      "sha256": "3fcd61d13399303e8b70594e144de136d16bb8127441751c073c786617da30ff"
+    },
+    "time": {
+      "path": "docs/data/floodgate-role-bundle-verify-e8a9197-confirmation-time.txt",
+      "bytes": 760,
+      "sha256": "a06b38f992ee508a991995dd9d6f8d778c3a56c3566afc180b6673718623c360"
+    },
+    "wall_seconds": 1089.52,
+    "user_seconds": 1074.03,
+    "system_seconds": 78.27,
+    "maximum_resident_set_size_bytes": 5492424704,
+    "peak_memory_footprint_bytes": 5120024144,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0,
+    "stdout_matches_successful_attempt_after_removing_repository_root": true,
+    "all_nine_bundle_files_exact": true
+  },
+  "comparison": {
+    "speedup": 27.049047363991125,
+    "wall_seconds_saved": 27234.8,
+    "wall_reduction_percent": 96.30301212999004,
+    "historical_average_cpu_cores": 1.0587288262650494,
+    "optimized_average_cpu_cores": 1.0674401254877954,
+    "maximum_resident_set_size_reduction_percent": 9.652515743942358,
+    "peak_memory_footprint_reduction_percent": 5.591741829993413
+  },
+  "artifact_identity": {
+    "raw_lock_manifest": {
+      "bytes": 23698679,
+      "sha256": "1479a3a207458c9d3afe6cf9ba88abc6c44fb7b8b0e621aca9d6558637314619"
+    },
+    "role_lock_manifest": {
+      "bytes": 5516989,
+      "sha256": "e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e"
+    },
+    "legacy_exclusion": {
+      "bytes": 624816,
+      "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a"
+    },
+    "bundle_files": [
+      {
+        "path": "fresh-final-holdout.protected-position-ids.txt",
+        "bytes": 29751912,
+        "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe"
+      },
+      {
+        "path": "fresh-final-holdout.raw.jsonl",
+        "bytes": 3073360,
+        "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7"
+      },
+      {
+        "path": "fresh-selection.protected-position-ids.txt",
+        "bytes": 30624768,
+        "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d"
+      },
+      {
+        "path": "fresh-selection.raw.jsonl",
+        "bytes": 3073306,
+        "sha256": "76e43969374704a77745fd329e5d22059d036fb8235626af91421fbeba16a4d9"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 7202,
+        "sha256": "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9"
+      },
+      {
+        "path": "replay-excluded-position-ids.txt",
+        "bytes": 61001496,
+        "sha256": "4efde3390dfb9bbbd447899dbebc84e624a9ab92716e15e9bae85b3694fd5275"
+      },
+      {
+        "path": "replay-exclusion-receipt.json",
+        "bytes": 1471,
+        "sha256": "1c29528e3843cfae41f5f65d0f6e32832af9c85d871a89c1796e99e7c24c3f56"
+      },
+      {
+        "path": "training.protected-position-ids.txt",
+        "bytes": 152717328,
+        "sha256": "142c8e5a11b3508c999dd056bc02f192550e6f086ba8da789ec9d7f5ba37cf5b"
+      },
+      {
+        "path": "training.raw.jsonl",
+        "bytes": 15369952,
+        "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62"
+      }
+    ],
+    "all_nine_bundle_files_exact": true
+  },
+  "gates": {
+    "process_exit_zero": true,
+    "stderr_empty": true,
+    "artifact_identity_exact": true,
+    "under_3600_seconds": true,
+    "no_swap": true,
+    "worker_follow_up_required": false,
+    "algorithmic_acceleration_accepted": true
+  },
+  "nonclaims": {
+    "teacher_labels": 0,
+    "optimizer_steps": 0,
+    "candidate_weights": 0,
+    "formal_games": 0,
+    "rating_established": false,
+    "stable_high_dan_established": false,
+    "live_weight_activation": "unchanged"
+  }
+}

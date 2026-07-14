@@ -1,0 +1,93 @@
+{
+  "schema": "shogi-floodgate-role-lock-accounting-diagnostic-run-status-v1",
+  "evidence_class": "captured-reproducible-derived-diagnostic-non-gating",
+  "authoritative_gate": "successful-exit-zero-production-full-bundle-verifier",
+  "generated_at": "2026-07-14T17:03:29.869Z",
+  "command_argv": [
+    "/usr/bin/caffeinate",
+    "-i",
+    "/usr/bin/time",
+    "-lp",
+    "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node",
+    "-r",
+    "/Users/yudaiyaguchi/.codex/worktrees/compact-blog-post-header/node_modules/tsx/dist/cjs/index.cjs",
+    "/private/tmp/nextjs-portfolio-a13365d-diagnostic/ml/diagnose-floodgate-role-lock-accounting.ts",
+    "--materialized-input",
+    "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/materialized-input.json",
+    "--allocation",
+    "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/allocation.json",
+    "--manifest",
+    "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/manifest.json"
+  ],
+  "cwd": "/private/tmp/nextjs-portfolio-a13365d-diagnostic",
+  "revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+  "started_at": "2026-07-14T16:59:31Z",
+  "finished_at": "2026-07-14T17:02:45Z",
+  "process_exit_code": 0,
+  "tracked_worktree": {
+    "before": {
+      "clean": true,
+      "capture": {
+        "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.before-status.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "after": {
+      "clean": true,
+      "capture": {
+        "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.after-status.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "results": {
+    "stdout": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.stdout.json",
+      "bytes": 7382,
+      "sha256": "4e2806587726d760efc27591ab720fb36154ca105781f78ed02ff79537e6d69b"
+    },
+    "stderr_and_time": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.stderr-time.txt",
+      "bytes": 757,
+      "sha256": "812f4d291551e1d250c7c3aec3807f4d6bd2f81582973ad1a6e790234b22bc02"
+    },
+    "child_stderr_observed": "no content outside the /usr/bin/time -lp record",
+    "wall_seconds": 193.35,
+    "user_seconds": 188.99,
+    "system_seconds": 3.9,
+    "maximum_resident_set_size_bytes": 3548069888,
+    "peak_memory_footprint_bytes": 3384866808,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0
+  },
+  "capture_components": {
+    "head": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.head.txt",
+      "bytes": 41,
+      "sha256": "773cf27a3c5c4c55e9d415a9f58078708c4e1154482a80be97977b91b0c1eeb0"
+    },
+    "started_at": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.started-at.txt",
+      "bytes": 21,
+      "sha256": "6023957e6d107ac4a1230a264fb250293f2dcff9d66c29ed5c803f08296b949e"
+    },
+    "finished_at": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.finished-at.txt",
+      "bytes": 21,
+      "sha256": "774e5a6283b242a89ab34654cd78b55c5654e88972b65136f79bd129261f3b43"
+    },
+    "exit_code": {
+      "path": "/private/tmp/floodgate-role-lock-accounting-diagnostic-a13365d-1.exit-code.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  },
+  "raw_path_disclosure": {
+    "classification": "non-secret execution-provenance metadata",
+    "redacted": false,
+    "credential_like_values_detected": false
+  }
+}

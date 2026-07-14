@@ -1,27 +1,32 @@
 # Shortening the 7 h 51 min Floodgate full-bundle verifier
 
-> Closing [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) still leaves a measured 7 h 51 min 20 s full-bundle verifier before the production connector. This note records that two role-lock replays explain about 99.4% of that wall time, while profiling identified the dominant avoidable cost inside those replays: the second one-game probe copying, sorting, serializing, and hashing a blocked-position-ID set that grows to about 2.97 million entries for every candidate. It replaces that work with a shared sampler that makes the same parent selection without generating the huge-blocked-Set artifact; strict zero-quota normalization remains. Source, 40 focused tests, and a reproducible benchmark pass locally; the two duplicate review comments on ready PR #460 are fixed; optimized production full verification remains **0**. No real teacher, training, weight, live evaluation, match, or playing-strength claim is created. Japanese version: [blog-shogi-floodgate-role-probe-acceleration.md](./blog-shogi-floodgate-role-probe-acceleration.md)
+> The measured 7 h 51 min 20 s full-bundle verifier that remained after [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) now uses a shared sampler that removes per-candidate copying, sorting, serialization, and hashing of the huge blocked Set. PR #460 regular-merged after review and CI. The first real-data run failed closed after 448.86 s because six already-materialized retry encounters were recounted in a historical pre-materialization cap counter. A reproducible non-gating diagnostic from the three stored artifacts found the 236,504,991-byte allocation and every game, parent, and protected-ID digest unchanged, so a v1-compatible fix retained retry behavior while correcting only that counter. The production full verifier at clean revision `e8a9197` completed in **17 min 25.52 s: 27.05x faster, 96.30% shorter, exit 0, and exact across all nine bundle files**, passing the 60-minute gate. That exit-zero run—not the diagnostic alone—is the adoption authority. No real teacher, training, weight, live evaluation, match, or playing-strength claim is created yet. Japanese version: [blog-shogi-floodgate-role-probe-acceleration.md](./blog-shogi-floodgate-role-probe-acceleration.md)
 
 ## 1. Current status
 
-| Item                                     | Current status             | Meaning                                               |
-| ---------------------------------------- | -------------------------- | ----------------------------------------------------- |
-| Historical full-bundle verification      | 7:51:20 / 28,280.32 s      | Accepted historical measurement                       |
-| One role-lock replay                     | 3:54:19.5                  | The bundle verifier calls it exactly twice            |
-| Wall time explained by role-lock replays | About 99.4%                | Bundle-only remainder is about 2 min 41 s             |
-| Peak RSS / average CPU                   | 6.23 GB / about 1.06 cores | Evidence to fix the algorithm before adding processes |
-| Optimized sampler source                 | Implemented                | Does not iterate, clone, or mutate the global Set     |
-| Focused source + benchmark tests         | 40 / 40 PASS               | Strict decode, rollback, retry, parity, harness       |
-| Related suites                           | 14 files / 364 PASS        | Role lock, bundle, consumer, and connector            |
-| Full Vitest regression                   | 120 files / 2,165 PASS     | Eight workers / 146.93 s                              |
-| Python stdlib                            | 58 / 58 PASS               | py_compile plus unittest                              |
-| TypeScript                               | PASS                       | Current local diff                                    |
-| ESLint / targeted format / diff          | PASS                       | Existing role-lock whole-file drift excluded          |
-| Production build / npm audit             | PASS / 0 vulns             | Full lint: 0 errors / 157 existing warnings           |
-| Independent final review                 | PASS                       | Two reviews; P0 = P1 = P2 = 0                         |
-| Ready PR #460 review                     | 2 duplicate / fixed        | One-pass union check over protected IDs               |
-| Optimized production full verification   | 0                          | Not yet run against the real bundle                   |
-| Teacher / training / weight / live       | 0 / 0 / 0 / unchanged      | This is not playing-strength evidence                 |
+| Item                                     | Current status             | Meaning                                                |
+| ---------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| Historical full-bundle verification      | 7:51:20 / 28,280.32 s      | Accepted historical measurement                        |
+| One role-lock replay                     | 3:54:19.5                  | The bundle verifier calls it exactly twice             |
+| Wall time explained by role-lock replays | About 99.4%                | Bundle-only remainder is about 2 min 41 s              |
+| Peak RSS / average CPU                   | 6.23 GB / about 1.06 cores | Evidence to fix the algorithm before adding processes  |
+| Optimized sampler source                 | Merged / PR #460           | Does not iterate, clone, or mutate the global Set      |
+| First optimized real verification        | 448.86 s / exit 1          | One accounting field: 1930 != 1924                     |
+| Stored-input diagnostic replay           | 193.35 s / non-gating      | 236,504,991-byte allocation and SHA exact              |
+| v1 accounting compatibility fix          | `e8a9197`                  | Retain retry/caps; do not recount a materialized retry |
+| Optimized real full verification         | 1,045.52 s / exit 0        | All nine files exact / stderr 0 / swaps 0              |
+| Wall speedup / reduction                 | 27.05x / 96.30%            | 7:51:20 down to 17:25.52                               |
+| Maximum RSS                              | 5.63 GB                    | 9.65% below the former 6.23 GB                         |
+| Focused source + diagnostic tests        | 4 files / 44 PASS          | Strict decode, retry, cap accounting, replay, parity   |
+| Direct related suites                    | 10 files / 166 PASS        | Role lock, bundle, diagnostic, CLI, and result         |
+| Full Vitest regression                   | 121 files / 2,169 PASS     | Eight workers / 162.40 s                               |
+| Python stdlib                            | 58 / 58 PASS               | py_compile plus unittest                               |
+| TypeScript                               | PASS                       | Current local diff                                     |
+| ESLint / targeted format / diff          | PASS                       | Existing role-lock whole-file drift excluded           |
+| Production build / npm audit             | PASS / 0 vulns             | Full lint: 0 errors / 157 existing warnings            |
+| Independent compatibility review         | PASS                       | P0 = P1 = P2 = 0; pair-coverage finding resolved       |
+| Algorithm-only 60-minute gate            | PASS                       | No worker follow-up required                           |
+| Teacher / training / weight / live       | 0 / 0 / 0 / unchanged      | This is not playing-strength evidence                  |
 
 ## 2. The bottleneck was quadratic recomputation, not a lack of cores
 
@@ -82,57 +87,66 @@ The old canonical JSON path was the last rejection point for some values. In par
 
 A TypeScript-typed object is not trusted evidence. Runtime capture, not the argument type, is authoritative.
 
-## 6. A failed candidate must not poison global state
+## 6. Retain retries and restore only the historical counters
 
-Sampling writes only to a local overlay. If it accumulates 23 parents and then fails its quota, the global Set must remain byte-for-byte unchanged. Real parent-child and child-child transpositions are rejected through the OR of global and local membership.
+Sampling writes only to a local overlay. If it reaches 23 parents and fails its quota, the global Set remains unchanged; global/local OR membership rejects real parent-child and child-child transpositions.
 
-Failure is also not monotone as the blocked Set grows. If an early-ranked hub parent H collides with leaves L1 and L2, set S may greedily select H and stop at 23 parents. In a later role, a superset T that blocks H itself can skip H and select L1, L2, and 22 disjoint fillers for exactly 24. A semantic failure therefore cannot become a permanent cross-role rejection.
+Failure is not monotone as the blocked Set grows. An early-ranked hub parent H can collide with leaves L1 and L2, making set S stop at 23 parents. A later-role superset T that blocks H can skip it and select L1, L2, and 22 disjoint fillers. Retries are therefore necessary. The adversarial fixture locks a first-role failure that later obtains exactly 24 parents and matches the final pure oracle's full projection.
 
-The adversarial integration fixture proves:
+The first real run stopped on historical accounting compatibility, not the retry rule. Previously semantic-rejected games produced 12 later-role encounter events across 11 unique games. Six events across six unique games stopped at the identity cap; the remaining six reprobe and re-rejection events involved five unique games. No pair-cap stop occurred. One game was rejected again in both `fresh_selection` and `training`, so event and unique-game counts are not interchangeable. Selection, parents, protected IDs, and the 236,504,991-byte allocation matched exactly, but recounting the six already-materialized identity-cap events as `skipped_before_materialization` changed the sole manifest field `accounting.identity_cap_role_checks_skipped_before_materialization` from `1924` to `1930`.
 
-- candidate C greedily takes the hub in the first role and fails at 23 parents;
-- predecessor game B is selected in the first role, and its only overlap with C's candidate semantic groups is legal child H;
-- C is retried in the second role and succeeds with exactly 24 parents;
-- C and B are materialized only twice, with C's validated snapshot reused;
-- the final pure oracle matches the full projection of first-role B and second-role C.
+The compatibility fix still enforces every role's identity and pair caps and preserves non-monotone retries. It merely avoids incrementing a historical “before materialization” counter when `wasSemanticRejected` is true and the candidate is already materialized. Deterministic regression fixtures lock both the identity-cap case observed in real data and the symmetric pair-cap case.
 
-## 7. Workers remain a follow-up
+## 7. No worker follow-up is required
 
-Running the current verifier as 4 / 8 / 10 / 12 whole processes would imply roughly 24.9 / 49.8 / 62.3 / 74.8 GB from the historical 6.23 GB peak RSS, which is unsuitable for a 48 GB machine.
+Running the whole verifier as 4 / 8 / 10 / 12 processes would imply about 24.9 / 49.8 / 62.3 / 74.8 GB from the former 6.23 GB peak RSS, which is unsuitable for a 48 GB machine. The algorithmic waste was removed first.
 
-If parent semantics still dominate after the algorithmic fix, persistent workers will receive only SFEN and small parent identities. Raw paths, keys, the 23 MB raw manifest, the 236 MB allocation, and the multi-million-ID blocked Set will not cross into workers. Global selection and ordered commit, raw verification, and filesystem closure stay on the main thread. An exploratory ad-hoc one-shot found 6.51x / about 624 MB peak at eight workers, 6.65x / 763 MB at ten, and 6.51x / 898 MB at twelve. Because its source command and raw log were not preserved, this is only a design clue for starting a follow-up at eight workers, not adoption or reproducible evidence. That follow-up must add a checked-in harness.
+The resulting 1,045.52-second run passed the 60-minute gate by a wide margin, so no worker implementation will be built. If future input growth makes parent semantics dominant again, a parked design would send only SFEN and small parent identities to persistent workers while retaining global selection, ordered commit, raw verification, and filesystem closure on the main thread.
 
-## 8. Validation and stop conditions
+## 8. Validation and real full-run evidence
 
-The 40 focused tests pass. They cover direct-versus-full-wrapper parent parity, global Set non-iteration, 23-parent rollback, negative zero, Proxy and accessor traps, score-like extras, sparse arrays, actual semantic transpositions, non-monotone cross-role retry, caller mutation after snapshot, the full-projection oracle, and the benchmark raw-sample contract. The related 14 files / 364 tests, TypeScript, scoped ESLint, targeted formatting, and diff checks also pass. `ml/floodgate-role-lock.ts` has whole-file Prettier drift predating this PR; a whole-file write would create large unrelated churn, so it is excluded. The modified hunks and `git diff --check` are clean.
+PR #460 passed 40 focused, 364 related, and 2,165 full-regression tests, Python's 58 tests, the production build, TypeScript, full lint, npm audit, review, and CI. The compatibility fix plus checked-in diagnostic passed four focused files / 44 tests, ten direct-related files / 166 tests, and the full 121 files / 2,169 tests; the full run used eight workers and took 162.40 s. Python's 58 tests, TypeScript, scoped ESLint, full lint with zero errors and 157 existing warnings, npm audit with zero vulnerabilities, formatting, and diff checks also pass. Independent reviews report zero P0, P1, or P2 findings.
 
-Required remaining evidence is:
+The first real attempt at `11c4ce7` exited 1 after 448.86 s and failed closed. Running the [checked-in diagnostic](../ml/diagnose-floodgate-role-lock-accounting.ts) at revision `a13365d` in a clean detached worktree took 193.35 s, exited 0 with zero swaps, and byte-exactly reproduced the stored materialized input and allocation. Its [diagnostic status](./data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json), [raw output](./data/floodgate-role-lock-accounting-diagnostic-a13365d-output.json), and [time record](./data/floodgate-role-lock-accounting-diagnostic-a13365d-time.txt) bind 12 encounters / 11 unique games, 6 / 0 identity- and pair-cap stops, six reprobes / five unique games, and the one-field modeled counterfactual. This is a derived non-gating diagnostic, not a rerun of the old `11c4ce7` executable or independent production-artifact approval. The exit-zero full verifier, raw output and time, and artifact identities are the adoption authority. Zero stdout bytes, a clean worktree, and an unchanged 7,202-byte / SHA-256 `2bafc01f...e3cf9` bundle manifest after failure remain operator observations only and do not gate adoption.
 
-1. ready-PR review and CI followed by a regular merge;
-2. one real production full-verifier run from the clean merged revision, with manifest and artifact identities checked against historical bytes;
-3. phase wall, CPU, and RSS records against the algorithm-only target of **under 60 minutes**.
+After the fix, real full verification ran from 2026-07-14 16:01:28Z through 16:18:54Z.
 
-The first 12-worker full regression had one unrelated stable-proposal resume state-classification mismatch among 119 files / 2,163 tests. That file then passed 11 / 11 in isolation, and the lower-contention eight-worker full rerun after adding the benchmark file passed all 120 files / 2,165 tests. Python's 58 tests, the production build, TypeScript, full lint, and npm audit also exited zero; full lint reported 157 existing warnings and no errors. Before measurement, the modeled full-run ETA is approximately 45 minutes centrally, 35–60 minutes as the working range, and 75 minutes pessimistically. Those are estimates, not measurements.
+| Metric                |      Historical | Optimized `e8a9197` | Change              |
+| --------------------- | --------------: | ------------------: | ------------------- |
+| Wall                  |     28,280.32 s |          1,045.52 s | 27.05x / -96.30%    |
+| User CPU              |     28,376.91 s |          1,040.35 s | -27,336.56 s        |
+| System CPU            |      1,564.28 s |             75.68 s | -1,488.60 s         |
+| Maximum RSS           | 6,230,917,120 B |     5,629,476,864 B | -9.65%              |
+| Peak memory footprint | 5,380,204,472 B |     5,079,357,328 B | -5.59%              |
+| Swaps / block I/O     |           0 / 0 |               0 / 0 | No regression       |
+| Exit / stderr         |    0 / accepted |         0 / 0 bytes | Fail-closed success |
 
-Stop if the real run exceeds 60 minutes, any artifact or selection differs by one byte, filesystem closure weakens, memory pressure swaps, or a fail-closed error is lost. A run over 60 minutes triggers the separate worker follow-up.
+The raw-lock manifest, role-lock manifest, legacy exclusion, and all nine bundle files exactly matched their historical bytes and SHA-256 values. A separate confirmation then ran in a clean detached worktree from 2026-07-14 16:35:31Z through 16:53:41Z. It also used `e8a9197`, exited 0 in 1,089.52 s with zero swaps and block I/O, and reproduced every artifact exactly; its tracked-status captures before and after were both zero bytes. The two successful stdout records are identical after removing `repository_root`. The [summary evidence JSON](./data/floodgate-role-bundle-verify-acceleration-2026-07-14.json), [accepted raw output](./data/floodgate-role-bundle-verify-e8a9197-output.json), [accepted time](./data/floodgate-role-bundle-verify-e8a9197-time.txt), [confirmation status](./data/floodgate-role-bundle-verify-e8a9197-confirmation-status.json), [confirmation raw output](./data/floodgate-role-bundle-verify-e8a9197-confirmation-output.json), [confirmation time](./data/floodgate-role-bundle-verify-e8a9197-confirmation-time.txt), and [failed-attempt stderr/time](./data/floodgate-role-bundle-verify-11c4ce7-failed-stderr-time.txt) bind the supported claims.
+
+The raw files contain local absolute paths (the user name and worktree/data/bundle roots) that bind the run to its execution environment. As in the existing protocol evidence, these paths are non-secret execution-provenance metadata; no credential-like value was detected. They remain unredacted to preserve the raw bytes and SHA-256 identities.
+
+The run passed the preregistered under-60-minute, artifact-exactness, and no-swap gates. The algorithmic acceleration is accepted and no worker follow-up is required. The prior 35–60-minute estimate was conservative; the measured 17 min 25.52 s was faster than its lower bound.
 
 ## 9. Current nonclaims
 
-- optimized production full-verifier executions: **0**;
+- optimized real full-verifier attempts / accepted: **3 / 2** (one failed closed and one was a clean confirmation);
 - real role-bundle consumer callbacks: **0**;
-- production key provision / inspection / enrollment: **0 / 0 / 0**;
+- production key provision / inspection / approved enrollment: **0 / 0 / 0**;
 - 100 / 500 / 24,000 gates: **0 / 0 / 0**;
+- network requests / teacher or candidate scores read: **0 / false**;
 - teacher labels / optimizer steps / candidate weights: **0 / 0 / 0**;
-- formal games / rating / stable high-dan evidence: **0 / 0 / not established**;
+- formal games / rating / stable high-dan evidence: **0 / not established / not established**;
 - production weight overwrite / live activation: **unchanged**.
+
+Exact artifact parity proves that the verifier preserved existing data; it does not establish label quality or model strength.
 
 ## 10. Next execution order
 
-1. Put the algorithmic parity PR through focused, related, and full validation plus independent review.
-2. Open a ready PR, complete review and CI, and regular-merge it.
-3. Time one optimized real full verifier from the clean merged revision.
-4. Adopt the algorithm-only version if it stays under 60 minutes with exact artifact parity.
-5. Only if needed, implement and validate a separate eight-worker parent-semantics PR.
-6. Even after the verifier blocker closes, do not write or inspect the production key without separate explicit approval.
+1. Put the compatibility fix, failed and successful raw evidence, and aligned JA/EN articles into a ready PR.
+2. Complete focused, related, and full CI plus review, then regular-merge it.
+3. Do not build a worker PR: `1,045.52 < 3,600`, all nine files are exact, and swaps are zero.
+4. After merge, treat the full-verifier blocker as closed and do not repeat the expensive run unless its inputs or verifier code change.
+5. Treat production-key provisioning, inspection, and approved enrollment as a separately authorized operational step.
+6. After key pinning, proceed through the 100 → 500 → 24,000 connector gates, then teacher generation, training, selection, formal A/B, and external calibration. Keep live weights unchanged until every adoption gate passes.
 
-This optimization verifies the same inputs faster. It is not evidence that the evaluation function plays more strongly.
+This acceleration is data-integrity and performance evidence for the same inputs. It is not evidence that the evaluation function plays more strongly.

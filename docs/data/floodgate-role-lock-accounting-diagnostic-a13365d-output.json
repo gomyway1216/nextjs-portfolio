@@ -1,0 +1,159 @@
+{
+  "schema": "shogi-floodgate-role-lock-accounting-diagnostic-v1",
+  "status": "pass",
+  "process_exit_code": 0,
+  "evidence_class": "reproducible-derived-diagnostic-non-gating",
+  "authoritative_gate": "successful-exit-zero-production-full-bundle-verifier",
+  "method": {
+    "description": "Exact pure replay followed by allocation-oracle rank/cap control-flow reconstruction.",
+    "limitation": "This reuses the production pure allocation as its semantic-selection oracle and cannot independently approve artifacts or replace the production verifier.",
+    "script": {
+      "path": "/private/tmp/nextjs-portfolio-a13365d-diagnostic/ml/diagnose-floodgate-role-lock-accounting.ts",
+      "bytes": 26317,
+      "sha256": "89c1c33926f427f5656abcbbe584f03997dace4187191d7207100ef48f0c0010"
+    },
+    "argv": [
+      "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node",
+      "-r",
+      "/Users/yudaiyaguchi/.codex/worktrees/compact-blog-post-header/node_modules/tsx/dist/cjs/index.cjs",
+      "/private/tmp/nextjs-portfolio-a13365d-diagnostic/ml/diagnose-floodgate-role-lock-accounting.ts",
+      "--materialized-input",
+      "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/materialized-input.json",
+      "--allocation",
+      "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/allocation.json",
+      "--manifest",
+      "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/manifest.json"
+    ],
+    "cwd": "/private/tmp/nextjs-portfolio-a13365d-diagnostic",
+    "repository_root": "/private/tmp/nextjs-portfolio-a13365d-diagnostic",
+    "revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+    "node": "v22.13.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "tracked_tree_clean_before": true,
+    "tracked_tree_clean_after": true
+  },
+  "timing": {
+    "started_at": "2026-07-14T16:59:32.003Z",
+    "finished_at": "2026-07-14T17:02:44.589Z",
+    "wall_seconds": 192.586889375,
+    "pure_replay_wall_seconds": 191.860670625
+  },
+  "inputs": {
+    "materialized_input": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/materialized-input.json",
+      "bytes": 31265897,
+      "sha256": "ed43d7a2f3918178472aea03f897d13d4bd526a6c82f79b1427d3e4f1e666719"
+    },
+    "historical_allocation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/allocation.json",
+      "bytes": 236504991,
+      "sha256": "e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4"
+    },
+    "historical_manifest": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/manifest.json",
+      "bytes": 5516989,
+      "sha256": "e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e"
+    }
+  },
+  "exact_replay": {
+    "materialized_input_exact": true,
+    "allocation_exact": true,
+    "materialized_games": 1619,
+    "selected_games": 1400,
+    "pure_materialization_accounting": {
+      "candidate_games_materialized": 1625,
+      "semantic_parent_groups_materialized": 159258,
+      "selected_parent_groups_retained": 33600
+    }
+  },
+  "control_flow_replay": {
+    "candidate_attempt_events": 1625,
+    "final_semantic_rejections": 219,
+    "previously_rejected_later_role_encounters": 12,
+    "previously_rejected_later_role_unique_games": 11,
+    "identity_cap_stop_events": 6,
+    "identity_cap_stop_unique_games": 6,
+    "pair_cap_stop_events": 0,
+    "pair_cap_stop_unique_games": 0,
+    "actual_reprobe_events": 6,
+    "actual_reprobe_unique_games": 5,
+    "reprobe_rejected_again_events": 6,
+    "reprobe_rejected_again_unique_games": 5,
+    "encounter_event_digest": "62192cc99753d63172c10e30481efbc9cc30c1b8f0216fb7a9f10c41eaa7c5b9",
+    "encounter_unique_game_digest": "b1d78966f01aa3377b9414be550bb3b58fddff831abbabdf91f6d97567050082",
+    "identity_cap_stop_event_digest": "8258f4294b79fd57d7ac0aa86114eb91e374ae5c9fc775abc9d3d46cd639d261",
+    "identity_cap_stop_unique_game_digest": "cdceee3ac2ca13a532ed56f1c6eaa2288e23528ebd1432b92a2dd2bdf73d7791",
+    "pair_cap_stop_event_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pair_cap_stop_unique_game_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "actual_reprobe_event_digest": "5273c60166a821e02766d403e31b536fb8fbe94d5f9e9fba516b96b29c762e2b",
+    "actual_reprobe_unique_game_digest": "b50746e398aa89c12e916a99770c2a3711bd170e5afef9bab0f18a88d58eb2ba",
+    "reprobe_rejected_again_event_digest": "5273c60166a821e02766d403e31b536fb8fbe94d5f9e9fba516b96b29c762e2b",
+    "reprobe_rejected_again_unique_game_digest": "b50746e398aa89c12e916a99770c2a3711bd170e5afef9bab0f18a88d58eb2ba",
+    "by_role": {
+      "fresh_final_holdout": {
+        "later_role_encounters": 0,
+        "identity_cap_stops": 0,
+        "pair_cap_stops": 0,
+        "actual_reprobes": 0,
+        "rejected_again": 0
+      },
+      "fresh_selection": {
+        "later_role_encounters": 2,
+        "identity_cap_stops": 1,
+        "pair_cap_stops": 0,
+        "actual_reprobes": 1,
+        "rejected_again": 1
+      },
+      "training": {
+        "later_role_encounters": 10,
+        "identity_cap_stops": 5,
+        "pair_cap_stops": 0,
+        "actual_reprobes": 5,
+        "rejected_again": 5
+      }
+    }
+  },
+  "modeled_pre_fix_counterfactual": {
+    "limitation": "The 11c4ce7 executable is not rerun here. Historical allocation is exact-replayed with the unchanged pure core, then its observed retry-cap deltas are modeled onto the historical manifest.",
+    "historical_accounting": {
+      "identity_cap_role_checks_skipped_before_materialization": 1924,
+      "unordered_pair_cap_role_checks_skipped_before_materialization": 2
+    },
+    "modeled_accounting": {
+      "identity_cap_role_checks_skipped_before_materialization": 1930,
+      "unordered_pair_cap_role_checks_skipped_before_materialization": 2
+    },
+    "historical_allocation_exact_replay": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1/allocation.json",
+      "bytes": 236504991,
+      "sha256": "e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4"
+    },
+    "modeled_manifest": {
+      "bytes": 5516989,
+      "sha256": "42feccf9b12f50d93e2adb864ee76f86a8f0af4578e630b1551bc19ac7db4591"
+    },
+    "json_pointer_differences": [
+      {
+        "pointer": "/accounting/identity_cap_role_checks_skipped_before_materialization",
+        "historical": 1924,
+        "modeled": 1930
+      }
+    ],
+    "selection_digests": {
+      "historical": {
+        "selected_games_sha256": "36aaba8949719e18e5fe5a895699eb53ea065d4d96199b9dfdb3603f15e43bf6",
+        "selected_parents_sha256": "d90a47743fcaaf853d5bb37f5c7dfa9a5c7cd239595ab13bd0458dbf4f2267d1",
+        "protected_position_ids_count": 2959639,
+        "protected_position_ids_sha256": "87c7117cc786192daeec5e6da991d38cf7e341e8f86ed06d38c6b5cbc35aca6b"
+      },
+      "current_pure_replay": {
+        "selected_games_sha256": "36aaba8949719e18e5fe5a895699eb53ea065d4d96199b9dfdb3603f15e43bf6",
+        "selected_parents_sha256": "d90a47743fcaaf853d5bb37f5c7dfa9a5c7cd239595ab13bd0458dbf4f2267d1",
+        "protected_position_ids_count": 2959639,
+        "protected_position_ids_sha256": "87c7117cc786192daeec5e6da991d38cf7e341e8f86ed06d38c6b5cbc35aca6b"
+      },
+      "matches_historical": true
+    }
+  }
+}

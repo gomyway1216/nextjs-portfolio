@@ -21,6 +21,7 @@ import {
   floodgateRawObjectPath,
 } from "../../../ml/floodgate-raw-lock";
 import { compareUtf8Bytes } from "../../../ml/floodgate-source";
+import { childSfenAfterUsi } from "../../../ml/shogi-sfen";
 
 const EMPTY_COUNTS: Readonly<Record<FloodgateRole, number>> = {
   fresh_final_holdout: 0,
@@ -105,6 +106,69 @@ function materializedGame(
         ply,
       };
     }),
+  };
+}
+
+const GREEDY_HUB_PREDECESSOR_SFEN = "4k4/9/p8/9/9/9/9/5R3/K8 w - 17";
+
+function replaceMoveNumber(sfen: string, moveNumber: number): string {
+  return sfen.replace(/ \d+$/, ` ${moveNumber}`);
+}
+
+function materializedParent(
+  gameId: string,
+  ply: number,
+  parentSfen: string,
+): FloodgatePureGameInput["parents"][number] {
+  return {
+    parent_id: `sha256:${sha256(`parent-occurrence-v1\0${gameId}\0${ply}`)}`,
+    parent_sfen: parentSfen,
+    ply,
+  };
+}
+
+function greedyHubGame(
+  game: Readonly<FloodgateRoleLockInspectedGame>,
+): FloodgatePureGameInput {
+  const hub = childSfenAfterUsi(GREEDY_HUB_PREDECESSOR_SFEN, "9c9d");
+  const firstChild = childSfenAfterUsi(hub, "4h4g");
+  const secondChild = replaceMoveNumber(childSfenAfterUsi(hub, "4h4f"), 20);
+  return {
+    game_id: game.game_id,
+    player_identities: game.player_identities,
+    parents: [
+      materializedParent(game.game_id, 17, hub),
+      materializedParent(game.game_id, 18, firstChild),
+      materializedParent(game.game_id, 19, secondChild),
+      ...Array.from({ length: 22 }, (_, index) => {
+        const ply = 20 + index;
+        return materializedParent(
+          game.game_id,
+          ply,
+          fixtureSfen(40_000 + index, ply),
+        );
+      }),
+    ],
+  };
+}
+
+function greedyHubPredecessorGame(
+  game: Readonly<FloodgateRoleLockInspectedGame>,
+): FloodgatePureGameInput {
+  return {
+    game_id: game.game_id,
+    player_identities: game.player_identities,
+    parents: [
+      materializedParent(game.game_id, 16, GREEDY_HUB_PREDECESSOR_SFEN),
+      ...Array.from({ length: 23 }, (_, index) => {
+        const ply = 17 + index;
+        return materializedParent(
+          game.game_id,
+          ply,
+          fixtureSfen(50_000 + index, ply),
+        );
+      }),
+    ],
   };
 }
 
@@ -312,6 +376,46 @@ describe("Floodgate production role-lock core", () => {
     ).toBe(1);
   });
 
+  it("retries a non-monotone greedy failure in a later role and matches the final pure oracle", async () => {
+    const hubCandidate = indexGroup("greedy-hub", [csaUrl(4)])[0];
+    const predecessor = indexGroup("greedy-predecessor", [csaUrl(7)])[0];
+    expect(
+      Buffer.compare(
+        finalRank(hubCandidate.game_id),
+        finalRank(predecessor.game_id),
+      ),
+    ).toBeLessThan(0);
+    const materialize = vi.fn(
+      async (game: Readonly<FloodgateRoleLockInspectedGame>) =>
+        game.game_id === hubCandidate.game_id
+          ? greedyHubGame(game)
+          : greedyHubPredecessorGame(game),
+    );
+
+    const result = await allocateFloodgateRoleLockCoreForTests({
+      csaIndex: [hubCandidate, predecessor],
+      legacyProtectedPositionIds: [],
+      roleGameCounts: {
+        fresh_final_holdout: 1,
+        fresh_selection: 1,
+        training: 0,
+      },
+      inspect: async (game) => uniqueIdentities(game),
+      materialize,
+    });
+
+    expect(materialize).toHaveBeenCalledTimes(2);
+    expect(
+      result.artifact.output.roles.fresh_final_holdout.map(
+        (game) => game.game_id,
+      ),
+    ).toEqual([predecessor.game_id]);
+    expect(
+      result.artifact.output.roles.fresh_selection.map((game) => game.game_id),
+    ).toEqual([hubCandidate.game_id]);
+    expect(result.accounting.semantic_or_parent_quota_rejections).toBe(0);
+  });
+
   it("rejects forged duplicate/canonical bindings before either callback runs", async () => {
     const inspect = vi.fn(async () => null);
     const materialize = vi.fn(async () => null);
@@ -333,6 +437,25 @@ describe("Floodgate production role-lock core", () => {
     expect(materialize).not.toHaveBeenCalled();
   });
 
+  it("rejects a negative-zero quota before either callback runs", async () => {
+    const inspect = vi.fn(async () => null);
+    const materialize = vi.fn(async () => null);
+    await expect(
+      allocateFloodgateRoleLockCoreForTests({
+        csaIndex: [],
+        legacyProtectedPositionIds: [],
+        roleGameCounts: {
+          ...EMPTY_COUNTS,
+          fresh_final_holdout: -0,
+        },
+        inspect,
+        materialize,
+      }),
+    ).rejects.toThrow(/negative zero/);
+    expect(inspect).not.toHaveBeenCalled();
+    expect(materialize).not.toHaveBeenCalled();
+  });
+
   it("treats malformed materializer output as a fatal contract violation", async () => {
     const index = indexGroup("malformed", [csaUrl(220)]);
     await expect(
@@ -347,6 +470,38 @@ describe("Floodgate production role-lock core", () => {
         }),
       }),
     ).rejects.toThrow(/game_id does not match/);
+  });
+
+  it("snapshots validated materializer data before later caller mutation", async () => {
+    const index = [
+      ...indexGroup("snapshot-a", [csaUrl(221)]),
+      ...indexGroup("snapshot-b", [csaUrl(222)]),
+    ];
+    let firstCallerOwned: FloodgatePureGameInput | undefined;
+    let tag = 901;
+    const result = await allocateFloodgateRoleLockCoreForTests({
+      csaIndex: index,
+      legacyProtectedPositionIds: [],
+      roleGameCounts: { ...EMPTY_COUNTS, fresh_final_holdout: 2 },
+      inspect: async (game) => uniqueIdentities(game),
+      materialize: async (game) => {
+        const current = materializedGame(game, tag++);
+        if (firstCallerOwned === undefined) {
+          firstCallerOwned = current;
+        } else {
+          // This mutation happens before the final pure oracle. Reusing the
+          // caller object would now diverge; the validated snapshot stays exact.
+          (
+            firstCallerOwned.parents as FloodgatePureGameInput["parents"][number][]
+          )[0].parent_sfen = fixtureSfen(999_999, 16);
+        }
+        return current;
+      },
+    });
+
+    expect(firstCallerOwned).toBeDefined();
+    expect(result.artifact.output.roles.fresh_final_holdout).toHaveLength(2);
+    expect(Object.isFrozen(result.artifact.output)).toBe(true);
   });
 
   it("leaves the final manifest absent when source closure changes after artifact writes", async () => {

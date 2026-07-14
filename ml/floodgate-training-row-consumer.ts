@@ -87,8 +87,8 @@ const fstatCallback = fs.fstat.bind(fs);
 const lstatCallback = fs.lstat.bind(fs);
 const pathJoin = path.join;
 const pathResolve = path.resolve;
-const currentUid =
-  typeof process.getuid === "function" ? process.getuid() : null;
+const processGetUid =
+  typeof process.getuid === "function" ? process.getuid : undefined;
 const pinnedPromiseConstructorHolder = objectCreate(null) as object;
 objectDefineProperty(pinnedPromiseConstructorHolder, promiseSpeciesSymbol, {
   configurable: false,
@@ -625,7 +625,13 @@ function sameFilesystemIdentity(
   );
 }
 
-function assertRootStat(stat: fs.BigIntStats): void {
+function currentProcessUid(): number | null {
+  return processGetUid === undefined
+    ? null
+    : reflectApply(processGetUid, process, []);
+}
+
+function assertRootStat(stat: fs.BigIntStats, currentUid: number | null): void {
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     fail("bundle root is not a regular directory");
   }
@@ -637,7 +643,7 @@ function assertRootStat(stat: fs.BigIntStats): void {
   }
 }
 
-function assertRawStat(stat: fs.BigIntStats): void {
+function assertRawStat(stat: fs.BigIntStats, currentUid: number | null): void {
   if (!stat.isFile() || stat.isSymbolicLink()) {
     fail("training raw input is not a regular file");
   }
@@ -660,6 +666,7 @@ function assertRawStat(stat: fs.BigIntStats): void {
 async function openTrainingSnapshot(
   outputRoot: string,
 ): Promise<OpenedTrainingSnapshot> {
+  const currentUid = currentProcessUid();
   const noFollow = fs.constants.O_NOFOLLOW;
   const directory = fs.constants.O_DIRECTORY;
   if (typeof noFollow !== "number" || typeof directory !== "number") {
@@ -696,10 +703,10 @@ async function openTrainingSnapshot(
     const rootPathBefore = await lstatFile(outputRoot, { bigint: true });
     const rawBefore = await rawStat();
     const rawPathBefore = await lstatFile(rawPath, { bigint: true });
-    assertRootStat(rootBefore);
-    assertRootStat(rootPathBefore);
-    assertRawStat(rawBefore);
-    assertRawStat(rawPathBefore);
+    assertRootStat(rootBefore, currentUid);
+    assertRootStat(rootPathBefore, currentUid);
+    assertRawStat(rawBefore, currentUid);
+    assertRawStat(rawPathBefore, currentUid);
     const rootIdentity = filesystemIdentity(rootBefore);
     const rawIdentity = filesystemIdentity(rawBefore);
     if (

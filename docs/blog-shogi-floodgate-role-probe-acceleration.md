@@ -17,9 +17,9 @@
 | optimized real full verify         | 1,045.52 s / exit 0    | 全9 files exact / stderr 0 / swap 0                   |
 | wall speedup / reduction           | 27.05x / 96.30%        | 7:51:20から17:25.52                                   |
 | max RSS                            | 5.63 GB                | 旧6.23 GBから9.65%減                                  |
-| focused source + diagnostic tests  | 4 files / 44 PASS      | strict decode、retry、cap accounting、replay、parity  |
-| direct related suites              | 10 files / 166 PASS    | role-lock / bundle / diagnostic / CLI / result        |
-| full Vitest regression             | 121 files / 2,169 PASS | 8 workers / 162.40 s                                  |
+| focused source + diagnostic tests  | 4 files / 45 PASS      | strict decode、retry、cap accounting、replay、parity  |
+| direct related suites              | 10 files / 167 PASS    | role-lock / bundle / diagnostic / CLI / result        |
+| full Vitest regression             | 121 files / 2,170 PASS | 8 workers / 151.19 s                                  |
 | Python stdlib                      | 58 / 58 PASS           | py_compile + unittest                                 |
 | TypeScript                         | PASS                   | current local diff                                    |
 | ESLint / targeted format / diff    | PASS                   | role-lockの既存whole-file driftは除外                 |
@@ -105,7 +105,7 @@ verifier全体をprocess単位で4 / 8 / 10 / 12並列にすると、旧peak RSS
 
 ## 8. Validationとreal full-run evidence
 
-PR #460ではfocused 40、related 364、full 2,165 tests、Python 58 tests、production build、TypeScript、full lint、npm audit、review / CIを通過した。compatibility fixとchecked-in diagnosticは4 focused files / 44 tests、direct-related 10 files / 166 tests、full 121 files / 2,169 testsをPASSし、full runは8 workers / 162.40秒だった。Python 58 tests、TypeScript、scoped ESLint、0 errors / 既存157 warningsのfull lint、0 vulnerabilitiesのnpm audit、format / diff checkもPASSし、独立reviewsはP0 / P1 / P2すべて0である。
+PR #460ではfocused 40、related 364、full 2,165 tests、Python 58 tests、production build、TypeScript、full lint、npm audit、review / CIを通過した。compatibility fixとchecked-in diagnosticは4 focused files / 45 tests、direct-related 10 files / 167 tests、full 121 files / 2,170 testsをPASSし、full runは8 workers / 151.19秒だった。Python 58 tests、TypeScript、scoped ESLint、0 errors / 既存157 warningsのfull lint、0 vulnerabilitiesのnpm audit、format / diff checkもPASSし、独立reviewsはP0 / P1 / P2すべて0である。
 
 最初のreal attempt `11c4ce7`は448.86秒でexit 1となりfail closedした。revision `a13365d`の[checked-in diagnostic](../ml/diagnose-floodgate-role-lock-accounting.ts)をclean detached worktreeで実行すると、193.35秒、exit 0、swap 0で、保存済みmaterialized input / allocationはbyte-exactに再現した。[diagnostic status](./data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json)、[raw output](./data/floodgate-role-lock-accounting-diagnostic-a13365d-output.json)、[time](./data/floodgate-role-lock-accounting-diagnostic-a13365d-time.txt)は、12 encounters / 11 unique games、identity / pair cap stops 6 / 0、6 reprobes / 5 unique games、1-field modeled counterfactualを固定する。これはderived non-gating診断であり、旧`11c4ce7` executableの再実行でもproduction artifactの独立承認でもない。exit 0のfull verifier、raw output / time、artifact identityが採用authorityである。失敗runのstdout 0 bytes、worktree clean、失敗後もbundle manifestが7,202 bytes / SHA-256 `2bafc01f...e3cf9`だった点はoperator observationとしてのみ記録し、採用判定には使わない。
 

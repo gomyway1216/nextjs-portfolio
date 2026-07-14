@@ -17,9 +17,9 @@
 | Optimized real full verification         | 1,045.52 s / exit 0        | All nine files exact / stderr 0 / swaps 0              |
 | Wall speedup / reduction                 | 27.05x / 96.30%            | 7:51:20 down to 17:25.52                               |
 | Maximum RSS                              | 5.63 GB                    | 9.65% below the former 6.23 GB                         |
-| Focused source + diagnostic tests        | 4 files / 44 PASS          | Strict decode, retry, cap accounting, replay, parity   |
-| Direct related suites                    | 10 files / 166 PASS        | Role lock, bundle, diagnostic, CLI, and result         |
-| Full Vitest regression                   | 121 files / 2,169 PASS     | Eight workers / 162.40 s                               |
+| Focused source + diagnostic tests        | 4 files / 45 PASS          | Strict decode, retry, cap accounting, replay, parity   |
+| Direct related suites                    | 10 files / 167 PASS        | Role lock, bundle, diagnostic, CLI, and result         |
+| Full Vitest regression                   | 121 files / 2,170 PASS     | Eight workers / 151.19 s                               |
 | Python stdlib                            | 58 / 58 PASS               | py_compile plus unittest                               |
 | TypeScript                               | PASS                       | Current local diff                                     |
 | ESLint / targeted format / diff          | PASS                       | Existing role-lock whole-file drift excluded           |
@@ -105,7 +105,7 @@ The resulting 1,045.52-second run passed the 60-minute gate by a wide margin, so
 
 ## 8. Validation and real full-run evidence
 
-PR #460 passed 40 focused, 364 related, and 2,165 full-regression tests, Python's 58 tests, the production build, TypeScript, full lint, npm audit, review, and CI. The compatibility fix plus checked-in diagnostic passed four focused files / 44 tests, ten direct-related files / 166 tests, and the full 121 files / 2,169 tests; the full run used eight workers and took 162.40 s. Python's 58 tests, TypeScript, scoped ESLint, full lint with zero errors and 157 existing warnings, npm audit with zero vulnerabilities, formatting, and diff checks also pass. Independent reviews report zero P0, P1, or P2 findings.
+PR #460 passed 40 focused, 364 related, and 2,165 full-regression tests, Python's 58 tests, the production build, TypeScript, full lint, npm audit, review, and CI. The compatibility fix plus checked-in diagnostic passed four focused files / 45 tests, ten direct-related files / 167 tests, and the full 121 files / 2,170 tests; the full run used eight workers and took 151.19 s. Python's 58 tests, TypeScript, scoped ESLint, full lint with zero errors and 157 existing warnings, npm audit with zero vulnerabilities, formatting, and diff checks also pass. Independent reviews report zero P0, P1, or P2 findings.
 
 The first real attempt at `11c4ce7` exited 1 after 448.86 s and failed closed. Running the [checked-in diagnostic](../ml/diagnose-floodgate-role-lock-accounting.ts) at revision `a13365d` in a clean detached worktree took 193.35 s, exited 0 with zero swaps, and byte-exactly reproduced the stored materialized input and allocation. Its [diagnostic status](./data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json), [raw output](./data/floodgate-role-lock-accounting-diagnostic-a13365d-output.json), and [time record](./data/floodgate-role-lock-accounting-diagnostic-a13365d-time.txt) bind 12 encounters / 11 unique games, 6 / 0 identity- and pair-cap stops, six reprobes / five unique games, and the one-field modeled counterfactual. This is a derived non-gating diagnostic, not a rerun of the old `11c4ce7` executable or independent production-artifact approval. The exit-zero full verifier, raw output and time, and artifact identities are the adoption authority. Zero stdout bytes, a clean worktree, and an unchanged 7,202-byte / SHA-256 `2bafc01f...e3cf9` bundle manifest after failure remain operator observations only and do not gate adoption.
 

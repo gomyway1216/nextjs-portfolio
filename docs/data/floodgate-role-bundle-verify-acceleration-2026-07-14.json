@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-role-bundle-verify-acceleration-evidence-v1",
-  "generated_at": "2026-07-14T17:12:49Z",
+  "generated_at": "2026-07-14T17:30:42Z",
   "machine": {
     "model": "Apple M4 Pro",
     "memory_bytes": 51539607552,
@@ -9,9 +9,11 @@
   },
   "execution_provenance_disclosure": {
     "classification": "non-secret execution-provenance metadata",
+    "personal_data_scope": ["local username", "local directory topology"],
     "raw_local_absolute_paths_preserved": true,
     "credential_like_values_detected": false,
-    "reason_not_redacted": "Preserve the captured bytes and SHA-256 identities of the raw execution evidence."
+    "reason_not_redacted": "Preserve the captured bytes and SHA-256 identities of the raw execution evidence.",
+    "publication_decision": "The limited path metadata is disclosed explicitly and retained intentionally; no secret, credential, email, IP address, or private key was found."
   },
   "historical_baseline": {
     "verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
@@ -88,9 +90,19 @@
     "tracked_worktree_clean_before": true,
     "tracked_worktree_clean_after": true,
     "script": {
-      "path": "ml/diagnose-floodgate-role-lock-accounting.ts",
+      "path_at_revision": "ml/diagnose-floodgate-role-lock-accounting.ts",
+      "revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
       "bytes": 26317,
       "sha256": "89c1c33926f427f5656abcbbe584f03997dace4187191d7207100ef48f0c0010"
+    },
+    "post_capture_review_hardening": {
+      "revision": "41e19dc7e67aaa8d24d07cd8e947bd9db66ff698",
+      "valid_input_replay_or_modeling_changed": false,
+      "changes": [
+        "validate nested manifest accounting before dereference",
+        "report inaccessible input files as diagnostic errors",
+        "reuse the repository-pinned Floodgate Git executable"
+      ]
     },
     "status": {
       "path": "docs/data/floodgate-role-lock-accounting-diagnostic-a13365d-status.json",
@@ -184,30 +196,30 @@
   "compatibility_fix": {
     "revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
     "diagnostic_revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
-    "validation_revision": "a13365d0bdda0f03a7b0bc7da9fa1e9cb629f3ab",
+    "validation_revision": "41e19dc7e67aaa8d24d07cd8e947bd9db66ff698",
     "base_revision": "0db56562cfb05f153d2169b9e5342a81d034b13b",
     "behavior": "Keep non-monotone semantic retries and enforce both caps, but do not recount an already-materialized retry in the historical pre-materialization cap counters.",
     "accounting_and_diagnostic_tests": {
       "files": 2,
-      "tests": 17,
-      "passed": 17
+      "tests": 18,
+      "passed": 18
     },
     "combined_focused_tests": {
       "files": 4,
-      "tests": 44,
-      "passed": 44
+      "tests": 45,
+      "passed": 45
     },
     "direct_related_tests": {
       "files": 10,
-      "tests": 166,
-      "passed": 166
+      "tests": 167,
+      "passed": 167
     },
     "full_vitest": {
       "files": 121,
-      "tests": 2169,
-      "passed": 2169,
+      "tests": 2170,
+      "passed": 2170,
       "workers": 8,
-      "wall_seconds": 162.4
+      "wall_seconds": 151.19
     },
     "python_stdlib": {
       "tests": 58,

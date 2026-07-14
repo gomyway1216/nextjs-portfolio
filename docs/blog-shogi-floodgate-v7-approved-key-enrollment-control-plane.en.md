@@ -1,27 +1,27 @@
 # Closing candidate bytes into an approved capability — Floodgate v7 key enrollment control plane
 
-> The [deployment-key instance inspector](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) briefly reads the fixed key and returns a candidate receipt containing a non-secret `key_instance_id`. Candidate observation is not approval. This change adds the source boundary that reads a fixed private approved record bound to the exact candidate bytes and SHA-256, then mints an opaque single-use capability with no public ID among its own properties. The [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) is also updated to v2: its public options no longer contain a caller-supplied `expectedKeyInstanceId`, and it synchronously claims only the approved capability. Focused validation is **132 / 132 PASS**, related regression is **335 / 335 PASS**, stable full regression is **2,245 / 2,245 PASS**, and the production build and final independent review are complete. PR, CI, and merge remain pending. Actual key provisioning or inspection, record approval, installation, or loading, connector execution, teacher work, training, weights, live activation, matches, and playing-strength evidence all remain at zero. Japanese version: [blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md)
+> The [deployment-key instance inspector](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) briefly reads the fixed key and returns a candidate receipt containing a non-secret `key_instance_id`. Candidate observation is not approval. This change adds the source boundary that reads a fixed private approved record bound to the exact candidate bytes and SHA-256, then mints an opaque single-use capability with no public ID among its own properties. The [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) is also updated to v2: its public options no longer contain a caller-supplied `expectedKeyInstanceId`, and it synchronously claims only the approved capability. Focused validation is **132 / 132 PASS**, related regression is **335 / 335 PASS**, stable full regression is **2,245 / 2,245 PASS**, and the production build and final independent review are complete. The 1 / 1 actionable review thread on ready PR #463 is fixed and resolved; CI and merge remain pending. Actual key provisioning or inspection, record approval, installation, or loading, connector execution, teacher work, training, weights, live activation, matches, and playing-strength evidence all remain at zero. Japanese version: [blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md)
 
 ## 1. Current status
 
-| Item                                      | Current status                | Meaning                                                                  |
-| ----------------------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| Approved-enrollment module source         | Implemented / source-reviewed | Review fixes the exported contract, loader, factory, and claim APIs      |
-| Canonical candidate bytes / SHA binding   | Locally validated             | Compares exact JSONL bytes, byte count, SHA-256, and deployment          |
-| Fixed private production loader           | Implemented / source-reviewed | Actual execution of its zero-argument production identity/origin is zero |
-| Shared fixed-record reader                | Fixture-validated             | Injected test loader covers fixed paths, metadata, and held reads        |
-| Temporary-home loader / synthetic factory | Locally validated             | Separates test shortcuts from the production home                        |
-| Opaque single-use capability              | Locally validated             | Public ID is in the private claim, not a capability own field            |
-| Connector v2 integration                  | Locally validated             | Public options accept only an approved capability                        |
-| Operator preflight source                 | Implemented / source-checked  | Argumentless metadata-only load/claim; actual executions are zero        |
-| Focused validation                        | 132 / 132 PASS                | Enrollment tests 21; connector integration tests 111                     |
-| Related / stable full validation          | PASS                          | 10 files / 335 tests; 122 files / 2,245 tests                            |
-| Local build / static validation           | PASS                          | Production build, TypeScript, lint, formatting, and audit                |
-| Independent security review               | P0 / P1 / P2 = 0 / 0 / 0      | Final seal after fixing two initial P1s and follow-on P2s                |
-| PR review / CI / merge                    | Pending                       | Uncreated or unexecuted work is not presented as passing                 |
-| Real provision / inspection / enrollment  | 0 / 0 / 0                     | No actual key byte or approved record has been handled                   |
-| 100 / 500 / 24,000 connector gates        | 0 / 0 / 0                     | No real connector or teacher execution                                   |
-| Training / weight / live / strength claim | 0 / 0 / 0 / 0                 | Production evaluation bytes remain unchanged                             |
+| Item                                      | Current status                  | Meaning                                                                  |
+| ----------------------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| Approved-enrollment module source         | Implemented / source-reviewed   | Review fixes the exported contract, loader, factory, and claim APIs      |
+| Canonical candidate bytes / SHA binding   | Locally validated               | Compares exact JSONL bytes, byte count, SHA-256, and deployment          |
+| Fixed private production loader           | Implemented / source-reviewed   | Actual execution of its zero-argument production identity/origin is zero |
+| Shared fixed-record reader                | Fixture-validated               | Injected test loader covers fixed paths, metadata, and held reads        |
+| Temporary-home loader / synthetic factory | Locally validated               | Separates test shortcuts from the production home                        |
+| Opaque single-use capability              | Locally validated               | Public ID is in the private claim, not a capability own field            |
+| Connector v2 integration                  | Locally validated               | Public options accept only an approved capability                        |
+| Operator preflight source                 | Implemented / source-checked    | Argumentless metadata-only load/claim; actual executions are zero        |
+| Focused validation                        | 132 / 132 PASS                  | Enrollment tests 21; connector integration tests 111                     |
+| Related / stable full validation          | PASS                            | 10 files / 335 tests; 122 files / 2,245 tests                            |
+| Local build / static validation           | PASS                            | Production build, TypeScript, lint, formatting, and audit                |
+| Independent security review               | P0 / P1 / P2 = 0 / 0 / 0        | Final seal after fixing two initial P1s and follow-on P2s                |
+| PR review / CI / merge                    | #463 ready / resolved / pending | Fixed and resolved 1 / 1 actionable thread; CI and merge remain pending  |
+| Real provision / inspection / enrollment  | 0 / 0 / 0                       | No actual key byte or approved record has been handled                   |
+| 100 / 500 / 24,000 connector gates        | 0 / 0 / 0                       | No real connector or teacher execution                                   |
+| Training / weight / live / strength claim | 0 / 0 / 0 / 0                   | Production evaluation bytes remain unchanged                             |
 
 The completion condition for this change is to validate candidate → approved record → opaque capability → exact connector claim / authority comparison with temporary fixtures. It is not to operate the actual-home key, a real approved record, or the production connector.
 
@@ -117,7 +117,7 @@ Before starting asynchronous work, the production entry synchronously calls `cla
 
 A mismatched claim origin, fake or consumed capability, or wrong production/test claim API fails closed in connector `phase = enrollment` before the actual-key authority opens. Those are not key-instance mismatches. After a successful claim, a difference in the public ID, owner UID, or parent/key device or inode returned by the actual authority fails in `phase = key-instance`. The connector consumes the capability once at entry, so a later readiness, key, or checkpoint failure requires a fresh invocation and fresh capability. Connector v2 also captures fixed gate-receipt status/sealed/target/completed/records, resumed-parent ranges, and maximum total bytes.
 
-Connector-focused integration is **111 / 111 PASS**. Related and stable full regression, the production build, and final independent review also pass. PR, CI, and merge remain pending, and local synthetic evidence alone does not make this connector-ready, production-ready, or gate-ready.
+Connector-focused integration is **111 / 111 PASS**. Related and stable full regression, the production build, and final independent review also pass. Review on ready PR #463 is resolved; CI and merge remain pending. Local synthetic evidence alone does not make this connector-ready, production-ready, or gate-ready.
 
 ## 7. Failure and retry
 
@@ -135,7 +135,7 @@ Connector-focused integration is **111 / 111 PASS**. Related and stable full reg
 
 Every public error reports `capability_issued: false`. Rereading a record does not revive an old capability; it creates a new loader invocation and exact capability. Rotation, revocation, and recovery remain separate explicit operator workflows.
 
-## 8. Validation status — local validation and review complete; PR, CI, and merge pending
+## 8. Validation status — local validation, review, and ready PR complete; CI and merge pending
 
 | Validation                             | Status             | Evidence / measured result                                                                 |
 | -------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
@@ -143,22 +143,24 @@ Every public error reports `capability_issued: false`. Rereading a record does n
 | Adversarial record / filesystem tests  | PASS               | Malformed UTF-8, BOM rejection, reorder, >64 KiB, alias, ancestor swap, replacement/growth |
 | Intrinsic-poison boundary tests        | PASS               | Zero live accesses under Promise/iterator/number/crypto/typed-array poisoning              |
 | Connector-focused integration tests    | 111 / 111 PASS     | Capability-only options, UID 0 / byte bounds, identity/layout/algorithm, and gate bounds   |
-| Combined focused                       | 132 / 132 PASS     | 2 files, duration `0.697 s`                                                                |
+| Combined focused                       | 132 / 132 PASS     | 2 files, duration `0.744 s`                                                                |
 | Related regression                     | 335 / 335 PASS     | 10 files; duration `146.22 s`; real `147.12 s`                                             |
-| Stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files, 8 workers, duration `152.80 s`                                            |
+| Stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files, 8 workers, duration `151.14 s`                                            |
 | Python stdlib                          | 58 / 58 PASS       | Reconfirmed under the Node 22.13 runtime path; suite `0.106 s`                             |
 | TypeScript / scoped ESLint / Prettier  | PASS               | Exact current source, test, and document delta                                             |
 | Full lint                              | PASS               | 0 errors and 157 pre-existing warnings unrelated to this diff; real `29.82 s`              |
 | Production Turbopack build             | PASS               | Real `29.30 s`; compile `8.4 s`; TypeScript `18.3 s`; static 193 / 193 with 13 workers     |
 | npm audit                              | PASS               | 0 vulnerabilities                                                                          |
 | Independent security review            | P0/P1/P2 = 0       | Final delta sealed after fixing two initial P1s and the follow-on P2 findings              |
-| Ready PR / required CI / regular merge | Pending            | No URL, head, check result, or merge commit exists yet                                     |
+| Ready PR / required CI / regular merge | #463 / Pending     | Review thread 1 / 1 resolved; checks and merge commit remain incomplete                    |
 
-The final post-P2 stable run took `153.64 s` real time and reached a maximum RSS of 4,129,849,344 bytes. The first maximum-parallel full-suite run had reached 121 / 122 files and 2,244 / 2,245 tests because of an unrelated USI transcript timeout. The same file immediately passed 43 / 43 in isolation. This transient remains recorded as intermediate data; the table treats the final resource-bounded 8-worker run at 122 / 122 files and 2,245 / 2,245 tests as the authoritative local result.
+The timed direct-related run of 10 files / 335 tests was captured at implementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`. At revision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`, which includes the later CLI-listener cleanup, focused tests, TypeScript, and the targeted static check were rerun, and the final 122-file full suite containing the same 10 files passed 2,245 / 2,245. The related timing therefore remains an earlier capture, while current-revision overall pass status is bound to the final full run.
+
+The final post-review stable run took `152.03 s` real time and reached a maximum RSS of 3,970,695,168 bytes. The first maximum-parallel full-suite run had reached 121 / 122 files and 2,244 / 2,245 tests because of an unrelated USI transcript timeout. The same file immediately passed 43 / 43 in isolation. This transient remains recorded as intermediate data; the table treats the final resource-bounded 8-worker run at 122 / 122 files and 2,245 / 2,245 tests as the authoritative local result.
 
 These are local source and temporary-fixture results. They do not validate an actual production record, actual key, real connector gate, teacher, training, live weight, or playing strength.
 
-The exact implementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`, machine and runtime, every validation result, intermediate non-gating failures, and explicit nonclaims are fixed in the [machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json). Remote CI, the PR, and merge are outside that artifact's scope and remain pending.
+The exact implementation revision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`, machine and runtime, every validation result, intermediate non-gating failures, and explicit nonclaims are fixed in the [machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json). It also includes ready PR #463 and resolved-review metadata; remote CI and merge remain pending.
 
 ## 9. Explicit nonclaims
 
@@ -177,7 +179,7 @@ Creating approved-shaped records or capabilities with temporary fixtures does no
 ## 10. Next order
 
 1. Preserve the completed local evidence: 132 / 132 focused, 335 / 335 related, 2,245 / 2,245 stable full, build, and review.
-2. Open a ready PR, address review comments, pass required CI, and regular-merge it.
+2. Preserve the resolved review on ready PR #463, pass required CI, and regular-merge it.
 3. Perform no actual key provisioning or inspection and no record installation or loading without separate explicit approval.
 4. Only after approval, separately review the raw candidate bytes and create-only install the approved record.
 5. Only after that, treat the 100-parent connector gate as separate execution evidence.

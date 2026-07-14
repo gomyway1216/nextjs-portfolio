@@ -6,7 +6,7 @@
 
 ## 1. historical v1境界とcurrent v2 delta
 
-このconnectorは、新しい探索や評価関数を作るのではなく、既存のproduction capability ownerを1つのtrusted composition boundaryへ接続する。historical PR #456はv1を実装し、記録されたlocal validationを通し、重複2指摘を解決した後、regular merge commit `e543eb4`で統合された。それらの数値はhistorical v1 evidenceである。現行v2はapproved identityのmintをfixed approved-enrollment loaderとmodule-private single-use registryへ委譲し、connectorはexact 1回の同期claimだけを所有する。v2 deltaのfocused / related / stable full validation、production build、final independent reviewは完了し、PR、CI、mergeはpendingである。どちらもproduction readyやreal run成功を確立しない。
+このconnectorは、新しい探索や評価関数を作るのではなく、既存のproduction capability ownerを1つのtrusted composition boundaryへ接続する。historical PR #456はv1を実装し、記録されたlocal validationを通し、重複2指摘を解決した後、regular merge commit `e543eb4`で統合された。それらの数値はhistorical v1 evidenceである。現行v2はapproved identityのmintをfixed approved-enrollment loaderとmodule-private single-use registryへ委譲し、connectorはexact 1回の同期claimだけを所有する。v2 deltaのfocused / related / stable full validation、production build、final independent reviewは完了し、ready PR #463のactionable review 1 / 1も修正・resolveした。CIとmergeはpendingである。どちらもproduction readyやreal run成功を確立しない。
 
 | capability          | 既存owner                                             | connectorが行うこと                                                        | 現在の実行証拠                            |
 | ------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------- |
@@ -20,7 +20,7 @@
 | postflight          | production consumer postflight registry               | checkpoint settlement後のexact receiptを一度だけclaim                      | production postflight 0                   |
 | combined receipt    | connector                                             | capability、rows、pathsを落としたmetadata projectionだけを返す             | connector success receipt 0               |
 
-v1記事はPR #455 merge `4067beec`をbaseに書かれ、そのmain CIとproduction Vercelはhistorical contextだった。v1自体は後にPR #456 merge `e543eb4`で統合された。現行v2は別deltaであり、未確定のPR / CI値をどちらの過去mergeからも推定しない。
+v1記事はPR #455 merge `4067beec`をbaseに書かれ、そのmain CIとproduction Vercelはhistorical contextだった。v1自体は後にPR #456 merge `e543eb4`で統合された。現行v2はready PR #463の別deltaであり、未確定のCI値をどちらの過去mergeからも推定しない。
 
 ## 2. readiness、execution、provisionを分離する
 
@@ -245,17 +245,19 @@ historical v1 full regressionは117 files・2,119 / 2,119で通過し、PR #456�
 | ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
 | approved-enrollment focused         | 21 / 21 PASS       | canonical bytes/SHA、BOM reject / reorder / oversize / TOCTOU / poison、single-use claim |
 | connector-focused integration       | 111 / 111 PASS     | capability-only request、UID / byte bounds、identity / layout / algorithm、gate bounds   |
-| combined focused                    | 132 / 132 PASS     | 2 files、duration `0.697 s`                                                              |
+| combined focused                    | 132 / 132 PASS     | 2 files、duration `0.744 s`                                                              |
 | related regression                  | 335 / 335 PASS     | 10 files、duration `146.22 s`、real `147.12 s`                                           |
-| stable full Vitest                  | 2,245 / 2,245 PASS | 122 / 122 files、8 workers、duration `152.80 s`                                          |
+| stable full Vitest                  | 2,245 / 2,245 PASS | 122 / 122 files、8 workers、duration `151.14 s`                                          |
 | Python stdlib                       | 58 / 58 PASS       | Node 22.13 runtime path、suite `0.106 s`                                                 |
 | TypeScript / scoped ESLint / format | PASS               | exact current delta                                                                      |
 | full lint / npm audit               | PASS / 0           | errors 0、既存warnings 157、real `29.82 s` / vulnerabilities 0                           |
 | production Turbopack build          | PASS               | real `29.30 s`、compile `8.4 s`、TS `18.3 s`、static 193 / 193（13 workers）             |
 | final independent review            | P0/P1/P2 = 0       | 初回2 P1とfollow-on P2を修正後にseal                                                     |
-| ready PR / required CI / merge      | pending            | historical PR #456から結果を推定しない                                                   |
+| ready PR / required CI / merge      | #463 / pending     | actionable thread 1 / 1 resolved、checksとmergeは未完了                                  |
 
-final post-P2 stable runのcommand real timeは`153.64 s`、maximum RSSは4,129,849,344 bytesだった。最初のmaximum-parallel full runは無関係なUSI transcript timeoutで121 / 122 files、2,244 / 2,245 testsだった。同じfileは直後に43 / 43 PASSし、final 8-worker rerunは122 / 122 files、2,245 / 2,245 PASSした。前者も途中dataとして残すが、後者をauthoritative local resultとする。これらはすべてsource / temporary-fixture evidenceであり、actual approved record、production connector gate、teacher、training、weight、棋力の実行結果ではない。
+direct related 10 files / 335 testsのtimed runはrevision `a3d16f7880f567ec1f825eba6563ca297cd8f619`でcaptureした。CLI listener cleanup後のrevision `7fcf77a53edbc30636bfb8a8bbeb690c9bf02143`ではfocused / TypeScript / targeted static checkを再実行し、同じ10 filesを含むfinal 122-file full suiteが2,245 / 2,245 PASSした。related timingは旧capture、current revisionの全体合否はfinal full runへ結び付く。
+
+final post-review stable runのcommand real timeは`152.03 s`、maximum RSSは3,970,695,168 bytesだった。最初のmaximum-parallel full runは無関係なUSI transcript timeoutで121 / 122 files、2,244 / 2,245 testsだった。同じfileは直後に43 / 43 PASSし、final 8-worker rerunは122 / 122 files、2,245 / 2,245 PASSした。前者も途中dataとして残すが、後者をauthoritative local resultとする。これらはすべてsource / temporary-fixture evidenceであり、actual approved record、production connector gate、teacher、training、weight、棋力の実行結果ではない。
 
 ## 11. production execution 0とlive unchanged
 
@@ -277,7 +279,7 @@ final post-P2 stable runのcommand real timeは`153.64 s`、maximum RSSは4,129,
 | live evaluation-function / weight activation | unchanged                     |
 | matches / Elo / rating / rank evidence       | 0                             |
 
-historical connector v1はPR #456 merge `e543eb4`で統合された。現行v2 sourceとlocal validation / reviewは、pendingのPR / CI / merge workが完了したことを示さない。source mergeやgreen application deploymentのどちらも、production connector、real dataset、teacher engine、学習、weight activationを実行した証拠ではない。
+historical connector v1はPR #456 merge `e543eb4`で統合された。現行v2 source、local validation、ready PR #463、resolved reviewは、pendingのCI / merge workが完了したことを示さない。source mergeやgreen application deploymentのどちらも、production connector、real dataset、teacher engine、学習、weight activationを実行した証拠ではない。
 
 したがって、この変更から「評価関数が強くなった」「退行しなかった」「高段で安定した」とは言えない。live weightは同じbytesのままである。
 
@@ -297,7 +299,7 @@ raw `11.47 h`はstable proposerとstable moveがunionへ追加された場合の
 
 次の実行順序は次である。
 
-1. current v2の完了したlocal validation / reviewを保持し、ready PR、required CI、regular mergeを完了する
+1. current v2の完了したlocal validationとready PR #463の解決済みreviewを保持し、required CI、regular mergeを完了する
 2. separate explicit operational approvalの下でfixed keyをprovision / inspectし、candidateを別reviewしてapproved recordをcreate-only installする
 3. fresh opaque capabilityをload / claimし、read-only readinessが`ready`であることを確認する
 4. holdoutを開かず100-parent gateを実行し、enrollment projection、途中receipt、cleanupを監査する

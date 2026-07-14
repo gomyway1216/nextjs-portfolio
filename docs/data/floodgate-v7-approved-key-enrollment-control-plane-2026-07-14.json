@@ -1,10 +1,10 @@
 {
   "schema": "shogi-floodgate-v7-approved-key-enrollment-control-plane-evidence-v1",
-  "generated_at": "2026-07-14T19:38:21Z",
+  "generated_at": "2026-07-14T19:51:30Z",
   "evidence_scope": {
     "evidence_class": "local-validation-and-independent-security-review",
     "base_revision": "55c781205305c5fadc1290c21375da145647f64d",
-    "implementation_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+    "implementation_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
     "source_and_test_bytes_match_implementation_revision": true,
     "remote_ci_results_included": false,
     "absolute_local_paths_included": false
@@ -38,15 +38,17 @@
     },
     "combined_focused": {
       "status": "pass",
+      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
       "files": 2,
       "tests": 132,
       "passed": 132,
       "failed": 0,
-      "vitest_duration_seconds": 0.697,
-      "command_wall_seconds": 0.979
+      "vitest_duration_seconds": 0.744,
+      "command_wall_seconds": 1.456
     },
     "direct_related": {
       "status": "pass",
+      "capture_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
       "files": 10,
       "tests": 335,
       "passed": 335,
@@ -57,14 +59,15 @@
     },
     "full_vitest": {
       "status": "pass",
+      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
       "files": 122,
       "tests": 2245,
       "passed": 2245,
       "failed": 0,
       "workers": 8,
-      "vitest_duration_seconds": 152.8,
-      "wall_seconds": 153.64,
-      "maximum_resident_set_size_bytes": 4129849344
+      "vitest_duration_seconds": 151.14,
+      "wall_seconds": 152.03,
+      "maximum_resident_set_size_bytes": 3970695168
     },
     "python_stdlib": {
       "status": "pass",
@@ -76,11 +79,14 @@
     },
     "typescript": {
       "status": "pass",
-      "wall_seconds": 17.24
+      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+      "wall_seconds": 14.93
     },
     "scoped_eslint": {
       "status": "pass",
-      "wall_seconds": 2.52
+      "baseline_revision": "a3d16f7880f567ec1f825eba6563ca297cd8f619",
+      "review_fix_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143",
+      "review_fix_file_rechecked": true
     },
     "full_eslint": {
       "status": "pass",
@@ -89,10 +95,12 @@
       "wall_seconds": 29.82
     },
     "targeted_prettier": {
-      "status": "pass"
+      "status": "pass",
+      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
     },
     "git_diff_check": {
-      "status": "pass"
+      "status": "pass",
+      "capture_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
     },
     "production_build": {
       "status": "pass",
@@ -128,6 +136,13 @@
       "p0": 0,
       "p1": 0,
       "p2": 0
+    },
+    "github_review": {
+      "pull_request": 463,
+      "actionable_threads": 1,
+      "fixed_threads": 1,
+      "resolved_threads": 1,
+      "fix_revision": "7fcf77a53edbc30636bfb8a8bbeb690c9bf02143"
     },
     "final_delta_commit_ready": true
   },
@@ -174,7 +189,12 @@
     }
   ],
   "operational_status": {
-    "pull_request": "pending",
+    "pull_request": {
+      "number": 463,
+      "state": "open",
+      "ready_for_review": true,
+      "unresolved_review_threads": 0
+    },
     "remote_ci": "pending",
     "merge": "pending"
   },

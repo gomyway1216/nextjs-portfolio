@@ -1,23 +1,23 @@
 # Separating Floodgate v7 deployment-key instance inspection from control-plane enrollment
 
-> The [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.en.md) intentionally returns no `key_instance_id`, while the [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) requires `expectedKeyInstanceId` before it opens the key authority. This note documents the implemented and validated narrow candidate inspector that derives the same public instance ID as the authority without turning observation into approval. Source, operator CLIs, focused / related / full tests, Python regression, TypeScript, production build, formatting, lint, audit, and independent review are complete. PR, CI, actual-home key-byte inspection, and control-plane pinning remain **pending / 0**. The measured 7 h 51 min full-bundle verifier remains a separate blocker. No real data, teacher, training, weight, live evaluation function, match, or playing-strength claim is created here. Japanese version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)
+> The [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.en.md) intentionally returns no `key_instance_id`, while the [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) requires `expectedKeyInstanceId` before it opens the key authority. This note documents the implemented and validated narrow candidate inspector that derives the same public instance ID as the authority without turning observation into approval. Source, operator CLIs, focused / related / full tests, Python regression, TypeScript, production build, formatting, lint, audit, independent review, and the implementation-head CI for ready PR #459 are complete. Merge, actual-home key-byte inspection, and control-plane pinning remain **pending / 0**. The measured 7 h 51 min full-bundle verifier remains a separate blocker. No real data, teacher, training, weight, live evaluation function, match, or playing-strength claim is created here. Japanese version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)
 
 ## 1. Current status and the one gap this boundary closes
 
-| Item                                     | Current status         | Meaning                                                       |
-| ---------------------------------------- | ---------------------- | ------------------------------------------------------------- |
-| Candidate-inspector contract             | Implemented            | Candidate-only boundary with no approval or persistence       |
-| Inspector source / operator CLIs         | Completed              | Import-safe, argumentless, with 0 actual executions           |
-| Focused / related tests                  | 9 / 9, 116 / 116 PASS  | Temporary-key cryptography and the actual-home metadata guard |
-| TypeScript / Prettier / ESLint           | PASS                   | Local validation of the exact current diff                    |
-| Full regression / production build       | PASS                   | 119 files / 2,156 tests and the production build              |
-| Python regression / npm audit            | 58 / 58 PASS, 0        | Stdlib suite and dependency audit                             |
-| Independent code / test review           | P0 = 0, P1 = 0, P2 = 0 | Two post-fix review seals completed                           |
-| Pull request / CI                        | Pending                | No PR or CI result exists yet                                 |
-| Actual fixed-home candidate inspection   | 0                      | This inspector has not read any production key byte           |
-| Approved control-plane enrollment record | 0                      | No expected instance has been approved or pinned              |
-| Production connector gates               | 0                      | 100 / 500 / 24,000 have not run                               |
-| Live weight / evaluation-function change | 0                      | Existing production bytes remain unchanged                    |
+| Item                                     | Current status           | Meaning                                                          |
+| ---------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
+| Candidate-inspector contract             | Implemented              | Candidate-only boundary with no approval or persistence          |
+| Inspector source / operator CLIs         | Completed                | Import-safe, argumentless, with 0 actual executions              |
+| Focused / related tests                  | 9 / 9, 116 / 116 PASS    | Temporary-key cryptography and the actual-home metadata guard    |
+| TypeScript / Prettier / ESLint           | PASS                     | Local validation of the exact current diff                       |
+| Full regression / production build       | PASS                     | 119 files / 2,156 tests and the production build                 |
+| Python regression / npm audit            | 58 / 58 PASS, 0          | Stdlib suite and dependency audit                                |
+| Independent code / test review           | P0 = 0, P1 = 0, P2 = 0   | Two post-fix review seals completed                              |
+| Pull request / CI                        | #459 ready / 6 of 6 PASS | Implementation head `4eda5f4`; all three review threads resolved |
+| Actual fixed-home candidate inspection   | 0                        | This inspector has not read any production key byte              |
+| Approved control-plane enrollment record | 0                        | No expected instance has been approved or pinned                 |
+| Production connector gates               | 0                        | 100 / 500 / 24,000 have not run                                  |
+| Live weight / evaluation-function change | 0                        | Existing production bytes remain unchanged                       |
 
 The metadata-only readiness probe answers whether the fixed slot has a safe-looking file, but reads no key bytes and returns no instance ID. The create-only provisioner may install the secret, but deliberately does not become a cryptographic reader. The connector must not learn an instance during the same execution and silently adopt it as its expectation.
 
@@ -160,7 +160,9 @@ Before a real 100-parent gate, operations must explicitly close this wall-time i
 
 The nine focused tests passed. They cover deterministic derivation and existing-authority parity; wrong HMAC domains, raw SHA, and authorization-MAC separation; the exact receipt, all nonclaims, deep freezing, and absence of byte views; direct and symlink-alias actual-home rejection; filesystem-root rejection; wrong metadata; an initial symlink; held-versus-named replacement; short and oversized size; zeroization before the next await; success and observer-failure zeroization; sanitized errors; and the CLI import / argument boundary.
 
-The related target of five files / 116 tests, full Vitest at 119 files / 2,156 tests, the Python stdlib suite at 58 / 58, TypeScript, production build, formatting, and npm audit with zero vulnerabilities all passed. Full lint also completed with zero errors and only 157 pre-existing warnings unrelated to this diff. Descriptor-close failure injection and exhaustive zeroization checks for every individual failure phase are not covered individually, so that evidence remains pending. Source review and the implementation's cleanup ordering are not substitutes for those test cases. Two independent post-fix reviews checked secret lifetime, CLI stream failures, and the distinction between candidate observation and control-plane approval, then sealed P0 / P1 / P2 at zero. PR and CI remain pending.
+The related target of five files / 116 tests, full Vitest at 119 files / 2,156 tests, the Python stdlib suite at 58 / 58, TypeScript, production build, formatting, and npm audit with zero vulnerabilities all passed. Full lint also completed with zero errors and only 157 pre-existing warnings unrelated to this diff. Descriptor-close failure injection and exhaustive zeroization checks for every individual failure phase are not covered individually, so that evidence remains pending. Source review and the implementation's cleanup ordering are not substitutes for those test cases. Two independent post-fix reviews checked secret lifetime, CLI stream failures, and the distinction between candidate observation and control-plane approval, then sealed P0 / P1 / P2 at zero. Ready PR #459 fixed, answered, and resolved all three review threads. Its implementation head `4eda5f4` passed all six CI checks; CI unit tests reported 119 / 119 files, 2,142 passed plus 14 environment-dependent skips out of 2,156 total, and the production build passed.
+
+A post-review local full rerun executed concurrently with unrelated CPU profiling and hit one three-second stable-WASM worker initialization timeout: 118 / 119 files and 2,155 / 2,156 tests. The same 53-test file immediately passed 53 / 53 in isolation, and the current implementation head then passed CI as described above. This transient result is not counted as an enrollment-test failure, but is retained as intermediate data.
 
 At the current local implementation point:
 
@@ -177,7 +179,7 @@ At the current local implementation point:
 
 ## 10. Remaining execution order after approval
 
-1. Preserve the completed local full validation and independent review, then complete the ready PR and CI.
+1. Integrate ready PR #459 with a regular merge commit. Its implementation-head CI 6 / 6 and review resolution are complete.
 2. Under separate operator approval, run `npm run --silent shogi:floodgate-v7-key-provision` if the key is still absent and preserve its non-secret provision receipt. This write command currently has **0 actual executions**.
 3. In a fresh separately approved process, run `npm run --silent shogi:floodgate-v7-key-instance-inspect` once and preserve the one-line non-secret candidate JSON emitted to stdout. This read-only actual-home command also has **0 actual executions**.
 4. Review and persist an approved enrollment / trusted control-plane record; do not treat step 3 as self-approval.

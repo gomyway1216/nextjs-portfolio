@@ -1,23 +1,23 @@
 # Floodgate v7 deployment key instanceのinspectionとcontrol-plane enrollmentを分離する
 
-> [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)は意図的に`key_instance_id`を返さない一方、[production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)はkey authorityを開く前に`expectedKeyInstanceId`を要求する。本稿は、authorityと同じpublic instance IDを導出しながら観測を承認へ変えない、狭いcandidate inspectorを実装・検証する。source、operator CLI、focused / related / full tests、Python regression、TypeScript、production build、format、lint、audit、independent reviewは完了した。PR、CI、actual-home key-byte inspection、control-plane pinningは**pending / 0**である。実測7時間51分のfull-bundle verifierも別blockerとして残る。real data、teacher、training、weight、live evaluation function、対局、棋力のclaimは本稿から生じない。English version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md)
+> [deployment-key provisioner](./blog-shogi-floodgate-v7-deployment-key-provisioner.md)は意図的に`key_instance_id`を返さない一方、[production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)はkey authorityを開く前に`expectedKeyInstanceId`を要求する。本稿は、authorityと同じpublic instance IDを導出しながら観測を承認へ変えない、狭いcandidate inspectorを実装・検証する。source、operator CLI、focused / related / full tests、Python regression、TypeScript、production build、format、lint、audit、independent review、ready PR #459の実装head CIは完了した。merge、actual-home key-byte inspection、control-plane pinningは**pending / 0**である。実測7時間51分のfull-bundle verifierも別blockerとして残る。real data、teacher、training、weight、live evaluation function、対局、棋力のclaimは本稿から生じない。English version: [blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md)
 
 ## 1. 現在地と、この境界が閉じる1つのgap
 
-| 項目                                     | current status         | 意味                                                     |
-| ---------------------------------------- | ---------------------- | -------------------------------------------------------- |
-| candidate-inspector contract             | implemented            | approval / persistenceを含まないcandidate-only境界       |
-| inspector source / operator CLI          | completed              | import-safe、argumentless、actual executionは0           |
-| focused / related tests                  | 9 / 9、116 / 116 PASS  | temporary-key cryptographyとactual-home metadata guard   |
-| TypeScript / Prettier / ESLint           | PASS                   | exact current diffのlocal validation                     |
-| full regression / build                  | PASS                   | 119 files / 2,156 testsとproduction build                |
-| Python regression / npm audit            | 58 / 58 PASS、0件      | stdlib suiteとdependency audit                           |
-| independent code / test review           | P0 = 0、P1 = 0、P2 = 0 | 2系統の修正後sealが完了                                  |
-| pull request / CI                        | pending                | PRもCI resultもまだない                                  |
-| actual fixed-home candidate inspection   | 0                      | このinspector候補はproduction key byteをまだ読んでいない |
-| approved control-plane enrollment record | 0                      | expected instanceは承認も固定もされていない              |
-| production connector gates               | 0                      | 100 / 500 / 24,000は未実行                               |
-| live weight / evaluation-function変更    | 0                      | 既存production bytesは不変                               |
+| 項目                                     | current status           | 意味                                                     |
+| ---------------------------------------- | ------------------------ | -------------------------------------------------------- |
+| candidate-inspector contract             | implemented              | approval / persistenceを含まないcandidate-only境界       |
+| inspector source / operator CLI          | completed                | import-safe、argumentless、actual executionは0           |
+| focused / related tests                  | 9 / 9、116 / 116 PASS    | temporary-key cryptographyとactual-home metadata guard   |
+| TypeScript / Prettier / ESLint           | PASS                     | exact current diffのlocal validation                     |
+| full regression / build                  | PASS                     | 119 files / 2,156 testsとproduction build                |
+| Python regression / npm audit            | 58 / 58 PASS、0件        | stdlib suiteとdependency audit                           |
+| independent code / test review           | P0 = 0、P1 = 0、P2 = 0   | 2系統の修正後sealが完了                                  |
+| pull request / CI                        | #459 ready / 6 of 6 PASS | implementation head `4eda5f4`、review thread 3件解決済み |
+| actual fixed-home candidate inspection   | 0                        | このinspector候補はproduction key byteをまだ読んでいない |
+| approved control-plane enrollment record | 0                        | expected instanceは承認も固定もされていない              |
+| production connector gates               | 0                        | 100 / 500 / 24,000は未実行                               |
+| live weight / evaluation-function変更    | 0                        | 既存production bytesは不変                               |
 
 metadata-only readiness probeはfixed slotに安全そうなfileがあるかを答えるが、key byteを読まずinstance IDも返さない。create-only provisionerはsecretを配置できるが、意図的にcryptographic readerにはならない。connectorが同じexecution中にinstanceを発見し、その値をexpectationとして無条件採用してはならない。
 
@@ -160,7 +160,9 @@ real 100-parent gateより前に、このwall-time issueを明示的に閉じる
 
 focused 9 testsはdeterministic derivation / existing-authority parity、wrong domain / raw SHA / authorization-MAC separation、exact receipt / all nonclaims / deep freeze / no byte-view、direct / symlink-alias actual-home rejection、filesystem-root rejection、wrong metadata、initial symlink、held-versus-named replacement、short / oversized size、hook-before-await ordering、success / observer-failure zeroization、sanitized error、CLI import / argument boundaryを検査してPASSした。
 
-関連authority、readiness、provisioner、connectorを含む5 files / 116 tests、full Vitest 119 files / 2,156 tests、Python stdlib 58 / 58、TypeScript、production build、formatting、npm audit 0件はPASSした。full lintもerror 0で、今回のdiffと無関係な既存157 warningsだけを報告した。descriptor-close failure injectionと全failure phaseの個別zeroizationは未網羅で、個別evidenceはpendingのままである。source reviewと実装上のcleanup orderingは、そのtest evidenceの代替ではない。独立した2系統の修正後reviewはsecret lifetime、CLI stream failure、candidate observation / control-plane approvalの分離を確認し、P0 / P1 / P2すべて0でsealした。PRとCIはpendingである。
+関連authority、readiness、provisioner、connectorを含む5 files / 116 tests、full Vitest 119 files / 2,156 tests、Python stdlib 58 / 58、TypeScript、production build、formatting、npm audit 0件はPASSした。full lintもerror 0で、今回のdiffと無関係な既存157 warningsだけを報告した。descriptor-close failure injectionと全failure phaseの個別zeroizationは未網羅で、個別evidenceはpendingのままである。source reviewと実装上のcleanup orderingは、そのtest evidenceの代替ではない。独立した2系統の修正後reviewはsecret lifetime、CLI stream failure、candidate observation / control-plane approvalの分離を確認し、P0 / P1 / P2すべて0でsealした。ready PR #459では3 review threadsを修正・返信・resolveし、implementation head `4eda5f4`のCI 6 / 6がPASSした。CI unit testは119 / 119 files、2,142 PASS + environment-dependent 14 SKIP（total 2,156）、production buildもPASSした。
+
+review修正後に他のCPU調査と同時実行したlocal full rerunは、無関係なstable-WASM workerの3秒initialization timeout 1件で118 / 119 files、2,155 / 2,156 testsとなった。同じ53-test fileは直後の単独実行で53 / 53 PASSし、上記CIもcurrent implementation headでPASSした。このtransient resultをenrollment test failureとは数えないが、途中dataとして記録する。
 
 現在のlocal implementation時点では次が事実である。
 
@@ -177,7 +179,7 @@ focused 9 testsはdeterministic derivation / existing-authority parity、wrong d
 
 ## 10. 承認後に残るexecution order
 
-1. 完了済みlocal full validationとindependent reviewを維持し、ready PRとCIを完了する。
+1. ready PR #459を通常のmerge commitで統合する。implementation headのCI 6 / 6とreview resolutionは完了済みである。
 2. keyがまだabsentなら、別のoperator approvalで`npm run --silent shogi:floodgate-v7-key-provision`を実行し、non-secret provision receiptを保存する。このwrite commandのactual executionは現在**0**である。
 3. freshな別承認processで`npm run --silent shogi:floodgate-v7-key-instance-inspect`を1回だけ実行し、stdoutへ出るone-line non-secret candidate JSONを保存する。このread-only actual-home commandのactual executionも**0**である。
 4. approved enrollment / trusted control-plane recordをreview / persistする。step 3をself-approvalとして扱わない。

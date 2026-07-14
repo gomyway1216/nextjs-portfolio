@@ -63,15 +63,20 @@ const NativeWeakSet = WeakSet;
 const nativePromiseThen = Promise.prototype.then;
 const nativeWeakSetAdd = WeakSet.prototype.add;
 const nativeWeakSetDelete = WeakSet.prototype.delete;
+const nativeWeakSetHas = WeakSet.prototype.has;
 const isNativePromise = nodeUtilTypes.isPromise.bind(nodeUtilTypes);
 const reflectApply = Reflect.apply;
 const objectDefineProperty = Object.defineProperty;
 const objectCreate = Object.create;
 const objectFreeze = Object.freeze;
+const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const objectPrototype = Object.prototype;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
+const objectHasOwn = Object.hasOwn;
+const objectIsFrozen = Object.isFrozen;
 const reflectOwnKeys = Reflect.ownKeys;
+const promiseSpeciesSymbol = Symbol.species;
 const jsonParse = JSON.parse;
 const jsonStringify = JSON.stringify;
 const bufferByteLength = Buffer.byteLength.bind(Buffer);
@@ -84,6 +89,15 @@ const pathJoin = path.join;
 const pathResolve = path.resolve;
 const currentUid =
   typeof process.getuid === "function" ? process.getuid() : null;
+const pinnedPromiseConstructorHolder = objectCreate(null) as object;
+objectDefineProperty(pinnedPromiseConstructorHolder, promiseSpeciesSymbol, {
+  configurable: false,
+  enumerable: false,
+  writable: false,
+  value: NativePromise,
+});
+objectFreeze(pinnedPromiseConstructorHolder);
+const internallyPinnedPromises = new NativeWeakSet<object>();
 
 const REVISION_RE = /^[0-9a-f]{40}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
@@ -1360,13 +1374,86 @@ function buildPostflightReceipt(
   ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
 }
 
+function isSafePromiseConstructorHolder(value: unknown): boolean {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeUtilTypes.isProxy(value) ||
+    objectGetPrototypeOf(value) !== null ||
+    !objectIsFrozen(value)
+  ) {
+    return false;
+  }
+  const keys = reflectOwnKeys(value);
+  if (keys.length !== 1 || keys[0] !== promiseSpeciesSymbol) return false;
+  const descriptor = objectGetOwnPropertyDescriptor(
+    value,
+    promiseSpeciesSymbol,
+  );
+  return (
+    descriptor !== undefined &&
+    objectHasOwn(descriptor, "value") &&
+    descriptor.value === NativePromise &&
+    descriptor.configurable === false &&
+    descriptor.enumerable === false &&
+    descriptor.writable === false
+  );
+}
+
+function ensureSafePromiseConstructor<T>(value: Promise<T>): Promise<T> {
+  const descriptor = objectGetOwnPropertyDescriptor(value, "constructor");
+  if (descriptor === undefined || descriptor.configurable === true) {
+    objectDefineProperty(value, "constructor", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: pinnedPromiseConstructorHolder,
+    });
+    return value;
+  }
+  if (
+    !objectHasOwn(descriptor, "value") ||
+    !isSafePromiseConstructorHolder(descriptor.value)
+  ) {
+    throw new NativeError("native Promise constructor cannot be safely pinned");
+  }
+  if (descriptor.writable === true) {
+    objectDefineProperty(value, "constructor", {
+      configurable: false,
+      enumerable: descriptor.enumerable,
+      writable: false,
+      value: descriptor.value,
+    });
+  }
+  return value;
+}
+
 function pinNativePromise<T>(value: Promise<T>): Promise<T> {
-  objectDefineProperty(value, "constructor", {
+  if (reflectApply(nativeWeakSetHas, internallyPinnedPromises, [value])) {
+    return value;
+  }
+  ensureSafePromiseConstructor(value);
+  const thenDescriptor = objectGetOwnPropertyDescriptor(value, "then");
+  if (thenDescriptor !== undefined && thenDescriptor.configurable !== true) {
+    throw new NativeError("native Promise then method cannot be safely pinned");
+  }
+  const pinnedThen = objectFreeze(function (
+    onFulfilled?: (settled: T) => unknown,
+    onRejected?: (reason: unknown) => unknown,
+  ): Promise<unknown> {
+    const derived = reflectApply(nativePromiseThen, value, [
+      onFulfilled,
+      onRejected,
+    ]) as Promise<unknown>;
+    return pinNativePromise(derived);
+  });
+  objectDefineProperty(value, "then", {
     configurable: false,
     enumerable: false,
     writable: false,
-    value: NativePromise,
+    value: pinnedThen,
   });
+  reflectApply(nativeWeakSetAdd, internallyPinnedPromises, [value]);
   return value;
 }
 
@@ -1391,7 +1478,8 @@ function guardNativePromiseBox<T>(
         if (!isNativePromise(value)) {
           throw new NativeError(`${label} returned a non-native Promise`);
         }
-        reflectApply(nativePromiseThen, value, [
+        const observed = ensureSafePromiseConstructor(value as Promise<T>);
+        reflectApply(nativePromiseThen, observed, [
           (settled: T) => resolve(nativePromiseBox(settled)),
           reject,
         ]);

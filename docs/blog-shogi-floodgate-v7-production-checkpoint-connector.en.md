@@ -245,8 +245,8 @@ Historical v1 full regression passed at 117 files and 2,119 / 2,119 tests, and b
 | ----------------------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
 | Approved-enrollment focused         | 21 / 21 PASS       | Canonical bytes/SHA, BOM rejection/reorder/oversize/TOCTOU/poison, and single-use claiming |
 | Connector-focused integration       | 111 / 111 PASS     | Capability-only request, UID/byte bounds, identity/layout/algorithm, and gate bounds       |
-| Combined focused                    | 132 / 132 PASS     | 2 files, `0.664 s`                                                                         |
-| Related regression                  | 335 / 335 PASS     | 10 files, `143.37 s`                                                                       |
+| Combined focused                    | 132 / 132 PASS     | 2 files, duration `0.697 s`                                                                |
+| Related regression                  | 335 / 335 PASS     | 10 files; duration `146.22 s`; real `147.12 s`                                             |
 | Stable full Vitest                  | 2,245 / 2,245 PASS | 122 / 122 files, 8 workers, duration `152.80 s`                                            |
 | Python stdlib                       | 58 / 58 PASS       | Node 22.13 runtime path, suite `0.106 s`                                                   |
 | TypeScript / scoped ESLint / format | PASS               | Exact current delta                                                                        |

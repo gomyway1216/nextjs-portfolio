@@ -143,8 +143,8 @@ connector-focused integrationは**111 / 111 PASS**である。related / stable f
 | adversarial record / filesystem tests  | PASS               | malformed UTF-8、BOM reject、reorder、>64 KiB、alias、ancestor swap、replacement / growth |
 | intrinsic-poison boundary tests        | PASS               | Promise / iterator / number / crypto / typed-array poison下でもlive access 0              |
 | connector-focused integration tests    | 111 / 111 PASS     | capability-only options、UID 0 / byte bounds、identity / layout / algorithm、gate bounds  |
-| combined focused                       | 132 / 132 PASS     | 2 files、`0.664 s`                                                                        |
-| related regression                     | 335 / 335 PASS     | 10 files、`143.37 s`                                                                      |
+| combined focused                       | 132 / 132 PASS     | 2 files、duration `0.697 s`                                                               |
+| related regression                     | 335 / 335 PASS     | 10 files、duration `146.22 s`、real `147.12 s`                                            |
 | stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files、8 workers、duration `152.80 s`                                           |
 | Python stdlib                          | 58 / 58 PASS       | Node 22.13 runtime pathで再確認、suite `0.106 s`                                          |
 | TypeScript / scoped ESLint / Prettier  | PASS               | exact current source / test / document delta                                              |
@@ -157,6 +157,8 @@ connector-focused integrationは**111 / 111 PASS**である。related / stable f
 final post-P2 stable runのcommand real timeは`153.64 s`、maximum RSSは4,129,849,344 bytesだった。full suiteの最初のmaximum-parallel runは、無関係なUSI transcript timeoutで121 / 122 files、2,244 / 2,245 testsとなった。同じfileは直後の単独実行で43 / 43 PASSした。そのためこのtransientを隠さず途中dataとして残し、上表ではresource contentionを抑えたfinal 8-worker runの122 / 122 files、2,245 / 2,245 PASSをauthoritative local resultとしている。
 
 これらはsourceとtemporary fixtureのlocal validationである。actual production record、actual key、real connector gate、teacher、training、live weight、棋力を検証した値ではない。
+
+exact implementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`、machine / runtime、全validation値、途中のnon-gating failure、明示的nonclaimsは、[machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json)へ固定した。remote CI、PR、mergeはこのartifactのscope外で、pendingのままである。
 
 ## 9. Explicit nonclaims
 

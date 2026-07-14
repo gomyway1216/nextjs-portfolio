@@ -245,8 +245,8 @@ historical v1 full regressionは117 files・2,119 / 2,119で通過し、PR #456�
 | ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
 | approved-enrollment focused         | 21 / 21 PASS       | canonical bytes/SHA、BOM reject / reorder / oversize / TOCTOU / poison、single-use claim |
 | connector-focused integration       | 111 / 111 PASS     | capability-only request、UID / byte bounds、identity / layout / algorithm、gate bounds   |
-| combined focused                    | 132 / 132 PASS     | 2 files、`0.664 s`                                                                       |
-| related regression                  | 335 / 335 PASS     | 10 files、`143.37 s`                                                                     |
+| combined focused                    | 132 / 132 PASS     | 2 files、duration `0.697 s`                                                              |
+| related regression                  | 335 / 335 PASS     | 10 files、duration `146.22 s`、real `147.12 s`                                           |
 | stable full Vitest                  | 2,245 / 2,245 PASS | 122 / 122 files、8 workers、duration `152.80 s`                                          |
 | Python stdlib                       | 58 / 58 PASS       | Node 22.13 runtime path、suite `0.106 s`                                                 |
 | TypeScript / scoped ESLint / format | PASS               | exact current delta                                                                      |

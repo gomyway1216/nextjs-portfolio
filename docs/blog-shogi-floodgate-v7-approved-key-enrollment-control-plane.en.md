@@ -143,8 +143,8 @@ Every public error reports `capability_issued: false`. Rereading a record does n
 | Adversarial record / filesystem tests  | PASS               | Malformed UTF-8, BOM rejection, reorder, >64 KiB, alias, ancestor swap, replacement/growth |
 | Intrinsic-poison boundary tests        | PASS               | Zero live accesses under Promise/iterator/number/crypto/typed-array poisoning              |
 | Connector-focused integration tests    | 111 / 111 PASS     | Capability-only options, UID 0 / byte bounds, identity/layout/algorithm, and gate bounds   |
-| Combined focused                       | 132 / 132 PASS     | 2 files, `0.664 s`                                                                         |
-| Related regression                     | 335 / 335 PASS     | 10 files, `143.37 s`                                                                       |
+| Combined focused                       | 132 / 132 PASS     | 2 files, duration `0.697 s`                                                                |
+| Related regression                     | 335 / 335 PASS     | 10 files; duration `146.22 s`; real `147.12 s`                                             |
 | Stable full Vitest                     | 2,245 / 2,245 PASS | 122 / 122 files, 8 workers, duration `152.80 s`                                            |
 | Python stdlib                          | 58 / 58 PASS       | Reconfirmed under the Node 22.13 runtime path; suite `0.106 s`                             |
 | TypeScript / scoped ESLint / Prettier  | PASS               | Exact current source, test, and document delta                                             |
@@ -157,6 +157,8 @@ Every public error reports `capability_issued: false`. Rereading a record does n
 The final post-P2 stable run took `153.64 s` real time and reached a maximum RSS of 4,129,849,344 bytes. The first maximum-parallel full-suite run had reached 121 / 122 files and 2,244 / 2,245 tests because of an unrelated USI transcript timeout. The same file immediately passed 43 / 43 in isolation. This transient remains recorded as intermediate data; the table treats the final resource-bounded 8-worker run at 122 / 122 files and 2,245 / 2,245 tests as the authoritative local result.
 
 These are local source and temporary-fixture results. They do not validate an actual production record, actual key, real connector gate, teacher, training, live weight, or playing strength.
+
+The exact implementation revision `a3d16f7880f567ec1f825eba6563ca297cd8f619`, machine and runtime, every validation result, intermediate non-gating failures, and explicit nonclaims are fixed in the [machine-readable local evidence](./data/floodgate-v7-approved-key-enrollment-control-plane-2026-07-14.json). Remote CI, the PR, and merge are outside that artifact's scope and remain pending.
 
 ## 9. Explicit nonclaims
 

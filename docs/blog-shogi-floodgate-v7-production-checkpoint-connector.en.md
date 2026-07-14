@@ -6,7 +6,7 @@
 
 ## 1. Boundary closed by this change
 
-This change does not create a new search or evaluation function. It connects existing production capability owners through one trusted composition boundary. The source, focused tests, and full regression are implemented and passing, but PR review and branch CI remain `pending`. The current result is therefore “the production connector source and local validation exist,” not “production ready” or “a real run succeeded.”
+This change does not create a new search or evaluation function. It connects existing production capability owners through one trusted composition boundary. The source, focused tests, and full regression are implemented and passing, and both duplicate findings on PR #456 are fixed and resolved, but branch CI for the post-review head remains `pending`. The current result is therefore “the production connector source and local validation exist,” not “production ready” or “a real run succeeded.”
 
 | Capability       | Existing owner                                        | Connector action                                                             | Current execution evidence   |
 | ---------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------- |
@@ -128,17 +128,17 @@ An owner receipt is not accepted merely because its shape looks similar. For the
 
 Resources are tracked by who performs terminal cleanup, not merely by which variable can see them.
 
-| Phase                           | Connector ownership                                                | Sink / consumer ownership                                               | Terminal action                                                                                             |
-| ------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Capture / readiness             | None                                                               | None                                                                    | Return only a fixed public failure                                                                          |
-| Coordinator + stage startup     | Fulfilled coordinator and lease                                    | None                                                                    | Observe even invalid-shaped genuine Promises through settlement, capture acquired resources, and clean them |
-| Handoff                         | Exact handoff lifecycle                                            | None                                                                    | `close` on success, `abortAndDrain` on failure                                                              |
-| Key prepared                    | Unclaimed opaque facade                                            | None                                                                    | `discard` if the sink is never reached                                                                      |
-| Consumer callback entry         | Retain no row reference                                            | Consumer owns input claim window and descriptors                        | Invoke sink synchronously from callback                                                                     |
-| Sink stage-claim failure        | Lease ownership remains with connector                             | Sink discards prepared key                                              | Connector completes lease close                                                                             |
-| Sink stage-claim success        | Only join the close Promise                                        | Sink claims lease / rows / key and zeroizes / closes                    | Sink cleans on success and failure                                                                          |
-| Checkpoint + postflight success | Only checkpoint / postflight metadata                              | Consumer mints receipt after snapshot revalidation and descriptor close | Connector claims postflight exactly once                                                                    |
-| Final cleanup                   | No-op discard for claimed key, lease close join, handoff lifecycle | None                                                                    | Start both lease / coordinator cleanup before their all-settled join                                        |
+| Phase                           | Connector ownership                                                | Sink / consumer ownership                                               | Terminal action                                                                          |
+| ------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Capture / readiness             | None                                                               | None                                                                    | Return only a fixed public failure                                                       |
+| Coordinator + stage startup     | Fulfilled coordinator and lease                                    | None                                                                    | Observe safely pinnable invalid Promises through settlement and clean acquired resources |
+| Handoff                         | Exact handoff lifecycle                                            | None                                                                    | `close` on success, `abortAndDrain` on failure                                           |
+| Key prepared                    | Unclaimed opaque facade                                            | None                                                                    | `discard` if the sink is never reached                                                   |
+| Consumer callback entry         | Retain no row reference                                            | Consumer owns input claim window and descriptors                        | Invoke sink synchronously from callback                                                  |
+| Sink stage-claim failure        | Lease ownership remains with connector                             | Sink discards prepared key                                              | Connector completes lease close                                                          |
+| Sink stage-claim success        | Only join the close Promise                                        | Sink claims lease / rows / key and zeroizes / closes                    | Sink cleans on success and failure                                                       |
+| Checkpoint + postflight success | Only checkpoint / postflight metadata                              | Consumer mints receipt after snapshot revalidation and descriptor close | Connector claims postflight exactly once                                                 |
+| Final cleanup                   | No-op discard for claimed key, lease close join, handoff lifecycle | None                                                                    | Start both lease / coordinator cleanup before their all-settled join                     |
 
 `discardKey` is a safe no-op after the sink has already claimed the capability and zeroizes the stored derived key when it remains unclaimed. `lease.close()` joins the same close Promise started by the sink. The coordinator uses `close()` on success and `abortAndDrain()` whenever a primary or cleanup failure exists. After key discard, the connector starts both lease close and coordinator close / abort instead of awaiting them serially, then collects both through an all-settled join. A hang or rejection on one side therefore does not prevent the other terminal action from starting.
 
@@ -163,7 +163,7 @@ Only the test core may pass raw primary / cleanup failures to `observeFailureFor
 
 The connector and training consumer use the same safe native-Promise boundary. Each internal Promise gets an own `constructor` fixed to a frozen null-prototype holder whose only `Symbol.species` points to the captured native `Promise`; an own frozen `then` delegates to the captured `Promise.prototype.then`. Promises derived from it are pinned recursively, preventing caller changes to constructor / species / then from entering later awaits or cleanup.
 
-Even when its shape is invalid, a genuine native Promise is observed through settlement with the captured native `then` while the public operation still fails closed. If a coordinator, stage lease, or key authorization fulfills, the value is captured only for terminal cleanup—not as success evidence—and drives coordinator abort / close, lease close, or key discard. Rejecting the invalid shape therefore does not lose an already acquired resource.
+Even when its shape is invalid, a genuine native Promise whose own constructor can be safely pinned without a getter or Proxy trap is observed through settlement with the captured native `then` while the public operation still fails closed. If a coordinator, stage lease, or key authorization fulfills, the value is captured only for terminal cleanup—not as success evidence—and drives coordinator abort / close, lease close, or key discard. A shape with a non-configurable unsafe constructor is rejected without executing its getter or trap; the connector does not claim it can recover a resource hidden behind that unobservable boundary.
 
 ## 8. Close four public leakage surfaces
 
@@ -209,25 +209,25 @@ The 100 / 500 / 24,000 gates measure teacher-data throughput, resume, and durabi
 
 Confirmed values and unexecuted work remain separate. This table records the state when the article was created.
 
-| Validation layer              | Revision / scope                       | Status    | Result                                          |
-| ----------------------------- | -------------------------------------- | --------- | ----------------------------------------------- |
-| Readiness focused             | Current readiness source / local macOS | `PASS`    | 6 / 6, about `0.17 s`                           |
-| Training consumer focused     | Current native-Promise consumer        | `PASS`    | 61 / 61                                         |
-| Connector focused             | Current connector source               | `PASS`    | 57 / 57                                         |
-| TypeScript                    | Current connector branch               | `PASS`    | `tsc --noEmit`                                  |
-| Scoped ESLint                 | Current connector branch               | `PASS`    | Connector / consumer / readiness scope          |
-| JA / EN Prettier + diff-check | These two articles                     | `PASS`    | Format / whitespace / structure checked         |
-| Full Vitest                   | Current connector branch               | `PASS`    | 117 files, 2,119 / 2,119, `154.99 s`            |
-| PR review                     | Connector PR                           | `pending` | PR not fixed; review findings not aggregated    |
-| Branch required CI            | Connector head                         | `pending` | Head not fixed                                  |
-| Base main CI                  | PR #455 merge `4067beec`               | `green`   | Historical base evidence without connector code |
-| Production Vercel             | Current main deployment                | `green`   | Live weight / connector activation unchanged    |
+| Validation layer              | Revision / scope                       | Status    | Result                                                        |
+| ----------------------------- | -------------------------------------- | --------- | ------------------------------------------------------------- |
+| Readiness focused             | Current readiness source / local macOS | `PASS`    | 6 / 6, about `0.17 s`                                         |
+| Training consumer focused     | Current native-Promise consumer        | `PASS`    | 61 / 61                                                       |
+| Connector focused             | Current connector source               | `PASS`    | 57 / 57                                                       |
+| TypeScript                    | Current connector branch               | `PASS`    | `tsc --noEmit`                                                |
+| Scoped ESLint                 | Current connector branch               | `PASS`    | Connector / consumer / readiness scope                        |
+| JA / EN Prettier + diff-check | These two articles                     | `PASS`    | Format / whitespace / structure checked                       |
+| Full Vitest                   | Current connector branch               | `PASS`    | 117 files, 2,119 / 2,119, `154.99 s`                          |
+| PR review                     | PR #456                                | `PASS`    | 2 duplicate threads fixed, replied, and resolved in `05c1c25` |
+| Branch required CI            | Post-review documentation head         | `pending` | Head after documentation fix not yet validated                |
+| Base main CI                  | PR #455 merge `4067beec`               | `green`   | Historical base evidence without connector code               |
+| Production Vercel             | Current main deployment                | `green`   | Live weight / connector activation unchanged                  |
 
 The readiness suite covers a missing parent / key, safe empty parent, wrong size, wrong mode, symlink, hard link, metadata-only ready state, zero Proxy traps, and the argumentless production probe. Key bytes in the ready fixture match before and after the test, while the receipt exposes neither home path nor key hex.
 
 Connector focused 57 / 57 covers exact composition, metadata capture, Promise pin / invalid settlement, callback join, parallel cleanup, retry disposition, and receipt-leak boundaries. Training consumer focused 61 / 61 also covers constructor / species / then pinning and callback-identity revocation. These are focused regression evidence, not evidence of a real production gate or playing strength.
 
-Full regression passed at 117 files and 2,119 / 2,119 tests. PR and branch CI remain factually `pending`. Base-main green, local-full green, focused 57 / 57 and 61 / 61, and readiness 6 / 6 are not reinterpreted as production-execution evidence.
+Full regression passed at 117 files and 2,119 / 2,119 tests, and both duplicate PR #456 threads are resolved. Branch CI for the post-review documentation head remains factually `pending`. Base-main green, local-full green, focused 57 / 57 and 61 / 61, and readiness 6 / 6 are not reinterpreted as production-execution evidence.
 
 ## 11. Zero production execution and unchanged live state
 
@@ -269,7 +269,7 @@ Because 100 / 500 / 24,000 resume the same work stream, the plan does not genera
 
 The next execution order is:
 
-1. Complete PR review and branch CI
+1. Complete branch CI for the post-review head
 2. Under separate explicit approval, exclusively provision the fixed key and pin the expected key instance in a trusted record
 3. Confirm that read-only readiness is `ready`
 4. Run the holdout-free 100-parent gate and audit intermediate receipt and cleanup

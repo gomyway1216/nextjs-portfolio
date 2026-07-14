@@ -6,7 +6,7 @@
 
 ## 1. 今回閉じる境界
 
-この変更は、新しい探索や評価関数を作るのではなく、既存のproduction capability ownerを1つのtrusted composition boundaryへ接続する。source、focused test、full regressionは実装・通過済みだが、PR reviewとbranch CIはまだ`pending`である。したがって、現時点の到達点は「production connector sourceとlocal validationが存在する」であり、「production ready」や「real runが成功した」ではない。
+この変更は、新しい探索や評価関数を作るのではなく、既存のproduction capability ownerを1つのtrusted composition boundaryへ接続する。source、focused test、full regressionは実装・通過し、PR #456の重複2指摘も修正・解決済みだが、post-review headのbranch CIはまだ`pending`である。したがって、現時点の到達点は「production connector sourceとlocal validationが存在する」であり、「production ready」や「real runが成功した」ではない。
 
 | capability       | 既存owner                                             | connectorが行うこと                                              | 現在の実行証拠              |
 | ---------------- | ----------------------------------------------------- | ---------------------------------------------------------------- | --------------------------- |
@@ -128,17 +128,17 @@ owner receiptはshapeが似ているだけでは採用しない。coordinator ru
 
 resourceを「変数が見えるか」ではなく、「誰がterminal cleanupを行うか」で追う。
 
-| phase                           | connector ownership                                              | sink / consumer ownership                                  | terminal action                                                                        |
-| ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| capture / readiness             | none                                                             | none                                                       | fixed public failureだけを返す                                                         |
-| coordinator + stage startup     | fulfilled coordinatorとlease                                     | none                                                       | invalid-shaped genuine Promiseもsettleまで観測し、取得済みresourceをcaptureしてcleanup |
-| handoff                         | exact handoff lifecycle                                          | none                                                       | successは`close`、failureは`abortAndDrain`                                             |
-| key prepared                    | unclaimed opaque facade                                          | none                                                       | sink未到達なら`discard`                                                                |
-| consumer callback entry         | rows referenceを保持しない                                       | consumerがinput claim windowとdescriptorsを所有            | callbackはsinkを同期呼出し                                                             |
-| sink stage-claim failure        | lease ownershipはconnectorに残る                                 | sinkはprepared keyをdiscard                                | connectorがlease closeを完了                                                           |
-| sink stage-claim success        | close Promiseのjoinだけを行う                                    | sinkがlease / rows / keyをclaimしzeroize / close           | sink success / failureの両方でcleanup                                                  |
-| checkpoint + postflight success | checkpoint / postflight metadataだけ                             | consumerがsnapshot再検証とdescriptor close後にreceipt mint | connectorがpostflightをexactly once claim                                              |
-| final cleanup                   | unclaimed key no-op discard、lease close join、handoff lifecycle | none                                                       | lease / coordinator cleanupを両方startしてからall-settled join                         |
+| phase                           | connector ownership                                              | sink / consumer ownership                                  | terminal action                                                        |
+| ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
+| capture / readiness             | none                                                             | none                                                       | fixed public failureだけを返す                                         |
+| coordinator + stage startup     | fulfilled coordinatorとlease                                     | none                                                       | safe pin可能なinvalid Promiseをsettleまで観測し、取得resourceをcleanup |
+| handoff                         | exact handoff lifecycle                                          | none                                                       | successは`close`、failureは`abortAndDrain`                             |
+| key prepared                    | unclaimed opaque facade                                          | none                                                       | sink未到達なら`discard`                                                |
+| consumer callback entry         | rows referenceを保持しない                                       | consumerがinput claim windowとdescriptorsを所有            | callbackはsinkを同期呼出し                                             |
+| sink stage-claim failure        | lease ownershipはconnectorに残る                                 | sinkはprepared keyをdiscard                                | connectorがlease closeを完了                                           |
+| sink stage-claim success        | close Promiseのjoinだけを行う                                    | sinkがlease / rows / keyをclaimしzeroize / close           | sink success / failureの両方でcleanup                                  |
+| checkpoint + postflight success | checkpoint / postflight metadataだけ                             | consumerがsnapshot再検証とdescriptor close後にreceipt mint | connectorがpostflightをexactly once claim                              |
+| final cleanup                   | unclaimed key no-op discard、lease close join、handoff lifecycle | none                                                       | lease / coordinator cleanupを両方startしてからall-settled join         |
 
 `discardKey`はsinkが既にclaimしたcapabilityにはsafe no-opであり、未claimならstored derived keyをzeroizeする。`lease.close()`はsinkが開始したcloseと同じPromiseへjoinする。成功時はcoordinator `close()`、どこかにprimary / cleanup failureがあれば`abortAndDrain()`を選ぶ。key discardの後、lease closeとcoordinator close / abortを一方ずつawaitせず両方startし、all-settled joinで両結果を回収する。一方がhang / rejectしても、もう一方のterminal action開始を妨げない。
 
@@ -163,7 +163,7 @@ test coreだけは`observeFailureForTests`へraw primary / cleanup failuresを�
 
 connectorとtraining consumerは同じsafe native-Promise境界を使う。各内部Promiseのown `constructor`を、`Symbol.species`だけがcaptured native `Promise`を指すfrozen null-prototype holderへ固定し、own frozen `then`はcaptured `Promise.prototype.then`へ委譲する。そこから作られるPromiseも再帰的にpinするため、callerによるconstructor / species / then差替えを後続awaitやcleanupへ持ち込まない。
 
-shapeが不正でもgenuine native Promiseなら、public operationはfail closedのままcaptured native `then`でsettlementまで観測する。coordinator、stage lease、key authorizationがfulfillした場合は、その値をsuccess evidenceには使わずterminal cleanup専用にcaptureし、coordinator abort / close、lease close、key discardを実行する。invalid shapeを即rejectして取得済みresourceを見失うことはない。
+shapeが不正でも、own constructorをgetter / Proxy trapなしでsafe pinできるgenuine native Promiseなら、public operationはfail closedのままcaptured native `then`でsettlementまで観測する。coordinator、stage lease、key authorizationがfulfillした場合は、その値をsuccess evidenceには使わずterminal cleanup専用にcaptureし、coordinator abort / close、lease close、key discardを実行する。non-configurable unsafe constructorなどsafe pin不能なshapeはgetter / trapを実行せず即rejectし、隠されたresourceを回収できるとは主張しない。
 
 ## 8. public surfaceの漏洩を4面で閉じる
 
@@ -218,8 +218,8 @@ connector callbackが受けるroleは`training`だけで、rowsはexact 24,000 p
 | scoped ESLint                 | current connector branch               | `PASS`    | connector / consumer / readiness scope           |
 | JA / EN Prettier + diff-check | these two articles                     | `PASS`    | format / whitespace / structure checked          |
 | full Vitest                   | current connector branch               | `PASS`    | 117 files、2,119 / 2,119、`154.99 s`             |
-| PR review                     | connector PR                           | `pending` | PR未確定、review finding未集計                   |
-| branch required CI            | connector head                         | `pending` | head未確定                                       |
+| PR review                     | PR #456                                | `PASS`    | 重複2 threadsを`05c1c25`で修正・返信・解決       |
+| branch required CI            | post-review documentation head         | `pending` | documentation fix後のheadを未検証                |
 | base main CI                  | PR #455 merge `4067beec`               | `green`   | connector codeを含まないhistorical base evidence |
 | production Vercel             | current main deployment                | `green`   | live weight / connector activationは変更なし     |
 
@@ -227,7 +227,7 @@ readiness suiteはmissing parent / key、safe empty parent、wrong size、wrong 
 
 connector focused 57 / 57はexact composition、metadata capture、Promise pin / invalid settlement、callback join、parallel cleanup、retry disposition、receipt leak boundaryを検査する。training consumer focused 61 / 61もconstructor / species / then pinとcallback identity revocationを含む。これらはfocused regression evidenceであり、real production gateや棋力evidenceではない。
 
-full regressionは117 files・2,119 / 2,119で通過した。一方、PRとbranch CIは現時点で事実として`pending`である。base main green、local full green、focused 57 / 57と61 / 61、readiness 6 / 6をproduction execution evidenceへ読み替えない。
+full regressionは117 files・2,119 / 2,119で通過し、PR #456の重複2 threadsも解決した。一方、post-review documentation headのbranch CIは現時点で事実として`pending`である。base main green、local full green、focused 57 / 57と61 / 61、readiness 6 / 6をproduction execution evidenceへ読み替えない。
 
 ## 11. production execution 0とlive unchanged
 
@@ -269,7 +269,7 @@ raw `11.47 h`はstable proposerとstable moveがunionへ追加された場合の
 
 次の実行順序は次である。
 
-1. PR reviewとbranch CIを完了する
+1. post-review headのbranch CIを完了する
 2. 別の明示承認でfixed keyをexclusive provisionし、expected key instanceをtrusted recordへ固定する
 3. read-only readinessが`ready`であることを確認する
 4. holdoutを開かず100-parent gateを実行し、途中receiptとcleanupを監査する

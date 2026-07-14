@@ -17,6 +17,7 @@ function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
     const onError = (error: Error): void => {
       if (settled) return;
       settled = true;
+      stream.off("error", onError);
       reject(error);
     };
     stream.on("error", onError);

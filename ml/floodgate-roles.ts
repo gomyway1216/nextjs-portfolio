@@ -495,13 +495,6 @@ function phaseForPly(ply: number): FloodgateParentPhase {
   return phase.phase;
 }
 
-function hasIntersection(
-  values: readonly string[],
-  blocked: ReadonlySet<string>,
-): boolean {
-  return values.some((value) => blocked.has(value));
-}
-
 function addAll(target: Set<string>, values: readonly string[]): void {
   for (const value of values) target.add(value);
 }
@@ -686,8 +679,9 @@ function sampleGameParents(
   ): boolean => {
     if (selectedParentIds.has(parent.parent_id)) return false;
     if (
-      hasIntersection(parent.protected_position_ids, blocked) ||
-      hasIntersection(parent.protected_position_ids, localBlocked)
+      parent.protected_position_ids.some(
+        (id) => blocked.has(id) || localBlocked.has(id),
+      )
     )
       return false;
     selectedParentIds.add(parent.parent_id);

@@ -1,6 +1,6 @@
 # Shortening the 7 h 51 min Floodgate full-bundle verifier
 
-> Closing [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) still leaves a measured 7 h 51 min 20 s full-bundle verifier before the production connector. This note records that two role-lock replays explain about 99.4% of that wall time, while profiling identified the dominant avoidable cost inside those replays: the second one-game probe copying, sorting, serializing, and hashing a blocked-position-ID set that grows to about 2.97 million entries for every candidate. It replaces that work with a shared sampler that makes the same parent selection without generating the huge-blocked-Set artifact; strict zero-quota normalization remains. Source, 40 focused tests, and a reproducible benchmark pass locally; optimized production full verification, PR, and CI remain **pending / 0**. No real teacher, training, weight, live evaluation, match, or playing-strength claim is created. Japanese version: [blog-shogi-floodgate-role-probe-acceleration.md](./blog-shogi-floodgate-role-probe-acceleration.md)
+> Closing [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.en.md) still leaves a measured 7 h 51 min 20 s full-bundle verifier before the production connector. This note records that two role-lock replays explain about 99.4% of that wall time, while profiling identified the dominant avoidable cost inside those replays: the second one-game probe copying, sorting, serializing, and hashing a blocked-position-ID set that grows to about 2.97 million entries for every candidate. It replaces that work with a shared sampler that makes the same parent selection without generating the huge-blocked-Set artifact; strict zero-quota normalization remains. Source, 40 focused tests, and a reproducible benchmark pass locally; the two duplicate review comments on ready PR #460 are fixed; optimized production full verification remains **0**. No real teacher, training, weight, live evaluation, match, or playing-strength claim is created. Japanese version: [blog-shogi-floodgate-role-probe-acceleration.md](./blog-shogi-floodgate-role-probe-acceleration.md)
 
 ## 1. Current status
 
@@ -13,12 +13,13 @@
 | Optimized sampler source                 | Implemented                | Does not iterate, clone, or mutate the global Set     |
 | Focused source + benchmark tests         | 40 / 40 PASS               | Strict decode, rollback, retry, parity, harness       |
 | Related suites                           | 14 files / 364 PASS        | Role lock, bundle, consumer, and connector            |
-| Full Vitest regression                   | 120 files / 2,165 PASS     | Eight workers / 143.33 s                              |
+| Full Vitest regression                   | 120 files / 2,165 PASS     | Eight workers / 146.93 s                              |
 | Python stdlib                            | 58 / 58 PASS               | py_compile plus unittest                              |
 | TypeScript                               | PASS                       | Current local diff                                    |
 | ESLint / targeted format / diff          | PASS                       | Existing role-lock whole-file drift excluded          |
 | Production build / npm audit             | PASS / 0 vulns             | Full lint: 0 errors / 157 existing warnings           |
 | Independent final review                 | PASS                       | Two reviews; P0 = P1 = P2 = 0                         |
+| Ready PR #460 review                     | 2 duplicate / fixed        | One-pass union check over protected IDs               |
 | Optimized production full verification   | 0                          | Not yet run against the real bundle                   |
 | Teacher / training / weight / live       | 0 / 0 / 0 / unchanged      | This is not playing-strength evidence                 |
 
@@ -43,14 +44,14 @@ The checked-in harness ran on an Apple M4 Pro with 48 GB and Node `v22.13.0`. It
 
 | Blocked IDs | Emulated removed full probe | New sampler |   Speedup | Exact parent parity |
 | ----------: | --------------------------: | ----------: | --------: | ------------------: |
-|           0 |                    2.842 ms |    2.763 ms |     1.03x |                true |
-|      10,000 |                   50.131 ms |    3.695 ms |    13.57x |                true |
-|      50,000 |                  277.091 ms |    3.672 ms |    75.46x |                true |
-|     100,000 |                  588.496 ms |    3.706 ms |   158.79x |                true |
-|     250,000 |                1,640.254 ms |    3.538 ms |   463.68x |                true |
-|   1,000,000 |                8,272.226 ms |    3.674 ms | 2,251.83x |                true |
+|           0 |                    3.439 ms |    2.636 ms |     1.30x |                true |
+|      10,000 |                   48.619 ms |    3.596 ms |    13.52x |                true |
+|      50,000 |                  258.069 ms |    3.574 ms |    72.22x |                true |
+|     100,000 |                  554.174 ms |    3.693 ms |   150.06x |                true |
+|     250,000 |                1,614.940 ms |    3.782 ms |   427.00x |                true |
+|   1,000,000 |                8,251.390 ms |    3.744 ms | 2,203.69x |                true |
 
-All six sizes produced parent-projection SHA-256 `8a7bee9b...40cb3f0`. The command was `npm run shogi:floodgate-role-probe-benchmark -- --sizes 0,10000,50000,100000,250000,1000000 --samples 4`; [the data JSON](./data/floodgate-role-probe-benchmark-2026-07-14.json) preserves every raw sample plus the method, runtime, and fixture hashes. This parity is between the current full-artifact wrapper and the direct shared sampler, not two independent algorithms. The final pure oracle and integration tests retain independent authority. This microbenchmark is not itself a full-verifier ETA.
+All six sizes produced parent-projection SHA-256 `8a7bee9b...40cb3f0`. The command was `npm run shogi:floodgate-role-probe-benchmark -- --sizes 0,10000,50000,100000,250000,1000000 --samples 4`; [the data JSON](./data/floodgate-role-probe-benchmark-2026-07-14.json) preserves every raw sample plus the method, runtime, and fixture hashes. The raw data was remeasured after duplicate PR feedback collapsed the global/local membership checks into one union pass. This parity is between the current full-artifact wrapper and the direct shared sampler, not two independent algorithms. The final pure oracle and integration tests retain independent authority. This microbenchmark is not itself a full-verifier ETA.
 
 An earlier random-order synthetic attributed 1.412 s of a 1.525 s 250,000-ID run to the two sorts alone, or 92.6%. That result and the worker-count comparison were exploratory one-shot runs whose source command and raw log were not preserved in the repository; they are not gating evidence.
 

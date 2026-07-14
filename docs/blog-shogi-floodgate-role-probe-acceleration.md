@@ -1,6 +1,6 @@
 # Floodgate full-bundle verifierの7時間51分を縮める
 
-> [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)を閉じても、production connectorの前には実測7時間51分20秒のfull-bundle verifierが残る。本稿は、2回のrole-lock replayがその約99.4%を説明すること、その内部では最大約297万件へ成長するblocked position ID集合を候補ごとにcopy・sort・serialize・hashする2度目のone-game probeが支配的な除去可能costであることをprofileし、同じparent selectionを巨大blocked Setのartifact生成なしで行う共有samplerへ置換する実装記録である。strict zero-quota normalizationは残す。source、focused 40 tests、再現可能benchmarkはlocal PASSで、optimized production full verifier、PR、CIは**pending / 0**である。real teacher、training、weight、live evaluation、対局、棋力のclaimは生じない。English version: [blog-shogi-floodgate-role-probe-acceleration.en.md](./blog-shogi-floodgate-role-probe-acceleration.en.md)
+> [deployment-key instance enrollment](./blog-shogi-floodgate-v7-deployment-key-instance-enrollment.md)を閉じても、production connectorの前には実測7時間51分20秒のfull-bundle verifierが残る。本稿は、2回のrole-lock replayがその約99.4%を説明すること、その内部では最大約297万件へ成長するblocked position ID集合を候補ごとにcopy・sort・serialize・hashする2度目のone-game probeが支配的な除去可能costであることをprofileし、同じparent selectionを巨大blocked Setのartifact生成なしで行う共有samplerへ置換する実装記録である。strict zero-quota normalizationは残す。source、focused 40 tests、再現可能benchmarkはlocal PASS、ready PR #460の重複2 review commentsは修正済みで、optimized production full verifierは**0**である。real teacher、training、weight、live evaluation、対局、棋力のclaimは生じない。English version: [blog-shogi-floodgate-role-probe-acceleration.en.md](./blog-shogi-floodgate-role-probe-acceleration.en.md)
 
 ## 1. 現在地
 
@@ -13,12 +13,13 @@
 | optimized sampler source           | implemented            | global Setをiterate / clone / mutateしない           |
 | focused source + benchmark tests   | 40 / 40 PASS           | strict decode、rollback、retry、parity、harness      |
 | related suites                     | 14 files / 364 PASS    | role-lock / bundle / consumer / connector            |
-| full Vitest regression             | 120 files / 2,165 PASS | 8 workers / 143.33 s                                 |
+| full Vitest regression             | 120 files / 2,165 PASS | 8 workers / 146.93 s                                 |
 | Python stdlib                      | 58 / 58 PASS           | py_compile + unittest                                |
 | TypeScript                         | PASS                   | current local diff                                   |
 | ESLint / targeted format / diff    | PASS                   | role-lockの既存whole-file driftは除外                |
 | production build / npm audit       | PASS / 0 vulns         | full lintは0 errors / 既存157 warnings               |
 | independent final review           | PASS                   | 2 reviews / P0 = P1 = P2 = 0                         |
+| ready PR #460 review               | 2 duplicate / fixed    | protected IDsを1-passでunion check                   |
 | optimized production full verify   | 0                      | real bundleではまだ未実行                            |
 | teacher / training / weight / live | 0 / 0 / 0 / unchanged  | 棋力evidenceではない                                 |
 
@@ -43,14 +44,14 @@ Apple M4 Pro、48 GB、Node `v22.13.0`でchecked-in harnessを実行した。fix
 
 | blocked IDs | emulated removed full probe | new sampler |   speedup | exact parent parity |
 | ----------: | --------------------------: | ----------: | --------: | ------------------: |
-|           0 |                    2.842 ms |    2.763 ms |     1.03x |                true |
-|      10,000 |                   50.131 ms |    3.695 ms |    13.57x |                true |
-|      50,000 |                  277.091 ms |    3.672 ms |    75.46x |                true |
-|     100,000 |                  588.496 ms |    3.706 ms |   158.79x |                true |
-|     250,000 |                1,640.254 ms |    3.538 ms |   463.68x |                true |
-|   1,000,000 |                8,272.226 ms |    3.674 ms | 2,251.83x |                true |
+|           0 |                    3.439 ms |    2.636 ms |     1.30x |                true |
+|      10,000 |                   48.619 ms |    3.596 ms |    13.52x |                true |
+|      50,000 |                  258.069 ms |    3.574 ms |    72.22x |                true |
+|     100,000 |                  554.174 ms |    3.693 ms |   150.06x |                true |
+|     250,000 |                1,614.940 ms |    3.782 ms |   427.00x |                true |
+|   1,000,000 |                8,251.390 ms |    3.744 ms | 2,203.69x |                true |
 
-全6 sizesでparent projection SHA-256は`8a7bee9b...40cb3f0`と一致した。コマンドは`npm run shogi:floodgate-role-probe-benchmark -- --sizes 0,10000,50000,100000,250000,1000000 --samples 4`、全raw samplesとmethod / runtime / fixture hashesは[data JSON](./data/floodgate-role-probe-benchmark-2026-07-14.json)に保存した。このparityはcurrent full-artifact wrapperとdirect shared sampler間であり、2つの独立algorithm間ではない。独立authorityはfinal pure oracleとintegration testsに残る。また、これはfull verifier ETAそのものではない。
+全6 sizesでparent projection SHA-256は`8a7bee9b...40cb3f0`と一致した。コマンドは`npm run shogi:floodgate-role-probe-benchmark -- --sizes 0,10000,50000,100000,250000,1000000 --samples 4`、全raw samplesとmethod / runtime / fixture hashesは[data JSON](./data/floodgate-role-probe-benchmark-2026-07-14.json)に保存した。このraw dataはPR reviewの重複指摘でglobal / local membershipを1-pass union checkにまとめた後に再計測した。このparityはcurrent full-artifact wrapperとdirect shared sampler間であり、2つの独立algorithm間ではない。独立authorityはfinal pure oracleとintegration testsに残る。また、これはfull verifier ETAそのものではない。
 
 先行調査のrandom-order syntheticでは250,000 IDsの1.525秒中、2回のsortだけで1.412秒、92.6%だった。これとworker数比較はsource command / raw logをrepositoryに保存しないexploratory one-shotで、gating evidenceには使わない。
 

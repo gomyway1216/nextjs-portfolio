@@ -1,0 +1,263 @@
+{
+  "schema": "shogi-floodgate-v7-offline-connector-gate-contract-composition-evidence-v1",
+  "generated_at": "2026-07-14T23:50:02Z",
+  "evidence_scope": {
+    "evidence_class": "local-validation-independent-security-review-and-deterministic-protocol-capture",
+    "base_revision": "3150c662e77d4d4ceb719bc6f022677ad2b25149",
+    "implementation_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+    "protocol_result": {
+      "path": "ml/protocols/floodgate-v7-offline-connector-gate-contract-composition-04f6dad-result.json",
+      "bytes": 6254,
+      "sha256": "f66f1b6745626a22d22c1e2e484b4bb674e6d57f65ae7138e60f621a0be6505f"
+    },
+    "module_source_loading_excluded_from_application_data_io_counts": true,
+    "shared_modules_may_code_load_production_wrappers_and_dependency_definitions": true,
+    "remote_ci_results_included": false,
+    "absolute_local_paths_included": false
+  },
+  "deterministic_execution": {
+    "status": "pass",
+    "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+    "fresh_processes": 4,
+    "successful_processes": 4,
+    "exit_codes": [0, 0, 0, 0],
+    "byte_identical": true,
+    "result_bytes": 6254,
+    "result_sha256": "f66f1b6745626a22d22c1e2e484b4bb674e6d57f65ae7138e60f621a0be6505f"
+  },
+  "validation": {
+    "offline_connector_gate_runner_focused": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "node_version": "v22.13.0",
+      "files": 1,
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "vitest_duration_seconds": 1.49,
+      "command_wall_seconds": 1.85,
+      "maximum_resident_set_size_bytes": 316293120
+    },
+    "row_consumer_three_file_regression": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "files": 3,
+      "tests": 73,
+      "passed": 73,
+      "failed": 0,
+      "vitest_duration_seconds": 2.02
+    },
+    "related_vitest": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "node_version": "v22.13.0",
+      "npm_version": "11.14.1",
+      "files": 12,
+      "tests": 449,
+      "passed": 449,
+      "failed": 0,
+      "workers": 6,
+      "vitest_duration_seconds": 154.26,
+      "command_wall_seconds": 154.88,
+      "maximum_resident_set_size_bytes": 4280254464,
+      "exit_code": 0
+    },
+    "typescript": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "diagnostics": 0,
+      "command_wall_seconds": 3.16,
+      "maximum_resident_set_size_bytes": 1082179584,
+      "exit_code": 0
+    },
+    "full_eslint": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "errors": 0,
+      "warnings": 157,
+      "command_wall_seconds": 28.75,
+      "maximum_resident_set_size_bytes": 1343275008
+    },
+    "prettier": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "command_wall_seconds": 1.39,
+      "maximum_resident_set_size_bytes": 161300480
+    },
+    "full_vitest": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "node_version": "v22.13.0",
+      "npm_version": "11.14.1",
+      "files": 123,
+      "tests": 2257,
+      "passed": 2257,
+      "failed": 0,
+      "workers": 6,
+      "vitest_duration_seconds": 179.26,
+      "command_wall_seconds": 179.92,
+      "maximum_resident_set_size_bytes": 3310829568,
+      "exit_code": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "command_wall_seconds": 34.13,
+      "maximum_resident_set_size_bytes": 2549137408,
+      "edge_runtime_warnings": 1,
+      "handled_build_time_log_categories": ["Firebase", "DYNAMIC_SERVER_USAGE"],
+      "terminal_errors": 0
+    },
+    "python_stdlib": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "command_wall_seconds": 0.89,
+      "maximum_resident_set_size_bytes": 65011712
+    },
+    "npm_audit": {
+      "status": "pass",
+      "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "command_wall_seconds": 0.97,
+      "maximum_resident_set_size_bytes": 134791168
+    }
+  },
+  "security_review": {
+    "status": "pass",
+    "capture_revision": "04f6dad7cd35737c9d7e9f67e85cb98afd418f43",
+    "final_open_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "named_production_entrypoint_imports": 0,
+    "named_production_entrypoint_calls": 0,
+    "trap_observation": {
+      "scope": "enumerated-application-public-apis",
+      "unexpected_calls": 0,
+      "general_syscall_sandbox": false,
+      "infrastructure_operations_observed_nonzero": {
+        "tsx_loader_source_reads": true,
+        "tsx_loader_config_reads": true,
+        "worker_creation": true,
+        "effective_id_lookup": true,
+        "parent_ipc": true
+      }
+    }
+  },
+  "intermediate_non_gating_attempts": {
+    "gating": false,
+    "evidence_role": "supporting-only",
+    "permission_model_setup_failure_count": 3,
+    "permission_model_setup_failures": [
+      {
+        "attempt": 1,
+        "outcome": "permission-denied",
+        "failure": "tsx-cache-mkdir-write-denied"
+      },
+      {
+        "attempt": 2,
+        "outcome": "permission-denied",
+        "failure": "case-sensitivity-probe-uppercase-read-denied"
+      },
+      {
+        "attempt": 3,
+        "outcome": "permission-denied",
+        "failure": "esbuild-worker-threads-denied"
+      }
+    ],
+    "final_permission_setup": {
+      "gating": false,
+      "evidence_role": "supporting-only",
+      "outcome": "exit-0-with-security-warning",
+      "exit_code": 0,
+      "tsx_disable_cache": true,
+      "repository_read_allowed": true,
+      "uppercase_path_read_allowed": true,
+      "worker_threads_allowed": true,
+      "security_warning_observed": true
+    },
+    "wrong_runtime_attempts": {
+      "gating": false,
+      "default_node_version": "v20.14.0",
+      "package_supported_node_range": ">=22.13.0 <24",
+      "attempts": [
+        {
+          "suite": "full_vitest",
+          "node_version": "v20.14.0",
+          "outcome": "structuredClone-failure-and-aborted",
+          "command_wall_seconds": 266.71,
+          "maximum_resident_set_size_bytes": 3891511296
+        },
+        {
+          "suite": "related_vitest_initial_invocation",
+          "node_version": "v20.14.0",
+          "outcome": "discarded-and-restarted-under-supported-runtime"
+        }
+      ]
+    }
+  },
+  "operational_status": {
+    "pull_request": {
+      "status": "pending"
+    },
+    "continuous_integration": {
+      "status": "pending"
+    },
+    "merge": {
+      "status": "pending"
+    }
+  },
+  "nonclaims": {
+    "operation_count_scope": "runner-application-operations-excluding-test-harness-and-module-loader-infrastructure",
+    "production_approved_record_loader_calls": 0,
+    "production_approved_record_claim_calls": 0,
+    "production_deployment_key_authority_calls": 0,
+    "production_connector_invocations": {
+      "durable_prefix_100": 0,
+      "durable_prefix_500": 0,
+      "sealed_final_24000": 0
+    },
+    "actual_home_approved_record_opens": 0,
+    "actual_key_or_control_plane_record_access": false,
+    "actual_deployment_key_file_opens": 0,
+    "actual_deployment_key_bytes_read": 0,
+    "actual_dataset_file_opens": 0,
+    "dataset_read": false,
+    "actual_checkpoint_artifact_reads": 0,
+    "actual_checkpoint_artifact_writes": 0,
+    "network_requests": 0,
+    "child_processes": 0,
+    "production_approval": false,
+    "production_gate_authorization": false,
+    "production_checkpoint": false,
+    "filesystem_durability_or_resume": false,
+    "actual_resume_observed": false,
+    "teacher_labels": 0,
+    "teacher_label": false,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "optimizer_training": false,
+    "candidate_weight_artifacts": 0,
+    "production_weight_overwrites": 0,
+    "weights_changed": false,
+    "live_evaluation_function": "unchanged",
+    "live_weight": "unchanged",
+    "live_evaluation_activation": false,
+    "formal_matches": 0,
+    "match": false,
+    "playing_strength_established": false,
+    "rating_established": false,
+    "stable_high_dan_established": false
+  }
+}

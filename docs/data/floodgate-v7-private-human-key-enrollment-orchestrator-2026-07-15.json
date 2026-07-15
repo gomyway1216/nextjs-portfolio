@@ -1,0 +1,249 @@
+{
+  "schema": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-evidence-v1",
+  "generated_at": "2026-07-15T21:57:51Z",
+  "evidence_scope": {
+    "evidence_class": "local-implementation-validation-independent-review-and-production-nonexecution",
+    "base_merge_revision": "6344ceaac6e6485e205f610fdbf612a7d5450d56",
+    "implementation_revision": "b64ce4604fb91a908e5e7d033b2545d49d2cef2a",
+    "branch": "codex/floodgate-v7-private-enrollment-orchestrator",
+    "node_version": "22.13.0",
+    "production_orchestrator_executed": false,
+    "production_ui_opened": false,
+    "production_state_reobserved_by_this_revision": false
+  },
+  "implementation": {
+    "files_changed": 12,
+    "insertions": 5883,
+    "deletions": 0,
+    "file_stats_scope": "base-merge-to-implementation-revision-package-json-ml-and-tests-excluding-docs",
+    "private_review_request_contract": "shogi-floodgate-v7-private-human-key-review-request-v1",
+    "private_review_response_contract": "shogi-floodgate-v7-private-human-key-review-response-v1",
+    "orchestrator_contract": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-v1",
+    "current_binding_contract": "shogi-floodgate-v7-approved-key-current-binding-preflight-v1",
+    "private_ui": {
+      "platform": "macos-appkit-jxa",
+      "fixed_executable": "system-osascript",
+      "candidate_transport": "bounded-child-stdin-pipe-only",
+      "decision_transport": "bounded-child-stdout-pipe-only",
+      "candidate_in_argv": false,
+      "candidate_in_environment": false,
+      "candidate_in_tty": false,
+      "candidate_in_temporary_file": false,
+      "candidate_in_clipboard": false,
+      "candidate_in_log": false,
+      "candidate_in_public_stream": false,
+      "displays_exact_canonical_jsonl": true,
+      "displays_terminal_lf": true,
+      "displays_utf8_byte_count": true,
+      "displays_final_byte_0a": true,
+      "displays_terminal_lf_count_one": true,
+      "displays_full_sha256": true,
+      "requires_exact_64_lowercase_hex_typeback": true,
+      "candidate_json_plain_record_required_before_spawn": true,
+      "synchronous_stdin_end_failure_zeroized_before_force_failure": true,
+      "bounded_stderr_bytes": 1024,
+      "bounded_stderr_retained": false,
+      "node_pipe_buffers_zeroized": true,
+      "native_helper_string_copies_zeroized": false
+    },
+    "workflow": {
+      "valid_existing_record_stops_before_ui": true,
+      "verified_absence_safe_held_traversal": true,
+      "verified_absence_exact_missing_path_revalidated": true,
+      "verified_absence_unsafe_or_indeterminate_fails_closed": true,
+      "fresh_candidate_reinspection_after_human_approval": true,
+      "approval_id_entropy_bytes": 32,
+      "approval_timestamp_after_human_approval": true,
+      "create_only_installer_called_directly": true,
+      "installed_claim_exactly_revalidated": true,
+      "fresh_current_key_binding_revalidated": true,
+      "run_authority_issued": false,
+      "stage_authority_issued": false,
+      "connector_authority_issued": false
+    },
+    "failure_boundary": {
+      "typed_phase": true,
+      "typed_durability": true,
+      "typed_may_have_committed": true,
+      "typed_retry_disposition": true,
+      "installer_metadata_runtime_allowlisted": true,
+      "post_install_output_failure_is_do_not_retry": true,
+      "record_or_binding_mismatch_requires_manual_reconciliation": true
+    },
+    "atomicity_and_trust": {
+      "supported_key_writer_create_only_no_clobber": true,
+      "supported_key_rotation_api_present": false,
+      "atomic_key_and_record_commit_claimed": false,
+      "concurrent_out_of_band_key_rotation_excluded": true,
+      "future_rotation_api_requires_shared_lock_or_atomic_binding": true
+    }
+  },
+  "validation": {
+    "related_vitest": {
+      "status": "pass",
+      "files": 7,
+      "tests": 138,
+      "passed": 138,
+      "failed": 0
+    },
+    "private_ui_vitest": {
+      "status": "pass",
+      "tests": 24,
+      "passed": 24,
+      "failed": 0
+    },
+    "orchestrator_and_verified_absence_vitest": {
+      "status": "pass",
+      "tests": 53,
+      "passed": 53,
+      "failed": 0
+    },
+    "authoritative_full_vitest": {
+      "status": "pass",
+      "command_worker_limit": 4,
+      "files": 130,
+      "tests": 2436,
+      "passed": 2436,
+      "failed": 0,
+      "vitest_duration_seconds": 144.22,
+      "command_wall_seconds": 145.06,
+      "maximum_resident_set_size_bytes": 4285464576,
+      "swaps": 0
+    },
+    "excluded_default_worker_attempts": [
+      {
+        "status": "excluded-not-authoritative",
+        "passed": 2433,
+        "failed": 1,
+        "failed_test_file": "tests/unit/ml/floodgateStableProposalFinalizationResume.test.ts",
+        "isolated_rerun_passed": 11,
+        "isolated_rerun_failed": 0
+      },
+      {
+        "status": "excluded-not-authoritative",
+        "passed": 2433,
+        "failed": 1,
+        "failed_test_file": "tests/unit/ml/floodgateStableWasmProposer.test.ts",
+        "isolated_rerun_passed": 53,
+        "isolated_rerun_failed": 0
+      }
+    ],
+    "initial_pull_request_ci_before_review_fix_push": {
+      "head_revision": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+      "status": "failed-test-fixture-assumption-fixed-locally",
+      "passed": 2419,
+      "skipped": 14,
+      "failed": 1,
+      "failed_test_file": "tests/unit/ml/floodgateV7ApprovedKeyCurrentBinding.test.ts",
+      "cause": "unlink-and-recreate-did-not-guarantee-a-new-inode-on-linux",
+      "fix_revision": "b64ce4604fb91a908e5e7d033b2545d49d2cef2a",
+      "fixed_fixture_targeted_tests_passed": 8,
+      "rerun_status_at_capture": "pending-push"
+    },
+    "production_build": {
+      "status": "pass",
+      "turbopack_compile_seconds": 9.1,
+      "typescript_seconds": 18.3,
+      "static_pages_generated": 193,
+      "static_pages_total": 193,
+      "command_wall_seconds": 29.87,
+      "maximum_resident_set_size_bytes": 2559213568,
+      "swaps": 0
+    },
+    "typescript": {
+      "status": "pass",
+      "diagnostics": 0
+    },
+    "scoped_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "full_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "existing_warnings": 157,
+      "command_wall_seconds": 24.71,
+      "maximum_resident_set_size_bytes": 2395570176,
+      "swaps": 0
+    },
+    "prettier": {
+      "status": "pass",
+      "version": "3.6.2"
+    },
+    "jxa_osacompile": {
+      "status": "pass"
+    },
+    "python_stdlib": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0
+    },
+    "independent_reviews": {
+      "security": "pass",
+      "functional": "pass",
+      "adversarial_ui": "pass",
+      "pull_request_findings_addressed_locally": 2,
+      "pull_request_sync_stdin_end_zeroization_finding_addressed": true,
+      "pull_request_non_plain_candidate_prelaunch_finding_addressed": true,
+      "open_p0": 0,
+      "open_p1": 0,
+      "open_p2": 0
+    }
+  },
+  "production_counters": {
+    "basis": "timestamped-snapshot-from-previous-sanitized-evidence-plus-zero-production-invocations-in-this-revision-without-fresh-production-state-reobservation",
+    "private_ui_opened": 0,
+    "human_approvals": 0,
+    "approved_records_installed": 0,
+    "production_current_binding_successes": 0,
+    "connector_runs": 0,
+    "real_parent_records": 0,
+    "teacher_labels": 0,
+    "training_runs": 0,
+    "candidate_weights": 0,
+    "live_weight_activations": 0,
+    "formal_matches": 0,
+    "playing_strength_claims": 0
+  },
+  "delivery": {
+    "snapshot_basis": "local-and-remote-state-at-generated-at-before-this-evidence-update-is-pushed",
+    "implementation_commit_created": true,
+    "initial_documentation_commit_created": true,
+    "initial_documentation_commit_revision": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+    "final_evidence_update_committed_at_capture": false,
+    "pull_request_created_at_capture": true,
+    "pull_request_number": 468,
+    "pull_request_head_revision_at_capture": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+    "github_review_threads_open_at_capture": 2,
+    "review_fix_push_pending_at_capture": true,
+    "pull_request_body_update_pending_at_capture": true,
+    "remote_ci_at_capture": "initial-head-failed-deterministic-inode-fixture-fixed-locally-rerun-pending",
+    "regular_merge_at_capture": "pending"
+  },
+  "next_sequence": [
+    "publish-this-revision-containing-review-fixes-then-await-ci-rerun-resolve-threads-and-regular-merge-ready-pr-468",
+    "run-one-private-human-review-create-only-install-and-postflights",
+    "implement-review-and-regular-merge-audited-production-connector-runner",
+    "run-real-prefix-100-then-500-then-24000",
+    "train-multiple-seeds-select-on-sealed-holdout-and-run-color-swapped-ab",
+    "stage-live-activation-with-rollback-only-after-formal-evidence"
+  ],
+  "redactions": {
+    "candidate_canonical_json_included": false,
+    "candidate_sha256_included": false,
+    "key_instance_id_included": false,
+    "approval_id_included": false,
+    "approval_timestamp_included": false,
+    "owner_uid_included": false,
+    "absolute_user_or_workspace_paths_included": false,
+    "filesystem_device_or_inode_included": false,
+    "key_material_included": false,
+    "ui_response_included": false
+  }
+}

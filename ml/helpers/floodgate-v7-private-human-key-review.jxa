@@ -1,0 +1,332 @@
+"use strict";
+
+ObjC.import("Foundation");
+ObjC.import("AppKit");
+
+const REQUEST_CONTRACT =
+  "shogi-floodgate-v7-private-human-key-review-request-v1";
+const RESPONSE_CONTRACT =
+  "shogi-floodgate-v7-private-human-key-review-response-v1";
+const REQUEST_KEYS = [
+  "contract",
+  "candidate_canonical_json",
+  "candidate_sha256",
+  "candidate_bytes",
+];
+const MAX_PRIVATE_REQUEST_BYTES = 196608;
+const MAX_CANDIDATE_BYTES = 65536;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+function fail() {
+  throw new Error("Floodgate v7 private human review helper failed.");
+}
+
+function readBoundedStandardInput() {
+  const input = $.NSFileHandle.fileHandleWithStandardInput;
+  const accumulated = $.NSMutableData.data;
+
+  while (true) {
+    const currentLength = Number(accumulated.length);
+    if (currentLength > MAX_PRIVATE_REQUEST_BYTES) {
+      fail();
+    }
+
+    const remainingThroughLimit = MAX_PRIVATE_REQUEST_BYTES + 1 - currentLength;
+    const nextLength = Math.min(8192, remainingThroughLimit);
+    const chunk = input.readDataOfLength(nextLength);
+    const chunkLength = Number(chunk.length);
+
+    if (chunkLength === 0) {
+      return accumulated;
+    }
+
+    accumulated.appendData(chunk);
+    if (Number(accumulated.length) > MAX_PRIVATE_REQUEST_BYTES) {
+      fail();
+    }
+  }
+}
+
+function decodeUtf8(data) {
+  const decoded = $.NSString.alloc.initWithDataEncoding(
+    data,
+    $.NSUTF8StringEncoding,
+  );
+  if (!decoded) {
+    fail();
+  }
+  return String(ObjC.unwrap(decoded));
+}
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    fail();
+  }
+}
+
+function isPlainRecord(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function hasExactOrderedKeys(value, expectedKeys) {
+  const actualKeys = Object.keys(value);
+  if (actualKeys.length !== expectedKeys.length) {
+    return false;
+  }
+
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    if (actualKeys[index] !== expectedKeys[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isSingleTerminatedLine(text) {
+  return (
+    text.length > 1 &&
+    text.charAt(text.length - 1) === "\n" &&
+    text.indexOf("\r") === -1 &&
+    text.indexOf("\n") === text.length - 1
+  );
+}
+
+function utf8Length(text) {
+  return Number($(text).lengthOfBytesUsingEncoding($.NSUTF8StringEncoding));
+}
+
+function validateCandidate(candidate, expectedBytes) {
+  if (!isSingleTerminatedLine(candidate)) {
+    fail();
+  }
+
+  const actualBytes = utf8Length(candidate);
+  if (
+    actualBytes < 2 ||
+    actualBytes > MAX_CANDIDATE_BYTES ||
+    actualBytes !== expectedBytes
+  ) {
+    fail();
+  }
+
+  const candidateLine = candidate.slice(0, -1);
+  const parsedCandidate = parseJson(candidateLine);
+  if (!isPlainRecord(parsedCandidate)) {
+    fail();
+  }
+
+  if (JSON.stringify(parsedCandidate) !== candidateLine) {
+    fail();
+  }
+}
+
+function readAndValidateRequest() {
+  const data = readBoundedStandardInput();
+  const dataLength = Number(data.length);
+  if (dataLength < 2 || dataLength > MAX_PRIVATE_REQUEST_BYTES) {
+    fail();
+  }
+
+  const requestText = decodeUtf8(data);
+  if (!isSingleTerminatedLine(requestText)) {
+    fail();
+  }
+
+  const requestLine = requestText.slice(0, -1);
+  const request = parseJson(requestLine);
+  if (
+    !isPlainRecord(request) ||
+    !hasExactOrderedKeys(request, REQUEST_KEYS) ||
+    JSON.stringify(request) !== requestLine
+  ) {
+    fail();
+  }
+
+  if (
+    request.contract !== REQUEST_CONTRACT ||
+    typeof request.candidate_canonical_json !== "string" ||
+    typeof request.candidate_sha256 !== "string" ||
+    !SHA256_PATTERN.test(request.candidate_sha256) ||
+    !Number.isSafeInteger(request.candidate_bytes) ||
+    request.candidate_bytes < 2 ||
+    request.candidate_bytes > MAX_CANDIDATE_BYTES
+  ) {
+    fail();
+  }
+
+  validateCandidate(request.candidate_canonical_json, request.candidate_bytes);
+  return request;
+}
+
+function makeStaticLabel(text, frame, font) {
+  const label = $.NSTextField.alloc.initWithFrame(frame);
+  label.setStringValue($(text));
+  label.setEditable(false);
+  label.setSelectable(false);
+  label.setBezeled(false);
+  label.setDrawsBackground(false);
+  if (font) {
+    label.setFont(font);
+  }
+  return label;
+}
+
+function makeCandidateView(candidate) {
+  const scrollView = $.NSScrollView.alloc.initWithFrame(
+    $.NSMakeRect(0, 228, 820, 280),
+  );
+  scrollView.setBorderType($.NSBezelBorder);
+  scrollView.setHasVerticalScroller(true);
+  scrollView.setHasHorizontalScroller(true);
+  scrollView.setAutohidesScrollers(false);
+
+  const textView = $.NSTextView.alloc.initWithFrame(
+    $.NSMakeRect(0, 0, 100000, 280),
+  );
+  textView.setString($(candidate));
+  textView.setFont($.NSFont.userFixedPitchFontOfSize(11));
+  textView.setEditable(false);
+  textView.setSelectable(false);
+  textView.setRichText(false);
+  textView.setHorizontallyResizable(true);
+  textView.setVerticallyResizable(true);
+  textView.setMinSize($.NSMakeSize(0, 280));
+  textView.setMaxSize($.NSMakeSize(100000, 100000));
+  textView.textContainer.setWidthTracksTextView(false);
+  textView.textContainer.setContainerSize($.NSMakeSize(100000, 100000));
+
+  scrollView.setDocumentView(textView);
+  return scrollView;
+}
+
+function buildReviewAlert(request) {
+  const application = $.NSApplication.sharedApplication;
+  application.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
+
+  const alert = $.NSAlert.alloc.init;
+  alert.setAlertStyle($.NSAlertStyleWarning);
+  alert.setMessageText($("Review the exact private key candidate"));
+  alert.setInformativeText(
+    $(
+      "Approval is recorded only after the complete displayed lower-case SHA-256 is re-entered exactly.",
+    ),
+  );
+  alert.addButtonWithTitle($("Approve exact candidate"));
+  alert.addButtonWithTitle($("Cancel"));
+
+  const accessory = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, 820, 540));
+  const standardFont = $.NSFont.systemFontOfSize(12);
+  const fixedFont = $.NSFont.userFixedPitchFontOfSize(12);
+
+  accessory.addSubview(
+    makeStaticLabel(
+      "Exact canonical candidate (the final blank row is its terminal LF):",
+      $.NSMakeRect(0, 514, 820, 20),
+      standardFont,
+    ),
+  );
+  accessory.addSubview(makeCandidateView(request.candidate_canonical_json));
+  accessory.addSubview(
+    makeStaticLabel(
+      `candidate_bytes = ${request.candidate_bytes}    final byte = 0A    terminal LF count = 1`,
+      $.NSMakeRect(0, 196, 820, 22),
+      fixedFont,
+    ),
+  );
+  accessory.addSubview(
+    makeStaticLabel(
+      "Full lower-case SHA-256:",
+      $.NSMakeRect(0, 158, 820, 20),
+      standardFont,
+    ),
+  );
+  accessory.addSubview(
+    makeStaticLabel(
+      request.candidate_sha256,
+      $.NSMakeRect(0, 132, 820, 22),
+      fixedFont,
+    ),
+  );
+  accessory.addSubview(
+    makeStaticLabel(
+      "Re-enter all 64 lower-case hexadecimal characters to approve:",
+      $.NSMakeRect(0, 96, 820, 20),
+      standardFont,
+    ),
+  );
+
+  const typeback = $.NSSecureTextField.alloc.initWithFrame(
+    $.NSMakeRect(0, 60, 820, 28),
+  );
+  typeback.setFont(fixedFont);
+  typeback.setStringValue($(""));
+  accessory.addSubview(typeback);
+
+  accessory.addSubview(
+    makeStaticLabel(
+      "Cancel leaves the candidate unapproved.",
+      $.NSMakeRect(0, 20, 820, 20),
+      standardFont,
+    ),
+  );
+
+  alert.setAccessoryView(accessory);
+  application.activateIgnoringOtherApps(true);
+  return { alert: alert, typeback: typeback };
+}
+
+function showTypebackMismatch() {
+  const mismatch = $.NSAlert.alloc.init;
+  mismatch.setAlertStyle($.NSAlertStyleCritical);
+  mismatch.setMessageText($("Approval was not recorded"));
+  mismatch.setInformativeText(
+    $(
+      "The re-entered value did not match. Return to the review and enter the complete lower-case SHA-256, or cancel.",
+    ),
+  );
+  mismatch.addButtonWithTitle($("Return to review"));
+  mismatch.runModal;
+}
+
+function collectDecision(request) {
+  while (true) {
+    const review = buildReviewAlert(request);
+    const modalResult = Number(review.alert.runModal);
+
+    if (modalResult !== Number($.NSAlertFirstButtonReturn)) {
+      review.typeback.setStringValue($(""));
+      return {
+        contract: RESPONSE_CONTRACT,
+        decision: "cancel",
+        typed_candidate_sha256: null,
+      };
+    }
+
+    const typedDigest = String(ObjC.unwrap(review.typeback.stringValue));
+    review.typeback.setStringValue($(""));
+    if (
+      SHA256_PATTERN.test(typedDigest) &&
+      typedDigest === request.candidate_sha256
+    ) {
+      return {
+        contract: RESPONSE_CONTRACT,
+        decision: "approve",
+        typed_candidate_sha256: typedDigest,
+      };
+    }
+
+    showTypebackMismatch();
+  }
+}
+
+function run() {
+  const request = readAndValidateRequest();
+  return JSON.stringify(collectDecision(request));
+}

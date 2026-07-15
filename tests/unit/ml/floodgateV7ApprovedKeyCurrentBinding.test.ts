@@ -339,13 +339,21 @@ posixDescribe("Floodgate v7 approved key current binding", () => {
   });
 
   it("fails closed when the named key identity changes even with the same bytes", async () => {
-    const { home } = await boundHome();
-    await fs.promises.unlink(keyPath(home));
-    await fs.promises.writeFile(keyPath(home), KEY_BYTES, {
+    const { home, candidate } = await boundHome();
+    const replacement = `${keyPath(home)}.replacement`;
+    await fs.promises.writeFile(replacement, KEY_BYTES, {
       flag: "wx",
       mode: 0o600,
     });
-    await fs.promises.chmod(keyPath(home), 0o600);
+    await fs.promises.chmod(replacement, 0o600);
+    await fs.promises.rename(replacement, keyPath(home));
+    const replacementStat = await fs.promises.stat(keyPath(home));
+    expect(String(replacementStat.dev)).toBe(
+      candidate.key_deployment.key_identity.dev,
+    );
+    expect(String(replacementStat.ino)).not.toBe(
+      candidate.key_deployment.key_identity.ino,
+    );
 
     await expect(
       verifyFloodgateV7ApprovedKeyCurrentBindingCoreForTests(

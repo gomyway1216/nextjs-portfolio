@@ -100,6 +100,18 @@ export interface FloodgateV7ApprovedKeyEnrollmentRecord {
   }>;
 }
 
+/**
+ * Digest-bound operator input consumed by the create-only record installer.
+ * This shape carries no authority by itself; the enrollment loader remains the
+ * only boundary that can issue an opaque enrollment capability.
+ */
+export interface FloodgateV7ApprovedKeyEnrollmentInstallationInput {
+  readonly approval_id: string;
+  readonly approved_at_utc: string;
+  readonly approved_candidate_sha256: string;
+  readonly candidate_canonical_json: string;
+}
+
 export interface FloodgateV7ApprovedKeyEnrollmentCapability {
   readonly contract: "shogi-floodgate-v7-approved-key-enrollment-capability-v1";
   readonly status: "opaque-single-use-approved-key-enrollment-not-claimed";
@@ -967,6 +979,104 @@ function captureRecord(
     key_deployment: capturedDeployment,
     nonclaims: capturedRecordNonclaims(),
   });
+}
+
+/**
+ * Pure canonical serializer shared with the create-only installer. It validates
+ * the same candidate and record grammar as the loader but neither touches the
+ * filesystem nor issues an enrollment capability.
+ */
+export function serializeFloodgateV7ApprovedKeyEnrollmentRecordForInstallationCore(
+  inputValue: FloodgateV7ApprovedKeyEnrollmentInstallationInput,
+  expectedUidValue: number,
+  boundaryValue: FloodgateV7ApprovedKeyEnrollmentExecutionBoundary,
+): string {
+  if (arguments.length !== 3) {
+    throw new NativeError("installation serialization requires three inputs");
+  }
+  const input = exactRecord(
+    inputValue,
+    [
+      "approval_id",
+      "approved_at_utc",
+      "approved_candidate_sha256",
+      "candidate_canonical_json",
+    ],
+    "approved enrollment installation input",
+  );
+  const expectedUid = requiredUid(expectedUidValue, "installation UID");
+  if (
+    boundaryValue !==
+      "production-fixed-current-euid-userinfo-home-control-plane-record" &&
+    boundaryValue !==
+      "test-only-injected-current-euid-home-control-plane-record"
+  ) {
+    throw new NativeError("installation record boundary differs");
+  }
+  const approvalId = hex64(input.approval_id, "approval id");
+  const approvedAtUtc = requiredString(
+    input.approved_at_utc,
+    "approval timestamp",
+  );
+  if (
+    nativeReflectApply(nativeRegExpExec, UTC_RE, [approvedAtUtc]) === null ||
+    numberIsNaN(
+      nativeReflectApply(nativeDateParse, NativeDate, [approvedAtUtc]),
+    ) ||
+    nativeReflectApply(
+      nativeDateToISOString,
+      new NativeDate(approvedAtUtc),
+      [],
+    ) !== approvedAtUtc
+  ) {
+    throw new NativeError(
+      "approval timestamp must be exact RFC3339 UTC milliseconds",
+    );
+  }
+  const canonicalJson = requiredString(
+    input.candidate_canonical_json,
+    "candidate receipt canonical_json",
+  );
+  const candidateBytes = bufferByteLength(canonicalJson, "utf8");
+  const approvedCandidateSha256 = hex64(
+    input.approved_candidate_sha256,
+    "approved candidate sha256",
+  );
+  if (sha256Utf8(canonicalJson) !== approvedCandidateSha256) {
+    throw new NativeError("approved candidate digest differs");
+  }
+  const deployment = candidateReceipt(
+    canonicalJson,
+    boundaryValue,
+    expectedUid,
+  );
+  const candidateRecord = frozenRecord({
+    contract: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CONTRACT,
+    status: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_STATUS,
+    claim_boundary: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_CLAIM_BOUNDARY,
+    trust_boundary: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_TRUST_BOUNDARY,
+    approval: frozenRecord({
+      method: FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
+      approval_id: approvalId,
+      approved_at_utc: approvedAtUtc,
+      candidate_receipt: frozenRecord({
+        bytes: candidateBytes,
+        sha256: approvedCandidateSha256,
+        canonical_json: canonicalJson,
+      }),
+    }),
+    key_deployment: deployment,
+    nonclaims: capturedRecordNonclaims(),
+  });
+  const record = captureRecord(candidateRecord, boundaryValue, expectedUid);
+  const canonicalRecord = `${jsonStringify(record)}\n`;
+  if (
+    bufferByteLength(canonicalRecord, "utf8") >
+    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_MAX_RECORD_BYTES
+  ) {
+    throw new NativeError("approved enrollment record exceeds size bound");
+  }
+  return canonicalRecord;
 }
 
 function capabilityFromRecord(

@@ -245,8 +245,8 @@ const fatalUtf8Decoder = new TextDecoder("utf-8", {
 });
 const nativeTextDecode = TextDecoder.prototype.decode;
 const pathIsAbsolute = path.isAbsolute.bind(path);
-const pathJoin = path.join.bind(path);
 const pathResolve = path.resolve.bind(path);
+const pathSeparator = path.sep;
 const realpathSync = fs.realpathSync.bind(fs);
 const lstatSync = fs.lstatSync.bind(fs);
 const openSync = fs.openSync.bind(fs);
@@ -271,6 +271,8 @@ const TYPE_MASK = NativeBigInt(fs.constants.S_IFMT);
 const DIRECTORY_TYPE = NativeBigInt(fs.constants.S_IFDIR);
 const REGULAR_TYPE = NativeBigInt(fs.constants.S_IFREG);
 const MODE_MASK = NativeBigInt(0o7777);
+const HOME_OWNER_MODE = NativeBigInt(0o700);
+const HOME_FORBIDDEN_MODE = NativeBigInt(0o7022);
 const PARENT_OPEN_FLAGS =
   fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
 const RECORD_OPEN_FLAGS = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
@@ -1101,6 +1103,21 @@ function safeParent(stat: fs.BigIntStats, effectiveUserId: number): boolean {
   );
 }
 
+function safeHome(stat: fs.BigIntStats, effectiveUserId: number): boolean {
+  return (
+    (stat.mode & TYPE_MASK) === DIRECTORY_TYPE &&
+    (stat.mode & HOME_OWNER_MODE) === HOME_OWNER_MODE &&
+    (stat.mode & HOME_FORBIDDEN_MODE) === NativeBigInt(0) &&
+    stat.uid === NativeBigInt(effectiveUserId)
+  );
+}
+
+function appendFixedPathComponent(parent: string, component: string): string {
+  return parent === pathSeparator
+    ? `${parent}${component}`
+    : `${parent}${pathSeparator}${component}`;
+}
+
 function safeRecord(stat: fs.BigIntStats, effectiveUserId: number): boolean {
   return (
     (stat.mode & TYPE_MASK) === REGULAR_TYPE &&
@@ -1191,47 +1208,115 @@ async function readFixedRecord(
   dependencies: CapturedDependencies,
   boundary: FloodgateV7ApprovedKeyEnrollmentExecutionBoundary,
 ): Promise<Readonly<FloodgateV7ApprovedKeyEnrollmentCapability>> {
-  const parentPath = pathJoin(
-    dependencies.homeDirectory,
-    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS[0],
-    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS[1],
-    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS[2],
-    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS[3],
-  );
-  const recordPath = pathJoin(
+  const managedDirectoryPaths: string[] = [];
+  const managedDirectoryDescriptors: number[] = [];
+  const managedDirectorySnapshots: fs.BigIntStats[] = [];
+  let parentPath = dependencies.homeDirectory;
+  for (
+    let index = 0;
+    index <
+    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.length;
+    index += 1
+  ) {
+    parentPath = appendFixedPathComponent(
+      parentPath,
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS[index],
+    );
+    objectDefineProperty(managedDirectoryPaths, index, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: parentPath,
+    });
+  }
+  const recordPath = appendFixedPathComponent(
     parentPath,
     FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_FILENAME,
   );
-  let parentDescriptor: number | undefined;
+  let homeDescriptor: number | undefined;
   let recordDescriptor: number | undefined;
   let result: Readonly<FloodgateV7ApprovedKeyEnrollmentCapability> | undefined;
   let failed = false;
   let failurePhase: FloodgateV7ApprovedKeyEnrollmentError["phase"] =
     "record-read";
   try {
+    const homeReal = realpathSync(dependencies.homeDirectory);
+    const homeNamed = lstatSync(dependencies.homeDirectory, { bigint: true });
     if (
-      realpathSync(dependencies.homeDirectory) !== dependencies.homeDirectory
+      homeReal !== dependencies.homeDirectory ||
+      !safeHome(homeNamed, dependencies.effectiveUserId)
     ) {
       throw new NativeError("home directory is not canonical");
     }
-    const parentNamed = lstatSync(parentPath, { bigint: true });
+    homeDescriptor = openSync(dependencies.homeDirectory, PARENT_OPEN_FLAGS);
+    const homeHeld = fstatSync(homeDescriptor, { bigint: true });
+    const homeNamedAfterOpen = lstatSync(dependencies.homeDirectory, {
+      bigint: true,
+    });
+    if (
+      !sameSnapshot(homeHeld, homeNamed) ||
+      !sameSnapshot(homeNamedAfterOpen, homeNamed) ||
+      !safeHome(homeHeld, dependencies.effectiveUserId) ||
+      !safeHome(homeNamedAfterOpen, dependencies.effectiveUserId) ||
+      realpathSync(dependencies.homeDirectory) !== dependencies.homeDirectory
+    ) {
+      throw new NativeError("home directory identity changed");
+    }
+
+    for (let index = 0; index < managedDirectoryPaths.length; index += 1) {
+      const managedPath = managedDirectoryPaths[index];
+      if (managedPath === undefined) {
+        throw new NativeError("managed directory path is unavailable");
+      }
+      const managedNamed = lstatSync(managedPath, { bigint: true });
+      if (
+        !safeParent(managedNamed, dependencies.effectiveUserId) ||
+        realpathSync(managedPath) !== managedPath
+      ) {
+        throw new NativeError("approved enrollment namespace is unsafe");
+      }
+      const managedDescriptor = openSync(managedPath, PARENT_OPEN_FLAGS);
+      objectDefineProperty(managedDirectoryDescriptors, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: managedDescriptor,
+      });
+      const managedHeld = fstatSync(managedDescriptor, { bigint: true });
+      const managedNamedAfterOpen = lstatSync(managedPath, { bigint: true });
+      if (
+        !sameSnapshot(managedHeld, managedNamed) ||
+        !sameSnapshot(managedNamedAfterOpen, managedNamed) ||
+        !safeParent(managedHeld, dependencies.effectiveUserId) ||
+        !safeParent(managedNamedAfterOpen, dependencies.effectiveUserId) ||
+        realpathSync(managedPath) !== managedPath
+      ) {
+        throw new NativeError("approved enrollment held identity differs");
+      }
+      objectDefineProperty(managedDirectorySnapshots, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: managedNamed,
+      });
+    }
+
+    const parentNamed =
+      managedDirectorySnapshots[managedDirectorySnapshots.length - 1];
+    if (parentNamed === undefined) {
+      throw new NativeError("approved enrollment parent is unavailable");
+    }
     const recordNamed = lstatSync(recordPath, { bigint: true });
     if (
-      !safeParent(parentNamed, dependencies.effectiveUserId) ||
       !safeRecord(recordNamed, dependencies.effectiveUserId) ||
-      realpathSync(parentPath) !== parentPath ||
       realpathSync(recordPath) !== recordPath
     ) {
       throw new NativeError("approved enrollment namespace is unsafe");
     }
-    parentDescriptor = openSync(parentPath, PARENT_OPEN_FLAGS);
     recordDescriptor = openSync(recordPath, RECORD_OPEN_FLAGS);
-    const parentHeld = fstatSync(parentDescriptor, { bigint: true });
     const recordHeld = fstatSync(recordDescriptor, { bigint: true });
     if (
-      !sameSnapshot(parentHeld, parentNamed) ||
       !sameSnapshot(recordHeld, recordNamed) ||
-      !safeParent(parentHeld, dependencies.effectiveUserId) ||
       !safeRecord(recordHeld, dependencies.effectiveUserId)
     ) {
       throw new NativeError("approved enrollment held identity differs");
@@ -1252,24 +1337,50 @@ async function readFixedRecord(
       }
     }
     const homeRealAfter = realpathSync(dependencies.homeDirectory);
-    const parentRealAfter = realpathSync(parentPath);
     const recordRealAfter = realpathSync(recordPath);
-    const parentNamedAfter = lstatSync(parentPath, { bigint: true });
+    const homeNamedAfter = lstatSync(dependencies.homeDirectory, {
+      bigint: true,
+    });
+    const homeHeldAfter = fstatSync(homeDescriptor, { bigint: true });
     const recordNamedAfter = lstatSync(recordPath, { bigint: true });
-    const parentHeldAfter = fstatSync(parentDescriptor, { bigint: true });
     const recordHeldAfter = fstatSync(recordDescriptor, { bigint: true });
     if (
       homeRealAfter !== dependencies.homeDirectory ||
-      parentRealAfter !== parentPath ||
       recordRealAfter !== recordPath ||
-      !sameSnapshot(parentNamedAfter, parentNamed) ||
+      !sameSnapshot(homeNamedAfter, homeNamed) ||
+      !sameSnapshot(homeHeldAfter, homeNamed) ||
       !sameSnapshot(recordNamedAfter, recordNamed) ||
-      !sameSnapshot(parentHeldAfter, parentNamed) ||
       !sameSnapshot(recordHeldAfter, recordNamed) ||
-      !safeParent(parentNamedAfter, dependencies.effectiveUserId) ||
+      !safeHome(homeNamedAfter, dependencies.effectiveUserId) ||
+      !safeHome(homeHeldAfter, dependencies.effectiveUserId) ||
       !safeRecord(recordNamedAfter, dependencies.effectiveUserId)
     ) {
       throw new NativeError("approved enrollment identity changed during read");
+    }
+    for (let index = 0; index < managedDirectoryPaths.length; index += 1) {
+      const managedPath = managedDirectoryPaths[index];
+      const managedDescriptor = managedDirectoryDescriptors[index];
+      const managedBefore = managedDirectorySnapshots[index];
+      if (
+        managedPath === undefined ||
+        managedDescriptor === undefined ||
+        managedBefore === undefined
+      ) {
+        throw new NativeError("managed directory reference is unavailable");
+      }
+      const managedNamedAfter = lstatSync(managedPath, { bigint: true });
+      const managedHeldAfter = fstatSync(managedDescriptor, { bigint: true });
+      if (
+        !sameSnapshot(managedNamedAfter, managedBefore) ||
+        !sameSnapshot(managedHeldAfter, managedBefore) ||
+        !safeParent(managedNamedAfter, dependencies.effectiveUserId) ||
+        !safeParent(managedHeldAfter, dependencies.effectiveUserId) ||
+        realpathSync(managedPath) !== managedPath
+      ) {
+        throw new NativeError(
+          "approved enrollment managed identity changed during read",
+        );
+      }
     }
     failurePhase = "record-validation";
     result = parseRecordBytes(bytes, boundary, dependencies.effectiveUserId);
@@ -1284,10 +1395,21 @@ async function readFixedRecord(
       failed = true;
       failurePhase = "record-read";
     }
-    try {
-      if (parentDescriptor !== undefined) {
-        closeSync(parentDescriptor);
+    for (
+      let index = managedDirectoryDescriptors.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      try {
+        const descriptor = managedDirectoryDescriptors[index];
+        if (descriptor !== undefined) closeSync(descriptor);
+      } catch {
+        failed = true;
+        failurePhase = "record-read";
       }
+    }
+    try {
+      if (homeDescriptor !== undefined) closeSync(homeDescriptor);
     } catch {
       failed = true;
       failurePhase = "record-read";

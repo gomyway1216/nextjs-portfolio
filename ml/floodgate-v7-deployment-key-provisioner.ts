@@ -179,11 +179,15 @@ type CapturedDependencies = Readonly<{
   observeFailureForTests?: (failure: unknown) => void;
 }>;
 
+type DirectoryModePolicy = "safe-home-anchor" | "managed-exact-0700";
+
 type DirectoryReference = {
   readonly filePath: string;
   readonly handle: fs.promises.FileHandle;
   readonly dev: bigint;
   readonly ino: bigint;
+  readonly initialMode: bigint;
+  readonly modePolicy: DirectoryModePolicy;
 };
 
 type ProvisionState = {
@@ -221,6 +225,7 @@ const TYPE_MASK = BigInt(fs.constants.S_IFMT);
 const DIRECTORY_TYPE = BigInt(fs.constants.S_IFDIR);
 const REGULAR_TYPE = BigInt(fs.constants.S_IFREG);
 const DIRECTORY_MODE = BigInt(0o700);
+const HOME_FORBIDDEN_MODE = BigInt(0o7022);
 const KEY_MODE = BigInt(0o600);
 
 const NativeError = Error;
@@ -240,8 +245,8 @@ const objectPrototype = Object.prototype;
 const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
 const nodeIsProxy = nodeUtilTypes.isProxy;
-const pathJoin = path.join.bind(path);
 const pathResolve = path.resolve.bind(path);
+const pathSeparator = path.sep;
 const getEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
 const getUserInfo = os.userInfo.bind(os);
@@ -297,13 +302,39 @@ function isErrno(error: unknown, code: string): boolean {
   );
 }
 
+function appendFixedPathComponent(parent: string, component: string): string {
+  return parent === pathSeparator
+    ? `${parent}${component}`
+    : `${parent}${pathSeparator}${component}`;
+}
+
+function appendDirectoryReference(
+  state: ProvisionState,
+  reference: DirectoryReference,
+): void {
+  objectDefineProperty(
+    state.directoryReferences,
+    state.directoryReferences.length,
+    {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: reference,
+    },
+  );
+}
+
 function statIsDirectory(
   stat: fs.BigIntStats,
   effectiveUserId: number,
+  modePolicy: DirectoryModePolicy,
 ): boolean {
   return (
     (stat.mode & TYPE_MASK) === DIRECTORY_TYPE &&
-    (stat.mode & MODE_MASK) === DIRECTORY_MODE &&
+    (modePolicy === "safe-home-anchor"
+      ? (stat.mode & DIRECTORY_MODE) === DIRECTORY_MODE &&
+        (stat.mode & HOME_FORBIDDEN_MODE) === BigInt(0)
+      : (stat.mode & MODE_MASK) === DIRECTORY_MODE) &&
     stat.uid === BigInt(effectiveUserId)
   );
 }
@@ -527,9 +558,10 @@ function zeroize(view: Uint8Array | null): boolean {
 async function openAndValidateDirectory(
   filePath: string,
   effectiveUserId: number,
+  modePolicy: DirectoryModePolicy,
 ): Promise<DirectoryReference> {
   const before = await capturedFs.lstat(filePath, { bigint: true });
-  if (!statIsDirectory(before, effectiveUserId)) {
+  if (!statIsDirectory(before, effectiveUserId, modePolicy)) {
     throw new NativeError("unsafe deployment-key directory metadata");
   }
   if ((await capturedFs.realpath(filePath)) !== filePath) {
@@ -548,8 +580,10 @@ async function openAndValidateDirectory(
     const held = await handle.stat({ bigint: true });
     const after = await capturedFs.lstat(filePath, { bigint: true });
     if (
-      !statIsDirectory(held, effectiveUserId) ||
-      !statIsDirectory(after, effectiveUserId) ||
+      !statIsDirectory(held, effectiveUserId, modePolicy) ||
+      !statIsDirectory(after, effectiveUserId, modePolicy) ||
+      held.mode !== before.mode ||
+      after.mode !== held.mode ||
       held.dev !== before.dev ||
       held.ino !== before.ino ||
       after.dev !== held.dev ||
@@ -563,6 +597,8 @@ async function openAndValidateDirectory(
       handle,
       dev: held.dev,
       ino: held.ino,
+      initialMode: held.mode,
+      modePolicy,
     };
   } catch (error) {
     try {
@@ -581,8 +617,10 @@ async function revalidateDirectory(
   const held = await reference.handle.stat({ bigint: true });
   const named = await capturedFs.lstat(reference.filePath, { bigint: true });
   if (
-    !statIsDirectory(held, effectiveUserId) ||
-    !statIsDirectory(named, effectiveUserId) ||
+    !statIsDirectory(held, effectiveUserId, reference.modePolicy) ||
+    !statIsDirectory(named, effectiveUserId, reference.modePolicy) ||
+    held.mode !== reference.initialMode ||
+    named.mode !== reference.initialMode ||
     held.dev !== reference.dev ||
     held.ino !== reference.ino ||
     named.dev !== reference.dev ||
@@ -607,15 +645,16 @@ async function inspectExistingChain(
   const home = await openAndValidateDirectory(
     dependencies.homeDirectory,
     dependencies.effectiveUserId,
+    "safe-home-anchor",
   );
-  state.directoryReferences.push(home);
+  appendDirectoryReference(state, home);
   let currentPath = dependencies.homeDirectory;
   for (
     let index = 0;
     index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
     index += 1
   ) {
-    currentPath = pathJoin(
+    currentPath = appendFixedPathComponent(
       currentPath,
       FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
     );
@@ -624,8 +663,9 @@ async function inspectExistingChain(
     const reference = await openAndValidateDirectory(
       currentPath,
       dependencies.effectiveUserId,
+      "managed-exact-0700",
     );
-    state.directoryReferences.push(reference);
+    appendDirectoryReference(state, reference);
   }
   state.parentReference =
     state.directoryReferences[state.directoryReferences.length - 1] ?? null;
@@ -679,7 +719,7 @@ async function finishNamespace(
       throw new NativeError("deployment-key parent descriptor is unavailable");
     }
     await revalidateDirectory(parent, dependencies.effectiveUserId);
-    currentPath = pathJoin(
+    currentPath = appendFixedPathComponent(
       currentPath,
       FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
     );
@@ -691,8 +731,9 @@ async function finishNamespace(
     const child = await openAndValidateDirectory(
       currentPath,
       dependencies.effectiveUserId,
+      "managed-exact-0700",
     );
-    state.directoryReferences.push(child);
+    appendDirectoryReference(state, child);
     await revalidateDirectory(parent, dependencies.effectiveUserId);
     await child.handle.sync();
     await parent.handle.sync();
@@ -701,11 +742,14 @@ async function finishNamespace(
       FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length - 1
     ) {
       state.parentReference = child;
-      state.finalPath = pathJoin(
+      state.finalPath = appendFixedPathComponent(
         child.filePath,
         FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
       );
-      state.stagingPath = pathJoin(child.filePath, STAGING_BASENAME);
+      state.stagingPath = appendFixedPathComponent(
+        child.filePath,
+        STAGING_BASENAME,
+      );
       await assertFinalNamespaceEmpty(state, dependencies.effectiveUserId);
       state.parentChainDurable = true;
       invokeFailpoint(state, dependencies, "after-parent-created");
@@ -716,11 +760,11 @@ async function finishNamespace(
   if (state.parentReference === null) {
     throw new NativeError("deployment-key parent descriptor is unavailable");
   }
-  state.finalPath = pathJoin(
+  state.finalPath = appendFixedPathComponent(
     state.parentReference.filePath,
     FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
   );
-  state.stagingPath = pathJoin(
+  state.stagingPath = appendFixedPathComponent(
     state.parentReference.filePath,
     STAGING_BASENAME,
   );
@@ -1417,11 +1461,14 @@ async function provision<
           "deployment-key parent descriptor is unavailable",
         );
       }
-      state.finalPath = pathJoin(
+      state.finalPath = appendFixedPathComponent(
         parent.filePath,
         FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
       );
-      state.stagingPath = pathJoin(parent.filePath, STAGING_BASENAME);
+      state.stagingPath = appendFixedPathComponent(
+        parent.filePath,
+        STAGING_BASENAME,
+      );
       await assertFinalNamespaceEmpty(state, dependencies.effectiveUserId);
       state.parentChainDurable = true;
     }

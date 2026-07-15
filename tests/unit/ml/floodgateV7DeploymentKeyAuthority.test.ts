@@ -266,6 +266,16 @@ function deploymentKeyPath(home: string): string {
   );
 }
 
+function managedDirectoryPath(home: string, index: number): string {
+  return path.join(
+    home,
+    ...authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+      0,
+      index + 1,
+    ),
+  );
+}
+
 async function fixture(
   keyBytes: Uint8Array = KEY_BYTES,
   dependencyOverrides: Readonly<Record<string, unknown>> = {},
@@ -674,6 +684,153 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
     expect(serialized).not.toContain(value.home);
     expect(serialized).not.toContain(value.keyPath);
     expect("lease_ino" in receipt.stage_binding).toBe(false);
+  });
+
+  it("does not let an inherited numeric Array setter redirect the fixed authority path", async () => {
+    const value = await fixture(KEY_BYTES);
+    const alternateHome = await temporaryHome();
+    const alternateKey = Buffer.alloc(
+      authority.FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
+      0x6d,
+    );
+    const alternateKeyPath = deploymentKeyPath(alternateHome);
+    await write0600(alternateKeyPath, alternateKey);
+    const managedPaths =
+      authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.map(
+        (_component, index) => managedDirectoryPath(value.home, index),
+      );
+    const alternateManagedPaths =
+      authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.map(
+        (_component, index) => managedDirectoryPath(alternateHome, index),
+      );
+    const redirects = new Map(
+      managedPaths.map(
+        (managedPath, index) =>
+          [managedPath, alternateManagedPaths[index]] as const,
+      ),
+    );
+    const identities = await deploymentIdentities(value.keyPath);
+    const unsigned = expectedUnsignedReceipt(
+      value.request,
+      effectiveUserId(),
+      KEY_BYTES,
+      identities,
+    );
+    const expectedMac = expectedAuthorizationMac(unsigned, RUN_ID, KEY_BYTES);
+    const numericKey = "0";
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      numericKey,
+    );
+    let targetSetterCalls = 0;
+    let unrelatedSetterCalls = 0;
+    let receipt:
+      | Awaited<
+          ReturnType<
+            typeof authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests
+          >
+        >
+      | undefined;
+    const unrelatedProbe: unknown[] = [];
+
+    try {
+      Object.defineProperty(Array.prototype, numericKey, {
+        configurable: true,
+        set(this: unknown[], child: unknown): void {
+          const redirect =
+            typeof child === "string" ? redirects.get(child) : undefined;
+          if (redirect === undefined) unrelatedSetterCalls += 1;
+          else targetSetterCalls += 1;
+          Object.defineProperty(this, numericKey, {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value: redirect ?? child,
+          });
+        },
+      });
+      unrelatedProbe[0] = "unrelated-array-assignment";
+
+      receipt =
+        await authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+          value.request,
+          value.dependencies,
+        );
+    } finally {
+      if (originalDescriptor === undefined) {
+        Reflect.deleteProperty(Array.prototype, numericKey);
+      } else {
+        Object.defineProperty(Array.prototype, numericKey, originalDescriptor);
+      }
+    }
+
+    expect(
+      Object.getOwnPropertyDescriptor(Array.prototype, numericKey),
+    ).toEqual(originalDescriptor);
+    expect(unrelatedProbe[0]).toBe("unrelated-array-assignment");
+    expect(unrelatedSetterCalls).toBeGreaterThan(0);
+    expect(targetSetterCalls).toBe(0);
+    expect(receipt).toEqual({
+      ...unsigned,
+      authorization_mac: expectedMac,
+    });
+    expect(await fs.promises.readFile(value.keyPath)).toEqual(KEY_BYTES);
+    expect(await fs.promises.readFile(alternateKeyPath)).toEqual(alternateKey);
+  });
+
+  it("authorizes from a canonical current-EUID 0755 home while every managed parent remains 0700", async () => {
+    const value = await fixture();
+    await fs.promises.chmod(value.home, 0o755);
+
+    expect((await fs.promises.lstat(value.home)).mode & 0o777).toBe(0o755);
+    for (
+      let depth = 1;
+      depth <=
+      authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+      depth += 1
+    ) {
+      const managedParent = path.join(
+        value.home,
+        ...authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+          0,
+          depth,
+        ),
+      );
+      expect((await fs.promises.lstat(managedParent)).mode & 0o777).toBe(0o700);
+    }
+
+    await expect(
+      authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+        value.request,
+        value.dependencies,
+      ),
+    ).resolves.toMatchObject({
+      status: authority.FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_STATUS,
+      authorization_mac: expect.stringMatching(/^[0-9a-f]{64}$/),
+      key_deployment: { parent_mode: "0700", key_mode: "0600" },
+    });
+  });
+
+  it("prepares a V3 key from a canonical current-EUID 0750 home", async () => {
+    const value = await fixture();
+    await fs.promises.chmod(value.home, 0o750);
+
+    const prepared =
+      await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+        v3KeyRequestFixture(),
+        value.dependencies,
+      );
+
+    expect((await fs.promises.lstat(value.home)).mode & 0o7777).toBe(0o750);
+    expect(prepared).toMatchObject({
+      status:
+        authority.FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS,
+      authorization: {
+        status: authority.FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_STATUS,
+        key_deployment: { parent_mode: "0700", key_mode: "0600" },
+      },
+    });
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
   });
 
   it("keeps production dependency injection closed and labels test-only origin/nonclaims exactly", async () => {
@@ -1097,6 +1254,24 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
           return [value.request, value.dependencies, value.home] as const;
         },
       ],
+      ...(
+        [
+          ["home missing owner execute", 0o600],
+          ["group-writable home", 0o720],
+          ["other-writable home", 0o702],
+          ["special-bit home", 0o1700],
+        ] as const
+      ).map(
+        ([label, mode]) =>
+          [
+            label,
+            async () => {
+              const value = await fixture();
+              await fs.promises.chmod(value.home, mode as number);
+              return [value.request, value.dependencies, value.home] as const;
+            },
+          ] as const,
+      ),
       [
         "short key",
         async () => {
@@ -1145,12 +1320,17 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
     ];
     for (const [label, build] of cases) {
       const [request, dependencies, home] = await build();
-      const failure = await captureFailure(() =>
-        authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
-          request,
-          dependencies,
-        ),
-      );
+      let failure: unknown;
+      try {
+        failure = await captureFailure(() =>
+          authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+            request,
+            dependencies,
+          ),
+        );
+      } finally {
+        await fs.promises.chmod(home, 0o700);
+      }
       expect(failure, label).toBeInstanceOf(
         authority.FloodgateV7DeploymentKeyAuthorityError,
       );
@@ -1196,6 +1376,120 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
     });
     expect(String(missingFailure)).not.toContain(missingHome);
     expect((missingFailure as Error).cause).toBeUndefined();
+  });
+
+  it("rejects 0755 first and 0777 intermediate managed directories", async () => {
+    for (const [label, index, mode] of [
+      ["first managed directory", 0, 0o755],
+      ["intermediate managed directory", 1, 0o777],
+    ] as const) {
+      const value = await fixture();
+      const directory = managedDirectoryPath(value.home, index);
+      await fs.promises.chmod(directory, mode);
+      try {
+        const failure = await captureFailure(() =>
+          authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+            value.request,
+            value.dependencies,
+          ),
+        );
+        expect(failure, label).toBeInstanceOf(
+          authority.FloodgateV7DeploymentKeyAuthorityError,
+        );
+        expect(failure, label).toMatchObject({
+          phase: "namespace",
+          primary: undefined,
+        });
+        expect(String(failure), label).not.toContain(value.home);
+        expect(String(failure), label).not.toContain(KEY_BYTES.toString("hex"));
+      } finally {
+        await fs.promises.chmod(directory, 0o700);
+      }
+    }
+  });
+
+  it("rejects late home metadata changes in authorization and V3 preparation", async () => {
+    for (const operation of ["authorization", "v3-preparation"] as const) {
+      const value = await fixture();
+      const dependencies = dependencyFixture(value.home, {
+        async beforeFinalRevalidationForTests(): Promise<void> {
+          await fs.promises.chmod(value.home, 0o755);
+        },
+      });
+
+      let failure: unknown;
+      try {
+        failure = await captureFailure(() =>
+          operation === "authorization"
+            ? authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+                value.request,
+                dependencies,
+              )
+            : authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+                v3KeyRequestFixture(),
+                dependencies,
+              ),
+        );
+      } finally {
+        await fs.promises.chmod(value.home, 0o700);
+      }
+
+      expect(failure, operation).toBeInstanceOf(
+        authority.FloodgateV7DeploymentKeyAuthorityError,
+      );
+      expect(failure, operation).toMatchObject({
+        phase: "revalidation",
+        primary: undefined,
+      });
+      expect(String(failure), operation).not.toContain(value.home);
+      expect(String(failure), operation).not.toContain(
+        KEY_BYTES.toString("hex"),
+      );
+    }
+  });
+
+  it("rejects a managed-prefix metadata race at final authorization and V3 revalidation", async () => {
+    for (const [operation, index, mode] of [
+      ["authorization", 0, 0o755],
+      ["v3-preparation", 1, 0o777],
+    ] as const) {
+      const value = await fixture();
+      const directory = managedDirectoryPath(value.home, index);
+      const dependencies = dependencyFixture(value.home, {
+        async beforeFinalRevalidationForTests(): Promise<void> {
+          await fs.promises.chmod(directory, mode);
+        },
+      });
+
+      let failure: unknown;
+      try {
+        failure = await captureFailure(() =>
+          operation === "authorization"
+            ? authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+                value.request,
+                dependencies,
+              )
+            : authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+                v3KeyRequestFixture(),
+                dependencies,
+              ),
+        );
+      } finally {
+        await fs.promises.chmod(directory, 0o700);
+      }
+
+      expect(failure, operation).toBeInstanceOf(
+        authority.FloodgateV7DeploymentKeyAuthorityError,
+      );
+      expect(failure, operation).toMatchObject({
+        phase: "revalidation",
+        primary: undefined,
+      });
+      expect(String(failure), operation).not.toContain(value.home);
+      expect(String(failure), operation).not.toContain(
+        KEY_BYTES.toString("hex"),
+      );
+    }
   });
 
   it("zero-fills the retained internal key on post-read failure and rejects a revalidation swap", async () => {

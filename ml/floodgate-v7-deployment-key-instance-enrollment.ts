@@ -182,6 +182,8 @@ const MODE_MASK = BigInt(0o7777);
 const TYPE_MASK = BigInt(fs.constants.S_IFMT);
 const DIRECTORY_TYPE = BigInt(fs.constants.S_IFDIR);
 const REGULAR_TYPE = BigInt(fs.constants.S_IFREG);
+const HOME_REQUIRED_OWNER_MODE = BigInt(0o700);
+const HOME_FORBIDDEN_MODE = BigInt(0o7022);
 
 const NativeError = Error;
 const NativePromise = Promise;
@@ -200,9 +202,9 @@ const bufferAlloc = Buffer.alloc.bind(Buffer);
 const bufferFrom = Buffer.from.bind(Buffer);
 const bufferFill = Buffer.prototype.fill;
 const pathIsAbsolute = path.isAbsolute.bind(path);
-const pathJoin = path.join.bind(path);
 const pathParse = path.parse.bind(path);
 const pathResolve = path.resolve.bind(path);
+const pathSeparator = path.sep;
 const realpath = fs.promises.realpath.bind(fs.promises);
 const lstat = fs.promises.lstat.bind(fs.promises);
 const open = fs.promises.open.bind(fs.promises);
@@ -353,6 +355,24 @@ function assertParent(stat: Readonly<StatSnapshot>, effectiveUserId: number) {
   ) {
     throw new NativeError("unsafe deployment-key parent metadata");
   }
+}
+
+function assertHome(stat: Readonly<StatSnapshot>, effectiveUserId: number) {
+  const mode = stat.mode & MODE_MASK;
+  if (
+    (stat.mode & TYPE_MASK) !== DIRECTORY_TYPE ||
+    stat.uid !== BigInt(effectiveUserId) ||
+    (mode & HOME_REQUIRED_OWNER_MODE) !== HOME_REQUIRED_OWNER_MODE ||
+    (mode & HOME_FORBIDDEN_MODE) !== BigInt(0)
+  ) {
+    throw new NativeError("unsafe deployment-key home metadata");
+  }
+}
+
+function appendFixedPathComponent(parent: string, component: string): string {
+  return parent === pathSeparator
+    ? `${parent}${component}`
+    : `${parent}${pathSeparator}${component}`;
 }
 
 function assertKey(stat: Readonly<StatSnapshot>, effectiveUserId: number) {
@@ -535,7 +555,10 @@ async function inspectInternal<
   let activePhase: FloodgateV7DeploymentKeyInstanceEnrollmentPhase =
     "namespace";
   let failurePhase: FloodgateV7DeploymentKeyInstanceEnrollmentPhase | undefined;
-  let parentHandle: fs.promises.FileHandle | undefined;
+  let homeHandle: fs.promises.FileHandle | undefined;
+  const managedDirectoryPaths: string[] = [];
+  const managedDirectoryHandles: fs.promises.FileHandle[] = [];
+  const managedDirectorySnapshots: Readonly<StatSnapshot>[] = [];
   let keyHandle: fs.promises.FileHandle | undefined;
   let rootKey: Buffer | undefined;
   let instanceKey: Buffer | undefined;
@@ -549,44 +572,119 @@ async function inspectInternal<
   try {
     rootKey = bufferAlloc(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
     extra = bufferAlloc(1);
-    const parentPath = pathJoin(
-      dependencies.homeDirectory,
-      ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS,
+    let parentPath = dependencies.homeDirectory;
+    for (
+      let index = 0;
+      index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+      index += 1
+    ) {
+      parentPath = appendFixedPathComponent(
+        parentPath,
+        FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
+      );
+      objectDefineProperty(managedDirectoryPaths, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: parentPath,
+      });
+    }
+    const keyPath = appendFixedPathComponent(
+      parentPath,
+      FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
     );
-    const keyPath = pathJoin(parentPath, FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME);
+    const homeBefore = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
+    );
+    assertHome(homeBefore, dependencies.effectiveUserId);
     if (
       (await realpath(dependencies.homeDirectory)) !==
-        dependencies.homeDirectory ||
-      (await realpath(parentPath)) !== parentPath ||
-      (await realpath(keyPath)) !== keyPath
+      dependencies.homeDirectory
     ) {
       throw new NativeError("deployment-key paths are not canonical");
     }
 
-    const parentBefore = snapshot(await lstat(parentPath, { bigint: true }));
-    const keyBefore = snapshot(await lstat(keyPath, { bigint: true }));
-    assertParent(parentBefore, dependencies.effectiveUserId);
-    assertKey(keyBefore, dependencies.effectiveUserId);
     const noFollow = fs.constants.O_NOFOLLOW;
     const directory = fs.constants.O_DIRECTORY;
     if (typeof noFollow !== "number" || typeof directory !== "number") {
       throw new NativeError("read-only POSIX open flags are unavailable");
     }
-    parentHandle = await open(
-      parentPath,
+    homeHandle = await open(
+      dependencies.homeDirectory,
       fs.constants.O_RDONLY | directory | noFollow,
     );
-    keyHandle = await open(keyPath, fs.constants.O_RDONLY | noFollow);
-    const parentHeldBefore = snapshot(
-      await parentHandle.stat({ bigint: true }),
+    const homeHeldBefore = snapshot(await homeHandle.stat({ bigint: true }));
+    const homeNamedAfterOpen = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
     );
-    const keyHeldBefore = snapshot(await keyHandle.stat({ bigint: true }));
-    assertParent(parentHeldBefore, dependencies.effectiveUserId);
-    assertKey(keyHeldBefore, dependencies.effectiveUserId);
+    assertHome(homeHeldBefore, dependencies.effectiveUserId);
+    assertHome(homeNamedAfterOpen, dependencies.effectiveUserId);
     if (
-      !sameStat(parentBefore, parentHeldBefore) ||
-      !sameStat(keyBefore, keyHeldBefore)
+      !sameStat(homeBefore, homeHeldBefore) ||
+      !sameStat(homeBefore, homeNamedAfterOpen) ||
+      (await realpath(dependencies.homeDirectory)) !==
+        dependencies.homeDirectory
     ) {
+      throw new NativeError("deployment-key identity changed before held read");
+    }
+
+    for (let index = 0; index < managedDirectoryPaths.length; index += 1) {
+      const managedPath = managedDirectoryPaths[index];
+      if (managedPath === undefined) {
+        throw new NativeError("deployment-key managed path is unavailable");
+      }
+      const namedBefore = snapshot(await lstat(managedPath, { bigint: true }));
+      assertParent(namedBefore, dependencies.effectiveUserId);
+      if ((await realpath(managedPath)) !== managedPath) {
+        throw new NativeError("deployment-key managed path is not canonical");
+      }
+      const managedHandle = await open(
+        managedPath,
+        fs.constants.O_RDONLY | directory | noFollow,
+      );
+      objectDefineProperty(managedDirectoryHandles, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: managedHandle,
+      });
+      const heldBefore = snapshot(await managedHandle.stat({ bigint: true }));
+      const namedAfterOpen = snapshot(
+        await lstat(managedPath, { bigint: true }),
+      );
+      assertParent(heldBefore, dependencies.effectiveUserId);
+      assertParent(namedAfterOpen, dependencies.effectiveUserId);
+      if (
+        !sameStat(namedBefore, heldBefore) ||
+        !sameStat(namedBefore, namedAfterOpen) ||
+        (await realpath(managedPath)) !== managedPath
+      ) {
+        throw new NativeError(
+          "deployment-key managed identity changed before held read",
+        );
+      }
+      objectDefineProperty(managedDirectorySnapshots, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: namedBefore,
+      });
+    }
+
+    const parentBefore =
+      managedDirectorySnapshots[managedDirectorySnapshots.length - 1];
+    if (parentBefore === undefined) {
+      throw new NativeError("deployment-key parent is unavailable");
+    }
+    if ((await realpath(keyPath)) !== keyPath) {
+      throw new NativeError("deployment-key path is not canonical");
+    }
+    const keyBefore = snapshot(await lstat(keyPath, { bigint: true }));
+    assertKey(keyBefore, dependencies.effectiveUserId);
+    keyHandle = await open(keyPath, fs.constants.O_RDONLY | noFollow);
+    const keyHeldBefore = snapshot(await keyHandle.stat({ bigint: true }));
+    assertKey(keyHeldBefore, dependencies.effectiveUserId);
+    if (!sameStat(keyBefore, keyHeldBefore)) {
       throw new NativeError("deployment-key identity changed before held read");
     }
 
@@ -634,21 +732,63 @@ async function inspectInternal<
 
     activePhase = "revalidation";
     await dependencies.beforeFinalRevalidation?.();
-    const parentHeldAfter = snapshot(await parentHandle.stat({ bigint: true }));
+    const homeHeldAfter = snapshot(await homeHandle.stat({ bigint: true }));
     const keyHeldAfter = snapshot(await keyHandle.stat({ bigint: true }));
-    const parentAfter = snapshot(await lstat(parentPath, { bigint: true }));
+    const homeAfter = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
+    );
     const keyAfter = snapshot(await lstat(keyPath, { bigint: true }));
-    assertParent(parentHeldAfter, dependencies.effectiveUserId);
+    assertHome(homeHeldAfter, dependencies.effectiveUserId);
+    assertHome(homeAfter, dependencies.effectiveUserId);
     assertKey(keyHeldAfter, dependencies.effectiveUserId);
     if (
-      !sameStat(parentBefore, parentHeldAfter) ||
-      !sameStat(parentBefore, parentAfter) ||
+      !sameStat(homeBefore, homeHeldAfter) ||
+      !sameStat(homeBefore, homeAfter) ||
       !sameStat(keyBefore, keyHeldAfter) ||
       !sameStat(keyBefore, keyAfter)
     ) {
       throw new NativeError(
         "deployment-key identity changed during inspection",
       );
+    }
+    if (
+      (await realpath(dependencies.homeDirectory)) !==
+        dependencies.homeDirectory ||
+      (await realpath(keyPath)) !== keyPath
+    ) {
+      throw new NativeError("deployment-key path is no longer canonical");
+    }
+    let parentHeldAfter: Readonly<StatSnapshot> | undefined;
+    for (let index = 0; index < managedDirectoryPaths.length; index += 1) {
+      const managedPath = managedDirectoryPaths[index];
+      const managedHandle = managedDirectoryHandles[index];
+      const namedBefore = managedDirectorySnapshots[index];
+      if (
+        managedPath === undefined ||
+        managedHandle === undefined ||
+        namedBefore === undefined
+      ) {
+        throw new NativeError(
+          "deployment-key managed reference is unavailable",
+        );
+      }
+      const heldAfter = snapshot(await managedHandle.stat({ bigint: true }));
+      const namedAfter = snapshot(await lstat(managedPath, { bigint: true }));
+      assertParent(heldAfter, dependencies.effectiveUserId);
+      assertParent(namedAfter, dependencies.effectiveUserId);
+      if (
+        !sameStat(namedBefore, heldAfter) ||
+        !sameStat(namedBefore, namedAfter) ||
+        (await realpath(managedPath)) !== managedPath
+      ) {
+        throw new NativeError(
+          "deployment-key managed identity changed during inspection",
+        );
+      }
+      parentHeldAfter = heldAfter;
+    }
+    if (parentHeldAfter === undefined) {
+      throw new NativeError("deployment-key parent is unavailable");
     }
 
     activePhase = "receipt";
@@ -674,8 +814,20 @@ async function inspectInternal<
       failurePhase = "cleanup";
       result = undefined;
     }
+    for (
+      let index = managedDirectoryHandles.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      try {
+        await managedDirectoryHandles[index]?.close();
+      } catch {
+        failurePhase = "cleanup";
+        result = undefined;
+      }
+    }
     try {
-      await parentHandle?.close();
+      await homeHandle?.close();
     } catch {
       failurePhase = "cleanup";
       result = undefined;

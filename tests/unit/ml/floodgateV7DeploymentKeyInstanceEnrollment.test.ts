@@ -144,6 +144,16 @@ function deploymentParent(home: string): string {
   );
 }
 
+function managedDeploymentDirectory(home: string, index: number): string {
+  return path.join(
+    home,
+    ...authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+      0,
+      index + 1,
+    ),
+  );
+}
+
 function deploymentKey(home: string): string {
   return path.join(
     deploymentParent(home),
@@ -479,6 +489,364 @@ posixDescribe(
       expect(serialized).not.toMatch(/(?:absolute|relative)_?path/i);
       expect(serialized).not.toContain("run_id");
       expect(serialized).not.toContain("stage_binding");
+    });
+
+    it("inspects a canonical current-EUID 0755 home while every managed parent remains 0700", async () => {
+      const home = await temporaryHome();
+      await writeKey(home);
+      await fs.promises.chmod(home, 0o755);
+
+      expect((await fs.promises.lstat(home)).mode & 0o777).toBe(0o755);
+      for (
+        let depth = 1;
+        depth <=
+        authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+        depth += 1
+      ) {
+        const managedParent = path.join(
+          home,
+          ...authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+            0,
+            depth,
+          ),
+        );
+        expect((await fs.promises.lstat(managedParent)).mode & 0o777).toBe(
+          0o700,
+        );
+      }
+
+      await expect(
+        enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+          dependencyFixture(home),
+        ),
+      ).resolves.toMatchObject({
+        status:
+          enrollment.FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_STATUS,
+        key_deployment: {
+          parent_mode: "0700",
+          key_mode: "0600",
+          key_instance_id: expectedInstanceId(KEY_BYTES),
+        },
+      });
+    });
+
+    it("inspects a canonical current-EUID 0750 home", async () => {
+      const home = await temporaryHome();
+      await writeKey(home);
+      await fs.promises.chmod(home, 0o750);
+
+      await expect(
+        enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+          dependencyFixture(home),
+        ),
+      ).resolves.toMatchObject({
+        key_deployment: {
+          parent_mode: "0700",
+          key_instance_id: expectedInstanceId(KEY_BYTES),
+        },
+      });
+    });
+
+    it("fails with a sanitized namespace error for unsafe home-anchor modes", async () => {
+      for (const [label, mode] of [
+        ["group writable", 0o775],
+        ["world writable", 0o777],
+        ["owner lacks execute", 0o600],
+        ["special bit", 0o1700],
+      ] as const) {
+        const home = await temporaryHome();
+        await writeKey(home);
+        await fs.promises.chmod(home, mode);
+        let observerCalls = 0;
+        try {
+          expect((await fs.promises.lstat(home)).mode & 0o7777, label).toBe(
+            mode,
+          );
+          const failure = await captureFailure(() =>
+            enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+              dependencyFixture(home, {
+                observeInternalKeyForTests(): void {
+                  observerCalls += 1;
+                },
+              }),
+            ),
+          );
+          expect(failure, label).toMatchObject({
+            phase: "namespace",
+            candidate_receipt_issued: false,
+          });
+          expect(String(failure), label).not.toContain(home);
+          expect(observerCalls, label).toBe(0);
+        } finally {
+          await fs.promises.chmod(home, 0o700);
+        }
+      }
+    });
+
+    it("rejects a non-production symlink alias as the injected home anchor", async () => {
+      const target = await temporaryHome();
+      await writeKey(target);
+      const aliasRoot = await temporaryHome();
+      const alias = path.join(aliasRoot, "injected-home-alias");
+      await fs.promises.symlink(target, alias);
+      let observerCalls = 0;
+
+      const failure = await captureFailure(() =>
+        enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+          dependencyFixture(alias, {
+            observeInternalKeyForTests(): void {
+              observerCalls += 1;
+            },
+          }),
+        ),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "namespace",
+        candidate_receipt_issued: false,
+      });
+      expect(String(failure)).not.toContain(alias);
+      expect(observerCalls).toBe(0);
+    });
+
+    it("rejects a safe-to-safe home mode race during final held-descriptor revalidation", async () => {
+      const home = await temporaryHome();
+      await writeKey(home);
+
+      const failure = await captureFailure(() =>
+        enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+          dependencyFixture(home, {
+            async beforeFinalRevalidationForTests(): Promise<void> {
+              await fs.promises.chmod(home, 0o755);
+            },
+          }),
+        ),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "revalidation",
+        candidate_receipt_issued: false,
+        retry_disposition: "operator-reconciliation-required",
+      });
+      expect(String(failure)).not.toContain(home);
+    });
+
+    it("rejects 0755 and 0777 metadata on every managed directory", async () => {
+      for (
+        let index = 0;
+        index <
+        authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+        index += 1
+      ) {
+        for (const mode of [0o755, 0o777]) {
+          const home = await temporaryHome();
+          await writeKey(home);
+          const managedDirectory = managedDeploymentDirectory(home, index);
+          await fs.promises.chmod(managedDirectory, mode);
+
+          const failure = await captureFailure(() =>
+            enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+              dependencyFixture(home),
+            ),
+          );
+
+          expect(failure).toMatchObject({
+            phase: "namespace",
+            candidate_receipt_issued: false,
+          });
+          expect(String(failure)).not.toContain(home);
+          expect(String(failure)).not.toContain(KEY_BYTES.toString("hex"));
+        }
+      }
+    });
+
+    it("rejects a symlink at every managed directory boundary", async () => {
+      for (
+        let index = 0;
+        index <
+        authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+        index += 1
+      ) {
+        const home = await temporaryHome();
+        await writeKey(home);
+        const managedDirectory = managedDeploymentDirectory(home, index);
+        const movedDirectory = `${managedDirectory}.moved`;
+        await fs.promises.rename(managedDirectory, movedDirectory);
+        await fs.promises.symlink(movedDirectory, managedDirectory, "dir");
+
+        const failure = await captureFailure(() =>
+          enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+            dependencyFixture(home),
+          ),
+        );
+
+        expect(failure).toMatchObject({
+          phase: "namespace",
+          candidate_receipt_issued: false,
+        });
+        expect(String(failure)).not.toContain(home);
+      }
+    });
+
+    it("rejects mode and symlink races on every held managed directory", async () => {
+      for (
+        let index = 0;
+        index <
+        authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+        index += 1
+      ) {
+        for (const mutation of ["mode", "symlink"] as const) {
+          const home = await temporaryHome();
+          await writeKey(home);
+          const managedDirectory = managedDeploymentDirectory(home, index);
+          const failure = await captureFailure(() =>
+            enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+              dependencyFixture(home, {
+                async beforeFinalRevalidationForTests(): Promise<void> {
+                  if (mutation === "mode") {
+                    await fs.promises.chmod(managedDirectory, 0o755);
+                    return;
+                  }
+                  const movedDirectory = `${managedDirectory}.moved`;
+                  await fs.promises.rename(managedDirectory, movedDirectory);
+                  await fs.promises.symlink(
+                    movedDirectory,
+                    managedDirectory,
+                    "dir",
+                  );
+                },
+              }),
+            ),
+          );
+
+          expect(failure).toMatchObject({
+            phase: "revalidation",
+            candidate_receipt_issued: false,
+            retry_disposition: "operator-reconciliation-required",
+          });
+          expect(String(failure)).not.toContain(home);
+          expect(String(failure)).not.toContain(KEY_BYTES.toString("hex"));
+        }
+      }
+    });
+
+    it("does not consult an inherited numeric Array setter for managed paths, handles, or snapshots", async () => {
+      const home = await temporaryHome();
+      await writeKey(home);
+      const managedPaths =
+        authority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.map(
+          (_component, index) => managedDeploymentDirectory(home, index),
+        );
+      const numericIndex = managedPaths.length - 1;
+      const numericKey = String(numericIndex);
+      const originalDescriptor = Object.getOwnPropertyDescriptor(
+        Array.prototype,
+        numericKey,
+      );
+      let targetSetterCalls = 0;
+      let unrelatedSetterCalls = 0;
+      let receipt:
+        | Awaited<
+            ReturnType<
+              typeof enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests
+            >
+          >
+        | undefined;
+
+      const ownDataValue = (target: unknown[], index: number): unknown => {
+        const descriptor = Object.getOwnPropertyDescriptor(
+          target,
+          String(index),
+        );
+        return descriptor !== undefined && "value" in descriptor
+          ? descriptor.value
+          : undefined;
+      };
+      const hasTargetPrefix = (
+        target: unknown[],
+        predicate: (value: unknown, index: number) => boolean,
+      ): boolean => {
+        for (let index = 0; index < numericIndex; index += 1) {
+          if (!predicate(ownDataValue(target, index), index)) return false;
+        }
+        return true;
+      };
+      const isHandleLike = (value: unknown): boolean => {
+        if (value === null || typeof value !== "object") return false;
+        const close = Object.getOwnPropertyDescriptor(value, "close");
+        return (
+          close !== undefined &&
+          "value" in close &&
+          typeof close.value === "function"
+        );
+      };
+      const isSnapshotLike = (value: unknown): boolean => {
+        if (value === null || typeof value !== "object") return false;
+        const descriptors = Object.getOwnPropertyDescriptors(value);
+        for (const key of ["dev", "ino", "mode"] as const) {
+          const descriptor = descriptors[key];
+          if (
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            typeof descriptor.value !== "bigint"
+          ) {
+            return false;
+          }
+        }
+        return true;
+      };
+      const isManagedTarget = (target: unknown[], value: unknown): boolean =>
+        (hasTargetPrefix(
+          target,
+          (child, index) => child === managedPaths[index],
+        ) &&
+          value === managedPaths[numericIndex]) ||
+        (hasTargetPrefix(target, isHandleLike) && isHandleLike(value)) ||
+        (hasTargetPrefix(target, isSnapshotLike) && isSnapshotLike(value));
+
+      try {
+        Object.defineProperty(Array.prototype, numericKey, {
+          configurable: true,
+          set(this: unknown[], value: unknown): void {
+            if (isManagedTarget(this, value)) targetSetterCalls += 1;
+            else unrelatedSetterCalls += 1;
+            Object.defineProperty(this, numericKey, {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value,
+            });
+          },
+        });
+        const unrelatedProbe: unknown[] = [];
+        unrelatedProbe[numericIndex] = "unrelated-array-assignment";
+
+        receipt =
+          await enrollment.inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+            dependencyFixture(home),
+          );
+      } finally {
+        if (originalDescriptor === undefined) {
+          Reflect.deleteProperty(Array.prototype, numericKey);
+        } else {
+          Object.defineProperty(
+            Array.prototype,
+            numericKey,
+            originalDescriptor,
+          );
+        }
+      }
+
+      expect(
+        Object.getOwnPropertyDescriptor(Array.prototype, numericKey),
+      ).toEqual(originalDescriptor);
+      expect(unrelatedSetterCalls).toBeGreaterThan(0);
+      expect(targetSetterCalls).toBe(0);
+      expect(receipt).toMatchObject({
+        status:
+          enrollment.FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_STATUS,
+        key_deployment: { key_instance_id: expectedInstanceId(KEY_BYTES) },
+      });
     });
 
     it("is deterministic for one key and separates different deployment keys", async () => {

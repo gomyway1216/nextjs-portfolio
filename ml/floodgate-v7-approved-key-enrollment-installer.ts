@@ -80,8 +80,8 @@ export type FloodgateV7ApprovedKeyEnrollmentInstallerRetryDisposition =
   | "manual-reconciliation-required";
 
 export interface FloodgateV7ApprovedKeyEnrollmentInstallerReceipt<
-  TBoundary extends FloodgateV7ApprovedKeyEnrollmentInstallerExecutionBoundary =
-    FloodgateV7ApprovedKeyEnrollmentInstallerExecutionBoundary,
+  TBoundary extends
+    FloodgateV7ApprovedKeyEnrollmentInstallerExecutionBoundary = FloodgateV7ApprovedKeyEnrollmentInstallerExecutionBoundary,
 > {
   readonly contract: typeof FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_INSTALLER_CONTRACT;
   readonly status: typeof FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_INSTALLER_STATUS;
@@ -129,6 +129,9 @@ export interface FloodgateV7ApprovedKeyEnrollmentInstallerReceipt<
 export interface FloodgateV7ApprovedKeyEnrollmentInstallerDependenciesForTests {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
+  readonly closeFileHandleForTests?: (
+    handle: fs.promises.FileHandle,
+  ) => Promise<void>;
   readonly failpointForTests?: (
     phase: FloodgateV7ApprovedKeyEnrollmentInstallerFailpoint,
   ) => void;
@@ -169,6 +172,7 @@ export class FloodgateV7ApprovedKeyEnrollmentInstallerError extends Error {
 type CapturedDependencies = Readonly<{
   effectiveUserId: number;
   homeDirectory: string;
+  closeFileHandleForTests?: (handle: fs.promises.FileHandle) => Promise<void>;
   failpointForTests?: (
     phase: FloodgateV7ApprovedKeyEnrollmentInstallerFailpoint,
   ) => void;
@@ -203,6 +207,8 @@ type InstallState = {
   firstDirectorySynced: boolean;
   stagingUnlinked: boolean;
   cleanupDirectorySynced: boolean;
+  finalRevalidationCompleted: boolean;
+  descriptorCloseFailedAfterFinalRevalidation: boolean;
   existingFinal: boolean;
   staleStaging: boolean;
 };
@@ -253,6 +259,7 @@ const capturedFs = objectFreeze({
 const DEPENDENCY_KEYS = objectFreeze([
   "effectiveUserId",
   "homeDirectory",
+  "closeFileHandleForTests",
   "failpointForTests",
   "observeFailureForTests",
 ] as const);
@@ -341,7 +348,11 @@ function captureDependencies(
   ) {
     throw new NativeError("invalid installer dependencies");
   }
-  for (const key of ["failpointForTests", "observeFailureForTests"] as const) {
+  for (const key of [
+    "closeFileHandleForTests",
+    "failpointForTests",
+    "observeFailureForTests",
+  ] as const) {
     const candidate = descriptors[key]?.value;
     if (
       candidate !== undefined &&
@@ -353,11 +364,15 @@ function captureDependencies(
   return frozenRecord({
     effectiveUserId,
     homeDirectory,
+    closeFileHandleForTests: descriptors.closeFileHandleForTests?.value as
+      | ((handle: fs.promises.FileHandle) => Promise<void>)
+      | undefined,
     failpointForTests: descriptors.failpointForTests?.value as
       | ((phase: FloodgateV7ApprovedKeyEnrollmentInstallerFailpoint) => void)
       | undefined,
     observeFailureForTests: descriptors.observeFailureForTests?.value as
-      ((failure: unknown) => void) | undefined,
+      | ((failure: unknown) => void)
+      | undefined,
   });
 }
 
@@ -619,6 +634,8 @@ function initialState(expectedSize: bigint): InstallState {
     firstDirectorySynced: false,
     stagingUnlinked: false,
     cleanupDirectorySynced: false,
+    finalRevalidationCompleted: false,
+    descriptorCloseFailedAfterFinalRevalidation: false,
     existingFinal: false,
     staleStaging: false,
   };
@@ -1038,32 +1055,48 @@ async function createAndPublishRecord(
   ) {
     throw new NativeError("installer final descriptor changed at receipt");
   }
+  state.finalRevalidationCompleted = true;
   return final;
 }
 
 async function safeClose(
   handle: fs.promises.FileHandle | null,
+  dependencies: CapturedDependencies,
 ): Promise<boolean> {
   if (handle === null) return true;
   try {
-    await handle.close();
+    if (dependencies.closeFileHandleForTests === undefined) {
+      await handle.close();
+    } else {
+      await reflectApply(dependencies.closeFileHandleForTests, undefined, [
+        handle,
+      ]);
+    }
     return true;
   } catch {
     return false;
   }
 }
 
-async function closeAll(state: InstallState): Promise<boolean> {
-  let allClosed = await safeClose(state.finalReopenHandle);
+async function closeAll(
+  state: InstallState,
+  dependencies: CapturedDependencies,
+): Promise<boolean> {
+  let allClosed = await safeClose(state.finalReopenHandle, dependencies);
   state.finalReopenHandle = null;
-  if (!(await safeClose(state.stagingHandle))) allClosed = false;
+  if (!(await safeClose(state.stagingHandle, dependencies))) allClosed = false;
   state.stagingHandle = null;
   for (
     let index = state.directoryReferences.length - 1;
     index >= 0;
     index -= 1
   ) {
-    if (!(await safeClose(state.directoryReferences[index]?.handle ?? null))) {
+    if (
+      !(await safeClose(
+        state.directoryReferences[index]?.handle ?? null,
+        dependencies,
+      ))
+    ) {
       allClosed = false;
     }
   }
@@ -1087,6 +1120,16 @@ async function reconcileFailure(
   dependencies: CapturedDependencies,
   state: InstallState,
 ): Promise<Reconciliation> {
+  // cleanupDirectorySynced can be true before final authoritative
+  // revalidation. Preserve the strong classification only for a close error
+  // observed after that revalidation completed successfully.
+  if (state.descriptorCloseFailedAfterFinalRevalidation) {
+    return frozenRecord({
+      durability: "record-published-and-staging-removal-durable" as const,
+      mayHaveCommitted: true,
+      retryDisposition: "do-not-retry-existing-record" as const,
+    });
+  }
   if (state.existingFinal && !state.linkSucceeded) {
     if (
       state.stagingHandle !== null &&
@@ -1412,7 +1455,9 @@ async function install<
     await prepareNamespace(dependencies, state);
     await createAndPublishRecord(dependencies, state, recordBytes);
     zeroize(recordBytes);
-    if (!(await closeAll(state))) {
+    if (!(await closeAll(state, dependencies))) {
+      state.descriptorCloseFailedAfterFinalRevalidation =
+        state.finalRevalidationCompleted;
       state.phase = "cleanup";
       throw new NativeError("installer descriptor cleanup failed");
     }
@@ -1435,7 +1480,7 @@ async function install<
         retryDisposition: "manual-reconciliation-required" as const,
       });
     }
-    if (!(await closeAll(state))) {
+    if (!(await closeAll(state, dependencies))) {
       reconciliation = frozenRecord({
         durability: reconciliation.durability,
         mayHaveCommitted: reconciliation.mayHaveCommitted,

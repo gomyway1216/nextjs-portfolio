@@ -1,8 +1,11 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { EventEmitter } from "node:events";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { writeFloodgateV7ApprovedKeyEnrollmentOutputCoreForTests } from "../../../ml/install-floodgate-v7-approved-key-enrollment";
 
 const REPOSITORY_ROOT = path.resolve(
   fileURLToPath(new URL("../../../", import.meta.url)),
@@ -24,6 +27,35 @@ const requestFields = {
   candidate_canonical_json: "{}\n",
 } as const;
 const canonicalRequest = `${JSON.stringify(requestFields)}\n`;
+
+type OutputMode = "callback-and-paired-error" | "synchronous-throw" | "success";
+
+class TestOutputStream extends EventEmitter {
+  readonly mode: OutputMode;
+  writes = 0;
+
+  constructor(mode: OutputMode) {
+    super();
+    this.mode = mode;
+  }
+
+  write(_value: string, callback: (error?: Error | null) => void): boolean {
+    this.writes += 1;
+    if (this.mode === "success") {
+      callback(null);
+      return true;
+    }
+    const failure = new Error(`synthetic-output-${this.mode}`);
+    if (this.mode === "synchronous-throw") throw failure;
+    callback(failure);
+    process.nextTick(() => this.emit("error", failure));
+    return false;
+  }
+}
+
+function asWriteStream(stream: TestOutputStream): NodeJS.WriteStream {
+  return stream as unknown as NodeJS.WriteStream;
+}
 
 function cleanChildEnvironment(): NodeJS.ProcessEnv {
   const environment = { ...process.env };
@@ -58,6 +90,52 @@ function expectFixedRejection(result: SpawnSyncReturns<string>): void {
 }
 
 describe("Floodgate v7 approved key enrollment installer CLI", () => {
+  it("keeps the temporary listener through a paired error and detaches it before rejection settles", async () => {
+    const stream = new TestOutputStream("callback-and-paired-error");
+
+    await expect(
+      writeFloodgateV7ApprovedKeyEnrollmentOutputCoreForTests(
+        asWriteStream(stream),
+        "receipt\n",
+      ),
+    ).rejects.toThrow("synthetic-output-callback-and-paired-error");
+
+    expect(stream.writes).toBe(1);
+    expect(stream.listenerCount("error")).toBe(0);
+  });
+
+  it.each(["callback-and-paired-error", "synchronous-throw"] as const)(
+    "does not accumulate error listeners across repeated %s failures",
+    async (mode) => {
+      const stream = new TestOutputStream(mode);
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await expect(
+          writeFloodgateV7ApprovedKeyEnrollmentOutputCoreForTests(
+            asWriteStream(stream),
+            "fixed-failure\n",
+          ),
+        ).rejects.toThrow(`synthetic-output-${mode}`);
+        expect(stream.listenerCount("error")).toBe(0);
+      }
+      expect(stream.writes).toBe(20);
+    },
+  );
+
+  it("detaches the temporary listener on successful one-shot output", async () => {
+    const stream = new TestOutputStream("success");
+
+    await expect(
+      writeFloodgateV7ApprovedKeyEnrollmentOutputCoreForTests(
+        asWriteStream(stream),
+        "receipt\n",
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(stream.writes).toBe(1);
+    expect(stream.listenerCount("error")).toBe(0);
+  });
+
   it("rejects every positional argument before accepting a request", () => {
     expectFixedRejection(runCli(canonicalRequest, ["unexpected-argument"]));
   });

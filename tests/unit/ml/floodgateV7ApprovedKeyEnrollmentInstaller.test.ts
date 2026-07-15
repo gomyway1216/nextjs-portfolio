@@ -1051,6 +1051,39 @@ posixDescribe("Floodgate v7 approved-key enrollment installer", () => {
     );
   });
 
+  it("preserves strong durability after a post-revalidation descriptor close failure", async () => {
+    const home = await temporaryHome();
+    let closeCalls = 0;
+    const failure = await captureFailure(() =>
+      installer.installFloodgateV7ApprovedKeyEnrollmentCoreForTests(
+        input(),
+        dependencies(home, {
+          closeFileHandleForTests: async (handle: fs.promises.FileHandle) => {
+            closeCalls += 1;
+            await handle.close();
+            if (closeCalls === 2) throw new Error(VALUE_CANARY);
+          },
+        }),
+      ),
+    );
+
+    expect(closeCalls).toBeGreaterThanOrEqual(2);
+    expect(failure).toMatchObject({
+      phase: "cleanup",
+      durability: "record-published-and-staging-removal-durable",
+      may_have_committed: true,
+      retry_disposition: "do-not-retry-existing-record",
+    });
+    expect(String(failure)).not.toContain(home);
+    expect(String(failure)).not.toContain(VALUE_CANARY);
+    expect(await fs.promises.readFile(enrollmentRecord(home), "utf8")).toBe(
+      canonicalRecord(input()),
+    );
+    expect(await entriesOrEmpty(enrollmentParent(home))).toEqual([
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_FILENAME,
+    ]);
+  });
+
   it("requires exact plain input and dependency records without invoking accessors or proxies", async () => {
     const home = await temporaryHome();
     let accessorCalls = 0;

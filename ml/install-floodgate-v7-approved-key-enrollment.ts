@@ -30,13 +30,21 @@ interface InstallRequest {
   readonly candidate_canonical_json: string;
 }
 
+const scheduleImmediate = setImmediate;
+
 function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const onError = (error: Error): void => {
       if (settled) return;
       settled = true;
-      reject(error);
+      // A failed stream.write callback can be followed by a paired "error"
+      // event. Keep this listener through the current event-loop turn, then
+      // detach it before exposing the rejection to a caller that may retry.
+      scheduleImmediate(() => {
+        stream.off("error", onError);
+        reject(error);
+      });
     };
     stream.on("error", onError);
     try {
@@ -60,6 +68,19 @@ function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
       );
     }
   });
+}
+
+/** Test-only stream boundary; it never invokes the production installer. */
+export function writeFloodgateV7ApprovedKeyEnrollmentOutputCoreForTests(
+  stream: NodeJS.WriteStream,
+  value: string,
+): Promise<void> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new TypeError("test installer output accepts exactly two arguments"),
+    );
+  }
+  return writeOutput(stream, value);
 }
 
 async function readBoundedStdin(stream: NodeJS.ReadStream): Promise<Buffer> {

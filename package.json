@@ -28,6 +28,10 @@
     "shogi:floodgate-v7-key-enrollment-private-review-install": "node -r tsx/cjs ml/run-floodgate-v7-private-human-key-enrollment-orchestrator.ts",
     "shogi:floodgate-v7-key-enrollment-binding-preflight": "node -r tsx/cjs ml/inspect-floodgate-v7-approved-key-current-binding.ts",
     "shogi:floodgate-v7-offline-connector-gates": "node -r tsx/cjs ml/run-floodgate-v7-offline-connector-gates.ts",
+    "shogi:floodgate-v7-production-connector-registry-provision": "node -r tsx/cjs ml/provision-floodgate-v7-production-connector-registry.ts",
+    "shogi:floodgate-v7-production-connector-prefix-100": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-100.ts",
+    "shogi:floodgate-v7-production-connector-prefix-500": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-500.ts",
+    "shogi:floodgate-v7-production-connector-final-24000": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-final-24000.ts",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },

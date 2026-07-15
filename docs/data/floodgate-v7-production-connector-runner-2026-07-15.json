@@ -1,0 +1,369 @@
+{
+  "schema": "shogi-floodgate-v7-production-connector-runner-evidence-v1",
+  "evidence_date": "2026-07-15",
+  "evidence_scope": {
+    "class": "merged-private-key-enrollment-production-follow-up-and-local-registry-runner-validation",
+    "production_state_freshly_observed_for_key_enrollment_and_current_binding": true,
+    "current_production_registry_presence_freshly_observed": true,
+    "current_production_gate_process_presence_freshly_observed": true,
+    "historical_production_gate_execution_count_freshly_observed": false,
+    "private_candidate_json_included": false,
+    "private_run_id_included": false,
+    "private_approval_id_included": false,
+    "private_approval_timestamp_included": false,
+    "private_digests_included": false,
+    "private_key_instance_id_included": false,
+    "absolute_local_paths_included": false,
+    "owner_uid_included": false,
+    "filesystem_device_or_inode_included": false,
+    "key_material_included": false,
+    "local_user_or_host_name_included": false
+  },
+  "prerequisite_delivery": {
+    "pull_request": 468,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/468",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "7b9a60e7912d09c5058f789ec1309325941202d2",
+    "checks_observed": 6,
+    "checks_successful": 6,
+    "unresolved_actionable_review_threads_at_merge": 0
+  },
+  "production_key_enrollment_follow_up": {
+    "private_human_workflow": {
+      "successful": true,
+      "status": "private-human-reviewed-candidate-create-only-installed-postflight-and-current-binding-validated",
+      "exact_canonical_jsonl_and_terminal_lf_reviewed": true,
+      "full_lowercase_sha256_typeback_succeeded": true,
+      "fresh_candidate_reinspection_succeeded": true,
+      "create_only_approved_record_install_succeeded": true,
+      "exact_loaded_record_postflight_succeeded": true,
+      "fresh_current_key_binding_postflight_succeeded": true,
+      "candidate_or_digest_disclosed": false
+    },
+    "independent_current_binding_preflight": {
+      "successful": true,
+      "status": "approved-record-exactly-matches-fresh-current-key",
+      "exact_binding_match": true,
+      "held_descriptors_revalidated": true,
+      "memory_only": true,
+      "sensitive_values_exported": false,
+      "authority_issued": false
+    },
+    "successful_fresh_current_binding_observations": 2
+  },
+  "implementation": {
+    "delivery_state": "local-implementation-validated-awaiting-ready-pr-review-and-regular-merge",
+    "production_registry": {
+      "contract": "shogi-floodgate-v7-production-connector-registry-record-v1",
+      "status": "fixed-private-production-connector-run-registry",
+      "layout": "fixed-current-euid-userinfo-home-v1",
+      "run_id_entropy_bytes": 32,
+      "managed_root_mode": "0700",
+      "runs_directory_mode": "0700",
+      "registry_mode": "0600",
+      "registry_nlink": 1,
+      "single_use_opaque_capability": true,
+      "currently_installed_in_production": false,
+      "created_by_this_change": false
+    },
+    "create_only_installer": {
+      "contract": "shogi-floodgate-v7-production-connector-registry-installer-v1",
+      "status": "new-production-connector-registry-no-clobber-published-durable-and-revalidated",
+      "algorithm": "canonical-registry-staged-fsync-readback-hard-link-no-clobber-directory-fsync-staging-unlink-directory-fsync-reopen-revalidation-v1",
+      "overwrites_existing_registry": false,
+      "adopts_existing_registry": false,
+      "removes_competing_staging_name": false,
+      "production_executions_by_this_change": 0
+    },
+    "argumentless_provisioner": {
+      "contract": "shogi-floodgate-v7-production-connector-registry-provisioner-v1",
+      "status": "immutable-private-run-registry-created-bound-and-postflight-validated",
+      "required_node_version": "v22.13.0",
+      "argv_fields": 0,
+      "current_binding_validated_before_entropy_or_install": true,
+      "approved_enrollment_claimed": true,
+      "entropy_zeroized": true,
+      "fixed_configuration_only": true,
+      "exact_private_claim_postflight": true,
+      "success_receipt_rebuilt_from_allowlist": true,
+      "production_executions_by_this_change": 0
+    },
+    "production_runner": {
+      "contract": "shogi-floodgate-v7-production-connector-runner-v1",
+      "status": "registry-approved-current-bound-production-connector-gate-complete",
+      "generic_production_gate_exported": false,
+      "fixed_gate_exports": [
+        {
+          "gate": "durable-prefix-100",
+          "target_parents": 100,
+          "sealed": false,
+          "production_executions_by_this_change": 0
+        },
+        {
+          "gate": "durable-prefix-500",
+          "target_parents": 500,
+          "sealed": false,
+          "production_executions_by_this_change": 0
+        },
+        {
+          "gate": "sealed-final-24000",
+          "target_parents": 24000,
+          "sealed": true,
+          "production_executions_by_this_change": 0
+        }
+      ],
+      "sequence": [
+        "private-registry-load-and-single-use-claim",
+        "approved-enrollment-load-and-claim",
+        "registry-to-approved-record-exact-binding-comparison",
+        "fresh-current-binding-receipt-validation",
+        "fresh-connector-enrollment-load",
+        "exactly-one-gate-specific-production-connector-call",
+        "raw-connector-production-boundary-and-fixed-checkpoint-semantics-exact-validation",
+        "fixed-public-receipt-reconstruction"
+      ],
+      "raw_connector_receipt_disclosed": false,
+      "private_registry_values_disclosed": false,
+      "noncritical_raw_connector_fields_exactly_validated": false
+    },
+    "operator_runtime": {
+      "required_node_version": "v22.13.0",
+      "wrong_node_fails_before_production_module_load": true,
+      "arguments_fail_before_production_module_load": true,
+      "gate_scripts_use_caffeinate": true,
+      "caffeinate_flags": "-dimsu",
+      "caffeinate_claimed_as_crash_recovery": false
+    }
+  },
+  "fixed_configuration": {
+    "verifier_revision": "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+    "absolute_values_included": false,
+    "path_policy": [
+      "fixed-current-home-role-bundle-repository",
+      "fixed-current-home-q1-2026-raw-lock",
+      "fixed-current-home-q1-2026-role-lock-v1",
+      "fixed-current-home-label-free-role-bundle-v2",
+      "fixed-repository-relative-legacy-protected-position-ids",
+      "fixed-current-home-production-teacher-assets-v1",
+      "registry-derived-run-stage-and-final-basenames"
+    ],
+    "engine_arguments": 0,
+    "argumentless_provisioner_operator_overrides_allowed": false,
+    "raw_production_installer_accepts_explicit_input": true,
+    "raw_production_installer_trust_boundary": "same-current-euid-current-js-realm"
+  },
+  "review_findings_and_fixes": {
+    "operator_to_json_or_coercion_before_validation": {
+      "found": true,
+      "fixed": true,
+      "fix": "capture-and-validate-exact-own-data-primitives-before-serializing-a-new-record"
+    },
+    "proxy_or_accessor_input_side_effects": {
+      "found": true,
+      "fixed": true,
+      "fix": "reject-proxy-and-accessor-values-and-read-own-data-descriptors-only"
+    },
+    "raw_or_forged_success_receipt_projection": {
+      "found": true,
+      "fixed": true,
+      "fix": "exactly-validate-contract-status-boundary-verification-and-nonclaims-then-rebuild-public-receipt"
+    },
+    "forged_typed_failure_metadata_projection": {
+      "found": true,
+      "fixed": true,
+      "fix": "enum-allowlists-and-durability-consistency-or-conservative-unknown-failure"
+    },
+    "prototype-bearing_internal_records": {
+      "found": true,
+      "fixed": true,
+      "fix": "frozen-null-prototype-capture-and-projection-records"
+    },
+    "fulfilled_malformed_current_binding_receipt": {
+      "found": true,
+      "fixed": true,
+      "fix": "exact-official-contract-status-boundary-algorithm-six-field-verification-and-all-false-nonclaims"
+    },
+    "test_boundary_or_critical_connector_semantics_accepted_without_validation": {
+      "found": true,
+      "fixed": true,
+      "fix": "pin-production-execution-and-null-test-boundaries-plus-connector-checkpoint-holdout-and-nonclaim-semantics"
+    },
+    "inconsistent_typed_retry_metadata": {
+      "found": true,
+      "fixed": true,
+      "fix": "own-data-descriptors-cross-field-matrix-and-conservative-checkpoint-reconciliation-for-invalid-proxy-or-accessor-metadata"
+    },
+    "cleanup_failure_overwriting_prior_failure_phase": {
+      "found": true,
+      "fixed": true,
+      "fix": "set-cleanup-phase-only-without-a-prior-failure-and-regression-test-phase-preservation"
+    },
+    "transitive_websocket_driver_critical_advisory": {
+      "found": true,
+      "fixed": true,
+      "previous_version": "0.7.4",
+      "patched_version": "0.7.5",
+      "package_lock_only": true,
+      "npm_audit_vulnerabilities_after_fix": 0
+    },
+    "production_registry_or_connector_gate_was_invoked_before_review_fixes": false
+  },
+  "validation": {
+    "static_validation": {
+      "typescript": "pass",
+      "eslint_errors": 0,
+      "eslint_warnings": 0,
+      "prettier": "pass",
+      "git_diff_check": "pass",
+      "npm_audit_vulnerabilities": 0
+    },
+    "focused_vitest": {
+      "status": "pass",
+      "node_version": "v22.13.0",
+      "files": 6,
+      "tests": 108,
+      "passed": 108,
+      "failed": 0,
+      "vitest_duration_seconds": 1.27
+    },
+    "broader_floodgate_v7_vitest": {
+      "status": "pass",
+      "node_version": "v22.13.0",
+      "files": 26,
+      "tests": 680,
+      "passed": 680,
+      "failed": 0,
+      "vitest_duration_seconds": 166.98,
+      "wall_time_seconds": 167.61,
+      "maximum_resident_set_bytes": 3437035520,
+      "swaps": 0
+    },
+    "full_vitest": {
+      "status": "pass",
+      "node_version": "v22.13.0",
+      "files": 136,
+      "tests": 2544,
+      "passed": 2544,
+      "failed": 0,
+      "vitest_duration_seconds": 166.22,
+      "wall_time_seconds": 166.74,
+      "maximum_resident_set_bytes": 3416358912,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "node_version": "v22.13.0",
+      "wall_time_seconds": 25.3,
+      "compiled_successfully": true,
+      "typescript_completed": true,
+      "static_page_generation_completed": true,
+      "existing_build_phase_and_dynamic_route_diagnostics_observed": true,
+      "maximum_resident_set_bytes": 2605432832,
+      "swaps": 0
+    },
+    "test_files": [
+      "tests/unit/ml/floodgateV7ProductionConnectorRegistry.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorRegistryInstaller.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorRegistryProvisioner.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorRegistryProvisionerCli.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorRunner.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorCli.test.ts"
+    ],
+    "actual_temp_home_e2e": {
+      "status": "pass",
+      "production_home_modified": false,
+      "production_registry_namespace_accessed": false,
+      "production_home_root_metadata_read_for_isolation": true,
+      "real_filesystem_used": true,
+      "components": [
+        "actual-provisioner-core",
+        "actual-canonical-registry-serializer",
+        "actual-create-only-installer-core",
+        "actual-private-registry-loader-core",
+        "actual-single-use-private-claim",
+        "exact-private-claim-postflight"
+      ]
+    },
+    "coverage_claims": [
+      "tojson-proxy-accessor-and-record-shape-rejection",
+      "held-path-owner-mode-link-and-identity-revalidation",
+      "create-only-install-and-all-durability-failpoints",
+      "entropy-zeroization-and-fixed-configuration",
+      "three-gate-sequencing-production-boundary-and-critical-receipt-validation",
+      "typed-forged-and-unknown-failure-sanitization",
+      "argv-and-node-version-before-lazy-production-load",
+      "success-output-and-stream-failure-reconciliation"
+    ]
+  },
+  "stale_lease_blocker": {
+    "classification": "pre-production-gate-blocker",
+    "observed_stale_production_lease_from_this_change": false,
+    "known_real_gate_runs_by_this_change": 0,
+    "current_lease_format": "empty-current-euid-owned-0700-directory-with-memory-only-identity",
+    "safe_exact_stale_lease_reconciliation_possible_under_current_contract": false,
+    "reasons": [
+      "lease-run-binding-not-persisted",
+      "lease-device-and-inode-not-authenticated-in-persistent-metadata",
+      "no-owner-lifetime-os-backed-lock",
+      "pid-lsof-age-and-repeated-snapshots-do-not-prove-owner-death-without-race",
+      "same-uid-replacement-directory-is-indistinguishable-from-original-stale-lease"
+    ],
+    "required_separate_pr": true,
+    "required_design": [
+      "hmac-bound-run-gate-parent-stage-lease-identity-and-random-nonce-metadata",
+      "boot-session-and-pid-plus-process-start-as-secondary-metadata",
+      "continuous-owner-lifetime-os-backed-lock",
+      "two-phase-inspect-and-manual-confirm",
+      "fresh-registry-current-binding-checkpoint-and-held-descriptor-revalidation",
+      "exclusive-rename-to-unique-quarantine-and-parent-fsync",
+      "no-automatic-deletion-of-original-lease-inode",
+      "legacy-metadata-free-lease-fails-closed"
+    ],
+    "registry_provisioning_allowed_before_fix": false,
+    "prefix_100_allowed_before_fix": false,
+    "prefix_500_allowed_before_fix": false,
+    "final_24000_allowed_before_fix": false,
+    "hold_enforcement": "operational-hold-not-a-runtime-interlock-in-this-change"
+  },
+  "workflow_counters": {
+    "scope": "this-change-only-except-explicit-prerequisite-key-enrollment-follow-up",
+    "private_human_key_approvals": 1,
+    "approved_records_create_only_installed": 1,
+    "successful_current_binding_checks": 2,
+    "production_connector_registries_provisioned": 0,
+    "production_connector_gate_runs": 0,
+    "real_parent_records_completed": 0,
+    "teacher_requests": 0,
+    "teacher_processes": 0,
+    "teacher_labels": 0,
+    "checkpoints_created_by_this_change": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_weights": 0,
+    "live_weight_overwrites": 0,
+    "formal_match_games": 0,
+    "elo_or_rank_observations": 0,
+    "stable_high_dan_strength_observations": 0
+  },
+  "live_baseline": {
+    "production_evaluator": "runOp1",
+    "changed_by_this_work": false,
+    "existing_weight_file_overwritten": false,
+    "candidate_activated": false
+  },
+  "nonclaims": {
+    "current_production_registry_exists": false,
+    "connector_authority_exercised": false,
+    "checkpoint": false,
+    "dataset_read": false,
+    "teacher_label": false,
+    "training": false,
+    "weight": false,
+    "live_evaluation_activation": false,
+    "match": false,
+    "elo": false,
+    "rank": false,
+    "stable_high_dan_strength": false
+  }
+}

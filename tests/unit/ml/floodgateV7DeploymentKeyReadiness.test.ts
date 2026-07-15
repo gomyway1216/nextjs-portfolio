@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
@@ -62,6 +62,72 @@ async function inspect(
     effectiveUserId: effectiveUserId(),
     homeDirectory: home,
   });
+}
+
+async function inspectWithMutationBeforeSecondLstat(
+  home: string,
+  targetPath: string,
+  mutate: () => void,
+): Promise<
+  Readonly<{
+    receipt: Readonly<FloodgateV7DeploymentKeyReadinessReceipt>;
+    targetLstatCalls: number;
+  }>
+> {
+  let targetLstatCalls = 0;
+  vi.resetModules();
+  vi.doMock("node:fs", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("node:fs")>();
+    const originalLstat = actual.promises.lstat.bind(actual.promises);
+    return {
+      ...actual,
+      promises: {
+        ...actual.promises,
+        lstat: (...args: unknown[]): unknown => {
+          if (args[0] === targetPath) {
+            targetLstatCalls += 1;
+            if (targetLstatCalls === 2) mutate();
+          }
+          return Reflect.apply(originalLstat, actual.promises, args);
+        },
+      },
+    };
+  });
+
+  try {
+    const isolated =
+      await import("../../../ml/floodgate-v7-deployment-key-readiness");
+    const receipt =
+      await isolated.inspectFloodgateV7DeploymentKeyReadinessCoreForTests({
+        effectiveUserId: effectiveUserId(),
+        homeDirectory: home,
+      });
+    return { receipt, targetLstatCalls };
+  } finally {
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+  }
+}
+
+async function createManagedChain(home: string): Promise<void> {
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+    index += 1
+  ) {
+    const directory = managedDirectoryPath(home, index);
+    await fs.promises.mkdir(directory, { mode: 0o700 });
+    await fs.promises.chmod(directory, 0o700);
+  }
+}
+
+async function createKey(home: string, fill: number): Promise<void> {
+  await fs.promises.writeFile(
+    keyPath(home),
+    Buffer.alloc(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES, fill),
+    { flag: "wx", mode: 0o600 },
+  );
+  await fs.promises.chmod(keyPath(home), 0o600);
 }
 
 function assertDeepFrozenNullPrototype(value: unknown): void {
@@ -178,6 +244,110 @@ posixDescribe("Floodgate v7 deployment-key metadata readiness", () => {
     expect(await fs.promises.readFile(keyPath(home))).toEqual(before);
     expect(JSON.stringify(receipt)).not.toContain(home);
     expect(JSON.stringify(receipt)).not.toContain(key.toString("hex"));
+  });
+
+  it("reports unsafe when the key is replaced before final metadata revalidation", async () => {
+    const home = await homeFixture();
+    await createManagedChain(home);
+    await createKey(home, 0x41);
+    const replacementPath = path.join(
+      parentPath(home),
+      ".root-key-readiness-replacement",
+    );
+    await fs.promises.writeFile(
+      replacementPath,
+      Buffer.alloc(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES, 0x42),
+      { flag: "wx", mode: 0o600 },
+    );
+    await fs.promises.chmod(replacementPath, 0o600);
+    const originalStat = await fs.promises.lstat(keyPath(home), {
+      bigint: true,
+    });
+    const replacementStat = await fs.promises.lstat(replacementPath, {
+      bigint: true,
+    });
+    expect(replacementStat.ino).not.toBe(originalStat.ino);
+    expect(replacementStat.size).toBe(originalStat.size);
+    expect(replacementStat.mode & BigInt(0o7777)).toBe(
+      originalStat.mode & BigInt(0o7777),
+    );
+
+    const result = await inspectWithMutationBeforeSecondLstat(
+      home,
+      keyPath(home),
+      () => fs.renameSync(replacementPath, keyPath(home)),
+    );
+
+    expect(result.targetLstatCalls).toBe(2);
+    expect(result.receipt).toMatchObject({
+      status: "unsafe",
+      deployment: { parent: "unsafe", key: "unsafe" },
+    });
+  });
+
+  it("reports unsafe when the key is removed before final metadata revalidation", async () => {
+    const home = await homeFixture();
+    await createManagedChain(home);
+    await createKey(home, 0x51);
+
+    const result = await inspectWithMutationBeforeSecondLstat(
+      home,
+      keyPath(home),
+      () => fs.unlinkSync(keyPath(home)),
+    );
+
+    expect(result.targetLstatCalls).toBe(2);
+    expect(result.receipt).toMatchObject({
+      status: "unsafe",
+      deployment: { parent: "unsafe", key: "unsafe" },
+    });
+  });
+
+  it("reports unsafe when a missing key is created before absence revalidation", async () => {
+    const home = await homeFixture();
+    await createManagedChain(home);
+
+    const result = await inspectWithMutationBeforeSecondLstat(
+      home,
+      keyPath(home),
+      () => {
+        fs.writeFileSync(
+          keyPath(home),
+          Buffer.alloc(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES, 0x61),
+          { flag: "wx", mode: 0o600 },
+        );
+        fs.chmodSync(keyPath(home), 0o600);
+      },
+    );
+
+    expect(result.targetLstatCalls).toBe(2);
+    expect(result.receipt).toMatchObject({
+      status: "unsafe",
+      deployment: { parent: "unsafe", key: "unsafe" },
+    });
+  });
+
+  it("reports unsafe when a missing managed component is created before absence revalidation", async () => {
+    const home = await homeFixture();
+    const firstManagedDirectory = managedDirectoryPath(home, 0);
+    const missingManagedDirectory = managedDirectoryPath(home, 1);
+    await fs.promises.mkdir(firstManagedDirectory, { mode: 0o700 });
+    await fs.promises.chmod(firstManagedDirectory, 0o700);
+
+    const result = await inspectWithMutationBeforeSecondLstat(
+      home,
+      missingManagedDirectory,
+      () => {
+        fs.mkdirSync(missingManagedDirectory, { mode: 0o700 });
+        fs.chmodSync(missingManagedDirectory, 0o700);
+      },
+    );
+
+    expect(result.targetLstatCalls).toBe(2);
+    expect(result.receipt).toMatchObject({
+      status: "unsafe",
+      deployment: { parent: "unsafe", key: "unsafe" },
+    });
   });
 
   it("does not let an inherited numeric Array setter redirect the fixed readiness path", async () => {

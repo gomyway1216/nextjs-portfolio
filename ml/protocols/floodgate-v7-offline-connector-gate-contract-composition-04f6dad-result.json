@@ -1,0 +1,186 @@
+{
+  "schema": "shogi-floodgate-v7-offline-connector-gate-contract-composition-v1",
+  "status": "complete-fixed-in-memory-three-gate-test-only-contract-composition",
+  "claim_boundary": "fixed-in-memory-test-only-approved-enrollment-and-connector-core-contract-composition-for-100-500-24000-gates-with-closed-synthetic-lifecycles-and-pathless-summaries-not-production-filesystem-continuity-dataset-training-live-or-strength-evidence",
+  "trust_boundary": "trusted-current-process-js-realm-captured-intrinsics-and-imported-test-only-core-seams-with-fixed-synthetic-metadata-v1",
+  "execution_boundary": "test-only-fixed-in-memory-no-production-capability-composition",
+  "connector": {
+    "contract": "shogi-floodgate-v7-production-checkpoint-connector-v2",
+    "execution_boundary": "test-only-injected-capability-composition",
+    "production_origins": {
+      "approved_enrollment": false,
+      "coordinator": false,
+      "stage": false,
+      "key": false,
+      "input": false,
+      "checkpoint": false
+    }
+  },
+  "synthetic_fixture": {
+    "classification": "deterministic-test-only-fixture-not-production-evidence",
+    "dynamic_identifiers_are_synthetic": true,
+    "run_id": "1212121212121212121212121212121212121212121212121212121212121212",
+    "key_id": "floodgate-v7-teacher-checkpoint-root-v1",
+    "key_instance_id": "3434343434343434343434343434343434343434343434343434343434343434",
+    "approved_enrollment": {
+      "capability_origin": "test-only-synthetic-factory",
+      "execution_boundary": "test-only-injected-current-euid-home-control-plane-record",
+      "actual_control_plane_approval": false,
+      "actual_record_file_reads": 0
+    },
+    "input": {
+      "schema": "shogi-authenticated-floodgate-training-rows-v1",
+      "role": "training",
+      "verifier_revision": "7777777777777777777777777777777777777777",
+      "raw_format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+      "records": 24000,
+      "games": 240,
+      "position_ids_count": 24000
+    }
+  },
+  "gates": [
+    {
+      "order": 1,
+      "gate": "durable-prefix-100",
+      "checkpoint_receipt_fixture": {
+        "target_parents": 100,
+        "completed_parents": 100,
+        "resumed_parents": 0,
+        "records": 102,
+        "bytes": 1791893,
+        "sealed": false
+      },
+      "connector_receipt": {
+        "bytes": 5580,
+        "sha256": "b8df1fa794a45c5e7131bad61359c5bf92beb57dac01aaf849920deba46e2cd6"
+      },
+      "synthetic_lifecycle_calls": {
+        "readiness": 1,
+        "create_coordinator": 1,
+        "authorize_stage": 1,
+        "claim_handoff": 1,
+        "prepare_key": 1,
+        "consume_rows": 1,
+        "checkpoint": 1,
+        "claim_postflight": 1,
+        "discard_key": 1,
+        "lease_close": 1,
+        "coordinator_close": 1,
+        "coordinator_abort": 0,
+        "failure_observer": 0
+      }
+    },
+    {
+      "order": 2,
+      "gate": "durable-prefix-500",
+      "checkpoint_receipt_fixture": {
+        "target_parents": 500,
+        "completed_parents": 500,
+        "resumed_parents": 100,
+        "records": 503,
+        "bytes": 8948379,
+        "sealed": false
+      },
+      "connector_receipt": {
+        "bytes": 5582,
+        "sha256": "0e0294e884e904f2f5b83ef29242d18de48d88a72fb9868f4a0ba1419102c6d5"
+      },
+      "synthetic_lifecycle_calls": {
+        "readiness": 1,
+        "create_coordinator": 1,
+        "authorize_stage": 1,
+        "claim_handoff": 1,
+        "prepare_key": 1,
+        "consume_rows": 1,
+        "checkpoint": 1,
+        "claim_postflight": 1,
+        "discard_key": 1,
+        "lease_close": 1,
+        "coordinator_close": 1,
+        "coordinator_abort": 0,
+        "failure_observer": 0
+      }
+    },
+    {
+      "order": 3,
+      "gate": "sealed-final-24000",
+      "checkpoint_receipt_fixture": {
+        "target_parents": 24000,
+        "completed_parents": 24000,
+        "resumed_parents": 500,
+        "records": 24004,
+        "bytes": 429247143,
+        "sealed": true
+      },
+      "connector_receipt": {
+        "bytes": 5574,
+        "sha256": "1dc1e3afdc749a627340e3ea4bd216b4a80dead7d4f7644bda7bbcbceeaf3d52"
+      },
+      "synthetic_lifecycle_calls": {
+        "readiness": 1,
+        "create_coordinator": 1,
+        "authorize_stage": 1,
+        "claim_handoff": 1,
+        "prepare_key": 1,
+        "consume_rows": 1,
+        "checkpoint": 1,
+        "claim_postflight": 1,
+        "discard_key": 1,
+        "lease_close": 1,
+        "coordinator_close": 1,
+        "coordinator_abort": 0,
+        "failure_observer": 0
+      }
+    }
+  ],
+  "cross_gate": {
+    "gate_order_exact": true,
+    "run_id_metadata_equal": true,
+    "run_binding_metadata_equal": true,
+    "input_binding_metadata_equal": true,
+    "synthetic_key_instance_metadata_equal": true,
+    "cleanup_completed_before_next_gate": true,
+    "fresh_enrollment_capability_per_gate": true,
+    "durable_work_file_shared": false,
+    "filesystem_continuity_observed": false,
+    "actual_resume_observed": false
+  },
+  "operation_counts": {
+    "synthetic_enrollment_capabilities_created": 3,
+    "test_only_connector_compositions": {
+      "durable_prefix_100": 1,
+      "durable_prefix_500": 1,
+      "sealed_final_24000": 1
+    },
+    "production_enrollment_loads": 0,
+    "production_connector_invocations": {
+      "durable_prefix_100": 0,
+      "durable_prefix_500": 0,
+      "sealed_final_24000": 0
+    },
+    "actual_home_approved_record_opens": 0,
+    "deployment_key_file_opens": 0,
+    "deployment_key_bytes_read": 0,
+    "dataset_file_opens": 0,
+    "checkpoint_artifact_reads": 0,
+    "checkpoint_artifact_writes": 0,
+    "network_requests": 0,
+    "child_processes": 0,
+    "module_source_loading_excluded_from_application_data_io_counts": true
+  },
+  "nonclaims": {
+    "production_approval": false,
+    "production_gate_authorization": false,
+    "production_checkpoint": false,
+    "actual_key_or_control_plane_record_access": false,
+    "filesystem_durability_or_resume": false,
+    "dataset_read": false,
+    "teacher_label": false,
+    "optimizer_training": false,
+    "weights_changed": false,
+    "live_evaluation_activation": false,
+    "match": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

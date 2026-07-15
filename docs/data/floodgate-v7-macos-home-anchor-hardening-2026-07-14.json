@@ -1,0 +1,261 @@
+{
+  "schema": "shogi-floodgate-v7-macos-home-anchor-hardening-evidence-v1",
+  "generated_at": "2026-07-15T18:30:13Z",
+  "evidence_scope": {
+    "evidence_class": "local-production-metadata-probe-local-validation-and-independent-code-review",
+    "base_revision": "b89ff1a47578c6fe8d9a4a0ed0d610a991fb4020",
+    "implementation_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+    "absolute_local_paths_included": false,
+    "private_key_material_included": false,
+    "private_key_fingerprints_included": false,
+    "secret_values_included": false
+  },
+  "pre_fix_production_attempt": {
+    "attempts": 1,
+    "successful_attempts": 0,
+    "sanitized_failure": {
+      "phase": "namespace",
+      "durability": "no-deployment-change-established",
+      "may_have_committed": false,
+      "retry_disposition": "manual-reconciliation-required"
+    },
+    "deployment_change_established": false,
+    "key_created": false,
+    "live_weight_changed": false
+  },
+  "pre_fix_instance_inspector": {
+    "operation": "read-only-inspection",
+    "candidate_count": 0,
+    "candidate_selected": false,
+    "deployment_key_bytes_read": 0,
+    "zero_key_bytes_read_reason": "deployment-key-absent-in-this-run"
+  },
+  "post_fix_real_metadata_probe": {
+    "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+    "status": "not-provisioned",
+    "managed_parent_present": false,
+    "deployment_key_present": false,
+    "deployment_key_bytes_read": 0,
+    "deployment_key_bytes_written": 0,
+    "metadata_only": true
+  },
+  "root_cause": {
+    "classification": "macos-current-user-home-mode-policy-mismatch",
+    "summary": "The old deployment-key provisioner applied the exact private managed-directory mode policy to the current user's canonical home anchor, rejecting a safe macOS home with read and execute bits for group or others before any managed deployment-key parent could be created.",
+    "direct_blocking_module": "ml/floodgate-v7-deployment-key-provisioner.ts",
+    "pre_fix_provisioner_home_requirement": "exact-0700",
+    "observed_safe_home_example": "0755",
+    "managed_directory_requirement": "exact-0700",
+    "pre_fix_downstream_behavior": "The readiness, authority, instance-enrollment, and approved-key-enrollment paths did not impose the provisioner's exact-0700 home rule; their namespace checks could accept home or intermediate-directory states that the provisioner rejected, including unsafe group-or-other-writable anchors or intermediate components.",
+    "downstream_consistency_hardening": "All five production paths now share the same safe canonical home-anchor predicate and exact-0700 managed-child predicate so provision, inspection, authority, readiness, and enrollment agree on namespace validity.",
+    "hardened_production_modules": [
+      "ml/floodgate-v7-approved-key-enrollment.ts",
+      "ml/floodgate-v7-deployment-key-authority.ts",
+      "ml/floodgate-v7-deployment-key-instance-enrollment.ts",
+      "ml/floodgate-v7-deployment-key-provisioner.ts",
+      "ml/floodgate-v7-deployment-key-readiness.ts"
+    ]
+  },
+  "fixed_invariants": {
+    "home_anchor": {
+      "source": "current-effective-user-userinfo",
+      "must_be_absolute_and_canonical": true,
+      "must_be_real_directory_not_symlink": true,
+      "must_be_owned_by_current_effective_user": true,
+      "required_owner_permissions": "owner-rwx-mask-0700",
+      "forbidden_permissions": "special-bits-and-group-or-other-write",
+      "group_or_other_write_rejection_policy": "conservative-mode-bit-rejection-without-claiming-effective-traversal-or-acl-safety",
+      "safe_group_or_other_read_execute_permissions_allowed": true,
+      "accepted_examples": ["0700", "0750", "0755"],
+      "revalidated_for_identity_and_metadata_stability": true
+    },
+    "managed_child_directories": {
+      "required_mode": "0700",
+      "must_be_owned_by_current_effective_user": true,
+      "must_be_real_directories_not_symlinks": true,
+      "home_anchor_relaxation_applies": false,
+      "revalidated_for_identity_and_metadata_stability": true
+    },
+    "deployment_key": {
+      "provisioned_by_this_change": false,
+      "bytes_read_during_real_metadata_probe": 0,
+      "bytes_written_during_real_metadata_probe": 0
+    }
+  },
+  "validation": {
+    "focused_unit_tests": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "files": 5,
+      "tests": 121,
+      "passed": 121,
+      "failed": 0,
+      "vitest_duration_seconds": 1.45,
+      "command_wall_seconds": 2.34,
+      "maximum_resident_set_size_bytes": 209403904
+    },
+    "typescript": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "command_wall_seconds": 3.86,
+      "maximum_resident_set_size_bytes": 1057898496
+    },
+    "scoped_eslint": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "command_wall_seconds": 2.59,
+      "maximum_resident_set_size_bytes": 335183872
+    },
+    "prettier": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "command_wall_seconds": 1.36,
+      "maximum_resident_set_size_bytes": 159858688
+    },
+    "related_vitest": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "files": 10,
+      "tests": 339,
+      "passed": 339,
+      "failed": 0,
+      "vitest_duration_seconds": 174.51,
+      "command_wall_seconds": 175.25,
+      "maximum_resident_set_size_bytes": 3761504256
+    },
+    "full_vitest": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "files": 123,
+      "tests": 2298,
+      "passed": 2298,
+      "failed": 0,
+      "vitest_duration_seconds": 170.58,
+      "command_wall_seconds": 171.07,
+      "maximum_resident_set_size_bytes": 4072095744
+    },
+    "production_build": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "turbopack_compile_seconds": 13.1,
+      "typescript_seconds": 21.4,
+      "static_pages_generated": 193,
+      "static_pages_total": 193,
+      "command_wall_seconds": 38.01,
+      "maximum_resident_set_size_bytes": 2520170496
+    },
+    "full_eslint": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "errors": 0,
+      "warnings": 157,
+      "command_wall_seconds": 38.21,
+      "maximum_resident_set_size_bytes": 1727102976
+    },
+    "python_stdlib_tests": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "command_wall_seconds": 0.82,
+      "maximum_resident_set_size_bytes": 65536000
+    },
+    "npm_audit": {
+      "status": "pass",
+      "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies_total": 1139,
+      "command_wall_seconds": 1.02,
+      "maximum_resident_set_size_bytes": 135512064
+    }
+  },
+  "security_review": {
+    "status": "pass",
+    "capture_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
+    "independent_reviews": {
+      "security": "pass",
+      "functional_type_and_test": "pass"
+    },
+    "final_open_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "resolved_p1_findings": [
+      {
+        "id": "numeric-array-prototype-path-redirection",
+        "severity": "p1",
+        "finding": "An inherited numeric Array.prototype setter could redirect path-component assembly to an alternate namespace root.",
+        "resolution": "All five hardened modules now append fixed path components with captured primitive string concatenation instead of array-backed path joining.",
+        "regression_status": "pass"
+      },
+      {
+        "id": "provisioner-open-directory-reference-loss",
+        "severity": "p1",
+        "finding": "An inherited numeric Array.prototype setter could intercept provisioner directory-reference tracking and prevent an opened descriptor from being retained for cleanup.",
+        "resolution": "The provisioner now appends tracked directory references with a captured Object.defineProperty operation, preserving descriptor ownership and reverse-order cleanup.",
+        "regression_status": "pass"
+      },
+      {
+        "id": "readiness-terminal-stale-classification",
+        "severity": "p1",
+        "finding": "Readiness revalidated the home and already observed managed directories but did not revalidate an initially present key or the continued absence of an initially missing key or managed terminal before returning ready or not-provisioned.",
+        "resolution": "Readiness now binds each result to an explicit terminal observation, revalidates a present key by identity and metadata, revalidates the exact missing terminal as still absent, and returns unsafe when the final sampled terminal observation differs or an expected absence is no longer observed.",
+        "regression_cases": [
+          "present-key-replaced-before-final-revalidation-returns-unsafe",
+          "present-key-removed-before-final-revalidation-returns-unsafe",
+          "missing-key-created-before-absence-revalidation-returns-unsafe",
+          "missing-managed-component-created-before-absence-revalidation-returns-unsafe"
+        ],
+        "regression_status": "pass"
+      }
+    ],
+    "resolved_p2_findings": [
+      {
+        "id": "readiness-terminal-discriminated-union-and-test-inode-proof",
+        "severity": "p2",
+        "finding": "The initial terminal-revalidation patch represented correlated receipt and terminal states with independent nullable parameters, while its replacement regression did not first prove that the replacement used a different inode.",
+        "resolution": "A discriminated FinishObservation union now ties each receipt classification to its valid terminal kind, and the replacement regression stages a same-size and same-mode file, proves that its inode differs, and atomically replaces the key before final revalidation.",
+        "validation_status": "typescript-and-focused-regression-pass"
+      }
+    ]
+  },
+  "operational_status": {
+    "pull_request": {
+      "status": "pending"
+    },
+    "continuous_integration": {
+      "status": "pending"
+    },
+    "merge": {
+      "status": "pending"
+    }
+  },
+  "nonclaims": {
+    "deployment_key_provisioned": false,
+    "deployment_key_present": false,
+    "deployment_key_bytes_read": 0,
+    "deployment_key_bytes_written": 0,
+    "production_training_runs": 0,
+    "optimizer_steps": 0,
+    "teacher_labels": 0,
+    "candidate_weight_artifacts": 0,
+    "production_weight_overwrites": 0,
+    "weights_changed": false,
+    "live_evaluation_function": "unchanged",
+    "live_weight": "unchanged",
+    "live_evaluation_activation": false,
+    "formal_matches": 0,
+    "playing_strength_established": false,
+    "rating_established": false,
+    "stable_high_dan_established": false
+  }
+}

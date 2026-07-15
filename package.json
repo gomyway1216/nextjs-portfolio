@@ -25,6 +25,8 @@
     "shogi:floodgate-v7-key-instance-inspect": "node -r tsx/cjs ml/inspect-floodgate-v7-deployment-key-instance.ts",
     "shogi:floodgate-v7-key-enrollment-install": "node -r tsx/cjs ml/install-floodgate-v7-approved-key-enrollment.ts",
     "shogi:floodgate-v7-key-enrollment-preflight": "node -r tsx/cjs ml/inspect-floodgate-v7-approved-key-enrollment.ts",
+    "shogi:floodgate-v7-key-enrollment-private-review-install": "node -r tsx/cjs ml/run-floodgate-v7-private-human-key-enrollment-orchestrator.ts",
+    "shogi:floodgate-v7-key-enrollment-binding-preflight": "node -r tsx/cjs ml/inspect-floodgate-v7-approved-key-current-binding.ts",
     "shogi:floodgate-v7-offline-connector-gates": "node -r tsx/cjs ml/run-floodgate-v7-offline-connector-gates.ts",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"

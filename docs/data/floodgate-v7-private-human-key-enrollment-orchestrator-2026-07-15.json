@@ -1,10 +1,10 @@
 {
   "schema": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-evidence-v1",
-  "generated_at": "2026-07-15T21:23:37Z",
+  "generated_at": "2026-07-15T21:57:51Z",
   "evidence_scope": {
     "evidence_class": "local-implementation-validation-independent-review-and-production-nonexecution",
     "base_merge_revision": "6344ceaac6e6485e205f610fdbf612a7d5450d56",
-    "implementation_revision": "76e0a7e46b5837118d228db80427fd7dc021abae",
+    "implementation_revision": "b64ce4604fb91a908e5e7d033b2545d49d2cef2a",
     "branch": "codex/floodgate-v7-private-enrollment-orchestrator",
     "node_version": "22.13.0",
     "production_orchestrator_executed": false,
@@ -13,8 +13,9 @@
   },
   "implementation": {
     "files_changed": 12,
-    "insertions": 5818,
+    "insertions": 5883,
     "deletions": 0,
+    "file_stats_scope": "base-merge-to-implementation-revision-package-json-ml-and-tests-excluding-docs",
     "private_review_request_contract": "shogi-floodgate-v7-private-human-key-review-request-v1",
     "private_review_response_contract": "shogi-floodgate-v7-private-human-key-review-response-v1",
     "orchestrator_contract": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-v1",
@@ -38,6 +39,8 @@
       "displays_terminal_lf_count_one": true,
       "displays_full_sha256": true,
       "requires_exact_64_lowercase_hex_typeback": true,
+      "candidate_json_plain_record_required_before_spawn": true,
+      "synchronous_stdin_end_failure_zeroized_before_force_failure": true,
       "bounded_stderr_bytes": 1024,
       "bounded_stderr_retained": false,
       "node_pipe_buffers_zeroized": true,
@@ -79,14 +82,14 @@
     "related_vitest": {
       "status": "pass",
       "files": 7,
-      "tests": 136,
-      "passed": 136,
+      "tests": 138,
+      "passed": 138,
       "failed": 0
     },
     "private_ui_vitest": {
       "status": "pass",
-      "tests": 22,
-      "passed": 22,
+      "tests": 24,
+      "passed": 24,
       "failed": 0
     },
     "orchestrator_and_verified_absence_vitest": {
@@ -99,12 +102,12 @@
       "status": "pass",
       "command_worker_limit": 4,
       "files": 130,
-      "tests": 2434,
-      "passed": 2434,
+      "tests": 2436,
+      "passed": 2436,
       "failed": 0,
-      "vitest_duration_seconds": 140.74,
-      "command_wall_seconds": 141.15,
-      "maximum_resident_set_size_bytes": 4287922176,
+      "vitest_duration_seconds": 144.22,
+      "command_wall_seconds": 145.06,
+      "maximum_resident_set_size_bytes": 4285464576,
       "swaps": 0
     },
     "excluded_default_worker_attempts": [
@@ -125,14 +128,26 @@
         "isolated_rerun_failed": 0
       }
     ],
+    "initial_pull_request_ci_before_review_fix_push": {
+      "head_revision": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+      "status": "failed-test-fixture-assumption-fixed-locally",
+      "passed": 2419,
+      "skipped": 14,
+      "failed": 1,
+      "failed_test_file": "tests/unit/ml/floodgateV7ApprovedKeyCurrentBinding.test.ts",
+      "cause": "unlink-and-recreate-did-not-guarantee-a-new-inode-on-linux",
+      "fix_revision": "b64ce4604fb91a908e5e7d033b2545d49d2cef2a",
+      "fixed_fixture_targeted_tests_passed": 8,
+      "rerun_status_at_capture": "pending-push"
+    },
     "production_build": {
       "status": "pass",
-      "turbopack_compile_seconds": 6.9,
-      "typescript_seconds": 15.1,
+      "turbopack_compile_seconds": 9.1,
+      "typescript_seconds": 18.3,
       "static_pages_generated": 193,
       "static_pages_total": 193,
-      "command_wall_seconds": 24.39,
-      "maximum_resident_set_size_bytes": 2666479616,
+      "command_wall_seconds": 29.87,
+      "maximum_resident_set_size_bytes": 2559213568,
       "swaps": 0
     },
     "typescript": {
@@ -173,13 +188,16 @@
       "security": "pass",
       "functional": "pass",
       "adversarial_ui": "pass",
+      "pull_request_findings_addressed_locally": 2,
+      "pull_request_sync_stdin_end_zeroization_finding_addressed": true,
+      "pull_request_non_plain_candidate_prelaunch_finding_addressed": true,
       "open_p0": 0,
       "open_p1": 0,
       "open_p2": 0
     }
   },
   "production_counters": {
-    "basis": "previous-sanitized-evidence-plus-zero-production-invocations-in-this-revision",
+    "basis": "timestamped-snapshot-from-previous-sanitized-evidence-plus-zero-production-invocations-in-this-revision-without-fresh-production-state-reobservation",
     "private_ui_opened": 0,
     "human_approvals": 0,
     "approved_records_installed": 0,
@@ -194,15 +212,22 @@
     "playing_strength_claims": 0
   },
   "delivery": {
+    "snapshot_basis": "local-and-remote-state-at-generated-at-before-this-evidence-update-is-pushed",
     "implementation_commit_created": true,
-    "documentation_commit_created_at_capture": false,
-    "pull_request_created_at_capture": false,
-    "remote_ci_at_capture": "not-started",
+    "initial_documentation_commit_created": true,
+    "initial_documentation_commit_revision": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+    "final_evidence_update_committed_at_capture": false,
+    "pull_request_created_at_capture": true,
+    "pull_request_number": 468,
+    "pull_request_head_revision_at_capture": "eb0006eecc83ce53f88bfcc8b79f4bbfa13f4051",
+    "github_review_threads_open_at_capture": 2,
+    "review_fix_push_pending_at_capture": true,
+    "pull_request_body_update_pending_at_capture": true,
+    "remote_ci_at_capture": "initial-head-failed-deterministic-inode-fixture-fixed-locally-rerun-pending",
     "regular_merge_at_capture": "pending"
   },
   "next_sequence": [
-    "commit-sanitized-ja-en-articles-and-machine-evidence",
-    "open-ready-pull-request-review-ci-and-regular-merge",
+    "publish-this-revision-containing-review-fixes-then-await-ci-rerun-resolve-threads-and-regular-merge-ready-pr-468",
     "run-one-private-human-review-create-only-install-and-postflights",
     "implement-review-and-regular-merge-audited-production-connector-runner",
     "run-real-prefix-100-then-500-then-24000",

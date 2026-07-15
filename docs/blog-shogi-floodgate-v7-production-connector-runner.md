@@ -14,9 +14,9 @@
 | registry provisioner                          | argumentless、実装・test済み、production未実行            | current bindingからinstall / exact postflightまでを1つのfail-closed操作にした                        |
 | production runner                             | 100、500、24,000専用の3 entry pointを実装                 | generic gate引数、run ID、path、digestをoperator入力にしない                                         |
 | runtime                                       | exact Node `v22.13.0`、3 gateは`caffeinate -dimsu`        | runtime driftを拒否し、macOSの自動sleepを抑止する                                                    |
-| focused validation                            | 6 files、107 / 107 PASS                                   | registry、installer、provisioner、runner、2 CLIを検証した                                            |
-| broader Floodgate v7 validation               | 26 files、679 / 679 PASS                                  | key、checkpoint、connector、runtimeを含む関連範囲を再検証した                                        |
-| full validation / production build            | 136 files、2,543 / 2,543 PASS / build成功                 | repository全体のunit testとNext.js production buildを確認した                                        |
+| focused validation                            | 6 files、108 / 108 PASS                                   | registry、installer、provisioner、runner、2 CLIを検証した                                            |
+| broader Floodgate v7 validation               | 26 files、680 / 680 PASS                                  | key、checkpoint、connector、runtimeを含む関連範囲を再検証した                                        |
+| full validation / production build            | 136 files、2,544 / 2,544 PASS / build成功                 | repository全体のunit testとNext.js production buildを確認した                                        |
 | actual temp-home E2E                          | PASS                                                      | real serializer → installer → loader → single-use claim → provisioner postflightを一時homeで合成した |
 | stale lease                                   | **未解決のpre-gate blocker**                              | 現行empty leaseには永続run bindingもliveness lockもなく、安全な自動reconcileはできない               |
 | current registry / this-change gate runs      | 不存在 / 0                                                | 現在状態はfresh観測済み。本変更ではblockerを閉じる別PRまで実行しない                                 |
@@ -80,22 +80,24 @@ runnerは各gateで、registry load / single-use claim、approved enrollment loa
 
 初期実装をそのまま「安全」とは扱わなかった。独立レビューとadversarial testで、次の境界を修正した。
 
-| finding                                     | 危険                                                                    | 修正                                                                                                                     |
-| ------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| operator objectの`toJSON` / coercion        | validation前のserializationでcode実行や値のすり替えが起き得る           | 全fieldをProxy / accessorなしのown dataとしてcaptureし、primitive検証後に新規recordをserialize                           |
-| Proxy / getterを含むclaim・receipt・failure | property access時にcanaryや秘密を返す、または検証中に副作用を起こし得る | Proxyを明示拒否し、own-property descriptorからdata valueだけを読む                                                       |
-| fulfilled success receiptの丸ごと出力       | forged extra fieldやprivate pathをstdoutへ複製し得る                    | contract / status / execution boundary / nested verification / nonclaimsをexact検証し、固定public projectionを新しく構築 |
-| typed error fieldの丸ごとコピー             | forged phase / retry文字列に秘密を埋め込める                            | enum allowlistとdurability整合を検証し、無効ならunknown conservative failureへ閉じる                                     |
-| ordinary objectへの組み立て                 | prototype経由の予期しないfield / coercion余地が残る                     | sensitive internal captureと公開projectionをnull-prototype frozen recordへ再構築                                         |
-| fulfilled malformed current-binding receipt | `{}`のような成功Promiseをbinding成功と誤解し得る                        | official contract / status / boundary / algorithm / 6 verification fields / all-false nonclaimsをexact検証               |
-| test / 部分connector receiptの成功扱い      | test-only boundaryや旧・欠落receiptをproduction成功と誤認し得る         | production execution / test boundary、connector / checkpoint契約、holdout、nonclaimsを固定値で検証                       |
-| typed error内の矛盾した再試行指示           | 永続化の可能性がある失敗をfresh retryと誤表示し得る                     | own data descriptorと項目間matrixを検証し、矛盾・Proxy・accessorは保守的なcheckpoint reconciliationへ閉じる              |
+| finding                                        | 危険                                                                    | 修正                                                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| operator objectの`toJSON` / coercion           | validation前のserializationでcode実行や値のすり替えが起き得る           | 全fieldをProxy / accessorなしのown dataとしてcaptureし、primitive検証後に新規recordをserialize                           |
+| Proxy / getterを含むclaim・receipt・failure    | property access時にcanaryや秘密を返す、または検証中に副作用を起こし得る | Proxyを明示拒否し、own-property descriptorからdata valueだけを読む                                                       |
+| fulfilled success receiptの丸ごと出力          | forged extra fieldやprivate pathをstdoutへ複製し得る                    | contract / status / execution boundary / nested verification / nonclaimsをexact検証し、固定public projectionを新しく構築 |
+| typed error fieldの丸ごとコピー                | forged phase / retry文字列に秘密を埋め込める                            | enum allowlistとdurability整合を検証し、無効ならunknown conservative failureへ閉じる                                     |
+| ordinary objectへの組み立て                    | prototype経由の予期しないfield / coercion余地が残る                     | sensitive internal captureと公開projectionをnull-prototype frozen recordへ再構築                                         |
+| fulfilled malformed current-binding receipt    | `{}`のような成功Promiseをbinding成功と誤解し得る                        | official contract / status / boundary / algorithm / 6 verification fields / all-false nonclaimsをexact検証               |
+| test / critical semantics欠落receiptの成功扱い | test-only boundaryや重要field欠落をproduction成功と誤認し得る           | production execution / test boundary、connector / checkpoint契約、holdout、nonclaimsを固定値で検証                       |
+| typed error内の矛盾した再試行指示              | 永続化の可能性がある失敗をfresh retryと誤表示し得る                     | own data descriptorと項目間matrixを検証し、矛盾・Proxy・accessorは保守的なcheckpoint reconciliationへ閉じる              |
+| cleanup失敗による元phase上書き                 | record / revalidation失敗の原因を`cleanup`で隠し得る                    | 先行失敗がない場合だけcleanup phaseへ変更し、先行phaseを保持する回帰testを追加                                           |
+| 間接依存の新規critical advisory                | Firebase経由の`websocket-driver 0.7.4`がCI監査で失敗した                | lockfileだけをpatched `0.7.5`へ更新し、`npm audit` 0件、全test、buildを再確認                                            |
 
 review findingは、本変更によるproduction registry作成やgate実行より前にtestで固定した。これは棋力改善ではないが、14時間級のrunを誤ったauthorityや漏洩するreceiptで開始しないために必要である。
 
-## 7. 107 focused tests、679 broader testsとactual temp-home E2E
+## 7. 108 focused tests、680 broader testsとactual temp-home E2E
 
-Node `v22.13.0`で対象6 filesを実行し、107 / 107 testsが成功した。さらにFloodgate v7関連26 filesをまとめて再実行し、679 / 679 testsが成功した（Vitest 148.62秒、wall 149.13秒）。repository全体も136 files、2,543 / 2,543 testsが160.97秒で成功し、Next.js production buildも28.37秒で完了した。build時には既存のFirebase build-phase guardとdynamic routeに関する診断が出たが、build自体の終了statusは成功である。対象は次を含む。
+Node `v22.13.0`で対象6 filesを実行し、108 / 108 testsが成功した。さらにFloodgate v7関連26 filesをまとめて再実行し、680 / 680 testsが成功した（Vitest 166.98秒、wall 167.61秒）。repository全体も136 files、2,544 / 2,544 testsが166.74秒で成功し、Next.js production buildも25.30秒で完了した。build時には既存のFirebase build-phase guardとdynamic routeに関する診断が出たが、build自体の終了statusは成功である。対象は次を含む。
 
 - canonical registry serializer、`toJSON` / Proxy / accessor拒否、reordered / extra / invalid record拒否。
 - private mode、owner、link count、symlink、held registry / runs identity replacement、single-use claim。
@@ -106,7 +108,7 @@ Node `v22.13.0`で対象6 filesを実行し、107 / 107 testsが成功した。�
 
 特にtemp-home E2Eはmock installer receiptだけではない。privateな一時homeをexact `0700`で作り、productionと分離したtest boundaryで、actual provisionerがactual canonical serializer、actual create-only installer、actual loader、actual single-use claimを通り、exact private-claim postflightまで成功することを確認した。隔離確認のためproduction home root metadataは読むが、production homeを変更せず、production registry namespaceへアクセスせずにreal filesystem semanticsを使う統合testである。
 
-[機械可読証拠](./data/floodgate-v7-production-connector-runner-2026-07-15.json)にも、107 / 107、broader 679 / 679、full 2,543 / 2,543、production build、temp-home E2E、production counters、privacy exclusion、stale-lease blockerを分けて記録した。
+[機械可読証拠](./data/floodgate-v7-production-connector-runner-2026-07-15.json)にも、108 / 108、broader 680 / 680、full 2,544 / 2,544、production build、temp-home E2E、production counters、privacy exclusion、stale-lease blockerを分けて記録した。
 
 ## 8. real gate前に止めた理由: empty leaseを安全にreconcileできない
 

@@ -371,7 +371,9 @@ describe("Floodgate v7 production connector CLI", () => {
     const runtimeCheck = executeSource.indexOf(
       "process.version !== REQUIRED_NODE_VERSION",
     );
-    const lazyRequire = executeSource.indexOf("module.require");
+    const lazyRequire = executeSource.indexOf(
+      'require("./floodgate-v7-production-connector-runner")',
+    );
     expect(executeStart).toBeGreaterThan(-1);
     expect(argumentCheck).toBeGreaterThan(-1);
     expect(runtimeCheck).toBeGreaterThan(argumentCheck);

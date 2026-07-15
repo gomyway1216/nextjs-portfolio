@@ -194,6 +194,19 @@
       "fixed": true,
       "fix": "own-data-descriptors-cross-field-matrix-and-conservative-checkpoint-reconciliation-for-invalid-proxy-or-accessor-metadata"
     },
+    "cleanup_failure_overwriting_prior_failure_phase": {
+      "found": true,
+      "fixed": true,
+      "fix": "set-cleanup-phase-only-without-a-prior-failure-and-regression-test-phase-preservation"
+    },
+    "transitive_websocket_driver_critical_advisory": {
+      "found": true,
+      "fixed": true,
+      "previous_version": "0.7.4",
+      "patched_version": "0.7.5",
+      "package_lock_only": true,
+      "npm_audit_vulnerabilities_after_fix": 0
+    },
     "production_registry_or_connector_gate_was_invoked_before_review_fixes": false
   },
   "validation": {
@@ -202,50 +215,51 @@
       "eslint_errors": 0,
       "eslint_warnings": 0,
       "prettier": "pass",
-      "git_diff_check": "pass"
+      "git_diff_check": "pass",
+      "npm_audit_vulnerabilities": 0
     },
     "focused_vitest": {
       "status": "pass",
       "node_version": "v22.13.0",
       "files": 6,
-      "tests": 107,
-      "passed": 107,
+      "tests": 108,
+      "passed": 108,
       "failed": 0,
-      "vitest_duration_seconds": 1.15
+      "vitest_duration_seconds": 1.27
     },
     "broader_floodgate_v7_vitest": {
       "status": "pass",
       "node_version": "v22.13.0",
       "files": 26,
-      "tests": 679,
-      "passed": 679,
+      "tests": 680,
+      "passed": 680,
       "failed": 0,
-      "vitest_duration_seconds": 148.62,
-      "wall_time_seconds": 149.13,
-      "maximum_resident_set_bytes": 4209754112,
+      "vitest_duration_seconds": 166.98,
+      "wall_time_seconds": 167.61,
+      "maximum_resident_set_bytes": 3437035520,
       "swaps": 0
     },
     "full_vitest": {
       "status": "pass",
       "node_version": "v22.13.0",
       "files": 136,
-      "tests": 2543,
-      "passed": 2543,
+      "tests": 2544,
+      "passed": 2544,
       "failed": 0,
-      "vitest_duration_seconds": 160.46,
-      "wall_time_seconds": 160.97,
-      "maximum_resident_set_bytes": 4056088576,
+      "vitest_duration_seconds": 166.22,
+      "wall_time_seconds": 166.74,
+      "maximum_resident_set_bytes": 3416358912,
       "swaps": 0
     },
     "production_build": {
       "status": "pass",
       "node_version": "v22.13.0",
-      "wall_time_seconds": 28.37,
+      "wall_time_seconds": 25.3,
       "compiled_successfully": true,
       "typescript_completed": true,
       "static_page_generation_completed": true,
       "existing_build_phase_and_dynamic_route_diagnostics_observed": true,
-      "maximum_resident_set_bytes": 2489466880,
+      "maximum_resident_set_bytes": 2605432832,
       "swaps": 0
     },
     "test_files": [

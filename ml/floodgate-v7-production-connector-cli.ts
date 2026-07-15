@@ -452,9 +452,11 @@ async function executeCli(
     ) {
       throw new NativeError("production connector CLI invocation differs");
     }
-    runner = module.require(
-      "./floodgate-v7-production-connector-runner",
-    ) as RunnerModule;
+    /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime checks. */
+    const loadedRunner =
+      require("./floodgate-v7-production-connector-runner") as RunnerModule;
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    runner = loadedRunner;
     const operation = runner[runnerExportName];
     if (typeof operation !== "function") {
       throw new NativeError("production connector runner export differs");

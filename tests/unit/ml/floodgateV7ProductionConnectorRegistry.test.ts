@@ -511,6 +511,25 @@ describe("Floodgate v7 production connector registry", () => {
     ).rejects.toMatchObject({ phase: "revalidation" });
   });
 
+  it("preserves the original failure phase when descriptor cleanup also fails", async () => {
+    const fixture = await makeFixture();
+    let firstClose = true;
+    await expect(
+      loadFloodgateV7ProductionConnectorRegistryCoreForTests({
+        ...testDependencies(fixture, () => {
+          throw new Error("synthetic revalidation failure");
+        }),
+        closeFileForTests(descriptor) {
+          fs.closeSync(descriptor);
+          if (firstClose) {
+            firstClose = false;
+            throw new Error("synthetic cleanup failure");
+          }
+        },
+      }),
+    ).rejects.toMatchObject({ phase: "revalidation" });
+  });
+
   it.each([
     ["missing terminal LF", (text: string) => text.slice(0, -1)],
     ["CRLF", (text: string) => `${text.slice(0, -1)}\r\n`],

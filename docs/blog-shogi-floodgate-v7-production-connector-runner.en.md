@@ -14,9 +14,9 @@
 | Registry provisioner                          | Argumentless, implemented, and tested; not run in production          | It makes current binding, installation, and exact private postflight one fail-closed operation                            |
 | Production runner                             | Three fixed entry points for 100, 500, and 24,000                     | Operators cannot supply a generic gate, run ID, path, or digest                                                           |
 | Runtime                                       | Exact Node `v22.13.0`; all three gates use `caffeinate -dimsu`        | Runtime drift is rejected and ordinary macOS idle sleep is inhibited                                                      |
-| Focused validation                            | 6 files, 107 / 107 passed                                             | Registry, installer, provisioner, runner, and both CLI layers were tested                                                 |
-| Broader Floodgate v7 validation               | 26 files, 679 / 679 passed                                            | The related key, checkpoint, connector, and runtime scope was revalidated                                                 |
-| Full validation / production build            | 136 files, 2,543 / 2,543 passed / build passed                        | The full repository unit suite and Next.js production build were verified                                                 |
+| Focused validation                            | 6 files, 108 / 108 passed                                             | Registry, installer, provisioner, runner, and both CLI layers were tested                                                 |
+| Broader Floodgate v7 validation               | 26 files, 680 / 680 passed                                            | The related key, checkpoint, connector, and runtime scope was revalidated                                                 |
+| Full validation / production build            | 136 files, 2,544 / 2,544 passed / build passed                        | The full repository unit suite and Next.js production build were verified                                                 |
 | Actual temporary-home E2E                     | Passed                                                                | Real serialization, installation, loading, single-use claim, and provisioner postflight were composed in an isolated home |
 | Stale lease                                   | **Unresolved pre-gate blocker**                                       | The empty lease has neither a persistent run binding nor a liveness lock, so automatic reconciliation is unsafe           |
 | Current registry / this-change gate runs      | Absent / 0                                                            | Current state was freshly observed; this change stays unexecuted until the blocker PR is merged                           |
@@ -92,14 +92,16 @@ The initial implementation was not treated as safe by assertion. Independent rev
 | Copying typed error fields                                        | Forged phase or retry strings could contain secrets                                    | Enforce enum allowlists and cross-field durability consistency; otherwise emit a conservative unknown failure          |
 | Building sensitive records as ordinary objects                    | Prototype-derived fields or coercion remained possible                                 | Rebuild sensitive captures and public projections as frozen null-prototype records                                     |
 | Accepting a malformed fulfilled current-binding receipt           | An empty or partial resolved object could be mistaken for binding success              | Validate the full official receipt shape, both boundaries, algorithm, six verification fields, and all-false nonclaims |
-| Accepting a test or partial connector receipt as production       | A test boundary or older incomplete result could be mistaken for production success    | Pin the production boundary, null test boundary, connector and checkpoint contracts, holdout meaning, and nonclaims    |
+| Accepting a test boundary or missing critical connector semantics | A test boundary or missing critical field could be mistaken for production success     | Pin the production boundary, null test boundary, connector and checkpoint contracts, holdout meaning, and nonclaims    |
 | Contradictory typed retry metadata                                | A possibly persistent failure could be labeled safe for a fresh retry                  | Enforce an own-data, cross-field consistency matrix and fall back to checkpoint reconciliation                         |
+| Cleanup failure overwriting the original phase                    | A record or revalidation failure could be hidden as `cleanup`                          | Change to the cleanup phase only without a prior failure and add a phase-preservation regression test                  |
+| New critical advisory in a transitive dependency                  | Firebase brought in vulnerable `websocket-driver 0.7.4`, failing CI audit              | Update only the lockfile to patched `0.7.5`, then recheck zero audit findings, the full test suite, and the build      |
 
 These findings were fixed before this change created a production registry or invoked a gate. They do not improve playing strength, but they prevent a roughly half-day run from starting under the wrong authority or with a receipt that can disclose private state.
 
-## 7. 107 focused tests, 679 broader tests, and an actual temporary-home E2E
+## 7. 108 focused tests, 680 broader tests, and an actual temporary-home E2E
 
-Under Node `v22.13.0`, all 107 focused tests across six files passed. The broader rerun also passed all 679 tests across 26 Floodgate v7 files (Vitest 148.62 seconds; wall 149.13 seconds). The full repository run passed 2,543 / 2,543 tests across 136 files in 160.97 seconds, and the Next.js production build completed in 28.37 seconds. The build emitted existing diagnostics for the Firebase build-phase guard and a dynamic route, but its exit status was successful. The tests cover:
+Under Node `v22.13.0`, all 108 focused tests across six files passed. The broader rerun also passed all 680 tests across 26 Floodgate v7 files (Vitest 166.98 seconds; wall 167.61 seconds). The full repository run passed 2,544 / 2,544 tests across 136 files in 166.74 seconds, and the Next.js production build completed in 25.30 seconds. The build emitted existing diagnostics for the Firebase build-phase guard and a dynamic route, but its exit status was successful. The tests cover:
 
 - Canonical registry serialization; rejection of `toJSON`, Proxy, accessor, reordered, extra, and invalid records.
 - Private owner, mode, link-count, symlink, held-directory replacement, and single-use-claim checks.
@@ -110,7 +112,7 @@ Under Node `v22.13.0`, all 107 focused tests across six files passed. The broade
 
 The temporary-home E2E is not a test that merely stubs an installer receipt. In a private isolated home with exact `0700` mode and a test boundary separated from production, the actual provisioner core drives the actual canonical serializer, create-only installer, private loader, and single-use claim through the exact private-claim postflight. The isolation guard reads production-home root metadata, but the test uses real filesystem semantics without modifying the production home or accessing the production registry namespace.
 
-The [machine-readable evidence](./data/floodgate-v7-production-connector-runner-2026-07-15.json) separately records 107 / 107 focused tests, 679 / 679 broader tests, 2,543 / 2,543 full tests, the production build, the temporary-home E2E, production counters, privacy exclusions, and the stale-lease blocker.
+The [machine-readable evidence](./data/floodgate-v7-production-connector-runner-2026-07-15.json) separately records 108 / 108 focused tests, 680 / 680 broader tests, 2,544 / 2,544 full tests, the production build, the temporary-home E2E, production counters, privacy exclusions, and the stale-lease blocker.
 
 ## 8. Why execution stopped before the real gates: an empty lease cannot be reconciled safely
 

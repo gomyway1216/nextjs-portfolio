@@ -92,6 +92,7 @@ export interface FloodgateV7ProductionConnectorRegistryDependenciesForTests {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
   readonly beforeFinalRevalidationForTests?: () => void | Promise<void>;
+  readonly closeFileForTests?: (descriptor: number) => void;
 }
 
 export type FloodgateV7ProductionConnectorRegistryPhase =
@@ -158,6 +159,7 @@ type CapturedDependencies = Readonly<{
   effectiveUserId: number;
   homeDirectory: string;
   beforeFinalRevalidation: (() => void | Promise<void>) | undefined;
+  closeFile: (descriptor: number) => void;
 }>;
 
 type StoredCapability = Readonly<{
@@ -263,6 +265,7 @@ const DEPENDENCY_KEYS = Object.freeze([
   "effectiveUserId",
   "homeDirectory",
   "beforeFinalRevalidationForTests",
+  "closeFileForTests",
 ] as const);
 
 function rejected(error: unknown): Promise<never> {
@@ -387,6 +390,7 @@ function captureDependencies(
   const effectiveUserId: unknown = descriptors.effectiveUserId.value;
   const homeDirectory: unknown = descriptors.homeDirectory.value;
   const hook: unknown = descriptors.beforeFinalRevalidationForTests?.value;
+  const closeFileHook: unknown = descriptors.closeFileForTests?.value;
   if (
     typeof effectiveUserId !== "number" ||
     !numberIsSafeInteger(effectiveUserId) ||
@@ -399,10 +403,17 @@ function captureDependencies(
   if (hook !== undefined && (typeof hook !== "function" || nodeIsProxy(hook))) {
     throw new NativeError("registry revalidation hook is invalid");
   }
+  if (
+    closeFileHook !== undefined &&
+    (typeof closeFileHook !== "function" || nodeIsProxy(closeFileHook))
+  ) {
+    throw new NativeError("registry close hook is invalid");
+  }
   return frozenRecord({
     effectiveUserId,
     homeDirectory,
     beforeFinalRevalidation: hook as (() => void | Promise<void>) | undefined,
+    closeFile: (closeFileHook ?? closeSync) as (descriptor: number) => void,
   });
 }
 
@@ -1020,19 +1031,19 @@ async function readFixedRegistry(
     }
     if (recordDescriptor !== undefined) {
       try {
-        closeSync(recordDescriptor);
+        dependencies.closeFile(recordDescriptor);
       } catch {
+        if (!failed) phase = "cleanup";
         failed = true;
-        phase = "cleanup";
       }
     }
     for (let index = descriptors.length - 1; index >= 0; index -= 1) {
       try {
         const descriptor = descriptors[index];
-        if (descriptor !== undefined) closeSync(descriptor);
+        if (descriptor !== undefined) dependencies.closeFile(descriptor);
       } catch {
+        if (!failed) phase = "cleanup";
         failed = true;
-        phase = "cleanup";
       }
     }
   }

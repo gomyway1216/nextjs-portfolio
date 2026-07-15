@@ -363,6 +363,275 @@ posixDescribe("Floodgate v7 deployment-key provisioner", () => {
     ).resolves.toMatchObject({ status: "ready" });
   });
 
+  it("does not let an inherited numeric Array setter redirect the fixed deployment path", async () => {
+    const home = await temporaryHome();
+    const alternateHome = await temporaryHome();
+    const managedPaths =
+      FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.map(
+        (_component, index) =>
+          path.join(
+            home,
+            ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+              0,
+              index + 1,
+            ),
+          ),
+      );
+    const alternateManagedPaths =
+      FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.map(
+        (_component, index) =>
+          path.join(
+            alternateHome,
+            ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.slice(
+              0,
+              index + 1,
+            ),
+          ),
+      );
+    for (const directory of alternateManagedPaths) {
+      await mkdir0700(directory);
+    }
+    const redirects = new Map(
+      managedPaths.map(
+        (managedPath, index) =>
+          [managedPath, alternateManagedPaths[index]] as const,
+      ),
+    );
+    const numericKey = "0";
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      numericKey,
+    );
+    let targetSetterCalls = 0;
+    let unrelatedSetterCalls = 0;
+    let receipt:
+      | Awaited<
+          ReturnType<
+            typeof provisioner.provisionFloodgateV7DeploymentKeyCoreForTests
+          >
+        >
+      | undefined;
+    const unrelatedProbe: unknown[] = [];
+
+    try {
+      Object.defineProperty(Array.prototype, numericKey, {
+        configurable: true,
+        set(this: unknown[], value: unknown): void {
+          const redirect =
+            typeof value === "string" ? redirects.get(value) : undefined;
+          if (redirect === undefined) unrelatedSetterCalls += 1;
+          else targetSetterCalls += 1;
+          Object.defineProperty(this, numericKey, {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value: redirect ?? value,
+          });
+        },
+      });
+      unrelatedProbe[0] = "unrelated-array-assignment";
+
+      receipt = await provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+        dependencies(home),
+      );
+    } finally {
+      if (originalDescriptor === undefined) {
+        Reflect.deleteProperty(Array.prototype, numericKey);
+      } else {
+        Object.defineProperty(Array.prototype, numericKey, originalDescriptor);
+      }
+    }
+
+    expect(
+      Object.getOwnPropertyDescriptor(Array.prototype, numericKey),
+    ).toEqual(originalDescriptor);
+    expect(unrelatedProbe[0]).toBe("unrelated-array-assignment");
+    expect(unrelatedSetterCalls).toBeGreaterThan(0);
+    expect(targetSetterCalls).toBe(0);
+    expect(receipt).toMatchObject({
+      status: provisioner.FLOODGATE_V7_DEPLOYMENT_KEY_PROVISIONER_STATUS,
+      execution_boundary:
+        "test-only-injected-current-euid-home-key-provisioning",
+    });
+    expect(await fs.promises.readFile(deploymentKey(home))).toEqual(KEY_BYTES);
+    expect(fs.existsSync(deploymentKey(alternateHome))).toBe(false);
+  });
+
+  it.each([
+    ["0750", 0o750],
+    ["0755", 0o755],
+  ] as const)(
+    "accepts a canonical %s home while keeping every managed directory exact 0700",
+    async (_modeLabel, mode) => {
+      const home = await temporaryHome();
+      await fs.promises.chmod(home, mode);
+
+      await expect(
+        provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+          dependencies(home),
+        ),
+      ).resolves.toBeDefined();
+
+      const homeStat = await fs.promises.lstat(home, { bigint: true });
+      expect(homeStat.mode & BigInt(0o7777)).toBe(BigInt(mode));
+
+      let managedDirectory = home;
+      for (const component of FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS) {
+        managedDirectory = path.join(managedDirectory, component);
+        const stat = await fs.promises.lstat(managedDirectory, {
+          bigint: true,
+        });
+        expect(stat.isDirectory()).toBe(true);
+        expect(stat.uid).toBe(BigInt(effectiveUserId()));
+        expect(stat.mode & BigInt(0o7777)).toBe(BigInt(0o700));
+      }
+      expect(await fs.promises.readFile(deploymentKey(home))).toEqual(
+        KEY_BYTES,
+      );
+    },
+  );
+
+  it("rejects a symlink home even when its target is a safe current-user directory", async () => {
+    const container = await temporaryHome();
+    const target = path.join(container, "safe-home-target");
+    const linkedHome = path.join(container, "linked-home");
+    await mkdir0700(target);
+    await fs.promises.symlink(target, linkedHome);
+    const before = await metadataOnlySnapshot(target);
+    let randomCalls = 0;
+
+    const failure = await captureFailure(() =>
+      provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+        dependencies(linkedHome, {
+          randomBytesForTests: () => {
+            randomCalls += 1;
+            return new Uint8Array(KEY_BYTES);
+          },
+        }),
+      ),
+    );
+
+    expect(randomCalls).toBe(0);
+    expect(failure).toMatchObject({
+      phase: "namespace",
+      durability: "no-deployment-change-established",
+      may_have_committed: false,
+    });
+    expect(String(failure)).not.toContain(linkedHome);
+    expect(await metadataOnlySnapshot(target)).toEqual(before);
+    expect((await fs.promises.lstat(linkedHome)).isSymbolicLink()).toBe(true);
+  });
+
+  it("rejects group- or other-writable homes without namespace mutation", async () => {
+    for (const mode of [0o775, 0o707, 0o777]) {
+      const home = await temporaryHome();
+      await fs.promises.chmod(home, mode);
+      const before = await metadataOnlySnapshot(home);
+      let randomCalls = 0;
+
+      const failure = await captureFailure(() =>
+        provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+          dependencies(home, {
+            randomBytesForTests: () => {
+              randomCalls += 1;
+              return new Uint8Array(KEY_BYTES);
+            },
+          }),
+        ),
+      );
+
+      expect(randomCalls).toBe(0);
+      expect(failure).toMatchObject({
+        phase: "namespace",
+        durability: "no-deployment-change-established",
+        may_have_committed: false,
+      });
+      expect(String(failure)).not.toContain(home);
+      expect(await metadataOnlySnapshot(home)).toEqual(before);
+    }
+  });
+
+  it("rejects homes without owner rwx or with special permission bits", async () => {
+    for (const mode of [0o500, 0o1700]) {
+      const home = await temporaryHome();
+      await fs.promises.chmod(home, mode);
+      const before = await metadataOnlySnapshot(home);
+
+      const failure = await captureFailure(() =>
+        provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+          dependencies(home),
+        ),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "namespace",
+        durability: "no-deployment-change-established",
+        may_have_committed: false,
+      });
+      expect(await metadataOnlySnapshot(home)).toEqual(before);
+    }
+  });
+
+  it("revalidates an accepted home mode through its held directory descriptor", async () => {
+    const home = await temporaryHome();
+    await fs.promises.chmod(home, 0o755);
+    let modeRaceCalls = 0;
+
+    const failure = await captureFailure(() =>
+      provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+        dependencies(home, {
+          failpointForTests: (event: FailpointPhase) => {
+            if (event === "before-final-revalidation") {
+              modeRaceCalls += 1;
+              fs.chmodSync(home, 0o775);
+            }
+          },
+        }),
+      ),
+    );
+
+    expect(modeRaceCalls).toBe(1);
+    expect(failure).toMatchObject({
+      phase: "revalidation",
+      durability: "key-published-and-staging-removal-durable",
+      may_have_committed: true,
+      retry_disposition: "manual-reconciliation-required",
+    });
+    expect(String(failure)).not.toContain(home);
+    expect(await fs.promises.readFile(deploymentKey(home))).toEqual(KEY_BYTES);
+  });
+
+  it("rejects a safe-to-safe home mode change during final revalidation", async () => {
+    const home = await temporaryHome();
+    await fs.promises.chmod(home, 0o755);
+    let modeRaceCalls = 0;
+
+    const failure = await captureFailure(() =>
+      provisioner.provisionFloodgateV7DeploymentKeyCoreForTests(
+        dependencies(home, {
+          failpointForTests: (event: FailpointPhase) => {
+            if (event === "before-final-revalidation") {
+              modeRaceCalls += 1;
+              fs.chmodSync(home, 0o700);
+            }
+          },
+        }),
+      ),
+    );
+
+    expect(modeRaceCalls).toBe(1);
+    expect(failure).toMatchObject({
+      phase: "revalidation",
+      durability: "key-published-and-staging-removal-durable",
+      may_have_committed: true,
+      retry_disposition: "manual-reconciliation-required",
+    });
+    expect(String(failure)).not.toContain(home);
+    const homeStat = await fs.promises.lstat(home, { bigint: true });
+    expect(homeStat.mode & BigInt(0o7777)).toBe(BigInt(0o700));
+    expect(await fs.promises.readFile(deploymentKey(home))).toEqual(KEY_BYTES);
+  });
+
   it("accepts a preexisting exact empty 0700 parent but never overwrites any final key", async () => {
     const emptyParentHome = await temporaryHome();
     await mkdir0700(deploymentParent(emptyParentHome));

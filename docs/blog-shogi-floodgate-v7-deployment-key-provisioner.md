@@ -2,6 +2,8 @@
 
 > 前段の[metadata-only readiness probe](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)は、実machineのfixed key slotが`not-provisioned`であることをkey bytesを読まずに確認した。しかし「ない」と確認する権限と、32-byte secretを新規作成する権限は別である。この記事は、manual shell redirectionを禁止し、current EUIDに固定したprivate deploymentへ一度だけexclusive createする専用provisionerの実装と検証結果を固定する。source、focused / related / full test、Python regression、static check、build、code / test reviewに加え、ready [PR #458](https://github.com/gomyway1216/nextjs-portfolio/pull/458)のinitial branch CIまで完了した。一方、final docs-only head CI、merge、actual provisioning、production connector executionはまだ**pending / 0**であり、production weightとlive評価関数は変更していない。English version: [blog-shogi-floodgate-v7-deployment-key-provisioner.en.md](./blog-shogi-floodgate-v7-deployment-key-provisioner.en.md)
 
+> **後日の訂正:** 本稿が記録した旧provisionerの「homeを含む全componentへexact `0700`」という挙動は、一般的なmacOSの`0755` homeを誤拒否するbugだった。秘密用managed directoriesのexact `0700`は維持し、homeだけを別のsafe-anchor predicateへ分離した経緯と最新結果は[macOS home-anchor hardening記事](./blog-shogi-floodgate-v7-macos-home-anchor-hardening.md)を参照。本稿の数値と状態は当時の履歴として残す。
+
 ---
 
 ## 1. 現在地とこのPRの単一責務

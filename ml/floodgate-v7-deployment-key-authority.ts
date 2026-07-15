@@ -167,8 +167,8 @@ const bufferAlloc = Buffer.alloc.bind(Buffer);
 const bufferFill = Buffer.prototype.fill;
 const jsonStringify = JSON.stringify;
 const pathIsAbsolute = path.isAbsolute;
-const pathJoin = path.join;
 const pathResolve = path.resolve;
+const pathSeparator = path.sep;
 const realpath = fs.promises.realpath.bind(fs.promises);
 const lstat = fs.promises.lstat.bind(fs.promises);
 const open = fs.promises.open.bind(fs.promises);
@@ -956,6 +956,28 @@ function sameStat(
   );
 }
 
+function assertHomeAnchor(stat: Readonly<StatSnapshot>, uid: number): void {
+  const mode = stat.mode & MODE_MASK;
+  if (
+    (stat.mode & TYPE_MASK) !== DIRECTORY_TYPE ||
+    stat.uid !== BigInt(uid) ||
+    (mode & BigInt(0o700)) !== BigInt(0o700) ||
+    (mode & BigInt(0o022)) !== BigInt(0) ||
+    (mode & BigInt(0o7000)) !== BigInt(0)
+  ) {
+    fail(
+      "namespace",
+      "home anchor must be a current-EUID-owned directory with owner rwx, no group/other write, and no special mode bits",
+    );
+  }
+}
+
+function appendFixedPathComponent(parent: string, component: string): string {
+  return parent === pathSeparator
+    ? `${parent}${component}`
+    : `${parent}${pathSeparator}${component}`;
+}
+
 function assertParent(stat: Readonly<StatSnapshot>, uid: number): void {
   if (
     (stat.mode & TYPE_MASK) !== DIRECTORY_TYPE ||
@@ -1059,11 +1081,21 @@ async function authorizeMaterialInternal<
   executionBoundary: TBoundary,
   prepareCheckpointV3Key: boolean,
 ): Promise<AuthorizationMaterial<TBoundary>> {
-  const parentPath = pathJoin(
-    dependencies.homeDirectory,
-    ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS,
+  let parentPath = dependencies.homeDirectory;
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+    index += 1
+  ) {
+    parentPath = appendFixedPathComponent(
+      parentPath,
+      FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
+    );
+  }
+  const keyPath = appendFixedPathComponent(
+    parentPath,
+    FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
   );
-  const keyPath = pathJoin(parentPath, FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME);
   let parentHandle: fs.promises.FileHandle | undefined;
   let keyHandle: fs.promises.FileHandle | undefined;
   const rootKey = bufferAlloc(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
@@ -1079,18 +1111,61 @@ async function authorizeMaterialInternal<
   try {
     if (
       (await realpath(dependencies.homeDirectory)) !==
-        dependencies.homeDirectory ||
-      (await realpath(parentPath)) !== parentPath ||
-      (await realpath(keyPath)) !== keyPath
+      dependencies.homeDirectory
     ) {
       fail(
         "namespace",
         "deployment paths must be canonical and contain no symlink traversal",
       );
     }
-    const parentBefore = snapshot(await lstat(parentPath, { bigint: true }));
+    const homeBefore = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
+    );
+    assertHomeAnchor(homeBefore, dependencies.effectiveUserId);
+    const managedPaths: string[] = [];
+    const managedBefore: Readonly<StatSnapshot>[] = [];
+    let managedPath = dependencies.homeDirectory;
+    for (
+      let index = 0;
+      index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+      index += 1
+    ) {
+      managedPath = appendFixedPathComponent(
+        managedPath,
+        FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
+      );
+      const before = snapshot(await lstat(managedPath, { bigint: true }));
+      assertParent(before, dependencies.effectiveUserId);
+      if ((await realpath(managedPath)) !== managedPath) {
+        fail(
+          "namespace",
+          "deployment paths must be canonical and contain no symlink traversal",
+        );
+      }
+      objectDefineProperty(managedPaths, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: managedPath,
+      });
+      objectDefineProperty(managedBefore, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: before,
+      });
+    }
+    if ((await realpath(keyPath)) !== keyPath) {
+      fail(
+        "namespace",
+        "deployment paths must be canonical and contain no symlink traversal",
+      );
+    }
+    const parentBefore = managedBefore[managedBefore.length - 1];
+    if (parentBefore === undefined) {
+      fail("namespace", "deployment parent chain is empty");
+    }
     const keyBefore = snapshot(await lstat(keyPath, { bigint: true }));
-    assertParent(parentBefore, dependencies.effectiveUserId);
     assertKey(keyBefore, dependencies.effectiveUserId);
     const noFollow = fs.constants.O_NOFOLLOW;
     const directory = fs.constants.O_DIRECTORY;
@@ -1254,11 +1329,17 @@ async function authorizeMaterialInternal<
     await dependencies.beforeFinalRevalidation?.();
     const parentHeldAfter = snapshot(await parentHandle.stat({ bigint: true }));
     const keyHeldAfter = snapshot(await keyHandle.stat({ bigint: true }));
+    const homeAfter = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
+    );
     const parentAfter = snapshot(await lstat(parentPath, { bigint: true }));
     const keyAfter = snapshot(await lstat(keyPath, { bigint: true }));
     assertParent(parentHeldAfter, dependencies.effectiveUserId);
     assertKey(keyHeldAfter, dependencies.effectiveUserId);
     if (
+      !sameStat(homeBefore, homeAfter) ||
+      (await realpath(dependencies.homeDirectory)) !==
+        dependencies.homeDirectory ||
       !sameStat(parentBefore, parentHeldAfter) ||
       !sameStat(parentBefore, parentAfter) ||
       !sameStat(keyBefore, keyHeldAfter) ||
@@ -1268,6 +1349,23 @@ async function authorizeMaterialInternal<
         "revalidation",
         "deployment identity or metadata changed during authorization",
       );
+    }
+    for (let index = 0; index < managedPaths.length; index += 1) {
+      const directoryPath = managedPaths[index];
+      const before = managedBefore[index];
+      if (directoryPath === undefined || before === undefined) {
+        fail("revalidation", "managed deployment chain is incomplete");
+      }
+      const after = snapshot(await lstat(directoryPath, { bigint: true }));
+      if (
+        !sameStat(before, after) ||
+        (await realpath(directoryPath)) !== directoryPath
+      ) {
+        fail(
+          "revalidation",
+          "managed deployment identity or metadata changed during authorization",
+        );
+      }
     }
     result = frozenRecord({ ...unsigned, authorization_mac: authorizationMac });
   } catch (error) {

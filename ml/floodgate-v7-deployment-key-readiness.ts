@@ -77,8 +77,8 @@ const getEffectiveUserId =
 const getUserInfo = os.userInfo.bind(os);
 const lstat = fs.promises.lstat.bind(fs.promises);
 const realpath = fs.promises.realpath.bind(fs.promises);
-const pathJoin = path.join.bind(path);
 const pathResolve = path.resolve.bind(path);
+const pathSeparator = path.sep;
 const objectCreate = Object.create;
 const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
@@ -94,10 +94,63 @@ const TYPE_MASK = BigInt(0o170000);
 const DIRECTORY_TYPE = BigInt(0o040000);
 const REGULAR_TYPE = BigInt(0o100000);
 const MODE_MASK = BigInt(0o7777);
+const HOME_REQUIRED_OWNER_MODE = BigInt(0o700);
+const HOME_FORBIDDEN_MODE = BigInt(0o7022);
+
+interface StatSnapshot {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly mode: bigint;
+  readonly nlink: bigint;
+  readonly uid: bigint;
+  readonly size: bigint;
+  readonly mtimeNs: bigint;
+  readonly ctimeNs: bigint;
+}
 
 type ParentState =
   FloodgateV7DeploymentKeyReadinessReceipt["deployment"]["parent"];
 type KeyState = FloodgateV7DeploymentKeyReadinessReceipt["deployment"]["key"];
+
+type TerminalObservation =
+  | Readonly<{ readonly kind: "unsafe-no-terminal" }>
+  | Readonly<{
+      readonly kind: "missing";
+      readonly exactPath: string;
+    }>
+  | Readonly<{
+      readonly kind: "present-key";
+      readonly before: Readonly<StatSnapshot>;
+    }>;
+
+type FinishObservation =
+  | Readonly<{
+      readonly status: "unsafe";
+      readonly parent: ParentState;
+      readonly key: KeyState;
+      readonly terminal: Extract<
+        TerminalObservation,
+        { readonly kind: "unsafe-no-terminal" }
+      >;
+    }>
+  | Readonly<{
+      readonly status: "not-provisioned";
+      readonly parent: Exclude<ParentState, "unsafe">;
+      readonly key: "absent";
+      readonly terminal: Extract<
+        TerminalObservation,
+        { readonly kind: "missing" }
+      >;
+    }>
+  | Readonly<{
+      readonly status: "ready";
+      readonly parent: "present-current-euid-exact-0700-directory";
+      readonly key: "present-current-euid-exact-0600-regular-nlink-1-32-bytes";
+      readonly terminal: Extract<
+        TerminalObservation,
+        { readonly kind: "present-key" }
+      >;
+    }>;
 
 function resolved<T>(value: T): Promise<T> {
   return new NativePromise((resolve) => resolve(value));
@@ -224,7 +277,10 @@ function captureDependencies(
   return frozenRecord({ effectiveUserId, homeDirectory });
 }
 
-function parentIsSafe(stat: fs.BigIntStats, effectiveUserId: number): boolean {
+function parentIsSafe(
+  stat: Readonly<StatSnapshot>,
+  effectiveUserId: number,
+): boolean {
   return (
     (stat.mode & TYPE_MASK) === DIRECTORY_TYPE &&
     (stat.mode & MODE_MASK) === BigInt(0o700) &&
@@ -232,7 +288,52 @@ function parentIsSafe(stat: fs.BigIntStats, effectiveUserId: number): boolean {
   );
 }
 
-function keyIsSafe(stat: fs.BigIntStats, effectiveUserId: number): boolean {
+function snapshot(stat: fs.BigIntStats): Readonly<StatSnapshot> {
+  return frozenRecord({
+    dev: stat.dev,
+    ino: stat.ino,
+    mode: stat.mode,
+    nlink: stat.nlink,
+    uid: stat.uid,
+    size: stat.size,
+    mtimeNs: stat.mtimeNs,
+    ctimeNs: stat.ctimeNs,
+  });
+}
+
+function homeIsSafe(
+  stat: Readonly<StatSnapshot>,
+  effectiveUserId: number,
+): boolean {
+  const mode = stat.mode & MODE_MASK;
+  return (
+    (stat.mode & TYPE_MASK) === DIRECTORY_TYPE &&
+    stat.uid === BigInt(effectiveUserId) &&
+    (mode & HOME_REQUIRED_OWNER_MODE) === HOME_REQUIRED_OWNER_MODE &&
+    (mode & HOME_FORBIDDEN_MODE) === BigInt(0)
+  );
+}
+
+function sameStat(
+  left: Readonly<StatSnapshot>,
+  right: Readonly<StatSnapshot>,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function keyIsSafe(
+  stat: Readonly<StatSnapshot>,
+  effectiveUserId: number,
+): boolean {
   return (
     (stat.mode & TYPE_MASK) === REGULAR_TYPE &&
     (stat.mode & MODE_MASK) === BigInt(0o600) &&
@@ -242,21 +343,42 @@ function keyIsSafe(stat: fs.BigIntStats, effectiveUserId: number): boolean {
   );
 }
 
+function appendFixedPathComponent(parent: string, component: string): string {
+  return parent === pathSeparator
+    ? `${parent}${component}`
+    : `${parent}${pathSeparator}${component}`;
+}
+
 async function probe<
   TBoundary extends FloodgateV7DeploymentKeyReadinessExecutionBoundary,
 >(
   dependencies: Readonly<FloodgateV7DeploymentKeyReadinessDependenciesForTests>,
   boundary: TBoundary,
 ): Promise<Readonly<FloodgateV7DeploymentKeyReadinessReceipt<TBoundary>>> {
-  const parentPath = pathJoin(
-    dependencies.homeDirectory,
-    ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS,
+  let parentPath = dependencies.homeDirectory;
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+    index += 1
+  ) {
+    parentPath = appendFixedPathComponent(
+      parentPath,
+      FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
+    );
+  }
+  const keyPath = appendFixedPathComponent(
+    parentPath,
+    FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
   );
-  const keyPath = pathJoin(parentPath, FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME);
+  let homeBefore: Readonly<StatSnapshot>;
   try {
+    homeBefore = snapshot(
+      await lstat(dependencies.homeDirectory, { bigint: true }),
+    );
     if (
+      !homeIsSafe(homeBefore, dependencies.effectiveUserId) ||
       (await realpath(dependencies.homeDirectory)) !==
-      dependencies.homeDirectory
+        dependencies.homeDirectory
     ) {
       return receipt(boundary, "unsafe", "unsafe", "unsafe");
     }
@@ -264,69 +386,192 @@ async function probe<
     return receipt(boundary, "unsafe", "unsafe", "unsafe");
   }
 
-  let parentStat: fs.BigIntStats;
-  try {
-    parentStat = await lstat(parentPath, { bigint: true });
-  } catch (error) {
-    return isMissing(error)
-      ? receipt(boundary, "not-provisioned", "absent", "absent")
-      : receipt(boundary, "unsafe", "unsafe", "unsafe");
-  }
-  if (!parentIsSafe(parentStat, dependencies.effectiveUserId)) {
-    return receipt(boundary, "unsafe", "unsafe", "unsafe");
-  }
-  try {
-    if ((await realpath(parentPath)) !== parentPath) {
+  const observedPaths: string[] = [];
+  const observedBefore: Readonly<StatSnapshot>[] = [];
+
+  const finish = async (
+    observation: FinishObservation,
+  ): Promise<Readonly<FloodgateV7DeploymentKeyReadinessReceipt<TBoundary>>> => {
+    const candidate = receipt(
+      boundary,
+      observation.status,
+      observation.parent,
+      observation.key,
+    );
+    try {
+      const homeAfter = snapshot(
+        await lstat(dependencies.homeDirectory, { bigint: true }),
+      );
+      if (
+        !homeIsSafe(homeAfter, dependencies.effectiveUserId) ||
+        !sameStat(homeBefore, homeAfter) ||
+        (await realpath(dependencies.homeDirectory)) !==
+          dependencies.homeDirectory
+      ) {
+        return receipt(boundary, "unsafe", "unsafe", "unsafe");
+      }
+      for (let index = 0; index < observedPaths.length; index += 1) {
+        const observedPath = observedPaths[index];
+        const before = observedBefore[index];
+        if (observedPath === undefined || before === undefined) {
+          return receipt(boundary, "unsafe", "unsafe", "unsafe");
+        }
+        const after = snapshot(await lstat(observedPath, { bigint: true }));
+        if (
+          !parentIsSafe(after, dependencies.effectiveUserId) ||
+          !sameStat(before, after) ||
+          (await realpath(observedPath)) !== observedPath
+        ) {
+          return receipt(boundary, "unsafe", "unsafe", "unsafe");
+        }
+      }
+      switch (observation.terminal.kind) {
+        case "unsafe-no-terminal":
+          break;
+        case "missing":
+          try {
+            await lstat(observation.terminal.exactPath, { bigint: true });
+            return receipt(boundary, "unsafe", "unsafe", "unsafe");
+          } catch (error) {
+            if (!isMissing(error)) {
+              return receipt(boundary, "unsafe", "unsafe", "unsafe");
+            }
+          }
+          break;
+        case "present-key": {
+          const keyAfter = snapshot(await lstat(keyPath, { bigint: true }));
+          if (
+            !keyIsSafe(keyAfter, dependencies.effectiveUserId) ||
+            !sameStat(observation.terminal.before, keyAfter) ||
+            (await realpath(keyPath)) !== keyPath
+          ) {
+            return receipt(boundary, "unsafe", "unsafe", "unsafe");
+          }
+          break;
+        }
+      }
+    } catch {
       return receipt(boundary, "unsafe", "unsafe", "unsafe");
     }
-  } catch {
-    return receipt(boundary, "unsafe", "unsafe", "unsafe");
+    return candidate;
+  };
+
+  let observedPath = dependencies.homeDirectory;
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS.length;
+    index += 1
+  ) {
+    observedPath = appendFixedPathComponent(
+      observedPath,
+      FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS[index],
+    );
+    let before: Readonly<StatSnapshot>;
+    try {
+      before = snapshot(await lstat(observedPath, { bigint: true }));
+    } catch (error) {
+      return isMissing(error)
+        ? finish({
+            status: "not-provisioned",
+            parent: "absent",
+            key: "absent",
+            terminal: { kind: "missing", exactPath: observedPath },
+          })
+        : finish({
+            status: "unsafe",
+            parent: "unsafe",
+            key: "unsafe",
+            terminal: { kind: "unsafe-no-terminal" },
+          });
+    }
+    if (!parentIsSafe(before, dependencies.effectiveUserId)) {
+      return finish({
+        status: "unsafe",
+        parent: "unsafe",
+        key: "unsafe",
+        terminal: { kind: "unsafe-no-terminal" },
+      });
+    }
+    try {
+      if ((await realpath(observedPath)) !== observedPath) {
+        return finish({
+          status: "unsafe",
+          parent: "unsafe",
+          key: "unsafe",
+          terminal: { kind: "unsafe-no-terminal" },
+        });
+      }
+    } catch {
+      return finish({
+        status: "unsafe",
+        parent: "unsafe",
+        key: "unsafe",
+        terminal: { kind: "unsafe-no-terminal" },
+      });
+    }
+    objectDefineProperty(observedPaths, index, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: observedPath,
+    });
+    objectDefineProperty(observedBefore, index, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: before,
+    });
   }
 
-  let keyStat: fs.BigIntStats;
+  let keyBefore: Readonly<StatSnapshot>;
   try {
-    keyStat = await lstat(keyPath, { bigint: true });
+    keyBefore = snapshot(await lstat(keyPath, { bigint: true }));
   } catch (error) {
     return isMissing(error)
-      ? receipt(
-          boundary,
-          "not-provisioned",
-          "present-current-euid-exact-0700-directory",
-          "absent",
-        )
-      : receipt(boundary, "unsafe", "unsafe", "unsafe");
+      ? finish({
+          status: "not-provisioned",
+          parent: "present-current-euid-exact-0700-directory",
+          key: "absent",
+          terminal: { kind: "missing", exactPath: keyPath },
+        })
+      : finish({
+          status: "unsafe",
+          parent: "unsafe",
+          key: "unsafe",
+          terminal: { kind: "unsafe-no-terminal" },
+        });
   }
-  if (!keyIsSafe(keyStat, dependencies.effectiveUserId)) {
-    return receipt(
-      boundary,
-      "unsafe",
-      "present-current-euid-exact-0700-directory",
-      "unsafe",
-    );
+  if (!keyIsSafe(keyBefore, dependencies.effectiveUserId)) {
+    return finish({
+      status: "unsafe",
+      parent: "present-current-euid-exact-0700-directory",
+      key: "unsafe",
+      terminal: { kind: "unsafe-no-terminal" },
+    });
   }
   try {
     if ((await realpath(keyPath)) !== keyPath) {
-      return receipt(
-        boundary,
-        "unsafe",
-        "present-current-euid-exact-0700-directory",
-        "unsafe",
-      );
+      return finish({
+        status: "unsafe",
+        parent: "present-current-euid-exact-0700-directory",
+        key: "unsafe",
+        terminal: { kind: "unsafe-no-terminal" },
+      });
     }
   } catch {
-    return receipt(
-      boundary,
-      "unsafe",
-      "present-current-euid-exact-0700-directory",
-      "unsafe",
-    );
+    return finish({
+      status: "unsafe",
+      parent: "present-current-euid-exact-0700-directory",
+      key: "unsafe",
+      terminal: { kind: "unsafe-no-terminal" },
+    });
   }
-  return receipt(
-    boundary,
-    "ready",
-    "present-current-euid-exact-0700-directory",
-    "present-current-euid-exact-0600-regular-nlink-1-32-bytes",
-  );
+  return finish({
+    status: "ready",
+    parent: "present-current-euid-exact-0700-directory",
+    key: "present-current-euid-exact-0600-regular-nlink-1-32-bytes",
+    terminal: { kind: "present-key", before: keyBefore },
+  });
 }
 
 /** Test-only injected-home metadata probe. It still reads no key bytes. */

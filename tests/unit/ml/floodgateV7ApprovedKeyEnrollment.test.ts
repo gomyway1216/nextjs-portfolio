@@ -202,6 +202,25 @@ async function temporaryRecord(
   return { home, parent, record };
 }
 
+function managedRecordDirectory(home: string, index: number): string {
+  return path.join(
+    home,
+    ...FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.slice(
+      0,
+      index + 1,
+    ),
+  );
+}
+
+async function captureFailure(operation: () => Promise<unknown>) {
+  try {
+    await operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected approved enrollment operation to fail");
+}
+
 describe("Floodgate v7 approved key enrollment", () => {
   it("mints an opaque frozen capability, preserves wrong-boundary nonconsumption, and claims once", () => {
     const capability =
@@ -390,6 +409,185 @@ describe("Floodgate v7 approved key enrollment", () => {
     expect(claim.record.sha256).toBe(
       sha256(canonicalRecordJson(approvedRecord())),
     );
+  });
+
+  it("loads and claims from a canonical current-EUID 0755 home while every managed parent remains 0700", async () => {
+    const fixture = await temporaryRecord();
+    await fs.promises.chmod(fixture.home, 0o755);
+
+    expect((await fs.promises.lstat(fixture.home)).mode & 0o777).toBe(0o755);
+    for (
+      let depth = 1;
+      depth <=
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.length;
+      depth += 1
+    ) {
+      const managedParent = path.join(
+        fixture.home,
+        ...FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.slice(
+          0,
+          depth,
+        ),
+      );
+      expect((await fs.promises.lstat(managedParent)).mode & 0o777).toBe(0o700);
+    }
+
+    const capability = await loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+      effectiveUserId: EUID,
+      homeDirectory: fixture.home,
+    });
+    const claim = claimFloodgateV7ApprovedKeyEnrollmentCoreForTests(capability);
+
+    expect(claim).toMatchObject({
+      key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+      key_instance_id: INSTANCE_ID,
+      deployment_identity: { owner_uid: EUID },
+    });
+  });
+
+  it("accepts a canonical current-EUID 0750 home anchor", async () => {
+    const fixture = await temporaryRecord();
+    await fs.promises.chmod(fixture.home, 0o750);
+
+    const capability = await loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+      effectiveUserId: EUID,
+      homeDirectory: fixture.home,
+    });
+
+    expect(
+      claimFloodgateV7ApprovedKeyEnrollmentCoreForTests(capability)
+        .key_instance_id,
+    ).toBe(INSTANCE_ID);
+  });
+
+  it("rejects an unsafe home anchor mode", async () => {
+    for (const mode of [0o500, 0o775, 0o1700]) {
+      const fixture = await temporaryRecord();
+      await fs.promises.chmod(fixture.home, mode);
+      try {
+        await expect(
+          loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+            effectiveUserId: EUID,
+            homeDirectory: fixture.home,
+          }),
+        ).rejects.toMatchObject({ phase: "record-read" });
+      } finally {
+        await fs.promises.chmod(fixture.home, 0o700);
+      }
+    }
+  });
+
+  it("rejects a home anchor mode change before final revalidation", async () => {
+    const fixture = await temporaryRecord();
+    await fs.promises.chmod(fixture.home, 0o755);
+
+    await expect(
+      loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+        effectiveUserId: EUID,
+        homeDirectory: fixture.home,
+        beforeFinalRevalidationForTests: async () => {
+          await fs.promises.chmod(fixture.home, 0o775);
+        },
+      }),
+    ).rejects.toMatchObject({ phase: "record-read" });
+  });
+
+  it("rejects 0755 and 0777 metadata on every managed directory", async () => {
+    for (
+      let index = 0;
+      index <
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.length;
+      index += 1
+    ) {
+      for (const mode of [0o755, 0o777]) {
+        const fixture = await temporaryRecord();
+        const managedDirectory = managedRecordDirectory(fixture.home, index);
+        await fs.promises.chmod(managedDirectory, mode);
+
+        const failure = await captureFailure(() =>
+          loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+            effectiveUserId: EUID,
+            homeDirectory: fixture.home,
+          }),
+        );
+
+        expect(failure).toMatchObject({
+          phase: "record-read",
+          capability_issued: false,
+        });
+        expect(String(failure)).not.toContain(fixture.home);
+        expect(String(failure)).not.toContain(INSTANCE_ID);
+      }
+    }
+  });
+
+  it("rejects a symlink at every managed directory boundary", async () => {
+    for (
+      let index = 0;
+      index <
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.length;
+      index += 1
+    ) {
+      const fixture = await temporaryRecord();
+      const managedDirectory = managedRecordDirectory(fixture.home, index);
+      const movedDirectory = `${managedDirectory}.moved`;
+      await fs.promises.rename(managedDirectory, movedDirectory);
+      await fs.promises.symlink(movedDirectory, managedDirectory, "dir");
+
+      const failure = await captureFailure(() =>
+        loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+          effectiveUserId: EUID,
+          homeDirectory: fixture.home,
+        }),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "record-read",
+        capability_issued: false,
+      });
+      expect(String(failure)).not.toContain(fixture.home);
+      expect(String(failure)).not.toContain(INSTANCE_ID);
+    }
+  });
+
+  it("rejects mode and symlink races on every held managed directory", async () => {
+    for (
+      let index = 0;
+      index <
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.length;
+      index += 1
+    ) {
+      for (const mutation of ["mode", "symlink"] as const) {
+        const fixture = await temporaryRecord();
+        const managedDirectory = managedRecordDirectory(fixture.home, index);
+        const failure = await captureFailure(() =>
+          loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+            effectiveUserId: EUID,
+            homeDirectory: fixture.home,
+            beforeFinalRevalidationForTests: async () => {
+              if (mutation === "mode") {
+                await fs.promises.chmod(managedDirectory, 0o755);
+                return;
+              }
+              const movedDirectory = `${managedDirectory}.moved`;
+              await fs.promises.rename(managedDirectory, movedDirectory);
+              await fs.promises.symlink(
+                movedDirectory,
+                managedDirectory,
+                "dir",
+              );
+            },
+          }),
+        );
+
+        expect(failure).toMatchObject({
+          phase: "record-read",
+          capability_issued: false,
+        });
+        expect(String(failure)).not.toContain(fixture.home);
+        expect(String(failure)).not.toContain(INSTANCE_ID);
+      }
+    }
   });
 
   it("rejects BOM-prefixed and reordered outer approved-record bytes", async () => {
@@ -863,6 +1061,117 @@ describe("Floodgate v7 approved key enrollment", () => {
     expect(operationError).toBeUndefined();
     expect(claimedInstanceId).toBe(INSTANCE_ID);
     expect(claimedRecordBytes).toBe(expectedRecordBytes);
+  });
+
+  it("does not consult an inherited numeric Array setter for managed paths, descriptors, or snapshots", async () => {
+    const fixture = await temporaryRecord();
+    const managedPaths =
+      FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS.map(
+        (_component, index) => managedRecordDirectory(fixture.home, index),
+      );
+    const numericIndex = managedPaths.length - 1;
+    const numericKey = String(numericIndex);
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      numericKey,
+    );
+    let targetSetterCalls = 0;
+    let unrelatedSetterCalls = 0;
+    let capability:
+      | Awaited<
+          ReturnType<typeof loadFloodgateV7ApprovedKeyEnrollmentCoreForTests>
+        >
+      | undefined;
+
+    const ownDataValue = (target: unknown[], index: number): unknown => {
+      const descriptor = Object.getOwnPropertyDescriptor(target, String(index));
+      return descriptor !== undefined && "value" in descriptor
+        ? descriptor.value
+        : undefined;
+    };
+    const hasTargetPrefix = (
+      target: unknown[],
+      predicate: (value: unknown, index: number) => boolean,
+    ): boolean => {
+      for (let index = 0; index < numericIndex; index += 1) {
+        if (!predicate(ownDataValue(target, index), index)) return false;
+      }
+      return true;
+    };
+    const isDescriptorLike = (value: unknown): boolean =>
+      typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+    const isSnapshotLike = (value: unknown): boolean => {
+      if (value === null || typeof value !== "object") return false;
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      for (const key of ["dev", "ino", "mode"] as const) {
+        const descriptor = descriptors[key];
+        if (
+          descriptor === undefined ||
+          !("value" in descriptor) ||
+          typeof descriptor.value !== "bigint"
+        ) {
+          return false;
+        }
+      }
+      return true;
+    };
+    const isManagedTarget = (target: unknown[], value: unknown): boolean =>
+      (hasTargetPrefix(
+        target,
+        (child, index) => child === managedPaths[index],
+      ) &&
+        value === managedPaths[numericIndex]) ||
+      (hasTargetPrefix(target, (child) => isDescriptorLike(child)) &&
+        isDescriptorLike(value)) ||
+      (hasTargetPrefix(target, isSnapshotLike) && isSnapshotLike(value));
+
+    try {
+      Object.defineProperty(Array.prototype, numericKey, {
+        configurable: true,
+        set(this: unknown[], value: unknown): void {
+          if (isManagedTarget(this, value)) targetSetterCalls += 1;
+          else unrelatedSetterCalls += 1;
+          Object.defineProperty(this, numericKey, {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value,
+          });
+        },
+      });
+      const unrelatedProbe: unknown[] = [];
+      unrelatedProbe[numericIndex] = "unrelated-array-assignment";
+
+      capability = await loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+        effectiveUserId: EUID,
+        homeDirectory: fixture.home,
+      });
+    } finally {
+      if (originalDescriptor === undefined) {
+        Reflect.deleteProperty(Array.prototype, numericKey);
+      } else {
+        Object.defineProperty(Array.prototype, numericKey, originalDescriptor);
+      }
+    }
+
+    expect(
+      Object.getOwnPropertyDescriptor(Array.prototype, numericKey),
+    ).toEqual(originalDescriptor);
+    expect(unrelatedSetterCalls).toBeGreaterThan(0);
+    expect(targetSetterCalls).toBe(0);
+    expect(capability).toMatchObject({
+      contract: "shogi-floodgate-v7-approved-key-enrollment-capability-v1",
+      status: "opaque-single-use-approved-key-enrollment-not-claimed",
+      execution_boundary:
+        "test-only-injected-current-euid-home-control-plane-record",
+    });
+    if (capability === undefined) {
+      throw new Error("approved enrollment capability was not returned");
+    }
+    expect(
+      claimFloodgateV7ApprovedKeyEnrollmentCoreForTests(capability)
+        .key_instance_id,
+    ).toBe(INSTANCE_ID);
   });
 
   it("does not let a poisoned root-component iterator redirect the fixed record path", async () => {

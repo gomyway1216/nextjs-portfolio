@@ -1,0 +1,224 @@
+{
+  "schema": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-evidence-v1",
+  "generated_at": "2026-07-15T21:23:37Z",
+  "evidence_scope": {
+    "evidence_class": "local-implementation-validation-independent-review-and-production-nonexecution",
+    "base_merge_revision": "6344ceaac6e6485e205f610fdbf612a7d5450d56",
+    "implementation_revision": "76e0a7e46b5837118d228db80427fd7dc021abae",
+    "branch": "codex/floodgate-v7-private-enrollment-orchestrator",
+    "node_version": "22.13.0",
+    "production_orchestrator_executed": false,
+    "production_ui_opened": false,
+    "production_state_reobserved_by_this_revision": false
+  },
+  "implementation": {
+    "files_changed": 12,
+    "insertions": 5818,
+    "deletions": 0,
+    "private_review_request_contract": "shogi-floodgate-v7-private-human-key-review-request-v1",
+    "private_review_response_contract": "shogi-floodgate-v7-private-human-key-review-response-v1",
+    "orchestrator_contract": "shogi-floodgate-v7-private-human-key-enrollment-orchestrator-v1",
+    "current_binding_contract": "shogi-floodgate-v7-approved-key-current-binding-preflight-v1",
+    "private_ui": {
+      "platform": "macos-appkit-jxa",
+      "fixed_executable": "system-osascript",
+      "candidate_transport": "bounded-child-stdin-pipe-only",
+      "decision_transport": "bounded-child-stdout-pipe-only",
+      "candidate_in_argv": false,
+      "candidate_in_environment": false,
+      "candidate_in_tty": false,
+      "candidate_in_temporary_file": false,
+      "candidate_in_clipboard": false,
+      "candidate_in_log": false,
+      "candidate_in_public_stream": false,
+      "displays_exact_canonical_jsonl": true,
+      "displays_terminal_lf": true,
+      "displays_utf8_byte_count": true,
+      "displays_final_byte_0a": true,
+      "displays_terminal_lf_count_one": true,
+      "displays_full_sha256": true,
+      "requires_exact_64_lowercase_hex_typeback": true,
+      "bounded_stderr_bytes": 1024,
+      "bounded_stderr_retained": false,
+      "node_pipe_buffers_zeroized": true,
+      "native_helper_string_copies_zeroized": false
+    },
+    "workflow": {
+      "valid_existing_record_stops_before_ui": true,
+      "verified_absence_safe_held_traversal": true,
+      "verified_absence_exact_missing_path_revalidated": true,
+      "verified_absence_unsafe_or_indeterminate_fails_closed": true,
+      "fresh_candidate_reinspection_after_human_approval": true,
+      "approval_id_entropy_bytes": 32,
+      "approval_timestamp_after_human_approval": true,
+      "create_only_installer_called_directly": true,
+      "installed_claim_exactly_revalidated": true,
+      "fresh_current_key_binding_revalidated": true,
+      "run_authority_issued": false,
+      "stage_authority_issued": false,
+      "connector_authority_issued": false
+    },
+    "failure_boundary": {
+      "typed_phase": true,
+      "typed_durability": true,
+      "typed_may_have_committed": true,
+      "typed_retry_disposition": true,
+      "installer_metadata_runtime_allowlisted": true,
+      "post_install_output_failure_is_do_not_retry": true,
+      "record_or_binding_mismatch_requires_manual_reconciliation": true
+    },
+    "atomicity_and_trust": {
+      "supported_key_writer_create_only_no_clobber": true,
+      "supported_key_rotation_api_present": false,
+      "atomic_key_and_record_commit_claimed": false,
+      "concurrent_out_of_band_key_rotation_excluded": true,
+      "future_rotation_api_requires_shared_lock_or_atomic_binding": true
+    }
+  },
+  "validation": {
+    "related_vitest": {
+      "status": "pass",
+      "files": 7,
+      "tests": 136,
+      "passed": 136,
+      "failed": 0
+    },
+    "private_ui_vitest": {
+      "status": "pass",
+      "tests": 22,
+      "passed": 22,
+      "failed": 0
+    },
+    "orchestrator_and_verified_absence_vitest": {
+      "status": "pass",
+      "tests": 53,
+      "passed": 53,
+      "failed": 0
+    },
+    "authoritative_full_vitest": {
+      "status": "pass",
+      "command_worker_limit": 4,
+      "files": 130,
+      "tests": 2434,
+      "passed": 2434,
+      "failed": 0,
+      "vitest_duration_seconds": 140.74,
+      "command_wall_seconds": 141.15,
+      "maximum_resident_set_size_bytes": 4287922176,
+      "swaps": 0
+    },
+    "excluded_default_worker_attempts": [
+      {
+        "status": "excluded-not-authoritative",
+        "passed": 2433,
+        "failed": 1,
+        "failed_test_file": "tests/unit/ml/floodgateStableProposalFinalizationResume.test.ts",
+        "isolated_rerun_passed": 11,
+        "isolated_rerun_failed": 0
+      },
+      {
+        "status": "excluded-not-authoritative",
+        "passed": 2433,
+        "failed": 1,
+        "failed_test_file": "tests/unit/ml/floodgateStableWasmProposer.test.ts",
+        "isolated_rerun_passed": 53,
+        "isolated_rerun_failed": 0
+      }
+    ],
+    "production_build": {
+      "status": "pass",
+      "turbopack_compile_seconds": 6.9,
+      "typescript_seconds": 15.1,
+      "static_pages_generated": 193,
+      "static_pages_total": 193,
+      "command_wall_seconds": 24.39,
+      "maximum_resident_set_size_bytes": 2666479616,
+      "swaps": 0
+    },
+    "typescript": {
+      "status": "pass",
+      "diagnostics": 0
+    },
+    "scoped_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "full_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "existing_warnings": 157,
+      "command_wall_seconds": 24.71,
+      "maximum_resident_set_size_bytes": 2395570176,
+      "swaps": 0
+    },
+    "prettier": {
+      "status": "pass",
+      "version": "3.6.2"
+    },
+    "jxa_osacompile": {
+      "status": "pass"
+    },
+    "python_stdlib": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0
+    },
+    "independent_reviews": {
+      "security": "pass",
+      "functional": "pass",
+      "adversarial_ui": "pass",
+      "open_p0": 0,
+      "open_p1": 0,
+      "open_p2": 0
+    }
+  },
+  "production_counters": {
+    "basis": "previous-sanitized-evidence-plus-zero-production-invocations-in-this-revision",
+    "private_ui_opened": 0,
+    "human_approvals": 0,
+    "approved_records_installed": 0,
+    "production_current_binding_successes": 0,
+    "connector_runs": 0,
+    "real_parent_records": 0,
+    "teacher_labels": 0,
+    "training_runs": 0,
+    "candidate_weights": 0,
+    "live_weight_activations": 0,
+    "formal_matches": 0,
+    "playing_strength_claims": 0
+  },
+  "delivery": {
+    "implementation_commit_created": true,
+    "documentation_commit_created_at_capture": false,
+    "pull_request_created_at_capture": false,
+    "remote_ci_at_capture": "not-started",
+    "regular_merge_at_capture": "pending"
+  },
+  "next_sequence": [
+    "commit-sanitized-ja-en-articles-and-machine-evidence",
+    "open-ready-pull-request-review-ci-and-regular-merge",
+    "run-one-private-human-review-create-only-install-and-postflights",
+    "implement-review-and-regular-merge-audited-production-connector-runner",
+    "run-real-prefix-100-then-500-then-24000",
+    "train-multiple-seeds-select-on-sealed-holdout-and-run-color-swapped-ab",
+    "stage-live-activation-with-rollback-only-after-formal-evidence"
+  ],
+  "redactions": {
+    "candidate_canonical_json_included": false,
+    "candidate_sha256_included": false,
+    "key_instance_id_included": false,
+    "approval_id_included": false,
+    "approval_timestamp_included": false,
+    "owner_uid_included": false,
+    "absolute_user_or_workspace_paths_included": false,
+    "filesystem_device_or_inode_included": false,
+    "key_material_included": false,
+    "ui_response_included": false
+  }
+}

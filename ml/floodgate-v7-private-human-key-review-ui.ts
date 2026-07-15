@@ -42,11 +42,7 @@ export type FloodgateV7PrivateHumanKeyReviewResponse =
     }>;
 
 export type FloodgateV7PrivateHumanKeyReviewUiPhase =
-  | "capture"
-  | "platform"
-  | "request"
-  | "helper"
-  | "response";
+  "capture" | "platform" | "request" | "helper" | "response";
 
 export class FloodgateV7PrivateHumanKeyReviewUiError extends Error {
   readonly phase!: FloodgateV7PrivateHumanKeyReviewUiPhase;
@@ -189,7 +185,7 @@ function frozenRecord<T extends object>(value: T): Readonly<T> {
 
 function exactPlainRecord(
   value: unknown,
-  keys: readonly string[],
+  keys?: readonly string[],
 ): Record<string, unknown> {
   if (
     value === null ||
@@ -202,12 +198,15 @@ function exactPlainRecord(
   }
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const ownKeys = reflectOwnKeys(value);
-  if (ownKeys.length !== keys.length) {
+  if (keys !== undefined && ownKeys.length !== keys.length) {
     throw new NativeError("private review record key count differs");
   }
-  for (let index = 0; index < keys.length; index += 1) {
+  for (let index = 0; index < ownKeys.length; index += 1) {
     const key = ownKeys[index];
-    if (key !== keys[index] || typeof key !== "string") {
+    if (
+      typeof key !== "string" ||
+      (keys !== undefined && key !== keys[index])
+    ) {
       throw new NativeError("private review record key order differs");
     }
     const descriptor = descriptors[key];
@@ -258,6 +257,7 @@ function captureRequest(
   }
   try {
     const parsed = jsonParse(canonicalJson);
+    exactPlainRecord(parsed);
     if (`${jsonStringify(parsed)}\n` !== canonicalJson) {
       throw new NativeError("candidate is not canonical JSONL");
     }
@@ -440,6 +440,7 @@ function runHelper(
     try {
       child.stdin.end(requestBytes, () => zeroize(requestBytes));
     } catch {
+      zeroize(requestBytes);
       forceFailure();
     }
   });

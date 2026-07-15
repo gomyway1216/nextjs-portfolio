@@ -342,6 +342,53 @@ describe("floodgate v7 private human key review UI", () => {
     expectNoPrivateReviewListeners(child);
   });
 
+  it("zeroizes private request bytes when stdin.end throws synchronously", async () => {
+    const stdin = new EventEmitter();
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    const childEvents = new EventEmitter();
+    let capturedRequestBytes: Buffer | undefined;
+    let requestWasZeroizedBeforeKill = false;
+    Object.defineProperty(stdin, "end", {
+      value(bytes: Buffer) {
+        capturedRequestBytes = bytes;
+        throw new Error("synthetic synchronous stdin.end failure");
+      },
+    });
+    Object.defineProperties(childEvents, {
+      stdin: { value: stdin },
+      stdout: { value: stdout },
+      stderr: { value: stderr },
+      kill: {
+        value: () => {
+          requestWasZeroizedBeforeKill =
+            capturedRequestBytes?.every((byte) => byte === 0) === true;
+          queueMicrotask(() => childEvents.emit("close", null, "SIGKILL"));
+          return true;
+        },
+      },
+    });
+    const child = childEvents as unknown as ChildProcessWithoutNullStreams;
+    const dependencies = {
+      spawnChild(): ChildProcessWithoutNullStreams {
+        queueMicrotask(() => child.emit("spawn"));
+        return child;
+      },
+    };
+
+    const error = await captureFailure(() =>
+      reviewFloodgateV7PrivateHumanKeyCandidateCoreForTests(
+        VALID_REQUEST,
+        dependencies,
+      ),
+    );
+    expectSanitizedFailure(error, "helper");
+    expect(capturedRequestBytes).toBeDefined();
+    expect(requestWasZeroizedBeforeKill).toBe(true);
+    expect(capturedRequestBytes?.every((byte) => byte === 0)).toBe(true);
+    expectNoPrivateReviewListeners(child);
+  });
+
   it("tolerates bounded private system stderr and removes every installed listener", async () => {
     const invocations: CapturedInvocation[] = [];
     const response =
@@ -393,6 +440,15 @@ describe("floodgate v7 private human key review UI", () => {
       {
         ...VALID_REQUEST,
         candidate_canonical_json: `${VALID_REQUEST.candidate_canonical_json.trim()}\r\n`,
+      },
+    ],
+    [
+      "non-object candidate",
+      {
+        ...VALID_REQUEST,
+        candidate_canonical_json: "[]\n",
+        candidate_sha256: createHash("sha256").update("[]\n").digest("hex"),
+        candidate_bytes: Buffer.byteLength("[]\n", "utf8"),
       },
     ],
     ["extra key", { ...VALID_REQUEST, extra_public_field: false }],

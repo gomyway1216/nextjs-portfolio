@@ -1,6 +1,6 @@
 # 実機キーを一度だけ作成し、承認前のinstance候補まで観測した — Floodgate v7 production key operation
 
-> [macOS home-anchor hardening](./blog-shogi-floodgate-v7-macos-home-anchor-hardening.md)をPR #465で通常mergeした後、merge commit `1849a675c4b2bbf2fa9e38431baa48ba1b6414ed`からNode v22.13.0のproduction provisionerを1回だけ実行した。32-byte CSPRNG keyはcreate-only / no-clobberで公開・durable化・再検証され、fresh metadata probeは`ready`、read-only inspectorはcandidateを1件返した。candidate観測は承認ではなく、approved recordがないpreflightはreceiptなしでfail closedした。続くimplementation revision `c2ffbb85a93ee3a95a670b14e3e6cc42e11bb0fa`は、digest-bound operator inputを固定private recordへ一度だけ保存するcreate-only installerとCLIを実装した。focused 37 / 37、related 84 / 84、authoritative full 2,335 / 2,335、build、TypeScript、lint、format、Python 58 / 58、audit、独立security / functional reviewは全てPASSした。candidate ID、UID、path、device / inode、digest、key materialはpublic evidenceへ含めない。approved record設置、connector、実棋譜、teacher、学習、weight、live評価関数、対局、棋力claimは引き続き0で、ready PR / CI / mergeはまだ実施前である。English version: [blog-shogi-floodgate-v7-production-key-provisioning-and-instance-inspection.en.md](./blog-shogi-floodgate-v7-production-key-provisioning-and-instance-inspection.en.md)
+> [macOS home-anchor hardening](./blog-shogi-floodgate-v7-macos-home-anchor-hardening.md)をPR #465で通常mergeした後、merge commit `1849a675c4b2bbf2fa9e38431baa48ba1b6414ed`からNode v22.13.0のproduction provisionerを1回だけ実行した。32-byte CSPRNG keyはcreate-only / no-clobberで公開・durable化・再検証され、fresh metadata probeは`ready`、read-only inspectorはcandidateを1件返した。candidate観測は承認ではなく、approved recordがないpreflightはreceiptなしでfail closedした。続くimplementation revision `c2ffbb85a93ee3a95a670b14e3e6cc42e11bb0fa`は、digest-bound operator inputを固定private recordへ一度だけ保存するcreate-only installerとCLIを実装した。ready PR #466の初期headは6 / 6 checksに成功し、2件のreview feedbackはrevision `f2b3cb4ec28a18e0dc29cb4e927f0abca5f27471`で修正した。review-fix後のfocused 42 / 42、related 89 / 89、authoritative full 2,340 / 2,340、build、TypeScript、lint、format、Python 58 / 58、audit、独立security / functional reviewは全てPASSした。candidate ID、UID、path、device / inode、digest、key materialはpublic evidenceへ含めない。approved record設置、connector、real parent record、teacher、学習、weight、live評価関数、対局、棋力claimは引き続き0で、review-fix headのpush / final CI / mergeはまだ実施前である。English version: [blog-shogi-floodgate-v7-production-key-provisioning-and-instance-inspection.en.md](./blog-shogi-floodgate-v7-production-key-provisioning-and-instance-inspection.en.md)
 
 ## 1. 結果
 
@@ -13,11 +13,12 @@
 | fresh readiness           | 2回とも`ready`                                                | metadata-only。key bytesは読まず、authoritative reopenは別途必要           |
 | instance inspection       | 3回ともcandidate 1件、held descriptors再検証済み              | 初回、証拠再取得、serializer適合確認。承認・永続化はしていない             |
 | approved record           | 2回ともabsent                                                 | 初回operationと証拠再取得。preflightは固定エラー、exit 1でfail closed      |
-| installer implementation  | `c2ffbb85`、local commit                                      | create-only / no-clobber、承認自体は生成しない                             |
-| focused / related tests   | 37 / 37、84 / 84 PASS                                         | CLI、loader round-trip、race / failpointを含む                             |
-| full / build / static     | 2,335 / 2,335、PASS / PASS                                    | Node 22 authoritative rerun、build 193 / 193、error 0                      |
+| installer implementation  | `c2ffbb85` + review fix `f2b3cb4e`                            | create-only / no-clobber、承認自体は生成しない                             |
+| focused / related tests   | 42 / 42、89 / 89 PASS                                         | CLI、loader round-trip、race / failpointを含む                             |
+| full / build / static     | 2,340 / 2,340、PASS / PASS                                    | Node 22 authoritative rerun、build 193 / 193、error 0                      |
 | independent review        | P0 / P1 / P2 = 0 / 0 / 0                                      | security / functional final freeze review                                  |
-| installer PR / CI / merge | `PENDING` / `PENDING` / `PENDING`                             | local commitをproduction authorityに数えない                               |
+| review feedback           | 2件中2件をlocal revisionで修正                                | strong durability境界とCLI listener cleanup                                |
+| installer PR / CI / merge | `#466 READY` / initial 6 / 6 / `PENDING`                      | review-fix headのpushとfinal CIはcapture後                                 |
 | connector / real parent   | 0 / 0                                                         | keyができただけではrun authorityにならない                                 |
 | training / live weight    | 0 / unchanged                                                 | 評価関数は変更していない                                                   |
 | strength evidence         | 0                                                             | 高段をclaimできる対局証拠はまだない                                        |
@@ -94,7 +95,9 @@ operator CLIはargumentを受けず、stdinの65,536-byte以内・strict UTF-8�
 
 攻撃testはexisting final、stale staging、EEXIST、symlink / hardlink、unsafe home / managed mode、UID / boundary mismatch、candidate reorder / duplicate / CRLF / digest mismatch、全commit前後failpoint、staging差替え、final mode / size / nlink tamperを固定した。reviewで見つけた「競合stagingを消して強いdurabilityを誤claimし得る経路」と「managed prefix作成後をno changeと誤分類し得る経路」も修正し、ambiguous stateはmanual reconciliationへ閉じた。
 
-authoritative local validationはfocused 2 files / 37 tests、related 4 files / 84 tests、full 125 files / 2,335 tests、production build、TypeScript、scoped / full lint、Prettier、Python 58 tests、dependency vulnerabilities 0である。最初にbuild / full lintと同時実行したfull suiteはunrelated teacher-asset test 1件が一時失敗しworkerが残ったため採用せず中断した。そのfile単独17 / 17を確認し、Node 22の実体を固定したfull-only rerunで2,335 / 2,335を得た。採用authorityは後者である。
+ready PR #466のreviewは2点を見つけた。1点目は、最終revalidation成功後のdescriptor close失敗を弱いdurabilityへ落とし過ぎる経路である。`cleanupDirectorySynced`だけでは強くせず、最終revalidation完了後に続くcloseが失敗した専用stateだけをstrong / do-not-retryへ分類し、実close後にerrorを返すtest hookで固定した。2点目は、CLI output失敗時の一時`error` listenerが同一streamの再利用で蓄積し得る経路である。paired errorを同じevent-loop turnで吸収し、detach後にrejectするよう修正し、success / synchronous throw / paired error / 20回反復をtestした。revisionは`f2b3cb4ec28a18e0dc29cb4e927f0abca5f27471`で、独立security / functional reviewの残存P0 / P1 / P2は0である。
+
+initial implementationのauthoritative validationはfocused 37 / 37、related 84 / 84、full 2,335 / 2,335だった。review-fix後はfocused 2 files / 42 tests、related 4 files / 89 tests、full 125 files / 2,340 tests、production build 193 / 193、TypeScript、scoped / full lint、Prettier 3.6.2、Python 58 tests、dependency vulnerabilities 0を再確認した。full-only Node 22 runは146.03秒、wall 146.49秒、maximum RSS 4,283,318,272 bytes、swap 0である。最初のimplementation検証時にbuild / full lintと同時実行したfull suiteはunrelated teacher-asset test 1件が一時失敗しworkerが残ったため採用せず中断しており、review-fix後の採用authorityは単独実行の2,340 / 2,340である。
 
 ## 7. privacyとnonclaims
 
@@ -111,11 +114,11 @@ authoritative local validationはfocused 2 files / 37 tests、related 4 files / 
 
 ## 8. 次の順序
 
-1. 実装済みlocal commitと本稿をready PRへpushし、review / CIを全て通して通常mergeする。
+1. review-fix revisionと更新した本稿をready PR #466へpushし、final review / CIを全て通して通常mergeする。
 2. fresh candidateのexact bytes / SHAを人間がcandidate-specificに確認する。
 3. merged installerを1回だけ実行し、approved recordを設置する。
 4. preflightを再実行し、fresh capabilityが成功することを確認する。
 5. connectorのreal durable-prefix-100へ進み、失敗・durability・cleanupを証拠化する。
 6. 100通過後だけ500、24,000、3-seed training、holdout selection、color-swapped A/B、段階的live rolloutへ進む。
 
-実機keyの安全な作成とcreate-only installerのlocal実装・全検証は完了した。しかし棋力を変えた工程はまだ0である。次の意味のある境界はPRを通常mergeし、観測済みcandidateを自動採用せずcandidate-specificな人間レビューへ渡すことである。
+実機keyの安全な作成とcreate-only installerのlocal実装・review修正・全検証は完了した。しかし棋力を変えた工程はまだ0である。次の意味のある境界はPRを通常mergeし、観測済みcandidateを自動採用せずcandidate-specificな人間レビューへ渡すことである。

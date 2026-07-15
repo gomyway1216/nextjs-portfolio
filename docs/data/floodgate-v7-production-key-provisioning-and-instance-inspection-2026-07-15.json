@@ -1,12 +1,13 @@
 {
   "schema": "shogi-floodgate-v7-production-key-provisioning-and-instance-inspection-evidence-v1",
-  "generated_at": "2026-07-15T19:47:36Z",
-  "observed_through": "2026-07-15T19:47:36Z",
+  "generated_at": "2026-07-15T20:10:39Z",
+  "observed_through": "2026-07-15T20:10:39Z",
   "evidence_scope": {
-    "evidence_class": "merged-production-key-operation-and-sanitized-follow-up-probes",
+    "evidence_class": "merged-production-key-operation-sanitized-follow-up-probes-local-installer-validation-and-ready-pr-review",
     "execution_revision": "1849a675c4b2bbf2fa9e38431baa48ba1b6414ed",
     "home_anchor_implementation_revision": "635f94515a47d2d453133fe05bed9250f6bafffa",
     "installer_implementation_revision": "c2ffbb85a93ee3a95a670b14e3e6cc42e11bb0fa",
+    "installer_review_fix_revision": "f2b3cb4ec28a18e0dc29cb4e927f0abca5f27471",
     "node_version": "22.13.0",
     "absolute_local_paths_included": false,
     "local_os_user_or_host_names_included": false,
@@ -108,10 +109,14 @@
   },
   "installer_delivery": {
     "implementation_revision": "c2ffbb85a93ee3a95a670b14e3e6cc42e11bb0fa",
+    "review_fix_revision": "f2b3cb4ec28a18e0dc29cb4e927f0abca5f27471",
     "local_commit_created": true,
-    "files_changed_in_commit": 6,
-    "insertions": 3058,
-    "deletions": 0,
+    "files_changed_in_implementation_commit": 6,
+    "implementation_insertions": 3058,
+    "implementation_deletions": 0,
+    "files_changed_in_review_fix_commit": 4,
+    "review_fix_insertions": 189,
+    "review_fix_deletions": 12,
     "contract": "shogi-floodgate-v7-approved-key-enrollment-installer-v1",
     "implemented_success_receipt_status_constant": "new-approved-record-no-clobber-published-durable-and-revalidated",
     "production_execution_status": "not-run",
@@ -123,8 +128,18 @@
     "approval_generated_by_installer": false,
     "production_installer_executions": 0,
     "approved_records_installed": 0,
-    "ready_pull_request": "pending",
-    "remote_ci": "pending",
+    "ready_pull_request": {
+      "number": 466,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/466",
+      "state": "open-ready",
+      "initial_remote_head": "8ebaa3924b641194366fd4af74a0fb69a240ff6b",
+      "initial_checks_observed": 6,
+      "initial_checks_successful": 6,
+      "actionable_review_threads_observed": 2,
+      "review_threads_fixed_at_local_revision": 2,
+      "review_fix_head_pushed_at_capture": false
+    },
+    "remote_ci": "initial-head-6-of-6-success-review-fix-head-not-pushed-at-capture",
     "regular_merge": "pending"
   },
   "installer_validation": {
@@ -229,6 +244,94 @@
       "open_p2": 0
     }
   },
+  "review_fix_validation": {
+    "capture_revision": "f2b3cb4ec28a18e0dc29cb4e927f0abca5f27471",
+    "review_feedback": {
+      "threads": 2,
+      "fixed": 2,
+      "durability_close_failure_classification_fixed": true,
+      "output_error_listener_cleanup_fixed": true,
+      "cleanup_directory_sync_alone_upgrades_to_strong": false
+    },
+    "focused_vitest": {
+      "status": "pass",
+      "files": 2,
+      "tests": 42,
+      "passed": 42,
+      "failed": 0
+    },
+    "related_vitest": {
+      "status": "pass",
+      "files": 4,
+      "tests": 89,
+      "passed": 89,
+      "failed": 0,
+      "vitest_duration_seconds": 1.4,
+      "command_wall_seconds": 1.63
+    },
+    "typescript": {
+      "status": "pass",
+      "diagnostics": 0,
+      "command_wall_seconds": 3.19
+    },
+    "scoped_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0,
+      "command_wall_seconds": 1.95
+    },
+    "prettier": {
+      "status": "pass",
+      "version": "3.6.2",
+      "command_wall_seconds": 0.82,
+      "repository_or_ci_version_pinned": false
+    },
+    "authoritative_full_vitest": {
+      "status": "pass",
+      "node_executable_version": "22.13.0",
+      "files": 125,
+      "tests": 2340,
+      "passed": 2340,
+      "failed": 0,
+      "vitest_duration_seconds": 146.03,
+      "command_wall_seconds": 146.49,
+      "maximum_resident_set_size_bytes": 4283318272,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "turbopack_compile_seconds": 7.9,
+      "typescript_seconds": 17.4,
+      "static_pages_generated": 193,
+      "static_pages_total": 193,
+      "command_wall_seconds": 27.83,
+      "maximum_resident_set_size_bytes": 2624389120
+    },
+    "full_eslint": {
+      "status": "pass",
+      "errors": 0,
+      "existing_warnings": 157,
+      "command_wall_seconds": 27.84,
+      "maximum_resident_set_size_bytes": 1404321792
+    },
+    "python_stdlib_tests": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0
+    },
+    "independent_final_reviews": {
+      "security": "pass",
+      "functional": "pass",
+      "open_p0": 0,
+      "open_p1": 0,
+      "open_p2": 0
+    }
+  },
   "workflow_counters": {
     "deployment_key_created": 1,
     "candidate_observations": 3,
@@ -248,9 +351,12 @@
     "elo_or_rank_estimates": 0
   },
   "next_gate": {
-    "classification": "installer-implemented-locally-awaiting-ready-pr-review-ci-and-regular-merge-before-candidate-specific-human-review-and-persistence",
+    "classification": "ready-pr-open-review-fixes-validated-locally-awaiting-push-final-ci-and-regular-merge-before-candidate-specific-human-review-and-persistence",
     "existing_safe_installer_at_execution_revision": false,
     "safe_installer_implemented_at_local_revision": true,
+    "ready_pull_request_open": true,
+    "initial_remote_checks_successful": 6,
+    "review_fixes_validated_at_local_revision": true,
     "manual_shell_record_creation_allowed": false,
     "installer_requirements": [
       "candidate-specific-digest-bound-operator-approval-input",

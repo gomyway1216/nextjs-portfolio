@@ -2,6 +2,8 @@
 
 > PR #471 implemented and validated the [fresh prefix-100 one-shot boundaries](./blog-shogi-floodgate-v7-fresh-prefix-100-one-shot.en.md) and was integrated with regular merge commit `4a14507a5a228cac71c011c94989fa9307f8218a`. This local candidate does not reuse its read-only preflight receipt as later execution authority. It serializes preflight, the active lease, exactly one prefix-100 connector invocation, and the exact-100 postflight inside **the same outer OS lock acquired once**. The low-level scan only checks a caller-supplied anchor. Only the fixed runner's composition of a genuine connector anchor with the same-lock scan promotes it to continuity with the immediately preceding authenticated scan. It is not independent HMAC authentication. This candidate has executed no production command, namespace mutation, gate, teacher generation, training, weight change, match, or live activation. runOp1 is unchanged. Japanese version: [blog-shogi-floodgate-v7-prefix-100-same-lock-one-shot.md](./blog-shogi-floodgate-v7-prefix-100-same-lock-one-shot.md)
 
+Update on 2026-07-16: [PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474), recorded later in this article as an unmerged candidate, was subsequently regular-merged as merge commit `c0b4e55e7fc8a1b3050285ec0cec8a77c35fa98f`. The later unmerged language is a historical snapshot. This did not execute production; the training-label finalizer, registry provisioning, real gates, training, and live changes remain incomplete or unexecuted.
+
 ## 1. Outcome and current position
 
 | Item                 | Local-candidate outcome                                           | Production meaning                                                                               |

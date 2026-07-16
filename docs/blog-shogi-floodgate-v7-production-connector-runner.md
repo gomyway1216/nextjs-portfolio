@@ -2,6 +2,8 @@
 
 > PR #468は通常のmerge commit `7b9a60e7912d09c5058f789ec1309325941202d2`で統合され、その後、private native UIによる人間レビュー、完全なSHA-256の再入力、承認後のfresh reinspection、create-only approved-key enrollment、保存recordのpostflight、fresh current-key bindingが成功した。独立したcurrent-binding preflightも続けて成功している。本変更は、その承認済みrecordを、上書き不能なprivate run registryと、100・500・24,000 parent専用のargumentless production runnerへ接続する。ただし実装中の安全レビューで、長時間gateが強制終了した場合に残るempty stage-authorization leaseを、現契約だけではlive processや置換directoryと安全に区別できないことが分かった。このため本変更ではregistry provisioningと3つのreal gateを実行せず、HMAC付きlease metadataとOS-backed lockを追加する別PRを先に必須とする。現在の観測ではproduction registryは存在せず、gate processも0である。本変更によるteacher label、training、candidate weight、live activation、棋力証拠はすべて0で、productionは現在もrunOp1のままである。English version: [blog-shogi-floodgate-v7-production-connector-runner.en.md](./blog-shogi-floodgate-v7-production-connector-runner.en.md)
 
+2026-07-16更新: 後段のverifier Git / pinned-artifact closureは[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)で通常mergeされ、merge commitは`c0b4e55e7fc8a1b3050285ec0cec8a77c35fa98f`である。この記事後半に残る「PR #474は未マージ」という表現は当時のsnapshotであり、現在の状態ではない。training-label finalizer、production registry、real gate、training、live変更は引き続き未完・未実行である。
+
 ## 1. 結果
 
 | 項目                                          | 現在の結果                                                | 意味                                                                                                 |

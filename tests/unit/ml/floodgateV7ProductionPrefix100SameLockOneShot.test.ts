@@ -464,7 +464,8 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
       sensitive_values_disclosed: false,
     });
     const stale = await fs.promises.readFile(environment.activePath, "utf8");
-    expect(stale).toContain('"gate":"durable-prefix-100"');
+    expect(stale).toContain('"purpose":"durable-prefix-100"');
+    expect(stale).not.toContain('"gate":');
     expect(stale).toMatch(/"mac":"[0-9a-f]{64}"/u);
   });
 

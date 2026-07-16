@@ -34,6 +34,7 @@
     "shogi:floodgate-v7-production-connector-prefix-100": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-100.ts",
     "shogi:floodgate-v7-production-connector-prefix-500": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-500.ts",
     "shogi:floodgate-v7-production-connector-final-24000": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-final-24000.ts",
+    "shogi:floodgate-v7-training-label-production": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-training-label-production.ts",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },

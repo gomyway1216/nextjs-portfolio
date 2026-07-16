@@ -1,0 +1,249 @@
+{
+  "schema": "shogi-floodgate-v7-production-application-source-provenance-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-candidate-only",
+    "base_revision": "4c71e664dae67ccd4afdb369a666bcdb4d4bbb37",
+    "candidate_implementation_revision": "PENDING",
+    "production_state_freshly_observed_for_this_change": false,
+    "production_namespace_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_gate_invocation_authorized_by_this_evidence": false,
+    "local_source_or_test_execution_counted_as_production_execution": false
+  },
+  "prerequisite_delivery": {
+    "pull_request": 479,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/479",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "4c71e664dae67ccd4afdb369a666bcdb4d4bbb37"
+  },
+  "current_delivery": {
+    "planned_pull_request": 480,
+    "actual_pull_request": "PENDING",
+    "url": "PENDING",
+    "state": "local-candidate-not-yet-opened",
+    "implementation_revision": "PENDING",
+    "continuous_integration": "PENDING",
+    "review": "PENDING",
+    "unresolved_review_threads": "PENDING",
+    "merge": "PENDING-regular-merge-required"
+  },
+  "p1_finding": {
+    "severity": "P1",
+    "found_after_prerequisite_merge": true,
+    "summary": "production verifier source was fixed but production application execution source was not revision-bound",
+    "risk": "a stale-dirty-or-different-application-checkout-could-produce-production-evidence-without-an-application-revision-binding",
+    "registry_provisioning_allowed_before_fix_merge": false,
+    "fixed_application_alignment_allowed_before_fix_merge": false,
+    "current_operational_decision": "NO-GO"
+  },
+  "fixed_application_source": {
+    "root_display": "~/.codex/worktrees/shogi-floodgate-v7-production-application",
+    "root_is_caller_configurable": false,
+    "layout": "fixed-current-euid-userinfo-home-production-application-v1",
+    "revision_format": "40-lowercase-hex-git-object-id",
+    "exact_head_required": true,
+    "nonignored_git_status_clean_required": true,
+    "all_tracked_modes_checked": true,
+    "all_tracked_bytes_checked": true,
+    "ignored_untracked_entries_in_closure": false,
+    "binding_publicly_disclosed": false
+  },
+  "registry": {
+    "legacy_contract": "shogi-floodgate-v7-production-connector-registry-record-v1",
+    "current_contract": "shogi-floodgate-v7-production-connector-registry-record-v2",
+    "current_record_contains_application_source_binding": true,
+    "v1_strictly_parseable_for_inspection": true,
+    "v1_can_issue_current_production_capability": false,
+    "v1_can_authorize_mutation": false,
+    "automatic_v1_to_v2_migration": false,
+    "existing_registry_adopted": false,
+    "existing_registry_overwritten": false,
+    "existing_registry_rotated": false,
+    "installation": "create-only-no-clobber",
+    "registry_provisions_for_this_change": 0
+  },
+  "mutation_order": {
+    "ordered_steps": [
+      "open-fixed-private-registry-anchor",
+      "acquire-common-os-lifetime-lock-on-held-registry-file-description",
+      "read-canonical-v2-registry-bytes-under-lock",
+      "capture-private-application-source-binding",
+      "verify-fixed-application-exact-head-clean-status-tracked-bytes-and-modes",
+      "match-observed-source-binding-to-locked-registry-binding",
+      "revalidate-held-and-named-registry-bytes-sha256-device-and-inode",
+      "only-then-enter-control-namespace-authenticated-lease-and-operation"
+    ],
+    "source_failure_phase": "application-source",
+    "source_failure_control_namespace_creations": 0,
+    "source_failure_active_lease_publications": 0,
+    "source_failure_authenticated_lease_published": false,
+    "source_failure_operations_started": 0,
+    "source_failure_checkpoints_created": 0,
+    "source_failure_training_labels_finalized": 0
+  },
+  "outer_gate": {
+    "public_receipt_contract": "shogi-floodgate-v7-production-outer-gate-lease-v3",
+    "private_persisted_lease_contract": "shogi-floodgate-v7-production-outer-gate-lease-v2",
+    "private_hmac_domain_version": 2,
+    "mutation_purposes": [
+      "durable-prefix-100",
+      "durable-prefix-500",
+      "sealed-final-24000",
+      "training-label-finalization-24000"
+    ],
+    "verification_added": [
+      "application_source_binding_read_from_locked_registry",
+      "exact_clean_application_source_closure_verified_before_persistent_mutation",
+      "registry_anchor_revalidated_after_source_verification_before_persistent_mutation"
+    ],
+    "application_source_revision_disclosed": false,
+    "application_source_path_disclosed": false,
+    "application_source_digest_disclosed": false
+  },
+  "cli_entrypoint_boundary": {
+    "required_node_version": "v22.13.0",
+    "required_exec_argv": ["-r", "tsx/cjs"],
+    "operator_arguments_accepted": false,
+    "cwd_must_equal_fixed_application_root": true,
+    "argv_entrypoint_must_equal_fixed_exact_path": true,
+    "require_main_filename_must_equal_fixed_exact_path": true,
+    "production_module_loaded_before_context_check": false,
+    "stale_or_alternate_checkout_accepted": false
+  },
+  "source_readiness": {
+    "contract": "shogi-floodgate-v7-production-application-source-readiness-v1",
+    "argumentless": true,
+    "read_only": true,
+    "point_in_time_observation_only": true,
+    "filesystem_namespace_or_file_content_mutation_performed": false,
+    "registry_created_loaded_or_modified": false,
+    "gate_or_deployment_authority": false,
+    "application_source_revision_disclosed": false,
+    "application_source_path_disclosed": false,
+    "application_source_digest_disclosed": false
+  },
+  "prefix_100_preflight": {
+    "contract": "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3",
+    "under_lock_outcome_contract": "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
+    "cli_success_contract": "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v3",
+    "cli_failure_contract": "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v3",
+    "application_source_binding_rechecked_against_exact_clean_closure": true,
+    "provisioning_time_source_success_reused": false,
+    "go_scope": "read-only-core-preconditions-only",
+    "go_authorizes_gate_invocation": false,
+    "receipt_reusable": false,
+    "persistent_namespace_or_file_content_mutation_performed": false
+  },
+  "validation": {
+    "validated_exact_tree_revision": "PENDING",
+    "focused_source_registry_outer_preflight_tests": {
+      "status": "PENDING",
+      "files": "PENDING",
+      "tests": "PENDING"
+    },
+    "related_production_regression_tests": {
+      "status": "PENDING",
+      "files": "PENDING",
+      "tests": "PENDING"
+    },
+    "full_vitest": {
+      "status": "PENDING",
+      "files": "PENDING",
+      "tests": "PENDING"
+    },
+    "typescript": "PENDING",
+    "lint": "PENDING",
+    "prettier": "PENDING",
+    "production_build": "PENDING",
+    "ml_stdlib": "PENDING",
+    "npm_audit": "PENDING",
+    "github_ci": "PENDING",
+    "github_review": "PENDING"
+  },
+  "production_execution_for_this_change": {
+    "production_commands": 0,
+    "production_registry_provisions": 0,
+    "production_kill_drills": 0,
+    "production_read_only_preflights": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "current_production_evaluator": "runOp1",
+    "current_rollback_evaluator": "runOp1",
+    "live_weight_changed": false,
+    "playing_strength_changed_by_this_evidence": false,
+    "stable_high_dan_claimed": false,
+    "formal_ab_plan": "192 color-swapped pairs / 384 games",
+    "formal_ab_color_swapped_pairs": 192,
+    "formal_ab_total_games": 384,
+    "external_calibration_games_required": 200
+  },
+  "safe_next_order": [
+    "validate-review-and-regular-merge-application-source-provenance-pr480",
+    "operator-guards-pr481-exact-approved-current-binding-invocation-and-standalone-verifier-readiness-without-reconciliation-authority",
+    "align-fixed-application-to-pr480-merge-and-fixed-verifier-to-e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "create-only-registry-v2-provision",
+    "reviewed-disposable-kill-drill",
+    "fresh-standalone-read-only-preflight",
+    "prefix-100-exactly-once",
+    "stop-independent-evidence-review-and-informed-human-approval-before-500",
+    "prefix-500",
+    "stop-independent-evidence-review-and-informed-human-approval-before-24000",
+    "sealed-final-24000",
+    "inspect-terminal-evidence",
+    "training-label-finalization",
+    "retrain-and-select",
+    "formal-ab-192-color-swapped-pairs-384-games",
+    "external-calibration-200-games",
+    "live-gate-only-after-safety-quality-strength-and-rollback-evidence"
+  ],
+  "stop_conditions": {
+    "stale_state": "STOP-no-retry-no-next-gate",
+    "quarantined_state": "STOP-no-retry-no-next-gate",
+    "indeterminate_state": "STOP-no-retry-no-next-gate",
+    "reconciliation_authority_implemented": false,
+    "prior_blanket_permission_substitutes_for_evidence_dependent_human_approval": false
+  },
+  "privacy": {
+    "absolute_local_path_values_included": false,
+    "numeric_user_identity_values_included": false,
+    "filesystem_identity_values_included": false,
+    "private_digest_values_included": false,
+    "application_source_revision_values_included": false,
+    "private_configuration_values_included": false
+  },
+  "nonclaims": {
+    "arbitrary_same_uid_hostile_process_isolation_claimed": false,
+    "ignored_untracked_node_modules_byte_closure_claimed": false,
+    "perfectly_restored_transient_mutation_detection_claimed": false,
+    "atomic_filesystem_snapshot_claimed": false,
+    "access_time_invariance_claimed": false,
+    "automatic_v1_migration_claimed": false,
+    "registry_reconciliation_authority_claimed": false,
+    "production_registry_ready": false,
+    "production_gate_completed": false,
+    "teacher_labels_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

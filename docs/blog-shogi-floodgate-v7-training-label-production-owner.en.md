@@ -27,11 +27,12 @@ fixed zero-argument runner
        -> consumer postflight
        -> terminal label finalizer / destination revalidation
   -> outer active-lease removal + retired evidence (durable)
-  -> common OS lock release last
+  -> common OS lifetime lock release (filesystem phase complete)
+  -> in-memory secret zeroization before return
   -> sanitized public receipt
 ```
 
-The label finalizer and destination-content revalidation finish before the outer callback returns. Durable active-lease cleanup follows the callback, and OS-lock release follows that cleanup. This is the lexical-ownership and release-last closure that #478 alone could not prove.
+The label finalizer and destination-content revalidation finish before the outer callback returns. Durable active-lease cleanup follows the callback, OS-lock release follows that cleanup, and `finally` zeroizes in-memory secrets before return. This is the lexical-ownership and durable-filesystem-cleanup-before-release closure that #478 alone could not prove.
 
 ## 2. Extending the outer lease to a V2 purpose record
 
@@ -93,32 +94,34 @@ Cleanup ownership for the stage lease and plan changes at explicit progress poin
 - If the consumer or postflight fails after plan issuance, the owner discards the plan before returning.
 - After finalizer invocation, the finalizer owns the plan terminally and the owner performs no double cleanup.
 
-The public error projects only phase, publication-may-have-occurred, lease-may-remain, cleanup-failure count, and retry disposition, all conservatively. Publication or indeterminate cleanup is never projected as a fresh safe retry; it requires publication or lease reconciliation. If the outer owner crosses the operation boundary and fails, it does not claim successful active-lease cleanup: it releases the lock and preserves authenticated stale evidence. Only success completes active-lease removal, retired evidence, directory sync, and final namespace checks under lock before closing the lock descriptor last.
+The public error conservatively projects only these variable diagnostic facets: phase, publication-may-have-occurred, lease-may-remain, cleanup-failure count, and retry disposition. Publication or indeterminate cleanup is never projected as a fresh safe retry; it requires publication or lease reconciliation. If the outer owner crosses the operation boundary and fails, it does not claim successful active-lease cleanup: it releases the lock and preserves authenticated stale evidence. Only success completes active-lease removal, retired evidence, directory sync, and final namespace checks under lock, then closes the lock descriptor to finish the filesystem and lifetime-lock phase. Before return, `finally` zeroizes in-memory secret buffers and rechecks lifecycle-handler removal.
 
 ## 8. The CLI is fixed to Node 22.13.0, zero arguments, and caffeinate
 
 The package script starts Node under `/usr/bin/caffeinate -dimsu` so a long finalization is not interrupted by sleep. The CLI requires `process.argv.length === 2`, meaning no extra argument, and accepts only exact runtime `v22.13.0`. It lazy-loads the runner only after validating argv and runtime. The runner likewise invokes only the zero-argument fixed outer operation.
 
-Success writes one sanitized JSON line to stdout. Failure sets a nonzero exit status and writes one sanitized JSON line to stderr; an unknown failure or malformed nested receipt is not converted into an optimistic safe retry. A stdout-write failure is not treated as success. Raw owner, outer, and finalizer receipts, paths, identities, MACs, and row content are never emitted. The CLI does not promise a separate graceful-signal cleanup; the outer owner's signal policy preserves stale evidence after lock release.
+Success writes one sanitized JSON line to stdout. Failure sets a nonzero exit status and attempts to write one sanitized JSON line to stderr; a stderr-write failure does not erase the nonzero status. An unknown failure or malformed nested receipt is not converted into an optimistic safe retry. A stdout-write failure is not treated as success. Raw owner, outer, and finalizer receipts, paths, identities, MACs, and row content are never emitted. The CLI does not promise a separate graceful-signal cleanup; the outer owner's signal policy preserves stale evidence after lock release.
 
-## 9. Validation and GitHub gates remain PENDING
+## 9. Local validation is COMPLETE; the GitHub gate is PENDING
 
-At the time this article was written, the final measured candidate revision, focused and adversarial tests, related tests, full suite, build, lint, typecheck, ML stdlib, audit, GitHub CI, and review results were not yet fixed. No guessed test count, duration, RSS, or commit SHA is written as evidence. Measured runs must replace every `PENDING` and `null` below.
+The final local candidate is `871841ad35dd5e91b97a73b5e63707dbe8673a4e`. An independent security review of the production implementation completed with zero P0, P1, P2, P3, or merge-blocking findings. Machine evidence records measured wall time, maximum RSS, and swaps from `/usr/bin/time -l`, not estimates.
 
-| Validation                              | Status  | Result                       | Duration | Maximum RSS |
-| --------------------------------------- | ------- | ---------------------------- | -------- | ----------- |
-| focused owner / outer / runner / CLI    | PENDING | null                         | null     | null        |
-| related authority / scanner / finalizer | PENDING | null                         | null     | null        |
-| TypeScript                              | PENDING | null                         | null     | null        |
-| Prettier                                | PENDING | null                         | null     | null        |
-| scoped / full ESLint                    | PENDING | null                         | null     | null        |
-| full Vitest                             | PENDING | null                         | null     | null        |
-| production build                        | PENDING | null                         | null     | null        |
-| ML stdlib                               | PENDING | null                         | null     | null        |
-| npm audit                               | PENDING | null                         | null     | null        |
-| GitHub CI / review                      | PENDING | PR / checks / review unknown | null     | null        |
+| Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
+| --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
+| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s   | 333,479,936   |
+| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s | 767,770,624   |
+| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s   | 1,171,046,400 |
+| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s   | 191,102,976   |
+| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s  | 1,834,876,928 |
+| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s | 2,383,593,472 |
+| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
+| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
+| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
+| GitHub CI / review                      | PENDING  | PR, checks, and review unknown           | null     | null          |
 
-PENDING is not a success claim. Merge requires the necessary local validation, including implementation and source-boundary evidence, a green ready-PR CI result, and zero actionable unresolved reviews. The normal regular merge commit policy applies, and live operation remains a separate gate from merge.
+Intermediate results are not hidden. The first default full run overlapped with full lint and build at its tail; 159 of 161 files and 2,909 of 2,911 tests passed. One failure was a missed test update: the V2 record correctly wrote `purpose`, while the assertion still expected the legacy V1 `gate`. Revision `a95760b` corrected it and passed 16 of 16 in isolation. The other failure was real-child stable-WASM initialization exceeding a test-only 30-second watchdog under load. The immediate isolated rerun passed 53 of 53, and production already used a 120-second watchdog. Only this semantic-invariance test now uses 120 seconds for startup and 180 seconds for its outer cleanup allowance. Its 30-second search watchdog, worker and production implementation, and no-retry behavior remain unchanged. A loaded isolated rerun passed 53 of 53, followed by the final eight-worker full run at 2,911 of 2,911.
+
+Even after the local gate closes, GitHub PENDING is not a success claim. Merge still requires green CI on a ready PR and zero actionable unresolved reviews. The normal regular merge-commit policy applies, and live operation remains a separate gate from merge.
 
 ## 10. Every production counter remains zero and the live evaluator is unchanged
 
@@ -130,7 +133,7 @@ The current live weight and `runOp1` therefore remain unchanged. This candidate 
 
 Only after this owner and CLI PR is merged and its CI and review evidence is closed should a separate operational gate perform the following sequence.
 
-1. Create a fixed verifier worktree from main and pin the exact revision and runtime.
+1. Align the existing fixed verifier worktree to evidence-backed revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`, then reverify its clean source / pinned-artifact closure and runtime.
 2. Provision the production registry and reverify approved and current binding.
 3. After read-only preflight, run the 100-parent gate and preserve its receipt.
 4. Run the 500-parent gate and preserve its receipt.

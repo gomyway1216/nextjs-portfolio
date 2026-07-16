@@ -27,11 +27,12 @@ fixed zero-argument runner
        -> consumer postflight
        -> terminal label finalizer / destination revalidation
   -> outer active-lease removal + retired evidence (durable)
-  -> common OS lock release last
+  -> common OS lifetime lock release (filesystem phase complete)
+  -> in-memory secret zeroization before return
   -> sanitized public receipt
 ```
 
-outer callbackがreturnする前にlabel finalizerとdestination content revalidationが完了し、outer active leaseのdurable cleanupはcallback後、OS lock releaseはその後である。これが#478単体では証明できなかったlexical ownershipとrelease-lastの閉包である。
+outer callbackがreturnする前にlabel finalizerとdestination content revalidationが完了し、outer active leaseのdurable cleanupはcallback後、OS lock releaseはその後である。さらにreturn前の`finally`でin-memory secretをzeroizeする。これが#478単体では証明できなかったlexical ownershipとdurable filesystem cleanup-before-releaseの閉包である。
 
 ## 2. outer leaseをV2 purpose recordへ拡張する
 
@@ -93,32 +94,34 @@ stage leaseとplanのcleanup ownerは進行点で切り替わる。
 - plan発行後、consumer / postflight側で失敗した場合、ownerがplanをdiscardしてから返す。
 - finalizerを呼んだ後はfinalizerがplanをterminalに所有し、ownerはdouble cleanupしない。
 
-公開errorはphase、publication may-have-occurred、lease may-remain、cleanup failure count、retry dispositionだけを保守的に投影する。publication後またはcleanup不確定ならfresh retry可能とは扱わず、publication / lease reconciliationを要求する。outer ownerでoperation boundaryを越えた失敗はactive leaseを成功cleanupしたと扱わず、lockを解放して認証済みstale evidenceを残す。成功時だけactive lease removal、retired evidence、directory sync、final namespace checkをlock内で終え、最後にlock descriptorを閉じる。
+公開errorの可変diagnostic facetはphase、publication may-have-occurred、lease may-remain、cleanup failure count、retry dispositionだけを保守的に投影する。publication後またはcleanup不確定ならfresh retry可能とは扱わず、publication / lease reconciliationを要求する。outer ownerでoperation boundaryを越えた失敗はactive leaseを成功cleanupしたと扱わず、lockを解放して認証済みstale evidenceを残す。成功時だけactive lease removal、retired evidence、directory sync、final namespace checkをlock内で終え、その後にlock descriptorを閉じてfilesystem / lifetime-lock処理を終える。return前の`finally`ではin-memory secret bufferをzeroizeし、lifecycle handler除去も再確認する。
 
 ## 8. CLIはNode 22.13.0固定・zero argument・caffeinate付き
 
 package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いfinalization中のsleepを抑止する。CLIは`process.argv.length === 2`、つまり追加argumentなしを要求し、runtimeはexact `v22.13.0`だけを受理する。argvとruntimeを検査してからrunnerをlazy-loadし、runnerもzero-argument fixed outer operationだけを呼ぶ。
 
-成功はsanitized JSON 1行をstdoutへ出す。失敗はnonzero exitとsanitized JSON 1行をstderrへ出し、unknown failureやmalformed nested receiptを楽観的なsafe retryへ変換しない。stdout write failureを成功として扱わず、raw owner / outer / finalizer receipt、path、identity、MAC、row contentを出力しない。CLI自身が別のgraceful signal cleanupを約束するのではなく、outer ownerのsignal policyがlock解放後もstale evidenceを保存する。
+成功はsanitized JSON 1行をstdoutへ出す。失敗はnonzero exitを設定してsanitized JSON 1行のstderr出力を試み、stderr write failureが起きてもnonzero statusは維持する。unknown failureやmalformed nested receiptを楽観的なsafe retryへ変換しない。stdout write failureを成功として扱わず、raw owner / outer / finalizer receipt、path、identity、MAC、row contentを出力しない。CLI自身が別のgraceful signal cleanupを約束するのではなく、outer ownerのsignal policyがlock解放後もstale evidenceを保存する。
 
-## 9. validationとGitHub gateはまだPENDING
+## 9. local validationはCOMPLETE、GitHub gateはPENDING
 
-この文書作成時点ではcandidate revision、focused / adversarial tests、related tests、full suite、build、lint、typecheck、ML stdlib、audit、GitHub CI、reviewの最終実測値はまだ確定していない。推測したtest count、duration、RSS、commit SHAを証拠へ書かず、実測後に`PENDING` / `null`を置き換える。
+最終local candidateは`871841ad35dd5e91b97a73b5e63707dbe8673a4e`である。production実装を対象にした独立security reviewはP0 / P1 / P2 / P3すべて0、merge-blocking finding 0で完了した。推測値ではなく、`/usr/bin/time -l`で得たwall time、maximum RSS、swapをmachine evidenceへ記録した。
 
-| Validation                              | Status  | Result                     | Duration | Maximum RSS |
-| --------------------------------------- | ------- | -------------------------- | -------- | ----------- |
-| focused owner / outer / runner / CLI    | PENDING | null                       | null     | null        |
-| related authority / scanner / finalizer | PENDING | null                       | null     | null        |
-| TypeScript                              | PENDING | null                       | null     | null        |
-| Prettier                                | PENDING | null                       | null     | null        |
-| scoped / full ESLint                    | PENDING | null                       | null     | null        |
-| full Vitest                             | PENDING | null                       | null     | null        |
-| production build                        | PENDING | null                       | null     | null        |
-| ML stdlib                               | PENDING | null                       | null     | null        |
-| npm audit                               | PENDING | null                       | null     | null        |
-| GitHub CI / review                      | PENDING | PR / checks / review未確定 | null     | null        |
+| Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
+| --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
+| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s   | 333,479,936   |
+| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s | 767,770,624   |
+| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s   | 1,171,046,400 |
+| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s   | 191,102,976   |
+| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s  | 1,834,876,928 |
+| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s | 2,383,593,472 |
+| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
+| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
+| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
+| GitHub CI / review                      | PENDING  | PR / checks / review未確定               | null     | null          |
 
-このPENDINGは成功claimではない。merge条件は、実装とsource-boundary evidenceを含む必要なlocal validationが通り、ready PRのCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
+中間結果も隠していない。最初のdefault full runは末尾がfull lint / buildと重なり、161 files中159、2,911 tests中2,909がpassした。1件はV2 recordが正しく`purpose`を書いているのに旧V1の`gate`を期待したtest漏れで、`a95760b`で修正し単独16 / 16を確認した。もう1件はreal-child stable-WASM初期化がtest-only 30秒watchdogを負荷下で超えたものだった。直後の単独実行は53 / 53成功し、本番watchdogは元から120秒である。このsemantic invariance testだけstartupを120秒、外側cleanup猶予を180秒へ合わせ、search watchdog 30秒、worker / production実装、retryなしは維持した。負荷中の単独再確認53 / 53と、8-worker final full 2,911 / 2,911が成功した。
+
+local gateが閉じても、GitHub欄のPENDINGは成功claimではない。merge条件はready PRのCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
 
 ## 10. production counterとlive evaluatorはすべて0のまま
 
@@ -130,7 +133,7 @@ package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いf
 
 このowner / CLI PRがmergeされ、CI / review evidenceが閉じた後にだけ、別のoperational gateで次を行う。
 
-1. mainからfixed verifier worktreeを作り、exact revisionとruntimeを固定する。
+1. 既存のfixed verifier worktreeを証拠済みrevision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へ整合させ、clean source / pinned-artifact closureとruntimeを再検証する。
 2. production registryをprovisionし、approved / current bindingを再確認する。
 3. read-only preflight後、100-parent gateを実行してreceiptを保存する。
 4. 500-parent gateを実行してreceiptを保存する。

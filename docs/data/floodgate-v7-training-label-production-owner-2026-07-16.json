@@ -6,15 +6,17 @@
     "implementation_kind": "fixed-purpose-bound-outer-gate-training-label-owner-runner-and-zero-argument-cli-not-executed-in-production",
     "base_composition_pull_request": 478,
     "owner_cli_pull_request": null,
-    "candidate_revision": null,
+    "candidate_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
     "production_code_path_added": true,
-    "production_namespace_read_for_this_change": false,
+    "production_fixed_registry_and_work_path_existence_checked_read_only": true,
+    "production_training_label_registry_or_work_file_content_read_for_this_change": false,
     "production_namespace_or_file_content_mutated_for_this_change": false,
     "production_invocation_authorized_by_this_evidence": false
   },
   "artifacts": {
     "implementation_sources": [
       "ml/floodgate-v7-production-outer-gate-lease.ts",
+      "ml/floodgate-v7-production-connector-runner.ts",
       "ml/floodgate-v7-training-label-production-owner.ts",
       "ml/floodgate-v7-training-label-production-runner.ts",
       "ml/floodgate-v7-training-label-production-cli.ts",
@@ -78,7 +80,8 @@
     "terminal-finalizer-and-destination-reverification-complete",
     "outer-callback-returned",
     "outer-active-lease-removed-and-retired-evidence-durable",
-    "common-os-lock-released-last",
+    "common-os-lifetime-lock-released-after-durable-filesystem-cleanup",
+    "in-memory-secret-buffers-zeroed-before-return",
     "sanitized-public-receipt-issued"
   ],
   "stage_preflight": {
@@ -136,7 +139,8 @@
     "manual_publication_or_lease_reconciliation_required_when_indeterminate": true,
     "success_removes_active_lease_durably_before_lock_release": true,
     "success_persists_retired_evidence_before_lock_release": true,
-    "os_lock_release_is_last_outer_cleanup_step": true
+    "os_lock_release_finishes_filesystem_and_lifetime_lock_phase": true,
+    "in_memory_secret_zeroization_follows_before_return": true
   },
   "runner_and_cli": {
     "production_runner_arguments": 0,
@@ -147,89 +151,203 @@
     "package_script_uses_caffeinate": true,
     "caffeinate_arguments": ["-dimsu"],
     "success_output": "one-sanitized-json-line-on-stdout",
-    "failure_output": "one-sanitized-json-line-on-stderr-and-nonzero-exit",
+    "failure_output": "nonzero-exit-and-attempts-one-sanitized-json-line-on-stderr",
+    "stderr_write_failure_preserves_nonzero_exit": true,
     "success_stdout_write_failure_counted_as_success": false,
     "unknown_failure_projected_optimistically": false,
     "raw_outer_owner_or_finalizer_receipt_disclosed": false,
     "path_identity_mac_row_or_position_content_disclosed": false
   },
   "validation": {
-    "candidate_revision": null,
-    "formal_measurements_complete": false,
+    "candidate_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
+    "formal_measurements_complete": true,
     "runs": [
       {
         "name": "focused-owner-outer-runner-cli",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npx vitest run tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts tests/unit/ml/floodgateV7ProductionConnectorRunner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionOwner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionRunner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionCli.test.ts tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts --reporter=dot",
+        "result": {
+          "files": 6,
+          "tests": 134,
+          "passed": 134,
+          "failed": 0,
+          "vitest_duration_seconds": 2.61,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 2.97,
+        "maximum_rss_bytes": 333479936
       },
       {
         "name": "related-authority-scanner-finalizer",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npx vitest run tests/unit/ml/floodgateV7DeploymentKeyAuthority.test.ts tests/unit/ml/floodgateV7ApprovedKeyEnrollment.test.ts tests/unit/ml/floodgateV7ApprovedKeyCurrentBinding.test.ts tests/unit/ml/floodgateV7TrainingLabelFinalizerKeyAuthority.test.ts tests/unit/ml/floodgateV7TrainingLabelSealedScanner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionComposition.test.ts tests/unit/ml/floodgateV7TrainingLabelFinalizerCore.test.ts",
+        "result": {
+          "files": 7,
+          "tests": 97,
+          "passed": 97,
+          "failed": 0,
+          "vitest_duration_seconds": 299.77,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 300.11,
+        "maximum_rss_bytes": 767770624
       },
       {
         "name": "typescript",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npx tsc --noEmit",
+        "result": {
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 3.18,
+        "maximum_rss_bytes": 1171046400
       },
       {
         "name": "prettier",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "git diff --name-only -z main | xargs -0 npx prettier --check",
+        "result": {
+          "files": 17,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 1.17,
+        "maximum_rss_bytes": 191102976
       },
       {
         "name": "eslint",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npx eslint <13 changed TypeScript files>; npm run lint",
+        "result": {
+          "scoped_exit_code": 0,
+          "scoped_errors": 0,
+          "scoped_warnings": 0,
+          "scoped_duration_seconds": 1.31,
+          "scoped_maximum_rss_bytes": 497008640,
+          "full_exit_code": 0,
+          "full_errors": 0,
+          "full_warnings": 157,
+          "swaps": 0
+        },
+        "duration_seconds": 29.3,
+        "maximum_rss_bytes": 1834876928
       },
       {
         "name": "full-vitest",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npx vitest run --reporter=dot --maxWorkers=8",
+        "result": {
+          "files": 161,
+          "tests": 2911,
+          "passed": 2911,
+          "failed": 0,
+          "vitest_duration_seconds": 310.57,
+          "unhandled_errors": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 310.96,
+        "maximum_rss_bytes": 2383593472
       },
       {
         "name": "production-build",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npm run build",
+        "result": {
+          "static_pages": 193,
+          "passed": 193,
+          "failed": 0,
+          "nonfatal_existing_build_time_diagnostics_observed": true,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 29.38,
+        "maximum_rss_bytes": 2616852480
       },
       {
         "name": "ml-stdlib",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npm run test:ml:stdlib",
+        "result": {
+          "tests": 58,
+          "passed": 58,
+          "failed": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 0.49,
+        "maximum_rss_bytes": 64913408
       },
       {
         "name": "npm-audit",
-        "status": "PENDING",
-        "command": null,
-        "result": null,
-        "duration_seconds": null,
-        "maximum_rss_bytes": null
+        "status": "COMPLETE",
+        "command": "npm audit --audit-level=high",
+        "result": {
+          "vulnerabilities": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 0.56,
+        "maximum_rss_bytes": 133562368
       }
     ]
+  },
+  "intermediate_validation_findings": {
+    "authoritative_final_evidence": false,
+    "first_default_full_run_with_tail_overlap_from_lint_and_build": {
+      "files_total": 161,
+      "files_passed": 159,
+      "files_failed": 2,
+      "tests_total": 2911,
+      "tests_passed": 2909,
+      "tests_failed": 2,
+      "vitest_duration_seconds": 317.42,
+      "wall_seconds": 317.85,
+      "maximum_rss_bytes": 2350088192,
+      "swaps": 0,
+      "unhandled_errors": 0,
+      "tail_overlapped_with_full_lint_and_production_build": true
+    },
+    "findings_and_resolution": [
+      {
+        "finding": "legacy-v1-gate-field-remained-in-one-stale-lease-test-expectation",
+        "implementation_record_was_correct_v2_purpose": true,
+        "fixed_revision": "a95760bae0f4a1c9474139c8f2b2d2bc6e298095",
+        "isolated_confirmation": "16-of-16-passed"
+      },
+      {
+        "finding": "stable-wasm-real-child-initialization-exceeded-test-only-30000ms-watchdog-under-full-suite-resource-contention",
+        "isolated_before_change": "53-of-53-passed-in-15.11-seconds",
+        "production_startup_watchdog_milliseconds": 120000,
+        "semantic_sentinel_startup_watchdog_before_milliseconds": 30000,
+        "semantic_sentinel_startup_watchdog_after_milliseconds": 120000,
+        "semantic_sentinel_outer_timeout_before_milliseconds": 60000,
+        "semantic_sentinel_outer_timeout_after_milliseconds": 180000,
+        "search_watchdog_remains_milliseconds": 30000,
+        "retries_added": false,
+        "worker_or_production_implementation_changed": false,
+        "fixed_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
+        "isolated_after_change_under_parallel_related_test_load": "53-of-53-passed-in-14.74-seconds",
+        "classification": "scheduler-or-transport-starvation-is-the-strongest-inference-not-a-proved-cause"
+      }
+    ],
+    "final_resolution": "authoritative-eight-worker-full-run-passed-161-files-and-2911-tests"
+  },
+  "security_review": {
+    "status": "COMPLETE",
+    "implementation_revision_reviewed": "b9438d8844bbc8c241dfa7d31fc834debeec68e1",
+    "later_candidate_revisions_change_tests_and_evidence_only": true,
+    "findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "p3": 0
+    },
+    "merge_blocking_findings": 0,
+    "warning": "do-not-restore-the-stale-private-tmp-wip-copy-of-the-production-connector-runner"
   },
   "github_gate": {
     "pull_request": null,
@@ -256,7 +374,7 @@
   "next_operational_gate": {
     "allowed_before_merge_ci_and_review_are_complete": false,
     "ordered_steps": [
-      "create-fixed-verifier-worktree-from-main-and-pin-revision-runtime",
+      "align-existing-fixed-verifier-worktree-to-evidence-backed-e8a9197608cb48b1160b6707d97b0c4f78f90a1d-and-reverify-clean-source-pinned-artifact-closure-and-runtime",
       "provision-production-registry-and-reverify-approved-current-binding",
       "run-read-only-preflight-then-100-parent-gate-and-preserve-receipt",
       "run-500-parent-gate-and-preserve-receipt",

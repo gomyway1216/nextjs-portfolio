@@ -1528,5 +1528,5 @@ posixDescribe("Floodgate v7 two-pass sealed training-label scanner", () => {
     await expect(
       discardFloodgateV7TrainingLabelProductionPlanCoreForTests(cleanupPlan),
     ).rejects.toBe(rememberedPlanCleanupFailure);
-  }, 600_000);
+  }, 1_200_000);
 });

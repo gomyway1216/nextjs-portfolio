@@ -112,6 +112,7 @@ const RUN_ID = "12".repeat(32);
 const ROOT_KEY_BYTE = 0x4b;
 const FORCED_MOVE = "5a4a";
 const temporaryRoots: string[] = [];
+const posixDescribe = describe.runIf(typeof process.geteuid === "function");
 
 interface TrainingFixture {
   readonly outputRoot: string;
@@ -809,7 +810,7 @@ afterEach(async () => {
   }
 });
 
-describe("Floodgate v7 two-pass sealed training-label scanner", () => {
+posixDescribe("Floodgate v7 two-pass sealed training-label scanner", () => {
   it("claims fresh authorities synchronously, scans/replays exact W/WT/WTR/WTRM, terminally reverifies, zeroizes, and commits", async () => {
     const value = await fixture();
     const deployment = await deploymentKeyFixture();

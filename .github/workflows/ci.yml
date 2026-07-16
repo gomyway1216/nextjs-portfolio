@@ -81,11 +81,20 @@ jobs:
       - name: Require the fixed Darwin lock helper
         run: test -x /usr/bin/lockf
 
+      - name: Require the fixed Darwin process-lifetime helper
+        run: test -x /usr/bin/caffeinate
+
       - name: Run Darwin exclusive-rename adversarial tests
         run: npm test -- tests/unit/ml/floodgateExclusiveDirectoryRename.test.ts
 
       - name: Run Darwin production outer-gate lock adversarial tests
         run: npm test -- tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts
+
+      - name: Run Darwin fresh prefix-100 preflight adversarial tests
+        run: npm test -- tests/unit/ml/floodgateV7ProductionPrefix100Preflight.test.ts tests/unit/ml/floodgateV7ProductionPrefix100PreflightCli.test.ts
+
+      - name: Run Darwin disposable prefix-100 kill-drill adversarial tests
+        run: npm test -- tests/unit/ml/floodgateV7ProductionPrefix100KillDrill.test.ts tests/unit/ml/floodgateV7ProductionPrefix100KillDrillCli.test.ts
 
   e2e:
     name: E2E smoke tests

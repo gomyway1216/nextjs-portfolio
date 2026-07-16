@@ -10,10 +10,17 @@ import {
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CLAIM_BOUNDARY,
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CONTRACT,
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_STATUS,
+  FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_ALGORITHM,
+  FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CLAIM_BOUNDARY,
+  FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT,
+  FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_STATUS,
   FloodgateV7ApprovedKeyCurrentBindingError,
   verifyFloodgateV7ApprovedKeyCurrentBinding,
+  verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpected,
+  verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests,
   verifyFloodgateV7ApprovedKeyCurrentBindingCoreForTests,
   type FloodgateV7ApprovedKeyCurrentBindingDependenciesForTests,
+  type FloodgateV7ApprovedKeyExpectedBinding,
 } from "../../../ml/floodgate-v7-approved-key-current-binding";
 import {
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
@@ -23,6 +30,8 @@ import {
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_STATUS,
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_TRUST_BOUNDARY,
+  claimFloodgateV7ApprovedKeyEnrollmentCoreForTests,
+  loadFloodgateV7ApprovedKeyEnrollmentCoreForTests,
   type FloodgateV7ApprovedKeyEnrollmentRecord,
 } from "../../../ml/floodgate-v7-approved-key-enrollment";
 import {
@@ -194,6 +203,41 @@ async function writeApprovedRecord(
     { flag: "wx", mode: 0o600 },
   );
   await fs.promises.chmod(target, 0o600);
+}
+
+function approvedRecordPath(home: string): string {
+  return path.join(
+    home,
+    ...FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_ROOT_RELATIVE_COMPONENTS,
+    FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_FILENAME,
+  );
+}
+
+async function replaceApprovedRecord(
+  home: string,
+  candidate: TestCandidate,
+): Promise<void> {
+  await fs.promises.writeFile(
+    approvedRecordPath(home),
+    `${JSON.stringify(approvedRecord(candidate))}\n`,
+    { mode: 0o600 },
+  );
+  await fs.promises.chmod(approvedRecordPath(home), 0o600);
+}
+
+async function expectedBinding(
+  home: string,
+): Promise<Readonly<FloodgateV7ApprovedKeyExpectedBinding>> {
+  const capability = await loadFloodgateV7ApprovedKeyEnrollmentCoreForTests({
+    effectiveUserId: effectiveUserId(),
+    homeDirectory: home,
+  });
+  const claim = claimFloodgateV7ApprovedKeyEnrollmentCoreForTests(capability);
+  return Object.freeze({
+    recordBytes: claim.record.bytes,
+    recordSha256: claim.record.sha256,
+    keyInstanceId: claim.key_instance_id,
+  });
 }
 
 function inspectorDependencies(
@@ -458,6 +502,107 @@ posixDescribe("Floodgate v7 approved key current binding", () => {
       ).rejects.toMatchObject({ phase: "capture" });
     }
     expect(traps).toBe(0);
+  });
+
+  it("revalidates one private expected binding without returning its values", async () => {
+    const { home } = await boundHome();
+    const expected = await expectedBinding(home);
+    const receipt =
+      await verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests(
+        expected,
+        bindingDependencies(home),
+      );
+    expect(receipt).toEqual({
+      contract: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT,
+      status: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CLAIM_BOUNDARY,
+      execution_boundary:
+        "test-only-injected-current-euid-home-approved-record-current-key-binding",
+      algorithm: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_ALGORITHM,
+      verification: {
+        approved_record_reloaded_and_validated: true,
+        current_key_freshly_inspected: true,
+        approved_to_current_exact_binding_match: true,
+        reloaded_approved_to_private_expected_exact_match: true,
+        held_descriptors_revalidated: true,
+        memory_only: true,
+        sensitive_values_exported: false,
+      },
+      nonclaims: {
+        expected_binding_returned: false,
+        approved_claim_returned: false,
+        approval_created: false,
+        record_created_or_written: false,
+        key_created_or_written: false,
+        run_authority: false,
+        stage_authority: false,
+        connector_authority: false,
+        checkpoint_key_capability: false,
+        checkpoint: false,
+        runtime: false,
+        dataset_read: false,
+        teacher_label: false,
+        training: false,
+        weight: false,
+        live_evaluation_activation: false,
+        match: false,
+        playing_strength: false,
+      },
+    });
+    expectDeepFrozenNullRecords(receipt);
+    const serialized = JSON.stringify(receipt);
+    expect(serialized).not.toContain(expected.recordSha256);
+    expect(serialized).not.toContain(expected.keyInstanceId);
+    expect(serialized).not.toContain(home);
+  });
+
+  it("rejects approved A changing to approved B/current B", async () => {
+    const { home } = await boundHome();
+    const expectedA = await expectedBinding(home);
+
+    await fs.promises.writeFile(keyPath(home), OTHER_KEY_BYTES);
+    await fs.promises.chmod(keyPath(home), 0o600);
+    const candidateB =
+      await inspectFloodgateV7DeploymentKeyInstanceCoreForTests(
+        inspectorDependencies(home),
+      );
+    await replaceApprovedRecord(home, candidateB);
+
+    await expect(
+      verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests(
+        expectedA,
+        bindingDependencies(home),
+      ),
+    ).rejects.toMatchObject({
+      phase: "expected-binding",
+      receipt_issued: false,
+      authority_issued: false,
+    });
+  });
+
+  it("requires an exact frozen expected record and fixed production arity", async () => {
+    const { home } = await boundHome();
+    const expected = await expectedBinding(home);
+    await expect(
+      verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests(
+        { ...expected },
+        bindingDependencies(home),
+      ),
+    ).rejects.toMatchObject({ phase: "expected-binding" });
+    expect(
+      verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpected,
+    ).toHaveLength(1);
+    expect(
+      verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests,
+    ).toHaveLength(2);
+    await expect(
+      Reflect.apply(
+        verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpected,
+        undefined,
+        [],
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
   });
 });
 

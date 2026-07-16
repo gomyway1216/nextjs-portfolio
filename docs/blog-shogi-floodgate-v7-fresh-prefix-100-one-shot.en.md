@@ -11,13 +11,13 @@ The change fixes two independent observation boundaries required before the next
 | Fresh prefix-100 preflight | Fixed private namespace, registry, key binding, readiness, and zero-work state | No namespace/file-content mutation; even a success receipt does not authorize the gate |
 | Disposable kill drill      | Outer, inner-stage, and checkpoint failpoints under a temporary home           | Does not read the production namespace or invoke a real gate                           |
 
-This scope covers source, unit/adversarial tests, fixed CLIs, package scripts, Darwin CI, bilingual articles, and machine-readable evidence. A real production command remains a separate fresh decision after merge.
+This scope covers source, unit/adversarial tests, fixed CLIs, package scripts, Darwin CI, bilingual articles, and machine-readable evidence. Only the read-only production audits described below ran from the feature checkout. Write, gate, teacher, training, weight, and live actions remain separate fresh decisions after merge.
 
 ## 2. Why the fresh one-shot needs both proofs
 
 Prefix-100 is the smallest milestone, but after it starts, the possibility of a durable checkpoint makes a blind rerun unsafe. A prior unit-test pass or historical private snapshot does not prove the current lock, runs root, stage lease, checkpoint, or registry binding.
 
-The required evidence is a preflight that observes the current zero-work production state read-only and a kill drill that confirms, in a disposable namespace, that process death preserves evidence and blocks a successor instead of deleting state and trying again. These are not combined with the real production counter, which remains independently counted from zero.
+The required evidence is a preflight that observes the current zero-work production state read-only and a kill drill that confirms, in a disposable namespace, that process death preserves evidence and blocks a successor instead of deleting state and trying again. Read-only audits, disposable tests, and production writes or gates are accounted for as separate action classes.
 
 ## 3. Fresh zero-work read-only preflight
 
@@ -56,7 +56,9 @@ Every candidate condition for production prefix-100 is joined by AND.
 | All six disposable process-death cases pass                          | NO-GO               |
 | Monitor and STOP owner are recorded                                  | NO-GO               |
 
-At the time this evidence is assembled, neither the private production preflight nor the reviewed kill-drill command has run, so the overall production decision is `NO-GO`.
+After commit `afcf7b4`, the exact-Node-v22.13.0 zero-argument production preflight CLI ran exactly once from the feature checkout. Its sanitized result was exit 1 and `NO-GO` at phase `outer-gate-lock` because the fixed `registry.json` was absent. It read current-user production ancestor and path metadata but no registry bytes. Before and after the command, the fixed registry root, final, staging, and runs paths were all absent; there was no persistent mutation, gate invocation, or success receipt.
+
+A separate approved-current-binding read-only CLI passed once with identifier-free output. The deployment-key-instance read-only inspector also passed once, but its result is candidate-only. Exact Node, binding, and the teacher/input assets described below were observed as passing, but PR #471 is not merged, the fixed registry is absent, the same-lock one-shot owner is not present, and the remaining under-lock zero-work conditions were not reached. The reviewed kill-drill command remains at zero, so the overall decision is `NO-GO`.
 
 ## 5. The TOCTOU boundary that must remain under one outer lock
 
@@ -123,18 +125,18 @@ At minimum, one reviewed tree validates:
 - stale/EEXIST blocking, byte/identity preservation, and no delete/truncate/repair;
 - fixed `/private/tmp` private anchoring, bidirectional production-home ancestry rejection, and child nested-path escape rejection;
 - failure-fixture and partial-setup orphan preservation, with cleanup only after success;
-- zero production namespace, registry, and gate calls; and
+- zero production registry-byte reads, persistent mutations, and gate calls, with read-only audits counted separately; and
 - bilingual twelve-section parity, duplicate JSON-key detection, and public privacy.
 
 Authoritative local validation of the final stable substantive tree after the PR #471 final-review repair completed under exact Node v22.13.0. Focused validation passed 153 / 153 across eight files: 69.36 seconds Vitest duration, 69.71 seconds wall time, 419,643,392 bytes maximum RSS, and zero swaps. Full validation passed 2,680 / 2,680 across 143 files: 156.65 seconds Vitest duration, 157.07 seconds wall time, 4,374,691,840 bytes maximum RSS, and zero swaps. The production build generated 193 / 193 static pages and passed in 26.11 seconds wall time with 2,619,424,768 bytes maximum RSS and zero swaps.
 
 The immediately preceding post-fix pre-review candidate passed focused 149 / 149, full 2,676 / 2,676, and production build 193 / 193. It is retained only as nonfinal intermediate data superseded by the PR #471 final-review repair and is not mixed into the authoritative values.
 
-TypeScript passed. Full ESLint exited zero with zero errors and 157 existing warnings; changed-scope ESLint had zero errors and zero warnings. ML stdlib passed 58 / 58, `npm audit` reported zero at every severity, and git diff-check passed. Post-fix audit residuals are zero P0, zero P1, and zero P2. This is authoritative **local** evidence, not review, merge, or production-command evidence.
+TypeScript passed. Full ESLint exited zero with zero errors and 157 existing warnings; changed-scope ESLint had zero errors and zero warnings. ML stdlib passed 58 / 58, `npm audit` reported zero at every severity, and git diff-check passed. Post-fix audit residuals are zero P0, zero P1, and zero P2. These validation results are authoritative **local** evidence, not evidence of review, merge, or production-command execution.
 
 The pre-audit focused five-file rerun with the fixed APIs passed 43 / 43 under Node v22.13.0: 21.40 seconds Vitest duration, 21.73 seconds wall time, 365,248,512 bytes maximum RSS, and zero swaps. It includes six local child terminations across three failpoints and two signals. Expanded integration passed 109 / 109, and the second full regression passed 2,644 / 2,644 across 143 files. The production build also passed through all 193 / 193 generated static pages. These are not executions of the public fixed kill-drill command or the production gate.
 
-An independent read-only recheck on 2026-07-16 matched each input manifest's counts and hashes. Training, selection, and final raw-parent counts were 24,000 / 4,800 / 4,800; their protected-ID counts were 2,121,074 / 425,344 / 413,221. No path, hash value, or private value is recorded in this public evidence. This was a read-only input-identity recheck, not teacher generation or production-gate execution.
+An independent teacher/input-readiness audit passed read-only on 2026-07-16. The input bundle passed identity, hash, and mode checks for 9 / 9 files and totaled 295,620,795 bytes. Training, selection, and final raw-parent counts were 24,000 / 4,800 / 4,800; their protected-ID counts were 2,121,074 / 425,344 / 413,221, with 847,243 replay-exclusion position IDs. Fixed teacher assets passed 7 / 7 files totaling 66,169,459 bytes. Related validation passed 72 / 72 across three files in 7.40 seconds with zero swaps. Readiness capacity was 14 logical cores, 48 GiB memory, 162.25 GiB available disk, and 12 fixed engines. No path, hash value, or private value is recorded in this public evidence. This was one readiness audit, not search, teacher generation, training, or production-gate execution.
 
 The subsequent independent-audit severity count was one P1 and one P2 for preflight, plus two P1 and three P2 findings for the kill drill. The preflight P1 was UID, home, and registry anchoring of the outer capability; its P2 was rebinding the first approved A to reloaded approved/current. The kill-drill P1 findings were temporary-root/production-home overlap and failure cleanup. Its P2 findings were child nested paths, partial-setup rollback/orphan preservation, and wording that had called the third point durable. These repairs and regressions passed authoritative post-fix local validation, leaving residual P0 / P1 / P2 at 0 / 0 / 0. Historical pre-audit passes remain separately nonfinal, and the production decision remains NO-GO.
 
@@ -146,11 +148,13 @@ Execution counts remain boundary-specific. Reviewed post-merge kill-drill CLI ex
 
 ## 11. Production counters and nonclaims
 
-All of the following remain zero in this article's scope:
+The read-only audit counters are one real production preflight command, one approved-current-binding CLI, one deployment-key-instance inspector, and one teacher/input asset-readiness audit. All were read-only and non-authorizing, and the preflight itself returned sanitized `NO-GO`.
 
-- real production preflight command, reviewed disposable kill-drill command, production process-death case, and production registry provision;
+The following action counters remain zero:
+
+- reviewed disposable kill-drill command, production process-death case, and production registry provision;
 - prefix-100, prefix-500, and final-24,000 gates;
-- real teacher process, teacher label, checkpoint finalization, optimizer step, and training run; and
+- search run, real teacher process, teacher label, checkpoint finalization, optimizer step, and training run; and
 - candidate weight, formal A/B, live activation, and external-rank observation.
 
 Accordingly, runOp1 remains unchanged. This article does not claim stronger play, stable high-dan strength, or completed production recovery. Source/test PASS is not counted as production execution.
@@ -159,7 +163,7 @@ The historical pre-audit focused test observed six disposable-child SIGTERM/SIGK
 
 ## 12. The next exactly-once sequence
 
-PR #471 is ready and open. Only this final-review repair is local and awaiting commit, push, and re-CI; the whole pull request is not uncommitted or unpushed. After the repair passes CI and review and is regular-merged, the reviewed HEAD follows this order:
+PR #471 is ready and open, and the post-review evidence refresh is recorded. The whole pull request is not treated as uncommitted or unpushed. After this refresh is reflected in CI and review and regular-merged, the reviewed HEAD follows this order:
 
 1. Run the fixed disposable kill drill once and record its sanitized success receipt.
 2. Let the fresh production one-shot owner acquire the common outer lock.

@@ -221,6 +221,12 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     );
     expect(japanese).toContain("PR #471はready / open");
     expect(english).toContain("PR #471 is ready and open");
+    expect(japanese).toContain("real production preflight command 1");
+    expect(english).toContain("one real production preflight command");
+    expect(japanese).toContain("295,620,795 bytes");
+    expect(english).toContain("295,620,795 bytes");
+    expect(japanese).toContain("固定`registry.json`が存在しなかった");
+    expect(english).toContain("fixed `registry.json` was absent");
   });
 
   it("pins the package and Darwin CI source contract without invoking a production package command", () => {
@@ -252,7 +258,7 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     expect(ci).not.toMatch(/run:\s+npm run shogi:floodgate-v7-production-/u);
   });
 
-  it("records NO-GO separately from zero production execution", () => {
+  it("records NO-GO separately from read-only audits and zero write or gate execution", () => {
     const evidence = JSON.parse(readText(EVIDENCE_PATH));
 
     expect(evidence).toMatchObject({
@@ -260,10 +266,13 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       evidence_date: "2026-07-16",
       evidence_scope: {
         class:
-          "local-source-test-and-documentation-evidence-before-production-prefix-100",
-        production_state_freshly_observed_for_this_evidence: false,
-        production_private_namespace_read_for_this_evidence: false,
+          "source-test-documentation-and-read-only-production-audit-evidence-before-production-prefix-100",
+        production_state_freshly_observed_for_this_evidence: true,
+        production_private_namespace_read_for_this_evidence: true,
+        production_private_namespace_read_class:
+          "current-user-ancestor-path-metadata-binding-and-readiness-only",
         production_registry_read_for_this_evidence: false,
+        production_namespace_or_file_content_mutated_for_this_evidence: false,
         production_gate_invocation_authorized_by_this_evidence: false,
       },
       prerequisite_delivery: {
@@ -274,16 +283,48 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       },
       go_no_go: {
         decision_for_production_prefix_100: "NO-GO",
+        reason:
+          "fixed-registry-json-absent-pr-471-not-merged-and-same-lock-one-shot-owner-not-present",
         public_preflight_receipt_is_gate_authority: false,
-        all_required_checks_and_terminal_revalidations_pass_in_one_outer_lock_held_observation: true,
+        success_contract_requires_all_checks_and_terminal_revalidations_in_one_outer_lock_held_observation: true,
+        all_required_checks_and_terminal_revalidations_passed_in_actual_observation: false,
+        actual_preflight_success_receipt_observed: false,
         multi_namespace_observation_is_atomic: false,
+        conditions: {
+          reviewed_merged_head: "not-merged-pr-471-ready-open",
+          exact_node_22_13_0: "pass-observed-by-zero-argument-preflight-cli",
+          approved_enrollment_registry_and_current_key_binding:
+            "approved-current-binding-read-only-cli-pass-but-fixed-registry-json-absent",
+          production_readiness:
+            "teacher-and-input-assets-pass-but-gate-readiness-incomplete",
+          common_outer_lock_free: "not-reached-fixed-registry-json-absent",
+          fixed_runs_root_private_and_exactly_empty:
+            "observed-absent-not-valid-private-empty-root",
+          stage_destination_inner_lease_work_and_checkpoint_absent:
+            "path-metadata-observed-absent-under-lock-validation-not-reached",
+          outer_active_quarantine_pending_and_unknown_zero:
+            "under-lock-validation-not-reached",
+          double_held_descriptor_snapshot_matched:
+            "not-reached-fixed-registry-json-absent",
+          six_disposable_process_death_cases_passed:
+            "not-executed-as-reviewed-command",
+          monitor_and_stop_owner_assigned: "not-recorded",
+        },
+        blocking_facts: {
+          fixed_registry_json_absent: true,
+          pr_471_merged: false,
+          same_lock_one_shot_owner_present: false,
+        },
         unknown_or_false_condition_result: "NO-GO",
         failure_signal_timeout_or_receipt_mismatch_retry: false,
         successful_prefix_100_automatically_authorizes_prefix_500: false,
       },
     });
     expect(evidence.implementation.read_only_preflight).toMatchObject({
+      contract_success_status:
+        "fresh-zero-work-prefix-100-read-only-preconditions-observed",
       fixed_zero_argument_public_owner: true,
+      complete_observation_requires_production_outer_lock_held: true,
       private_outer_anchor: {
         effective_user_identity_bound: true,
         canonical_home_bound: true,
@@ -314,16 +355,16 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       production_namespace_or_file_content_mutated: false,
       gate_invocation_authorized_by_receipt: false,
       receipt_reuse_authorizes_later_gate: false,
-      production_preflight_command_executed_for_this_evidence: false,
+      production_preflight_command_executed_for_this_evidence: true,
     });
     expect(evidence.implementation.delivery_state).toBe(
-      "pull-request-471-ready-open-review-repair-local-awaiting-commit-push-and-re-ci",
+      "pull-request-471-ready-open-post-review-evidence-refresh",
     );
     expect(evidence.implementation.pull_request_delivery).toEqual({
       pull_request: 471,
       url: "https://github.com/gomyway1216/nextjs-portfolio/pull/471",
       state: "ready-open",
-      review_repair_state: "local-awaiting-commit-push-and-re-ci",
+      review_state: "post-review-evidence-refresh-recorded",
       whole_change_uncommitted_or_unpushed: false,
     });
     expect(evidence.implementation.disposable_kill_drill).toMatchObject({
@@ -486,10 +527,98 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       ci_uses_production_private_namespace: false,
       ci_invokes_production_gate: false,
     });
+    expect(evidence.actual_read_only_audits).toEqual({
+      observed_after_commit: "afcf7b4",
+      production_preflight_cli: {
+        invocations: 1,
+        feature_checkout: true,
+        exact_node_version: "v22.13.0",
+        zero_argument: true,
+        exit_code: 1,
+        decision: "NO-GO",
+        phase: "outer-gate-lock",
+        reason: "fixed-registry-json-absent",
+        sanitized_output: true,
+        success_receipt_observed: false,
+        current_user_production_ancestor_and_path_metadata_read: true,
+        registry_bytes_read: false,
+        persistent_mutation: false,
+        gate_invoked: false,
+        fixed_namespace_presence_before: {
+          registry_root: "absent",
+          final: "absent",
+          staging: "absent",
+          runs: "absent",
+        },
+        fixed_namespace_presence_after: {
+          registry_root: "absent",
+          final: "absent",
+          staging: "absent",
+          runs: "absent",
+        },
+        authorizes_gate: false,
+      },
+      approved_current_binding_cli: {
+        invocations: 1,
+        status: "pass",
+        identifier_free_output: true,
+        persistent_mutation: false,
+        authorizes_gate: false,
+      },
+      deployment_key_instance_inspector: {
+        invocations: 1,
+        status: "pass",
+        result_classification: "candidate-only",
+        private_instance_values_included: false,
+        persistent_mutation: false,
+        authorizes_gate: false,
+      },
+      teacher_and_input_readiness: {
+        audits: 1,
+        status: "pass",
+        input_bundle: {
+          files_expected: 9,
+          files_passed: 9,
+          identity_hash_and_mode_matched: true,
+          total_bytes: 295620795,
+          replay_exclusion_position_ids: 847243,
+        },
+        teacher_fixed_assets: {
+          files_expected: 7,
+          files_passed: 7,
+          total_bytes: 66169459,
+        },
+        related_validation: {
+          files: 3,
+          tests: 72,
+          passed: 72,
+          failed: 0,
+          duration_seconds: 7.4,
+          swaps: 0,
+        },
+        available_resources: {
+          logical_cpu_cores: 14,
+          memory_gib: 48,
+          available_disk_gib: 162.25,
+          fixed_engine_count: 12,
+        },
+        path_or_hash_values_included: false,
+        teacher_process_started: false,
+        training_started: false,
+        authorizes_gate_or_training: false,
+      },
+      all_audits_read_only: true,
+      additional_production_commands_executed_by_this_refresh: false,
+    });
     expect(evidence.independent_read_only_input_recheck).toEqual({
       observed_on: "2026-07-16",
       manifest_counts_matched: true,
       manifest_hashes_matched: true,
+      bundle_files_expected: 9,
+      bundle_files_passed: 9,
+      bundle_identity_hash_and_mode_matched: true,
+      bundle_total_bytes: 295620795,
+      replay_exclusion_position_ids: 847243,
       roles: [
         {
           role: "training",
@@ -507,6 +636,25 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
           protected_position_ids: 413221,
         },
       ],
+      teacher_fixed_assets: {
+        files_expected: 7,
+        files_passed: 7,
+        total_bytes: 66169459,
+      },
+      related_validation: {
+        files: 3,
+        tests: 72,
+        passed: 72,
+        failed: 0,
+        duration_seconds: 7.4,
+        swaps: 0,
+      },
+      available_resources: {
+        logical_cpu_cores: 14,
+        memory_gib: 48,
+        available_disk_gib: 162.25,
+        fixed_engine_count: 12,
+      },
       path_values_included: false,
       hash_values_included: false,
       private_values_included: false,
@@ -648,9 +796,30 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       evidence.validation.full_vitest_pre_audit_candidate
         .used_as_final_evidence,
     ).toBe(false);
-    for (const value of Object.values(evidence.production_execution)) {
-      expect(value === 0 || value === false).toBe(true);
-    }
+    expect(evidence.production_execution).toEqual({
+      real_production_preflight_commands_by_this_change: 1,
+      approved_current_binding_read_only_cli_invocations_by_this_change: 1,
+      deployment_key_instance_read_only_inspector_invocations_by_this_change: 1,
+      teacher_asset_readiness_read_only_audits_by_this_change: 1,
+      reviewed_post_merge_kill_drill_package_cli_invocations_by_this_change: 0,
+      production_process_death_cases_by_this_change: 0,
+      production_registry_provisions_by_this_change: 0,
+      production_prefix_100_gate_executions_by_this_change: 0,
+      production_prefix_500_gate_executions_by_this_change: 0,
+      production_final_24000_gate_executions_by_this_change: 0,
+      search_runs_by_this_change: 0,
+      real_teacher_processes_started_by_this_change: 0,
+      teacher_labels_created_by_this_change: 0,
+      checkpoint_finalizations_by_this_change: 0,
+      optimizer_steps_by_this_change: 0,
+      training_runs_by_this_change: 0,
+      candidate_weights_created_by_this_change: 0,
+      formal_ab_matches_by_this_change: 0,
+      live_evaluation_activations_by_this_change: 0,
+      external_rank_observations_by_this_change: 0,
+      live_weight_changed_by_this_change: false,
+      playing_strength_changed_by_this_evidence: false,
+    });
     for (const value of Object.values(evidence.nonclaims)) {
       expect(value).toBe(false);
     }

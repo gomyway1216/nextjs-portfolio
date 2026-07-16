@@ -11,13 +11,13 @@
 | fresh prefix-100 preflight | fixed private namespace、registry、key binding、readiness、zero-work状態 | namespace/file contentを変更しない。成功receiptもgateを許可しない |
 | disposable kill-drill      | 一時home内のouter、inner stage、checkpoint failpoint                     | production namespaceを読まず、実gateを呼ばない                    |
 
-本変更はsource、unit/adversarial test、fixed CLI、package script、Darwin CI、日英記事、machine-readable evidenceまでを対象にする。実production commandはmerge後に別のfresh判断として扱う。
+本変更はsource、unit/adversarial test、fixed CLI、package script、Darwin CI、日英記事、machine-readable evidenceまでを対象にする。feature checkoutでは後述するread-only production監査だけを実行した。write、gate、teacher、training、weight、liveの各actionはmerge後も別のfresh判断として扱う。
 
 ## 2. なぜfresh one-shot前に二つの証拠が要るか
 
 prefix-100は最小milestoneだが、一度開始した後はcheckpointがdurableになった可能性を無視して再実行できない。以前の成功したunit testや過去のprivate snapshotは、現在のlock、run root、stage lease、checkpoint、registry bindingを証明しない。
 
-必要なのは、現在のproduction stateが未着手であることをread-onlyに観測するpreflightと、process deathが起きても「消してやり直す」のではなくevidenceを残して次回をblockすることをdisposable namespaceで確認するkill-drillである。二つを同じ数値へ混ぜず、real production counterは別に0から数える。
+必要なのは、現在のproduction stateが未着手であることをread-onlyに観測するpreflightと、process deathが起きても「消してやり直す」のではなくevidenceを残して次回をblockすることをdisposable namespaceで確認するkill-drillである。二つを同じ数値へ混ぜず、read-only監査、disposable test、production write / gateをaction classごとに別集計する。
 
 ## 3. fresh zero-work read-only preflight
 
@@ -56,7 +56,9 @@ production prefix-100の候補条件はすべてANDである。
 | disposable process-death 6ケース成功                        | NO-GO             |
 | monitorとSTOP ownerが記録済み                               | NO-GO             |
 
-この記事のevidence作成時点ではprivate production preflightとreview済みkill-drill commandを実行していないため、総合判断は`NO-GO`である。
+commit `afcf7b4`後のfeature checkoutで、exact Node v22.13.0・zero-argumentのproduction preflight CLIを1回だけ実行した。sanitized resultはexit 1、phase `outer-gate-lock`の`NO-GO`で、固定`registry.json`が存在しなかった。current-user production ancestor / path metadataはreadしたがregistry byteはreadしていない。実行前後ともfixed registry root、final、staging、runsはすべてabsentで、persistent mutation、gate invocation、success receiptはいずれもなかった。
+
+別のapproved-current-binding read-only CLIは1回PASSし、outputはidentifier-freeだった。deployment-key-instanceのread-only inspectorも1回PASSしたがcandidate-onlyである。exact Nodeとbinding、後述するteacher / input assetsは観測済みPASSだが、PR #471は未merge、固定registryは不在、same-lock one-shot ownerも未整備で、残るunder-lock zero-work条件へ到達していない。review済みkill-drill commandも0回なので、総合判断は`NO-GO`である。
 
 ## 5. 同じouter lock内に残すべきTOCTOU境界
 
@@ -123,18 +125,18 @@ prefix-100が成功してもprefix-500を自動許可しない。exact 100件の
 - stale/EEXISTによるblock、bytes/identity保存、delete/truncate/repairなし
 - fixed `/private/tmp` private anchor、production-home ancestry双方向拒否、child nested-path escape拒否
 - failure fixture / partial-setup orphan保存と、成功時だけのcleanup
-- production namespace/registry/gate callが0
+- production registry byte read、persistent mutation、gate callが0で、read-only監査回数を別集計
 - 日英12章、duplicate JSON key、公開privacy
 
 PR #471 final review repair後の最終安定substantive treeについて、authoritative local validationをexact Node v22.13.0で完了した。focusedは8 files・153 / 153 PASS、Vitest 69.36秒、wall 69.71秒、maximum RSS 419,643,392 bytes、swap 0だった。fullは143 files・2,680 / 2,680 PASS、Vitest 156.65秒、wall 157.07秒、maximum RSS 4,374,691,840 bytes、swap 0だった。production buildは193 / 193 static pageを生成し、wall 26.11秒、maximum RSS 2,619,424,768 bytes、swap 0で成功した。
 
 その直前のpost-fix pre-review candidateではfocused 149 / 149、full 2,676 / 2,676、production build 193 / 193がPASSしていたが、PR #471 final review repairで置き換えられたnonfinal途中データとしてのみ残す。authoritative値へ混ぜない。
 
-TypeScriptはPASS、full ESLintはexit 0・error 0・既存warning 157、changed-scope ESLintはerror 0 / warning 0だった。ML stdlibは58 / 58 PASS、`npm audit`はall severity 0、git diff-checkもPASSした。post-fix auditのresidualはP0 / P1 / P2のすべて0である。これはauthoritative **local** evidenceであり、review、merge、production commandの証拠ではない。
+TypeScriptはPASS、full ESLintはexit 0・error 0・既存warning 157、changed-scope ESLintはerror 0 / warning 0だった。ML stdlibは58 / 58 PASS、`npm audit`はall severity 0、git diff-checkもPASSした。post-fix auditのresidualはP0 / P1 / P2のすべて0である。これらvalidation結果はauthoritative **local** evidenceであり、review、merge、production commandの実行証拠ではない。
 
 確定APIを含むpre-audit focused 5-file rerunはNode v22.13.0で43 / 43 PASS、Vitest 21.40秒、wall 21.73秒、maximum RSS 365,248,512 bytes、swap 0だった。内訳には三failpoint × 二signalのlocal child termination 6ケースを含む。expanded integrationは109 / 109、二回目のfull regressionは143 files・2,644 / 2,644 PASSだった。production buildも193 / 193 static page生成までPASSした。これはpublic fixed kill-drill commandやproduction gateの実行数ではない。
 
-独立read-only再確認は2026-07-16にinput manifestのcountとhash一致を再検証した。training / selection / finalのraw parentはそれぞれ24,000 / 4,800 / 4,800、protected-IDは2,121,074 / 425,344 / 413,221で、各roleのmanifest記録と一致した。この公開evidenceにpath、hash値、private値は記録しない。これはinput同一性のread-only再確認であり、teacher generationやproduction gateの実行ではない。
+独立teacher / input readinessのread-only監査は2026-07-16にPASSした。input bundleは9 / 9 filesでidentity、hash、modeが一致し、合計295,620,795 bytesだった。training / selection / finalのraw parentは24,000 / 4,800 / 4,800、protected-IDは2,121,074 / 425,344 / 413,221、replay exclusionは847,243 position IDsである。teacher固定assetは7 / 7 files・66,169,459 bytesでPASSし、関連validationも3 files・72 / 72 PASS、7.40秒、swap 0だった。readiness時のcapacityはlogical 14 cores、memory 48 GiB、available disk 162.25 GiBで、fixed engine countは12だった。この公開evidenceにpath、hash値、private値は記録しない。これは1回のreadiness監査であり、search、teacher generation、training、production gateの実行ではない。
 
 その後の独立監査で検出したseverityは、preflightがP1 1件とP2 1件、kill-drillがP1 2件とP2 3件である。preflightのP1はouter capabilityのUID / home / registry anchor binding、P2は最初のapproved Aをreloaded approved/currentへ結び直すexpected-bindingである。kill-drillのP1はtemporary-root / production-home overlapとfailure cleanup、P2はchild nested path、partial-setup rollback / orphan preservation、および3点目をdurableと呼んでいたwordingである。これらのrepairとregression coverageはauthoritative post-fix local validationを通過し、residual P0 / P1 / P2は0 / 0 / 0になった。歴史的pre-audit PASS値は引き続きnonfinalとして残し、production判断もNO-GOとする。
 
@@ -146,11 +148,13 @@ execution countは境界ごとに分ける。review済みpost-merge kill-drill C
 
 ## 11. production countersとnonclaims
 
-この記事の範囲では次がすべて0である。
+read-only監査counterは、real production preflight command 1、approved-current-binding CLI 1、deployment-key-instance inspector 1、teacher / input asset readiness 1である。すべてread-onlyかつnon-authorizingで、preflight自体はsanitized `NO-GO`だった。
 
-- real production preflight command、reviewed disposable kill-drill command、production process-death case、production registry provision
+一方、次のaction counterはすべて0である。
+
+- reviewed disposable kill-drill command、production process-death case、production registry provision
 - prefix-100、prefix-500、final-24,000 gate
-- real teacher process、teacher label、checkpoint finalization、optimizer step、training run
+- search run、real teacher process、teacher label、checkpoint finalization、optimizer step、training run
 - candidate weight、formal A/B、live activation、external rank observation
 
 したがってrunOp1は変更せず、棋力が上がった、安定して高段になった、production recoveryが完成したとは主張しない。source/test PASSもproduction executionへ数えない。
@@ -159,7 +163,7 @@ execution countは境界ごとに分ける。review済みpost-merge kill-drill C
 
 ## 12. 次のexactly-once工程
 
-PR #471はready / openである。今回のfinal review repairだけがlocalでcommit、push、re-CI待ちであり、PR全体を未commit / 未pushとは扱わない。このrepairを反映してCIとreviewを通し、通常mergeした後のreview済みHEADで次の順序を守る。
+PR #471はready / openで、post-review evidence refreshを記録済みである。PR全体を未commit / 未pushとは扱わない。このrefreshをCIとreviewへ反映し、通常mergeした後のreview済みHEADで次の順序を守る。
 
 1. fixed disposable kill-drillを一度実行し、sanitized success receiptを記録する。
 2. fresh production one-shot ownerが共通outer lockを取得する。

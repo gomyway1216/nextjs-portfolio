@@ -259,11 +259,13 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
         production_prefix_100_executed_by_prerequisite: false,
       },
       current_delivery: {
-        pull_request: null,
-        state: "local-candidate-before-pr",
-        review_state: "pending",
+        pull_request: 472,
+        url: "https://github.com/gomyway1216/nextjs-portfolio/pull/472",
+        state: "ready-open",
+        review_state: "ci-and-review-pending",
         final_integrated_validation:
           "authoritative-local-complete-required-darwin-ci-pending",
+        placeholder_fields_present: false,
       },
       same_lock_composition: {
         fixed_gate: "durable-prefix-100",
@@ -479,7 +481,7 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
         "tests/unit/ml/floodgateV7ProductionPrefix100RealBoundariesIntegration.test.ts",
       ],
       authoritative_local_darwin_paths_passed: true,
-      github_ci_state: "pending-before-pull-request",
+      github_ci_state: "queued-on-ready-pull-request-472",
       required_before_final_integrated_validation: true,
     });
     expect(workflow).toContain("  darwin_exclusive_directory_rename:\n");
@@ -577,9 +579,7 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
     const evidence = JSON.parse(evidenceText);
     const combined = `${japanese}\n${english}\n${evidenceText}`;
 
-    expect(collectNullPaths(evidence).sort()).toEqual([
-      "current_delivery.pull_request",
-    ]);
+    expect(collectNullPaths(evidence).sort()).toEqual([]);
     expect(combined).toContain("192 color-swapped pairs / 384 games");
     expect(combined).not.toMatch(/\b768\b/u);
     expect(combined).not.toContain("/Users/");

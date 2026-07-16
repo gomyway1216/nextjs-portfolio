@@ -14,7 +14,7 @@
 | production execution | all zero for this candidate                                       | registry provisioning, kill drill, and prefix 100 have not been run                              |
 | evaluator            | still runOp1                                                      | this is not evidence of stronger play or high-dan strength                                       |
 
-The current PR number/review state and the final integrated validation counts are not known yet. This article and the [machine-readable evidence](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json) explicitly record `local-candidate-before-pr` and `pending-integrated-final-validation` instead of inventing values.
+This candidate is published as ready-for-review PR #472, and authoritative local validation is complete. This article and the [machine-readable evidence](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json) separate the still-pending GitHub CI and review from those completed local results.
 
 ## 2. The prerequisite delivered by PR #471
 

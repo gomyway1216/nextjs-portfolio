@@ -14,7 +14,7 @@
 | production execution | 今回は全て0                                  | registry provision、kill-drill、prefix-100もまだ実行しない          |
 | evaluator            | runOp1のまま                                 | 棋力改善や高段到達の証拠ではない                                    |
 
-現在のPR番号・review状態と統合後の最終validation件数はまだ確定していない。この記事と[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)では、これらを`local-candidate-before-pr` / `pending-integrated-final-validation`として明示し、未確定値を作らない。
+この候補はready-for-reviewのPR #472として公開済みで、authoritative local validationは完了した。この記事と[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)は、GitHub CIとreviewだけを未完として分離する。
 
 ## 2. PR #471が閉じた前提条件
 

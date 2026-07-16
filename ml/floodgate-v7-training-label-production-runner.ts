@@ -82,7 +82,7 @@ export class FloodgateV7TrainingLabelProductionRunnerError extends Error {
   readonly phase!: FloodgateV7TrainingLabelProductionRunnerPhase;
   readonly publication_may_have_occurred!: boolean;
   readonly lease_may_remain!: boolean;
-  readonly cleanup_failure_count!: number;
+  readonly cleanup_failure_count!: number | null;
   readonly retry_disposition!: FloodgateV7TrainingLabelProductionRunnerRetryDisposition;
   readonly raw_outer_receipt_disclosed!: false;
   readonly raw_owner_receipt_disclosed!: false;
@@ -92,7 +92,7 @@ export class FloodgateV7TrainingLabelProductionRunnerError extends Error {
     phase: FloodgateV7TrainingLabelProductionRunnerPhase,
     publicationMayHaveOccurred: boolean,
     leaseMayRemain: boolean,
-    cleanupFailureCount = 0,
+    cleanupFailureCount: number | null,
   ) {
     super("Floodgate v7 production training-label runner failed");
     const retryDisposition =
@@ -167,7 +167,7 @@ const OUTER_VERIFICATION_KEYS = objectFreeze([
 ] as const);
 const OUTER_NONCLAIM_KEYS = objectFreeze([
   "lock_or_lease_path_disclosed",
-  "lease_metadata_disclosed",
+  "private_lease_metadata_disclosed",
   "key_material_disclosed",
   "key_instance_id_disclosed",
   "lease_mac_disclosed",
@@ -427,8 +427,8 @@ function sanitizedSuccess(
   value: unknown,
 ): Readonly<FloodgateV7TrainingLabelProductionRunnerReceipt> {
   const result = dataRecord(value, OUTER_RESULT_KEYS);
-  const output = captureOwnerReceipt(result.value);
   requireOuterLease(result.lease);
+  const output = captureOwnerReceipt(result.value);
   return frozenRecord({
     contract: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_CONTRACT,
     status: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_STATUS,
@@ -487,6 +487,7 @@ async function runCapturedOuterOperation(
       "outer-gate",
       true,
       true,
+      null,
     );
   }
   try {
@@ -498,6 +499,7 @@ async function runCapturedOuterOperation(
       "receipt",
       true,
       true,
+      null,
     );
   }
 }
@@ -520,6 +522,7 @@ export function runFloodgateV7TrainingLabelProductionRunnerCoreForTests(
         "capture",
         false,
         false,
+        0,
       ),
     );
   }
@@ -536,6 +539,7 @@ export function runFloodgateV7TrainingLabelProduction(): Promise<
         "capture",
         false,
         false,
+        0,
       ),
     );
   }

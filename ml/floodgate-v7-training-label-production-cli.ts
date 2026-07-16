@@ -163,7 +163,7 @@ function fileEvidence(value: unknown): Readonly<{
   const evidence = dataRecord(value, FILE_EVIDENCE_KEYS);
   if (
     !numberIsSafeInteger(evidence.bytes) ||
-    (evidence.bytes as number) < 0 ||
+    (evidence.bytes as number) < 1 ||
     typeof evidence.sha256 !== "string" ||
     nativeReflectApply(nativeRegExpExec, SHA256_RE, [evidence.sha256]) === null
   ) {
@@ -243,7 +243,7 @@ function unknownFailure(runnerInvoked: boolean): Readonly<object> {
     phase: runnerInvoked ? "runner" : "capture",
     publication_may_have_occurred: runnerInvoked,
     lease_may_remain: runnerInvoked,
-    cleanup_failure_count: 0,
+    cleanup_failure_count: runnerInvoked ? null : 0,
     retry_disposition: runnerInvoked
       ? "manual-publication-and-lease-reconciliation-required"
       : "fresh-invocation-required",
@@ -311,8 +311,9 @@ function sanitizedRunnerFailure(
       (phase !== "capture" && phase !== "outer-gate" && phase !== "receipt") ||
       typeof publicationMayHaveOccurred !== "boolean" ||
       typeof leaseMayRemain !== "boolean" ||
-      !numberIsSafeInteger(cleanupFailureCount) ||
-      (cleanupFailureCount as number) < 0 ||
+      (cleanupFailureCount !== null &&
+        (!numberIsSafeInteger(cleanupFailureCount) ||
+          (cleanupFailureCount as number) < 0)) ||
       (retryDisposition !== "fresh-invocation-required" &&
         retryDisposition !==
           "manual-publication-and-lease-reconciliation-required") ||
@@ -330,6 +331,7 @@ function sanitizedRunnerFailure(
           retryDisposition !== "fresh-invocation-required"
         : !publicationMayHaveOccurred ||
           !leaseMayRemain ||
+          cleanupFailureCount !== null ||
           retryDisposition !==
             "manual-publication-and-lease-reconciliation-required"
     ) {
@@ -342,7 +344,7 @@ function sanitizedRunnerFailure(
       phase,
       publication_may_have_occurred: publicationMayHaveOccurred,
       lease_may_remain: leaseMayRemain,
-      cleanup_failure_count: cleanupFailureCount as number,
+      cleanup_failure_count: cleanupFailureCount as number | null,
       retry_disposition: retryDisposition,
       raw_outer_receipt_disclosed: false as const,
       raw_owner_receipt_disclosed: false as const,

@@ -114,7 +114,7 @@ function outerReceipt(
       },
       nonclaims: {
         lock_or_lease_path_disclosed: false,
-        lease_metadata_disclosed: false,
+        private_lease_metadata_disclosed: false,
         key_material_disclosed: false,
         key_instance_id_disclosed: false,
         lease_mac_disclosed: false,
@@ -209,7 +209,7 @@ describe("Floodgate v7 training-label production runner", () => {
       phase: "outer-gate",
       publication_may_have_occurred: true,
       lease_may_remain: true,
-      cleanup_failure_count: 0,
+      cleanup_failure_count: null,
       retry_disposition: "manual-publication-and-lease-reconciliation-required",
       raw_outer_receipt_disclosed: false,
       raw_owner_receipt_disclosed: false,
@@ -231,6 +231,7 @@ describe("Floodgate v7 training-label production runner", () => {
       phase: "capture",
       publication_may_have_occurred: false,
       lease_may_remain: false,
+      cleanup_failure_count: 0,
       retry_disposition: "fresh-invocation-required",
     });
     expect(operation).not.toHaveBeenCalled();

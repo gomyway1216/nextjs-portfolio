@@ -95,7 +95,7 @@ Module._load = function (request, parent, isMain) {
         this.phase = "outer-gate";
         this.publication_may_have_occurred = true;
         this.lease_may_remain = true;
-        this.cleanup_failure_count = 2;
+        this.cleanup_failure_count = null;
         this.retry_disposition = "manual-publication-and-lease-reconciliation-required";
         this.raw_outer_receipt_disclosed = false;
         this.raw_owner_receipt_disclosed = false;
@@ -229,6 +229,7 @@ describe("Floodgate v7 training-label production CLI", () => {
       phase: "capture",
       publication_may_have_occurred: false,
       lease_may_remain: false,
+      cleanup_failure_count: 0,
       retry_disposition: "fresh-invocation-required",
       success_receipt_issued: false,
     });
@@ -290,7 +291,7 @@ describe("Floodgate v7 training-label production CLI", () => {
       phase: "outer-gate",
       publication_may_have_occurred: true,
       lease_may_remain: true,
-      cleanup_failure_count: 2,
+      cleanup_failure_count: null,
       retry_disposition: "manual-publication-and-lease-reconciliation-required",
       raw_owner_receipt_disclosed: false,
       raw_finalizer_receipt_disclosed: false,
@@ -314,7 +315,7 @@ describe("Floodgate v7 training-label production CLI", () => {
         phase: "runner",
         publication_may_have_occurred: true,
         lease_may_remain: true,
-        cleanup_failure_count: 0,
+        cleanup_failure_count: null,
         retry_disposition:
           "manual-publication-and-lease-reconciliation-required",
       });

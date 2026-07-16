@@ -422,7 +422,7 @@ type RestartableTrainingReplay = (
   sink: TrainingReplayParentBatchSink,
 ) => Promise<void>;
 
-const PLAN_REGISTRY = new WeakMap<
+const TEST_PLAN_REGISTRY = new WeakMap<
   Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
   Readonly<HiddenPlan>
 >();
@@ -921,7 +921,7 @@ export function createFloodgateV7TrainingLabelFinalizationPlanCoreForTests(
     claim_boundary: FLOODGATE_V7_TRAINING_LABEL_PLAN_CLAIM_BOUNDARY,
     execution_boundary: FLOODGATE_V7_TRAINING_LABEL_PLAN_EXECUTION_BOUNDARY,
   });
-  PLAN_REGISTRY.set(
+  TEST_PLAN_REGISTRY.set(
     facade,
     frozenRecord({
       runId: input.runId,
@@ -953,8 +953,8 @@ function takePlan(
   ) {
     fail("finalization requires the exact opaque synthetic plan");
   }
-  const plan = PLAN_REGISTRY.get(value);
-  if (plan === undefined || !PLAN_REGISTRY.delete(value)) {
+  const plan = TEST_PLAN_REGISTRY.get(value);
+  if (plan === undefined || !TEST_PLAN_REGISTRY.delete(value)) {
     fail("synthetic finalization plan is cloned, foreign, or already consumed");
   }
   return plan;

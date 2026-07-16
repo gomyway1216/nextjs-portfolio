@@ -787,9 +787,9 @@ describe("Floodgate v7 offline connector gate runner", () => {
       }
       expect(publicFailure).toMatchObject({
         phase: "checkpoint",
-        checkpoint_may_have_persisted: false,
+        checkpoint_may_have_persisted: true,
         cleanup_failure_count: 3,
-        retry_disposition: "operator-reconciliation-required",
+        retry_disposition: "checkpoint-reconciliation-required",
       });
       expect(publicFailure).toBeInstanceOf(
         connectorModule.FloodgateV7ProductionCheckpointConnectorError,
@@ -822,7 +822,7 @@ describe("Floodgate v7 offline connector gate runner", () => {
 
       expect(observedFailureEvidence).toMatchObject({
         phase: "checkpoint",
-        checkpointMayHavePersisted: false,
+        checkpointMayHavePersisted: true,
       });
       const internalEvidence = observedFailureEvidence as {
         readonly primary: unknown;

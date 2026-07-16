@@ -2,6 +2,8 @@
 
 > The preceding [single-use coordinator handoff](./blog-shogi-floodgate-v7-checkpoint-handoff.en.md) projects checkpoint operations once from the exact production coordinator, while the [opaque key bridge](./blog-shogi-floodgate-v7-checkpoint-key-bridge.en.md) passes a V3-specific key capability to the checkpoint sink without exposing the fixed deployment root. There was still no entry point that placed the active [stage lease](./blog-shogi-floodgate-teacher-stage-authorization.en.md), [authenticated training rows](./blog-shogi-floodgate-training-row-consumer.en.md), [consumer postflight](./blog-shogi-floodgate-consumer-postflight-capability.en.md), and [V3 milestone checkpoint](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.en.md) under the same production ownership. Historical connector v1 composed those owners and first checked metadata-only deployment-key readiness. Current v2 adds a synchronous [approved-enrollment](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.en.md) claim before readiness and removes caller-supplied expected-ID authority. Neither revision is a production-gate execution, teacher label, training, weight, live-evaluation-function, match, or playing-strength result. Japanese version: [blog-shogi-floodgate-v7-production-checkpoint-connector.md](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)
 
+> **2026-07-16 current update:** [Checkpoint failure-state hardening](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.en.md) separates the primary-failure payload from explicit observed state, observes sink rejection through the Promise settlement branch, and routes every failure after sink invocation to checkpoint reconciliation. The PR #456 / #463 validation values below remain historical evidence and are not recounted for the new revision.
+
 ---
 
 ## 1. Historical v1 boundary and current v2 delta
@@ -154,21 +156,23 @@ Resources are tracked by who performs terminal cleanup, not merely by which vari
 
 The public error returns no raw cause. It carries only operation phase, readiness status, checkpoint-persistence possibility, cleanup-failure count, and retry disposition.
 
-| Phase / case                             | Parent search / checkpoint            | Cleanup                                                   | Public disposition                                        |
-| ---------------------------------------- | ------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
-| `capture` failure                        | 0 / 0                                 | No resource; capability is not claimed                    | `fresh-invocation-required`                               |
-| `enrollment` claim / origin failure      | 0 / 0                                 | No runtime resource; no actual key authority opens        | `fresh-invocation-required`                               |
-| `readiness`: `not-provisioned`           | 0 / 0                                 | No resource                                               | `provision-required`                                      |
-| `readiness`: `unsafe`                    | 0 / 0                                 | No resource                                               | `operator-reconciliation-required`                        |
-| `coordinator-stage` failure              | 0 parent searches                     | Close / abort fulfilled or late-captured side             | Always `operator-reconciliation-required`                 |
-| `handoff` failure                        | 0 checkpoints                         | Lease close + coordinator abort                           | `fresh-invocation-required` if cleanup succeeds           |
-| `key-prepare` failure                    | 0 consumer / checkpoint calls         | Key discard if acquired + lease close + coordinator abort | Operator reconciliation without private details           |
-| `key-instance` actual-authority mismatch | 0 consumer / checkpoint calls         | Key discard + lease close + coordinator abort             | Operator reconciliation without mismatch details          |
-| `consumer` failure before sink           | 0 checkpoints                         | Key discard + lease close + coordinator abort             | `fresh-invocation-required` if cleanup succeeds           |
-| `checkpoint` failure                     | 0 success receipts                    | Sink cleanup + connector close join + coordinator abort   | Fresh / reconciliation depends on persistence possibility |
-| `postflight` failure                     | Checkpoint may already have persisted | Settle key / lease / coordinator                          | May become `checkpoint-reconciliation-required`           |
-| `cleanup` failure                        | 0 success receipts                    | Attempt every remaining terminal                          | Publish only count; operator / checkpoint reconciliation  |
-| `receipt` projection failure             | 0 public success receipts             | Key / lease / coordinator already settled                 | Checkpoint reconciliation                                 |
+| Phase / case                             | Parent search / checkpoint            | Cleanup                                                   | Public disposition                                       |
+| ---------------------------------------- | ------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
+| `capture` failure                        | 0 / 0                                 | No resource; capability is not claimed                    | `fresh-invocation-required`                              |
+| `enrollment` claim / origin failure      | 0 / 0                                 | No runtime resource; no actual key authority opens        | `fresh-invocation-required`                              |
+| `readiness`: `not-provisioned`           | 0 / 0                                 | No resource                                               | `provision-required`                                     |
+| `readiness`: `unsafe`                    | 0 / 0                                 | No resource                                               | `operator-reconciliation-required`                       |
+| `coordinator-stage` failure              | 0 parent searches                     | Close / abort fulfilled or late-captured side             | Always `operator-reconciliation-required`                |
+| `handoff` failure                        | 0 checkpoints                         | Lease close + coordinator abort                           | `fresh-invocation-required` if cleanup succeeds          |
+| `key-prepare` failure                    | 0 consumer / checkpoint calls         | Key discard if acquired + lease close + coordinator abort | Operator reconciliation without private details          |
+| `key-instance` actual-authority mismatch | 0 consumer / checkpoint calls         | Key discard + lease close + coordinator abort             | Operator reconciliation without mismatch details         |
+| `consumer` failure before sink           | 0 checkpoints                         | Key discard + lease close + coordinator abort             | `fresh-invocation-required` if cleanup succeeds          |
+| `checkpoint` failure                     | Sink invoked; 0 success receipts      | Sink cleanup + connector close join + coordinator abort   | Always `checkpoint-reconciliation-required`              |
+| `postflight` failure                     | Checkpoint may already have persisted | Settle key / lease / coordinator                          | Always `checkpoint-reconciliation-required`              |
+| `cleanup` failure                        | 0 success receipts                    | Attempt every remaining terminal                          | Publish only count; operator / checkpoint reconciliation |
+| `receipt` projection failure             | 0 public success receipts             | Key / lease / coordinator already settled                 | Checkpoint reconciliation                                |
+
+A failure before sink invocation may remain fresh when its phase and cleanup result allow it. Immediately before invoking the sink, however, the connector fixes checkpoint persistence possibility to true, so every later failure requires reconciliation regardless of payload or Promise shape. Coordinator close versus `abortAndDrain` follows an explicit observed-primary bit rather than the raw primary value. The raw failure payload itself may be `undefined`, but its failure state remains and the payload stays nonpublic.
 
 Only the test core may pass raw primary / cleanup failures to `observeFailureForTests`. That hook exists for fault-injection assertions and is fixed to `undefined` in the production dependency table. The production public error contains no `cause`, `primary`, cleanup Error, path, row, or key material.
 

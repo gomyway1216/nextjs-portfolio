@@ -1,0 +1,258 @@
+{
+  "schema": "shogi-floodgate-v7-checkpoint-failure-state-hardening-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-candidate-only",
+    "implementation_revision": "2480ff0d4af4324bee3d79ba7dbace54e69ca34a",
+    "validation_candidate_revision": "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+    "production_state_freshly_observed_for_this_change": false,
+    "production_namespace_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_gate_invocation_authorized_by_this_evidence": false,
+    "local_source_or_test_execution_counted_as_production_execution": false,
+    "absolute_local_paths_included": false,
+    "private_values_included": false
+  },
+  "prerequisite_delivery": {
+    "pull_request": 472,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/472",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "6e5197fb9a9200cc1b00db1ee34e072b9de84ea2",
+    "production_gate_executed_by_prerequisite": false
+  },
+  "current_delivery": {
+    "pull_request": 473,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/473",
+    "state": "ready-open",
+    "implementation_revision": "2480ff0d4af4324bee3d79ba7dbace54e69ca34a",
+    "validation_candidate_revision": "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+    "review": "two-actionable-comments-addressed-and-resolved-zero-unresolved",
+    "continuous_integration": "pending-on-ready-pr-473",
+    "full_vitest": "passed-on-validation-candidate-bbbe910",
+    "production_build": "passed-on-validation-candidate-bbbe910",
+    "merge": "pending-regular-merge-required"
+  },
+  "root_cause": {
+    "classification": "javascript-undefined-value-and-failure-presence-sentinel-collision",
+    "old_primary_presence_test": "primary-payload-not-equal-to-undefined",
+    "javascript_throw_undefined_is_valid": true,
+    "javascript_reject_undefined_is_valid": true,
+    "successful_callback_fulfillment_with_undefined_remains_valid": true,
+    "raw_payload_value_can_prove_failure_absence": false
+  },
+  "failure_state_repair": {
+    "primary_payload_and_presence_separated": true,
+    "primary_presence_state": "primaryObserved",
+    "sink_rejection_observed_by_promise_settlement_branch": true,
+    "later_settlement_reason_compared_directly_with_current_primary": true,
+    "separate_sink_failure_cache_present": false,
+    "undefined_primary_selects_coordinator_close": false,
+    "undefined_primary_skips_failure_observer": false,
+    "undefined_primary_can_produce_success_receipt": false,
+    "observed_primary_selects_abort_and_drain": true,
+    "cleanup_failures_still_attempt_all_terminal_actions": true,
+    "raw_primary_payload_may_be_undefined": true,
+    "raw_primary_payload_is_public": false,
+    "raw_primary_payload_is_test_seam_only": true
+  },
+  "checkpoint_persistence_boundary": {
+    "checkpoint_options_captured_before_boundary": true,
+    "persistence_possible_set_before_sink_invocation": true,
+    "sink_invocation_count_on_valid_callback": 1,
+    "callee_error_marker_required_after_sink_invocation": false,
+    "callee_promise_shape_can_clear_persistence_ambiguity": false,
+    "synchronous_sink_throw_requires_checkpoint_reconciliation": true,
+    "sink_rejection_with_any_payload_requires_checkpoint_reconciliation": true,
+    "invalid_sink_promise_after_invocation_requires_checkpoint_reconciliation": true,
+    "checkpoint_receipt_capture_failure_requires_checkpoint_reconciliation": true,
+    "postflight_failure_requires_checkpoint_reconciliation": true,
+    "automatic_fresh_retry_after_sink_invocation": false,
+    "failure_before_sink_may_be_fresh_only_when_phase_and_cleanup_allow": true
+  },
+  "undefined_failure_regressions": [
+    {
+      "point": "synchronous-handoff",
+      "mechanism": "throw-undefined",
+      "public_phase": "handoff",
+      "checkpoint_may_have_persisted": false,
+      "retry_disposition": "fresh-invocation-required",
+      "coordinator_abort_calls": 1,
+      "success_receipts": 0
+    },
+    {
+      "point": "checkpoint-after-sink-invocation",
+      "mechanism": "promise-reject-undefined",
+      "public_phase": "checkpoint",
+      "checkpoint_may_have_persisted": true,
+      "retry_disposition": "checkpoint-reconciliation-required",
+      "coordinator_abort_calls": 1,
+      "success_receipts": 0
+    },
+    {
+      "point": "postflight-after-valid-checkpoint",
+      "mechanism": "throw-undefined",
+      "public_phase": "postflight",
+      "checkpoint_may_have_persisted": true,
+      "retry_disposition": "checkpoint-reconciliation-required",
+      "coordinator_abort_calls": 1,
+      "success_receipts": 0
+    }
+  ],
+  "supplementary_regressions": [
+    {
+      "point": "synchronous-checkpoint-after-sink-invocation",
+      "mechanism": "throw-undefined",
+      "public_phase": "checkpoint",
+      "checkpoint_may_have_persisted": true,
+      "cleanup_failure_count": 0,
+      "retry_disposition": "checkpoint-reconciliation-required",
+      "success_receipts": 0
+    },
+    {
+      "point": "lease-close-after-successful-checkpoint",
+      "mechanism": "promise-reject-undefined",
+      "public_phase": "cleanup",
+      "checkpoint_may_have_persisted": true,
+      "cleanup_failure_count": 1,
+      "retry_disposition": "checkpoint-reconciliation-required",
+      "success_receipts": 0
+    }
+  ],
+  "validation": {
+    "implementation_revision": "2480ff0d4af4324bee3d79ba7dbace54e69ca34a",
+    "validation_candidate_revision": "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+    "focused_vitest": {
+      "status": "pass",
+      "files": 2,
+      "tests": 127,
+      "passed": 127,
+      "failed": 0,
+      "vitest_duration_seconds": 1.63
+    },
+    "related_vitest": {
+      "status": "pass",
+      "files": 10,
+      "tests": 252,
+      "passed": 252,
+      "failed": 0,
+      "vitest_duration_seconds": 68.88
+    },
+    "typescript": {
+      "status": "pass",
+      "diagnostics": 0
+    },
+    "changed_file_eslint": {
+      "status": "pass",
+      "errors": 0
+    },
+    "prettier": {
+      "status": "pass"
+    },
+    "diff_check": {
+      "status": "pass",
+      "whitespace_errors": 0
+    },
+    "independent_audit": {
+      "status": "pass",
+      "residual_findings": {
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      }
+    },
+    "review": {
+      "status": "pass",
+      "actionable_comments": 2,
+      "actionable_comments_fixed_replied_and_resolved": 2,
+      "unresolved_threads": 0
+    },
+    "full_vitest": {
+      "status": "pass",
+      "validation_candidate_revision": "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+      "max_workers": 8,
+      "files": 148,
+      "tests": 2746,
+      "passed": 2746,
+      "failed": 0,
+      "vitest_duration_seconds": 155.64,
+      "wall_seconds": 156.12,
+      "maximum_rss_bytes": 4365336576,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "validation_candidate_revision": "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+      "static_pages": 193,
+      "wall_seconds": 35.08,
+      "maximum_rss_bytes": 2613690368,
+      "swaps": 0
+    },
+    "ml_stdlib": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "unittest_duration_seconds": 0.121,
+      "wall_seconds": 0.44,
+      "maximum_rss_bytes": 64405504,
+      "swaps": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0,
+      "wall_seconds": 0.69,
+      "maximum_rss_bytes": 136216576,
+      "swaps": 0
+    },
+    "continuous_integration": {
+      "status": "pending-on-ready-pr-473"
+    },
+    "regular_merge": {
+      "status": "pending"
+    }
+  },
+  "production_execution_for_this_change": {
+    "production_commands": 0,
+    "production_registry_provisions": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "current_production_evaluator": "runOp1",
+    "current_rollback_evaluator": "runOp1",
+    "live_weight_changed": false,
+    "playing_strength_changed_by_this_evidence": false,
+    "stable_high_dan_claimed": false,
+    "formal_ab_plan": "192 color-swapped pairs / 384 games",
+    "formal_ab_color_swapped_pairs": 192,
+    "formal_ab_total_games": 384,
+    "external_calibration_games_required": 200
+  },
+  "nonclaims": {
+    "production_registry_ready": false,
+    "production_gate_completed": false,
+    "teacher_generation_completed": false,
+    "teacher_labels_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "live_evaluation_activated": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

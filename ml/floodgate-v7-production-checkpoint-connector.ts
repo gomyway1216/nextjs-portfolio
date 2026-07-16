@@ -1811,17 +1811,6 @@ function isAcceptedPromiseShape(value: Promise<unknown>): boolean {
   );
 }
 
-function isAcceptedNativePromise(value: unknown): value is Promise<unknown> {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !nodeIsProxy(value) &&
-    nodeIsPromise(value) &&
-    objectGetPrototypeOf(value) === nativePromisePrototype &&
-    isAcceptedPromiseShape(value as Promise<unknown>)
-  );
-}
-
 function adoptNativePromise<T>(
   value: unknown,
   label: string,
@@ -2104,6 +2093,7 @@ async function runCaptured<
   let activePhase: FloodgateV7ProductionCheckpointConnectorPhase = "readiness";
   let readinessStatus: FloodgateV7DeploymentKeyReadinessStatus | null = null;
   let primary: unknown;
+  let primaryObserved = false;
   const cleanupFailures: unknown[] = [];
   let checkpointMayHavePersisted = false;
   let coordinator: FloodgateV7ProductionParentCoordinator | undefined;
@@ -2123,7 +2113,6 @@ async function runCaptured<
   let sinkPromise:
     Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> | undefined;
   let callbackPromise: Promise<void> | undefined;
-  let sinkFailure: unknown;
   let callbackWindowOpen = false;
   let callbackInvocationCount = 0;
 
@@ -2251,23 +2240,20 @@ async function runCaptured<
       }
       activePhase = "checkpoint";
       try {
+        const capturedCheckpointOptions = checkpointOptions(options);
+        checkpointMayHavePersisted = true;
         const sinkResult = dependencies.checkpoint(
           lease!,
           input,
           handoff!.runBinding,
           producerController,
-          checkpointOptions(options),
+          capturedCheckpointOptions,
           authorization!,
         );
-        if (!isAcceptedNativePromise(sinkResult)) {
-          checkpointMayHavePersisted = true;
-        }
         sinkPromise = adoptNativePromise<
           Readonly<FloodgateV7TeacherCheckpointV3Receipt>
         >(sinkResult, "checkpoint sink");
       } catch (error) {
-        sinkFailure = error;
-        checkpointMayHavePersisted = true;
         callbackPromise = rejected(error);
         return callbackPromise;
       }
@@ -2286,18 +2272,14 @@ async function runCaptured<
                   activePhase = "consumer";
                   resolve();
                 } catch (error) {
-                  sinkFailure = error;
                   reject(error);
                 }
               },
               (error: unknown) => {
-                sinkFailure = error;
-                if (mayHavePersisted(error)) checkpointMayHavePersisted = true;
                 reject(error);
               },
             ]);
           } catch (error) {
-            sinkFailure = error;
             reject(error);
           }
         }),
@@ -2331,6 +2313,7 @@ async function runCaptured<
     dependencies.claimPostflight(postflightReceipt);
   } catch (error) {
     primary = error;
+    primaryObserved = true;
     if (activePhase === "readiness" && readinessStatus === null) {
       readinessStatus = "unsafe";
     }
@@ -2344,9 +2327,10 @@ async function runCaptured<
       await callbackPromise;
     } catch (error) {
       if (mayHavePersisted(error)) checkpointMayHavePersisted = true;
-      if (primary === undefined) {
+      if (!primaryObserved) {
         primary = error;
-      } else if (error !== primary && error !== sinkFailure) {
+        primaryObserved = true;
+      } else if (error !== primary) {
         primary = combinedInternalFailure(
           primary,
           error,
@@ -2360,7 +2344,16 @@ async function runCaptured<
       checkpointMayHavePersisted = true;
     } catch (error) {
       if (mayHavePersisted(error)) checkpointMayHavePersisted = true;
-      if (primary === undefined) primary = error;
+      if (!primaryObserved) {
+        primary = error;
+        primaryObserved = true;
+      } else if (error !== primary) {
+        primary = combinedInternalFailure(
+          primary,
+          error,
+          "consumer and checkpoint settlement both failed",
+        );
+      }
     }
   }
 
@@ -2385,8 +2378,7 @@ async function runCaptured<
   if (coordinatorLifecycle !== undefined) {
     const lifecycle = handoff ?? coordinatorLifecycle;
     const lifecycleReceiver = handoff ?? coordinator;
-    const closeSuccessfully =
-      primary === undefined && cleanupFailures.length === 0;
+    const closeSuccessfully = !primaryObserved && cleanupFailures.length === 0;
     coordinatorCleanupAttempt = startAttempt<void>(
       closeSuccessfully ? "coordinator close" : "coordinator abort",
       () =>
@@ -2431,9 +2423,10 @@ async function runCaptured<
     }
   }
 
-  if (primary !== undefined || cleanupFailures.length > 0) {
-    const phase: FloodgateV7ProductionCheckpointConnectorPhase =
-      primary === undefined ? "cleanup" : activePhase;
+  if (primaryObserved || cleanupFailures.length > 0) {
+    const phase: FloodgateV7ProductionCheckpointConnectorPhase = primaryObserved
+      ? activePhase
+      : "cleanup";
     const evidence = frozenRecord({
       phase,
       primary,

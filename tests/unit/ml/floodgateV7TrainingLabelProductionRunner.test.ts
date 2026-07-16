@@ -103,6 +103,9 @@ function outerReceipt(
         FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
       mutation_purpose: "training-label-finalization-24000",
       verification: {
+        application_source_binding_read_from_locked_registry: true,
+        exact_clean_application_source_closure_verified_before_persistent_mutation: true,
+        registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
         one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
         os_lifetime_lock_held_before_operation: true,
         authenticated_purpose_bound_lease_metadata_durable_before_operation: true,
@@ -113,6 +116,9 @@ function outerReceipt(
         quarantine_empty_after_operation: true,
       },
       nonclaims: {
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         lock_or_lease_path_disclosed: false,
         private_lease_metadata_disclosed: false,
         key_material_disclosed: false,
@@ -163,6 +169,7 @@ describe("Floodgate v7 training-label production runner", () => {
         destination_content_reverified: true,
         purpose_bound_outer_lease_removed_durably: true,
         common_os_lock_released: true,
+        application_source_exact_clean_closure_validated_under_outer_gate: true,
       },
       nonclaims: {
         path_disclosed: false,
@@ -175,6 +182,9 @@ describe("Floodgate v7 training-label production runner", () => {
         raw_owner_receipt_disclosed: false,
         raw_finalizer_receipt_disclosed: false,
         row_or_position_content_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         teacher_truth: false,
         optimizer_training: false,
         weight: false,

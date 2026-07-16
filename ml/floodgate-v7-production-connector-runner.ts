@@ -38,6 +38,10 @@ import {
   claimFloodgateV7ProductionConnectorRegistry,
   loadFloodgateV7ProductionConnectorRegistry,
 } from "./floodgate-v7-production-connector-registry";
+import {
+  FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  type FloodgateV7ProductionApplicationSourceBinding,
+} from "./floodgate-v7-production-application-source-provenance";
 import type { FloodgateTeacherStageAuthorizationOptions } from "./floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
@@ -72,13 +76,13 @@ import {
 } from "./floodgate-v7-production-prefix-100-postflight";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-runner-v1" as const;
+  "shogi-floodgate-v7-production-connector-runner-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS =
-  "registry-approved-current-bound-production-connector-gate-complete" as const;
+  "application-source-bound-registry-approved-current-production-connector-gate-complete" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1" as const;
+  "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_EXECUTION_BOUNDARY =
-  "production-fixed-gate-private-registry-and-capability-owners" as const;
+  "production-fixed-application-source-bound-gate-private-registry-and-capability-owners" as const;
 
 export type FloodgateV7ProductionConnectorRunnerGate =
   FloodgateV7ProductionCheckpointConnectorOptions["gate"];
@@ -122,6 +126,7 @@ export interface FloodgateV7ProductionConnectorRunnerReceipt<
       readonly approved_record_binding_matched: true;
       readonly fresh_current_key_binding_validated: true;
       readonly connector_completed: true;
+      readonly application_source_exact_clean_closure_validated_under_outer_gate: true;
     } & (TGate extends "durable-prefix-100"
       ? {
           readonly exact_prefix_100_read_only_continuity_postflight_completed: true;
@@ -135,6 +140,9 @@ export interface FloodgateV7ProductionConnectorRunnerReceipt<
     readonly raw_connector_receipt_disclosed: false;
     readonly key_material_disclosed: false;
     readonly row_or_position_content_disclosed: false;
+    readonly application_source_revision_disclosed: false;
+    readonly application_source_path_disclosed: false;
+    readonly application_source_digest_disclosed: false;
     readonly teacher_label: false;
     readonly optimizer_training: false;
     readonly weight: false;
@@ -209,6 +217,7 @@ interface PrivateRegistryClaim {
     readonly recordSha256: string;
     readonly keyInstanceId: string;
   }>;
+  readonly applicationSourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
   readonly stageAuthorization: FloodgateTeacherStageAuthorizationOptions;
   readonly consumer: FloodgateTrainingRowConsumerOptions;
 }
@@ -255,6 +264,7 @@ const pathIsAbsolute = path.isAbsolute.bind(path);
 const pathResolve = path.resolve.bind(path);
 const nativeRegExpExec = RegExp.prototype.exec;
 const HEX_64_RE = /^[0-9a-f]{64}$/;
+const REVISION_RE = /^[0-9a-f]{40}$/;
 const DEPENDENCY_KEYS = objectFreeze([
   "loadRegistry",
   "claimRegistry",
@@ -267,6 +277,7 @@ const DEPENDENCY_KEYS = objectFreeze([
 const PRIVATE_CLAIM_KEYS = objectFreeze([
   "runId",
   "approvedKeyBinding",
+  "applicationSourceBinding",
   "stageAuthorization",
   "consumer",
 ] as const);
@@ -274,6 +285,10 @@ const PRIVATE_BINDING_KEYS = objectFreeze([
   "recordBytes",
   "recordSha256",
   "keyInstanceId",
+] as const);
+const PRIVATE_APPLICATION_SOURCE_BINDING_KEYS = objectFreeze([
+  "layout",
+  "revision",
 ] as const);
 const APPROVED_CLAIM_KEYS = objectFreeze([
   "execution_boundary",
@@ -422,6 +437,9 @@ const OUTER_RECEIPT_KEYS = objectFreeze([
   "nonclaims",
 ] as const);
 const OUTER_VERIFICATION_KEYS = objectFreeze([
+  "application_source_binding_read_from_locked_registry",
+  "exact_clean_application_source_closure_verified_before_persistent_mutation",
+  "registry_anchor_revalidated_after_source_verification_before_persistent_mutation",
   "one_os_lifetime_lock_shared_by_all_four_mutation_purposes",
   "os_lifetime_lock_held_before_operation",
   "authenticated_purpose_bound_lease_metadata_durable_before_operation",
@@ -432,6 +450,9 @@ const OUTER_VERIFICATION_KEYS = objectFreeze([
   "quarantine_empty_after_operation",
 ] as const);
 const OUTER_NONCLAIM_KEYS = objectFreeze([
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
   "lock_or_lease_path_disclosed",
   "private_lease_metadata_disclosed",
   "key_material_disclosed",
@@ -577,13 +598,23 @@ function captureDependencies(
 function capturePrivateClaim(value: unknown): Readonly<PrivateRegistryClaim> {
   const claim = dataRecord(value, PRIVATE_CLAIM_KEYS);
   const binding = dataRecord(claim.approvedKeyBinding, PRIVATE_BINDING_KEYS);
+  const applicationSourceBinding = dataRecord(
+    claim.applicationSourceBinding,
+    PRIVATE_APPLICATION_SOURCE_BINDING_KEYS,
+  );
   if (
     !isHex64(claim.runId) ||
     typeof binding.recordBytes !== "number" ||
     !numberIsSafeInteger(binding.recordBytes) ||
     binding.recordBytes < 2 ||
     !isHex64(binding.recordSha256) ||
-    !isHex64(binding.keyInstanceId)
+    !isHex64(binding.keyInstanceId) ||
+    applicationSourceBinding.layout !==
+      FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT ||
+    typeof applicationSourceBinding.revision !== "string" ||
+    nativeReflectApply(nativeRegExpExec, REVISION_RE, [
+      applicationSourceBinding.revision,
+    ]) === null
   ) {
     throw new NativeError("runner registry claim differs");
   }
@@ -595,6 +626,10 @@ function capturePrivateClaim(value: unknown): Readonly<PrivateRegistryClaim> {
       recordBytes: binding.recordBytes,
       recordSha256: binding.recordSha256,
       keyInstanceId: binding.keyInstanceId,
+    }),
+    applicationSourceBinding: frozenRecord({
+      layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      revision: applicationSourceBinding.revision,
     }),
     stageAuthorization:
       claim.stageAuthorization as FloodgateTeacherStageAuthorizationOptions,
@@ -964,6 +999,8 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
           approved_record_binding_matched: true as const,
           fresh_current_key_binding_validated: true as const,
           connector_completed: true as const,
+          application_source_exact_clean_closure_validated_under_outer_gate:
+            true as const,
           exact_prefix_100_read_only_continuity_postflight_completed:
             true as const,
         })
@@ -972,6 +1009,8 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
           approved_record_binding_matched: true as const,
           fresh_current_key_binding_validated: true as const,
           connector_completed: true as const,
+          application_source_exact_clean_closure_validated_under_outer_gate:
+            true as const,
         });
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT,
@@ -993,6 +1032,9 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
       raw_connector_receipt_disclosed: false as const,
       key_material_disclosed: false as const,
       row_or_position_content_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
+      application_source_path_disclosed: false as const,
+      application_source_digest_disclosed: false as const,
       teacher_label: false as const,
       optimizer_training: false as const,
       weight: false as const,

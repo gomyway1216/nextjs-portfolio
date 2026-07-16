@@ -270,6 +270,9 @@ function outerOwnerReceipt(
       execution_boundary: executionBoundary,
       mutation_purpose: mutationPurpose,
       verification: {
+        application_source_binding_read_from_locked_registry: true,
+        exact_clean_application_source_closure_verified_before_persistent_mutation: true,
+        registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
         one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
         os_lifetime_lock_held_before_operation: true,
         authenticated_purpose_bound_lease_metadata_durable_before_operation: true,
@@ -280,6 +283,9 @@ function outerOwnerReceipt(
         quarantine_empty_after_operation: true,
       },
       nonclaims: {
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         lock_or_lease_path_disclosed: false,
         private_lease_metadata_disclosed: false,
         key_material_disclosed: false,
@@ -348,6 +354,10 @@ function dependencies(
           recordBytes: RECORD_BYTES,
           recordSha256: PRIVATE_RECORD_SHA256,
           keyInstanceId: PRIVATE_KEY_INSTANCE_ID,
+        },
+        applicationSourceBinding: {
+          layout: "fixed-current-euid-userinfo-home-production-application-v1",
+          revision: "d".repeat(40),
         },
         stageAuthorization: {
           repositoryRoot: PRIVATE_PATH_CANARY,
@@ -495,6 +505,7 @@ describe("Floodgate v7 production connector runner", () => {
           approved_record_binding_matched: true,
           fresh_current_key_binding_validated: true,
           connector_completed: true,
+          application_source_exact_clean_closure_validated_under_outer_gate: true,
           ...(gate === "durable-prefix-100"
             ? {
                 exact_prefix_100_read_only_continuity_postflight_completed: true,
@@ -508,6 +519,9 @@ describe("Floodgate v7 production connector runner", () => {
           raw_connector_receipt_disclosed: false,
           key_material_disclosed: false,
           row_or_position_content_disclosed: false,
+          application_source_revision_disclosed: false,
+          application_source_path_disclosed: false,
+          application_source_digest_disclosed: false,
           teacher_label: false,
           optimizer_training: false,
           weight: false,
@@ -557,6 +571,64 @@ describe("Floodgate v7 production connector runner", () => {
     expect(events).not.toContain("current-binding");
     expect(events).not.toContain("connector");
   });
+
+  it.each([
+    ["a wrong layout", { layout: "caller-selected", revision: "d".repeat(40) }],
+    [
+      "a non-lowercase revision",
+      {
+        layout: "fixed-current-euid-userinfo-home-production-application-v1",
+        revision: "D".repeat(40),
+      },
+    ],
+    [
+      "an extra field",
+      {
+        layout: "fixed-current-euid-userinfo-home-production-application-v1",
+        revision: "d".repeat(40),
+        path: PRIVATE_PATH_CANARY,
+      },
+    ],
+    [
+      "a Proxy",
+      new Proxy(
+        {
+          layout: "fixed-current-euid-userinfo-home-production-application-v1",
+          revision: "d".repeat(40),
+        },
+        {},
+      ),
+    ],
+  ] as const)(
+    "rejects application-source binding with %s before any approved-key or connector operation",
+    async (_description, applicationSourceBinding) => {
+      const events: string[] = [];
+      const base = dependencies("durable-prefix-100", events);
+      const error = await runFloodgateV7ProductionConnectorCoreForTests(
+        "durable-prefix-100",
+        {
+          ...base,
+          claimRegistry(capability) {
+            const claim = base.claimRegistry(capability) as unknown as Record<
+              string,
+              unknown
+            >;
+            return { ...claim, applicationSourceBinding };
+          },
+        },
+      ).catch((failure: unknown) => failure);
+
+      expectSanitized(error, false);
+      expect(error).toMatchObject({
+        phase: "registry-claim",
+        retry_disposition: "operator-reconciliation-required",
+      });
+      expect(events.some((event) => event.startsWith("approved-"))).toBe(false);
+      expect(events).not.toContain("current-binding");
+      expect(events).not.toContain("connector");
+      expect(JSON.stringify(error)).not.toContain(PRIVATE_PATH_CANARY);
+    },
+  );
 
   it.each([
     [

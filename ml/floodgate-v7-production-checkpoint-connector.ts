@@ -2113,8 +2113,6 @@ async function runCaptured<
   let sinkPromise:
     Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> | undefined;
   let callbackPromise: Promise<void> | undefined;
-  let sinkFailure: unknown;
-  let sinkFailureObserved = false;
   let callbackWindowOpen = false;
   let callbackInvocationCount = 0;
 
@@ -2256,8 +2254,6 @@ async function runCaptured<
           Readonly<FloodgateV7TeacherCheckpointV3Receipt>
         >(sinkResult, "checkpoint sink");
       } catch (error) {
-        sinkFailure = error;
-        sinkFailureObserved = true;
         callbackPromise = rejected(error);
         return callbackPromise;
       }
@@ -2276,20 +2272,14 @@ async function runCaptured<
                   activePhase = "consumer";
                   resolve();
                 } catch (error) {
-                  sinkFailure = error;
-                  sinkFailureObserved = true;
                   reject(error);
                 }
               },
               (error: unknown) => {
-                sinkFailure = error;
-                sinkFailureObserved = true;
                 reject(error);
               },
             ]);
           } catch (error) {
-            sinkFailure = error;
-            sinkFailureObserved = true;
             reject(error);
           }
         }),
@@ -2340,10 +2330,7 @@ async function runCaptured<
       if (!primaryObserved) {
         primary = error;
         primaryObserved = true;
-      } else if (
-        error !== primary &&
-        (!sinkFailureObserved || error !== sinkFailure)
-      ) {
+      } else if (error !== primary) {
         primary = combinedInternalFailure(
           primary,
           error,
@@ -2360,18 +2347,13 @@ async function runCaptured<
       if (!primaryObserved) {
         primary = error;
         primaryObserved = true;
-      } else if (
-        error !== primary &&
-        (!sinkFailureObserved || error !== sinkFailure)
-      ) {
+      } else if (error !== primary) {
         primary = combinedInternalFailure(
           primary,
           error,
           "consumer and checkpoint settlement both failed",
         );
       }
-      sinkFailure = error;
-      sinkFailureObserved = true;
     }
   }
 

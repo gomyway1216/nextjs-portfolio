@@ -2231,10 +2231,21 @@ describe("Floodgate v7 production checkpoint connector", () => {
         cleanup_failure_count: 0,
         retry_disposition: "checkpoint-reconciliation-required",
       });
-      expect(fixture.observedFailures[0]).toMatchObject({
-        primary: mode === "wrap" ? wrapperFailure : checkpointFailure,
-        checkpointMayHavePersisted: true,
-      });
+      const observedPrimary = fixture.observedFailures[0]?.primary;
+      if (mode === "wrap") {
+        expect(observedPrimary).toBeInstanceOf(Error);
+        expect(String(observedPrimary)).toContain(
+          "consumer and checkpoint settlement both failed",
+        );
+        expect(
+          Object.getOwnPropertyDescriptor(observedPrimary, "failures")?.value,
+        ).toEqual([wrapperFailure, checkpointFailure]);
+      } else {
+        expect(observedPrimary).toBe(checkpointFailure);
+      }
+      expect(fixture.observedFailures[0]?.checkpointMayHavePersisted).toBe(
+        true,
+      );
       expect(fixture.calls).toMatchObject({
         checkpoint: 1,
         claimPostflight: 0,

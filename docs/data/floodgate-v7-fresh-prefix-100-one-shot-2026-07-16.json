@@ -26,7 +26,14 @@
     "production_prefix_100_executed_by_prerequisite": false
   },
   "implementation": {
-    "delivery_state": "authoritative-local-post-fix-validation-complete-not-committed-or-pushed",
+    "delivery_state": "pull-request-471-ready-open-review-repair-local-awaiting-commit-push-and-re-ci",
+    "pull_request_delivery": {
+      "pull_request": 471,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/471",
+      "state": "ready-open",
+      "review_repair_state": "local-awaiting-commit-push-and-re-ci",
+      "whole_change_uncommitted_or_unpushed": false
+    },
     "read_only_preflight": {
       "contract": "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v1",
       "status": "fresh-zero-work-prefix-100-read-only-preconditions-observed",
@@ -239,7 +246,29 @@
           "severity": "P2",
           "fixed": true
         },
-        "authoritative_final_aggregate_values": "recorded-as-local-validation"
+        "kill_failure_timeout_or_malformed_ipc_child_reap_and_close_confirmation": {
+          "severity": "P2",
+          "found": true,
+          "fixed": true,
+          "regression_covered": true,
+          "shared_close_observation": true,
+          "terminate_and_await_on_every_failure_path": true,
+          "adversarial_arm_probe_regressions": 4,
+          "child_pid_esrch_confirmed": true,
+          "registry_json_fd3_lock_reacquisition_confirmed": true,
+          "stable_process_tree_observation_milliseconds": 150,
+          "no_late_writes_observed": true,
+          "production_cases": 0
+        },
+        "kill_initial_lock_assertion_targets_actual_registry_json": {
+          "severity": "P2",
+          "found_in_follow_up_test_review": true,
+          "fixed": true,
+          "regression_covered": true,
+          "previous_registry_directory_targeted": true,
+          "actual_registry_json_targeted": true
+        },
+        "authoritative_final_aggregate_values": "recorded-after-pr-471-final-review-repair"
       },
       "post_fix_residual_findings": {
         "p0": 0,
@@ -291,7 +320,7 @@
     "all_required_checks_and_terminal_revalidations_pass_in_one_outer_lock_held_observation": true,
     "multi_namespace_observation_is_atomic": false,
     "conditions": {
-      "reviewed_merged_head": "not-yet-delivered",
+      "reviewed_merged_head": "pr-471-ready-open-final-review-repair-local-awaiting-re-ci",
       "exact_node_22_13_0": "not-freshly-observed",
       "approved_enrollment_registry_and_current_key_binding": "not-freshly-observed",
       "production_readiness": "not-freshly-observed",
@@ -320,17 +349,50 @@
       "used_as_authoritative_final_local_evidence": true,
       "production_execution_evidence": false
     },
+    "post_fix_pre_review_candidate": {
+      "status": "pass",
+      "node_version": "v22.13.0",
+      "focused": {
+        "files": 8,
+        "tests": 149,
+        "passed": 149,
+        "failed": 0,
+        "vitest_duration_seconds": 55.84,
+        "wall_time_seconds": 56.19,
+        "maximum_resident_set_bytes": 413237248,
+        "swaps": 0
+      },
+      "full": {
+        "files": 143,
+        "tests": 2676,
+        "passed": 2676,
+        "failed": 0,
+        "vitest_duration_seconds": 148.28,
+        "wall_time_seconds": 148.68,
+        "maximum_resident_set_bytes": 4373479424,
+        "swaps": 0
+      },
+      "production_build": {
+        "static_pages_generated": 193,
+        "static_pages_expected": 193,
+        "wall_time_seconds": 24.43,
+        "maximum_resident_set_bytes": 2590097408,
+        "swaps": 0
+      },
+      "used_as_final_evidence": false,
+      "reason_not_final": "superseded-by-pr-471-final-review-repair"
+    },
     "focused_current_tree": {
       "status": "pass",
       "tree_classification": "authoritative-final-stable-substantive-local-tree",
       "node_version": "v22.13.0",
       "files": 8,
-      "tests": 149,
-      "passed": 149,
+      "tests": 153,
+      "passed": 153,
       "failed": 0,
-      "vitest_duration_seconds": 55.84,
-      "wall_time_seconds": 56.19,
-      "maximum_resident_set_bytes": 413237248,
+      "vitest_duration_seconds": 69.36,
+      "wall_time_seconds": 69.71,
+      "maximum_resident_set_bytes": 419643392,
       "swaps": 0,
       "used_as_authoritative_final_local_evidence": true
     },
@@ -338,12 +400,12 @@
       "status": "pass",
       "node_version": "v22.13.0",
       "files": 143,
-      "tests": 2676,
-      "passed": 2676,
+      "tests": 2680,
+      "passed": 2680,
       "failed": 0,
-      "vitest_duration_seconds": 148.28,
-      "wall_time_seconds": 148.68,
-      "maximum_resident_set_bytes": 4373479424,
+      "vitest_duration_seconds": 156.65,
+      "wall_time_seconds": 157.07,
+      "maximum_resident_set_bytes": 4374691840,
       "swaps": 0,
       "used_as_authoritative_final_local_evidence": true
     },
@@ -417,6 +479,8 @@
         "complete_six_case_drills": 3,
         "successful_local_cases": 18,
         "distinct_failpoint_signal_classes": 6,
+        "failure_path_child_reap_regressions_per_post_fix_test_file_run": 4,
+        "failure_path_child_reap_regressions_are_production_cases": false,
         "production_cases": 0,
         "used_as_authoritative_final_aggregate": true
       },
@@ -434,6 +498,8 @@
         "complete_six_case_drills": 3,
         "successful_local_cases": 18,
         "distinct_failpoint_signal_classes": 6,
+        "failure_path_child_reap_regressions_per_post_fix_test_file_run": 4,
+        "failure_path_child_reap_regressions_are_production_cases": false,
         "production_cases": 0
       }
     },
@@ -463,8 +529,8 @@
         "status": "pass",
         "static_pages_generated": 193,
         "static_pages_expected": 193,
-        "wall_time_seconds": 24.43,
-        "maximum_resident_set_bytes": 2590097408,
+        "wall_time_seconds": 26.11,
+        "maximum_resident_set_bytes": 2619424768,
         "swaps": 0
       },
       "used_as_authoritative_final_local_evidence": true
@@ -506,7 +572,7 @@
     "stable_high_dan_established": false
   },
   "blocking_residual_work": {
-    "review_commit_push_ready_pr_ci_review_and_regular_merge_required": true,
+    "pr_471_review_repair_commit_push_re_ci_review_and_regular_merge_required": true,
     "fresh_private_production_preflight_required_after_merge": true,
     "reviewed_disposable_kill_drill_command_required_after_merge": true,
     "same_outer_lock_preflight_to_gate_composition_required": true,

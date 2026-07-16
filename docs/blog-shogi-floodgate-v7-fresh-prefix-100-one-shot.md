@@ -126,7 +126,9 @@ prefix-100が成功してもprefix-500を自動許可しない。exact 100件の
 - production namespace/registry/gate callが0
 - 日英12章、duplicate JSON key、公開privacy
 
-最終安定substantive treeのauthoritative local validationはexact Node v22.13.0で完了した。focusedは8 files・149 / 149 PASS、Vitest 55.84秒、wall 56.19秒、maximum RSS 413,237,248 bytes、swap 0だった。fullは143 files・2,676 / 2,676 PASS、Vitest 148.28秒、wall 148.68秒、maximum RSS 4,373,479,424 bytes、swap 0だった。production buildは193 / 193 static pageを生成し、wall 24.43秒、maximum RSS 2,590,097,408 bytes、swap 0で成功した。
+PR #471 final review repair後の最終安定substantive treeについて、authoritative local validationをexact Node v22.13.0で完了した。focusedは8 files・153 / 153 PASS、Vitest 69.36秒、wall 69.71秒、maximum RSS 419,643,392 bytes、swap 0だった。fullは143 files・2,680 / 2,680 PASS、Vitest 156.65秒、wall 157.07秒、maximum RSS 4,374,691,840 bytes、swap 0だった。production buildは193 / 193 static pageを生成し、wall 26.11秒、maximum RSS 2,619,424,768 bytes、swap 0で成功した。
+
+その直前のpost-fix pre-review candidateではfocused 149 / 149、full 2,676 / 2,676、production build 193 / 193がPASSしていたが、PR #471 final review repairで置き換えられたnonfinal途中データとしてのみ残す。authoritative値へ混ぜない。
 
 TypeScriptはPASS、full ESLintはexit 0・error 0・既存warning 157、changed-scope ESLintはerror 0 / warning 0だった。ML stdlibは58 / 58 PASS、`npm audit`はall severity 0、git diff-checkもPASSした。post-fix auditのresidualはP0 / P1 / P2のすべて0である。これはauthoritative **local** evidenceであり、review、merge、production commandの証拠ではない。
 
@@ -136,9 +138,11 @@ TypeScriptはPASS、full ESLintはexit 0・error 0・既存warning 157、changed
 
 その後の独立監査で検出したseverityは、preflightがP1 1件とP2 1件、kill-drillがP1 2件とP2 3件である。preflightのP1はouter capabilityのUID / home / registry anchor binding、P2は最初のapproved Aをreloaded approved/currentへ結び直すexpected-bindingである。kill-drillのP1はtemporary-root / production-home overlapとfailure cleanup、P2はchild nested path、partial-setup rollback / orphan preservation、および3点目をdurableと呼んでいたwordingである。これらのrepairとregression coverageはauthoritative post-fix local validationを通過し、residual P0 / P1 / P2は0 / 0 / 0になった。歴史的pre-audit PASS値は引き続きnonfinalとして残し、production判断もNO-GOとする。
 
-post-fix再監査では、preflightのlock contention coverage欠落をP2として修正した。kill-drillのP2再監査は、partial capture / setup failureの`fixture_preserved`分類、anchor descriptorを全lifetime保持するというoverclaimをcanonical realpath + named `lstat`の実装範囲へ縮小する修正、global `/private/tmp` snapshotを他processと競合させないexact owned-prefix accounting、test seam failureからのinjected path非漏えいを確認した。integration P2ではexecution accountingの境界、non-atomic observation wording、package / Darwin CI source contractを固定し、kill CLIも`cases`がexact native array・exact indices / lengthであることを必須にした。preflight CLIのexact-record / privacy boundaryもP2として修正し、Proxy、accessor、extra string / symbol key、nonplain prototypeをすべて拒否するregressionを固定した。これらのrepairとauthoritative local aggregateは確定済みである。
+post-fix再監査では、preflightのlock contention coverage欠落をP2として修正した。kill-drillのP2再監査は、partial capture / setup failureの`fixture_preserved`分類、anchor descriptorを全lifetime保持するというoverclaimをcanonical realpath + named `lstat`の実装範囲へ縮小する修正、global `/private/tmp` snapshotを他processと競合させないexact owned-prefix accounting、test seam failureからのinjected path非漏えいを確認した。integration P2ではexecution accountingの境界、non-atomic observation wording、package / Darwin CI source contractを固定し、kill CLIも`cases`がexact native array・exact indices / lengthであることを必須にした。preflight CLIのexact-record / privacy boundaryもP2として修正し、Proxy、accessor、extra string / symbol key、nonplain prototypeをすべて拒否するregressionを固定した。
 
-execution countは境界ごとに分ける。review済みpost-merge kill-drill CLIの実行は0である。一方、authoritative post-fix kill test fileの1 run内ではfixed zero-argument ownerを2回呼び、complete six-case drillを3回完了し、local successful caseは18だった。distinct failpoint/signal classは6のままで、production caseは0である。歴史的なpre-audit local case 6はこの18とは別に残し、24としてauthoritativeに合算しない。
+PR #471 final reviewでは、failure、timeout、malformed IPCの経路がchildのcloseを確認しないままkill後に終了できた独立P2を追加検出した。shared close observationを導入し、全失敗経路でterminate後にcloseまでawaitするよう修正した。4件のadversarial arm / probe regressionで、child PIDが`ESRCH`になること、実際の`registry.json`をfd 3で再lockできること、process treeが150ms安定してlate writeがないことを確認した。続くtest reviewでは、最初のlock assertionが`registry.json`自体ではなくregistry directoryを対象にしていたP2も見つけ、実ファイルを対象に修正した。これらを含むrepair後のresidual P0 / P1 / P2は0 / 0 / 0である。
+
+execution countは境界ごとに分ける。review済みpost-merge kill-drill CLIの実行は0である。一方、authoritative post-fix kill test fileの1 run内ではfixed zero-argument ownerを2回呼び、complete six-case drillを3回完了し、local successful caseは18だった。distinct failpoint/signal classは6のままで、production caseは0である。追加したfailure-path child-reap regressionは1 runあたり4件であり、complete drill、successful local case、production caseのいずれにも加算しない。歴史的なpre-audit local case 6はこの18とは別に残し、24としてauthoritativeに合算しない。
 
 ## 11. production countersとnonclaims
 
@@ -155,7 +159,7 @@ execution countは境界ごとに分ける。review済みpost-merge kill-drill C
 
 ## 12. 次のexactly-once工程
 
-独立監査のrepairとauthoritative post-fix local validationは完了した。次にこの未commit / 未push変更をcommit、ready PR、CI、review修正、通常mergeする。その後review済みHEADで次の順序を守る。
+PR #471はready / openである。今回のfinal review repairだけがlocalでcommit、push、re-CI待ちであり、PR全体を未commit / 未pushとは扱わない。このrepairを反映してCIとreviewを通し、通常mergeした後のreview済みHEADで次の順序を守る。
 
 1. fixed disposable kill-drillを一度実行し、sanitized success receiptを記録する。
 2. fresh production one-shot ownerが共通outer lockを取得する。

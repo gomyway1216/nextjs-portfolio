@@ -1,10 +1,15 @@
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS } from "../../../ml/floodgate-v7-production-connector-registry";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
+} from "../../../ml/floodgate-v7-production-connector-registry";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -29,6 +34,9 @@ const CHILD_PATH = path.resolve(
 );
 const darwinDescribe = describe.runIf(process.platform === "darwin");
 const temporaryParents: string[] = [];
+
+type AdversarialChildBehavior =
+  "arm-timeout" | "arm-malformed" | "probe-timeout" | "probe-unexpected";
 
 async function privateTemporaryParent(): Promise<string> {
   const root = await fs.promises.realpath(
@@ -64,6 +72,147 @@ function onePreservedFixture(temporaryParent: string): string {
     .filter((entry) => entry.startsWith("floodgate-v7-prefix100-kill-drill-"));
   expect(entries).toHaveLength(1);
   return path.join(temporaryParent, entries[0]);
+}
+
+async function adversarialChildModule(
+  temporaryParent: string,
+  behavior: AdversarialChildBehavior,
+): Promise<Readonly<{ childModulePath: string; pidLogPath: string }>> {
+  const childModulePath = path.join(
+    temporaryParent,
+    `adversarial-${behavior}.cjs`,
+  );
+  const pidLogPath = path.join(temporaryParent, `adversarial-${behavior}.pid`);
+  const source = `
+const fs = require("node:fs");
+const originalSend = process.send && process.send.bind(process);
+if (originalSend === undefined) throw new Error("test child IPC unavailable");
+const behavior = ${JSON.stringify(behavior)};
+const pidLogPath = ${JSON.stringify(pidLogPath)};
+process.send = function(message, callback) {
+  const target =
+    ((behavior === "arm-timeout" || behavior === "arm-malformed") && message && message.type === "armed") ||
+    ((behavior === "probe-timeout" || behavior === "probe-unexpected") && message && message.type === "outer-probe-pass");
+  if (!target) return originalSend(message, callback);
+  fs.appendFileSync(pidLogPath, String(process.pid) + "\\n", { mode: 0o600 });
+  if (behavior === "arm-timeout" || behavior === "probe-timeout") return true;
+  const replacement = behavior === "arm-malformed"
+    ? { protocol: message.protocol, type: "malformed" }
+    : { ...message, type: "stage-probe-pass" };
+  originalSend(replacement, () => undefined);
+  return true;
+};
+require(${JSON.stringify(CHILD_PATH)});
+`;
+  await fs.promises.writeFile(childModulePath, source, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  return Object.freeze({
+    childModulePath: await fs.promises.realpath(childModulePath),
+    pidLogPath,
+  });
+}
+
+function preservedRegistryRoot(fixture: string): string {
+  return path.join(
+    fixture,
+    "home",
+    ...FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
+  );
+}
+
+function preservedRegistryFile(fixture: string): string {
+  return path.join(
+    preservedRegistryRoot(fixture),
+    FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
+  );
+}
+
+function testLockStatus(fixture: string): number | null {
+  const descriptor = fs.openSync(
+    preservedRegistryFile(fixture),
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  try {
+    return spawnSync("/usr/bin/lockf", ["-s", "-t", "0", "3"], {
+      cwd: "/",
+      env: { NODE_ENV: "test" },
+      stdio: ["ignore", "ignore", "ignore", descriptor],
+    }).status;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+async function fixtureTreeSnapshot(root: string): Promise<string> {
+  const entries: Record<string, unknown>[] = [];
+  const visit = async (relative: string): Promise<void> => {
+    const candidate = relative === "" ? root : path.join(root, relative);
+    const stat = await fs.promises.lstat(candidate, { bigint: true });
+    if (stat.isSymbolicLink()) throw new Error("test fixture has a symlink");
+    const common = {
+      path: relative,
+      dev: stat.dev.toString(),
+      ino: stat.ino.toString(),
+      mode: Number(stat.mode & BigInt(0o7777)),
+      size: stat.size.toString(),
+    };
+    if (stat.isDirectory()) {
+      const children = (await fs.promises.readdir(candidate)).sort();
+      entries.push({ ...common, kind: "directory", children });
+      for (const child of children) {
+        await visit(relative === "" ? child : path.join(relative, child));
+      }
+      return;
+    }
+    const bytes = await fs.promises.readFile(candidate);
+    entries.push({
+      ...common,
+      kind: "file",
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+  };
+  await visit("");
+  return JSON.stringify(entries);
+}
+
+function expectProcessGone(pid: number): void {
+  let result: unknown;
+  try {
+    process.kill(pid, 0);
+    result = "still-running";
+  } catch (error) {
+    result = error;
+  }
+  expect(result).toMatchObject({ code: "ESRCH" });
+}
+
+async function expectReapedStableEvidence(
+  temporaryParent: string,
+  pidLogPath: string,
+): Promise<void> {
+  const pids = (await fs.promises.readFile(pidLogPath, "utf8"))
+    .trim()
+    .split("\n")
+    .map(Number);
+  expect(pids).toHaveLength(1);
+  expect(Number.isSafeInteger(pids[0])).toBe(true);
+  expectProcessGone(pids[0]);
+
+  const fixture = onePreservedFixture(temporaryParent);
+  const activePath = path.join(
+    preservedRegistryRoot(fixture),
+    FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
+    FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
+  );
+  expect((await fs.promises.lstat(activePath)).size).toBeGreaterThan(0);
+  expect(testLockStatus(fixture)).toBe(0);
+  const before = await fixtureTreeSnapshot(fixture);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  expect(await fixtureTreeSnapshot(fixture)).toBe(before);
+  expect(testLockStatus(fixture)).toBe(0);
+  expectProcessGone(pids[0]);
 }
 
 afterEach(async () => {
@@ -485,6 +634,78 @@ darwinDescribe(
       ).toBe(false);
       expect(JSON.stringify(failure)).not.toContain(temporaryParent);
     });
+
+    it.each([
+      {
+        behavior: "arm-timeout",
+        phase: "arm",
+        armTimeoutMilliseconds: 5_000,
+        probeTimeoutMilliseconds: 2_000,
+      },
+      {
+        behavior: "arm-malformed",
+        phase: "arm",
+        armTimeoutMilliseconds: 2_000,
+        probeTimeoutMilliseconds: 2_000,
+      },
+      {
+        behavior: "probe-timeout",
+        phase: "outer-probe",
+        armTimeoutMilliseconds: 2_000,
+        probeTimeoutMilliseconds: 5_000,
+      },
+      {
+        behavior: "probe-unexpected",
+        phase: "outer-probe",
+        armTimeoutMilliseconds: 2_000,
+        probeTimeoutMilliseconds: 2_000,
+      },
+    ] as const)(
+      "reaps the child and freezes evidence after $behavior IPC failure",
+      async ({
+        behavior,
+        phase,
+        armTimeoutMilliseconds,
+        probeTimeoutMilliseconds,
+      }) => {
+        const temporaryParent = await privateTemporaryParent();
+        const adversarial = await adversarialChildModule(
+          temporaryParent,
+          behavior,
+        );
+        const failure =
+          await runFloodgateV7ProductionPrefix100KillDrillCoreForTests(
+            testDependencies(temporaryParent, {
+              childModulePath: adversarial.childModulePath,
+              armTimeoutMilliseconds,
+              exitTimeoutMilliseconds: 2_000,
+              probeTimeoutMilliseconds,
+            }),
+          ).catch((error: unknown) => error);
+        expect(failure).toMatchObject({
+          phase,
+          point: "outer-active-durable",
+          signal: "SIGTERM",
+          fixture_preserved: true,
+          manual_reconciliation_required: true,
+          production_gate_invoked: false,
+          private_path_disclosed: false,
+          raw_failure_disclosed: false,
+        });
+        const projection = [
+          String(failure),
+          failure instanceof Error ? failure.stack : "",
+          JSON.stringify(failure),
+        ].join("\n");
+        expect(projection).not.toContain(temporaryParent);
+        expect(projection).not.toContain(adversarial.childModulePath);
+        await expectReapedStableEvidence(
+          temporaryParent,
+          adversarial.pidLogPath,
+        );
+      },
+      600_000,
+    );
 
     it.each(
       FLOODGATE_V7_PRODUCTION_PREFIX_100_KILL_DRILL_POINTS.map((point) => ({

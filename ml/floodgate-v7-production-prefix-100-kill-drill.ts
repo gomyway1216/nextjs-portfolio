@@ -322,6 +322,17 @@ interface ChildMessage {
   readonly failure_kind?: string;
 }
 
+interface ChildExitReceipt {
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+}
+
+interface ChildCloseObservation {
+  closed: boolean;
+  receipt: Readonly<ChildExitReceipt> | undefined;
+  readonly promise: Promise<Readonly<ChildExitReceipt>>;
+}
+
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_CHILD_PATH = path.join(
   path.dirname(SCRIPT_PATH),
@@ -331,6 +342,10 @@ const DEFAULT_CHILD_PATH = path.join(
 const REQUIRED_NODE_VERSION = "v22.13.0";
 const MARKER_BASENAME = ".floodgate-v7-prefix100-kill-drill-fixture";
 const MAX_CHILD_OUTPUT_BYTES = 64 * 1024;
+const childCloseObservations = new WeakMap<
+  ChildProcess,
+  ChildCloseObservation
+>();
 const INCOMPLETE_FIXTURE_TOP_LEVEL_ALLOWLIST = Object.freeze([
   MARKER_BASENAME,
   "child-tmp",
@@ -1016,18 +1031,56 @@ function spawnChild(
   );
   let stdout = 0;
   let stderr = 0;
-  child.stdout?.on("data", (chunk: Buffer) => {
+  const onStdout = (chunk: Buffer): void => {
     stdout += chunk.byteLength;
     if (stdout > MAX_CHILD_OUTPUT_BYTES) child.kill("SIGKILL");
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
+  };
+  const onStderr = (chunk: Buffer): void => {
     stderr += chunk.byteLength;
     if (stderr > MAX_CHILD_OUTPUT_BYTES) child.kill("SIGKILL");
+  };
+  child.stdout?.on("data", onStdout);
+  child.stderr?.on("data", onStderr);
+  registerChildCloseObservation(child, () => {
+    child.stdout?.removeListener("data", onStdout);
+    child.stderr?.removeListener("data", onStderr);
   });
   return frozenRecord({
     child,
     output: () => frozenRecord({ stdout, stderr }),
   });
+}
+
+function registerChildCloseObservation(
+  child: ChildProcess,
+  cleanup: () => void,
+): void {
+  let resolveClose!: (receipt: Readonly<ChildExitReceipt>) => void;
+  const observation: ChildCloseObservation = {
+    closed: false,
+    receipt: undefined,
+    promise: new Promise((resolve) => {
+      resolveClose = resolve;
+    }),
+  };
+  const onError = (): void => {
+    // A spawn/IPC error is consumed by the active operation. The close event
+    // remains the authoritative proof that no child process is left running.
+  };
+  const onClose = (
+    code: number | null,
+    signal: NodeJS.Signals | null,
+  ): void => {
+    child.removeListener("error", onError);
+    cleanup();
+    const receipt = frozenRecord({ code, signal });
+    observation.closed = true;
+    observation.receipt = receipt;
+    resolveClose(receipt);
+  };
+  child.on("error", onError);
+  child.once("close", onClose);
+  childCloseObservations.set(child, observation);
 }
 
 function waitForMessage(
@@ -1080,34 +1133,83 @@ function waitForExit(
   child: ChildProcess,
   timeoutMilliseconds: number,
 ): Promise<Readonly<{ code: number | null; signal: NodeJS.Signals | null }>> {
+  const observation = childCloseObservations.get(child);
+  if (observation === undefined) {
+    return Promise.reject(new Error("kill drill child was not observed"));
+  }
+  if (observation.closed && observation.receipt !== undefined) {
+    return Promise.resolve(observation.receipt);
+  }
   return new Promise((resolve, reject) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve(frozenRecord({ code: child.exitCode, signal: child.signalCode }));
-      return;
-    }
+    let settled = false;
     const timer = setTimeout(() => {
-      cleanup();
-      child.kill("SIGKILL");
+      if (settled) return;
+      settled = true;
       reject(new Error("kill drill child exit timed out"));
     }, timeoutMilliseconds);
-    const onExit = (
-      code: number | null,
-      signal: NodeJS.Signals | null,
-    ): void => {
-      cleanup();
-      resolve(frozenRecord({ code, signal }));
-    };
-    const onError = (): void => {
-      cleanup();
-      reject(new Error("kill drill child exit failed"));
-    };
-    const cleanup = (): void => {
+    void observation.promise.then((receipt) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      child.removeListener("exit", onExit);
-      child.removeListener("error", onError);
-    };
-    child.once("exit", onExit);
-    child.once("error", onError);
+      resolve(receipt);
+    });
+  });
+}
+
+async function terminateAndConfirmExit(
+  child: ChildProcess,
+  timeoutMilliseconds: number,
+): Promise<Readonly<ChildExitReceipt>> {
+  const observation = childCloseObservations.get(child);
+  if (observation === undefined) {
+    throw new Error("kill drill child termination observation differs");
+  }
+  if (observation.closed && observation.receipt !== undefined) {
+    return observation.receipt;
+  }
+  let lastFailure: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      child.kill("SIGKILL");
+    } catch (error) {
+      lastFailure = error;
+    }
+    try {
+      return await waitForExit(child, timeoutMilliseconds);
+    } catch (error) {
+      lastFailure = error;
+    }
+  }
+  void lastFailure;
+  throw new Error("kill drill child termination was not confirmed");
+}
+
+async function terminateAndRethrow(
+  child: ChildProcess,
+  timeoutMilliseconds: number,
+  originalFailure: unknown,
+): Promise<never> {
+  try {
+    await terminateAndConfirmExit(child, timeoutMilliseconds);
+  } catch {
+    throw new Error("kill drill child cleanup was not confirmed");
+  }
+  throw originalFailure;
+}
+
+function sendChildConfig(
+  child: ChildProcess,
+  config: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (child.send === undefined || !child.connected) {
+      reject(new Error("kill drill child IPC is unavailable"));
+      return;
+    }
+    child.send(config, (error) => {
+      if (error === null) resolve();
+      else reject(new Error("kill drill child IPC send failed"));
+    });
   });
 }
 
@@ -1131,13 +1233,18 @@ async function startAndReceive(
   }
   const running = spawnChild(dependencies, temporaryDirectory);
   const messagePromise = waitForMessage(running.child, timeoutMilliseconds);
-  running.child.send?.(config);
   try {
-    const message = await messagePromise;
+    const [message] = await Promise.all([
+      messagePromise,
+      sendChildConfig(running.child, config),
+    ]);
     return frozenRecord({ ...running, message });
   } catch (error) {
-    running.child.kill("SIGKILL");
-    throw error;
+    return terminateAndRethrow(
+      running.child,
+      dependencies.exitTimeoutMilliseconds,
+      error,
+    );
   }
 }
 
@@ -1189,27 +1296,34 @@ async function runProbe(
     dependencies.probeTimeoutMilliseconds,
     fixture.childTemporaryDirectory,
   );
-  if (
-    running.message.type !== expectedType ||
-    running.message.case_id !== caseId
-  ) {
-    running.child.kill("SIGKILL");
-    throw new Error(
-      `kill drill probe receipt differs: ${running.message.type}:${running.message.failure_kind ?? "none"}`,
+  try {
+    if (
+      running.message.type !== expectedType ||
+      running.message.case_id !== caseId
+    ) {
+      throw new Error(
+        `kill drill probe receipt differs: ${running.message.type}:${running.message.failure_kind ?? "none"}`,
+      );
+    }
+    const exit = await waitForExit(
+      running.child,
+      dependencies.exitTimeoutMilliseconds,
     );
-  }
-  const exit = await waitForExit(
-    running.child,
-    dependencies.exitTimeoutMilliseconds,
-  );
-  const output = running.output();
-  if (
-    exit.code !== 0 ||
-    exit.signal !== null ||
-    output.stdout !== 0 ||
-    output.stderr !== 0
-  ) {
-    throw new Error("kill drill probe process differed");
+    const output = running.output();
+    if (
+      exit.code !== 0 ||
+      exit.signal !== null ||
+      output.stdout !== 0 ||
+      output.stderr !== 0
+    ) {
+      throw new Error("kill drill probe process differed");
+    }
+  } catch (error) {
+    return terminateAndRethrow(
+      running.child,
+      dependencies.exitTimeoutMilliseconds,
+      error,
+    );
   }
 }
 
@@ -1414,15 +1528,20 @@ async function runCase(
       true,
     );
   } finally {
-    if (
-      child !== undefined &&
-      child.exitCode === null &&
-      child.signalCode === null
-    ) {
-      child.kill("SIGKILL");
-      await waitForExit(child, dependencies.exitTimeoutMilliseconds).catch(
-        () => undefined,
-      );
+    if (child !== undefined) {
+      try {
+        await terminateAndConfirmExit(
+          child,
+          dependencies.exitTimeoutMilliseconds,
+        );
+      } catch {
+        throw new FloodgateV7ProductionPrefix100KillDrillManualReconciliationError(
+          phase,
+          point,
+          signal,
+          true,
+        );
+      }
     }
     if (evidenceComplete) {
       try {

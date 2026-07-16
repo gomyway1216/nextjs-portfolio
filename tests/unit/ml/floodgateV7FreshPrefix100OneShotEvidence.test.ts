@@ -211,6 +211,16 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     expect(english).toContain("named-`lstat`");
     expect(japanese).toContain("local successful caseは18");
     expect(english).toContain("18 local cases succeeded");
+    expect(japanese).toContain("153 / 153 PASS");
+    expect(english).toContain("passed 153 / 153");
+    expect(japanese).toContain("2,680 / 2,680 PASS");
+    expect(english).toContain("passed 2,680 / 2,680");
+    expect(japanese).toContain("1 runあたり4件");
+    expect(english).toContain(
+      "four added failure-path child-reap regressions per run",
+    );
+    expect(japanese).toContain("PR #471はready / open");
+    expect(english).toContain("PR #471 is ready and open");
   });
 
   it("pins the package and Darwin CI source contract without invoking a production package command", () => {
@@ -306,6 +316,16 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       receipt_reuse_authorizes_later_gate: false,
       production_preflight_command_executed_for_this_evidence: false,
     });
+    expect(evidence.implementation.delivery_state).toBe(
+      "pull-request-471-ready-open-review-repair-local-awaiting-commit-push-and-re-ci",
+    );
+    expect(evidence.implementation.pull_request_delivery).toEqual({
+      pull_request: 471,
+      url: "https://github.com/gomyway1216/nextjs-portfolio/pull/471",
+      state: "ready-open",
+      review_repair_state: "local-awaiting-commit-push-and-re-ci",
+      whole_change_uncommitted_or_unpushed: false,
+    });
     expect(evidence.implementation.disposable_kill_drill).toMatchObject({
       failpoints: [
         "outer-active-durable",
@@ -387,7 +407,7 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     });
     expect(
       evidence.implementation.independent_audit.post_fix_reaudit_history,
-    ).toMatchObject({
+    ).toEqual({
       preflight_lock_contention_coverage: {
         severity: "P2",
         fixed: true,
@@ -424,7 +444,30 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
         nonplain_prototype_rejected: true,
       },
       kill_cli_cases_array_exactness: { severity: "P2", fixed: true },
-      authoritative_final_aggregate_values: "recorded-as-local-validation",
+      kill_failure_timeout_or_malformed_ipc_child_reap_and_close_confirmation: {
+        severity: "P2",
+        found: true,
+        fixed: true,
+        regression_covered: true,
+        shared_close_observation: true,
+        terminate_and_await_on_every_failure_path: true,
+        adversarial_arm_probe_regressions: 4,
+        child_pid_esrch_confirmed: true,
+        registry_json_fd3_lock_reacquisition_confirmed: true,
+        stable_process_tree_observation_milliseconds: 150,
+        no_late_writes_observed: true,
+        production_cases: 0,
+      },
+      kill_initial_lock_assertion_targets_actual_registry_json: {
+        severity: "P2",
+        found_in_follow_up_test_review: true,
+        fixed: true,
+        regression_covered: true,
+        previous_registry_directory_targeted: true,
+        actual_registry_json_targeted: true,
+      },
+      authoritative_final_aggregate_values:
+        "recorded-after-pr-471-final-review-repair",
     });
     expect(evidence.implementation.package_and_ci).toMatchObject({
       package_source_contract_rechecked: true,
@@ -481,17 +524,50 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       used_as_authoritative_final_local_evidence: true,
       production_execution_evidence: false,
     });
+    expect(evidence.validation.post_fix_pre_review_candidate).toEqual({
+      status: "pass",
+      node_version: "v22.13.0",
+      focused: {
+        files: 8,
+        tests: 149,
+        passed: 149,
+        failed: 0,
+        vitest_duration_seconds: 55.84,
+        wall_time_seconds: 56.19,
+        maximum_resident_set_bytes: 413237248,
+        swaps: 0,
+      },
+      full: {
+        files: 143,
+        tests: 2676,
+        passed: 2676,
+        failed: 0,
+        vitest_duration_seconds: 148.28,
+        wall_time_seconds: 148.68,
+        maximum_resident_set_bytes: 4373479424,
+        swaps: 0,
+      },
+      production_build: {
+        static_pages_generated: 193,
+        static_pages_expected: 193,
+        wall_time_seconds: 24.43,
+        maximum_resident_set_bytes: 2590097408,
+        swaps: 0,
+      },
+      used_as_final_evidence: false,
+      reason_not_final: "superseded-by-pr-471-final-review-repair",
+    });
     expect(evidence.validation.focused_current_tree).toEqual({
       status: "pass",
       tree_classification: "authoritative-final-stable-substantive-local-tree",
       node_version: "v22.13.0",
       files: 8,
-      tests: 149,
-      passed: 149,
+      tests: 153,
+      passed: 153,
       failed: 0,
-      vitest_duration_seconds: 55.84,
-      wall_time_seconds: 56.19,
-      maximum_resident_set_bytes: 413237248,
+      vitest_duration_seconds: 69.36,
+      wall_time_seconds: 69.71,
+      maximum_resident_set_bytes: 419643392,
       swaps: 0,
       used_as_authoritative_final_local_evidence: true,
     });
@@ -499,12 +575,12 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
       status: "pass",
       node_version: "v22.13.0",
       files: 143,
-      tests: 2676,
-      passed: 2676,
+      tests: 2680,
+      passed: 2680,
       failed: 0,
-      vitest_duration_seconds: 148.28,
-      wall_time_seconds: 148.68,
-      maximum_resident_set_bytes: 4373479424,
+      vitest_duration_seconds: 156.65,
+      wall_time_seconds: 157.07,
+      maximum_resident_set_bytes: 4374691840,
       swaps: 0,
       used_as_authoritative_final_local_evidence: true,
     });
@@ -520,6 +596,8 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
         complete_six_case_drills: 3,
         successful_local_cases: 18,
         distinct_failpoint_signal_classes: 6,
+        failure_path_child_reap_regressions_per_post_fix_test_file_run: 4,
+        failure_path_child_reap_regressions_are_production_cases: false,
         production_cases: 0,
         used_as_authoritative_final_aggregate: true,
       },
@@ -537,6 +615,8 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
         complete_six_case_drills: 3,
         successful_local_cases: 18,
         distinct_failpoint_signal_classes: 6,
+        failure_path_child_reap_regressions_per_post_fix_test_file_run: 4,
+        failure_path_child_reap_regressions_are_production_cases: false,
         production_cases: 0,
       },
     });
@@ -558,8 +638,8 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
         status: "pass",
         static_pages_generated: 193,
         static_pages_expected: 193,
-        wall_time_seconds: 24.43,
-        maximum_resident_set_bytes: 2590097408,
+        wall_time_seconds: 26.11,
+        maximum_resident_set_bytes: 2619424768,
         swaps: 0,
       },
       used_as_authoritative_final_local_evidence: true,

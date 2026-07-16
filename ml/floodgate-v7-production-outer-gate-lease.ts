@@ -1,6 +1,7 @@
 /**
- * Process-lifetime exclusion and authenticated crash evidence for all three
- * fixed Floodgate v7 production connector gates.
+ * Process-lifetime exclusion and authenticated crash evidence for all four
+ * fixed Floodgate v7 production mutation purposes: the three checkpoint
+ * connector gates and training-label finalization.
  *
  * The immutable private registry descriptor is the lock anchor. The absolute
  * macOS lockf utility applies a nonblocking BSD flock to that inherited open
@@ -9,7 +10,8 @@
  * A crash can leave the authenticated lease record behind, but never makes it
  * reusable. Ordinary runners only inspect and stop. A separate explicit
  * confirmation capability must freshly re-inspect the exact source before a
- * no-clobber quarantine move, and any quarantine entry blocks every gate.
+ * no-clobber quarantine move, and any quarantine entry blocks every mutation
+ * purpose.
  */
 
 import { Buffer } from "node:buffer";
@@ -41,11 +43,11 @@ import {
 } from "./floodgate-v7-production-connector-registry";
 
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT =
-  "shogi-floodgate-v7-production-outer-gate-lease-v1" as const;
+  "shogi-floodgate-v7-production-outer-gate-lease-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS =
-  "all-fixed-gates-serialized-by-os-lifetime-lock-and-authenticated-durable-lease" as const;
+  "all-four-fixed-mutation-purposes-serialized-by-os-lifetime-lock-and-authenticated-purpose-bound-durable-lease" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM =
-  "macos-lockf-inherited-registry-open-file-description-hkdf-sha256-canonical-hmac-sha256-v1" as const;
+  "macos-lockf-inherited-registry-open-file-description-hkdf-sha256-purpose-bound-canonical-hmac-sha256-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-home-native-descriptor-close" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY =
@@ -55,7 +57,7 @@ export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_SALT =
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_INFO =
   "shogi-floodgate-v7-production-outer-gate-lease-key-v1\0" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN =
-  "shogi-floodgate-v7-production-outer-gate-lease-record-v1\0" as const;
+  "shogi-floodgate-v7-production-outer-gate-lease-purpose-record-v2\0" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME =
   "outer-gate-control-v1" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME =
@@ -67,12 +69,18 @@ export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_RETIRED_BASENAME =
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_MANUAL_CONFIRMATION =
   "QUARANTINE AUTHENTICATED STALE FLOODGATE V7 OUTER GATE LEASE" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_INSPECTION_CONTRACT =
-  "shogi-floodgate-v7-production-outer-gate-stale-inspection-v1" as const;
+  "shogi-floodgate-v7-production-outer-gate-stale-inspection-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_CONTRACT =
-  "shogi-floodgate-v7-production-outer-gate-explicit-quarantine-v1" as const;
+  "shogi-floodgate-v7-production-outer-gate-explicit-quarantine-v2" as const;
 
 export type FloodgateV7ProductionOuterGate =
-  "durable-prefix-100" | "durable-prefix-500" | "sealed-final-24000";
+  | "durable-prefix-100"
+  | "durable-prefix-500"
+  | "sealed-final-24000";
+
+export type FloodgateV7ProductionOuterGateMutationPurpose =
+  | FloodgateV7ProductionOuterGate
+  | "training-label-finalization-24000";
 
 export type FloodgateV7ProductionOuterGateLeasePhase =
   | "capture"
@@ -105,19 +113,20 @@ export interface FloodgateV7ProductionOuterGateLeaseReceipt {
   readonly execution_boundary:
     | typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
     | typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY;
+  readonly mutation_purpose: FloodgateV7ProductionOuterGateMutationPurpose;
   readonly verification: Readonly<{
-    readonly one_os_lifetime_lock_shared_by_all_three_gates: true;
+    readonly one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true;
     readonly os_lifetime_lock_held_before_operation: true;
-    readonly authenticated_lease_metadata_durable_before_operation: true;
+    readonly authenticated_purpose_bound_lease_metadata_durable_before_operation: true;
     readonly signal_and_exit_preserve_stale_evidence: true;
     readonly authenticated_lease_removed_durably_after_operation: true;
-    readonly authenticated_retired_evidence_durable_after_operation: true;
+    readonly authenticated_purpose_bound_retired_evidence_durable_after_operation: true;
     readonly os_lifetime_lock_released_after_operation: true;
     readonly quarantine_empty_after_operation: true;
   }>;
   readonly nonclaims: Readonly<{
     readonly lock_or_lease_path_disclosed: false;
-    readonly lease_metadata_disclosed: false;
+    readonly private_lease_metadata_disclosed: false;
     readonly key_material_disclosed: false;
     readonly key_instance_id_disclosed: false;
     readonly lease_mac_disclosed: false;
@@ -141,6 +150,11 @@ export interface FloodgateV7ProductionOuterGateLeaseOperationResult<T> {
 export interface FloodgateV7ProductionOuterGateConnectorCapability {
   readonly contract: "shogi-floodgate-v7-production-outer-gate-connector-capability-v1";
   readonly status: "opaque-single-use-valid-only-while-common-os-lock-is-held";
+}
+
+export interface FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability {
+  readonly contract: "shogi-floodgate-v7-production-outer-gate-training-label-finalization-capability-v1";
+  readonly status: "opaque-single-use-valid-only-while-common-os-lock-and-purpose-bound-lease-are-held";
 }
 
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_OUTER_LOCK_CONTRACT =
@@ -218,6 +232,7 @@ export interface FloodgateV7ProductionOuterGateStaleInspectionResult {
   readonly receipt: Readonly<{
     readonly contract: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_INSPECTION_CONTRACT;
     readonly status: "authenticated-stale-source-held-for-explicit-confirmation";
+    readonly mutation_purpose: FloodgateV7ProductionOuterGateMutationPurpose;
     readonly verification: Readonly<{
       readonly os_lifetime_lock_held: true;
       readonly exact_stale_source_descriptor_inspected: true;
@@ -230,7 +245,7 @@ export interface FloodgateV7ProductionOuterGateStaleInspectionResult {
       readonly quarantine_performed: false;
       readonly stale_source_removed: false;
       readonly quarantine_acknowledged_or_deleted: false;
-      readonly path_or_metadata_disclosed: false;
+      readonly path_or_private_metadata_disclosed: false;
       readonly key_material_or_mac_disclosed: false;
     }>;
   }>;
@@ -238,7 +253,7 @@ export interface FloodgateV7ProductionOuterGateStaleInspectionResult {
 
 export interface FloodgateV7ProductionOuterGateQuarantineReceipt {
   readonly contract: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_CONTRACT;
-  readonly status: "explicitly-confirmed-exact-stale-source-quarantined-and-all-gates-blocked";
+  readonly status: "explicitly-confirmed-exact-stale-source-quarantined-and-all-four-mutation-purposes-blocked";
   readonly verification: Readonly<{
     readonly explicit_confirmation_matched: true;
     readonly os_lifetime_lock_remained_held: true;
@@ -247,7 +262,7 @@ export interface FloodgateV7ProductionOuterGateQuarantineReceipt {
     readonly registry_binding_rematched: true;
     readonly create_only_quarantine_published_durably: true;
     readonly stale_source_removal_durable: true;
-    readonly quarantine_blocks_all_three_gates: true;
+    readonly quarantine_blocks_all_four_mutation_purposes: true;
   }>;
   readonly nonclaims: Readonly<{
     readonly quarantine_acknowledged_or_deleted: false;
@@ -359,30 +374,50 @@ interface CapturedPrefix100PreflightOuterLockDependencies {
   readonly closeLockDescriptor: (descriptor: number) => void;
 }
 
-interface LeaseRecordWithoutMac {
-  readonly contract: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT;
+interface LeaseOwnerRecord {
+  readonly uid: number;
+  readonly pid: number;
+  readonly hostname: string;
+  readonly started_at_utc: string;
+  readonly nonce: string;
+}
+
+interface LeaseRegistryBindingRecord {
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly dev: string;
+  readonly ino: string;
+}
+
+interface LeaseRecordV1WithoutMac {
+  readonly contract: "shogi-floodgate-v7-production-outer-gate-lease-v1";
   readonly status: "active-authenticated-production-gate-lease";
   readonly algorithm: "hkdf-sha256-canonical-hmac-sha256-v1";
   readonly gate: FloodgateV7ProductionOuterGate;
-  readonly owner: Readonly<{
-    readonly uid: number;
-    readonly pid: number;
-    readonly hostname: string;
-    readonly started_at_utc: string;
-    readonly nonce: string;
-  }>;
+  readonly owner: Readonly<LeaseOwnerRecord>;
   readonly key_instance_id: string;
-  readonly registry_binding: Readonly<{
-    readonly bytes: number;
-    readonly sha256: string;
-    readonly dev: string;
-    readonly ino: string;
-  }>;
+  readonly registry_binding: Readonly<LeaseRegistryBindingRecord>;
 }
 
-interface LeaseRecord extends LeaseRecordWithoutMac {
+interface LeaseRecordV1 extends LeaseRecordV1WithoutMac {
   readonly mac: string;
 }
+
+interface LeaseRecordV2WithoutMac {
+  readonly contract: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT;
+  readonly status: "active-authenticated-production-mutation-purpose-lease";
+  readonly algorithm: "hkdf-sha256-purpose-bound-canonical-hmac-sha256-v2";
+  readonly purpose: FloodgateV7ProductionOuterGateMutationPurpose;
+  readonly owner: Readonly<LeaseOwnerRecord>;
+  readonly key_instance_id: string;
+  readonly registry_binding: Readonly<LeaseRegistryBindingRecord>;
+}
+
+interface LeaseRecordV2 extends LeaseRecordV2WithoutMac {
+  readonly mac: string;
+}
+
+type LeaseRecord = LeaseRecordV1 | LeaseRecordV2;
 
 interface LeasePaths {
   readonly registryRoot: string;
@@ -417,6 +452,7 @@ interface ManualInspectionState {
   readonly active: ActiveLease;
   readonly leaseKey: Buffer;
   readonly keyInstanceId: string;
+  readonly mutationPurpose: FloodgateV7ProductionOuterGateMutationPurpose;
   readonly effectiveUserId: number;
   readonly nonce: () => Uint8Array;
   readonly removeLifecycleHandlers: (() => void) | null;
@@ -462,6 +498,10 @@ const modeMask = 0o7777;
 const privateDirectoryMode = 0o700;
 const privateFileMode = 0o600;
 const MAX_LEASE_BYTES = 16 * 1024;
+const LEGACY_V1_LEASE_CONTRACT =
+  "shogi-floodgate-v7-production-outer-gate-lease-v1" as const;
+const LEGACY_V1_LEASE_HMAC_DOMAIN =
+  "shogi-floodgate-v7-production-outer-gate-lease-record-v1\0" as const;
 const HEX_64_RE = /^[0-9a-f]{64}$/;
 const HOSTNAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -483,11 +523,21 @@ const OUTER_GATE_DEPENDENCY_KEYS = objectFreeze([
   "closeLockDescriptorForTests",
   "rereadRootKeyAfterPrefix100PreflightForTests",
 ] as const);
-const LEASE_RECORD_KEYS = objectFreeze([
+const LEASE_RECORD_V1_KEYS = objectFreeze([
   "contract",
   "status",
   "algorithm",
   "gate",
+  "owner",
+  "key_instance_id",
+  "registry_binding",
+  "mac",
+] as const);
+const LEASE_RECORD_V2_KEYS = objectFreeze([
+  "contract",
+  "status",
+  "algorithm",
+  "purpose",
   "owner",
   "key_instance_id",
   "registry_binding",
@@ -519,6 +569,14 @@ const testConnectorCapabilities = new WeakMap<
   object,
   FloodgateV7ProductionOuterGate
 >();
+const productionTrainingLabelFinalizationCapabilities = new WeakMap<
+  object,
+  "training-label-finalization-24000"
+>();
+const testTrainingLabelFinalizationCapabilities = new WeakMap<
+  object,
+  "training-label-finalization-24000"
+>();
 const productionPrefix100PreflightCapabilities = new WeakMap<
   object,
   Readonly<FloodgateV7ProductionPrefix100PreflightOuterLockAnchor>
@@ -529,7 +587,9 @@ const testPrefix100PreflightCapabilities = new WeakMap<
 >();
 
 type ConnectorCapabilityBoundary =
-  "production" | "test-fixed-owner" | "test-generic";
+  | "production"
+  | "test-fixed-owner"
+  | "test-generic";
 
 type LeaseExecutionPolicy =
   | Readonly<{ readonly kind: "ordinary-fixed-gate" }>
@@ -545,6 +605,7 @@ type FixedRunnerExportName =
   | "runFloodgateV7ProductionConnectorFinal24000UnderOuterGate";
 
 type FixedRunnerModuleLoader = () => unknown;
+type TrainingLabelFinalizationOwnerModuleLoader = () => unknown;
 
 type Prefix100PreflightCapabilityBoundary = "production" | "test-only";
 type Prefix100PreflightModuleLoader = () => unknown;
@@ -606,6 +667,72 @@ export function claimFloodgateV7ProductionOuterGateConnectorCapabilityCoreForTes
     capability,
     testConnectorCapabilities,
   );
+}
+
+function claimTrainingLabelFinalizationCapabilityFromRegistry(
+  capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
+  registry: WeakMap<object, "training-label-finalization-24000">,
+): "training-label-finalization-24000" {
+  if (
+    capability === null ||
+    typeof capability !== "object" ||
+    nodeIsProxy(capability) ||
+    registry.get(capability) !== "training-label-finalization-24000"
+  ) {
+    throw new NativeError(
+      "outer gate training-label finalization capability differs",
+    );
+  }
+  registry.delete(capability);
+  return "training-label-finalization-24000";
+}
+
+/** Consumed only by the fixed production training-label owner. */
+export function claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability(
+  capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
+): "training-label-finalization-24000" {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "outer gate training-label finalization capability differs",
+    );
+  }
+  return claimTrainingLabelFinalizationCapabilityFromRegistry(
+    capability,
+    productionTrainingLabelFinalizationCapabilities,
+  );
+}
+
+/** Test-only mirror isolated from the production capability registry. */
+export function claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapabilityCoreForTests(
+  capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
+): "training-label-finalization-24000" {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "outer gate training-label finalization capability differs",
+    );
+  }
+  return claimTrainingLabelFinalizationCapabilityFromRegistry(
+    capability,
+    testTrainingLabelFinalizationCapabilities,
+  );
+}
+
+function mintConnectorCapability(): Readonly<FloodgateV7ProductionOuterGateConnectorCapability> {
+  return frozenRecord({
+    contract:
+      "shogi-floodgate-v7-production-outer-gate-connector-capability-v1" as const,
+    status:
+      "opaque-single-use-valid-only-while-common-os-lock-is-held" as const,
+  });
+}
+
+function mintTrainingLabelFinalizationCapability(): Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability> {
+  return frozenRecord({
+    contract:
+      "shogi-floodgate-v7-production-outer-gate-training-label-finalization-capability-v1" as const,
+    status:
+      "opaque-single-use-valid-only-while-common-os-lock-and-purpose-bound-lease-are-held" as const,
+  });
 }
 
 function claimPrefix100PreflightCapabilityFromRegistry(
@@ -1257,17 +1384,26 @@ function deriveKeyInstanceId(rootKey: Buffer): string {
   }
 }
 
-function unsignedBytes(record: LeaseRecordWithoutMac): Buffer {
+function unsignedBytes(
+  record: LeaseRecordV1WithoutMac | LeaseRecordV2WithoutMac,
+): Buffer {
   return bufferFrom(`${jsonStringify(record)}\n`, "utf8");
 }
 
-function signedBytes(record: LeaseRecordWithoutMac, leaseKey: Buffer): Buffer {
+function signedBytes(
+  record: LeaseRecordV2WithoutMac,
+  leaseKey: Buffer,
+): Buffer {
   const unsigned = unsignedBytes(record);
-  const mac = createHmac("sha256", leaseKey)
-    .update(FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN, "utf8")
-    .update(unsigned)
-    .digest("hex");
-  return bufferFrom(`${jsonStringify({ ...record, mac })}\n`, "utf8");
+  try {
+    const mac = createHmac("sha256", leaseKey)
+      .update(FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN, "utf8")
+      .update(unsigned)
+      .digest("hex");
+    return bufferFrom(`${jsonStringify({ ...record, mac })}\n`, "utf8");
+  } finally {
+    zero(unsigned);
+  }
 }
 
 function hasExactOrderedKeys(
@@ -1290,8 +1426,16 @@ function hasExactOrderedKeys(
   return true;
 }
 
-function hasExactLeaseShape(value: unknown): value is LeaseRecord {
-  if (!hasExactOrderedKeys(value, LEASE_RECORD_KEYS)) return false;
+function hasExactLeaseV1Shape(value: unknown): value is LeaseRecordV1 {
+  if (!hasExactOrderedKeys(value, LEASE_RECORD_V1_KEYS)) return false;
+  return (
+    hasExactOrderedKeys(value.owner, LEASE_OWNER_KEYS) &&
+    hasExactOrderedKeys(value.registry_binding, LEASE_REGISTRY_BINDING_KEYS)
+  );
+}
+
+function hasExactLeaseV2Shape(value: unknown): value is LeaseRecordV2 {
+  if (!hasExactOrderedKeys(value, LEASE_RECORD_V2_KEYS)) return false;
   return (
     hasExactOrderedKeys(value.owner, LEASE_OWNER_KEYS) &&
     hasExactOrderedKeys(value.registry_binding, LEASE_REGISTRY_BINDING_KEYS)
@@ -1299,11 +1443,11 @@ function hasExactLeaseShape(value: unknown): value is LeaseRecord {
 }
 
 function createRecord(
-  gate: FloodgateV7ProductionOuterGate,
+  purpose: FloodgateV7ProductionOuterGateMutationPurpose,
   dependencies: CapturedDependencies,
   keyInstanceId: string,
   registry: LockHelper["registry"],
-): LeaseRecordWithoutMac {
+): LeaseRecordV2WithoutMac {
   const date = dependencies.now();
   const startedAt = date instanceof Date ? date.toISOString() : "";
   const nonceBytes = dependencies.nonce();
@@ -1318,9 +1462,9 @@ function createRecord(
   try {
     return frozenRecord({
       contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
-      status: "active-authenticated-production-gate-lease" as const,
-      algorithm: "hkdf-sha256-canonical-hmac-sha256-v1" as const,
-      gate,
+      status: "active-authenticated-production-mutation-purpose-lease" as const,
+      algorithm: "hkdf-sha256-purpose-bound-canonical-hmac-sha256-v2" as const,
+      purpose,
       owner: frozenRecord({
         uid: dependencies.effectiveUserId,
         pid: dependencies.pid,
@@ -1374,14 +1518,31 @@ function authenticateLease(bytes: Buffer, leaseKey: Buffer): boolean {
   try {
     const text = bytes.toString("utf8");
     const parsed: unknown = jsonParse(text);
-    if (!hasExactLeaseShape(parsed) || !HEX_64_RE.test(parsed.mac)) {
+    const version =
+      hasExactLeaseV2Shape(parsed) &&
+      parsed.contract === FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT
+        ? (2 as const)
+        : hasExactLeaseV1Shape(parsed) &&
+            parsed.contract === LEGACY_V1_LEASE_CONTRACT
+          ? (1 as const)
+          : null;
+    if (version === null) {
       return false;
     }
-    const { mac, ...unsigned } = parsed;
+    const record = parsed as LeaseRecord;
+    if (!HEX_64_RE.test(record.mac)) return false;
+    const { mac, ...unsigned } = record;
     if (typeof mac !== "string") return false;
-    const canonicalUnsigned = unsignedBytes(unsigned as LeaseRecordWithoutMac);
+    const canonicalUnsigned = unsignedBytes(
+      unsigned as LeaseRecordV1WithoutMac | LeaseRecordV2WithoutMac,
+    );
     const expected = createHmac("sha256", leaseKey)
-      .update(FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN, "utf8")
+      .update(
+        version === 2
+          ? FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN
+          : LEGACY_V1_LEASE_HMAC_DOMAIN,
+        "utf8",
+      )
       .update(canonicalUnsigned)
       .digest();
     const actual = bufferFrom(mac, "hex");
@@ -1403,24 +1564,40 @@ function authenticateLease(bytes: Buffer, leaseKey: Buffer): boolean {
   }
 }
 
-function authenticatedLeaseBindsCurrentRegistry(
+function authenticatedLeasePurposeForCurrentRegistry(
   bytes: Buffer,
   leaseKey: Buffer,
   keyInstanceId: string,
   registry: LockHelper["registry"],
-): boolean {
-  if (!authenticateLease(bytes, leaseKey)) return false;
+): FloodgateV7ProductionOuterGateMutationPurpose | null {
+  if (!authenticateLease(bytes, leaseKey)) return null;
   try {
     const parsed = jsonParse(bytes.toString("utf8")) as LeaseRecord;
     const owner = parsed.owner;
     const binding = parsed.registry_binding;
-    return (
+    const purpose: FloodgateV7ProductionOuterGateMutationPurpose | null =
+      hasExactLeaseV2Shape(parsed) &&
       parsed.contract === FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT &&
-      parsed.status === "active-authenticated-production-gate-lease" &&
-      parsed.algorithm === "hkdf-sha256-canonical-hmac-sha256-v1" &&
-      (parsed.gate === "durable-prefix-100" ||
-        parsed.gate === "durable-prefix-500" ||
-        parsed.gate === "sealed-final-24000") &&
+      parsed.status ===
+        "active-authenticated-production-mutation-purpose-lease" &&
+      parsed.algorithm ===
+        "hkdf-sha256-purpose-bound-canonical-hmac-sha256-v2" &&
+      (parsed.purpose === "durable-prefix-100" ||
+        parsed.purpose === "durable-prefix-500" ||
+        parsed.purpose === "sealed-final-24000" ||
+        parsed.purpose === "training-label-finalization-24000")
+        ? parsed.purpose
+        : hasExactLeaseV1Shape(parsed) &&
+            parsed.contract === LEGACY_V1_LEASE_CONTRACT &&
+            parsed.status === "active-authenticated-production-gate-lease" &&
+            parsed.algorithm === "hkdf-sha256-canonical-hmac-sha256-v1" &&
+            (parsed.gate === "durable-prefix-100" ||
+              parsed.gate === "durable-prefix-500" ||
+              parsed.gate === "sealed-final-24000")
+          ? parsed.gate
+          : null;
+    if (
+      purpose !== null &&
       typeof owner === "object" &&
       owner !== null &&
       Number.isSafeInteger(owner.uid) &&
@@ -1437,9 +1614,15 @@ function authenticatedLeaseBindsCurrentRegistry(
       binding.sha256 === registry.sha256 &&
       binding.dev === registry.dev.toString(10) &&
       binding.ino === registry.ino.toString(10)
-    );
+    ) {
+      // A V1 gate is intentionally mapped only to the identically named
+      // checkpoint purpose. In particular, a legacy sealed-final lease can
+      // never be interpreted as training-label finalization evidence.
+      return purpose;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -1515,12 +1698,12 @@ function assertRetiredEvidenceAllowsRun(
     const retired = readActive(pathJoin(paths.retiredRoot, entry), uid);
     try {
       if (
-        !authenticatedLeaseBindsCurrentRegistry(
+        authenticatedLeasePurposeForCurrentRegistry(
           retired.bytes,
           leaseKey,
           keyInstanceId,
           helper.registry,
-        )
+        ) === null
       ) {
         fail(
           "cleanup",
@@ -1734,6 +1917,7 @@ function assertFinalNamespaceUnderLock(
 
 function buildReceipt(
   boundary: ConnectorCapabilityBoundary,
+  purpose: FloodgateV7ProductionOuterGateMutationPurpose,
 ): Readonly<FloodgateV7ProductionOuterGateLeaseReceipt> {
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
@@ -1743,19 +1927,22 @@ function buildReceipt(
       boundary === "production"
         ? FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
         : FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
+    mutation_purpose: purpose,
     verification: frozenRecord({
-      one_os_lifetime_lock_shared_by_all_three_gates: true as const,
+      one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true as const,
       os_lifetime_lock_held_before_operation: true as const,
-      authenticated_lease_metadata_durable_before_operation: true as const,
+      authenticated_purpose_bound_lease_metadata_durable_before_operation:
+        true as const,
       signal_and_exit_preserve_stale_evidence: true as const,
       authenticated_lease_removed_durably_after_operation: true as const,
-      authenticated_retired_evidence_durable_after_operation: true as const,
+      authenticated_purpose_bound_retired_evidence_durable_after_operation:
+        true as const,
       os_lifetime_lock_released_after_operation: true as const,
       quarantine_empty_after_operation: true as const,
     }),
     nonclaims: frozenRecord({
       lock_or_lease_path_disclosed: false as const,
-      lease_metadata_disclosed: false as const,
+      private_lease_metadata_disclosed: false as const,
       key_material_disclosed: false as const,
       key_instance_id_disclosed: false as const,
       lease_mac_disclosed: false as const,
@@ -1808,14 +1995,19 @@ function installLifecycleEvidencePreservation(): () => void {
   };
 }
 
-async function acquireAndRun<T>(
-  gate: FloodgateV7ProductionOuterGate,
+async function acquireAndRun<
+  T,
+  C extends object,
+  P extends FloodgateV7ProductionOuterGateMutationPurpose,
+>(
+  purpose: P,
   dependencies: CapturedDependencies,
-  operation: (
-    capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
-  ) => Promise<T>,
+  operation: (capability: Readonly<C>) => Promise<T>,
   boundary: ConnectorCapabilityBoundary,
   policy: LeaseExecutionPolicy,
+  capabilityRegistry: WeakMap<object, P>,
+  mintCapability: () => Readonly<C>,
+  requireCapabilityClaim: boolean,
 ): Promise<Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<T>>> {
   let helper: LockHelper | null = null;
   let active: ActiveLease | null = null;
@@ -1834,12 +2026,12 @@ async function acquireAndRun<T>(
   try {
     if (
       (policy.kind === "prefix-100-same-lock-one-shot" &&
-        (gate !== "durable-prefix-100" ||
+        (purpose !== "durable-prefix-100" ||
           boundary === "test-generic" ||
           policy.preflightBoundary !==
             (boundary === "production" ? "production" : "test-only"))) ||
       (boundary === "production" &&
-        gate === "durable-prefix-100" &&
+        purpose === "durable-prefix-100" &&
         policy.kind !== "prefix-100-same-lock-one-shot")
     ) {
       fail("capture", "manual-reconciliation-required");
@@ -1972,12 +2164,13 @@ async function acquireAndRun<T>(
         dependencies.effectiveUserId,
         true,
       );
-      const authenticated = authenticatedLeaseBindsCurrentRegistry(
-        stale.bytes,
-        leaseKey,
-        keyInstanceId,
-        helper.registry,
-      );
+      const authenticated =
+        authenticatedLeasePurposeForCurrentRegistry(
+          stale.bytes,
+          leaseKey,
+          keyInstanceId,
+          helper.registry,
+        ) !== null;
       zero(stale.bytes);
       fail(
         "stale-inspection",
@@ -2006,7 +2199,7 @@ async function acquireAndRun<T>(
 
     currentPhase = "lease-publish";
     const record = createRecord(
-      gate,
+      purpose,
       dependencies,
       keyInstanceId,
       helper.registry,
@@ -2031,7 +2224,12 @@ async function acquireAndRun<T>(
       );
       dependencies.afterLeasePublishBeforeValidation?.();
       if (
-        !authenticateLease(active.bytes, leaseKey) ||
+        authenticatedLeasePurposeForCurrentRegistry(
+          active.bytes,
+          leaseKey,
+          keyInstanceId,
+          helper.registry,
+        ) !== purpose ||
         !quarantineIsEmpty(paths)
       ) {
         fail(
@@ -2070,33 +2268,26 @@ async function acquireAndRun<T>(
       removeLifecycleHandlers = installLifecycleEvidencePreservation();
     }
 
-    const connectorCapability = frozenRecord({
-      contract:
-        "shogi-floodgate-v7-production-outer-gate-connector-capability-v1" as const,
-      status:
-        "opaque-single-use-valid-only-while-common-os-lock-is-held" as const,
-    });
-    const connectorRegistry =
-      boundary === "production"
-        ? productionConnectorCapabilities
-        : testConnectorCapabilities;
-    connectorRegistry.set(connectorCapability, gate);
+    const operationCapability = mintCapability();
+    capabilityRegistry.set(operationCapability, purpose);
     let value: T;
     currentPhase = "operation";
     operationBoundaryCrossed = true;
     try {
-      value = await operation(connectorCapability);
+      value = await operation(operationCapability);
       if (
-        boundary !== "test-generic" &&
-        connectorRegistry.has(connectorCapability)
+        requireCapabilityClaim &&
+        capabilityRegistry.has(operationCapability)
       ) {
-        throw new NativeError("outer connector capability was not claimed");
+        throw new NativeError(
+          "outer gate operation capability was not claimed",
+        );
       }
       if (policy.kind === "prefix-100-same-lock-one-shot") {
         requireExactPrefix100RunnerContinuityReceipt(value);
       }
     } catch {
-      connectorRegistry.delete(connectorCapability);
+      capabilityRegistry.delete(operationCapability);
       try {
         removeLifecycleHandlers?.();
         await helper.close();
@@ -2120,7 +2311,7 @@ async function acquireAndRun<T>(
         false,
       );
     }
-    connectorRegistry.delete(connectorCapability);
+    capabilityRegistry.delete(operationCapability);
 
     currentPhase = "cleanup";
     try {
@@ -2147,7 +2338,7 @@ async function acquireAndRun<T>(
         true,
       );
     }
-    return frozenRecord({ value, lease: buildReceipt(boundary) });
+    return frozenRecord({ value, lease: buildReceipt(boundary, purpose) });
   } catch (error) {
     throw sanitizedLeaseFailure(
       error,
@@ -2280,13 +2471,14 @@ function productionDependencies(): CapturedDependencies {
   }
 }
 
-function inspectionReceipt(): Readonly<
-  FloodgateV7ProductionOuterGateStaleInspectionResult["receipt"]
-> {
+function inspectionReceipt(
+  mutationPurpose: FloodgateV7ProductionOuterGateMutationPurpose,
+): Readonly<FloodgateV7ProductionOuterGateStaleInspectionResult["receipt"]> {
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_INSPECTION_CONTRACT,
     status:
       "authenticated-stale-source-held-for-explicit-confirmation" as const,
+    mutation_purpose: mutationPurpose,
     verification: frozenRecord({
       os_lifetime_lock_held: true as const,
       exact_stale_source_descriptor_inspected: true as const,
@@ -2299,7 +2491,7 @@ function inspectionReceipt(): Readonly<
       quarantine_performed: false as const,
       stale_source_removed: false as const,
       quarantine_acknowledged_or_deleted: false as const,
-      path_or_metadata_disclosed: false as const,
+      path_or_private_metadata_disclosed: false as const,
       key_material_or_mac_disclosed: false as const,
     }),
   });
@@ -2346,14 +2538,15 @@ async function inspectStaleForManualReconciliation(
       helper,
     );
     active = readActive(paths.activePath, dependencies.effectiveUserId, true);
+    const mutationPurpose = authenticatedLeasePurposeForCurrentRegistry(
+      active.bytes,
+      leaseKey,
+      keyInstanceId,
+      helper.registry,
+    );
     if (
       active.bytes.length === 0 ||
-      !authenticatedLeaseBindsCurrentRegistry(
-        active.bytes,
-        leaseKey,
-        keyInstanceId,
-        helper.registry,
-      ) ||
+      mutationPurpose === null ||
       !revalidateRegistryAnchor(
         helper,
         paths.registryPath,
@@ -2386,6 +2579,7 @@ async function inspectStaleForManualReconciliation(
         active,
         leaseKey,
         keyInstanceId,
+        mutationPurpose,
         effectiveUserId: dependencies.effectiveUserId,
         nonce: dependencies.nonce,
         removeLifecycleHandlers,
@@ -2395,7 +2589,10 @@ async function inspectStaleForManualReconciliation(
     helper = null;
     active = null;
     removeLifecycleHandlers = null;
-    return frozenRecord({ capability, receipt: inspectionReceipt() });
+    return frozenRecord({
+      capability,
+      receipt: inspectionReceipt(mutationPurpose),
+    });
   } catch (error) {
     if (error instanceof FloodgateV7ProductionOuterGateLeaseError) throw error;
     return fail(
@@ -2420,7 +2617,7 @@ function quarantineReceipt(): Readonly<FloodgateV7ProductionOuterGateQuarantineR
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_CONTRACT,
     status:
-      "explicitly-confirmed-exact-stale-source-quarantined-and-all-gates-blocked" as const,
+      "explicitly-confirmed-exact-stale-source-quarantined-and-all-four-mutation-purposes-blocked" as const,
     verification: frozenRecord({
       explicit_confirmation_matched: true as const,
       os_lifetime_lock_remained_held: true as const,
@@ -2429,7 +2626,7 @@ function quarantineReceipt(): Readonly<FloodgateV7ProductionOuterGateQuarantineR
       registry_binding_rematched: true as const,
       create_only_quarantine_published_durably: true as const,
       stale_source_removal_durable: true as const,
-      quarantine_blocks_all_three_gates: true as const,
+      quarantine_blocks_all_four_mutation_purposes: true as const,
     }),
     nonclaims: frozenRecord({
       quarantine_acknowledged_or_deleted: false as const,
@@ -2482,12 +2679,12 @@ async function confirmManualQuarantine(
       fresh.dev !== state.active.dev ||
       fresh.ino !== state.active.ino ||
       !fresh.bytes.equals(state.active.bytes) ||
-      !authenticatedLeaseBindsCurrentRegistry(
+      authenticatedLeasePurposeForCurrentRegistry(
         fresh.bytes,
         state.leaseKey,
         state.keyInstanceId,
         state.helper.registry,
-      ) ||
+      ) !== state.mutationPurpose ||
       !revalidateRegistryAnchor(
         state.helper,
         state.paths.registryPath,
@@ -3092,6 +3289,10 @@ function loadFixedProductionRunnerModule(): unknown {
   return capturedRequire("./floodgate-v7-production-connector-runner");
 }
 
+function loadFixedTrainingLabelFinalizationOwnerModule(): unknown {
+  return capturedRequire("./floodgate-v7-training-label-production-owner");
+}
+
 async function invokeFixedRunnerUnderOuterGate(
   gate: FloodgateV7ProductionOuterGate,
   capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
@@ -3146,6 +3347,59 @@ async function invokeFixedRunnerUnderOuterGate(
   }
 }
 
+async function invokeFixedTrainingLabelFinalizationOwnerUnderOuterGate(
+  capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
+  loadOwnerModule: TrainingLabelFinalizationOwnerModuleLoader,
+): Promise<unknown> {
+  let loaded: unknown;
+  try {
+    loaded = loadOwnerModule();
+  } catch {
+    throw new NativeError("fixed training-label owner load failed");
+  }
+  if (
+    loaded === null ||
+    typeof loaded !== "object" ||
+    nodeIsProxy(loaded) ||
+    (objectGetPrototypeOf(loaded) !== objectPrototype &&
+      objectGetPrototypeOf(loaded) !== null)
+  ) {
+    throw new NativeError("fixed training-label owner module differs");
+  }
+  let operation: unknown;
+  try {
+    const descriptor = objectGetOwnPropertyDescriptor(
+      loaded,
+      "runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate",
+    );
+    if (descriptor === undefined || descriptor.enumerable !== true) {
+      throw new NativeError("fixed training-label owner export differs");
+    }
+    if ("value" in descriptor) {
+      operation = descriptor.value;
+    } else {
+      if (
+        descriptor.configurable !== false ||
+        descriptor.set !== undefined ||
+        typeof descriptor.get !== "function"
+      ) {
+        throw new NativeError("fixed training-label owner export differs");
+      }
+      operation = nativeReflectApply(descriptor.get, loaded, []);
+    }
+  } catch {
+    throw new NativeError("fixed training-label owner export differs");
+  }
+  if (typeof operation !== "function") {
+    throw new NativeError("fixed training-label owner export differs");
+  }
+  try {
+    return await nativeReflectApply(operation, undefined, [capability]);
+  } catch {
+    throw new NativeError("fixed training-label owner operation failed");
+  }
+}
+
 function runFixedOuterGateOwner(
   gate: FloodgateV7ProductionOuterGate,
   dependencies: CapturedDependencies,
@@ -3161,6 +3415,11 @@ function runFixedOuterGateOwner(
       invokeFixedRunnerUnderOuterGate(gate, capability, loadRunnerModule),
     boundary,
     frozenRecord({ kind: "ordinary-fixed-gate" as const }),
+    boundary === "production"
+      ? productionConnectorCapabilities
+      : testConnectorCapabilities,
+    mintConnectorCapability,
+    true,
   );
 }
 
@@ -3190,6 +3449,36 @@ function runFixedPrefix100SameLockOneShotOwner(
           : ("test-only" as const),
       loadPreflightModule,
     }),
+    boundary === "production"
+      ? productionConnectorCapabilities
+      : testConnectorCapabilities,
+    mintConnectorCapability,
+    true,
+  );
+}
+
+function runFixedTrainingLabelFinalizationOwner(
+  dependencies: CapturedDependencies,
+  loadOwnerModule: TrainingLabelFinalizationOwnerModuleLoader,
+  boundary: "production" | "test-fixed-owner",
+): Promise<
+  Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
+> {
+  return acquireAndRun(
+    "training-label-finalization-24000",
+    dependencies,
+    (capability) =>
+      invokeFixedTrainingLabelFinalizationOwnerUnderOuterGate(
+        capability,
+        loadOwnerModule,
+      ),
+    boundary,
+    frozenRecord({ kind: "ordinary-fixed-gate" as const }),
+    boundary === "production"
+      ? productionTrainingLabelFinalizationCapabilities
+      : testTrainingLabelFinalizationCapabilities,
+    mintTrainingLabelFinalizationCapability,
+    true,
   );
 }
 
@@ -3239,6 +3528,36 @@ export function runFloodgateV7ProductionOuterGateOwnerCoreForTests(
     gate,
     dependencies,
     loadRunnerModuleValue,
+    "test-fixed-owner",
+  );
+}
+
+/**
+ * Test-only mirror of the fixed training-label owner. The injected loader is
+ * isolated from the captured production loader and its capability registry.
+ */
+export function runFloodgateV7ProductionOuterGateTrainingLabelFinalizationCoreForTests(
+  dependenciesValue: FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
+  loadOwnerModuleValue: () => unknown,
+): Promise<
+  Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
+> {
+  let dependencies: CapturedDependencies;
+  try {
+    if (arguments.length !== 2 || typeof loadOwnerModuleValue !== "function") {
+      fail("capture", "fresh-invocation-allowed");
+    }
+    dependencies = captureDependencies({
+      ...dependenciesValue,
+      installProcessLifecycleHandlers:
+        dependenciesValue.installProcessLifecycleHandlers ?? true,
+    });
+  } catch (error) {
+    return NativePromise.reject(sanitizedLeaseFailure(error, "capture"));
+  }
+  return runFixedTrainingLabelFinalizationOwner(
+    dependencies,
+    loadOwnerModuleValue,
     "test-fixed-owner",
   );
 }
@@ -3349,6 +3668,9 @@ export function runWithFloodgateV7ProductionOuterGateLeaseCoreForTests<T>(
     operationValue,
     "test-generic",
     frozenRecord({ kind: "ordinary-fixed-gate" as const }),
+    testConnectorCapabilities,
+    mintConnectorCapability,
+    false,
   );
 }
 
@@ -3418,4 +3740,33 @@ export function runFloodgateV7ProductionOuterGateFinal24000(): Promise<
     );
   }
   return runFixedProductionOuterGateOwner("sealed-final-24000");
+}
+
+/** Fixed production owner for only training-label finalization. */
+export function runFloodgateV7ProductionOuterGateTrainingLabelFinalization(): Promise<
+  Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
+> {
+  if (arguments.length !== 0) {
+    return NativePromise.reject(
+      new FloodgateV7ProductionOuterGateLeaseError(
+        "capture",
+        "fresh-invocation-allowed",
+        false,
+        false,
+        false,
+        false,
+      ),
+    );
+  }
+  let dependencies: CapturedDependencies;
+  try {
+    dependencies = productionDependencies();
+  } catch (error) {
+    return NativePromise.reject(sanitizedLeaseFailure(error, "key-read"));
+  }
+  return runFixedTrainingLabelFinalizationOwner(
+    dependencies,
+    loadFixedTrainingLabelFinalizationOwnerModule,
+    "production",
+  );
 }

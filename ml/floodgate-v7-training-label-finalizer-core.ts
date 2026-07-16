@@ -414,9 +414,13 @@ interface TrainingReplayParentBatch {
   readonly canonicalLinesWithLf: readonly Uint8Array[];
 }
 
-type RestartableTrainingReplay = () => AsyncIterable<
-  Readonly<TrainingReplayParentBatch>
->;
+type TrainingReplayParentBatchSink = (
+  batch: Readonly<TrainingReplayParentBatch>,
+) => Promise<void>;
+
+type RestartableTrainingReplay = (
+  sink: TrainingReplayParentBatchSink,
+) => Promise<void>;
 
 const PLAN_REGISTRY = new WeakMap<
   Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
@@ -715,31 +719,34 @@ function captureProjection(
   });
 }
 
-async function* replayCapturedProjections(
+async function replayCapturedProjections(
   projections: readonly Readonly<CapturedProjection>[],
-): AsyncGenerator<Readonly<TrainingReplayParentBatch>, void, void> {
+  sink: TrainingReplayParentBatchSink,
+): Promise<void> {
   for (let inputIndex = 0; inputIndex < projections.length; inputIndex += 1) {
     const projection = projections[inputIndex];
-    yield frozenRecord({
-      inputIndex,
-      parentId: projection.parentId,
-      forced: projection.forced,
-      canonicalLinesWithLf: objectFreeze(
-        projection.rows.map((row) =>
-          Buffer.from(`${canonicalJson(row)}\n`, "utf8"),
+    await sink(
+      frozenRecord({
+        inputIndex,
+        parentId: projection.parentId,
+        forced: projection.forced,
+        canonicalLinesWithLf: objectFreeze(
+          projection.rows.map((row) =>
+            Buffer.from(`${canonicalJson(row)}\n`, "utf8"),
+          ),
         ),
-      ),
-    });
+      }),
+    );
   }
 }
 
 function capturedProjectionReplay(
   projections: readonly Readonly<CapturedProjection>[],
 ): RestartableTrainingReplay {
-  return objectFreeze(function (): AsyncIterable<
-    Readonly<TrainingReplayParentBatch>
-  > {
-    return replayCapturedProjections(projections);
+  return objectFreeze(async function (
+    sink: TrainingReplayParentBatchSink,
+  ): Promise<void> {
+    await replayCapturedProjections(projections, sink);
   });
 }
 
@@ -1421,20 +1428,19 @@ function evidence(
   });
 }
 
-async function* replayTrainingParents(
+type ValidatedTrainingReplayParent = Readonly<{
+  parentIndex: number;
+  parentId: string;
+  forced: boolean;
+  lines: readonly Buffer[];
+}>;
+
+async function replayTrainingParents(
   plan: Readonly<HiddenPlan>,
-): AsyncGenerator<
-  Readonly<{
-    parentIndex: number;
-    parentId: string;
-    forced: boolean;
-    lines: readonly Buffer[];
-  }>,
-  void,
-  void
-> {
+  sink: (parent: ValidatedTrainingReplayParent) => Promise<void>,
+): Promise<void> {
   let parentIndex = 0;
-  for await (const batchValue of plan.replay()) {
+  await plan.replay(async (batchValue) => {
     const batch = exactRecord(
       batchValue,
       ["canonicalLinesWithLf", "forced", "inputIndex", "parentId"],
@@ -1508,14 +1514,16 @@ async function* replayTrainingParents(
         return copied;
       }),
     );
-    yield frozenRecord({
-      parentIndex,
-      parentId: batch.parentId,
-      forced: batch.forced,
-      lines,
-    });
+    await sink(
+      frozenRecord({
+        parentIndex,
+        parentId: batch.parentId,
+        forced: batch.forced,
+        lines,
+      }),
+    );
     parentIndex += 1;
-  }
+  });
 }
 
 async function readExactAt(
@@ -1569,7 +1577,7 @@ async function verifyCompleteTrainReadOnly(
     );
     let offset = 0;
     const parentIds: string[] = [];
-    for await (const parent of replayTrainingParents(plan)) {
+    await replayTrainingParents(plan, async (parent) => {
       parentIds.push(parent.parentId);
       for (const line of parent.lines) {
         await manualContentValidation(
@@ -1588,7 +1596,7 @@ async function verifyCompleteTrainReadOnly(
         );
         offset += line.byteLength;
       }
-    }
+    });
     if (
       parentIds.length !== plan.expectedTrain.inputParents ||
       floodgateIdentifierDigest(parentIds) !==
@@ -1772,7 +1780,7 @@ async function persistTrain(
   let forcedParentsSkipped = 0;
   let emittedParentGroups = 0;
   const parentIds: string[] = [];
-  for await (const parent of replayTrainingParents(plan)) {
+  await replayTrainingParents(plan, async (parent) => {
     inputParents += 1;
     parentIds.push(parent.parentId);
     if (parent.forced) forcedParentsSkipped += 1;
@@ -1811,7 +1819,7 @@ async function persistTrain(
       offset += line.byteLength;
       records += 1;
     }
-  }
+  });
   if (existingSize > offset) {
     manualFail("train.jsonl is longer than the deterministic replay");
   }

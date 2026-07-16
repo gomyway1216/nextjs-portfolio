@@ -29,6 +29,7 @@ import {
   FLOODGATE_V7_DEPLOYMENT_KEY_READINESS_TRUST_BOUNDARY,
 } from "../../../ml/floodgate-v7-deployment-key-readiness";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "../../../ml/floodgate-production-teacher-asset-authority";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "../../../ml/floodgate-v7-production-application-source-provenance";
 import {
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CLAIM_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CONTRACT,
@@ -39,6 +40,7 @@ import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
+  serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
 } from "../../../ml/floodgate-v7-production-connector-registry";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
@@ -81,7 +83,23 @@ const RECORD_BYTES = 120;
 const RECORD_SHA256 = "b2".repeat(32);
 const KEY_INSTANCE_ID = "c3".repeat(32);
 const ROOT_KEY = Buffer.from("d4".repeat(32), "hex");
+const APPLICATION_REVISION = "e5".repeat(20);
 const roots: string[] = [];
+
+function applicationSourceBinding(revision = APPLICATION_REVISION): Readonly<{
+  layout: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT;
+  revision: string;
+}> {
+  return Object.freeze(
+    Object.assign(Object.create(null) as object, {
+      layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      revision,
+    }),
+  ) as Readonly<{
+    layout: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT;
+    revision: string;
+  }>;
+}
 
 interface Fixture {
   readonly home: string;
@@ -161,6 +179,7 @@ function privateClaim(home: string) {
       recordSha256: RECORD_SHA256,
       keyInstanceId: KEY_INSTANCE_ID,
     },
+    applicationSourceBinding: applicationSourceBinding(),
     stageAuthorization: {
       repositoryRoot,
       rawLockRoot,
@@ -209,13 +228,34 @@ async function fixture(): Promise<Fixture> {
     registryRoot,
     FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   );
-  await fs.promises.writeFile(
-    registryPath,
-    `${JSON.stringify({ integration: "real-boundaries" })}\n`,
-    { flag: "wx", mode: 0o600 },
-  );
-  await fs.promises.chmod(registryPath, 0o600);
   const claim = privateClaim(home);
+  const registryRecord =
+    serializeFloodgateV7ProductionConnectorRegistryForInstallationCore(
+      {
+        run_id: claim.runId,
+        approved_key_binding: {
+          record_bytes: claim.approvedKeyBinding.recordBytes,
+          record_sha256: claim.approvedKeyBinding.recordSha256,
+          key_instance_id: claim.approvedKeyBinding.keyInstanceId,
+        },
+        verifier_revision: claim.consumer.verifierRevision,
+        application_source_binding: claim.applicationSourceBinding,
+        repository_root: claim.consumer.repositoryRoot,
+        raw_lock_root: claim.consumer.rawLockRoot,
+        role_lock_root: claim.consumer.roleLockRoot,
+        role_bundle_root: claim.consumer.outputRoot,
+        legacy_protected_position_ids_path:
+          claim.consumer.legacyProtectedPositionIdsPath,
+        engine_args: claim.stageAuthorization.engineArgs,
+      },
+      EUID,
+      "test-only-injected-current-euid-home-production-connector-registry",
+    );
+  await fs.promises.writeFile(registryPath, registryRecord, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  await fs.promises.chmod(registryPath, 0o600);
   const control = path.join(
     registryRoot,
     FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -505,6 +545,10 @@ function preflightDependencies(
       return Object.freeze({ registry: true });
     },
     claimRegistry: () => value.claim,
+    captureApplicationSource: async () => {
+      events.push("real-preflight-application-source");
+      return applicationSourceBinding();
+    },
     verifyVerifierReadiness: async () => verifierReadinessReceipt(),
     assertVerifierReadinessIdentityBinding: (
       _receipt,
@@ -611,6 +655,10 @@ darwinDescribe("Floodgate v7 prefix-100 real same-lock boundaries", () => {
           now: () => new Date("2026-07-16T15:00:00.000Z"),
           nonce: () => randomBytes(32),
           installProcessLifecycleHandlers: false,
+          captureApplicationSourceForTests: async () => {
+            events.push("outer-application-source");
+            return applicationSourceBinding();
+          },
         },
         () => ({
           inspectFloodgateV7ProductionPrefix100PreflightUnderOuterLock(
@@ -643,8 +691,10 @@ darwinDescribe("Floodgate v7 prefix-100 real same-lock boundaries", () => {
       );
 
     expect(events).toEqual([
+      "outer-application-source",
       "real-preflight-entry",
       "real-preflight-registry",
+      "real-preflight-application-source",
       "real-runner-entry",
       "real-runner-registry",
       "connector-checkpoint",
@@ -655,6 +705,7 @@ darwinDescribe("Floodgate v7 prefix-100 real same-lock boundaries", () => {
       status: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS,
       gate: "durable-prefix-100",
       verification: {
+        application_source_exact_clean_closure_validated_under_outer_gate: true,
         exact_prefix_100_read_only_continuity_postflight_completed: true,
       },
     });

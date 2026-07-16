@@ -34,7 +34,8 @@ function runEntry(
     | "bad"
     | "typed"
     | "typed-readiness"
-    | "old-v1"
+    | "typed-application-source"
+    | "old-v2"
     | "throw"
     | "proxy"
     | "accessor"
@@ -49,11 +50,13 @@ function runEntry(
 const Module = require("node:module");
 const originalLoad = Module._load;
 const canary = ${JSON.stringify(PRIVATE_CANARY)};
+const expectedEntrypoint = "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts";
 const verificationKeys = ${JSON.stringify([
     "common_os_lock_acquired_nonblocking",
     "common_os_lock_held_through_all_checks",
     "registry_anchor_held_descriptor_and_bytes_revalidated",
     "private_registry_claimed_and_fixed_configuration_validated",
+    "application_source_binding_matched_to_exact_clean_application_closure",
     "verifier_source_artifact_closure_rechecked",
     "deployment_key_metadata_ready",
     "approved_enrollment_loaded_and_registry_binding_matched",
@@ -71,6 +74,9 @@ const nonclaimKeys = ${JSON.stringify([
     "registry_or_control_created_written_removed",
     "stage_checkpoint_or_authorization_lease_created_written_removed",
     "registry_or_approved_capability_returned",
+    "application_source_revision_disclosed",
+    "application_source_path_disclosed",
+    "application_source_digest_disclosed",
     "reviewed_git_head_or_ci_status",
     "kill_reboot_drill_or_monitor_owner",
     "human_gate_approval",
@@ -85,6 +91,13 @@ const nonclaimKeys = ${JSON.stringify([
     "playing_strength",
   ])};
 Module._load = function(request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+    return {
+      assertFloodgateV7ProductionApplicationEntrypointContext: (entrypoint) => {
+        if (entrypoint !== expectedEntrypoint) throw new Error(canary);
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-production-prefix-100-preflight")) {
     if (${JSON.stringify(mode)} === "load-must-not-happen") throw new Error(canary);
     class PreflightError extends Error {
@@ -92,7 +105,11 @@ Module._load = function(request, parent, isMain) {
         super("sanitized preflight failure");
         this.decision = "NO-GO";
         this.gate = "durable-prefix-100";
-        this.phase = ${JSON.stringify(mode)} === "typed-readiness" ? "verifier-readiness" : "outer-control";
+        this.phase = ${JSON.stringify(mode)} === "typed-readiness"
+          ? "verifier-readiness"
+          : ${JSON.stringify(mode)} === "typed-application-source"
+            ? "application-source"
+            : "outer-control";
         this.os_lock_acquired = true;
         this.os_lock_released = true;
         this.persistent_mutation_performed = false;
@@ -103,13 +120,13 @@ Module._load = function(request, parent, isMain) {
     return {
       FloodgateV7ProductionPrefix100PreflightError: PreflightError,
       inspectFloodgateV7ProductionPrefix100Preflight: async () => {
-        if (${JSON.stringify(mode)} === "typed" || ${JSON.stringify(mode)} === "typed-readiness") throw new PreflightError();
+        if (${JSON.stringify(mode)} === "typed" || ${JSON.stringify(mode)} === "typed-readiness" || ${JSON.stringify(mode)} === "typed-application-source") throw new PreflightError();
         if (${JSON.stringify(mode)} === "throw") throw new Error(canary);
         const receipt = {
-          contract: "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2",
-          status: "fresh-zero-work-prefix-100-read-only-preconditions-observed",
-          claim_boundary: "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2",
-          execution_boundary: "production-fixed-current-euid-userinfo-home-common-os-lock",
+          contract: "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3",
+          status: "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed",
+          claim_boundary: "point-in-time-fixed-current-user-exact-clean-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
+          execution_boundary: "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock",
           gate: "durable-prefix-100",
           decision: {
             result: "GO",
@@ -120,9 +137,11 @@ Module._load = function(request, parent, isMain) {
           verification: Object.fromEntries(verificationKeys.map((key) => [key, key === "filesystem_namespace_or_file_content_mutation_performed" ? false : true])),
           nonclaims: Object.fromEntries(nonclaimKeys.map((key) => [key, false])),
         };
-        if (${JSON.stringify(mode)} === "old-v1") {
-          receipt.contract = "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v1";
-          receipt.claim_boundary = "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v1";
+        if (${JSON.stringify(mode)} === "old-v2") {
+          receipt.contract = "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2";
+          receipt.status = "fresh-zero-work-prefix-100-read-only-preconditions-observed";
+          receipt.claim_boundary = "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2";
+          receipt.execution_boundary = "production-fixed-current-euid-userinfo-home-common-os-lock";
         }
         if (${JSON.stringify(mode)} === "bad") receipt.decision.gate_invocation_authorized = true;
         if (${JSON.stringify(mode)} === "proxy") {
@@ -227,7 +246,8 @@ describe("Floodgate v7 production prefix-100 preflight CLI", () => {
     const receipt = JSON.parse(child.stdout);
     expect(receipt).toMatchObject({
       contract: FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_SUCCESS_CONTRACT,
-      status: "fresh-zero-work-prefix-100-read-only-preconditions-observed",
+      status:
+        "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed",
       gate: "durable-prefix-100",
       decision: {
         result: "GO",
@@ -275,6 +295,21 @@ describe("Floodgate v7 production prefix-100 preflight CLI", () => {
     });
   });
 
+  it("projects application-source as a typed retryable NO-GO", () => {
+    const child = runEntry("typed-application-source");
+    expect(child.status).toBe(1);
+    expect(child.stdout).toBe("");
+    expect(child.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(child.stderr)).toMatchObject({
+      contract: FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_FAILURE_CONTRACT,
+      decision: "NO-GO",
+      phase: "application-source",
+      persistent_mutation_performed: false,
+      gate_invoked: false,
+      raw_failure_disclosed: false,
+    });
+  });
+
   it.each(["bad", "throw"] as const)(
     "sanitizes %s receipt or unknown failure",
     (mode) => {
@@ -292,8 +327,8 @@ describe("Floodgate v7 production prefix-100 preflight CLI", () => {
     },
   );
 
-  it("rejects a historical v1 GO receipt at the v2 CLI boundary", () => {
-    const child = runEntry("old-v1");
+  it("rejects a historical v2 GO receipt at the v3 CLI boundary", () => {
+    const child = runEntry("old-v2");
     expect(child.status).toBe(1);
     expect(child.stdout).toBe("");
     expect(JSON.parse(child.stderr)).toMatchObject({

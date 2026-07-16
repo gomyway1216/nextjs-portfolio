@@ -100,22 +100,24 @@ visitorはproduction-executable readerとしてexportされず、zero-argument p
 | prefix gateにobserverを与える         | prefix visitor pathを作らない                               | partial workからのlabel generation |
 | separate process / cloneによるhandoff | durable / public capability自体がない                       | fresh same-lock ownership bridge   |
 
-## 11. validationはpendingであり、結果をまだ主張しない
+## 11. clean baseのlocal validationはcomplete、GitHubだけpendingである
 
-本記事へpass countやtimingを書く前にimplementation candidateを実測する必要がある。evidence fieldは意図的にpendingのままにする。
+clean base revision `f9e782eb96a880e80b918953d67651a168e11a78`で次を実測した。focused testのsynthetic corpusは23,999件の合法forced parentと1件のnon-forced parentからなり、実Floodgate棋譜を読まない。prefix-500から追加する23,500 parentとsealの計23,501回のper-line regular-file syncだけをtest-only fixture buildで抑止し、native `FileHandle.sync`をexactに復元してwork fileとstage directoryを各1回batch syncしてからvisitor付きfinal scanを1回行う。したがってこの最適化runはper-entry fsync durabilityを再証明せず、そこは既存checkpoint / scan-load evidenceの責務である。exact-undefined違反はfull scanから保持したreal eventを同じcallback enforcement helperへ渡してO(1)で検査し、exact final scan成功後・path confirmation前のfailpointでoperationを失敗させ、eventだけではterminal successにならないことも確認した。
 
-focused testの設計自体は固定する。synthetic corpusは23,999件の合法forced parentと1件のnon-forced parentからなり、実Floodgate棋譜を読まない。prefix-500から追加する23,500 parentとsealの計23,501回のper-line regular-file syncだけをtest-only fixture buildで抑止し、native `FileHandle.sync`をexactに復元してwork fileとstage directoryを各1回batch syncしてからvisitor付きfinal scanを1回行う。したがってこの最適化runはper-entry fsync durabilityを再証明せず、そこは既存checkpoint / scan-load evidenceの責務である。exact-undefined違反は、そのfull scanから保持したreal eventを同じcallback enforcement helperへ渡してO(1)で検査する。full scan成功後のfailpointでoperationを失敗させ、eventだけではterminal successにならないことも確認する。
+| validation item                                |                                              実測結果 |     wall |     maximum RSS | swaps |
+| ---------------------------------------------- | ----------------------------------------------------: | -------: | --------------: | ----: |
+| Focused sealed-work visitor Vitest             | 1 file / 48 tests、48 pass、0 fail、Vitest 109,640 ms | 110.05 s | 2,309,652,480 B |     0 |
+| Evidence / projection / scan-load Vitest       |  3 files / 26 tests、26 pass、0 fail、Vitest 2,840 ms |   3.21 s |   334,757,888 B |     0 |
+| TypeScript (`npx tsc --noEmit --pretty false`) |                                                exit 0 |   6.89 s | 1,125,023,744 B |     0 |
+| Prettier                                       |                          exact 6 files、すべてmatched |        — |               — |     — |
+| Full ESLint (`npx eslint .`)                   |                        exit 0、0 errors、157 warnings |  39.63 s | 1,288,552,448 B |     0 |
+| Full Vitest                                    |             153 files / 2,823 tests、全pass、106.26 s | 106.68 s | 2,349,039,616 B |     0 |
+| Production build                               |                               193 / 193 pages、0 fail |  47.96 s | 2,619,326,464 B |     0 |
+| ML stdlib                                      |                                          58 / 58 pass |   0.46 s |    64,929,792 B |     0 |
+| npm audit (`--audit-level=high`)               |                             exit 0、0 vulnerabilities |   0.54 s |   133,332,992 B |     0 |
+| GitHub CI / review                             |                                           **PENDING** |        — |               — |     — |
 
-| validation item                            | status      |
-| ------------------------------------------ | ----------- |
-| Focused sealed-work visitor unit tests     | **PENDING** |
-| V3 checkpoint / scan-load regression tests | **PENDING** |
-| TypeScript typecheck                       | **PENDING** |
-| Scoped lint / formatting checks            | **PENDING** |
-| Full unit suite / production build         | **PENDING** |
-| GitHub CI / review                         | **PENDING** |
-
-実際に観測して記録するまでは、test count、duration、memory、commit revision、CI resultを一切主張しない。
+これらは上記commitにbindしたlocal source / test / documentation candidateの結果であり、production実行ではない。production namespace、teacher output、weight、live evaluatorは変更しておらず、GitHub CI、PR head、review threadの値も実際に観測するまでnullのままにする。
 
 ## 12. 次はtwo-pass authenticated finalizerである
 

@@ -183,7 +183,7 @@ function assertNoDuplicateJsonObjectKeys(source: string): void {
 }
 
 describe("Floodgate v7 sealed-work verified-parent visitor evidence", () => {
-  it("pins unique JSON keys, exact artifact paths, and pending-only validation", () => {
+  it("pins unique JSON keys, exact artifact paths, and measured validation", () => {
     const source = readText(EVIDENCE_PATH);
     expect(() => assertNoDuplicateJsonObjectKeys(source)).not.toThrow();
     expect(() =>
@@ -244,22 +244,117 @@ describe("Floodgate v7 sealed-work verified-parent visitor evidence", () => {
       );
     }
 
-    const validation = evidence.validation as Record<string, unknown>;
-    expect(validation.validation_candidate_revision).toBeNull();
-    for (const [name, result] of Object.entries(validation)) {
-      if (name === "validation_candidate_revision") continue;
-      expect(result).toMatchObject({ status: "PENDING" });
-      expect(
-        Object.entries(result as Record<string, unknown>)
-          .filter(([field]) => field !== "status")
-          .every(([_field, value]) => value === null),
-      ).toBe(true);
-    }
+    expect(evidence.validation).toEqual({
+      validation_candidate_revision: "f9e782eb96a880e80b918953d67651a168e11a78",
+      focused_visitor_vitest: {
+        status: "COMPLETE",
+        command:
+          "npx vitest run tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts --reporter=dot",
+        files: 1,
+        tests: 48,
+        passed: 48,
+        failed: 0,
+        vitest_duration_ms: 109640,
+        wall_seconds: 110.05,
+        maximum_rss_bytes: 2309652480,
+        swaps: 0,
+      },
+      related_checkpoint_regression_vitest: {
+        status: "COMPLETE",
+        command:
+          "npx vitest run tests/unit/ml/floodgateV7SealedWorkVisitorEvidence.test.ts tests/unit/ml/floodgateV7TrainingLabelProjection.test.ts tests/unit/ml/floodgateV7CheckpointScanLoad.test.ts --reporter=dot",
+        files: 3,
+        tests: 26,
+        passed: 26,
+        failed: 0,
+        vitest_duration_ms: 2840,
+        wall_seconds: 3.21,
+        maximum_rss_bytes: 334757888,
+        swaps: 0,
+      },
+      typescript: {
+        status: "COMPLETE",
+        command: "npx tsc --noEmit --pretty false",
+        exit_code: 0,
+        wall_seconds: 6.89,
+        maximum_rss_bytes: 1125023744,
+        swaps: 0,
+      },
+      prettier: {
+        status: "COMPLETE",
+        command:
+          "npx prettier --check ml/floodgate-v7-teacher-checkpoint.ts tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts docs/blog-shogi-floodgate-v7-sealed-work-visitor.md docs/blog-shogi-floodgate-v7-sealed-work-visitor.en.md docs/data/floodgate-v7-sealed-work-visitor-2026-07-16.json tests/unit/ml/floodgateV7SealedWorkVisitorEvidence.test.ts",
+        files: 6,
+        observation: "all-matched",
+      },
+      eslint: {
+        status: "COMPLETE",
+        command: "npx eslint .",
+        exit_code: 0,
+        errors: 0,
+        warnings: 157,
+        wall_seconds: 39.63,
+        maximum_rss_bytes: 1288552448,
+        swaps: 0,
+      },
+      full_vitest: {
+        status: "COMPLETE",
+        command: "npx vitest run --reporter=dot",
+        files: 153,
+        tests: 2823,
+        passed: 2823,
+        failed: 0,
+        vitest_duration_seconds: 106.26,
+        wall_seconds: 106.68,
+        maximum_rss_bytes: 2349039616,
+        swaps: 0,
+      },
+      production_build: {
+        status: "COMPLETE",
+        command: "npm run build",
+        static_pages: 193,
+        passed: 193,
+        failed: 0,
+        wall_seconds: 47.96,
+        maximum_rss_bytes: 2619326464,
+        swaps: 0,
+      },
+      ml_stdlib: {
+        status: "COMPLETE",
+        command: "npm run test:ml:stdlib",
+        tests: 58,
+        passed: 58,
+        failed: 0,
+        wall_seconds: 0.46,
+        maximum_rss_bytes: 64929792,
+        swaps: 0,
+      },
+      npm_audit: {
+        status: "COMPLETE",
+        command: "npm audit --audit-level=high",
+        exit_code: 0,
+        vulnerabilities: 0,
+        wall_seconds: 0.54,
+        maximum_rss_bytes: 133332992,
+        swaps: 0,
+      },
+      github_ci_and_review: {
+        status: "PENDING",
+        pull_request: null,
+        head_revision: null,
+        checks_passed: null,
+        checks_failed: null,
+        unresolved_review_threads: null,
+      },
+    });
     const nullPaths = collectNullPaths(evidence);
-    expect(nullPaths.length).toBeGreaterThan(0);
-    expect(
-      nullPaths.every((nullPath) => nullPath.startsWith("validation.")),
-    ).toBe(true);
+    expect(nullPaths).toEqual([
+      "validation.github_ci_and_review.pull_request",
+      "validation.github_ci_and_review.head_revision",
+      "validation.github_ci_and_review.checks_passed",
+      "validation.github_ci_and_review.checks_failed",
+      "validation.github_ci_and_review.unresolved_review_threads",
+    ]);
   });
 
   it("binds the visitor contract to imported literals and test-only scope", () => {
@@ -421,7 +516,7 @@ describe("Floodgate v7 sealed-work verified-parent visitor evidence", () => {
     }
   });
 
-  it("keeps both articles at twelve sections with unclaimed validation", () => {
+  it("keeps both articles at twelve sections with measured local validation", () => {
     const japanese = readText(JAPANESE_ARTICLE_PATH);
     const english = readText(ENGLISH_ARTICLE_PATH);
     const expectedSections = Array.from(
@@ -436,7 +531,11 @@ describe("Floodgate v7 sealed-work verified-parent visitor evidence", () => {
     );
     expect(english).toContain("blog-shogi-floodgate-v7-sealed-work-visitor.md");
     for (const article of [japanese, english]) {
-      expect(article.match(/PENDING/gu)?.length).toBeGreaterThanOrEqual(6);
+      expect(article.match(/PENDING/gu)).toHaveLength(1);
+      expect(article).toContain("f9e782eb96a880e80b918953d67651a168e11a78");
+      expect(article).toContain("153 files");
+      expect(article).toContain("2,823 tests");
+      expect(article).toContain("193 / 193");
       expect(article).toContain("24,004");
       expect(article).toContain(
         FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT,

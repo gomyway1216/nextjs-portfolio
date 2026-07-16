@@ -100,22 +100,24 @@ It also performs no output operation: no `train.jsonl`, `result.json`, `manifest
 | Prefix gate supplied with an observer              | No prefix visitor path                                                        | Label generation from partial work       |
 | Separate process or cloned object attempts handoff | No durable or public capability exists                                        | Fresh same-lock ownership bridge         |
 
-## 11. Validation is pending and no result is claimed yet
+## 11. Local validation is complete on the clean base; only GitHub is pending
 
-The implementation candidate must be validated before this article records any pass count or timing. The evidence fields remain intentionally pending:
+The following results were measured at clean-base revision `f9e782eb96a880e80b918953d67651a168e11a78`. The focused test's synthetic corpus contains 23,999 legal forced parents and one non-forced parent and reads no real Floodgate game. During the test-only fixture build, it suppresses only the 23,501 per-line regular-file syncs for the 23,500 parents appended after prefix 500 plus the seal. It then restores native `FileHandle.sync` exactly, batch-syncs the work file and stage directory once each, and runs one visitor-enabled final scan. This optimized run therefore does not re-establish per-entry fsync durability; that remains the responsibility of the existing checkpoint and scan-load evidence. Exact-undefined violations run in O(1) by sending a real event retained from the full scan through the same callback-enforcement helper. A failpoint after exact final-scan success but before path confirmation also proves that an event alone is not terminal operation success.
 
-The focused-test design itself is fixed. Its synthetic corpus contains 23,999 legal forced parents and one non-forced parent and reads no real Floodgate game. During the test-only fixture build, it suppresses only the 23,501 per-line regular-file syncs for the 23,500 parents appended after prefix 500 plus the seal. It then restores native `FileHandle.sync` exactly, batch-syncs the work file and stage directory once each, and runs one visitor-enabled final scan. This optimized run therefore does not re-establish per-entry fsync durability; that remains the responsibility of the existing checkpoint and scan-load evidence. Exact-undefined violations are exercised in O(1) by passing a real event retained from that full scan through the same callback-enforcement helper. A failpoint after the successful full scan also confirms that an event alone is not terminal operation success.
+| Validation item                                |                                           Observed result |     Wall |     Maximum RSS | Swaps |
+| ---------------------------------------------- | --------------------------------------------------------: | -------: | --------------: | ----: |
+| Focused sealed-work visitor Vitest             | 1 file / 48 tests, 48 passed, 0 failed, Vitest 109,640 ms | 110.05 s | 2,309,652,480 B |     0 |
+| Evidence / projection / scan-load Vitest       |  3 files / 26 tests, 26 passed, 0 failed, Vitest 2,840 ms |   3.21 s |   334,757,888 B |     0 |
+| TypeScript (`npx tsc --noEmit --pretty false`) |                                                    exit 0 |   6.89 s | 1,125,023,744 B |     0 |
+| Prettier                                       |                                exact 6 files, all matched |        — |               — |     — |
+| Full ESLint (`npx eslint .`)                   |                            exit 0, 0 errors, 157 warnings |  39.63 s | 1,288,552,448 B |     0 |
+| Full Vitest                                    |             153 files / 2,823 tests, all passed, 106.26 s | 106.68 s | 2,349,039,616 B |     0 |
+| Production build                               |                                 193 / 193 pages, 0 failed |  47.96 s | 2,619,326,464 B |     0 |
+| ML stdlib                                      |                                            58 / 58 passed |   0.46 s |    64,929,792 B |     0 |
+| npm audit (`--audit-level=high`)               |                                 exit 0, 0 vulnerabilities |   0.54 s |   133,332,992 B |     0 |
+| GitHub CI and review                           |                                               **PENDING** |        — |               — |     — |
 
-| Validation item                              | Status      |
-| -------------------------------------------- | ----------- |
-| Focused sealed-work visitor unit tests       | **PENDING** |
-| V3 checkpoint and scan-load regression tests | **PENDING** |
-| TypeScript typecheck                         | **PENDING** |
-| Scoped lint and formatting checks            | **PENDING** |
-| Full unit suite and production build         | **PENDING** |
-| GitHub CI and review                         | **PENDING** |
-
-No test count, duration, memory figure, commit revision, or CI result is asserted here before it is actually observed and recorded.
+These are local source, test, and documentation-candidate results bound to the commit above, not production execution. No production namespace, teacher output, weight, or live evaluator changed. GitHub CI, PR-head, and review-thread fields remain null until they are actually observed.
 
 ## 12. Next is a two-pass authenticated finalizer
 

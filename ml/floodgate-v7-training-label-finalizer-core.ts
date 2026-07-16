@@ -1,10 +1,11 @@
 /**
- * Test-only interruption-resumable Floodgate v7 label finalization core.
+ * Interruption-resumable Floodgate v7 training-label finalization.
  *
- * The opaque plan used here is synthetic. A later production connector must
- * mint the corresponding capability while it owns the successful sealed-final
- * scan. Nothing in this module is a production registry or playing-strength
- * claim.
+ * A fixed production path mints a one-shot opaque plan only from the successful
+ * two-pass sealed scanner, while legacy synthetic and scanner-backed test plans
+ * remain in two separate test registries. Adding this code path does not invoke
+ * production, finalize a real dataset, train or select a weight, change live
+ * evaluation, or establish match results or playing strength.
  */
 
 import { createHash, createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
@@ -18,12 +19,42 @@ import {
   type FloodgateTeacherStagePublicationDependencies,
   type FloodgateTeacherStagePublicationDurability,
   type FloodgateTeacherStagePublicationReceipt,
-  type FloodgateTeacherStagePublicationTransaction,
 } from "./floodgate-teacher-stage-authorization";
 import {
+  commitFloodgateV7TrainingLabelSealedScannerPublication,
+  commitFloodgateV7TrainingLabelSealedScannerPublicationCoreForTests,
+  createFloodgateV7TrainingLabelSealedScanner,
+  createFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  discardFloodgateV7TrainingLabelSealedScanner,
+  discardFloodgateV7TrainingLabelSealedScannerCoreForTests,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  getFloodgateV7TrainingLabelSealedScannerPublicationContext,
+  getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests,
+  replayFloodgateV7TrainingLabelSealedScanner,
+  replayFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  terminallyReverifyFloodgateV7TrainingLabelSealedScanner,
+  terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  type FloodgateV7TeacherCheckpointRunBinding,
+  type FloodgateV7TeacherCheckpointV3VerifiedParentEvent,
+  type FloodgateV7TrainingLabelSealedScanner,
+  type FloodgateV7TrainingLabelSealedScannerOptions,
+  type FloodgateV7TrainingLabelSealedScannerDependenciesForTests,
+  type FloodgateV7TrainingLabelSealedScannerPublicationContext,
+  type FloodgateV7TrainingLabelSealedScannerReceipt,
+  type FloodgateV7TrainingLabelSealedScannerTerminalReceipt,
 } from "./floodgate-v7-teacher-checkpoint";
+import {
+  claimFloodgateV7DeploymentTrainingLabelOutputKeys,
+  claimFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests,
+  discardFloodgateV7DeploymentTrainingLabelOutputKeys,
+  prepareFloodgateV7DeploymentTrainingLabelOutputKeys,
+  prepareFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests,
+  type FloodgateV7DeploymentKeyAuthorityDependencies,
+  type FloodgateV7DeploymentTeacherRunBinding,
+  type FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization,
+  type FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+} from "./floodgate-v7-deployment-key-authority";
 import {
   FLOODGATE_V7_TRAINING_LABEL_MANIFEST_HKDF_INFO,
   FLOODGATE_V7_TRAINING_LABEL_MANIFEST_MAC_DOMAIN,
@@ -34,11 +65,14 @@ import {
   FLOODGATE_V7_TRAINING_LABEL_PROJECTION_CLAIM_BOUNDARY,
   FLOODGATE_V7_TRAINING_LABEL_PROJECTION_CONTRACT,
   FLOODGATE_V7_TRAINING_LABEL_PROJECTION_STATUS,
+  projectFloodgateV7CompletedParentEvidenceToTrainingLabels,
   type FloodgateV7TrainingLabelProjection,
   type FloodgateV7TrainingLabelRow,
 } from "./floodgate-v7-training-label-projection";
 import {
+  claimVerifiedFloodgateTrainingConsumerPostflight,
   claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests,
+  type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingConsumerPostflightReceipt,
   type FloodgateTrainingInputBinding,
 } from "./floodgate-training-row-consumer";
@@ -60,6 +94,18 @@ export const FLOODGATE_V7_TRAINING_LABEL_PLAN_CLAIM_BOUNDARY =
   "weakmap-backed-test-only-synthetic-plan-not-sealed-work-verification-production-authority-publication-training-weight-match-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PLAN_EXECUTION_BOUNDARY =
   "test-only-deep-captured-synthetic-projection-plan" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_STATUS =
+  "production-opaque-one-shot-authenticated-sealed-scan-plan" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_CLAIM_BOUNDARY =
+  "weakmap-backed-production-only-authenticated-sealed-scan-plan-not-caller-rows-bytes-paths-keys-training-weight-match-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_EXECUTION_BOUNDARY =
+  "production-fixed-authenticated-sealed-scan-backed-restartable-plan" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_STATUS =
+  "test-only-opaque-one-shot-authenticated-sealed-scan-plan" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_CLAIM_BOUNDARY =
+  "weakmap-backed-test-only-authenticated-sealed-scan-plan-isolated-from-production-and-legacy-synthetic-plans" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_EXECUTION_BOUNDARY =
+  "test-only-injected-authenticated-sealed-scan-backed-restartable-plan" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_RESULT_SCHEMA =
   "shogi-floodgate-v7-training-label-result-v1" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_MANIFEST_SCHEMA =
@@ -72,6 +118,14 @@ export const FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_STATUS =
   "test-only-opaque-plan-exact-prefix-content-finalized-exclusively-published-and-destination-reverified" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CLAIM_BOUNDARY =
   "test-only-synthetic-opaque-plan-exact-prefix-persistence-domain-separated-result-and-manifest-authentication-and-private-publication-evidence-not-v3-work-origin-authentication-production-authority-teacher-truth-training-weight-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_STATUS =
+  "production-authenticated-sealed-scan-plan-exact-prefix-content-finalized-exclusively-published-and-destination-reverified" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY =
+  "production-authenticated-sealed-scan-opaque-plan-exact-prefix-persistence-purpose-separated-result-and-manifest-authentication-and-private-publication-evidence-not-training-weight-match-live-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS =
+  "test-only-authenticated-sealed-scan-plan-exact-prefix-content-finalized-and-injected-publication-reverified" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY =
+  "test-only-scanner-backed-composition-evidence-isolated-from-production-authority-output-training-weight-match-live-or-playing-strength" as const;
 
 export const FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME =
   "train.jsonl" as const;
@@ -88,6 +142,10 @@ export const FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES = Object.freeze([
 
 const RESULT_STATUS =
   "synthetic-opaque-plan-work-byte-continuity-bound-deterministic-training-label-result-not-trained" as const;
+const PRODUCTION_RESULT_STATUS =
+  "production-authenticated-sealed-scan-work-byte-continuity-bound-deterministic-training-label-result-not-trained" as const;
+const TEST_PRODUCTION_RESULT_STATUS =
+  "test-only-authenticated-sealed-scan-work-byte-continuity-bound-deterministic-training-label-result-not-trained" as const;
 const MANIFEST_STATUS =
   "durable-complete-training-label-artifact-set-ready-for-exclusive-publication" as const;
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
@@ -97,6 +155,8 @@ const CANONICAL_DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MODE_MASK = 0o7777;
 const READ_CHUNK_BYTES = 1024 * 1024;
+const PRODUCTION_PARENT_DEADLINE_MS = 1_800_000 as const;
+const PRODUCTION_ABORT_DRAIN_MS = 30_000 as const;
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
 const nativeTypedArrayBuffer = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
@@ -110,13 +170,63 @@ const nativeTypedArraySet = typedArrayPrototype.set as (
   source: ArrayLike<number>,
   offset?: number,
 ) => void;
+const nativeTypedArrayFill = typedArrayPrototype.fill as (
+  value: number,
+  start?: number,
+  end?: number,
+) => Uint8Array;
 
 const objectFreeze = Object.freeze;
 const objectCreate = Object.create;
+const objectDefineProperty = Object.defineProperty;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const reflectOwnKeys = Reflect.ownKeys;
 const nativePromiseThen = Promise.prototype.then;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
+const nativeWeakSetAdd = WeakSet.prototype.add;
+const nativeWeakSetHas = WeakSet.prototype.has;
+
+function appendArrayValue<T>(values: T[], value: T): void {
+  objectDefineProperty(values, values.length, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+}
+
+function weakMapGet<K extends object, V>(
+  registry: WeakMap<K, V>,
+  key: K,
+): V | undefined {
+  return Reflect.apply(nativeWeakMapGet, registry, [key]) as V | undefined;
+}
+
+function weakMapSet<K extends object, V>(
+  registry: WeakMap<K, V>,
+  key: K,
+  value: V,
+): void {
+  Reflect.apply(nativeWeakMapSet, registry, [key, value]);
+}
+
+function weakMapDelete<K extends object, V>(
+  registry: WeakMap<K, V>,
+  key: K,
+): boolean {
+  return Reflect.apply(nativeWeakMapDelete, registry, [key]) as boolean;
+}
+
+function weakSetAdd<K extends object>(registry: WeakSet<K>, key: K): void {
+  Reflect.apply(nativeWeakSetAdd, registry, [key]);
+}
+
+function weakSetHas<K extends object>(registry: WeakSet<K>, key: K): boolean {
+  return Reflect.apply(nativeWeakSetHas, registry, [key]) as boolean;
+}
 
 export interface FloodgateV7TrainingLabelSyntheticPlanInputForTests {
   readonly runId: string;
@@ -155,6 +265,22 @@ export interface FloodgateV7TrainingLabelFinalizationPlanForTests {
   readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_PLAN_STATUS;
   readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_PLAN_CLAIM_BOUNDARY;
   readonly execution_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_PLAN_EXECUTION_BOUNDARY;
+}
+
+/** Deliberately contains no rows, bytes, paths, callbacks, handles, or keys. */
+export interface FloodgateV7TrainingLabelFinalizationPlan {
+  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_PLAN_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_CLAIM_BOUNDARY;
+  readonly execution_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_EXECUTION_BOUNDARY;
+}
+
+/** Test-only scanner-backed facade isolated from both other plan registries. */
+export interface FloodgateV7TrainingLabelProductionPlanForTests {
+  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_PLAN_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_CLAIM_BOUNDARY;
+  readonly execution_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_EXECUTION_BOUNDARY;
 }
 
 export interface FloodgateV7TrainingLabelFinalizerOptions {
@@ -223,9 +349,18 @@ export interface FloodgateV7TrainingLabelPublishedFileEvidence {
 
 export interface FloodgateV7TrainingLabelFinalizationReceipt {
   readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CONTRACT;
-  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_STATUS;
-  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CLAIM_BOUNDARY;
-  readonly execution_boundary: "test-only-injected-opaque-plan-finalizer-and-exclusive-private-directory-publication";
+  readonly status:
+    | typeof FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_STATUS
+    | typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_STATUS
+    | typeof FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS;
+  readonly claim_boundary:
+    | typeof FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CLAIM_BOUNDARY
+    | typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY
+    | typeof FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY;
+  readonly execution_boundary:
+    | "test-only-injected-opaque-plan-finalizer-and-exclusive-private-directory-publication"
+    | "test-only-injected-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication"
+    | "production-fixed-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication";
   readonly content: Readonly<{
     readonly work: Readonly<FloodgateV7TrainingLabelPublishedFileEvidence>;
     readonly train: Readonly<FloodgateV7TrainingLabelPublishedFileEvidence>;
@@ -248,12 +383,14 @@ export type FloodgateV7TrainingLabelFinalizerFailurePhase =
   | "input-capture"
   | "authority-transfer"
   | "postflight-claim"
+  | "output-key-acquisition"
   | "cross-binding"
   | "source-work-audit"
   | "train-persistence"
   | "result-persistence"
   | "manifest-persistence"
   | "source-reverification"
+  | "terminal-work-reverification"
   | "publication"
   | "destination-reverification"
   | "cleanup";
@@ -326,6 +463,94 @@ export class FloodgateV7TrainingLabelFinalizerError extends Error {
   }
 }
 
+export type FloodgateV7TrainingLabelProductionOperationPhase =
+  | FloodgateV7TrainingLabelFinalizerFailurePhase
+  | "plan-composition"
+  | "plan-discard";
+
+/** Public production failure with no nested cause, path, MAC, or key material. */
+export class FloodgateV7TrainingLabelProductionError extends Error {
+  readonly phase: FloodgateV7TrainingLabelProductionOperationPhase;
+  readonly planConsumed: boolean;
+  readonly postflightConsumed: boolean;
+  readonly mayHavePersisted: boolean;
+  readonly mayHavePublished: boolean;
+  readonly durability: FloodgateV7TrainingLabelFinalizerDurability;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
+  readonly leaseMayRemain: boolean;
+  readonly retryDisposition: FloodgateV7TrainingLabelFinalizerRetryDisposition;
+  readonly cleanupFailureCount: number;
+
+  constructor(
+    phase: FloodgateV7TrainingLabelProductionOperationPhase,
+    facets: Readonly<{
+      planConsumed?: boolean;
+      postflightConsumed?: boolean;
+      mayHavePersisted?: boolean;
+      mayHavePublished?: boolean;
+      durability?: FloodgateV7TrainingLabelFinalizerDurability;
+      publicationDurability?: FloodgateTeacherStagePublicationDurability;
+      destinationReopened?: boolean;
+      leaseMayRemain?: boolean;
+      retryDisposition?: FloodgateV7TrainingLabelFinalizerRetryDisposition;
+      cleanupFailureCount?: number;
+    }> = {},
+  ) {
+    super(
+      `Floodgate v7 production training-label operation failed at ${phase}`,
+    );
+    this.name = "FloodgateV7TrainingLabelProductionError";
+    this.phase = phase;
+    this.planConsumed = facets.planConsumed === true;
+    this.postflightConsumed = facets.postflightConsumed === true;
+    this.mayHavePersisted = facets.mayHavePersisted === true;
+    this.mayHavePublished = facets.mayHavePublished === true;
+    this.durability = facets.durability ?? "not-established";
+    this.publicationDurability =
+      facets.publicationDurability ?? "not-established";
+    this.destinationReopened = facets.destinationReopened === true;
+    this.leaseMayRemain = facets.leaseMayRemain !== false;
+    this.retryDisposition =
+      facets.retryDisposition ??
+      "caller-must-reconcile-existing-lease-authority";
+    this.cleanupFailureCount = facets.cleanupFailureCount ?? 0;
+    objectFreeze(this);
+  }
+}
+
+function sanitizeProductionFailure(
+  error: unknown,
+  fallbackPhase: FloodgateV7TrainingLabelProductionOperationPhase,
+): FloodgateV7TrainingLabelProductionError {
+  if (error instanceof FloodgateV7TrainingLabelFinalizerError) {
+    return new FloodgateV7TrainingLabelProductionError(error.phase, {
+      planConsumed: error.planConsumed,
+      postflightConsumed: error.postflightConsumed,
+      mayHavePersisted: error.mayHavePersisted,
+      mayHavePublished: error.mayHavePublished,
+      durability: error.durability,
+      publicationDurability: error.publicationDurability,
+      destinationReopened: error.destinationReopened,
+      leaseMayRemain: error.leaseMayRemain,
+      retryDisposition: error.retryDisposition,
+      cleanupFailureCount: error.cleanupFailures.length,
+    });
+  }
+  return new FloodgateV7TrainingLabelProductionError(fallbackPhase);
+}
+
+async function sanitizeProductionOperation<T>(
+  operation: Promise<T>,
+  fallbackPhase: FloodgateV7TrainingLabelProductionOperationPhase,
+): Promise<T> {
+  try {
+    return await operation;
+  } catch (error) {
+    throw sanitizeProductionFailure(error, fallbackPhase);
+  }
+}
+
 interface CapturedProjection {
   readonly parentId: string;
   readonly forced: boolean;
@@ -356,8 +581,13 @@ interface HiddenPlan {
   }>;
 }
 
+interface HiddenProductionPlan extends HiddenPlan {
+  readonly scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>;
+  readonly scannerReceipt: Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>;
+  readonly outputKeyRequest: Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysRequest>;
+}
+
 interface CapturedInvocation {
-  readonly rootKey: Buffer;
   readonly runId: string;
   readonly keyId: string;
   readonly effectiveUserId: number;
@@ -366,17 +596,63 @@ interface CapturedInvocation {
   readonly write?: FloodgateV7TrainingLabelFinalizerDependencies["writeForTests"];
 }
 
+interface CapturedTestInvocation extends CapturedInvocation {
+  readonly rootKey: Buffer;
+}
+
 interface MutableProgress {
   phase: FloodgateV7TrainingLabelFinalizerFailurePhase;
   observedState: string;
   planConsumed: boolean;
   postflightConsumed: boolean;
   mayHavePersisted: boolean;
+  publicationAuthorityAcquired: boolean;
   commitStarted: boolean;
   published: boolean;
   durability: FloodgateV7TrainingLabelFinalizerDurability;
   publicationReceipt?: Readonly<FloodgateTeacherStagePublicationReceipt>;
   destinationReopened: boolean;
+}
+
+interface FinalizationPublicationControl {
+  readonly authorizationReceipt: Readonly<
+    FloodgateTeacherStageLease["receipt"]
+  >;
+  readonly stageRoot: string;
+  readonly destinationRoot: string;
+  terminalReverify(): Promise<void>;
+  commit(): Promise<Readonly<FloodgateTeacherStagePublicationReceipt>>;
+  abort(): Promise<void>;
+}
+
+interface MutableFinalizationAuthority {
+  plan: Readonly<HiddenPlan> | undefined;
+  invocation: Readonly<CapturedInvocation> | undefined;
+  resultKey: Buffer;
+  manifestKey: Buffer;
+  publication: Readonly<FinalizationPublicationControl> | undefined;
+}
+
+interface PreparedFinalization {
+  readonly plan: Readonly<HiddenPlan>;
+  readonly invocation: Readonly<CapturedInvocation>;
+  readonly capturedPostflight: Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+  readonly consumerPostflightSha256: string;
+}
+
+type PrepareFinalization = (
+  progress: MutableProgress,
+  authority: MutableFinalizationAuthority,
+) => Promise<Readonly<PreparedFinalization>>;
+
+interface FinalizationReceiptBoundary {
+  readonly status: FloodgateV7TrainingLabelFinalizationReceipt["status"];
+  readonly claimBoundary: FloodgateV7TrainingLabelFinalizationReceipt["claim_boundary"];
+  readonly executionBoundary: FloodgateV7TrainingLabelFinalizationReceipt["execution_boundary"];
+  readonly resultStatus:
+    | typeof RESULT_STATUS
+    | typeof PRODUCTION_RESULT_STATUS
+    | typeof TEST_PRODUCTION_RESULT_STATUS;
 }
 
 interface FileSnapshot {
@@ -414,13 +690,39 @@ interface TrainingReplayParentBatch {
   readonly canonicalLinesWithLf: readonly Uint8Array[];
 }
 
-type RestartableTrainingReplay = () => AsyncIterable<
-  Readonly<TrainingReplayParentBatch>
->;
+type TrainingReplayParentBatchSink = (
+  batch: Readonly<TrainingReplayParentBatch>,
+) => Promise<void>;
 
-const PLAN_REGISTRY = new WeakMap<
+type RestartableTrainingReplay = (
+  sink: TrainingReplayParentBatchSink,
+) => Promise<void>;
+
+const TEST_PLAN_REGISTRY = new WeakMap<
   Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
   Readonly<HiddenPlan>
+>();
+const PRODUCTION_PLAN_REGISTRY = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+  Readonly<HiddenProductionPlan>
+>();
+const PRODUCTION_PLAN_KNOWN = new WeakSet<
+  Readonly<FloodgateV7TrainingLabelFinalizationPlan>
+>();
+const PRODUCTION_PLAN_DISCARDS = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+  Promise<void>
+>();
+const TEST_PRODUCTION_PLAN_REGISTRY = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+  Readonly<HiddenProductionPlan>
+>();
+const TEST_PRODUCTION_PLAN_KNOWN = new WeakSet<
+  Readonly<FloodgateV7TrainingLabelProductionPlanForTests>
+>();
+const TEST_PRODUCTION_PLAN_DISCARDS = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+  Promise<void>
 >();
 const MANUAL_CONTENT_FAILURES = new WeakSet<object>();
 
@@ -625,6 +927,50 @@ function exactBytes(left: Uint8Array, right: Uint8Array): boolean {
   );
 }
 
+function zeroOwnedBytes(bytes: Uint8Array, label: string): unknown | undefined {
+  try {
+    Reflect.apply(nativeTypedArrayFill, bytes, [0]);
+    const length =
+      nativeTypedArrayByteLength === undefined
+        ? bytes.byteLength
+        : (Reflect.apply(nativeTypedArrayByteLength, bytes, []) as number);
+    for (let index = 0; index < length; index += 1) {
+      if (bytes[index] !== 0) {
+        return new Error(`${label} was not zero-filled`);
+      }
+    }
+    return undefined;
+  } catch (error) {
+    return error;
+  }
+}
+
+function throwWithZeroizationFailures(
+  primary: unknown,
+  failures: readonly (unknown | undefined)[],
+  message: string,
+): never {
+  const combined: unknown[] = [];
+  if (primary !== undefined) appendArrayValue(combined, primary);
+  for (let index = 0; index < failures.length; index += 1) {
+    const failure = failures[index];
+    if (failure !== undefined) appendArrayValue(combined, failure);
+  }
+  if (combined.length === 1 && primary !== undefined) throw primary;
+  throw new AggregateError(combined, message);
+}
+
+function requireOwnedKeyZeroized(bytes: Uint8Array, label: string): void {
+  const failure = zeroOwnedBytes(bytes, label);
+  if (failure !== undefined) {
+    throwWithZeroizationFailures(
+      undefined,
+      [failure],
+      `${label} zeroization failed`,
+    );
+  }
+}
+
 function nonnegativeInteger(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
     fail(`${label} must be a nonnegative safe integer`);
@@ -715,31 +1061,34 @@ function captureProjection(
   });
 }
 
-async function* replayCapturedProjections(
+async function replayCapturedProjections(
   projections: readonly Readonly<CapturedProjection>[],
-): AsyncGenerator<Readonly<TrainingReplayParentBatch>, void, void> {
+  sink: TrainingReplayParentBatchSink,
+): Promise<void> {
   for (let inputIndex = 0; inputIndex < projections.length; inputIndex += 1) {
     const projection = projections[inputIndex];
-    yield frozenRecord({
-      inputIndex,
-      parentId: projection.parentId,
-      forced: projection.forced,
-      canonicalLinesWithLf: objectFreeze(
-        projection.rows.map((row) =>
-          Buffer.from(`${canonicalJson(row)}\n`, "utf8"),
+    await sink(
+      frozenRecord({
+        inputIndex,
+        parentId: projection.parentId,
+        forced: projection.forced,
+        canonicalLinesWithLf: objectFreeze(
+          projection.rows.map((row) =>
+            Buffer.from(`${canonicalJson(row)}\n`, "utf8"),
+          ),
         ),
-      ),
-    });
+      }),
+    );
   }
 }
 
 function capturedProjectionReplay(
   projections: readonly Readonly<CapturedProjection>[],
 ): RestartableTrainingReplay {
-  return objectFreeze(function (): AsyncIterable<
-    Readonly<TrainingReplayParentBatch>
-  > {
-    return replayCapturedProjections(projections);
+  return objectFreeze(async function (
+    sink: TrainingReplayParentBatchSink,
+  ): Promise<void> {
+    await replayCapturedProjections(projections, sink);
   });
 }
 
@@ -914,7 +1263,8 @@ export function createFloodgateV7TrainingLabelFinalizationPlanCoreForTests(
     claim_boundary: FLOODGATE_V7_TRAINING_LABEL_PLAN_CLAIM_BOUNDARY,
     execution_boundary: FLOODGATE_V7_TRAINING_LABEL_PLAN_EXECUTION_BOUNDARY,
   });
-  PLAN_REGISTRY.set(
+  weakMapSet(
+    TEST_PLAN_REGISTRY,
     facade,
     frozenRecord({
       runId: input.runId,
@@ -936,7 +1286,7 @@ export function createFloodgateV7TrainingLabelFinalizationPlanCoreForTests(
   return facade;
 }
 
-function takePlan(
+function takeTestPlan(
   value: Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
 ): Readonly<HiddenPlan> {
   if (
@@ -946,17 +1296,596 @@ function takePlan(
   ) {
     fail("finalization requires the exact opaque synthetic plan");
   }
-  const plan = PLAN_REGISTRY.get(value);
-  if (plan === undefined || !PLAN_REGISTRY.delete(value)) {
+  const plan = weakMapGet(TEST_PLAN_REGISTRY, value);
+  if (plan === undefined || !weakMapDelete(TEST_PLAN_REGISTRY, value)) {
     fail("synthetic finalization plan is cloned, foreign, or already consumed");
   }
   return plan;
 }
 
-function captureInvocation(
+function trainingBatchFromVerifiedEvent(
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+  expectedInputIndex: number,
+): Readonly<TrainingReplayParentBatch> {
+  if (
+    event.input_index !== expectedInputIndex ||
+    event.parent.parent_id.length === 0
+  ) {
+    fail("authenticated scanner parent sequence is not exact");
+  }
+  const projection = captureProjection(
+    projectFloodgateV7CompletedParentEvidenceToTrainingLabels(
+      event.completed_evidence,
+    ),
+    expectedInputIndex,
+  );
+  if (projection.parentId !== event.parent.parent_id) {
+    fail("training projection differs from its authenticated scanner parent");
+  }
+  return frozenRecord({
+    inputIndex: expectedInputIndex,
+    parentId: projection.parentId,
+    forced: projection.forced,
+    canonicalLinesWithLf: objectFreeze(
+      projection.rows.map((row, rowIndex) => {
+        const line = Buffer.from(`${canonicalJson(row)}\n`, "utf8");
+        if (line.byteLength > READ_CHUNK_BYTES) {
+          fail(
+            `training projection ${expectedInputIndex} row ${rowIndex} exceeds its exact byte bound`,
+          );
+        }
+        return line;
+      }),
+    ),
+  });
+}
+
+interface ProductionTrainingAccumulator {
+  readonly sink: (
+    event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+  ) => Promise<void>;
+  readonly finish: () => Readonly<TrainSummary>;
+}
+
+function productionTrainingAccumulator(): Readonly<ProductionTrainingAccumulator> {
+  const digest = createHash("sha256");
+  const uniqueParentIds = new Set<string>();
+  let inputParents = 0;
+  let forcedParentsSkipped = 0;
+  let emittedParentGroups = 0;
+  let records = 0;
+  let bytes = 0;
+  let finished = false;
+  const sink = async (
+    event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+  ): Promise<void> => {
+    if (finished) fail("production training accumulator is already finished");
+    const batch = trainingBatchFromVerifiedEvent(event, inputParents);
+    if (uniqueParentIds.has(batch.parentId)) {
+      fail(`duplicate authenticated scanner parent ${batch.parentId}`);
+    }
+    uniqueParentIds.add(batch.parentId);
+    inputParents += 1;
+    if (batch.forced) forcedParentsSkipped += 1;
+    if (batch.canonicalLinesWithLf.length > 0) emittedParentGroups += 1;
+    for (const line of batch.canonicalLinesWithLf) {
+      digest.update(line);
+      records += 1;
+      bytes += line.byteLength;
+      if (!Number.isSafeInteger(records) || !Number.isSafeInteger(bytes)) {
+        fail("production training summary exceeds its exact integer bound");
+      }
+    }
+  };
+  return frozenRecord({
+    sink,
+    finish: (): Readonly<TrainSummary> => {
+      if (finished) fail("production training accumulator was finished twice");
+      finished = true;
+      return frozenRecord({
+        inputParents,
+        forcedParentsSkipped,
+        emittedParentGroups,
+        parentIdsSha256: floodgateIdentifierDigest(uniqueParentIds),
+        records,
+        bytes,
+        sha256: digest.digest("hex"),
+      });
+    },
+  });
+}
+
+type ScannerReplay = (
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  sink: (
+    event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+  ) => Promise<void>,
+) => Promise<Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>>;
+
+function scannerBackedReplay(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  expectedParents: number,
+  replayScanner: ScannerReplay,
+): RestartableTrainingReplay {
+  return objectFreeze(async (sink: TrainingReplayParentBatchSink) => {
+    let inputIndex = 0;
+    await replayScanner(scanner, async (event): Promise<void> => {
+      const batch = trainingBatchFromVerifiedEvent(event, inputIndex);
+      await sink(batch);
+      inputIndex += 1;
+    });
+    if (inputIndex !== expectedParents) {
+      fail("sealed scanner replay parent count differs from its plan");
+    }
+  });
+}
+
+type ScannerBackedPlanFacade =
+  | Readonly<FloodgateV7TrainingLabelFinalizationPlan>
+  | Readonly<FloodgateV7TrainingLabelProductionPlanForTests>;
+
+interface ScannerPlanBoundary<TFacade extends ScannerBackedPlanFacade> {
+  readonly status: TFacade["status"];
+  readonly claimBoundary: TFacade["claim_boundary"];
+  readonly executionBoundary: TFacade["execution_boundary"];
+  readonly context: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  ) => Readonly<FloodgateV7TrainingLabelSealedScannerPublicationContext>;
+  readonly replay: ScannerReplay;
+  readonly discard: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  ) => Promise<void>;
+  readonly register: (
+    facade: TFacade,
+    plan: Readonly<HiddenProductionPlan>,
+  ) => void;
+}
+
+async function finishScannerBackedPlan<TFacade extends ScannerBackedPlanFacade>(
+  openedPromise: Promise<
+    Readonly<{
+      readonly scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>;
+      readonly receipt: Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>;
+    }>
+  >,
+  runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
+  accumulator: Readonly<ProductionTrainingAccumulator>,
+  boundary: Readonly<ScannerPlanBoundary<TFacade>>,
+): Promise<TFacade> {
+  let scanner: Readonly<FloodgateV7TrainingLabelSealedScanner> | undefined;
+  let transferred = false;
+  let caughtFailure = false;
+  let primary: unknown;
+  try {
+    const opened = await openedPromise;
+    scanner = opened.scanner;
+    const receipt = deepCaptureJson(
+      opened.receipt,
+      "sealed scanner receipt",
+    ) as Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>;
+    const context = boundary.context(scanner);
+    const runBinding = deepCaptureJson(
+      runBindingValue,
+      "production plan run binding",
+    ) as Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+    if (
+      runBinding.producer_control.parent_deadline_ms !==
+        PRODUCTION_PARENT_DEADLINE_MS ||
+      runBinding.producer_control.abort_drain_ms !== PRODUCTION_ABORT_DRAIN_MS
+    ) {
+      fail("production plan run binding does not use the fixed timer policy");
+    }
+    const deploymentRunBinding =
+      runBinding as Readonly<FloodgateV7DeploymentTeacherRunBinding>;
+    const runBindingCanonical = canonicalJson(runBinding);
+    const trainingBinding = deepCaptureJson(
+      receipt.training.binding,
+      "production plan training binding",
+    ) as Readonly<FloodgateTrainingInputBinding>;
+    const trainingBindingCanonical = canonicalJson(trainingBinding);
+    const expectedTrain = accumulator.finish();
+    if (
+      receipt.teacher_run_binding_sha256 !== sha256(runBindingCanonical) ||
+      receipt.training.binding_sha256 !== sha256(trainingBindingCanonical) ||
+      receipt.training.parents !== expectedTrain.inputParents ||
+      trainingBinding.records !== expectedTrain.inputParents ||
+      receipt.training.parent_ids_sha256 !== expectedTrain.parentIdsSha256 ||
+      trainingBinding.parent_ids_sha256 !== expectedTrain.parentIdsSha256
+    ) {
+      fail("sealed scanner receipt differs from the projected training plan");
+    }
+    const stage = frozenRecord({
+      parent_dev: canonicalDecimalString(
+        receipt.stage.parent_dev,
+        "production plan stage.parent_dev",
+      ),
+      parent_ino: canonicalDecimalString(
+        receipt.stage.parent_ino,
+        "production plan stage.parent_ino",
+      ),
+      stage_dev: canonicalDecimalString(
+        receipt.stage.stage_dev,
+        "production plan stage.stage_dev",
+      ),
+      stage_ino: canonicalDecimalString(
+        receipt.stage.stage_ino,
+        "production plan stage.stage_ino",
+      ),
+      stage_basename: safeBasename(
+        receipt.stage.stage_basename,
+        "production plan stage.stage_basename",
+      ),
+      destination_basename: safeBasename(
+        receipt.stage.destination_basename,
+        "production plan stage.destination_basename",
+      ),
+    });
+    const stageCanonical = canonicalJson(stage);
+    if (
+      canonicalJson(stageIdentity(context.authorizationReceipt)) !==
+      stageCanonical
+    ) {
+      fail("sealed scanner publication context differs from its stage receipt");
+    }
+    const workBytes = nonnegativeInteger(
+      receipt.work.bytes,
+      "production plan work bytes",
+    );
+    if (workBytes > FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES) {
+      fail("production plan work exceeds the v3 checkpoint bound");
+    }
+    const workSha256 = digestString(
+      receipt.work.sha256,
+      "production plan work sha256",
+    );
+    const workSnapshot = frozenRecord({
+      dev: canonicalBigint(receipt.work.snapshot.dev, "work snapshot.dev"),
+      ino: canonicalBigint(receipt.work.snapshot.ino, "work snapshot.ino"),
+      mode: canonicalBigint(receipt.work.snapshot.mode, "work snapshot.mode"),
+      nlink: canonicalBigint(
+        receipt.work.snapshot.nlink,
+        "work snapshot.nlink",
+      ),
+      uid: canonicalBigint(receipt.work.snapshot.uid, "work snapshot.uid"),
+      size: canonicalBigint(receipt.work.snapshot.size, "work snapshot.size"),
+      mtimeNs: canonicalBigint(
+        receipt.work.snapshot.mtime_ns,
+        "work snapshot.mtime_ns",
+      ),
+      ctimeNs: canonicalBigint(
+        receipt.work.snapshot.ctime_ns,
+        "work snapshot.ctime_ns",
+      ),
+    });
+    if (workSnapshot.size !== BigInt(workBytes)) {
+      fail("production plan work snapshot size differs from its byte count");
+    }
+    const outputKeyRequest = frozenRecord({
+      runId: receipt.run_id,
+      keyId: receipt.key_id,
+      runBinding: deploymentRunBinding,
+      stageAuthorizationReceipt: context.authorizationReceipt,
+      teacherRunBindingSha256: receipt.teacher_run_binding_sha256,
+      trainingBindingSha256: receipt.training.binding_sha256,
+      work: frozenRecord({
+        bytes: workBytes,
+        sha256: workSha256,
+        snapshot: frozenRecord({
+          dev: workSnapshot.dev.toString(),
+          ino: workSnapshot.ino.toString(),
+          mode: workSnapshot.mode.toString(),
+          nlink: workSnapshot.nlink.toString(),
+          uid: workSnapshot.uid.toString(),
+          size: workSnapshot.size.toString(),
+          mtimeNs: workSnapshot.mtimeNs.toString(),
+          ctimeNs: workSnapshot.ctimeNs.toString(),
+        }),
+      }),
+      training: expectedTrain,
+    }) satisfies Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysRequest>;
+    const facade = frozenRecord({
+      contract: FLOODGATE_V7_TRAINING_LABEL_PLAN_CONTRACT,
+      status: boundary.status,
+      claim_boundary: boundary.claimBoundary,
+      execution_boundary: boundary.executionBoundary,
+    }) as TFacade;
+    const hiddenPlan = frozenRecord({
+      runId: receipt.run_id,
+      keyId: receipt.key_id,
+      teacherRunBindingSha256: receipt.teacher_run_binding_sha256,
+      trainingBinding,
+      trainingBindingCanonical,
+      stage,
+      stageCanonical,
+      replay: scannerBackedReplay(
+        scanner,
+        expectedTrain.inputParents,
+        boundary.replay,
+      ),
+      expectedTrain,
+      work: frozenRecord({
+        bytes: workBytes,
+        sha256: workSha256,
+        snapshot: workSnapshot,
+      }),
+      scanner,
+      scannerReceipt: receipt,
+      outputKeyRequest,
+    });
+    boundary.register(facade, hiddenPlan);
+    transferred = true;
+    return facade;
+  } catch (error) {
+    caughtFailure = true;
+    primary = error;
+  }
+  if (!transferred && scanner !== undefined) {
+    try {
+      await boundary.discard(scanner);
+    } catch (cleanupFailure) {
+      throw new AggregateError(
+        [primary, cleanupFailure],
+        "production plan mint and sealed scanner cleanup both failed",
+      );
+    }
+  }
+  if (!caughtFailure) {
+    fail("scanner-backed plan mint ended without transfer or failure");
+  }
+  if (primary === undefined) {
+    fail("scanner-backed plan mint failed without an error value");
+  }
+  throw primary;
+}
+
+const PRODUCTION_SCANNER_PLAN_BOUNDARY: Readonly<
+  ScannerPlanBoundary<Readonly<FloodgateV7TrainingLabelFinalizationPlan>>
+> = frozenRecord({
+  status: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_STATUS,
+  claimBoundary: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_CLAIM_BOUNDARY,
+  executionBoundary:
+    FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_PLAN_EXECUTION_BOUNDARY,
+  context: getFloodgateV7TrainingLabelSealedScannerPublicationContext,
+  replay: replayFloodgateV7TrainingLabelSealedScanner,
+  discard: discardFloodgateV7TrainingLabelSealedScanner,
+  register: (facade, plan): void => {
+    weakMapSet(PRODUCTION_PLAN_REGISTRY, facade, plan);
+    weakSetAdd(PRODUCTION_PLAN_KNOWN, facade);
+  },
+});
+
+async function rejectAfterPlanComposerCaptureFailure(
+  primary: unknown,
+): Promise<never> {
+  // No scanner publication transaction exists yet, so this boundary has not
+  // accepted ownership of the caller's lease. Calling a copied `close`
+  // closure here could consume the genuine authority behind a cloned or
+  // cross-boundary facade. Leave every unclaimed lease to its owner.
+  throw primary;
+}
+
+/**
+ * Mint one production opaque plan only after the scanner's two enclosing
+ * authenticated passes finish. The scanner synchronously claims the fresh row
+ * input and lease, then performs same-held-file unkeyed preflight followed by
+ * internal purpose-key preparation and two keyed enclosing scans.
+ */
+export function createFloodgateV7TrainingLabelFinalizationPlan(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  training: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TrainingLabelSealedScannerOptions,
+): Promise<Readonly<FloodgateV7TrainingLabelFinalizationPlan>> {
+  if (arguments.length !== 4) {
+    return Promise.reject(
+      new FloodgateV7TrainingLabelProductionError("plan-composition"),
+    );
+  }
+  let capturedRunBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  try {
+    capturedRunBinding = deepCaptureJson(
+      runBinding,
+      "production plan run binding",
+    ) as Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  } catch (error) {
+    return sanitizeProductionOperation(
+      rejectAfterPlanComposerCaptureFailure(error),
+      "plan-composition",
+    );
+  }
+  const accumulator = productionTrainingAccumulator();
+  const opened = createFloodgateV7TrainingLabelSealedScanner(
+    lease,
+    training,
+    capturedRunBinding,
+    options,
+    accumulator.sink,
+  );
+  return sanitizeProductionOperation(
+    finishScannerBackedPlan(
+      opened,
+      capturedRunBinding,
+      accumulator,
+      PRODUCTION_SCANNER_PLAN_BOUNDARY,
+    ),
+    "plan-composition",
+  );
+}
+
+const TEST_PRODUCTION_SCANNER_PLAN_BOUNDARY: Readonly<
+  ScannerPlanBoundary<Readonly<FloodgateV7TrainingLabelProductionPlanForTests>>
+> = frozenRecord({
+  status: FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_STATUS,
+  claimBoundary:
+    FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_CLAIM_BOUNDARY,
+  executionBoundary:
+    FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_PLAN_EXECUTION_BOUNDARY,
+  context:
+    getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests,
+  replay: replayFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  discard: discardFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  register: (facade, plan): void => {
+    weakMapSet(TEST_PRODUCTION_PLAN_REGISTRY, facade, plan);
+    weakSetAdd(TEST_PRODUCTION_PLAN_KNOWN, facade);
+  },
+});
+
+/** Test-only scanner-backed composer with wholly isolated authority registries. */
+export function createFloodgateV7TrainingLabelProductionPlanCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  training: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TrainingLabelSealedScannerOptions,
+  keyAuthorityDependencies: FloodgateV7DeploymentKeyAuthorityDependencies,
+  scannerDependencies: FloodgateV7TrainingLabelSealedScannerDependenciesForTests,
+  publicationDependencies: FloodgateTeacherStagePublicationDependencies,
+): Promise<Readonly<FloodgateV7TrainingLabelProductionPlanForTests>> {
+  if (arguments.length !== 7) {
+    return Promise.reject(
+      new Error("test production plan composer accepts seven arguments"),
+    );
+  }
+  let capturedRunBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  try {
+    capturedRunBinding = deepCaptureJson(
+      runBinding,
+      "test production plan run binding",
+    ) as Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  } catch (error) {
+    return rejectAfterPlanComposerCaptureFailure(error);
+  }
+  const accumulator = productionTrainingAccumulator();
+  const opened = createFloodgateV7TrainingLabelSealedScannerCoreForTests(
+    lease,
+    training,
+    capturedRunBinding,
+    options,
+    accumulator.sink,
+    scannerDependencies,
+    keyAuthorityDependencies,
+    publicationDependencies,
+  );
+  return finishScannerBackedPlan(
+    opened,
+    capturedRunBinding,
+    accumulator,
+    TEST_PRODUCTION_SCANNER_PLAN_BOUNDARY,
+  );
+}
+
+function takeProductionPlan(
+  value: Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+): Readonly<HiddenProductionPlan> {
+  if (
+    (typeof value !== "object" && typeof value !== "function") ||
+    value === null ||
+    nodeUtilTypes.isProxy(value)
+  ) {
+    fail("production finalization requires the exact opaque production plan");
+  }
+  if (weakMapGet(PRODUCTION_PLAN_DISCARDS, value) !== undefined) {
+    fail("production finalization plan discard is active or indeterminate");
+  }
+  const plan = weakMapGet(PRODUCTION_PLAN_REGISTRY, value);
+  if (plan === undefined || !weakMapDelete(PRODUCTION_PLAN_REGISTRY, value)) {
+    fail(
+      "production finalization plan is cloned, foreign, or already consumed",
+    );
+  }
+  return plan;
+}
+
+function takeTestProductionPlan(
+  value: Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+): Readonly<HiddenProductionPlan> {
+  if (
+    (typeof value !== "object" && typeof value !== "function") ||
+    value === null ||
+    nodeUtilTypes.isProxy(value)
+  ) {
+    fail("test production finalization requires its exact opaque plan");
+  }
+  if (weakMapGet(TEST_PRODUCTION_PLAN_DISCARDS, value) !== undefined) {
+    fail("test production plan discard is active or indeterminate");
+  }
+  const plan = weakMapGet(TEST_PRODUCTION_PLAN_REGISTRY, value);
+  if (
+    plan === undefined ||
+    !weakMapDelete(TEST_PRODUCTION_PLAN_REGISTRY, value)
+  ) {
+    fail("test production plan is cloned, foreign, or already consumed");
+  }
+  return plan;
+}
+
+/** Close and zero an abandoned exact production plan before publication. */
+export async function discardFloodgateV7TrainingLabelFinalizationPlan(
+  value: Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+): Promise<void> {
+  try {
+    if (arguments.length !== 1) {
+      fail("production finalization plan discard accepts exactly one argument");
+    }
+    if (
+      (typeof value !== "object" && typeof value !== "function") ||
+      value === null ||
+      nodeUtilTypes.isProxy(value) ||
+      !weakSetHas(PRODUCTION_PLAN_KNOWN, value)
+    ) {
+      fail("production plan discard requires an exact known production plan");
+    }
+    let discard = weakMapGet(PRODUCTION_PLAN_DISCARDS, value);
+    if (discard === undefined) {
+      const plan = weakMapGet(PRODUCTION_PLAN_REGISTRY, value);
+      if (plan === undefined) return;
+      discard = discardFloodgateV7TrainingLabelSealedScanner(plan.scanner);
+      // Keep both the hidden plan and this exact Promise until cleanup
+      // succeeds. A close/abort failure leaves the scanner indeterminate; all
+      // later discards must observe that remembered rejection, never an
+      // idempotent-looking success caused by an early registry deletion.
+      weakMapSet(PRODUCTION_PLAN_DISCARDS, value, discard);
+    }
+    await discard;
+    weakMapDelete(PRODUCTION_PLAN_REGISTRY, value);
+    weakMapDelete(PRODUCTION_PLAN_DISCARDS, value);
+  } catch (error) {
+    throw sanitizeProductionFailure(error, "plan-discard");
+  }
+}
+
+/** Test-only idempotent cleanup for one exact scanner-backed test plan. */
+export async function discardFloodgateV7TrainingLabelProductionPlanCoreForTests(
+  value: Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+): Promise<void> {
+  if (arguments.length !== 1) {
+    fail("test production plan discard accepts exactly one argument");
+  }
+  if (
+    (typeof value !== "object" && typeof value !== "function") ||
+    value === null ||
+    nodeUtilTypes.isProxy(value) ||
+    !weakSetHas(TEST_PRODUCTION_PLAN_KNOWN, value)
+  ) {
+    fail("test production plan discard requires an exact known test plan");
+  }
+  let discard = weakMapGet(TEST_PRODUCTION_PLAN_DISCARDS, value);
+  if (discard === undefined) {
+    const plan = weakMapGet(TEST_PRODUCTION_PLAN_REGISTRY, value);
+    if (plan === undefined) return;
+    discard = discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      plan.scanner,
+    );
+    weakMapSet(TEST_PRODUCTION_PLAN_DISCARDS, value, discard);
+  }
+  await discard;
+  weakMapDelete(TEST_PRODUCTION_PLAN_REGISTRY, value);
+  weakMapDelete(TEST_PRODUCTION_PLAN_DISCARDS, value);
+}
+
+function captureTestInvocation(
   optionsValue: FloodgateV7TrainingLabelFinalizerOptions,
   dependenciesValue: FloodgateV7TrainingLabelFinalizerDependencies,
-): Readonly<CapturedInvocation> {
+): Readonly<CapturedTestInvocation> {
   const options = exactRecord(
     optionsValue,
     ["keyId", "rootKey", "runId"],
@@ -1064,6 +1993,71 @@ function observeKey(
     }
     fail("key observer must return exactly undefined");
   }
+}
+
+interface OwnedOutputKeys {
+  readonly resultKey: Buffer;
+  readonly manifestKey: Buffer;
+}
+
+function deriveTestOutputKeys(
+  invocation: Readonly<CapturedTestInvocation>,
+): Readonly<OwnedOutputKeys> {
+  let resultKey: Buffer = Buffer.alloc(0);
+  let manifestKey: Buffer = Buffer.alloc(0);
+  const salt = Buffer.from(invocation.runId, "hex");
+  let primary: unknown;
+  try {
+    observeKey(invocation, "root", invocation.rootKey);
+    resultKey = Buffer.from(
+      hkdfSync(
+        "sha256",
+        invocation.rootKey,
+        salt,
+        Buffer.from(FLOODGATE_V7_TRAINING_LABEL_RESULT_HKDF_INFO),
+        32,
+      ),
+    );
+    manifestKey = Buffer.from(
+      hkdfSync(
+        "sha256",
+        invocation.rootKey,
+        salt,
+        Buffer.from(FLOODGATE_V7_TRAINING_LABEL_MANIFEST_HKDF_INFO),
+        32,
+      ),
+    );
+    observeKey(invocation, "result", resultKey);
+    observeKey(invocation, "manifest", manifestKey);
+  } catch (error) {
+    primary = error;
+  }
+  const rootFailure = zeroOwnedBytes(invocation.rootKey, "test root key");
+  const saltFailure = zeroOwnedBytes(salt, "test output-key salt");
+  const discardDerivedKeys =
+    primary !== undefined ||
+    rootFailure !== undefined ||
+    saltFailure !== undefined;
+  const resultFailure = discardDerivedKeys
+    ? zeroOwnedBytes(resultKey, "test result key")
+    : undefined;
+  const manifestFailure = discardDerivedKeys
+    ? zeroOwnedBytes(manifestKey, "test manifest key")
+    : undefined;
+  if (
+    primary !== undefined ||
+    rootFailure !== undefined ||
+    saltFailure !== undefined ||
+    resultFailure !== undefined ||
+    manifestFailure !== undefined
+  ) {
+    return throwWithZeroizationFailures(
+      primary,
+      [rootFailure, saltFailure, resultFailure, manifestFailure],
+      "test output-key derivation or zeroization failed",
+    );
+  }
+  return frozenRecord({ resultKey, manifestKey });
 }
 
 async function fire(
@@ -1421,20 +2415,19 @@ function evidence(
   });
 }
 
-async function* replayTrainingParents(
+type ValidatedTrainingReplayParent = Readonly<{
+  parentIndex: number;
+  parentId: string;
+  forced: boolean;
+  lines: readonly Buffer[];
+}>;
+
+async function replayTrainingParents(
   plan: Readonly<HiddenPlan>,
-): AsyncGenerator<
-  Readonly<{
-    parentIndex: number;
-    parentId: string;
-    forced: boolean;
-    lines: readonly Buffer[];
-  }>,
-  void,
-  void
-> {
+  sink: (parent: ValidatedTrainingReplayParent) => Promise<void>,
+): Promise<void> {
   let parentIndex = 0;
-  for await (const batchValue of plan.replay()) {
+  await plan.replay(async (batchValue) => {
     const batch = exactRecord(
       batchValue,
       ["canonicalLinesWithLf", "forced", "inputIndex", "parentId"],
@@ -1508,14 +2501,16 @@ async function* replayTrainingParents(
         return copied;
       }),
     );
-    yield frozenRecord({
-      parentIndex,
-      parentId: batch.parentId,
-      forced: batch.forced,
-      lines,
-    });
+    await sink(
+      frozenRecord({
+        parentIndex,
+        parentId: batch.parentId,
+        forced: batch.forced,
+        lines,
+      }),
+    );
     parentIndex += 1;
-  }
+  });
 }
 
 async function readExactAt(
@@ -1569,7 +2564,7 @@ async function verifyCompleteTrainReadOnly(
     );
     let offset = 0;
     const parentIds: string[] = [];
-    for await (const parent of replayTrainingParents(plan)) {
+    await replayTrainingParents(plan, async (parent) => {
       parentIds.push(parent.parentId);
       for (const line of parent.lines) {
         await manualContentValidation(
@@ -1588,7 +2583,7 @@ async function verifyCompleteTrainReadOnly(
         );
         offset += line.byteLength;
       }
-    }
+    });
     if (
       parentIds.length !== plan.expectedTrain.inputParents ||
       floodgateIdentifierDigest(parentIds) !==
@@ -1772,7 +2767,7 @@ async function persistTrain(
   let forcedParentsSkipped = 0;
   let emittedParentGroups = 0;
   const parentIds: string[] = [];
-  for await (const parent of replayTrainingParents(plan)) {
+  await replayTrainingParents(plan, async (parent) => {
     inputParents += 1;
     parentIds.push(parent.parentId);
     if (parent.forced) forcedParentsSkipped += 1;
@@ -1811,7 +2806,7 @@ async function persistTrain(
       offset += line.byteLength;
       records += 1;
     }
-  }
+  });
   if (existingSize > offset) {
     manualFail("train.jsonl is longer than the deterministic replay");
   }
@@ -2095,23 +3090,551 @@ function publicationFacets(primary: unknown): Readonly<{
   });
 }
 
-/**
- * Consume a synthetic plan, a test postflight capability, and a test lease;
- * resume only exact deterministic prefixes, commit the manifest last, publish,
- * and reopen every destination artifact.
- *
- * This test adapter deliberately remains the single lexical owner of every
- * key, held file handle, publication transaction, and failure facet. The #478
- * boundary extracts a shared private runner only when separate test and
- * production registries can call it without crossing authority domains.
- */
-export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
+async function prepareTestFinalization(
   lease: Readonly<FloodgateTeacherStageLease>,
   postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
   planValue: Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
   optionsValue: FloodgateV7TrainingLabelFinalizerOptions,
   dependenciesValue: FloodgateV7TrainingLabelFinalizerDependencies,
   publicationDependencies: FloodgateTeacherStagePublicationDependencies,
+  progress: MutableProgress,
+  authority: MutableFinalizationAuthority,
+): Promise<Readonly<PreparedFinalization>> {
+  const plan = takeTestPlan(planValue);
+  authority.plan = plan;
+  progress.planConsumed = true;
+  progress.phase = "input-capture";
+  const invocation = captureTestInvocation(optionsValue, dependenciesValue);
+  authority.invocation = invocation;
+  progress.phase = "cross-binding";
+  if (invocation.runId !== plan.runId || invocation.keyId !== plan.keyId) {
+    fail("finalizer options do not match the opaque plan run/key binding");
+  }
+  const outputKeys = deriveTestOutputKeys(invocation);
+  authority.resultKey = outputKeys.resultKey;
+  authority.manifestKey = outputKeys.manifestKey;
+
+  progress.phase = "authority-transfer";
+  const publication = beginFloodgateTeacherStagePublicationCoreForTests(
+    lease,
+    publicationDependencies,
+  );
+  authority.publication = frozenRecord({
+    authorizationReceipt: publication.authorizationReceipt,
+    stageRoot: publication.stageRoot,
+    destinationRoot: publication.destinationRoot,
+    terminalReverify: async () => undefined,
+    commit: () => publication.commit(),
+    abort: () => publication.abort(),
+  });
+  progress.publicationAuthorityAcquired = true;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(stageIdentity(publication.authorizationReceipt)) !==
+    plan.stageCanonical
+  ) {
+    fail(
+      "publication transaction does not match the opaque plan stage binding",
+    );
+  }
+  progress.phase = "postflight-claim";
+  claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests(
+    postflightReceipt,
+  );
+  progress.postflightConsumed = true;
+  const capturedPostflight = deepCaptureJson(
+    postflightReceipt,
+    "consumer postflight",
+  ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(capturedPostflight.input.binding) !==
+    plan.trainingBindingCanonical
+  ) {
+    fail("consumer postflight does not match the opaque plan training binding");
+  }
+  return frozenRecord({
+    plan,
+    invocation,
+    capturedPostflight,
+    consumerPostflightSha256: sha256(canonicalJson(capturedPostflight)),
+  });
+}
+
+function captureProductionInvocation(
+  plan: Readonly<HiddenProductionPlan>,
+  authorization: Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >,
+): Readonly<CapturedInvocation> {
+  if (typeof process.geteuid !== "function") {
+    fail("production finalizer requires a POSIX effective user identity");
+  }
+  const effectiveUserId = process.geteuid();
+  if (
+    !Number.isSafeInteger(effectiveUserId) ||
+    effectiveUserId < 0 ||
+    authorization.authorization.key_deployment.owner_uid !== effectiveUserId
+  ) {
+    fail("production output-key authority owner differs from the current euid");
+  }
+  return frozenRecord({
+    runId: plan.runId,
+    keyId: plan.keyId,
+    effectiveUserId,
+  });
+}
+
+function captureTestProductionInvocation(
+  plan: Readonly<HiddenProductionPlan>,
+  authorization: Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >,
+  dependenciesValue: FloodgateV7TrainingLabelFinalizerDependencies,
+): Readonly<CapturedInvocation> {
+  const dependencyKeys = ["effectiveUserId"];
+  if (isPlainRecord(dependenciesValue)) {
+    for (const optional of [
+      "failpointForTests",
+      "observeKeyForTests",
+      "writeForTests",
+    ]) {
+      if (Object.prototype.hasOwnProperty.call(dependenciesValue, optional)) {
+        dependencyKeys.push(optional);
+      }
+    }
+  }
+  const dependencies = exactRecord(
+    dependenciesValue,
+    dependencyKeys,
+    "test production finalizer dependencies",
+  );
+  const effectiveUserId = nonnegativeInteger(
+    dependencies.effectiveUserId,
+    "test production finalizer effectiveUserId",
+  );
+  if (
+    authorization.authorization.key_deployment.owner_uid !== effectiveUserId
+  ) {
+    fail("test output-key authority owner differs from its injected euid");
+  }
+  for (const name of [
+    "failpointForTests",
+    "observeKeyForTests",
+    "writeForTests",
+  ] as const) {
+    const callback = dependencies[name];
+    if (
+      callback !== undefined &&
+      (typeof callback !== "function" || nodeUtilTypes.isProxy(callback))
+    ) {
+      fail(`test production ${name} must be a non-Proxy function`);
+    }
+  }
+  return frozenRecord({
+    runId: plan.runId,
+    keyId: plan.keyId,
+    effectiveUserId,
+    failpoint:
+      dependencies.failpointForTests as CapturedInvocation["failpoint"],
+    observeKey:
+      dependencies.observeKeyForTests as CapturedInvocation["observeKey"],
+    write: dependencies.writeForTests as CapturedInvocation["write"],
+  });
+}
+
+function copyClaimedProductionOutputKeys(
+  claimed: Readonly<{ resultKey: Uint8Array; manifestKey: Uint8Array }>,
+): Readonly<OwnedOutputKeys> {
+  let resultKey: Buffer = Buffer.alloc(0);
+  let manifestKey: Buffer = Buffer.alloc(0);
+  let primary: unknown;
+  try {
+    const resultValue = claimed.resultKey;
+    const manifestValue = claimed.manifestKey;
+    if (
+      !nodeUtilTypes.isUint8Array(resultValue) ||
+      nodeUtilTypes.isProxy(resultValue) ||
+      nativeTypedArrayBuffer === undefined ||
+      nativeTypedArrayByteLength === undefined
+    ) {
+      fail("production result output key is not one owned 32-byte key");
+    }
+    if (
+      !nodeUtilTypes.isUint8Array(manifestValue) ||
+      nodeUtilTypes.isProxy(manifestValue)
+    ) {
+      fail("production manifest output key is not one owned 32-byte key");
+    }
+    const resultLength = Reflect.apply(
+      nativeTypedArrayByteLength,
+      resultValue,
+      [],
+    ) as number;
+    const manifestLength = Reflect.apply(
+      nativeTypedArrayByteLength,
+      manifestValue,
+      [],
+    ) as number;
+    const resultBacking = Reflect.apply(
+      nativeTypedArrayBuffer,
+      resultValue,
+      [],
+    ) as ArrayBufferLike;
+    const manifestBacking = Reflect.apply(
+      nativeTypedArrayBuffer,
+      manifestValue,
+      [],
+    ) as ArrayBufferLike;
+    if (
+      resultLength !== 32 ||
+      nodeUtilTypes.isSharedArrayBuffer(resultBacking)
+    ) {
+      fail("production result output key is not one owned 32-byte key");
+    }
+    if (
+      manifestLength !== 32 ||
+      nodeUtilTypes.isSharedArrayBuffer(manifestBacking)
+    ) {
+      fail("production manifest output key is not one owned 32-byte key");
+    }
+    resultKey = Buffer.alloc(32);
+    manifestKey = Buffer.alloc(32);
+    Reflect.apply(nativeTypedArraySet, resultKey, [resultValue, 0]);
+    Reflect.apply(nativeTypedArraySet, manifestKey, [manifestValue, 0]);
+  } catch (error) {
+    primary = error;
+  }
+
+  let claimedResultCleanupFailure: unknown;
+  let claimedManifestCleanupFailure: unknown;
+  try {
+    Reflect.apply(nativeTypedArrayFill, claimed.resultKey, [0]);
+  } catch (error) {
+    claimedResultCleanupFailure = error;
+  }
+  try {
+    Reflect.apply(nativeTypedArrayFill, claimed.manifestKey, [0]);
+  } catch (error) {
+    claimedManifestCleanupFailure = error;
+  }
+  if (
+    primary !== undefined ||
+    claimedResultCleanupFailure !== undefined ||
+    claimedManifestCleanupFailure !== undefined
+  ) {
+    let ownedResultCleanupFailure: unknown;
+    let ownedManifestCleanupFailure: unknown;
+    try {
+      Reflect.apply(nativeTypedArrayFill, resultKey, [0]);
+    } catch (error) {
+      ownedResultCleanupFailure = error;
+    }
+    try {
+      Reflect.apply(nativeTypedArrayFill, manifestKey, [0]);
+    } catch (error) {
+      ownedManifestCleanupFailure = error;
+    }
+    const failures: unknown[] = [];
+    if (primary !== undefined) appendArrayValue(failures, primary);
+    if (claimedResultCleanupFailure !== undefined) {
+      appendArrayValue(failures, claimedResultCleanupFailure);
+    }
+    if (claimedManifestCleanupFailure !== undefined) {
+      appendArrayValue(failures, claimedManifestCleanupFailure);
+    }
+    if (ownedResultCleanupFailure !== undefined) {
+      appendArrayValue(failures, ownedResultCleanupFailure);
+    }
+    if (ownedManifestCleanupFailure !== undefined) {
+      appendArrayValue(failures, ownedManifestCleanupFailure);
+    }
+    if (failures.length > (primary === undefined ? 0 : 1)) {
+      throw new AggregateError(
+        failures,
+        "production output-key copy or zeroization failed",
+      );
+    }
+    throw primary;
+  }
+  return frozenRecord({ resultKey, manifestKey });
+}
+
+/** Test-only O(1) seam for claimed-key copy and zeroization hardening. */
+export function copyFloodgateV7TrainingLabelOutputKeysCoreForTests(
+  claimed: Readonly<{ resultKey: Uint8Array; manifestKey: Uint8Array }>,
+): Readonly<{ resultKey: Uint8Array; manifestKey: Uint8Array }> {
+  if (arguments.length !== 1) {
+    fail("test output-key copy seam accepts exactly one argument");
+  }
+  return copyClaimedProductionOutputKeys(claimed);
+}
+
+interface ScannerPublicationOperations {
+  readonly context: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  ) => Readonly<FloodgateV7TrainingLabelSealedScannerPublicationContext>;
+  readonly terminalReverify: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  ) => Promise<Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>>;
+  readonly commit: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+    terminal: Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+  ) => Promise<Readonly<FloodgateTeacherStagePublicationReceipt>>;
+  readonly discard: (
+    scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  ) => Promise<void>;
+}
+
+function scannerPublicationControl(
+  plan: Readonly<HiddenProductionPlan>,
+  operations: Readonly<ScannerPublicationOperations>,
+): Readonly<FinalizationPublicationControl> {
+  const context = operations.context(plan.scanner);
+  let terminal:
+    Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt> | undefined;
+  let terminalAttempted = false;
+  let terminalCleanupIndeterminate = false;
+  return frozenRecord({
+    authorizationReceipt: context.authorizationReceipt,
+    stageRoot: context.stageRoot,
+    destinationRoot: context.destinationRoot,
+    terminalReverify: async (): Promise<void> => {
+      if (terminalAttempted) {
+        fail("production terminal work revalidation was already attempted");
+      }
+      terminalAttempted = true;
+      try {
+        terminal = await operations.terminalReverify(plan.scanner);
+      } catch (error) {
+        terminalCleanupIndeterminate = error instanceof AggregateError;
+        throw error;
+      }
+    },
+    commit: async (): Promise<
+      Readonly<FloodgateTeacherStagePublicationReceipt>
+    > => {
+      if (terminal === undefined) {
+        fail("production publication requires exact terminal work authority");
+      }
+      return operations.commit(plan.scanner, terminal);
+    },
+    abort: async (): Promise<void> => {
+      if (terminalAttempted && terminal === undefined) {
+        if (terminalCleanupIndeterminate) {
+          fail("terminal work cleanup is indeterminate");
+        }
+        return;
+      }
+      await operations.discard(plan.scanner);
+    },
+  });
+}
+
+const PRODUCTION_SCANNER_PUBLICATION_OPERATIONS = frozenRecord({
+  context: getFloodgateV7TrainingLabelSealedScannerPublicationContext,
+  terminalReverify: terminallyReverifyFloodgateV7TrainingLabelSealedScanner,
+  commit: commitFloodgateV7TrainingLabelSealedScannerPublication,
+  discard: discardFloodgateV7TrainingLabelSealedScanner,
+});
+
+const TEST_SCANNER_PUBLICATION_OPERATIONS = frozenRecord({
+  context:
+    getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests,
+  terminalReverify:
+    terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests,
+  commit: commitFloodgateV7TrainingLabelSealedScannerPublicationCoreForTests,
+  discard: discardFloodgateV7TrainingLabelSealedScannerCoreForTests,
+});
+
+async function prepareProductionFinalization(
+  postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+  planValue: Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+  progress: MutableProgress,
+  authority: MutableFinalizationAuthority,
+): Promise<Readonly<PreparedFinalization>> {
+  const plan = takeProductionPlan(planValue);
+  authority.plan = plan;
+  progress.planConsumed = true;
+  progress.phase = "authority-transfer";
+  authority.publication = scannerPublicationControl(
+    plan,
+    PRODUCTION_SCANNER_PUBLICATION_OPERATIONS,
+  );
+  progress.publicationAuthorityAcquired = true;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(stageIdentity(authority.publication.authorizationReceipt)) !==
+    plan.stageCanonical
+  ) {
+    fail("production scanner publication context differs from its opaque plan");
+  }
+
+  progress.phase = "postflight-claim";
+  claimVerifiedFloodgateTrainingConsumerPostflight(postflightReceipt);
+  progress.postflightConsumed = true;
+  const capturedPostflight = deepCaptureJson(
+    postflightReceipt,
+    "production consumer postflight",
+  ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(capturedPostflight.input.binding) !==
+    plan.trainingBindingCanonical
+  ) {
+    fail("production consumer postflight differs from the opaque plan binding");
+  }
+
+  progress.phase = "output-key-acquisition";
+  let outputAuthorization:
+    | Readonly<
+        FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+      >
+    | undefined;
+  let outputClaimed = false;
+  try {
+    outputAuthorization =
+      await prepareFloodgateV7DeploymentTrainingLabelOutputKeys(
+        plan.outputKeyRequest,
+      );
+    const invocation = captureProductionInvocation(plan, outputAuthorization);
+    const outputKeys = copyClaimedProductionOutputKeys(
+      claimFloodgateV7DeploymentTrainingLabelOutputKeys(
+        outputAuthorization,
+        plan.outputKeyRequest,
+      ),
+    );
+    outputClaimed = true;
+    authority.invocation = invocation;
+    authority.resultKey = outputKeys.resultKey;
+    authority.manifestKey = outputKeys.manifestKey;
+  } catch (error) {
+    if (outputAuthorization !== undefined && !outputClaimed) {
+      try {
+        discardFloodgateV7DeploymentTrainingLabelOutputKeys(
+          outputAuthorization,
+        );
+      } catch (cleanupFailure) {
+        throw new AggregateError(
+          [error, cleanupFailure],
+          "production output-key acquisition and cleanup both failed",
+        );
+      }
+    }
+    throw error;
+  }
+  if (authority.invocation === undefined) {
+    fail("production finalization did not capture its fixed invocation");
+  }
+  return frozenRecord({
+    plan,
+    invocation: authority.invocation,
+    capturedPostflight,
+    consumerPostflightSha256: sha256(canonicalJson(capturedPostflight)),
+  });
+}
+
+async function prepareTestProductionFinalization(
+  postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+  planValue: Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+  keyDependencies: FloodgateV7DeploymentKeyAuthorityDependencies,
+  finalizerDependencies: FloodgateV7TrainingLabelFinalizerDependencies,
+  progress: MutableProgress,
+  authority: MutableFinalizationAuthority,
+): Promise<Readonly<PreparedFinalization>> {
+  const plan = takeTestProductionPlan(planValue);
+  authority.plan = plan;
+  progress.planConsumed = true;
+  progress.phase = "authority-transfer";
+  authority.publication = scannerPublicationControl(
+    plan,
+    TEST_SCANNER_PUBLICATION_OPERATIONS,
+  );
+  progress.publicationAuthorityAcquired = true;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(stageIdentity(authority.publication.authorizationReceipt)) !==
+    plan.stageCanonical
+  ) {
+    fail("test scanner publication context differs from its opaque plan");
+  }
+
+  progress.phase = "postflight-claim";
+  claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests(
+    postflightReceipt,
+  );
+  progress.postflightConsumed = true;
+  const capturedPostflight = deepCaptureJson(
+    postflightReceipt,
+    "test production consumer postflight",
+  ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+  progress.phase = "cross-binding";
+  if (
+    canonicalJson(capturedPostflight.input.binding) !==
+    plan.trainingBindingCanonical
+  ) {
+    fail("test production postflight differs from the opaque plan binding");
+  }
+
+  progress.phase = "output-key-acquisition";
+  let outputAuthorization:
+    | Readonly<
+        FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"test-only-injected-current-euid-home-key-deployment">
+      >
+    | undefined;
+  let outputClaimed = false;
+  try {
+    outputAuthorization =
+      await prepareFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests(
+        plan.outputKeyRequest,
+        keyDependencies,
+      );
+    const invocation = captureTestProductionInvocation(
+      plan,
+      outputAuthorization,
+      finalizerDependencies,
+    );
+    const outputKeys = copyClaimedProductionOutputKeys(
+      claimFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests(
+        outputAuthorization,
+        plan.outputKeyRequest,
+      ),
+    );
+    outputClaimed = true;
+    authority.invocation = invocation;
+    authority.resultKey = outputKeys.resultKey;
+    authority.manifestKey = outputKeys.manifestKey;
+    observeKey(invocation, "result", outputKeys.resultKey);
+    observeKey(invocation, "manifest", outputKeys.manifestKey);
+  } catch (error) {
+    if (outputAuthorization !== undefined && !outputClaimed) {
+      try {
+        discardFloodgateV7DeploymentTrainingLabelOutputKeys(
+          outputAuthorization,
+        );
+      } catch (cleanupFailure) {
+        throw new AggregateError(
+          [error, cleanupFailure],
+          "test output-key acquisition and cleanup both failed",
+        );
+      }
+    }
+    throw error;
+  }
+  if (authority.invocation === undefined) {
+    fail("test production finalization did not capture its invocation");
+  }
+  return frozenRecord({
+    plan,
+    invocation: authority.invocation,
+    capturedPostflight,
+    consumerPostflightSha256: sha256(canonicalJson(capturedPostflight)),
+  });
+}
+
+async function runFinalizationPersistence(
+  prepare: PrepareFinalization,
+  receiptBoundary: Readonly<FinalizationReceiptBoundary>,
 ): Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>> {
   const progress: MutableProgress = {
     phase: "plan-claim",
@@ -2119,18 +3642,24 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     planConsumed: false,
     postflightConsumed: false,
     mayHavePersisted: false,
+    publicationAuthorityAcquired: false,
     commitStarted: false,
     published: false,
     durability: "not-established",
     destinationReopened: false,
   };
+  const authority: MutableFinalizationAuthority = {
+    plan: undefined,
+    invocation: undefined,
+    resultKey: Buffer.alloc(0),
+    manifestKey: Buffer.alloc(0),
+    publication: undefined,
+  };
   let plan: Readonly<HiddenPlan> | undefined;
   let invocation: Readonly<CapturedInvocation> | undefined;
-  let resultKey = Buffer.alloc(0);
-  let manifestKey = Buffer.alloc(0);
-  let salt = Buffer.alloc(0);
-  let transaction:
-    Readonly<FloodgateTeacherStagePublicationTransaction> | undefined;
+  let resultKey: Buffer = Buffer.alloc(0);
+  let manifestKey: Buffer = Buffer.alloc(0);
+  let transaction: Readonly<FinalizationPublicationControl> | undefined;
   let stageHandle: fs.promises.FileHandle | undefined;
   let destinationHandle: fs.promises.FileHandle | undefined;
   let pendingArtifactHandle: fs.promises.FileHandle | undefined;
@@ -2144,73 +3673,16 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
   let primary: unknown;
 
   try {
-    if (arguments.length !== 6) fail("finalizer accepts exactly six arguments");
-    plan = takePlan(planValue);
-    progress.planConsumed = true;
-    progress.phase = "input-capture";
-    invocation = captureInvocation(optionsValue, dependenciesValue);
-    progress.phase = "cross-binding";
-    if (invocation.runId !== plan.runId || invocation.keyId !== plan.keyId) {
-      fail("finalizer options do not match the opaque plan run/key binding");
+    const prepared = await prepare(progress, authority);
+    plan = prepared.plan;
+    invocation = prepared.invocation;
+    resultKey = authority.resultKey;
+    manifestKey = authority.manifestKey;
+    transaction = authority.publication;
+    if (transaction === undefined) {
+      fail("finalization preparation did not transfer publication authority");
     }
-    observeKey(invocation, "root", invocation.rootKey);
-    salt = Buffer.from(invocation.runId, "hex");
-    resultKey = Buffer.from(
-      hkdfSync(
-        "sha256",
-        invocation.rootKey,
-        salt,
-        Buffer.from(FLOODGATE_V7_TRAINING_LABEL_RESULT_HKDF_INFO),
-        32,
-      ),
-    );
-    manifestKey = Buffer.from(
-      hkdfSync(
-        "sha256",
-        invocation.rootKey,
-        salt,
-        Buffer.from(FLOODGATE_V7_TRAINING_LABEL_MANIFEST_HKDF_INFO),
-        32,
-      ),
-    );
-    observeKey(invocation, "result", resultKey);
-    observeKey(invocation, "manifest", manifestKey);
-    invocation.rootKey.fill(0);
-    salt.fill(0);
-
-    progress.phase = "authority-transfer";
-    transaction = beginFloodgateTeacherStagePublicationCoreForTests(
-      lease,
-      publicationDependencies,
-    );
-    progress.phase = "cross-binding";
-    if (
-      canonicalJson(stageIdentity(transaction.authorizationReceipt)) !==
-      plan.stageCanonical
-    ) {
-      fail(
-        "publication transaction does not match the opaque plan stage binding",
-      );
-    }
-    progress.phase = "postflight-claim";
-    claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests(
-      postflightReceipt,
-    );
-    progress.postflightConsumed = true;
-    const capturedPostflight = deepCaptureJson(
-      postflightReceipt,
-      "consumer postflight",
-    ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
-    progress.phase = "cross-binding";
-    if (
-      canonicalJson(capturedPostflight.input.binding) !==
-      plan.trainingBindingCanonical
-    ) {
-      fail(
-        "consumer postflight does not match the opaque plan training binding",
-      );
-    }
-    const consumerPostflightSha256 = sha256(canonicalJson(capturedPostflight));
+    const consumerPostflightSha256 = prepared.consumerPostflightSha256;
     const trainingBindingSha256 = sha256(plan.trainingBindingCanonical);
     const stageBindingSha256 = sha256(plan.stageCanonical);
     const activeTransaction = transaction;
@@ -2306,7 +3778,7 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     });
     const resultPayload = frozenRecord({
       schema: FLOODGATE_V7_TRAINING_LABEL_RESULT_SCHEMA,
-      status: RESULT_STATUS,
+      status: receiptBoundary.resultStatus,
       algorithm: FLOODGATE_V7_TRAINING_LABEL_FINALIZER_ALGORITHM,
       run_id: invocation.runId,
       key_id: invocation.keyId,
@@ -2328,7 +3800,10 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
       resultKey,
       "result_mac",
     );
-    resultKey.fill(0);
+    requireOwnedKeyZeroized(
+      resultKey,
+      "result key after result authentication",
+    );
     if (initialEntries.includes(FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME)) {
       await verifyCompleteTrainReadOnly(
         transaction.stageRoot,
@@ -2427,7 +3902,10 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
       manifestKey,
       "manifest_mac",
     );
-    manifestKey.fill(0);
+    requireOwnedKeyZeroized(
+      manifestKey,
+      "manifest key after manifest authentication",
+    );
     progress.phase = "manifest-persistence";
     manifest = await persistMetadata(
       transaction.stageRoot,
@@ -2486,8 +3964,10 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     );
     await fire(invocation, "source-reverified");
 
-    progress.phase = "publication";
     await fire(invocation, "before-publication");
+    progress.phase = "terminal-work-reverification";
+    await transaction.terminalReverify();
+    progress.phase = "publication";
     progress.commitStarted = true;
     const publication = await transaction.commit();
     progress.published = true;
@@ -2538,10 +4018,9 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
 
     success = frozenRecord({
       contract: FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CONTRACT,
-      status: FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_STATUS,
-      claim_boundary: FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CLAIM_BOUNDARY,
-      execution_boundary:
-        "test-only-injected-opaque-plan-finalizer-and-exclusive-private-directory-publication" as const,
+      status: receiptBoundary.status,
+      claim_boundary: receiptBoundary.claimBoundary,
+      execution_boundary: receiptBoundary.executionBoundary,
       content: frozenRecord({
         work: work.evidence,
         train: train.evidence,
@@ -2563,7 +4042,42 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     primary = error;
   }
 
-  const cleanupFailures = await closeHandles([
+  const mutableCleanupFailures: unknown[] = [];
+  const resultKeyCleanupFailure = zeroOwnedBytes(
+    resultKey,
+    "active result key",
+  );
+  const manifestKeyCleanupFailure = zeroOwnedBytes(
+    manifestKey,
+    "active manifest key",
+  );
+  const authorityResultKeyCleanupFailure = zeroOwnedBytes(
+    authority.resultKey,
+    "authority result key",
+  );
+  const authorityManifestKeyCleanupFailure = zeroOwnedBytes(
+    authority.manifestKey,
+    "authority manifest key",
+  );
+  const keyCleanupFailures = [
+    resultKeyCleanupFailure,
+    manifestKeyCleanupFailure,
+    authorityResultKeyCleanupFailure,
+    authorityManifestKeyCleanupFailure,
+  ] as const;
+  for (let index = 0; index < keyCleanupFailures.length; index += 1) {
+    const keyCleanupFailure = keyCleanupFailures[index];
+    if (keyCleanupFailure !== undefined) {
+      appendArrayValue(mutableCleanupFailures, keyCleanupFailure);
+    }
+  }
+  if (!failed && mutableCleanupFailures.length > 0) {
+    failed = true;
+    primary = mutableCleanupFailures[0];
+    progress.phase = "cleanup";
+  }
+
+  const handleCleanupFailures = await closeHandles([
     destinationHandle,
     pendingArtifactHandle,
     manifest?.handle,
@@ -2572,10 +4086,10 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     work?.handle,
     stageHandle,
   ]);
-  invocation?.rootKey.fill(0);
-  resultKey.fill(0);
-  manifestKey.fill(0);
-  salt.fill(0);
+  for (let index = 0; index < handleCleanupFailures.length; index += 1) {
+    appendArrayValue(mutableCleanupFailures, handleCleanupFailures[index]);
+  }
+  const cleanupFailures = objectFreeze(mutableCleanupFailures);
 
   if (!failed && cleanupFailures.length > 0) {
     failed = true;
@@ -2584,9 +4098,10 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
   }
   let abortFailed = false;
   let abortFailure: unknown;
-  if (failed && transaction !== undefined && !progress.commitStarted) {
+  const cleanupPublication = transaction ?? authority.publication;
+  if (failed && cleanupPublication !== undefined && !progress.commitStarted) {
     try {
-      await transaction.abort();
+      await cleanupPublication.abort();
     } catch (error) {
       abortFailed = true;
       abortFailure = error;
@@ -2613,7 +4128,7 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
     const leaseMayRemain =
       progress.publicationReceipt !== undefined
         ? false
-        : transaction === undefined
+        : !progress.publicationAuthorityAcquired
           ? true
           : abortFailed ||
             (progress.commitStarted && publication.leaseMayRemain);
@@ -2630,7 +4145,7 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
           : manualContent && leaseMayRemain
             ? "manual-content-and-lease-reconciliation-required"
             : leaseMayRemain
-              ? transaction === undefined
+              ? !progress.publicationAuthorityAcquired
                 ? "caller-must-reconcile-existing-lease-authority"
                 : "manual-lease-reconciliation-required"
               : manualContent
@@ -2657,4 +4172,116 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
   }
   if (success === undefined) fail("finalizer completed without a receipt");
   return success;
+}
+
+const TEST_FINALIZATION_RECEIPT_BOUNDARY = frozenRecord({
+  status: FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_STATUS,
+  claimBoundary: FLOODGATE_V7_TRAINING_LABEL_FINALIZATION_CLAIM_BOUNDARY,
+  executionBoundary:
+    "test-only-injected-opaque-plan-finalizer-and-exclusive-private-directory-publication" as const,
+  resultStatus: RESULT_STATUS,
+});
+
+const PRODUCTION_FINALIZATION_RECEIPT_BOUNDARY = frozenRecord({
+  status: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_STATUS,
+  claimBoundary:
+    FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY,
+  executionBoundary:
+    "production-fixed-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication" as const,
+  resultStatus: PRODUCTION_RESULT_STATUS,
+});
+
+const TEST_PRODUCTION_FINALIZATION_RECEIPT_BOUNDARY = frozenRecord({
+  status: FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS,
+  claimBoundary:
+    FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_CLAIM_BOUNDARY,
+  executionBoundary:
+    "test-only-injected-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication" as const,
+  resultStatus: TEST_PRODUCTION_RESULT_STATUS,
+});
+
+/**
+ * Consume a synthetic plan, a test postflight capability, and a test lease;
+ * resume only exact deterministic prefixes, commit the manifest last, publish,
+ * and reopen every destination artifact.
+ *
+ * The adapter owns only test authority preparation. Both test and production
+ * enter the same module-private persistence runner after their disjoint opaque
+ * plan, postflight, key, and publication authorities have been claimed.
+ */
+export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+  planValue: Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
+  optionsValue: FloodgateV7TrainingLabelFinalizerOptions,
+  dependenciesValue: FloodgateV7TrainingLabelFinalizerDependencies,
+  publicationDependencies: FloodgateTeacherStagePublicationDependencies,
+): Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>> {
+  if (arguments.length !== 6) fail("finalizer accepts exactly six arguments");
+  return runFinalizationPersistence(
+    (progress, authority) =>
+      prepareTestFinalization(
+        lease,
+        postflightReceipt,
+        planValue,
+        optionsValue,
+        dependenciesValue,
+        publicationDependencies,
+        progress,
+        authority,
+      ),
+    TEST_FINALIZATION_RECEIPT_BOUNDARY,
+  );
+}
+
+/**
+ * Finalize one exact production scanner-backed plan with the fixed postflight,
+ * deployment-key, terminal work-reverification, and publication authorities.
+ * No root key, path, lease, callback, or dependency injection is accepted.
+ */
+export async function finalizeAndPublishFloodgateV7TrainingLabels(
+  plan: Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+  postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+): Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>> {
+  try {
+    if (arguments.length !== 2) {
+      fail("production finalizer accepts exactly two arguments");
+    }
+    return await runFinalizationPersistence(
+      (progress, authority) =>
+        prepareProductionFinalization(
+          postflightReceipt,
+          plan,
+          progress,
+          authority,
+        ),
+      PRODUCTION_FINALIZATION_RECEIPT_BOUNDARY,
+    );
+  } catch (error) {
+    throw sanitizeProductionFailure(error, "plan-claim");
+  }
+}
+
+/** Test-only production-shape adapter with isolated scanner/key/plan claims. */
+export async function finalizeAndPublishFloodgateV7TrainingLabelsProductionCoreForTests(
+  plan: Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+  postflightReceipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+  keyDependencies: FloodgateV7DeploymentKeyAuthorityDependencies,
+  finalizerDependencies: FloodgateV7TrainingLabelFinalizerDependencies,
+): Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>> {
+  if (arguments.length !== 4) {
+    fail("test production finalizer accepts exactly four arguments");
+  }
+  return runFinalizationPersistence(
+    (progress, authority) =>
+      prepareTestProductionFinalization(
+        postflightReceipt,
+        plan,
+        keyDependencies,
+        finalizerDependencies,
+        progress,
+        authority,
+      ),
+    TEST_PRODUCTION_FINALIZATION_RECEIPT_BOUNDARY,
+  );
 }

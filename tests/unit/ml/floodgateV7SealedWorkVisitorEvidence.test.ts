@@ -412,8 +412,9 @@ describe("Floodgate v7 sealed-work verified-parent visitor evidence", () => {
       "readonly verifiedParentVisitorForTests?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests",
     );
     expect(implementation).toContain(
-      'verifiedParentVisitor !== undefined && policy !== "sealed-final"',
+      "verifiedParentVisitor !== undefined || verifiedParentSink !== undefined",
     );
+    expect(implementation).toContain('policy !== "sealed-final"');
     expect(implementation).toContain(
       "plan.sealed ? invocation.verifiedParentVisitorForTests : undefined",
     );

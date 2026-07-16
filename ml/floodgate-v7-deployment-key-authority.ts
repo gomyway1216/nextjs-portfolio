@@ -4,7 +4,7 @@
  */
 
 import { Buffer } from "node:buffer";
-import { createHmac, hkdfSync } from "node:crypto";
+import { createHash, createHmac, hkdfSync } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -24,6 +24,10 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO,
   type FloodgateV7TeacherCheckpointV3Gate,
 } from "./floodgate-v7-checkpoint-key-contract";
+import {
+  FLOODGATE_V7_TRAINING_LABEL_MANIFEST_HKDF_INFO,
+  FLOODGATE_V7_TRAINING_LABEL_RESULT_HKDF_INFO,
+} from "./floodgate-v7-training-label-finalizer-key-contract";
 
 export const FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_CONTRACT =
   "shogi-floodgate-v7-deployment-teacher-run-authorization-v1" as const;
@@ -64,6 +68,18 @@ export const FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS =
   "prepared-opaque-single-use-v3-derived-key-not-checkpointed" as const;
 export const FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY =
   "fixed-deployment-key-derived-v3-checkpoint-key-held-module-private-exact-run-binding-stage-and-gate-bound-single-use-not-root-key-export-generic-signing-checkpoint-runtime-dataset-label-training-weight-live-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CONTRACT =
+  "shogi-floodgate-v7-deployment-teacher-sealed-scan-v3-key-authorization-v1" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_STATUS =
+  "prepared-opaque-single-use-v3-derived-key-for-one-exact-sealed-scan" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CLAIM_BOUNDARY =
+  "fixed-deployment-key-derived-v3-scan-key-held-module-private-exact-run-stage-sealed-work-bound-single-use-only-for-authenticated-sealed-scan-not-checkpoint-write-root-key-export-generic-signing-label-training-weight-live-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CONTRACT =
+  "shogi-floodgate-v7-deployment-training-label-output-keys-authorization-v1" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_STATUS =
+  "prepared-opaque-single-use-domain-separated-result-and-manifest-keys" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CLAIM_BOUNDARY =
+  "fixed-deployment-key-derived-domain-separated-result-and-manifest-keys-held-module-private-exact-run-stage-work-training-plan-bound-single-use-not-root-key-export-generic-signing-checkpoint-scan-training-weight-live-or-playing-strength-evidence" as const;
 
 const RUN_BINDING_SCHEMA = "shogi-floodgate-v7-teacher-run-binding-v2" as const;
 const PRODUCER_CONTROL_SCHEMA =
@@ -91,6 +107,49 @@ const V3_KEY_REQUEST_KEYS = Object.freeze([
   "runBinding",
   "runId",
   "stageAuthorizationReceipt",
+] as const);
+const SEALED_SCAN_V3_KEY_REQUEST_KEYS = Object.freeze([
+  "gate",
+  "keyId",
+  "runBinding",
+  "runId",
+  "stageAuthorizationReceipt",
+  "work",
+] as const);
+const TRAINING_LABEL_OUTPUT_KEYS_REQUEST_KEYS = Object.freeze([
+  "keyId",
+  "runBinding",
+  "runId",
+  "stageAuthorizationReceipt",
+  "teacherRunBindingSha256",
+  "training",
+  "trainingBindingSha256",
+  "work",
+] as const);
+const SEALED_WORK_KEYS = Object.freeze(["bytes", "sha256"] as const);
+const FINALIZED_WORK_KEYS = Object.freeze([
+  "bytes",
+  "sha256",
+  "snapshot",
+] as const);
+const WORK_SNAPSHOT_KEYS = Object.freeze([
+  "ctimeNs",
+  "dev",
+  "ino",
+  "mode",
+  "mtimeNs",
+  "nlink",
+  "size",
+  "uid",
+] as const);
+const TRAINING_SUMMARY_KEYS = Object.freeze([
+  "bytes",
+  "emittedParentGroups",
+  "forcedParentsSkipped",
+  "inputParents",
+  "parentIdsSha256",
+  "records",
+  "sha256",
 ] as const);
 const RUN_BINDING_KEYS = Object.freeze([
   "plan",
@@ -125,6 +184,7 @@ const DEPENDENCY_KEYS = Object.freeze([
   "effectiveUserId",
   "homeDirectory",
   "observeInternalKeyForTests",
+  "observePreparedKeyForTests",
 ] as const);
 const REQUIRED_DEPENDENCY_KEYS = Object.freeze([
   "effectiveUserId",
@@ -132,6 +192,7 @@ const REQUIRED_DEPENDENCY_KEYS = Object.freeze([
 ] as const);
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CANONICAL_DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MODE_MASK = BigInt(0o7777);
 const TYPE_MASK = BigInt(fs.constants.S_IFMT);
@@ -205,10 +266,52 @@ export interface FloodgateV7DeploymentTeacherCheckpointV3KeyRequest extends Floo
   readonly gate: FloodgateV7TeacherCheckpointV3Gate;
 }
 
+export interface FloodgateV7DeploymentTeacherSealedScanV3KeyRequest extends FloodgateV7DeploymentTeacherRunAuthorizationRequest {
+  readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
+export interface FloodgateV7DeploymentTrainingLabelWorkSnapshotBinding {
+  readonly dev: string;
+  readonly ino: string;
+  readonly mode: string;
+  readonly nlink: string;
+  readonly uid: string;
+  readonly size: string;
+  readonly mtimeNs: string;
+  readonly ctimeNs: string;
+}
+
+export interface FloodgateV7DeploymentTrainingLabelOutputKeysRequest extends FloodgateV7DeploymentTeacherRunAuthorizationRequest {
+  readonly teacherRunBindingSha256: string;
+  readonly trainingBindingSha256: string;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly snapshot: Readonly<FloodgateV7DeploymentTrainingLabelWorkSnapshotBinding>;
+  }>;
+  readonly training: Readonly<{
+    readonly inputParents: number;
+    readonly forcedParentsSkipped: number;
+    readonly emittedParentGroups: number;
+    readonly parentIdsSha256: string;
+    readonly records: number;
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
 export interface FloodgateV7DeploymentKeyAuthorityDependencies {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
   readonly observeInternalKeyForTests?: (key: Uint8Array) => void;
+  readonly observePreparedKeyForTests?: (
+    kind: "sealed-scan" | "training-label-result" | "training-label-manifest",
+    key: Uint8Array,
+  ) => void;
   readonly beforeFinalRevalidationForTests?: () => void | Promise<void>;
 }
 
@@ -306,6 +409,41 @@ export interface FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<
   >;
 }
 
+export interface FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary =
+    FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> {
+  readonly contract: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CLAIM_BOUNDARY;
+  readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+  readonly authorization: Readonly<
+    FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>
+  >;
+}
+
+export interface FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary =
+    FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> {
+  readonly contract: typeof FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CLAIM_BOUNDARY;
+  readonly plan_binding_sha256: string;
+  readonly authorization: Readonly<
+    FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>
+  >;
+}
+
+export interface FloodgateV7DeploymentTrainingLabelOutputKeys {
+  readonly resultKey: Uint8Array;
+  readonly manifestKey: Uint8Array;
+}
+
 export type FloodgateV7DeploymentKeyAuthorityPhase =
   | "capture"
   | "production-identity"
@@ -361,9 +499,52 @@ interface CapturedV3KeyRequest extends CapturedRequest {
   }>;
 }
 
+interface CapturedSealedScanV3KeyRequest extends CapturedV3KeyRequest {
+  readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
+interface CapturedTrainingLabelOutputKeysRequest extends CapturedRequest {
+  readonly keyId: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
+  readonly stageLeaseBinding: Readonly<{
+    readonly dev: string;
+    readonly ino: string;
+  }>;
+  readonly teacherRunBindingSha256: string;
+  readonly trainingBindingSha256: string;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly snapshot: Readonly<FloodgateV7DeploymentTrainingLabelWorkSnapshotBinding>;
+  }>;
+  readonly training: Readonly<{
+    readonly inputParents: number;
+    readonly forcedParentsSkipped: number;
+    readonly emittedParentGroups: number;
+    readonly parentIdsSha256: string;
+    readonly records: number;
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
 interface PreparedV3DerivedKey {
   readonly requestCanonical: string;
   readonly derivedKey: Buffer;
+}
+
+interface PreparedSealedScanV3DerivedKey {
+  readonly requestCanonical: string;
+  readonly derivedKey: Buffer;
+}
+
+interface PreparedTrainingLabelOutputKeys {
+  readonly requestCanonical: string;
+  readonly resultKey: Buffer;
+  readonly manifestKey: Buffer;
 }
 
 interface V3KeyRegistry {
@@ -377,6 +558,31 @@ interface V3KeyRegistry {
   >;
 }
 
+interface SealedScanV3KeyRegistry {
+  readonly boundary: "production" | "test-only";
+  readonly prepared: WeakMap<
+    Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+    Readonly<PreparedSealedScanV3DerivedKey>
+  >;
+  readonly known: WeakSet<
+    Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>
+  >;
+}
+
+interface TrainingLabelOutputKeysRegistry {
+  readonly boundary: "production" | "test-only";
+  readonly prepared: WeakMap<
+    Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+    Readonly<PreparedTrainingLabelOutputKeys>
+  >;
+  readonly known: WeakSet<
+    Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>
+  >;
+}
+
+type PreparedKeyMaterialKind =
+  "none" | "checkpoint-v3" | "sealed-scan-v3" | "training-label-output";
+
 interface AuthorizationMaterial<
   TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
 > {
@@ -384,12 +590,19 @@ interface AuthorizationMaterial<
     FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>
   >;
   readonly checkpointV3DerivedKey: Buffer | undefined;
+  readonly sealedScanV3DerivedKey: Buffer | undefined;
+  readonly trainingLabelResultKey: Buffer | undefined;
+  readonly trainingLabelManifestKey: Buffer | undefined;
 }
 
 interface CapturedDependencies {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
   readonly observeInternalKey?: (key: Uint8Array) => void;
+  readonly observePreparedKey?: (
+    kind: "sealed-scan" | "training-label-result" | "training-label-manifest",
+    key: Uint8Array,
+  ) => void;
   readonly beforeFinalRevalidation?: () => void | Promise<void>;
 }
 
@@ -410,6 +623,45 @@ function createV3KeyRegistry(
 
 const PRODUCTION_V3_KEY_REGISTRY = createV3KeyRegistry("production");
 const TEST_V3_KEY_REGISTRY = createV3KeyRegistry("test-only");
+
+function createSealedScanV3KeyRegistry(
+  boundary: SealedScanV3KeyRegistry["boundary"],
+): Readonly<SealedScanV3KeyRegistry> {
+  return objectFreeze({
+    boundary,
+    prepared: new NativeWeakMap<
+      Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+      Readonly<PreparedSealedScanV3DerivedKey>
+    >(),
+    known: new NativeWeakSet<
+      Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>
+    >(),
+  });
+}
+
+function createTrainingLabelOutputKeysRegistry(
+  boundary: TrainingLabelOutputKeysRegistry["boundary"],
+): Readonly<TrainingLabelOutputKeysRegistry> {
+  return objectFreeze({
+    boundary,
+    prepared: new NativeWeakMap<
+      Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+      Readonly<PreparedTrainingLabelOutputKeys>
+    >(),
+    known: new NativeWeakSet<
+      Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>
+    >(),
+  });
+}
+
+const PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY =
+  createSealedScanV3KeyRegistry("production");
+const TEST_SEALED_SCAN_V3_KEY_REGISTRY =
+  createSealedScanV3KeyRegistry("test-only");
+const PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY =
+  createTrainingLabelOutputKeysRegistry("production");
+const TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY =
+  createTrainingLabelOutputKeysRegistry("test-only");
 
 interface StatSnapshot {
   readonly dev: bigint;
@@ -791,6 +1043,236 @@ function captureV3KeyRequest(
   });
 }
 
+function nonnegativeSafeInteger(value: unknown, label: string): number {
+  if (!numberIsSafeInteger(value) || (value as number) < 0) {
+    fail("capture", `${label} must be a nonnegative safe integer`);
+  }
+  return value as number;
+}
+
+function canonicalDecimal(value: unknown, label: string): string {
+  if (typeof value !== "string" || !CANONICAL_DECIMAL_RE.test(value)) {
+    fail("capture", `${label} must be a canonical nonnegative decimal`);
+  }
+  return value;
+}
+
+function captureStageLeaseBinding(
+  stageAuthorizationReceipt: unknown,
+): Readonly<{ dev: string; ino: string }> {
+  const stageReceipt = strictRecord(
+    stageAuthorizationReceipt,
+    STAGE_RECEIPT_KEYS,
+    "request.stageAuthorizationReceipt",
+  );
+  const stageLeaseIdentity = captureIdentity(
+    stageReceipt.lease_identity,
+    "stage lease identity",
+  );
+  return frozenRecord({
+    dev: stageLeaseIdentity.dev.toString(10),
+    ino: stageLeaseIdentity.ino.toString(10),
+  });
+}
+
+function captureSealedScanV3KeyRequest(
+  value: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+): CapturedSealedScanV3KeyRequest {
+  const request = strictRecord(
+    value,
+    SEALED_SCAN_V3_KEY_REQUEST_KEYS,
+    "sealed scan key request",
+  );
+  if (typeof request.runId !== "string" || !RUN_ID_RE.test(request.runId)) {
+    fail("capture", "sealed scan key request.runId is invalid");
+  }
+  if (request.keyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID) {
+    fail("capture", "sealed scan key request.keyId is not fixed");
+  }
+  if (
+    request.gate !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000
+  ) {
+    fail("capture", "sealed scan key request requires the final v3 gate");
+  }
+  const work = strictRecord(
+    request.work,
+    SEALED_WORK_KEYS,
+    "sealed scan key request.work",
+  );
+  return frozenRecord({
+    runId: request.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding: captureRunBinding(request.runBinding),
+    stageBinding: captureStageBinding(request.stageAuthorizationReceipt),
+    stageLeaseBinding: captureStageLeaseBinding(
+      request.stageAuthorizationReceipt,
+    ),
+    gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+    work: frozenRecord({
+      bytes: nonnegativeSafeInteger(
+        work.bytes,
+        "sealed scan key request.work.bytes",
+      ),
+      sha256: digest(work.sha256, "sealed scan key request.work.sha256"),
+    }),
+  });
+}
+
+function captureTrainingLabelOutputKeysRequest(
+  value: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+): CapturedTrainingLabelOutputKeysRequest {
+  const request = strictRecord(
+    value,
+    TRAINING_LABEL_OUTPUT_KEYS_REQUEST_KEYS,
+    "training label output keys request",
+  );
+  if (typeof request.runId !== "string" || !RUN_ID_RE.test(request.runId)) {
+    fail("capture", "training label output keys request.runId is invalid");
+  }
+  if (request.keyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID) {
+    fail("capture", "training label output keys request.keyId is not fixed");
+  }
+  const runBinding = captureRunBinding(request.runBinding);
+  const teacherRunBindingSha256 = digest(
+    request.teacherRunBindingSha256,
+    "training label output keys request.teacherRunBindingSha256",
+  );
+  if (
+    teacherRunBindingSha256 !==
+    createHash("sha256").update(canonicalJson(runBinding)).digest("hex")
+  ) {
+    fail(
+      "capture",
+      "training label output keys teacher run binding digest differs",
+    );
+  }
+  const work = strictRecord(
+    request.work,
+    FINALIZED_WORK_KEYS,
+    "training label output keys request.work",
+  );
+  const workBytes = nonnegativeSafeInteger(
+    work.bytes,
+    "training label output keys request.work.bytes",
+  );
+  const snapshotValue = strictRecord(
+    work.snapshot,
+    WORK_SNAPSHOT_KEYS,
+    "training label output keys request.work.snapshot",
+  );
+  const snapshot = frozenRecord({
+    dev: canonicalDecimal(
+      snapshotValue.dev,
+      "training label output keys request.work.snapshot.dev",
+    ),
+    ino: canonicalDecimal(
+      snapshotValue.ino,
+      "training label output keys request.work.snapshot.ino",
+    ),
+    mode: canonicalDecimal(
+      snapshotValue.mode,
+      "training label output keys request.work.snapshot.mode",
+    ),
+    nlink: canonicalDecimal(
+      snapshotValue.nlink,
+      "training label output keys request.work.snapshot.nlink",
+    ),
+    uid: canonicalDecimal(
+      snapshotValue.uid,
+      "training label output keys request.work.snapshot.uid",
+    ),
+    size: canonicalDecimal(
+      snapshotValue.size,
+      "training label output keys request.work.snapshot.size",
+    ),
+    mtimeNs: canonicalDecimal(
+      snapshotValue.mtimeNs,
+      "training label output keys request.work.snapshot.mtimeNs",
+    ),
+    ctimeNs: canonicalDecimal(
+      snapshotValue.ctimeNs,
+      "training label output keys request.work.snapshot.ctimeNs",
+    ),
+  });
+  if (
+    snapshot.ino === "0" ||
+    snapshot.nlink !== "1" ||
+    snapshot.size !== String(workBytes)
+  ) {
+    fail(
+      "capture",
+      "training label output keys work snapshot identity or size differs",
+    );
+  }
+  const trainingValue = strictRecord(
+    request.training,
+    TRAINING_SUMMARY_KEYS,
+    "training label output keys request.training",
+  );
+  const training = frozenRecord({
+    inputParents: nonnegativeSafeInteger(
+      trainingValue.inputParents,
+      "training label output keys request.training.inputParents",
+    ),
+    forcedParentsSkipped: nonnegativeSafeInteger(
+      trainingValue.forcedParentsSkipped,
+      "training label output keys request.training.forcedParentsSkipped",
+    ),
+    emittedParentGroups: nonnegativeSafeInteger(
+      trainingValue.emittedParentGroups,
+      "training label output keys request.training.emittedParentGroups",
+    ),
+    parentIdsSha256: digest(
+      trainingValue.parentIdsSha256,
+      "training label output keys request.training.parentIdsSha256",
+    ),
+    records: nonnegativeSafeInteger(
+      trainingValue.records,
+      "training label output keys request.training.records",
+    ),
+    bytes: nonnegativeSafeInteger(
+      trainingValue.bytes,
+      "training label output keys request.training.bytes",
+    ),
+    sha256: digest(
+      trainingValue.sha256,
+      "training label output keys request.training.sha256",
+    ),
+  });
+  if (
+    training.inputParents !== 24_000 ||
+    training.forcedParentsSkipped > training.inputParents ||
+    training.emittedParentGroups > training.inputParents ||
+    training.forcedParentsSkipped + training.emittedParentGroups !==
+      training.inputParents
+  ) {
+    fail("capture", "training label output keys training summary differs");
+  }
+  return frozenRecord({
+    runId: request.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding,
+    stageBinding: captureStageBinding(request.stageAuthorizationReceipt),
+    stageLeaseBinding: captureStageLeaseBinding(
+      request.stageAuthorizationReceipt,
+    ),
+    teacherRunBindingSha256,
+    trainingBindingSha256: digest(
+      request.trainingBindingSha256,
+      "training label output keys request.trainingBindingSha256",
+    ),
+    work: frozenRecord({
+      bytes: workBytes,
+      sha256: digest(
+        work.sha256,
+        "training label output keys request.work.sha256",
+      ),
+      snapshot,
+    }),
+    training,
+  });
+}
+
 function captureDependencies(
   value: FloodgateV7DeploymentKeyAuthorityDependencies,
 ): CapturedDependencies {
@@ -819,6 +1301,7 @@ function captureDependencies(
   }
   for (const key of [
     "observeInternalKeyForTests",
+    "observePreparedKeyForTests",
     "beforeFinalRevalidationForTests",
   ] as const) {
     const hook = dependencies[key];
@@ -834,6 +1317,13 @@ function captureDependencies(
     homeDirectory: dependencies.homeDirectory,
     observeInternalKey: dependencies.observeInternalKeyForTests as
       ((key: Uint8Array) => void) | undefined,
+    observePreparedKey: dependencies.observePreparedKeyForTests as
+      | ((
+          kind:
+            "sealed-scan" | "training-label-result" | "training-label-manifest",
+          key: Uint8Array,
+        ) => void)
+      | undefined,
     beforeFinalRevalidation: dependencies.beforeFinalRevalidationForTests as
       (() => void | Promise<void>) | undefined,
   });
@@ -924,6 +1414,40 @@ async function prepareV3KeyInsideTestBoundary(
     dependencies,
     "test-only-injected-current-euid-home-key-deployment",
     TEST_V3_KEY_REGISTRY,
+  );
+}
+
+async function prepareSealedScanV3KeyInsideTestBoundary(
+  request: Readonly<CapturedSealedScanV3KeyRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  await assertTestBoundaryIsNotProductionHome(dependencies);
+  return prepareSealedScanV3KeyInternal(
+    request,
+    dependencies,
+    "test-only-injected-current-euid-home-key-deployment",
+    TEST_SEALED_SCAN_V3_KEY_REGISTRY,
+  );
+}
+
+async function prepareTrainingLabelOutputKeysInsideTestBoundary(
+  request: Readonly<CapturedTrainingLabelOutputKeysRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  await assertTestBoundaryIsNotProductionHome(dependencies);
+  return prepareTrainingLabelOutputKeysInternal(
+    request,
+    dependencies,
+    "test-only-injected-current-euid-home-key-deployment",
+    TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
   );
 }
 
@@ -1073,13 +1597,42 @@ function zeroize(bytes: Buffer): unknown | undefined {
   }
 }
 
+function appendCleanupFailure(
+  failures: unknown[],
+  failure: unknown | undefined,
+): void {
+  if (failure === undefined) return;
+  objectDefineProperty(failures, failures.length, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: failure,
+  });
+}
+
+function appendZeroizeFailure(
+  failures: unknown[],
+  bytes: Buffer | undefined,
+): void {
+  if (bytes !== undefined) appendCleanupFailure(failures, zeroize(bytes));
+}
+
+function appendCleanupFailures(
+  destination: unknown[],
+  source: readonly unknown[],
+): void {
+  for (let index = 0; index < source.length; index += 1) {
+    appendCleanupFailure(destination, source[index]);
+  }
+}
+
 async function authorizeMaterialInternal<
   TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
 >(
   request: Readonly<CapturedRequest>,
   dependencies: Readonly<CapturedDependencies>,
   executionBoundary: TBoundary,
-  prepareCheckpointV3Key: boolean,
+  preparedKeyMaterialKind: PreparedKeyMaterialKind,
 ): Promise<AuthorizationMaterial<TBoundary>> {
   let parentPath = dependencies.homeDirectory;
   for (
@@ -1103,6 +1656,9 @@ async function authorizeMaterialInternal<
   let derivedKey = bufferAlloc(0);
   let instanceKey = bufferAlloc(0);
   let checkpointV3DerivedKey: Buffer | undefined;
+  let sealedScanV3DerivedKey: Buffer | undefined;
+  let trainingLabelResultKey: Buffer | undefined;
+  let trainingLabelManifestKey: Buffer | undefined;
   let activePhase: FloodgateV7DeploymentKeyAuthorityPhase = "namespace";
   let primary: unknown;
   let result:
@@ -1220,7 +1776,7 @@ async function authorizeMaterialInternal<
         32,
       ),
     );
-    if (prepareCheckpointV3Key) {
+    if (preparedKeyMaterialKind === "checkpoint-v3") {
       checkpointV3DerivedKey = bufferFrom(
         hkdfSync(
           "sha256",
@@ -1229,6 +1785,44 @@ async function authorizeMaterialInternal<
           bufferFrom(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
           FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
         ),
+      );
+    } else if (preparedKeyMaterialKind === "sealed-scan-v3") {
+      sealedScanV3DerivedKey = bufferFrom(
+        hkdfSync(
+          "sha256",
+          rootKey,
+          bufferFrom(request.runId, "hex"),
+          bufferFrom(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+          FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
+        ),
+      );
+      dependencies.observePreparedKey?.("sealed-scan", sealedScanV3DerivedKey);
+    } else if (preparedKeyMaterialKind === "training-label-output") {
+      trainingLabelResultKey = bufferFrom(
+        hkdfSync(
+          "sha256",
+          rootKey,
+          bufferFrom(request.runId, "hex"),
+          bufferFrom(FLOODGATE_V7_TRAINING_LABEL_RESULT_HKDF_INFO),
+          FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
+        ),
+      );
+      trainingLabelManifestKey = bufferFrom(
+        hkdfSync(
+          "sha256",
+          rootKey,
+          bufferFrom(request.runId, "hex"),
+          bufferFrom(FLOODGATE_V7_TRAINING_LABEL_MANIFEST_HKDF_INFO),
+          FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
+        ),
+      );
+      dependencies.observePreparedKey?.(
+        "training-label-result",
+        trainingLabelResultKey,
+      );
+      dependencies.observePreparedKey?.(
+        "training-label-manifest",
+        trainingLabelManifestKey,
       );
     }
     const keyInstanceId = createHmac("sha256", instanceKey)
@@ -1417,27 +2011,36 @@ async function authorizeMaterialInternal<
     }
   }
   if (primary !== undefined || result === undefined) {
-    const derivedCleanupFailure =
-      checkpointV3DerivedKey === undefined
-        ? undefined
-        : zeroize(checkpointV3DerivedKey);
+    const derivedCleanupFailures: unknown[] = [];
+    appendZeroizeFailure(derivedCleanupFailures, checkpointV3DerivedKey);
+    appendZeroizeFailure(derivedCleanupFailures, sealedScanV3DerivedKey);
+    appendZeroizeFailure(derivedCleanupFailures, trainingLabelResultKey);
+    appendZeroizeFailure(derivedCleanupFailures, trainingLabelManifestKey);
     checkpointV3DerivedKey = undefined;
-    if (derivedCleanupFailure !== undefined) {
+    sealedScanV3DerivedKey = undefined;
+    trainingLabelResultKey = undefined;
+    trainingLabelManifestKey = undefined;
+    if (derivedCleanupFailures.length > 0) {
       const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
         "cleanup",
-        "v3 checkpoint derived-key cleanup failed",
+        "prepared derived-key cleanup failed",
       );
-      primary =
-        primary === undefined
-          ? cleanupError
-          : new FloodgateV7DeploymentKeyAuthorityError(
-              "cleanup",
-              "authorization and v3 checkpoint derived-key cleanup both failed",
-              new NativeAggregateError(
-                [primary, cleanupError],
-                "authorization and v3 checkpoint derived-key cleanup both failed",
-              ),
-            );
+      if (primary === undefined) {
+        primary = cleanupError;
+      } else {
+        const combinedFailures: unknown[] = [];
+        appendCleanupFailure(combinedFailures, primary);
+        appendCleanupFailure(combinedFailures, cleanupError);
+        appendCleanupFailures(combinedFailures, derivedCleanupFailures);
+        primary = new FloodgateV7DeploymentKeyAuthorityError(
+          "cleanup",
+          "authorization and prepared derived-key cleanup both failed",
+          new NativeAggregateError(
+            combinedFailures,
+            "authorization and prepared derived-key cleanup both failed",
+          ),
+        );
+      }
     }
     if (primary !== undefined) throw primary;
     fail("authorization", "authorization completed without a receipt");
@@ -1447,6 +2050,9 @@ async function authorizeMaterialInternal<
     material = objectFreeze({
       receipt: result,
       checkpointV3DerivedKey,
+      sealedScanV3DerivedKey,
+      trainingLabelResultKey,
+      trainingLabelManifestKey,
     });
     return material;
   } finally {
@@ -1458,6 +2064,35 @@ async function authorizeMaterialInternal<
           "cleanup",
           "v3 checkpoint derived key could not be zeroized after material transfer failure",
           cleanupFailure,
+        );
+      }
+    }
+    if (material === undefined && sealedScanV3DerivedKey !== undefined) {
+      const cleanupFailure = zeroize(sealedScanV3DerivedKey);
+      sealedScanV3DerivedKey = undefined;
+      if (cleanupFailure !== undefined) {
+        fail(
+          "cleanup",
+          "sealed scan v3 derived key could not be zeroized after material transfer failure",
+          cleanupFailure,
+        );
+      }
+    }
+    if (
+      material === undefined &&
+      (trainingLabelResultKey !== undefined ||
+        trainingLabelManifestKey !== undefined)
+    ) {
+      const cleanupFailures: unknown[] = [];
+      appendZeroizeFailure(cleanupFailures, trainingLabelResultKey);
+      appendZeroizeFailure(cleanupFailures, trainingLabelManifestKey);
+      trainingLabelResultKey = undefined;
+      trainingLabelManifestKey = undefined;
+      if (cleanupFailures.length > 0) {
+        fail(
+          "cleanup",
+          "training label output keys could not be zeroized after material transfer failure",
+          new NativeAggregateError(cleanupFailures),
         );
       }
     }
@@ -1478,7 +2113,7 @@ async function authorizeInternal<
       request,
       dependencies,
       executionBoundary,
-      false,
+      "none",
     )
   ).receipt;
 }
@@ -1525,7 +2160,7 @@ async function prepareV3KeyInternal<
     request,
     dependencies,
     executionBoundary,
-    true,
+    "checkpoint-v3",
   );
   const derivedKey = material.checkpointV3DerivedKey;
   if (
@@ -1677,6 +2312,434 @@ function discardPreparedV3Key(
   if (state === undefined) return undefined;
   reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
   return zeroize(state.derivedKey);
+}
+
+function preparedSealedScanV3Key(
+  registry: Readonly<SealedScanV3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+): Readonly<PreparedSealedScanV3DerivedKey> | undefined {
+  return reflectApply(nativeWeakMapGet, registry.prepared, [authorization]) as
+    Readonly<PreparedSealedScanV3DerivedKey> | undefined;
+}
+
+function hasKnownSealedScanV3Authorization(
+  registry: Readonly<SealedScanV3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+): boolean {
+  return reflectApply(nativeWeakSetHas, registry.known, [
+    authorization,
+  ]) as boolean;
+}
+
+function assertSealedScanV3AuthorizationObject(
+  value: unknown,
+): asserts value is Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization> {
+  if (value === null || typeof value !== "object" || nodeIsProxy(value)) {
+    fail(
+      "capture",
+      "sealed scan v3 key authorization must be the exact non-Proxy facade",
+    );
+  }
+}
+
+async function prepareSealedScanV3KeyInternal<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  request: Readonly<CapturedSealedScanV3KeyRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+  executionBoundary: TBoundary,
+  registry: Readonly<SealedScanV3KeyRegistry>,
+): Promise<
+  Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>>
+> {
+  const material = await authorizeMaterialInternal(
+    request,
+    dependencies,
+    executionBoundary,
+    "sealed-scan-v3",
+  );
+  const derivedKey = material.sealedScanV3DerivedKey;
+  if (
+    derivedKey === undefined ||
+    derivedKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
+  ) {
+    const cleanupFailure =
+      derivedKey === undefined ? undefined : zeroize(derivedKey);
+    if (cleanupFailure !== undefined) {
+      fail(
+        "cleanup",
+        "invalid sealed scan v3 derived key could not be zeroized",
+        cleanupFailure,
+      );
+    }
+    fail("authorization", "sealed scan v3 derived key was not prepared");
+  }
+  let authorization:
+    | Readonly<
+        FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>
+      >
+    | undefined;
+  let transferred = false;
+  try {
+    authorization = frozenRecord({
+      contract: FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CONTRACT,
+      status: FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_DEPLOYMENT_TEACHER_SEALED_SCAN_V3_KEY_CLAIM_BOUNDARY,
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+      work: request.work,
+      authorization: material.receipt,
+    });
+    reflectApply(nativeWeakSetAdd, registry.known, [authorization]);
+    reflectApply(nativeWeakMapSet, registry.prepared, [
+      authorization,
+      objectFreeze({
+        requestCanonical: canonicalJson(request),
+        derivedKey,
+      }),
+    ]);
+    transferred = true;
+    return authorization;
+  } finally {
+    if (!transferred) {
+      if (authorization !== undefined) {
+        reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+        reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
+      }
+      const cleanupFailure = zeroize(derivedKey);
+      if (cleanupFailure !== undefined) {
+        fail(
+          "cleanup",
+          "sealed scan v3 derived key could not be zeroized after prepare failure",
+          cleanupFailure,
+        );
+      }
+    }
+  }
+}
+
+function claimSealedScanV3DerivedKey(
+  registry: Readonly<SealedScanV3KeyRegistry>,
+  otherRegistry: Readonly<SealedScanV3KeyRegistry>,
+  authorizationValue: FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization,
+  requestValue: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+): Uint8Array {
+  assertSealedScanV3AuthorizationObject(authorizationValue);
+  const state = preparedSealedScanV3Key(registry, authorizationValue);
+  if (state === undefined) {
+    if (hasKnownSealedScanV3Authorization(otherRegistry, authorizationValue)) {
+      fail(
+        "capture",
+        `sealed scan v3 key authorization belongs to the ${otherRegistry.boundary} boundary`,
+      );
+    }
+    if (hasKnownSealedScanV3Authorization(registry, authorizationValue)) {
+      fail(
+        "capture",
+        "sealed scan v3 key authorization was already consumed or discarded",
+      );
+    }
+    fail(
+      "capture",
+      "sealed scan v3 key claim requires the exact prepared authorization facade",
+    );
+  }
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorizationValue]);
+  let primary: unknown;
+  let output: Uint8Array | undefined;
+  try {
+    const request = captureSealedScanV3KeyRequest(requestValue);
+    if (canonicalJson(request) !== state.requestCanonical) {
+      fail(
+        "capture",
+        "sealed scan v3 key claim request differs from the prepared binding",
+      );
+    }
+    output = new NativeUint8Array(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
+    reflectApply(nativeUint8ArraySet, output, [state.derivedKey, 0]);
+  } catch (error) {
+    primary = sanitizeUnexpectedFailure(
+      error,
+      "capture",
+      "unexpected sealed scan v3 key claim failure",
+    );
+  }
+  const cleanupFailure = zeroize(state.derivedKey);
+  if (
+    (primary !== undefined || cleanupFailure !== undefined) &&
+    output !== undefined
+  ) {
+    reflectApply(nativeUint8ArrayFill, output, [0]);
+    output = undefined;
+  }
+  if (cleanupFailure !== undefined) {
+    const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
+      "cleanup",
+      "consumed sealed scan v3 derived key could not be zeroized",
+    );
+    primary =
+      primary === undefined
+        ? cleanupError
+        : new FloodgateV7DeploymentKeyAuthorityError(
+            "cleanup",
+            "sealed scan v3 key claim and cleanup both failed",
+            new NativeAggregateError([primary, cleanupError]),
+          );
+  }
+  if (primary !== undefined) throw primary;
+  if (output === undefined) {
+    fail("authorization", "sealed scan v3 key claim produced no owned key");
+  }
+  return output;
+}
+
+function discardPreparedSealedScanV3Key(
+  registry: Readonly<SealedScanV3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+): unknown | undefined {
+  const state = preparedSealedScanV3Key(registry, authorization);
+  if (state === undefined) return undefined;
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+  return zeroize(state.derivedKey);
+}
+
+function preparedTrainingLabelOutputKeys(
+  registry: Readonly<TrainingLabelOutputKeysRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+): Readonly<PreparedTrainingLabelOutputKeys> | undefined {
+  return reflectApply(nativeWeakMapGet, registry.prepared, [authorization]) as
+    Readonly<PreparedTrainingLabelOutputKeys> | undefined;
+}
+
+function hasKnownTrainingLabelOutputKeysAuthorization(
+  registry: Readonly<TrainingLabelOutputKeysRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+): boolean {
+  return reflectApply(nativeWeakSetHas, registry.known, [
+    authorization,
+  ]) as boolean;
+}
+
+function assertTrainingLabelOutputKeysAuthorizationObject(
+  value: unknown,
+): asserts value is Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization> {
+  if (value === null || typeof value !== "object" || nodeIsProxy(value)) {
+    fail(
+      "capture",
+      "training label output keys authorization must be the exact non-Proxy facade",
+    );
+  }
+}
+
+async function prepareTrainingLabelOutputKeysInternal<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  request: Readonly<CapturedTrainingLabelOutputKeysRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+  executionBoundary: TBoundary,
+  registry: Readonly<TrainingLabelOutputKeysRegistry>,
+): Promise<
+  Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<TBoundary>>
+> {
+  const material = await authorizeMaterialInternal(
+    request,
+    dependencies,
+    executionBoundary,
+    "training-label-output",
+  );
+  const resultKey = material.trainingLabelResultKey;
+  const manifestKey = material.trainingLabelManifestKey;
+  if (
+    resultKey === undefined ||
+    manifestKey === undefined ||
+    resultKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES ||
+    manifestKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
+  ) {
+    const cleanupFailures: unknown[] = [];
+    appendZeroizeFailure(cleanupFailures, resultKey);
+    appendZeroizeFailure(cleanupFailures, manifestKey);
+    if (cleanupFailures.length > 0) {
+      fail(
+        "cleanup",
+        "invalid training label output keys could not be zeroized",
+        new NativeAggregateError(cleanupFailures),
+      );
+    }
+    fail("authorization", "training label output keys were not prepared");
+  }
+  let authorization:
+    | Readonly<
+        FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<TBoundary>
+      >
+    | undefined;
+  let transferred = false;
+  try {
+    authorization = frozenRecord({
+      contract: FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CONTRACT,
+      status: FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_DEPLOYMENT_TRAINING_LABEL_OUTPUT_KEYS_CLAIM_BOUNDARY,
+      plan_binding_sha256: createHash("sha256")
+        .update(canonicalJson(request))
+        .digest("hex"),
+      authorization: material.receipt,
+    });
+    reflectApply(nativeWeakSetAdd, registry.known, [authorization]);
+    reflectApply(nativeWeakMapSet, registry.prepared, [
+      authorization,
+      objectFreeze({
+        requestCanonical: canonicalJson(request),
+        resultKey,
+        manifestKey,
+      }),
+    ]);
+    transferred = true;
+    return authorization;
+  } finally {
+    if (!transferred) {
+      if (authorization !== undefined) {
+        reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+        reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
+      }
+      const cleanupFailures: unknown[] = [];
+      appendCleanupFailure(cleanupFailures, zeroize(resultKey));
+      appendCleanupFailure(cleanupFailures, zeroize(manifestKey));
+      if (cleanupFailures.length > 0) {
+        fail(
+          "cleanup",
+          "training label output keys could not be zeroized after prepare failure",
+          new NativeAggregateError(cleanupFailures),
+        );
+      }
+    }
+  }
+}
+
+function claimTrainingLabelOutputKeys(
+  registry: Readonly<TrainingLabelOutputKeysRegistry>,
+  otherRegistry: Readonly<TrainingLabelOutputKeysRegistry>,
+  authorizationValue: FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization,
+  requestValue: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+): Readonly<FloodgateV7DeploymentTrainingLabelOutputKeys> {
+  assertTrainingLabelOutputKeysAuthorizationObject(authorizationValue);
+  const state = preparedTrainingLabelOutputKeys(registry, authorizationValue);
+  if (state === undefined) {
+    if (
+      hasKnownTrainingLabelOutputKeysAuthorization(
+        otherRegistry,
+        authorizationValue,
+      )
+    ) {
+      fail(
+        "capture",
+        `training label output keys authorization belongs to the ${otherRegistry.boundary} boundary`,
+      );
+    }
+    if (
+      hasKnownTrainingLabelOutputKeysAuthorization(registry, authorizationValue)
+    ) {
+      fail(
+        "capture",
+        "training label output keys authorization was already consumed or discarded",
+      );
+    }
+    fail(
+      "capture",
+      "training label output keys claim requires the exact prepared authorization facade",
+    );
+  }
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorizationValue]);
+  let primary: unknown;
+  let resultOutput: Uint8Array | undefined;
+  let manifestOutput: Uint8Array | undefined;
+  try {
+    const request = captureTrainingLabelOutputKeysRequest(requestValue);
+    if (canonicalJson(request) !== state.requestCanonical) {
+      fail(
+        "capture",
+        "training label output keys claim request differs from the prepared binding",
+      );
+    }
+    resultOutput = new NativeUint8Array(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
+    manifestOutput = new NativeUint8Array(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
+    reflectApply(nativeUint8ArraySet, resultOutput, [state.resultKey, 0]);
+    reflectApply(nativeUint8ArraySet, manifestOutput, [state.manifestKey, 0]);
+  } catch (error) {
+    primary = sanitizeUnexpectedFailure(
+      error,
+      "capture",
+      "unexpected training label output keys claim failure",
+    );
+  }
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(cleanupFailures, zeroize(state.resultKey));
+  appendCleanupFailure(cleanupFailures, zeroize(state.manifestKey));
+  if (primary !== undefined || cleanupFailures.length > 0) {
+    if (resultOutput !== undefined) {
+      reflectApply(nativeUint8ArrayFill, resultOutput, [0]);
+      resultOutput = undefined;
+    }
+    if (manifestOutput !== undefined) {
+      reflectApply(nativeUint8ArrayFill, manifestOutput, [0]);
+      manifestOutput = undefined;
+    }
+  }
+  if (cleanupFailures.length > 0) {
+    const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
+      "cleanup",
+      "consumed training label output keys could not be zeroized",
+    );
+    primary =
+      primary === undefined
+        ? cleanupError
+        : new FloodgateV7DeploymentKeyAuthorityError(
+            "cleanup",
+            "training label output keys claim and cleanup both failed",
+            new NativeAggregateError([primary, cleanupError]),
+          );
+  }
+  if (primary !== undefined) throw primary;
+  if (resultOutput === undefined || manifestOutput === undefined) {
+    fail("authorization", "training label output keys claim produced no keys");
+  }
+  return frozenRecord({
+    resultKey: resultOutput,
+    manifestKey: manifestOutput,
+  });
+}
+
+function discardPreparedTrainingLabelOutputKeys(
+  registry: Readonly<TrainingLabelOutputKeysRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+): readonly unknown[] {
+  const state = preparedTrainingLabelOutputKeys(registry, authorization);
+  if (state === undefined) return objectFreeze([]);
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(cleanupFailures, zeroize(state.resultKey));
+  appendCleanupFailure(cleanupFailures, zeroize(state.manifestKey));
+  return objectFreeze(cleanupFailures);
+}
+
+function fixedProductionDependencies(): Readonly<CapturedDependencies> {
+  if (getEffectiveUserId === null) {
+    fail("production-identity", "POSIX effective-user identity is required");
+  }
+  const effectiveUserId = getEffectiveUserId();
+  const userInfo = getUserInfo();
+  if (userInfo.uid !== effectiveUserId) {
+    fail(
+      "production-identity",
+      "os.userInfo uid differs from the current effective uid",
+    );
+  }
+  return captureDependencies({
+    effectiveUserId,
+    homeDirectory: userInfo.homedir as string,
+    observeInternalKeyForTests: undefined,
+    observePreparedKeyForTests: undefined,
+    beforeFinalRevalidationForTests: undefined,
+  });
 }
 
 /** Test-only filesystem seam. The optional observer sees only the owned copy. */
@@ -1921,14 +2984,324 @@ export function discardFloodgateV7DeploymentTeacherCheckpointV3Key(
       "v3 checkpoint key discard requires an exact prepared authorization facade",
     );
   }
-  const cleanupFailures = [
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedV3Key(PRODUCTION_V3_KEY_REGISTRY, authorizationValue),
+  );
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedV3Key(TEST_V3_KEY_REGISTRY, authorizationValue),
-  ].filter((failure) => failure !== undefined);
+  );
   if (cleanupFailures.length > 0) {
     fail(
       "cleanup",
       "discarded v3 checkpoint derived key could not be zeroized",
+      new NativeAggregateError(cleanupFailures),
+    );
+  }
+}
+
+/** Prepare a test-only opaque key capability for one exact sealed-work scan. */
+export function prepareFloodgateV7DeploymentTeacherSealedScanV3KeyCoreForTests(
+  requestValue: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+  dependenciesValue: FloodgateV7DeploymentKeyAuthorityDependencies,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test sealed scan v3 key preparation accepts exactly two arguments",
+    );
+  }
+  const request = captureSealedScanV3KeyRequest(requestValue);
+  const dependencies = captureDependencies(dependenciesValue);
+  return prepareSealedScanV3KeyInsideTestBoundary(request, dependencies);
+}
+
+/** Prepare a fixed-production key capability for one exact sealed-work scan. */
+export function prepareFloodgateV7DeploymentTeacherSealedScanV3Key(
+  requestValue: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 1) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        new NativeError(
+          "production sealed scan v3 key preparation accepts exactly one argument",
+        ),
+      ),
+    );
+  }
+  let request: Readonly<CapturedSealedScanV3KeyRequest>;
+  let dependencies: Readonly<CapturedDependencies>;
+  try {
+    request = captureSealedScanV3KeyRequest(requestValue);
+    dependencies = fixedProductionDependencies();
+  } catch (error) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          error instanceof FloodgateV7DeploymentKeyAuthorityError
+            ? error.phase
+            : "capture",
+          "unexpected production sealed scan key preparation failure",
+        ),
+      ),
+    );
+  }
+  return prepareSealedScanV3KeyInternal(
+    request,
+    dependencies,
+    "production-fixed-current-euid-userinfo-home-key-deployment",
+    PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
+  );
+}
+
+/** Consume one exact fixed-production sealed-scan key capability. */
+export function claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKey(
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+): Uint8Array {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "production sealed scan v3 derived-key claim accepts exactly two arguments",
+    );
+  }
+  return claimSealedScanV3DerivedKey(
+    PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
+    TEST_SEALED_SCAN_V3_KEY_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/** Consume one exact injected-test sealed-scan key capability. */
+export function claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKeyCoreForTests(
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+): Uint8Array {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test sealed scan v3 derived-key claim accepts exactly two arguments",
+    );
+  }
+  return claimSealedScanV3DerivedKey(
+    TEST_SEALED_SCAN_V3_KEY_REGISTRY,
+    PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/** Idempotently zero and discard one exact sealed-scan key capability. */
+export function discardFloodgateV7DeploymentTeacherSealedScanV3Key(
+  authorizationValue: Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization>,
+): void {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "sealed scan v3 key discard accepts exactly one argument",
+    );
+  }
+  assertSealedScanV3AuthorizationObject(authorizationValue);
+  if (
+    !hasKnownSealedScanV3Authorization(
+      PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
+      authorizationValue,
+    ) &&
+    !hasKnownSealedScanV3Authorization(
+      TEST_SEALED_SCAN_V3_KEY_REGISTRY,
+      authorizationValue,
+    )
+  ) {
+    fail(
+      "capture",
+      "sealed scan v3 key discard requires an exact prepared authorization facade",
+    );
+  }
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(
+    cleanupFailures,
+    discardPreparedSealedScanV3Key(
+      PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
+      authorizationValue,
+    ),
+  );
+  appendCleanupFailure(
+    cleanupFailures,
+    discardPreparedSealedScanV3Key(
+      TEST_SEALED_SCAN_V3_KEY_REGISTRY,
+      authorizationValue,
+    ),
+  );
+  if (cleanupFailures.length > 0) {
+    fail(
+      "cleanup",
+      "discarded sealed scan v3 derived key could not be zeroized",
+      new NativeAggregateError(cleanupFailures),
+    );
+  }
+}
+
+/** Prepare test-only opaque result and manifest output-key capabilities. */
+export function prepareFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests(
+  requestValue: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+  dependenciesValue: FloodgateV7DeploymentKeyAuthorityDependencies,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test training label output keys preparation accepts exactly two arguments",
+    );
+  }
+  const request = captureTrainingLabelOutputKeysRequest(requestValue);
+  const dependencies = captureDependencies(dependenciesValue);
+  return prepareTrainingLabelOutputKeysInsideTestBoundary(
+    request,
+    dependencies,
+  );
+}
+
+/** Prepare fixed-production domain-separated result and manifest keys. */
+export function prepareFloodgateV7DeploymentTrainingLabelOutputKeys(
+  requestValue: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 1) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        new NativeError(
+          "production training label output keys preparation accepts exactly one argument",
+        ),
+      ),
+    );
+  }
+  let request: Readonly<CapturedTrainingLabelOutputKeysRequest>;
+  let dependencies: Readonly<CapturedDependencies>;
+  try {
+    request = captureTrainingLabelOutputKeysRequest(requestValue);
+    dependencies = fixedProductionDependencies();
+  } catch (error) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          error instanceof FloodgateV7DeploymentKeyAuthorityError
+            ? error.phase
+            : "capture",
+          "unexpected production training label output keys preparation failure",
+        ),
+      ),
+    );
+  }
+  return prepareTrainingLabelOutputKeysInternal(
+    request,
+    dependencies,
+    "production-fixed-current-euid-userinfo-home-key-deployment",
+    PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+  );
+}
+
+/** Consume one exact fixed-production output-key capability. */
+export function claimFloodgateV7DeploymentTrainingLabelOutputKeys(
+  authorization: Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+): Readonly<FloodgateV7DeploymentTrainingLabelOutputKeys> {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "production training label output keys claim accepts exactly two arguments",
+    );
+  }
+  return claimTrainingLabelOutputKeys(
+    PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+    TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/** Consume one exact injected-test output-key capability. */
+export function claimFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests(
+  authorization: Readonly<
+    FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTrainingLabelOutputKeysRequest,
+): Readonly<FloodgateV7DeploymentTrainingLabelOutputKeys> {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test training label output keys claim accepts exactly two arguments",
+    );
+  }
+  return claimTrainingLabelOutputKeys(
+    TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+    PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/** Idempotently zero and discard one exact output-key capability. */
+export function discardFloodgateV7DeploymentTrainingLabelOutputKeys(
+  authorizationValue: Readonly<FloodgateV7DeploymentTrainingLabelOutputKeysAuthorization>,
+): void {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "training label output keys discard accepts exactly one argument",
+    );
+  }
+  assertTrainingLabelOutputKeysAuthorizationObject(authorizationValue);
+  if (
+    !hasKnownTrainingLabelOutputKeysAuthorization(
+      PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+      authorizationValue,
+    ) &&
+    !hasKnownTrainingLabelOutputKeysAuthorization(
+      TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+      authorizationValue,
+    )
+  ) {
+    fail(
+      "capture",
+      "training label output keys discard requires an exact prepared authorization facade",
+    );
+  }
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailures(
+    cleanupFailures,
+    discardPreparedTrainingLabelOutputKeys(
+      PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+      authorizationValue,
+    ),
+  );
+  appendCleanupFailures(
+    cleanupFailures,
+    discardPreparedTrainingLabelOutputKeys(
+      TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
+      authorizationValue,
+    ),
+  );
+  if (cleanupFailures.length > 0) {
+    fail(
+      "cleanup",
+      "discarded training label output keys could not be zeroized",
       new NativeAggregateError(cleanupFailures),
     );
   }

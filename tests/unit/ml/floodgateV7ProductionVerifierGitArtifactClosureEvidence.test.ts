@@ -200,7 +200,7 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
     for (const marker of [
       "https://github.com/gomyway1216/nextjs-portfolio/pull/474",
       "9f647bef3568634f3b3c7634fb66a79ffa090723",
-      "5daa3128eedad8f2697af14569cf36c00825c2a4",
+      "779fe1b607403848ca3c4c33d8e7aeb9c7dea7d7",
       "7e4a4a9ffe5960a013d409f886d73e6041c7789e",
       "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
       "1,431",
@@ -215,7 +215,7 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
       "179,748,864",
       "186,564,608",
       "186,368,000",
-      "2,794",
+      "2,804",
       "193 / 193",
       "192 color-swapped pairs / 384 games",
       "runOp1",
@@ -252,7 +252,7 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
         state: "ready-open",
         implementation_revision: "9f647bef3568634f3b3c7634fb66a79ffa090723",
         continuous_integration:
-          "in-progress-on-review-fix-head-before-evidence-refresh",
+          "not-run-for-test-only-repair-and-validation-refresh-head",
         review:
           "two-copilot-comments-fixed-replied-resolved-zero-unresolved-gemini-zero-actionable",
         merge: "pending-regular-merge-required",
@@ -429,17 +429,19 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
   it("records the exact implementation-head validation without invented counts", () => {
     const evidence = JSON.parse(readText(EVIDENCE_PATH));
     expect(evidence.validation).toEqual({
-      validation_candidate_revision: "5daa3128eedad8f2697af14569cf36c00825c2a4",
-      validated_code_revision: "4b9a99781c6b20ce8e5365ebbae57ee46eae2890",
+      validation_candidate_revision: "779fe1b607403848ca3c4c33d8e7aeb9c7dea7d7",
+      validated_exact_tree_revision: "779fe1b607403848ca3c4c33d8e7aeb9c7dea7d7",
+      implementation_revision_in_validated_tree:
+        "9f647bef3568634f3b3c7634fb66a79ffa090723",
       full_vitest: {
         status: "pass",
-        files: 149,
-        tests: 2794,
-        passed: 2794,
+        files: 150,
+        tests: 2804,
+        passed: 2804,
         failed: 0,
-        vitest_duration_seconds: 155.41,
-        wall_seconds: 155.9,
-        maximum_rss_bytes: 4373233664,
+        vitest_duration_seconds: 155.73,
+        wall_seconds: 156.22,
+        maximum_rss_bytes: 4373692416,
         swaps: 0,
       },
       production_build: {
@@ -447,8 +449,8 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
         static_pages: 193,
         passed: 193,
         failed: 0,
-        wall_seconds: 36.6,
-        maximum_rss_bytes: 2605105152,
+        wall_seconds: 35.21,
+        maximum_rss_bytes: 2654404608,
         swaps: 0,
       },
       ml_stdlib: {
@@ -475,6 +477,29 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
         focused_git_and_receipt_passed: 29,
         focused_git_and_receipt_failed: 0,
         typescript: "pass",
+      },
+      github_ci_review_fix_head: {
+        revision: "9f647bef3568634f3b3c7634fb66a79ffa090723",
+        test_and_build_status: "fail",
+        passed_files: 146,
+        skipped_files: 3,
+        passed_tests: 2696,
+        skipped_tests: 99,
+        unhandled_rejections: 1,
+        failure_classification:
+          "test-only-race-handler-attached-after-await-unhandled-under-ci-delay",
+        darwin: "pass",
+        e2e: "pass",
+        audit: "pass",
+        vercel: "pass",
+      },
+      test_only_ci_repair: {
+        revision: "c26e0cc8639286cacf3a38e49141bf86b983b3df",
+        repair: "attach-intentional-rejection-handler-immediately-before-await",
+        repaired_test_file_consecutive_runs: 5,
+        repaired_test_file_consecutive_passes: 5,
+        typescript: "pass",
+        github_ci_for_repair_and_refresh_head: "not-run",
       },
     });
   });

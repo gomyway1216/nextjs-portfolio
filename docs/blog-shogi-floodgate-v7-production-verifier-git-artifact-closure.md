@@ -71,9 +71,11 @@ bounded read修正後のcurrent read-only closureは同じclean e8 worktreeで3�
 
 review修正後の実装head `9f647bef3568634f3b3c7634fb66a79ffa090723`では、exact Git revision helper、7-artifact closure、readiness leaf、provisioner / preflight / CLI integrationを別commitとして保持した。source regressionはexact revision、dirty/nonignored worktree、tracked byte/mode差、artifact差、ancestry差、identity replay、旧v1 shape、fail-before-install、preflight recheckを含む。Copilotのactionable comment 2件は修正・reply・resolve済みでunresolved 0、Geminiのactionable findingは0だった。
 
-review修正前のvalidation candidate `5daa3128eedad8f2697af14569cf36c00825c2a4`（validated code revision `4b9a99781c6b20ce8e5365ebbae57ee46eae2890`）ではfull Vitest **149 files / 2,794 tests PASS**（duration 155.41秒、wall 155.90秒、maximum RSS 4,373,233,664 bytes、swap 0）、production build **193 / 193 pages PASS**（wall 36.60秒、maximum RSS 2,605,105,152 bytes、swap 0）だった。ML stdlibは58 / 58、`npm audit`はvulnerability 0だった。`9f647be`ではfocused Git / receipt test 2 files・29 / 29、TypeScriptと上記closure 3回がPASSした。前候補のfull結果をcurrent headのfull成功へ数え直さない。
+初回evidence commit `779fe1b607403848ca3c4c33d8e7aeb9c7dea7d7`のexact treeを対象にしたfinal local validationは、full Vitest **150 files / 2,804 tests PASS**（duration 155.73秒、wall 156.22秒、maximum RSS 4,373,692,416 bytes、swap 0）、production build **193 / 193 pages PASS**（wall 35.21秒、maximum RSS 2,654,404,608 bytes、swap 0）だった。ML stdlibは58 / 58、`npm audit`はvulnerability 0だった。`9f647be`で実施したfocused Git / receipt test 2 files・29 / 29、TypeScript、上記closure 3回も別の実測として保持する。
 
-この記事とevidenceを作成した時点の[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)はready openで、CIは進行中、reviewと通常mergeは未完である。pendingをPASSやmergedとして先取りしない。evidence-only headのCI結果は実行後に別途判断する。
+GitHubの`9f647be` headではTest and buildが146 passed / 3 skipped files、2,696 passed / 99 skipped testsまで完了したが、unhandled rejection 1件でFAILした。race testが意図したrejectionへのhandlerを`await`後に付けており、遅いCIでunhandledになるtest harness defectだった。repair `c26e0cc8639286cacf3a38e49141bf86b983b3df`はhandlerを即時attachし、同じtest fileを5回連続PASS、TypeScriptもPASSした。Darwin、E2E、audit、Vercelは`9f647be`でPASSしたが、Test and buildのfailureを相殺しない。
+
+このvalidation refreshを作成した時点の[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)はready openで、Copilotのactionable comment 2件は対応・resolve済み、Geminiのactionable findingは0だった。test-only repairとrefreshを含むheadのCIは未実行、通常mergeもpendingである。過去の`9f647be` CIをgreenとして書き換えず、再実行前の結果をPASSとして先取りしない。
 
 ## 11. production executionはすべて0
 

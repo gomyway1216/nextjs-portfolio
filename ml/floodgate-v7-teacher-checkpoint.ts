@@ -95,6 +95,12 @@ export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS =
   "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published" as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY =
   "fixed-100-500-24000-gates-full-authenticated-input-domain-separated-milestone-chain-prefix-not-sealed-final-sealed-accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-anti-rollback-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT =
+  "shogi-floodgate-v7-teacher-verified-parent-entry-event-v1" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS =
+  "authenticated-v3-parent-entry-provisional-until-enclosing-sealed-final-scan-succeeds" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY =
+  "single-canonical-v3-entry-hmac-chain-parent-run-binding-and-completed-evidence-authenticated-during-held-file-scan-trusted-test-hooks-and-current-js-realm-not-hostile-same-process-mutation-resistant-not-standalone-work-authentication-not-sealed-final-scan-success-not-output-authority-not-durability-publication-training-weight-or-playing-strength-evidence" as const;
 export {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
@@ -429,10 +435,32 @@ export interface FloodgateV7TeacherCheckpointV3Dependencies extends Omit<
     }>,
     read: (maximumBytes?: number) => Promise<number>,
   ) => Promise<number>;
+  readonly verifiedParentVisitorForTests?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests;
 }
 
 export type FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests =
   Omit<FloodgateV7TeacherCheckpointV3Dependencies, "rootKey">;
+
+type DeepReadonly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends object
+    ? { readonly [TKey in keyof T]: DeepReadonly<T[TKey]> }
+    : T;
+
+export type FloodgateV7TeacherCheckpointV3VerifiedParentEvent = DeepReadonly<{
+  contract: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT;
+  status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS;
+  claim_boundary: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY;
+  input_index: number;
+  parent: FloodgateTrainingParent;
+  completed_evidence: FloodgateV7CompletedParentEvidence;
+  completed_evidence_sha256: string;
+  entry_mac: string;
+}>;
+
+export type FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests = (
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+) => undefined;
 
 export type FloodgateV7TeacherProducerControlTimerPhase =
   "parent-deadline" | "abort-drain";
@@ -666,6 +694,7 @@ interface CapturedInvocation {
   readonly failpoint?: FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"];
   readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
   readonly readForTests?: FloodgateV7TeacherCheckpointV3Dependencies["readForTests"];
+  readonly verifiedParentVisitorForTests?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests;
   readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
   readonly scheduleProducerControlTimerForTests?: FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"];
   readonly persistenceState: { mayHaveStarted: boolean };
@@ -677,6 +706,7 @@ interface CapturedInvocationDependencies {
   readonly failpoint?: FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"];
   readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
   readonly readForTests?: FloodgateV7TeacherCheckpointV3Dependencies["readForTests"];
+  readonly verifiedParentVisitorForTests?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests;
   readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
   readonly scheduleProducerControlTimerForTests?: FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"];
 }
@@ -1297,6 +1327,7 @@ function finishCapturedInvocation(
       failpoint: dependencies.failpoint,
       writeForTests: dependencies.writeForTests,
       readForTests: dependencies.readForTests,
+      verifiedParentVisitorForTests: dependencies.verifiedParentVisitorForTests,
       closeForTests: dependencies.closeForTests,
       scheduleProducerControlTimerForTests:
         dependencies.scheduleProducerControlTimerForTests,
@@ -1318,6 +1349,7 @@ function captureInvocation(
     | FloodgateV7TeacherCheckpointDependencies
     | FloodgateV7TeacherCheckpointV3Dependencies
     | undefined,
+  allowVerifiedParentVisitorForTests: boolean,
   capturedDependencies?: Readonly<CapturedInvocationDependencies>,
 ): CapturedInvocation {
   const stageReceipt = lease.receipt;
@@ -1373,6 +1405,9 @@ function captureInvocation(
     "scheduleProducerControlTimerForTests",
     "writeForTests",
   ];
+  if (allowVerifiedParentVisitorForTests) {
+    optionalKeys.push("verifiedParentVisitorForTests");
+  }
   const expectedDependencyKeys = ["effectiveUserId", "rootKey"];
   for (const key of optionalKeys) {
     if (Object.prototype.hasOwnProperty.call(dependenciesValue, key)) {
@@ -1398,6 +1433,10 @@ function captureInvocation(
     FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
   const readForTests = dependencies.readForTests as
     FloodgateV7TeacherCheckpointV3Dependencies["readForTests"] | undefined;
+  const verifiedParentVisitorForTests = allowVerifiedParentVisitorForTests
+    ? (dependencies.verifiedParentVisitorForTests as
+        FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests | undefined)
+    : undefined;
   const closeForTests = dependencies.closeForTests as
     FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
   const scheduleProducerControlTimerForTests =
@@ -1424,6 +1463,16 @@ function captureInvocation(
   ) {
     zeroBytes(rootKey);
     failure("dependencies.readForTests must be a function");
+  }
+  if (
+    verifiedParentVisitorForTests !== undefined &&
+    (typeof verifiedParentVisitorForTests !== "function" ||
+      nodeIsProxy(verifiedParentVisitorForTests))
+  ) {
+    zeroBytes(rootKey);
+    failure(
+      "dependencies.verifiedParentVisitorForTests must be a non-Proxy function",
+    );
   }
   if (
     closeForTests !== undefined &&
@@ -1456,6 +1505,7 @@ function captureInvocation(
       failpoint,
       writeForTests,
       readForTests,
+      verifiedParentVisitorForTests,
       closeForTests,
       scheduleProducerControlTimerForTests,
     }),
@@ -1515,6 +1565,7 @@ function captureV3Invocation(
       keyId: options.keyId as string,
     }),
     dependenciesValue,
+    true,
   );
   return finishCapturedV3Invocation(invocation, gate);
 }
@@ -1598,6 +1649,7 @@ function captureV3InvocationWithDerivedKey(
       failpoint: dependencies.failpoint,
       writeForTests: dependencies.writeForTests,
       readForTests: dependencies.readForTests,
+      verifiedParentVisitorForTests: dependencies.verifiedParentVisitorForTests,
       closeForTests: dependencies.closeForTests,
       scheduleProducerControlTimerForTests:
         dependencies.scheduleProducerControlTimerForTests,
@@ -1620,6 +1672,7 @@ function captureV3DeploymentKeyDependenciesForTests(
     "failpointForTests",
     "readForTests",
     "scheduleProducerControlTimerForTests",
+    "verifiedParentVisitorForTests",
     "writeForTests",
   ];
   const expectedDependencyKeys = ["effectiveUserId"];
@@ -1643,6 +1696,9 @@ function captureV3DeploymentKeyDependenciesForTests(
     FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
   const readForTests = dependencies.readForTests as
     FloodgateV7TeacherCheckpointV3Dependencies["readForTests"] | undefined;
+  const verifiedParentVisitorForTests =
+    dependencies.verifiedParentVisitorForTests as
+      FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests | undefined;
   const closeForTests = dependencies.closeForTests as
     FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
   const scheduleProducerControlTimerForTests =
@@ -1668,6 +1724,15 @@ function captureV3DeploymentKeyDependenciesForTests(
     failure("dependencies.readForTests must be a function");
   }
   if (
+    verifiedParentVisitorForTests !== undefined &&
+    (typeof verifiedParentVisitorForTests !== "function" ||
+      nodeIsProxy(verifiedParentVisitorForTests))
+  ) {
+    failure(
+      "dependencies.verifiedParentVisitorForTests must be a non-Proxy function",
+    );
+  }
+  if (
     closeForTests !== undefined &&
     (typeof closeForTests !== "function" || nodeIsProxy(closeForTests))
   ) {
@@ -1687,6 +1752,7 @@ function captureV3DeploymentKeyDependenciesForTests(
     failpoint,
     writeForTests,
     readForTests,
+    verifiedParentVisitorForTests,
     closeForTests,
     scheduleProducerControlTimerForTests,
   });
@@ -2048,7 +2114,8 @@ function captureCompletedEvidence(
   expectedParent: Readonly<FloodgateTrainingParent>,
   inputIndex: number,
   runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>,
-): Readonly<Record<string, unknown>> {
+): Readonly<FloodgateV7CompletedParentEvidence> &
+  Readonly<Record<string, unknown>> {
   let verified: Readonly<FloodgateV7CompletedParentEvidence>;
   try {
     verified = verifyFloodgateV7CompletedParentEvidenceCoreForTests(value);
@@ -2075,7 +2142,8 @@ function captureCompletedEvidence(
       `completed evidence ${inputIndex} changed its authenticated parent or runtime binding`,
     );
   }
-  return verified as unknown as Readonly<Record<string, unknown>>;
+  return verified as Readonly<FloodgateV7CompletedParentEvidence> &
+    Readonly<Record<string, unknown>>;
 }
 function buildEntry(
   invocation: CapturedInvocation,
@@ -2278,7 +2346,8 @@ function scanV3CompleteLine(
   invocation: CapturedV3Invocation,
   key: Uint8Array,
   decoder: TextDecoder,
-): void {
+  emitVerifiedParentEvent: boolean,
+): Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent> | undefined {
   if (state.completeRecords === 0) {
     const expectedHeader = buildV3Header(invocation, key);
     const header = strictRecord(
@@ -2471,6 +2540,18 @@ function scanV3CompleteLine(
   state.previousMac = entry.entry_mac as string;
   state.completedParents += 1;
   state.authenticatedBytes = lineEnd;
+  if (!emitVerifiedParentEvent) return undefined;
+  return Object.freeze({
+    contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT,
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY,
+    input_index: completedParents,
+    parent: expectedParent,
+    completed_evidence: evidence,
+    completed_evidence_sha256: entry.completed_evidence_sha256 as string,
+    entry_mac: entry.entry_mac as string,
+  });
 }
 
 function verifyStageStat(
@@ -2776,7 +2857,13 @@ async function scanV3WorkHandle(
   key: Uint8Array,
   policy: V3WorkScanPolicy,
   expectedIdentity: WorkFileIdentity,
+  verifiedParentVisitor?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
 ): Promise<Readonly<V3WorkFileScanResult>> {
+  if (verifiedParentVisitor !== undefined && policy !== "sealed-final") {
+    failure(
+      "verified parent visitor is allowed only during the sealed-final scan",
+    );
+  }
   const before = await handle.stat({ bigint: true });
   verifyV3WorkStat(before, invocation);
   verifyWorkIdentity(before, expectedIdentity, "v3 work.jsonl held file");
@@ -2863,15 +2950,25 @@ async function scanV3WorkHandle(
         failure("v3 work.jsonl contains too many complete records");
       }
       if (lineLength === 0) failure("v3 work.jsonl contains an empty line");
-      scanV3CompleteLine(
+      const verifiedParentEvent = scanV3CompleteLine(
         lineBuffer.subarray(0, lineLength),
         offset + newline + 1,
         state,
         invocation,
         key,
         decoder,
+        verifiedParentVisitor !== undefined,
       );
       state.completeRecords += 1;
+      if (
+        verifiedParentEvent !== undefined &&
+        verifiedParentVisitor !== undefined
+      ) {
+        invokeVerifiedParentVisitorForTests(
+          verifiedParentVisitor,
+          verifiedParentEvent,
+        );
+      }
       lineLength = 0;
       chunkStart = newline + 1;
     }
@@ -3161,6 +3258,42 @@ function consumeNonExactNativePromiseRejectionBestEffort(value: unknown): void {
     // The current realm and intrinsics are trusted by the exported boundary.
     // Observation remains best-effort if that trusted realm is corrupted.
   }
+}
+
+function invokeVerifiedParentVisitorForTests(
+  visitor: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+): void {
+  const visitorResult: unknown = visitor(event);
+  if (visitorResult !== undefined) {
+    consumeNonExactNativePromiseRejectionBestEffort(visitorResult);
+    failure(
+      "dependencies.verifiedParentVisitorForTests must return exactly undefined",
+    );
+  }
+}
+
+/**
+ * Test-only O(1) seam for the callback contract used by the scanner loop. It
+ * does not authenticate or mint an event; callers must supply an event that a
+ * real sealed-final scan already produced.
+ */
+export function invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+  visitor: unknown,
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+): void {
+  if (arguments.length !== 2) {
+    failure("test verified-parent visitor invocation accepts two arguments");
+  }
+  if (typeof visitor !== "function" || nodeIsProxy(visitor)) {
+    failure(
+      "dependencies.verifiedParentVisitorForTests must be a non-Proxy function",
+    );
+  }
+  invokeVerifiedParentVisitorForTests(
+    visitor as FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
+    event,
+  );
 }
 
 async function consumePromiseRejection(value: Promise<unknown>): Promise<void> {
@@ -4473,6 +4606,7 @@ async function executeV3Checkpoint(
       derived,
       plan.sealed ? "sealed-final" : "durable-prefix-final",
       workIdentity,
+      plan.sealed ? invocation.verifiedParentVisitorForTests : undefined,
     );
     assertV3ExactGateFinal(finalPrefix, invocation.gate);
     await callFailpoint(
@@ -4742,6 +4876,8 @@ function checkpointV3WithDeploymentKey<
       failpoint: capturedTestDependencies?.failpoint,
       writeForTests: capturedTestDependencies?.writeForTests,
       readForTests: capturedTestDependencies?.readForTests,
+      verifiedParentVisitorForTests:
+        capturedTestDependencies?.verifiedParentVisitorForTests,
       closeForTests: capturedTestDependencies?.closeForTests,
       scheduleProducerControlTimerForTests:
         capturedTestDependencies?.scheduleProducerControlTimerForTests,
@@ -4784,6 +4920,7 @@ export function checkpointFloodgateV7TeacherParentsCoreForTests(
       producerController,
       options,
       dependencies,
+      false,
     );
   } catch (cause) {
     return closeAfterCaptureFailure(lease, cause);

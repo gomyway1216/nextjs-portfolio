@@ -60,13 +60,13 @@ import {
 } from "../../../ml/floodgate-v7-candidate-union";
 import * as deploymentKeyAuthority from "../../../ml/floodgate-v7-deployment-key-authority";
 import { FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO } from "../../../ml/floodgate-v7-checkpoint-key-contract";
+import { buildFloodgateV7ScanLoadSourceUrlCoreForTests } from "../../../ml/floodgate-v7-checkpoint-scan-load";
 import {
-  buildFloodgateV7CheckpointScanLoadCompletedParentCoreForTests,
-  buildFloodgateV7CheckpointScanLoadRawRowsCoreForTests,
-  generateFloodgateV7CheckpointScanLoadParentsCoreForTests,
-  type FloodgateV7CheckpointScanLoadGeneratedParent,
-} from "../../../ml/floodgate-v7-checkpoint-scan-load";
-import type { FloodgateV7CompletedParentInput } from "../../../ml/floodgate-v7-completed-parent";
+  buildFloodgateV7CompletedParentCoreForTests,
+  type FloodgateV7CompletedParentEvidence,
+  type FloodgateV7CompletedParentInput,
+} from "../../../ml/floodgate-v7-completed-parent";
+import { projectFloodgateV7CompletedParentEvidenceToTrainingLabels } from "../../../ml/floodgate-v7-training-label-projection";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
   FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
@@ -87,6 +87,10 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS,
   FloodgateV7TeacherAbortDrainTimeoutError,
   FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
   FloodgateV7TeacherProducerCleanupError,
@@ -96,6 +100,7 @@ import {
   checkpointFloodgateV7TeacherParentsCoreForTests,
   checkpointFloodgateV7TeacherParentsV3CoreForTests,
   checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests,
+  invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
   type FloodgateV7TeacherCheckpointOptions,
   type FloodgateV7TeacherCheckpointReceipt,
@@ -106,6 +111,8 @@ import {
   type FloodgateV7TeacherCheckpointV3Gate,
   type FloodgateV7TeacherCheckpointV3Options,
   type FloodgateV7TeacherCheckpointV3Receipt,
+  type FloodgateV7TeacherCheckpointV3VerifiedParentEvent,
+  type FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
   type FloodgateV7TeacherMissingParentProducer,
   type FloodgateV7TeacherProducerController,
   type FloodgateV7TeacherProducerControlTimerEvent,
@@ -163,6 +170,152 @@ function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+async function measureJsonlFile(filePath: string): Promise<
+  Readonly<{
+    bytes: number;
+    completeRecords: number;
+    sha256: string;
+  }>
+> {
+  const digest = createHash("sha256");
+  let bytes = 0;
+  let completeRecords = 0;
+  for await (const chunk of fs.createReadStream(filePath)) {
+    const buffer = chunk as Buffer;
+    digest.update(buffer);
+    bytes += buffer.byteLength;
+    for (let offset = buffer.indexOf(0x0a); offset !== -1;) {
+      completeRecords += 1;
+      offset = buffer.indexOf(0x0a, offset + 1);
+    }
+  }
+  return Object.freeze({
+    bytes,
+    completeRecords,
+    sha256: digest.digest("hex"),
+  });
+}
+
+interface FileHandleSyncPrototype {
+  sync(this: fs.promises.FileHandle): Promise<void>;
+}
+
+interface RegularFileSyncSuppressionController {
+  readonly install: () => void;
+  readonly closeForTests: NonNullable<
+    FloodgateV7TeacherCheckpointDependencies["closeForTests"]
+  >;
+  readonly restore: () => void;
+  readonly measurement: () => Readonly<{
+    suppressedRegularFileSyncs: number;
+    restoredBeforeVisitorScan: boolean;
+    workBatchSyncs: number;
+    stageBatchSyncs: number;
+  }>;
+}
+
+async function regularFileSyncSuppressionController(
+  probePath: string,
+  workFilePath: string,
+  stageDirectoryPath: string,
+): Promise<RegularFileSyncSuppressionController> {
+  const probe = await fs.promises.open(
+    probePath,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  let prototype: FileHandleSyncPrototype;
+  try {
+    prototype = Object.getPrototypeOf(probe) as FileHandleSyncPrototype;
+  } finally {
+    await probe.close();
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, "sync");
+  if (
+    descriptor === undefined ||
+    typeof descriptor.value !== "function" ||
+    descriptor.configurable !== true
+  ) {
+    throw new Error("native FileHandle.sync descriptor cannot be isolated");
+  }
+  const nativeSync = descriptor.value as FileHandleSyncPrototype["sync"];
+  const regularByHandle = new WeakMap<fs.promises.FileHandle, boolean>();
+  let installed = false;
+  let restored = false;
+  let suppressedRegularFileSyncs = 0;
+  let restoredBeforeVisitorScan = false;
+  let workBatchSyncs = 0;
+  let stageBatchSyncs = 0;
+
+  const restore = (): void => {
+    if (!installed || restored) return;
+    Object.defineProperty(prototype, "sync", descriptor);
+    if (prototype.sync !== nativeSync) {
+      throw new Error("native FileHandle.sync was not restored exactly");
+    }
+    restored = true;
+  };
+
+  const batchSync = async (filePath: string, directory: boolean) => {
+    const flags =
+      fs.constants.O_RDONLY |
+      fs.constants.O_NOFOLLOW |
+      (directory ? fs.constants.O_DIRECTORY : 0);
+    const handle = await fs.promises.open(filePath, flags);
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  };
+
+  return Object.freeze({
+    install: () => {
+      if (installed) return;
+      installed = true;
+      Object.defineProperty(prototype, "sync", {
+        ...descriptor,
+        value: async function (this: fs.promises.FileHandle): Promise<void> {
+          let regular = regularByHandle.get(this);
+          if (regular === undefined) {
+            const stat = await this.stat({ bigint: true });
+            regular =
+              (Number(stat.mode) & fs.constants.S_IFMT) ===
+              fs.constants.S_IFREG;
+            regularByHandle.set(this, regular);
+          }
+          if (regular) {
+            suppressedRegularFileSyncs += 1;
+            return;
+          }
+          await Reflect.apply(nativeSync, this, []);
+        },
+      });
+    },
+    closeForTests: async (
+      kind: "work" | "stage",
+      close: () => Promise<void>,
+    ) => {
+      if (kind === "work" && installed && !restored) {
+        restore();
+        await batchSync(workFilePath, false);
+        workBatchSyncs += 1;
+        await batchSync(stageDirectoryPath, true);
+        stageBatchSyncs += 1;
+        restoredBeforeVisitorScan = true;
+      }
+      await close();
+    },
+    restore,
+    measurement: () =>
+      Object.freeze({
+        suppressedRegularFileSyncs,
+        restoredBeforeVisitorScan,
+        workBatchSyncs,
+        stageBatchSyncs,
+      }),
+  });
+}
+
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
     const encoded = JSON.stringify(value);
@@ -177,6 +330,13 @@ function canonicalJson(value: unknown): string {
     .sort(compareBytewise)
     .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
     .join(",")}}`;
+}
+
+function expectDeepFrozen(value: unknown, seen = new Set<object>()): void {
+  if (value === null || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const child of Object.values(value)) expectDeepFrozen(child, seen);
 }
 
 function parentId(gameId: string, ply: number): string {
@@ -1004,43 +1164,106 @@ async function runDeploymentV3Checkpoint(
 }
 
 interface FixedV3Corpus {
-  readonly generated: readonly Readonly<FloodgateV7CheckpointScanLoadGeneratedParent>[];
   readonly rawRows: readonly Readonly<FloodgateRoleBundleRawParent>[];
-  readonly byParentId: ReadonlyMap<
-    string,
-    Readonly<FloodgateV7CheckpointScanLoadGeneratedParent>
-  >;
+  readonly nonForcedParentId: string;
+  readonly nonForcedInputIndex: number;
+  readonly forcedInputIndex: number;
 }
 
 let fixedV3CorpusCache: Readonly<FixedV3Corpus> | undefined;
 
+function sfenHandPiece(count: number, piece: string): string {
+  if (count === 0) return "";
+  return `${count === 1 ? "" : String(count)}${piece}`;
+}
+
 function fixedV3Corpus(): Readonly<FixedV3Corpus> {
   if (fixedV3CorpusCache !== undefined) return fixedV3CorpusCache;
-  const generated = generateFloodgateV7CheckpointScanLoadParentsCoreForTests(
-    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  const rawRows: FloodgateRoleBundleRawParent[] = [];
+  const forcedParents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS - 1;
+  forcedHandCombinations: for (let rook = 0; rook <= 1; rook += 1) {
+    for (let bishop = 0; bishop <= 1; bishop += 1) {
+      for (let gold = 0; gold <= 2; gold += 1) {
+        for (let silver = 0; silver <= 4; silver += 1) {
+          for (let knight = 0; knight <= 4; knight += 1) {
+            for (let lance = 0; lance <= 4; lance += 1) {
+              for (let pawn = 0; pawn <= 18; pawn += 1) {
+                const hand =
+                  sfenHandPiece(rook, "R") +
+                  sfenHandPiece(bishop, "B") +
+                  sfenHandPiece(gold, "G") +
+                  sfenHandPiece(silver, "S") +
+                  sfenHandPiece(knight, "N") +
+                  sfenHandPiece(lance, "L") +
+                  sfenHandPiece(pawn, "P");
+                const index = rawRows.length;
+                rawRows.push(
+                  rawParent(
+                    buildFloodgateV7ScanLoadSourceUrlCoreForTests(index),
+                    sha256(`synthetic forced visitor game ${index}`),
+                    `4k4/2B6/3GRG3/9/9/9/9/9/K8 w ${hand || "-"} 1`,
+                    0,
+                    "5a4a",
+                  ),
+                );
+                if (rawRows.length === forcedParents) {
+                  break forcedHandCombinations;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (rawRows.length !== forcedParents) {
+    throw new Error("forced v3 corpus did not reach 23,999 parents");
+  }
+  const nonForcedMove = rulesCompleteLegalMoves(
+    positionFromSfen(START_SFEN).position,
+  )[12]?.usi;
+  if (nonForcedMove === undefined) {
+    throw new Error("missing non-forced v3 corpus move");
+  }
+  const nonForced = rawParent(
+    buildFloodgateV7ScanLoadSourceUrlCoreForTests(forcedParents),
+    sha256("synthetic non-forced visitor game"),
+    START_SFEN,
+    0,
+    nonForcedMove,
   );
-  const rawRows =
-    buildFloodgateV7CheckpointScanLoadRawRowsCoreForTests(generated);
-  const byParentId = new Map(
-    generated.map((entry) => [entry.parent.parent_id, entry]),
+  rawRows.push(nonForced);
+  rawRows.sort((left, right) =>
+    compareBytewise(left.parent_id, right.parent_id),
   );
-  fixedV3CorpusCache = Object.freeze({ generated, rawRows, byParentId });
+  const nonForcedInputIndex = rawRows.findIndex(
+    (row) => row.parent_id === nonForced.parent_id,
+  );
+  const forcedInputIndex = nonForcedInputIndex === 0 ? 1 : 0;
+  if (nonForcedInputIndex < 0 || rawRows[forcedInputIndex] === undefined) {
+    throw new Error("hybrid v3 corpus lost a representative parent");
+  }
+  fixedV3CorpusCache = Object.freeze({
+    rawRows: Object.freeze(rawRows),
+    nonForcedParentId: nonForced.parent_id,
+    nonForcedInputIndex,
+    forcedInputIndex,
+  });
   return fixedV3CorpusCache;
 }
 
 function fixedV3Producer(
-  corpus: Readonly<FixedV3Corpus>,
   inputIndices: number[],
+  beforeFirstProduce?: () => void,
 ): FloodgateV7TeacherMissingParentProducer {
+  let first = true;
   return async ({ input_index, parent }) => {
-    const generated = corpus.byParentId.get(parent.parent_id);
-    if (generated === undefined) {
-      throw new Error(`missing fixed v3 generated parent ${parent.parent_id}`);
+    if (first) {
+      first = false;
+      beforeFirstProduce?.();
     }
     inputIndices.push(input_index);
-    return buildFloodgateV7CheckpointScanLoadCompletedParentCoreForTests(
-      generated,
-    );
+    return completedParentInput(parent);
   };
 }
 
@@ -3472,18 +3695,19 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     expect(producerCalls).toBe(0);
   });
 
-  // Shared Linux CI measured this exact-24k composite at 322 seconds. Keep the
-  // full corpus and adversarial matrix while allowing bounded runner variance.
-  it("advances only authenticated v3 100/500 gates over one reused full input and fails closed on adversarial states", async () => {
+  it("advances authenticated v3 100/500/final-24000 gates and visits only verified sealed-final parents", async () => {
     const corpus = fixedV3Corpus();
-    expect(corpus.generated).toHaveLength(
-      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-    );
     expect(corpus.rawRows).toHaveLength(
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
     );
-    expect(corpus.byParentId.size).toBe(
+    expect(new Set(corpus.rawRows.map((row) => row.parent_id)).size).toBe(
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    );
+    expect(new Set(corpus.rawRows.map((row) => row.position_id)).size).toBe(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    );
+    expect(corpus.rawRows[corpus.nonForcedInputIndex]?.parent_id).toBe(
+      corpus.nonForcedParentId,
     );
     const value = await fixture(corpus.rawRows);
     const deployment = await deploymentKeyFixture();
@@ -3512,7 +3736,7 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
         value,
         deployment,
         FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
-        fixedV3Producer(corpus, prefix100Calls),
+        fixedV3Producer(prefix100Calls),
         {
           dependencies: {
             effectiveUserId: effectiveUserId(),
@@ -3599,6 +3823,7 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
 
     const prefix100ReadPurposes: V3ReadPurpose[] = [];
     let prefix100RetryCalls = 0;
+    let prefix100VisitorCalls = 0;
     const prefix100Receipt = await runV3Checkpoint(
       value,
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
@@ -3609,10 +3834,15 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       {
         dependencies: v3CheckpointDependencies({
           readForTests: recordV3ReadPurposes(prefix100ReadPurposes),
+          verifiedParentVisitorForTests: () => {
+            prefix100VisitorCalls += 1;
+            return undefined;
+          },
         }),
       },
     );
     expect(prefix100RetryCalls).toBe(0);
+    expect(prefix100VisitorCalls).toBe(0);
     expect(prefix100Receipt).toMatchObject({
       contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
       gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
@@ -3634,6 +3864,14 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     );
     expect(prefix100ReadPurposes).not.toContain("sealed-final");
     expect(await fs.promises.readFile(workPath(value))).toEqual(prefix100Bytes);
+    const prefix100WithoutVisitor = await runV3Checkpoint(
+      value,
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      async () => {
+        throw new Error("complete v3 gate 100 changed without visitor");
+      },
+    );
+    expect(prefix100WithoutVisitor).toEqual(prefix100Receipt);
 
     const beforeSkippedFinal = await fs.promises.readFile(workPath(value));
     await expect(
@@ -3649,13 +3887,18 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
 
     const prefix500Calls: number[] = [];
     const prefix500ReadPurposes: V3ReadPurpose[] = [];
+    let prefix500VisitorCalls = 0;
     const prefix500Receipt = await runV3Checkpoint(
       value,
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
-      fixedV3Producer(corpus, prefix500Calls),
+      fixedV3Producer(prefix500Calls),
       {
         dependencies: v3CheckpointDependencies({
           readForTests: recordV3ReadPurposes(prefix500ReadPurposes),
+          verifiedParentVisitorForTests: () => {
+            prefix500VisitorCalls += 1;
+            return undefined;
+          },
         }),
       },
     );
@@ -3663,6 +3906,7 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       Array.from({ length: 400 }, (_entry, index) => index + 100),
     );
     expect(new Set(prefix500Calls).size).toBe(400);
+    expect(prefix500VisitorCalls).toBe(0);
     expect(prefix500Receipt).toMatchObject({
       contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
       gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
@@ -3797,6 +4041,321 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       ).rejects.toThrow(adversarial.message);
       expect(await fs.promises.readFile(workPath(value))).toEqual(tornBytes);
       await fs.promises.writeFile(workPath(value), prefix500Bytes);
+    }
+
+    const representativeIndices = new Set([
+      0,
+      Math.floor(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS / 2),
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS - 1,
+      corpus.nonForcedInputIndex,
+      corpus.forcedInputIndex,
+    ]);
+    const representativeEvents = new Map<
+      number,
+      Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>
+    >();
+    let verifiedParentEvents = 0;
+    const verifiedParentVisitor: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests =
+      (event) => {
+        if (event.input_index !== verifiedParentEvents) {
+          throw new Error(
+            `verified parent event ${verifiedParentEvents} arrived as ${event.input_index}`,
+          );
+        }
+        if (
+          !Object.isFrozen(event) ||
+          !Object.isFrozen(event.parent) ||
+          !Object.isFrozen(event.completed_evidence)
+        ) {
+          throw new Error(
+            `verified parent event ${event.input_index} is not frozen`,
+          );
+        }
+        if (representativeIndices.has(event.input_index)) {
+          representativeEvents.set(event.input_index, event);
+        }
+        verifiedParentEvents += 1;
+        return undefined;
+      };
+    const finalCalls: number[] = [];
+    const syncSuppression = await regularFileSyncSuppressionController(
+      value.training.trainingPath,
+      workPath(value),
+      value.stageRoot,
+    );
+    const lateFailure = new Error(
+      "synthetic failure after the visitor-enabled final scan",
+    );
+    let finalFailure: unknown;
+    try {
+      await runDeploymentV3Checkpoint(
+        value,
+        deployment,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+        fixedV3Producer(finalCalls, syncSuppression.install),
+        {
+          dependencies: {
+            closeForTests: syncSuppression.closeForTests,
+            effectiveUserId: effectiveUserId(),
+            failpointForTests: (event) => {
+              if (event.phase === "after-final-scan-before-path-confirmation") {
+                throw lateFailure;
+              }
+            },
+            verifiedParentVisitorForTests: verifiedParentVisitor,
+          },
+        },
+      );
+    } catch (cause) {
+      finalFailure = cause;
+    } finally {
+      syncSuppression.restore();
+    }
+    expect(finalFailure).toBeInstanceOf(
+      FloodgateV7TeacherCheckpointPersistenceIndeterminateError,
+    );
+    expect(errorChain(finalFailure)).toContain(lateFailure);
+    expect(syncSuppression.measurement()).toEqual({
+      suppressedRegularFileSyncs:
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS - 500 + 1,
+      restoredBeforeVisitorScan: true,
+      workBatchSyncs: 1,
+      stageBatchSyncs: 1,
+    });
+    expect(finalCalls).toHaveLength(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS - 500,
+    );
+    expect(new Set(finalCalls).size).toBe(finalCalls.length);
+    let minimumFinalCall = Number.POSITIVE_INFINITY;
+    let maximumFinalCall = Number.NEGATIVE_INFINITY;
+    for (const inputIndex of finalCalls) {
+      minimumFinalCall = Math.min(minimumFinalCall, inputIndex);
+      maximumFinalCall = Math.max(maximumFinalCall, inputIndex);
+    }
+    expect(minimumFinalCall).toBe(500);
+    expect(maximumFinalCall).toBe(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS - 1,
+    );
+    expect(verifiedParentEvents).toBe(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    );
+    expect([...representativeEvents.keys()]).toEqual(
+      [...representativeIndices].sort((left, right) => left - right),
+    );
+
+    for (const index of representativeIndices) {
+      const event = representativeEvents.get(index);
+      if (event === undefined) {
+        throw new Error(`missing representative verified event ${index}`);
+      }
+      const raw = corpus.rawRows[index];
+      if (raw === undefined) {
+        throw new Error(`missing representative raw parent ${index}`);
+      }
+      const expectedParent: Readonly<FloodgateTrainingParent> = {
+        schema_version: raw.schema_version,
+        game_id: raw.game_id,
+        parent_id: raw.parent_id,
+        position_id: raw.position_id,
+        parent_sfen: raw.parent_sfen,
+        ply: raw.ply,
+        played_move: raw.played_move,
+      };
+      const expectedEvidence: Readonly<FloodgateV7CompletedParentEvidence> =
+        buildFloodgateV7CompletedParentCoreForTests(
+          completedParentInput(event.parent),
+        );
+      expect(event).toMatchObject({
+        contract:
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CONTRACT,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS,
+        claim_boundary:
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY,
+        input_index: index,
+        parent: expectedParent,
+        completed_evidence_sha256: sha256(
+          `shogi-floodgate-v7-completed-evidence-v1\0${canonicalJson(
+            expectedEvidence,
+          )}`,
+        ),
+      });
+      expect(event.completed_evidence).toEqual(expectedEvidence);
+      const projected =
+        projectFloodgateV7CompletedParentEvidenceToTrainingLabels(
+          event.completed_evidence,
+        );
+      expect(projected.parent).toEqual({
+        parent_id: event.parent.parent_id,
+        completed_parent_sha256:
+          event.completed_evidence.completed_parent_sha256,
+        forced_parent_skipped:
+          event.parent.parent_id !== corpus.nonForcedParentId,
+      });
+      if (event.parent.parent_id === corpus.nonForcedParentId) {
+        expect(projected.rows.length).toBeGreaterThan(0);
+      } else {
+        expect(projected.rows).toEqual([]);
+      }
+      expect(event.entry_mac).toMatch(/^[0-9a-f]{64}$/);
+      expect(event.status).toContain("provisional");
+      expect(event.claim_boundary).toContain("not-output-authority");
+      expect(Object.keys(event).sort(compareBytewise)).toEqual(
+        [
+          "claim_boundary",
+          "completed_evidence",
+          "completed_evidence_sha256",
+          "contract",
+          "entry_mac",
+          "input_index",
+          "parent",
+          "status",
+        ].sort(compareBytewise),
+      );
+      expectDeepFrozen(event);
+    }
+
+    const sealedWorkPath = workPath(value);
+    const sealedWorkStat = await fs.promises.stat(sealedWorkPath);
+    const sealedWork = await measureJsonlFile(sealedWorkPath);
+    expect(sealedWork).toMatchObject({
+      bytes: sealedWorkStat.size,
+      completeRecords: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 4,
+    });
+    expect(sealedWork.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(sealedWork.sha256).not.toBe(prefix500Receipt.work.sha256);
+
+    const helperEvent = representativeEvents.get(corpus.nonForcedInputIndex);
+    if (helperEvent === undefined) {
+      throw new Error("missing non-forced helper event");
+    }
+    let successfulHelperCalls = 0;
+    expect(() =>
+      invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+        () => {
+          successfulHelperCalls += 1;
+          return undefined;
+        },
+        helperEvent,
+      ),
+    ).not.toThrow();
+    expect(successfulHelperCalls).toBe(1);
+
+    let throwingVisitorCalls = 0;
+    const visitorFailure = new Error(
+      "synthetic verified-parent visitor failure",
+    );
+    let observedVisitorFailure: unknown;
+    try {
+      invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+        () => {
+          throwingVisitorCalls += 1;
+          throw visitorFailure;
+        },
+        helperEvent,
+      );
+    } catch (cause) {
+      observedVisitorFailure = cause;
+    }
+    expect(observedVisitorFailure).toBe(visitorFailure);
+    expect(throwingVisitorCalls).toBe(1);
+
+    let nonvoidVisitorCalls = 0;
+    expect(() =>
+      invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+        () => {
+          nonvoidVisitorCalls += 1;
+          return true;
+        },
+        helperEvent,
+      ),
+    ).toThrow(/verifiedParentVisitorForTests must return exactly undefined/);
+    expect(nonvoidVisitorCalls).toBe(1);
+
+    let promiseVisitorCalls = 0;
+    const promiseVisitorFailure = new Error(
+      "synthetic rejecting verified-parent visitor Promise",
+    );
+    const unhandledRejections: unknown[] = [];
+    const recordUnhandledRejection = (reason: unknown): void => {
+      unhandledRejections.push(reason);
+    };
+    process.on("unhandledRejection", recordUnhandledRejection);
+    try {
+      expect(() =>
+        invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+          () => {
+            promiseVisitorCalls += 1;
+            return Promise.reject(promiseVisitorFailure);
+          },
+          helperEvent,
+        ),
+      ).toThrow(/verifiedParentVisitorForTests must return exactly undefined/);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    } finally {
+      process.off("unhandledRejection", recordUnhandledRejection);
+    }
+    expect(promiseVisitorCalls).toBe(1);
+    expect(unhandledRejections).toEqual([]);
+
+    let proxyVisitorCalls = 0;
+    const proxiedVisitor = new Proxy(
+      (() => {
+        proxyVisitorCalls += 1;
+        return undefined;
+      }) satisfies FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
+      {},
+    );
+    expect(() =>
+      invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests(
+        proxiedVisitor,
+        helperEvent,
+      ),
+    ).toThrow(/verifiedParentVisitorForTests must be a non-Proxy function/);
+    expect(proxyVisitorCalls).toBe(0);
+
+    const tailLength = Math.min(
+      sealedWorkStat.size,
+      FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 2,
+    );
+    const sealedHandle = await fs.promises.open(
+      sealedWorkPath,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+    const tail = Buffer.alloc(tailLength);
+    try {
+      const tailRead = await sealedHandle.read(
+        tail,
+        0,
+        tail.length,
+        sealedWorkStat.size - tail.length,
+      );
+      expect(tailRead.bytesRead).toBe(tail.length);
+    } finally {
+      await sealedHandle.close();
+    }
+    const finalLf = tail.lastIndexOf(0x0a);
+    const precedingLf = tail.lastIndexOf(0x0a, finalLf - 1);
+    if (finalLf !== tail.length - 1 || precedingLf < 0) {
+      throw new Error("sealed v3 work has no bounded final seal line");
+    }
+    const sealedLine = Buffer.from(tail.subarray(precedingLf + 1, finalLf));
+    const sealedLineText = sealedLine.toString("utf8");
+    const sealRecord = JSON.parse(sealedLineText) as Record<string, unknown>;
+    expect(sealRecord).toMatchObject({
+      schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+      kind: "seal",
+      entries: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+      status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+    });
+    for (const key of [
+      "final_entry_mac",
+      "milestone_100_mac",
+      "milestone_500_mac",
+      "parent_ids_sha256",
+      "seal_mac",
+      "training_parents_sha256",
+    ]) {
+      expect(sealRecord[key]).toMatch(/^[0-9a-f]{64}$/);
     }
 
     expect(forbiddenCalls).toBe(0);

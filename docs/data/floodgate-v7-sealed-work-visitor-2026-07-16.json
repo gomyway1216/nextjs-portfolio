@@ -1,0 +1,301 @@
+{
+  "schema": "shogi-floodgate-v7-sealed-work-verified-parent-visitor-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-candidate-only",
+    "implementation_kind": "non-production-test-dependency-only-sealed-final-observation-seam",
+    "test_or_internal_only": true,
+    "production_state_freshly_observed_for_this_change": false,
+    "production_namespace_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_gate_invocation_authorized_by_this_evidence": false,
+    "local_source_or_test_execution_counted_as_production_execution": false
+  },
+  "artifacts": {
+    "implementation_source": "ml/floodgate-v7-teacher-checkpoint.ts",
+    "focused_unit_test": "tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts",
+    "japanese_article": "docs/blog-shogi-floodgate-v7-sealed-work-visitor.md",
+    "english_article": "docs/blog-shogi-floodgate-v7-sealed-work-visitor.en.md",
+    "machine_readable_evidence": "docs/data/floodgate-v7-sealed-work-visitor-2026-07-16.json",
+    "evidence_unit_test": "tests/unit/ml/floodgateV7SealedWorkVisitorEvidence.test.ts"
+  },
+  "visitor_contract": {
+    "contract": "shogi-floodgate-v7-teacher-verified-parent-entry-event-v1",
+    "status": "authenticated-v3-parent-entry-provisional-until-enclosing-sealed-final-scan-succeeds",
+    "claim_boundary": "single-canonical-v3-entry-hmac-chain-parent-run-binding-and-completed-evidence-authenticated-during-held-file-scan-trusted-test-hooks-and-current-js-realm-not-hostile-same-process-mutation-resistant-not-standalone-work-authentication-not-sealed-final-scan-success-not-output-authority-not-durability-publication-training-weight-or-playing-strength-evidence",
+    "dependency_name": "verifiedParentVisitorForTests",
+    "surface": "optional-test-dependency-only",
+    "runtime_contract_constants_added": 3,
+    "exported_types_added": 2,
+    "test_dependency_properties_added": 1,
+    "test_only_runtime_helper_exports_added": 1,
+    "test_only_runtime_helper_authenticates_or_mints_event": false,
+    "production_executable_reader_entry_point_added": false,
+    "production_cli_argument_added": false,
+    "trusted_test_hooks_and_current_js_realm": true,
+    "hostile_same_process_mutation_resistance_claimed": false,
+    "allowed_scan_policy": "sealed-final-only",
+    "durable_prefix_100_invocations": 0,
+    "durable_prefix_500_invocations": 0,
+    "callback": {
+      "synchronous": true,
+      "must_return_exactly_undefined": true,
+      "proxy_allowed": false,
+      "throw_aborts_enclosing_scan": true,
+      "promise_or_thenable_handoff_authorized": false
+    },
+    "event": {
+      "delivery_condition": "after-one-completed-parent-entry-passes-existing-exact-structure-run-binding-digest-canonical-byte-and-hmac-chain-checks",
+      "fields": [
+        "contract",
+        "status",
+        "claim_boundary",
+        "input_index",
+        "parent",
+        "completed_evidence",
+        "completed_evidence_sha256",
+        "entry_mac"
+      ],
+      "deep_frozen_runtime_value": true,
+      "provisional": true,
+      "enclosing_sealed_final_scan_success_proven": false,
+      "standalone_work_authentication": false,
+      "output_authority": false
+    }
+  },
+  "sealed_scan_semantics": {
+    "held_file_descriptor_scan_reused": true,
+    "new_checkpoint_parser_added": false,
+    "checkpoint_format_changed": false,
+    "checkpoint_bytes_written_by_visitor": 0,
+    "final_parent_records": 24000,
+    "durable_prefix_milestone_records": 2,
+    "header_records": 1,
+    "seal_records": 1,
+    "exact_final_complete_records": 24004,
+    "visitor_may_observe_entry_before_seal_validation": true,
+    "visitor_invocation_implies_enclosing_scan_success": false,
+    "visitor_invocation_grants_durable_output_authority": false,
+    "visitor_invocation_grants_publication_authority": false,
+    "visitor_invocation_grants_training_authority": false,
+    "no_visitor_path_intended_semantics_changed": false
+  },
+  "focused_test_methodology": {
+    "classification": "synthetic-visitor-semantics-and-load-test-not-production-or-per-entry-fsync-durability-evidence",
+    "corpus": {
+      "parents": 24000,
+      "forced_parents": 23999,
+      "non_forced_parents": 1,
+      "real_floodgate_games_read": 0
+    },
+    "checkpoint_build": {
+      "resumed_from_parents": 500,
+      "appended_parent_records": 23500,
+      "seal_records_appended": 1,
+      "test_only_regular_file_syncs_suppressed": 23501,
+      "suppression_begins_after_native_prefix_resume": true,
+      "native_file_handle_sync_restored_before_visitor_scan": true,
+      "work_file_batch_syncs_before_visitor_scan": 1,
+      "stage_directory_batch_syncs_before_visitor_scan": 1,
+      "per_entry_fsync_durability_reverified_by_this_run": false
+    },
+    "visitor_scan": {
+      "sealed_final_full_scans": 1,
+      "expected_verified_parent_events": 24000,
+      "expected_complete_records": 24004,
+      "late_failure_phase": "after-final-scan-before-path-confirmation",
+      "event_alone_implies_terminal_operation_success": false
+    },
+    "callback_contract": {
+      "retained_real_scanner_event_used": true,
+      "shared_enforcement_helper_used": true,
+      "negative_cases_run_in_constant_time_without_file_rescan": true,
+      "cases": [
+        "exact-undefined-success",
+        "visitor-throw",
+        "non-undefined-value",
+        "rejecting-native-promise-observed",
+        "proxy-rejected-before-call"
+      ]
+    }
+  },
+  "validation": {
+    "validation_candidate_revision": "f9e782eb96a880e80b918953d67651a168e11a78",
+    "focused_visitor_vitest": {
+      "status": "COMPLETE",
+      "command": "npx vitest run tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts --reporter=dot",
+      "files": 1,
+      "tests": 48,
+      "passed": 48,
+      "failed": 0,
+      "vitest_duration_ms": 109640,
+      "wall_seconds": 110.05,
+      "maximum_rss_bytes": 2309652480,
+      "swaps": 0
+    },
+    "related_checkpoint_regression_vitest": {
+      "status": "COMPLETE",
+      "command": "npx vitest run tests/unit/ml/floodgateV7SealedWorkVisitorEvidence.test.ts tests/unit/ml/floodgateV7TrainingLabelProjection.test.ts tests/unit/ml/floodgateV7CheckpointScanLoad.test.ts --reporter=dot",
+      "files": 3,
+      "tests": 26,
+      "passed": 26,
+      "failed": 0,
+      "vitest_duration_ms": 2840,
+      "wall_seconds": 3.21,
+      "maximum_rss_bytes": 334757888,
+      "swaps": 0
+    },
+    "typescript": {
+      "status": "COMPLETE",
+      "command": "npx tsc --noEmit --pretty false",
+      "exit_code": 0,
+      "wall_seconds": 6.89,
+      "maximum_rss_bytes": 1125023744,
+      "swaps": 0
+    },
+    "prettier": {
+      "status": "COMPLETE",
+      "command": "npx prettier --check ml/floodgate-v7-teacher-checkpoint.ts tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts docs/blog-shogi-floodgate-v7-sealed-work-visitor.md docs/blog-shogi-floodgate-v7-sealed-work-visitor.en.md docs/data/floodgate-v7-sealed-work-visitor-2026-07-16.json tests/unit/ml/floodgateV7SealedWorkVisitorEvidence.test.ts",
+      "files": 6,
+      "observation": "all-matched"
+    },
+    "eslint": {
+      "status": "COMPLETE",
+      "command": "npx eslint .",
+      "exit_code": 0,
+      "errors": 0,
+      "warnings": 157,
+      "wall_seconds": 39.63,
+      "maximum_rss_bytes": 1288552448,
+      "swaps": 0
+    },
+    "full_vitest": {
+      "status": "COMPLETE",
+      "command": "npx vitest run --reporter=dot",
+      "files": 153,
+      "tests": 2823,
+      "passed": 2823,
+      "failed": 0,
+      "vitest_duration_seconds": 106.26,
+      "wall_seconds": 106.68,
+      "maximum_rss_bytes": 2349039616,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "COMPLETE",
+      "command": "npm run build",
+      "static_pages": 193,
+      "passed": 193,
+      "failed": 0,
+      "wall_seconds": 47.96,
+      "maximum_rss_bytes": 2619326464,
+      "swaps": 0
+    },
+    "ml_stdlib": {
+      "status": "COMPLETE",
+      "command": "npm run test:ml:stdlib",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "wall_seconds": 0.46,
+      "maximum_rss_bytes": 64929792,
+      "swaps": 0
+    },
+    "npm_audit": {
+      "status": "COMPLETE",
+      "command": "npm audit --audit-level=high",
+      "exit_code": 0,
+      "vulnerabilities": 0,
+      "wall_seconds": 0.54,
+      "maximum_rss_bytes": 133332992,
+      "swaps": 0
+    },
+    "github_ci_and_review": {
+      "status": "PENDING",
+      "pull_request": null,
+      "head_revision": null,
+      "checks_passed": null,
+      "checks_failed": null,
+      "unresolved_review_threads": null
+    }
+  },
+  "production_execution_for_this_change": {
+    "production_commands": 0,
+    "production_reader_or_command_entry_points_added": 0,
+    "production_registry_provisions": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "production_checkpoint_records_read": 0,
+    "production_hmac_records_verified": 0,
+    "production_verified_parent_events": 0,
+    "real_floodgate_games_read": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels_materialized": 0,
+    "production_output_files_created": 0,
+    "training_jsonl_files_finalized": 0,
+    "result_json_files_finalized": 0,
+    "manifest_json_files_finalized": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_ab_color_swapped_pairs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "current_production_evaluator": "runOp1",
+    "current_rollback_evaluator": "runOp1",
+    "live_weight_changed": false,
+    "playing_strength_changed_by_this_evidence": false,
+    "stable_high_dan_claimed": false,
+    "formal_ab_plan": "192 color-swapped pairs / 384 games",
+    "formal_ab_color_swapped_pairs_required": 192,
+    "formal_ab_total_games_required": 384,
+    "external_calibration_games_required": 200
+  },
+  "next_boundary": {
+    "name": "authenticated-crash-safe-training-label-finalization-and-publication",
+    "required_composition": "two-pass-same-held-identity-and-snapshot",
+    "ordered_requirements": [
+      "common-outer-lock-retained",
+      "fresh-active-stage-lease-and-opaque-v3-checkpoint-scan-key-acquired-before-pass-one",
+      "fresh-active-stage-lease-retained-through-publication-and-destination-revalidation",
+      "first-pass-exact-sealed-final-scan-without-visitor",
+      "second-pass-same-held-identity-and-snapshot-scan-with-synchronous-visitor",
+      "second-enclosing-scan-success-before-output-authorization",
+      "current-exact-consumer-postflight-claimed",
+      "fresh-domain-separated-output-finalizer-key-authority",
+      "crash-safe-training-jsonl-finalization",
+      "crash-safe-result-finalization",
+      "crash-safe-manifest-finalization",
+      "publication-and-destination-revalidation",
+      "checkpoint-scan-and-output-keys-zeroized-after-last-required-reverification",
+      "terminal-stage-lease-close-while-common-outer-lock-remains-held"
+    ],
+    "implemented_by_this_change": false
+  },
+  "nonclaims": {
+    "hostile_same_process_mutation_resistance_established": false,
+    "standalone_work_authenticated_by_event": false,
+    "enclosing_sealed_final_scan_success_established_by_event": false,
+    "production_reader_or_cli_available": false,
+    "output_authority_granted": false,
+    "production_output_created": false,
+    "teacher_dataset_finalized": false,
+    "durable_result_or_manifest": false,
+    "published": false,
+    "optimizer_training": false,
+    "candidate_selected": false,
+    "weight_created": false,
+    "live_evaluation_activated": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

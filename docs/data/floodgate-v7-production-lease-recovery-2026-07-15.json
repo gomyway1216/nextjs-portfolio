@@ -1,0 +1,600 @@
+{
+  "schema": "shogi-floodgate-v7-production-lease-recovery-evidence-v1",
+  "evidence_date": "2026-07-15",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-evidence-only",
+    "production_state_freshly_observed_for_this_evidence": false,
+    "latest_known_prior_snapshot_had_zero_persisted_v2_registry_records": true,
+    "latest_known_prior_snapshot_had_zero_production_gate_processes": true,
+    "historical_production_gate_execution_count_freshly_observed": false,
+    "personal_environment_values_included": false,
+    "owner_or_machine_identity_values_included": false,
+    "filesystem_identity_values_included": false,
+    "private_registry_values_included": false,
+    "private_authentication_or_entropy_values_included": false,
+    "key_material_or_instance_values_included": false,
+    "raw_connector_receipt_included": false,
+    "raw_failure_included": false
+  },
+  "prerequisite_delivery": {
+    "pull_request": 469,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/469",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "6aaeafb76b8bd5dcf9b4ef7a0a74348222001a58",
+    "stale_inner_stage_lease_blocker_recorded_before_real_gate": true
+  },
+  "implementation": {
+    "delivery_state": "ready-pr-open-review-repairs-final-validation-passed-awaiting-ci-and-thread-resolution",
+    "outer_gate_lease": {
+      "contract": "shogi-floodgate-v7-production-outer-gate-lease-v1",
+      "status": "all-fixed-gates-serialized-by-os-lifetime-lock-and-authenticated-durable-lease",
+      "algorithm": "macos-lockf-inherited-registry-open-file-description-hkdf-sha256-canonical-hmac-sha256-v1",
+      "production_execution_boundary": "production-fixed-current-euid-home-native-descriptor-close",
+      "test_execution_boundary": "test-only-injected-home-key-lock-helper-and-descriptor-close",
+      "production_runner_accepts_test_execution_boundary": false,
+      "fixed_gates": [
+        "durable-prefix-100",
+        "durable-prefix-500",
+        "sealed-final-24000"
+      ],
+      "single_os_lifetime_lock_shared_by_all_fixed_gates": true,
+      "fixed_zero_argument_production_owners": 3,
+      "generic_production_gate_or_callback_exported": false,
+      "fixed_runner_loaded_with_captured_commonjs_require_after_active_publication": true,
+      "dynamic_import_used_for_fixed_runner": false,
+      "immutable_private_registry_descriptor_used_as_lock_anchor": true,
+      "nonblocking_lock_acquired_before_inner_operation": true,
+      "lock_contention_starts_inner_operation": false,
+      "lockf_contention_exit_status": 75,
+      "other_nonzero_lockf_status_classified_as_contention": false,
+      "lock_released_by_descriptor_close_or_process_death": true,
+      "descriptor_close_completion_tracked_independently_from_metadata_removal": true,
+      "unreleased_descriptor_receives_finally_close_retry": true,
+      "final_namespace_revalidated_while_os_lock_is_held": true,
+      "final_namespace_validation_precedes_descriptor_close": true,
+      "real_reboot_release_tested": false
+    },
+    "connector_capability": {
+      "contract": "shogi-floodgate-v7-production-outer-gate-connector-capability-v1",
+      "status": "opaque-single-use-valid-only-while-common-os-lock-is-held",
+      "minted_after_authenticated_active_publication": true,
+      "bound_to_exact_fixed_gate": true,
+      "ordinary_caller_receives_capability": false,
+      "production_checkpoint_connector_requires_exact_claim": true,
+      "unclaimed_production_capability_accepts_outer_success": false,
+      "cloned_forged_wrong_gate_or_double_claim_accepted": false,
+      "public_capability_values_disclosed": false
+    },
+    "authenticated_active_record": {
+      "canonical_jsonl": true,
+      "exact_ordered_record_shape_required": true,
+      "dedicated_key_derivation_domain": true,
+      "deployment_authority_and_registry_binding_authenticated": true,
+      "private_owner_lifecycle_binding_authenticated": true,
+      "create_only_staging": true,
+      "staging_file_synchronized": true,
+      "active_name_published_without_clobbering": true,
+      "control_directory_synchronized_before_operation": true,
+      "staging_name_removed_and_directory_synchronized": true,
+      "reopened_exact_bytes_authenticated_before_operation": true,
+      "private_record_disclosed": false
+    },
+    "partial_publication_progress": {
+      "monotonic_failure_state_tracking": true,
+      "tuple_order": [
+        "authenticated_lease_published",
+        "quarantine_blocks_all_gates"
+      ],
+      "states": [
+        {
+          "phase": "staging-created-before-active-link",
+          "tuple": [false, true]
+        },
+        {
+          "phase": "active-linked-before-staging-removal-directory-durable",
+          "tuple": [true, true]
+        },
+        {
+          "phase": "staging-removal-quarantine-directory-durable",
+          "tuple": [true, false]
+        }
+      ],
+      "injected_failpoints": [
+        "after-staging-create",
+        "after-active-link-before-control-sync",
+        "after-durable-active-publish-before-staging-cleanup",
+        "after-staging-unlink-before-quarantine-sync"
+      ],
+      "local_test_hook_injection_only": true,
+      "real_process_crash_tested": false,
+      "real_reboot_tested": false
+    },
+    "normal_retirement": {
+      "exact_active_source_revalidated_before_removal": true,
+      "replacement_source_removed": false,
+      "pending_retired_evidence_published_before_active_removal": true,
+      "retired_directory_synchronized_before_active_removal": true,
+      "control_directory_synchronized_after_active_removal": true,
+      "closed_retired_evidence_synchronized": true,
+      "closed_retired_exact_ordered_shape_revalidated": true,
+      "closed_retired_authentication_revalidated": true,
+      "closed_retired_current_registry_binding_revalidated": true,
+      "final_private_directory_identities_revalidated_under_lock": true,
+      "final_exact_control_entry_set_revalidated_under_lock": true,
+      "final_active_absence_and_empty_quarantine_revalidated_under_lock": true,
+      "successor_owner_can_start_before_predecessor_final_validation": false,
+      "tampered_closed_retired_record_accepted": false,
+      "valid_authentication_with_extra_retired_field_accepted": false,
+      "pending_or_invalid_retired_state_blocks_all_gates": true,
+      "operation_rejection_preserves_authenticated_active_evidence": true,
+      "operation_rejection_claims_no_checkpoint_persisted": false
+    },
+    "manual_stale_flow": {
+      "inspection_contract": "shogi-floodgate-v7-production-outer-gate-stale-inspection-v1",
+      "quarantine_contract": "shogi-floodgate-v7-production-outer-gate-explicit-quarantine-v1",
+      "ordinary_runner_auto_deletes_stale_source": false,
+      "inspection_holds_common_os_lock": true,
+      "inspection_owns_process_lifecycle_handler_until_confirm_or_cancel": true,
+      "inspection_requires_authenticated_current_registry_binding": true,
+      "inspection_mutates_source": false,
+      "empty_legacy_source_receives_capability": false,
+      "modified_or_unbound_source_receives_capability": false,
+      "confirmation_requires_opaque_single_use_capability": true,
+      "confirmation_requires_fixed_explicit_phrase": true,
+      "exact_source_freshly_reinspected_before_quarantine": true,
+      "quarantine_published_create_only_and_synchronized": true,
+      "exact_active_source_removal_synchronized": true,
+      "inspection_to_confirmation_change_is_quarantined": false,
+      "cancellation_mutates_source": false,
+      "nonempty_quarantine_blocks_all_fixed_gates": true,
+      "quarantine_acknowledged_or_deleted": false,
+      "next_gate_authorized_by_quarantine_receipt": false,
+      "fixed_operator_cli_or_interactive_orchestrator_implemented": false,
+      "abandoned_inspection_capability_finally_cancelled": false,
+      "raw_inspect_confirm_or_cancel_failure_disclosed": false,
+      "real_stale_source_reconciled": false
+    },
+    "stage_authorization_durability": {
+      "contract": "floodgate-teacher-private-stage-authorization-v3",
+      "same_process_namespace_guard_state_machine": true,
+      "held_lease_directory_synchronized_before_parent": true,
+      "held_lease_identity_revalidated_after_lease_sync": true,
+      "lease_create_parent_synchronized": true,
+      "lease_remove_parent_synchronized": true,
+      "held_parent_identity_revalidated_before_and_after_sync": true,
+      "authorization_failure_cleanup_synchronized": true,
+      "publication_abort_cleanup_synchronized": true,
+      "publication_transaction_parent_sync_revalidated": true,
+      "create_sync_failure_returns_typed_indeterminate_result": true,
+      "post_removal_sync_failure_returns_indeterminate_cleanup": true,
+      "same_process_automatic_recreation_blocked_after_indeterminate_sync": true,
+      "restart_persistent_authenticated_stage_tombstone": false,
+      "empty_inner_stage_lease_can_remain_after_crash": true,
+      "outer_quarantine_removes_inner_stage_lease": false,
+      "inner_stage_exclusive_create_can_still_block_restart": true
+    },
+    "runner_and_cli_integration": {
+      "outer_wrapper_is_outside_private_registry_and_connector_work": true,
+      "production_connector_requires_outer_single_use_capability": true,
+      "outer_success_receipt_exactly_validated_before_runner_success": true,
+      "outer_success_requires_production_execution_boundary": true,
+      "test_execution_boundary_accepted_as_production_success": false,
+      "outer_failure_phase_is_publicly_allowlisted": true,
+      "unknown_post_publication_failure_is_conservative": true,
+      "generic_outer_production_callback_supported": false,
+      "private_outer_failure_forwarded_to_cli": false,
+      "all_outer_owner_phases_share_typed_sanitation_boundary": true
+    },
+    "signal_policy": {
+      "active_record_removed_on_signal_or_exit": false,
+      "same_signal_resent_after_all_delivered_signal_listeners_removed": true,
+      "preexisting_persistent_delivered_signal_listener_can_absorb_death": false,
+      "ordinary_and_manual_inspection_child_paths_tested": true,
+      "authenticated_crash_evidence_preserved": true,
+      "graceful_signal_cleanup_claimed": false,
+      "local_child_process_sigterm_tested": true,
+      "production_signal_drill_performed": false
+    },
+    "legacy_and_migration": {
+      "latest_known_persisted_v2_production_records": 0,
+      "automatic_legacy_empty_stage_lease_migration": false,
+      "automatic_legacy_empty_stage_lease_adoption": false,
+      "automatic_legacy_empty_stage_lease_removal": false,
+      "invalid_or_empty_outer_active_source_preserved_fail_closed": true,
+      "migration_executed": false
+    },
+    "trust_boundary": {
+      "loaded_application_code_trusted": true,
+      "commonjs_module_cache_trusted": true,
+      "ordinary_supported_api_accepts_arbitrary_production_callback": false,
+      "hostile_same_process_code_defended": false,
+      "hostile_require_cache_or_export_replacement_defended": false,
+      "arbitrary_same_process_root_key_filesystem_or_process_access_defended": false,
+      "separate_uid_or_isolated_broker_required_for_stronger_boundary": true
+    },
+    "independent_review_findings_and_fixes": {
+      "generic_production_callback_capability_issuer": {
+        "found": true,
+        "fixed": true,
+        "regression_covered": true
+      },
+      "manual_public_raw_failure_surface": {
+        "found": true,
+        "fixed": true,
+        "descriptor_close_fault_covered": true
+      },
+      "preexisting_signal_listener_absorbed_default_death": {
+        "found": true,
+        "fixed": true,
+        "ordinary_and_manual_child_paths_covered": true
+      },
+      "noncontention_lockf_status_misclassified_as_busy": {
+        "found": true,
+        "fixed": true,
+        "only_status_75_is_contention": true
+      },
+      "closed_retired_negative_coverage_gap": {
+        "found": true,
+        "fixed": true,
+        "tamper_valid_authentication_extra_field_and_registry_mismatch_covered": true
+      },
+      "darwin_missing_lock_helper_zero_test_green": {
+        "found": true,
+        "fixed": true,
+        "ci_requires_executable_fixed_helper": true
+      },
+      "test_injected_close_could_claim_production_release": {
+        "found": true,
+        "fixed": true,
+        "production_and_test_execution_boundaries_separated": true,
+        "runner_rejects_test_boundary": true,
+        "regression_covered": true
+      },
+      "final_namespace_validation_after_lock_release_race": {
+        "found": true,
+        "fixed": true,
+        "final_validation_moved_under_lock": true,
+        "successor_owner_race_covered": true
+      },
+      "early_phase_raw_failure_and_close_settlement_gap": {
+        "found": true,
+        "fixed": true,
+        "phase_aware_sanitation_boundary": true,
+        "descriptor_close_tracked_independently": true
+      },
+      "partial_publication_progress_underreported": {
+        "found": true,
+        "fixed": true,
+        "monotonic_false_true_true_true_true_false_states": true,
+        "injected_publish_failpoints_covered": 4,
+        "real_crash_or_reboot_claimed": false
+      },
+      "fixed_manual_operator_orchestrator_absent": {
+        "found": true,
+        "fixed": false,
+        "recorded_as_production_gate_blocker": true
+      }
+    }
+  },
+  "validation": {
+    "required_node_version": "v22.13.0",
+    "focused_outer_composition_current_tree": {
+      "status": "pass",
+      "tree_classification": "latest-partial-publication-repair-included-focused-tree",
+      "includes_fourth_partial_publication_repair": true,
+      "files": 4,
+      "tests": 197,
+      "passed": 197,
+      "failed": 0,
+      "used_as_final_combined_evidence": false
+    },
+    "previous_focused_outer_composition": {
+      "status": "pass",
+      "tree_classification": "prior-snapshot-before-fourth-partial-publication-repair",
+      "includes_fourth_partial_publication_repair": false,
+      "files": 4,
+      "tests": 193,
+      "passed": 193,
+      "failed": 0,
+      "used_as_final_combined_evidence": false
+    },
+    "final_current_tree": {
+      "status": "pass",
+      "tree_classification": "latest-partial-publication-repair-included-final-combined-tree",
+      "includes_latest_additional_independent_review_repairs": true,
+      "includes_fourth_partial_publication_repair": true,
+      "node_version": "v22.13.0",
+      "files": 7,
+      "tests": 348,
+      "passed": 348,
+      "failed": 0,
+      "vitest_duration_seconds": 8.14,
+      "wall_time_seconds": 8.49,
+      "maximum_resident_set_bytes": 298811392,
+      "swaps": 0,
+      "final_combined_rerun_completed": true,
+      "used_as_final_evidence": true
+    },
+    "post_final_validation_review_repairs": {
+      "implementation_status": "implemented",
+      "repairs": 4,
+      "new_targeted_regression_tests_implemented": 10,
+      "final_combined_rerun_status": "pass",
+      "used_as_final_evidence": true
+    },
+    "previous_combined_stable_tree": {
+      "status": "pass",
+      "tree_classification": "prior-snapshot-before-fourth-partial-publication-repair",
+      "files": 7,
+      "tests": 344,
+      "passed": 344,
+      "failed": 0,
+      "vitest_duration_seconds": 8.33,
+      "wall_time_seconds": 8.69,
+      "maximum_resident_set_bytes": 304496640,
+      "swaps": 0,
+      "used_as_final_evidence": false
+    },
+    "earlier_combined_stable_tree": {
+      "status": "pass",
+      "tree_classification": "stable-snapshot-before-latest-additional-independent-review-repairs",
+      "files": 7,
+      "tests": 337,
+      "passed": 337,
+      "failed": 0,
+      "vitest_duration_seconds": 9.61,
+      "wall_time_seconds": 10.06,
+      "maximum_resident_set_bytes": 366280704,
+      "swaps": 0,
+      "used_as_final_evidence": false
+    },
+    "full_vitest": {
+      "status": "pass",
+      "tree_classification": "latest-partial-publication-repair-included-final-full-regression-tree",
+      "includes_latest_additional_independent_review_repairs": true,
+      "includes_fourth_partial_publication_repair": true,
+      "node_version": "v22.13.0",
+      "files": 138,
+      "tests": 2601,
+      "passed": 2601,
+      "failed": 0,
+      "vitest_duration_seconds": 153.22,
+      "wall_time_seconds": 153.67,
+      "maximum_resident_set_bytes": 4325474304,
+      "swaps": 0,
+      "full_rerun_completed": true,
+      "used_as_final_evidence": true
+    },
+    "previous_full_vitest": {
+      "status": "pass",
+      "tree_classification": "prior-snapshot-before-fourth-partial-publication-repair",
+      "includes_latest_additional_independent_review_repairs": false,
+      "includes_fourth_partial_publication_repair": false,
+      "node_version": "v22.13.0",
+      "files": 138,
+      "tests": 2597,
+      "passed": 2597,
+      "failed": 0,
+      "vitest_duration_seconds": 159.26,
+      "wall_time_seconds": 159.68,
+      "maximum_resident_set_bytes": 4373102592,
+      "swaps": 0,
+      "used_as_final_evidence": false
+    },
+    "earlier_full_vitest": {
+      "status": "pass",
+      "tree_classification": "prior-tree-before-latest-additional-independent-review-repairs",
+      "includes_latest_additional_independent_review_repairs": false,
+      "includes_fourth_partial_publication_repair": false,
+      "node_version": "v22.13.0",
+      "files": 138,
+      "tests": 2590,
+      "passed": 2590,
+      "failed": 0,
+      "vitest_duration_seconds": 152.87,
+      "wall_time_seconds": 153.53,
+      "maximum_resident_set_bytes": 4038459392,
+      "swaps": 0,
+      "used_as_final_evidence": false
+    },
+    "intermediate_attempts": [
+      {
+        "sequence": 1,
+        "classification": "invalid-validation-runtime",
+        "node_version": "v20.14.0",
+        "files": 5,
+        "tests": 280,
+        "passed": 271,
+        "failed": 9,
+        "finding": "the-fixed-cli-runtime-guard-correctly-stopped-child-process-fixtures-before-runner-load",
+        "implementation_regression": false,
+        "used_as_final_evidence": false,
+        "raw_failure_included": false
+      },
+      {
+        "sequence": 2,
+        "classification": "correct-runtime-implementation-in-progress",
+        "node_version": "v22.13.0",
+        "files": 5,
+        "tests": 280,
+        "passed": 278,
+        "failed": 2,
+        "finding": "source-structure-allowlists-required-alignment-with-the-new-outer-capability-import-and-formatted-runner-call",
+        "runtime_behavior_failures": 0,
+        "used_as_final_evidence": false,
+        "raw_failure_included": false
+      },
+      {
+        "sequence": 3,
+        "classification": "concurrent-stage-guard-refactor-in-progress",
+        "node_version": "v22.13.0",
+        "files": 5,
+        "tests": 280,
+        "passed": 195,
+        "failed": 85,
+        "finding": "a-shared-tree-snapshot-was-observed-before-the-stage-guard-state-machine-reference-replacement-finished",
+        "stable_shared_tree": false,
+        "used_as_final_evidence": false,
+        "raw_failure_included": false
+      },
+      {
+        "sequence": 4,
+        "classification": "post-independent-review-focused-outer-composition",
+        "node_version": "v22.13.0",
+        "files": 4,
+        "tests": 187,
+        "passed": 187,
+        "failed": 0,
+        "finding": "fixed-owner-capability-signal-manual-error-lockf-retired-and-cli-regressions-passed",
+        "used_as_final_evidence": false,
+        "raw_failure_included": false
+      },
+      {
+        "sequence": 5,
+        "classification": "independent-focused-stage-durability-rerun",
+        "node_version": "v22.13.0",
+        "files": 2,
+        "tests": 147,
+        "passed": 147,
+        "failed": 0,
+        "wall_time_seconds": 8.88,
+        "finding": "stage-authorization-and-publication-durability-regressions-passed-on-stable-tree",
+        "used_as_final_evidence": false,
+        "raw_failure_included": false
+      }
+    ],
+    "test_files": [
+      "tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorRunner.test.ts",
+      "tests/unit/ml/floodgateV7ProductionConnectorCli.test.ts",
+      "tests/unit/ml/floodgateTeacherStageAuthorization.test.ts",
+      "tests/unit/ml/floodgateTeacherStagePublication.test.ts",
+      "tests/unit/ml/floodgateV7ProductionCheckpointConnector.test.ts",
+      "tests/unit/ml/floodgateV7ProductionLeaseRecoveryEvidence.test.ts"
+    ],
+    "coverage_claims": [
+      "one-common-lock-and-three-fixed-gates",
+      "three-zero-argument-fixed-production-owners-and-no-generic-production-callback",
+      "captured-commonjs-lazy-runner-load-and-exact-single-use-capability-claim",
+      "prefix-serialization-and-process-death-lock-release",
+      "authenticated-active-publication-and-exact-retirement",
+      "legacy-empty-and-modified-source-fail-closed",
+      "two-phase-inspection-confirmation-cancellation-and-quarantine",
+      "ordinary-and-manual-signal-default-death-with-preexisting-listener",
+      "only-lockf-status-75-classified-as-contention",
+      "tampered-extra-field-and-registry-mismatched-closed-retired-rejection",
+      "quarantine-and-pending-retirement-block-all-gates",
+      "stage-create-remove-parent-sync-and-indeterminate-failpoints",
+      "runner-connector-capability-and-public-failure-projection",
+      "production-versus-test-execution-boundary-and-no-op-close-distinction",
+      "final-namespace-validation-under-lock-before-successor-owner",
+      "phase-aware-public-failure-sanitation-and-independent-close-settlement",
+      "partial-publication-monotonic-failure-tuples-and-four-injected-failpoints",
+      "bilingual-twelve-section-parity-and-public-artifact-privacy"
+    ],
+    "darwin_ci": {
+      "fixed_lock_helper_executable_required": true,
+      "outer_gate_adversarial_suite_required": true,
+      "missing_helper_can_produce_zero_test_green": false
+    },
+    "static_validation": {
+      "typescript": "pass",
+      "eslint_errors": 0,
+      "eslint_warnings": 0,
+      "prettier": "pass",
+      "git_diff_check": "pass",
+      "intermediate_attempts": [
+        {
+          "sequence": 1,
+          "classification": "expanded-changed-file-prettier-check",
+          "status": "fail",
+          "formatting_only": true,
+          "files_with_differences": 1,
+          "finding": "darwin-ci-yaml-required-mechanical-format-alignment",
+          "implementation_behavior_regression": false,
+          "used_as_final_evidence": false
+        },
+        {
+          "sequence": 2,
+          "classification": "post-format-expanded-prettier-and-diff-rerun",
+          "status": "pass",
+          "formatting_only": true,
+          "files_with_differences": 0,
+          "used_as_final_evidence": true
+        }
+      ]
+    }
+  },
+  "production_execution": {
+    "real_authenticated_stale_recoveries": 0,
+    "real_reboot_recoveries": 0,
+    "production_prefix_100_gate_executions_by_this_change": 0,
+    "production_prefix_500_gate_executions_by_this_change": 0,
+    "production_final_24000_gate_executions_by_this_change": 0,
+    "real_teacher_processes_started_by_this_change": 0,
+    "teacher_labels_created_by_this_change": 0,
+    "checkpoint_finalizations_by_this_change": 0,
+    "optimizer_steps_by_this_change": 0,
+    "training_runs_by_this_change": 0,
+    "candidate_weights_created_by_this_change": 0,
+    "formal_ab_matches_by_this_change": 0,
+    "live_evaluation_activations_by_this_change": 0,
+    "external_rank_observations_by_this_change": 0,
+    "live_weight_changed_by_this_change": false,
+    "current_live_state_freshly_observed_for_this_evidence": false,
+    "playing_strength_changed_by_this_evidence": false
+  },
+  "blocking_residual_work": {
+    "production_gate_hold_remains": true,
+    "outer_gate_lease_recovery_foundation_only": true,
+    "all_lease_recovery_complete": false,
+    "authenticated_inner_stage_metadata_required": true,
+    "inner_stage_reconciliation_required": true,
+    "quarantine_acknowledgement_and_release_authority_required": true,
+    "fixed_manual_operator_orchestrator_required": true,
+    "isolated_real_process_kill_drill_required": true,
+    "real_restart_and_reboot_drill_required": true,
+    "fresh_production_preflight_required": true,
+    "speed_priority_minimum_safe_recovery_reassessment": {
+      "estimate_class": "preliminary-planning-range-not-measured-runtime-or-deadline",
+      "one_shot_parallel_wall_hours": {
+        "minimum": 8,
+        "maximum": 16
+      },
+      "scope_frozen": false,
+      "equivalent_to_full_hardened_recovery": false,
+      "safety_requirements_may_be_removed_for_speed": false,
+      "reassessed_after_this_pull_request": true,
+      "completion_deadline_claimed": false
+    },
+    "full_hardened_recovery_design_estimate": {
+      "estimate_class": "planning-estimate-not-measured-runtime-or-deadline",
+      "scope": "inner-scanner-signed-journal-resolution-release-and-crash-tests",
+      "recommended_pull_requests": 2,
+      "engineer_hours": {
+        "minimum": 43,
+        "maximum": 67
+      },
+      "parallel_dependency_aware_wall_hours": {
+        "minimum": 31,
+        "maximum": 56
+      },
+      "assumes_parallel_execution": true,
+      "scope_reduction_can_change_estimate": true,
+      "minimum_safe_recovery_plan_reassessed_after_this_pull_request": true,
+      "completion_deadline_claimed": false
+    },
+    "real_macos_reboot_drill_and_production_preflight_estimate": {
+      "estimate_class": "planning-estimate-not-measured-runtime-or-deadline",
+      "parallel_wall_hours": {
+        "minimum": 3,
+        "maximum": 6
+      },
+      "separate_after_hardened_recovery_implementation": true,
+      "real_production_gate_runtime_included": false,
+      "completion_deadline_claimed": false
+    },
+    "stable_high_dan_strength_established": false
+  }
+}

@@ -33,11 +33,22 @@ import {
   FloodgateV7ProductionConnectorRunnerError,
   runFloodgateV7ProductionConnectorCoreForTests,
   runFloodgateV7ProductionConnectorFinal24000,
+  runFloodgateV7ProductionConnectorFinal24000UnderOuterGate,
   runFloodgateV7ProductionConnectorPrefix100,
+  runFloodgateV7ProductionConnectorPrefix100UnderOuterGate,
   runFloodgateV7ProductionConnectorPrefix500,
+  runFloodgateV7ProductionConnectorPrefix500UnderOuterGate,
+  validateFloodgateV7ProductionOuterGateSuccessCoreForTests,
   type FloodgateV7ProductionConnectorRunnerDependenciesForTests,
   type FloodgateV7ProductionConnectorRunnerGate,
 } from "../../../ml/floodgate-v7-production-connector-runner";
+import {
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
+} from "../../../ml/floodgate-v7-production-outer-gate-lease";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
@@ -237,6 +248,44 @@ function connectorReceipt(
   };
 }
 
+function outerOwnerReceipt(executionBoundary: string, value: unknown): unknown {
+  return {
+    value,
+    lease: {
+      contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+      status: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
+      algorithm: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
+      execution_boundary: executionBoundary,
+      verification: {
+        one_os_lifetime_lock_shared_by_all_three_gates: true,
+        os_lifetime_lock_held_before_operation: true,
+        authenticated_lease_metadata_durable_before_operation: true,
+        signal_and_exit_preserve_stale_evidence: true,
+        authenticated_lease_removed_durably_after_operation: true,
+        authenticated_retired_evidence_durable_after_operation: true,
+        os_lifetime_lock_released_after_operation: true,
+        quarantine_empty_after_operation: true,
+      },
+      nonclaims: {
+        lock_or_lease_path_disclosed: false,
+        lease_metadata_disclosed: false,
+        key_material_disclosed: false,
+        key_instance_id_disclosed: false,
+        lease_mac_disclosed: false,
+        connector_receipt_disclosed: false,
+        graceful_signal_cleanup: false,
+        checkpoint: false,
+        teacher_label: false,
+        training: false,
+        weight: false,
+        live_evaluation_activation: false,
+        match: false,
+        playing_strength: false,
+      },
+    },
+  };
+}
+
 function dependencies(
   gate: FloodgateV7ProductionConnectorRunnerGate,
   events: string[] = [],
@@ -320,6 +369,26 @@ function expectSanitized(error: unknown, persisted: boolean): void {
 }
 
 describe("Floodgate v7 production connector runner", () => {
+  it("accepts only a production outer-owner receipt, never test-only close evidence", () => {
+    const value = Object.freeze({ status: "private-runner-value" });
+    expect(
+      validateFloodgateV7ProductionOuterGateSuccessCoreForTests(
+        outerOwnerReceipt(
+          FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
+          value,
+        ),
+      ),
+    ).toBe(value);
+    expect(() =>
+      validateFloodgateV7ProductionOuterGateSuccessCoreForTests(
+        outerOwnerReceipt(
+          FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
+          value,
+        ),
+      ),
+    ).toThrow("runner outer gate receipt differs");
+  });
+
   it.each([
     "durable-prefix-100",
     "durable-prefix-500",
@@ -743,10 +812,26 @@ describe("Floodgate v7 production connector runner", () => {
     expect(runFloodgateV7ProductionConnectorPrefix100.length).toBe(0);
     expect(runFloodgateV7ProductionConnectorPrefix500.length).toBe(0);
     expect(runFloodgateV7ProductionConnectorFinal24000.length).toBe(0);
+    expect(
+      runFloodgateV7ProductionConnectorPrefix100UnderOuterGate.length,
+    ).toBe(1);
+    expect(
+      runFloodgateV7ProductionConnectorPrefix500UnderOuterGate.length,
+    ).toBe(1);
+    expect(
+      runFloodgateV7ProductionConnectorFinal24000UnderOuterGate.length,
+    ).toBe(1);
     const source = await fs.promises.readFile(RUNNER_SOURCE_PATH, "utf8");
     expect(source).not.toMatch(
       /export function runFloodgateV7ProductionConnector(?:Gate|\s*\()/u,
     );
-    expect(source).toContain("function runProductionGate<");
+    expect(source).toContain("runFloodgateV7ProductionOuterGatePrefix100,");
+    expect(source).toContain(
+      "runFloodgateV7ProductionConnectorPrefix100UnderOuterGate",
+    );
+    expect(source).not.toContain("runWithFloodgateV7ProductionOuterGateLease");
+    expect(source).not.toMatch(
+      /export function runFloodgateV7ProductionConnectorUnderOuterGate/u,
+    );
   });
 });

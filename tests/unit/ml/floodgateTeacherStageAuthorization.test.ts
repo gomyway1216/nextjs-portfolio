@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as ts from "typescript";
+import { inspect } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,10 +14,12 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
   FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
   FloodgateTeacherStageAuthorizationCleanupError,
+  FloodgateTeacherStageAuthorizationDurabilityIndeterminateError,
   FloodgateTeacherStageCloseError,
   FloodgateTeacherStageLeaseUnavailableError,
   authorizeFloodgateTeacherStage,
   authorizeFloodgateTeacherStageCoreForTests,
+  beginFloodgateTeacherStagePublicationCoreForTests,
   claimActiveAuthorizedFloodgateTeacherStageLease,
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
 } from "../../../ml/floodgate-teacher-stage-authorization";
@@ -218,7 +221,9 @@ describe("Floodgate teacher stage authorization", () => {
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(
         productionLease,
       ),
-    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed lease/,
+    );
     expect(
       claimActiveAuthorizedFloodgateTeacherStageLease(productionLease),
     ).toBeUndefined();
@@ -229,7 +234,9 @@ describe("Floodgate teacher stage authorization", () => {
 
     expect(() =>
       claimActiveAuthorizedFloodgateTeacherStageLease(testLease),
-    ).toThrow(/production runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /production runtime claim requires the exact active unclaimed lease/,
+    );
     expect(
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(testLease),
     ).toBeUndefined();
@@ -243,7 +250,9 @@ describe("Floodgate teacher stage authorization", () => {
     claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease);
     expect(() =>
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
-    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed lease/,
+    );
 
     await closeLease(lease);
   });
@@ -256,10 +265,14 @@ describe("Floodgate teacher stage authorization", () => {
 
     expect(() =>
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(copied),
-    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed lease/,
+    );
     expect(() =>
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(proxied),
-    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed lease/,
+    );
     expect(
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
     ).toBeUndefined();
@@ -274,7 +287,9 @@ describe("Floodgate teacher stage authorization", () => {
     const closing = lease.close();
     expect(() =>
       claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
-    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed lease/,
+    );
 
     await closing;
   });
@@ -1659,6 +1674,36 @@ const options = {
     await expectMissing(value.destinationRoot);
   });
 
+  it.each(["inspector", "parent-open"] as const)(
+    "releases the namespace guard after a pre-lease %s failure",
+    async (failurePoint) => {
+      const value = await fixture();
+      if (failurePoint === "inspector") {
+        await expect(
+          authorize(
+            value,
+            {},
+            {
+              inspectorPythonExecutable: path.join(
+                value.root,
+                "missing-inspector",
+              ),
+            },
+          ),
+        ).rejects.toThrow(/inspector.*cannot be resolved/i);
+      } else {
+        await fs.promises.rmdir(value.publicationParent);
+        await expect(authorize(value)).rejects.toThrow(
+          /publication parent.*cannot be resolved/i,
+        );
+        await mkdir0700(value.publicationParent);
+      }
+
+      const resumed = await authorize(value);
+      await closeLease(resumed);
+    },
+  );
+
   it("rejects a concurrent lease and allows resume after the owner closes", async () => {
     const value = await fixture();
     const first = await authorize(value);
@@ -1728,6 +1773,9 @@ const options = {
         "utf8",
       ),
     ).toBe("synthetic stale lease\n");
+    await fs.promises.rm(leaseRoot, { recursive: true });
+    const resumed = await authorize(value);
+    await closeLease(resumed);
   });
 
   it("does not create a fresh stage when a stale sibling lease already exists", async () => {
@@ -1757,6 +1805,436 @@ const options = {
         "utf8",
       ),
     ).toBe("synthetic preexisting stale lease\n");
+  });
+
+  it("syncs lease creation and removal through the held publication parent in order", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    const events: string[] = [];
+    const lease = await authorize(
+      value,
+      {},
+      {
+        syncLeaseDirectoryForTests: async (sync) => {
+          events.push("lease-fd:before");
+          await sync();
+          events.push("lease-fd:after");
+        },
+        syncParentDirectoryForTests: async (kind, sync) => {
+          events.push(`${kind}:before`);
+          if (kind === "lease-created") {
+            expect((await fs.promises.lstat(leaseRoot)).isDirectory()).toBe(
+              true,
+            );
+          } else {
+            await expectMissing(leaseRoot);
+          }
+          await sync();
+          events.push(`${kind}:after`);
+        },
+        afterLeaseAcquiredForTests: () => {
+          events.push("authorization-ready");
+        },
+        beforeLeaseRemovalForTests: () => {
+          events.push("removal-authorized");
+        },
+      },
+    );
+
+    expect(events).toEqual([
+      "lease-fd:before",
+      "lease-fd:after",
+      "lease-created:before",
+      "lease-created:after",
+      "authorization-ready",
+    ]);
+    await lease.close();
+    expect(events).toEqual([
+      "lease-fd:before",
+      "lease-fd:after",
+      "lease-created:before",
+      "lease-created:after",
+      "authorization-ready",
+      "removal-authorized",
+      "lease-removed:before",
+      "lease-removed:after",
+    ]);
+  });
+
+  it("fails closed with a typed indeterminate result when lease-creation parent sync fails", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    const sensitiveCanary = "/Users/private/floodgate-secret-key";
+    const primary = Object.assign(
+      new Error(`injected lease-creation failure ${sensitiveCanary}`),
+      {
+        path: sensitiveCanary,
+        secret: "raw-primary-secret",
+      },
+    );
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          syncParentDirectoryForTests: async (kind, sync) => {
+            if (kind === "lease-created") throw primary;
+            await sync();
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(
+      FloodgateTeacherStageAuthorizationDurabilityIndeterminateError,
+    );
+    if (
+      !(
+        failure instanceof
+        FloodgateTeacherStageAuthorizationDurabilityIndeterminateError
+      )
+    ) {
+      throw new Error("expected typed creation-durability failure");
+    }
+    expect(failure.phase).toBe("lease-creation-sync");
+    expect(failure.leaseMayRemain).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(failure, "primary")).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(failure, "cause")).toBeUndefined();
+    expect(failure.message).toBe(
+      "Floodgate teacher stage authorization failed: exclusive lease creation durability is indeterminate",
+    );
+    expect(failure.stack).toBe(`${failure.name}: ${failure.message}`);
+    const serialized = JSON.stringify(failure);
+    const inspected = inspect(failure, { showHidden: true });
+    expect(serialized).toBe(
+      '{"leaseMayRemain":true,"phase":"lease-creation-sync"}',
+    );
+    expect(serialized).not.toContain(sensitiveCanary);
+    expect(serialized).not.toContain("raw-primary-secret");
+    expect(inspected).not.toContain(sensitiveCanary);
+    expect(inspected).not.toContain("raw-primary-secret");
+    expect((await fs.promises.lstat(leaseRoot)).isDirectory()).toBe(true);
+    await expect(authorize(value)).rejects.toMatchObject({
+      name: "FloodgateTeacherStageLeaseUnavailableError",
+      message: expect.stringMatching(/active.*indeterminate.*process/i),
+    });
+  });
+
+  it("does not sync the parent or release the guard when held-lease fsync fails", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    let leaseSyncCalls = 0;
+    let parentCreationSyncCalls = 0;
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          syncLeaseDirectoryForTests: async () => {
+            leaseSyncCalls++;
+            throw new Error("injected held-lease fsync failure");
+          },
+          syncParentDirectoryForTests: async (kind, sync) => {
+            if (kind === "lease-created") parentCreationSyncCalls++;
+            await sync();
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(
+      FloodgateTeacherStageAuthorizationDurabilityIndeterminateError,
+    );
+    expect(leaseSyncCalls).toBe(1);
+    expect(parentCreationSyncCalls).toBe(0);
+    expect((await fs.promises.lstat(leaseRoot)).isDirectory()).toBe(true);
+    await expect(authorize(value)).rejects.toBeInstanceOf(
+      FloodgateTeacherStageLeaseUnavailableError,
+    );
+  });
+
+  it("holds the same-process namespace guard until removal parent fsync settles", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    let enteredRemovalSync: (() => void) | undefined;
+    const removalSyncEntered = new Promise<void>((resolve) => {
+      enteredRemovalSync = resolve;
+    });
+    let continueRemovalSync: (() => void) | undefined;
+    const removalSyncCanContinue = new Promise<void>((resolve) => {
+      continueRemovalSync = resolve;
+    });
+    const lease = await authorize(
+      value,
+      {},
+      {
+        syncParentDirectoryForTests: async (kind, sync) => {
+          if (kind === "lease-removed") {
+            enteredRemovalSync?.();
+            await removalSyncCanContinue;
+          }
+          await sync();
+        },
+      },
+    );
+
+    const closing = lease.close();
+    await removalSyncEntered;
+    await expectMissing(leaseRoot);
+    await expect(authorize(value)).rejects.toMatchObject({
+      name: "FloodgateTeacherStageLeaseUnavailableError",
+      message: expect.stringMatching(/active.*indeterminate.*process/i),
+    });
+    continueRemovalSync?.();
+    await closing;
+
+    const resumed = await authorize(value);
+    await closeLease(resumed);
+  });
+
+  it("blocks automatic lease recreation when removal succeeds but parent sync fails", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    const lease = await authorize(
+      value,
+      {},
+      {
+        syncParentDirectoryForTests: async (kind, sync) => {
+          if (kind === "lease-removed") {
+            await expectMissing(leaseRoot);
+            throw new Error("injected lease-removal parent sync failure");
+          }
+          await sync();
+        },
+      },
+    );
+
+    let failure: unknown;
+    try {
+      await lease.close();
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(FloodgateTeacherStageCloseError);
+    if (!(failure instanceof FloodgateTeacherStageCloseError)) {
+      throw new Error("expected typed lease close failure");
+    }
+    expect(failure.leaseMayRemain).toBe(true);
+    expect(failure.message).toMatch(/lease-removal parent sync failure/i);
+    await expectMissing(leaseRoot);
+    await expect(authorize(value)).rejects.toMatchObject({
+      name: "FloodgateTeacherStageLeaseUnavailableError",
+      message: expect.stringMatching(/active.*indeterminate.*process/i),
+    });
+  });
+
+  it("durably removes the lease when a publication transaction aborts", async () => {
+    const value = await fixture();
+    const events: string[] = [];
+    const lease = await authorize(
+      value,
+      {},
+      {
+        syncParentDirectoryForTests: async (kind, sync) => {
+          await sync();
+          events.push(kind);
+        },
+      },
+    );
+    const transaction = beginFloodgateTeacherStagePublicationCoreForTests(
+      lease,
+      {
+        exclusiveRename: async () => {
+          throw new Error("abort must not call exclusive rename");
+        },
+      },
+    );
+
+    await transaction.abort();
+
+    expect(transaction.phase).toBe("aborted");
+    expect(events).toEqual(["lease-created", "lease-removed"]);
+    await expectMissing(
+      path.join(
+        value.publicationParent,
+        `.${value.options.stageBasename}.authorization-lease`,
+      ),
+    );
+    const resumed = await authorize(value);
+    await closeLease(resumed);
+  });
+
+  it("reports indeterminate cleanup and blocks recreation after cleanup parent sync fails", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    const primary = new Error("injected authorization failure before cleanup");
+    const syncFailure = new Error("injected cleanup parent sync failure");
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          afterLeaseAcquiredForTests: () => {
+            throw primary;
+          },
+          syncParentDirectoryForTests: async (kind, sync) => {
+            if (kind === "lease-removed") throw syncFailure;
+            await sync();
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(
+      FloodgateTeacherStageAuthorizationCleanupError,
+    );
+    if (!(failure instanceof FloodgateTeacherStageAuthorizationCleanupError)) {
+      throw new Error("expected typed authorization cleanup failure");
+    }
+    expect(failure.primary).toBe(primary);
+    expect(failure.cleanupFailures).toContain(syncFailure);
+    expect(failure.leaseMayRemain).toBe(true);
+    await expectMissing(leaseRoot);
+    await expect(authorize(value)).rejects.toMatchObject({
+      name: "FloodgateTeacherStageLeaseUnavailableError",
+      message: expect.stringMatching(/active.*indeterminate.*process/i),
+    });
+  });
+
+  it("detects a lease identity swap after held-lease fsync and before parent fsync", async () => {
+    const value = await fixture();
+    const leaseRoot = path.join(
+      value.publicationParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    const displacedLeaseRoot = path.join(
+      value.publicationParent,
+      ".displaced-after-held-lease-sync",
+    );
+    let parentCreationSyncCalls = 0;
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          syncLeaseDirectoryForTests: async (sync) => {
+            await sync();
+            await fs.promises.rename(leaseRoot, displacedLeaseRoot);
+            await mkdir0700(leaseRoot);
+          },
+          syncParentDirectoryForTests: async (kind, sync) => {
+            if (kind === "lease-created") parentCreationSyncCalls++;
+            await sync();
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(
+      FloodgateTeacherStageAuthorizationDurabilityIndeterminateError,
+    );
+    expect(parentCreationSyncCalls).toBe(0);
+    expect((await fs.promises.lstat(displacedLeaseRoot)).isDirectory()).toBe(
+      true,
+    );
+    expect((await fs.promises.lstat(leaseRoot)).isDirectory()).toBe(true);
+    await expect(authorize(value)).rejects.toBeInstanceOf(
+      FloodgateTeacherStageLeaseUnavailableError,
+    );
+  });
+
+  it("detects a publication-parent identity swap after a held-descriptor sync", async () => {
+    const value = await fixture();
+    const displacedParent = path.join(value.root, "displaced-publication-sync");
+    const displacedLeaseRoot = path.join(
+      displacedParent,
+      `.${value.options.stageBasename}.authorization-lease`,
+    );
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          syncParentDirectoryForTests: async (kind, sync) => {
+            await sync();
+            if (kind === "lease-created") {
+              await fs.promises.rename(
+                value.publicationParent,
+                displacedParent,
+              );
+              await mkdir0700(value.publicationParent);
+            }
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(
+      FloodgateTeacherStageAuthorizationDurabilityIndeterminateError,
+    );
+    if (
+      !(
+        failure instanceof
+        FloodgateTeacherStageAuthorizationDurabilityIndeterminateError
+      )
+    ) {
+      throw new Error("expected typed creation-durability failure");
+    }
+    expect(failure.leaseMayRemain).toBe(true);
+    expect(failure.message).toBe(
+      "Floodgate teacher stage authorization failed: exclusive lease creation durability is indeterminate",
+    );
+    expect((await fs.promises.lstat(displacedLeaseRoot)).isDirectory()).toBe(
+      true,
+    );
+    await expectMissing(
+      path.join(
+        value.publicationParent,
+        `.${value.options.stageBasename}.authorization-lease`,
+      ),
+    );
+    await expect(authorize(value)).rejects.toMatchObject({
+      name: "FloodgateTeacherStageLeaseUnavailableError",
+      message: expect.stringMatching(/active.*indeterminate.*process/i),
+    });
   });
 
   it("returns a deeply frozen narrowly-scoped authorization receipt", async () => {
@@ -1790,6 +2268,9 @@ const options = {
       destination_basename: value.options.destinationBasename,
       allowed_entries: FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
     });
+    expect(lease.receipt.contract).toBe(
+      "floodgate-teacher-private-stage-authorization-v3",
+    );
     expect(
       JSON.stringify(lease.receipt, (_key, field) =>
         typeof field === "bigint" ? field.toString(10) : field,
@@ -2154,6 +2635,39 @@ const options = {
       true,
     );
   });
+
+  it.each(["stage", "parent"] as const)(
+    "releases the guard after durable removal even when final %s close fails",
+    async (failedKind) => {
+      const value = await fixture();
+      const lease = await authorize(
+        value,
+        {},
+        {
+          closeDirectoryForTests: async (kind, close) => {
+            await close();
+            if (kind === failedKind) {
+              throw new Error(`injected final ${failedKind} close failure`);
+            }
+          },
+        },
+      );
+
+      let failure: unknown;
+      try {
+        await lease.close();
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(FloodgateTeacherStageCloseError);
+      if (!(failure instanceof FloodgateTeacherStageCloseError)) {
+        throw new Error("expected typed stage close failure");
+      }
+      expect(failure.leaseMayRemain).toBe(false);
+      const resumed = await authorize(value);
+      await closeLease(resumed);
+    },
+  );
 
   it("cleans an authorization-hook failure and permits a later resume", async () => {
     const value = await fixture();

@@ -51,6 +51,17 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
 } from "./floodgate-v7-teacher-checkpoint";
 import type { FloodgateTrainingRowConsumerOptions } from "./floodgate-training-row-consumer";
+import {
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
+  FloodgateV7ProductionOuterGateLeaseError,
+  runFloodgateV7ProductionOuterGateFinal24000,
+  runFloodgateV7ProductionOuterGatePrefix100,
+  runFloodgateV7ProductionOuterGatePrefix500,
+  type FloodgateV7ProductionOuterGateConnectorCapability,
+} from "./floodgate-v7-production-outer-gate-lease";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT =
   "shogi-floodgate-v7-production-connector-runner-v1" as const;
@@ -66,6 +77,7 @@ export type FloodgateV7ProductionConnectorRunnerGate =
 
 export type FloodgateV7ProductionConnectorRunnerPhase =
   | "capture"
+  | "outer-gate-lock"
   | "registry-load"
   | "registry-claim"
   | "approved-record-load"
@@ -198,6 +210,7 @@ export interface FloodgateV7ProductionConnectorRunnerDependenciesForTests {
   readonly verifyCurrentBinding: () => Promise<unknown>;
   readonly runConnector: (
     options: FloodgateV7ProductionCheckpointConnectorOptions,
+    outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability> | null,
   ) => Promise<unknown>;
 }
 
@@ -372,6 +385,41 @@ const CONNECTOR_NONCLAIM_KEYS = objectFreeze([
   "executable_capability",
   "teacher_label",
   "optimizer_training",
+  "weight",
+  "live_evaluation_activation",
+  "match",
+  "playing_strength",
+] as const);
+const OUTER_RESULT_KEYS = objectFreeze(["value", "lease"] as const);
+const OUTER_RECEIPT_KEYS = objectFreeze([
+  "contract",
+  "status",
+  "algorithm",
+  "execution_boundary",
+  "verification",
+  "nonclaims",
+] as const);
+const OUTER_VERIFICATION_KEYS = objectFreeze([
+  "one_os_lifetime_lock_shared_by_all_three_gates",
+  "os_lifetime_lock_held_before_operation",
+  "authenticated_lease_metadata_durable_before_operation",
+  "signal_and_exit_preserve_stale_evidence",
+  "authenticated_lease_removed_durably_after_operation",
+  "authenticated_retired_evidence_durable_after_operation",
+  "os_lifetime_lock_released_after_operation",
+  "quarantine_empty_after_operation",
+] as const);
+const OUTER_NONCLAIM_KEYS = objectFreeze([
+  "lock_or_lease_path_disclosed",
+  "lease_metadata_disclosed",
+  "key_material_disclosed",
+  "key_instance_id_disclosed",
+  "lease_mac_disclosed",
+  "connector_receipt_disclosed",
+  "graceful_signal_cleanup",
+  "checkpoint",
+  "teacher_label",
+  "training",
   "weight",
   "live_evaluation_activation",
   "match",
@@ -829,11 +877,71 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
   });
 }
 
+function validateOuterSuccess<T>(value: unknown): T {
+  const result = dataRecord(value, OUTER_RESULT_KEYS);
+  const lease = dataRecord(result.lease, OUTER_RECEIPT_KEYS);
+  const verification = dataRecord(lease.verification, OUTER_VERIFICATION_KEYS);
+  const nonclaims = dataRecord(lease.nonclaims, OUTER_NONCLAIM_KEYS);
+  if (
+    lease.contract !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT ||
+    lease.status !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS ||
+    lease.algorithm !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM ||
+    lease.execution_boundary !==
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
+  ) {
+    throw new NativeError("runner outer gate receipt differs");
+  }
+  for (const key of OUTER_VERIFICATION_KEYS) {
+    if (verification[key] !== true) {
+      throw new NativeError("runner outer gate verification differs");
+    }
+  }
+  for (const key of OUTER_NONCLAIM_KEYS) {
+    if (nonclaims[key] !== false) {
+      throw new NativeError("runner outer gate nonclaim differs");
+    }
+  }
+  return result.value as T;
+}
+
+/** Test-only strict parser for the production outer-owner success boundary. */
+export function validateFloodgateV7ProductionOuterGateSuccessCoreForTests<T>(
+  value: unknown,
+): T {
+  if (arguments.length !== 1) {
+    throw new NativeError("runner outer gate receipt differs");
+  }
+  return validateOuterSuccess<T>(value);
+}
+
+function outerOperationMayHaveRun(value: unknown): boolean {
+  try {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      nodeIsProxy(value) ||
+      !(value instanceof FloodgateV7ProductionOuterGateLeaseError)
+    ) {
+      return true;
+    }
+    const descriptor =
+      objectGetOwnPropertyDescriptors(value).authenticated_lease_published;
+    return descriptor === undefined ||
+      !("value" in descriptor) ||
+      typeof descriptor.value !== "boolean"
+      ? true
+      : descriptor.value;
+  } catch {
+    return true;
+  }
+}
+
 async function runCaptured<
   TGate extends FloodgateV7ProductionConnectorRunnerGate,
 >(
   gate: TGate,
   dependencies: CapturedDependencies,
+  outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability> | null = null,
 ): Promise<Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>> {
   let registryCapability: unknown;
   try {
@@ -889,13 +997,16 @@ async function runCaptured<
 
   let rawConnectorReceipt: unknown;
   try {
-    rawConnectorReceipt = await dependencies.runConnector({
-      runId: privateClaim.runId,
-      gate,
-      keyEnrollment: connectorEnrollment,
-      stageAuthorization: privateClaim.stageAuthorization,
-      consumer: privateClaim.consumer,
-    });
+    rawConnectorReceipt = await dependencies.runConnector(
+      {
+        runId: privateClaim.runId,
+        gate,
+        keyEnrollment: connectorEnrollment,
+        stageAuthorization: privateClaim.stageAuthorization,
+        consumer: privateClaim.consumer,
+      },
+      outerGateCapability,
+    );
   } catch (failure) {
     const typedFailure = captureTypedConnectorFailure(failure);
     if (typedFailure !== null) {
@@ -956,15 +1067,87 @@ const PRODUCTION_DEPENDENCIES: CapturedDependencies = frozenRecord({
   loadApprovedEnrollment: loadFloodgateV7ApprovedKeyEnrollment,
   claimApprovedEnrollment: claimFloodgateV7ApprovedKeyEnrollment,
   verifyCurrentBinding: verifyFloodgateV7ApprovedKeyCurrentBinding,
-  runConnector: runFloodgateV7ProductionCheckpointConnector,
+  runConnector: (options, outerGateCapability) => {
+    if (outerGateCapability === null) {
+      throw new NativeError("outer gate connector capability missing");
+    }
+    return runFloodgateV7ProductionCheckpointConnector(
+      options,
+      outerGateCapability,
+    );
+  },
 });
 
-function runProductionGate<
+async function runProductionGate<
   TGate extends FloodgateV7ProductionConnectorRunnerGate,
 >(
   gate: TGate,
+  outerOwner: () => Promise<unknown>,
 ): Promise<Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>> {
-  return runCaptured(gate, PRODUCTION_DEPENDENCIES);
+  try {
+    return validateOuterSuccess<
+      Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>
+    >(await outerOwner());
+  } catch (error) {
+    if (error instanceof FloodgateV7ProductionConnectorRunnerError) {
+      throw error;
+    }
+    const operationMayHaveRun = outerOperationMayHaveRun(error);
+    throw publicFailure(
+      "outer-gate-lock",
+      gate,
+      operationMayHaveRun,
+      operationMayHaveRun,
+    );
+  }
+}
+
+/** Fixed capability-required operation loaded lazily by the outer owner. */
+export function runFloodgateV7ProductionConnectorPrefix100UnderOuterGate(
+  outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
+): Promise<
+  Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-100">>
+> {
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "durable-prefix-100"));
+  }
+  return runCaptured(
+    "durable-prefix-100",
+    PRODUCTION_DEPENDENCIES,
+    outerGateCapability,
+  );
+}
+
+/** Fixed capability-required operation loaded lazily by the outer owner. */
+export function runFloodgateV7ProductionConnectorPrefix500UnderOuterGate(
+  outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
+): Promise<
+  Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-500">>
+> {
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "durable-prefix-500"));
+  }
+  return runCaptured(
+    "durable-prefix-500",
+    PRODUCTION_DEPENDENCIES,
+    outerGateCapability,
+  );
+}
+
+/** Fixed capability-required operation loaded lazily by the outer owner. */
+export function runFloodgateV7ProductionConnectorFinal24000UnderOuterGate(
+  outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
+): Promise<
+  Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"sealed-final-24000">>
+> {
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "sealed-final-24000"));
+  }
+  return runCaptured(
+    "sealed-final-24000",
+    PRODUCTION_DEPENDENCIES,
+    outerGateCapability,
+  );
 }
 
 /** Run only the fixed durable-prefix-100 production gate. */
@@ -974,7 +1157,10 @@ export function runFloodgateV7ProductionConnectorPrefix100(): Promise<
   if (arguments.length !== 0) {
     return rejected(publicFailure("capture", "durable-prefix-100"));
   }
-  return runProductionGate("durable-prefix-100");
+  return runProductionGate(
+    "durable-prefix-100",
+    runFloodgateV7ProductionOuterGatePrefix100,
+  );
 }
 
 /** Run only the fixed durable-prefix-500 production gate. */
@@ -984,7 +1170,10 @@ export function runFloodgateV7ProductionConnectorPrefix500(): Promise<
   if (arguments.length !== 0) {
     return rejected(publicFailure("capture", "durable-prefix-500"));
   }
-  return runProductionGate("durable-prefix-500");
+  return runProductionGate(
+    "durable-prefix-500",
+    runFloodgateV7ProductionOuterGatePrefix500,
+  );
 }
 
 /** Run only the fixed sealed-final-24000 production gate. */
@@ -994,5 +1183,8 @@ export function runFloodgateV7ProductionConnectorFinal24000(): Promise<
   if (arguments.length !== 0) {
     return rejected(publicFailure("capture", "sealed-final-24000"));
   }
-  return runProductionGate("sealed-final-24000");
+  return runProductionGate(
+    "sealed-final-24000",
+    runFloodgateV7ProductionOuterGateFinal24000,
+  );
 }

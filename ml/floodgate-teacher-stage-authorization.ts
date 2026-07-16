@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT =
-  "floodgate-teacher-private-stage-authorization-v2" as const;
+  "floodgate-teacher-private-stage-authorization-v3" as const;
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY =
   "trusted-current-euid-writer-private-0700-stage-v1" as const;
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS =
@@ -185,6 +185,8 @@ const ALLOWED_DEPENDENCY_KEY_SET = new Set<string>([
   "inspectorMaxOutputBytesForTests",
   "inspectorScriptForTests",
   "inspectorTimeoutMillisecondsForTests",
+  "syncLeaseDirectoryForTests",
+  "syncParentDirectoryForTests",
 ]);
 
 const NativePromise = Promise;
@@ -201,6 +203,7 @@ const arrayIsArray = Array.isArray;
 const numberIsSafeInteger = Number.isSafeInteger;
 const objectFreeze = Object.freeze;
 const objectCreate = Object.create;
+const objectDefineProperty = Object.defineProperty;
 const objectSetPrototypeOf = Object.setPrototypeOf;
 const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
@@ -215,6 +218,8 @@ const nativeWeakMapSet = WeakMap.prototype.set;
 const nativeWeakMapDelete = WeakMap.prototype.delete;
 const nativeSetHas = Set.prototype.has;
 const nativeMapGet = Map.prototype.get;
+const nativeMapSet = Map.prototype.set;
+const nativeMapDelete = Map.prototype.delete;
 const nativeRegExpExec = RegExp.prototype.exec;
 const nativeBufferToString = Buffer.prototype.toString;
 const bufferByteLength = Buffer.byteLength;
@@ -388,6 +393,67 @@ function createRuntimeClaimRegistry(
 
 const PRODUCTION_RUNTIME_CLAIMS = createRuntimeClaimRegistry("production");
 const TEST_RUNTIME_CLAIMS = createRuntimeClaimRegistry("test-only");
+
+interface LeaseNamespaceGuard {
+  readonly leaseRoot: string;
+  state: "active" | "indeterminate" | "released";
+}
+
+const LEASE_NAMESPACE_GUARDS = new Map<string, LeaseNamespaceGuard>();
+
+function acquireLeaseNamespaceGuard(leaseRoot: string): LeaseNamespaceGuard {
+  if (
+    reflectApply(nativeMapGet, LEASE_NAMESPACE_GUARDS, [leaseRoot]) !==
+    undefined
+  ) {
+    throw new FloodgateTeacherStageLeaseUnavailableError(
+      "an active or durability-indeterminate lease namespace is already held in this process",
+    );
+  }
+  const guard = objectCreate(null) as LeaseNamespaceGuard;
+  objectDefineProperty(guard, "leaseRoot", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: leaseRoot,
+  });
+  guard.state = "active";
+  reflectApply(nativeMapSet, LEASE_NAMESPACE_GUARDS, [leaseRoot, guard]);
+  return guard;
+}
+
+function assertLeaseNamespaceGuardActive(guard: LeaseNamespaceGuard): void {
+  if (
+    guard.state !== "active" ||
+    reflectApply(nativeMapGet, LEASE_NAMESPACE_GUARDS, [guard.leaseRoot]) !==
+      guard
+  ) {
+    authorizationFailure("lease namespace guard is not exact and active");
+  }
+}
+
+function markLeaseNamespaceGuardIndeterminate(
+  guard: LeaseNamespaceGuard,
+): void {
+  const current = reflectApply(nativeMapGet, LEASE_NAMESPACE_GUARDS, [
+    guard.leaseRoot,
+  ]);
+  if (current !== guard || guard.state === "released") {
+    authorizationFailure("lease namespace guard cannot become indeterminate");
+  }
+  guard.state = "indeterminate";
+}
+
+function releaseLeaseNamespaceGuard(guard: LeaseNamespaceGuard): void {
+  assertLeaseNamespaceGuardActive(guard);
+  if (
+    reflectApply(nativeMapDelete, LEASE_NAMESPACE_GUARDS, [guard.leaseRoot]) !==
+    true
+  ) {
+    authorizationFailure("lease namespace guard could not be released");
+  }
+  guard.state = "released";
+}
 
 function runtimeClaimAdd(
   registrySet: WeakSet<Readonly<FloodgateTeacherStageLease>>,
@@ -670,12 +736,55 @@ export interface FloodgateTeacherStageAuthorizationDependencies {
     kind: "lease" | "parent" | "stage",
     close: () => Promise<void>,
   ) => Promise<void>;
+  readonly syncLeaseDirectoryForTests?: (
+    sync: () => Promise<void>,
+  ) => Promise<void>;
+  readonly syncParentDirectoryForTests?: (
+    kind: "lease-created" | "lease-removed",
+    sync: () => Promise<void>,
+  ) => Promise<void>;
 }
 
 export class FloodgateTeacherStageAuthorizationError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(`Floodgate teacher stage authorization failed: ${message}`, options);
     this.name = "FloodgateTeacherStageAuthorizationError";
+  }
+}
+
+export class FloodgateTeacherStageAuthorizationDurabilityIndeterminateError extends FloodgateTeacherStageAuthorizationError {
+  declare readonly leaseMayRemain: true;
+  declare readonly phase: "lease-creation-sync";
+
+  constructor() {
+    super("exclusive lease creation durability is indeterminate");
+    const name =
+      "FloodgateTeacherStageAuthorizationDurabilityIndeterminateError";
+    objectDefineProperty(this, "name", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: name,
+    });
+    objectDefineProperty(this, "stack", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: `${name}: ${this.message}`,
+    });
+    objectDefineProperty(this, "leaseMayRemain", {
+      configurable: false,
+      enumerable: true,
+      writable: false,
+      value: true,
+    });
+    objectDefineProperty(this, "phase", {
+      configurable: false,
+      enumerable: true,
+      writable: false,
+      value: "lease-creation-sync",
+    });
+    objectFreeze(this);
   }
 }
 
@@ -1252,6 +1361,8 @@ function captureDependencies(
     "beforeHeldStageEntryInspectionForTests",
     "beforeLeaseRemovalForTests",
     "closeDirectoryForTests",
+    "syncLeaseDirectoryForTests",
+    "syncParentDirectoryForTests",
   ] as const;
   for (let index = 0; index < functionKeys.length; index += 1) {
     const key = functionKeys[index];
@@ -1704,6 +1815,28 @@ async function assertOpenedDirectoryUnchanged(
   }
 }
 
+async function syncHeldDirectory(
+  opened: Readonly<OpenedDirectory>,
+  target: string,
+  expectedUserId: bigint,
+  label: string,
+  sync: () => Promise<void>,
+): Promise<void> {
+  await assertOpenedDirectoryUnchanged(
+    opened,
+    target,
+    expectedUserId,
+    `${label} before sync`,
+  );
+  await sync();
+  await assertOpenedDirectoryUnchanged(
+    opened,
+    target,
+    expectedUserId,
+    `${label} after sync`,
+  );
+}
+
 async function assertAbsent(target: string, label: string): Promise<void> {
   try {
     await lstatSnapshot(target);
@@ -1918,14 +2051,63 @@ function closePublicationDirectory(
     : dependencies.closePublicationDirectoryForTests(kind, close);
 }
 
+function syncAuthorizationParent(
+  kind: "lease-created" | "lease-removed",
+  parent: Readonly<OpenedDirectory>,
+  publicationParent: string,
+  expectedUserId: bigint,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<void> {
+  const sync = () =>
+    dependencies.syncParentDirectoryForTests === undefined
+      ? parent.sync()
+      : dependencies.syncParentDirectoryForTests(kind, parent.sync);
+  return syncHeldDirectory(
+    parent,
+    publicationParent,
+    expectedUserId,
+    `publication parent for ${kind}`,
+    sync,
+  );
+}
+
+function syncAuthorizationLease(
+  lease: Readonly<OpenedDirectory>,
+  leaseRoot: string,
+  expectedUserId: bigint,
+  dependencies: Readonly<CapturedDependencies>,
+): Promise<void> {
+  const sync = () =>
+    dependencies.syncLeaseDirectoryForTests === undefined
+      ? lease.sync()
+      : dependencies.syncLeaseDirectoryForTests(lease.sync);
+  return syncHeldDirectory(
+    lease,
+    leaseRoot,
+    expectedUserId,
+    "stage authorization lease creation",
+    sync,
+  );
+}
+
 function syncPublicationParent(
   kind: "parent-before-lease-removal" | "parent-after-lease-removal",
   parent: Readonly<OpenedDirectory>,
+  publicationParent: string,
+  expectedUserId: bigint,
   dependencies: Readonly<CapturedPublicationDependencies>,
 ): Promise<void> {
-  return dependencies.syncDirectoryForTests === undefined
-    ? parent.sync()
-    : dependencies.syncDirectoryForTests(kind, parent.sync);
+  const sync = () =>
+    dependencies.syncDirectoryForTests === undefined
+      ? parent.sync()
+      : dependencies.syncDirectoryForTests(kind, parent.sync);
+  return syncHeldDirectory(
+    parent,
+    publicationParent,
+    expectedUserId,
+    `publication parent for ${kind}`,
+    sync,
+  );
 }
 
 function removePublicationLease(
@@ -2042,6 +2224,9 @@ function validateExclusiveRenameReceipt(
 }
 
 async function removeLeaseAfterFailure(
+  namespaceGuard: LeaseNamespaceGuard,
+  parent: Readonly<OpenedDirectory>,
+  publicationParent: string,
   lease: Readonly<OpenedDirectory> | undefined,
   leaseRoot: string,
   expectedUserId: bigint,
@@ -2068,7 +2253,14 @@ async function removeLeaseAfterFailure(
       failures: objectFreeze(failures),
     });
   }
+  let removedFromPath = false;
   try {
+    await assertOpenedDirectoryUnchanged(
+      parent,
+      publicationParent,
+      expectedUserId,
+      "publication parent before failed-authorization lease removal",
+    );
     const current = await lstatSnapshot(leaseRoot);
     assertPrivateDirectory(
       current,
@@ -2080,12 +2272,24 @@ async function removeLeaseAfterFailure(
         "stage authorization lease cleanup target is a replacement inode",
       );
     }
+    assertLeaseNamespaceGuardActive(namespaceGuard);
     await rmdirPath(leaseRoot);
+    removedFromPath = true;
+    await syncAuthorizationParent(
+      "lease-removed",
+      parent,
+      publicationParent,
+      expectedUserId,
+      dependencies,
+    );
     return freezeNonThenable({
       removed: true,
       failures: objectFreeze(failures),
     });
   } catch (error) {
+    if (removedFromPath) {
+      markLeaseNamespaceGuardIndeterminate(namespaceGuard);
+    }
     failures[failures.length] = error;
     return freezeNonThenable({
       removed: false,
@@ -2117,16 +2321,30 @@ async function authorizeInternal(
     destinationRoot,
     leaseRoot,
   );
-  const inspector = await entryInspectorConfiguration(dependencies);
-
-  const parent = await openPrivateDirectory(
-    options.publicationParent,
-    expectedUserId,
-    "publication parent",
-  );
+  const namespaceGuard = acquireLeaseNamespaceGuard(leaseRoot);
+  let inspector: Readonly<EntryInspectorConfiguration>;
+  try {
+    inspector = await entryInspectorConfiguration(dependencies);
+  } catch (error) {
+    releaseLeaseNamespaceGuard(namespaceGuard);
+    throw error;
+  }
+  let parent: Readonly<OpenedDirectory>;
+  try {
+    parent = await openPrivateDirectory(
+      options.publicationParent,
+      expectedUserId,
+      "publication parent",
+    );
+  } catch (error) {
+    releaseLeaseNamespaceGuard(namespaceGuard);
+    throw error;
+  }
   let stage: Readonly<OpenedDirectory> | undefined;
   let lease: Readonly<OpenedDirectory> | undefined;
   let leaseCreated = false;
+  let leaseCreationDurabilityFailure:
+    FloodgateTeacherStageAuthorizationDurabilityIndeterminateError | undefined;
   try {
     const protectedPaths = await collectProtectedPaths(
       options,
@@ -2144,6 +2362,7 @@ async function authorizeInternal(
     await assertAbsent(destinationRoot, "destination");
 
     try {
+      assertLeaseNamespaceGuardActive(namespaceGuard);
       await mkdirPath(leaseRoot, { mode: 0o700 });
       leaseCreated = true;
       await chmodPath(leaseRoot, 0o700);
@@ -2161,6 +2380,32 @@ async function authorizeInternal(
       expectedUserId,
       "stage authorization lease",
     );
+    try {
+      await syncAuthorizationLease(
+        lease,
+        leaseRoot,
+        expectedUserId,
+        dependencies,
+      );
+      await syncAuthorizationParent(
+        "lease-created",
+        parent,
+        options.publicationParent,
+        expectedUserId,
+        dependencies,
+      );
+      await assertOpenedDirectoryUnchanged(
+        lease,
+        leaseRoot,
+        expectedUserId,
+        "stage authorization lease after creation durability sync",
+      );
+    } catch {
+      leaseCreationDurabilityFailure =
+        new FloodgateTeacherStageAuthorizationDurabilityIndeterminateError();
+      markLeaseNamespaceGuardIndeterminate(namespaceGuard);
+      throw leaseCreationDurabilityFailure;
+    }
 
     try {
       await lstatSnapshot(stageRoot);
@@ -2250,7 +2495,9 @@ async function authorizeInternal(
       });
 
     const performLeaseClose = async (): Promise<void> => {
+      assertLeaseNamespaceGuardActive(namespaceGuard);
       let leaseMayRemain = true;
+      let removalDurable = false;
       const failures = mutableNullPrototypeArray<unknown>();
       let removalAuthorized = false;
       try {
@@ -2329,7 +2576,14 @@ async function authorizeInternal(
         failures[failures.length] = error;
       }
       if (removalAuthorized && leaseClosed) {
+        let removedFromPath = false;
         try {
+          await assertOpenedDirectoryUnchanged(
+            parent,
+            options.publicationParent,
+            expectedUserId,
+            "publication parent immediately before lease removal",
+          );
           const currentLease = await lstatSnapshot(leaseRoot);
           assertPrivateDirectory(
             currentLease,
@@ -2346,9 +2600,22 @@ async function authorizeInternal(
               "stage authorization lease identity changed before removal",
             );
           }
+          assertLeaseNamespaceGuardActive(namespaceGuard);
           await rmdirPath(leaseRoot);
+          removedFromPath = true;
+          await syncAuthorizationParent(
+            "lease-removed",
+            parent,
+            options.publicationParent,
+            expectedUserId,
+            dependencies,
+          );
           leaseMayRemain = false;
+          removalDurable = true;
         } catch (error) {
+          if (removedFromPath) {
+            markLeaseNamespaceGuardIndeterminate(namespaceGuard);
+          }
           failures[failures.length] = error;
         }
       }
@@ -2365,6 +2632,11 @@ async function authorizeInternal(
         await closeOpenedDirectory("parent", parent, dependencies);
       } catch (error) {
         failures[failures.length] = error;
+      }
+      if (removalDurable) {
+        releaseLeaseNamespaceGuard(namespaceGuard);
+      } else {
+        markLeaseNamespaceGuardIndeterminate(namespaceGuard);
       }
       if (failures.length > 0) {
         const first = failures[0];
@@ -2424,6 +2696,7 @@ async function authorizeInternal(
           const performPublicationCommit = async (): Promise<
             Readonly<FloodgateTeacherStagePublicationReceipt>
           > => {
+            assertLeaseNamespaceGuardActive(namespaceGuard);
             let sourceHandle: fs.promises.FileHandle | undefined;
             let destination: Readonly<OpenedDirectory> | undefined;
             let sourceClosed = false;
@@ -2510,6 +2783,15 @@ async function authorizeInternal(
             ): Promise<never> => {
               const cleanupFailures =
                 existingCleanupFailures ?? (await closePublicationHandles());
+              if (
+                publicationDurability ===
+                  "published-and-lease-removal-durable" &&
+                !leaseMayRemain
+              ) {
+                releaseLeaseNamespaceGuard(namespaceGuard);
+              } else {
+                markLeaseNamespaceGuardIndeterminate(namespaceGuard);
+              }
               phase = "indeterminate";
               ownership = "closed";
               throw new FloodgateTeacherStagePublicationIndeterminateError(
@@ -2809,6 +3091,8 @@ async function authorizeInternal(
               await syncPublicationParent(
                 "parent-before-lease-removal",
                 parent,
+                options.publicationParent,
+                expectedUserId,
                 publicationDependencies,
               );
               publicationDurability = "renamed-parent-synced";
@@ -2867,6 +3151,12 @@ async function authorizeInternal(
                 publicationDependencies,
               );
               leaseClosed = true;
+              await assertOpenedDirectoryUnchanged(
+                parent,
+                options.publicationParent,
+                expectedUserId,
+                "publication parent immediately before publication lease removal",
+              );
               const currentLease = await lstatSnapshot(leaseRoot);
               assertPrivateDirectory(
                 currentLease,
@@ -2883,8 +3173,10 @@ async function authorizeInternal(
                   "publication lease removal target is a replacement inode",
                 );
               }
+              assertLeaseNamespaceGuardActive(namespaceGuard);
               await removePublicationLease(leaseRoot, publicationDependencies);
             } catch (primary) {
+              markLeaseNamespaceGuardIndeterminate(namespaceGuard);
               return failIndeterminate("lease-removal", primary);
             }
 
@@ -2892,11 +3184,14 @@ async function authorizeInternal(
               await syncPublicationParent(
                 "parent-after-lease-removal",
                 parent,
+                options.publicationParent,
+                expectedUserId,
                 publicationDependencies,
               );
               publicationDurability = "published-and-lease-removal-durable";
               leaseMayRemain = false;
             } catch (primary) {
+              markLeaseNamespaceGuardIndeterminate(namespaceGuard);
               return failIndeterminate(
                 "parent-sync-after-lease-removal",
                 primary,
@@ -2958,6 +3253,7 @@ async function authorizeInternal(
                 cleanupFailures,
               );
             }
+            releaseLeaseNamespaceGuard(namespaceGuard);
             phase = "committed";
             ownership = "closed";
             return publicationReceipt;
@@ -3060,8 +3356,20 @@ async function authorizeInternal(
   } catch (error) {
     const cleanupFailures = mutableNullPrototypeArray<unknown>();
     let leaseMayRemain = false;
-    if (leaseCreated) {
+    if (leaseCreationDurabilityFailure !== undefined) {
+      leaseMayRemain = true;
+      try {
+        if (lease !== undefined) {
+          await closeOpenedDirectory("lease", lease, dependencies);
+        }
+      } catch (cleanupError) {
+        cleanupFailures[cleanupFailures.length] = cleanupError;
+      }
+    } else if (leaseCreated) {
       const cleanup = await removeLeaseAfterFailure(
+        namespaceGuard,
+        parent,
+        options.publicationParent,
         lease,
         leaseRoot,
         expectedUserId,
@@ -3091,6 +3399,11 @@ async function authorizeInternal(
       await closeOpenedDirectory("parent", parent, dependencies);
     } catch (cleanupError) {
       cleanupFailures[cleanupFailures.length] = cleanupError;
+    }
+    if (leaseMayRemain) {
+      markLeaseNamespaceGuardIndeterminate(namespaceGuard);
+    } else {
+      releaseLeaseNamespaceGuard(namespaceGuard);
     }
     if (cleanupFailures.length > 0) {
       throw new FloodgateTeacherStageAuthorizationCleanupError(

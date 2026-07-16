@@ -21,6 +21,7 @@ import {
   FLOODGATE_TEACHER_STAGE_PUBLICATION_STATUS,
   FLOODGATE_TEACHER_STAGE_PUBLICATION_TRUST_BOUNDARY,
   FloodgateTeacherStagePublicationIndeterminateError,
+  FloodgateTeacherStageLeaseUnavailableError,
   FloodgateTeacherStagePublicationNotCommittedError,
   FloodgateTeacherStagePublicationOwnershipTransferredError,
   authorizeFloodgateTeacherStage,
@@ -586,6 +587,19 @@ posixDescribe("Floodgate teacher stage publication transaction", () => {
         path.join(value.destinationRoot, "work.jsonl"),
       ),
     ).toEqual(workBefore);
+
+    const blockedByDestination = await captureCallFailure(() =>
+      authorizeTestLease(value),
+    );
+    expect(blockedByDestination).not.toBeInstanceOf(
+      FloodgateTeacherStageLeaseUnavailableError,
+    );
+    expect(blockedByDestination).toMatchObject({
+      message: expect.stringMatching(/destination.*already exists/i),
+    });
+    await fs.promises.rename(value.destinationRoot, value.stageRoot);
+    const resumed = await authorizeTestLease(value);
+    await resumed.close();
   });
 
   darwinIt("reports the fixed production execution boundary", async () => {
@@ -991,6 +1005,9 @@ posixDescribe("Floodgate teacher stage publication transaction", () => {
       leaseMayRemain: true,
     });
     await expectMissing(value.leaseRoot);
+    await expect(authorizeTestLease(value)).rejects.toBeInstanceOf(
+      FloodgateTeacherStageLeaseUnavailableError,
+    );
   });
 
   it("retains the marker when its exact rmdir fails after the first parent fsync", async () => {
@@ -1089,6 +1106,9 @@ posixDescribe("Floodgate teacher stage publication transaction", () => {
           "utf8",
         ),
       ).toBe(SYNTHETIC_WORK_BYTES);
+      await fs.promises.rename(value.destinationRoot, value.stageRoot);
+      const resumed = await authorizeTestLease(value);
+      await resumed.close();
     },
   );
 

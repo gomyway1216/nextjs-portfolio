@@ -1,7 +1,9 @@
 /**
  * Trusted composition boundary for one production Floodgate v7 checkpoint gate.
  *
- * The public production entry point accepts metadata and paths only. It owns
+ * The public production entry point accepts metadata, paths, and one exact
+ * single-use outer-gate capability that exists only while the common OS lock
+ * is held. It owns
  * the exact coordinator handoff, active stage lease, opaque deployment-key
  * capability, authenticated training callback, V3 sink, postflight claim, and
  * all terminal cleanup. It never exposes rows, capabilities, key bytes, or
@@ -78,15 +80,19 @@ import {
   type FloodgateV7TeacherCheckpointV3Receipt,
   type FloodgateV7TeacherProducerController,
 } from "./floodgate-v7-teacher-checkpoint";
+import {
+  claimFloodgateV7ProductionOuterGateConnectorCapability,
+  type FloodgateV7ProductionOuterGateConnectorCapability,
+} from "./floodgate-v7-production-outer-gate-lease";
 
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CONTRACT =
   "shogi-floodgate-v7-production-checkpoint-connector-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_STATUS =
   "checkpoint-gate-and-training-postflight-complete-all-capabilities-closed" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CLAIM_BOUNDARY =
-  "approved-key-enrollment-exact-production-coordinator-stage-key-training-callback-v3-checkpoint-postflight-and-all-settled-cleanup-no-key-row-path-function-label-training-weight-live-or-playing-strength-evidence" as const;
+  "single-use-common-os-lock-outer-gate-capability-approved-key-enrollment-exact-production-coordinator-stage-key-training-callback-v3-checkpoint-postflight-and-all-settled-cleanup-no-key-row-path-function-label-training-weight-live-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_TRUST_BOUNDARY =
-  "trusted-current-process-js-realm-imported-approved-enrollment-and-production-capability-owners-v2" as const;
+  "trusted-current-process-js-realm-imported-outer-gate-approved-enrollment-and-production-capability-owners-v3" as const;
 
 export type FloodgateV7ProductionCheckpointConnectorExecutionBoundary =
   | "production-fixed-capability-composition"
@@ -2536,17 +2542,29 @@ export function runFloodgateV7ProductionCheckpointConnectorCoreForTests<
 /** Execute one exact V3 gate through only fixed production capability owners. */
 export function runFloodgateV7ProductionCheckpointConnector(
   optionsValue: FloodgateV7ProductionCheckpointConnectorOptions,
+  outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
 ): Promise<
   Readonly<
     FloodgateV7ProductionCheckpointConnectorReceipt<"production-fixed-capability-composition">
   >
 > {
-  if (arguments.length !== 1) {
+  if (arguments.length !== 2) {
     return rejected(publicFailure("capture"));
   }
   let request: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>;
   try {
     request = captureOptions(optionsValue);
+  } catch {
+    return rejected(publicFailure("capture"));
+  }
+  try {
+    if (
+      claimFloodgateV7ProductionOuterGateConnectorCapability(
+        outerGateCapability,
+      ) !== request.gate
+    ) {
+      return rejected(publicFailure("capture"));
+    }
   } catch {
     return rejected(publicFailure("capture"));
   }

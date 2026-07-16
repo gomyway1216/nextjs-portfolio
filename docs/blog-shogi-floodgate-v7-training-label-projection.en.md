@@ -108,7 +108,9 @@ Later caller mutation of the input cannot change returned rows, and returned val
 | Self-consistent forged object / recomputed unkeyed digest | Not prevented by this pure boundary alone                  | Checkpoint HMAC provenance      |
 | Crash or mismatched partial work/result/manifest          | No filesystem operation occurs here                        | Durability / atomic publication |
 
-The focused unit suite passed **1 file / 6 tests, 6 / 6 PASS** (631 ms Vitest duration; 90 ms test time). It covers a normal 14-candidate parent, CP ties, source combinations, mate metadata and negative-zero canonicalization, sign inversion, forced zero-row output, deep freezing, reproducibility, and clone / tamper / Proxy / arity rejection. `tsc --noEmit` and Prettier also passed. Full regression, lint, and the production build had not run at this point and will be recorded separately during final validation.
+The focused unit suite passed **1 file / 6 tests, 6 / 6 PASS** (631 ms Vitest duration; 90 ms test time). It covers a normal 14-candidate parent, CP ties, same-move multi-provenance merging, mate metadata, a negative nonzero mate, negative-zero canonicalization, sign inversion, forced zero-row output, deep freezing, reproducibility, and clone / tamper / Proxy / arity rejection. `tsc --noEmit` and Prettier also passed.
+
+Final validation of exact commit `214d047443a02ccc084bae94ce725b49a2cdbc8a` passed full Vitest at **152 files / 2,816 tests** (161.46-second duration, 161.93-second wall time, 4,378,476,544-byte maximum RSS, zero swap) and the production build at **193 / 193 pages** (37.24-second wall time, 2,671,001,600-byte maximum RSS, zero swap). Full ESLint exited zero with zero errors and 157 existing warnings (35.96-second wall time, 2,343,272,448-byte maximum RSS, zero swap); ML stdlib passed 58 / 58 and `npm audit` found zero vulnerabilities. GitHub CI remains a separate post-publication check.
 
 ## 12. Authenticated finalization comes next
 

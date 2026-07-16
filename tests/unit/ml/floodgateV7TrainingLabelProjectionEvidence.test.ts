@@ -266,6 +266,7 @@ describe("Floodgate v7 training-label projection evidence", () => {
       );
     }
     expect(evidence.validation).toEqual({
+      validation_candidate_revision: "214d047443a02ccc084bae94ce725b49a2cdbc8a",
       projection_focused_vitest: {
         status: "pass",
         files: 1,
@@ -290,11 +291,51 @@ describe("Floodgate v7 training-label projection evidence", () => {
         vitest_duration_ms: 436,
         test_duration_ms: 5,
       },
-      full_vitest: { status: "not-run" },
-      eslint: { status: "not-run" },
-      production_build: { status: "not-run" },
-      ml_stdlib: { status: "not-run" },
-      npm_audit: { status: "not-run" },
+      full_vitest: {
+        status: "pass",
+        files: 152,
+        tests: 2816,
+        passed: 2816,
+        failed: 0,
+        vitest_duration_seconds: 161.46,
+        wall_seconds: 161.93,
+        maximum_rss_bytes: 4378476544,
+        swaps: 0,
+      },
+      eslint: {
+        status: "pass",
+        exit_code: 0,
+        errors: 0,
+        existing_warnings: 157,
+        wall_seconds: 35.96,
+        maximum_rss_bytes: 2343272448,
+        swaps: 0,
+      },
+      production_build: {
+        status: "pass",
+        static_pages: 193,
+        passed: 193,
+        failed: 0,
+        wall_seconds: 37.24,
+        maximum_rss_bytes: 2671001600,
+        swaps: 0,
+      },
+      ml_stdlib: {
+        status: "pass",
+        tests: 58,
+        passed: 58,
+        failed: 0,
+        wall_seconds: 0.48,
+        maximum_rss_bytes: 65077248,
+        swaps: 0,
+      },
+      npm_audit: {
+        status: "pass",
+        vulnerabilities: 0,
+        wall_seconds: 0.66,
+        maximum_rss_bytes: 135528448,
+        swaps: 0,
+      },
       github_ci: { status: "not-run" },
     });
   });

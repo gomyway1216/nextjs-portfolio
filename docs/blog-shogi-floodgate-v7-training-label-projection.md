@@ -108,7 +108,9 @@ callerによる入力の後編集は返却済みrowsを変えず、返却値の�
 | 自己整合した偽造object / recomputed unkeyed digest   | このpure boundaryだけでは防げない         | checkpoint HMAC provenance      |
 | crash、partial write、work/result/manifestの取り違え | filesystemを扱わない                      | durability / atomic publication |
 
-focused unit testは**1 file / 6 tests、6 / 6 PASS**（Vitest duration 631 ms、test 90 ms）だった。通常14-candidate parent、CP tie、source組合せ、mate metadataとnegative-zero canonicalization、符号反転、forced 0-row、deep freeze、再現性、clone / tamper / Proxy / arity拒否を対象にする。`tsc --noEmit`とPrettierもPASSした。full regression、lint、production buildはこの時点では未実行であり、後のfinal validationで別に記録する。
+focused unit testは**1 file / 6 tests、6 / 6 PASS**（Vitest duration 631 ms、test 90 ms）だった。通常14-candidate parent、CP tie、複数provenanceの同一手統合、mate metadata・negative nonzero mate・negative-zero canonicalization、符号反転、forced 0-row、deep freeze、再現性、clone / tamper / Proxy / arity拒否を対象にする。`tsc --noEmit`とPrettierもPASSした。
+
+exact commit `214d047443a02ccc084bae94ce725b49a2cdbc8a`のfinal validationでは、full Vitest **152 files / 2,816 tests PASS**（duration 161.46秒、wall 161.93秒、maximum RSS 4,378,476,544 bytes、swap 0）、production build **193 / 193 pages PASS**（wall 37.24秒、maximum RSS 2,671,001,600 bytes、swap 0）だった。full ESLintはexit 0、error 0、既存warning 157（wall 35.96秒、maximum RSS 2,343,272,448 bytes、swap 0）、ML stdlibは58 / 58、`npm audit`はvulnerability 0だった。GitHub CIはPR公開後に別途確認する。
 
 ## 12. 次はauthenticated finalizationである
 

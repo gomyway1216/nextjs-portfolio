@@ -54,6 +54,7 @@ import type { FloodgateTrainingRowConsumerOptions } from "./floodgate-training-r
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
   FloodgateV7ProductionOuterGateLeaseError,
   runFloodgateV7ProductionOuterGateFinal24000,
@@ -394,6 +395,7 @@ const OUTER_RECEIPT_KEYS = objectFreeze([
   "contract",
   "status",
   "algorithm",
+  "execution_boundary",
   "verification",
   "nonclaims",
 ] as const);
@@ -883,7 +885,9 @@ function validateOuterSuccess<T>(value: unknown): T {
   if (
     lease.contract !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT ||
     lease.status !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS ||
-    lease.algorithm !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM
+    lease.algorithm !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM ||
+    lease.execution_boundary !==
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
   ) {
     throw new NativeError("runner outer gate receipt differs");
   }
@@ -898,6 +902,16 @@ function validateOuterSuccess<T>(value: unknown): T {
     }
   }
   return result.value as T;
+}
+
+/** Test-only strict parser for the production outer-owner success boundary. */
+export function validateFloodgateV7ProductionOuterGateSuccessCoreForTests<T>(
+  value: unknown,
+): T {
+  if (arguments.length !== 1) {
+    throw new NativeError("runner outer gate receipt differs");
+  }
+  return validateOuterSuccess<T>(value);
 }
 
 function outerOperationMayHaveRun(value: unknown): boolean {

@@ -18,7 +18,9 @@ import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_INFO,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_SALT,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HMAC_DOMAIN,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
+  FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_MANUAL_CONFIRMATION,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_RETIRED_BASENAME,
@@ -248,6 +250,8 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
         contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
         status: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
         algorithm: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
+        execution_boundary:
+          FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
         verification: {
           one_os_lifetime_lock_shared_by_all_three_gates: true,
           os_lifetime_lock_held_before_operation: true,
@@ -294,6 +298,81 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
       );
     },
   );
+
+  it("marks an injected no-op descriptor close as test-only evidence", async () => {
+    const environment = await fixture();
+    let heldDescriptor = -1;
+    const result = await runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+      "durable-prefix-100",
+      {
+        ...environment.dependencies,
+        closeLockDescriptorForTests(descriptor) {
+          heldDescriptor = descriptor;
+        },
+      },
+      async () => "test-only-close",
+    );
+
+    expect(result.lease.execution_boundary).toBe(
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
+    );
+    expect(result.lease.execution_boundary).not.toBe(
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
+    );
+    expect(heldDescriptor).toBeGreaterThanOrEqual(0);
+    const stillHeld = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(stillHeld.status).toBe(75);
+    fs.closeSync(heldDescriptor);
+  });
+
+  it("finishes final namespace validation under lock before a successor owner starts", async () => {
+    const environment = await fixture();
+    let successorStarted!: () => void;
+    let releaseSuccessor!: () => void;
+    const successorStartedPromise = new Promise<void>((resolve) => {
+      successorStarted = resolve;
+    });
+    const holdSuccessor = new Promise<void>((resolve) => {
+      releaseSuccessor = resolve;
+    });
+    let successor:
+      | ReturnType<
+          typeof runWithFloodgateV7ProductionOuterGateLeaseCoreForTests<string>
+        >
+      | undefined;
+
+    const first = await runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+      "durable-prefix-100",
+      {
+        ...environment.dependencies,
+        closeLockDescriptorForTests(descriptor) {
+          fs.closeSync(descriptor);
+          successor = runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+            "durable-prefix-500",
+            environment.dependencies,
+            async () => {
+              successorStarted();
+              await holdSuccessor;
+              return "successor";
+            },
+          );
+        },
+      },
+      async () => "first",
+    );
+
+    await successorStartedPromise;
+    expect(first.value).toBe("first");
+    expect((await fs.promises.lstat(environment.activePath)).isFile()).toBe(
+      true,
+    );
+    releaseSuccessor();
+    await expect(successor).resolves.toMatchObject({ value: "successor" });
+  });
 
   it("keeps connector capabilities opaque, gate-bound, and single-use", async () => {
     const environment = await fixture();
@@ -739,6 +818,365 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
       { stdio: "ignore" },
     );
     expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("reports a blocking staging remnant without overstating authenticated publication", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-100",
+        {
+          ...environment.dependencies,
+          leasePublishFailpointForTests(event) {
+            if (event === "after-staging-create") throw privateFailure;
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: false,
+      stale_lease_quarantined: false,
+      quarantine_blocks_all_gates: true,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    await expect(
+      fs.promises.lstat(environment.activePath),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const stagingEntries = await fs.promises.readdir(
+      environment.quarantineRoot,
+    );
+    expect(stagingEntries).toHaveLength(1);
+    expect(stagingEntries[0]).toMatch(/^\.installing-[0-9a-f]{64}$/u);
+    const staging = await fs.promises.lstat(
+      path.join(environment.quarantineRoot, stagingEntries[0]!),
+    );
+    expect(staging.isFile()).toBe(true);
+    expect(staging.mode & 0o777).toBe(0o600);
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("conservatively reports publication immediately after the active link exists", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "sealed-final-24000",
+        {
+          ...environment.dependencies,
+          leasePublishFailpointForTests(event) {
+            if (event === "after-active-link-before-control-sync") {
+              throw privateFailure;
+            }
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: true,
+      stale_lease_quarantined: false,
+      quarantine_blocks_all_gates: true,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    const stagingEntries = await fs.promises.readdir(
+      environment.quarantineRoot,
+    );
+    expect(stagingEntries).toHaveLength(1);
+    const [active, staging] = await Promise.all([
+      fs.promises.lstat(environment.activePath, { bigint: true }),
+      fs.promises.lstat(
+        path.join(environment.quarantineRoot, stagingEntries[0]!),
+        { bigint: true },
+      ),
+    ]);
+    expect(Number(active.size)).toBeGreaterThan(0);
+    expect(staging.dev).toBe(active.dev);
+    expect(staging.ino).toBe(active.ino);
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("reports authenticated publication and quarantine after durable active publish fails before staging cleanup", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-500",
+        {
+          ...environment.dependencies,
+          leasePublishFailpointForTests(event) {
+            if (
+              event === "after-durable-active-publish-before-staging-cleanup"
+            ) {
+              throw privateFailure;
+            }
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: true,
+      stale_lease_quarantined: false,
+      quarantine_blocks_all_gates: true,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    const stagingEntries = await fs.promises.readdir(
+      environment.quarantineRoot,
+    );
+    expect(stagingEntries).toHaveLength(1);
+    expect(stagingEntries[0]).toMatch(/^\.installing-[0-9a-f]{64}$/u);
+    const [active, staging] = await Promise.all([
+      fs.promises.lstat(environment.activePath, { bigint: true }),
+      fs.promises.lstat(
+        path.join(environment.quarantineRoot, stagingEntries[0]!),
+        { bigint: true },
+      ),
+    ]);
+    expect(Number(active.size)).toBeGreaterThan(0);
+    expect(staging.size).toBe(active.size);
+    expect(staging.dev).toBe(active.dev);
+    expect(staging.ino).toBe(active.ino);
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("keeps quarantine conservatively blocking until staging unlink is directory-durable", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-100",
+        {
+          ...environment.dependencies,
+          leasePublishFailpointForTests(event) {
+            if (event === "after-staging-unlink-before-quarantine-sync") {
+              throw privateFailure;
+            }
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: true,
+      stale_lease_quarantined: false,
+      quarantine_blocks_all_gates: true,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    expect(await fs.promises.readdir(environment.quarantineRoot)).toEqual([]);
+    expect(
+      (await fs.promises.lstat(environment.activePath)).size,
+    ).toBeGreaterThan(0);
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("sanitizes an unknown post-publish failure and conservatively reports durable evidence", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-100",
+        {
+          ...environment.dependencies,
+          afterLeasePublishBeforeValidationForTests() {
+            throw privateFailure;
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: true,
+      stale_lease_quarantined: false,
+      quarantine_blocks_all_gates: false,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    expect(
+      (await fs.promises.lstat(environment.activePath)).size,
+    ).toBeGreaterThan(0);
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("sanitizes an unknown pre-publish failure without overstating durable evidence", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const privateFailure = new Proxy(new Error(PRIVATE_CANARY), {
+      getPrototypeOf() {
+        throw new Error(PRIVATE_CANARY);
+      },
+    });
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-100",
+        {
+          ...environment.dependencies,
+          nonce() {
+            throw privateFailure;
+          },
+        },
+        async () => {
+          invoked = true;
+        },
+      ),
+    );
+
+    expect(invoked).toBe(false);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "lease-publish",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: false,
+      stale_lease_quarantined: false,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    await expect(
+      fs.promises.lstat(environment.activePath),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const lockAfterFailure = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(lockAfterFailure.status).toBe(0);
+  });
+
+  it("never lets a later typed cleanup failure downgrade the may-have-run state", async () => {
+    const environment = await fixture();
+    let invoked = false;
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-500",
+        {
+          ...environment.dependencies,
+          afterActiveUnlinkBeforeDirectorySyncForTests() {
+            const [pending] = fs
+              .readdirSync(environment.retiredRoot)
+              .filter((entry) => entry.startsWith(".pending-"));
+            if (pending === undefined) {
+              throw new Error("pending retirement evidence missing");
+            }
+            fs.appendFileSync(
+              path.join(environment.retiredRoot, pending),
+              PRIVATE_CANARY,
+            );
+          },
+        },
+        async () => {
+          invoked = true;
+          return "operation-complete";
+        },
+      ),
+    );
+
+    expect(invoked).toBe(true);
+    expect(error).toBeInstanceOf(FloodgateV7ProductionOuterGateLeaseError);
+    expect(error).toMatchObject({
+      phase: "cleanup",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: true,
+      authenticated_lease_published: true,
+      quarantine_blocks_all_gates: true,
+      sensitive_values_disclosed: false,
+    });
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
   });
 
   it("leaves a persistent pending retirement block if unlink durability fails", async () => {

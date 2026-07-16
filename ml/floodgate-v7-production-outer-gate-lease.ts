@@ -46,6 +46,10 @@ export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS =
   "all-fixed-gates-serialized-by-os-lifetime-lock-and-authenticated-durable-lease" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM =
   "macos-lockf-inherited-registry-open-file-description-hkdf-sha256-canonical-hmac-sha256-v1" as const;
+export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY =
+  "production-fixed-current-euid-home-native-descriptor-close" as const;
+export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY =
+  "test-only-injected-home-key-lock-helper-and-descriptor-close" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_SALT =
   "shogi-floodgate-v7-production-outer-gate-lease-salt-v1\0" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_HKDF_INFO =
@@ -87,10 +91,19 @@ export type FloodgateV7ProductionOuterGateLeaseDisposition =
   | "another-gate-invocation-active"
   | "manual-reconciliation-required";
 
+export type FloodgateV7ProductionOuterGateLeasePublishFailpointForTests =
+  | "after-staging-create"
+  | "after-active-link-before-control-sync"
+  | "after-durable-active-publish-before-staging-cleanup"
+  | "after-staging-unlink-before-quarantine-sync";
+
 export interface FloodgateV7ProductionOuterGateLeaseReceipt {
   readonly contract: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT;
   readonly status: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS;
   readonly algorithm: typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM;
+  readonly execution_boundary:
+    | typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
+    | typeof FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY;
   readonly verification: Readonly<{
     readonly one_os_lifetime_lock_shared_by_all_three_gates: true;
     readonly os_lifetime_lock_held_before_operation: true;
@@ -242,6 +255,10 @@ export interface FloodgateV7ProductionOuterGateLeaseDependenciesForTests {
   readonly nonce?: () => Uint8Array;
   readonly lockfPath?: string;
   readonly installProcessLifecycleHandlers?: boolean;
+  readonly afterLeasePublishBeforeValidationForTests?: () => void;
+  readonly leasePublishFailpointForTests?: (
+    event: FloodgateV7ProductionOuterGateLeasePublishFailpointForTests,
+  ) => void;
   readonly afterActiveUnlinkBeforeDirectorySyncForTests?: () => void;
   readonly closeLockDescriptorForTests?: (descriptor: number) => void;
 }
@@ -256,6 +273,12 @@ interface CapturedDependencies {
   readonly nonce: () => Uint8Array;
   readonly lockfPath: string;
   readonly installProcessLifecycleHandlers: boolean;
+  readonly afterLeasePublishBeforeValidation: (() => void) | undefined;
+  readonly leasePublishFailpoint:
+    | ((
+        event: FloodgateV7ProductionOuterGateLeasePublishFailpointForTests,
+      ) => void)
+    | undefined;
   readonly afterActiveUnlinkBeforeDirectorySync: (() => void) | undefined;
   readonly closeLockDescriptor: (descriptor: number) => void;
 }
@@ -329,6 +352,7 @@ const objectCreate = Object.create;
 const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
 const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectPrototype = Object.prototype;
 const nodeIsProxy = nodeUtilTypes.isProxy;
@@ -337,6 +361,7 @@ const bufferAlloc = Buffer.alloc.bind(Buffer);
 const nativeBufferFill = Buffer.prototype.fill;
 const nativeTimingSafeEqual = timingSafeEqual;
 const nativeReflectApply = Reflect.apply;
+const nativeArrayIncludes = Array.prototype.includes;
 const jsonParse = JSON.parse.bind(JSON);
 const jsonStringify = JSON.stringify.bind(JSON);
 const pathJoin = path.join.bind(path);
@@ -507,16 +532,94 @@ function sanitizedLeaseFailure(
   staleLeaseQuarantined = false,
   quarantineBlocksAllGates = false,
 ): FloodgateV7ProductionOuterGateLeaseError {
-  return error instanceof FloodgateV7ProductionOuterGateLeaseError
-    ? error
-    : new FloodgateV7ProductionOuterGateLeaseError(
-        phase,
-        "manual-reconciliation-required",
-        osLockAcquired,
-        leasePublished,
-        staleLeaseQuarantined,
-        quarantineBlocksAllGates,
-      );
+  try {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      !nodeIsProxy(error) &&
+      objectGetPrototypeOf(error) ===
+        FloodgateV7ProductionOuterGateLeaseError.prototype
+    ) {
+      const descriptors = objectGetOwnPropertyDescriptors(error);
+      const data = (key: string): unknown => {
+        const descriptor = descriptors[key];
+        return descriptor !== undefined && "value" in descriptor
+          ? descriptor.value
+          : undefined;
+      };
+      const typedPhase = data("phase");
+      const disposition = data("disposition");
+      const typedOsLockAcquired = data("os_lock_acquired");
+      const typedLeasePublished = data("authenticated_lease_published");
+      const typedStaleLeaseQuarantined = data("stale_lease_quarantined");
+      const typedStaleLeaseAuthenticated = data("stale_lease_authenticated");
+      const typedQuarantineBlocksAllGates = data("quarantine_blocks_all_gates");
+      if (
+        isLeasePhase(typedPhase) &&
+        isLeaseDisposition(disposition) &&
+        typeof typedOsLockAcquired === "boolean" &&
+        typeof typedLeasePublished === "boolean" &&
+        typeof typedStaleLeaseQuarantined === "boolean" &&
+        (typedStaleLeaseAuthenticated === null ||
+          typeof typedStaleLeaseAuthenticated === "boolean") &&
+        typeof typedQuarantineBlocksAllGates === "boolean" &&
+        data("sensitive_values_disclosed") === false
+      ) {
+        // Reconstruct instead of returning the caught object. Besides keeping
+        // unknown properties and raw stacks out of the public boundary, the
+        // known execution state is a lower bound: a later typed helper error
+        // must never downgrade a lease that was already durably published or
+        // an operation boundary that was already crossed.
+        return new FloodgateV7ProductionOuterGateLeaseError(
+          typedPhase,
+          disposition,
+          osLockAcquired || typedOsLockAcquired,
+          leasePublished || typedLeasePublished,
+          staleLeaseQuarantined || typedStaleLeaseQuarantined,
+          quarantineBlocksAllGates || typedQuarantineBlocksAllGates,
+          typedStaleLeaseAuthenticated,
+        );
+      }
+    }
+  } catch {
+    // Proxies, hostile prototypes, and malformed descriptors are unknown
+    // failures. Only the already captured monotonic state is published.
+  }
+  return new FloodgateV7ProductionOuterGateLeaseError(
+    phase,
+    "manual-reconciliation-required",
+    osLockAcquired,
+    leasePublished,
+    staleLeaseQuarantined,
+    quarantineBlocksAllGates,
+  );
+}
+
+function isLeasePhase(
+  value: unknown,
+): value is FloodgateV7ProductionOuterGateLeasePhase {
+  return (
+    value === "capture" ||
+    value === "production-identity" ||
+    value === "key-read" ||
+    value === "namespace" ||
+    value === "os-lock" ||
+    value === "stale-inspection" ||
+    value === "quarantine" ||
+    value === "lease-publish" ||
+    value === "operation" ||
+    value === "cleanup"
+  );
+}
+
+function isLeaseDisposition(
+  value: unknown,
+): value is FloodgateV7ProductionOuterGateLeaseDisposition {
+  return (
+    value === "fresh-invocation-allowed" ||
+    value === "another-gate-invocation-active" ||
+    value === "manual-reconciliation-required"
+  );
 }
 
 function captureGate(value: unknown): FloodgateV7ProductionOuterGate {
@@ -572,6 +675,10 @@ function captureDependencies(
     (value.afterActiveUnlinkBeforeDirectorySyncForTests !== undefined &&
       typeof value.afterActiveUnlinkBeforeDirectorySyncForTests !==
         "function") ||
+    (value.afterLeasePublishBeforeValidationForTests !== undefined &&
+      typeof value.afterLeasePublishBeforeValidationForTests !== "function") ||
+    (value.leasePublishFailpointForTests !== undefined &&
+      typeof value.leasePublishFailpointForTests !== "function") ||
     (value.closeLockDescriptorForTests !== undefined &&
       typeof value.closeLockDescriptorForTests !== "function") ||
     !(value.rootKey instanceof Uint8Array) ||
@@ -591,6 +698,9 @@ function captureDependencies(
     lockfPath: canonicalAbsolute(lockfPath, "lockf path"),
     installProcessLifecycleHandlers:
       value.installProcessLifecycleHandlers === true,
+    afterLeasePublishBeforeValidation:
+      value.afterLeasePublishBeforeValidationForTests,
+    leasePublishFailpoint: value.leasePublishFailpointForTests,
     afterActiveUnlinkBeforeDirectorySync:
       value.afterActiveUnlinkBeforeDirectorySyncForTests,
     closeLockDescriptor: value.closeLockDescriptorForTests ?? nativeCloseSync,
@@ -1153,6 +1263,17 @@ function publishLease(
   bytes: Buffer,
   uid: number,
   nonce: () => Uint8Array,
+  recordProgress: (
+    progress:
+      | "staging-created"
+      | "authenticated-active-linked"
+      | "staging-removal-durable",
+  ) => void,
+  failpoint:
+    | ((
+        event: FloodgateV7ProductionOuterGateLeasePublishFailpointForTests,
+      ) => void)
+    | undefined,
 ): ActiveLease {
   const token = bufferFrom(nonce());
   if (token.length !== 32) {
@@ -1174,15 +1295,22 @@ function publishLease(
         fs.constants.O_NOFOLLOW,
       privateFileMode,
     );
+    recordProgress("staging-created");
+    failpoint?.("after-staging-create");
     let offset = 0;
     while (offset < bytes.length) {
       offset += fs.writeSync(descriptor, bytes, offset, bytes.length - offset);
     }
     fs.fsyncSync(descriptor);
     fs.linkSync(stagingPath, paths.activePath);
+    recordProgress("authenticated-active-linked");
+    failpoint?.("after-active-link-before-control-sync");
     syncDirectory(paths.controlRoot);
+    failpoint?.("after-durable-active-publish-before-staging-cleanup");
     fs.unlinkSync(stagingPath);
+    failpoint?.("after-staging-unlink-before-quarantine-sync");
     syncDirectory(paths.quarantineRoot);
+    recordProgress("staging-removal-durable");
   } finally {
     if (descriptor >= 0) fs.closeSync(descriptor);
   }
@@ -1241,11 +1369,57 @@ function removeActive(
   }
 }
 
-function buildReceipt(): Readonly<FloodgateV7ProductionOuterGateLeaseReceipt> {
+function assertFinalNamespaceUnderLock(
+  paths: LeasePaths,
+  uid: number,
+  leaseKey: Buffer,
+  keyInstanceId: string,
+  helper: LockHelper,
+): void {
+  for (const directory of [
+    paths.controlRoot,
+    paths.quarantineRoot,
+    paths.retiredRoot,
+  ]) {
+    if (!statIsPrivateDirectory(fs.lstatSync(directory), uid)) {
+      throw new NativeError("final outer gate namespace differs");
+    }
+  }
+  const entries = fs.readdirSync(paths.controlRoot);
+  if (
+    entries.length !== 2 ||
+    !nativeReflectApply(nativeArrayIncludes, entries, [
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_BASENAME,
+    ]) ||
+    !nativeReflectApply(nativeArrayIncludes, entries, [
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_RETIRED_BASENAME,
+    ])
+  ) {
+    throw new NativeError("final outer gate namespace differs");
+  }
+  try {
+    fs.lstatSync(paths.activePath);
+    throw new NativeError("active lease survived final validation");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (!quarantineIsEmpty(paths)) {
+    throw new NativeError("final outer gate quarantine differs");
+  }
+  assertRetiredEvidenceAllowsRun(paths, uid, leaseKey, keyInstanceId, helper);
+}
+
+function buildReceipt(
+  boundary: ConnectorCapabilityBoundary,
+): Readonly<FloodgateV7ProductionOuterGateLeaseReceipt> {
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
     status: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
     algorithm: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
+    execution_boundary:
+      boundary === "production"
+        ? FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
+        : FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
     verification: frozenRecord({
       one_os_lifetime_lock_shared_by_all_three_gates: true as const,
       os_lifetime_lock_held_before_operation: true as const,
@@ -1323,10 +1497,22 @@ async function acquireAndRun<T>(
   let active: ActiveLease | null = null;
   let removeLifecycleHandlers: (() => void) | null = null;
   let metadataRemoved = false;
-  let paths = leasePaths(dependencies.homeDirectory);
-  const leaseKey = deriveLeaseKey(dependencies.rootKey);
-  const keyInstanceId = deriveKeyInstanceId(dependencies.rootKey);
+  let lockReleased = false;
+  let osLockEverAcquired = false;
+  let authenticatedLeaseEverPublished = false;
+  let quarantineMayBlock = false;
+  let operationBoundaryCrossed = false;
+  let currentPhase: FloodgateV7ProductionOuterGateLeasePhase = "key-read";
+  let leaseKeyForCleanup: Buffer | null = null;
   try {
+    currentPhase = "namespace";
+    let paths = leasePaths(dependencies.homeDirectory);
+    currentPhase = "key-read";
+    const leaseKey = deriveLeaseKey(dependencies.rootKey);
+    leaseKeyForCleanup = leaseKey;
+    const keyInstanceId = deriveKeyInstanceId(dependencies.rootKey);
+
+    currentPhase = "os-lock";
     try {
       helper = acquireOsLock(
         paths.registryPath,
@@ -1339,7 +1525,9 @@ async function acquireAndRun<T>(
         throw error;
       fail("os-lock", "manual-reconciliation-required");
     }
+    osLockEverAcquired = true;
 
+    currentPhase = "namespace";
     try {
       paths = prepareNamespaceAfterLock(
         dependencies.homeDirectory,
@@ -1351,6 +1539,7 @@ async function acquireAndRun<T>(
       fail("namespace", "manual-reconciliation-required", true);
     }
 
+    currentPhase = "quarantine";
     if (!quarantineIsEmpty(paths)) {
       fail(
         "quarantine",
@@ -1369,6 +1558,7 @@ async function acquireAndRun<T>(
       helper,
     );
 
+    currentPhase = "stale-inspection";
     try {
       fs.lstatSync(paths.activePath);
       const stale = readActive(
@@ -1408,6 +1598,7 @@ async function acquireAndRun<T>(
       }
     }
 
+    currentPhase = "lease-publish";
     const record = createRecord(
       gate,
       dependencies,
@@ -1421,7 +1612,18 @@ async function acquireAndRun<T>(
         bytes,
         dependencies.effectiveUserId,
         dependencies.nonce,
+        (progress) => {
+          if (progress === "staging-created") {
+            quarantineMayBlock = true;
+          } else if (progress === "authenticated-active-linked") {
+            authenticatedLeaseEverPublished = true;
+          } else {
+            quarantineMayBlock = false;
+          }
+        },
+        dependencies.leasePublishFailpoint,
       );
+      dependencies.afterLeasePublishBeforeValidation?.();
       if (
         !authenticateLease(active.bytes, leaseKey) ||
         !quarantineIsEmpty(paths)
@@ -1474,6 +1676,8 @@ async function acquireAndRun<T>(
         : testConnectorCapabilities;
     connectorRegistry.set(connectorCapability, gate);
     let value: T;
+    currentPhase = "operation";
+    operationBoundaryCrossed = true;
     try {
       value = await operation(connectorCapability);
       if (
@@ -1487,6 +1691,7 @@ async function acquireAndRun<T>(
       try {
         removeLifecycleHandlers?.();
         await helper.close();
+        lockReleased = true;
       } catch {
         fail(
           "cleanup",
@@ -1508,20 +1713,19 @@ async function acquireAndRun<T>(
     }
     connectorRegistry.delete(connectorCapability);
 
+    currentPhase = "cleanup";
     try {
       cleanupMetadataSync();
+      assertFinalNamespaceUnderLock(
+        paths,
+        dependencies.effectiveUserId,
+        leaseKey,
+        keyInstanceId,
+        helper,
+      );
       removeLifecycleHandlers?.();
       await helper.close();
-      if (!quarantineIsEmpty(paths)) {
-        fail(
-          "cleanup",
-          "manual-reconciliation-required",
-          false,
-          true,
-          false,
-          true,
-        );
-      }
+      lockReleased = true;
     } catch (error) {
       if (error instanceof FloodgateV7ProductionOuterGateLeaseError)
         throw error;
@@ -1534,9 +1738,18 @@ async function acquireAndRun<T>(
         true,
       );
     }
-    return frozenRecord({ value, lease: buildReceipt() });
+    return frozenRecord({ value, lease: buildReceipt(boundary) });
+  } catch (error) {
+    throw sanitizedLeaseFailure(
+      error,
+      currentPhase,
+      osLockEverAcquired,
+      authenticatedLeaseEverPublished || operationBoundaryCrossed,
+      false,
+      quarantineMayBlock,
+    );
   } finally {
-    zero(leaseKey);
+    if (leaseKeyForCleanup !== null) zero(leaseKeyForCleanup);
     zero(dependencies.rootKey);
     if (active !== null) zero(active.bytes);
     try {
@@ -1545,8 +1758,14 @@ async function acquireAndRun<T>(
       // The earlier typed outcome remains authoritative; no raw lifecycle
       // failure crosses the public boundary from final evidence cleanup.
     }
-    if (helper !== null && !metadataRemoved) {
-      await helper.close().catch(() => undefined);
+    if (helper !== null && !lockReleased) {
+      try {
+        await helper.close();
+        lockReleased = true;
+      } catch {
+        // Best effort only: the typed outcome remains authoritative and the
+        // process-lifetime descriptor is still released on process death.
+      }
     }
   }
 }

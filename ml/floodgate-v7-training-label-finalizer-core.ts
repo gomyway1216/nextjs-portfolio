@@ -943,7 +943,7 @@ export function createFloodgateV7TrainingLabelFinalizationPlanCoreForTests(
   return facade;
 }
 
-function takePlan(
+function takeTestPlan(
   value: Readonly<FloodgateV7TrainingLabelFinalizationPlanForTests>,
 ): Readonly<HiddenPlan> {
   if (
@@ -2153,7 +2153,7 @@ export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
 
   try {
     if (arguments.length !== 6) fail("finalizer accepts exactly six arguments");
-    plan = takePlan(planValue);
+    plan = takeTestPlan(planValue);
     progress.planConsumed = true;
     progress.phase = "input-capture";
     invocation = captureInvocation(optionsValue, dependenciesValue);

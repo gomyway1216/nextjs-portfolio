@@ -1597,6 +1597,35 @@ function zeroize(bytes: Buffer): unknown | undefined {
   }
 }
 
+function appendCleanupFailure(
+  failures: unknown[],
+  failure: unknown | undefined,
+): void {
+  if (failure === undefined) return;
+  objectDefineProperty(failures, failures.length, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: failure,
+  });
+}
+
+function appendZeroizeFailure(
+  failures: unknown[],
+  bytes: Buffer | undefined,
+): void {
+  if (bytes !== undefined) appendCleanupFailure(failures, zeroize(bytes));
+}
+
+function appendCleanupFailures(
+  destination: unknown[],
+  source: readonly unknown[],
+): void {
+  for (let index = 0; index < source.length; index += 1) {
+    appendCleanupFailure(destination, source[index]);
+  }
+}
+
 async function authorizeMaterialInternal<
   TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
 >(
@@ -1982,14 +2011,11 @@ async function authorizeMaterialInternal<
     }
   }
   if (primary !== undefined || result === undefined) {
-    const derivedCleanupFailures = [
-      checkpointV3DerivedKey,
-      sealedScanV3DerivedKey,
-      trainingLabelResultKey,
-      trainingLabelManifestKey,
-    ]
-      .map((bytes) => (bytes === undefined ? undefined : zeroize(bytes)))
-      .filter((failure) => failure !== undefined);
+    const derivedCleanupFailures: unknown[] = [];
+    appendZeroizeFailure(derivedCleanupFailures, checkpointV3DerivedKey);
+    appendZeroizeFailure(derivedCleanupFailures, sealedScanV3DerivedKey);
+    appendZeroizeFailure(derivedCleanupFailures, trainingLabelResultKey);
+    appendZeroizeFailure(derivedCleanupFailures, trainingLabelManifestKey);
     checkpointV3DerivedKey = undefined;
     sealedScanV3DerivedKey = undefined;
     trainingLabelResultKey = undefined;
@@ -1999,17 +2025,22 @@ async function authorizeMaterialInternal<
         "cleanup",
         "prepared derived-key cleanup failed",
       );
-      primary =
-        primary === undefined
-          ? cleanupError
-          : new FloodgateV7DeploymentKeyAuthorityError(
-              "cleanup",
-              "authorization and prepared derived-key cleanup both failed",
-              new NativeAggregateError(
-                [primary, cleanupError, ...derivedCleanupFailures],
-                "authorization and prepared derived-key cleanup both failed",
-              ),
-            );
+      if (primary === undefined) {
+        primary = cleanupError;
+      } else {
+        const combinedFailures: unknown[] = [];
+        appendCleanupFailure(combinedFailures, primary);
+        appendCleanupFailure(combinedFailures, cleanupError);
+        appendCleanupFailures(combinedFailures, derivedCleanupFailures);
+        primary = new FloodgateV7DeploymentKeyAuthorityError(
+          "cleanup",
+          "authorization and prepared derived-key cleanup both failed",
+          new NativeAggregateError(
+            combinedFailures,
+            "authorization and prepared derived-key cleanup both failed",
+          ),
+        );
+      }
     }
     if (primary !== undefined) throw primary;
     fail("authorization", "authorization completed without a receipt");
@@ -2052,9 +2083,9 @@ async function authorizeMaterialInternal<
       (trainingLabelResultKey !== undefined ||
         trainingLabelManifestKey !== undefined)
     ) {
-      const cleanupFailures = [trainingLabelResultKey, trainingLabelManifestKey]
-        .map((bytes) => (bytes === undefined ? undefined : zeroize(bytes)))
-        .filter((failure) => failure !== undefined);
+      const cleanupFailures: unknown[] = [];
+      appendZeroizeFailure(cleanupFailures, trainingLabelResultKey);
+      appendZeroizeFailure(cleanupFailures, trainingLabelManifestKey);
       trainingLabelResultKey = undefined;
       trainingLabelManifestKey = undefined;
       if (cleanupFailures.length > 0) {
@@ -2524,9 +2555,9 @@ async function prepareTrainingLabelOutputKeysInternal<
     resultKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES ||
     manifestKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
   ) {
-    const cleanupFailures = [resultKey, manifestKey]
-      .map((bytes) => (bytes === undefined ? undefined : zeroize(bytes)))
-      .filter((failure) => failure !== undefined);
+    const cleanupFailures: unknown[] = [];
+    appendZeroizeFailure(cleanupFailures, resultKey);
+    appendZeroizeFailure(cleanupFailures, manifestKey);
     if (cleanupFailures.length > 0) {
       fail(
         "cleanup",
@@ -2570,9 +2601,9 @@ async function prepareTrainingLabelOutputKeysInternal<
         reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
         reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
       }
-      const cleanupFailures = [zeroize(resultKey), zeroize(manifestKey)].filter(
-        (failure) => failure !== undefined,
-      );
+      const cleanupFailures: unknown[] = [];
+      appendCleanupFailure(cleanupFailures, zeroize(resultKey));
+      appendCleanupFailure(cleanupFailures, zeroize(manifestKey));
       if (cleanupFailures.length > 0) {
         fail(
           "cleanup",
@@ -2640,10 +2671,9 @@ function claimTrainingLabelOutputKeys(
       "unexpected training label output keys claim failure",
     );
   }
-  const cleanupFailures = [
-    zeroize(state.resultKey),
-    zeroize(state.manifestKey),
-  ].filter((failure) => failure !== undefined);
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(cleanupFailures, zeroize(state.resultKey));
+  appendCleanupFailure(cleanupFailures, zeroize(state.manifestKey));
   if (primary !== undefined || cleanupFailures.length > 0) {
     if (resultOutput !== undefined) {
       reflectApply(nativeUint8ArrayFill, resultOutput, [0]);
@@ -2685,11 +2715,10 @@ function discardPreparedTrainingLabelOutputKeys(
   const state = preparedTrainingLabelOutputKeys(registry, authorization);
   if (state === undefined) return objectFreeze([]);
   reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
-  return objectFreeze(
-    [zeroize(state.resultKey), zeroize(state.manifestKey)].filter(
-      (failure) => failure !== undefined,
-    ),
-  );
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(cleanupFailures, zeroize(state.resultKey));
+  appendCleanupFailure(cleanupFailures, zeroize(state.manifestKey));
+  return objectFreeze(cleanupFailures);
 }
 
 function fixedProductionDependencies(): Readonly<CapturedDependencies> {
@@ -2955,10 +2984,15 @@ export function discardFloodgateV7DeploymentTeacherCheckpointV3Key(
       "v3 checkpoint key discard requires an exact prepared authorization facade",
     );
   }
-  const cleanupFailures = [
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedV3Key(PRODUCTION_V3_KEY_REGISTRY, authorizationValue),
+  );
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedV3Key(TEST_V3_KEY_REGISTRY, authorizationValue),
-  ].filter((failure) => failure !== undefined);
+  );
   if (cleanupFailures.length > 0) {
     fail(
       "cleanup",
@@ -3095,16 +3129,21 @@ export function discardFloodgateV7DeploymentTeacherSealedScanV3Key(
       "sealed scan v3 key discard requires an exact prepared authorization facade",
     );
   }
-  const cleanupFailures = [
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedSealedScanV3Key(
       PRODUCTION_SEALED_SCAN_V3_KEY_REGISTRY,
       authorizationValue,
     ),
+  );
+  appendCleanupFailure(
+    cleanupFailures,
     discardPreparedSealedScanV3Key(
       TEST_SEALED_SCAN_V3_KEY_REGISTRY,
       authorizationValue,
     ),
-  ].filter((failure) => failure !== undefined);
+  );
   if (cleanupFailures.length > 0) {
     fail(
       "cleanup",
@@ -3244,16 +3283,21 @@ export function discardFloodgateV7DeploymentTrainingLabelOutputKeys(
       "training label output keys discard requires an exact prepared authorization facade",
     );
   }
-  const cleanupFailures = [
-    ...discardPreparedTrainingLabelOutputKeys(
+  const cleanupFailures: unknown[] = [];
+  appendCleanupFailures(
+    cleanupFailures,
+    discardPreparedTrainingLabelOutputKeys(
       PRODUCTION_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
       authorizationValue,
     ),
-    ...discardPreparedTrainingLabelOutputKeys(
+  );
+  appendCleanupFailures(
+    cleanupFailures,
+    discardPreparedTrainingLabelOutputKeys(
       TEST_TRAINING_LABEL_OUTPUT_KEYS_REGISTRY,
       authorizationValue,
     ),
-  ];
+  );
   if (cleanupFailures.length > 0) {
     fail(
       "cleanup",

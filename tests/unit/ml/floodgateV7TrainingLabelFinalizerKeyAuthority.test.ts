@@ -29,6 +29,8 @@ const roots: string[] = [];
 const posixDescribe = describe.runIf(typeof process.geteuid === "function");
 
 type Dependencies = authority.FloodgateV7DeploymentKeyAuthorityDependencies;
+type CheckpointRequest =
+  authority.FloodgateV7DeploymentTeacherCheckpointV3KeyRequest;
 type SealedRequest =
   authority.FloodgateV7DeploymentTeacherSealedScanV3KeyRequest;
 type OutputRequest =
@@ -124,6 +126,16 @@ function sealedRequest(
     work: nullRecord({ bytes: 12_345, sha256: "6b".repeat(32) }),
     ...overrides,
   }) as SealedRequest;
+}
+
+function checkpointRequest(): CheckpointRequest {
+  return nullRecord({
+    runId: RUN_ID,
+    keyId: authority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding: runBinding(),
+    stageAuthorizationReceipt: stageReceipt(),
+    gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  });
 }
 
 function outputRequest(
@@ -354,6 +366,103 @@ posixDescribe(
         ),
       ).toThrow(/already consumed or discarded/);
     });
+
+    it("never dispatches poisoned array map/filter over live keys during revalidation cleanup", async () => {
+      const retained: Uint8Array[] = [];
+      const scanFixture = await fixture({
+        observePreparedKeyForTests(kind: string, key: Uint8Array): void {
+          if (kind === "sealed-scan") retained.push(key);
+        },
+        beforeFinalRevalidationForTests(): never {
+          throw new Error("synthetic sealed-scan revalidation failure");
+        },
+      });
+      const checkpointFixture = await fixture({
+        beforeFinalRevalidationForTests(): never {
+          throw new Error("synthetic checkpoint revalidation failure");
+        },
+      });
+      const mapDescriptor = Object.getOwnPropertyDescriptor(
+        Array.prototype,
+        "map",
+      );
+      const filterDescriptor = Object.getOwnPropertyDescriptor(
+        Array.prototype,
+        "filter",
+      );
+      if (mapDescriptor === undefined || filterDescriptor === undefined) {
+        throw new Error("native Array map/filter descriptors are required");
+      }
+      const nativeMap = Array.prototype.map;
+      const nativeFilter = Array.prototype.filter;
+      const secretDispatches: Uint8Array[] = [];
+      function observeSecretArray(value: unknown): void {
+        if (!Array.isArray(value)) return;
+        for (let index = 0; index < value.length; index += 1) {
+          const entry = value[index];
+          if (entry instanceof Uint8Array && entry.byteLength === 32) {
+            Object.defineProperty(secretDispatches, secretDispatches.length, {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value: entry,
+            });
+          }
+        }
+      }
+      Object.defineProperty(Array.prototype, "map", {
+        ...mapDescriptor,
+        value: function poisonedMap(
+          this: unknown,
+          ...args: readonly unknown[]
+        ): unknown {
+          observeSecretArray(this);
+          return Reflect.apply(nativeMap, this, args);
+        },
+      });
+      Object.defineProperty(Array.prototype, "filter", {
+        ...filterDescriptor,
+        value: function poisonedFilter(
+          this: unknown,
+          ...args: readonly unknown[]
+        ): unknown {
+          observeSecretArray(this);
+          return Reflect.apply(nativeFilter, this, args);
+        },
+      });
+      const failures: unknown[] = [];
+      try {
+        try {
+          await authority.prepareFloodgateV7DeploymentTeacherSealedScanV3KeyCoreForTests(
+            sealedRequest(),
+            scanFixture.dependencies,
+          );
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+            checkpointRequest(),
+            checkpointFixture.dependencies,
+          );
+        } catch (error) {
+          failures.push(error);
+        }
+      } finally {
+        Object.defineProperty(Array.prototype, "map", mapDescriptor);
+        Object.defineProperty(Array.prototype, "filter", filterDescriptor);
+      }
+      expect(failures).toHaveLength(2);
+      expect(
+        failures.every(
+          (failure) =>
+            failure instanceof authority.FloodgateV7DeploymentKeyAuthorityError,
+        ),
+      ).toBe(true);
+      expect(secretDispatches).toHaveLength(0);
+      expect(retained).toHaveLength(1);
+      expect(allZero(retained[0])).toBe(true);
+    });
   },
 );
 
@@ -561,5 +670,70 @@ posixDescribe("Floodgate v7 training-label output key authority", () => {
     expect(
       authority.claimFloodgateV7DeploymentTrainingLabelOutputKeys.length,
     ).toBe(2);
+  });
+
+  it("does not let poisoned filter suppress a detached-key cleanup failure", async () => {
+    let detachedResult: Uint8Array | undefined;
+    let retainedManifest: Uint8Array | undefined;
+    const value = await fixture({
+      observePreparedKeyForTests(kind: string, key: Uint8Array): void {
+        if (kind === "training-label-result") {
+          detachedResult = key;
+          const transferred = structuredClone(key.buffer, {
+            transfer: [key.buffer as ArrayBuffer],
+          });
+          new Uint8Array(transferred).fill(0);
+        } else if (kind === "training-label-manifest") {
+          retainedManifest = key;
+        }
+      },
+    });
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "filter",
+    );
+    if (descriptor === undefined) {
+      throw new Error("native Array filter descriptor is required");
+    }
+    const nativeFilter = Array.prototype.filter;
+    let suppressionAttempts = 0;
+    Object.defineProperty(Array.prototype, "filter", {
+      ...descriptor,
+      value: function poisonedCleanupFilter(
+        this: unknown,
+        ...args: readonly unknown[]
+      ): unknown {
+        if (Array.isArray(this)) {
+          for (let index = 0; index < this.length; index += 1) {
+            if (this[index] instanceof Error) {
+              suppressionAttempts += 1;
+              return [];
+            }
+          }
+        }
+        return Reflect.apply(nativeFilter, this, args);
+      },
+    });
+    let failure: unknown;
+    try {
+      await authority.prepareFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests(
+        outputRequest(),
+        value.dependencies,
+      );
+    } catch (error) {
+      failure = error;
+    } finally {
+      Object.defineProperty(Array.prototype, "filter", descriptor);
+    }
+    if (
+      !(failure instanceof authority.FloodgateV7DeploymentKeyAuthorityError)
+    ) {
+      throw failure;
+    }
+    expect(failure.phase).toBe("cleanup");
+    expect(suppressionAttempts).toBe(0);
+    expect(detachedResult?.byteLength).toBe(0);
+    expect(retainedManifest).toBeDefined();
+    expect(allZero(retainedManifest!)).toBe(true);
   });
 });

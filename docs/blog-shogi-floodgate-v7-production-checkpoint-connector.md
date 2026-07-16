@@ -2,6 +2,8 @@
 
 > 前段の[single-use coordinator handoff](./blog-shogi-floodgate-v7-checkpoint-handoff.md)はexact production coordinatorからcheckpoint用operationを一度だけ投影し、[opaque key bridge](./blog-shogi-floodgate-v7-checkpoint-key-bridge.md)はfixed deployment rootを公開せずV3専用key capabilityをcheckpoint sinkへ渡せるようにした。しかし、active [stage lease](./blog-shogi-floodgate-teacher-stage-authorization.md)、[authenticated training rows](./blog-shogi-floodgate-training-row-consumer.md)、[consumer postflight](./blog-shogi-floodgate-consumer-postflight-capability.md)、[V3 milestone checkpoint](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.md)を同じproduction ownershipへ閉じる入口はまだなかった。historical connector v1はそれらを合成し、最初にmetadata-only deployment-key readinessを検査した。現行v2はreadiness前に[approved enrollment](./blog-shogi-floodgate-v7-approved-key-enrollment-control-plane.md)を同期claimし、caller-supplied expected-ID authorityを除く。どちらもproduction gateの実行、teacher label、学習、weight、live評価関数、対局、棋力の結果ではない。English version: [blog-shogi-floodgate-v7-production-checkpoint-connector.en.md](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md)
 
+> **2026-07-16 current update:** [checkpoint failure-state hardening](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.md)は、primary failureのpayloadと明示的なobserved stateを分離し、sink rejectionはPromise settlement branchで観測して、sink呼出し後の全failureをcheckpoint reconciliationへ送る。以下のPR #456 / #463 validation値はhistorical evidenceのまま保持し、今回のrevisionの値として数え直さない。
+
 ---
 
 ## 1. historical v1境界とcurrent v2 delta
@@ -154,21 +156,23 @@ resourceを「変数が見えるか」ではなく、「誰がterminal cleanup�
 
 public errorはraw causeを返さず、operation phase、readiness status、checkpoint persistence可能性、cleanup failure count、retry dispositionだけを持つ。
 
-| phase / case                             | parent search / checkpoint      | cleanup                                                 | public disposition                                  |
-| ---------------------------------------- | ------------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
-| `capture` failure                        | 0 / 0                           | resourceなし、capability未claim                         | `fresh-invocation-required`                         |
-| `enrollment` claim / origin failure      | 0 / 0                           | runtime resourceなし、actual key authority未open        | `fresh-invocation-required`                         |
-| `readiness`: `not-provisioned`           | 0 / 0                           | resourceなし                                            | `provision-required`                                |
-| `readiness`: `unsafe`                    | 0 / 0                           | resourceなし                                            | `operator-reconciliation-required`                  |
-| `coordinator-stage` failure              | parent search 0                 | fulfilled / late-captured側をclose / abort              | 常に`operator-reconciliation-required`              |
-| `handoff` failure                        | checkpoint 0                    | lease close + coordinator abort                         | cleanup成功なら`fresh-invocation-required`          |
-| `key-prepare` failure                    | consumer / checkpoint 0         | 取得済みkeyのdiscard + lease close + coordinator abort  | private detailを出さずoperator reconciliation       |
-| `key-instance` actual-authority mismatch | consumer / checkpoint 0         | key discard + lease close + coordinator abort           | mismatch内容を出さずoperator reconciliation         |
-| `consumer` failure before sink           | checkpoint 0                    | key discard + lease close + coordinator abort           | cleanup成功なら`fresh-invocation-required`          |
-| `checkpoint` failure                     | success receipt 0               | sink cleanup + connector close join + coordinator abort | persisted可能性でfresh / reconciliationを分岐       |
-| `postflight` failure                     | checkpointがpersist済みの可能性 | key / lease / coordinatorを全てsettle                   | `checkpoint-reconciliation-required`になり得る      |
-| `cleanup` failure                        | success receipt 0               | remaining terminalを全部試す                            | countだけを出しoperator / checkpoint reconciliation |
-| `receipt` projection failure             | public success receipt 0        | key / lease / coordinatorはsettle済み                   | checkpoint reconciliation                           |
+| phase / case                             | parent search / checkpoint        | cleanup                                                 | public disposition                                  |
+| ---------------------------------------- | --------------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
+| `capture` failure                        | 0 / 0                             | resourceなし、capability未claim                         | `fresh-invocation-required`                         |
+| `enrollment` claim / origin failure      | 0 / 0                             | runtime resourceなし、actual key authority未open        | `fresh-invocation-required`                         |
+| `readiness`: `not-provisioned`           | 0 / 0                             | resourceなし                                            | `provision-required`                                |
+| `readiness`: `unsafe`                    | 0 / 0                             | resourceなし                                            | `operator-reconciliation-required`                  |
+| `coordinator-stage` failure              | parent search 0                   | fulfilled / late-captured側をclose / abort              | 常に`operator-reconciliation-required`              |
+| `handoff` failure                        | checkpoint 0                      | lease close + coordinator abort                         | cleanup成功なら`fresh-invocation-required`          |
+| `key-prepare` failure                    | consumer / checkpoint 0           | 取得済みkeyのdiscard + lease close + coordinator abort  | private detailを出さずoperator reconciliation       |
+| `key-instance` actual-authority mismatch | consumer / checkpoint 0           | key discard + lease close + coordinator abort           | mismatch内容を出さずoperator reconciliation         |
+| `consumer` failure before sink           | checkpoint 0                      | key discard + lease close + coordinator abort           | cleanup成功なら`fresh-invocation-required`          |
+| `checkpoint` failure                     | sink呼出し済み、success receipt 0 | sink cleanup + connector close join + coordinator abort | 必ず`checkpoint-reconciliation-required`            |
+| `postflight` failure                     | checkpointがpersist済みの可能性   | key / lease / coordinatorを全てsettle                   | 必ず`checkpoint-reconciliation-required`            |
+| `cleanup` failure                        | success receipt 0                 | remaining terminalを全部試す                            | countだけを出しoperator / checkpoint reconciliation |
+| `receipt` projection failure             | public success receipt 0          | key / lease / coordinatorはsettle済み                   | checkpoint reconciliation                           |
+
+sink呼出し前のfailureはphaseとcleanup結果に応じてfreshになり得るが、呼出し直前にcheckpoint persistence可能性をtrueへ固定するため、呼出し後のfailureはpayloadやPromise shapeに関係なく必ずreconciliationを要求する。coordinatorのclose / `abortAndDrain`はraw primary値ではなく明示的なobserved-primary bitで決める。raw failure payload自体は`undefined`でもよいがfailure stateは残り、publicには出ない。
 
 test coreだけは`observeFailureForTests`へraw primary / cleanup failuresを渡せる。これはfault-injection assertion用であり、production dependency tableでは`undefined`に固定する。production public errorには`cause`、`primary`、cleanup Error、path、row、key materialを含めない。
 

@@ -9,6 +9,7 @@ import { types as nodeUtilTypes } from "node:util";
 
 import {
   FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_APPROVAL_METHOD,
+  FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_MAX_RECORD_BYTES,
   claimFloodgateV7ApprovedKeyEnrollment,
   claimFloodgateV7ApprovedKeyEnrollmentCoreForTests,
   loadFloodgateV7ApprovedKeyEnrollment,
@@ -40,14 +41,22 @@ export const FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CLAIM_BOUNDARY =
   "read-only-memory-only-approved-record-to-fresh-current-key-binding-diagnostic-without-exported-sensitive-values-or-authority-v1" as const;
 export const FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_ALGORITHM =
   "approved-record-to-fresh-current-key-eight-field-strict-equality-v1" as const;
+export const FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT =
+  "shogi-floodgate-v7-approved-key-expected-current-binding-preflight-v1" as const;
+export const FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_STATUS =
+  "reloaded-approved-record-current-key-and-private-expected-binding-exactly-match" as const;
+export const FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CLAIM_BOUNDARY =
+  "read-only-memory-only-reloaded-approved-record-to-fresh-current-key-and-caller-held-private-expected-binding-diagnostic-without-exported-sensitive-values-or-authority-v1" as const;
+export const FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_ALGORITHM =
+  "approved-record-to-fresh-current-key-eight-field-plus-private-expected-record-three-field-strict-equality-v1" as const;
 
 export type FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary =
   | "production-fixed-current-euid-userinfo-home-approved-record-current-key-binding"
   | "test-only-injected-current-euid-home-approved-record-current-key-binding";
 
 export interface FloodgateV7ApprovedKeyCurrentBindingReceipt<
-  TBoundary extends
-    FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary = FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
+  TBoundary extends FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary =
+    FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
 > {
   readonly contract: typeof FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CONTRACT;
   readonly status: typeof FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_STATUS;
@@ -64,6 +73,52 @@ export interface FloodgateV7ApprovedKeyCurrentBindingReceipt<
   }>;
   readonly nonclaims: Readonly<{
     readonly single_use_capability_returned: false;
+    readonly approved_claim_returned: false;
+    readonly approval_created: false;
+    readonly record_created_or_written: false;
+    readonly key_created_or_written: false;
+    readonly run_authority: false;
+    readonly stage_authority: false;
+    readonly connector_authority: false;
+    readonly checkpoint_key_capability: false;
+    readonly checkpoint: false;
+    readonly runtime: false;
+    readonly dataset_read: false;
+    readonly teacher_label: false;
+    readonly training: false;
+    readonly weight: false;
+    readonly live_evaluation_activation: false;
+    readonly match: false;
+    readonly playing_strength: false;
+  }>;
+}
+
+export interface FloodgateV7ApprovedKeyExpectedBinding {
+  readonly recordBytes: number;
+  readonly recordSha256: string;
+  readonly keyInstanceId: string;
+}
+
+export interface FloodgateV7ApprovedKeyExpectedCurrentBindingReceipt<
+  TBoundary extends FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary =
+    FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
+> {
+  readonly contract: typeof FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CLAIM_BOUNDARY;
+  readonly execution_boundary: TBoundary;
+  readonly algorithm: typeof FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_ALGORITHM;
+  readonly verification: Readonly<{
+    readonly approved_record_reloaded_and_validated: true;
+    readonly current_key_freshly_inspected: true;
+    readonly approved_to_current_exact_binding_match: true;
+    readonly reloaded_approved_to_private_expected_exact_match: true;
+    readonly held_descriptors_revalidated: true;
+    readonly memory_only: true;
+    readonly sensitive_values_exported: false;
+  }>;
+  readonly nonclaims: Readonly<{
+    readonly expected_binding_returned: false;
     readonly approved_claim_returned: false;
     readonly approval_created: false;
     readonly record_created_or_written: false;
@@ -103,6 +158,7 @@ export type FloodgateV7ApprovedKeyCurrentBindingPhase =
   | "approved-record-load"
   | "current-key-inspection"
   | "approved-record-claim"
+  | "expected-binding"
   | "comparison"
   | "receipt";
 
@@ -152,6 +208,11 @@ type BindingIdentity = Readonly<{
   readonly keyInstanceId: string;
 }>;
 
+type ApprovedExpectedSnapshot = Readonly<{
+  readonly identity: Readonly<BindingIdentity>;
+  readonly expected: Readonly<FloodgateV7ApprovedKeyExpectedBinding>;
+}>;
+
 const NativeError = Error;
 const NativePromise = Promise;
 const objectCreate = Object.create;
@@ -170,6 +231,7 @@ const pathIsAbsolute = path.isAbsolute.bind(path);
 const pathParse = path.parse.bind(path);
 const pathResolve = path.resolve.bind(path);
 const KEY_INSTANCE_RE = /^[0-9a-f]{64}$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
 const DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 
 const CURRENT_RECEIPT_KEYS = objectFreeze([
@@ -338,6 +400,43 @@ function keyInstanceId(value: unknown, label: string): string {
   return value;
 }
 
+function recordBytes(value: unknown, label: string): number {
+  if (
+    typeof value !== "number" ||
+    !numberIsSafeInteger(value) ||
+    value < 2 ||
+    value > FLOODGATE_V7_APPROVED_KEY_ENROLLMENT_MAX_RECORD_BYTES
+  ) {
+    throw new NativeError(`${label} is invalid`);
+  }
+  return value;
+}
+
+function sha256(value: unknown, label: string): string {
+  if (typeof value !== "string" || !SHA256_RE.test(value)) {
+    throw new NativeError(`${label} is invalid`);
+  }
+  return value;
+}
+
+function captureExpectedBinding(
+  value: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+): Readonly<FloodgateV7ApprovedKeyExpectedBinding> {
+  const expected = exactFrozenRecord(
+    value,
+    ["keyInstanceId", "recordBytes", "recordSha256"],
+    "private expected binding",
+  );
+  return frozenRecord({
+    recordBytes: recordBytes(expected.recordBytes, "expected record bytes"),
+    recordSha256: sha256(expected.recordSha256, "expected record digest"),
+    keyInstanceId: keyInstanceId(
+      expected.keyInstanceId,
+      "expected key instance",
+    ),
+  });
+}
+
 function captureDependencies(
   value: FloodgateV7ApprovedKeyCurrentBindingDependenciesForTests,
 ): CapturedDependencies {
@@ -454,6 +553,33 @@ function captureApprovedIdentity(
       claim.key_instance_id,
       "approved key instance",
     ),
+  });
+}
+
+function captureApprovedExpectedSnapshot(
+  claimValue: Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>,
+  expectedBoundary:
+    | "production-fixed-current-euid-userinfo-home-control-plane-record"
+    | "test-only-injected-current-euid-home-control-plane-record",
+): Readonly<ApprovedExpectedSnapshot> {
+  const identity = captureApprovedIdentity(claimValue, expectedBoundary);
+  const claim = exactFrozenRecord(
+    claimValue,
+    APPROVED_CLAIM_KEYS,
+    "approved claim",
+  );
+  const record = exactFrozenRecord(
+    claim.record,
+    ["bytes", "sha256"],
+    "approved record",
+  );
+  return frozenRecord({
+    identity,
+    expected: frozenRecord({
+      recordBytes: recordBytes(record.bytes, "approved record bytes"),
+      recordSha256: sha256(record.sha256, "approved record digest"),
+      keyInstanceId: identity.keyInstanceId,
+    }),
   });
 }
 
@@ -592,6 +718,17 @@ function sameBinding(
   );
 }
 
+function sameExpectedBinding(
+  expected: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+  actual: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+): boolean {
+  return (
+    expected.recordBytes === actual.recordBytes &&
+    expected.recordSha256 === actual.recordSha256 &&
+    expected.keyInstanceId === actual.keyInstanceId
+  );
+}
+
 function buildReceipt<
   TBoundary extends FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
 >(
@@ -613,6 +750,50 @@ function buildReceipt<
     }),
     nonclaims: frozenRecord({
       single_use_capability_returned: false as const,
+      approved_claim_returned: false as const,
+      approval_created: false as const,
+      record_created_or_written: false as const,
+      key_created_or_written: false as const,
+      run_authority: false as const,
+      stage_authority: false as const,
+      connector_authority: false as const,
+      checkpoint_key_capability: false as const,
+      checkpoint: false as const,
+      runtime: false as const,
+      dataset_read: false as const,
+      teacher_label: false as const,
+      training: false as const,
+      weight: false as const,
+      live_evaluation_activation: false as const,
+      match: false as const,
+      playing_strength: false as const,
+    }),
+  });
+}
+
+function buildExpectedReceipt<
+  TBoundary extends FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
+>(
+  boundary: TBoundary,
+): Readonly<FloodgateV7ApprovedKeyExpectedCurrentBindingReceipt<TBoundary>> {
+  return frozenRecord({
+    contract: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT,
+    status: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CLAIM_BOUNDARY,
+    execution_boundary: boundary,
+    algorithm: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_ALGORITHM,
+    verification: frozenRecord({
+      approved_record_reloaded_and_validated: true as const,
+      current_key_freshly_inspected: true as const,
+      approved_to_current_exact_binding_match: true as const,
+      reloaded_approved_to_private_expected_exact_match: true as const,
+      held_descriptors_revalidated: true as const,
+      memory_only: true as const,
+      sensitive_values_exported: false as const,
+    }),
+    nonclaims: frozenRecord({
+      expected_binding_returned: false as const,
       approved_claim_returned: false as const,
       approval_created: false as const,
       record_created_or_written: false as const,
@@ -698,6 +879,84 @@ async function verifyInternal<
   }
 }
 
+async function verifyExpectedInternal<
+  TBoundary extends FloodgateV7ApprovedKeyCurrentBindingExecutionBoundary,
+>(
+  expectedValue: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+  boundary: TBoundary,
+  approvedBoundary:
+    | "production-fixed-current-euid-userinfo-home-control-plane-record"
+    | "test-only-injected-current-euid-home-control-plane-record",
+  currentBoundary:
+    | "production-fixed-current-euid-userinfo-home-key-instance-inspection"
+    | "test-only-injected-current-euid-home-key-instance-inspection",
+  loadApproved: () => Promise<
+    Readonly<FloodgateV7ApprovedKeyEnrollmentCapability>
+  >,
+  claimApproved: (
+    capability: FloodgateV7ApprovedKeyEnrollmentCapability,
+  ) => Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>,
+  inspectCurrent: () => Promise<
+    Readonly<FloodgateV7DeploymentKeyInstanceEnrollmentCandidateReceipt>
+  >,
+): Promise<
+  Readonly<FloodgateV7ApprovedKeyExpectedCurrentBindingReceipt<TBoundary>>
+> {
+  let expected: Readonly<FloodgateV7ApprovedKeyExpectedBinding>;
+  try {
+    expected = captureExpectedBinding(expectedValue);
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError("expected-binding");
+  }
+
+  let capability: Readonly<FloodgateV7ApprovedKeyEnrollmentCapability>;
+  try {
+    capability = await loadApproved();
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError("approved-record-load");
+  }
+
+  let currentReceipt: Readonly<FloodgateV7DeploymentKeyInstanceEnrollmentCandidateReceipt>;
+  try {
+    currentReceipt = await inspectCurrent();
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError(
+      "current-key-inspection",
+    );
+  }
+
+  let approvedClaim: Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>;
+  try {
+    approvedClaim = claimApproved(capability);
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError(
+      "approved-record-claim",
+    );
+  }
+
+  try {
+    const approved = captureApprovedExpectedSnapshot(
+      approvedClaim,
+      approvedBoundary,
+    );
+    const current = captureCurrentIdentity(currentReceipt, currentBoundary);
+    if (!sameBinding(approved.identity, current)) {
+      throw new NativeError("reloaded approved and current binding differ");
+    }
+    if (!sameExpectedBinding(expected, approved.expected)) {
+      throw new NativeError("reloaded approved and private expected differ");
+    }
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError("expected-binding");
+  }
+
+  try {
+    return buildExpectedReceipt(boundary);
+  } catch {
+    throw new FloodgateV7ApprovedKeyCurrentBindingError("receipt");
+  }
+}
+
 /** Test-only injected-home verifier with an optional test inspector seam. */
 export function verifyFloodgateV7ApprovedKeyCurrentBindingCoreForTests(
   dependenciesValue: FloodgateV7ApprovedKeyCurrentBindingDependenciesForTests,
@@ -742,6 +1001,67 @@ export function verifyFloodgateV7ApprovedKeyCurrentBinding(): Promise<
     return rejected(new FloodgateV7ApprovedKeyCurrentBindingError("capture"));
   }
   return verifyInternal(
+    "production-fixed-current-euid-userinfo-home-approved-record-current-key-binding",
+    "production-fixed-current-euid-userinfo-home-control-plane-record",
+    "production-fixed-current-euid-userinfo-home-key-instance-inspection",
+    loadFloodgateV7ApprovedKeyEnrollment,
+    claimFloodgateV7ApprovedKeyEnrollment,
+    inspectFloodgateV7DeploymentKeyInstance,
+  );
+}
+
+/** Test-only expected-binding verifier for preflight composition. */
+export function verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpectedCoreForTests(
+  expectedValue: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+  dependenciesValue: FloodgateV7ApprovedKeyCurrentBindingDependenciesForTests,
+): Promise<
+  Readonly<
+    FloodgateV7ApprovedKeyExpectedCurrentBindingReceipt<"test-only-injected-current-euid-home-approved-record-current-key-binding">
+  >
+> {
+  if (arguments.length !== 2) {
+    return rejected(new FloodgateV7ApprovedKeyCurrentBindingError("capture"));
+  }
+  let dependencies: CapturedDependencies;
+  try {
+    dependencies = captureDependencies(dependenciesValue);
+  } catch {
+    return rejected(new FloodgateV7ApprovedKeyCurrentBindingError("capture"));
+  }
+  const sharedDependencies = frozenRecord({
+    effectiveUserId: dependencies.effectiveUserId,
+    homeDirectory: dependencies.homeDirectory,
+  });
+  return verifyExpectedInternal(
+    expectedValue,
+    "test-only-injected-current-euid-home-approved-record-current-key-binding",
+    "test-only-injected-current-euid-home-control-plane-record",
+    "test-only-injected-current-euid-home-key-instance-inspection",
+    () => loadFloodgateV7ApprovedKeyEnrollmentCoreForTests(sharedDependencies),
+    claimFloodgateV7ApprovedKeyEnrollmentCoreForTests,
+    () =>
+      reflectApply(dependencies.inspectCurrentKey, undefined, [
+        sharedDependencies,
+      ]),
+  );
+}
+
+/**
+ * Production preflight verifier. The private expected binding is compared to
+ * a fresh approved-record reload and is never included in the receipt.
+ */
+export function verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpected(
+  expectedValue: Readonly<FloodgateV7ApprovedKeyExpectedBinding>,
+): Promise<
+  Readonly<
+    FloodgateV7ApprovedKeyExpectedCurrentBindingReceipt<"production-fixed-current-euid-userinfo-home-approved-record-current-key-binding">
+  >
+> {
+  if (arguments.length !== 1) {
+    return rejected(new FloodgateV7ApprovedKeyCurrentBindingError("capture"));
+  }
+  return verifyExpectedInternal(
+    expectedValue,
     "production-fixed-current-euid-userinfo-home-approved-record-current-key-binding",
     "production-fixed-current-euid-userinfo-home-control-plane-record",
     "production-fixed-current-euid-userinfo-home-key-instance-inspection",

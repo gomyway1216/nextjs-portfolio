@@ -709,12 +709,20 @@ const PRODUCTION_PLAN_REGISTRY = new WeakMap<
 const PRODUCTION_PLAN_KNOWN = new WeakSet<
   Readonly<FloodgateV7TrainingLabelFinalizationPlan>
 >();
+const PRODUCTION_PLAN_DISCARDS = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
+  Promise<void>
+>();
 const TEST_PRODUCTION_PLAN_REGISTRY = new WeakMap<
   Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
   Readonly<HiddenProductionPlan>
 >();
 const TEST_PRODUCTION_PLAN_KNOWN = new WeakSet<
   Readonly<FloodgateV7TrainingLabelProductionPlanForTests>
+>();
+const TEST_PRODUCTION_PLAN_DISCARDS = new WeakMap<
+  Readonly<FloodgateV7TrainingLabelProductionPlanForTests>,
+  Promise<void>
 >();
 const MANUAL_CONTENT_FAILURES = new WeakSet<object>();
 
@@ -1648,25 +1656,11 @@ const PRODUCTION_SCANNER_PLAN_BOUNDARY: Readonly<
 
 async function rejectAfterPlanComposerCaptureFailure(
   primary: unknown,
-  lease: Readonly<FloodgateTeacherStageLease>,
 ): Promise<never> {
-  const cleanupFailures: unknown[] = [];
-  try {
-    await lease.close();
-  } catch (error) {
-    appendArrayValue(cleanupFailures, error);
-  }
-  if (cleanupFailures.length > 0) {
-    const failures: unknown[] = [];
-    appendArrayValue(failures, primary);
-    for (let index = 0; index < cleanupFailures.length; index += 1) {
-      appendArrayValue(failures, cleanupFailures[index]);
-    }
-    throw new AggregateError(
-      failures,
-      "plan composer capture and authority cleanup both failed",
-    );
-  }
+  // No scanner publication transaction exists yet, so this boundary has not
+  // accepted ownership of the caller's lease. Calling a copied `close`
+  // closure here could consume the genuine authority behind a cloned or
+  // cross-boundary facade. Leave every unclaimed lease to its owner.
   throw primary;
 }
 
@@ -1695,7 +1689,7 @@ export function createFloodgateV7TrainingLabelFinalizationPlan(
     ) as Readonly<FloodgateV7TeacherCheckpointRunBinding>;
   } catch (error) {
     return sanitizeProductionOperation(
-      rejectAfterPlanComposerCaptureFailure(error, lease),
+      rejectAfterPlanComposerCaptureFailure(error),
       "plan-composition",
     );
   }
@@ -1758,7 +1752,7 @@ export function createFloodgateV7TrainingLabelProductionPlanCoreForTests(
       "test production plan run binding",
     ) as Readonly<FloodgateV7TeacherCheckpointRunBinding>;
   } catch (error) {
-    return rejectAfterPlanComposerCaptureFailure(error, lease);
+    return rejectAfterPlanComposerCaptureFailure(error);
   }
   const accumulator = productionTrainingAccumulator();
   const opened = createFloodgateV7TrainingLabelSealedScannerCoreForTests(
@@ -1789,6 +1783,9 @@ function takeProductionPlan(
   ) {
     fail("production finalization requires the exact opaque production plan");
   }
+  if (weakMapGet(PRODUCTION_PLAN_DISCARDS, value) !== undefined) {
+    fail("production finalization plan discard is active or indeterminate");
+  }
   const plan = weakMapGet(PRODUCTION_PLAN_REGISTRY, value);
   if (plan === undefined || !weakMapDelete(PRODUCTION_PLAN_REGISTRY, value)) {
     fail(
@@ -1807,6 +1804,9 @@ function takeTestProductionPlan(
     nodeUtilTypes.isProxy(value)
   ) {
     fail("test production finalization requires its exact opaque plan");
+  }
+  if (weakMapGet(TEST_PRODUCTION_PLAN_DISCARDS, value) !== undefined) {
+    fail("test production plan discard is active or indeterminate");
   }
   const plan = weakMapGet(TEST_PRODUCTION_PLAN_REGISTRY, value);
   if (
@@ -1834,12 +1834,20 @@ export async function discardFloodgateV7TrainingLabelFinalizationPlan(
     ) {
       fail("production plan discard requires an exact known production plan");
     }
-    const plan = weakMapGet(PRODUCTION_PLAN_REGISTRY, value);
-    if (plan === undefined) return;
-    if (!weakMapDelete(PRODUCTION_PLAN_REGISTRY, value)) {
-      fail("production plan discard could not consume its exact plan");
+    let discard = weakMapGet(PRODUCTION_PLAN_DISCARDS, value);
+    if (discard === undefined) {
+      const plan = weakMapGet(PRODUCTION_PLAN_REGISTRY, value);
+      if (plan === undefined) return;
+      discard = discardFloodgateV7TrainingLabelSealedScanner(plan.scanner);
+      // Keep both the hidden plan and this exact Promise until cleanup
+      // succeeds. A close/abort failure leaves the scanner indeterminate; all
+      // later discards must observe that remembered rejection, never an
+      // idempotent-looking success caused by an early registry deletion.
+      weakMapSet(PRODUCTION_PLAN_DISCARDS, value, discard);
     }
-    await discardFloodgateV7TrainingLabelSealedScanner(plan.scanner);
+    await discard;
+    weakMapDelete(PRODUCTION_PLAN_REGISTRY, value);
+    weakMapDelete(PRODUCTION_PLAN_DISCARDS, value);
   } catch (error) {
     throw sanitizeProductionFailure(error, "plan-discard");
   }
@@ -1860,12 +1868,18 @@ export async function discardFloodgateV7TrainingLabelProductionPlanCoreForTests(
   ) {
     fail("test production plan discard requires an exact known test plan");
   }
-  const plan = weakMapGet(TEST_PRODUCTION_PLAN_REGISTRY, value);
-  if (plan === undefined) return;
-  if (!weakMapDelete(TEST_PRODUCTION_PLAN_REGISTRY, value)) {
-    fail("test production plan discard could not consume its exact plan");
+  let discard = weakMapGet(TEST_PRODUCTION_PLAN_DISCARDS, value);
+  if (discard === undefined) {
+    const plan = weakMapGet(TEST_PRODUCTION_PLAN_REGISTRY, value);
+    if (plan === undefined) return;
+    discard = discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      plan.scanner,
+    );
+    weakMapSet(TEST_PRODUCTION_PLAN_DISCARDS, value, discard);
   }
-  await discardFloodgateV7TrainingLabelSealedScannerCoreForTests(plan.scanner);
+  await discard;
+  weakMapDelete(TEST_PRODUCTION_PLAN_REGISTRY, value);
+  weakMapDelete(TEST_PRODUCTION_PLAN_DISCARDS, value);
 }
 
 function captureTestInvocation(

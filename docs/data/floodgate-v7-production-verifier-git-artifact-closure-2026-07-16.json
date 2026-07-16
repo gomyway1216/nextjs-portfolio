@@ -1,0 +1,244 @@
+{
+  "schema": "shogi-floodgate-v7-production-verifier-git-artifact-closure-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-candidate-only",
+    "implementation_revision": "9f647bef3568634f3b3c7634fb66a79ffa090723",
+    "production_state_freshly_observed_for_this_change": false,
+    "production_namespace_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_gate_invocation_authorized_by_this_evidence": false,
+    "local_source_or_test_execution_counted_as_production_execution": false
+  },
+  "prerequisite_delivery": {
+    "pull_request": 473,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/473",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "7e4a4a9ffe5960a013d409f886d73e6041c7789e"
+  },
+  "current_delivery": {
+    "pull_request": 474,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/474",
+    "state": "ready-open",
+    "implementation_revision": "9f647bef3568634f3b3c7634fb66a79ffa090723",
+    "continuous_integration": "in-progress-on-review-fix-head-before-evidence-refresh",
+    "review": "two-copilot-comments-fixed-replied-resolved-zero-unresolved-gemini-zero-actionable",
+    "merge": "pending-regular-merge-required"
+  },
+  "revision_closure": {
+    "independent_verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+    "receipt_producer_revision": "0f3cadb76ec46eb82d5bc9623277525ce1d2252b",
+    "production_verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "independent_verifier_is_receipt_producer_ancestor": true,
+    "receipt_producer_is_production_verifier_ancestor": true,
+    "exact_production_verifier_head_required": true,
+    "standard_git_ignore_rules_used": true,
+    "ignored_entries_in_closure": false,
+    "special_index_flags_accepted": false
+  },
+  "tracked_source_tree": {
+    "blob_count": 1431,
+    "bytes_per_pass": 21322485,
+    "minimum_passes": 2,
+    "minimum_bytes_read": 42644970,
+    "all_tracked_modes_checked": true,
+    "all_tracked_bytes_checked": true,
+    "check_is_metadata_only": false
+  },
+  "pinned_artifact_closure": {
+    "artifact_count": 7,
+    "bytes_per_set": 37775,
+    "worktree_passes": 2,
+    "worktree_bytes_read": 75550,
+    "producer_git_blob_passes": 1,
+    "producer_git_blob_bytes_read": 37775,
+    "minimum_total_artifact_bytes_read": 113325,
+    "before_after_snapshot_identity_and_bytes_compared": true,
+    "receipt_and_execution_evidence_validated": true,
+    "external_role_bundle_files_read": 0,
+    "full_role_bundle_verifier_runs": 0
+  },
+  "readiness_identity_boundary": {
+    "operator_repository_override_accepted": false,
+    "operator_revision_override_accepted": false,
+    "identity_binding_claims_per_receipt": 1,
+    "identity_binding_replay_accepted": false,
+    "identity_value_exported": false,
+    "path_value_exported": false,
+    "filesystem_identity_value_exported": false,
+    "private_digest_value_exported": false
+  },
+  "contracts": {
+    "readiness": "shogi-floodgate-v7-production-connector-verifier-readiness-v1",
+    "registry_provisioner_success": "shogi-floodgate-v7-production-connector-registry-provisioner-v2",
+    "registry_provisioning_cli_failure": "shogi-floodgate-v7-production-connector-registry-provision-failure-v2",
+    "prefix_100_preflight": "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2",
+    "prefix_100_preflight_claim_boundary_version": 2,
+    "prefix_100_preflight_under_lock_outcome": "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+    "prefix_100_preflight_cli_success": "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v2",
+    "prefix_100_preflight_cli_failure": "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v2",
+    "legacy_v1_consumer_receipts_accepted_as_current_success": false,
+    "verifier_readiness_failure_phase_added": true,
+    "provisioner_closure_checked_before_install_field_added": true,
+    "preflight_closure_rechecked_field_added": true
+  },
+  "execution_order": {
+    "provisioner_readiness_before_current_binding": true,
+    "provisioner_readiness_before_approved_enrollment": true,
+    "provisioner_readiness_before_entropy": true,
+    "provisioner_readiness_before_create_only_install": true,
+    "preflight_readiness_after_fixed_registry_claim": true,
+    "preflight_readiness_before_runs_namespace_check": true,
+    "preflight_readiness_before_deployment_key_check": true,
+    "readiness_failure_registry_creations": 0,
+    "readiness_failure_gate_invocations": 0
+  },
+  "performance_observations": {
+    "historical_full_verifier_accepted": {
+      "status": "accepted",
+      "wall_seconds": 1045.52,
+      "maximum_rss_bytes": 5629476864
+    },
+    "historical_full_verifier_confirmation": {
+      "status": "accepted",
+      "wall_seconds": 1089.52,
+      "maximum_rss_bytes": 5492424704
+    },
+    "current_read_only_git_artifact_closure": {
+      "status": "accepted",
+      "bounded_read_repair_included": true,
+      "same_clean_verifier_worktree": true,
+      "runs": [
+        {
+          "exit_code": 0,
+          "wall_seconds": 0.68,
+          "maximum_rss_bytes": 179748864,
+          "swaps": 0,
+          "block_output_operations": 0
+        },
+        {
+          "exit_code": 0,
+          "wall_seconds": 0.53,
+          "maximum_rss_bytes": 186564608,
+          "swaps": 0,
+          "block_output_operations": 0
+        },
+        {
+          "exit_code": 0,
+          "wall_seconds": 0.53,
+          "maximum_rss_bytes": 186368000,
+          "swaps": 0,
+          "block_output_operations": 0
+        }
+      ],
+      "external_role_bundle_files_read": 0,
+      "full_role_bundle_verifier_runs": 0,
+      "persistent_content_or_namespace_write_operations": 0
+    },
+    "git_artifact_closure_equivalent_to_full_verifier": false,
+    "git_artifact_closure_replaces_full_verifier": false
+  },
+  "validation": {
+    "validation_candidate_revision": "5daa3128eedad8f2697af14569cf36c00825c2a4",
+    "validated_code_revision": "4b9a99781c6b20ce8e5365ebbae57ee46eae2890",
+    "full_vitest": {
+      "status": "pass",
+      "files": 149,
+      "tests": 2794,
+      "passed": 2794,
+      "failed": 0,
+      "vitest_duration_seconds": 155.41,
+      "wall_seconds": 155.9,
+      "maximum_rss_bytes": 4373233664,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "static_pages": 193,
+      "passed": 193,
+      "failed": 0,
+      "wall_seconds": 36.6,
+      "maximum_rss_bytes": 2605105152,
+      "swaps": 0
+    },
+    "ml_stdlib": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0
+    },
+    "focused_evidence_vitest": {
+      "status": "pass",
+      "files": 1,
+      "tests": 9,
+      "passed": 9,
+      "failed": 0
+    },
+    "review_fix_head": {
+      "revision": "9f647bef3568634f3b3c7634fb66a79ffa090723",
+      "focused_git_and_receipt_files": 2,
+      "focused_git_and_receipt_tests": 29,
+      "focused_git_and_receipt_passed": 29,
+      "focused_git_and_receipt_failed": 0,
+      "typescript": "pass"
+    }
+  },
+  "production_execution_for_this_change": {
+    "production_commands": 0,
+    "production_registry_provisions": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "current_production_evaluator": "runOp1",
+    "current_rollback_evaluator": "runOp1",
+    "live_weight_changed": false,
+    "playing_strength_changed_by_this_evidence": false,
+    "stable_high_dan_claimed": false,
+    "formal_ab_plan": "192 color-swapped pairs / 384 games",
+    "formal_ab_color_swapped_pairs": 192,
+    "formal_ab_total_games": 384,
+    "external_calibration_games_required": 200
+  },
+  "privacy": {
+    "absolute_local_path_values_included": false,
+    "numeric_user_identity_values_included": false,
+    "filesystem_identity_values_included": false,
+    "private_digest_values_included": false,
+    "sixty_four_hex_values_included": false,
+    "private_configuration_values_included": false
+  },
+  "nonclaims": {
+    "metadata_only_closure_claimed": false,
+    "access_time_invariance_claimed": false,
+    "atomic_filesystem_snapshot_claimed": false,
+    "arbitrary_same_user_process_isolation_claimed": false,
+    "production_registry_ready": false,
+    "production_gate_completed": false,
+    "teacher_labels_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

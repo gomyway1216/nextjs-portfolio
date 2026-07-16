@@ -14,7 +14,7 @@
 | production execution | 今回は全て0                                  | registry provision、kill-drill、prefix-100もまだ実行しない          |
 | evaluator            | runOp1のまま                                 | 棋力改善や高段到達の証拠ではない                                    |
 
-この候補はready-for-reviewのPR #472として公開済みで、authoritative local validationは完了した。この記事と[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)は、GitHub CIとreviewだけを未完として分離する。
+この候補はready-for-reviewのPR #472として公開済みである。review修正後の実装head `da7e9dd`ではGitHubのreported check 6 / 6（required status check 2 / 2を含む）がPASSし、actionable review 5件は全て対応してunresolved threadは0になった。この記事と[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)を更新するdocs-only headは、改めてCIを通すまでpendingとして分離する。
 
 ## 2. PR #471が閉じた前提条件
 
@@ -87,13 +87,13 @@ prefix-100 success receiptだけにrunner-promoted continuity confirmationを追
 
 exact Node v22.13.0の安定したsource候補で、focused 9 files・179 / 179 PASS（wall 2.80秒、maximum RSS 282,869,760 bytes、swap 0）と、default concurrencyのfull 147 files・2,734 / 2,734 PASS（wall 159.48秒、maximum RSS 4,307,124,224 bytes、swap 0）を完了した。production buildは193 / 193 pages（wall 40.61秒、maximum RSS 2,590,867,456 bytes、swap 0）、TypeScript、changed-scope ESLint、Prettier、diff checkもPASSした。ML stdlibは58 / 58、`npm audit`はvulnerability 0だった。最初のfull、build、ML、auditは4-wayで並行実行したため、wall timeはその同時負荷を含む。
 
-evidence更新後のdefault-concurrency確認runは、変更対象外の別々のsuiteで1件ずつ失敗した。1件目はstable-WASM workerの30秒startup timeout、2件目はstable proposal finalization fixtureのretry disposition差で、各suiteを直後に単独実行すると53 / 53、11 / 11でPASSした。これら2 runはauthoritativeへ数えない。resource contention仮説を再現可能な事実と混同しないため、classificationはnonfinal concurrency-flake candidateに留める。最終exact treeはworker上限8でfull 147 files・2,734 / 2,734 PASS（wall 150.96秒、maximum RSS 4,355,293,184 bytes、swap 0）を完了した。GitHubのrequired CIは別途default workflowで判定する。
+evidence更新後のdefault-concurrency確認runは、変更対象外の別々のsuiteで1件ずつ失敗した。1件目はstable-WASM workerの30秒startup timeout、2件目はstable proposal finalization fixtureのretry disposition差で、各suiteを直後に単独実行すると53 / 53、11 / 11でPASSした。これら2 runはauthoritativeへ数えない。resource contention仮説を再現可能な事実と混同しないため、classificationはnonfinal concurrency-flake candidateに留める。worker上限8のfull 147 files・2,734 / 2,734 PASS（wall 150.96秒、maximum RSS 4,355,293,184 bytes、swap 0）はhead `032a324`で実行時のexact treeだったが、その後review修正4ファイルを含む`da7e9dd`になったため、現在headのlocal full成功とは数えない。
 
-これはauthoritative local validationであり、GitHub CIやreviewの完了証拠ではない。現在のevidence statusは`authoritative-local-complete-required-darwin-ci-pending`である。
+`da7e9dd`ではreview修正後のfocused 5 files・80 / 80、TypeScript、ESLint error 0、PrettierがPASSした。同headのlocal fullはstable-WASM workerの同じ30秒startup timeoutだけで2,733 / 2,734となり（wall 170.59秒、maximum RSS 4,349,165,568 bytes、swap 0）、直後の単独runは53 / 53 PASSした。このlocal fullもauthoritative成功へ数えない。一方、独立GitHub環境の同じ`da7e9dd`ではUbuntu unitが147 files中144 PASS・3 Darwin skip、2,636 PASS・98 Darwin skip / 2,734、ML 58 / 58、build 193 / 193を完了し、Darwin same-lock jobもPASSした。reported checkは6 / 6、GitHub required status checkは2 / 2である。現在のevidence statusは`implementation-head-ci-green-evidence-refresh-head-pending`である。
 
 最低限のmatrixは、1 lock / ordering、preflight競合中のrunner block、NO-GO時mutation 0、key再読込差し替え、registry revalidation、single-use claim、postflight exact namespace / identity / SHA / record / close、500 / final非回帰、private value非漏えい、日英12章・duplicate JSON key・privacy・stale A/B値拒否を含む。
 
-same-lock ownerとreal-boundary integrationにはDarwin専用`runIf`があり、Ubuntu full suiteでskipされる経路をUbuntuのPASSだけでcover済みにしてはいけない。`.github/workflows/ci.yml`の`macos-latest` jobにある`Run Darwin prefix-100 same-lock one-shot adversarial tests` stepで、`tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts`と`tests/unit/ml/floodgateV7ProductionPrefix100RealBoundariesIntegration.test.ts`を同時に実行することをrequired CIとして固定する。このCIが未完ならfinal integrated validationは未完である。
+same-lock ownerとreal-boundary integrationにはDarwin専用`runIf`があり、Ubuntu full suiteでskipされる経路をUbuntuのPASSだけでcover済みにしてはいけない。`.github/workflows/ci.yml`の`macos-latest` jobにある`Run Darwin prefix-100 same-lock one-shot adversarial tests` stepで、`tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts`と`tests/unit/ml/floodgateV7ProductionPrefix100RealBoundariesIntegration.test.ts`を同時に実行することをrequired evidenceとして固定する。`da7e9dd`ではこのjobがPASS済みで、docs-only evidence refresh headでも再実行してからmergeする。
 
 ## 10. 今回のproduction実行とnonclaim
 

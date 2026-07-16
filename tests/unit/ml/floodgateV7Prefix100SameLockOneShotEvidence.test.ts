@@ -261,10 +261,11 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
       current_delivery: {
         pull_request: 472,
         url: "https://github.com/gomyway1216/nextjs-portfolio/pull/472",
-        state: "ready-open",
-        review_state: "ci-and-review-pending",
+        implementation_head: "da7e9dd73c37791bfb7f2fa38413112ac0843a6f",
+        state: "ready-open-evidence-refresh",
+        review_state: "five-actionable-threads-addressed-zero-unresolved",
         final_integrated_validation:
-          "authoritative-local-complete-required-darwin-ci-pending",
+          "implementation-head-all-reported-checks-green-review-threads-zero-evidence-refresh-head-pending",
         placeholder_fields_present: false,
       },
       same_lock_composition: {
@@ -375,7 +376,7 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
     });
 
     expect(evidence.validation).toMatchObject({
-      status: "authoritative-local-complete-required-darwin-ci-pending",
+      status: "implementation-head-ci-green-evidence-refresh-head-pending",
       exact_node_version: "v22.13.0",
       authoritative_focused_files: 9,
       authoritative_focused_tests_passed: 179,
@@ -385,7 +386,9 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
       authoritative_full_maximum_rss_bytes: 4355293184,
       authoritative_full_swaps: 0,
       authoritative_full_max_workers: 8,
-      authoritative_full_is_exact_final_tree: true,
+      authoritative_full_head: "032a324aa27ecd184399e1fc00bbb28e264f5081",
+      authoritative_full_was_exact_tree_at_execution: true,
+      authoritative_full_is_current_implementation_head: false,
       authoritative_production_build_static_pages: 193,
       typescript_passed: true,
       changed_scope_eslint_errors: 0,
@@ -397,6 +400,45 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
       npm_audit_vulnerabilities: 0,
       earlier_default_full_build_ml_and_audit_executed_four_way_in_parallel: true,
       intermediate_counts_used_as_authoritative_final_evidence: false,
+    });
+    expect(evidence.validation.post_review_local_confirmation).toEqual({
+      implementation_head: "da7e9dd73c37791bfb7f2fa38413112ac0843a6f",
+      focused_files: 5,
+      focused_tests_passed: 80,
+      typescript_passed: true,
+      eslint_errors: 0,
+      prettier_passed: true,
+      full_files: 147,
+      full_tests_passed: 2733,
+      full_tests_failed: 1,
+      full_wall_seconds: 170.59,
+      full_maximum_rss_bytes: 4349165568,
+      full_swaps: 0,
+      failure: "stable-wasm-worker-initialization-timeout-after-30000ms",
+      isolated_stable_wasm_tests_passed: 53,
+      isolated_stable_wasm_tests_total: 53,
+      isolated_wall_seconds: 13.96,
+      classification: "nonfinal-concurrency-flake-candidate-not-authoritative",
+    });
+    expect(evidence.validation.implementation_head_github_ci).toEqual({
+      implementation_head: "da7e9dd73c37791bfb7f2fa38413112ac0843a6f",
+      reported_checks_total: 6,
+      reported_checks_passed: 6,
+      github_required_status_checks_total: 2,
+      github_required_status_checks_passed: 2,
+      ubuntu_unit_test_files_total: 147,
+      ubuntu_unit_test_files_passed: 144,
+      ubuntu_unit_test_files_skipped: 3,
+      ubuntu_unit_tests_total: 2734,
+      ubuntu_unit_tests_passed: 2636,
+      ubuntu_unit_tests_skipped: 98,
+      ubuntu_unit_wall_seconds: 334.92,
+      ml_stdlib_tests_passed: 58,
+      ml_stdlib_tests_total: 58,
+      production_build_static_pages: 193,
+      darwin_same_lock_job_passed: true,
+      actionable_review_threads_addressed: 5,
+      unresolved_review_threads: 0,
     });
     expect(evidence.validation.earlier_default_concurrency_full_pass).toEqual({
       files: 147,
@@ -481,7 +523,9 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
         "tests/unit/ml/floodgateV7ProductionPrefix100RealBoundariesIntegration.test.ts",
       ],
       authoritative_local_darwin_paths_passed: true,
-      github_ci_state: "queued-on-ready-pull-request-472",
+      github_ci_state: "passed-on-implementation-head-da7e9dd",
+      github_ci_conclusion: "success",
+      github_ci_implementation_head: "da7e9dd73c37791bfb7f2fa38413112ac0843a6f",
       required_before_final_integrated_validation: true,
     });
     expect(workflow).toContain("  darwin_exclusive_directory_rename:\n");

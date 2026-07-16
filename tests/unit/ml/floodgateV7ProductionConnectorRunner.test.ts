@@ -50,6 +50,11 @@ import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
 } from "../../../ml/floodgate-v7-production-outer-gate-lease";
 import {
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_CONTRACT,
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_EXECUTION_BOUNDARY,
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_STATUS,
+} from "../../../ml/floodgate-v7-production-prefix-100-postflight";
+import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
@@ -286,6 +291,30 @@ function outerOwnerReceipt(executionBoundary: string, value: unknown): unknown {
   };
 }
 
+function prefix100PostflightReceipt(): unknown {
+  return {
+    contract: FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_CONTRACT,
+    status: FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_STATUS,
+    execution_boundary:
+      FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_EXECUTION_BOUNDARY,
+    verification: {
+      namespace_exact: true,
+      held_vs_named_identity_matched: true,
+      anchor_bytes_digest_and_record_count_matched: true,
+      descriptors_closed: true,
+      namespace_or_file_content_mutated: false,
+    },
+    nonclaims: {
+      outer_lock_origin: false,
+      connector_receipt_origin: false,
+      independent_hmac_authentication: false,
+      authenticated_continuity: false,
+      production_gate_authority: false,
+      atime_invariance: false,
+    },
+  };
+}
+
 function dependencies(
   gate: FloodgateV7ProductionConnectorRunnerGate,
   events: string[] = [],
@@ -314,6 +343,9 @@ function dependencies(
         },
         stageAuthorization: {
           repositoryRoot: PRIVATE_PATH_CANARY,
+          publicationParent: PRIVATE_PATH_CANARY,
+          stageBasename: `floodgate-v7-${PRIVATE_RUN_ID}-stage`,
+          destinationBasename: `floodgate-v7-${PRIVATE_RUN_ID}-final`,
         },
         consumer: {
           repositoryRoot: PRIVATE_PATH_CANARY,
@@ -342,6 +374,20 @@ function dependencies(
       expect(options.runId).toBe(PRIVATE_RUN_ID);
       expect(options.gate).toBe(gate);
       return await runConnector(options);
+    },
+    async scanPrefix100CallerAnchor(anchor) {
+      events.push("prefix-100-postflight");
+      expect(anchor).toEqual({
+        publicationParent: PRIVATE_PATH_CANARY,
+        stageBasename: `floodgate-v7-${PRIVATE_RUN_ID}-stage`,
+        destinationBasename: `floodgate-v7-${PRIVATE_RUN_ID}-final`,
+        workBasename: "work.jsonl",
+        workBytes: 1,
+        workSha256: "44".repeat(32),
+        workRecords: 102,
+        completedParents: 100,
+      });
+      return prefix100PostflightReceipt();
     },
   };
 }
@@ -410,6 +456,7 @@ describe("Floodgate v7 production connector runner", () => {
         "current-binding",
         "approved-load-2",
         "connector",
+        ...(gate === "durable-prefix-100" ? ["prefix-100-postflight"] : []),
       ]);
       expect(receipt).toEqual({
         contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT,
@@ -428,6 +475,11 @@ describe("Floodgate v7 production connector runner", () => {
           approved_record_binding_matched: true,
           fresh_current_key_binding_validated: true,
           connector_completed: true,
+          ...(gate === "durable-prefix-100"
+            ? {
+                exact_prefix_100_read_only_continuity_postflight_completed: true,
+              }
+            : {}),
         },
         nonclaims: {
           run_id_disclosed: false,
@@ -796,9 +848,10 @@ describe("Floodgate v7 production connector runner", () => {
   });
 
   it("treats a mismatched raw success receipt as potentially persistent and never returns it", async () => {
+    const events: string[] = [];
     const error = await runFloodgateV7ProductionConnectorCoreForTests(
       "durable-prefix-100",
-      dependencies("durable-prefix-100", [], async () => ({
+      dependencies("durable-prefix-100", events, async () => ({
         ...(connectorReceipt("durable-prefix-100") as object),
         run_id: "55".repeat(32),
       })),
@@ -806,7 +859,83 @@ describe("Floodgate v7 production connector runner", () => {
 
     expectSanitized(error, true);
     expect(error).toMatchObject({ phase: "receipt" });
+    expect(events).not.toContain("prefix-100-postflight");
   });
+
+  it("promotes one non-authorizing scan only after strict raw receipt validation", async () => {
+    let postflightCalls = 0;
+    const base = dependencies("durable-prefix-100");
+    const receipt = await runFloodgateV7ProductionConnectorCoreForTests(
+      "durable-prefix-100",
+      {
+        ...base,
+        async scanPrefix100CallerAnchor(anchor) {
+          postflightCalls += 1;
+          expect(anchor.workRecords).toBe(102);
+          expect(anchor.completedParents).toBe(100);
+          return prefix100PostflightReceipt();
+        },
+      },
+    );
+    expect(postflightCalls).toBe(1);
+    expect(receipt.verification).toMatchObject({
+      exact_prefix_100_read_only_continuity_postflight_completed: true,
+    });
+  });
+
+  it.each([
+    [
+      "an extra private anchor",
+      (receipt: Record<string, unknown>) => {
+        receipt.private_anchor = PRIVATE_PATH_CANARY;
+      },
+    ],
+    [
+      "a test-only execution boundary",
+      (receipt: Record<string, unknown>) => {
+        receipt.execution_boundary = "test-only-injected-caller-anchor-scan";
+      },
+    ],
+    [
+      "the former production-looking contract",
+      (receipt: Record<string, unknown>) => {
+        receipt.contract =
+          "shogi-floodgate-v7-production-prefix-100-read-only-continuity-postflight-v1";
+      },
+    ],
+    [
+      "an authenticated-continuity overclaim",
+      (receipt: Record<string, unknown>) => {
+        const nonclaims = receipt.nonclaims as Record<string, unknown>;
+        nonclaims.authenticated_continuity = true;
+      },
+    ],
+  ] as const)(
+    "maps a low-level scan receipt with %s to reconciliation without leakage",
+    async (_description, mutate) => {
+      const base = dependencies("durable-prefix-100");
+      const error = await runFloodgateV7ProductionConnectorCoreForTests(
+        "durable-prefix-100",
+        {
+          ...base,
+          async scanPrefix100CallerAnchor() {
+            const receipt = prefix100PostflightReceipt() as Record<
+              string,
+              unknown
+            >;
+            mutate(receipt);
+            return receipt;
+          },
+        },
+      ).catch((failure: unknown) => failure);
+
+      expectSanitized(error, true);
+      expect(error).toMatchObject({
+        phase: "exact-prefix-100-postflight",
+        retry_disposition: "checkpoint-reconciliation-required",
+      });
+    },
+  );
 
   it("exports only three zero-argument production gate wrappers and no generic production gate", async () => {
     expect(runFloodgateV7ProductionConnectorPrefix100.length).toBe(0);

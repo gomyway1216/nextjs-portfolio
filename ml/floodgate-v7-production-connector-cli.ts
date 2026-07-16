@@ -74,6 +74,10 @@ const RUNNER_VERIFICATION_KEYS = objectFreeze([
   "fresh_current_key_binding_validated",
   "connector_completed",
 ] as const);
+const RUNNER_PREFIX_100_VERIFICATION_KEYS = objectFreeze([
+  ...RUNNER_VERIFICATION_KEYS,
+  "exact_prefix_100_read_only_continuity_postflight_completed",
+] as const);
 const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "run_id_disclosed",
   "approved_key_binding_disclosed",
@@ -158,7 +162,9 @@ function sanitizedSuccess(value: unknown, gate: Gate): Readonly<object> {
   const receipt = dataRecord(value, RUNNER_RECEIPT_KEYS);
   const verification = dataRecord(
     receipt.verification,
-    RUNNER_VERIFICATION_KEYS,
+    gate === "durable-prefix-100"
+      ? RUNNER_PREFIX_100_VERIFICATION_KEYS
+      : RUNNER_VERIFICATION_KEYS,
   );
   const checkpoint = dataRecord(receipt.checkpoint, RUNNER_CHECKPOINT_KEYS);
   const nonclaims = dataRecord(receipt.nonclaims, RUNNER_NONCLAIM_KEYS);
@@ -174,7 +180,10 @@ function sanitizedSuccess(value: unknown, gate: Gate): Readonly<object> {
     verification.private_registry_claimed !== true ||
     verification.approved_record_binding_matched !== true ||
     verification.fresh_current_key_binding_validated !== true ||
-    verification.connector_completed !== true
+    verification.connector_completed !== true ||
+    (gate === "durable-prefix-100" &&
+      verification.exact_prefix_100_read_only_continuity_postflight_completed !==
+        true)
   ) {
     throw new NativeError("connector CLI success receipt differs");
   }
@@ -195,6 +204,12 @@ function sanitizedSuccess(value: unknown, gate: Gate): Readonly<object> {
     private_registry_values_disclosed: false as const,
     connector_options_disclosed: false as const,
     success_receipt_issued: true as const,
+    ...(gate === "durable-prefix-100"
+      ? {
+          exact_prefix_100_read_only_continuity_postflight_confirmed:
+            true as const,
+        }
+      : {}),
   });
 }
 
@@ -215,6 +230,12 @@ function unknownFailure(gate: Gate, runnerInvoked: boolean): Readonly<object> {
     private_registry_values_disclosed: false as const,
     connector_options_disclosed: false as const,
     success_receipt_issued: false as const,
+    ...(gate === "durable-prefix-100"
+      ? {
+          exact_prefix_100_read_only_continuity_postflight_confirmed:
+            false as const,
+        }
+      : {}),
   });
 }
 
@@ -231,6 +252,7 @@ function isRunnerPhase(value: unknown): value is string {
     case "connector-enrollment-load":
     case "connector":
     case "receipt":
+    case "exact-prefix-100-postflight":
       return true;
     default:
       return false;
@@ -356,8 +378,10 @@ function sanitizedRunnerFailure(
       ) {
         return null;
       }
-    } else if (phase === "receipt") {
+    } else if (phase === "receipt" || phase === "exact-prefix-100-postflight") {
       if (
+        (phase === "exact-prefix-100-postflight" &&
+          gate !== "durable-prefix-100") ||
         !connectorInvoked ||
         !checkpointMayHavePersisted ||
         retryDisposition !== "checkpoint-reconciliation-required" ||
@@ -388,6 +412,12 @@ function sanitizedRunnerFailure(
       private_registry_values_disclosed: false as const,
       connector_options_disclosed: false as const,
       success_receipt_issued: false as const,
+      ...(gate === "durable-prefix-100"
+        ? {
+            exact_prefix_100_read_only_continuity_postflight_confirmed:
+              false as const,
+          }
+        : {}),
     });
   } catch {
     return null;

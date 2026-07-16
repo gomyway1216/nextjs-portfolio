@@ -80,6 +80,7 @@ export type FloodgateV7ProductionOuterGateLeasePhase =
   | "key-read"
   | "namespace"
   | "os-lock"
+  | "prefix-100-preflight"
   | "stale-inspection"
   | "quarantine"
   | "lease-publish"
@@ -326,6 +327,8 @@ export interface FloodgateV7ProductionOuterGateLeaseDependenciesForTests {
   ) => void;
   readonly afterActiveUnlinkBeforeDirectorySyncForTests?: () => void;
   readonly closeLockDescriptorForTests?: (descriptor: number) => void;
+  /** Test-only mirror of the fixed production key reread after preflight. */
+  readonly rereadRootKeyAfterPrefix100PreflightForTests?: () => Uint8Array;
 }
 
 interface CapturedDependencies {
@@ -346,6 +349,7 @@ interface CapturedDependencies {
     | undefined;
   readonly afterActiveUnlinkBeforeDirectorySync: (() => void) | undefined;
   readonly closeLockDescriptor: (descriptor: number) => void;
+  readonly rereadRootKeyAfterPrefix100Preflight: (() => Uint8Array) | undefined;
 }
 
 interface CapturedPrefix100PreflightOuterLockDependencies {
@@ -426,6 +430,7 @@ const objectFreeze = Object.freeze;
 const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
+const objectIsFrozen = Object.isFrozen;
 const objectPrototype = Object.prototype;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const bufferFrom = Buffer.from.bind(Buffer);
@@ -462,6 +467,22 @@ const HOSTNAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SIGNALS = objectFreeze(["SIGHUP", "SIGINT", "SIGTERM"] as const);
 const LOCKF_PATH = "/usr/bin/lockf" as const;
+const OUTER_GATE_DEPENDENCY_KEYS = objectFreeze([
+  "effectiveUserId",
+  "homeDirectory",
+  "rootKey",
+  "hostname",
+  "pid",
+  "now",
+  "nonce",
+  "lockfPath",
+  "installProcessLifecycleHandlers",
+  "afterLeasePublishBeforeValidationForTests",
+  "leasePublishFailpointForTests",
+  "afterActiveUnlinkBeforeDirectorySyncForTests",
+  "closeLockDescriptorForTests",
+  "rereadRootKeyAfterPrefix100PreflightForTests",
+] as const);
 const LEASE_RECORD_KEYS = objectFreeze([
   "contract",
   "status",
@@ -510,6 +531,14 @@ const testPrefix100PreflightCapabilities = new WeakMap<
 type ConnectorCapabilityBoundary =
   "production" | "test-fixed-owner" | "test-generic";
 
+type LeaseExecutionPolicy =
+  | Readonly<{ readonly kind: "ordinary-fixed-gate" }>
+  | Readonly<{
+      readonly kind: "prefix-100-same-lock-one-shot";
+      readonly preflightBoundary: Prefix100PreflightCapabilityBoundary;
+      readonly loadPreflightModule: Prefix100PreflightModuleLoader;
+    }>;
+
 type FixedRunnerExportName =
   | "runFloodgateV7ProductionConnectorPrefix100UnderOuterGate"
   | "runFloodgateV7ProductionConnectorPrefix500UnderOuterGate"
@@ -519,6 +548,21 @@ type FixedRunnerModuleLoader = () => unknown;
 
 type Prefix100PreflightCapabilityBoundary = "production" | "test-only";
 type Prefix100PreflightModuleLoader = () => unknown;
+
+const PREFIX_100_UNDER_LOCK_OUTCOME_CONTRACT =
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1" as const;
+const PREFIX_100_PRODUCTION_PREFLIGHT_EXECUTION_BOUNDARY =
+  "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
+const PREFIX_100_TEST_PREFLIGHT_EXECUTION_BOUNDARY =
+  "test-only-injected-current-euid-home-read-only-observation" as const;
+const PREFIX_100_RUNNER_CONTRACT =
+  "shogi-floodgate-v7-production-connector-runner-v1" as const;
+const PREFIX_100_RUNNER_STATUS =
+  "registry-approved-current-bound-production-connector-gate-complete" as const;
+const PREFIX_100_RUNNER_CLAIM_BOUNDARY =
+  "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1" as const;
+const PREFIX_100_RUNNER_EXECUTION_BOUNDARY =
+  "production-fixed-gate-private-registry-and-capability-owners" as const;
 
 function claimConnectorCapabilityFromRegistry(
   capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
@@ -585,6 +629,56 @@ function claimPrefix100PreflightCapabilityFromRegistry(
   }
   registry.delete(capability);
   return anchor;
+}
+
+function prefix100PreflightCapabilityRegistry(
+  boundary: Prefix100PreflightCapabilityBoundary,
+): WeakMap<
+  object,
+  Readonly<FloodgateV7ProductionPrefix100PreflightOuterLockAnchor>
+> {
+  return boundary === "production"
+    ? productionPrefix100PreflightCapabilities
+    : testPrefix100PreflightCapabilities;
+}
+
+function mintPrefix100PreflightCapabilityUnderHeldLock(
+  helper: LockHelper,
+  effectiveUserId: number,
+  homeDirectory: string,
+  boundary: Prefix100PreflightCapabilityBoundary,
+): Readonly<FloodgateV7ProductionPrefix100PreflightOuterLockCapability> {
+  const canonicalHome = nativeRealpathSync(homeDirectory);
+  if (canonicalHome !== homeDirectory) {
+    throw new NativeError("prefix 100 preflight home is not canonical");
+  }
+  const capability = frozenRecord({
+    contract:
+      "shogi-floodgate-v7-production-prefix-100-read-only-outer-lock-capability-v1" as const,
+    status:
+      "opaque-single-use-valid-only-while-common-os-lock-is-held-without-lease-publication" as const,
+  });
+  prefix100PreflightCapabilityRegistry(boundary).set(
+    capability,
+    frozenRecord({
+      effectiveUserId,
+      canonicalHome,
+      registry: frozenRecord({
+        bytes: helper.registry.bytes,
+        sha256: helper.registry.sha256,
+        dev: helper.registry.dev.toString(10),
+        ino: helper.registry.ino.toString(10),
+      }),
+    }),
+  );
+  return capability;
+}
+
+function discardPrefix100PreflightCapability(
+  capability: Readonly<FloodgateV7ProductionPrefix100PreflightOuterLockCapability>,
+): void {
+  productionPrefix100PreflightCapabilities.delete(capability);
+  testPrefix100PreflightCapabilities.delete(capability);
 }
 
 /** Consumed only by the fixed production read-only preflight module. */
@@ -738,6 +832,7 @@ function isLeasePhase(
     value === "key-read" ||
     value === "namespace" ||
     value === "os-lock" ||
+    value === "prefix-100-preflight" ||
     value === "stale-inspection" ||
     value === "quarantine" ||
     value === "lease-publish" ||
@@ -788,8 +883,29 @@ function canonicalAbsolute(value: unknown, label: string): string {
 function captureDependencies(
   value: FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
 ): CapturedDependencies {
-  if (value === null || typeof value !== "object") {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeIsProxy(value) ||
+    (objectGetPrototypeOf(value) !== objectPrototype &&
+      objectGetPrototypeOf(value) !== null)
+  ) {
     fail("capture", "fresh-invocation-allowed");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  for (const key of nativeReflectOwnKeys(descriptors)) {
+    const descriptor = descriptors[key as keyof typeof descriptors];
+    if (
+      typeof key !== "string" ||
+      !nativeReflectApply(nativeArrayIncludes, OUTER_GATE_DEPENDENCY_KEYS, [
+        key,
+      ]) ||
+      descriptor === undefined ||
+      !("value" in descriptor) ||
+      descriptor.enumerable !== true
+    ) {
+      fail("capture", "fresh-invocation-allowed");
+    }
   }
   const effectiveUserId = value.effectiveUserId;
   const pid = value.pid ?? process.pid;
@@ -815,6 +931,10 @@ function captureDependencies(
       typeof value.leasePublishFailpointForTests !== "function") ||
     (value.closeLockDescriptorForTests !== undefined &&
       typeof value.closeLockDescriptorForTests !== "function") ||
+    (value.rereadRootKeyAfterPrefix100PreflightForTests !== undefined &&
+      (typeof value.rereadRootKeyAfterPrefix100PreflightForTests !==
+        "function" ||
+        nodeIsProxy(value.rereadRootKeyAfterPrefix100PreflightForTests))) ||
     !(value.rootKey instanceof Uint8Array) ||
     value.rootKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
   ) {
@@ -838,6 +958,8 @@ function captureDependencies(
     afterActiveUnlinkBeforeDirectorySync:
       value.afterActiveUnlinkBeforeDirectorySyncForTests,
     closeLockDescriptor: value.closeLockDescriptorForTests ?? nativeCloseSync,
+    rereadRootKeyAfterPrefix100Preflight:
+      value.rereadRootKeyAfterPrefix100PreflightForTests,
   });
 }
 
@@ -1693,6 +1815,7 @@ async function acquireAndRun<T>(
     capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
   ) => Promise<T>,
   boundary: ConnectorCapabilityBoundary,
+  policy: LeaseExecutionPolicy,
 ): Promise<Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<T>>> {
   let helper: LockHelper | null = null;
   let active: ActiveLease | null = null;
@@ -1705,7 +1828,22 @@ async function acquireAndRun<T>(
   let operationBoundaryCrossed = false;
   let currentPhase: FloodgateV7ProductionOuterGateLeasePhase = "key-read";
   let leaseKeyForCleanup: Buffer | null = null;
+  let preflightCapability:
+    | Readonly<FloodgateV7ProductionPrefix100PreflightOuterLockCapability>
+    | undefined;
   try {
+    if (
+      (policy.kind === "prefix-100-same-lock-one-shot" &&
+        (gate !== "durable-prefix-100" ||
+          boundary === "test-generic" ||
+          policy.preflightBoundary !==
+            (boundary === "production" ? "production" : "test-only"))) ||
+      (boundary === "production" &&
+        gate === "durable-prefix-100" &&
+        policy.kind !== "prefix-100-same-lock-one-shot")
+    ) {
+      fail("capture", "manual-reconciliation-required");
+    }
     currentPhase = "namespace";
     let paths = leasePaths(dependencies.homeDirectory);
     currentPhase = "key-read";
@@ -1727,6 +1865,73 @@ async function acquireAndRun<T>(
       fail("os-lock", "manual-reconciliation-required");
     }
     osLockEverAcquired = true;
+
+    if (policy.kind === "prefix-100-same-lock-one-shot") {
+      currentPhase = "prefix-100-preflight";
+      try {
+        const preflightRegistry = prefix100PreflightCapabilityRegistry(
+          policy.preflightBoundary,
+        );
+        preflightCapability = mintPrefix100PreflightCapabilityUnderHeldLock(
+          helper,
+          dependencies.effectiveUserId,
+          dependencies.homeDirectory,
+          policy.preflightBoundary,
+        );
+        const outcome = await invokeFixedPrefix100PreflightUnderOuterLock(
+          preflightCapability,
+          policy.loadPreflightModule,
+        );
+        if (preflightRegistry.has(preflightCapability)) {
+          throw new NativeError(
+            "prefix 100 preflight capability was not claimed",
+          );
+        }
+        requireExactPrefix100PreflightGoOutcome(
+          outcome,
+          policy.preflightBoundary,
+        );
+        if (
+          !revalidateRegistryAnchor(
+            helper,
+            paths.registryPath,
+            dependencies.effectiveUserId,
+          )
+        ) {
+          throw new NativeError("prefix 100 preflight registry anchor changed");
+        }
+        const freshlyReadRootKey = rereadRootKeyAfterPrefix100Preflight(
+          dependencies,
+          policy.preflightBoundary,
+        );
+        if (freshlyReadRootKey !== null) {
+          try {
+            if (
+              freshlyReadRootKey.length !== dependencies.rootKey.length ||
+              !nativeTimingSafeEqual(freshlyReadRootKey, dependencies.rootKey)
+            ) {
+              throw new NativeError(
+                "prefix 100 preflight deployment key changed",
+              );
+            }
+          } finally {
+            zero(freshlyReadRootKey);
+          }
+        }
+      } catch {
+        if (preflightCapability !== undefined) {
+          discardPrefix100PreflightCapability(preflightCapability);
+        }
+        fail(
+          "prefix-100-preflight",
+          "manual-reconciliation-required",
+          true,
+          false,
+          false,
+          false,
+        );
+      }
+    }
 
     currentPhase = "namespace";
     try {
@@ -1887,6 +2092,9 @@ async function acquireAndRun<T>(
       ) {
         throw new NativeError("outer connector capability was not claimed");
       }
+      if (policy.kind === "prefix-100-same-lock-one-shot") {
+        requireExactPrefix100RunnerContinuityReceipt(value);
+      }
     } catch {
       connectorRegistry.delete(connectorCapability);
       try {
@@ -1950,6 +2158,9 @@ async function acquireAndRun<T>(
       quarantineMayBlock,
     );
   } finally {
+    if (preflightCapability !== undefined) {
+      discardPrefix100PreflightCapability(preflightCapability);
+    }
     if (leaseKeyForCleanup !== null) zero(leaseKeyForCleanup);
     zero(dependencies.rootKey);
     if (active !== null) zero(active.bytes);
@@ -2019,6 +2230,31 @@ function readProductionRootKey(home: string, uid: number): Buffer {
   } finally {
     fs.closeSync(descriptor);
   }
+}
+
+function rereadRootKeyAfterPrefix100Preflight(
+  dependencies: CapturedDependencies,
+  boundary: Prefix100PreflightCapabilityBoundary,
+): Buffer | null {
+  if (boundary === "production") {
+    return readProductionRootKey(
+      dependencies.homeDirectory,
+      dependencies.effectiveUserId,
+    );
+  }
+  const reread = dependencies.rereadRootKeyAfterPrefix100Preflight;
+  if (reread === undefined) return null;
+  const value = reread();
+  if (
+    !(value instanceof Uint8Array) ||
+    nodeIsProxy(value) ||
+    value.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
+  ) {
+    throw new NativeError("test deployment key reread differs");
+  }
+  // Never retain or zero caller-owned test memory. The owned copy follows the
+  // same compare-and-zero lifetime as the fixed production reread.
+  return bufferFrom(value);
 }
 
 function productionDependencies(): CapturedDependencies {
@@ -2555,6 +2791,134 @@ async function invokeFixedPrefix100PreflightUnderOuterLock(
   }
 }
 
+function exactFrozenNullDataRecord(
+  value: unknown,
+  expectedKeys: readonly string[],
+): Readonly<Record<string, unknown>> {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeIsProxy(value) ||
+    objectGetPrototypeOf(value) !== null ||
+    !objectIsFrozen(value)
+  ) {
+    throw new NativeError("prefix 100 preflight outcome differs");
+  }
+  const keys = nativeReflectOwnKeys(value);
+  if (keys.length !== expectedKeys.length) {
+    throw new NativeError("prefix 100 preflight outcome differs");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const output = objectCreate(null) as Record<string, unknown>;
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
+    if (keys[index] !== key) {
+      throw new NativeError("prefix 100 preflight outcome differs");
+    }
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined ||
+      !("value" in descriptor) ||
+      descriptor.enumerable !== true ||
+      descriptor.configurable !== false ||
+      descriptor.writable !== false
+    ) {
+      throw new NativeError("prefix 100 preflight outcome differs");
+    }
+    output[key] = descriptor.value;
+  }
+  return objectFreeze(output);
+}
+
+function requireExactPrefix100PreflightGoOutcome(
+  value: unknown,
+  boundary: Prefix100PreflightCapabilityBoundary,
+): void {
+  const outcome = exactFrozenNullDataRecord(value, [
+    "contract",
+    "status",
+    "observation",
+  ]);
+  const observation = exactFrozenNullDataRecord(outcome.observation, [
+    "execution_boundary",
+    "outer_control",
+  ]);
+  if (
+    outcome.contract !== PREFIX_100_UNDER_LOCK_OUTCOME_CONTRACT ||
+    outcome.status !== "GO-observed-under-outer-lock" ||
+    observation.execution_boundary !==
+      (boundary === "production"
+        ? PREFIX_100_PRODUCTION_PREFLIGHT_EXECUTION_BOUNDARY
+        : PREFIX_100_TEST_PREFLIGHT_EXECUTION_BOUNDARY) ||
+    (observation.outer_control !== "absent-pristine" &&
+      observation.outer_control !== "present-exact-empty")
+  ) {
+    throw new NativeError("prefix 100 preflight outcome differs");
+  }
+}
+
+function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
+  const receipt = exactFrozenNullDataRecord(value, [
+    "contract",
+    "status",
+    "claim_boundary",
+    "execution_boundary",
+    "gate",
+    "checkpoint",
+    "verification",
+    "nonclaims",
+  ]);
+  const checkpoint = exactFrozenNullDataRecord(receipt.checkpoint, [
+    "target_parents",
+    "sealed",
+    "checkpoint_may_have_persisted",
+  ]);
+  const verification = exactFrozenNullDataRecord(receipt.verification, [
+    "private_registry_claimed",
+    "approved_record_binding_matched",
+    "fresh_current_key_binding_validated",
+    "connector_completed",
+    "exact_prefix_100_read_only_continuity_postflight_completed",
+  ]);
+  const nonclaims = exactFrozenNullDataRecord(receipt.nonclaims, [
+    "run_id_disclosed",
+    "approved_key_binding_disclosed",
+    "connector_options_disclosed",
+    "raw_connector_receipt_disclosed",
+    "key_material_disclosed",
+    "row_or_position_content_disclosed",
+    "teacher_label",
+    "optimizer_training",
+    "weight",
+    "live_evaluation_activation",
+    "match",
+    "playing_strength",
+  ]);
+  if (
+    receipt.contract !== PREFIX_100_RUNNER_CONTRACT ||
+    receipt.status !== PREFIX_100_RUNNER_STATUS ||
+    receipt.claim_boundary !== PREFIX_100_RUNNER_CLAIM_BOUNDARY ||
+    receipt.execution_boundary !== PREFIX_100_RUNNER_EXECUTION_BOUNDARY ||
+    receipt.gate !== "durable-prefix-100" ||
+    checkpoint.target_parents !== 100 ||
+    checkpoint.sealed !== false ||
+    checkpoint.checkpoint_may_have_persisted !== true ||
+    verification.private_registry_claimed !== true ||
+    verification.approved_record_binding_matched !== true ||
+    verification.fresh_current_key_binding_validated !== true ||
+    verification.connector_completed !== true ||
+    verification.exact_prefix_100_read_only_continuity_postflight_completed !==
+      true
+  ) {
+    throw new NativeError("prefix 100 runner continuity receipt differs");
+  }
+  for (const key of nativeReflectOwnKeys(nonclaims)) {
+    if (typeof key !== "string" || nonclaims[key] !== false) {
+      throw new NativeError("prefix 100 runner continuity receipt differs");
+    }
+  }
+}
+
 async function acquireAndRunPrefix100ReadOnlyPreflight(
   dependencies: CapturedPrefix100PreflightOuterLockDependencies,
   loadPreflightModule: Prefix100PreflightModuleLoader,
@@ -2570,10 +2934,6 @@ async function acquireAndRunPrefix100ReadOnlyPreflight(
   let phase: FloodgateV7ProductionOuterGateLeasePhase = "os-lock";
   try {
     phase = "namespace";
-    const canonicalHome = nativeRealpathSync(dependencies.homeDirectory);
-    if (canonicalHome !== dependencies.homeDirectory) {
-      throw new NativeError("prefix 100 preflight home is not canonical");
-    }
     const paths = leasePaths(dependencies.homeDirectory);
     phase = "os-lock";
     helper = acquireOsLock(
@@ -2582,27 +2942,13 @@ async function acquireAndRunPrefix100ReadOnlyPreflight(
       dependencies.lockfPath,
       dependencies.closeLockDescriptor,
     );
-    const registry =
-      boundary === "production"
-        ? productionPrefix100PreflightCapabilities
-        : testPrefix100PreflightCapabilities;
-    capability = frozenRecord({
-      contract:
-        "shogi-floodgate-v7-production-prefix-100-read-only-outer-lock-capability-v1" as const,
-      status:
-        "opaque-single-use-valid-only-while-common-os-lock-is-held-without-lease-publication" as const,
-    });
-    const anchor = frozenRecord({
-      effectiveUserId: dependencies.effectiveUserId,
-      canonicalHome,
-      registry: frozenRecord({
-        bytes: helper.registry.bytes,
-        sha256: helper.registry.sha256,
-        dev: helper.registry.dev.toString(10),
-        ino: helper.registry.ino.toString(10),
-      }),
-    });
-    registry.set(capability, anchor);
+    const registry = prefix100PreflightCapabilityRegistry(boundary);
+    capability = mintPrefix100PreflightCapabilityUnderHeldLock(
+      helper,
+      dependencies.effectiveUserId,
+      dependencies.homeDirectory,
+      boundary,
+    );
     phase = "operation";
     const value = await invokeFixedPrefix100PreflightUnderOuterLock(
       capability,
@@ -2630,8 +2976,7 @@ async function acquireAndRunPrefix100ReadOnlyPreflight(
     });
   } catch (error) {
     if (capability !== undefined) {
-      productionPrefix100PreflightCapabilities.delete(capability);
-      testPrefix100PreflightCapabilities.delete(capability);
+      discardPrefix100PreflightCapability(capability);
     }
     throw sanitizedLeaseFailure(
       error,
@@ -2815,6 +3160,36 @@ function runFixedOuterGateOwner(
     (capability) =>
       invokeFixedRunnerUnderOuterGate(gate, capability, loadRunnerModule),
     boundary,
+    frozenRecord({ kind: "ordinary-fixed-gate" as const }),
+  );
+}
+
+function runFixedPrefix100SameLockOneShotOwner(
+  dependencies: CapturedDependencies,
+  loadPreflightModule: Prefix100PreflightModuleLoader,
+  loadRunnerModule: FixedRunnerModuleLoader,
+  boundary: "production" | "test-fixed-owner",
+): Promise<
+  Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
+> {
+  return acquireAndRun(
+    "durable-prefix-100",
+    dependencies,
+    (capability) =>
+      invokeFixedRunnerUnderOuterGate(
+        "durable-prefix-100",
+        capability,
+        loadRunnerModule,
+      ),
+    boundary,
+    frozenRecord({
+      kind: "prefix-100-same-lock-one-shot" as const,
+      preflightBoundary:
+        boundary === "production"
+          ? ("production" as const)
+          : ("test-only" as const),
+      loadPreflightModule,
+    }),
   );
 }
 
@@ -2863,6 +3238,42 @@ export function runFloodgateV7ProductionOuterGateOwnerCoreForTests(
   return runFixedOuterGateOwner(
     gate,
     dependencies,
+    loadRunnerModuleValue,
+    "test-fixed-owner",
+  );
+}
+
+/**
+ * Test-only mirror of the prefix-100 production one-shot composition. Both
+ * lazy module loaders are mandatory and neither crosses the production API.
+ */
+export function runFloodgateV7ProductionOuterGatePrefix100OneShotCoreForTests(
+  dependenciesValue: FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
+  loadPreflightModuleValue: () => unknown,
+  loadRunnerModuleValue: () => unknown,
+): Promise<
+  Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
+> {
+  let dependencies: CapturedDependencies;
+  try {
+    if (
+      arguments.length !== 3 ||
+      typeof loadPreflightModuleValue !== "function" ||
+      typeof loadRunnerModuleValue !== "function"
+    ) {
+      fail("capture", "manual-reconciliation-required");
+    }
+    dependencies = captureDependencies({
+      ...dependenciesValue,
+      installProcessLifecycleHandlers:
+        dependenciesValue.installProcessLifecycleHandlers ?? true,
+    });
+  } catch (error) {
+    return NativePromise.reject(sanitizedLeaseFailure(error, "capture"));
+  }
+  return runFixedPrefix100SameLockOneShotOwner(
+    dependencies,
+    loadPreflightModuleValue,
     loadRunnerModuleValue,
     "test-fixed-owner",
   );
@@ -2932,7 +3343,13 @@ export function runWithFloodgateV7ProductionOuterGateLeaseCoreForTests<T>(
           ),
     );
   }
-  return acquireAndRun(gate, dependencies, operationValue, "test-generic");
+  return acquireAndRun(
+    gate,
+    dependencies,
+    operationValue,
+    "test-generic",
+    frozenRecord({ kind: "ordinary-fixed-gate" as const }),
+  );
 }
 
 /** Fixed production owner for only the durable-prefix-100 gate. */
@@ -2951,7 +3368,18 @@ export function runFloodgateV7ProductionOuterGatePrefix100(): Promise<
       ),
     );
   }
-  return runFixedProductionOuterGateOwner("durable-prefix-100");
+  let dependencies: CapturedDependencies;
+  try {
+    dependencies = productionDependencies();
+  } catch (error) {
+    return NativePromise.reject(sanitizedLeaseFailure(error, "key-read"));
+  }
+  return runFixedPrefix100SameLockOneShotOwner(
+    dependencies,
+    loadFixedProductionPrefix100PreflightModule,
+    loadFixedProductionRunnerModule,
+    "production",
+  );
 }
 
 /** Fixed production owner for only the durable-prefix-500 gate. */

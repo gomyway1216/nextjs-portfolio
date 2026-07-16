@@ -95,6 +95,7 @@ function runEntry(
     | "success"
     | "bad-success"
     | "typed-failure"
+    | "postflight-failure"
     | "inconsistent-typed"
     | "proxy-typed"
     | "accessor-typed"
@@ -138,6 +139,9 @@ Module._load = function (request, parent, isMain) {
         approved_record_binding_matched: true,
         fresh_current_key_binding_validated: true,
         connector_completed: true,
+        ...(gate === "durable-prefix-100" ? {
+          exact_prefix_100_read_only_continuity_postflight_completed: true,
+        } : {}),
       },
       nonclaims: {
         run_id_disclosed: false,
@@ -157,6 +161,15 @@ Module._load = function (request, parent, isMain) {
     const operation = (gate, target, sealed) => async () => {
       if (${JSON.stringify(mode)} === "unknown") throw new Error(privateCanary);
       if (${JSON.stringify(mode)} === "typed-failure") throw new RunnerError(gate);
+      if (${JSON.stringify(mode)} === "postflight-failure") {
+        const error = new RunnerError(gate);
+        error.phase = "exact-prefix-100-postflight";
+        error.checkpoint_may_have_persisted = true;
+        error.retry_disposition = "checkpoint-reconciliation-required";
+        error.connector_phase = null;
+        error.connector_retry_disposition = null;
+        throw error;
+      }
       if (${JSON.stringify(mode)} === "inconsistent-typed") {
         const error = new RunnerError(gate);
         error.retry_disposition = "fresh-invocation-required";
@@ -294,6 +307,11 @@ describe("Floodgate v7 production connector CLI", () => {
         private_registry_values_disclosed: false,
         connector_options_disclosed: false,
         success_receipt_issued: true,
+        ...(gate === "durable-prefix-100"
+          ? {
+              exact_prefix_100_read_only_continuity_postflight_confirmed: true,
+            }
+          : {}),
       });
     },
   );
@@ -311,6 +329,22 @@ describe("Floodgate v7 production connector CLI", () => {
       connector_phase: "readiness",
       connector_retry_disposition: "provision-required",
       raw_connector_receipt_disclosed: false,
+      success_receipt_issued: false,
+    });
+  });
+
+  it("projects a typed prefix-100 postflight failure without private anchor data", () => {
+    const result = runEntry(ENTRY_CASES[0].path, "postflight-failure");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      gate: "durable-prefix-100",
+      phase: "exact-prefix-100-postflight",
+      connector_invoked: true,
+      checkpoint_may_have_persisted: true,
+      retry_disposition: "checkpoint-reconciliation-required",
+      exact_prefix_100_read_only_continuity_postflight_confirmed: false,
       success_receipt_issued: false,
     });
   });

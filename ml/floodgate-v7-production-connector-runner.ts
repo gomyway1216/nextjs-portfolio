@@ -697,6 +697,8 @@ function buildPrefix100WorkAnchor(
   const publicationParent = claim.stageAuthorization.publicationParent;
   const stageBasename = claim.stageAuthorization.stageBasename;
   const destinationBasename = claim.stageAuthorization.destinationBasename;
+  const workBytes = work.bytes;
+  const workSha256 = work.sha256;
   if (
     typeof publicationParent !== "string" ||
     publicationParent.length < 1 ||
@@ -708,8 +710,8 @@ function buildPrefix100WorkAnchor(
     destinationBasename !== `floodgate-v7-${claim.runId}-final` ||
     work.records !== 102 ||
     work.completed_parents !== 100 ||
-    typeof work.bytes !== "number" ||
-    typeof work.sha256 !== "string"
+    typeof workBytes !== "number" ||
+    typeof workSha256 !== "string"
   ) {
     throw new NativeError("runner prefix 100 work anchor differs");
   }
@@ -718,8 +720,8 @@ function buildPrefix100WorkAnchor(
     stageBasename,
     destinationBasename,
     workBasename: "work.jsonl" as const,
-    workBytes: work.bytes,
-    workSha256: work.sha256,
+    workBytes,
+    workSha256,
     workRecords: 102 as const,
     completedParents: 100 as const,
   });

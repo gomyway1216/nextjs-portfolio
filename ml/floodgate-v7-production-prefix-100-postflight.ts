@@ -228,15 +228,17 @@ function captureAnchor(
   }
   const stageBasename = strictBasename(anchor.stageBasename);
   const destinationBasename = strictBasename(anchor.destinationBasename);
+  const workBytes = anchor.workBytes;
+  const workSha256 = anchor.workSha256;
   if (
     stageBasename === destinationBasename ||
     anchor.workBasename !== FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME ||
-    typeof anchor.workBytes !== "number" ||
-    !Number.isSafeInteger(anchor.workBytes) ||
-    anchor.workBytes < 1 ||
-    anchor.workBytes > FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES ||
-    typeof anchor.workSha256 !== "string" ||
-    !HEX_64_RE.test(anchor.workSha256) ||
+    typeof workBytes !== "number" ||
+    !Number.isSafeInteger(workBytes) ||
+    workBytes < 1 ||
+    workBytes > FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES ||
+    typeof workSha256 !== "string" ||
+    !HEX_64_RE.test(workSha256) ||
     anchor.workRecords !== 102 ||
     anchor.completedParents !== 100
   ) {
@@ -247,8 +249,8 @@ function captureAnchor(
     stageBasename,
     destinationBasename,
     workBasename: FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
-    workBytes: anchor.workBytes,
-    workSha256: anchor.workSha256,
+    workBytes,
+    workSha256,
     workRecords: 102 as const,
     completedParents: 100 as const,
   });
@@ -277,24 +279,26 @@ function captureDependencies(
     (key) => key === "effectiveUserId" || descriptors[key] !== undefined,
   );
   const dependencies = exactRecord(value, keys);
+  const effectiveUserId = dependencies.effectiveUserId;
+  const afterReadForTests = dependencies.afterReadForTests;
+  const closeDescriptorForTests = dependencies.closeDescriptorForTests;
   if (
-    typeof dependencies.effectiveUserId !== "number" ||
-    !Number.isSafeInteger(dependencies.effectiveUserId) ||
-    dependencies.effectiveUserId < 0 ||
-    (dependencies.afterReadForTests !== undefined &&
-      typeof dependencies.afterReadForTests !== "function") ||
-    (dependencies.closeDescriptorForTests !== undefined &&
-      typeof dependencies.closeDescriptorForTests !== "function")
+    typeof effectiveUserId !== "number" ||
+    !Number.isSafeInteger(effectiveUserId) ||
+    effectiveUserId < 0 ||
+    (afterReadForTests !== undefined &&
+      typeof afterReadForTests !== "function") ||
+    (closeDescriptorForTests !== undefined &&
+      typeof closeDescriptorForTests !== "function")
   ) {
     throw new NativeError("postflight dependencies differ");
   }
-  const injectedClose = dependencies.closeDescriptorForTests as
+  const injectedClose = closeDescriptorForTests as
     | FloodgateV7Prefix100CallerAnchorScanDependenciesForTests["closeDescriptorForTests"]
     | undefined;
   return frozenRecord({
-    effectiveUserId: dependencies.effectiveUserId,
-    afterRead: dependencies.afterReadForTests as
-      (() => void | Promise<void>) | undefined,
+    effectiveUserId,
+    afterRead: afterReadForTests as (() => void | Promise<void>) | undefined,
     closeDescriptor:
       injectedClose ?? ((_kind, descriptor) => closeSync(descriptor)),
   });

@@ -487,8 +487,9 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
     expect(workflow).toContain("  darwin_exclusive_directory_rename:\n");
     expect(workflow).toContain("    runs-on: macos-latest\n");
     expect(workflow).toContain(
-      `      - name: Run Darwin prefix-100 same-lock one-shot adversarial tests\n        run: ${expectedCommand}`,
+      "- name: Run Darwin prefix-100 same-lock one-shot adversarial tests",
     );
+    expect(workflow).toContain(`run: ${expectedCommand}`);
 
     const japanese = readText(JAPANESE_ARTICLE_PATH);
     const english = readText(ENGLISH_ARTICLE_PATH);

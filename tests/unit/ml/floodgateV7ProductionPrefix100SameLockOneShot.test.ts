@@ -615,8 +615,8 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
       ),
       "utf8",
     );
-    expect(source).toContain(
-      'return runFixedPrefix100SameLockOneShotOwner(\n    dependencies,\n    loadFixedProductionPrefix100PreflightModule,\n    loadFixedProductionRunnerModule,\n    "production",\n  );',
+    expect(source).toMatch(
+      /return\s+runFixedPrefix100SameLockOneShotOwner\(\s*dependencies,\s*loadFixedProductionPrefix100PreflightModule,\s*loadFixedProductionRunnerModule,\s*"production",?\s*\);/u,
     );
     expect(source).toContain(
       'return runFixedProductionOuterGateOwner("durable-prefix-500");',

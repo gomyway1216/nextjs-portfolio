@@ -548,7 +548,7 @@ describe("Floodgate v7 training-label finalizer core evidence", () => {
     }
     const implementation = readText(IMPLEMENTATION_PATH);
     for (const marker of [
-      "fill(0)",
+      "Reflect.apply(nativeTypedArrayFill",
       "datasync",
       "O_EXCL",
       "O_NOFOLLOW",

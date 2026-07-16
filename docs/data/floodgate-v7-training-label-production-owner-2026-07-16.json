@@ -5,7 +5,7 @@
     "class": "local-source-and-documentation-candidate-only",
     "implementation_kind": "fixed-purpose-bound-outer-gate-training-label-owner-runner-and-zero-argument-cli-not-executed-in-production",
     "base_composition_pull_request": 478,
-    "owner_cli_pull_request": null,
+    "owner_cli_pull_request": 479,
     "candidate_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
     "production_code_path_added": true,
     "production_fixed_registry_and_work_path_existence_checked_read_only": true,
@@ -350,8 +350,8 @@
     "warning": "do-not-restore-the-stale-private-tmp-wip-copy-of-the-production-connector-runner"
   },
   "github_gate": {
-    "pull_request": null,
-    "pull_request_state": "PENDING",
+    "pull_request": 479,
+    "pull_request_state": "OPEN",
     "ci_state": "PENDING",
     "review_state": "PENDING",
     "actionable_unresolved_review_count": null,

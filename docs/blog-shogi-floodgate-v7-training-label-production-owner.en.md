@@ -117,11 +117,11 @@ The validated implementation and test revision is `871841ad35dd5e91b97a73b5e6370
 | production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
 | ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
 | npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
-| GitHub CI / review                      | PENDING  | PR, checks, and review unknown           | null     | null          |
+| GitHub CI / review                      | PENDING  | PR #479 OPEN; checks and review unknown  | null     | null          |
 
 Intermediate results are not hidden. The first default full run overlapped with full lint and build at its tail; 159 of 161 files and 2,909 of 2,911 tests passed. One failure was a missed test update: the V2 record correctly wrote `purpose`, while the assertion still expected the legacy V1 `gate`. Revision `a95760b` corrected it and passed 16 of 16 in isolation. The other failure was real-child stable-WASM initialization exceeding a test-only 30-second watchdog under load. The immediate isolated rerun passed 53 of 53, and production already used a 120-second watchdog. Only this semantic-invariance test now uses 120 seconds for startup and 180 seconds for the whole test containing its one-, two-, and three-worker cases. Its 30-second search watchdog, worker and production implementation, and no-retry behavior remain unchanged. A loaded isolated rerun passed 53 of 53, followed by the final eight-worker full run at 2,911 of 2,911.
 
-Even after the local gate closes, GitHub PENDING is not a success claim. Merge still requires green CI on a ready PR and zero actionable unresolved reviews. The normal regular merge-commit policy applies, and live operation remains a separate gate from merge.
+Even after the local gate closes, the remaining GitHub PENDING fields on ready PR #479 are not success claims. Merge still requires green CI and zero actionable unresolved reviews. The normal regular merge-commit policy applies, and live operation remains a separate gate from merge.
 
 ## 10. Every production counter remains zero and the live evaluator is unchanged
 

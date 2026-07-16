@@ -117,11 +117,11 @@ package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いf
 | production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
 | ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
 | npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
-| GitHub CI / review                      | PENDING  | PR / checks / review未確定               | null     | null          |
+| GitHub CI / review                      | PENDING  | PR #479 OPEN; checks / review未確定      | null     | null          |
 
 中間結果も隠していない。最初のdefault full runは末尾がfull lint / buildと重なり、161 files中159、2,911 tests中2,909がpassした。1件はV2 recordが正しく`purpose`を書いているのに旧V1の`gate`を期待したtest漏れで、`a95760b`で修正し単独16 / 16を確認した。もう1件はreal-child stable-WASM初期化がtest-only 30秒watchdogを負荷下で超えたものだった。直後の単独実行は53 / 53成功し、本番watchdogは元から120秒である。このsemantic invariance testだけstartupを120秒、1 / 2 / 3-worker構成を含むtest全体上限を180秒へ合わせ、search watchdog 30秒、worker / production実装、retryなしは維持した。負荷中の単独再確認53 / 53と、8-worker final full 2,911 / 2,911が成功した。
 
-local gateが閉じても、GitHub欄のPENDINGは成功claimではない。merge条件はready PRのCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
+local gateが閉じても、ready PR #479のGitHub欄に残るPENDINGは成功claimではない。merge条件はCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
 
 ## 10. production counterとlive evaluatorはすべて0のまま
 

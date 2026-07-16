@@ -1860,6 +1860,16 @@ describe("Floodgate v7 deployment key authority source boundary", () => {
       "claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey",
       "claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests",
       "discardFloodgateV7DeploymentTeacherCheckpointV3Key",
+      "prepareFloodgateV7DeploymentTeacherSealedScanV3KeyCoreForTests",
+      "prepareFloodgateV7DeploymentTeacherSealedScanV3Key",
+      "claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKey",
+      "claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKeyCoreForTests",
+      "discardFloodgateV7DeploymentTeacherSealedScanV3Key",
+      "prepareFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests",
+      "prepareFloodgateV7DeploymentTrainingLabelOutputKeys",
+      "claimFloodgateV7DeploymentTrainingLabelOutputKeys",
+      "claimFloodgateV7DeploymentTrainingLabelOutputKeysCoreForTests",
+      "discardFloodgateV7DeploymentTrainingLabelOutputKeys",
     ]);
     expect(source).not.toMatch(/readonly\s+(?:root_?key|key_?material)\s*:/i);
     expect(source).not.toMatch(/\bconsole\.(?:log|info|warn|error)\b/);

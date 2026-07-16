@@ -6,6 +6,7 @@
 
 import { Buffer } from "node:buffer";
 import { timingSafeEqual } from "node:crypto";
+import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
@@ -62,6 +63,13 @@ import {
   runFloodgateV7ProductionOuterGatePrefix500,
   type FloodgateV7ProductionOuterGateConnectorCapability,
 } from "./floodgate-v7-production-outer-gate-lease";
+import {
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_CONTRACT,
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_EXECUTION_BOUNDARY,
+  FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_STATUS,
+  scanFloodgateV7Prefix100CallerAnchor,
+  type FloodgateV7Prefix100WorkScanAnchor,
+} from "./floodgate-v7-production-prefix-100-postflight";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT =
   "shogi-floodgate-v7-production-connector-runner-v1" as const;
@@ -86,7 +94,8 @@ export type FloodgateV7ProductionConnectorRunnerPhase =
   | "current-binding"
   | "connector-enrollment-load"
   | "connector"
-  | "receipt";
+  | "receipt"
+  | "exact-prefix-100-postflight";
 
 export type FloodgateV7ProductionConnectorRunnerRetryDisposition =
   | "fresh-invocation-required"
@@ -107,12 +116,18 @@ export interface FloodgateV7ProductionConnectorRunnerReceipt<
     readonly sealed: boolean;
     readonly checkpoint_may_have_persisted: true;
   }>;
-  readonly verification: Readonly<{
-    readonly private_registry_claimed: true;
-    readonly approved_record_binding_matched: true;
-    readonly fresh_current_key_binding_validated: true;
-    readonly connector_completed: true;
-  }>;
+  readonly verification: Readonly<
+    {
+      readonly private_registry_claimed: true;
+      readonly approved_record_binding_matched: true;
+      readonly fresh_current_key_binding_validated: true;
+      readonly connector_completed: true;
+    } & (TGate extends "durable-prefix-100"
+      ? {
+          readonly exact_prefix_100_read_only_continuity_postflight_completed: true;
+        }
+      : Record<never, never>)
+  >;
   readonly nonclaims: Readonly<{
     readonly run_id_disclosed: false;
     readonly approved_key_binding_disclosed: false;
@@ -212,6 +227,9 @@ export interface FloodgateV7ProductionConnectorRunnerDependenciesForTests {
     options: FloodgateV7ProductionCheckpointConnectorOptions,
     outerGateCapability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability> | null,
   ) => Promise<unknown>;
+  readonly scanPrefix100CallerAnchor: (
+    anchor: Readonly<FloodgateV7Prefix100WorkScanAnchor>,
+  ) => Promise<unknown>;
 }
 
 type CapturedDependencies =
@@ -233,6 +251,8 @@ const reflectOwnKeys = Reflect.ownKeys;
 const numberIsSafeInteger = Number.isSafeInteger;
 const bufferFrom = Buffer.from.bind(Buffer);
 const nativeArrayIncludes = Array.prototype.includes;
+const pathIsAbsolute = path.isAbsolute.bind(path);
+const pathResolve = path.resolve.bind(path);
 const nativeRegExpExec = RegExp.prototype.exec;
 const HEX_64_RE = /^[0-9a-f]{64}$/;
 const DEPENDENCY_KEYS = objectFreeze([
@@ -242,6 +262,7 @@ const DEPENDENCY_KEYS = objectFreeze([
   "claimApprovedEnrollment",
   "verifyCurrentBinding",
   "runConnector",
+  "scanPrefix100CallerAnchor",
 ] as const);
 const PRIVATE_CLAIM_KEYS = objectFreeze([
   "runId",
@@ -424,6 +445,28 @@ const OUTER_NONCLAIM_KEYS = objectFreeze([
   "live_evaluation_activation",
   "match",
   "playing_strength",
+] as const);
+const PREFIX_100_POSTFLIGHT_RECEIPT_KEYS = objectFreeze([
+  "contract",
+  "status",
+  "execution_boundary",
+  "verification",
+  "nonclaims",
+] as const);
+const PREFIX_100_POSTFLIGHT_VERIFICATION_KEYS = objectFreeze([
+  "namespace_exact",
+  "held_vs_named_identity_matched",
+  "anchor_bytes_digest_and_record_count_matched",
+  "descriptors_closed",
+  "namespace_or_file_content_mutated",
+] as const);
+const PREFIX_100_POSTFLIGHT_NONCLAIM_KEYS = objectFreeze([
+  "outer_lock_origin",
+  "connector_receipt_origin",
+  "independent_hmac_authentication",
+  "authenticated_continuity",
+  "production_gate_authority",
+  "atime_invariance",
 ] as const);
 
 function defineField(
@@ -647,11 +690,79 @@ function gatePredecessorParents(
       : 500;
 }
 
+function buildPrefix100WorkAnchor(
+  claim: Readonly<PrivateRegistryClaim>,
+  work: Readonly<Record<string, unknown>>,
+): Readonly<FloodgateV7Prefix100WorkScanAnchor> {
+  const publicationParent = claim.stageAuthorization.publicationParent;
+  const stageBasename = claim.stageAuthorization.stageBasename;
+  const destinationBasename = claim.stageAuthorization.destinationBasename;
+  const workBytes = work.bytes;
+  const workSha256 = work.sha256;
+  if (
+    typeof publicationParent !== "string" ||
+    publicationParent.length < 1 ||
+    publicationParent.length > 4096 ||
+    publicationParent.includes("\0") ||
+    !pathIsAbsolute(publicationParent) ||
+    pathResolve(publicationParent) !== publicationParent ||
+    stageBasename !== `floodgate-v7-${claim.runId}-stage` ||
+    destinationBasename !== `floodgate-v7-${claim.runId}-final` ||
+    work.records !== 102 ||
+    work.completed_parents !== 100 ||
+    typeof workBytes !== "number" ||
+    typeof workSha256 !== "string"
+  ) {
+    throw new NativeError("runner prefix 100 work anchor differs");
+  }
+  return frozenRecord({
+    publicationParent,
+    stageBasename,
+    destinationBasename,
+    workBasename: "work.jsonl" as const,
+    workBytes,
+    workSha256,
+    workRecords: 102 as const,
+    completedParents: 100 as const,
+  });
+}
+
+function validatePrefix100PostflightReceipt(value: unknown): void {
+  const receipt = dataRecord(value, PREFIX_100_POSTFLIGHT_RECEIPT_KEYS);
+  const verification = dataRecord(
+    receipt.verification,
+    PREFIX_100_POSTFLIGHT_VERIFICATION_KEYS,
+  );
+  const nonclaims = dataRecord(
+    receipt.nonclaims,
+    PREFIX_100_POSTFLIGHT_NONCLAIM_KEYS,
+  );
+  if (
+    receipt.contract !== FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_CONTRACT ||
+    receipt.status !== FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_STATUS ||
+    receipt.execution_boundary !==
+      FLOODGATE_V7_PREFIX_100_CALLER_ANCHOR_SCAN_EXECUTION_BOUNDARY ||
+    verification.namespace_exact !== true ||
+    verification.held_vs_named_identity_matched !== true ||
+    verification.anchor_bytes_digest_and_record_count_matched !== true ||
+    verification.descriptors_closed !== true ||
+    verification.namespace_or_file_content_mutated !== false ||
+    nonclaims.outer_lock_origin !== false ||
+    nonclaims.connector_receipt_origin !== false ||
+    nonclaims.independent_hmac_authentication !== false ||
+    nonclaims.authenticated_continuity !== false ||
+    nonclaims.production_gate_authority !== false ||
+    nonclaims.atime_invariance !== false
+  ) {
+    throw new NativeError("runner prefix 100 postflight receipt differs");
+  }
+}
+
 function validateConnectorReceipt(
   value: unknown,
   gate: FloodgateV7ProductionConnectorRunnerGate,
   claim: Readonly<PrivateRegistryClaim>,
-): void {
+): Readonly<FloodgateV7Prefix100WorkScanAnchor> | null {
   const receipt = dataRecord(value, CONNECTOR_RECEIPT_KEYS);
   const approved = dataRecord(
     receipt.approved_key_enrollment,
@@ -753,6 +864,9 @@ function validateConnectorReceipt(
       throw new NativeError("runner connector nonclaim differs");
     }
   }
+  return gate === "durable-prefix-100"
+    ? buildPrefix100WorkAnchor(claim, work)
+    : null;
 }
 
 function publicFailure(
@@ -842,6 +956,22 @@ function captureTypedConnectorFailure(value: unknown): Readonly<{
 function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
   gate: TGate,
 ): Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>> {
+  const verification =
+    gate === "durable-prefix-100"
+      ? frozenRecord({
+          private_registry_claimed: true as const,
+          approved_record_binding_matched: true as const,
+          fresh_current_key_binding_validated: true as const,
+          connector_completed: true as const,
+          exact_prefix_100_read_only_continuity_postflight_completed:
+            true as const,
+        })
+      : frozenRecord({
+          private_registry_claimed: true as const,
+          approved_record_binding_matched: true as const,
+          fresh_current_key_binding_validated: true as const,
+          connector_completed: true as const,
+        });
   return frozenRecord({
     contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT,
     status: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS,
@@ -854,12 +984,7 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
       sealed: gate === "sealed-final-24000",
       checkpoint_may_have_persisted: true as const,
     }),
-    verification: frozenRecord({
-      private_registry_claimed: true as const,
-      approved_record_binding_matched: true as const,
-      fresh_current_key_binding_validated: true as const,
-      connector_completed: true as const,
-    }),
+    verification,
     nonclaims: frozenRecord({
       run_id_disclosed: false as const,
       approved_key_binding_disclosed: false as const,
@@ -874,7 +999,7 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
       match: false as const,
       playing_strength: false as const,
     }),
-  });
+  }) as Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>;
 }
 
 function validateOuterSuccess<T>(value: unknown): T {
@@ -1024,12 +1149,26 @@ async function runCaptured<
     throw publicFailure("connector", gate, true, true);
   }
 
+  let prefix100Anchor: Readonly<FloodgateV7Prefix100WorkScanAnchor> | null;
   try {
-    validateConnectorReceipt(rawConnectorReceipt, gate, privateClaim);
-    return buildReceipt(gate);
+    prefix100Anchor = validateConnectorReceipt(
+      rawConnectorReceipt,
+      gate,
+      privateClaim,
+    );
   } catch {
     throw publicFailure("receipt", gate, true, true);
   }
+  if (prefix100Anchor !== null) {
+    try {
+      validatePrefix100PostflightReceipt(
+        await dependencies.scanPrefix100CallerAnchor(prefix100Anchor),
+      );
+    } catch {
+      throw publicFailure("exact-prefix-100-postflight", gate, true, true);
+    }
+  }
+  return buildReceipt(gate);
 }
 
 /** Dependency-injected seam. It never relaxes the gate-specific production exports. */
@@ -1076,6 +1215,7 @@ const PRODUCTION_DEPENDENCIES: CapturedDependencies = frozenRecord({
       outerGateCapability,
     );
   },
+  scanPrefix100CallerAnchor: scanFloodgateV7Prefix100CallerAnchor,
 });
 
 async function runProductionGate<

@@ -93,6 +93,9 @@ jobs:
       - name: Run Darwin fresh prefix-100 preflight adversarial tests
         run: npm test -- tests/unit/ml/floodgateV7ProductionPrefix100Preflight.test.ts tests/unit/ml/floodgateV7ProductionPrefix100PreflightCli.test.ts
 
+      - name: Run Darwin prefix-100 same-lock one-shot adversarial tests
+        run: npm test -- tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts tests/unit/ml/floodgateV7ProductionPrefix100RealBoundariesIntegration.test.ts
+
       - name: Run Darwin disposable prefix-100 kill-drill adversarial tests
         run: npm test -- tests/unit/ml/floodgateV7ProductionPrefix100KillDrill.test.ts tests/unit/ml/floodgateV7ProductionPrefix100KillDrillCli.test.ts
 

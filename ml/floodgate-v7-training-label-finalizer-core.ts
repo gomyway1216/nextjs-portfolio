@@ -438,17 +438,11 @@ async function manualContentValidation<T>(
   label: string,
   validate: () => Promise<T>,
 ): Promise<T> {
-  let completed = false;
-  let output: T | undefined;
-  let primary: unknown;
   try {
-    output = await validate();
-    completed = true;
+    return await validate();
   } catch (error) {
-    primary = error;
+    return manualFail(label, error);
   }
-  if (!completed) return manualFail(label, primary);
-  return output as T;
 }
 
 function failureDetail(value: unknown): string {
@@ -2105,6 +2099,11 @@ function publicationFacets(primary: unknown): Readonly<{
  * Consume a synthetic plan, a test postflight capability, and a test lease;
  * resume only exact deterministic prefixes, commit the manifest last, publish,
  * and reopen every destination artifact.
+ *
+ * This test adapter deliberately remains the single lexical owner of every
+ * key, held file handle, publication transaction, and failure facet. The #478
+ * boundary extracts a shared private runner only when separate test and
+ * production registries can call it without crossing authority domains.
  */
 export async function finalizeAndPublishFloodgateV7TrainingLabelsCoreForTests(
   lease: Readonly<FloodgateTeacherStageLease>,

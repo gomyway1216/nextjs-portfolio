@@ -977,7 +977,24 @@ async function readTrackedSnapshot(
     if (before.size !== BigInt(expectedBytes)) {
       fail(`tracked artifact size differs: ${artifactPath}`);
     }
-    const bytes = new Uint8Array(await handle.readFile());
+    const bytes = new Uint8Array(expectedBytes);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        bytes.byteLength - offset,
+        null,
+      );
+      if (bytesRead === 0) {
+        fail(`tracked artifact shortened while read: ${artifactPath}`);
+      }
+      offset += bytesRead;
+    }
+    const extra = new Uint8Array(1);
+    if ((await handle.read(extra, 0, 1, null)).bytesRead !== 0) {
+      fail(`tracked artifact grew while read: ${artifactPath}`);
+    }
     const after = await handle.stat({ bigint: true });
     const current = await fs.promises.lstat(absolute, { bigint: true });
     if (

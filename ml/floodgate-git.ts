@@ -169,6 +169,33 @@ function sameStat(left: fs.BigIntStats, right: fs.BigIntStats): boolean {
   );
 }
 
+function readExactTrackedBytes(
+  descriptor: number,
+  expectedBytes: number,
+  entryPath: string,
+): Uint8Array {
+  const bytes = new Uint8Array(expectedBytes);
+  let offset = 0;
+  while (offset < bytes.byteLength) {
+    const count = fs.readSync(
+      descriptor,
+      bytes,
+      offset,
+      bytes.byteLength - offset,
+      null,
+    );
+    if (count === 0) {
+      throw new Error(`tracked file shortened while reading: ${entryPath}`);
+    }
+    offset += count;
+  }
+  const extra = new Uint8Array(1);
+  if (fs.readSync(descriptor, extra, 0, 1, null) !== 0) {
+    throw new Error(`tracked file grew while reading: ${entryPath}`);
+  }
+  return bytes;
+}
+
 function readTrackedBlob(
   repositoryRoot: string,
   entry: Readonly<FloodgateGitTreeEntry>,
@@ -219,7 +246,7 @@ function readTrackedBlob(
     if (before.size !== BigInt(entry.bytes)) {
       throw new Error(`tracked file size differs from HEAD: ${entry.path}`);
     }
-    const bytes = fs.readFileSync(fd);
+    const bytes = readExactTrackedBytes(fd, entry.bytes, entry.path);
     const after = fs.fstatSync(fd, { bigint: true });
     const pathAfter = fs.lstatSync(filePath, { bigint: true });
     if (

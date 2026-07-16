@@ -624,6 +624,17 @@ describe("bounded pinned receipt-evidence reads", () => {
     }
   });
 
+  it("uses a fixed pinned-size buffer and rejects an extra byte", () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "ml", "floodgate-role-bundle-result.ts"),
+      "utf8",
+    );
+    expect(source).toContain("const bytes = new Uint8Array(expectedBytes)");
+    expect(source).toContain("const extra = new Uint8Array(1)");
+    expect(source).toContain("tracked artifact grew while read");
+    expect(source).not.toContain("await handle.readFile()");
+  });
+
   it.runIf(process.platform !== "win32")(
     "rejects a FIFO without blocking on an absent writer",
     () => {

@@ -337,8 +337,20 @@ describe("exact clean Floodgate Git revision", () => {
     const sizeCheck = source.indexOf(
       "if (before.size !== BigInt(entry.bytes))",
     );
-    const read = source.indexOf("const bytes = fs.readFileSync(fd)", sizeCheck);
+    const allocation = source.indexOf(
+      "const bytes = new Uint8Array(expectedBytes)",
+    );
+    const boundedRead = source.indexOf(
+      "readExactTrackedBytes(fd, entry.bytes, entry.path)",
+      sizeCheck,
+    );
+    const extraByteCheck = source.indexOf(
+      "fs.readSync(descriptor, extra, 0, 1, null)",
+    );
     expect(sizeCheck).toBeGreaterThan(-1);
-    expect(read).toBeGreaterThan(sizeCheck);
+    expect(allocation).toBeGreaterThan(-1);
+    expect(boundedRead).toBeGreaterThan(sizeCheck);
+    expect(extraByteCheck).toBeGreaterThan(allocation);
+    expect(source).not.toContain("fs.readFileSync(fd)");
   });
 });

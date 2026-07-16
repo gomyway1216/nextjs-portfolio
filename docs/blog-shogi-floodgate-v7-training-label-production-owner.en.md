@@ -106,22 +106,22 @@ Success writes one sanitized JSON line to stdout. Failure sets a nonzero exit st
 
 The validated implementation and test revision is `871841ad35dd5e91b97a73b5e63707dbe8673a4e`. An independent security review of the production implementation completed with zero P0, P1, P2, P3, or merge-blocking findings. Machine evidence records measured wall time, maximum RSS, and swaps from `/usr/bin/time -l`, not estimates.
 
-| Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
-| --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
-| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s   | 333,479,936   |
-| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s | 767,770,624   |
-| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s   | 1,171,046,400 |
-| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s   | 191,102,976   |
-| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s  | 1,834,876,928 |
-| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s | 2,383,593,472 |
-| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
-| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
-| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
-| GitHub CI / review                      | PENDING  | PR #479 OPEN; checks and review unknown  | null     | null          |
+| Validation                              | Status   | Result                                   | Duration   | Maximum RSS   |
+| --------------------------------------- | -------- | ---------------------------------------- | ---------- | ------------- |
+| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s     | 333,479,936   |
+| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s   | 767,770,624   |
+| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s     | 1,171,046,400 |
+| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s     | 191,102,976   |
+| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s    | 1,834,876,928 |
+| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s   | 2,383,593,472 |
+| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s    | 2,616,852,480 |
+| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s     | 64,913,408    |
+| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s     | 133,562,368   |
+| GitHub CI / review                      | PENDING  | `0e59d10`: 4 / 4 passed; unresolved 0    | 15m13s max | GitHub runner |
 
 Intermediate results are not hidden. The first default full run overlapped with full lint and build at its tail; 159 of 161 files and 2,909 of 2,911 tests passed. One failure was a missed test update: the V2 record correctly wrote `purpose`, while the assertion still expected the legacy V1 `gate`. Revision `a95760b` corrected it and passed 16 of 16 in isolation. The other failure was real-child stable-WASM initialization exceeding a test-only 30-second watchdog under load. The immediate isolated rerun passed 53 of 53, and production already used a 120-second watchdog. Only this semantic-invariance test now uses 120 seconds for startup and 180 seconds for the whole test containing its one-, two-, and three-worker cases. Its 30-second search watchdog, worker and production implementation, and no-retry behavior remain unchanged. A loaded isolated rerun passed 53 of 53, followed by the final eight-worker full run at 2,911 of 2,911.
 
-Even after the local gate closes, the remaining GitHub PENDING fields on ready PR #479 are not success claims. Merge still requires green CI and zero actionable unresolved reviews. The normal regular merge-commit policy applies, and live operation remains a separate gate from merge.
+On ready PR #479 evidence head `0e59d10996ed8be6f818fa2e4258c05615297ff2`, all four checks passed: Test and build in 15m13s, Darwin in 2m48s, E2E in 3m15s, and npm audit in 12s. Actionable unresolved review threads were zero. Gemini and Copilot each left only a nonactionable notification that review generation itself failed. Writing this GitHub evidence creates a docs-only head whose checks must rerun, so PENDING in the table refers only to that final rerun. After it is green with zero unresolved threads, the normal regular merge-commit policy applies. Live operation remains a separate gate from merge.
 
 ## 10. Every production counter remains zero and the live evaluator is unchanged
 

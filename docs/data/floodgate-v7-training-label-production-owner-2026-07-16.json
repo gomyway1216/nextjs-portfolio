@@ -352,10 +352,21 @@
   "github_gate": {
     "pull_request": 479,
     "pull_request_state": "OPEN",
-    "ci_state": "PENDING",
-    "review_state": "PENDING",
-    "actionable_unresolved_review_count": null,
-    "merge_state": "PENDING",
+    "evidence_head_revision": "0e59d10996ed8be6f818fa2e4258c05615297ff2",
+    "ci_state": "PASSED_ON_EVIDENCE_HEAD",
+    "checks_total": 4,
+    "checks_passed": 4,
+    "checks_failed": 0,
+    "check_durations_seconds": {
+      "npm_audit": 12,
+      "darwin_exclusive_directory_rename": 168,
+      "e2e_smoke_tests": 195,
+      "test_and_build": 913
+    },
+    "review_state": "ZERO_ACTIONABLE_UNRESOLVED_THREADS_ON_EVIDENCE_HEAD",
+    "actionable_unresolved_review_count": 0,
+    "automated_review_generation_failures_nonactionable": 2,
+    "merge_state": "PENDING_FINAL_EVIDENCE_ONLY_HEAD_RERUN",
     "merge_method_when_ready": "regular-merge-commit"
   },
   "production_counters": {

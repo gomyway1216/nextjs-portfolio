@@ -106,22 +106,22 @@ package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いf
 
 検証済みimplementation / test revisionは`871841ad35dd5e91b97a73b5e63707dbe8673a4e`である。production実装を対象にした独立security reviewはP0 / P1 / P2 / P3すべて0、merge-blocking finding 0で完了した。推測値ではなく、`/usr/bin/time -l`で得たwall time、maximum RSS、swapをmachine evidenceへ記録した。
 
-| Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
-| --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
-| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s   | 333,479,936   |
-| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s | 767,770,624   |
-| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s   | 1,171,046,400 |
-| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s   | 191,102,976   |
-| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s  | 1,834,876,928 |
-| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s | 2,383,593,472 |
-| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s  | 2,616,852,480 |
-| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s   | 64,913,408    |
-| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
-| GitHub CI / review                      | PENDING  | PR #479 OPEN; checks / review未確定      | null     | null          |
+| Validation                              | Status   | Result                                   | Duration   | Maximum RSS   |
+| --------------------------------------- | -------- | ---------------------------------------- | ---------- | ------------- |
+| focused owner / outer / runner / CLI    | COMPLETE | 6 files / 134 tests passed               | 2.97 s     | 333,479,936   |
+| related authority / scanner / finalizer | COMPLETE | 7 files / 97 tests passed                | 300.11 s   | 767,770,624   |
+| TypeScript                              | COMPLETE | exit 0                                   | 3.18 s     | 1,171,046,400 |
+| Prettier                                | COMPLETE | 17 files passed                          | 1.17 s     | 191,102,976   |
+| scoped / full ESLint                    | COMPLETE | scoped 0/0; full 0 errors / 157 warnings | 29.30 s    | 1,834,876,928 |
+| full Vitest                             | COMPLETE | 161 files / 2,911 tests passed           | 310.96 s   | 2,383,593,472 |
+| production build                        | COMPLETE | 193 / 193 static pages; exit 0           | 29.38 s    | 2,616,852,480 |
+| ML stdlib                               | COMPLETE | 58 / 58 passed                           | 0.49 s     | 64,913,408    |
+| npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s     | 133,562,368   |
+| GitHub CI / review                      | PENDING  | `0e59d10`: 4 / 4 pass; unresolved 0      | 15m13s max | GitHub runner |
 
 中間結果も隠していない。最初のdefault full runは末尾がfull lint / buildと重なり、161 files中159、2,911 tests中2,909がpassした。1件はV2 recordが正しく`purpose`を書いているのに旧V1の`gate`を期待したtest漏れで、`a95760b`で修正し単独16 / 16を確認した。もう1件はreal-child stable-WASM初期化がtest-only 30秒watchdogを負荷下で超えたものだった。直後の単独実行は53 / 53成功し、本番watchdogは元から120秒である。このsemantic invariance testだけstartupを120秒、1 / 2 / 3-worker構成を含むtest全体上限を180秒へ合わせ、search watchdog 30秒、worker / production実装、retryなしは維持した。負荷中の単独再確認53 / 53と、8-worker final full 2,911 / 2,911が成功した。
 
-local gateが閉じても、ready PR #479のGitHub欄に残るPENDINGは成功claimではない。merge条件はCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
+ready PR #479のevidence head `0e59d10996ed8be6f818fa2e4258c05615297ff2`では、Test and build 15分13秒、Darwin 2分48秒、E2E 3分15秒、npm audit 12秒の4 checksがすべて成功し、actionable unresolved review threadは0だった。Gemini / Copilotはreview生成自体に失敗したという非actionable通知を1件ずつ残している。このGitHub evidenceを書き込むdocs-only headではchecksを再実行するため、表のPENDINGはその最終再走だけを指す。再走もgreenかつunresolved 0になった後、通常方針どおりregular merge commitを使う。live operationはそのmergeとは別gateにする。
 
 ## 10. production counterとlive evaluatorはすべて0のまま
 

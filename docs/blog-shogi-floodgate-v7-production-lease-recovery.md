@@ -40,7 +40,7 @@
 
 100、500、24,000のpublic entry pointは、いずれも共通の`runProductionGate`からouter wrapperへ入る。wrapperはimmutable private registryをheld descriptorで開き、owner/mode/link、named objectとの一致、許容size、content bindingを検査してから、macOSの固定lock helperをnonblockingで適用する。lock取得に成功するまでregistry load、approved binding、connector、stage、teacher processは開始しない。
 
-production入口はzero-argumentの固定3 ownerだけで、gateやcallbackを外部から注入するgeneric production exportはない。outer ownerはactive publish後にcaptured CommonJS `require`で固定runner moduleゑlazy loadし、対応するexact under-outer operationだけを1回呼ぶ。dynamic `import()`は使わない。capabilityが正規connectorによって1回もclaimされない、clone・別gate・二重claimである、またはfixed module loadが失敗する場合は、内側のsuccessとして受理しない。
+production入口はzero-argumentの固定3 ownerだけで、gateやcallbackを外部から注入するgeneric production exportはない。outer ownerはactive publish後にcaptured CommonJS `require`で固定runner moduleをlazy loadし、対応するexact under-outer operationだけを1回呼ぶ。dynamic `import()`は使わない。capabilityが正規connectorによって1回もclaimされない、clone・別gate・二重claimである、またはfixed module loadが失敗する場合は、内側のsuccessとして受理しない。
 
 | 状態                                | ordinary runnerの結果                       | operation実行 |
 | ----------------------------------- | ------------------------------------------- | ------------: |
@@ -53,9 +53,11 @@ local process testはprefix同士が重ならないこと、三つのgateが同�
 
 ## 4. 認証済みactive recordをoperation前にdurableにする
 
-active recordはexact ordered shapeのcanonical JSONLとしてprivate control namespaceへcreate-onlyで置く。専用domainでdeployment root keyから派生したkeyを使い、gate、registry binding、owner lifecycleに必要なprivate metadataを認証する。staging fileを同期し、no-clobber linkでactive nameを作り、control directoryを同期し、staging nameを消してそのdirectoryも同期する。reopenしたexact bytesが一致し、認証が通り、quarantineが空であることを確認してからだけ、exact gateへbindしたopaque single-use connector capabilityを発行する。通常callerにcapabilityは返されず、fixed under-outer operationだけが受け取る。production checkpoint connectorはそれcapabilityを同期claimできなければ開始しない。
+active recordはexact ordered shapeのcanonical JSONLとしてprivate control namespaceへcreate-onlyで置く。専用domainでdeployment root keyから派生したkeyを使い、gate、registry binding、owner lifecycleに必要なprivate metadataを認証する。staging fileを同期し、no-clobber linkでactive nameを作り、control directoryを同期し、staging nameを消してそのdirectoryも同期する。reopenしたexact bytesが一致し、認証が通り、quarantineが空であることを確認してからだけ、exact gateへbindしたopaque single-use connector capabilityを発行する。通常callerにcapabilityは返されず、fixed under-outer operationだけが受け取る。production checkpoint connectorはそのcapabilityを同期claimできなければ開始しない。
 
-公開receiptはcontract、status、algorithmと固定booleanだけを返す。個人環境、所有者、ファイル同一性、認証タグ、乱数、マシン識別子、root key、registry content、生のconnector receipt、生の失敗内容は返さない。これらのprivate値は認証判断に使うが、本稿や[machine-readable evidence](./data/floodgate-v7-production-lease-recovery-2026-07-15.json)には含めない。
+独立監査の4件目は、partial publish中のunknown failureがstaging remnantまたはactive linkを過小報告し得る点を検出した。修正後は`authenticated_lease_published / quarantine_blocks_all_gates`を単調にF/T（staging作成後・active link前）、T/T（active link後・staging removalのdirectory durability前）、T/F（staging removalがquarantine directoryまでdurableになった後）と追跡する。`after-staging-create`、`after-active-link-before-control-sync`、`after-durable-active-publish-before-staging-cleanup`、`after-staging-unlink-before-quarantine-sync`の4 failpointを局所注入して境界を検査した。これは実process crashやrebootを起こすtestではなく、real crash/reboot recoveryの証明ではない。
+
+公開receiptはcontract、status、algorithm、固定booleanに加え、productionの固定native descriptor closeをtest-onlyの注入境界と区別する固定`execution_boundary`だけを返す。production runnerはproduction値だけを受け入れるため、testのclose hookをno-opにしたreceiptを「本番でlock releaseを実証した」と読み替えられない。個人環境、所有者、ファイル同一性、認証タグ、乱数、マシン識別子、root key、registry content、生のconnector receipt、生の失敗内容は返さない。これらのprivate値は認証判断に使うが、本稿や[machine-readable evidence](./data/floodgate-v7-production-lease-recovery-2026-07-15.json)には含めない。
 
 認証は「recordをdeployment authorityとregistryへbindできる」ことを示す。recordが残っているだけでoperationが完了した、checkpointが書かれなかった、stageが安全に消えた、次gateを開始できる、という意味にはならない。
 
@@ -85,10 +87,15 @@ remove exact active + control-directory sync
 close retired evidence + retired-directory sync
         |
         v
+final private namespace + retired/quarantine validation under lock
+        |
+        v
 release OS lock
 ```
 
-active removalでは、operation前に保持したexact bytesとfile identityへ再照合し、別objectへ変わっていればunlinkしない。activeを直接消す前にretired namespaceへcreate-only evidenceを作り、そのdirectoryを同期する。closed retired recordもexact ordered shape、認証、current registry bindingをfreshに再検証する。active unlink後のcontrol-directory syncが失敗した場合、pending retirementを残し、次回をfail closedにする。normal success receiptはactive removal、認証済みclosed retirement、lock release、quarantine emptyを全て確認した場合だけ返る。
+active removalでは、operation前に保持したexact bytesとfile identityへ再照合し、別objectへ変わっていればunlinkしない。activeを直接消す前にretired namespaceへcreate-only evidenceを作り、そのdirectoryを同期する。closed retired recordもexact ordered shape、認証、current registry bindingをfreshに再検証する。active unlink後のcontrol-directory syncが失敗した場合、pending retirementを残し、次回をfail closedにする。
+
+最終成功ではOS lockを保持したまま、control、quarantine、retiredのprivate directory identity、controlのexact entry set、active不在、quarantine empty、retired evidenceの認証とcurrent bindingをまとめて再検証し、その後にだけdescriptorをcloseする。これにより、lock release後に後続ownerがactiveを作った状態を先行ownerの最終検証が読むraceを消す。normal success receiptはこのlock下最終検証、durable active removal、認証済みclosed retirement、そして対応するexecution boundaryでのcloseが全て成立した場合だけ返る。
 
 内側operationがrejectした場合はactive evidenceを消さず、public failureはmanual reconciliationを要求する。これは「operationが未実行」とも「checkpointが未保存」ともclaimしない。
 
@@ -121,7 +128,9 @@ stage authorization leaseのcontractはv3へ更新された。create-only direct
 
 outer wrapperのsignal policyはgraceful cleanupをclaimしない。対象signalを受けると、そのsignalのpre-existing persistent listenerを含む全listenerを外し、同じsignalをprocessへ再送してnative defaultのprocess deathへ移る。exit時にactive recordを消さないため、OS lockだけがprocess lifetimeとともに解放され、認証済みrecordはcrash evidenceとして残る。fixed ordinary ownerだけでなくmanual inspectもhandlerをstateととも所有し、confirm/cancelで取り外す。local child-process testは両方のSIGTERM経路を検査するが、実production daemonやrebootのdrillではない。
 
-runnerはouter boundaryの失敗を`outer-gate-lock` phaseへsanitiseし、private error objectをそのままCLIへ渡さない。認証済みactive publish後の不明failureは、operationやcheckpointが実行された可能性を保守的に残す。public resultはgate、phase、may-have-runに必要なallowlistだけで、private metadataやraw errorを含まない。
+outer wrapperはnamespace path決定、key派生、lock、publish、operation、cleanupの全phaseを単一のtyped sanitation boundaryで囲み、runnerはそのouter failureを`outer-gate-lock` phaseへsanitiseしてprivate error objectをそのままCLIへ渡さない。認証済みactive publish後の不明failureは、operationやcheckpointが実行された可能性を保守的に残す。public resultはgate、phase、may-have-runに必要なallowlistだけで、private metadataやraw errorを含まない。
+
+descriptor closeの完了はmetadata removalとは別のstateで追跡する。metadataをdurableに片付けた後のcloseが失敗しても、`finally`でcloseをbest-effortでもう一度行い、それも成功しない場合はprocess deathによるdescriptor releaseまで成功をclaimしない。
 
 ownershipの順序は、outer wrapperがlockとactive recordを取得してからrunnerへ渡し、runner settlement後にretirementを完了してからlockを手放す、である。runnerが先にlockを解放したり、内側operationがouter activeを直接消したりする経路はない。
 
@@ -150,24 +159,28 @@ outer lease testsは、三つのgateの共有lock、prefix間serialization、leg
 
 独立監査で見つけた項目は、途中経緯を消さず次のように閉じた。
 
-| audit finding                                       | 修正・regression evidence                                                                                             |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| generic production callbackがcapability発行口になる | exportを削除し、zero-argument fixed 3 owner、lazy fixed operation、unclaimed/clone/forge/double/gate-bound testへ変更 |
-| production manual APIがraw failureを返す可能性      | inspect/confirm/cancelをtyped sanitized failureへ固定し、close faultを実測                                            |
-| pre-existing signal listenerがdeathを吸収できる     | delivered signalの全listenerを除去後に再送し、ordinary/manual childで確認                                             |
-| `lockf`の全nonzeroをbusy扱い                        | exit 75だけをcontention、他はsanitized manual failureに分離                                                           |
-| closed retiredの改変系negative coverage不足         | tamper、valid-HMAC extra field、current-registry mismatchをfail closedで固定                                          |
-| macOS helperが無い環境でtestが0件greenになる        | Darwin CIで`/usr/bin/lockf`をexecutableとして必須化し、outer adversarial suiteを固定実行                              |
+| audit finding                                              | 修正・regression evidence                                                                                                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| generic production callbackがcapability発行口になる        | exportを削除し、zero-argument fixed 3 owner、lazy fixed operation、unclaimed/clone/forge/double/gate-bound testへ変更                               |
+| production manual APIがraw failureを返す可能性             | inspect/confirm/cancelをtyped sanitized failureへ固定し、close faultを実測                                                                          |
+| pre-existing signal listenerがdeathを吸収できる            | delivered signalの全listenerを除去後に再送し、ordinary/manual childで確認                                                                           |
+| `lockf`の全nonzeroをbusy扱い                               | exit 75だけをcontention、他はsanitized manual failureに分離                                                                                         |
+| closed retiredの改変系negative coverage不足                | tamper、valid-HMAC extra field、current-registry mismatchをfail closedで固定                                                                        |
+| macOS helperが無い環境でtestが0件greenになる               | Darwin CIで`/usr/bin/lockf`をexecutableとして必須化し、outer adversarial suiteを固定実行                                                            |
+| test用no-op closeでproduction releaseと同じreceiptを作れる | production/test `execution_boundary`を分離し、production runnerはproduction値のみ受理。no-op closeでlockが実際に残るtestも追加                      |
+| final namespace検証のlock release後race                    | private directory、exact entries、active、quarantine、retiredをlock下でまとめて検証してからclose。後続ownerとの競合testを追加                       |
+| 早期phaseとfinal closeに一貫したsanitize/settlementがない  | wrapper全体をphase-aware typed failureで囲み、lock releaseをmetadata removalと独立追跡。publish前後のProxy/raw faultとcleanup downgradeを回帰test化 |
+| partial publish failureがstaging / active進捗を過小報告    | F/T、T/T、T/Fを単調追跡し、4 failpointでstaging remnant、active link、directory durabilityを回帰検査                                                |
 
-これらの修正後、outer・runner・checkpoint connector・CLIの局所4 fileは要求Nodeで187 / 187を通過した。別の独立rerunでstage authorization・publicationの2 fileも147 / 147、wall 8.88秒で通過した。どちらも最終combined rerunの代用ではない。
+先の監査修正後、outer・runner・checkpoint connector・CLIの局所4 fileは要求Nodeで187 / 187を通過した。先行3件を追加修正したtreeの193 / 193は4件目のpartial publish修正前snapshotとして保持する。4件目を含む最新treeでは同じ4 fileが197 / 197を通過した。stage authorization・publicationの2 fileは別の独立rerunで147 / 147だった。
 
-最初のcombined rerunは要求版ではないNodeで実行され、CLIのfixed runtime guardが設計どおりrunner load前に停止したため271 / 280だった。これは実装regressionではなく無効なvalidation attemptである。要求版Nodeへ直した次のrerunは、実装作業中だったsource-structure allowlist 2件を検出して278 / 280だった。最終の安定treeでは7 file・337 / 337が通過し、Vitest 9.61秒、wall 10.06秒、swap 0だった。TypeScript、scoped ESLint、Prettier check、`git diff --check`も全てpassした。詳細は[machine-readable evidence](./data/floodgate-v7-production-lease-recovery-2026-07-15.json)に記録した。途中のattemptを削除して最初から全通過だったとは扱わない一方、wrong-runtime failureを実装failureにも数えない。
+最初のcombined rerunは要求版ではないNodeで271 / 280、要求版へ直した実装途中では278 / 280、その後の安定snapshotでは337 / 337だった。先行3件の追加監査修正を含む7 file・344 / 344（Vitest 8.33秒、wall 8.69秒、最大resident set 304,496,640 bytes、swap 0）も通過したが、4件目のpartial publish修正前なのでprior snapshotへ降格した。Node v22.13.0で4件目を含む最新7 fileを再実行し、348 / 348、Vitest 8.14秒、wall 8.49秒、最大resident set 298,811,392 bytes、swap 0で通過した。この348 / 348を現在の最終combined evidenceとする。
 
 最終の変更file全体へPrettier範囲を広げた最初のcheckでは、Darwin CI YAML 1 fileだけの書式差を検出した。機能failureではなく、同fileを機械整形した後のexpanded checkとdiff checkはpassした。このattemptも「最初からstaticが全passだった」とは記録しない。
 
-追加の全体回帰では138 file・2,590 / 2,590が通過し、Vitest 152.87秒、wall 153.53秒、最大resident set 4,038,459,392 bytes、swap 0だった。この全体suiteにもreal production gate、real stale recovery、学習、weight activationは含まれない。
+先行3件の追加監査修正を含む全体回帰snapshotは138 file・2,597 / 2,597、Vitest 159.26秒、wall 159.68秒、最大resident set 4,373,102,592 bytes、swap 0で通過したが、4件目のpartial publish修正前なのでprior snapshotへ降格した。2,590 / 2,590もさらに前のsnapshotとして保持する。Node v22.13.0で4件目を含む最新全体回帰を再実行し、138 file・2,601 / 2,601、Vitest 153.22秒、wall 153.67秒、最大resident set 4,325,474,304 bytes、swap 0で通過した。この2,601 / 2,601を現在の最終full evidenceとする。
 
-全ての成功testはlocal fixtureまたはlocal child processである。実stale production source、実reboot、実production gateを使ったtestではない。
+全ての成功testはlocal fixtureまたはlocal child processである。partial publishの4 failpointも局所test hookで、実process crash、実reboot、実production gateではない。
 
 ## 11. privacy、nonclaims、production execution 0
 

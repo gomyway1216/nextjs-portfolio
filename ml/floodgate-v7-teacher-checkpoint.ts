@@ -34,16 +34,26 @@ import {
   type FloodgateV7TeacherCheckpointV3Gate,
 } from "./floodgate-v7-checkpoint-key-contract";
 import {
+  claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKey,
+  claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKeyCoreForTests,
   claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey,
   claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests,
+  discardFloodgateV7DeploymentTeacherSealedScanV3Key,
   discardFloodgateV7DeploymentTeacherCheckpointV3Key,
   FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+  prepareFloodgateV7DeploymentTeacherSealedScanV3Key,
+  prepareFloodgateV7DeploymentTeacherSealedScanV3KeyCoreForTests,
+  type FloodgateV7DeploymentKeyAuthorityDependencies,
   type FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
   type FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization,
   type FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
   type FloodgateV7DeploymentTeacherRunBinding,
+  type FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization,
+  type FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
 } from "./floodgate-v7-deployment-key-authority";
 import {
+  beginFloodgateTeacherStagePublication,
+  beginFloodgateTeacherStagePublicationCoreForTests,
   claimActiveAuthorizedFloodgateTeacherStageLease,
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
@@ -51,6 +61,9 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
   FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
   type FloodgateTeacherStageLease,
+  type FloodgateTeacherStagePublicationDependencies,
+  type FloodgateTeacherStagePublicationReceipt,
+  type FloodgateTeacherStagePublicationTransaction,
 } from "./floodgate-teacher-stage-authorization";
 import {
   claimActiveVerifiedPinnedFloodgateTrainingRows,
@@ -101,6 +114,18 @@ export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_STATUS =
   "authenticated-v3-parent-entry-provisional-until-enclosing-sealed-final-scan-succeeds" as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_VERIFIED_PARENT_EVENT_CLAIM_BOUNDARY =
   "single-canonical-v3-entry-hmac-chain-parent-run-binding-and-completed-evidence-authenticated-during-held-file-scan-trusted-test-hooks-and-current-js-realm-not-hostile-same-process-mutation-resistant-not-standalone-work-authentication-not-sealed-final-scan-success-not-output-authority-not-durability-publication-training-weight-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CONTRACT =
+  "shogi-floodgate-v7-training-label-sealed-scanner-v1" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_STATUS =
+  "opaque-two-pass-sealed-final-scanner-held-for-replay-and-terminal-publication-gate" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CLAIM_BOUNDARY =
+  "active-stage-lease-transferred-to-internally-begun-publication-transaction-fresh-authenticated-training-input-same-held-work-unkeyed-full-file-preflight-internal-purpose-specific-v3-scan-key-prepare-and-claim-first-keyed-scan-without-sink-second-keyed-scan-with-awaited-sink-same-full-snapshot-not-output-plan-publication-training-weight-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_RECEIPT_STATUS =
+  "same-held-unkeyed-preflight-and-two-enclosing-keyed-sealed-final-scans-complete-snapshot-path-and-stage-prefix-confirmed" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_CONTRACT =
+  "shogi-floodgate-v7-training-label-sealed-scanner-terminal-v1" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_STATUS =
+  "opaque-final-no-sink-keyed-reverification-complete-handles-closed-and-scan-key-zeroized" as const;
 export {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
@@ -161,6 +186,27 @@ const MAX_TOTAL_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES;
 const V3_MAX_TOTAL_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES;
 const MAX_LINE_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES;
 const READ_CHUNK_BYTES = 64 * 1024;
+const V3_TRAIN_FILENAME = "train.jsonl" as const;
+const V3_RESULT_FILENAME = "result.json" as const;
+const V3_MANIFEST_FILENAME = "manifest.json" as const;
+const V3_SEALED_STAGE_PREFIX_STATES = Object.freeze([
+  Object.freeze([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]),
+  Object.freeze([
+    V3_TRAIN_FILENAME,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  ]),
+  Object.freeze([
+    V3_RESULT_FILENAME,
+    V3_TRAIN_FILENAME,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  ]),
+  Object.freeze([
+    V3_MANIFEST_FILENAME,
+    V3_RESULT_FILENAME,
+    V3_TRAIN_FILENAME,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  ]),
+] as const);
 const MODE_MASK = 0o7777;
 const MODE_TYPE_MASK = fs.constants.S_IFMT;
 const MODE_DIRECTORY = fs.constants.S_IFDIR;
@@ -193,6 +239,8 @@ const nativeTypedArrayFill = typedArrayPrototype.fill as (
   end?: number,
 ) => Uint8Array;
 const NativePromise = Promise;
+const nativeGetEffectiveUserId =
+  typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
 const NativeAbortController = AbortController;
 const nativePromisePrototype = Promise.prototype;
 const nativePromiseThen = Promise.prototype.then;
@@ -461,6 +509,142 @@ export type FloodgateV7TeacherCheckpointV3VerifiedParentEvent = DeepReadonly<{
 export type FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests = (
   event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
 ) => undefined;
+
+/**
+ * Internal backpressured consumer for one scanner-authenticated parent. Unlike
+ * the test-only synchronous visitor, the scanner awaits this exact native
+ * Promise before it reads or emits the next parent.
+ */
+export type FloodgateV7TeacherCheckpointV3VerifiedParentSink = (
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+) => Promise<void>;
+
+export type FloodgateV7TrainingLabelSealedScannerExecutionBoundary =
+  | "production-fixed-training-input-and-sealed-scan-key-authorities"
+  | "test-only-injected-training-input-and-sealed-scan-key-authorities";
+
+export interface FloodgateV7TrainingLabelSealedScannerOptions {
+  readonly runId: string;
+  readonly keyId: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
+  readonly work: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
+/** Public facade deliberately contains no rows, paths, handles, or key bytes. */
+export interface FloodgateV7TrainingLabelSealedScanner {
+  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CLAIM_BOUNDARY;
+  readonly execution_boundary: FloodgateV7TrainingLabelSealedScannerExecutionBoundary;
+}
+
+export interface FloodgateV7TrainingLabelSealedScannerReceipt {
+  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_RECEIPT_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CLAIM_BOUNDARY;
+  readonly execution_boundary: FloodgateV7TrainingLabelSealedScannerExecutionBoundary;
+  readonly run_id: string;
+  readonly key_id: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
+  readonly teacher_run_binding_sha256: string;
+  readonly training: Readonly<{
+    readonly binding: Readonly<FloodgateTrainingInputBinding>;
+    readonly binding_sha256: string;
+    readonly parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+    readonly parent_ids_sha256: string;
+    readonly canonical_parents_sha256: string;
+  }>;
+  readonly stage: Readonly<{
+    readonly parent_dev: string;
+    readonly parent_ino: string;
+    readonly stage_dev: string;
+    readonly stage_ino: string;
+    readonly stage_basename: string;
+    readonly destination_basename: string;
+  }>;
+  readonly work: Readonly<{
+    readonly filename: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME;
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly snapshot: Readonly<{
+      readonly dev: string;
+      readonly ino: string;
+      readonly mode: string;
+      readonly nlink: string;
+      readonly uid: string;
+      readonly size: string;
+      readonly mtime_ns: string;
+      readonly ctime_ns: string;
+    }>;
+  }>;
+  readonly verification: Readonly<{
+    readonly unkeyed_preflight_full_file: true;
+    readonly unkeyed_preflight_matches_expected_work: true;
+    readonly key_prepared_from_same_held_preflight: true;
+    readonly first_pass_without_sink: true;
+    readonly second_pass_sink_awaited_with_backpressure: true;
+    readonly same_held_work_descriptor: true;
+    readonly same_full_work_snapshot: true;
+    readonly exact_sealed_records: 24_004;
+    readonly exact_completed_parents: 24_000;
+    readonly no_unauthenticated_tail: true;
+    readonly held_and_named_stage_and_work_confirmed_after_second_pass: true;
+  }>;
+}
+
+export interface FloodgateV7TrainingLabelSealedScannerOpenResult {
+  readonly scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>;
+  readonly receipt: Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>;
+}
+
+/** No transaction control is exposed; commit and abort remain scanner-owned. */
+export interface FloodgateV7TrainingLabelSealedScannerPublicationContext {
+  readonly authorizationReceipt: Readonly<
+    FloodgateTeacherStageLease["receipt"]
+  >;
+  readonly stageRoot: string;
+  readonly destinationRoot: string;
+}
+
+export interface FloodgateV7TrainingLabelSealedScannerTerminalReceipt {
+  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_STATUS;
+}
+
+export type FloodgateV7TrainingLabelSealedScannerFailpointPhase =
+  | "after-unkeyed-preflight-before-confirmation"
+  | "after-unkeyed-confirmation-before-key-prepare"
+  | "after-key-claimed-before-first-scan"
+  | "after-first-scan-before-confirmation"
+  | "after-first-confirmation"
+  | "after-second-scan-before-confirmation"
+  | "after-second-confirmation-before-registration"
+  | "before-replay"
+  | "after-replay-scan-before-confirmation"
+  | "before-terminal-reverification"
+  | "after-terminal-scan-before-confirmation"
+  | "after-terminal-key-zeroized";
+
+export interface FloodgateV7TrainingLabelSealedScannerDependenciesForTests {
+  readonly readForTests?: (
+    request: Readonly<{
+      readonly purpose:
+        | "unkeyed-preflight"
+        | "resumable-prefix"
+        | "durable-prefix-final"
+        | "sealed-final";
+      readonly length: number;
+      readonly position: number;
+    }>,
+    read: (maximumBytes?: number) => Promise<number>,
+  ) => Promise<number>;
+  readonly failpointForTests?: (
+    phase: FloodgateV7TrainingLabelSealedScannerFailpointPhase,
+  ) => void | Promise<void>;
+  readonly observeKeyForTests?: (key: Uint8Array) => undefined;
+  readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
+}
 
 export type FloodgateV7TeacherProducerControlTimerPhase =
   "parent-deadline" | "abort-drain";
@@ -827,6 +1011,25 @@ function persistenceFailure(message: string, cause: unknown): never {
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+function exactStringList(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((entry, index) => entry === right[index])
+  );
+}
+
+function sealedStagePrefixState(
+  values: readonly string[],
+): (typeof V3_SEALED_STAGE_PREFIX_STATES)[number] | undefined {
+  const entries = [...values].sort(compareUtf8);
+  return V3_SEALED_STAGE_PREFIX_STATES.find((state) =>
+    exactStringList(entries, state),
+  );
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -2556,7 +2759,7 @@ function scanV3CompleteLine(
 
 function verifyStageStat(
   stat: fs.BigIntStats,
-  invocation: CapturedInvocation,
+  invocation: Pick<CapturedInvocation, "effectiveUserId" | "lease">,
 ): void {
   const expected = invocation.lease.receipt.stage_identity;
   if (
@@ -2588,7 +2791,7 @@ function verifyWorkStat(
 
 function verifyV3WorkStat(
   stat: fs.BigIntStats,
-  invocation: CapturedV3Invocation,
+  invocation: Pick<CapturedInvocation, "effectiveUserId">,
 ): void {
   if (
     (Number(stat.mode) & MODE_TYPE_MASK) !== MODE_REGULAR ||
@@ -2602,7 +2805,9 @@ function verifyV3WorkStat(
   }
 }
 
-async function verifyStagePath(invocation: CapturedInvocation): Promise<void> {
+async function verifyStagePath(
+  invocation: Pick<CapturedInvocation, "effectiveUserId" | "lease">,
+): Promise<void> {
   let stat: fs.BigIntStats;
   try {
     stat = await fs.promises.lstat(invocation.lease.stageRoot, {
@@ -2661,7 +2866,7 @@ function verifyWorkSnapshot(
 function verifyV3WorkSnapshot(
   stat: fs.BigIntStats,
   expected: WorkFileSnapshot,
-  invocation: CapturedV3Invocation,
+  invocation: Pick<CapturedInvocation, "effectiveUserId">,
   label: string,
 ): void {
   verifyV3WorkStat(stat, invocation);
@@ -2701,7 +2906,7 @@ async function verifyWorkPathSnapshot(
 async function verifyV3WorkPathSnapshot(
   workPath: string,
   expected: WorkFileSnapshot,
-  invocation: CapturedV3Invocation,
+  invocation: Pick<CapturedInvocation, "effectiveUserId">,
 ): Promise<void> {
   let stat: fs.BigIntStats;
   try {
@@ -2858,10 +3063,14 @@ async function scanV3WorkHandle(
   policy: V3WorkScanPolicy,
   expectedIdentity: WorkFileIdentity,
   verifiedParentVisitor?: FloodgateV7TeacherCheckpointV3VerifiedParentVisitorForTests,
+  verifiedParentSink?: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
 ): Promise<Readonly<V3WorkFileScanResult>> {
-  if (verifiedParentVisitor !== undefined && policy !== "sealed-final") {
+  if (
+    (verifiedParentVisitor !== undefined || verifiedParentSink !== undefined) &&
+    policy !== "sealed-final"
+  ) {
     failure(
-      "verified parent visitor is allowed only during the sealed-final scan",
+      "verified parent consumer is allowed only during the sealed-final scan",
     );
   }
   const before = await handle.stat({ bigint: true });
@@ -2957,7 +3166,7 @@ async function scanV3WorkHandle(
         invocation,
         key,
         decoder,
-        verifiedParentVisitor !== undefined,
+        verifiedParentVisitor !== undefined || verifiedParentSink !== undefined,
       );
       state.completeRecords += 1;
       if (
@@ -2968,6 +3177,12 @@ async function scanV3WorkHandle(
           verifiedParentVisitor,
           verifiedParentEvent,
         );
+      }
+      if (
+        verifiedParentEvent !== undefined &&
+        verifiedParentSink !== undefined
+      ) {
+        await invokeVerifiedParentSink(verifiedParentSink, verifiedParentEvent);
       }
       lineLength = 0;
       chunkStart = newline + 1;
@@ -3270,6 +3485,26 @@ function invokeVerifiedParentVisitorForTests(
     failure(
       "dependencies.verifiedParentVisitorForTests must return exactly undefined",
     );
+  }
+}
+
+async function invokeVerifiedParentSink(
+  sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+  event: Readonly<FloodgateV7TeacherCheckpointV3VerifiedParentEvent>,
+): Promise<void> {
+  let sinkResult: unknown;
+  try {
+    sinkResult = sink(event);
+  } catch (cause) {
+    return failure("verified parent sink threw synchronously", cause);
+  }
+  if (!isExactNativePromise(sinkResult)) {
+    consumeNonExactNativePromiseRejectionBestEffort(sinkResult);
+    failure("verified parent sink must return an exact native Promise");
+  }
+  const settled = await sinkResult;
+  if (settled !== undefined) {
+    failure("verified parent sink must resolve exactly undefined");
   }
 }
 
@@ -5025,4 +5260,1810 @@ export function checkpointFloodgateV7TeacherParentsV3CoreForTests(
     return closeAfterCaptureFailure(lease, cause);
   }
   return executeV3AndClose(invocation);
+}
+
+type SealedScannerBoundary =
+  FloodgateV7TrainingLabelSealedScannerExecutionBoundary;
+
+interface CapturedSealedScannerTransaction {
+  readonly value: Readonly<FloodgateTeacherStagePublicationTransaction>;
+  readonly authorizationReceipt: Readonly<
+    FloodgateTeacherStagePublicationTransaction["authorizationReceipt"]
+  >;
+  readonly stageRoot: string;
+  readonly destinationRoot: string;
+  readonly commit: () => Promise<
+    Readonly<FloodgateTeacherStagePublicationReceipt>
+  >;
+  readonly abort: () => Promise<void>;
+}
+
+interface CapturedSealedScannerDependencies {
+  readonly readForTests?: FloodgateV7TrainingLabelSealedScannerDependenciesForTests["readForTests"];
+  readonly failpointForTests?: FloodgateV7TrainingLabelSealedScannerDependenciesForTests["failpointForTests"];
+  readonly observeKeyForTests?: FloodgateV7TrainingLabelSealedScannerDependenciesForTests["observeKeyForTests"];
+  readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
+}
+
+interface CapturedSealedScannerInputs {
+  readonly lease: Readonly<FloodgateTeacherStageLease>;
+  readonly training: CapturedTraining;
+  readonly runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+  readonly runId: string;
+  readonly keyId: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
+  readonly effectiveUserId: number;
+  readonly dependencies: Readonly<CapturedSealedScannerDependencies>;
+}
+
+interface SealedScannerUnkeyedPreflight {
+  readonly fileBytes: number;
+  readonly fileSha256: string;
+  readonly snapshot: WorkFileSnapshot;
+}
+
+interface SealedScannerState {
+  readonly boundary: SealedScannerBoundary;
+  readonly invocation: Readonly<CapturedV3Invocation>;
+  readonly transaction: Readonly<CapturedSealedScannerTransaction>;
+  readonly dependencies: Readonly<CapturedSealedScannerDependencies>;
+  readonly stageHandle: fs.promises.FileHandle;
+  readonly workHandle: fs.promises.FileHandle;
+  readonly workPath: string;
+  readonly initialEntries: readonly string[];
+  readonly pinned: Readonly<V3WorkFileScanResult>;
+  readonly receipt: Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>;
+  phase:
+    | "ready"
+    | "terminal"
+    | "committing"
+    | "cleaning"
+    | "cleanup-indeterminate"
+    | "closed";
+  busy: boolean;
+  keyZeroized: boolean;
+  workClosed: boolean;
+  stageClosed: boolean;
+  transactionSettled: boolean;
+  cleanupFailure?: unknown;
+  terminalReceipt?: Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>;
+}
+
+interface SealedScannerRegistry {
+  readonly boundary: SealedScannerBoundary;
+  readonly available: WeakMap<
+    Readonly<FloodgateV7TrainingLabelSealedScanner>,
+    SealedScannerState
+  >;
+  readonly known: WeakSet<Readonly<FloodgateV7TrainingLabelSealedScanner>>;
+  readonly terminals: WeakMap<
+    Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+    SealedScannerState
+  >;
+}
+
+function sealedScannerRegistry(
+  boundary: SealedScannerBoundary,
+): Readonly<SealedScannerRegistry> {
+  return Object.freeze({
+    boundary,
+    available: new WeakMap<
+      Readonly<FloodgateV7TrainingLabelSealedScanner>,
+      SealedScannerState
+    >(),
+    known: new WeakSet<Readonly<FloodgateV7TrainingLabelSealedScanner>>(),
+    terminals: new WeakMap<
+      Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+      SealedScannerState
+    >(),
+  });
+}
+
+const PRODUCTION_SEALED_SCANNERS = sealedScannerRegistry(
+  "production-fixed-training-input-and-sealed-scan-key-authorities",
+);
+const TEST_SEALED_SCANNERS = sealedScannerRegistry(
+  "test-only-injected-training-input-and-sealed-scan-key-authorities",
+);
+
+function exactOwnKeys(
+  value: object,
+  expected: readonly string[],
+  label: string,
+): Readonly<Record<PropertyKey, PropertyDescriptor>> {
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Reflect.ownKeys(descriptors);
+  if (
+    actual.some((key) => typeof key !== "string") ||
+    !exactStringList(
+      (actual as string[]).sort(compareUtf8),
+      [...expected].sort(compareUtf8),
+    )
+  ) {
+    failure(`${label} keys differ`);
+  }
+  return descriptors;
+}
+
+function transactionData<T>(
+  descriptors: Readonly<Record<PropertyKey, PropertyDescriptor>>,
+  key: string,
+  label: string,
+): T {
+  const descriptor = descriptors[key];
+  if (
+    descriptor === undefined ||
+    !("value" in descriptor) ||
+    descriptor.enumerable !== true
+  ) {
+    failure(`${label}.${key} must be an enumerable data property`);
+  }
+  return descriptor.value as T;
+}
+
+function captureSealedScannerTransaction(
+  value: FloodgateTeacherStagePublicationTransaction,
+): Readonly<CapturedSealedScannerTransaction> {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeIsProxy(value) ||
+    (Object.getPrototypeOf(value) !== null &&
+      Object.getPrototypeOf(value) !== Object.prototype)
+  ) {
+    failure("sealed scanner transaction must be an exact non-Proxy object");
+  }
+  const descriptors = exactOwnKeys(
+    value,
+    [
+      "abort",
+      "authorizationReceipt",
+      "commit",
+      "destinationRoot",
+      "phase",
+      "stageRoot",
+    ],
+    "sealed scanner transaction",
+  );
+  const phaseDescriptor = descriptors.phase;
+  if (
+    phaseDescriptor === undefined ||
+    !("get" in phaseDescriptor) ||
+    typeof phaseDescriptor.get !== "function" ||
+    phaseDescriptor.set !== undefined ||
+    phaseDescriptor.enumerable !== true ||
+    value.phase !== "ready"
+  ) {
+    failure("sealed scanner transaction is not exactly ready");
+  }
+  const authorizationReceipt = transactionData<
+    FloodgateTeacherStagePublicationTransaction["authorizationReceipt"]
+  >(descriptors, "authorizationReceipt", "sealed scanner transaction");
+  if (
+    authorizationReceipt.contract !==
+      FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT ||
+    authorizationReceipt.trust_boundary !==
+      FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY ||
+    authorizationReceipt.status !==
+      FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS ||
+    canonicalJson(authorizationReceipt.allowed_entries) !==
+      canonicalJson(FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES)
+  ) {
+    failure("sealed scanner transaction authorization differs");
+  }
+  const stageRoot = transactionData<string>(
+    descriptors,
+    "stageRoot",
+    "sealed scanner transaction",
+  );
+  const destinationRoot = transactionData<string>(
+    descriptors,
+    "destinationRoot",
+    "sealed scanner transaction",
+  );
+  const commit = transactionData<
+    FloodgateTeacherStagePublicationTransaction["commit"]
+  >(descriptors, "commit", "sealed scanner transaction");
+  const abort = transactionData<
+    FloodgateTeacherStagePublicationTransaction["abort"]
+  >(descriptors, "abort", "sealed scanner transaction");
+  if (
+    typeof stageRoot !== "string" ||
+    typeof destinationRoot !== "string" ||
+    typeof commit !== "function" ||
+    typeof abort !== "function" ||
+    nodeIsProxy(commit) ||
+    nodeIsProxy(abort)
+  ) {
+    failure("sealed scanner transaction fields differ");
+  }
+  return Object.freeze({
+    value,
+    authorizationReceipt,
+    stageRoot,
+    destinationRoot,
+    commit: () => Reflect.apply(commit, value, []),
+    abort: () => Reflect.apply(abort, value, []),
+  });
+}
+
+function captureSealedScannerOptions(
+  value: FloodgateV7TrainingLabelSealedScannerOptions,
+): Readonly<FloodgateV7TrainingLabelSealedScannerOptions> {
+  const options = strictRecord(
+    value,
+    ["keyId", "runId", "work"],
+    "sealed scanner options",
+  );
+  if (typeof options.runId !== "string" || !RUN_ID_RE.test(options.runId)) {
+    failure("sealed scanner runId must be 32 bytes of lowercase hex");
+  }
+  if (options.keyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID) {
+    failure("sealed scanner keyId must be the fixed deployment key id");
+  }
+  const work = strictRecord(
+    options.work,
+    ["bytes", "sha256"],
+    "sealed scanner work binding",
+  );
+  const bytes = requiredInteger(work.bytes, "sealed scanner work bytes", 1);
+  if (bytes > FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES) {
+    failure("sealed scanner work bytes exceed the fixed v3 bound");
+  }
+  return Object.freeze({
+    runId: options.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    work: Object.freeze({
+      bytes,
+      sha256: requiredSha256(work.sha256, "sealed scanner work sha256"),
+    }),
+  });
+}
+
+function captureSealedScannerSink(
+  value: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): FloodgateV7TeacherCheckpointV3VerifiedParentSink {
+  if (typeof value !== "function" || nodeIsProxy(value)) {
+    failure("sealed scanner sink must be a non-Proxy function");
+  }
+  return value;
+}
+
+function captureSealedScannerDependencies(
+  value: FloodgateV7TrainingLabelSealedScannerDependenciesForTests | undefined,
+): Readonly<CapturedSealedScannerDependencies> {
+  if (value === undefined) return Object.freeze({});
+  const expected = [
+    "closeForTests",
+    "failpointForTests",
+    "observeKeyForTests",
+    "readForTests",
+  ].filter((key) => Object.prototype.hasOwnProperty.call(value, key));
+  const dependencies = strictRecord(
+    value,
+    expected,
+    "sealed scanner dependencies",
+  );
+  for (const key of expected) {
+    const candidate = dependencies[key];
+    if (typeof candidate !== "function" || nodeIsProxy(candidate)) {
+      failure(`sealed scanner dependencies.${key} must be a function`);
+    }
+  }
+  return Object.freeze({
+    readForTests: dependencies.readForTests as
+      | FloodgateV7TrainingLabelSealedScannerDependenciesForTests["readForTests"]
+      | undefined,
+    failpointForTests: dependencies.failpointForTests as
+      | FloodgateV7TrainingLabelSealedScannerDependenciesForTests["failpointForTests"]
+      | undefined,
+    observeKeyForTests: dependencies.observeKeyForTests as
+      | FloodgateV7TrainingLabelSealedScannerDependenciesForTests["observeKeyForTests"]
+      | undefined,
+    closeForTests: dependencies.closeForTests as
+      FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined,
+  });
+}
+
+function captureSealedScannerKeyAuthorityDependencies(
+  value: FloodgateV7DeploymentKeyAuthorityDependencies,
+): Readonly<FloodgateV7DeploymentKeyAuthorityDependencies> {
+  if (!isPlainRecord(value)) {
+    failure(
+      "sealed scanner key authority dependencies must be a plain non-Proxy object",
+    );
+  }
+  const optionalKeys = [
+    "beforeFinalRevalidationForTests",
+    "observeInternalKeyForTests",
+    "observePreparedKeyForTests",
+  ].filter((key) => Object.prototype.hasOwnProperty.call(value, key));
+  const dependencies = strictRecord(
+    value,
+    ["effectiveUserId", "homeDirectory", ...optionalKeys],
+    "sealed scanner key authority dependencies",
+  );
+  const effectiveUserId = requiredInteger(
+    dependencies.effectiveUserId,
+    "sealed scanner key authority dependencies.effectiveUserId",
+  );
+  if (typeof dependencies.homeDirectory !== "string") {
+    failure(
+      "sealed scanner key authority dependencies.homeDirectory must be a string",
+    );
+  }
+  for (const key of optionalKeys) {
+    const candidate = dependencies[key];
+    if (typeof candidate !== "function" || nodeIsProxy(candidate)) {
+      failure(
+        `sealed scanner key authority dependencies.${key} must be a function`,
+      );
+    }
+  }
+  return Object.freeze({
+    effectiveUserId,
+    homeDirectory: dependencies.homeDirectory,
+    beforeFinalRevalidationForTests:
+      dependencies.beforeFinalRevalidationForTests as
+        | FloodgateV7DeploymentKeyAuthorityDependencies["beforeFinalRevalidationForTests"]
+        | undefined,
+    observeInternalKeyForTests: dependencies.observeInternalKeyForTests as
+      | FloodgateV7DeploymentKeyAuthorityDependencies["observeInternalKeyForTests"]
+      | undefined,
+    observePreparedKeyForTests: dependencies.observePreparedKeyForTests as
+      | FloodgateV7DeploymentKeyAuthorityDependencies["observePreparedKeyForTests"]
+      | undefined,
+  });
+}
+
+type SealedScanKeyClaim<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> = (
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>
+  >,
+  request: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+) => Uint8Array;
+
+type SealedScanKeyPrepare<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> = (
+  request: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+) => Promise<
+  Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>>
+>;
+
+interface CapturedSealedScannerKeyAuthority<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> {
+  readonly effectiveUserId: number;
+  readonly prepare: SealedScanKeyPrepare<TBoundary>;
+  readonly claim: SealedScanKeyClaim<TBoundary>;
+}
+
+function claimAndCopySealedScanKey<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  claim: SealedScanKeyClaim<TBoundary>,
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>
+  >,
+  request: Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyRequest>,
+): Buffer {
+  let claimed: Uint8Array | undefined;
+  let copied: Buffer | undefined;
+  try {
+    claimed = claim(authorization, request);
+    copied = copyExactOwned32ByteKey(
+      claimed,
+      "claimed sealed scanner v3 derived key",
+    );
+    return copied;
+  } finally {
+    if (claimed !== undefined) {
+      try {
+        zeroBytes(claimed);
+      } catch (cause) {
+        if (copied !== undefined) zeroBytes(copied);
+        failure("claimed sealed scanner key could not be zeroized", cause);
+      }
+    }
+  }
+}
+
+function sealedScannerKeyRequest(
+  stageAuthorizationReceipt: Readonly<FloodgateTeacherStageLease["receipt"]>,
+  runBinding: Readonly<FloodgateV7TeacherCheckpointRunBinding>,
+  options: Readonly<FloodgateV7TrainingLabelSealedScannerOptions>,
+  work: Readonly<{ bytes: number; sha256: string }>,
+): Readonly<FloodgateV7DeploymentTeacherSealedScanV3KeyRequest> {
+  return Object.freeze({
+    runId: options.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding: runBinding as Readonly<FloodgateV7DeploymentTeacherRunBinding>,
+    stageAuthorizationReceipt,
+    gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+    work,
+  });
+}
+
+function sealedScannerLeaseView(
+  transaction: Readonly<CapturedSealedScannerTransaction>,
+): Readonly<FloodgateTeacherStageLease> {
+  return Object.freeze({
+    receipt: transaction.authorizationReceipt,
+    stageRoot: transaction.stageRoot,
+    destinationRoot: transaction.destinationRoot,
+    close: () =>
+      Promise.reject(
+        new Error("sealed scanner owns the publication transaction"),
+      ),
+  });
+}
+
+function captureSealedScannerInputs(
+  transaction: Readonly<CapturedSealedScannerTransaction>,
+  trainingValue: AuthenticatedFloodgateTrainingRows,
+  runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
+  options: Readonly<FloodgateV7TrainingLabelSealedScannerOptions>,
+  effectiveUserId: number,
+  dependencies: Readonly<CapturedSealedScannerDependencies>,
+): Readonly<CapturedSealedScannerInputs> {
+  const training = captureTraining(trainingValue);
+  if (
+    training.parents.length !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
+  ) {
+    failure("sealed scanner requires exactly 24000 training parents");
+  }
+  return Object.freeze({
+    lease: sealedScannerLeaseView(transaction),
+    training,
+    runBinding: captureRunBinding(runBindingValue),
+    runId: options.runId,
+    keyId: options.keyId,
+    effectiveUserId,
+    dependencies,
+  });
+}
+
+function completeSealedScannerInvocation(
+  inputs: Readonly<CapturedSealedScannerInputs>,
+  key: Buffer,
+): Readonly<CapturedV3Invocation> {
+  try {
+    return Object.freeze({
+      lease: inputs.lease,
+      training: inputs.training,
+      runBinding: inputs.runBinding,
+      producerController: Object.freeze({
+        produce: () =>
+          Promise.reject(new Error("sealed scanner cannot produce parents")),
+        abortAndDrain: async () => undefined,
+      }),
+      runId: inputs.runId,
+      keyId: inputs.keyId,
+      keyMaterial: Object.freeze({ kind: "v3-derived" as const, bytes: key }),
+      effectiveUserId: inputs.effectiveUserId,
+      readForTests: inputs.dependencies.readForTests,
+      closeForTests: inputs.dependencies.closeForTests,
+      persistenceState: { mayHaveStarted: false },
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+    });
+  } catch (cause) {
+    zeroBytes(key);
+    throw cause;
+  }
+}
+
+async function scanSealedScannerUnkeyedPreflight(
+  handle: fs.promises.FileHandle,
+  inputs: Readonly<CapturedSealedScannerInputs>,
+  expectedIdentity: Readonly<WorkFileIdentity>,
+): Promise<Readonly<SealedScannerUnkeyedPreflight>> {
+  const before = await handle.stat({ bigint: true });
+  verifyV3WorkStat(before, inputs);
+  verifyWorkIdentity(
+    before,
+    expectedIdentity,
+    "sealed scanner unkeyed preflight held work",
+  );
+  const snapshot = captureWorkSnapshot(before);
+  const fileBytes = Number(before.size);
+  const buffer = Buffer.alloc(READ_CHUNK_BYTES);
+  const digest = createHash("sha256");
+  let position = 0;
+  while (position < fileBytes) {
+    const length = Math.min(READ_CHUNK_BYTES, fileBytes - position);
+    let readCalled = false;
+    let actualBytesRead: number | undefined;
+    const read = async (requestedBytes = length): Promise<number> => {
+      if (readCalled) {
+        failure("sealed scanner unkeyed preflight read was called twice");
+      }
+      if (
+        !Number.isSafeInteger(requestedBytes) ||
+        requestedBytes < 1 ||
+        requestedBytes > length
+      ) {
+        failure("sealed scanner unkeyed preflight read bound is invalid");
+      }
+      readCalled = true;
+      const result = await handle.read(buffer, 0, requestedBytes, position);
+      actualBytesRead = result.bytesRead;
+      return result.bytesRead;
+    };
+    const bytesRead =
+      inputs.dependencies.readForTests === undefined
+        ? await read()
+        : await inputs.dependencies.readForTests(
+            Object.freeze({
+              purpose: "unkeyed-preflight" as const,
+              length,
+              position,
+            }),
+            read,
+          );
+    if (!readCalled || bytesRead !== actualBytesRead) {
+      failure(
+        "sealed scanner unkeyed preflight hook did not report the native read",
+      );
+    }
+    if (
+      !Number.isSafeInteger(bytesRead) ||
+      bytesRead < 1 ||
+      bytesRead > length
+    ) {
+      failure("sealed scanner unkeyed preflight read returned invalid bytes");
+    }
+    digest.update(buffer.subarray(0, bytesRead));
+    position += bytesRead;
+  }
+  const after = await handle.stat({ bigint: true });
+  verifyV3WorkSnapshot(
+    after,
+    snapshot,
+    inputs,
+    "sealed scanner work mutated during unkeyed preflight",
+  );
+  return Object.freeze({
+    fileBytes,
+    fileSha256: digest.digest("hex"),
+    snapshot: captureWorkSnapshot(after),
+  });
+}
+
+function sameWorkFileSnapshot(
+  left: Readonly<WorkFileSnapshot>,
+  right: Readonly<WorkFileSnapshot>,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function sameSealedScan(
+  left: Readonly<V3WorkFileScanResult>,
+  right: Readonly<V3WorkFileScanResult>,
+): boolean {
+  return (
+    left.completeRecords === right.completeRecords &&
+    left.completedParents === right.completedParents &&
+    left.previousMac === right.previousMac &&
+    left.milestone100Mac === right.milestone100Mac &&
+    left.milestone500Mac === right.milestone500Mac &&
+    left.sealed === right.sealed &&
+    left.authenticatedBytes === right.authenticatedBytes &&
+    left.tornTail === right.tornTail &&
+    left.fileBytes === right.fileBytes &&
+    left.fileSha256 === right.fileSha256 &&
+    sameWorkFileSnapshot(left.snapshot, right.snapshot)
+  );
+}
+
+function sealedScannerSnapshotReceipt(
+  value: Readonly<WorkFileSnapshot>,
+): FloodgateV7TrainingLabelSealedScannerReceipt["work"]["snapshot"] {
+  return Object.freeze({
+    dev: value.dev.toString(10),
+    ino: value.ino.toString(10),
+    mode: value.mode.toString(10),
+    nlink: value.nlink.toString(10),
+    uid: value.uid.toString(10),
+    size: value.size.toString(10),
+    mtime_ns: value.mtimeNs.toString(10),
+    ctime_ns: value.ctimeNs.toString(10),
+  });
+}
+
+function buildSealedScannerReceipt(
+  boundary: SealedScannerBoundary,
+  invocation: Readonly<CapturedV3Invocation>,
+  scan: Readonly<V3WorkFileScanResult>,
+): Readonly<FloodgateV7TrainingLabelSealedScannerReceipt> {
+  const stage = invocation.lease.receipt;
+  return Object.freeze({
+    contract: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CONTRACT,
+    status: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_RECEIPT_STATUS,
+    claim_boundary: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CLAIM_BOUNDARY,
+    execution_boundary: boundary,
+    run_id: invocation.runId,
+    key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    teacher_run_binding_sha256: sha256Hex(canonicalJson(invocation.runBinding)),
+    training: Object.freeze({
+      binding: invocation.training.binding,
+      binding_sha256: sha256Hex(canonicalJson(invocation.training.binding)),
+      parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+      parent_ids_sha256: invocation.training.parentIdsSha256,
+      canonical_parents_sha256: invocation.training.canonicalParentsSha256,
+    }),
+    stage: Object.freeze({
+      parent_dev: stage.parent_identity.dev.toString(10),
+      parent_ino: stage.parent_identity.ino.toString(10),
+      stage_dev: stage.stage_identity.dev.toString(10),
+      stage_ino: stage.stage_identity.ino.toString(10),
+      stage_basename: stage.stage_basename,
+      destination_basename: stage.destination_basename,
+    }),
+    work: Object.freeze({
+      filename: FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+      bytes: scan.fileBytes,
+      sha256: scan.fileSha256,
+      snapshot: sealedScannerSnapshotReceipt(scan.snapshot),
+    }),
+    verification: Object.freeze({
+      unkeyed_preflight_full_file: true as const,
+      unkeyed_preflight_matches_expected_work: true as const,
+      key_prepared_from_same_held_preflight: true as const,
+      first_pass_without_sink: true as const,
+      second_pass_sink_awaited_with_backpressure: true as const,
+      same_held_work_descriptor: true as const,
+      same_full_work_snapshot: true as const,
+      exact_sealed_records: 24_004 as const,
+      exact_completed_parents: 24_000 as const,
+      no_unauthenticated_tail: true as const,
+      held_and_named_stage_and_work_confirmed_after_second_pass: true as const,
+    }),
+  });
+}
+
+async function sealedScannerFailpoint(
+  dependencies: Readonly<CapturedSealedScannerDependencies>,
+  phase: FloodgateV7TrainingLabelSealedScannerFailpointPhase,
+): Promise<void> {
+  await dependencies.failpointForTests?.(phase);
+}
+
+function exactSealedScannerEntries(
+  entries: readonly string[],
+  requireComplete: boolean,
+): readonly string[] {
+  const sorted = [...entries].sort(compareUtf8);
+  const state = sealedStagePrefixState(sorted);
+  if (
+    state === undefined ||
+    (requireComplete &&
+      state !==
+        V3_SEALED_STAGE_PREFIX_STATES[V3_SEALED_STAGE_PREFIX_STATES.length - 1])
+  ) {
+    failure(
+      requireComplete
+        ? "terminal sealed scanner requires exact WTRM stage state"
+        : "sealed scanner stage is not one exact W, WT, WTR, or WTRM state",
+    );
+  }
+  return Object.freeze(sorted);
+}
+
+async function confirmSealedScannerSource(
+  invocation: Readonly<Pick<CapturedInvocation, "effectiveUserId" | "lease">>,
+  stageHandle: fs.promises.FileHandle,
+  workHandle: fs.promises.FileHandle,
+  workPath: string,
+  expected: Readonly<{ snapshot: WorkFileSnapshot }>,
+  expectedEntries: readonly string[] | undefined,
+  requireComplete: boolean,
+): Promise<readonly string[]> {
+  verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+  await verifyStagePath(invocation);
+  const entries = exactSealedScannerEntries(
+    await fs.promises.readdir(invocation.lease.stageRoot),
+    requireComplete,
+  );
+  if (
+    expectedEntries !== undefined &&
+    !exactStringList(entries, expectedEntries)
+  ) {
+    failure("sealed scanner stage entry set changed during a held scan");
+  }
+  await verifyV3WorkPathSnapshot(workPath, expected.snapshot, invocation);
+  verifyV3WorkSnapshot(
+    await workHandle.stat({ bigint: true }),
+    expected.snapshot,
+    invocation,
+    "sealed scanner held work changed after scan",
+  );
+  verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+  await verifyStagePath(invocation);
+  return entries;
+}
+
+function assertExactSealedScannerResult(
+  result: Readonly<V3WorkFileScanResult>,
+): void {
+  assertV3ExactGateFinal(
+    result,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  );
+  if (
+    result.completeRecords !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 4 ||
+    result.completedParents !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+    !result.sealed ||
+    result.tornTail ||
+    result.authenticatedBytes !== result.fileBytes
+  ) {
+    failure("sealed scanner did not reach exact terminal stream success");
+  }
+}
+
+async function closeSealedScannerHandle(
+  kind: "work" | "stage",
+  handle: fs.promises.FileHandle,
+  dependencies: Readonly<CapturedSealedScannerDependencies>,
+): Promise<void> {
+  const close = handle.close.bind(handle);
+  if (dependencies.closeForTests === undefined) await close();
+  else await dependencies.closeForTests(kind, close);
+}
+
+function zeroSealedScannerKey(
+  invocation: Readonly<CapturedV3Invocation>,
+): void {
+  zeroBytes(invocation.keyMaterial.bytes);
+}
+
+function appendSealedScannerCleanupFailure(
+  failures: unknown[],
+  cause: unknown,
+): void {
+  objectDefineProperty(failures, String(failures.length), {
+    configurable: true,
+    enumerable: true,
+    value: cause,
+    writable: true,
+  });
+}
+
+async function cleanupSealedScannerResources(
+  transaction: Readonly<CapturedSealedScannerTransaction>,
+  invocation: Readonly<CapturedV3Invocation> | undefined,
+  workHandle: fs.promises.FileHandle | undefined,
+  stageHandle: fs.promises.FileHandle | undefined,
+  dependencies: Readonly<CapturedSealedScannerDependencies>,
+  abortTransaction: boolean,
+): Promise<readonly unknown[]> {
+  const failures: unknown[] = [];
+  if (invocation !== undefined) {
+    try {
+      zeroSealedScannerKey(invocation);
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (workHandle !== undefined) {
+    try {
+      await closeSealedScannerHandle("work", workHandle, dependencies);
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (stageHandle !== undefined) {
+    try {
+      await closeSealedScannerHandle("stage", stageHandle, dependencies);
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (abortTransaction) {
+    try {
+      await transaction.abort();
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  return Object.freeze(failures);
+}
+
+function scannerFacade(
+  boundary: SealedScannerBoundary,
+): Readonly<FloodgateV7TrainingLabelSealedScanner> {
+  return frozen({
+    contract: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CONTRACT,
+    status: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_STATUS,
+    claim_boundary: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_CLAIM_BOUNDARY,
+    execution_boundary: boundary,
+  });
+}
+
+function terminalFacade(): Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt> {
+  return frozen({
+    contract: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_CONTRACT,
+    status: FLOODGATE_V7_TRAINING_LABEL_SEALED_SCANNER_TERMINAL_STATUS,
+  });
+}
+
+function lookupSealedScanner(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): SealedScannerState {
+  if (scanner === null || typeof scanner !== "object" || nodeIsProxy(scanner)) {
+    failure("sealed scanner requires an exact opaque facade");
+  }
+  const state = registry.available.get(scanner);
+  if (state !== undefined) return state;
+  if (otherRegistry.known.has(scanner)) {
+    failure("sealed scanner belongs to the other execution boundary");
+  }
+  if (registry.known.has(scanner)) {
+    failure("sealed scanner was already consumed or discarded");
+  }
+  failure("sealed scanner facade is cloned or foreign");
+}
+
+function closeSealedScannerState(
+  registry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  state: SealedScannerState,
+): void {
+  registry.available.delete(scanner);
+  if (state.terminalReceipt !== undefined) {
+    registry.terminals.delete(state.terminalReceipt);
+  }
+  state.phase = "closed";
+}
+
+function throwSealedScannerCleanupIndeterminate(
+  state: Readonly<SealedScannerState>,
+): never {
+  if (state.cleanupFailure !== undefined) throw state.cleanupFailure;
+  failure("sealed scanner cleanup is indeterminate");
+}
+
+function rememberSealedScannerCleanupIndeterminate(
+  registry: Readonly<SealedScannerRegistry>,
+  state: SealedScannerState,
+  primary: unknown,
+  cleanupFailures: readonly unknown[],
+  message: string,
+): AggregateError {
+  const remembered = new AggregateError([primary, ...cleanupFailures], message);
+  if (state.terminalReceipt !== undefined) {
+    registry.terminals.delete(state.terminalReceipt);
+  }
+  state.cleanupFailure = remembered;
+  state.phase = "cleanup-indeterminate";
+  state.busy = false;
+  return remembered;
+}
+
+async function cleanupRegisteredSealedScannerState(
+  state: SealedScannerState,
+): Promise<readonly unknown[]> {
+  const failures: unknown[] = [];
+  if (!state.keyZeroized) {
+    try {
+      zeroSealedScannerKey(state.invocation);
+      state.keyZeroized = true;
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (!state.workClosed) {
+    try {
+      await closeSealedScannerHandle(
+        "work",
+        state.workHandle,
+        state.dependencies,
+      );
+      state.workClosed = true;
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (!state.stageClosed) {
+    try {
+      await closeSealedScannerHandle(
+        "stage",
+        state.stageHandle,
+        state.dependencies,
+      );
+      state.stageClosed = true;
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  if (!state.transactionSettled) {
+    try {
+      await state.transaction.abort();
+      state.transactionSettled = true;
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(failures, cause);
+    }
+  }
+  return Object.freeze(failures);
+}
+
+type SealedScannerTrainingClaim = (
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+) => void;
+
+async function rejectAfterSealedScannerCaptureFailure(
+  primary: unknown,
+  transaction:
+    Readonly<FloodgateTeacherStagePublicationTransaction> | undefined,
+): Promise<never> {
+  const cleanupFailures: unknown[] = [];
+  if (transaction !== undefined) {
+    try {
+      await transaction.abort();
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(cleanupFailures, cause);
+    }
+  }
+  if (cleanupFailures.length > 0) {
+    throw new AggregateError(
+      [primary, ...cleanupFailures],
+      "sealed scanner capture and cleanup both failed",
+    );
+  }
+  throw primary;
+}
+
+async function initializeSealedScanner<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  registry: Readonly<SealedScannerRegistry>,
+  transaction: Readonly<CapturedSealedScannerTransaction>,
+  inputs: Readonly<CapturedSealedScannerInputs>,
+  options: Readonly<FloodgateV7TrainingLabelSealedScannerOptions>,
+  sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+  dependencies: Readonly<CapturedSealedScannerDependencies>,
+  keyAuthority: Readonly<CapturedSealedScannerKeyAuthority<TBoundary>>,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult>> {
+  let stageHandle: fs.promises.FileHandle | undefined;
+  let workHandle: fs.promises.FileHandle | undefined;
+  let authorization:
+    | Readonly<
+        FloodgateV7DeploymentTeacherSealedScanV3KeyAuthorization<TBoundary>
+      >
+    | undefined;
+  let key: Buffer | undefined;
+  let invocation: Readonly<CapturedV3Invocation> | undefined;
+  let primary: unknown;
+  try {
+    stageHandle = await fs.promises.open(
+      transaction.stageRoot,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    verifyStageStat(await stageHandle.stat({ bigint: true }), inputs);
+    await verifyStagePath(inputs);
+    const initialEntries = exactSealedScannerEntries(
+      await fs.promises.readdir(transaction.stageRoot),
+      false,
+    );
+    const workPath = `${transaction.stageRoot}/${FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME}`;
+    workHandle = await fs.promises.open(
+      workPath,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+    const workStat = await workHandle.stat({ bigint: true });
+    verifyV3WorkStat(workStat, inputs);
+    const workIdentity = Object.freeze({
+      dev: workStat.dev,
+      ino: workStat.ino,
+    });
+
+    const preflight = await scanSealedScannerUnkeyedPreflight(
+      workHandle,
+      inputs,
+      workIdentity,
+    );
+    if (
+      preflight.fileBytes !== options.work.bytes ||
+      preflight.fileSha256 !== options.work.sha256
+    ) {
+      failure(
+        "sealed scanner unkeyed held-file preflight differs from expected work",
+      );
+    }
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-unkeyed-preflight-before-confirmation",
+    );
+    await confirmSealedScannerSource(
+      inputs,
+      stageHandle,
+      workHandle,
+      workPath,
+      preflight,
+      initialEntries,
+      false,
+    );
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-unkeyed-confirmation-before-key-prepare",
+    );
+
+    const request = sealedScannerKeyRequest(
+      transaction.authorizationReceipt,
+      inputs.runBinding,
+      options,
+      Object.freeze({
+        bytes: preflight.fileBytes,
+        sha256: preflight.fileSha256,
+      }),
+    );
+    authorization = await keyAuthority.prepare(request);
+    key = claimAndCopySealedScanKey(keyAuthority.claim, authorization, request);
+    const ownerUid = requiredInteger(
+      authorization.authorization.key_deployment.owner_uid,
+      "sealed scanner key authorization owner uid",
+    );
+    discardFloodgateV7DeploymentTeacherSealedScanV3Key(authorization);
+    authorization = undefined;
+    if (ownerUid !== inputs.effectiveUserId) {
+      failure(
+        "sealed scanner unkeyed preflight owner differs from key authority owner",
+      );
+    }
+    invocation = completeSealedScannerInvocation(inputs, key);
+    key = undefined;
+    if (dependencies.observeKeyForTests !== undefined) {
+      const observed = dependencies.observeKeyForTests(
+        invocation.keyMaterial.bytes,
+      );
+      if (observed !== undefined) {
+        failure("sealed scanner key observer must return exactly undefined");
+      }
+    }
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-key-claimed-before-first-scan",
+    );
+
+    const first = await scanV3WorkHandle(
+      workHandle,
+      invocation,
+      invocation.keyMaterial.bytes,
+      "sealed-final",
+      preflight.snapshot,
+    );
+    assertExactSealedScannerResult(first);
+    if (
+      first.fileBytes !== preflight.fileBytes ||
+      first.fileSha256 !== preflight.fileSha256 ||
+      !sameWorkFileSnapshot(first.snapshot, preflight.snapshot)
+    ) {
+      failure(
+        "sealed scanner keyed pass one differs from its same-held unkeyed preflight",
+      );
+    }
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-first-scan-before-confirmation",
+    );
+    await confirmSealedScannerSource(
+      invocation,
+      stageHandle,
+      workHandle,
+      workPath,
+      first,
+      initialEntries,
+      false,
+    );
+    await sealedScannerFailpoint(dependencies, "after-first-confirmation");
+
+    verifyV3WorkSnapshot(
+      await workHandle.stat({ bigint: true }),
+      first.snapshot,
+      invocation,
+      "sealed scanner work changed between pass one and pass two",
+    );
+    const second = await scanV3WorkHandle(
+      workHandle,
+      invocation,
+      invocation.keyMaterial.bytes,
+      "sealed-final",
+      preflight.snapshot,
+      undefined,
+      sink,
+    );
+    assertExactSealedScannerResult(second);
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-second-scan-before-confirmation",
+    );
+    if (!sameSealedScan(first, second)) {
+      failure("sealed scanner pass two differs from its pinned pass one");
+    }
+    await confirmSealedScannerSource(
+      invocation,
+      stageHandle,
+      workHandle,
+      workPath,
+      second,
+      initialEntries,
+      false,
+    );
+    await sealedScannerFailpoint(
+      dependencies,
+      "after-second-confirmation-before-registration",
+    );
+    if (transaction.value.phase !== "ready") {
+      failure("sealed scanner publication transaction changed before mint");
+    }
+    const receipt = buildSealedScannerReceipt(
+      registry.boundary,
+      invocation,
+      second,
+    );
+    const scanner = scannerFacade(registry.boundary);
+    const state: SealedScannerState = {
+      boundary: registry.boundary,
+      invocation,
+      transaction,
+      dependencies,
+      stageHandle,
+      workHandle,
+      workPath,
+      initialEntries,
+      pinned: second,
+      receipt,
+      phase: "ready",
+      busy: false,
+      keyZeroized: false,
+      workClosed: false,
+      stageClosed: false,
+      transactionSettled: false,
+    };
+    registry.available.set(scanner, state);
+    registry.known.add(scanner);
+    return frozen({ scanner, receipt });
+  } catch (cause) {
+    primary = cause;
+  }
+  const preCleanupFailures: unknown[] = [];
+  if (authorization !== undefined) {
+    try {
+      discardFloodgateV7DeploymentTeacherSealedScanV3Key(authorization);
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(preCleanupFailures, cause);
+    }
+  }
+  if (key !== undefined) {
+    try {
+      zeroBytes(key);
+    } catch (cause) {
+      appendSealedScannerCleanupFailure(preCleanupFailures, cause);
+    }
+  }
+  const cleanupFailures = await cleanupSealedScannerResources(
+    transaction,
+    invocation,
+    workHandle,
+    stageHandle,
+    dependencies,
+    true,
+  );
+  if (preCleanupFailures.length > 0 || cleanupFailures.length > 0) {
+    throw new AggregateError(
+      [primary, ...preCleanupFailures, ...cleanupFailures],
+      "sealed scanner initialization and cleanup both failed",
+    );
+  }
+  throw primary;
+}
+
+function createSealedScanner<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  training: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  optionsValue: FloodgateV7TrainingLabelSealedScannerOptions,
+  sinkValue: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+  dependenciesValue:
+    FloodgateV7TrainingLabelSealedScannerDependenciesForTests | undefined,
+  registry: Readonly<SealedScannerRegistry>,
+  claimTraining: SealedScannerTrainingClaim,
+  captureKeyAuthority: () => Readonly<
+    CapturedSealedScannerKeyAuthority<TBoundary>
+  >,
+  beginPublication: () => Readonly<FloodgateTeacherStagePublicationTransaction>,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult>> {
+  let options: Readonly<FloodgateV7TrainingLabelSealedScannerOptions>;
+  let dependencies: Readonly<CapturedSealedScannerDependencies>;
+  let sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink;
+  let keyAuthority: Readonly<CapturedSealedScannerKeyAuthority<TBoundary>>;
+  let rawTransaction:
+    Readonly<FloodgateTeacherStagePublicationTransaction> | undefined;
+  let transaction: Readonly<CapturedSealedScannerTransaction>;
+  let inputs: Readonly<CapturedSealedScannerInputs>;
+  try {
+    // Capture every lease-independent argument before touching lease authority.
+    options = captureSealedScannerOptions(optionsValue);
+    dependencies = captureSealedScannerDependencies(dependenciesValue);
+    sink = captureSealedScannerSink(sinkValue);
+    keyAuthority = captureKeyAuthority();
+    if (lease === null || typeof lease !== "object" || nodeIsProxy(lease)) {
+      failure("sealed scanner lease must be an exact non-Proxy facade");
+    }
+
+    // A failed begin did not transfer authority, so it must remain untouched.
+    // Once begin succeeds, every later capture failure aborts this transaction.
+    rawTransaction = beginPublication();
+    transaction = captureSealedScannerTransaction(rawTransaction);
+
+    // Transfer the exact active lease before burning the fresh training-row
+    // claim. Both operations and the complete input capture happen in this
+    // non-async wrapper before the caller can regain control.
+    claimTraining(training);
+    inputs = captureSealedScannerInputs(
+      transaction,
+      training,
+      runBinding,
+      options,
+      keyAuthority.effectiveUserId,
+      dependencies,
+    );
+  } catch (cause) {
+    return rejectAfterSealedScannerCaptureFailure(cause, rawTransaction);
+  }
+  return initializeSealedScanner(
+    registry,
+    transaction,
+    inputs,
+    options,
+    sink,
+    dependencies,
+    keyAuthority,
+  );
+}
+
+/**
+ * Production two-pass scanner. The exact active lease is synchronously
+ * transferred to a production publication transaction inside this boundary.
+ */
+export function createFloodgateV7TrainingLabelSealedScanner(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  training: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TrainingLabelSealedScannerOptions,
+  secondPassSink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult>> {
+  if (arguments.length !== 5) {
+    return Promise.reject(
+      new Error("production sealed scanner accepts exactly five arguments"),
+    );
+  }
+  return createSealedScanner(
+    lease,
+    training,
+    runBinding,
+    options,
+    secondPassSink,
+    undefined,
+    PRODUCTION_SEALED_SCANNERS,
+    claimActiveVerifiedPinnedFloodgateTrainingRows,
+    () => {
+      if (nativeGetEffectiveUserId === null) {
+        failure("production sealed scanner requires a POSIX effective uid");
+      }
+      return Object.freeze({
+        effectiveUserId: requiredInteger(
+          nativeGetEffectiveUserId(),
+          "production sealed scanner effective uid",
+        ),
+        prepare: prepareFloodgateV7DeploymentTeacherSealedScanV3Key,
+        claim: claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKey,
+      });
+    },
+    () => beginFloodgateTeacherStagePublication(lease),
+  );
+}
+
+/** Test-only mirror with isolated row, key, scanner, and publication claims. */
+export function createFloodgateV7TrainingLabelSealedScannerCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  training: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TrainingLabelSealedScannerOptions,
+  secondPassSink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+  dependencies: FloodgateV7TrainingLabelSealedScannerDependenciesForTests,
+  keyAuthorityDependencies: FloodgateV7DeploymentKeyAuthorityDependencies,
+  publicationDependencies: FloodgateTeacherStagePublicationDependencies,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult>> {
+  if (arguments.length !== 8) {
+    return Promise.reject(
+      new Error("test sealed scanner accepts exactly eight arguments"),
+    );
+  }
+  return createSealedScanner(
+    lease,
+    training,
+    runBinding,
+    options,
+    secondPassSink,
+    dependencies,
+    TEST_SEALED_SCANNERS,
+    claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
+    () => {
+      const captured = captureSealedScannerKeyAuthorityDependencies(
+        keyAuthorityDependencies,
+      );
+      return Object.freeze({
+        effectiveUserId: captured.effectiveUserId,
+        prepare: (
+          request: FloodgateV7DeploymentTeacherSealedScanV3KeyRequest,
+        ) =>
+          prepareFloodgateV7DeploymentTeacherSealedScanV3KeyCoreForTests(
+            request,
+            captured,
+          ),
+        claim:
+          claimFloodgateV7DeploymentTeacherSealedScanV3DerivedKeyCoreForTests,
+      });
+    },
+    () =>
+      beginFloodgateTeacherStagePublicationCoreForTests(
+        lease,
+        publicationDependencies,
+      ),
+  );
+}
+
+function publicationContext(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Readonly<FloodgateV7TrainingLabelSealedScannerPublicationContext> {
+  const state = lookupSealedScanner(registry, otherRegistry, scanner);
+  if (state.phase === "cleanup-indeterminate") {
+    throwSealedScannerCleanupIndeterminate(state);
+  }
+  if (state.phase !== "ready" && state.phase !== "terminal") {
+    failure("sealed scanner publication context is no longer available");
+  }
+  return frozen({
+    authorizationReceipt: state.transaction.authorizationReceipt,
+    stageRoot: state.transaction.stageRoot,
+    destinationRoot: state.transaction.destinationRoot,
+  });
+}
+
+export function getFloodgateV7TrainingLabelSealedScannerPublicationContext(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Readonly<FloodgateV7TrainingLabelSealedScannerPublicationContext> {
+  if (arguments.length !== 1) {
+    failure("production scanner publication context accepts one argument");
+  }
+  return publicationContext(
+    PRODUCTION_SEALED_SCANNERS,
+    TEST_SEALED_SCANNERS,
+    scanner,
+  );
+}
+
+export function getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Readonly<FloodgateV7TrainingLabelSealedScannerPublicationContext> {
+  if (arguments.length !== 1) {
+    failure("test scanner publication context accepts one argument");
+  }
+  return publicationContext(
+    TEST_SEALED_SCANNERS,
+    PRODUCTION_SEALED_SCANNERS,
+    scanner,
+  );
+}
+
+async function replaySealedScannerState(
+  state: SealedScannerState,
+  sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>> {
+  state.busy = true;
+  try {
+    if (state.phase !== "ready" || state.transaction.value.phase !== "ready") {
+      failure("sealed scanner is not replayable");
+    }
+    await sealedScannerFailpoint(state.dependencies, "before-replay");
+    const entries = await confirmSealedScannerSource(
+      state.invocation,
+      state.stageHandle,
+      state.workHandle,
+      state.workPath,
+      state.pinned,
+      undefined,
+      false,
+    );
+    const replayed = await scanV3WorkHandle(
+      state.workHandle,
+      state.invocation,
+      state.invocation.keyMaterial.bytes,
+      "sealed-final",
+      state.pinned.snapshot,
+      undefined,
+      sink,
+    );
+    assertExactSealedScannerResult(replayed);
+    await sealedScannerFailpoint(
+      state.dependencies,
+      "after-replay-scan-before-confirmation",
+    );
+    if (!sameSealedScan(state.pinned, replayed)) {
+      failure("sealed scanner replay differs from the pinned two-pass scan");
+    }
+    await confirmSealedScannerSource(
+      state.invocation,
+      state.stageHandle,
+      state.workHandle,
+      state.workPath,
+      state.pinned,
+      entries,
+      false,
+    );
+    return state.receipt;
+  } finally {
+    state.busy = false;
+  }
+}
+
+function replaySealedScanner(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  sinkValue: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>> {
+  try {
+    const state = lookupSealedScanner(registry, otherRegistry, scanner);
+    if (state.phase === "cleanup-indeterminate") {
+      throwSealedScannerCleanupIndeterminate(state);
+    }
+    if (state.busy || state.phase !== "ready") {
+      return Promise.reject(
+        new Error("sealed scanner replay is already active"),
+      );
+    }
+    const sink = captureSealedScannerSink(sinkValue);
+    return replaySealedScannerState(state, sink);
+  } catch (cause) {
+    return Promise.reject(cause);
+  }
+}
+
+export function replayFloodgateV7TrainingLabelSealedScanner(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new Error("production sealed scanner replay accepts two arguments"),
+    );
+  }
+  return replaySealedScanner(
+    PRODUCTION_SEALED_SCANNERS,
+    TEST_SEALED_SCANNERS,
+    scanner,
+    sink,
+  );
+}
+
+export function replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  sink: FloodgateV7TeacherCheckpointV3VerifiedParentSink,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new Error("test sealed scanner replay accepts two arguments"),
+    );
+  }
+  return replaySealedScanner(
+    TEST_SEALED_SCANNERS,
+    PRODUCTION_SEALED_SCANNERS,
+    scanner,
+    sink,
+  );
+}
+
+async function terminallyReverifySealedScannerState(
+  registry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  state: SealedScannerState,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>> {
+  state.busy = true;
+  let primary: unknown;
+  try {
+    if (state.phase !== "ready" || state.transaction.value.phase !== "ready") {
+      failure("sealed scanner is not ready for terminal reverification");
+    }
+    await sealedScannerFailpoint(
+      state.dependencies,
+      "before-terminal-reverification",
+    );
+    const entries = await confirmSealedScannerSource(
+      state.invocation,
+      state.stageHandle,
+      state.workHandle,
+      state.workPath,
+      state.pinned,
+      undefined,
+      true,
+    );
+    const terminal = await scanV3WorkHandle(
+      state.workHandle,
+      state.invocation,
+      state.invocation.keyMaterial.bytes,
+      "sealed-final",
+      state.pinned.snapshot,
+    );
+    assertExactSealedScannerResult(terminal);
+    await sealedScannerFailpoint(
+      state.dependencies,
+      "after-terminal-scan-before-confirmation",
+    );
+    if (!sameSealedScan(state.pinned, terminal)) {
+      failure("terminal sealed scanner reverify differs from pinned work");
+    }
+    await confirmSealedScannerSource(
+      state.invocation,
+      state.stageHandle,
+      state.workHandle,
+      state.workPath,
+      state.pinned,
+      entries,
+      true,
+    );
+
+    // Secret lifetime must not depend on descriptor close or failpoint
+    // settlement. Zero the owned scan key synchronously before either await.
+    zeroSealedScannerKey(state.invocation);
+    state.keyZeroized = true;
+    await sealedScannerFailpoint(
+      state.dependencies,
+      "after-terminal-key-zeroized",
+    );
+    await closeSealedScannerHandle(
+      "work",
+      state.workHandle,
+      state.dependencies,
+    );
+    state.workClosed = true;
+    await closeSealedScannerHandle(
+      "stage",
+      state.stageHandle,
+      state.dependencies,
+    );
+    state.stageClosed = true;
+    state.phase = "terminal";
+    const terminalReceipt = terminalFacade();
+    state.terminalReceipt = terminalReceipt;
+    registry.terminals.set(terminalReceipt, state);
+    state.busy = false;
+    return terminalReceipt;
+  } catch (cause) {
+    primary = cause;
+  }
+  const cleanupFailures = await cleanupRegisteredSealedScannerState(state);
+  state.busy = false;
+  if (cleanupFailures.length > 0) {
+    throw rememberSealedScannerCleanupIndeterminate(
+      registry,
+      state,
+      primary,
+      cleanupFailures,
+      "terminal sealed scanner reverify and cleanup both failed",
+    );
+  }
+  closeSealedScannerState(registry, scanner, state);
+  throw primary;
+}
+
+function terminallyReverifySealedScanner(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>> {
+  try {
+    const state = lookupSealedScanner(registry, otherRegistry, scanner);
+    if (state.phase === "cleanup-indeterminate") {
+      throwSealedScannerCleanupIndeterminate(state);
+    }
+    if (state.busy || state.phase !== "ready") {
+      return Promise.reject(
+        new Error("sealed scanner terminal reverify is already active"),
+      );
+    }
+    return terminallyReverifySealedScannerState(registry, scanner, state);
+  } catch (cause) {
+    return Promise.reject(cause);
+  }
+}
+
+export function terminallyReverifyFloodgateV7TrainingLabelSealedScanner(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>> {
+  if (arguments.length !== 1) {
+    return Promise.reject(
+      new Error("production terminal sealed scanner accepts one argument"),
+    );
+  }
+  return terminallyReverifySealedScanner(
+    PRODUCTION_SEALED_SCANNERS,
+    TEST_SEALED_SCANNERS,
+    scanner,
+  );
+}
+
+export function terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>> {
+  if (arguments.length !== 1) {
+    return Promise.reject(
+      new Error("test terminal sealed scanner accepts one argument"),
+    );
+  }
+  return terminallyReverifySealedScanner(
+    TEST_SEALED_SCANNERS,
+    PRODUCTION_SEALED_SCANNERS,
+    scanner,
+  );
+}
+
+async function commitSealedScannerPublication(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  terminalReceipt: Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+): Promise<Readonly<FloodgateTeacherStagePublicationReceipt>> {
+  const state = lookupSealedScanner(registry, otherRegistry, scanner);
+  if (state.phase === "cleanup-indeterminate") {
+    throwSealedScannerCleanupIndeterminate(state);
+  }
+  if (
+    state.busy ||
+    state.phase !== "terminal" ||
+    state.terminalReceipt !== terminalReceipt ||
+    registry.terminals.get(terminalReceipt) !== state ||
+    state.transaction.value.phase !== "ready"
+  ) {
+    failure("sealed scanner terminal publication authority differs");
+  }
+  state.phase = "committing";
+  registry.terminals.delete(terminalReceipt);
+  try {
+    const receipt = await state.transaction.commit();
+    state.transactionSettled = true;
+    closeSealedScannerState(registry, scanner, state);
+    return receipt;
+  } catch (cause) {
+    throw rememberSealedScannerCleanupIndeterminate(
+      registry,
+      state,
+      cause,
+      [],
+      "sealed scanner publication became indeterminate",
+    );
+  }
+}
+
+export function commitFloodgateV7TrainingLabelSealedScannerPublication(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  terminalReceipt: Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+): Promise<Readonly<FloodgateTeacherStagePublicationReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new Error("production sealed scanner commit accepts two arguments"),
+    );
+  }
+  return commitSealedScannerPublication(
+    PRODUCTION_SEALED_SCANNERS,
+    TEST_SEALED_SCANNERS,
+    scanner,
+    terminalReceipt,
+  );
+}
+
+export function commitFloodgateV7TrainingLabelSealedScannerPublicationCoreForTests(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+  terminalReceipt: Readonly<FloodgateV7TrainingLabelSealedScannerTerminalReceipt>,
+): Promise<Readonly<FloodgateTeacherStagePublicationReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new Error("test sealed scanner commit accepts two arguments"),
+    );
+  }
+  return commitSealedScannerPublication(
+    TEST_SEALED_SCANNERS,
+    PRODUCTION_SEALED_SCANNERS,
+    scanner,
+    terminalReceipt,
+  );
+}
+
+async function discardSealedScanner(
+  registry: Readonly<SealedScannerRegistry>,
+  otherRegistry: Readonly<SealedScannerRegistry>,
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<void> {
+  if (scanner === null || typeof scanner !== "object" || nodeIsProxy(scanner)) {
+    failure("sealed scanner discard requires an exact opaque facade");
+  }
+  const state = registry.available.get(scanner);
+  if (state === undefined) {
+    if (otherRegistry.known.has(scanner)) {
+      failure("sealed scanner belongs to the other execution boundary");
+    }
+    if (registry.known.has(scanner)) return;
+    failure("sealed scanner discard facade is cloned or foreign");
+  }
+  if (state.phase === "cleanup-indeterminate") {
+    throwSealedScannerCleanupIndeterminate(state);
+  }
+  if (state.busy || state.phase === "committing") {
+    failure("sealed scanner cannot be discarded during an active operation");
+  }
+  state.busy = true;
+  state.phase = "cleaning";
+  const cleanupFailures = await cleanupRegisteredSealedScannerState(state);
+  state.busy = false;
+  if (cleanupFailures.length > 0) {
+    throw rememberSealedScannerCleanupIndeterminate(
+      registry,
+      state,
+      new Error("sealed scanner discard cleanup failed"),
+      cleanupFailures,
+      "sealed scanner discard cleanup failed",
+    );
+  }
+  closeSealedScannerState(registry, scanner, state);
+}
+
+export function discardFloodgateV7TrainingLabelSealedScanner(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<void> {
+  if (arguments.length !== 1) {
+    return Promise.reject(
+      new Error("production sealed scanner discard accepts one argument"),
+    );
+  }
+  return discardSealedScanner(
+    PRODUCTION_SEALED_SCANNERS,
+    TEST_SEALED_SCANNERS,
+    scanner,
+  );
+}
+
+export function discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
+  scanner: Readonly<FloodgateV7TrainingLabelSealedScanner>,
+): Promise<void> {
+  if (arguments.length !== 1) {
+    return Promise.reject(
+      new Error("test sealed scanner discard accepts one argument"),
+    );
+  }
+  return discardSealedScanner(
+    TEST_SEALED_SCANNERS,
+    PRODUCTION_SEALED_SCANNERS,
+    scanner,
+  );
 }

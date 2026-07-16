@@ -33,8 +33,11 @@ import {
   FloodgateV7ProductionConnectorRunnerError,
   runFloodgateV7ProductionConnectorCoreForTests,
   runFloodgateV7ProductionConnectorFinal24000,
+  runFloodgateV7ProductionConnectorFinal24000UnderOuterGate,
   runFloodgateV7ProductionConnectorPrefix100,
+  runFloodgateV7ProductionConnectorPrefix100UnderOuterGate,
   runFloodgateV7ProductionConnectorPrefix500,
+  runFloodgateV7ProductionConnectorPrefix500UnderOuterGate,
   type FloodgateV7ProductionConnectorRunnerDependenciesForTests,
   type FloodgateV7ProductionConnectorRunnerGate,
 } from "../../../ml/floodgate-v7-production-connector-runner";
@@ -743,10 +746,26 @@ describe("Floodgate v7 production connector runner", () => {
     expect(runFloodgateV7ProductionConnectorPrefix100.length).toBe(0);
     expect(runFloodgateV7ProductionConnectorPrefix500.length).toBe(0);
     expect(runFloodgateV7ProductionConnectorFinal24000.length).toBe(0);
+    expect(
+      runFloodgateV7ProductionConnectorPrefix100UnderOuterGate.length,
+    ).toBe(1);
+    expect(
+      runFloodgateV7ProductionConnectorPrefix500UnderOuterGate.length,
+    ).toBe(1);
+    expect(
+      runFloodgateV7ProductionConnectorFinal24000UnderOuterGate.length,
+    ).toBe(1);
     const source = await fs.promises.readFile(RUNNER_SOURCE_PATH, "utf8");
     expect(source).not.toMatch(
       /export function runFloodgateV7ProductionConnector(?:Gate|\s*\()/u,
     );
-    expect(source).toContain("function runProductionGate<");
+    expect(source).toContain("runFloodgateV7ProductionOuterGatePrefix100,");
+    expect(source).toContain(
+      "runFloodgateV7ProductionConnectorPrefix100UnderOuterGate",
+    );
+    expect(source).not.toContain("runWithFloodgateV7ProductionOuterGateLease");
+    expect(source).not.toMatch(
+      /export function runFloodgateV7ProductionConnectorUnderOuterGate/u,
+    );
   });
 });

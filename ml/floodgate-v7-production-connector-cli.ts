@@ -221,6 +221,7 @@ function unknownFailure(gate: Gate, runnerInvoked: boolean): Readonly<object> {
 function isRunnerPhase(value: unknown): value is string {
   switch (value) {
     case "capture":
+    case "outer-gate-lock":
     case "registry-load":
     case "registry-claim":
     case "approved-record-load":

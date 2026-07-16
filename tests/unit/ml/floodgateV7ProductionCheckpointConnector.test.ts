@@ -719,7 +719,7 @@ function makeFixture(
   let leaseClosePromise: Promise<void> | undefined;
   const lease = {
     receipt: {
-      contract: "floodgate-teacher-private-stage-authorization-v2",
+      contract: "floodgate-teacher-private-stage-authorization-v3",
       trust_boundary: "trusted-current-euid-writer-private-0700-stage-v1",
       status: "authorized-private-stage-not-generated-not-published",
       parent_identity: { dev: BigInt(1), ino: BigInt(2) },
@@ -2957,7 +2957,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
   });
 
   it("rejects arity, extra keys, Proxies, and accessors before authority calls", async () => {
-    expect(runFloodgateV7ProductionCheckpointConnector.length).toBe(1);
+    expect(runFloodgateV7ProductionCheckpointConnector.length).toBe(2);
     expect(runFloodgateV7ProductionCheckpointConnectorCoreForTests.length).toBe(
       2,
     );
@@ -3027,9 +3027,12 @@ describe("Floodgate v7 production checkpoint connector", () => {
     const fixture = makeFixture();
 
     await expect(
-      runFloodgateV7ProductionCheckpointConnector(fixture.options),
+      runFloodgateV7ProductionCheckpointConnector(
+        fixture.options,
+        undefined as never,
+      ),
     ).rejects.toMatchObject({
-      phase: "enrollment",
+      phase: "capture",
       retry_disposition: "fresh-invocation-required",
     });
     expect(fixture.calls.readiness).toBe(0);
@@ -3084,6 +3087,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
       "./floodgate-training-row-consumer",
       "./floodgate-v7-production-parent-coordinator",
       "./floodgate-v7-teacher-checkpoint",
+      "./floodgate-v7-production-outer-gate-lease",
     ]);
     expect(source).not.toMatch(
       /from ["']node:(?:fs|path|crypto|child_process)["']/,

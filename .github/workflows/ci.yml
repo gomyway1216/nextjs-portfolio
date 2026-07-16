@@ -24,8 +24,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.13.0'
-          cache: 'npm'
+          node-version: "22.13.0"
+          cache: "npm"
 
       - name: Pin npm to 11.14.1 (matches package.json packageManager)
         run: npm install -g npm@11.14.1
@@ -49,11 +49,11 @@ jobs:
           NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
           NEXT_PUBLIC_PROJECT_ID: ci-placeholder
           NEXT_PUBLIC_STORAGE_BUCKET: ci-placeholder.appspot.com
-          NEXT_PUBLIC_MESSAGING_SENDER_ID: '000000000000'
-          NEXT_PUBLIC_APP_ID: '1:000000000000:web:ci'
+          NEXT_PUBLIC_MESSAGING_SENDER_ID: "000000000000"
+          NEXT_PUBLIC_APP_ID: "1:000000000000:web:ci"
           NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
-          NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:ci'
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+          NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:ci"
 
   darwin_exclusive_directory_rename:
     name: Darwin exclusive directory rename
@@ -66,8 +66,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.13.0'
-          cache: 'npm'
+          node-version: "22.13.0"
+          cache: "npm"
 
       - name: Pin npm to 11.14.1 (matches package.json packageManager)
         run: npm install -g npm@11.14.1
@@ -78,8 +78,14 @@ jobs:
       - name: Compile the pinned Darwin helper
         run: /usr/bin/python3 -m py_compile ml/helpers/floodgate-exclusive-directory-rename.py
 
+      - name: Require the fixed Darwin lock helper
+        run: test -x /usr/bin/lockf
+
       - name: Run Darwin exclusive-rename adversarial tests
         run: npm test -- tests/unit/ml/floodgateExclusiveDirectoryRename.test.ts
+
+      - name: Run Darwin production outer-gate lock adversarial tests
+        run: npm test -- tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts
 
   e2e:
     name: E2E smoke tests
@@ -92,18 +98,18 @@ jobs:
       NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
       NEXT_PUBLIC_PROJECT_ID: ci-placeholder
       NEXT_PUBLIC_STORAGE_BUCKET: ci-placeholder.appspot.com
-      NEXT_PUBLIC_MESSAGING_SENDER_ID: '000000000000'
-      NEXT_PUBLIC_APP_ID: '1:000000000000:web:ci'
+      NEXT_PUBLIC_MESSAGING_SENDER_ID: "000000000000"
+      NEXT_PUBLIC_APP_ID: "1:000000000000:web:ci"
       NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
-      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
-      NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:ci'
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:ci"
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.13.0'
-          cache: 'npm'
+          node-version: "22.13.0"
+          cache: "npm"
 
       - name: Pin npm to 11.14.1 (matches package.json packageManager)
         run: npm install -g npm@11.14.1

@@ -29,6 +29,7 @@
     "shogi:floodgate-v7-key-enrollment-binding-preflight": "node -r tsx/cjs ml/inspect-floodgate-v7-approved-key-current-binding.ts",
     "shogi:floodgate-v7-offline-connector-gates": "node -r tsx/cjs ml/run-floodgate-v7-offline-connector-gates.ts",
     "shogi:floodgate-v7-production-connector-registry-provision": "node -r tsx/cjs ml/provision-floodgate-v7-production-connector-registry.ts",
+    "shogi:floodgate-v7-production-application-source-readiness": "node -r tsx/cjs ml/inspect-floodgate-v7-production-application-source.ts",
     "shogi:floodgate-v7-production-prefix-100-preflight": "node -r tsx/cjs ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
     "shogi:floodgate-v7-production-prefix-100-kill-drill": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
     "shogi:floodgate-v7-production-connector-prefix-100": "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-100.ts",

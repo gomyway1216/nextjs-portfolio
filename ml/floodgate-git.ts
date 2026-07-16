@@ -86,6 +86,7 @@ export function floodgateGitTrackedEntriesAreOrdinary(output: string): boolean {
 interface FloodgateGitTreeEntry {
   readonly mode: "100644" | "100755" | "120000";
   readonly object: string;
+  readonly bytes: number;
   readonly path: string;
 }
 
@@ -100,15 +101,18 @@ function nulRecords(output: string, label: string): readonly string[] {
 function parseHeadTree(output: string): readonly FloodgateGitTreeEntry[] {
   return nulRecords(output, "HEAD tree").map((record) => {
     const tab = record.indexOf("\t");
-    const header = tab < 0 ? [] : record.slice(0, tab).split(" ");
+    const header = tab < 0 ? [] : record.slice(0, tab).split(/ +/u);
     const entryPath = tab < 0 ? "" : record.slice(tab + 1);
+    const bytes = header.length === 4 ? Number(header[3]) : Number.NaN;
     if (
-      header.length !== 3 ||
+      header.length !== 4 ||
       header[1] !== "blob" ||
       (header[0] !== "100644" &&
         header[0] !== "100755" &&
         header[0] !== "120000") ||
       !/^[0-9a-f]+$/.test(header[2]) ||
+      !/^(?:0|[1-9][0-9]*)$/u.test(header[3] ?? "") ||
+      !Number.isSafeInteger(bytes) ||
       entryPath.length === 0 ||
       path.isAbsolute(entryPath) ||
       path.normalize(entryPath) !== entryPath ||
@@ -119,6 +123,7 @@ function parseHeadTree(output: string): readonly FloodgateGitTreeEntry[] {
     return Object.freeze({
       mode: header[0],
       object: header[2],
+      bytes,
       path: entryPath,
     }) as FloodgateGitTreeEntry;
   });
@@ -182,7 +187,11 @@ function readTrackedBlob(
     }
     const bytes = fs.readlinkSync(filePath, { encoding: "buffer" });
     const after = fs.lstatSync(filePath, { bigint: true });
-    if (!sameStat(before, after) || BigInt(bytes.byteLength) !== after.size) {
+    if (
+      before.size !== BigInt(entry.bytes) ||
+      !sameStat(before, after) ||
+      BigInt(bytes.byteLength) !== after.size
+    ) {
       throw new Error(`tracked symlink changed while hashing: ${entry.path}`);
     }
     return new Uint8Array(bytes);
@@ -206,6 +215,9 @@ function readTrackedBlob(
     const executable = (before.mode & BigInt(0o111)) !== BigInt(0);
     if ((entry.mode === "100755") !== executable) {
       throw new Error(`tracked executable mode changed: ${entry.path}`);
+    }
+    if (before.size !== BigInt(entry.bytes)) {
+      throw new Error(`tracked file size differs from HEAD: ${entry.path}`);
     }
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
@@ -241,6 +253,116 @@ async function fixedGitOutput(
   return stdout;
 }
 
+const FLOODGATE_FULL_GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+interface FloodgateGitCleanRevisionContext {
+  readonly repositoryStat: fs.BigIntStats;
+  readonly topLevel: string;
+  readonly head: string;
+  readonly status: string;
+  readonly trackedFlags: string;
+}
+
+function assertFloodgateCanonicalRepositoryRoot(
+  repositoryRoot: string,
+): fs.BigIntStats {
+  if (
+    typeof repositoryRoot !== "string" ||
+    repositoryRoot.length === 0 ||
+    repositoryRoot.includes("\0") ||
+    repositoryRoot.includes("\n") ||
+    repositoryRoot.includes("\r") ||
+    !path.isAbsolute(repositoryRoot) ||
+    path.normalize(repositoryRoot) !== repositoryRoot
+  ) {
+    throw new Error(
+      "Floodgate Git repository root must be a canonical absolute path",
+    );
+  }
+  const before = fs.lstatSync(repositoryRoot, { bigint: true });
+  if (!before.isDirectory() || before.isSymbolicLink()) {
+    throw new Error("Floodgate Git repository root must be a real directory");
+  }
+  if (fs.realpathSync.native(repositoryRoot) !== repositoryRoot) {
+    throw new Error(
+      "Floodgate Git repository root must not traverse symbolic links",
+    );
+  }
+  const after = fs.lstatSync(repositoryRoot, { bigint: true });
+  if (!sameStat(before, after)) {
+    throw new Error(
+      "Floodgate Git repository root changed during canonicalization",
+    );
+  }
+  return after;
+}
+
+function parseFloodgateGitLine(output: string, label: string): string {
+  if (
+    typeof output !== "string" ||
+    !output.endsWith("\n") ||
+    output.length <= 1 ||
+    output.slice(0, -1).includes("\n") ||
+    output.includes("\r") ||
+    output.includes("\0")
+  ) {
+    throw new Error(`invalid Floodgate Git ${label} output`);
+  }
+  return output.slice(0, -1);
+}
+
+async function captureFloodgateGitCleanRevisionContext(
+  repositoryRoot: string,
+  expectedRevision: string,
+): Promise<Readonly<FloodgateGitCleanRevisionContext>> {
+  const before = assertFloodgateCanonicalRepositoryRoot(repositoryRoot);
+  const [topLevelOutput, headOutput, status, trackedFlags] = await Promise.all([
+    fixedGitOutput(repositoryRoot, ["rev-parse", "--show-toplevel"]),
+    fixedGitOutput(repositoryRoot, ["rev-parse", "--verify", "HEAD^{commit}"]),
+    fixedGitOutput(repositoryRoot, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+    ]),
+    fixedGitOutput(repositoryRoot, ["ls-files", "-v", "-z"]),
+  ]);
+  const after = assertFloodgateCanonicalRepositoryRoot(repositoryRoot);
+  if (!sameStat(before, after)) {
+    throw new Error(
+      "Floodgate Git repository root changed during context verification",
+    );
+  }
+  const topLevel = parseFloodgateGitLine(topLevelOutput, "top-level");
+  if (topLevel !== repositoryRoot) {
+    throw new Error(
+      "Floodgate Git repository root must be the exact worktree top-level",
+    );
+  }
+  const head = parseFloodgateGitLine(headOutput, "HEAD revision");
+  if (!FLOODGATE_FULL_GIT_OBJECT_ID.test(head)) {
+    throw new Error("invalid Floodgate Git HEAD revision");
+  }
+  if (head !== expectedRevision) {
+    throw new Error("Floodgate Git HEAD is not the expected exact revision");
+  }
+  if (status !== "") {
+    throw new Error(
+      "Floodgate Git worktree and index must be clean, including non-ignored untracked files",
+    );
+  }
+  if (!floodgateGitTrackedEntriesAreOrdinary(trackedFlags)) {
+    throw new Error("Floodgate Git index contains special tracked flags");
+  }
+  return Object.freeze({
+    repositoryStat: after,
+    topLevel,
+    head,
+    status,
+    trackedFlags,
+  });
+}
+
 /** Compare every tracked worktree byte and mode directly with the HEAD tree. */
 export async function assertFloodgateGitTrackedTreeMatchesHead(
   repositoryRoot: string,
@@ -250,6 +372,7 @@ export async function assertFloodgateGitTrackedTreeMatchesHead(
     fixedGitOutput(repositoryRoot, [
       "ls-tree",
       "-r",
+      "-l",
       "-z",
       "--full-tree",
       "HEAD",
@@ -280,6 +403,7 @@ export async function assertFloodgateGitTrackedTreeMatchesHead(
     fixedGitOutput(repositoryRoot, [
       "ls-tree",
       "-r",
+      "-l",
       "-z",
       "--full-tree",
       "HEAD",
@@ -289,6 +413,47 @@ export async function assertFloodgateGitTrackedTreeMatchesHead(
   if (finalHeadTree !== headTree || finalIndex !== index) {
     throw new Error(
       "Floodgate Git HEAD/index changed during byte verification",
+    );
+  }
+}
+
+/**
+ * Require one canonical worktree at an exact Git-clean revision under standard
+ * ignore rules, including direct tracked-byte verification. The surrounding
+ * context is repeated afterward so a concurrent HEAD, index, worktree,
+ * non-ignored untracked-file, or root change fails closed instead of
+ * authorizing a stale observation.
+ */
+export async function assertFloodgateGitExactCleanRevision(
+  repositoryRoot: string,
+  expectedRevision: string,
+): Promise<void> {
+  if (
+    typeof expectedRevision !== "string" ||
+    !FLOODGATE_FULL_GIT_OBJECT_ID.test(expectedRevision)
+  ) {
+    throw new Error(
+      "Floodgate Git expected revision must be a full lowercase object ID",
+    );
+  }
+  const initial = await captureFloodgateGitCleanRevisionContext(
+    repositoryRoot,
+    expectedRevision,
+  );
+  await assertFloodgateGitTrackedTreeMatchesHead(repositoryRoot);
+  const final = await captureFloodgateGitCleanRevisionContext(
+    repositoryRoot,
+    expectedRevision,
+  );
+  if (
+    !sameStat(initial.repositoryStat, final.repositoryStat) ||
+    initial.topLevel !== final.topLevel ||
+    initial.head !== final.head ||
+    initial.status !== final.status ||
+    initial.trackedFlags !== final.trackedFlags
+  ) {
+    throw new Error(
+      "Floodgate Git repository context changed during exact revision verification",
     );
   }
 }

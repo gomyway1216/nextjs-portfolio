@@ -1455,6 +1455,14 @@ describe("Floodgate stable-WASM real child pool", () => {
   }, 30_000);
 
   it("keeps the known depth-11 sentinel and canonical proposals identical across one, two, and three workers", async () => {
+    // This is a semantic invariance check, not a 30-second startup SLO. A
+    // loaded full suite can delay the real child initialization pipeline;
+    // keep its watchdog aligned with the fixed production runtime while
+    // preserving the separate 30-second search watchdog.
+    const realChildOptions = {
+      ...OPTIONS,
+      startupTimeoutMilliseconds: 120_000,
+    };
     const sentinelSfen = rookPawnLoopSfen();
     const rows = [
       parent("pool-mate", MATE_SFEN, 0, MATE_MOVE),
@@ -1470,19 +1478,19 @@ describe("Floodgate stable-WASM real child pool", () => {
     const one = await generateFloodgateStableWasmProposalsCoreForTests(
       input,
       assets(),
-      OPTIONS,
+      realChildOptions,
       { search: runFloodgateStableWasmWorkerPoolCoreForTests },
     );
     const two = await generateFloodgateStableWasmProposalsCoreForTests(
       input,
       assets(),
-      { ...OPTIONS, workers: 2 },
+      { ...realChildOptions, workers: 2 },
       { search: runFloodgateStableWasmWorkerPoolCoreForTests },
     );
     const three = await generateFloodgateStableWasmProposalsCoreForTests(
       input,
       assets(),
-      { ...OPTIONS, workers: 3 },
+      { ...realChildOptions, workers: 3 },
       { search: runFloodgateStableWasmWorkerPoolCoreForTests },
     );
     expect(two.jsonl).toBe(one.jsonl);
@@ -1511,7 +1519,7 @@ describe("Floodgate stable-WASM real child pool", () => {
     expect(three.receipt.semantic_run_fingerprint_sha256).toBe(
       one.receipt.semantic_run_fingerprint_sha256,
     );
-  }, 60_000);
+  }, 180_000);
 });
 
 describe("Floodgate stable-WASM reusable proposal pool", () => {

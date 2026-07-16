@@ -1,0 +1,428 @@
+{
+  "schema": "shogi-floodgate-v7-training-label-production-owner-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-and-documentation-candidate-only",
+    "implementation_kind": "fixed-purpose-bound-outer-gate-training-label-owner-runner-and-zero-argument-cli-not-executed-in-production",
+    "base_composition_pull_request": 478,
+    "owner_cli_pull_request": 479,
+    "candidate_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
+    "production_code_path_added": true,
+    "production_fixed_registry_and_work_path_existence_checked_read_only": true,
+    "production_training_label_registry_or_work_file_content_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_invocation_authorized_by_this_evidence": false
+  },
+  "artifacts": {
+    "implementation_sources": [
+      "ml/floodgate-v7-production-outer-gate-lease.ts",
+      "ml/floodgate-v7-production-connector-runner.ts",
+      "ml/floodgate-v7-training-label-production-owner.ts",
+      "ml/floodgate-v7-training-label-production-runner.ts",
+      "ml/floodgate-v7-training-label-production-cli.ts",
+      "ml/run-floodgate-v7-training-label-production.ts",
+      "package.json"
+    ],
+    "japanese_article": "docs/blog-shogi-floodgate-v7-training-label-production-owner.md",
+    "english_article": "docs/blog-shogi-floodgate-v7-training-label-production-owner.en.md",
+    "machine_readable_evidence": "docs/data/floodgate-v7-training-label-production-owner-2026-07-16.json"
+  },
+  "outer_lease_v2": {
+    "contract": "shogi-floodgate-v7-production-outer-gate-lease-v2",
+    "new_record_field": "purpose",
+    "new_record_hmac_domain": "shogi-floodgate-v7-production-outer-gate-lease-purpose-record-v2\u0000",
+    "mutation_purposes": [
+      "durable-prefix-100",
+      "durable-prefix-500",
+      "sealed-final-24000",
+      "training-label-finalization-24000"
+    ],
+    "one_common_os_lifetime_lock_for_all_four_purposes": true,
+    "same_control_namespace_as_v1": true,
+    "new_records_written_as_v2_only": true,
+    "legacy_v1_authenticated_read_supported": true,
+    "v1_and_v2_shape_contract_status_algorithm_and_hmac_domain_checked_separately": true,
+    "legacy_sealed_final_mapped_to_training_label_finalization": false,
+    "quarantine_blocks_all_four_purposes": true,
+    "signal_or_exit_claims_graceful_active_lease_removal": false,
+    "authenticated_stale_evidence_preserved_after_process_failure": true
+  },
+  "purpose_capability": {
+    "purpose": "training-label-finalization-24000",
+    "contract": "shogi-floodgate-v7-production-outer-gate-training-label-finalization-capability-v1",
+    "production_registry": "module-private-weakmap",
+    "test_registry": "separate-module-private-weakmap",
+    "production_and_test_registry_are_same_instance": false,
+    "exact_identity_required": true,
+    "synchronous_claim_before_first_await": true,
+    "single_use": true,
+    "clone_allowed": false,
+    "proxy_allowed": false,
+    "foreign_registry_claim_allowed": false,
+    "second_claim_allowed": false,
+    "production_dependency_injection_allowed": false,
+    "owner_module_loaded_before_os_lock_and_durable_active_lease": false
+  },
+  "lexical_owner_order": [
+    "common-os-lock-acquired",
+    "authenticated-purpose-bound-active-outer-lease-durable",
+    "purpose-capability-minted",
+    "purpose-capability-claimed-synchronously",
+    "production-registry-loaded-and-claimed",
+    "approved-enrollment-loaded-and-claimed",
+    "registry-approved-binding-exact-match",
+    "approved-binding-freshly-current",
+    "stage-authorized-under-outer-gate",
+    "unkeyed-held-stage-and-work-preflight",
+    "fresh-authenticated-training-row-callback",
+    "scanner-backed-plan-composed-inside-callback",
+    "consumer-postflight-complete",
+    "terminal-finalizer-and-destination-reverification-complete",
+    "outer-callback-returned",
+    "outer-active-lease-removed-and-retired-evidence-durable",
+    "common-os-lifetime-lock-released-after-durable-filesystem-cleanup",
+    "in-memory-secret-buffers-zeroed-before-return",
+    "sanitized-public-receipt-issued"
+  ],
+  "stage_preflight": {
+    "accepted_exact_prefix_states": {
+      "W": ["work.jsonl"],
+      "WT": ["train.jsonl", "work.jsonl"],
+      "WTR": ["result.json", "train.jsonl", "work.jsonl"],
+      "WTRM": ["manifest.json", "result.json", "train.jsonl", "work.jsonl"]
+    },
+    "held_stage_descriptor_used": true,
+    "held_work_descriptor_used": true,
+    "complete_work_bytes_measured": true,
+    "complete_work_sha256_measured": true,
+    "bounded_first_line_canonical_json_checked": true,
+    "v3_header_and_fixed_binding_shape_checked": true,
+    "header_hmac_authenticated_by_preflight": false,
+    "header_and_run_binding_are_unauthenticated_candidates": true,
+    "bytes_and_sha256_are_equality_inputs_only": true,
+    "candidate_grants_plan_authority": false,
+    "later_keyed_scanner_authentication_required": true,
+    "held_and_named_stage_and_work_revalidated_within_preflight": true,
+    "exact_prefix_revalidated_within_preflight": true,
+    "preflight_descriptors_retained_until_scanner_open": false,
+    "preflight_to_scanner_inode_continuity_claimed": false,
+    "continuous_namespace_monitoring_claimed": false,
+    "transient_fully_restored_change_always_detected": false,
+    "outer_lock_serializes_cooperating_fixed_workflows": true,
+    "outer_lock_alone_prevents_same_uid_hostile_writer": false
+  },
+  "consumer_composer_finalizer": {
+    "fresh_authenticated_input_callback_required": true,
+    "composer_invoked_only_inside_fresh_callback": true,
+    "consumer_postflight_required_after_callback": true,
+    "production_plan_is_scanner_backed_opaque_and_single_use": true,
+    "authenticated_scanner_required_before_plan_mint": true,
+    "finalizer_accepts_exact_W_WT_WTR_WTRM_prefix": true,
+    "destination_reopen_and_content_reverification_required": true,
+    "optimizer_training_performed": false,
+    "weight_created": false
+  },
+  "cleanup_and_failure_reconciliation": {
+    "lease_before_composer_failure_owner": "training-label-owner",
+    "lease_after_composer_invocation_owner": "composer-or-issued-plan",
+    "plan_after_consumer_or_postflight_failure": "owner-discards-before-return",
+    "plan_after_finalizer_invocation_owner": "finalizer-terminal-owner-no-double-cleanup",
+    "public_failure_facets": [
+      "phase",
+      "publication_may_have_occurred",
+      "lease_may_remain",
+      "cleanup_failure_count",
+      "retry_disposition"
+    ],
+    "unknown_post_boundary_failure_projected_as_fresh_safe_retry": false,
+    "outer_operation_failure_claims_active_lease_removed": false,
+    "manual_publication_or_lease_reconciliation_required_when_indeterminate": true,
+    "success_removes_active_lease_durably_before_lock_release": true,
+    "success_persists_retired_evidence_before_lock_release": true,
+    "os_lock_release_finishes_filesystem_and_lifetime_lock_phase": true,
+    "in_memory_secret_zeroization_follows_before_return": true
+  },
+  "runner_and_cli": {
+    "production_runner_arguments": 0,
+    "production_cli_extra_arguments_allowed": false,
+    "required_process_argv_length": 2,
+    "required_node_version": "v22.13.0",
+    "runner_loaded_only_after_argv_and_runtime_checks": true,
+    "package_script_uses_caffeinate": true,
+    "caffeinate_arguments": ["-dimsu"],
+    "success_output": "one-sanitized-json-line-on-stdout",
+    "failure_output": "nonzero-exit-and-attempts-one-sanitized-json-line-on-stderr",
+    "stderr_write_failure_preserves_nonzero_exit": true,
+    "success_stdout_write_failure_counted_as_success": false,
+    "unknown_failure_projected_optimistically": false,
+    "raw_outer_owner_or_finalizer_receipt_disclosed": false,
+    "path_identity_mac_row_or_position_content_disclosed": false
+  },
+  "validation": {
+    "candidate_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
+    "formal_measurements_complete": true,
+    "runs": [
+      {
+        "name": "focused-owner-outer-runner-cli",
+        "status": "COMPLETE",
+        "command": "npx vitest run tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts tests/unit/ml/floodgateV7ProductionConnectorRunner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionOwner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionRunner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionCli.test.ts tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts --reporter=dot",
+        "result": {
+          "files": 6,
+          "tests": 134,
+          "passed": 134,
+          "failed": 0,
+          "vitest_duration_seconds": 2.61,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 2.97,
+        "maximum_rss_bytes": 333479936
+      },
+      {
+        "name": "related-authority-scanner-finalizer",
+        "status": "COMPLETE",
+        "command": "npx vitest run tests/unit/ml/floodgateV7DeploymentKeyAuthority.test.ts tests/unit/ml/floodgateV7ApprovedKeyEnrollment.test.ts tests/unit/ml/floodgateV7ApprovedKeyCurrentBinding.test.ts tests/unit/ml/floodgateV7TrainingLabelFinalizerKeyAuthority.test.ts tests/unit/ml/floodgateV7TrainingLabelSealedScanner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionComposition.test.ts tests/unit/ml/floodgateV7TrainingLabelFinalizerCore.test.ts",
+        "result": {
+          "files": 7,
+          "tests": 97,
+          "passed": 97,
+          "failed": 0,
+          "vitest_duration_seconds": 299.77,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 300.11,
+        "maximum_rss_bytes": 767770624
+      },
+      {
+        "name": "typescript",
+        "status": "COMPLETE",
+        "command": "npx tsc --noEmit",
+        "result": {
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 3.18,
+        "maximum_rss_bytes": 1171046400
+      },
+      {
+        "name": "prettier",
+        "status": "COMPLETE",
+        "command": "git diff --name-only -z main | xargs -0 npx prettier --check",
+        "result": {
+          "files": 17,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 1.17,
+        "maximum_rss_bytes": 191102976
+      },
+      {
+        "name": "eslint",
+        "status": "COMPLETE",
+        "command": "npx eslint ml/floodgate-v7-production-connector-runner.ts ml/floodgate-v7-production-outer-gate-lease.ts ml/floodgate-v7-training-label-production-cli.ts ml/floodgate-v7-training-label-production-owner.ts ml/floodgate-v7-training-label-production-runner.ts ml/run-floodgate-v7-training-label-production.ts tests/unit/ml/floodgateStableWasmProposer.test.ts tests/unit/ml/floodgateV7ProductionConnectorRunner.test.ts tests/unit/ml/floodgateV7ProductionOuterGateLease.test.ts tests/unit/ml/floodgateV7ProductionPrefix100SameLockOneShot.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionCli.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionOwner.test.ts tests/unit/ml/floodgateV7TrainingLabelProductionRunner.test.ts; npm run lint",
+        "result": {
+          "scoped_exit_code": 0,
+          "scoped_errors": 0,
+          "scoped_warnings": 0,
+          "scoped_duration_seconds": 1.31,
+          "scoped_maximum_rss_bytes": 497008640,
+          "full_exit_code": 0,
+          "full_errors": 0,
+          "full_warnings": 157,
+          "swaps": 0
+        },
+        "duration_seconds": 29.3,
+        "maximum_rss_bytes": 1834876928
+      },
+      {
+        "name": "full-vitest",
+        "status": "COMPLETE",
+        "command": "npx vitest run --reporter=dot --maxWorkers=8",
+        "result": {
+          "files": 161,
+          "tests": 2911,
+          "passed": 2911,
+          "failed": 0,
+          "vitest_duration_seconds": 310.57,
+          "unhandled_errors": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 310.96,
+        "maximum_rss_bytes": 2383593472
+      },
+      {
+        "name": "production-build",
+        "status": "COMPLETE",
+        "command": "npm run build",
+        "result": {
+          "static_pages": 193,
+          "passed": 193,
+          "failed": 0,
+          "nonfatal_existing_build_time_diagnostics_observed": true,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 29.38,
+        "maximum_rss_bytes": 2616852480
+      },
+      {
+        "name": "ml-stdlib",
+        "status": "COMPLETE",
+        "command": "npm run test:ml:stdlib",
+        "result": {
+          "tests": 58,
+          "passed": 58,
+          "failed": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 0.49,
+        "maximum_rss_bytes": 64913408
+      },
+      {
+        "name": "npm-audit",
+        "status": "COMPLETE",
+        "command": "npm audit --audit-level=high",
+        "result": {
+          "vulnerabilities": 0,
+          "exit_code": 0,
+          "swaps": 0
+        },
+        "duration_seconds": 0.56,
+        "maximum_rss_bytes": 133562368
+      }
+    ]
+  },
+  "intermediate_validation_findings": {
+    "authoritative_final_evidence": false,
+    "first_default_full_run_with_tail_overlap_from_lint_and_build": {
+      "files_total": 161,
+      "files_passed": 159,
+      "files_failed": 2,
+      "tests_total": 2911,
+      "tests_passed": 2909,
+      "tests_failed": 2,
+      "vitest_duration_seconds": 317.42,
+      "wall_seconds": 317.85,
+      "maximum_rss_bytes": 2350088192,
+      "swaps": 0,
+      "unhandled_errors": 0,
+      "tail_overlapped_with_full_lint_and_production_build": true
+    },
+    "findings_and_resolution": [
+      {
+        "finding": "legacy-v1-gate-field-remained-in-one-stale-lease-test-expectation",
+        "implementation_record_was_correct_v2_purpose": true,
+        "fixed_revision": "a95760bae0f4a1c9474139c8f2b2d2bc6e298095",
+        "isolated_confirmation": "16-of-16-passed"
+      },
+      {
+        "finding": "stable-wasm-real-child-initialization-exceeded-test-only-30000ms-watchdog-under-full-suite-resource-contention",
+        "isolated_before_change": "53-of-53-passed-in-15.11-seconds",
+        "production_startup_watchdog_milliseconds": 120000,
+        "semantic_sentinel_startup_watchdog_before_milliseconds": 30000,
+        "semantic_sentinel_startup_watchdog_after_milliseconds": 120000,
+        "semantic_sentinel_whole_test_timeout_before_milliseconds": 60000,
+        "semantic_sentinel_whole_test_timeout_after_milliseconds": 180000,
+        "search_watchdog_remains_milliseconds": 30000,
+        "retries_added": false,
+        "worker_or_production_implementation_changed": false,
+        "fixed_revision": "871841ad35dd5e91b97a73b5e63707dbe8673a4e",
+        "isolated_after_change_under_parallel_related_test_load": "53-of-53-passed-in-14.74-seconds",
+        "classification": "scheduler-or-transport-starvation-is-the-strongest-inference-not-a-proved-cause"
+      }
+    ],
+    "final_resolution": "authoritative-eight-worker-full-run-passed-161-files-and-2911-tests"
+  },
+  "security_review": {
+    "status": "COMPLETE",
+    "implementation_revision_reviewed": "b9438d8844bbc8c241dfa7d31fc834debeec68e1",
+    "later_candidate_revisions_change_tests_and_evidence_only": true,
+    "findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "p3": 0
+    },
+    "merge_blocking_findings": 0,
+    "warning": "do-not-restore-the-stale-private-tmp-wip-copy-of-the-production-connector-runner"
+  },
+  "github_gate": {
+    "pull_request": 479,
+    "pull_request_state": "OPEN",
+    "evidence_head_revision": "0e59d10996ed8be6f818fa2e4258c05615297ff2",
+    "ci_state": "PASSED_ON_EVIDENCE_HEAD",
+    "checks_total": 4,
+    "checks_passed": 4,
+    "checks_failed": 0,
+    "check_durations_seconds": {
+      "npm_audit": 12,
+      "darwin_exclusive_directory_rename": 168,
+      "e2e_smoke_tests": 195,
+      "test_and_build": 913
+    },
+    "review_state": "ZERO_ACTIONABLE_UNRESOLVED_THREADS_ON_EVIDENCE_HEAD",
+    "actionable_unresolved_review_count": 0,
+    "automated_review_generation_failures_nonactionable": 2,
+    "merge_state": "PENDING_FINAL_EVIDENCE_ONLY_HEAD_RERUN",
+    "merge_method_when_ready": "regular-merge-commit"
+  },
+  "production_counters": {
+    "application_execution_source_gate_merges": 0,
+    "reviewed_disposable_kill_drill_invocations": 0,
+    "real_registry_provisions": 0,
+    "real_production_work_observations": 0,
+    "production_cli_invocations": 0,
+    "production_owner_invocations": 0,
+    "post_100_independent_evidence_reviews": 0,
+    "post_100_informed_human_approvals": 0,
+    "post_500_independent_evidence_reviews": 0,
+    "post_500_informed_human_approvals": 0,
+    "real_teacher_parents_generated": 0,
+    "real_training_labels_finalized": 0,
+    "optimizer_training_runs": 0,
+    "candidate_weights_created": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_activations": 0
+  },
+  "next_operational_gate": {
+    "allowed_before_merge_ci_and_review_are_complete": false,
+    "production_registry_provision_is_currently_no_go": true,
+    "application_execution_source_gate_required_before_registry_provision": true,
+    "current_binding_cli_exact_node_guard_implemented": false,
+    "standalone_fixed_verifier_readiness_cli_implemented": false,
+    "fixed_reconciliation_cli_for_indeterminate_state_implemented": false,
+    "ordered_steps": [
+      "implement-review-ci-and-regular-merge-fixed-clean-post-merge-application-execution-source-revision-binding-for-registry-outer-lease-and-public-receipt",
+      "align-existing-fixed-verifier-worktree-to-evidence-backed-e8a9197608cb48b1160b6707d97b0c4f78f90a1d-and-reverify-clean-source-pinned-artifact-closure-and-runtime",
+      "create-only-provision-production-registry-and-reverify-approved-current-binding",
+      "run-reviewed-fixed-disposable-kill-drill-once-and-preserve-sanitized-success-receipt",
+      "run-fresh-standalone-read-only-preflight-with-non-authorizing-non-reusable-go",
+      "run-prefix-100-exactly-once-and-preserve-receipt",
+      "stop-review-exact-100-throughput-count-timeout-score-mate-resume-residual-process-and-durability-evidence-then-require-informed-human-approval-before-500",
+      "run-prefix-500-and-preserve-receipt",
+      "stop-review-failure-rate-updated-eta-and-safety-evidence-then-require-informed-human-approval-before-24000",
+      "run-sealed-24000-parent-teacher-gate-preserve-terminal-receipt-and-inspect-terminal-evidence",
+      "run-zero-argument-training-label-finalization-and-preserve-artifact-and-cleanup-evidence",
+      "retrain-and-select-candidates",
+      "run-192-color-swapped-pairs-384-formal-ab-games",
+      "run-200-external-calibration-games",
+      "pass-rollback-and-safe-live-gate"
+    ],
+    "automatic_progression_from_100_to_500_allowed": false,
+    "automatic_progression_from_500_to_24000_allowed": false,
+    "absolute_node_v22_13_0_required_for_every_operator_command": true,
+    "stale_lease_quarantine_or_indeterminate_publication_may_be_skipped": false
+  },
+  "live_state": {
+    "live_weight_changed_by_this_candidate": false,
+    "runOp1_changed_by_this_candidate": false,
+    "new_elo_claim": false,
+    "new_dan_rank_claim": false,
+    "stable_high_dan_claim": false,
+    "playing_strength_claim": false
+  }
+}

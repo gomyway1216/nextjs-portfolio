@@ -253,7 +253,14 @@ function connectorReceipt(
   };
 }
 
-function outerOwnerReceipt(executionBoundary: string, value: unknown): unknown {
+function outerOwnerReceipt(
+  executionBoundary: string,
+  value: unknown,
+  mutationPurpose:
+    | "durable-prefix-100"
+    | "durable-prefix-500"
+    | "sealed-final-24000" = "durable-prefix-100",
+): unknown {
   return {
     value,
     lease: {
@@ -261,19 +268,20 @@ function outerOwnerReceipt(executionBoundary: string, value: unknown): unknown {
       status: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS,
       algorithm: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
       execution_boundary: executionBoundary,
+      mutation_purpose: mutationPurpose,
       verification: {
-        one_os_lifetime_lock_shared_by_all_three_gates: true,
+        one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
         os_lifetime_lock_held_before_operation: true,
-        authenticated_lease_metadata_durable_before_operation: true,
+        authenticated_purpose_bound_lease_metadata_durable_before_operation: true,
         signal_and_exit_preserve_stale_evidence: true,
         authenticated_lease_removed_durably_after_operation: true,
-        authenticated_retired_evidence_durable_after_operation: true,
+        authenticated_purpose_bound_retired_evidence_durable_after_operation: true,
         os_lifetime_lock_released_after_operation: true,
         quarantine_empty_after_operation: true,
       },
       nonclaims: {
         lock_or_lease_path_disclosed: false,
-        lease_metadata_disclosed: false,
+        private_lease_metadata_disclosed: false,
         key_material_disclosed: false,
         key_instance_id_disclosed: false,
         lease_mac_disclosed: false,
@@ -423,6 +431,7 @@ describe("Floodgate v7 production connector runner", () => {
           FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
           value,
         ),
+        "durable-prefix-100",
       ),
     ).toBe(value);
     expect(() =>
@@ -431,6 +440,17 @@ describe("Floodgate v7 production connector runner", () => {
           FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_TEST_EXECUTION_BOUNDARY,
           value,
         ),
+        "durable-prefix-100",
+      ),
+    ).toThrow("runner outer gate receipt differs");
+    expect(() =>
+      validateFloodgateV7ProductionOuterGateSuccessCoreForTests(
+        outerOwnerReceipt(
+          FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
+          value,
+          "sealed-final-24000",
+        ),
+        "durable-prefix-100",
       ),
     ).toThrow("runner outer gate receipt differs");
   });

@@ -22,6 +22,8 @@
 | current registry / this-change gate runs      | 不存在 / 0                                                | 現在状態はfresh観測済み。本変更ではblockerを閉じる別PRまで実行しない                                 |
 | labels / training / weights / live / strength | 0 / 0 / 0 / 0 / 0                                         | 評価関数も棋力もまだ変わっていない                                                                   |
 
+この表はrunner実装時点のsnapshotである。その後same-lock prefix-100境界まで通常mergeされたが、当時の実測値と[機械可読証拠](./data/floodgate-v7-production-connector-runner-2026-07-15.json)は後続候補の値へ書き換えない。現在の未マージ後続候補もproduction操作を行っておらず、live evaluatorは引き続きrunOp1である。
+
 ## 2. PR #468の後、productionで何が成功したか
 
 PR #468の実装だけではproduction approvalを成功したとはclaimしていなかった。通常merge後に、operatorが固定のprivate native UIでexact candidateを確認し、表示された完全な64文字lowercase SHA-256を自分で再入力してApproveした。workflowは承認後にcandidateをもう一度fresh inspectionし、review済みbytesと一致した場合だけcreate-only installerを呼んだ。その後、保存済みrecordのexact claimとfresh current-key bindingをpostflightした。
@@ -37,22 +39,24 @@ candidate JSON、candidate / record digest、approval ID、approval timestamp、
 
 production connectorは、run ID、approved record binding、verifier revision、repository / raw lock / role lock / role bundle / legacy exclusionの入力、teacher engine / eval asset、stage / destination namespaceを同じ組として使わなければならない。これらを毎回shell argumentやenvironment variableで組み立てると、100、500、24,000の間で別runや別revisionが混ざり、private pathやdigestがhistoryへ残る。
 
-registry recordは次を固定する。
+当時のregistry record設計は次を固定するものだった。
 
 - 32-byte CSPRNGから生成するprivate run ID。
 - approved recordのbyte数、digest、key instance identityへのprivate binding。
-- verifier revision `b086243781396e2c197cc9e1cfab1fc6b773ae2a`。
+- 当時のverifier revision `b086243781396e2c197cc9e1cfab1fc6b773ae2a`。
 - current-user homeから導く固定repository、raw lock、role lock、role bundle、legacy exclusion、production teacher assetの各namespace。
 - 空のengine argument列。
 - 同じrun IDから導くstage basename、destination basename、publication parent。
 
 本稿は固定規則を記録するが、実際のabsolute path、run ID、binding値は公開しない。registry rootとruns directoryはexact `0700`、recordはexact `0600` / regular / link count 1でなければならず、loaderはfixed current-EUID homeを`O_NOFOLLOW`で辿り、held descriptorをrevalidateしてからsingle-use opaque capabilityを返す。loaderはprivate capability state内でstage authorizationとtraining-row consumer optionsを導出し、single-use claim成功時だけ同一processのcallerへ渡す。
 
+後続監査により、当時の`b086243`は、後から追加されたpinned result-verifier receipt / evidenceのproducer `0f3cadb76ec46eb82d5bc9623277525ce1d2252b`より前で、必要artifactとproducer ancestry closureを同時に満たせないと判明した。したがって`b086243`は歴史的なblockerの記録であり、利用可能なproduction bindingとして扱わない。evidence-backed candidateは`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`である。
+
 ## 4. create-only installerとargumentless provisioner
 
 installerはoperator objectをそのまま`JSON.stringify`しない。exact key set、plain data、primitive、path、revision、engine argsを先にcapture / validateし、内部で新しいcanonical recordを構築する。canonical JSONLを`0600` stagingへ書いてfile fsyncし、hard-link no-clobberでfinal nameを作り、directory fsync、staging unlink、再度directory fsync、final reopen / identity / canonical bytes revalidationを行う。既存finalや競合stagingをoverwrite、adopt、unlinkしない。
 
-provisionerの順序は固定である。
+この変更時点のprovisioner順序は次で固定されていた。
 
 1. approved recordとfresh current keyのsanitized receiptをexact検証する。
 2. approved enrollment capabilityをfresh load / claimする。
@@ -61,6 +65,10 @@ provisionerの順序は固定である。
 5. create-only installerを1回だけ呼ぶ。
 6. registryをfresh load / claimし、run bindingと全configurationをprivate memory内でexact比較する。
 7. path、run ID、digest、filesystem identityを含まない固定success receiptだけを返す。
+
+現在の別follow-up候補はready-for-reviewの[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)として公開済みだが、まだ未マージである。PR #474は上の順序より前に、fixed current-EUID user-info homeから導いたrepositoryと`e8a9197`をbindし、provisioner / preflight v2が要求するfail-before-installの`source-tree-and-pinned-receipt-evidence Git closure`を検証する。standard Git ignore rules下でnonignored worktreeがcleanかつexact revisionであることを要求し、artifact検査の前後2回、全tracked fileのbytesとmodeをHEADと比較する。7個のpinned receipt / evidence artifactもworktreeから直接読み、pinned Git blob、receipt内容、producer ancestryを検査するため、metadata-onlyではない。ignored entryは対象外で、external role-bundle outputを読まず、full verifierも実行しない。readiness receiptはpath、revision、digest、private identityを公開せず、EUID / homeへのprivate single-use identity bindingも要求する。closureまたはidentityが一致しなければ、current-key binding、enrollment、entropy取得、installへ進まない。prefix-100 preflightでもregistryのfixed configuration claim後、namespace / key checkより前に同じclosureとidentityをrecheckする。このreadinessはregistry / gate authorityを得たというclaimではない。
+
+新しいreadiness leaf自身は`shogi-floodgate-v7-production-connector-verifier-readiness-v1`である。既存receiptへclosure fieldと`verifier-readiness` failure phaseを追加する境界は、provisioner success、provisioning CLI failure、public preflight core / claim boundary、preflight under-lock outcome、preflight CLI success / failureをv2へ上げ、旧v1 receiptとの誤った互換性をclaimしない。
 
 production CLIは引数を1つでも受けた場合、またはruntimeがexact Node `v22.13.0`でない場合、本体moduleをlazy-loadする前に停止する。typed failureもraw objectを転送せず、allowlist済みphase、durability、may-have-created、retry dispositionだけへ再構築する。unknown failureやsuccess後のserialization / stdout failureは、registryが既に作られた可能性を保守的に選び、再実行ではなくreconciliationを要求する。
 
@@ -125,7 +133,7 @@ stage authorizerは、同じstageを2 processが同時使用しないため、st
 5. exact source identityをunique quarantineへexclusive renameし、parent directoryをfsyncすること。元inodeを自動削除しないこと。
 6. metadataを持たないlegacy empty leaseはfail closedし、自動reconcileしないこと。
 
-このblockerは「stale leaseが実際に発生した」という報告ではない。本変更ではreal gateを実行しておらず、production leaseを残した事実もない。長時間runを始める前に見つかった契約上の回復不能点である。別PRがmergeされ、reconciliation testが通るまでは、registry provisioner、prefix-100、prefix-500、final-24000を実行しない。これは現時点ではoperational holdであり、このPRのCLIへ追加したruntime interlockではない。
+このblockerは「stale leaseが実際に発生した」という報告ではない。本変更ではreal gateを実行しておらず、production leaseを残した事実もない。長時間runを始める前に見つかった契約上の回復不能点である。当時は、別PRがmergeされreconciliation testが通るまで、registry provisioner、prefix-100、prefix-500、final-24000を実行しないoperational holdだった。この節はrunner変更が当時停止した理由の歴史的記録であり、現在残るblockerをstale leaseだけだと読み替えてはいけない。現在はcompatible verifier closureとauthenticated training-label finalizerも、production registry / real gate前の必須条件である。
 
 ## 9. 残るP2と明示的なnonclaim
 
@@ -138,3 +146,5 @@ stage authorizerは、同じstageを2 processが同時使用しないため、st
 今回productionで成功したのは、人間承認済みkey enrollmentとfresh current bindingまでである。本変更は新registryをproductionに作らず、connector gateも実行していない。したがって本変更によるreal parent、teacher request、teacher process、teacher label、checkpoint、optimizer step、training run、candidate weight、formal A/B、live activation、Elo / rank observationはすべて0である。
 
 既存`public/shogi-nnue-weights.bin`を候補で上書きしていない。production baselineとrollback targetはrunOp1のままである。次の順序は、stale-lease metadata / lock / manual quarantine PR、通常merge、registry provisioning、100、結果確認、500、結果確認、24,000である。その後もcheckpoint finalization、QAT / selection / sealed holdout、runOp1との十分なpaired A/B、段階的live rollout、外部段位較正を通るまで「安定した高段」とはclaimしない。
+
+上の順序はrunner変更時点の計画であり、現在はsame-lock prefix-100実行境界まで通常merge済みである。未マージのPR #474は、`e8a9197` binding、source-tree / pinned-evidence closure、private identity binding、provisionerのfail-before-installとprefix-100 preflight recheckを追加している。PR #474によるproduction registry作成、gate、teacher generation、finalization、training、weight、A/B、live変更は全て0であり、authenticated training-label finalizerをreview・通常mergeする前にはproduction registryやreal gateを動かさない。

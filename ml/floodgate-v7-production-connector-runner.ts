@@ -417,22 +417,23 @@ const OUTER_RECEIPT_KEYS = objectFreeze([
   "status",
   "algorithm",
   "execution_boundary",
+  "mutation_purpose",
   "verification",
   "nonclaims",
 ] as const);
 const OUTER_VERIFICATION_KEYS = objectFreeze([
-  "one_os_lifetime_lock_shared_by_all_three_gates",
+  "one_os_lifetime_lock_shared_by_all_four_mutation_purposes",
   "os_lifetime_lock_held_before_operation",
-  "authenticated_lease_metadata_durable_before_operation",
+  "authenticated_purpose_bound_lease_metadata_durable_before_operation",
   "signal_and_exit_preserve_stale_evidence",
   "authenticated_lease_removed_durably_after_operation",
-  "authenticated_retired_evidence_durable_after_operation",
+  "authenticated_purpose_bound_retired_evidence_durable_after_operation",
   "os_lifetime_lock_released_after_operation",
   "quarantine_empty_after_operation",
 ] as const);
 const OUTER_NONCLAIM_KEYS = objectFreeze([
   "lock_or_lease_path_disclosed",
-  "lease_metadata_disclosed",
+  "private_lease_metadata_disclosed",
   "key_material_disclosed",
   "key_instance_id_disclosed",
   "lease_mac_disclosed",
@@ -1002,7 +1003,10 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
   }) as Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>;
 }
 
-function validateOuterSuccess<T>(value: unknown): T {
+function validateOuterSuccess<T>(
+  value: unknown,
+  expectedPurpose: FloodgateV7ProductionConnectorRunnerGate,
+): T {
   const result = dataRecord(value, OUTER_RESULT_KEYS);
   const lease = dataRecord(result.lease, OUTER_RECEIPT_KEYS);
   const verification = dataRecord(lease.verification, OUTER_VERIFICATION_KEYS);
@@ -1012,7 +1016,8 @@ function validateOuterSuccess<T>(value: unknown): T {
     lease.status !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS ||
     lease.algorithm !== FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM ||
     lease.execution_boundary !==
-      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY
+      FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY ||
+    lease.mutation_purpose !== expectedPurpose
   ) {
     throw new NativeError("runner outer gate receipt differs");
   }
@@ -1032,11 +1037,12 @@ function validateOuterSuccess<T>(value: unknown): T {
 /** Test-only strict parser for the production outer-owner success boundary. */
 export function validateFloodgateV7ProductionOuterGateSuccessCoreForTests<T>(
   value: unknown,
+  expectedPurpose: FloodgateV7ProductionConnectorRunnerGate,
 ): T {
-  if (arguments.length !== 1) {
+  if (arguments.length !== 2) {
     throw new NativeError("runner outer gate receipt differs");
   }
-  return validateOuterSuccess<T>(value);
+  return validateOuterSuccess<T>(value, expectedPurpose);
 }
 
 function outerOperationMayHaveRun(value: unknown): boolean {
@@ -1227,7 +1233,7 @@ async function runProductionGate<
   try {
     return validateOuterSuccess<
       Readonly<FloodgateV7ProductionConnectorRunnerReceipt<TGate>>
-    >(await outerOwner());
+    >(await outerOwner(), gate);
   } catch (error) {
     if (error instanceof FloodgateV7ProductionConnectorRunnerError) {
       throw error;

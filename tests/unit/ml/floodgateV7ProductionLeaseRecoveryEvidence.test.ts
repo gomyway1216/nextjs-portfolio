@@ -21,6 +21,138 @@ function readText(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");
 }
 
+function assertNoDuplicateJsonObjectKeys(source: string): void {
+  let offset = 0;
+
+  function fail(message: string): never {
+    throw new Error(`${message} at offset ${offset}`);
+  }
+
+  function skipWhitespace(): void {
+    while (/\s/u.test(source[offset] ?? "")) offset += 1;
+  }
+
+  function parseString(): string {
+    const start = offset;
+    if (source[offset] !== '"') fail("Expected JSON string");
+    offset += 1;
+
+    while (offset < source.length) {
+      const character = source[offset];
+      if (character === '"') {
+        offset += 1;
+        return JSON.parse(source.slice(start, offset));
+      }
+      if (character === "\\") {
+        offset += 2;
+      } else {
+        offset += 1;
+      }
+    }
+
+    return fail("Unterminated JSON string");
+  }
+
+  function consumeLiteral(literal: string): void {
+    if (!source.startsWith(literal, offset)) {
+      fail(`Expected JSON literal ${literal}`);
+    }
+    offset += literal.length;
+  }
+
+  function parseNumber(): void {
+    const match = source
+      .slice(offset)
+      .match(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/u);
+    if (match === null) fail("Expected JSON number");
+    offset += match[0].length;
+  }
+
+  function parseArray(): void {
+    offset += 1;
+    skipWhitespace();
+    if (source[offset] === "]") {
+      offset += 1;
+      return;
+    }
+
+    while (true) {
+      parseValue();
+      skipWhitespace();
+      if (source[offset] === "]") {
+        offset += 1;
+        return;
+      }
+      if (source[offset] !== ",") fail("Expected comma in JSON array");
+      offset += 1;
+      skipWhitespace();
+    }
+  }
+
+  function parseObject(): void {
+    offset += 1;
+    skipWhitespace();
+    const keys = new Set<string>();
+    if (source[offset] === "}") {
+      offset += 1;
+      return;
+    }
+
+    while (true) {
+      const keyOffset = offset;
+      const key = parseString();
+      if (keys.has(key)) {
+        throw new Error(
+          `Duplicate JSON object key ${JSON.stringify(key)} at offset ${keyOffset}`,
+        );
+      }
+      keys.add(key);
+      skipWhitespace();
+      if (source[offset] !== ":") fail("Expected colon after JSON object key");
+      offset += 1;
+      parseValue();
+      skipWhitespace();
+      if (source[offset] === "}") {
+        offset += 1;
+        return;
+      }
+      if (source[offset] !== ",") fail("Expected comma in JSON object");
+      offset += 1;
+      skipWhitespace();
+    }
+  }
+
+  function parseValue(): void {
+    skipWhitespace();
+    switch (source[offset]) {
+      case "{":
+        parseObject();
+        return;
+      case "[":
+        parseArray();
+        return;
+      case '"':
+        parseString();
+        return;
+      case "t":
+        consumeLiteral("true");
+        return;
+      case "f":
+        consumeLiteral("false");
+        return;
+      case "n":
+        consumeLiteral("null");
+        return;
+      default:
+        parseNumber();
+    }
+  }
+
+  parseValue();
+  skipWhitespace();
+  if (offset !== source.length) fail("Unexpected content after JSON value");
+}
+
 function numberedSections(article: string): number[] {
   return Array.from(article.matchAll(/^## ([0-9]+)\. /gmu), (match) =>
     Number(match[1]),
@@ -40,6 +172,18 @@ function collectObjectKeys(value: unknown, keys: Set<string>): void {
 }
 
 describe("Floodgate v7 production lease recovery public evidence", () => {
+  it("has no duplicate key in any JSON object", () => {
+    expect(() =>
+      assertNoDuplicateJsonObjectKeys(readText(EVIDENCE_PATH)),
+    ).not.toThrow();
+    expect(() =>
+      assertNoDuplicateJsonObjectKeys('{"outer":{"same":1,"same":2},"same":3}'),
+    ).toThrow(/Duplicate JSON object key "same"/u);
+    expect(() =>
+      assertNoDuplicateJsonObjectKeys('{"escaped":1,"\\u0065scaped":2}'),
+    ).toThrow(/Duplicate JSON object key "escaped"/u);
+  });
+
   it("keeps the Japanese and English articles at the same exact twelve-section boundary", () => {
     const japanese = readText(JAPANESE_ARTICLE_PATH);
     const english = readText(ENGLISH_ARTICLE_PATH);

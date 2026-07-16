@@ -1,6 +1,6 @@
 # `undefined`を成功と誤認しない — Floodgate v7 checkpoint failure-state hardening
 
-> [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)は、coordinator、stage lease、deployment key、24,000 training rows、V3 checkpoint、postflightを一つのownership boundaryへ閉じる。本変更は、その内部failure stateでJavaScriptの値`undefined`を「failureなし」のsentinelとして兼用していた問題を修正する。ready PR [#473](https://github.com/gomyway1216/nextjs-portfolio/pull/473)のimplementation revisionは`2480ff0d4af4324bee3d79ba7dbace54e69ca34a`、prerequisiteはPR #472のregular merge `6e5197fb9a9200cc1b00db1ee34e072b9de84ea2`である。focused 2 files / 127 tests、related 10 files / 252 tests、TypeScript、changed-file ESLint、Prettier、diff checkはPASSし、independent auditのresidual P0 / P1 / P2は0 / 0 / 0である。review comment 2 / 2は修正・reply・resolve済みでunresolved threadは0、PR CI、full suite、production build、mergeは`PENDING`であり、production actionは一つも実行していない。English version: [blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.en.md](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.en.md)
+> [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.md)は、coordinator、stage lease、deployment key、24,000 training rows、V3 checkpoint、postflightを一つのownership boundaryへ閉じる。本変更は、その内部failure stateでJavaScriptの値`undefined`を「failureなし」のsentinelとして兼用していた問題を修正する。ready PR [#473](https://github.com/gomyway1216/nextjs-portfolio/pull/473)のimplementation revisionは`2480ff0d4af4324bee3d79ba7dbace54e69ca34a`、prerequisiteはPR #472のregular merge `6e5197fb9a9200cc1b00db1ee34e072b9de84ea2`である。focused 127 / 127、related 252 / 252、full 2,746 / 2,746、production build 193 / 193、ML 58 / 58、audit vulnerability 0、TypeScript、changed-file ESLint、Prettier、diff checkはPASSし、independent auditのresidual P0 / P1 / P2は0 / 0 / 0である。review comment 2 / 2は修正・reply・resolve済みでunresolved threadは0、PR CIとmergeは`PENDING`であり、production actionは一つも実行していない。English version: [blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.en.md](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.en.md)
 
 ## 1. 結果と今回の範囲
 
@@ -112,7 +112,7 @@ supplementary regressionsは、checkpoint sinkが同期的に`throw undefined`�
 
 ## 9. revision-bound validationとpending項目
 
-implementation revision `2480ff0d4af4324bee3d79ba7dbace54e69ca34a`に対する記録は次のとおりである。
+implementation revision `2480ff0d4af4324bee3d79ba7dbace54e69ca34a`と、記事・証拠を含むvalidation candidate `bbbe91003245ab11ac224fde8af4f855d0ed5afc`に対する記録は次のとおりである。
 
 | validation           | status    | measured evidence                                    |
 | -------------------- | --------- | ---------------------------------------------------- |
@@ -124,9 +124,11 @@ implementation revision `2480ff0d4af4324bee3d79ba7dbace54e69ca34a`に対する�
 | diff check           | PASS      | whitespace errors 0                                  |
 | independent audit    | PASS      | residual P0 / P1 / P2 = 0 / 0 / 0                    |
 | ready PR #473 review | PASS      | actionable 2 / 2を修正・reply・resolve、unresolved 0 |
+| full Vitest          | PASS      | 148 files、2,746 / 2,746、duration 155.64秒          |
+| production build     | PASS      | 193 / 193 pages、wall 35.08秒、swap 0                |
+| ML stdlib            | PASS      | 58 / 58、unittest duration 0.121秒                   |
+| npm audit            | PASS      | vulnerability 0                                      |
 | PR #473 CI           | `PENDING` | ready PR headの全check完了前                         |
-| full Vitest          | `PENDING` | focused / relatedから推定しない                      |
-| production build     | `PENDING` | static page数や時間を推定しない                      |
 | regular merge        | `PENDING` | prerequisite mergeと混同しない                       |
 
 [machine-readable evidence](./data/floodgate-v7-checkpoint-failure-state-hardening-2026-07-16.json)も同じrevisionとstatus boundaryを使う。pending項目にnull、仮count、過去PRの値を埋めない。

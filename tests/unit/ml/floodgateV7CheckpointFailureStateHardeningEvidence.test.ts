@@ -242,12 +242,13 @@ describe("Floodgate v7 checkpoint failure-state hardening public evidence", () =
         url: "https://github.com/gomyway1216/nextjs-portfolio/pull/473",
         state: "ready-open",
         implementation_revision: "2480ff0d4af4324bee3d79ba7dbace54e69ca34a",
+        validation_candidate_revision:
+          "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
         review:
           "two-actionable-comments-addressed-and-resolved-zero-unresolved",
         continuous_integration: "pending-on-ready-pr-473",
-        full_vitest: "pending-not-inferred-from-focused-or-related-validation",
-        production_build:
-          "pending-not-inferred-from-static-or-focused-validation",
+        full_vitest: "passed-on-validation-candidate-bbbe910",
+        production_build: "passed-on-validation-candidate-bbbe910",
         merge: "pending-regular-merge-required",
       },
     });
@@ -385,6 +386,39 @@ describe("Floodgate v7 checkpoint failure-state hardening public evidence", () =
         actionable_comments_fixed_replied_and_resolved: 2,
         unresolved_threads: 0,
       },
+      full_vitest: {
+        status: "pass",
+        validation_candidate_revision:
+          "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+        max_workers: 8,
+        files: 148,
+        tests: 2746,
+        passed: 2746,
+        failed: 0,
+        vitest_duration_seconds: 155.64,
+        wall_seconds: 156.12,
+        maximum_rss_bytes: 4365336576,
+        swaps: 0,
+      },
+      production_build: {
+        status: "pass",
+        validation_candidate_revision:
+          "bbbe91003245ab11ac224fde8af4f855d0ed5afc",
+        static_pages: 193,
+        wall_seconds: 35.08,
+        maximum_rss_bytes: 2613690368,
+        swaps: 0,
+      },
+      ml_stdlib: {
+        status: "pass",
+        tests: 58,
+        passed: 58,
+        failed: 0,
+      },
+      npm_audit: {
+        status: "pass",
+        vulnerabilities: 0,
+      },
     });
   });
 
@@ -472,8 +506,6 @@ describe("Floodgate v7 checkpoint failure-state hardening public evidence", () =
 
     for (const pending of [
       evidence.validation.continuous_integration,
-      evidence.validation.full_vitest,
-      evidence.validation.production_build,
       evidence.validation.regular_merge,
     ]) {
       expect(Object.keys(pending)).toEqual(["status"]);

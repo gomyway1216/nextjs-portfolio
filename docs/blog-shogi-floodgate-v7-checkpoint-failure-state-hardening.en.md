@@ -1,6 +1,6 @@
 # Never confuse `undefined` with success — Floodgate v7 checkpoint failure-state hardening
 
-> The [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) closes the coordinator, stage lease, deployment key, 24,000 training rows, V3 checkpoint, and postflight into one ownership boundary. This change fixes an internal failure state that reused the JavaScript value `undefined` as the sentinel for “no failure.” The implementation revision in ready PR [#473](https://github.com/gomyway1216/nextjs-portfolio/pull/473) is `2480ff0d4af4324bee3d79ba7dbace54e69ca34a`; its prerequisite is PR #472's regular merge `6e5197fb9a9200cc1b00db1ee34e072b9de84ea2`. Focused validation passed 127 / 127 tests across 2 files, related validation passed 252 / 252 across 10 files, and TypeScript, changed-file ESLint, Prettier, and the diff check passed. Final independent-audit residuals are P0 / P1 / P2 = 0 / 0 / 0. All 2 / 2 review comments are fixed, replied to, and resolved with zero unresolved threads; PR CI, the full suite, the production build, and merge remain `PENDING`, and no production action ran. Japanese version: [blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.md](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.md)
+> The [production checkpoint connector](./blog-shogi-floodgate-v7-production-checkpoint-connector.en.md) closes the coordinator, stage lease, deployment key, 24,000 training rows, V3 checkpoint, and postflight into one ownership boundary. This change fixes an internal failure state that reused the JavaScript value `undefined` as the sentinel for “no failure.” The implementation revision in ready PR [#473](https://github.com/gomyway1216/nextjs-portfolio/pull/473) is `2480ff0d4af4324bee3d79ba7dbace54e69ca34a`; its prerequisite is PR #472's regular merge `6e5197fb9a9200cc1b00db1ee34e072b9de84ea2`. Focused validation passed 127 / 127, related validation passed 252 / 252, full validation passed 2,746 / 2,746, the production build generated 193 / 193 pages, ML passed 58 / 58, npm audit found zero vulnerabilities, and TypeScript, changed-file ESLint, Prettier, and the diff check passed. Final independent-audit residuals are P0 / P1 / P2 = 0 / 0 / 0. All 2 / 2 review comments are fixed, replied to, and resolved with zero unresolved threads; PR CI and merge remain `PENDING`, and no production action ran. Japanese version: [blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.md](./blog-shogi-floodgate-v7-checkpoint-failure-state-hardening.md)
 
 ## 1. Outcome and scope
 
@@ -112,7 +112,7 @@ The related ten-file regression also retains coverage for ordinary errors, compo
 
 ## 9. Revision-bound validation and pending work
 
-The recorded state for implementation revision `2480ff0d4af4324bee3d79ba7dbace54e69ca34a` is:
+The recorded state for implementation revision `2480ff0d4af4324bee3d79ba7dbace54e69ca34a` and the article-and-evidence validation candidate `bbbe91003245ab11ac224fde8af4f855d0ed5afc` is:
 
 | Validation           | Status    | Measured evidence                                                       |
 | -------------------- | --------- | ----------------------------------------------------------------------- |
@@ -124,9 +124,11 @@ The recorded state for implementation revision `2480ff0d4af4324bee3d79ba7dbace54
 | Diff check           | PASS      | 0 whitespace errors                                                     |
 | Independent audit    | PASS      | Residual P0 / P1 / P2 = 0 / 0 / 0                                       |
 | Ready PR #473 review | PASS      | 2 / 2 actionable comments fixed, replied to, and resolved; 0 unresolved |
+| Full Vitest          | PASS      | 148 files, 2,746 / 2,746, duration 155.64 s                             |
+| Production build     | PASS      | 193 / 193 pages, wall 35.08 s, zero swaps                               |
+| ML stdlib            | PASS      | 58 / 58, unittest duration 0.121 s                                      |
+| npm audit            | PASS      | Zero vulnerabilities                                                    |
 | PR #473 CI           | `PENDING` | All checks at the ready PR head have not completed                      |
-| Full Vitest          | `PENDING` | Not inferred from focused or related runs                               |
-| Production build     | `PENDING` | No page count or timing is inferred                                     |
 | Regular merge        | `PENDING` | Kept separate from the prerequisite merge                               |
 
 The [machine-readable evidence](./data/floodgate-v7-checkpoint-failure-state-hardening-2026-07-16.json) uses the same revision and status boundaries. Pending fields contain no null, invented count, or value borrowed from an older PR.

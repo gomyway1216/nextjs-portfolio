@@ -323,10 +323,16 @@ describe("exact clean Floodgate Git revision", () => {
   it("fails closed when the worktree changes after verification starts", async () => {
     const { root, revision } = await createCommittedRepository();
 
-    const verification = assertFloodgateGitExactCleanRevision(root, revision);
+    const verification = assertFloodgateGitExactCleanRevision(
+      root,
+      revision,
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
     await fs.promises.writeFile(path.join(root, "raced.txt"), "race\n");
 
-    await expect(verification).rejects.toThrow();
+    expect(await verification).toBeInstanceOf(Error);
   });
 
   it("checks the HEAD blob size before allocating tracked file contents", () => {

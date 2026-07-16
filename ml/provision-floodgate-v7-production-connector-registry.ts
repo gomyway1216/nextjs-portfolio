@@ -13,13 +13,13 @@ import type {
 } from "./floodgate-v7-production-connector-registry-provisioner";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provision-failure-v1" as const;
+  "shogi-floodgate-v7-production-connector-registry-provision-failure-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_STATUS =
   "production-connector-registry-provisioning-did-not-issue-a-success-receipt" as const;
 
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const PROVISIONER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provisioner-v1" as const;
+  "shogi-floodgate-v7-production-connector-registry-provisioner-v2" as const;
 const PROVISIONER_STATUS =
   "immutable-private-run-registry-created-bound-and-postflight-validated" as const;
 const PROVISIONER_EXECUTION_BOUNDARY =
@@ -44,6 +44,7 @@ const SUCCESS_KEYS = objectFreeze([
   "nonclaims",
 ] as const);
 const VERIFICATION_KEYS = objectFreeze([
+  "verifier_source_artifact_closure_checked_before_install",
   "approved_record_current_key_binding_checked",
   "approved_record_bound_into_registry",
   "run_id_generated_from_32_byte_csprng",
@@ -205,6 +206,7 @@ export function writeFloodgateV7ProductionConnectorRegistryProvisionOutputCoreFo
 function validFailurePhase(value: unknown): value is string {
   switch (value) {
     case "capture":
+    case "verifier-readiness":
     case "approved-current-binding":
     case "approved-enrollment":
     case "configuration":
@@ -298,6 +300,8 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     receipt.contract !== PROVISIONER_CONTRACT ||
     receipt.status !== PROVISIONER_STATUS ||
     receipt.execution_boundary !== PROVISIONER_EXECUTION_BOUNDARY ||
+    verification.verifier_source_artifact_closure_checked_before_install !==
+      true ||
     verification.approved_record_current_key_binding_checked !== true ||
     verification.approved_record_bound_into_registry !== true ||
     verification.run_id_generated_from_32_byte_csprng !== true ||
@@ -319,6 +323,7 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     status: PROVISIONER_STATUS,
     execution_boundary: PROVISIONER_EXECUTION_BOUNDARY,
     verification: frozenRecord({
+      verifier_source_artifact_closure_checked_before_install: true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
       run_id_generated_from_32_byte_csprng: true as const,

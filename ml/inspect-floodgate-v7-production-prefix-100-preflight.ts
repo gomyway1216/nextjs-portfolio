@@ -7,9 +7,9 @@
 import { types as nodeUtilTypes } from "node:util";
 
 export const FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_SUCCESS_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v2" as const;
 export const FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v2" as const;
 
 interface PreflightModule {
   readonly FloodgateV7ProductionPrefix100PreflightError: new (
@@ -32,11 +32,11 @@ const reflectOwnKeys = Reflect.ownKeys;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const CORE_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2" as const;
 const CORE_STATUS =
   "fresh-zero-work-prefix-100-read-only-preconditions-observed" as const;
 const CORE_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v1" as const;
+  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2" as const;
 const CORE_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
 const TOP_KEYS = objectFreeze([
@@ -60,6 +60,7 @@ const VERIFICATION_KEYS = objectFreeze([
   "common_os_lock_held_through_all_checks",
   "registry_anchor_held_descriptor_and_bytes_revalidated",
   "private_registry_claimed_and_fixed_configuration_validated",
+  "verifier_source_artifact_closure_rechecked",
   "deployment_key_metadata_ready",
   "approved_enrollment_loaded_and_registry_binding_matched",
   "fresh_current_key_binding_validated",
@@ -213,6 +214,7 @@ function isPhase(value: unknown): value is string {
     "registry-load",
     "registry-claim",
     "registry-fixed-configuration",
+    "verifier-readiness",
     "key-readiness",
     "approved-record-load",
     "approved-record-claim",

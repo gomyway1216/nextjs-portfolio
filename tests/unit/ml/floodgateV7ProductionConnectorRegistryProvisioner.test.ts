@@ -35,6 +35,11 @@ import {
   type FloodgateV7ProductionConnectorRegistryInstallationInput,
   type FloodgateV7ProductionConnectorRegistryPrivateClaim,
 } from "../../../ml/floodgate-v7-production-connector-registry";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+} from "../../../ml/floodgate-v7-production-connector-verifier-readiness";
 import type {
   FloodgateV7ApprovedKeyEnrollmentCapability,
   FloodgateV7ApprovedKeyEnrollmentClaim,
@@ -252,7 +257,43 @@ function currentBindingReceipt(): FloodgateV7ApprovedKeyCurrentBindingReceipt<"t
   });
 }
 
+function verifierReadinessReceipt() {
+  return Object.freeze({
+    contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+    status: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+    execution_boundary:
+      "test-only-injected-current-euid-home-role-bundle-receipt-git-closure",
+    verification: Object.freeze({
+      fixed_current_euid_home_repository_root: true,
+      fixed_verifier_revision: true,
+      pinned_receipt_git_closure_checked: true,
+      closure_receipt_validated: true,
+      sensitive_values_exported: false,
+    }),
+    nonclaims: Object.freeze({
+      external_role_bundle_files_read: false,
+      full_role_bundle_verifier_run: false,
+      gate_authority: false,
+      registry_authority: false,
+      connector_authority: false,
+      teacher_label: false,
+      training: false,
+      weight: false,
+      live_evaluation_activation: false,
+      playing_strength: false,
+      path_disclosed: false,
+      revision_disclosed: false,
+      digest_disclosed: false,
+      private_identity_disclosed: false,
+    }),
+  });
+}
+
 interface HarnessOverrides {
+  readonly verifyVerifierReadiness?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyVerifierReadiness"];
+  readonly assertVerifierReadinessIdentityBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["assertVerifierReadinessIdentityBinding"];
   readonly verifyCurrentBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyCurrentBinding"];
   readonly loadApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["loadApprovedEnrollment"];
   readonly claimApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["claimApprovedEnrollment"];
@@ -271,6 +312,20 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
   const capability = approvedCapability();
   const privateCapability = registryCapability();
   const defaults = {
+    verifyVerifierReadiness: async () => {
+      calls.push("verifier-readiness");
+      return verifierReadinessReceipt();
+    },
+    assertVerifierReadinessIdentityBinding: (
+      receipt: unknown,
+      effectiveUserId: number,
+      expectedHome: string,
+    ) => {
+      calls.push("verifier-readiness-binding");
+      expect(receipt).toEqual(verifierReadinessReceipt());
+      expect(effectiveUserId).toBe(EUID);
+      expect(expectedHome).toBe(home);
+    },
     verifyCurrentBinding: async () => {
       calls.push("approved-current-binding");
       return currentBindingReceipt();
@@ -314,6 +369,11 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
     {
       effectiveUserId: EUID,
       homeDirectory: home,
+      verifyVerifierReadiness:
+        overrides.verifyVerifierReadiness ?? defaults.verifyVerifierReadiness,
+      assertVerifierReadinessIdentityBinding:
+        overrides.assertVerifierReadinessIdentityBinding ??
+        defaults.assertVerifierReadinessIdentityBinding,
       verifyCurrentBinding:
         overrides.verifyCurrentBinding ?? defaults.verifyCurrentBinding,
       loadApprovedEnrollment:
@@ -390,6 +450,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS,
     );
     expect(receipt.verification).toMatchObject({
+      verifier_source_artifact_closure_checked_before_install: true,
       create_only_install_succeeded: true,
       registry_loader_postflight_succeeded: true,
       exact_private_claim_postflight_succeeded: true,
@@ -407,6 +468,8 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       );
 
     expect(state.calls).toEqual([
+      "verifier-readiness",
+      "verifier-readiness-binding",
       "approved-current-binding",
       "approved-enrollment-load",
       "approved-enrollment-claim",
@@ -423,7 +486,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
         record_sha256: RECORD_SHA256,
         key_instance_id: KEY_INSTANCE_ID,
       },
-      verifier_revision: "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+      verifier_revision: "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
       repository_root: path.join(
         home,
         ".codex",
@@ -465,6 +528,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       status: FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS,
       execution_boundary: "test-only-injected-private-registry-provisioning",
       verification: {
+        verifier_source_artifact_closure_checked_before_install: true,
         approved_record_current_key_binding_checked: true,
         approved_record_bound_into_registry: true,
         run_id_generated_from_32_byte_csprng: true,
@@ -493,6 +557,75 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect(Object.isFrozen(receipt)).toBe(true);
   });
 
+  it("fails verifier readiness before current binding, enrollment, entropy, and install", async () => {
+    const home = path.join(os.tmpdir(), "floodgate-v7-provisioner-readiness");
+    const valid = verifierReadinessReceipt();
+    const malformedReceipts: readonly unknown[] = [
+      Object.freeze({}),
+      { ...valid, execution_boundary: "production-wrong-home" },
+      { ...valid, unexpected: VALUE_CANARY },
+      {
+        ...valid,
+        nonclaims: {
+          ...valid.nonclaims,
+          external_role_bundle_files_read: true,
+        },
+      },
+      new Proxy(valid, {}),
+    ];
+    for (const verifyVerifierReadiness of [
+      async () => {
+        throw new Error(VALUE_CANARY);
+      },
+      ...malformedReceipts.map((receipt) => async () => receipt),
+    ]) {
+      const state = harness(home, { verifyVerifierReadiness });
+      const failure = await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+          state.dependencies,
+        ),
+      );
+      expectSanitizedFailure(failure, {
+        phase: "verifier-readiness",
+        durability: "no-registry-change-established",
+        registry_may_have_been_created: false,
+        retry_disposition: "fresh-invocation-required",
+      });
+      expect(state.calls).toEqual([]);
+      expect(state.installedInput()).toBeUndefined();
+      expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
+    }
+  });
+
+  it("rejects a readiness receipt bound to another captured identity before all later work", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-readiness-identity",
+    );
+    let bindingCalls = 0;
+    const state = harness(home, {
+      assertVerifierReadinessIdentityBinding: () => {
+        bindingCalls += 1;
+        throw new Error(VALUE_CANARY);
+      },
+    });
+    const failure = await captureFailure(() =>
+      provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+        state.dependencies,
+      ),
+    );
+    expectSanitizedFailure(failure, {
+      phase: "verifier-readiness",
+      durability: "no-registry-change-established",
+      registry_may_have_been_created: false,
+      retry_disposition: "fresh-invocation-required",
+    });
+    expect(bindingCalls).toBe(1);
+    expect(state.calls).toEqual(["verifier-readiness"]);
+    expect(state.installedInput()).toBeUndefined();
+    expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
+  });
+
   it("fails closed at current binding and enrollment load or claim before entropy", async () => {
     const home = path.join(os.tmpdir(), "floodgate-v7-provisioner-early");
     const scenarios: readonly [HarnessOverrides, string, readonly string[]][] =
@@ -504,14 +637,14 @@ describe("Floodgate v7 production connector registry provisioner", () => {
             },
           },
           "approved-current-binding",
-          [],
+          ["verifier-readiness", "verifier-readiness-binding"],
         ],
         [
           {
             verifyCurrentBinding: async () => Object.freeze({}) as never,
           },
           "approved-current-binding",
-          [],
+          ["verifier-readiness", "verifier-readiness-binding"],
         ],
         [
           {
@@ -520,7 +653,11 @@ describe("Floodgate v7 production connector registry provisioner", () => {
             },
           },
           "approved-enrollment",
-          ["approved-current-binding"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "approved-current-binding",
+          ],
         ],
         [
           {
@@ -529,7 +666,12 @@ describe("Floodgate v7 production connector registry provisioner", () => {
             },
           },
           "approved-enrollment",
-          ["approved-current-binding", "approved-enrollment-load"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "approved-current-binding",
+            "approved-enrollment-load",
+          ],
         ],
       ];
     for (const [overrides, phase, expectedPrefix] of scenarios) {

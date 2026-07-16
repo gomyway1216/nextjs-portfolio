@@ -40,7 +40,14 @@ import {
   claimFloodgateV7ProductionConnectorRegistry,
   loadFloodgateV7ProductionConnectorRegistry,
 } from "./floodgate-v7-production-connector-registry";
-import { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "./floodgate-v7-production-connector-registry-provisioner";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION,
+  assertFloodgateV7ProductionConnectorVerifierReadinessIdentityBinding,
+  verifyFloodgateV7ProductionConnectorVerifierReadiness,
+} from "./floodgate-v7-production-connector-verifier-readiness";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -57,17 +64,17 @@ import {
 import { FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME } from "./floodgate-v7-teacher-checkpoint";
 
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_STATUS =
   "fresh-zero-work-prefix-100-read-only-preconditions-observed" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v1" as const;
+  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_TEST_EXECUTION_BOUNDARY =
   "test-only-injected-current-euid-home-read-only-observation" as const;
 const INTERNAL_OUTCOME_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2" as const;
 
 export type FloodgateV7ProductionPrefix100PreflightPhase =
   | "capture"
@@ -79,6 +86,7 @@ export type FloodgateV7ProductionPrefix100PreflightPhase =
   | "registry-load"
   | "registry-claim"
   | "registry-fixed-configuration"
+  | "verifier-readiness"
   | "key-readiness"
   | "approved-record-load"
   | "approved-record-claim"
@@ -112,6 +120,7 @@ export interface FloodgateV7ProductionPrefix100PreflightReceipt {
     readonly common_os_lock_held_through_all_checks: true;
     readonly registry_anchor_held_descriptor_and_bytes_revalidated: true;
     readonly private_registry_claimed_and_fixed_configuration_validated: true;
+    readonly verifier_source_artifact_closure_rechecked: true;
     readonly deployment_key_metadata_ready: true;
     readonly approved_enrollment_loaded_and_registry_binding_matched: true;
     readonly fresh_current_key_binding_validated: true;
@@ -191,6 +200,12 @@ export interface FloodgateV7ProductionPrefix100PreflightDependenciesForTests {
   readonly homeDirectory: string;
   readonly loadRegistry: () => Promise<unknown>;
   readonly claimRegistry: (capability: unknown) => unknown;
+  readonly verifyVerifierReadiness: () => Promise<unknown>;
+  readonly assertVerifierReadinessIdentityBinding: (
+    receipt: unknown,
+    expectedEffectiveUserId: number,
+    expectedHomeDirectory: string,
+  ) => void;
   readonly inspectKeyReadiness: () => Promise<unknown>;
   readonly loadApprovedEnrollment: () => Promise<unknown>;
   readonly claimApprovedEnrollment: (capability: unknown) => unknown;
@@ -206,6 +221,12 @@ interface CapturedDependencies {
   readonly homeDirectory: string;
   readonly loadRegistry: () => Promise<unknown>;
   readonly claimRegistry: (capability: unknown) => unknown;
+  readonly verifyVerifierReadiness: () => Promise<unknown>;
+  readonly assertVerifierReadinessIdentityBinding: (
+    receipt: unknown,
+    expectedEffectiveUserId: number,
+    expectedHomeDirectory: string,
+  ) => void;
   readonly inspectKeyReadiness: () => Promise<unknown>;
   readonly loadApprovedEnrollment: () => Promise<unknown>;
   readonly claimApprovedEnrollment: (capability: unknown) => unknown;
@@ -338,6 +359,8 @@ const DEPENDENCY_KEYS = objectFreeze([
   "homeDirectory",
   "loadRegistry",
   "claimRegistry",
+  "verifyVerifierReadiness",
+  "assertVerifierReadinessIdentityBinding",
   "inspectKeyReadiness",
   "loadApprovedEnrollment",
   "claimApprovedEnrollment",
@@ -345,7 +368,38 @@ const DEPENDENCY_KEYS = objectFreeze([
   "beforeFinalSnapshotForTests",
   "closeDirectoryDescriptorForTests",
 ] as const);
-const REQUIRED_DEPENDENCY_KEYS = objectFreeze(DEPENDENCY_KEYS.slice(0, 8));
+const REQUIRED_DEPENDENCY_KEYS = objectFreeze(DEPENDENCY_KEYS.slice(0, 10));
+const VERIFIER_READINESS_RECEIPT_KEYS = objectFreeze([
+  "contract",
+  "status",
+  "claim_boundary",
+  "execution_boundary",
+  "verification",
+  "nonclaims",
+] as const);
+const VERIFIER_READINESS_VERIFICATION_KEYS = objectFreeze([
+  "fixed_current_euid_home_repository_root",
+  "fixed_verifier_revision",
+  "pinned_receipt_git_closure_checked",
+  "closure_receipt_validated",
+  "sensitive_values_exported",
+] as const);
+const VERIFIER_READINESS_NONCLAIM_KEYS = objectFreeze([
+  "external_role_bundle_files_read",
+  "full_role_bundle_verifier_run",
+  "gate_authority",
+  "registry_authority",
+  "connector_authority",
+  "teacher_label",
+  "training",
+  "weight",
+  "live_evaluation_activation",
+  "playing_strength",
+  "path_disclosed",
+  "revision_disclosed",
+  "digest_disclosed",
+  "private_identity_disclosed",
+] as const);
 const CURRENT_BINDING_NONCLAIM_KEYS = objectFreeze([
   "expected_binding_returned",
   "approved_claim_returned",
@@ -507,6 +561,8 @@ function captureDependencies(
   for (const key of [
     "loadRegistry",
     "claimRegistry",
+    "verifyVerifierReadiness",
+    "assertVerifierReadinessIdentityBinding",
     "inspectKeyReadiness",
     "loadApprovedEnrollment",
     "claimApprovedEnrollment",
@@ -541,6 +597,14 @@ function captureDependencies(
     homeDirectory,
     loadRegistry: record.loadRegistry as () => Promise<unknown>,
     claimRegistry: record.claimRegistry as (capability: unknown) => unknown,
+    verifyVerifierReadiness:
+      record.verifyVerifierReadiness as () => Promise<unknown>,
+    assertVerifierReadinessIdentityBinding:
+      record.assertVerifierReadinessIdentityBinding as (
+        receipt: unknown,
+        expectedEffectiveUserId: number,
+        expectedHomeDirectory: string,
+      ) => void,
     inspectKeyReadiness: record.inspectKeyReadiness as () => Promise<unknown>,
     loadApprovedEnrollment:
       record.loadApprovedEnrollment as () => Promise<unknown>,
@@ -1027,6 +1091,51 @@ function capturePrivateRegistryClaim(
   });
 }
 
+function validateVerifierReadinessReceipt(
+  value: unknown,
+  production: boolean,
+): void {
+  const receipt = exactRecord(
+    value,
+    VERIFIER_READINESS_RECEIPT_KEYS,
+    "verifier readiness receipt",
+  );
+  const verification = exactRecord(
+    receipt.verification,
+    VERIFIER_READINESS_VERIFICATION_KEYS,
+    "verifier readiness verification",
+  );
+  const nonclaims = exactRecord(
+    receipt.nonclaims,
+    VERIFIER_READINESS_NONCLAIM_KEYS,
+    "verifier readiness nonclaims",
+  );
+  const expectedBoundary = production
+    ? "production-fixed-current-euid-userinfo-home-role-bundle-receipt-git-closure"
+    : "test-only-injected-current-euid-home-role-bundle-receipt-git-closure";
+  if (
+    receipt.contract !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT ||
+    receipt.status !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS ||
+    receipt.claim_boundary !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY ||
+    receipt.execution_boundary !== expectedBoundary ||
+    verification.fixed_current_euid_home_repository_root !== true ||
+    verification.fixed_verifier_revision !== true ||
+    verification.pinned_receipt_git_closure_checked !== true ||
+    verification.closure_receipt_validated !== true ||
+    verification.sensitive_values_exported !== false
+  ) {
+    throw new NativeError("verifier readiness receipt differs");
+  }
+  for (const key of VERIFIER_READINESS_NONCLAIM_KEYS) {
+    if (nonclaims[key] !== false) {
+      throw new NativeError("verifier readiness nonclaim differs");
+    }
+  }
+}
+
 function validateReadinessReceipt(value: unknown, production: boolean): void {
   const receipt = exactRecord(
     value,
@@ -1414,6 +1523,22 @@ async function inspectCapturedWithBoundRegistry(
     throw publicFailure(phase);
   }
 
+  try {
+    phase = "verifier-readiness";
+    const readinessReceipt = await dependencies.verifyVerifierReadiness();
+    validateVerifierReadinessReceipt(readinessReceipt, production);
+    dependencies.assertVerifierReadinessIdentityBinding(
+      readinessReceipt,
+      dependencies.effectiveUserId,
+      dependencies.homeDirectory,
+    );
+  } catch (error) {
+    if (error instanceof FloodgateV7ProductionPrefix100PreflightError) {
+      throw error;
+    }
+    throw publicFailure(phase);
+  }
+
   let namespace: NamespaceState;
   try {
     phase = "runs-namespace-open";
@@ -1677,6 +1802,10 @@ function productionDependencies(): CapturedDependencies {
           typeof claimFloodgateV7ProductionConnectorRegistry
         >[0],
       ),
+    verifyVerifierReadiness:
+      verifyFloodgateV7ProductionConnectorVerifierReadiness,
+    assertVerifierReadinessIdentityBinding:
+      assertFloodgateV7ProductionConnectorVerifierReadinessIdentityBinding,
     inspectKeyReadiness: inspectFloodgateV7DeploymentKeyReadiness,
     loadApprovedEnrollment: loadFloodgateV7ApprovedKeyEnrollment,
     claimApprovedEnrollment: (capability) =>
@@ -1885,6 +2014,13 @@ function captureOutcome(value: unknown): UnderLockOutcome {
   });
 }
 
+/** Test-only strict projection of an under-lock outcome. */
+export function captureFloodgateV7ProductionPrefix100PreflightOutcomeCoreForTests(
+  value: unknown,
+): Readonly<UnderLockOutcome> {
+  return captureOutcome(value);
+}
+
 function isPhase(
   value: unknown,
 ): value is FloodgateV7ProductionPrefix100PreflightPhase {
@@ -1898,6 +2034,7 @@ function isPhase(
     "registry-load",
     "registry-claim",
     "registry-fixed-configuration",
+    "verifier-readiness",
     "key-readiness",
     "approved-record-load",
     "approved-record-claim",
@@ -1940,6 +2077,7 @@ function buildPublicReceipt(
       common_os_lock_held_through_all_checks: true as const,
       registry_anchor_held_descriptor_and_bytes_revalidated: true as const,
       private_registry_claimed_and_fixed_configuration_validated: true as const,
+      verifier_source_artifact_closure_rechecked: true as const,
       deployment_key_metadata_ready: true as const,
       approved_enrollment_loaded_and_registry_binding_matched: true as const,
       fresh_current_key_binding_validated: true as const,

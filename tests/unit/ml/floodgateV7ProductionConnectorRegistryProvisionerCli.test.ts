@@ -82,9 +82,11 @@ function runCli(
   mode:
     | "success"
     | "typed-failure"
+    | "readiness-failure"
     | "forged-typed-failure"
     | "inconsistent-nochange-failure"
     | "unknown-failure"
+    | "old-v1-receipt"
     | "bad-receipt",
   failStdout = false,
   wrongRuntime = false,
@@ -105,10 +107,11 @@ class ProvisionerError extends Error {
   }
 }
 const successReceipt = () => ({
-  contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v1",
+  contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v2",
   status: "immutable-private-run-registry-created-bound-and-postflight-validated",
   execution_boundary: "production-fixed-current-euid-private-registry-provisioning",
   verification: {
+    verifier_source_artifact_closure_checked_before_install: true,
     approved_record_current_key_binding_checked: true,
     approved_record_bound_into_registry: true,
     run_id_generated_from_32_byte_csprng: true,
@@ -144,6 +147,14 @@ Module._load = function (request, parent, isMain) {
       FloodgateV7ProductionConnectorRegistryProvisionerError: ProvisionerError,
       provisionFloodgateV7ProductionConnectorRegistry: async () => {
         if (${JSON.stringify(mode)} === "typed-failure") throw new ProvisionerError();
+        if (${JSON.stringify(mode)} === "readiness-failure") {
+          const failure = new ProvisionerError();
+          failure.phase = "verifier-readiness";
+          failure.durability = "no-registry-change-established";
+          failure.registry_may_have_been_created = false;
+          failure.retry_disposition = "fresh-invocation-required";
+          throw failure;
+        }
         if (${JSON.stringify(mode)} === "forged-typed-failure") {
           const forged = new ProvisionerError();
           forged.phase = ${JSON.stringify(VALUE_CANARY)};
@@ -158,6 +169,7 @@ Module._load = function (request, parent, isMain) {
           throw forged;
         }
         if (${JSON.stringify(mode)} === "unknown-failure") throw new Error(${JSON.stringify(VALUE_CANARY)});
+        if (${JSON.stringify(mode)} === "old-v1-receipt") return { ...successReceipt(), contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v1" };
         if (${JSON.stringify(mode)} === "bad-receipt") return { ...successReceipt(), private_value: ${JSON.stringify(VALUE_CANARY)} };
         return successReceipt();
       },
@@ -250,12 +262,15 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     const receipt = JSON.parse(result.stdout) as Record<string, unknown>;
     expect(receipt).toMatchObject({
       contract:
-        "shogi-floodgate-v7-production-connector-registry-provisioner-v1",
+        "shogi-floodgate-v7-production-connector-registry-provisioner-v2",
       status:
         "immutable-private-run-registry-created-bound-and-postflight-validated",
       execution_boundary:
         "production-fixed-current-euid-private-registry-provisioning",
-      verification: { sensitive_values_exported: false },
+      verification: {
+        verifier_source_artifact_closure_checked_before_install: true,
+        sensitive_values_exported: false,
+      },
       nonclaims: {
         run_id_disclosed: false,
         path_disclosed: false,
@@ -286,6 +301,23 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     });
   });
 
+  it("projects verifier-readiness as a typed no-change failure", () => {
+    const result = runCli([], "readiness-failure");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(VALUE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      contract:
+        FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_CONTRACT,
+      phase: "verifier-readiness",
+      durability: "no-registry-change-established",
+      registry_may_have_been_created: false,
+      retry_disposition: "fresh-invocation-required",
+      sensitive_values_disclosed: false,
+      success_receipt_issued: false,
+    });
+  });
+
   it.each(["unknown-failure", "bad-receipt"] as const)(
     "uses the conservative may-have-created message after %s",
     (mode) => {
@@ -296,6 +328,13 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
       expect(result.stderr).not.toContain(VALUE_CANARY);
     },
   );
+
+  it("rejects a historical v1 success receipt at the v2 CLI boundary", () => {
+    const result = runCli([], "old-v1-receipt");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe(CONSERVATIVE_FAILURE_MESSAGE);
+  });
 
   it("rejects forged typed metadata without copying its canary", () => {
     const result = runCli([], "forged-typed-failure");

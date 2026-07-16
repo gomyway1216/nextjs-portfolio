@@ -125,20 +125,23 @@ ready PR #479のevidence head `0e59d10996ed8be6f818fa2e4258c05615297ff2`では�
 
 ## 10. production counterとlive evaluatorはすべて0のまま
 
-このcandidateが追加するのはproduction-capableなowner / runner / CLIであり、それを実環境で実行した証拠ではない。この変更に数えられる実registry provision、実production work observation、production CLI / owner invocation、real teacher parent、finalized label、optimizer run、candidate weight、formal A/B game、external-calibration game、live activationはすべて0である。synthetic fixtureやunit testをreal work / labelへ数えない。
+このcandidateが追加するのはproduction-capableなowner / runner / CLIであり、それを実環境で実行した証拠ではない。fixed application execution-source gateのmerge、review済みdisposable kill-drill、実registry provision、実production work observation、production CLI / owner invocation、100 / 500後の独立evidence reviewと人手承認、real teacher parent、finalized label、optimizer run、candidate weight、formal A/B game、external-calibration game、live activationはすべて0である。synthetic fixtureやunit testをreal work / labelへ数えない。
 
 したがって、現在のlive weightと`runOp1`は不変である。Elo、段位、高段安定、playing strengthについて新しいclaimはない。
 
 ## 11. merge後も別のoperational gateを順番に通す
 
-このowner / CLI PRがmergeされ、CI / review evidenceが閉じた後にだけ、別のoperational gateで次を行う。
+このowner / CLI PRがmergeされ、CI / review evidenceが閉じても、production registryのprovisionはまだ**NO-GO**である。現行package commandはcurrent working treeのTypeScriptを実行する一方、そのapplication treeのHEAD、clean / tracked-byte closure、review済みmerge revisionを検証せず、success receiptにもapplication revisionがない。別PRでfixed clean post-merge application execution tree / revisionを各mutation前に検証し、create-only registry、outer lease、public receiptへbindしてから、次を順番に行う。
 
-1. 既存のfixed verifier worktreeを証拠済みrevision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へ整合させ、clean source / pinned-artifact closureとruntimeを再検証する。
-2. production registryをprovisionし、approved / current bindingを再確認する。
-3. read-only preflight後、100-parent gateを実行してreceiptを保存する。
-4. 500-parent gateを実行してreceiptを保存する。
-5. sealed 24,000-parent teacher gateを実行してreal workとterminal receiptを作る。
-6. 今回のzero-argument owner / CLIでtraining-label finalizationを実行し、artifact bytes / SHA-256とcleanup receiptを保存する。
-7. その後にretraining、候補選抜、192 color-swapped pairs / 384 gamesのformal A/B、200 gamesのexternal calibration、安全なlive gateへ進む。
+1. application execution-source gateの実装、ready PR、CI / review、通常mergeを完了する。それまではregistryを作らない。
+2. exact Node `v22.13.0`を使い、既存fixed verifier worktreeを証拠済みrevision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へ整合させる。現時点では単独のsanitized readiness CLIがないため、registry provisionerのinstall前closure再検証も必須とする。
+3. production registryをcreate-onlyでprovisionし、approved / current bindingを再確認する。
+4. review済みfixed disposable kill-drillを1回だけ実行してsanitized success receiptを保存する。
+5. standalone read-only preflightをfreshに実行する。`GO`は観測であってgate authorityではなく、receiptを再利用しない。
+6. 100-parent gateをexactly onceで実行してreceiptを保存し、必ず**STOP**する。exact-100、throughput、candidate count、timeout、score / mate分布、resume、残留process、durabilityを独立reviewし、その結果を見た人手承認が出るまで500へ進まない。
+7. 500-parent gateを実行してreceiptを保存し、再び必ず**STOP**する。failure rate、更新ETA、同じ安全項目を独立reviewし、その結果を見た人手承認が出るまで24,000へ進まない。
+8. sealed 24,000-parent teacher gateを実行してreal workとterminal receiptを作り、terminal evidenceを確認する。
+9. 今回のzero-argument owner / CLIでtraining-label finalizationを実行し、artifact bytes / SHA-256とcleanup receiptを保存する。
+10. その後にretraining、候補選抜、192 color-swapped pairs / 384 gamesのformal A/B、200 gamesのexternal calibration、安全なlive gateへ進む。
 
-各段階は前段の実測証拠を入力にし、失敗・stale lease・quarantine・publication不確定を飛び越えない。weightの採用とlive activationは棋力とrollbackの証拠が揃うまで行わない。
+current-binding inspector自身のexact Node guard、単独fixed verifier readiness CLI、stale lease / quarantine / publication不確定を解消する完成したfixed reconciliation CLIも未実装である。運用では絶対pathのNode v22.13.0を使い、いずれかの不確定状態へ入ったら自動retryや次gateを禁止する。各段階は前段の実測証拠を入力にし、失敗・stale lease・quarantine・publication不確定を飛び越えない。weightの採用とlive activationは棋力とrollbackの証拠が揃うまで行わない。

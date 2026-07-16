@@ -125,20 +125,23 @@ On ready PR #479 evidence head `0e59d10996ed8be6f818fa2e4258c05615297ff2`, all f
 
 ## 10. Every production counter remains zero and the live evaluator is unchanged
 
-This candidate adds a production-capable owner, runner, and CLI; it does not prove that they ran against the live production namespace. Real registry provisions, production-work observations, production CLI and owner invocations, real teacher parents, finalized labels, optimizer runs, candidate weights, formal A/B games, external-calibration games, and live activations attributable to this change all remain zero. Synthetic fixtures and unit tests are not counted as real work or labels.
+This candidate adds a production-capable owner, runner, and CLI; it does not prove that they ran against the live production namespace. The fixed application execution-source gate merge, reviewed disposable kill drill, real registry provisions, production-work observations, production CLI and owner invocations, independent evidence reviews and human approvals after 100 and 500, real teacher parents, finalized labels, optimizer runs, candidate weights, formal A/B games, external-calibration games, and live activations attributable to this change all remain zero. Synthetic fixtures and unit tests are not counted as real work or labels.
 
 The current live weight and `runOp1` therefore remain unchanged. This candidate makes no new Elo, dan-rank, stable-high-dan, or playing-strength claim.
 
 ## 11. A separate operational gate still follows merge
 
-Only after this owner and CLI PR is merged and its CI and review evidence is closed should a separate operational gate perform the following sequence.
+Even after this owner and CLI PR is merged and its CI and review evidence is closed, production registry provision remains **NO-GO**. The current package commands execute TypeScript from the current working tree without verifying that application tree's HEAD, clean and tracked-byte closure, or reviewed merge revision, and success receipts contain no application revision. A separate PR must verify a fixed clean post-merge application execution tree and revision before each mutation and bind it into the create-only registry, outer lease, and public receipt. Only then may the following ordered sequence begin.
 
-1. Align the existing fixed verifier worktree to evidence-backed revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`, then reverify its clean source / pinned-artifact closure and runtime.
-2. Provision the production registry and reverify approved and current binding.
-3. After read-only preflight, run the 100-parent gate and preserve its receipt.
-4. Run the 500-parent gate and preserve its receipt.
-5. Run the sealed 24,000-parent teacher gate to produce real work and a terminal receipt.
-6. Invoke this zero-argument owner and CLI for training-label finalization and preserve artifact bytes, SHA-256 values, and cleanup receipt.
-7. Only then proceed to retraining, candidate selection, 192 color-swapped pairs / 384 formal A/B games, 200 external-calibration games, and the safe live gate.
+1. Implement the application execution-source gate, complete its ready PR, CI, review, and regular merge, and create no registry before that.
+2. Use exact Node `v22.13.0`, align the existing fixed verifier worktree to evidence-backed revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`, and require the registry provisioner's pre-install closure recheck because there is currently no standalone sanitized readiness CLI.
+3. Create-only provision the production registry and reverify approved and current binding.
+4. Run the reviewed fixed disposable kill drill exactly once and preserve its sanitized success receipt.
+5. Run a fresh standalone read-only preflight. `GO` is an observation rather than gate authority, and its receipt is not reusable.
+6. Run the 100-parent gate exactly once, preserve its receipt, and **STOP**. Independently review exact-100 evidence, throughput, candidate count, timeouts, score and mate distributions, resume behavior, residual processes, and durability. Do not proceed to 500 without human approval informed by that result.
+7. Run the 500-parent gate, preserve its receipt, and **STOP** again. Independently review failure rate, updated ETA, and the same safety evidence. Do not proceed to 24,000 without another informed human approval.
+8. Run the sealed 24,000-parent teacher gate to produce real work and a terminal receipt, then inspect the terminal evidence.
+9. Invoke this zero-argument owner and CLI for training-label finalization and preserve artifact bytes, SHA-256 values, and cleanup receipt.
+10. Only then proceed to retraining, candidate selection, 192 color-swapped pairs / 384 formal A/B games, 200 external-calibration games, and the safe live gate.
 
-Every stage consumes measured evidence from its predecessor. It must not skip past a failure, stale lease, quarantine, or indeterminate publication. Weight adoption and live activation remain prohibited until strength and rollback evidence are complete.
+The current-binding inspector's own exact-Node guard, a standalone fixed-verifier readiness CLI, and a complete fixed reconciliation CLI for stale leases, quarantine, or indeterminate publication are also not implemented. Operations must use the absolute Node v22.13.0 path and prohibit automatic retry or the next gate after any indeterminate state. Every stage consumes measured evidence from its predecessor and must not skip past a failure, stale lease, quarantine, or indeterminate publication. Weight adoption and live activation remain prohibited until strength and rollback evidence are complete.

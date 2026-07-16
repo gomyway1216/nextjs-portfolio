@@ -340,7 +340,7 @@ function parseFloodgateGitLine(output: string, label: string): string {
 
 async function captureFloodgateGitCleanRevisionContext(
   repositoryRoot: string,
-  expectedRevision: string,
+  expectedRevision?: string,
 ): Promise<Readonly<FloodgateGitCleanRevisionContext>> {
   const before = assertFloodgateCanonicalRepositoryRoot(repositoryRoot);
   const [topLevelOutput, headOutput, status, trackedFlags] = await Promise.all([
@@ -370,7 +370,7 @@ async function captureFloodgateGitCleanRevisionContext(
   if (!FLOODGATE_FULL_GIT_OBJECT_ID.test(head)) {
     throw new Error("invalid Floodgate Git HEAD revision");
   }
-  if (head !== expectedRevision) {
+  if (expectedRevision !== undefined && head !== expectedRevision) {
     throw new Error("Floodgate Git HEAD is not the expected exact revision");
   }
   if (status !== "") {
@@ -463,6 +463,19 @@ export async function assertFloodgateGitExactCleanRevision(
       "Floodgate Git expected revision must be a full lowercase object ID",
     );
   }
+  const revision = await captureFloodgateGitExactCleanRevisionContext(
+    repositoryRoot,
+    expectedRevision,
+  );
+  if (revision !== expectedRevision) {
+    throw new Error("Floodgate Git HEAD is not the expected exact revision");
+  }
+}
+
+async function captureFloodgateGitExactCleanRevisionContext(
+  repositoryRoot: string,
+  expectedRevision?: string,
+): Promise<string> {
   const initial = await captureFloodgateGitCleanRevisionContext(
     repositoryRoot,
     expectedRevision,
@@ -470,7 +483,7 @@ export async function assertFloodgateGitExactCleanRevision(
   await assertFloodgateGitTrackedTreeMatchesHead(repositoryRoot);
   const final = await captureFloodgateGitCleanRevisionContext(
     repositoryRoot,
-    expectedRevision,
+    initial.head,
   );
   if (
     !sameStat(initial.repositoryStat, final.repositoryStat) ||
@@ -483,4 +496,16 @@ export async function assertFloodgateGitExactCleanRevision(
       "Floodgate Git repository context changed during exact revision verification",
     );
   }
+  return initial.head;
+}
+
+/**
+ * Capture the full current HEAD object ID only after the same clean-worktree,
+ * ordinary-index, direct tracked-byte, mode, and terminal revalidation closure
+ * used by the exact-revision assertion has succeeded.
+ */
+export async function captureFloodgateGitExactCleanRevision(
+  repositoryRoot: string,
+): Promise<string> {
+  return captureFloodgateGitExactCleanRevisionContext(repositoryRoot);
 }

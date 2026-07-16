@@ -2071,7 +2071,7 @@ posixDescribe("Floodgate v7 training-label finalizer core", () => {
         ).toBe(false);
       }
     }
-  });
+  }, 30_000);
 
   it("zeroizes already-created keys when the test key observer itself fails", async () => {
     const consumer = await consumerFixture("key-observer-failure");

@@ -74,13 +74,10 @@ export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_QUARANTINE_CONTRACT =
   "shogi-floodgate-v7-production-outer-gate-explicit-quarantine-v2" as const;
 
 export type FloodgateV7ProductionOuterGate =
-  | "durable-prefix-100"
-  | "durable-prefix-500"
-  | "sealed-final-24000";
+  "durable-prefix-100" | "durable-prefix-500" | "sealed-final-24000";
 
 export type FloodgateV7ProductionOuterGateMutationPurpose =
-  | FloodgateV7ProductionOuterGate
-  | "training-label-finalization-24000";
+  FloodgateV7ProductionOuterGate | "training-label-finalization-24000";
 
 export type FloodgateV7ProductionOuterGateLeasePhase =
   | "capture"
@@ -587,9 +584,7 @@ const testPrefix100PreflightCapabilities = new WeakMap<
 >();
 
 type ConnectorCapabilityBoundary =
-  | "production"
-  | "test-fixed-owner"
-  | "test-generic";
+  "production" | "test-fixed-owner" | "test-generic";
 
 type LeaseExecutionPolicy =
   | Readonly<{ readonly kind: "ordinary-fixed-gate" }>

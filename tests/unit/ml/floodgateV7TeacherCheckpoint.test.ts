@@ -4359,5 +4359,5 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     }
 
     expect(forbiddenCalls).toBe(0);
-  }, 1_200_000);
+  }, 600_000);
 });

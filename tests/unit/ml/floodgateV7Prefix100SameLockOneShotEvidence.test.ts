@@ -21,6 +21,10 @@ const REGISTRY_PROVISIONER_SOURCE_PATH = path.join(
   REPOSITORY_ROOT,
   "ml/floodgate-v7-production-connector-registry-provisioner.ts",
 );
+const VERIFIER_READINESS_SOURCE_PATH = path.join(
+  REPOSITORY_ROOT,
+  "ml/floodgate-v7-production-connector-verifier-readiness.ts",
+);
 const ROLE_BUNDLE_SOURCE_PATH = path.join(
   REPOSITORY_ROOT,
   "ml/floodgate-role-bundle.ts",
@@ -551,9 +555,10 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
     }
   });
 
-  it("blocks provisioning on compatible verifier source/artifact closure and the real gate on the finalizer", () => {
+  it("preserves the historical closure blocker and keeps the real gate blocked on the finalizer", () => {
     const evidence = JSON.parse(readText(EVIDENCE_PATH));
     const provisionerSource = readText(REGISTRY_PROVISIONER_SOURCE_PATH);
+    const verifierReadinessSource = readText(VERIFIER_READINESS_SOURCE_PATH);
     const roleBundleSource = readText(ROLE_BUNDLE_SOURCE_PATH);
     const roleBundleResultSource = readText(ROLE_BUNDLE_RESULT_SOURCE_PATH);
 
@@ -591,15 +596,21 @@ describe("Floodgate v7 prefix-100 same-lock one-shot public evidence", () => {
       ],
       overwrite_adopt_or_rotate_registry_as_shortcut: false,
     });
-    expect(provisionerSource).toMatch(
-      /FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION\s*=\s*\n?\s*"b086243781396e2c197cc9e1cfab1fc6b773ae2a"/u,
+    expect(verifierReadinessSource).toMatch(
+      /FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION\s*=\s*\n?\s*"e8a9197608cb48b1160b6707d97b0c4f78f90a1d"/u,
+    );
+    expect(provisionerSource).toContain(
+      "await dependencies.verifyVerifierReadiness()",
     );
     expect(roleBundleSource).toContain("head !== verifierRevision");
     expect(roleBundleResultSource).toMatch(
       /FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION\s*=\s*\n?\s*"0f3cadb76ec46eb82d5bc9623277525ce1d2252b"/u,
     );
     expect(roleBundleResultSource).toContain(
-      "FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION,\n      verifierRevision",
+      "FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,\n      FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION",
+    );
+    expect(roleBundleResultSource).toContain(
+      "FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION,\n      started.verifierRevision",
     );
 
     const japanese = readText(JAPANESE_ARTICLE_PATH);

@@ -15,6 +15,7 @@ import { isDeepStrictEqual, types as nodeUtilTypes } from "node:util";
 import {
   FLOODGATE_GIT_COMMAND_PREFIX,
   FLOODGATE_GIT_EXECUTABLE,
+  assertFloodgateGitExactCleanRevision,
   floodgateGitEnvironment,
 } from "./floodgate-git";
 import {
@@ -42,8 +43,7 @@ export const FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION =
 export const FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY = Object.freeze({
   path: "manifest.json",
   bytes: 7_202,
-  sha256:
-    "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9",
+  sha256: "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9",
 });
 
 export const FLOODGATE_ROLE_BUNDLE_EXECUTION_EVIDENCE = Object.freeze({
@@ -103,7 +103,8 @@ const EXPECTED_ROOT_ENTRIES = Object.freeze([
   "training.raw.jsonl",
 ]);
 
-type RoleBundleExecutionMode = keyof typeof FLOODGATE_ROLE_BUNDLE_EXECUTION_EVIDENCE;
+type RoleBundleExecutionMode =
+  keyof typeof FLOODGATE_ROLE_BUNDLE_EXECUTION_EVIDENCE;
 
 export interface FloodgateRoleBundleExecutionAttempt {
   readonly sequence: number;
@@ -149,8 +150,7 @@ export interface FloodgateRoleBundleResultReceipt {
   readonly post_run_audit: Readonly<Record<string, unknown>>;
 }
 
-export interface VerifiedPinnedFloodgateRoleBundle
-  extends VerifiedFloodgateRoleBundle {
+export interface VerifiedPinnedFloodgateRoleBundle extends VerifiedFloodgateRoleBundle {
   readonly result: Readonly<FloodgateRoleBundleResultReceipt>;
 }
 
@@ -174,6 +174,25 @@ interface PinnedVerificationDependencies {
   readonly verifyBundle: () => Promise<Readonly<VerifiedFloodgateRoleBundle>>;
   readonly readGitBlob: GitBlobReader;
   readonly isAncestor: RevisionAncestryCheck;
+}
+
+interface PinnedGitClosureDependencies {
+  readonly readTrackedArtifact: SnapshotReader;
+  readonly readGitBlob: GitBlobReader;
+  readonly isAncestor: RevisionAncestryCheck;
+}
+
+interface PinnedGitClosureBoundaryDependencies extends PinnedGitClosureDependencies {
+  readonly assertExactCleanRevision: (
+    repositoryRoot: string,
+    verifierRevision: string,
+  ) => Promise<void>;
+}
+
+interface StartedPinnedVerification {
+  readonly verifierRevision: string;
+  readonly before: ReadonlyMap<string, ArtifactSnapshot>;
+  readonly result: Readonly<FloodgateRoleBundleResultReceipt>;
 }
 
 function fail(message: string): never {
@@ -292,10 +311,7 @@ function fileIdentity(
   ) {
     fail(`${label}.bytes is invalid`);
   }
-  if (
-    typeof identity.sha256 !== "string" ||
-    !SHA256_RE.test(identity.sha256)
-  ) {
+  if (typeof identity.sha256 !== "string" || !SHA256_RE.test(identity.sha256)) {
     fail(`${label}.sha256 is invalid`);
   }
   return Object.freeze({
@@ -313,11 +329,7 @@ function finiteNonnegative(value: unknown, label: string): number {
 }
 
 function safeNonnegativeInteger(value: unknown, label: string): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     fail(`${label} must be a nonnegative safe integer`);
   }
   return value;
@@ -456,11 +468,7 @@ function parseAttempt(
     `${label}.os_time.peak_memory_footprint_bytes`,
   );
   const evidence = strictObject(attempt.evidence, `${label}.evidence`);
-  exactKeys(
-    evidence,
-    ["output", "status", "time"],
-    `${label}.evidence`,
-  );
+  exactKeys(evidence, ["output", "status", "time"], `${label}.evidence`);
   const parsedEvidence = Object.freeze({
     status: fileIdentity(evidence.status, `${label}.evidence.status`),
     output: fileIdentity(evidence.output, `${label}.evidence.output`),
@@ -477,7 +485,9 @@ function parseAttempt(
   return attempt as unknown as Readonly<FloodgateRoleBundleExecutionAttempt>;
 }
 
-function validatePostRunAudit(value: unknown): Readonly<Record<string, unknown>> {
+function validatePostRunAudit(
+  value: unknown,
+): Readonly<Record<string, unknown>> {
   const audit = strictObject(value, "post_run_audit");
   exactKeys(
     audit,
@@ -635,7 +645,9 @@ export function projectFloodgateRoleBundleResultBindingCoreForTests(
   candidate: unknown,
 ): Readonly<Record<string, unknown>> {
   const result = strictObject(candidate, "role-bundle result projection");
-  return deepFreeze(JSON.parse(JSON.stringify(result)) as Record<string, unknown>);
+  return deepFreeze(
+    JSON.parse(JSON.stringify(result)) as Record<string, unknown>,
+  );
 }
 
 export function assertFloodgateRoleBundleResultProjectionCoreForTests(
@@ -662,12 +674,10 @@ function assertIdentityBytes(
 
 function parseTimeEvidence(bytes: Uint8Array, label: string) {
   const text = fatalUtf8(bytes, label);
-  const required = (
-    expression: RegExp,
-    field: string,
-  ): number => {
+  const required = (expression: RegExp, field: string): number => {
     const matches = [...text.matchAll(expression)];
-    if (matches.length !== 1) fail(`${label} ${field} is missing or duplicated`);
+    if (matches.length !== 1)
+      fail(`${label} ${field} is missing or duplicated`);
     const value = Number(matches[0][1]);
     if (!Number.isFinite(value) || value < 0) {
       fail(`${label} ${field} is invalid`);
@@ -782,6 +792,20 @@ function pinnedArtifactPaths(): readonly string[] {
   ]);
 }
 
+function pinnedArtifactExpectedBytes(artifactPath: string): number {
+  if (artifactPath === FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PATH) {
+    return FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES;
+  }
+  for (const attempt of Object.values(
+    FLOODGATE_ROLE_BUNDLE_EXECUTION_EVIDENCE,
+  )) {
+    for (const identity of Object.values(attempt)) {
+      if (identity.path === artifactPath) return identity.bytes;
+    }
+  }
+  fail(`tracked artifact is not pinned: ${artifactPath}`);
+}
+
 async function readAllSnapshots(
   read: SnapshotReader,
 ): Promise<ReadonlyMap<string, ArtifactSnapshot>> {
@@ -826,18 +850,17 @@ function sameSnapshots(
   return true;
 }
 
-async function runPinnedVerificationCore(
+async function startPinnedVerificationCore(
   verifierRevision: string,
-  dependencies: PinnedVerificationDependencies,
-): Promise<Readonly<VerifiedPinnedFloodgateRoleBundle>> {
+  dependencies: PinnedGitClosureDependencies,
+): Promise<Readonly<StartedPinnedVerification>> {
   fullRevision(verifierRevision, "current verifier revision");
   const before = await readAllSnapshots(dependencies.readTrackedArtifact);
   const resultBytes = before.get(
     FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PATH,
   )!.bytes;
-  const result = parsePinnedFloodgateRoleBundleResultReceiptCoreForTests(
-    resultBytes,
-  );
+  const result =
+    parsePinnedFloodgateRoleBundleResultReceiptCoreForTests(resultBytes);
   const evidence = new Map<string, Uint8Array>();
   for (const [artifactPath, snapshot] of before) {
     if (artifactPath !== FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PATH) {
@@ -845,15 +868,18 @@ async function runPinnedVerificationCore(
     }
   }
   validateExecutionEvidence(result, evidence);
-  const verified = await dependencies.verifyBundle();
-  if (verified.verifierRevision !== verifierRevision) {
-    fail("bundle verifier revision differs from the requested revision");
-  }
+  return Object.freeze({ verifierRevision, before, result });
+}
+
+async function finalizePinnedVerificationCore(
+  started: Readonly<StartedPinnedVerification>,
+  dependencies: PinnedGitClosureDependencies,
+): Promise<void> {
   const after = await readAllSnapshots(dependencies.readTrackedArtifact);
-  if (!sameSnapshots(before, after)) {
+  if (!sameSnapshots(started.before, after)) {
     fail("tracked result/evidence changed during bundle verification");
   }
-  for (const [artifactPath, snapshot] of before) {
+  for (const [artifactPath, snapshot] of started.before) {
     const blob = await dependencies.readGitBlob(
       FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION,
       artifactPath,
@@ -873,13 +899,28 @@ async function runPinnedVerificationCore(
   if (
     !(await dependencies.isAncestor(
       FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_PRODUCER_REVISION,
-      verifierRevision,
+      started.verifierRevision,
     ))
   ) {
     fail("current verifier does not descend from the receipt producer");
   }
-  assertResultBindsVerifiedBundle(result, verified);
-  return deepFreeze({ ...verified, result });
+}
+
+async function runPinnedVerificationCore(
+  verifierRevision: string,
+  dependencies: PinnedVerificationDependencies,
+): Promise<Readonly<VerifiedPinnedFloodgateRoleBundle>> {
+  const started = await startPinnedVerificationCore(
+    verifierRevision,
+    dependencies,
+  );
+  const verified = await dependencies.verifyBundle();
+  if (verified.verifierRevision !== verifierRevision) {
+    fail("bundle verifier revision differs from the requested revision");
+  }
+  await finalizePinnedVerificationCore(started, dependencies);
+  assertResultBindsVerifiedBundle(started.result, verified);
+  return deepFreeze({ ...verified, result: started.result });
 }
 
 export async function runPinnedFloodgateRoleBundleVerificationCoreForTests(
@@ -909,6 +950,7 @@ async function readTrackedSnapshot(
   repositoryRoot: string,
   artifactPath: string,
 ): Promise<ArtifactSnapshot> {
+  const expectedBytes = pinnedArtifactExpectedBytes(artifactPath);
   const absolute = path.join(repositoryRoot, artifactPath);
   if (
     path.resolve(absolute) !== absolute ||
@@ -920,15 +962,39 @@ async function readTrackedSnapshot(
     fail(`tracked artifact traverses a symbolic link: ${artifactPath}`);
   }
   const noFollow = fs.constants.O_NOFOLLOW;
-  if (typeof noFollow !== "number") fail("production requires O_NOFOLLOW");
+  const nonblock = fs.constants.O_NONBLOCK;
+  if (typeof noFollow !== "number" || typeof nonblock !== "number") {
+    fail("production requires O_NOFOLLOW/O_NONBLOCK");
+  }
   const handle = await fs.promises.open(
     absolute,
-    fs.constants.O_RDONLY | noFollow,
+    fs.constants.O_RDONLY | noFollow | nonblock,
   );
   try {
     const before = await handle.stat({ bigint: true });
-    if (!before.isFile()) fail(`tracked artifact is not regular: ${artifactPath}`);
-    const bytes = new Uint8Array(await handle.readFile());
+    if (!before.isFile())
+      fail(`tracked artifact is not regular: ${artifactPath}`);
+    if (before.size !== BigInt(expectedBytes)) {
+      fail(`tracked artifact size differs: ${artifactPath}`);
+    }
+    const bytes = new Uint8Array(expectedBytes);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        bytes.byteLength - offset,
+        null,
+      );
+      if (bytesRead === 0) {
+        fail(`tracked artifact shortened while read: ${artifactPath}`);
+      }
+      offset += bytesRead;
+    }
+    const extra = new Uint8Array(1);
+    if ((await handle.read(extra, 0, 1, null)).bytesRead !== 0) {
+      fail(`tracked artifact grew while read: ${artifactPath}`);
+    }
     const after = await handle.stat({ bigint: true });
     const current = await fs.promises.lstat(absolute, { bigint: true });
     if (
@@ -945,6 +1011,14 @@ async function readTrackedSnapshot(
   } finally {
     await handle.close();
   }
+}
+
+/** Test-only direct exercise of the bounded tracked-artifact read boundary. */
+export async function readPinnedFloodgateRoleBundleArtifactSnapshotCoreForTests(
+  repositoryRoot: string,
+  artifactPath: string,
+): Promise<Readonly<{ bytes: Uint8Array; identity: string }>> {
+  return readTrackedSnapshot(repositoryRoot, artifactPath);
 }
 
 async function readGitBlob(
@@ -1021,6 +1095,79 @@ export function interpretGitIsAncestorExitCoreForTests(
   throw error;
 }
 
+function pinnedGitClosureOptions(
+  optionsInput: unknown,
+): Readonly<{ repositoryRoot: string; verifierRevision: string }> {
+  const candidate = strictObject(optionsInput, "receipt Git-closure options");
+  exactKeys(
+    candidate,
+    ["repositoryRoot", "verifierRevision"],
+    "receipt Git-closure options",
+  );
+  const repositoryRoot = candidate.repositoryRoot;
+  if (
+    typeof repositoryRoot !== "string" ||
+    repositoryRoot.includes("\0") ||
+    path.resolve(repositoryRoot) !== repositoryRoot
+  ) {
+    fail("receipt Git-closure repository root is not canonical");
+  }
+  const verifierRevision = fullRevision(
+    candidate.verifierRevision,
+    "receipt Git-closure verifier revision",
+  );
+  return Object.freeze({ repositoryRoot, verifierRevision });
+}
+
+async function assertPinnedGitClosureCore(
+  optionsInput: unknown,
+  dependencies: PinnedGitClosureBoundaryDependencies,
+): Promise<void> {
+  const options = pinnedGitClosureOptions(optionsInput);
+  await dependencies.assertExactCleanRevision(
+    options.repositoryRoot,
+    options.verifierRevision,
+  );
+  const started = await startPinnedVerificationCore(
+    options.verifierRevision,
+    dependencies,
+  );
+  await finalizePinnedVerificationCore(started, dependencies);
+  await dependencies.assertExactCleanRevision(
+    options.repositoryRoot,
+    options.verifierRevision,
+  );
+}
+
+export async function assertPinnedFloodgateRoleBundleReceiptGitClosureCoreForTests(
+  optionsInput: unknown,
+  dependencies: PinnedGitClosureBoundaryDependencies,
+): Promise<void> {
+  await assertPinnedGitClosureCore(optionsInput, dependencies);
+}
+
+/**
+ * Authenticate a Git-clean (under standard ignore rules), exact-revision
+ * dedicated verifier tracked source tree; compare the tracked result receipt
+ * and its six execution-evidence files with their producer blobs; and prove
+ * fixed ancestry. This does not open external role-bundle output files or
+ * authorize a gate.
+ */
+export async function assertPinnedFloodgateRoleBundleReceiptGitClosure(
+  options: Readonly<{ repositoryRoot: string; verifierRevision: string }>,
+): Promise<void> {
+  const canonical = pinnedGitClosureOptions(options);
+  await assertPinnedGitClosureCore(canonical, {
+    assertExactCleanRevision: assertFloodgateGitExactCleanRevision,
+    readTrackedArtifact: (artifactPath) =>
+      readTrackedSnapshot(canonical.repositoryRoot, artifactPath),
+    readGitBlob: (revision, artifactPath) =>
+      readGitBlob(canonical.repositoryRoot, revision, artifactPath),
+    isAncestor: (ancestor, descendant) =>
+      isGitAncestor(canonical.repositoryRoot, ancestor, descendant),
+  });
+}
+
 /**
  * Receipt-bound verification only. The underlying verifier remains
  * receipt-independent so a historical bundle can still be reproduced without
@@ -1031,10 +1178,7 @@ export function interpretGitIsAncestorExitCoreForTests(
 export async function verifyPinnedFloodgateRoleBundleReceipt(
   optionsInput: VerifyExistingFloodgateRoleBundleOptions,
 ): Promise<Readonly<VerifiedPinnedFloodgateRoleBundle>> {
-  const candidate = strictObject(
-    optionsInput,
-    "receipt-verification options",
-  );
+  const candidate = strictObject(optionsInput, "receipt-verification options");
   exactKeys(
     candidate,
     [
@@ -1052,8 +1196,7 @@ export async function verifyPinnedFloodgateRoleBundleReceipt(
     verifierRevision: candidate.verifierRevision,
     rawLockRoot: candidate.rawLockRoot,
     roleLockRoot: candidate.roleLockRoot,
-    legacyProtectedPositionIdsPath:
-      candidate.legacyProtectedPositionIdsPath,
+    legacyProtectedPositionIdsPath: candidate.legacyProtectedPositionIdsPath,
     outputRoot: candidate.outputRoot,
   }) as Readonly<VerifyExistingFloodgateRoleBundleOptions>;
   if (

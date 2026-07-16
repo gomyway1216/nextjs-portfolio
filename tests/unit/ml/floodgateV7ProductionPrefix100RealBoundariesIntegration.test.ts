@@ -40,7 +40,12 @@ import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
 } from "../../../ml/floodgate-v7-production-connector-registry";
-import { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "../../../ml/floodgate-v7-production-connector-registry-provisioner";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION,
+} from "../../../ml/floodgate-v7-production-connector-verifier-readiness";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS,
@@ -261,6 +266,40 @@ function readinessReceipt() {
   };
 }
 
+function verifierReadinessReceipt() {
+  return {
+    contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+    status: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+    execution_boundary:
+      "test-only-injected-current-euid-home-role-bundle-receipt-git-closure",
+    verification: {
+      fixed_current_euid_home_repository_root: true,
+      fixed_verifier_revision: true,
+      pinned_receipt_git_closure_checked: true,
+      closure_receipt_validated: true,
+      sensitive_values_exported: false,
+    },
+    nonclaims: {
+      external_role_bundle_files_read: false,
+      full_role_bundle_verifier_run: false,
+      gate_authority: false,
+      registry_authority: false,
+      connector_authority: false,
+      teacher_label: false,
+      training: false,
+      weight: false,
+      live_evaluation_activation: false,
+      playing_strength: false,
+      path_disclosed: false,
+      revision_disclosed: false,
+      digest_disclosed: false,
+      private_identity_disclosed: false,
+    },
+  };
+}
+
 function expectedBindingReceipt() {
   return {
     contract: FLOODGATE_V7_APPROVED_KEY_EXPECTED_CURRENT_BINDING_CONTRACT,
@@ -466,6 +505,16 @@ function preflightDependencies(
       return Object.freeze({ registry: true });
     },
     claimRegistry: () => value.claim,
+    verifyVerifierReadiness: async () => verifierReadinessReceipt(),
+    assertVerifierReadinessIdentityBinding: (
+      _receipt,
+      effectiveUserId,
+      homeDirectory,
+    ) => {
+      if (effectiveUserId !== EUID || homeDirectory !== value.home) {
+        throw new Error("readiness identity differs");
+      }
+    },
     inspectKeyReadiness: async () => readinessReceipt(),
     loadApprovedEnrollment: async () => Object.freeze({ approved: true }),
     claimApprovedEnrollment: () => approvedClaim("test"),

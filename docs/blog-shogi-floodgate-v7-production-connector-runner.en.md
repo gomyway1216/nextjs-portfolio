@@ -22,6 +22,8 @@
 | Current registry / this-change gate runs      | Absent / 0                                                            | Current state was freshly observed; this change stays unexecuted until the blocker PR is merged                           |
 | Labels / training / weights / live / strength | 0 / 0 / 0 / 0 / 0                                                     | Neither the evaluation function nor measured playing strength has changed                                                 |
 
+This table is a snapshot from the runner implementation. The same-lock prefix-100 boundary was regular-merged later, but the historical measurements and [machine-readable evidence](./data/floodgate-v7-production-connector-runner-2026-07-15.json) are not rewritten with values from a follow-up candidate. The current unmerged follow-up has also performed no production operation, and runOp1 remains the live evaluator.
+
 ## 2. What succeeded in production after PR #468
 
 The implementation in PR #468 did not itself claim that production approval had succeeded. After the regular merge, the operator inspected the exact candidate through the fixed private native UI and typed back the complete displayed lowercase SHA-256 before approving it. The workflow then inspected the candidate again and called the create-only installer only if the fresh bytes still matched the reviewed bytes. It subsequently claimed the stored record exactly and performed a fresh current-key binding postflight.
@@ -37,22 +39,24 @@ The candidate JSON, candidate and record digests, approval identifiers, key-inst
 
 The production connector must use one coherent set of values across all three gates: the run binding, approved-record binding, fixed verifier revision, repository and dataset namespaces, legacy exclusion input, teacher engine and evaluation assets, and stage and destination namespaces. Reconstructing these values from shell arguments or environment variables for every invocation could mix different runs or revisions between 100, 500, and 24,000, while also leaving private values in command history.
 
-The registry record fixes:
+The registry-record design at that time fixed:
 
 - A private run ID generated from 32 bytes of cryptographically secure randomness.
 - A private binding to the approved record's byte length, digest, and key-instance identity.
-- One pinned verifier revision.
+- The then-pinned verifier revision `b086243781396e2c197cc9e1cfab1fc6b773ae2a`.
 - Repository, raw lock, role lock, role bundle, legacy exclusion, and production teacher-asset namespaces derived from the current user's home under fixed rules.
 - An empty engine-argument list.
 - Stage, destination, and publication names derived from the same run ID.
 
 This article records the rules, not the actual run ID, binding values, or local locations. The registry root and runs directory must have exact `0700` modes. The record must be a regular, single-link `0600` file. The loader walks the fixed current-user home without following links and revalidates held descriptors. It derives the stage-authorization and training-row consumer options inside private capability state, and only a successful single-use claim releases them to the same process.
 
+Later audit established that the historical `b086243` predates the pinned result-verifier receipt and evidence producer `0f3cadb76ec46eb82d5bc9623277525ce1d2252b`; it therefore cannot satisfy the required artifacts and producer-ancestry closure at the same time. `b086243` is consequently a record of the historical blocker, not a usable production binding. The evidence-backed candidate is `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`.
+
 ## 4. Create-only installer and argumentless provisioner
 
 The installer does not send an operator-supplied object directly to `JSON.stringify`. It first captures and validates the exact key set, own data descriptors, primitives, paths, revision, and engine arguments, then constructs a new canonical record. It writes canonical JSONL to a `0600` staging file, syncs and reads it back, publishes the final name with a no-clobber hard link, syncs the directory, removes the staging name, syncs the directory again, and reopens the final record to revalidate identity and canonical bytes. It never overwrites or adopts an existing final record, and it never deletes a competing staging name.
 
-The provisioner has one fixed sequence:
+At the time of this change, the provisioner had this fixed sequence:
 
 1. Exactly validate the sanitized receipt asserting that the approved record freshly matches the current key.
 2. Freshly load and claim the approved enrollment capability.
@@ -61,6 +65,10 @@ The provisioner has one fixed sequence:
 5. Invoke the create-only installer exactly once.
 6. Freshly load and claim the registry, then compare the run binding and complete configuration in private memory.
 7. Return a newly constructed fixed success receipt containing no path, run ID, digest, or filesystem identity.
+
+The current separate follow-up candidate is published as ready-for-review [PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474), but it remains unmerged. Before the sequence above, PR #474 binds the repository derived from the fixed current-EUID user-info home to `e8a9197`, then checks the fail-before-install `source-tree-and-pinned-receipt-evidence Git closure` required by provisioner and preflight v2. Under standard Git ignore rules, the nonignored worktree must be clean and at the exact revision. Before and after artifact inspection, the check compares every tracked file's bytes and mode with HEAD. It also reads seven pinned receipt and evidence artifacts directly from the worktree and checks their pinned Git blobs, receipt content, and producer ancestry, so this is not metadata-only. Ignored entries are outside its scope; it does not read external role-bundle outputs or run the full verifier. Its readiness receipt discloses no path, revision, digest, or private identity, and it separately requires a private single-use identity binding to the EUID and home. A closure or identity mismatch reaches neither current-key binding, enrollment, entropy acquisition, nor installation. Prefix-100 preflight rechecks the same closure and identity after claiming the registry's fixed configuration and before namespace or key checks. This readiness check does not issue registry or gate authority.
+
+The new readiness leaf itself is `shogi-floodgate-v7-production-connector-verifier-readiness-v1`. Boundaries that add the closure field or the `verifier-readiness` failure phase advance provisioner success, provisioning-CLI failure, the public preflight core and claim boundary, the under-lock preflight outcome, and preflight-CLI success and failure to v2; they do not claim false compatibility with old v1 receipts.
 
 The production CLI stops before lazily loading the production module if it receives any argument or if the runtime is not exactly Node `v22.13.0`. Typed failures are also rebuilt from allowlisted phase, durability, creation-possibility, and retry fields rather than forwarding raw objects. Unknown failures, or serialization and output failures after apparent success, conservatively assume that the registry may already exist and require reconciliation instead of a fresh retry.
 
@@ -129,7 +137,7 @@ The separate PR must add at least:
 5. An exclusive rename of the exact source into a unique quarantine followed by parent-directory sync, without automatically deleting the original lease object.
 6. Fail-closed treatment of legacy empty leases that have no metadata.
 
-This blocker does not mean that this change created a stale production lease. This change has not run a real gate or left a production lease. It is a recovery gap found before starting a long production run. Until the separate PR is merged and its reconciliation tests pass, the registry provisioner, prefix 100, prefix 500, and final 24,000 remain on operational hold. That hold is not a runtime interlock added by this PR.
+This blocker does not mean that this change created a stale production lease. This change has not run a real gate or left a production lease. It is a recovery gap found before starting a long production run. At that time, the registry provisioner, prefix 100, prefix 500, and final 24,000 were on operational hold until a separate PR merged and its reconciliation tests passed. This section is the historical explanation for why the runner change stopped; it must not be reinterpreted as saying that stale-lease recovery is the only current blocker. Compatible verifier closure and the authenticated training-label finalizer are now also prerequisites to a production registry or real gate.
 
 ## 9. Residual P2 limitations and explicit nonclaims
 
@@ -142,3 +150,5 @@ The fresh current observation finds no production registry and no running gate p
 The production successes in scope end at human-approved key enrollment and fresh current binding. Because this change created no production registry and ran no connector gate, real parent records, teacher processes, labels, checkpoints, optimizer steps, training runs, candidate weights, formal A/B games, live activation, and external rank observations from this change all remain zero.
 
 The existing evaluator was not overwritten with a candidate. Production and rollback still point to runOp1. The required sequence is: merge the authenticated lease-metadata, lifetime-lock, and manual-quarantine PR with a regular merge commit; provision the registry; run and inspect 100; run and inspect 500; then run 24,000. Even after that, the project must complete checkpoint finalization, QAT and selection, sealed-holdout evaluation, sufficient paired A/B games against runOp1, staged live rollout, and external rank calibration before claiming stable high-dan strength.
+
+That sequence records the plan at the time of the runner change; the same-lock prefix-100 execution boundary has since been regular-merged. Unmerged PR #474 adds the `e8a9197` binding, source-tree and pinned-evidence closure, private identity binding, provisioner fail-before-install, and prefix-100 preflight recheck. Production registry creation, gates, teacher generation, finalization, training, weights, A/B, and live changes from PR #474 are all zero. Neither the production registry nor a real gate will be operated before the authenticated training-label finalizer is reviewed and regular-merged.

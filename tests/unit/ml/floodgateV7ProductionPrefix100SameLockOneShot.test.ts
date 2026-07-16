@@ -28,7 +28,7 @@ const EUID = process.geteuid?.() ?? 501;
 const ROOT_KEY = Buffer.from("73".repeat(32), "hex");
 const REGISTRY_CONTENT = `${JSON.stringify({ same_lock: true })}\n`;
 const PREFLIGHT_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1";
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2";
 const TEST_PREFLIGHT_BOUNDARY =
   "test-only-injected-current-euid-home-read-only-observation";
 const roots: string[] = [];
@@ -306,6 +306,19 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
 
   it.each([
     ["NO-GO", () => noGoOutcome()],
+    [
+      "historical frozen v1 GO",
+      () =>
+        frozenNullRecord({
+          contract:
+            "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1",
+          status: "GO-observed-under-outer-lock",
+          observation: frozenNullRecord({
+            execution_boundary: TEST_PREFLIGHT_BOUNDARY,
+            outer_control: "absent-pristine",
+          }),
+        }),
+    ],
     ["malformed", () => ({ ...goOutcome() })],
     ["proxy", () => new Proxy(goOutcome(), {})],
     [

@@ -22,7 +22,12 @@ import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
 } from "../../../ml/floodgate-v7-production-connector-registry";
-import { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "../../../ml/floodgate-v7-production-connector-registry-provisioner";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION,
+} from "../../../ml/floodgate-v7-production-connector-verifier-readiness";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -38,6 +43,7 @@ import {
 } from "../../../ml/floodgate-v7-production-outer-gate-lease";
 import {
   FloodgateV7ProductionPrefix100PreflightError,
+  captureFloodgateV7ProductionPrefix100PreflightOutcomeCoreForTests,
   inspectFloodgateV7ProductionPrefix100Preflight,
   inspectFloodgateV7ProductionPrefix100PreflightCoreForTests,
   inspectFloodgateV7ProductionPrefix100PreflightUnderOuterLockCoreForTests,
@@ -48,6 +54,28 @@ const EUID = process.geteuid?.() ?? 501;
 const RUN_ID = "31".repeat(32);
 const RECORD_SHA = "41".repeat(32);
 const KEY_INSTANCE = "51".repeat(32);
+
+it("preserves verifier-readiness through the strict under-lock outcome projection", () => {
+  expect(
+    captureFloodgateV7ProductionPrefix100PreflightOutcomeCoreForTests({
+      contract:
+        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+      status: "NO-GO-observed-under-outer-lock",
+      failure: {
+        phase: "verifier-readiness",
+        retry_disposition: "fix-environment-then-fresh-preflight",
+      },
+    }),
+  ).toEqual({
+    contract:
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+    status: "NO-GO-observed-under-outer-lock",
+    failure: {
+      phase: "verifier-readiness",
+      retry_disposition: "fix-environment-then-fresh-preflight",
+    },
+  });
+});
 const ROOT_KEY = Buffer.from("71".repeat(32), "hex");
 const PRIVATE_CANARY = "prefix-100-preflight-private-canary";
 const PREFLIGHT_SOURCE_PATH = path.resolve(
@@ -148,6 +176,40 @@ function expectedCurrentBinding() {
       live_evaluation_activation: false,
       match: false,
       playing_strength: false,
+    },
+  };
+}
+
+function verifierReadiness() {
+  return {
+    contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+    status: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+    execution_boundary:
+      "test-only-injected-current-euid-home-role-bundle-receipt-git-closure",
+    verification: {
+      fixed_current_euid_home_repository_root: true,
+      fixed_verifier_revision: true,
+      pinned_receipt_git_closure_checked: true,
+      closure_receipt_validated: true,
+      sensitive_values_exported: false,
+    },
+    nonclaims: {
+      external_role_bundle_files_read: false,
+      full_role_bundle_verifier_run: false,
+      gate_authority: false,
+      registry_authority: false,
+      connector_authority: false,
+      teacher_label: false,
+      training: false,
+      weight: false,
+      live_evaluation_activation: false,
+      playing_strength: false,
+      path_disclosed: false,
+      revision_disclosed: false,
+      digest_disclosed: false,
+      private_identity_disclosed: false,
     },
   };
 }
@@ -285,6 +347,16 @@ async function fixture(): Promise<Fixture> {
       homeDirectory: home,
       loadRegistry: async () => ({ capability: true }),
       claimRegistry: () => claim,
+      verifyVerifierReadiness: async () => verifierReadiness(),
+      assertVerifierReadinessIdentityBinding: (
+        _receipt,
+        effectiveUserId,
+        expectedHome,
+      ) => {
+        if (effectiveUserId !== EUID || expectedHome !== home) {
+          throw new Error("readiness identity differs");
+        }
+      },
       inspectKeyReadiness: async () => readiness(),
       loadApprovedEnrollment: async () => ({ capability: true }),
       claimApprovedEnrollment: () => approvedClaim(),
@@ -482,6 +554,73 @@ describe("Floodgate v7 production prefix-100 read-only preflight core", () => {
     ).rejects.toMatchObject({ phase: "current-binding" });
   });
 
+  it("fails verifier readiness before key inspection or namespace mutation", async () => {
+    const valid = verifierReadiness();
+    const malformedReceipts: readonly unknown[] = [
+      Object.freeze({}),
+      { ...valid, execution_boundary: "production-wrong-home" },
+      { ...valid, unexpected: PRIVATE_CANARY },
+      {
+        ...valid,
+        nonclaims: {
+          ...valid.nonclaims,
+          external_role_bundle_files_read: true,
+        },
+      },
+      new Proxy(valid, {}),
+    ];
+    for (const malformed of malformedReceipts) {
+      const environment = await fixture();
+      let keyReadinessCalls = 0;
+      const error = await captureFailure(() =>
+        inspectFloodgateV7ProductionPrefix100PreflightCoreForTests({
+          ...environment.dependencies,
+          verifyVerifierReadiness: async () => malformed,
+          inspectKeyReadiness: async () => {
+            keyReadinessCalls += 1;
+            return readiness();
+          },
+        }),
+      );
+      expect(error).toMatchObject({
+        phase: "verifier-readiness",
+        persistent_mutation_performed: false,
+        gate_invoked: false,
+      });
+      expect(keyReadinessCalls).toBe(0);
+      expect(await fs.promises.readdir(environment.runsParent)).toEqual([]);
+      expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+    }
+  });
+
+  it("rejects readiness for another captured identity before key inspection or namespace mutation", async () => {
+    const environment = await fixture();
+    let bindingCalls = 0;
+    let keyReadinessCalls = 0;
+    const error = await captureFailure(() =>
+      inspectFloodgateV7ProductionPrefix100PreflightCoreForTests({
+        ...environment.dependencies,
+        assertVerifierReadinessIdentityBinding: () => {
+          bindingCalls += 1;
+          throw new Error(PRIVATE_CANARY);
+        },
+        inspectKeyReadiness: async () => {
+          keyReadinessCalls += 1;
+          return readiness();
+        },
+      }),
+    );
+    expect(error).toMatchObject({
+      phase: "verifier-readiness",
+      persistent_mutation_performed: false,
+      gate_invoked: false,
+    });
+    expect(bindingCalls).toBe(1);
+    expect(keyReadinessCalls).toBe(0);
+    expect(await fs.promises.readdir(environment.runsParent)).toEqual([]);
+    expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+  });
+
   it("rejects an arbitrary fixed registry configuration without disclosing it", async () => {
     const environment = await fixture();
     const error = await captureFailure(() =>
@@ -654,7 +793,7 @@ darwinDescribe("Floodgate v7 prefix-100 preflight outer lock", () => {
       );
     expect(result.value).toMatchObject({
       contract:
-        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1",
+        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
       status: "GO-observed-under-outer-lock",
       observation: { outer_control: "absent-pristine" },
     });

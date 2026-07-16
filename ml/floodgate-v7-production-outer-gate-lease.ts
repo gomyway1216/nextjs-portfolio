@@ -550,7 +550,7 @@ type Prefix100PreflightCapabilityBoundary = "production" | "test-only";
 type Prefix100PreflightModuleLoader = () => unknown;
 
 const PREFIX_100_UNDER_LOCK_OUTCOME_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2" as const;
 const PREFIX_100_PRODUCTION_PREFLIGHT_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
 const PREFIX_100_TEST_PREFLIGHT_EXECUTION_BOUNDARY =

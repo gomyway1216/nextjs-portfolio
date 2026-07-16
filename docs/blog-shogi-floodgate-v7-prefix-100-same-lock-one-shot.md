@@ -14,7 +14,7 @@
 | production execution | 今回は全て0                                  | registry provision、kill-drill、prefix-100もまだ実行しない          |
 | evaluator            | runOp1のまま                                 | 棋力改善や高段到達の証拠ではない                                    |
 
-この候補はready-for-reviewのPR #472として公開済みである。review修正後の実装head `da7e9dd`ではGitHubのreported check 6 / 6（required status check 2 / 2を含む）がPASSし、actionable review 5件は全て対応してunresolved threadは0になった。この記事と[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)を更新するdocs-only headは、改めてCIを通すまでpendingとして分離する。
+この候補はready-for-reviewのPR #472として公開され、review修正後の実装head `da7e9dd`ではGitHubのreported check 6 / 6（required status check 2 / 2を含む）がPASSし、actionable review 5件は全て対応してunresolved threadは0になった。その後、PR #472は通常のmerge commit `6e5197fb9a9200cc1b00db1ee34e072b9de84ea2`で統合された。[機械可読証拠](./data/floodgate-v7-prefix-100-same-lock-one-shot-2026-07-16.json)に残るopen / pending表現と当時の実測値は、そのPRのevidence-refresh時点を保存した歴史的snapshotであり、現在の未マージ後続候補の結果へ読み替えたり書き換えたりしない。
 
 ## 2. PR #471が閉じた前提条件
 
@@ -83,13 +83,13 @@ prefix-100 success receiptだけにrunner-promoted continuity confirmationを追
 
 ## 9. local candidate validation
 
-実装と記事はまだ統合中のローカル候補である。独立監査は、low-level APIがcaller path/anchorからproduction-authenticatedに見えるreceiptを作れたP1 overclaim、`throw undefined`がno-error sentinelと衝突し得るP2、`filesystem_mutated: false`がread時のatimeまで不変と読めるP2に加え、registry revisionをcurrent app HEADと誤認してfinalizer mergeをprovisioning blockerとしたP1 ordering overclaimを検出した。low-level scanの非authorizing化、明示的なerror-state sentinel、file-content / namespace writeとatime nonclaimの分離、historical verifier / artifact ancestry closureに基づくorderingへの修正は完了し、focused regressionは全てPASSした。
+PR #472のevidenceを組み立てた時点では、実装と記事は統合中のローカル候補だった。独立監査は、low-level APIがcaller path/anchorからproduction-authenticatedに見えるreceiptを作れたP1 overclaim、`throw undefined`がno-error sentinelと衝突し得るP2、`filesystem_mutated: false`がread時のatimeまで不変と読めるP2に加え、registry revisionをcurrent app HEADと誤認してfinalizer mergeをprovisioning blockerとしたP1 ordering overclaimを検出した。low-level scanの非authorizing化、明示的なerror-state sentinel、file-content / namespace writeとatime nonclaimの分離、historical verifier / artifact ancestry closureに基づくorderingへの修正は完了し、focused regressionは全てPASSした。
 
 exact Node v22.13.0の安定したsource候補で、focused 9 files・179 / 179 PASS（wall 2.80秒、maximum RSS 282,869,760 bytes、swap 0）と、default concurrencyのfull 147 files・2,734 / 2,734 PASS（wall 159.48秒、maximum RSS 4,307,124,224 bytes、swap 0）を完了した。production buildは193 / 193 pages（wall 40.61秒、maximum RSS 2,590,867,456 bytes、swap 0）、TypeScript、changed-scope ESLint、Prettier、diff checkもPASSした。ML stdlibは58 / 58、`npm audit`はvulnerability 0だった。最初のfull、build、ML、auditは4-wayで並行実行したため、wall timeはその同時負荷を含む。
 
 evidence更新後のdefault-concurrency確認runは、変更対象外の別々のsuiteで1件ずつ失敗した。1件目はstable-WASM workerの30秒startup timeout、2件目はstable proposal finalization fixtureのretry disposition差で、各suiteを直後に単独実行すると53 / 53、11 / 11でPASSした。これら2 runはauthoritativeへ数えない。resource contention仮説を再現可能な事実と混同しないため、classificationはnonfinal concurrency-flake candidateに留める。worker上限8のfull 147 files・2,734 / 2,734 PASS（wall 150.96秒、maximum RSS 4,355,293,184 bytes、swap 0）はhead `032a324`で実行時のexact treeだったが、その後review修正4ファイルを含む`da7e9dd`になったため、現在headのlocal full成功とは数えない。
 
-`da7e9dd`ではreview修正後のfocused 5 files・80 / 80、TypeScript、ESLint error 0、PrettierがPASSした。同headのlocal fullはstable-WASM workerの同じ30秒startup timeoutだけで2,733 / 2,734となり（wall 170.59秒、maximum RSS 4,349,165,568 bytes、swap 0）、直後の単独runは53 / 53 PASSした。このlocal fullもauthoritative成功へ数えない。一方、独立GitHub環境の同じ`da7e9dd`ではUbuntu unitが147 files中144 PASS・3 Darwin skip、2,636 PASS・98 Darwin skip / 2,734、ML 58 / 58、build 193 / 193を完了し、Darwin same-lock jobもPASSした。reported checkは6 / 6、GitHub required status checkは2 / 2である。現在のevidence statusは`implementation-head-ci-green-evidence-refresh-head-pending`である。
+`da7e9dd`ではreview修正後のfocused 5 files・80 / 80、TypeScript、ESLint error 0、PrettierがPASSした。同headのlocal fullはstable-WASM workerの同じ30秒startup timeoutだけで2,733 / 2,734となり（wall 170.59秒、maximum RSS 4,349,165,568 bytes、swap 0）、直後の単独runは53 / 53 PASSした。このlocal fullもauthoritative成功へ数えない。一方、独立GitHub環境の同じ`da7e9dd`ではUbuntu unitが147 files中144 PASS・3 Darwin skip、2,636 PASS・98 Darwin skip / 2,734、ML 58 / 58、build 193 / 193を完了し、Darwin same-lock jobもPASSした。reported checkは6 / 6、GitHub required status checkは2 / 2である。機械可読証拠の`implementation-head-ci-green-evidence-refresh-head-pending`は、その時点のstatusを表し、後の通常mergeや現在の別候補を表すcurrent statusではない。
 
 最低限のmatrixは、1 lock / ordering、preflight競合中のrunner block、NO-GO時mutation 0、key再読込差し替え、registry revalidation、single-use claim、postflight exact namespace / identity / SHA / record / close、500 / final非回帰、private value非漏えい、日英12章・duplicate JSON key・privacy・stale A/B値拒否を含む。
 
@@ -103,18 +103,24 @@ same-lock ownerとreal-boundary integrationにはDarwin専用`runIf`があり、
 
 ## 11. compatible verifier closureより先にregistryを作らず、finalizerより先にreal gateを始めない
 
-現在の`FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION`は、現在のmerged app HEADではなく、historical revision `b086243781396e2c197cc9e1cfab1fc6b773ae2a`へ固定されている。production training consumerが使うpinned role-bundle verifierは、固定repositoryのclean HEADが`verifier_revision`とexact一致することを要求する。同時に、byte-pinned result-verifier receipt / evidenceはproducer revision `0f3cadb76ec46eb82d5bc9623277525ce1d2252b`で初めて追加され、そのproducerが選択したverifier revisionのancestorであることも要求する。
+PR #472のmerge時点と、現在の未マージ後続候補を除くdefault branchでは、`FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION`はmerged app HEADではなく、historical revision `b086243781396e2c197cc9e1cfab1fc6b773ae2a`へ固定されていた。production training consumerが使うpinned role-bundle verifierは、固定repositoryのclean HEADが`verifier_revision`とexact一致することを要求する。同時に、byte-pinned result-verifier receipt / evidenceはproducer revision `0f3cadb76ec46eb82d5bc9623277525ce1d2252b`で初めて追加され、そのproducerが選択したverifier revisionのancestorであることも要求する。
 
 `b086243`は`0f3cadb`より前で、必要なreceipt / evidence fileを含まず、`0f3cadb`は`b086243`のancestorではない。したがって現構成のままcreate-only registryをprovisionすると、clean HEAD一致と必要artifact / producer ancestryを同時に満たせない`verifier_revision`へregistryを固定し、利用不能にする。将来finalizerをmergeするとapp HEADが変わることは、このblockerの理由ではない。
 
-独立registry監査は`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`をevidence-backed viable candidateと確認した。`0f3cadb`はこのcandidateのancestorで、必要artifactを含み、clean detached worktreeのproduction full verifierもaccepted runとconfirmationの両方でexit 0だった。ただし現在のprovisionerはまだ`b086243`を固定しているため、`e8a9197`をreview済みcompatible closureとしてbindし、entropy取得やinstallより前にsource / artifact / ancestry closureをfail closedで検査する別repair PRが必要である。
+独立registry監査は`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`をevidence-backed viable candidateと確認した。`0f3cadb`はこのcandidateのancestorで、必要artifactを含み、clean detached worktreeのproduction full verifierもaccepted runとconfirmationの両方でexit 0だった。
+
+現在、別follow-up候補はready-for-reviewの[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)として公開済みだが、まだ未マージである。PR #474は、`e8a9197` bindingと、provisioner / preflight v2が要求するfail-before-installの`source-tree-and-pinned-receipt-evidence Git closure`を実装する。この候補は、fixed current-EUID user-info homeからrepository rootを導き、standard Git ignore rulesの下でnonignored worktreeがcleanかつexact revisionであることを要求する。source-tree checkをartifact検査の前後に2回行い、そのたびに全tracked fileのbytesとmodeをHEADと比較する。さらに7個のpinned receipt / evidence artifactをworktreeから直接読み、pinned Git blob、receipt内容、producer ancestryを検査する。したがってこれはmetadata-only検査ではない。ignored entryはclosure対象外であり、external role-bundle outputを読まず、full role-bundle verifierも実行しない。返されたreadiness receiptはpath、revision、digest、private identityを公開せず、EUIDとhomeへのprivate single-use identity bindingも別にclaimする。provisionerはcurrent-key binding、enrollment、entropy取得、create-only installより前にこのclosureとidentity bindingを検証し、prefix-100 preflightはregistryのfixed configurationをclaimした後、namespace / deployment-key checkより前に同じclosureとidentityを再検査する。どちらも失敗時はinstallとgateを開始しない。registry / gate authorityをこのreadiness checkの成功としてclaimしない。
+
+readiness leafは今回新設する`shogi-floodgate-v7-production-connector-verifier-readiness-v1`である。一方、closure確認fieldと`verifier-readiness` failure phaseを追加する既存境界は互換なv1 receiptとして扱わず、provisioner success、provisioning CLI failure、public preflight coreとclaim boundary、preflight under-lock outcome、preflight CLI success / failureをそれぞれv2へ上げる。これにより旧consumerがclosure fieldのないreceiptを新しい成功として受理することを防ぐ。
+
+PR #474は未マージ候補であり、review済みproduction authorityではない。このfollow-upによるproduction operationは0で、registry provisioning、kill-drill、prefix-100 / 500 / final-24000、teacher generation、training、weight、match、live activationも追加で実行していない。authenticated training-label finalizerが通常mergeされる前にproduction registryやreal gateを動かさない。
 
 24,000 workを認証済みtraining labelへ変換するfinalizerも、real gate開始前のoperational completenessとして別PRで実装・review・通常mergeする。ただしfinalizerが必要なのは`verifier_revision`をapp HEADへ一致させるためではない。
 
-したがって安全な予定順序は次である。
+したがって現在の安全な順序は次である。
 
-1. same-lock one-shot候補を最終validation・review後に通常mergeする。
-2. `e8a9197` candidateのbindingとfail-before-install closure checkを別repair PRで実装・reviewし、通常mergeする。
+1. same-lock one-shotは最終validation・review後に通常merge済みである。
+2. PR #474の`e8a9197` binding、source-tree / pinned-evidence closure、private identity binding、fail-before-install / preflight recheckをreviewし、通常mergeする。
 3. authenticated training-label finalizerを別PRで実装・reviewし、real gate開始前に通常mergeする。
 4. 両方の前提を確認した後だけ、compatible closureへbindするcreate-only registryを一度だけprovisionし、postflightする。
 5. reviewed disposable kill-drillを実行してevidenceを確認する。

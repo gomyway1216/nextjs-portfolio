@@ -44,17 +44,25 @@ import {
   type FloodgateV7ProductionConnectorRegistryInstallationInput,
   type FloodgateV7ProductionConnectorRegistryPrivateClaim,
 } from "./floodgate-v7-production-connector-registry";
+import {
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION,
+  assertFloodgateV7ProductionConnectorVerifierReadinessIdentityBinding,
+  verifyFloodgateV7ProductionConnectorVerifierReadiness,
+} from "./floodgate-v7-production-connector-verifier-readiness";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
 
+export { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "./floodgate-v7-production-connector-verifier-readiness";
+
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provisioner-v1" as const;
+  "shogi-floodgate-v7-production-connector-registry-provisioner-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS =
   "immutable-private-run-registry-created-bound-and-postflight-validated" as const;
-export const FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION =
-  "b086243781396e2c197cc9e1cfab1fc6b773ae2a" as const;
-
 export type FloodgateV7ProductionConnectorRegistryProvisionerPhase =
   | "capture"
+  | "verifier-readiness"
   | "approved-current-binding"
   | "approved-enrollment"
   | "configuration"
@@ -85,6 +93,7 @@ export interface FloodgateV7ProductionConnectorRegistryProvisionerReceipt<
   readonly status: typeof FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS;
   readonly execution_boundary: TBoundary;
   readonly verification: Readonly<{
+    readonly verifier_source_artifact_closure_checked_before_install: true;
     readonly approved_record_current_key_binding_checked: true;
     readonly approved_record_bound_into_registry: true;
     readonly run_id_generated_from_32_byte_csprng: true;
@@ -148,6 +157,12 @@ export class FloodgateV7ProductionConnectorRegistryProvisionerError extends Erro
 interface ProvisionerDependencies {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
+  readonly verifyVerifierReadiness: () => Promise<unknown>;
+  readonly assertVerifierReadinessIdentityBinding: (
+    receipt: unknown,
+    expectedEffectiveUserId: number,
+    expectedHomeDirectory: string,
+  ) => void;
   readonly verifyCurrentBinding: () => Promise<
     Readonly<FloodgateV7ApprovedKeyCurrentBindingReceipt>
   >;
@@ -203,6 +218,8 @@ const SAFE_INTEGER = Number.isSafeInteger;
 const DEPENDENCY_KEYS = objectFreeze([
   "effectiveUserId",
   "homeDirectory",
+  "verifyVerifierReadiness",
+  "assertVerifierReadinessIdentityBinding",
   "verifyCurrentBinding",
   "loadApprovedEnrollment",
   "claimApprovedEnrollment",
@@ -210,6 +227,37 @@ const DEPENDENCY_KEYS = objectFreeze([
   "loadRegistry",
   "claimRegistry",
   "randomBytes",
+] as const);
+const VERIFIER_READINESS_RECEIPT_KEYS = objectFreeze([
+  "contract",
+  "status",
+  "claim_boundary",
+  "execution_boundary",
+  "verification",
+  "nonclaims",
+] as const);
+const VERIFIER_READINESS_VERIFICATION_KEYS = objectFreeze([
+  "fixed_current_euid_home_repository_root",
+  "fixed_verifier_revision",
+  "pinned_receipt_git_closure_checked",
+  "closure_receipt_validated",
+  "sensitive_values_exported",
+] as const);
+const VERIFIER_READINESS_NONCLAIM_KEYS = objectFreeze([
+  "external_role_bundle_files_read",
+  "full_role_bundle_verifier_run",
+  "gate_authority",
+  "registry_authority",
+  "connector_authority",
+  "teacher_label",
+  "training",
+  "weight",
+  "live_evaluation_activation",
+  "playing_strength",
+  "path_disclosed",
+  "revision_disclosed",
+  "digest_disclosed",
+  "private_identity_disclosed",
 ] as const);
 const CURRENT_BINDING_RECEIPT_KEYS = objectFreeze([
   "contract",
@@ -322,6 +370,10 @@ function captureDependencies(
   return frozenRecord({
     effectiveUserId,
     homeDirectory: pathResolve(homeDirectory),
+    verifyVerifierReadiness:
+      record.verifyVerifierReadiness as ProvisionerDependencies["verifyVerifierReadiness"],
+    assertVerifierReadinessIdentityBinding:
+      record.assertVerifierReadinessIdentityBinding as ProvisionerDependencies["assertVerifierReadinessIdentityBinding"],
     verifyCurrentBinding:
       record.verifyCurrentBinding as ProvisionerDependencies["verifyCurrentBinding"],
     loadApprovedEnrollment:
@@ -336,6 +388,46 @@ function captureDependencies(
       record.claimRegistry as ProvisionerDependencies["claimRegistry"],
     randomBytes: record.randomBytes as ProvisionerDependencies["randomBytes"],
   });
+}
+
+function validateVerifierReadinessReceipt(
+  value: unknown,
+  boundary: FloodgateV7ProductionConnectorRegistryProvisionerExecutionBoundary,
+): void {
+  const receipt = exactPlainRecord(value, VERIFIER_READINESS_RECEIPT_KEYS);
+  const verification = exactPlainRecord(
+    receipt.verification,
+    VERIFIER_READINESS_VERIFICATION_KEYS,
+  );
+  const nonclaims = exactPlainRecord(
+    receipt.nonclaims,
+    VERIFIER_READINESS_NONCLAIM_KEYS,
+  );
+  const expectedBoundary =
+    boundary === "production-fixed-current-euid-private-registry-provisioning"
+      ? "production-fixed-current-euid-userinfo-home-role-bundle-receipt-git-closure"
+      : "test-only-injected-current-euid-home-role-bundle-receipt-git-closure";
+  if (
+    receipt.contract !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CONTRACT ||
+    receipt.status !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_STATUS ||
+    receipt.claim_boundary !==
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY ||
+    receipt.execution_boundary !== expectedBoundary ||
+    verification.fixed_current_euid_home_repository_root !== true ||
+    verification.fixed_verifier_revision !== true ||
+    verification.pinned_receipt_git_closure_checked !== true ||
+    verification.closure_receipt_validated !== true ||
+    verification.sensitive_values_exported !== false
+  ) {
+    throw new Error("verifier readiness receipt differs");
+  }
+  for (const key of VERIFIER_READINESS_NONCLAIM_KEYS) {
+    if (nonclaims[key] !== false) {
+      throw new Error("verifier readiness nonclaim differs");
+    }
+  }
 }
 
 function zeroize(bytes: Uint8Array): void {
@@ -752,6 +844,7 @@ function buildReceipt<
     status: FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS,
     execution_boundary: boundary,
     verification: frozenRecord({
+      verifier_source_artifact_closure_checked_before_install: true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
       run_id_generated_from_32_byte_csprng: true as const,
@@ -791,6 +884,23 @@ async function provision<
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt<TBoundary>>
 > {
+  try {
+    const readinessReceipt = await dependencies.verifyVerifierReadiness();
+    validateVerifierReadinessReceipt(readinessReceipt, boundary);
+    dependencies.assertVerifierReadinessIdentityBinding(
+      readinessReceipt,
+      dependencies.effectiveUserId,
+      dependencies.homeDirectory,
+    );
+  } catch {
+    throw new FloodgateV7ProductionConnectorRegistryProvisionerError(
+      "verifier-readiness",
+      "no-registry-change-established",
+      false,
+      "fresh-invocation-required",
+    );
+  }
+
   try {
     validateCurrentBindingReceipt(
       await dependencies.verifyCurrentBinding(),
@@ -981,6 +1091,10 @@ export function provisionFloodgateV7ProductionConnectorRegistry(): Promise<
     const dependencies = captureDependencies({
       effectiveUserId,
       homeDirectory: userInfo.homedir,
+      verifyVerifierReadiness:
+        verifyFloodgateV7ProductionConnectorVerifierReadiness as ProvisionerDependencies["verifyVerifierReadiness"],
+      assertVerifierReadinessIdentityBinding:
+        assertFloodgateV7ProductionConnectorVerifierReadinessIdentityBinding as ProvisionerDependencies["assertVerifierReadinessIdentityBinding"],
       verifyCurrentBinding:
         verifyFloodgateV7ApprovedKeyCurrentBinding as ProvisionerDependencies["verifyCurrentBinding"],
       loadApprovedEnrollment:

@@ -630,19 +630,19 @@ type Prefix100PreflightCapabilityBoundary = "production" | "test-only";
 type Prefix100PreflightModuleLoader = () => unknown;
 
 const PREFIX_100_UNDER_LOCK_OUTCOME_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3" as const;
 const PREFIX_100_PRODUCTION_PREFLIGHT_EXECUTION_BOUNDARY =
-  "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
+  "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock" as const;
 const PREFIX_100_TEST_PREFLIGHT_EXECUTION_BOUNDARY =
   "test-only-injected-current-euid-home-read-only-observation" as const;
 const PREFIX_100_RUNNER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-runner-v1" as const;
+  "shogi-floodgate-v7-production-connector-runner-v2" as const;
 const PREFIX_100_RUNNER_STATUS =
-  "registry-approved-current-bound-production-connector-gate-complete" as const;
+  "application-source-bound-registry-approved-current-production-connector-gate-complete" as const;
 const PREFIX_100_RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1" as const;
+  "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
 const PREFIX_100_RUNNER_EXECUTION_BOUNDARY =
-  "production-fixed-gate-private-registry-and-capability-owners" as const;
+  "production-fixed-application-source-bound-gate-private-registry-and-capability-owners" as const;
 
 function claimConnectorCapabilityFromRegistry(
   capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
@@ -3247,6 +3247,7 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     "approved_record_binding_matched",
     "fresh_current_key_binding_validated",
     "connector_completed",
+    "application_source_exact_clean_closure_validated_under_outer_gate",
     "exact_prefix_100_read_only_continuity_postflight_completed",
   ]);
   const nonclaims = exactFrozenNullDataRecord(receipt.nonclaims, [
@@ -3256,6 +3257,9 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     "raw_connector_receipt_disclosed",
     "key_material_disclosed",
     "row_or_position_content_disclosed",
+    "application_source_revision_disclosed",
+    "application_source_path_disclosed",
+    "application_source_digest_disclosed",
     "teacher_label",
     "optimizer_training",
     "weight",
@@ -3276,6 +3280,8 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     verification.approved_record_binding_matched !== true ||
     verification.fresh_current_key_binding_validated !== true ||
     verification.connector_completed !== true ||
+    verification.application_source_exact_clean_closure_validated_under_outer_gate !==
+      true ||
     verification.exact_prefix_100_read_only_continuity_postflight_completed !==
       true
   ) {

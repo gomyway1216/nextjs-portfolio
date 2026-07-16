@@ -102,14 +102,39 @@ function runEntry(
     | "unknown",
   arguments_: readonly string[] = [],
   wrongRuntime = false,
+  sourceGuard: Readonly<{
+    expectedPurposeEntrypoint?: string;
+    throws?: boolean;
+  }> = {},
 ): SpawnSyncReturns<string> {
+  const expectedPurposeEntrypoint =
+    sourceGuard.expectedPurposeEntrypoint ??
+    path.relative(REPOSITORY_ROOT, entryPath);
   const launcher = String.raw`
 const Module = require("node:module");
 const originalLoad = Module._load;
 const privateCanary = ${JSON.stringify(PRIVATE_CANARY)};
+let sourceGuardCalls = 0;
 Module._load = function (request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+    return {
+      assertFloodgateV7ProductionApplicationEntrypointContext(expectedPurposeEntrypoint) {
+        sourceGuardCalls += 1;
+        if (
+          sourceGuardCalls !== 1 ||
+          expectedPurposeEntrypoint !== ${JSON.stringify(expectedPurposeEntrypoint)} ||
+          ${JSON.stringify(sourceGuard.throws === true)}
+        ) {
+          throw new Error(privateCanary);
+        }
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-production-connector-runner")) {
-    if (${JSON.stringify(mode)} === "load-must-not-happen") throw new Error(privateCanary);
+    if (${JSON.stringify(mode)} === "load-must-not-happen" || sourceGuardCalls !== 1) {
+      process.stdout.write(privateCanary);
+      throw new Error(privateCanary);
+    }
     class RunnerError extends Error {
       constructor(gate) {
         super("sanitized runner failure");
@@ -124,10 +149,10 @@ Module._load = function (request, parent, isMain) {
       }
     }
     const gateReceipt = (gate, target, sealed) => ({
-      contract: "shogi-floodgate-v7-production-connector-runner-v1",
-      status: "registry-approved-current-bound-production-connector-gate-complete",
-      claim_boundary: "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1",
-      execution_boundary: "production-fixed-gate-private-registry-and-capability-owners",
+      contract: "shogi-floodgate-v7-production-connector-runner-v2",
+      status: "application-source-bound-registry-approved-current-production-connector-gate-complete",
+      claim_boundary: "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
+      execution_boundary: "production-fixed-application-source-bound-gate-private-registry-and-capability-owners",
       gate,
       checkpoint: {
         target_parents: target,
@@ -139,6 +164,7 @@ Module._load = function (request, parent, isMain) {
         approved_record_binding_matched: true,
         fresh_current_key_binding_validated: true,
         connector_completed: true,
+        application_source_exact_clean_closure_validated_under_outer_gate: true,
         ...(gate === "durable-prefix-100" ? {
           exact_prefix_100_read_only_continuity_postflight_completed: true,
         } : {}),
@@ -150,6 +176,9 @@ Module._load = function (request, parent, isMain) {
         raw_connector_receipt_disclosed: false,
         key_material_disclosed: false,
         row_or_position_content_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         teacher_label: false,
         optimizer_training: false,
         weight: false,
@@ -286,6 +315,51 @@ describe("Floodgate v7 production connector CLI", () => {
     },
   );
 
+  it("rejects a mismatched purpose entry before lazy-loading the runner", () => {
+    const result = runEntry(
+      ENTRY_CASES[0].path,
+      "load-must-not-happen",
+      [],
+      false,
+      {
+        expectedPurposeEntrypoint:
+          "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      gate: "durable-prefix-100",
+      phase: "capture",
+      connector_invoked: false,
+      checkpoint_may_have_persisted: false,
+      success_receipt_issued: false,
+    });
+  });
+
+  it("sanitizes a source guard failure before lazy-loading the runner", () => {
+    const result = runEntry(
+      ENTRY_CASES[0].path,
+      "load-must-not-happen",
+      [],
+      false,
+      { throws: true },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      gate: "durable-prefix-100",
+      phase: "capture",
+      connector_invoked: false,
+      checkpoint_may_have_persisted: false,
+      success_receipt_issued: false,
+    });
+  });
+
   it.each(ENTRY_CASES)(
     "publishes only the allowlisted $gate success projection",
     ({ path: entryPath, gate, target, sealed }) => {
@@ -303,6 +377,10 @@ describe("Floodgate v7 production connector CLI", () => {
         sealed,
         checkpoint_may_have_persisted: true,
         fresh_current_key_binding_validated: true,
+        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         raw_connector_receipt_disclosed: false,
         private_registry_values_disclosed: false,
         connector_options_disclosed: false,
@@ -397,7 +475,7 @@ describe("Floodgate v7 production connector CLI", () => {
     });
   });
 
-  it("keeps the argv check before the lazy runner require and contains no raw receipt projection", async () => {
+  it("keeps argv, runtime, and source checks before the lazy runner require and contains no raw receipt projection", async () => {
     const source = await fs.promises.readFile(CLI_SOURCE_PATH, "utf8");
     const executeStart = source.indexOf("async function executeCli");
     const executeSource = source.slice(executeStart);
@@ -405,13 +483,17 @@ describe("Floodgate v7 production connector CLI", () => {
     const runtimeCheck = executeSource.indexOf(
       "process.version !== REQUIRED_NODE_VERSION",
     );
+    const sourceGuard = executeSource.indexOf(
+      "assertFloodgateV7ProductionApplicationEntrypointContext(",
+    );
     const lazyRequire = executeSource.indexOf(
       'require("./floodgate-v7-production-connector-runner")',
     );
     expect(executeStart).toBeGreaterThan(-1);
     expect(argumentCheck).toBeGreaterThan(-1);
     expect(runtimeCheck).toBeGreaterThan(argumentCheck);
-    expect(runtimeCheck).toBeLessThan(lazyRequire);
+    expect(sourceGuard).toBeGreaterThan(runtimeCheck);
+    expect(sourceGuard).toBeLessThan(lazyRequire);
     expect(source).not.toMatch(/process\.(?:stdin|env)\b/u);
     expect(source).not.toContain("stringify(rawRunnerReceipt)");
     expect(source).toContain("sanitizedSuccess(rawRunnerReceipt, gate)");

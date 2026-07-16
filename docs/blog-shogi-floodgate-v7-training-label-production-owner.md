@@ -104,7 +104,7 @@ package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いf
 
 ## 9. local validationはCOMPLETE、GitHub gateはPENDING
 
-最終local candidateは`871841ad35dd5e91b97a73b5e63707dbe8673a4e`である。production実装を対象にした独立security reviewはP0 / P1 / P2 / P3すべて0、merge-blocking finding 0で完了した。推測値ではなく、`/usr/bin/time -l`で得たwall time、maximum RSS、swapをmachine evidenceへ記録した。
+検証済みimplementation / test revisionは`871841ad35dd5e91b97a73b5e63707dbe8673a4e`である。production実装を対象にした独立security reviewはP0 / P1 / P2 / P3すべて0、merge-blocking finding 0で完了した。推測値ではなく、`/usr/bin/time -l`で得たwall time、maximum RSS、swapをmachine evidenceへ記録した。
 
 | Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
 | --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
@@ -119,7 +119,7 @@ package scriptは`/usr/bin/caffeinate -dimsu`の下でNodeを起動し、長いf
 | npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
 | GitHub CI / review                      | PENDING  | PR / checks / review未確定               | null     | null          |
 
-中間結果も隠していない。最初のdefault full runは末尾がfull lint / buildと重なり、161 files中159、2,911 tests中2,909がpassした。1件はV2 recordが正しく`purpose`を書いているのに旧V1の`gate`を期待したtest漏れで、`a95760b`で修正し単独16 / 16を確認した。もう1件はreal-child stable-WASM初期化がtest-only 30秒watchdogを負荷下で超えたものだった。直後の単独実行は53 / 53成功し、本番watchdogは元から120秒である。このsemantic invariance testだけstartupを120秒、外側cleanup猶予を180秒へ合わせ、search watchdog 30秒、worker / production実装、retryなしは維持した。負荷中の単独再確認53 / 53と、8-worker final full 2,911 / 2,911が成功した。
+中間結果も隠していない。最初のdefault full runは末尾がfull lint / buildと重なり、161 files中159、2,911 tests中2,909がpassした。1件はV2 recordが正しく`purpose`を書いているのに旧V1の`gate`を期待したtest漏れで、`a95760b`で修正し単独16 / 16を確認した。もう1件はreal-child stable-WASM初期化がtest-only 30秒watchdogを負荷下で超えたものだった。直後の単独実行は53 / 53成功し、本番watchdogは元から120秒である。このsemantic invariance testだけstartupを120秒、1 / 2 / 3-worker構成を含むtest全体上限を180秒へ合わせ、search watchdog 30秒、worker / production実装、retryなしは維持した。負荷中の単独再確認53 / 53と、8-worker final full 2,911 / 2,911が成功した。
 
 local gateが閉じても、GitHub欄のPENDINGは成功claimではない。merge条件はready PRのCIがgreenで、actionable unresolved reviewが0になることである。通常方針どおりregular merge commitを使い、live operationはそのmergeとは別gateにする。
 

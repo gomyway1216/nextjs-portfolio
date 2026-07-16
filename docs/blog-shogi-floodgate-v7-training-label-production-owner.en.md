@@ -104,7 +104,7 @@ Success writes one sanitized JSON line to stdout. Failure sets a nonzero exit st
 
 ## 9. Local validation is COMPLETE; the GitHub gate is PENDING
 
-The final local candidate is `871841ad35dd5e91b97a73b5e63707dbe8673a4e`. An independent security review of the production implementation completed with zero P0, P1, P2, P3, or merge-blocking findings. Machine evidence records measured wall time, maximum RSS, and swaps from `/usr/bin/time -l`, not estimates.
+The validated implementation and test revision is `871841ad35dd5e91b97a73b5e63707dbe8673a4e`. An independent security review of the production implementation completed with zero P0, P1, P2, P3, or merge-blocking findings. Machine evidence records measured wall time, maximum RSS, and swaps from `/usr/bin/time -l`, not estimates.
 
 | Validation                              | Status   | Result                                   | Duration | Maximum RSS   |
 | --------------------------------------- | -------- | ---------------------------------------- | -------- | ------------- |
@@ -119,7 +119,7 @@ The final local candidate is `871841ad35dd5e91b97a73b5e63707dbe8673a4e`. An inde
 | npm audit                               | COMPLETE | 0 vulnerabilities                        | 0.56 s   | 133,562,368   |
 | GitHub CI / review                      | PENDING  | PR, checks, and review unknown           | null     | null          |
 
-Intermediate results are not hidden. The first default full run overlapped with full lint and build at its tail; 159 of 161 files and 2,909 of 2,911 tests passed. One failure was a missed test update: the V2 record correctly wrote `purpose`, while the assertion still expected the legacy V1 `gate`. Revision `a95760b` corrected it and passed 16 of 16 in isolation. The other failure was real-child stable-WASM initialization exceeding a test-only 30-second watchdog under load. The immediate isolated rerun passed 53 of 53, and production already used a 120-second watchdog. Only this semantic-invariance test now uses 120 seconds for startup and 180 seconds for its outer cleanup allowance. Its 30-second search watchdog, worker and production implementation, and no-retry behavior remain unchanged. A loaded isolated rerun passed 53 of 53, followed by the final eight-worker full run at 2,911 of 2,911.
+Intermediate results are not hidden. The first default full run overlapped with full lint and build at its tail; 159 of 161 files and 2,909 of 2,911 tests passed. One failure was a missed test update: the V2 record correctly wrote `purpose`, while the assertion still expected the legacy V1 `gate`. Revision `a95760b` corrected it and passed 16 of 16 in isolation. The other failure was real-child stable-WASM initialization exceeding a test-only 30-second watchdog under load. The immediate isolated rerun passed 53 of 53, and production already used a 120-second watchdog. Only this semantic-invariance test now uses 120 seconds for startup and 180 seconds for the whole test containing its one-, two-, and three-worker cases. Its 30-second search watchdog, worker and production implementation, and no-retry behavior remain unchanged. A loaded isolated rerun passed 53 of 53, followed by the final eight-worker full run at 2,911 of 2,911.
 
 Even after the local gate closes, GitHub PENDING is not a success claim. Merge still requires green CI on a ready PR and zero actionable unresolved reviews. The normal regular merge-commit policy applies, and live operation remains a separate gate from merge.
 

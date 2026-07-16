@@ -21,7 +21,7 @@ import {
 } from "./floodgate-v7-production-connector-registry";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-installer-v1" as const;
+  "shogi-floodgate-v7-production-connector-registry-installer-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS =
   "new-production-connector-registry-no-clobber-published-durable-and-revalidated" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CLAIM_BOUNDARY =
@@ -103,6 +103,7 @@ export interface FloodgateV7ProductionConnectorRegistryInstallerReceipt<
   readonly registry_binding: Readonly<{
     readonly registry_canonical_bytes_validated: true;
     readonly approved_record_binding_captured: true;
+    readonly application_source_binding_captured: true;
     readonly immutable_run_configuration_captured: true;
   }>;
   readonly test_boundary: Readonly<{
@@ -114,6 +115,8 @@ export interface FloodgateV7ProductionConnectorRegistryInstallerReceipt<
     readonly registry_contents_disclosed: false;
     readonly registry_digest_disclosed: false;
     readonly approved_record_binding_disclosed: false;
+    readonly application_source_binding_disclosed: false;
+    readonly application_source_revision_disclosed: false;
     readonly immutable_run_configuration_disclosed: false;
     readonly key_instance_id_disclosed: false;
     readonly owner_uid_disclosed: false;
@@ -1427,6 +1430,7 @@ function buildReceipt<
     registry_binding: frozenRecord({
       registry_canonical_bytes_validated: true as const,
       approved_record_binding_captured: true as const,
+      application_source_binding_captured: true as const,
       immutable_run_configuration_captured: true as const,
     }),
     test_boundary: frozenRecord({
@@ -1438,6 +1442,8 @@ function buildReceipt<
       registry_contents_disclosed: false as const,
       registry_digest_disclosed: false as const,
       approved_record_binding_disclosed: false as const,
+      application_source_binding_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
       immutable_run_configuration_disclosed: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,

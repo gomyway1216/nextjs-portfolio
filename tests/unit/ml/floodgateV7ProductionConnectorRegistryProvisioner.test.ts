@@ -50,6 +50,9 @@ const EUID = process.geteuid?.() ?? 501;
 const RECORD_SHA256 = "cd".repeat(32);
 const KEY_INSTANCE_ID = "ef".repeat(32);
 const RUN_ID = "ab".repeat(32);
+const APPLICATION_REVISION = "12".repeat(20);
+const APPLICATION_SOURCE_LAYOUT =
+  "fixed-current-euid-userinfo-home-production-application-v1" as const;
 const VALUE_CANARY = "private-provisioner-canary-must-never-leak";
 const temporaryRoots: string[] = [];
 
@@ -139,6 +142,12 @@ function expectedRegistryClaim(
         recordBytes: RECORD_BYTES,
         recordSha256: RECORD_SHA256,
         keyInstanceId: KEY_INSTANCE_ID,
+      }),
+    applicationSourceBinding:
+      overrides.applicationSourceBinding ??
+      Object.freeze({
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
       }),
     stageAuthorization:
       overrides.stageAuthorization ??
@@ -294,6 +303,7 @@ function verifierReadinessReceipt() {
 interface HarnessOverrides {
   readonly verifyVerifierReadiness?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyVerifierReadiness"];
   readonly assertVerifierReadinessIdentityBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["assertVerifierReadinessIdentityBinding"];
+  readonly captureApplicationSource?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["captureApplicationSource"];
   readonly verifyCurrentBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyCurrentBinding"];
   readonly loadApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["loadApprovedEnrollment"];
   readonly claimApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["claimApprovedEnrollment"];
@@ -325,6 +335,13 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
       expect(receipt).toEqual(verifierReadinessReceipt());
       expect(effectiveUserId).toBe(EUID);
       expect(expectedHome).toBe(home);
+    },
+    captureApplicationSource: async () => {
+      calls.push("application-source");
+      return Object.freeze({
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
+      });
     },
     verifyCurrentBinding: async () => {
       calls.push("approved-current-binding");
@@ -374,6 +391,8 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
       assertVerifierReadinessIdentityBinding:
         overrides.assertVerifierReadinessIdentityBinding ??
         defaults.assertVerifierReadinessIdentityBinding,
+      captureApplicationSource:
+        overrides.captureApplicationSource ?? defaults.captureApplicationSource,
       verifyCurrentBinding:
         overrides.verifyCurrentBinding ?? defaults.verifyCurrentBinding,
       loadApprovedEnrollment:
@@ -451,6 +470,8 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     );
     expect(receipt.verification).toMatchObject({
       verifier_source_artifact_closure_checked_before_install: true,
+      production_application_source_closure_checked_before_current_key_and_install: true,
+      application_source_binding_bound_and_postflight_checked: true,
       create_only_install_succeeded: true,
       registry_loader_postflight_succeeded: true,
       exact_private_claim_postflight_succeeded: true,
@@ -470,6 +491,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect(state.calls).toEqual([
       "verifier-readiness",
       "verifier-readiness-binding",
+      "application-source",
       "approved-current-binding",
       "approved-enrollment-load",
       "approved-enrollment-claim",
@@ -487,6 +509,10 @@ describe("Floodgate v7 production connector registry provisioner", () => {
         key_instance_id: KEY_INSTANCE_ID,
       },
       verifier_revision: "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+      application_source_binding: {
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
+      },
       repository_root: path.join(
         home,
         ".codex",
@@ -529,8 +555,10 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       execution_boundary: "test-only-injected-private-registry-provisioning",
       verification: {
         verifier_source_artifact_closure_checked_before_install: true,
+        production_application_source_closure_checked_before_current_key_and_install: true,
         approved_record_current_key_binding_checked: true,
         approved_record_bound_into_registry: true,
+        application_source_binding_bound_and_postflight_checked: true,
         run_id_generated_from_32_byte_csprng: true,
         fixed_configuration_only: true,
         create_only_install_succeeded: true,
@@ -541,6 +569,9 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       nonclaims: {
         run_id_disclosed: false,
         approved_record_digest_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
         key_instance_id_disclosed: false,
         path_disclosed: false,
         gate_executed: false,
@@ -553,6 +584,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect(serialized).not.toContain(RUN_ID);
     expect(serialized).not.toContain(RECORD_SHA256);
     expect(serialized).not.toContain(KEY_INSTANCE_ID);
+    expect(serialized).not.toContain(APPLICATION_REVISION);
     expect(serialized).not.toContain(home);
     expect(Object.isFrozen(receipt)).toBe(true);
   });
@@ -626,6 +658,72 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
   });
 
+  it("fails application-source closure before current-key, entropy, or any registry write", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-application-source",
+    );
+    let getterCalls = 0;
+    const accessorBinding = Object.create(null) as Record<string, unknown>;
+    Object.defineProperties(accessorBinding, {
+      layout: {
+        enumerable: true,
+        get() {
+          getterCalls += 1;
+          return APPLICATION_SOURCE_LAYOUT;
+        },
+      },
+      revision: { enumerable: true, value: APPLICATION_REVISION },
+    });
+    const invalidCaptures: readonly HarnessOverrides["captureApplicationSource"][] =
+      [
+        async () => {
+          throw new Error(VALUE_CANARY);
+        },
+        async () =>
+          ({
+            layout: "wrong-layout",
+            revision: APPLICATION_REVISION,
+          }) as never,
+        async () =>
+          ({
+            layout: APPLICATION_SOURCE_LAYOUT,
+            revision: "AB".repeat(20),
+          }) as never,
+        async () =>
+          ({
+            layout: APPLICATION_SOURCE_LAYOUT,
+            revision: APPLICATION_REVISION,
+            extra: VALUE_CANARY,
+          }) as never,
+        async () => new Proxy(accessorBinding, {}) as never,
+        async () => accessorBinding as never,
+      ];
+
+    for (const captureApplicationSource of invalidCaptures) {
+      if (captureApplicationSource === undefined) continue;
+      const state = harness(home, { captureApplicationSource });
+      const failure = await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+          state.dependencies,
+        ),
+      );
+      expectSanitizedFailure(failure, {
+        phase: "application-source",
+        durability: "no-registry-change-established",
+        registry_may_have_been_created: false,
+        retry_disposition: "fresh-invocation-required",
+      });
+      expect(state.calls).toEqual([
+        "verifier-readiness",
+        "verifier-readiness-binding",
+      ]);
+      expect(state.installedInput()).toBeUndefined();
+      expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
+    }
+    expect(getterCalls).toBe(0);
+  });
+
   it("fails closed at current binding and enrollment load or claim before entropy", async () => {
     const home = path.join(os.tmpdir(), "floodgate-v7-provisioner-early");
     const scenarios: readonly [HarnessOverrides, string, readonly string[]][] =
@@ -637,14 +735,22 @@ describe("Floodgate v7 production connector registry provisioner", () => {
             },
           },
           "approved-current-binding",
-          ["verifier-readiness", "verifier-readiness-binding"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "application-source",
+          ],
         ],
         [
           {
             verifyCurrentBinding: async () => Object.freeze({}) as never,
           },
           "approved-current-binding",
-          ["verifier-readiness", "verifier-readiness-binding"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "application-source",
+          ],
         ],
         [
           {
@@ -656,6 +762,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
           [
             "verifier-readiness",
             "verifier-readiness-binding",
+            "application-source",
             "approved-current-binding",
           ],
         ],
@@ -669,6 +776,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
           [
             "verifier-readiness",
             "verifier-readiness-binding",
+            "application-source",
             "approved-current-binding",
             "approved-enrollment-load",
           ],
@@ -956,6 +1064,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
         },
       },
       approvedKeyBinding: { enumerable: true, value: {} },
+      applicationSourceBinding: { enumerable: true, value: {} },
       stageAuthorization: { enumerable: true, value: {} },
       consumer: { enumerable: true, value: {} },
     });
@@ -978,6 +1087,15 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       {
         claimRegistry: () =>
           expectedRegistryClaim(home, { runId: "00".repeat(32) }),
+      },
+      {
+        claimRegistry: () =>
+          expectedRegistryClaim(home, {
+            applicationSourceBinding: Object.freeze({
+              layout: APPLICATION_SOURCE_LAYOUT,
+              revision: "34".repeat(20),
+            }),
+          }),
       },
       {
         claimRegistry: () =>

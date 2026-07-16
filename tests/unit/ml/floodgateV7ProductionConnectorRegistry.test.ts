@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
+  FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_STATUS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
@@ -15,6 +16,7 @@ import {
   claimFloodgateV7ProductionConnectorRegistryCoreForTests,
   loadFloodgateV7ProductionConnectorRegistry,
   loadFloodgateV7ProductionConnectorRegistryCoreForTests,
+  readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore,
   serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
   type FloodgateV7ProductionConnectorRegistryCapability,
   type FloodgateV7ProductionConnectorRegistryInstallationInput,
@@ -25,6 +27,9 @@ const RUN_ID = "12".repeat(32);
 const APPROVED_RECORD_SHA256 = "34".repeat(32);
 const KEY_INSTANCE_ID = "56".repeat(32);
 const VERIFIER_REVISION = "78".repeat(20);
+const APPLICATION_REVISION = "9a".repeat(20);
+const APPLICATION_SOURCE_LAYOUT =
+  "fixed-current-euid-userinfo-home-production-application-v1" as const;
 const TEST_BOUNDARY =
   "test-only-injected-current-euid-home-production-connector-registry" as const;
 const temporaryRoots: string[] = [];
@@ -58,6 +63,10 @@ function inputFor(
       key_instance_id: KEY_INSTANCE_ID,
     },
     verifier_revision: VERIFIER_REVISION,
+    application_source_binding: {
+      layout: APPLICATION_SOURCE_LAYOUT,
+      revision: APPLICATION_REVISION,
+    },
     repository_root: repositoryRoot,
     raw_lock_root: path.join(home, "raw-lock"),
     role_lock_root: path.join(home, "role-lock"),
@@ -163,6 +172,7 @@ describe("Floodgate v7 production connector registry", () => {
       "run_id",
       "approved_key_binding",
       "verifier_revision",
+      "application_source_binding",
       "repository_root",
       "raw_lock_root",
       "role_lock_root",
@@ -176,6 +186,58 @@ describe("Floodgate v7 production connector registry", () => {
     expect(parsed.status).toBe(
       FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_STATUS,
     );
+    expect(parsed.application_source_binding).toEqual({
+      layout: APPLICATION_SOURCE_LAYOUT,
+      revision: APPLICATION_REVISION,
+    });
+  });
+
+  it("strictly reads only the V2 application-source binding from canonical bytes", async () => {
+    const fixture = await makeFixture();
+    const binding =
+      readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore(
+        Buffer.from(fixture.recordText, "utf8"),
+      );
+
+    expect(binding).toEqual(fixture.input.application_source_binding);
+    expect(Object.getPrototypeOf(binding)).toBeNull();
+    expect(Object.isFrozen(binding)).toBe(true);
+  });
+
+  it("fully inspects canonical V1 bytes but never issues mutation authority", async () => {
+    const fixture = await makeFixture();
+    const parsed = JSON.parse(fixture.recordText) as Record<string, unknown>;
+    const legacy = {
+      contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT,
+      status: parsed.status,
+      layout: parsed.layout,
+      run_id: parsed.run_id,
+      approved_key_binding: parsed.approved_key_binding,
+      verifier_revision: parsed.verifier_revision,
+      repository_root: parsed.repository_root,
+      raw_lock_root: parsed.raw_lock_root,
+      role_lock_root: parsed.role_lock_root,
+      role_bundle_root: parsed.role_bundle_root,
+      legacy_protected_position_ids_path:
+        parsed.legacy_protected_position_ids_path,
+      engine_args: parsed.engine_args,
+    };
+    const legacyText = `${JSON.stringify(legacy)}\n`;
+    await replaceRecord(fixture, legacyText);
+
+    expect(() =>
+      readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore(
+        Buffer.from(legacyText, "utf8"),
+      ),
+    ).toThrow(/legacy registry/u);
+    await expect(
+      loadFloodgateV7ProductionConnectorRegistryCoreForTests(
+        testDependencies(fixture),
+      ),
+    ).rejects.toMatchObject({
+      phase: "record-validation",
+      capability_issued: false,
+    });
   });
 
   it("accepts validated null-prototype records from the in-process provisioner", async () => {
@@ -288,6 +350,7 @@ describe("Floodgate v7 production connector registry", () => {
     expect(Object.keys(claim)).toEqual([
       "runId",
       "approvedKeyBinding",
+      "applicationSourceBinding",
       "stageAuthorization",
       "consumer",
     ]);
@@ -296,6 +359,10 @@ describe("Floodgate v7 production connector registry", () => {
       recordBytes: 4096,
       recordSha256: APPROVED_RECORD_SHA256,
       keyInstanceId: KEY_INSTANCE_ID,
+    });
+    expect(claim.applicationSourceBinding).toEqual({
+      layout: APPLICATION_SOURCE_LAYOUT,
+      revision: APPLICATION_REVISION,
     });
     expect(claim.stageAuthorization).toEqual({
       repositoryRoot: fixture.input.repository_root,
@@ -323,6 +390,7 @@ describe("Floodgate v7 production connector registry", () => {
     });
     expect(Object.isFrozen(claim)).toBe(true);
     expect(Object.isFrozen(claim.approvedKeyBinding)).toBe(true);
+    expect(Object.isFrozen(claim.applicationSourceBinding)).toBe(true);
     expect(Object.isFrozen(claim.stageAuthorization)).toBe(true);
     expect(Object.isFrozen(claim.stageAuthorization.engineArgs)).toBe(true);
     expect(Object.isFrozen(claim.consumer)).toBe(true);
@@ -559,6 +627,7 @@ describe("Floodgate v7 production connector registry", () => {
       run_id: parsed.run_id,
       approved_key_binding: parsed.approved_key_binding,
       verifier_revision: parsed.verifier_revision,
+      application_source_binding: parsed.application_source_binding,
       repository_root: parsed.repository_root,
       raw_lock_root: parsed.raw_lock_root,
       role_lock_root: parsed.role_lock_root,

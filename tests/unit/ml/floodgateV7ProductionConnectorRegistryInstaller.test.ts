@@ -20,6 +20,7 @@ const RUN_ID = "a1".repeat(32);
 const RECORD_SHA256 = "b2".repeat(32);
 const KEY_INSTANCE_ID = "c3".repeat(32);
 const VERIFIER_REVISION = "d4".repeat(20);
+const APPLICATION_REVISION = "e5".repeat(20);
 const VALUE_CANARY = "registry-installer-secret-canary";
 const PATH_CANARY = "registry-installer-path-canary";
 const STAGING_BASENAME = ".registry.json.installing-v1";
@@ -70,6 +71,11 @@ function registryInput(
       key_instance_id: KEY_INSTANCE_ID,
     },
     verifier_revision: VERIFIER_REVISION,
+    application_source_binding: {
+      layout:
+        "fixed-current-euid-userinfo-home-production-application-v1" as const,
+      revision: APPLICATION_REVISION,
+    },
     repository_root: path.join(home, "repository"),
     raw_lock_root: path.join(home, "raw-lock"),
     role_lock_root: path.join(home, "role-lock"),
@@ -260,6 +266,7 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       registry_binding: {
         registry_canonical_bytes_validated: true,
         approved_record_binding_captured: true,
+        application_source_binding_captured: true,
         immutable_run_configuration_captured: true,
       },
       test_boundary: {
@@ -277,6 +284,7 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       RECORD_SHA256,
       KEY_INSTANCE_ID,
       VERIFIER_REVISION,
+      APPLICATION_REVISION,
       input.repository_root,
       input.engine_args[2],
     ]) {

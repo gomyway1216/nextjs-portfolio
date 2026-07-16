@@ -27,6 +27,11 @@ import {
   type FloodgateV7ApprovedKeyCurrentBindingReceipt,
 } from "./floodgate-v7-approved-key-current-binding";
 import {
+  FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  captureFloodgateV7ProductionApplicationSourceProvenance,
+  type FloodgateV7ProductionApplicationSourceBinding,
+} from "./floodgate-v7-production-application-source-provenance";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS,
   FloodgateV7ProductionConnectorRegistryInstallerError,
@@ -57,12 +62,13 @@ import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./f
 export { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "./floodgate-v7-production-connector-verifier-readiness";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provisioner-v2" as const;
+  "shogi-floodgate-v7-production-connector-registry-provisioner-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISIONER_STATUS =
   "immutable-private-run-registry-created-bound-and-postflight-validated" as const;
 export type FloodgateV7ProductionConnectorRegistryProvisionerPhase =
   | "capture"
   | "verifier-readiness"
+  | "application-source"
   | "approved-current-binding"
   | "approved-enrollment"
   | "configuration"
@@ -94,8 +100,10 @@ export interface FloodgateV7ProductionConnectorRegistryProvisionerReceipt<
   readonly execution_boundary: TBoundary;
   readonly verification: Readonly<{
     readonly verifier_source_artifact_closure_checked_before_install: true;
+    readonly production_application_source_closure_checked_before_current_key_and_install: true;
     readonly approved_record_current_key_binding_checked: true;
     readonly approved_record_bound_into_registry: true;
+    readonly application_source_binding_bound_and_postflight_checked: true;
     readonly run_id_generated_from_32_byte_csprng: true;
     readonly fixed_configuration_only: true;
     readonly create_only_install_succeeded: true;
@@ -106,6 +114,9 @@ export interface FloodgateV7ProductionConnectorRegistryProvisionerReceipt<
   readonly nonclaims: Readonly<{
     readonly run_id_disclosed: false;
     readonly approved_record_digest_disclosed: false;
+    readonly application_source_revision_disclosed: false;
+    readonly application_source_path_disclosed: false;
+    readonly application_source_digest_disclosed: false;
     readonly key_instance_id_disclosed: false;
     readonly owner_uid_disclosed: false;
     readonly path_disclosed: false;
@@ -163,6 +174,9 @@ interface ProvisionerDependencies {
     expectedEffectiveUserId: number,
     expectedHomeDirectory: string,
   ) => void;
+  readonly captureApplicationSource: () => Promise<
+    Readonly<FloodgateV7ProductionApplicationSourceBinding>
+  >;
   readonly verifyCurrentBinding: () => Promise<
     Readonly<FloodgateV7ApprovedKeyCurrentBindingReceipt>
   >;
@@ -214,12 +228,14 @@ const getEffectiveUserId =
 const realpathSync = fs.realpathSync.native.bind(fs.realpathSync);
 const capturedRandomBytes = randomBytes;
 const HEX_64_RE = /^[0-9a-f]{64}$/u;
+const REVISION_RE = /^[0-9a-f]{40}$/u;
 const SAFE_INTEGER = Number.isSafeInteger;
 const DEPENDENCY_KEYS = objectFreeze([
   "effectiveUserId",
   "homeDirectory",
   "verifyVerifierReadiness",
   "assertVerifierReadinessIdentityBinding",
+  "captureApplicationSource",
   "verifyCurrentBinding",
   "loadApprovedEnrollment",
   "claimApprovedEnrollment",
@@ -374,6 +390,8 @@ function captureDependencies(
       record.verifyVerifierReadiness as ProvisionerDependencies["verifyVerifierReadiness"],
     assertVerifierReadinessIdentityBinding:
       record.assertVerifierReadinessIdentityBinding as ProvisionerDependencies["assertVerifierReadinessIdentityBinding"],
+    captureApplicationSource:
+      record.captureApplicationSource as ProvisionerDependencies["captureApplicationSource"],
     verifyCurrentBinding:
       record.verifyCurrentBinding as ProvisionerDependencies["verifyCurrentBinding"],
     loadApprovedEnrollment:
@@ -440,6 +458,23 @@ interface ApprovedBinding {
   readonly keyInstanceId: string;
 }
 
+function captureApplicationSourceBinding(
+  value: unknown,
+): Readonly<FloodgateV7ProductionApplicationSourceBinding> {
+  const binding = exactPlainRecord(value, ["layout", "revision"]);
+  if (
+    binding.layout !== FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT ||
+    typeof binding.revision !== "string" ||
+    !REVISION_RE.test(binding.revision)
+  ) {
+    throw new Error("production application source binding differs");
+  }
+  return frozenRecord({
+    layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+    revision: binding.revision,
+  });
+}
+
 function ownDataProperty(value: unknown, key: string, label: string): unknown {
   if (
     value === null ||
@@ -489,6 +524,7 @@ function privateConfiguration(
   home: string,
   approved: Readonly<ApprovedBinding>,
   runId: string,
+  applicationSourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>,
 ): Readonly<FloodgateV7ProductionConnectorRegistryInstallationInput> {
   const repositoryRoot = pathJoin(
     home,
@@ -504,6 +540,10 @@ function privateConfiguration(
       key_instance_id: approved.keyInstanceId,
     }),
     verifier_revision: FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION,
+    application_source_binding: frozenRecord({
+      layout: applicationSourceBinding.layout,
+      revision: applicationSourceBinding.revision,
+    }),
     repository_root: repositoryRoot,
     raw_lock_root: pathJoin(
       home,
@@ -557,6 +597,10 @@ function expectedPrivateClaim(
       recordSha256: input.approved_key_binding.record_sha256,
       keyInstanceId: input.approved_key_binding.key_instance_id,
     }),
+    applicationSourceBinding: frozenRecord({
+      layout: input.application_source_binding.layout,
+      revision: input.application_source_binding.revision,
+    }),
     stageAuthorization: frozenRecord({
       repositoryRoot: input.repository_root,
       rawLockRoot: input.raw_lock_root,
@@ -590,6 +634,7 @@ function exactPrivateClaim(
     const claim = exactPlainRecord(actual, [
       "runId",
       "approvedKeyBinding",
+      "applicationSourceBinding",
       "stageAuthorization",
       "consumer",
     ]);
@@ -598,6 +643,10 @@ function exactPrivateClaim(
       "recordSha256",
       "keyInstanceId",
     ]);
+    const applicationSourceBinding = exactPlainRecord(
+      claim.applicationSourceBinding,
+      ["layout", "revision"],
+    );
     const stageAuthorization = exactPlainRecord(claim.stageAuthorization, [
       "repositoryRoot",
       "rawLockRoot",
@@ -664,6 +713,10 @@ function exactPrivateClaim(
         expected.approvedKeyBinding.recordSha256 &&
       approvedKeyBinding.keyInstanceId ===
         expected.approvedKeyBinding.keyInstanceId &&
+      applicationSourceBinding.layout ===
+        expected.applicationSourceBinding.layout &&
+      applicationSourceBinding.revision ===
+        expected.applicationSourceBinding.revision &&
       stageAuthorization.repositoryRoot ===
         expected.stageAuthorization.repositoryRoot &&
       stageAuthorization.rawLockRoot ===
@@ -845,8 +898,11 @@ function buildReceipt<
     execution_boundary: boundary,
     verification: frozenRecord({
       verifier_source_artifact_closure_checked_before_install: true as const,
+      production_application_source_closure_checked_before_current_key_and_install:
+        true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
+      application_source_binding_bound_and_postflight_checked: true as const,
       run_id_generated_from_32_byte_csprng: true as const,
       fixed_configuration_only: true as const,
       create_only_install_succeeded: true as const,
@@ -857,6 +913,9 @@ function buildReceipt<
     nonclaims: frozenRecord({
       run_id_disclosed: false as const,
       approved_record_digest_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
+      application_source_path_disclosed: false as const,
+      application_source_digest_disclosed: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,
       path_disclosed: false as const,
@@ -895,6 +954,20 @@ async function provision<
   } catch {
     throw new FloodgateV7ProductionConnectorRegistryProvisionerError(
       "verifier-readiness",
+      "no-registry-change-established",
+      false,
+      "fresh-invocation-required",
+    );
+  }
+
+  let applicationSourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
+  try {
+    applicationSourceBinding = captureApplicationSourceBinding(
+      await dependencies.captureApplicationSource(),
+    );
+  } catch {
+    throw new FloodgateV7ProductionConnectorRegistryProvisionerError(
+      "application-source",
       "no-registry-change-established",
       false,
       "fresh-invocation-required",
@@ -954,6 +1027,7 @@ async function provision<
       dependencies.homeDirectory,
       captureApprovedBinding(approved),
       runId,
+      applicationSourceBinding,
     );
   } catch {
     throw new FloodgateV7ProductionConnectorRegistryProvisionerError(
@@ -1095,6 +1169,8 @@ export function provisionFloodgateV7ProductionConnectorRegistry(): Promise<
         verifyFloodgateV7ProductionConnectorVerifierReadiness as ProvisionerDependencies["verifyVerifierReadiness"],
       assertVerifierReadinessIdentityBinding:
         assertFloodgateV7ProductionConnectorVerifierReadinessIdentityBinding as ProvisionerDependencies["assertVerifierReadinessIdentityBinding"],
+      captureApplicationSource:
+        captureFloodgateV7ProductionApplicationSourceProvenance as ProvisionerDependencies["captureApplicationSource"],
       verifyCurrentBinding:
         verifyFloodgateV7ApprovedKeyCurrentBinding as ProvisionerDependencies["verifyCurrentBinding"],
       loadApprovedEnrollment:

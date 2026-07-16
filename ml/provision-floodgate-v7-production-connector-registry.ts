@@ -13,13 +13,13 @@ import type {
 } from "./floodgate-v7-production-connector-registry-provisioner";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provision-failure-v2" as const;
+  "shogi-floodgate-v7-production-connector-registry-provision-failure-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_STATUS =
   "production-connector-registry-provisioning-did-not-issue-a-success-receipt" as const;
 
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const PROVISIONER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-provisioner-v2" as const;
+  "shogi-floodgate-v7-production-connector-registry-provisioner-v3" as const;
 const PROVISIONER_STATUS =
   "immutable-private-run-registry-created-bound-and-postflight-validated" as const;
 const PROVISIONER_EXECUTION_BOUNDARY =
@@ -45,8 +45,10 @@ const SUCCESS_KEYS = objectFreeze([
 ] as const);
 const VERIFICATION_KEYS = objectFreeze([
   "verifier_source_artifact_closure_checked_before_install",
+  "production_application_source_closure_checked_before_current_key_and_install",
   "approved_record_current_key_binding_checked",
   "approved_record_bound_into_registry",
+  "application_source_binding_bound_and_postflight_checked",
   "run_id_generated_from_32_byte_csprng",
   "fixed_configuration_only",
   "create_only_install_succeeded",
@@ -57,6 +59,9 @@ const VERIFICATION_KEYS = objectFreeze([
 const NONCLAIM_KEYS = objectFreeze([
   "run_id_disclosed",
   "approved_record_digest_disclosed",
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
   "key_instance_id_disclosed",
   "owner_uid_disclosed",
   "path_disclosed",
@@ -157,6 +162,12 @@ type ProvisionerModule = Readonly<{
   >;
 }>;
 
+type ApplicationSourceModule = Readonly<{
+  assertFloodgateV7ProductionApplicationEntrypointContext: (
+    expectedRepositoryRelativeEntrypoint: string,
+  ) => void;
+}>;
+
 function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -207,6 +218,7 @@ function validFailurePhase(value: unknown): value is string {
   switch (value) {
     case "capture":
     case "verifier-readiness":
+    case "application-source":
     case "approved-current-binding":
     case "approved-enrollment":
     case "configuration":
@@ -302,8 +314,12 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     receipt.execution_boundary !== PROVISIONER_EXECUTION_BOUNDARY ||
     verification.verifier_source_artifact_closure_checked_before_install !==
       true ||
+    verification.production_application_source_closure_checked_before_current_key_and_install !==
+      true ||
     verification.approved_record_current_key_binding_checked !== true ||
     verification.approved_record_bound_into_registry !== true ||
+    verification.application_source_binding_bound_and_postflight_checked !==
+      true ||
     verification.run_id_generated_from_32_byte_csprng !== true ||
     verification.fixed_configuration_only !== true ||
     verification.create_only_install_succeeded !== true ||
@@ -324,8 +340,11 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     execution_boundary: PROVISIONER_EXECUTION_BOUNDARY,
     verification: frozenRecord({
       verifier_source_artifact_closure_checked_before_install: true as const,
+      production_application_source_closure_checked_before_current_key_and_install:
+        true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
+      application_source_binding_bound_and_postflight_checked: true as const,
       run_id_generated_from_32_byte_csprng: true as const,
       fixed_configuration_only: true as const,
       create_only_install_succeeded: true as const,
@@ -336,6 +355,9 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     nonclaims: frozenRecord({
       run_id_disclosed: false as const,
       approved_record_digest_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
+      application_source_path_disclosed: false as const,
+      application_source_digest_disclosed: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,
       path_disclosed: false as const,
@@ -361,8 +383,15 @@ async function main(): Promise<void> {
     );
   }
 
-  // Keep this require after the argument check. Invalid argv must not even load
-  // a module that captures or can touch the production namespace.
+  const applicationSource =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-argv source-context boundary.
+    require("./floodgate-v7-production-application-source-provenance") as ApplicationSourceModule;
+  applicationSource.assertFloodgateV7ProductionApplicationEntrypointContext(
+    "ml/provision-floodgate-v7-production-connector-registry.ts",
+  );
+
+  // Keep the provisioner require after both invocation and source-context
+  // checks. A mismatched entry point must not load mutation-capable code.
   const provisioner =
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-argv lazy production boundary.
     require("./floodgate-v7-production-connector-registry-provisioner") as ProvisionerModule;

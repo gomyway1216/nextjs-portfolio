@@ -146,6 +146,7 @@ interface FixtureConfiguration {
   readonly stageDeferred?: Deferred<unknown>;
   readonly checkpointDeferred?: Deferred<unknown>;
   readonly consumerPromiseOwnProperty?: "production-pin" | "unexpected";
+  readonly undefinedFailurePoint?: "handoff" | "checkpoint" | "postflight";
 }
 
 interface Fixture {
@@ -829,6 +830,10 @@ function makeFixture(
       calls.claimHandoff += 1;
       events.push("handoff");
       expect(value).toBe(coordinator);
+      if (configuration.undefinedFailurePoint === "handoff") {
+        const undefinedFailure: undefined = undefined;
+        throw undefinedFailure;
+      }
       return handoff as never;
     },
     authorizeStage(value: unknown): Promise<never> {
@@ -912,6 +917,10 @@ function makeFixture(
       calls.claimPostflight += 1;
       events.push("claim-postflight");
       expect(value).toBe(postflightReceipt);
+      if (configuration.undefinedFailurePoint === "postflight") {
+        const undefinedFailure: undefined = undefined;
+        throw undefinedFailure;
+      }
       if (faults.postflight !== undefined) throw faults.postflight;
     },
     checkpoint(...args: unknown[]): Promise<never> {
@@ -930,6 +939,9 @@ function makeFixture(
         "abortAndDrain",
       ]);
       expect(args[5]).toBe(authorization);
+      if (configuration.undefinedFailurePoint === "checkpoint") {
+        return Promise.reject(undefined);
+      }
       if (configuration.checkpointDeferred !== undefined) {
         return configuration.checkpointDeferred.promise as Promise<never>;
       }
@@ -1889,8 +1901,8 @@ describe("Floodgate v7 production checkpoint connector", () => {
 
     await expect(run).rejects.toMatchObject({
       phase: "checkpoint",
-      checkpoint_may_have_persisted: false,
-      retry_disposition: "fresh-invocation-required",
+      checkpoint_may_have_persisted: true,
+      retry_disposition: "checkpoint-reconciliation-required",
     });
     expect(settled).toBe(true);
     expect(fixture.observedFailures[0]?.primary).toBe(primary);
@@ -1992,6 +2004,94 @@ describe("Floodgate v7 production checkpoint connector", () => {
       coordinatorAbort: 1,
     });
   });
+
+  it.each([
+    {
+      label: "synchronous handoff",
+      undefinedFailurePoint: "handoff",
+      phase: "handoff",
+      checkpointMayHavePersisted: false,
+      retryDisposition: "fresh-invocation-required",
+      expectedCalls: {
+        prepareKey: 0,
+        consumer: 0,
+        checkpoint: 0,
+        claimPostflight: 0,
+        discardKey: 0,
+      },
+    },
+    {
+      label: "checkpoint Promise after sink invocation",
+      undefinedFailurePoint: "checkpoint",
+      phase: "checkpoint",
+      checkpointMayHavePersisted: true,
+      retryDisposition: "checkpoint-reconciliation-required",
+      expectedCalls: {
+        prepareKey: 1,
+        consumer: 1,
+        checkpoint: 1,
+        claimPostflight: 0,
+        discardKey: 1,
+      },
+    },
+    {
+      label: "valid receipt postflight claim",
+      undefinedFailurePoint: "postflight",
+      phase: "postflight",
+      checkpointMayHavePersisted: true,
+      retryDisposition: "checkpoint-reconciliation-required",
+      expectedCalls: {
+        prepareKey: 1,
+        consumer: 1,
+        checkpoint: 1,
+        claimPostflight: 1,
+        discardKey: 1,
+      },
+    },
+  ] as const)(
+    "fails closed when $label throws or rejects undefined",
+    async ({
+      undefinedFailurePoint,
+      phase,
+      checkpointMayHavePersisted,
+      retryDisposition,
+      expectedCalls,
+    }) => {
+      const fixture = makeFixture({ undefinedFailurePoint });
+
+      const error = await rejectionOf(
+        runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+          fixture.options,
+          fixture.dependencies,
+        ),
+      );
+
+      expect(error).toBeInstanceOf(
+        FloodgateV7ProductionCheckpointConnectorError,
+      );
+      expect(error).toMatchObject({
+        phase,
+        checkpoint_may_have_persisted: checkpointMayHavePersisted,
+        cleanup_failure_count: 0,
+        retry_disposition: retryDisposition,
+      });
+      expect(fixture.calls).toMatchObject({
+        claimHandoff: 1,
+        ...expectedCalls,
+        leaseCloseCalls: 1,
+        coordinatorClose: 0,
+        coordinatorAbort: 1,
+        observer: 1,
+      });
+      expect(fixture.observedFailures).toHaveLength(1);
+      expect(fixture.observedFailures[0]).toMatchObject({
+        phase,
+        primary: undefined,
+        cleanupFailures: [],
+        checkpointMayHavePersisted,
+      });
+    },
+  );
 
   it("requires checkpoint reconciliation when a sink failure may have persisted", async () => {
     const primary = Object.assign(new Error("ambiguous checkpoint failure"), {
@@ -2150,7 +2250,8 @@ describe("Floodgate v7 production checkpoint connector", () => {
     expect(error).toMatchObject({
       phase: "checkpoint",
       cleanup_failure_count: 3,
-      checkpoint_may_have_persisted: false,
+      checkpoint_may_have_persisted: true,
+      retry_disposition: "checkpoint-reconciliation-required",
     });
     expect(fixture.calls).toMatchObject({
       discardKey: 1,

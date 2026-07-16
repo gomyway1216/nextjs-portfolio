@@ -2,6 +2,8 @@
 
 > [fresh prefix-100 one-shot](./blog-shogi-floodgate-v7-fresh-prefix-100-one-shot.md)を実装・検証したPR #471は、通常のmerge commit `4a14507a5a228cac71c011c94989fa9307f8218a`で統合された。今回のローカル候補は、そのread-only preflight receiptを後の実行権限として再利用せず、**1回だけ取得した同じouter OS lock**の内側でpreflight、active lease、prefix-100 connector 1回、exact-100 postflightを直列化する。低レベルscan単体はcaller supplied anchorを確認するだけで、固定runnerが真正なconnector anchorと同じlock内のscan結果を合成した場合だけ、直前の認証済みscanとのcontinuityへ昇格する。これは独立したHMAC再認証ではない。この候補ではproduction command、namespace mutation、gate、teacher、training、weight、match、live activationを一度も実行しておらず、runOp1も変更していない。English version: [blog-shogi-floodgate-v7-prefix-100-same-lock-one-shot.en.md](./blog-shogi-floodgate-v7-prefix-100-same-lock-one-shot.en.md)
 
+2026-07-16更新: この記事で未マージ候補として記録した[PR #474](https://github.com/gomyway1216/nextjs-portfolio/pull/474)は、その後merge commit `c0b4e55e7fc8a1b3050285ec0cec8a77c35fa98f`で通常mergeされた。後半の未マージ表現は歴史的snapshotである。これはproduction実行を意味せず、training-label finalizer、registry provisioning、real gate、training、live変更はなお未完・未実行である。
+
 ## 1. 結果と現在地
 
 | 項目                 | ローカル候補の結果                           | productionへの意味                                                  |

@@ -1,0 +1,236 @@
+{
+  "schema": "shogi-floodgate-v7-training-label-projection-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_scope": {
+    "class": "local-source-test-and-documentation-candidate-only",
+    "implementation_kind": "pure-synchronous-structural-projection",
+    "production_state_freshly_observed_for_this_change": false,
+    "production_namespace_read_for_this_change": false,
+    "production_namespace_or_file_content_mutated_for_this_change": false,
+    "production_gate_invocation_authorized_by_this_evidence": false,
+    "local_source_or_test_execution_counted_as_production_execution": false
+  },
+  "artifacts": {
+    "implementation_source": "ml/floodgate-v7-training-label-projection.ts",
+    "focused_unit_test": "tests/unit/ml/floodgateV7TrainingLabelProjection.test.ts",
+    "japanese_article": "docs/blog-shogi-floodgate-v7-training-label-projection.md",
+    "english_article": "docs/blog-shogi-floodgate-v7-training-label-projection.en.md",
+    "machine_readable_evidence": "docs/data/floodgate-v7-training-label-projection-2026-07-16.json",
+    "evidence_unit_test": "tests/unit/ml/floodgateV7TrainingLabelProjectionEvidence.test.ts"
+  },
+  "projection_contract": {
+    "contract": "shogi-floodgate-v7-training-label-projection-v1",
+    "status": "complete-deterministic-sibling-label-projection-structural-origin-unauthenticated",
+    "claim_boundary": "pure-synchronous-structural-completed-parent-to-training-label-projection-not-sealed-work-authentication-publication-training-weight-or-playing-strength-evidence",
+    "input": "one-caller-supplied-completed-parent-evidence-value",
+    "input_origin_authenticated": false,
+    "training_role_authenticated": false,
+    "completed_parent_structure_reverified": true,
+    "output_record_schema": "shogi-sibling-v1",
+    "output": "deep-frozen-train-rows-in-memory",
+    "durable_output_created": false
+  },
+  "mapping_rules": {
+    "forced_parent": {
+      "candidate_union_status": "validated-forced-parent-skip",
+      "completed_parent_state": "forced-parent-skip",
+      "rows": 0,
+      "teacher_labels_emitted": 0,
+      "synthetic_score_created": false
+    },
+    "ranking": {
+      "primary": "teacher-parent-cp-descending",
+      "tie_break": "utf8-move-bytewise-ascending",
+      "teacher_rank": "one-based-contiguous",
+      "output_order": "teacher-rank-ascending-then-utf8-move-bytewise"
+    },
+    "child_score": {
+      "teacher_parent_cp": "verified-independent-rescore-parent-perspective-cp",
+      "teacher_child_cp": "canonical-sign-inversion-of-teacher-parent-cp",
+      "cp": "equal-to-teacher-child-cp",
+      "zero": "canonical-positive-zero"
+    },
+    "sources": {
+      "provenance_fields": [
+        "strong_game_played",
+        "production_proposal",
+        "stable_policy"
+      ],
+      "row_values": ["played", "teacher", "stable"],
+      "canonical_order": ["played", "teacher", "stable"],
+      "deduplicated": true,
+      "inferred_from_move_or_rank": false
+    },
+    "mate": {
+      "teacher_score_kind": "mate",
+      "teacher_mate": "signed-mate-distance-with-canonical-positive-zero",
+      "teacher_mate_sign": "exact-verified-explicit-sign",
+      "mapped_parent_cp_preserved": true,
+      "child_cp_sign_inverted": true,
+      "negative_zero_distance_serialized": false,
+      "negative_zero_sign_preserved_separately": true,
+      "ordinary_cp_rows_have_mate_fields": false
+    },
+    "split": {
+      "value": "train",
+      "rationale": "output-assignment-for-future-authenticated-training-only-caller",
+      "random_resplit_performed": false,
+      "selection_or_final_holdout_read": false
+    },
+    "determinism_and_immutability": {
+      "filesystem_network_clock_randomness_or_engine_dependencies": 0,
+      "same_verified_evidence_same_row_semantics_and_order": true,
+      "input_mutated": false,
+      "top_level_projection_frozen": true,
+      "rows_frozen": true,
+      "nested_source_arrays_frozen": true
+    }
+  },
+  "validation": {
+    "validation_candidate_revision": "214d047443a02ccc084bae94ce725b49a2cdbc8a",
+    "projection_focused_vitest": {
+      "status": "pass",
+      "files": 1,
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "vitest_duration_ms": 631,
+      "test_duration_ms": 90
+    },
+    "typescript": {
+      "status": "pass",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0
+    },
+    "prettier": {
+      "status": "pass",
+      "observation": "formatter-ran"
+    },
+    "evidence_focused_vitest": {
+      "status": "pass",
+      "files": 1,
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "vitest_duration_ms": 436,
+      "test_duration_ms": 5
+    },
+    "full_vitest": {
+      "status": "pass",
+      "files": 152,
+      "tests": 2816,
+      "passed": 2816,
+      "failed": 0,
+      "vitest_duration_seconds": 161.46,
+      "wall_seconds": 161.93,
+      "maximum_rss_bytes": 4378476544,
+      "swaps": 0
+    },
+    "eslint": {
+      "status": "pass",
+      "exit_code": 0,
+      "errors": 0,
+      "existing_warnings": 157,
+      "wall_seconds": 35.96,
+      "maximum_rss_bytes": 2343272448,
+      "swaps": 0
+    },
+    "production_build": {
+      "status": "pass",
+      "static_pages": 193,
+      "passed": 193,
+      "failed": 0,
+      "wall_seconds": 37.24,
+      "maximum_rss_bytes": 2671001600,
+      "swaps": 0
+    },
+    "ml_stdlib": {
+      "status": "pass",
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "wall_seconds": 0.48,
+      "maximum_rss_bytes": 65077248,
+      "swaps": 0
+    },
+    "npm_audit": {
+      "status": "pass",
+      "vulnerabilities": 0,
+      "wall_seconds": 0.66,
+      "maximum_rss_bytes": 135528448,
+      "swaps": 0
+    },
+    "github_ci": {
+      "status": "not-run"
+    }
+  },
+  "production_execution_for_this_change": {
+    "production_commands": 0,
+    "production_registry_provisions": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "production_checkpoint_records_read": 0,
+    "production_hmac_records_verified": 0,
+    "real_floodgate_games_read": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels_materialized": 0,
+    "training_jsonl_files_finalized": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "candidate_weight_artifacts": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "current_production_evaluator": "runOp1",
+    "current_rollback_evaluator": "runOp1",
+    "live_weight_changed": false,
+    "playing_strength_changed_by_this_evidence": false,
+    "stable_high_dan_claimed": false,
+    "formal_ab_plan": "192 color-swapped pairs / 384 games",
+    "formal_ab_color_swapped_pairs": 192,
+    "formal_ab_total_games": 384,
+    "external_calibration_games_required": 200
+  },
+  "next_boundary": {
+    "name": "authenticated-crash-safe-training-label-finalization-and-publication",
+    "ordered_requirements": [
+      "held-file-descriptor-incremental-checkpoint-scan",
+      "hmac-chain-and-exact-final-24000-completion-verification",
+      "deterministic-training-label-projection",
+      "crash-safe-training-jsonl-finalization",
+      "crash-safe-result-finalization",
+      "crash-safe-manifest-finalization",
+      "exact-consumer-postflight-receipt-binding",
+      "publication-transaction"
+    ],
+    "held_file_descriptor_scan_required": true,
+    "incremental_hmac_chain_verification_required": true,
+    "exact_final_24000_completion_required": true,
+    "training_jsonl_result_and_manifest_crash_safety_required": true,
+    "consumer_postflight_receipt_binding_required": true,
+    "publication_transaction_required": true,
+    "implemented_by_this_change": false
+  },
+  "nonclaims": {
+    "input_origin_authenticated": false,
+    "training_role_authenticated": false,
+    "sealed_work_verified": false,
+    "teacher_dataset_finalized": false,
+    "durable_result_or_manifest": false,
+    "published": false,
+    "optimizer_training": false,
+    "candidate_selected": false,
+    "weight_created": false,
+    "live_evaluation_activated": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

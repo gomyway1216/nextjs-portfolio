@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from typing import Any, Callable, Mapping
 
 from qat_protocol import (
     LOWER_SHA256_RE,
-    QAT_TRAINING_CONTRACT_SCHEMA,
     _exact_keys,
     _sha256_file_snapshot,
     _strict_json,
@@ -23,6 +23,9 @@ from qat_protocol import (
 
 FRESH_QAT_EXECUTION_PLAN_SCHEMA = "shogi-floodgate-fresh-qat-execution-plan-v1"
 FRESH_QAT_REGISTRY_SCHEMA = "shogi-floodgate-fresh-qat-plan-registry-v1"
+FRESH_QAT_TRAINING_CONTRACT_SCHEMA = "shogi-floodgate-fresh-qat-training-experiment-v1"
+FRESH_QAT_TRAINING_RESULT_SCHEMA = "shogi-floodgate-fresh-qat-training-result-v1"
+FRESH_QAT_FINAL_CHECKPOINT_SCHEMA = "shogi-floodgate-fresh-qat-final-checkpoint-v1"
 FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH = (
     "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan.json"
 )
@@ -53,6 +56,20 @@ FRESH_QAT_REPLAY_SHA256 = (
 )
 FRESH_QAT_REPLAY_ROWS = 500_000
 FRESH_QAT_ID_SET_FORMAT = "sorted-unique-sha256-position-id-utf8-lf-v1"
+FRESH_QAT_LEGACY_REPLAY_COMPONENT_RELATIVE_PATH = (
+    "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt"
+)
+FRESH_QAT_SELECTION_PROTECTED_FILENAME = "fresh-selection.protected-position-ids.txt"
+FRESH_QAT_LEGACY_REPLAY_COMPONENT_IDENTITY = {
+    "format": FRESH_QAT_ID_SET_FORMAT,
+    "bytes": 624_816,
+    "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+    "count": 8_678,
+    "identifiers_sha256": (
+        "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+    ),
+}
+FRESH_QAT_POSITION_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 FRESH_QAT_REQUIRED_TRAINING = {
     "family": "int16-aware",
@@ -149,12 +166,14 @@ _INPUT_FIELDS = {
     "policy_exposed_parent_ids",
     "policy_exposed_semantic_position_ids",
     "holdout_protected_position_ids",
+    "fresh_selection_protected_position_ids",
     "replay_exclusion",
 }
 _ID_SET_INPUT_FIELDS = {
     "policy_exposed_parent_ids",
     "policy_exposed_semantic_position_ids",
     "holdout_protected_position_ids",
+    "fresh_selection_protected_position_ids",
 }
 
 
@@ -201,16 +220,12 @@ def _require_identifier_set_identity(value: Any, label: str) -> None:
         raise ValueError(f"{label} SHA-256 contract is invalid")
 
 
-def _require_replay_exclusion_identity(value: Any, label: str) -> None:
-    fields = {
-        "format",
-        "bytes",
-        "sha256",
-        "count",
-        "identifiers_sha256",
-        "components",
-    }
-    _exact_keys(value, fields, label)
+def _require_replay_component_identity(value: Any, label: str) -> None:
+    _exact_keys(
+        value,
+        {"format", "bytes", "sha256", "count", "identifiers_sha256"},
+        label,
+    )
     if value["format"] != FRESH_QAT_ID_SET_FORMAT:
         raise ValueError(f"{label} format mismatch")
     if type(value["bytes"]) is not int or value["bytes"] < 1:
@@ -221,12 +236,36 @@ def _require_replay_exclusion_identity(value: Any, label: str) -> None:
         value["identifiers_sha256"]
     ):
         raise ValueError(f"{label} SHA-256 contract is invalid")
-    if value["components"] != [
-        "legacy",
-        "fresh_final_holdout",
-        "fresh_selection",
-    ]:
-        raise ValueError(f"{label} components mismatch")
+
+
+def _require_replay_exclusion_identity(value: Any, label: str) -> None:
+    _exact_keys(
+        value,
+        {
+            "format",
+            "bytes",
+            "sha256",
+            "count",
+            "identifiers_sha256",
+            "components",
+        },
+        label,
+    )
+    _require_replay_component_identity(
+        {field: value[field] for field in value if field != "components"},
+        label,
+    )
+    components = value["components"]
+    _exact_keys(
+        components,
+        {"legacy", "fresh_final_holdout", "fresh_selection"},
+        f"{label} components",
+    )
+    for name, identity in components.items():
+        _require_replay_component_identity(
+            identity,
+            f"{label} component {name}",
+        )
 
 
 def _require_model_training_identity(value: Any) -> None:
@@ -353,6 +392,30 @@ def _validate_plan_shape(plan: dict[str, Any]) -> None:
         inputs["replay_exclusion"],
         "fresh QAT replay_exclusion",
     )
+    replay_components = inputs["replay_exclusion"]["components"]
+    expected_fresh_final = {
+        "format": FRESH_QAT_ID_SET_FORMAT,
+        **inputs["holdout_protected_position_ids"],
+    }
+    expected_fresh_selection = {
+        "format": FRESH_QAT_ID_SET_FORMAT,
+        **inputs["fresh_selection_protected_position_ids"],
+    }
+    if not _typed_equal(
+        replay_components["legacy"],
+        FRESH_QAT_LEGACY_REPLAY_COMPONENT_IDENTITY,
+    ):
+        raise ValueError("fresh QAT legacy replay component identity mismatch")
+    if not _typed_equal(
+        replay_components["fresh_final_holdout"],
+        expected_fresh_final,
+    ):
+        raise ValueError("fresh QAT final-holdout replay component identity mismatch")
+    if not _typed_equal(
+        replay_components["fresh_selection"],
+        expected_fresh_selection,
+    ):
+        raise ValueError("fresh QAT selection replay component identity mismatch")
     _require_file_identity(inputs["replay"], "fresh QAT replay")
     _require_file_identity(inputs["warm_initializer"], "fresh QAT warm_initializer")
     if inputs["replay"] != {
@@ -392,11 +455,105 @@ def _read_exact_file(path: str, label: str) -> bytes:
         raise ValueError(f"cannot read {label}: {error}") from error
 
 
+def _identifier_set_sha256(identifiers: set[str]) -> str:
+    """Match the production digest: sorted IDs joined by LF, with no final LF."""
+    return hashlib.sha256("\n".join(sorted(identifiers)).encode("ascii")).hexdigest()
+
+
+def _load_canonical_position_id_set(
+    path: str,
+    expected: Mapping[str, Any],
+    label: str,
+) -> tuple[set[str], dict[str, Any]]:
+    """Strict-load one exact production-format semantic-position ID set."""
+    _require_replay_component_identity(expected, label)
+    snapshot = _sha256_file_snapshot(path, expected, label)
+    raw = _read_exact_file(path, label)
+    if (
+        len(raw) != snapshot["bytes"]
+        or hashlib.sha256(raw).hexdigest() != snapshot["sha256"]
+    ):
+        raise ValueError(f"{label} changed after identity snapshot")
+    if not raw or not raw.endswith(b"\n") or raw.endswith(b"\n\n") or b"\r" in raw:
+        raise ValueError(f"{label} must use exact single-final-LF framing")
+    try:
+        rows = raw[:-1].decode("ascii").split("\n")
+    except UnicodeDecodeError as error:
+        raise ValueError(
+            f"{label} must contain canonical ASCII position IDs"
+        ) from error
+    if any(FRESH_QAT_POSITION_ID_RE.fullmatch(row) is None for row in rows):
+        raise ValueError(f"{label} contains a non-canonical position ID")
+    encoded = [row.encode("ascii") for row in rows]
+    if encoded != sorted(encoded) or len(set(rows)) != len(rows):
+        raise ValueError(f"{label} must be bytewise sorted and unique")
+    identifiers = set(rows)
+    identifiers_sha256 = _identifier_set_sha256(identifiers)
+    if len(identifiers) != expected["count"]:
+        raise ValueError(f"{label} count mismatch")
+    if identifiers_sha256 != expected["identifiers_sha256"]:
+        raise ValueError(f"{label} canonical identifier-set SHA-256 mismatch")
+    if _read_exact_file(path, label) != raw:
+        raise ValueError(f"{label} changed during canonical verification")
+    return identifiers, {
+        "path": os.path.abspath(path),
+        "format": FRESH_QAT_ID_SET_FORMAT,
+        "bytes": snapshot["bytes"],
+        "sha256": snapshot["sha256"],
+        "count": len(identifiers),
+        "identifiers_sha256": identifiers_sha256,
+    }
+
+
 def _data_only_blocker(detail: str) -> ValueError:
     return ValueError(
         "fresh QAT is data-only blocked: exact tracked fresh execution plan "
         f"snapshot and real artifact identities are required ({detail})"
     )
+
+
+def build_fresh_qat_training_contract(
+    plan: Mapping[str, Any],
+    selected_slot: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the exact result/checkpoint contract shared with fresh selection."""
+    model_training = plan["inputs"]["model_training"]
+    return {
+        "schema": FRESH_QAT_TRAINING_CONTRACT_SCHEMA,
+        "family": "int16-aware",
+        "slot_id": selected_slot["id"],
+        "seed": selected_slot["seed"],
+        "loss": "sibling-ranking",
+        "model_training_sha256": model_training["sha256"],
+        "model_training_bytes": model_training["bytes"],
+        "model_training_records": model_training["records"],
+        "model_training_parents": model_training["parents"],
+        "init_checkpoint_sha256": FRESH_QAT_WARM_INITIALIZER_SHA256,
+        "replay_sha256": FRESH_QAT_REPLAY_SHA256,
+        "learning_rate": 0.0001,
+        "epochs": 20,
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": FRESH_QAT_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "primary_limit": 0,
+        "allow_legacy_init": True,
+        "objective": FRESH_QAT_REQUIRED_TRAINING["objective"],
+        "checkpoint_policy": "fixed-final-epoch-only",
+        "candidate_artifact": "final.pt",
+        "selection_evaluations": 0,
+        "early_stopping": False,
+    }
 
 
 def _verify_fresh_qat_experiment_plan(
@@ -475,6 +632,10 @@ def _verify_fresh_qat_experiment_plan(
             f"fresh QAT seed {args.seed} must use output " f"{selected_slot['output']}"
         )
 
+    fresh_selection_protected_path = os.path.join(
+        os.path.dirname(os.path.abspath(args.holdout_protected_position_ids)),
+        FRESH_QAT_SELECTION_PROTECTED_FILENAME,
+    )
     input_paths = {
         "sibling_teacher_manifest": args.sibling_manifest,
         "validation_partition_manifest": args.validation_partition_manifest,
@@ -487,6 +648,7 @@ def _verify_fresh_qat_experiment_plan(
             args.policy_exposed_semantic_position_ids
         ),
         "holdout_protected_position_ids": (args.holdout_protected_position_ids),
+        "fresh_selection_protected_position_ids": fresh_selection_protected_path,
         "replay_exclusion": args.replay_excluded_position_ids,
     }
     for field, path in input_paths.items():
@@ -500,6 +662,55 @@ def _verify_fresh_qat_experiment_plan(
         )
         for field in input_paths
     }
+    replay_exclusion = plan["inputs"]["replay_exclusion"]
+    replay_component_paths = {
+        "legacy": os.path.join(
+            root,
+            FRESH_QAT_LEGACY_REPLAY_COMPONENT_RELATIVE_PATH,
+        ),
+        "fresh_final_holdout": args.holdout_protected_position_ids,
+        "fresh_selection": fresh_selection_protected_path,
+    }
+    component_sets: dict[str, set[str]] = {}
+    component_fingerprints: dict[str, dict[str, Any]] = {}
+    for name, component_path in replay_component_paths.items():
+        identifiers, fingerprint = _load_canonical_position_id_set(
+            component_path,
+            replay_exclusion["components"][name],
+            f"fresh QAT replay component {name}",
+        )
+        component_sets[name] = identifiers
+        component_fingerprints[name] = fingerprint
+    component_names = tuple(component_sets)
+    for left_index, left in enumerate(component_names):
+        for right in component_names[left_index + 1 :]:
+            overlap = component_sets[left] & component_sets[right]
+            if overlap:
+                raise ValueError(
+                    "fresh QAT replay components contain duplicate membership "
+                    f"between {left} and {right} (count={len(overlap)})"
+                )
+    expected_union = set().union(*component_sets.values())
+    union_contract = {
+        field: replay_exclusion[field]
+        for field in ("format", "bytes", "sha256", "count", "identifiers_sha256")
+    }
+    actual_union, union_fingerprint = _load_canonical_position_id_set(
+        args.replay_excluded_position_ids,
+        union_contract,
+        "fresh QAT replay exclusion union",
+    )
+    if actual_union != expected_union:
+        missing = expected_union - actual_union
+        extra = actual_union - expected_union
+        raise ValueError(
+            "fresh QAT replay exclusion is not the exact union "
+            f"(missing_count={len(missing)}, extra_count={len(extra)})"
+        )
+    if union_fingerprint["count"] != sum(
+        fingerprint["count"] for fingerprint in component_fingerprints.values()
+    ):
+        raise ValueError("fresh QAT replay exclusion union membership count mismatch")
 
     runtime = plan["runtime"]
     for field, expected in runtime.items():
@@ -513,43 +724,7 @@ def _verify_fresh_qat_experiment_plan(
         if type(training_runtime.get(field)) is not bool:
             raise ValueError(f"fresh QAT runtime {field} must be boolean")
 
-    model_training = plan["inputs"]["model_training"]
-    contract = {
-        "schema": QAT_TRAINING_CONTRACT_SCHEMA,
-        "family": "int16-aware",
-        "slot_id": selected_slot["id"],
-        "seed": args.seed,
-        "loss": "sibling-ranking",
-        "model_training_sha256": model_training["sha256"],
-        "model_training_bytes": model_training["bytes"],
-        "model_training_records": model_training["records"],
-        "model_training_parents": model_training["parents"],
-        "init_checkpoint_sha256": FRESH_QAT_WARM_INITIALIZER_SHA256,
-        "replay_sha256": FRESH_QAT_REPLAY_SHA256,
-        "learning_rate": 0.0001,
-        "epochs": 20,
-        "batch": 256,
-        "k": 600.0,
-        "cp_clamp": 3000,
-        "rank_weight": 1.0,
-        "rank_pair_min": 50.0,
-        "rank_pair_max": 600.0,
-        "rank_margin_cp": 50.0,
-        "policy_weight": 0.25,
-        "policy_temp_cp": 200.0,
-        "features": "board",
-        "device": "cpu",
-        "torch_threads": 2,
-        "replay_limit": FRESH_QAT_REPLAY_ROWS,
-        "replay_ratio": 1.0,
-        "primary_limit": 0,
-        "allow_legacy_init": True,
-        "objective": FRESH_QAT_REQUIRED_TRAINING["objective"],
-        "checkpoint_policy": "fixed-final-epoch-only",
-        "candidate_artifact": "final.pt",
-        "selection_evaluations": 0,
-        "early_stopping": False,
-    }
+    contract = build_fresh_qat_training_contract(plan, selected_slot)
     provenance = {
         "path": os.path.abspath(plan_path),
         "bytes": plan_fingerprint["bytes"],
@@ -562,6 +737,10 @@ def _verify_fresh_qat_experiment_plan(
             **{
                 field: fingerprint["sha256"]
                 for field, fingerprint in verified_inputs.items()
+            },
+            **{
+                f"replay_exclusion_component_{name}": fingerprint["sha256"]
+                for name, fingerprint in component_fingerprints.items()
             },
         },
     }
@@ -591,8 +770,15 @@ def verify_fresh_qat_experiment_plan(
 __all__ = [
     "FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH",
     "FRESH_QAT_EXECUTION_PLAN_SCHEMA",
+    "FRESH_QAT_FINAL_CHECKPOINT_SCHEMA",
+    "FRESH_QAT_LEGACY_REPLAY_COMPONENT_IDENTITY",
+    "FRESH_QAT_LEGACY_REPLAY_COMPONENT_RELATIVE_PATH",
     "FRESH_QAT_REGISTRY_RELATIVE_PATH",
     "FRESH_QAT_REGISTRY_SCHEMA",
+    "FRESH_QAT_SELECTION_PROTECTED_FILENAME",
     "FRESH_QAT_SLOT_ORDER",
+    "FRESH_QAT_TRAINING_CONTRACT_SCHEMA",
+    "FRESH_QAT_TRAINING_RESULT_SCHEMA",
+    "build_fresh_qat_training_contract",
     "verify_fresh_qat_experiment_plan",
 ]

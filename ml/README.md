@@ -498,6 +498,18 @@ dispatcherまで準備した。現在のtracked registryはexecution plan bytes 
 [日本語binding記事](../docs/blog-shogi-floodgate-fresh-qat-plan-binding.md) /
 [English binding article](../docs/blog-shogi-floodgate-fresh-qat-plan-binding.en.md)を参照。
 
+fresh training artifactは旧WCSC36と別schemaで出力し、3つのresult/checkpoint identityを
+事前登録するselection preflightも別registryで閉じてある。3 resultと3 checkpointをすべて
+snapshotし、全resultのstrict parse、全checkpoint/modelのstrict-load、再確認が終わるまで
+selection readerへ到達できない。replay exclusionもlegacy / fresh final / fresh selectionの
+exactで相互に重ならないunionとして検証する。現在は全identityが`null`なので、実artifact、
+Torch、selection labelを読まずに停止する。注入可能test coreはplain valueだけを返し、
+reader用guardは固定public経路だけが発行する。tracked registry / planは固定`/usr/bin/git`、
+無害化環境、exact HEAD tree blob / index mode / capture済み実bytesで照合する。同一processで
+module internalsへ自由にアクセスする敵対的Python codeへの暗号的な偽造不能性は主張しない。詳細は
+[日本語preflight記事](../docs/blog-shogi-floodgate-fresh-qat-selection-preflight.md) /
+[English preflight article](../docs/blog-shogi-floodgate-fresh-qat-selection-preflight.en.md)を参照。
+
 取得先はGit worktreeと交差しないcanonical absolute pathに限定する。PR #417以降の
 status確認と単一process取得は次のCLIを使う。
 

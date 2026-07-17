@@ -168,6 +168,9 @@ describe("Floodgate v7 production native launcher", () => {
       "Darwin-native launch boundary for the ten current Floodgate v7 production",
     );
     expect(source).toContain("function integerValue(value)");
+    expect(source).toContain("const unwrapped = ObjC.unwrap(value);");
+    expect(source).toContain('typeof unwrapped !== "number"');
+    expect(source).not.toContain("Number(ObjC.unwrap(value))");
     expect(source).toContain(
       "attributes.objectForKey($.NSFilePosixPermissions)",
     );
@@ -259,23 +262,31 @@ const target = ${JSON.stringify(PRODUCTION_HELPER)};
 const error = Ref();
 const attributes = fileManager.attributesOfItemAtPathError($(target), error);
 if (!attributes) throw new Error("missing attributes");
+function checkedInteger(value) {
+  const unwrapped = ObjC.unwrap(value);
+  return typeof unwrapped === "number" && Number.isSafeInteger(unwrapped)
+    ? unwrapped
+    : "rejected";
+}
 const raw = attributes.objectForKey($.NSFilePosixPermissions);
-const permissions = Number(ObjC.unwrap(raw));
-const processIdentifier = Number(
-  ObjC.unwrap($.NSProcessInfo.processInfo.processIdentifier),
+const permissions = checkedInteger(raw);
+const processIdentifier = checkedInteger(
+  $.NSProcessInfo.processInfo.processIdentifier,
 );
 const task = $.NSTask.alloc.init;
 task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/true");
 const launchError = Ref();
 if (!task.launchAndReturnError(launchError)) throw new Error("launch failed");
 task.waitUntilExit;
-const terminationStatus = Number(ObjC.unwrap(task.terminationStatus));
+const terminationStatus = checkedInteger(task.terminationStatus);
 JSON.stringify({
   permissions,
-  permissionsSafe: Number.isSafeInteger(permissions),
-  processIdentifierSafe:
-    Number.isSafeInteger(processIdentifier) && processIdentifier > 1,
+  processIdentifierValid:
+    typeof processIdentifier === "number" && processIdentifier > 1,
   terminationStatus,
+  numericString: checkedInteger($("0")),
+  booleanValue: checkedInteger($(false)),
+  nullValue: checkedInteger($.NSNull.null),
 });
 `;
       const child = spawnSync(
@@ -293,9 +304,11 @@ JSON.stringify({
       expect(child.stderr).toBe("");
       expect(JSON.parse(child.stdout)).toEqual({
         permissions: (await fs.promises.stat(PRODUCTION_HELPER)).mode & 0o7777,
-        permissionsSafe: true,
-        processIdentifierSafe: true,
+        processIdentifierValid: true,
         terminationStatus: 0,
+        numericString: "rejected",
+        booleanValue: "rejected",
+        nullValue: "rejected",
       });
     },
   );

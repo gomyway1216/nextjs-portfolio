@@ -61,9 +61,9 @@ function stringValue(value) {
 }
 
 function integerValue(value) {
-  const parsed = Number(ObjC.unwrap(value));
-  if (!Number.isSafeInteger(parsed)) fail();
-  return parsed;
+  const unwrapped = ObjC.unwrap(value);
+  if (typeof unwrapped !== "number" || !Number.isSafeInteger(unwrapped)) fail();
+  return unwrapped;
 }
 
 function canonicalPath(value) {

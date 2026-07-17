@@ -128,6 +128,13 @@
     "parity_fields": ["move", "score", "depth", "nodes", "leaves"],
     "raw_durations_returned_from_child": false,
     "child_success_boundary": "close",
+    "default_unit_execution": "exact-synthetic-worker-spawn-fd3-canonical-parser-close-reap",
+    "real_measurement_execution": "explicit-isolated-command-after-default-unit-suite",
+    "required_isolated_command": "npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration",
+    "required_separate_ci_step": true,
+    "production_stability_limit_ppm": 250000,
+    "production_watchdog_ms": 180000,
+    "production_thresholds_relaxed_for_tests": false,
     "registry_capability_claimed": false,
     "private_role_path_disclosed": false,
     "private_training_rows_opened": 0,
@@ -263,9 +270,16 @@
     "pre_main_integration": {
       "focused_suite": {
         "files": 3,
-        "tests": 53,
-        "passes": 3,
-        "wall_seconds": [21.42, 21.54, 21.8],
+        "default_tests_passed": 52,
+        "real_public_calibration_tests_skipped": 1,
+        "wall_seconds": 1.16,
+        "status": "PASS"
+      },
+      "isolated_real_public_calibration": {
+        "command": "npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration",
+        "tests_passed": 1,
+        "other_tests_filtered_or_skipped": 21,
+        "wall_seconds": 19.58,
         "status": "PASS"
       },
       "shared_parser_production_consumer_sfen_regression": {

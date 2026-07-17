@@ -44,6 +44,12 @@ import type { FloodgateStableWasmDeadlineReadOnlyConsumerOptions } from "../../.
 
 const execFile = promisify(execFileCallback);
 const REPOSITORY_ROOT = process.cwd();
+const REAL_PUBLIC_CALIBRATION_ENVIRONMENT_VARIABLE =
+  "FLOODGATE_STABLE_WASM_DEADLINE_REAL_PUBLIC_CALIBRATION";
+const realPublicCalibrationIt =
+  process.env[REAL_PUBLIC_CALIBRATION_ENVIRONMENT_VARIABLE] === "1"
+    ? it
+    : it.skip;
 const CALIBRATION_WORKER_SCHEMA =
   "shogi-floodgate-stable-wasm-deadline-public-calibration-worker-v1";
 const MATE_SFEN = "4k4/9/5G3/9/4+R4/9/9/9/4K4 b 3P 1";
@@ -421,23 +427,27 @@ async function bindingFixture(
 }
 
 describe("stable-WASM PUBLIC deadline calibration", () => {
-  it("runs the pinned public sentinel with exact five-field parity and no raw timing", async () => {
-    const result =
-      await runFloodgateStableWasmDeadlinePublicCalibration(
-        calibrationAssets(),
+  realPublicCalibrationIt(
+    "runs the pinned public sentinel with exact five-field parity and no raw timing",
+    async () => {
+      const result =
+        await runFloodgateStableWasmDeadlinePublicCalibration(
+          calibrationAssets(),
+        );
+
+      expect(result.exact_parity_count).toBe(
+        FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT,
       );
+      expect(result.callback_overhead_ratio_ppm).toBeGreaterThan(0);
+      expect(Object.keys(result).sort()).toEqual([
+        "callback_overhead_ratio_ppm",
+        "exact_parity_count",
+      ]);
+    },
+    240_000,
+  );
 
-    expect(result.exact_parity_count).toBe(
-      FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT,
-    );
-    expect(result.callback_overhead_ratio_ppm).toBeGreaterThan(0);
-    expect(Object.keys(result).sort()).toEqual([
-      "callback_overhead_ratio_ppm",
-      "exact_parity_count",
-    ]);
-  }, 60_000);
-
-  it("reaps an instant child even when it exits as soon as source fd 3 loads", async () => {
+  it("deterministically parses and reaps an exact synthetic child after fd 3 loads", async () => {
     const source = syntheticCalibrationWorker("instant");
     await expect(
       runFloodgateStableWasmDeadlinePublicCalibrationWithSourceCoreForTests(

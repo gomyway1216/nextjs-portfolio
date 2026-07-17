@@ -383,7 +383,7 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     expect(result.all_children_reaped).toBe(true);
   });
 
-  it("fixes the 600s cooperative and 615s outer boundaries without a package command", () => {
+  it("fixes the 600s cooperative and 615s outer boundaries and exact follow-up commands", () => {
     expect(FLOODGATE_STABLE_WASM_DIAGNOSTIC_COOPERATIVE_DEADLINE_MS).toBe(
       600_000,
     );
@@ -393,10 +393,24 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       readFileSync(join(REPOSITORY_ROOT, "package.json"), "utf8"),
     );
     expect(
-      Object.keys(packageJson.scripts).filter((name) =>
-        name.includes("deadline-diagnostic"),
-      ),
-    ).toEqual([]);
+      Object.keys(packageJson.scripts)
+        .filter((name) => name.includes("floodgate-stable-wasm-deadline"))
+        .sort(),
+    ).toEqual(
+      [
+        "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle",
+        "shogi:floodgate-stable-wasm-deadline-diagnostic",
+        "test:shogi-floodgate-stable-wasm-deadline-public-calibration",
+      ].sort(),
+    );
+    expect(packageJson.scripts).toMatchObject({
+      "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle":
+        "node ml/build-floodgate-stable-wasm-deadline-diagnostic-bundle.mjs --write",
+      "shogi:floodgate-stable-wasm-deadline-diagnostic":
+        '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-stable-wasm-deadline-diagnostic-launcher.jxa"',
+      "test:shogi-floodgate-stable-wasm-deadline-public-calibration":
+        'FLOODGATE_STABLE_WASM_DEADLINE_REAL_PUBLIC_CALIBRATION=1 vitest run tests/unit/ml/floodgateStableWasmDeadlineRunBinding.test.ts -t "runs the pinned public sentinel" --reporter=verbose',
+    });
   });
 
   it("keeps the worker clock, search knobs, shared-TT, and privacy boundary explicit", () => {

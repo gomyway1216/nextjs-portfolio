@@ -70,6 +70,8 @@ Thus `1,002,562 ppm` means that the callback total was approximately 1.002562 ti
 
 The dedicated measurement in this change used only the repository's public WASM, public weights, and tracked calibration worker. It returned `exact_parity_count = 5` and `callback_overhead_ratio_ppm = 1,002,562`. Calibration inside the production binding uses read-only deployed assets pinned to those same identities. The calibration promise succeeds only after the child emits `close`, not merely after stdout arrives.
 
+To prevent CPU contention from making wall-clock samples flaky, the default unit suite deterministically exercises the same spawn, file-descriptor-3 source, canonical parser, and `close`/reap path with an exact synthetic worker. The real pinned public calibration is enabled only by `npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration` and is required as a separate CI step after the default unit suite. The synthetic test is a lifecycle test that isolates—not replaces—the real measurement. Neither the production 25% stability limit nor its 180,000 ms watchdog was relaxed.
+
 ## 5. The registry is a locator, not approved-key reauthentication
 
 The dedicated registry loader validates held directories and the fixed record path, current-EUID ownership, modes, single-link status, and canonical JSON v2 structure. Claiming its opaque capability once reveals only consumer paths and an application-source binding.
@@ -131,18 +133,19 @@ The binding does not automatically start a TT retry or resume after observing th
 
 ## 10. Current measurements and validation
 
-| Subject                                                           | Result                               |
-| ----------------------------------------------------------------- | ------------------------------------ |
-| dedicated public-asset calibration                                | 1 run, `1,002,562 ppm`, parity 5 / 5 |
-| launcher / boundary / run-binding focused suite                   | 3 files, 53 / 53 PASS                |
-| shared parser / production consumer / SFEN regressions            | 3 files, 68 / 68 PASS                |
-| one-byte initial tamper of each non-manifest path                 | 8 / 8 rejected before callback       |
-| deterministic eighteen-source bundle/privacy gates                | PASS                                 |
-| TypeScript / targeted lint                                        | PASS                                 |
-| formal run that opened private training rows                      | **0**                                |
-| private twelve-lane diagnostic                                    | **0**                                |
-| teacher generation / training / formal A/B / external calibration | **0 / 0 / 0 / 0**                    |
-| live-weight change / production activation                        | **false / 0**                        |
+| Subject                                                           | Result                                |
+| ----------------------------------------------------------------- | ------------------------------------- |
+| dedicated public-asset calibration                                | 1 run, `1,002,562 ppm`, parity 5 / 5  |
+| default launcher / boundary / run-binding focused suite           | 3 files, 52 PASS; 1 real run isolated |
+| isolated real public-calibration command                          | 1 / 1 PASS                            |
+| shared parser / production consumer / SFEN regressions            | 3 files, 68 / 68 PASS                 |
+| one-byte initial tamper of each non-manifest path                 | 8 / 8 rejected before callback        |
+| deterministic eighteen-source bundle/privacy gates                | PASS                                  |
+| TypeScript / targeted lint                                        | PASS                                  |
+| formal run that opened private training rows                      | **0**                                 |
+| private twelve-lane diagnostic                                    | **0**                                 |
+| teacher generation / training / formal A/B / external calibration | **0 / 0 / 0 / 0**                     |
+| live-weight change / production activation                        | **false / 0**                         |
 
 The [machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json) records only the public calibration aggregate, never raw timing or a private identifier.
 

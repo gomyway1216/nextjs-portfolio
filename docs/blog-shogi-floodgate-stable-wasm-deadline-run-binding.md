@@ -70,6 +70,8 @@ callback_overhead_ratio_ppm
 
 今回の専用実測はrepositoryの公開WASM、公開weights、tracked calibration workerだけで実施し、`exact_parity_count = 5`、`callback_overhead_ratio_ppm = 1,002,562` でした。production binding内の校正は、同じidentityへ固定されたread-only deployment assetを使います。校正Promiseはstdout受信時ではなくchildの`close`後だけ成功します。
 
+通常のunit suiteは、他testとのCPU競合でwall-clock sampleを不安定にしないよう、同じspawn・fd 3 source・canonical parser・`close`/reap経路をexact synthetic workerで決定論的に検証します。real pinned public calibrationは `npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration` だけで明示的に有効化し、通常unit suite終了後の独立CI stepとして必須にしました。synthetic testは実測の代用ではなく、実測を競合から分離するためのlifecycle testです。productionの25% stability limitと180,000 ms watchdogは緩和していません。
+
 ## 5. registryはlocatorであり、approved-key再認証ではない
 
 専用registry loaderが検証するのは、固定record pathまでのheld directory/file、current-EUID ownership、mode、single-link、canonical JSON v2の構造です。そのopaque capabilityを校正後に一度だけclaimすると、consumer pathとapplication-source bindingだけが出ます。
@@ -131,18 +133,19 @@ runtime closureにはfile writer、directory enumeration、deployment root-key r
 
 ## 10. 現在の実測と検証
 
-| 対象                                               | 結果                               |
-| -------------------------------------------------- | ---------------------------------- |
-| 公開asset専用calibration                           | 1回、`1,002,562 ppm`、parity 5 / 5 |
-| launcher / boundary / run-binding focused suite    | 3 files、53 / 53 PASS              |
-| 共有parser / production consumer / SFEN回帰        | 3 files、68 / 68 PASS              |
-| 非manifest固定pathの1-byte初期tamper               | 8 / 8 callback前拒否               |
-| deterministic 18-source bundle / privacy hard gate | PASS                               |
-| TypeScript / targeted lint                         | PASS                               |
-| private training rowを開いた正式run                | **0**                              |
-| private 12-lane diagnostic                         | **0**                              |
-| teacher生成 / training / formal A/B / 外部校正     | **0 / 0 / 0 / 0**                  |
-| live weights変更 / production activation           | **false / 0**                      |
+| 対象                                                | 結果                               |
+| --------------------------------------------------- | ---------------------------------- |
+| 公開asset専用calibration                            | 1回、`1,002,562 ppm`、parity 5 / 5 |
+| 通常launcher / boundary / run-binding focused suite | 3 files、52 PASS、実校正1件は分離  |
+| 独立real public calibration command                 | 1 / 1 PASS                         |
+| 共有parser / production consumer / SFEN回帰         | 3 files、68 / 68 PASS              |
+| 非manifest固定pathの1-byte初期tamper                | 8 / 8 callback前拒否               |
+| deterministic 18-source bundle / privacy hard gate  | PASS                               |
+| TypeScript / targeted lint                          | PASS                               |
+| private training rowを開いた正式run                 | **0**                              |
+| private 12-lane diagnostic                          | **0**                              |
+| teacher生成 / training / formal A/B / 外部校正      | **0 / 0 / 0 / 0**                  |
+| live weights変更 / production activation            | **false / 0**                      |
 
 machine-readable evidenceは[こちら](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json)です。公開校正aggregateだけを記録し、raw timingやprivate識別子は保存していません。
 

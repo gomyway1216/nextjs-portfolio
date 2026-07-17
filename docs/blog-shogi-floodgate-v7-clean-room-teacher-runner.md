@@ -58,7 +58,7 @@ private bytesは公開せず、metadataだけを集計しました。
 | unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | maximum source file | 1 GiB未満 |
 | accepted verifier | exact `e8a9197`, clean, tracked 1,431 |
-| independent clone smoke | PASS、4,313.462 ms、一時clone削除済み |
+| independent clone smoke | PASS、3,852.636 ms、一時clone削除済み |
 | capacity preflight | PASS |
 | PR2で固定するminimum free space | 20 GiB |
 

@@ -770,7 +770,8 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(evidence.fixed_plan).toMatchObject({
       v3_stream_continuity_requirement:
         "single-authenticated-stage-work-stream",
-      gate_authority_boundary: "three-ordered-single-use-invocations",
+      gate_authority_boundary:
+        "three-ordered-single-use-authorities-within-one-future-runner-invocation",
       sealed_final_resumes_exact_prefix_500: true,
       durable_prefixes_published_or_finalized: false,
     });

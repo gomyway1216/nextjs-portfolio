@@ -58,7 +58,7 @@ Only metadata was aggregated; private bytes were not published.
 | Unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | Maximum source file | Below 1 GiB |
 | Accepted verifier | Exact `e8a9197`, clean, 1,431 tracked files |
-| Independent-clone smoke | PASS, 4,313.462 ms, temporary clone removed |
+| Independent-clone smoke | PASS, 3,852.636 ms, temporary clone removed |
 | Capacity preflight | PASS |
 | Minimum free space to fix in PR2 | 20 GiB |
 

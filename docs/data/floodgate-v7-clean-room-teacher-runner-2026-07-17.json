@@ -8,9 +8,9 @@
   },
   "source_base": {
     "branch_base": "origin/main",
-    "commit": "cae5de16f91f2eff04ca98a48ef0739f5b48a11f",
-    "tree": "e00cdc17f4fe0ba4cd90752421eacfff25c4095d",
-    "committed_at": "2026-07-17T06:53:01-07:00"
+    "commit": "edf040fba0f18986ee4b1113394b33752a33a8ff",
+    "tree": "1a3fe35af4c2e6922984aa0ad7b9336ae620fc39",
+    "committed_at": "2026-07-17T07:40:41-07:00"
   },
   "runtime_exports": {
     "contract": "shogi-floodgate-v7-clean-room-teacher-runner-v1",
@@ -33,7 +33,7 @@
       "sealed-final-24000"
     ],
     "v3_stream_continuity_requirement": "single-authenticated-stage-work-stream",
-    "gate_authority_boundary": "three-ordered-single-use-invocations",
+    "gate_authority_boundary": "three-ordered-single-use-authorities-within-one-future-runner-invocation",
     "sealed_final_resumes_exact_prefix_500": true,
     "durable_prefixes_published_or_finalized": false
   },
@@ -82,7 +82,7 @@
     "full_bundle_verifier_executed_by_this_change": false,
     "independent_clone_smoke": {
       "status": "PASS",
-      "elapsed_ms": 4313.462,
+      "elapsed_ms": 3852.636,
       "temporary_clone_removed": true,
       "private_dataset_read": false,
       "accepted_revision_exact": true,
@@ -208,17 +208,22 @@
     "independent_simultaneous_repeat_total_tests": 60,
     "independent_simultaneous_repeat_result": "PASS",
     "related_test_files": 9,
-    "related_tests": 277,
+    "related_tests": 258,
     "related_tests_result": "PASS",
-    "repository_test_files": 173,
-    "repository_tests": 3126,
+    "repository_test_files": 174,
+    "repository_tests": 3132,
     "repository_tests_result": "PASS",
-    "repository_tests_duration_seconds": 337.8,
+    "repository_tests_duration_seconds": 319.46,
     "typescript_no_emit": "PASS",
     "targeted_eslint": "PASS",
     "repository_eslint_errors": 0,
     "repository_eslint_preexisting_warnings": 157,
     "repository_eslint_result": "PASS",
+    "production_build": "PASS",
+    "ml_stdlib_tests": 101,
+    "ml_stdlib_result": "PASS",
+    "npm_audit_vulnerabilities": 0,
+    "npm_audit_result": "PASS",
     "synthetic_failure_stops_new_schedule_and_drains_started_callbacks": "PASS",
     "synthetic_source_close_failure_still_closes_destination": "PASS",
     "synthetic_pending_materialization_drained_after_later_synchronous_throw": "PASS",

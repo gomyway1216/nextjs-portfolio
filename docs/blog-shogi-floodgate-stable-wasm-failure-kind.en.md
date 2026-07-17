@@ -1,22 +1,22 @@
 # Preserving the stable-WASM pool-poison trigger safely
 
-> The first durable prefix-100 attempt stopped after 1,597 seconds. A same-configuration read-only replay completed seven of twelve candidates in 0.8 to 244.9 seconds, while five fell into the same generic pool-poison error at approximately 600.0 seconds. The timing matched the fixed ten-minute timeout, but the old pool discarded the first worker error, so neither the typed cause nor the trigger parent could be established. This candidate preserves only one of seven safe failure kinds plus a timeout value from the first worker boundary through pool-wide poison, without publishing raw stderr, PIDs, indices, positions, or IDs. Focused 110 / 110 tests, TypeScript, changed-file ESLint, and independent review with P0 / P1 / P2 = 0 / 0 / 0 pass. The PR, final-head CI, regular merge, and twelve-candidate rerun remain PENDING. Japanese version: [blog-shogi-floodgate-stable-wasm-failure-kind.md](./blog-shogi-floodgate-stable-wasm-failure-kind.md)
+> The first durable prefix-100 attempt stopped after 1,597 seconds. On the old code, a same-configuration read-only replay completed seven of twelve candidates in 0.8 to 244.9 seconds, while five fell into the same generic pool-poison error at approximately 600.0 seconds. Because the old pool discarded the first worker error, the safe kind remained `unknown`, with `search-timeout` only a timing inference. This change preserves only one of seven safe failure kinds plus a timeout value from the first worker boundary through pool-wide poison, without publishing raw stderr, PIDs, indices, positions, or IDs. PR #485 final head `6a804a7954a9685361944aeb2be32494638fae2e` passed all six checks and was merged with a regular merge commit. A same-configuration read-only rerun on the merged code completed seven candidates and gave all five rejections a genuine `search-timeout` with `timeout_ms = 600000`. It did not identify five independent timeout events or the first triggering index. Japanese version: [blog-shogi-floodgate-stable-wasm-failure-kind.md](./blog-shogi-floodgate-stable-wasm-failure-kind.md)
 
 ## 1. Result
 
 This change does not extend the timeout or alter worker count, search depth, proposal rows, runtime receipts, or production binding. It changes only the failure-information boundary.
 
-| Subject                     | Candidate result                              |
-| --------------------------- | --------------------------------------------- |
-| safe failure kinds          | exactly seven                                 |
-| timeout value               | `number` or `null`                            |
-| raw stderr / message        | neither retained nor published                |
-| PID / index / SFEN / IDs    | neither retained nor published                |
-| active / queued rejection   | the first identical safe error object         |
-| proposal after poison       | the same safe error object                    |
-| worker cleanup              | force-stop and reap every worker              |
-| normal receipt / binding    | unchanged                                     |
-| production state / weights  | unchanged                                     |
+| Subject                    | Candidate result                      |
+| -------------------------- | ------------------------------------- |
+| safe failure kinds         | exactly seven                         |
+| timeout value              | `number` or `null`                    |
+| raw stderr / message       | neither retained nor published        |
+| PID / index / SFEN / IDs   | neither retained nor published        |
+| active / queued rejection  | the first identical safe error object |
+| proposal after poison      | the same safe error object            |
+| worker cleanup             | force-stop and reap every worker      |
+| normal receipt / binding   | unchanged                             |
+| production state / weights | unchanged                             |
 
 ## 2. Why the cause disappeared before
 
@@ -36,15 +36,15 @@ This prevented private stderr leakage, but it also made a 600-second timeout ind
 
 The candidate permits exactly seven classifications.
 
-| Failure kind       | Meaning                                          | `timeout_ms` |
-| ------------------ | ------------------------------------------------ | ------------ |
-| `search-timeout`   | fixed timeout for a search request               | exact number |
-| `startup-timeout`  | fixed timeout for worker initialization          | exact number |
-| `worker-exit`      | unexpected process close or child error          | `null`       |
-| `transport`        | stdin, source pipe, stderr, write, or close path  | `null`       |
-| `protocol`         | stdout frame, schema, digest, ready/bye mismatch  | `null`       |
-| `validation`       | typed search result or proposal-row rejection    | `null`       |
-| `unknown`          | fail-closed fallback for an unclassified failure | `null`       |
+| Failure kind      | Meaning                                          | `timeout_ms` |
+| ----------------- | ------------------------------------------------ | ------------ |
+| `search-timeout`  | fixed timeout for a search request               | exact number |
+| `startup-timeout` | fixed timeout for worker initialization          | exact number |
+| `worker-exit`     | unexpected process close or child error          | `null`       |
+| `transport`       | stdin, source pipe, stderr, write, or close path | `null`       |
+| `protocol`        | stdout frame, schema, digest, ready/bye mismatch | `null`       |
+| `validation`      | typed search result or proposal-row rejection    | `null`       |
+| `unknown`         | fail-closed fallback for an unclassified failure | `null`       |
 
 Only exact objects registered in a module-private `WeakMap` are genuine. The public inspector rejects a Proxy first and does not read fields from structural forgeries or accessor-bearing lookalikes. The error object, safe metadata record, stack, and fields are frozen.
 
@@ -71,18 +71,23 @@ Runtime-wrapper and parent-coordinator regressions verify that a private canary 
 
 ## 6. Validation
 
-| Check                             | Result                      |
-| --------------------------------- | --------------------------- |
-| stable proposer focused tests     | PASS                        |
-| production stable runtime tests   | PASS                        |
-| production parent coordinator     | PASS                        |
-| focused total                     | 3 files / 110 tests         |
-| TypeScript                        | PASS                        |
-| changed-file ESLint               | PASS                        |
-| `git diff --check`                | PASS                        |
-| independent review                | P0 / P1 / P2 = 0 / 0 / 0   |
+| Check                              | Result                       |
+| ---------------------------------- | ---------------------------- |
+| stable proposer focused tests      | PASS                         |
+| production stable runtime tests    | PASS                         |
+| production parent coordinator      | PASS                         |
+| focused total                      | 3 files / 110 tests          |
+| TypeScript                         | PASS                         |
+| changed-file ESLint                | PASS                         |
+| `git diff --check`                 | PASS                         |
+| independent review                 | P0 / P1 / P2 = 0 / 0 / 0     |
+| PR #485 final-head checks          | 6 / 6 PASS                   |
+| regular merge                      | PASS                         |
+| merged-code read-only confirmation | 7 fulfilled / 5 safe rejects |
 
 Coverage includes search/startup timeout, worker exit, transport, protocol, validation, unknown, Proxy, forgery, accessor, active/queued/future identity, full child reap, and runtime/coordinator raw-canary non-disclosure.
+
+The merged-code [confirmation article](./blog-shogi-floodgate-stable-timeout-confirmation.en.md) separately records 1,103.693 seconds of input authentication and ordering, 0.165 seconds of runtime initialization, all seven successful measurements, five approximately 600-second rejections, 6,781.5 MiB parent peak RSS, fulfilled runtime close, zero residual workers, and zero persistent-state mutation counters.
 
 ## 7. Nonclaims
 
@@ -99,15 +104,16 @@ The source change also changes the existing V3 run binding and application-sourc
 
 ## 8. Safe next order
 
-1. Publish this candidate as a ready-for-review PR.
-2. Pass final-head CI, independent review, and a regular merge.
-3. Rerun the same twelve candidates read-only on the merged code to capture the first safe failure kind and timeout value.
-4. Compare tail latency, timeout, and throughput with 4, 6, 8, and 12 workers.
-5. Select a fix that preserves the playing-quality contract and treat its changed run binding as a new run.
-6. Finish the recovery inspector and human-confirmed quarantine, resolving the current stale lease and partial checkpoint under separate authority.
-7. Even after a fresh prefix-100 succeeds, stop once for independent review before advancing to 500 and final-24,000.
-8. Retrain, select candidates, run formal A/B, and calibrate externally only after the complete teacher data is finalized.
+1. Complete PR #485 final-head CI, independent review, and regular merge (complete).
+2. Rerun the same twelve candidates read-only on the merged code to capture the first safe failure kind and timeout value (complete).
+3. Compare tail latency, timeout, and throughput with 4, 6, 8, and 12 workers.
+4. Select a fix that preserves the playing-quality contract and treat its changed run binding as a new run.
+5. Finish the recovery inspector and human-confirmed quarantine, resolving the current stale lease and partial checkpoint under separate authority.
+6. Even after a fresh prefix-100 succeeds, stop once for independent review before advancing to 500 and final-24,000.
+7. Retrain, select candidates, run formal A/B, and calibrate externally only after the complete teacher data is finalized.
 
 ## 9. Current decision
 
-The candidate that preserves the pool-poison trigger without increasing private disclosure is implemented, validated, and independently reviewed. The PR, GitHub CI, regular merge, and real twelve-candidate rerun are not complete, so production remains **STOPPED**. The [machine-readable evidence](./data/floodgate-stable-wasm-failure-kind-2026-07-16.json) separates the implemented safety boundary from unexecuted production and playing-strength work.
+The change that preserves the pool-poison trigger without increasing private disclosure has completed implementation, validation, PR #485 final-head CI, regular merge, and a twelve-candidate read-only confirmation on authenticated real data. The safe kind that first poisoned the pool was confirmed as `search-timeout` with a 600,000 ms timeout. Pool broadcast gave all five rejections the same genuine safe metadata, however, so neither five independent timeout events nor the first triggering index is established.
+
+The timeout itself, optimal worker count, existing partial state, teacher data, and playing strength remain unresolved. Production therefore remains **STOPPED**. The [contract evidence](./data/floodgate-stable-wasm-failure-kind-2026-07-16.json) separates the safety boundary from the merged-code confirmation, while the [dedicated measurement evidence](./data/floodgate-stable-timeout-confirmation-2026-07-17.json) records timing, resources, cleanup, zero mutation, and nonclaims.

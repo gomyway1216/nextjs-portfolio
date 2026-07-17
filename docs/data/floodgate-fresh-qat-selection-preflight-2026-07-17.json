@@ -1,7 +1,7 @@
 {
   "schema": "shogi-floodgate-fresh-qat-selection-preflight-evidence-v1",
   "recorded_on": "2026-07-17",
-  "source_base_revision": "040f61ad6b44c6accb0db68375ec66877c021f17",
+  "source_base_revision": "1951c41305d72752332695362e3021aa935ba678",
   "status": "code-ready-data-only-blocked",
   "registries": {
     "training": {

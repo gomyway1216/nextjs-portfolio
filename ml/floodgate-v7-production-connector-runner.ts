@@ -446,7 +446,7 @@ const OUTER_RECEIPT_KEYS = objectFreeze([
 ] as const);
 const OUTER_VERIFICATION_KEYS = objectFreeze([
   "application_source_binding_read_from_locked_registry",
-  "exact_clean_application_source_closure_verified_before_persistent_mutation",
+  "exact_clean_tracked_application_source_closure_verified_before_persistent_mutation",
   "registry_anchor_revalidated_after_source_verification_before_persistent_mutation",
   "one_os_lifetime_lock_shared_by_all_four_mutation_purposes",
   "os_lifetime_lock_held_before_operation",
@@ -461,6 +461,9 @@ const OUTER_NONCLAIM_KEYS = objectFreeze([
   "application_source_revision_disclosed",
   "application_source_path_disclosed",
   "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "lock_or_lease_path_disclosed",
   "private_lease_metadata_disclosed",
   "key_material_disclosed",

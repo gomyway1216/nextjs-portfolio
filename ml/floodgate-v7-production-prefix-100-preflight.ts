@@ -126,7 +126,7 @@ export interface FloodgateV7ProductionPrefix100PreflightReceipt {
     readonly common_os_lock_held_through_all_checks: true;
     readonly registry_anchor_held_descriptor_and_bytes_revalidated: true;
     readonly private_registry_claimed_and_fixed_configuration_validated: true;
-    readonly application_source_binding_matched_to_exact_clean_application_closure: true;
+    readonly application_source_binding_matched_to_exact_clean_tracked_application_closure: true;
     readonly verifier_source_artifact_closure_rechecked: true;
     readonly deployment_key_metadata_ready: true;
     readonly approved_enrollment_loaded_and_registry_binding_matched: true;
@@ -147,6 +147,9 @@ export interface FloodgateV7ProductionPrefix100PreflightReceipt {
     readonly application_source_revision_disclosed: false;
     readonly application_source_path_disclosed: false;
     readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly reviewed_git_head_or_ci_status: false;
     readonly kill_reboot_drill_or_monitor_owner: false;
     readonly human_gate_approval: false;
@@ -2169,7 +2172,7 @@ function buildPublicReceipt(
       common_os_lock_held_through_all_checks: true as const,
       registry_anchor_held_descriptor_and_bytes_revalidated: true as const,
       private_registry_claimed_and_fixed_configuration_validated: true as const,
-      application_source_binding_matched_to_exact_clean_application_closure:
+      application_source_binding_matched_to_exact_clean_tracked_application_closure:
         true as const,
       verifier_source_artifact_closure_rechecked: true as const,
       deployment_key_metadata_ready: true as const,
@@ -2194,6 +2197,9 @@ function buildPublicReceipt(
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       reviewed_git_head_or_ci_status: false as const,
       kill_reboot_drill_or_monitor_owner: false as const,
       human_gate_approval: false as const,

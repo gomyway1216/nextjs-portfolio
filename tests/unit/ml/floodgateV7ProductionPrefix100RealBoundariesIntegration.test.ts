@@ -705,7 +705,7 @@ darwinDescribe("Floodgate v7 prefix-100 real same-lock boundaries", () => {
       status: FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS,
       gate: "durable-prefix-100",
       verification: {
-        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
         exact_prefix_100_read_only_continuity_postflight_completed: true,
       },
     });

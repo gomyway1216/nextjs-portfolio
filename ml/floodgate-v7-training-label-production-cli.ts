@@ -6,7 +6,10 @@
 
 import { types as nodeUtilTypes } from "node:util";
 
-import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import {
+  authorizeFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
 
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_CLI_SUCCESS_CONTRACT =
   "shogi-floodgate-v7-training-label-production-cli-success-v2" as const;
@@ -21,7 +24,9 @@ interface RunnerModule {
   readonly FloodgateV7TrainingLabelProductionRunnerError: new (
     ...arguments_: never[]
   ) => Error;
-  readonly runFloodgateV7TrainingLabelProduction: () => Promise<unknown>;
+  readonly runFloodgateV7TrainingLabelProduction: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<unknown>;
 }
 
 const NativeError = Error;
@@ -42,8 +47,6 @@ const nativeRegExpExec = RegExp.prototype.exec;
 const numberIsSafeInteger = Number.isSafeInteger;
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const MUTATION_PURPOSE = "training-label-finalization-24000" as const;
-const PURPOSE_ENTRYPOINT =
-  "ml/run-floodgate-v7-training-label-production.ts" as const;
 const RUNNER_CONTRACT =
   "shogi-floodgate-v7-training-label-production-runner-v2" as const;
 const RUNNER_STATUS =
@@ -76,7 +79,7 @@ const RUNNER_VERIFICATION_KEYS = objectFreeze([
   "destination_content_reverified",
   "purpose_bound_outer_lease_removed_durably",
   "common_os_lock_released",
-  "application_source_exact_clean_closure_validated_under_outer_gate",
+  "exact_clean_tracked_application_source_closure_validated_under_outer_gate",
 ] as const);
 const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "path_disclosed",
@@ -92,6 +95,9 @@ const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "application_source_revision_disclosed",
   "application_source_path_disclosed",
   "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "teacher_truth",
   "optimizer_training",
   "weight",
@@ -201,7 +207,7 @@ function sanitizedSuccess(value: unknown): Readonly<object> {
     verification.destination_content_reverified !== true ||
     verification.purpose_bound_outer_lease_removed_durably !== true ||
     verification.common_os_lock_released !== true ||
-    verification.application_source_exact_clean_closure_validated_under_outer_gate !==
+    verification.exact_clean_tracked_application_source_closure_validated_under_outer_gate !==
       true
   ) {
     throw new NativeError("training-label CLI success receipt differs");
@@ -237,11 +243,14 @@ function sanitizedSuccess(value: unknown): Readonly<object> {
     destination_content_reverified: true as const,
     purpose_bound_outer_lease_removed_durably: true as const,
     common_os_lock_released: true as const,
-    application_source_exact_clean_closure_validated_under_outer_gate:
+    exact_clean_tracked_application_source_closure_validated_under_outer_gate:
       true as const,
     application_source_revision_disclosed: false as const,
     application_source_path_disclosed: false as const,
     application_source_digest_disclosed: false as const,
+    ignored_untracked_dependency_bytes_verified: false as const,
+    same_uid_race_isolation: false as const,
+    atomic_source_snapshot: false as const,
     raw_outer_receipt_disclosed: false as const,
     raw_owner_receipt_disclosed: false as const,
     raw_finalizer_receipt_disclosed: false as const,
@@ -430,7 +439,10 @@ async function executeCli(): Promise<void> {
     ) {
       throw new NativeError("production training-label CLI invocation differs");
     }
-    assertFloodgateV7ProductionApplicationEntrypointContext(PURPOSE_ENTRYPOINT);
+    const applicationCapability =
+      await authorizeFloodgateV7ProductionApplicationExecution(
+        MUTATION_PURPOSE,
+      );
     /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime checks. */
     const loadedRunner =
       require("./floodgate-v7-training-label-production-runner") as RunnerModule;
@@ -441,7 +453,9 @@ async function executeCli(): Promise<void> {
       throw new NativeError("production training-label runner export differs");
     }
     runnerInvoked = true;
-    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, []);
+    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, [
+      applicationCapability,
+    ]);
     const publicReceipt = sanitizedSuccess(rawRunnerReceipt);
     try {
       await writeOutput(process.stdout, `${stringify(publicReceipt)}\n`);

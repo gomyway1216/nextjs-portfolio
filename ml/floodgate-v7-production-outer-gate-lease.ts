@@ -43,10 +43,15 @@ import {
   readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore,
 } from "./floodgate-v7-production-connector-registry";
 import {
+  assertFloodgateV7ProductionApplicationEntrypointContext,
   captureFloodgateV7ProductionApplicationSourceProvenance,
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
   type FloodgateV7ProductionApplicationSourceBinding,
 } from "./floodgate-v7-production-application-source-provenance";
+import {
+  claimFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
 
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT =
   "shogi-floodgate-v7-production-outer-gate-lease-v3" as const;
@@ -121,7 +126,7 @@ export interface FloodgateV7ProductionOuterGateLeaseReceipt {
   readonly verification: Readonly<{
     readonly one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true;
     readonly application_source_binding_read_from_locked_registry: true;
-    readonly exact_clean_application_source_closure_verified_before_persistent_mutation: true;
+    readonly exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true;
     readonly registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true;
     readonly os_lifetime_lock_held_before_operation: true;
     readonly authenticated_purpose_bound_lease_metadata_durable_before_operation: true;
@@ -141,6 +146,9 @@ export interface FloodgateV7ProductionOuterGateLeaseReceipt {
     readonly application_source_revision_disclosed: false;
     readonly application_source_path_disclosed: false;
     readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly graceful_signal_cleanup: false;
     readonly checkpoint: false;
     readonly teacher_label: false;
@@ -468,6 +476,7 @@ interface ManualInspectionState {
   readonly mutationPurpose: FloodgateV7ProductionOuterGateMutationPurpose;
   readonly effectiveUserId: number;
   readonly nonce: () => Uint8Array;
+  readonly captureApplicationSource: () => Promise<unknown>;
   readonly removeLifecycleHandlers: (() => void) | null;
 }
 
@@ -577,10 +586,6 @@ const APPLICATION_SOURCE_BINDING_KEYS = objectFreeze([
   "layout",
   "revision",
 ] as const);
-const productionManualInspections = new WeakMap<
-  object,
-  ManualInspectionState
->();
 const testManualInspections = new WeakMap<object, ManualInspectionState>();
 const productionConnectorCapabilities = new WeakMap<
   object,
@@ -640,9 +645,19 @@ const PREFIX_100_RUNNER_CONTRACT =
 const PREFIX_100_RUNNER_STATUS =
   "application-source-bound-registry-approved-current-production-connector-gate-complete" as const;
 const PREFIX_100_RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
+  "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
 const PREFIX_100_RUNNER_EXECUTION_BOUNDARY =
   "production-fixed-application-source-bound-gate-private-registry-and-capability-owners" as const;
+const PREFIX_100_ENTRYPOINT =
+  "ml/run-floodgate-v7-production-connector-prefix-100.ts" as const;
+const PREFIX_500_ENTRYPOINT =
+  "ml/run-floodgate-v7-production-connector-prefix-500.ts" as const;
+const FINAL_24000_ENTRYPOINT =
+  "ml/run-floodgate-v7-production-connector-final-24000.ts" as const;
+const TRAINING_LABEL_ENTRYPOINT =
+  "ml/run-floodgate-v7-training-label-production.ts" as const;
+const PREFIX_100_PREFLIGHT_ENTRYPOINT =
+  "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts" as const;
 
 function claimConnectorCapabilityFromRegistry(
   capability: Readonly<FloodgateV7ProductionOuterGateConnectorCapability>,
@@ -1739,6 +1754,54 @@ function readLockedRegistryBytes(helper: LockHelper, uid: number): Buffer {
   }
 }
 
+async function verifyApplicationSourceAgainstLockedRegistry(
+  helper: LockHelper,
+  registryPath: string,
+  dependencies: Pick<
+    CapturedDependencies,
+    "effectiveUserId" | "captureApplicationSource"
+  >,
+): Promise<void> {
+  const lockedRegistryBytes = readLockedRegistryBytes(
+    helper,
+    dependencies.effectiveUserId,
+  );
+  let registrySourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
+  try {
+    registrySourceBinding = requireExactApplicationSourceBinding(
+      readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore(
+        lockedRegistryBytes,
+      ),
+    );
+  } finally {
+    zero(lockedRegistryBytes);
+  }
+  const observedSourceBinding = requireExactApplicationSourceBinding(
+    await nativeReflectApply(
+      dependencies.captureApplicationSource,
+      undefined,
+      [],
+    ),
+  );
+  if (
+    observedSourceBinding.layout !== registrySourceBinding.layout ||
+    observedSourceBinding.revision !== registrySourceBinding.revision
+  ) {
+    throw new NativeError("application source registry binding differs");
+  }
+  if (
+    !revalidateRegistryAnchor(
+      helper,
+      registryPath,
+      dependencies.effectiveUserId,
+    )
+  ) {
+    throw new NativeError(
+      "registry anchor changed after application source verification",
+    );
+  }
+}
+
 function revalidateRegistryAnchor(
   helper: LockHelper,
   registryPath: string,
@@ -2044,7 +2107,7 @@ function buildReceipt(
     verification: frozenRecord({
       one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true as const,
       application_source_binding_read_from_locked_registry: true as const,
-      exact_clean_application_source_closure_verified_before_persistent_mutation:
+      exact_clean_tracked_application_source_closure_verified_before_persistent_mutation:
         true as const,
       registry_anchor_revalidated_after_source_verification_before_persistent_mutation:
         true as const,
@@ -2068,6 +2131,9 @@ function buildReceipt(
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       graceful_signal_cleanup: false as const,
       checkpoint: false as const,
       teacher_label: false as const,
@@ -2181,44 +2247,11 @@ async function acquireAndRun<
 
     currentPhase = "application-source";
     try {
-      const lockedRegistryBytes = readLockedRegistryBytes(
+      await verifyApplicationSourceAgainstLockedRegistry(
         helper,
-        dependencies.effectiveUserId,
+        paths.registryPath,
+        dependencies,
       );
-      let registrySourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
-      try {
-        registrySourceBinding = requireExactApplicationSourceBinding(
-          readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore(
-            lockedRegistryBytes,
-          ),
-        );
-      } finally {
-        zero(lockedRegistryBytes);
-      }
-      const observedSourceBinding = requireExactApplicationSourceBinding(
-        await nativeReflectApply(
-          dependencies.captureApplicationSource,
-          undefined,
-          [],
-        ),
-      );
-      if (
-        observedSourceBinding.layout !== registrySourceBinding.layout ||
-        observedSourceBinding.revision !== registrySourceBinding.revision
-      ) {
-        throw new NativeError("application source registry binding differs");
-      }
-      if (
-        !revalidateRegistryAnchor(
-          helper,
-          paths.registryPath,
-          dependencies.effectiveUserId,
-        )
-      ) {
-        throw new NativeError(
-          "registry anchor changed after application source verification",
-        );
-      }
     } catch {
       fail(
         "application-source",
@@ -2643,6 +2676,25 @@ function productionDependencies(): CapturedDependencies {
   }
 }
 
+function fixedProductionEntrypointFailure(
+  expectedEntrypoint: string,
+  disposition: FloodgateV7ProductionOuterGateLeaseDisposition,
+): FloodgateV7ProductionOuterGateLeaseError | null {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(expectedEntrypoint);
+    return null;
+  } catch {
+    return new FloodgateV7ProductionOuterGateLeaseError(
+      "capture",
+      disposition,
+      false,
+      false,
+      false,
+      false,
+    );
+  }
+}
+
 function inspectionReceipt(
   mutationPurpose: FloodgateV7ProductionOuterGateMutationPurpose,
 ): Readonly<FloodgateV7ProductionOuterGateStaleInspectionResult["receipt"]> {
@@ -2688,6 +2740,22 @@ async function inspectStaleForManualReconciliation(
       dependencies.lockfPath,
       dependencies.closeLockDescriptor,
     );
+    try {
+      await verifyApplicationSourceAgainstLockedRegistry(
+        helper,
+        paths.registryPath,
+        dependencies,
+      );
+    } catch {
+      fail(
+        "application-source",
+        "manual-reconciliation-required",
+        true,
+        false,
+        false,
+        false,
+      );
+    }
     prepareNamespaceAfterLock(
       dependencies.homeDirectory,
       dependencies.effectiveUserId,
@@ -2754,6 +2822,7 @@ async function inspectStaleForManualReconciliation(
         mutationPurpose,
         effectiveUserId: dependencies.effectiveUserId,
         nonce: dependencies.nonce,
+        captureApplicationSource: dependencies.captureApplicationSource,
         removeLifecycleHandlers,
       }),
     );
@@ -2864,6 +2933,25 @@ async function confirmManualQuarantine(
       )
     ) {
       fail("stale-inspection", "manual-reconciliation-required", true);
+    }
+    try {
+      await verifyApplicationSourceAgainstLockedRegistry(
+        state.helper,
+        state.paths.registryPath,
+        {
+          effectiveUserId: state.effectiveUserId,
+          captureApplicationSource: state.captureApplicationSource,
+        },
+      );
+    } catch {
+      fail(
+        "application-source",
+        "manual-reconciliation-required",
+        true,
+        false,
+        false,
+        false,
+      );
     }
     quarantineActive(state.paths, fresh, state.nonce, state.effectiveUserId);
     quarantined = true;
@@ -2987,84 +3075,41 @@ export function cancelFloodgateV7ProductionOuterGateStaleLeaseInspectionCoreForT
   return cancelManualInspection(capability, testManualInspections);
 }
 
-/** Production inspect phase; holds the common OS lock until confirm or cancel. */
+function unavailableProductionManualReconciliation(): FloodgateV7ProductionOuterGateLeaseError {
+  return new FloodgateV7ProductionOuterGateLeaseError(
+    "capture",
+    "manual-reconciliation-required",
+    false,
+    false,
+    false,
+    false,
+  );
+}
+
+/**
+ * Production reconciliation is deliberately unavailable until a separately
+ * reviewed fixed-origin operator entrypoint and reconciliation policy exist.
+ * The test-only core retains the state-machine coverage without granting
+ * production mutation authority.
+ */
 export function inspectFloodgateV7ProductionOuterGateStaleLease(): Promise<
   Readonly<FloodgateV7ProductionOuterGateStaleInspectionResult>
 > {
-  if (arguments.length !== 0) {
-    return NativePromise.reject(
-      new FloodgateV7ProductionOuterGateLeaseError(
-        "capture",
-        "manual-reconciliation-required",
-        false,
-        false,
-        false,
-        false,
-      ),
-    );
-  }
-  try {
-    return inspectStaleForManualReconciliation(
-      productionDependencies(),
-      productionManualInspections,
-    );
-  } catch (error) {
-    return NativePromise.reject(sanitizedLeaseFailure(error, "key-read"));
-  }
+  return NativePromise.reject(unavailableProductionManualReconciliation());
 }
 
-/** Explicit second phase. It moves only the freshly re-inspected exact source. */
+/** Production quarantine remains unavailable with the inspect phase above. */
 export function confirmFloodgateV7ProductionOuterGateStaleLeaseQuarantine(
-  capability: Readonly<FloodgateV7ProductionOuterGateStaleInspectionCapability>,
-  confirmation: string,
+  _capability: Readonly<FloodgateV7ProductionOuterGateStaleInspectionCapability>,
+  _confirmation: string,
 ): Promise<Readonly<FloodgateV7ProductionOuterGateQuarantineReceipt>> {
-  if (arguments.length !== 2) {
-    return NativePromise.reject(
-      new FloodgateV7ProductionOuterGateLeaseError(
-        "capture",
-        "manual-reconciliation-required",
-        false,
-        false,
-        false,
-        false,
-      ),
-    );
-  }
-  return (async () => {
-    try {
-      return await confirmManualQuarantine(
-        capability,
-        confirmation,
-        productionManualInspections,
-      );
-    } catch (error) {
-      throw sanitizedLeaseFailure(error, "quarantine");
-    }
-  })();
+  return NativePromise.reject(unavailableProductionManualReconciliation());
 }
 
 export function cancelFloodgateV7ProductionOuterGateStaleLeaseInspection(
-  capability: Readonly<FloodgateV7ProductionOuterGateStaleInspectionCapability>,
+  _capability: Readonly<FloodgateV7ProductionOuterGateStaleInspectionCapability>,
 ): Promise<void> {
-  if (arguments.length !== 1) {
-    return NativePromise.reject(
-      new FloodgateV7ProductionOuterGateLeaseError(
-        "capture",
-        "manual-reconciliation-required",
-        false,
-        false,
-        false,
-        false,
-      ),
-    );
-  }
-  return (async () => {
-    try {
-      await cancelManualInspection(capability, productionManualInspections);
-    } catch (error) {
-      throw sanitizedLeaseFailure(error, "cleanup");
-    }
-  })();
+  return NativePromise.reject(unavailableProductionManualReconciliation());
 }
 
 function buildPrefix100PreflightOuterLockReceipt(
@@ -3247,7 +3292,7 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     "approved_record_binding_matched",
     "fresh_current_key_binding_validated",
     "connector_completed",
-    "application_source_exact_clean_closure_validated_under_outer_gate",
+    "exact_clean_tracked_application_source_closure_validated_under_outer_gate",
     "exact_prefix_100_read_only_continuity_postflight_completed",
   ]);
   const nonclaims = exactFrozenNullDataRecord(receipt.nonclaims, [
@@ -3260,6 +3305,9 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     "application_source_revision_disclosed",
     "application_source_path_disclosed",
     "application_source_digest_disclosed",
+    "ignored_untracked_dependency_bytes_verified",
+    "same_uid_race_isolation",
+    "atomic_source_snapshot",
     "teacher_label",
     "optimizer_training",
     "weight",
@@ -3280,7 +3328,7 @@ function requireExactPrefix100RunnerContinuityReceipt(value: unknown): void {
     verification.approved_record_binding_matched !== true ||
     verification.fresh_current_key_binding_validated !== true ||
     verification.connector_completed !== true ||
-    verification.application_source_exact_clean_closure_validated_under_outer_gate !==
+    verification.exact_clean_tracked_application_source_closure_validated_under_outer_gate !==
       true ||
     verification.exact_prefix_100_read_only_continuity_postflight_completed !==
       true
@@ -3434,6 +3482,13 @@ export function runFloodgateV7ProductionPrefix100PreflightOuterLock(): Promise<
         false,
       ),
     );
+  }
+  const entrypointFailure = fixedProductionEntrypointFailure(
+    PREFIX_100_PREFLIGHT_ENTRYPOINT,
+    "fresh-invocation-allowed",
+  );
+  if (entrypointFailure !== null) {
+    return NativePromise.reject(entrypointFailure);
   }
   let dependencies: CapturedPrefix100PreflightOuterLockDependencies;
   try {
@@ -3853,10 +3908,37 @@ export function runWithFloodgateV7ProductionOuterGateLeaseCoreForTests<T>(
 }
 
 /** Fixed production owner for only the durable-prefix-100 gate. */
-export function runFloodgateV7ProductionOuterGatePrefix100(): Promise<
+export function runFloodgateV7ProductionOuterGatePrefix100(
+  applicationCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
 > {
-  if (arguments.length !== 0) {
+  if (arguments.length !== 1) {
+    return NativePromise.reject(
+      new FloodgateV7ProductionOuterGateLeaseError(
+        "capture",
+        "fresh-invocation-allowed",
+        false,
+        false,
+        false,
+        false,
+      ),
+    );
+  }
+  const entrypointFailure = fixedProductionEntrypointFailure(
+    PREFIX_100_ENTRYPOINT,
+    "fresh-invocation-allowed",
+  );
+  if (entrypointFailure !== null) {
+    return NativePromise.reject(entrypointFailure);
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationCapability,
+      "durable-prefix-100",
+      "outer-owner",
+    );
+  } catch {
     return NativePromise.reject(
       new FloodgateV7ProductionOuterGateLeaseError(
         "capture",
@@ -3883,10 +3965,37 @@ export function runFloodgateV7ProductionOuterGatePrefix100(): Promise<
 }
 
 /** Fixed production owner for only the durable-prefix-500 gate. */
-export function runFloodgateV7ProductionOuterGatePrefix500(): Promise<
+export function runFloodgateV7ProductionOuterGatePrefix500(
+  applicationCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
 > {
-  if (arguments.length !== 0) {
+  if (arguments.length !== 1) {
+    return NativePromise.reject(
+      new FloodgateV7ProductionOuterGateLeaseError(
+        "capture",
+        "fresh-invocation-allowed",
+        false,
+        false,
+        false,
+        false,
+      ),
+    );
+  }
+  const entrypointFailure = fixedProductionEntrypointFailure(
+    PREFIX_500_ENTRYPOINT,
+    "fresh-invocation-allowed",
+  );
+  if (entrypointFailure !== null) {
+    return NativePromise.reject(entrypointFailure);
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationCapability,
+      "durable-prefix-500",
+      "outer-owner",
+    );
+  } catch {
     return NativePromise.reject(
       new FloodgateV7ProductionOuterGateLeaseError(
         "capture",
@@ -3902,10 +4011,37 @@ export function runFloodgateV7ProductionOuterGatePrefix500(): Promise<
 }
 
 /** Fixed production owner for only the sealed-final-24000 gate. */
-export function runFloodgateV7ProductionOuterGateFinal24000(): Promise<
+export function runFloodgateV7ProductionOuterGateFinal24000(
+  applicationCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
 > {
-  if (arguments.length !== 0) {
+  if (arguments.length !== 1) {
+    return NativePromise.reject(
+      new FloodgateV7ProductionOuterGateLeaseError(
+        "capture",
+        "fresh-invocation-allowed",
+        false,
+        false,
+        false,
+        false,
+      ),
+    );
+  }
+  const entrypointFailure = fixedProductionEntrypointFailure(
+    FINAL_24000_ENTRYPOINT,
+    "fresh-invocation-allowed",
+  );
+  if (entrypointFailure !== null) {
+    return NativePromise.reject(entrypointFailure);
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationCapability,
+      "sealed-final-24000",
+      "outer-owner",
+    );
+  } catch {
     return NativePromise.reject(
       new FloodgateV7ProductionOuterGateLeaseError(
         "capture",
@@ -3921,10 +4057,37 @@ export function runFloodgateV7ProductionOuterGateFinal24000(): Promise<
 }
 
 /** Fixed production owner for only training-label finalization. */
-export function runFloodgateV7ProductionOuterGateTrainingLabelFinalization(): Promise<
+export function runFloodgateV7ProductionOuterGateTrainingLabelFinalization(
+  applicationCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionOuterGateLeaseOperationResult<unknown>>
 > {
-  if (arguments.length !== 0) {
+  if (arguments.length !== 1) {
+    return NativePromise.reject(
+      new FloodgateV7ProductionOuterGateLeaseError(
+        "capture",
+        "fresh-invocation-allowed",
+        false,
+        false,
+        false,
+        false,
+      ),
+    );
+  }
+  const entrypointFailure = fixedProductionEntrypointFailure(
+    TRAINING_LABEL_ENTRYPOINT,
+    "fresh-invocation-allowed",
+  );
+  if (entrypointFailure !== null) {
+    return NativePromise.reject(entrypointFailure);
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationCapability,
+      "training-label-finalization-24000",
+      "outer-owner",
+    );
+  } catch {
     return NativePromise.reject(
       new FloodgateV7ProductionOuterGateLeaseError(
         "capture",

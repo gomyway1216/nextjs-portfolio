@@ -110,23 +110,29 @@ function runEntry(
   const expectedPurposeEntrypoint =
     sourceGuard.expectedPurposeEntrypoint ??
     path.relative(REPOSITORY_ROOT, entryPath);
+  const expectedPurpose = ENTRY_CASES.find(
+    (entry) => entry.path === entryPath,
+  )?.gate;
   const launcher = String.raw`
 const Module = require("node:module");
 const originalLoad = Module._load;
 const privateCanary = ${JSON.stringify(PRIVATE_CANARY)};
+const applicationCapability = Object.freeze({ applicationCapability: true });
 let sourceGuardCalls = 0;
 Module._load = function (request, parent, isMain) {
-  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+  if (request.endsWith("floodgate-v7-production-application-source-authorization")) {
     return {
-      assertFloodgateV7ProductionApplicationEntrypointContext(expectedPurposeEntrypoint) {
+      async authorizeFloodgateV7ProductionApplicationExecution(purpose) {
         sourceGuardCalls += 1;
         if (
           sourceGuardCalls !== 1 ||
-          expectedPurposeEntrypoint !== ${JSON.stringify(expectedPurposeEntrypoint)} ||
+          purpose !== ${JSON.stringify(expectedPurpose)} ||
+          ${JSON.stringify(expectedPurposeEntrypoint)} !== ${JSON.stringify(path.relative(REPOSITORY_ROOT, entryPath))} ||
           ${JSON.stringify(sourceGuard.throws === true)}
         ) {
           throw new Error(privateCanary);
         }
+        return applicationCapability;
       },
     };
   }
@@ -151,7 +157,7 @@ Module._load = function (request, parent, isMain) {
     const gateReceipt = (gate, target, sealed) => ({
       contract: "shogi-floodgate-v7-production-connector-runner-v2",
       status: "application-source-bound-registry-approved-current-production-connector-gate-complete",
-      claim_boundary: "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
+      claim_boundary: "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
       execution_boundary: "production-fixed-application-source-bound-gate-private-registry-and-capability-owners",
       gate,
       checkpoint: {
@@ -164,7 +170,7 @@ Module._load = function (request, parent, isMain) {
         approved_record_binding_matched: true,
         fresh_current_key_binding_validated: true,
         connector_completed: true,
-        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
         ...(gate === "durable-prefix-100" ? {
           exact_prefix_100_read_only_continuity_postflight_completed: true,
         } : {}),
@@ -179,6 +185,9 @@ Module._load = function (request, parent, isMain) {
         application_source_revision_disclosed: false,
         application_source_path_disclosed: false,
         application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         teacher_label: false,
         optimizer_training: false,
         weight: false,
@@ -187,7 +196,8 @@ Module._load = function (request, parent, isMain) {
         playing_strength: false,
       },
     });
-    const operation = (gate, target, sealed) => async () => {
+    const operation = (gate, target, sealed) => async (capability) => {
+      if (capability !== applicationCapability) throw new Error(privateCanary);
       if (${JSON.stringify(mode)} === "unknown") throw new Error(privateCanary);
       if (${JSON.stringify(mode)} === "typed-failure") throw new RunnerError(gate);
       if (${JSON.stringify(mode)} === "postflight-failure") {
@@ -377,10 +387,13 @@ describe("Floodgate v7 production connector CLI", () => {
         sealed,
         checkpoint_may_have_persisted: true,
         fresh_current_key_binding_validated: true,
-        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
         application_source_revision_disclosed: false,
         application_source_path_disclosed: false,
         application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         raw_connector_receipt_disclosed: false,
         private_registry_values_disclosed: false,
         connector_options_disclosed: false,
@@ -484,7 +497,7 @@ describe("Floodgate v7 production connector CLI", () => {
       "process.version !== REQUIRED_NODE_VERSION",
     );
     const sourceGuard = executeSource.indexOf(
-      "assertFloodgateV7ProductionApplicationEntrypointContext(",
+      "authorizeFloodgateV7ProductionApplicationExecution(gate)",
     );
     const lazyRequire = executeSource.indexOf(
       'require("./floodgate-v7-production-connector-runner")',

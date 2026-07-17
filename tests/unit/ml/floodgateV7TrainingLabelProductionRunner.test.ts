@@ -105,7 +105,7 @@ function outerReceipt(
       mutation_purpose: "training-label-finalization-24000",
       verification: {
         application_source_binding_read_from_locked_registry: true,
-        exact_clean_application_source_closure_verified_before_persistent_mutation: true,
+        exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true,
         registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
         one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
         os_lifetime_lock_held_before_operation: true,
@@ -120,6 +120,9 @@ function outerReceipt(
         application_source_revision_disclosed: false,
         application_source_path_disclosed: false,
         application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         lock_or_lease_path_disclosed: false,
         private_lease_metadata_disclosed: false,
         key_material_disclosed: false,

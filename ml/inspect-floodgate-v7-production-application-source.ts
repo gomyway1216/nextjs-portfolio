@@ -15,9 +15,9 @@ import {
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_CONTRACT =
   "shogi-floodgate-v7-production-application-source-readiness-v1" as const;
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_STATUS =
-  "fixed-application-source-exact-clean-closure-observed" as const;
+  "fixed-application-source-exact-clean-tracked-closure-observed" as const;
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_CLAIM_BOUNDARY =
-  "point-in-time-read-only-exact-clean-application-source-observation-without-registry-gate-or-deployment-authority-v1" as const;
+  "point-in-time-read-only-exact-clean-tracked-application-source-observation-without-registry-gate-or-deployment-authority-v1" as const;
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-production-application" as const;
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_CLI_SUCCESS_CONTRACT =
@@ -41,6 +41,9 @@ export interface FloodgateV7ProductionApplicationSourceReadinessReceipt {
     readonly application_source_revision_disclosed: false;
     readonly application_source_path_disclosed: false;
     readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly registry_created_loaded_or_modified: false;
     readonly gate_or_deployment_authority: false;
     readonly checkpoint: false;
@@ -177,6 +180,9 @@ function buildReceipt(): Readonly<FloodgateV7ProductionApplicationSourceReadines
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       registry_created_loaded_or_modified: false as const,
       gate_or_deployment_authority: false as const,
       checkpoint: false as const,

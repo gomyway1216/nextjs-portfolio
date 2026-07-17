@@ -93,19 +93,22 @@ function runEntry(
 const Module = require("node:module");
 const originalLoad = Module._load;
 const privateCanary = ${JSON.stringify(PRIVATE_CANARY)};
+const applicationCapability = Object.freeze({ applicationCapability: true });
 let sourceGuardCalls = 0;
 Module._load = function (request, parent, isMain) {
-  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+  if (request.endsWith("floodgate-v7-production-application-source-authorization")) {
     return {
-      assertFloodgateV7ProductionApplicationEntrypointContext(expectedPurposeEntrypoint) {
+      async authorizeFloodgateV7ProductionApplicationExecution(purpose) {
         sourceGuardCalls += 1;
         if (
           sourceGuardCalls !== 1 ||
-          expectedPurposeEntrypoint !== ${JSON.stringify(expectedPurposeEntrypoint)} ||
+          purpose !== "training-label-finalization-24000" ||
+          ${JSON.stringify(expectedPurposeEntrypoint)} !== "ml/run-floodgate-v7-training-label-production.ts" ||
           ${JSON.stringify(sourceGuard.throws === true)}
         ) {
           throw new Error(privateCanary);
         }
+        return applicationCapability;
       },
     };
   }
@@ -146,7 +149,7 @@ Module._load = function (request, parent, isMain) {
         destination_content_reverified: true,
         purpose_bound_outer_lease_removed_durably: true,
         common_os_lock_released: true,
-        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       },
       nonclaims: {
         path_disclosed: false,
@@ -162,6 +165,9 @@ Module._load = function (request, parent, isMain) {
         application_source_revision_disclosed: false,
         application_source_path_disclosed: false,
         application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         teacher_truth: false,
         optimizer_training: false,
         weight: false,
@@ -172,7 +178,8 @@ Module._load = function (request, parent, isMain) {
     });
     return {
       FloodgateV7TrainingLabelProductionRunnerError: RunnerError,
-      runFloodgateV7TrainingLabelProduction: async () => {
+      runFloodgateV7TrainingLabelProduction: async (capability) => {
+        if (capability !== applicationCapability) throw new Error(privateCanary);
         if (${JSON.stringify(mode)} === "unknown") throw new Error(privateCanary);
         if (${JSON.stringify(mode)} === "typed-failure") throw new RunnerError();
         if (${JSON.stringify(mode)} === "inconsistent-typed") {
@@ -338,10 +345,13 @@ describe("Floodgate v7 training-label production CLI", () => {
       destination_content_reverified: true,
       purpose_bound_outer_lease_removed_durably: true,
       common_os_lock_released: true,
-      application_source_exact_clean_closure_validated_under_outer_gate: true,
+      exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       application_source_revision_disclosed: false,
       application_source_path_disclosed: false,
       application_source_digest_disclosed: false,
+      ignored_untracked_dependency_bytes_verified: false,
+      same_uid_race_isolation: false,
+      atomic_source_snapshot: false,
       raw_outer_receipt_disclosed: false,
       raw_owner_receipt_disclosed: false,
       raw_finalizer_receipt_disclosed: false,
@@ -429,7 +439,7 @@ describe("Floodgate v7 training-label production CLI", () => {
       "process.version !== REQUIRED_NODE_VERSION",
     );
     const sourceGuard = executeSource.indexOf(
-      "assertFloodgateV7ProductionApplicationEntrypointContext(",
+      "authorizeFloodgateV7ProductionApplicationExecution(",
     );
     const lazyRequire = executeSource.indexOf(
       'require("./floodgate-v7-training-label-production-runner")',

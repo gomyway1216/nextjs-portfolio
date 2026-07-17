@@ -95,7 +95,7 @@ function runnerReceipt(): Readonly<Record<string, unknown>> {
     status:
       "application-source-bound-registry-approved-current-production-connector-gate-complete",
     claim_boundary:
-      "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
+      "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
     execution_boundary:
       "production-fixed-application-source-bound-gate-private-registry-and-capability-owners",
     gate: "durable-prefix-100",
@@ -109,7 +109,7 @@ function runnerReceipt(): Readonly<Record<string, unknown>> {
       approved_record_binding_matched: true,
       fresh_current_key_binding_validated: true,
       connector_completed: true,
-      application_source_exact_clean_closure_validated_under_outer_gate: true,
+      exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       exact_prefix_100_read_only_continuity_postflight_completed: true,
     }),
     nonclaims: frozenNullRecord({
@@ -122,6 +122,9 @@ function runnerReceipt(): Readonly<Record<string, unknown>> {
       application_source_revision_disclosed: false,
       application_source_path_disclosed: false,
       application_source_digest_disclosed: false,
+      ignored_untracked_dependency_bytes_verified: false,
+      same_uid_race_isolation: false,
+      atomic_source_snapshot: false,
       teacher_label: false,
       optimizer_training: false,
       weight: false,
@@ -350,13 +353,16 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
       mutation_purpose: "durable-prefix-100",
       verification: {
         application_source_binding_read_from_locked_registry: true,
-        exact_clean_application_source_closure_verified_before_persistent_mutation: true,
+        exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true,
         registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
       },
       nonclaims: {
         application_source_revision_disclosed: false,
         application_source_path_disclosed: false,
         application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
       },
     });
     expect(heldByCompetitor(environment.registryPath)).toBe(0);
@@ -559,7 +565,7 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
         approved_record_binding_matched: true,
         fresh_current_key_binding_validated: true,
         connector_completed: true,
-        application_source_exact_clean_closure_validated_under_outer_gate: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       }),
       nonclaims: current.nonclaims,
     });

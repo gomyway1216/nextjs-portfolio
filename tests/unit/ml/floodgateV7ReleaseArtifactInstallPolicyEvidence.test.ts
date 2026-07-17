@@ -576,7 +576,7 @@ describe("Floodgate v7 release, artifact, and install policy boundary", () => {
     }
   });
 
-  it("keeps every operational counter at zero and every gate closed", () => {
+  it("keeps every operational counter at zero and every future gate open", () => {
     const record = evidence();
 
     expect(record.base).toMatchObject({

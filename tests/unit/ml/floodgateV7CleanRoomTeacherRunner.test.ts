@@ -9,8 +9,8 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
   FLOODGATE_V7_CLEAN_ROOM_GATE_SEQUENCE,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
-  FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS,
   FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomTeacherPlanCoreForTests,
   createFloodgateV7CleanRoomParentCoordinator,
@@ -295,7 +295,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
 
     expect(capability.receipt).toMatchObject({
       contract: FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
-      status: FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
+      status: FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS,
       execution_boundary:
         "test-only-injected-home-external-preparation-route",
       preparation: {

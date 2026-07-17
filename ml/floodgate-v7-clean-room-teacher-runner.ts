@@ -35,10 +35,7 @@ import {
   assertFloodgateGitExactCleanRevision,
   floodgateGitEnvironment,
 } from "./floodgate-git";
-import {
-  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
-  verifyPinnedFloodgateRoleBundleReceipt,
-} from "./floodgate-role-bundle-result";
+import { verifyPinnedFloodgateRoleBundleReceipt } from "./floodgate-role-bundle-result";
 import { createFloodgateStableWasmReusableProposalPool } from "./floodgate-stable-wasm-proposer";
 import { assertFloodgateTestPathsOutsideProductionHomeCoreForTests } from "./floodgate-teacher-stage-authorization";
 import type { FloodgateTrainingRowConsumerOptions } from "./floodgate-training-row-consumer";
@@ -60,6 +57,8 @@ export const FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT =
   "shogi-floodgate-v7-clean-room-teacher-runner-v1" as const;
 export const FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS =
   "prepared-verified-non-production-inputs-and-runtime-binding" as const;
+export const FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS =
+  "prepared-injected-test-inputs-not-operational-evidence" as const;
 export const FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY =
   "home-external-copy-by-value-pinned-verifier-and-test-core-runtime-binding-not-checkpoint-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION =
@@ -195,7 +194,9 @@ export interface FloodgateV7CleanRoomTeacherContractReceipt {
 
 export interface FloodgateV7CleanRoomTeacherPreparationReceipt {
   readonly contract: typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT;
-  readonly status: typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS;
+  readonly status:
+    | typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS
+    | typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS;
   readonly claim_boundary: typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY;
   readonly execution_boundary:
     | "fixed-non-production-home-external-real-test-core-route"
@@ -822,7 +823,11 @@ function preparationReceipt(
   );
   return Object.freeze({
     contract: FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
-    status: FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
+    status:
+      executionBoundary ===
+      "fixed-non-production-home-external-real-test-core-route"
+        ? FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS
+        : FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS,
     claim_boundary: FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
     execution_boundary: executionBoundary,
     preparation: Object.freeze({
@@ -1253,6 +1258,3 @@ export function createFloodgateV7CleanRoomParentCoordinator(
     fixedPreparedPlans,
   );
 }
-
-export const FLOODGATE_V7_CLEAN_ROOM_PINNED_MANIFEST_IDENTITY =
-  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY;

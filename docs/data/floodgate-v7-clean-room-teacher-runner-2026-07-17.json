@@ -15,6 +15,7 @@
   "runtime_exports": {
     "contract": "shogi-floodgate-v7-clean-room-teacher-runner-v1",
     "preparation_status": "prepared-verified-non-production-inputs-and-runtime-binding",
+    "test_preparation_status": "prepared-injected-test-inputs-not-operational-evidence",
     "claim_boundary": "home-external-copy-by-value-pinned-verifier-and-test-core-runtime-binding-not-checkpoint-teacher-label-training-weight-live-activation-or-playing-strength-evidence",
     "argumentless_read_only_contract_inspection": true,
     "package_script_added": false,

@@ -1,0 +1,66 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-selection-preflight-registry-v1",
+  "status": "awaiting-exact-fresh-plan-and-three-final-run-identities",
+  "execution_plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan.json",
+    "schema": "shogi-floodgate-fresh-qat-execution-plan-v1",
+    "bytes": null,
+    "sha256": null
+  },
+  "training_pipeline_revision": null,
+  "runs": [
+    {
+      "slot_id": "floodgate-fresh-int16-aware-seed-42",
+      "seed": 42,
+      "output": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-42",
+      "result": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-42/result.json",
+        "schema": "shogi-floodgate-fresh-qat-training-result-v1",
+        "bytes": null,
+        "sha256": null
+      },
+      "checkpoint": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-42/final.pt",
+        "schema": "shogi-floodgate-fresh-qat-final-checkpoint-v1",
+        "bytes": null,
+        "sha256": null
+      }
+    },
+    {
+      "slot_id": "floodgate-fresh-int16-aware-seed-43",
+      "seed": 43,
+      "output": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-43",
+      "result": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-43/result.json",
+        "schema": "shogi-floodgate-fresh-qat-training-result-v1",
+        "bytes": null,
+        "sha256": null
+      },
+      "checkpoint": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-43/final.pt",
+        "schema": "shogi-floodgate-fresh-qat-final-checkpoint-v1",
+        "bytes": null,
+        "sha256": null
+      }
+    },
+    {
+      "slot_id": "floodgate-fresh-int16-aware-seed-44",
+      "seed": 44,
+      "output": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-44",
+      "result": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-44/result.json",
+        "schema": "shogi-floodgate-fresh-qat-training-result-v1",
+        "bytes": null,
+        "sha256": null
+      },
+      "checkpoint": {
+        "path": "ml/runs/floodgate-q1-2026-fresh-int16-aware/seed-44/final.pt",
+        "schema": "shogi-floodgate-fresh-qat-final-checkpoint-v1",
+        "bytes": null,
+        "sha256": null
+      }
+    }
+  ],
+  "artifact_identities_registered": false,
+  "selection_preflight_ready": false
+}

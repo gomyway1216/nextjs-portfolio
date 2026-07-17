@@ -50,10 +50,28 @@ def file_identity(path):
 
 def identifier_identity(path):
     identity = file_identity(path)
+    identifiers = path.read_text(encoding="ascii").splitlines()
     return {
         **identity,
-        "count": len(path.read_text(encoding="utf-8").splitlines()),
-        "identifiers_sha256": identity["sha256"],
+        "count": len(identifiers),
+        "identifiers_sha256": hashlib.sha256(
+            "\n".join(sorted(set(identifiers))).encode("ascii")
+        ).hexdigest(),
+    }
+
+
+def canonical_position_id(character):
+    return f"sha256:{character * 64}"
+
+
+def canonical_id_bytes(identifiers):
+    return ("\n".join(sorted(identifiers)) + "\n").encode("ascii")
+
+
+def replay_identity(path):
+    return {
+        "format": FRESH.FRESH_QAT_ID_SET_FORMAT,
+        **identifier_identity(path),
     }
 
 
@@ -73,15 +91,36 @@ def synthetic_fixture(root):
     policy_receipt = write_bytes(root, "synthetic/policy.json", b'{"synthetic":true}\n')
     parent_ids = write_bytes(root, "synthetic/parent-ids.txt", b"parent-1\n")
     policy_ids = write_bytes(
-        root, "synthetic/policy-position-ids.txt", b"a" * 64 + b"\n"
+        root,
+        "synthetic/policy-position-ids.txt",
+        canonical_id_bytes({canonical_position_id("d")}),
     )
     holdout_ids = write_bytes(
-        root, "synthetic/holdout-position-ids.txt", b"b" * 64 + b"\n"
+        root,
+        "synthetic/holdout-position-ids.txt",
+        canonical_id_bytes({canonical_position_id("e")}),
+    )
+    fresh_selection_ids = write_bytes(
+        root,
+        f"synthetic/{FRESH.FRESH_QAT_SELECTION_PROTECTED_FILENAME}",
+        canonical_id_bytes({canonical_position_id("f")}),
+    )
+    legacy_ids = write_bytes(
+        root,
+        FRESH.FRESH_QAT_LEGACY_REPLAY_COMPONENT_RELATIVE_PATH,
+        canonical_id_bytes({canonical_position_id("a")}),
+    )
+    legacy_identifiers = set(legacy_ids.read_text(encoding="ascii").splitlines())
+    final_identifiers = set(holdout_ids.read_text(encoding="ascii").splitlines())
+    selection_identifiers = set(
+        fresh_selection_ids.read_text(encoding="ascii").splitlines()
     )
     replay_exclusion = write_bytes(
         root,
         "synthetic/replay-exclusion.txt",
-        b"c" * 64 + b"\n",
+        canonical_id_bytes(
+            legacy_identifiers | final_identifiers | selection_identifiers
+        ),
     )
     replay = write_bytes(root, "synthetic/replay.jsonl", b"synthetic replay\n")
     initializer = write_bytes(
@@ -99,13 +138,12 @@ def synthetic_fixture(root):
         ).hexdigest(),
     }
     replay_exclusion_identity = {
-        "format": FRESH.FRESH_QAT_ID_SET_FORMAT,
-        **identifier_identity(replay_exclusion),
-        "components": [
-            "legacy",
-            "fresh_final_holdout",
-            "fresh_selection",
-        ],
+        **replay_identity(replay_exclusion),
+        "components": {
+            "legacy": replay_identity(legacy_ids),
+            "fresh_final_holdout": replay_identity(holdout_ids),
+            "fresh_selection": replay_identity(fresh_selection_ids),
+        },
     }
     plan = {
         "schema": FRESH.FRESH_QAT_EXECUTION_PLAN_SCHEMA,
@@ -131,6 +169,9 @@ def synthetic_fixture(root):
             "policy_exposed_parent_ids": identifier_identity(parent_ids),
             "policy_exposed_semantic_position_ids": identifier_identity(policy_ids),
             "holdout_protected_position_ids": identifier_identity(holdout_ids),
+            "fresh_selection_protected_position_ids": identifier_identity(
+                fresh_selection_ids
+            ),
             "replay_exclusion": replay_exclusion_identity,
         },
         "runtime": {
@@ -211,6 +252,11 @@ def synthetic_fixture(root):
         "registry": registry,
         "registry_path": registry_path,
         "preregistered_path": preregistered_path,
+        "legacy_ids": legacy_ids,
+        "legacy_identity": replay_identity(legacy_ids),
+        "holdout_ids": holdout_ids,
+        "fresh_selection_ids": fresh_selection_ids,
+        "replay_exclusion": replay_exclusion,
         "args": args,
         "runtime": runtime,
     }
@@ -227,6 +273,36 @@ def rewrite_plan(fixture, mutate):
     registry["plan"]["sha256"] = hashlib.sha256(raw).hexdigest()
     fixture["registry_path"].write_bytes(json_bytes(registry))
     fixture["registry"] = registry
+
+
+def replace_replay_union(fixture, identifiers):
+    fixture["replay_exclusion"].write_bytes(canonical_id_bytes(set(identifiers)))
+    identity = replay_identity(fixture["replay_exclusion"])
+
+    def mutate(plan):
+        exclusion = plan["inputs"]["replay_exclusion"]
+        for field in ("format", "bytes", "sha256", "count", "identifiers_sha256"):
+            exclusion[field] = identity[field]
+
+    rewrite_plan(fixture, mutate)
+
+
+def replace_replay_component(fixture, name, path, raw):
+    path.write_bytes(raw)
+    component = replay_identity(path)
+    input_field = {
+        "fresh_final_holdout": "holdout_protected_position_ids",
+        "fresh_selection": "fresh_selection_protected_position_ids",
+    }[name]
+
+    def mutate(plan):
+        plan["inputs"][input_field] = {
+            field: component[field]
+            for field in ("bytes", "sha256", "count", "identifiers_sha256")
+        }
+        plan["inputs"]["replay_exclusion"]["components"][name] = component
+
+    rewrite_plan(fixture, mutate)
 
 
 def patched_artifact_snapshot():
@@ -248,7 +324,11 @@ def patched_artifact_snapshot():
 class FreshQatProtocolTests(unittest.TestCase):
     def verify_fixture(self, fixture):
         tracker = mock.Mock()
-        with patched_artifact_snapshot():
+        with patched_artifact_snapshot(), mock.patch.object(
+            FRESH,
+            "FRESH_QAT_LEGACY_REPLAY_COMPONENT_IDENTITY",
+            fixture["legacy_identity"],
+        ):
             binding = FRESH._verify_fresh_qat_experiment_plan(
                 fixture["args"],
                 fixture["runtime"],
@@ -257,7 +337,7 @@ class FreshQatProtocolTests(unittest.TestCase):
             )
         return binding, tracker
 
-    def test_synthetic_binding_is_warm_only_and_label_blind(self):
+    def test_synthetic_binding_accepts_exact_untracked_legacy_component(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = synthetic_fixture(Path(directory))
             binding, tracker = self.verify_fixture(fixture)
@@ -278,8 +358,22 @@ class FreshQatProtocolTests(unittest.TestCase):
             self.assertEqual(binding["contract"]["selection_evaluations"], 0)
             self.assertFalse(binding["contract"]["early_stopping"])
             self.assertEqual(
+                binding["contract"]["schema"],
+                FRESH.FRESH_QAT_TRAINING_CONTRACT_SCHEMA,
+            )
+            self.assertEqual(
                 binding["provenance"]["schema"],
                 FRESH.FRESH_QAT_EXECUTION_PLAN_SCHEMA,
+            )
+            self.assertNotEqual(
+                fixture["plan"]["inputs"]["replay_exclusion"]["sha256"],
+                fixture["plan"]["inputs"]["replay_exclusion"]["identifiers_sha256"],
+            )
+            self.assertEqual(
+                binding["provenance"]["verified_input_sha256"][
+                    "replay_exclusion_component_legacy"
+                ],
+                fixture["legacy_identity"]["sha256"],
             )
             self.assertEqual(
                 tracker.call_args_list,
@@ -297,6 +391,10 @@ class FreshQatProtocolTests(unittest.TestCase):
                         fixture["args"].pipeline_revision,
                     ),
                 ],
+            )
+            self.assertNotIn(
+                str(fixture["legacy_ids"].resolve()),
+                [call.args[0] for call in tracker.call_args_list],
             )
 
     def test_plan_and_registry_require_exact_keys_and_strict_json(self):
@@ -456,6 +554,100 @@ class FreshQatProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "warm-only final"):
                 self.verify_fixture(fixture)
 
+    def test_replay_exclusion_requires_exact_three_component_union(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            union = set(
+                fixture["replay_exclusion"].read_text(encoding="ascii").splitlines()
+            )
+            selection = set(
+                fixture["fresh_selection_ids"].read_text(encoding="ascii").splitlines()
+            )
+            replace_replay_union(fixture, union - selection)
+            with self.assertRaisesRegex(
+                ValueError,
+                "not the exact union.*missing_count=1, extra_count=0",
+            ) as raised:
+                self.verify_fixture(fixture)
+            self.assertNotIn(next(iter(selection)), str(raised.exception))
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            union = set(
+                fixture["replay_exclusion"].read_text(encoding="ascii").splitlines()
+            )
+            replace_replay_union(
+                fixture,
+                union | {canonical_position_id("9")},
+            )
+            extra_id = canonical_position_id("9")
+            with self.assertRaisesRegex(
+                ValueError,
+                "not the exact union.*missing_count=0, extra_count=1",
+            ) as raised:
+                self.verify_fixture(fixture)
+            self.assertNotIn(extra_id, str(raised.exception))
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            union = set(
+                fixture["replay_exclusion"].read_text(encoding="ascii").splitlines()
+            )
+            selection = set(
+                fixture["fresh_selection_ids"].read_text(encoding="ascii").splitlines()
+            )
+            replace_replay_union(
+                fixture,
+                (union - selection) | {canonical_position_id("9")},
+            )
+            with self.assertRaisesRegex(
+                ValueError,
+                "not the exact union.*missing_count=1, extra_count=1",
+            ) as raised:
+                self.verify_fixture(fixture)
+            self.assertNotIn(next(iter(selection)), str(raised.exception))
+            self.assertNotIn(canonical_position_id("9"), str(raised.exception))
+
+    def test_replay_components_reject_duplicates_overlap_and_noncanonical_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            selection_id = canonical_position_id("f")
+            replace_replay_component(
+                fixture,
+                "fresh_selection",
+                fixture["fresh_selection_ids"],
+                f"{selection_id}\n{selection_id}\n".encode("ascii"),
+            )
+            with self.assertRaisesRegex(ValueError, "bytewise sorted and unique"):
+                self.verify_fixture(fixture)
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            replace_replay_component(
+                fixture,
+                "fresh_selection",
+                fixture["fresh_selection_ids"],
+                fixture["holdout_ids"].read_bytes(),
+            )
+            protected_id = fixture["holdout_ids"].read_text(encoding="ascii").strip()
+            with self.assertRaisesRegex(
+                ValueError,
+                "duplicate membership.*count=1",
+            ) as raised:
+                self.verify_fixture(fixture)
+            self.assertNotIn(protected_id, str(raised.exception))
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            replace_replay_component(
+                fixture,
+                "fresh_selection",
+                fixture["fresh_selection_ids"],
+                canonical_id_bytes({"sha256:" + "A" * 64}),
+            )
+            with self.assertRaisesRegex(ValueError, "non-canonical position ID"):
+                self.verify_fixture(fixture)
+
     def test_checked_in_registry_has_no_placeholder_identities(self):
         registry_path = REPO_ROOT / FRESH.FRESH_QAT_REGISTRY_RELATIVE_PATH
         registry = FRESH._strict_json(
@@ -473,12 +665,21 @@ class FreshQatProtocolTests(unittest.TestCase):
             ),
             pipeline_revision="a" * 40,
         )
-        with self.assertRaisesRegex(ValueError, "data-only blocked"):
-            FRESH.verify_fresh_qat_experiment_plan(
-                args,
-                {},
-                tracking_verifier=lambda *_: None,
-            )
+        with mock.patch.object(
+            FRESH,
+            "_load_canonical_position_id_set",
+        ) as component_reader, mock.patch.object(
+            FRESH,
+            "_sha256_file_snapshot",
+        ) as artifact_reader:
+            with self.assertRaisesRegex(ValueError, "data-only blocked"):
+                FRESH.verify_fresh_qat_experiment_plan(
+                    args,
+                    {},
+                    tracking_verifier=lambda *_: None,
+                )
+        component_reader.assert_not_called()
+        artifact_reader.assert_not_called()
 
 
 if __name__ == "__main__":

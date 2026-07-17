@@ -1,0 +1,239 @@
+{
+  "schema": "shogi-floodgate-stable-wasm-deadline-diagnostic-design-evidence-v1",
+  "evidence_date": "2026-07-17",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-stable-wasm-deadline-diagnostic.md",
+    "english": "../blog-shogi-floodgate-stable-wasm-deadline-diagnostic.en.md"
+  },
+  "source_base": {
+    "branch_base": "origin/main",
+    "commit": "040f61ad6b44c6accb0db68375ec66877c021f17",
+    "tree": "3630df561f25d3d222f77ba650cddd97728071d9",
+    "committed_at": "2026-07-17T04:25:52-07:00"
+  },
+  "runtime_exports": {
+    "schema": "shogi-floodgate-stable-wasm-deadline-diagnostic-v1",
+    "status": "non-operational-in-memory-contract-core-no-production-import-binding-reader-writer-or-run-authority",
+    "claim_boundary": "deadline-isolation-and-aggregate-telemetry-only-not-teacher-data-partial-result-adoption-training-playing-strength-or-live-change"
+  },
+  "contract": {
+    "requests_per_child": 1,
+    "maximum_parallel_children": 6,
+    "maximum_requests": 12,
+    "cooperative_deadline_ms": 600000,
+    "outer_watchdog_ms": 615000,
+    "outer_watchdog_origin": "per-child-spawn",
+    "cooperative_clock": "(performance.now()-epoch)/cooperative_deadline_ms",
+    "search_call": "searchBestMove(1,11,10)",
+    "untimed_reference_call": "searchBestMove(0,11,10)",
+    "untimed_feature_knobs": {
+      "null_move_reduction": 2,
+      "quiescence_check_move_limit": 1,
+      "quiescence_check_try_limit": 2
+    },
+    "diagnostic_feature_knobs": {
+      "null_move_reduction": 2,
+      "quiescence_check_move_limit": 1,
+      "quiescence_check_try_limit": 2
+    },
+    "constant_clock_parity_scope": "deadline-not-crossed-algorithmic-branch-sentinel-only",
+    "diagnostic_host_now_sampling": "approximately-once-per-2048-nodes-plus-leaves",
+    "host_callback_boundary_crossing_present_when_max_time_is_1": true,
+    "shared_tt_enabled": false,
+    "global_pool_poison": false,
+    "assets_snapshotted_before_first_asynchronous_boundary": true,
+    "malformed_position_rejected_before_child_launch": true,
+    "parent_position_validation": "exact-board-piece-codes-exactly-one-king-per-side-droppable-hand-slots-and-physical-material-limits",
+    "watchdog_kill_scope": "only-the-expired-child",
+    "all_children_reaped_before_aggregate": true,
+    "observed_parallel_children_increment_boundary": "successful-node-child-spawn-event-only",
+    "observed_parallel_children_decrement_boundary": "close-event-after-successful-spawn-event-only",
+    "observed_peak_parallelism_claim": "timing-sensitive-per-run-measurement-not-claimed-order-invariant",
+    "individual_lane_records_returned": 0,
+    "partial_iteration_results_adopted": 0
+  },
+  "phase_contract": {
+    "fixed_phase_histogram_order": [
+      "requested-depth-complete",
+      "winning-mate-early",
+      "cooperative-deadline-after-completed-depth-0",
+      "cooperative-deadline-after-completed-depth-1",
+      "cooperative-deadline-after-completed-depth-2",
+      "cooperative-deadline-after-completed-depth-3",
+      "cooperative-deadline-after-completed-depth-4",
+      "cooperative-deadline-after-completed-depth-5",
+      "cooperative-deadline-after-completed-depth-6",
+      "cooperative-deadline-after-completed-depth-7",
+      "cooperative-deadline-after-completed-depth-8",
+      "cooperative-deadline-after-completed-depth-9",
+      "cooperative-deadline-after-completed-depth-10",
+      "outer-watchdog",
+      "failure"
+    ],
+    "deadline_phase_semantics": "deadline-observed-after-d-completed-depths-not-an-assertion-of-the-exact-stop-location-within-or-after-the-next-iteration",
+    "exact_internal_stop_location_exposed": false
+  },
+  "aggregate_only_output": {
+    "outcome_counts": true,
+    "phase_histogram": true,
+    "completed_depth_histogram": true,
+    "nodes_power_range_histogram": true,
+    "leaves_power_range_histogram": true,
+    "configured_parallelism": true,
+    "observed_peak_parallelism": true,
+    "elapsed_time_per_lane": false,
+    "exact_node_or_leaf_count_per_lane": false
+  },
+  "privacy": {
+    "sfen_disclosed": false,
+    "board_disclosed": false,
+    "input_index_disclosed": false,
+    "digest_disclosed": false,
+    "game_parent_or_position_id_disclosed": false,
+    "pid_disclosed": false,
+    "stderr_disclosed": false,
+    "move_disclosed": false,
+    "score_disclosed": false,
+    "private_path_disclosed": false,
+    "individual_lane_record_disclosed": false
+  },
+  "pinned_assets": {
+    "wasm": {
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "weights": {
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "diagnostic_worker": {
+      "bytes": 17346,
+      "sha256": "7d085ddfce1c55e8ad792be13e44e48cd34344fe8a876c67fe89389271db16ca"
+    }
+  },
+  "unit_verification": {
+    "real_pinned_wasm_constant_clock_max_time_0_vs_1_exact_field_count": 5,
+    "real_pinned_wasm_constant_clock_parity": "PASS",
+    "parity_values_published": false,
+    "scaled_clock_cooperative_deadline": "PASS",
+    "scaled_clock_partial_iteration_adopted": false,
+    "buffer_backed_asset_snapshot_isolation": "PASS",
+    "malformed_position_prelaunch_rejection": "PASS",
+    "synthetic_complete_deadline_hang_failure_isolation": "PASS",
+    "synthetic_maximum_observed_parallel_children": 6,
+    "asynchronous_spawn_failure_observed_peak_parallel_children": 0,
+    "synthetic_tested_input_and_completion_order_permutation_count": 2,
+    "synthetic_two_tested_permutations_same_histogram_count_aggregate": "PASS",
+    "synthetic_only_expired_child_killed": "PASS",
+    "synthetic_all_children_reaped": "PASS",
+    "privacy_canary_absent_from_aggregate": "PASS"
+  },
+  "unchanged_production_identities": [
+    {
+      "path": "package.json",
+      "bytes": 7525,
+      "sha256": "4a5e83202d7167d71b7d58677854a7c73eed5ee5dd3e24a58bc5e91c71dade67"
+    },
+    {
+      "path": "ml/floodgate-stable-wasm-worker.mjs",
+      "bytes": 19216,
+      "sha256": "d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3"
+    },
+    {
+      "path": "ml/floodgate-stable-wasm-proposer.ts",
+      "bytes": 98488,
+      "sha256": "c0d466804cd97bb69328e5002d952c4e85ecd09997c1f00fdd1604f581b4b2be"
+    },
+    {
+      "path": "ml/floodgate-production-stable-wasm-runtime.ts",
+      "bytes": 58201,
+      "sha256": "e39c303b87c56a4bf91fe9a03454f6ab1600d871e379831a84711fb9b5f6afb2"
+    },
+    {
+      "path": "ml/floodgate-production-teacher-asset-authority.ts",
+      "bytes": 54314,
+      "sha256": "34035f96f26d7501ff3ef0ef0a1b873564a6d70b01a0c788a357c67271c56036"
+    },
+    {
+      "path": "wasm-spike/assembly/index.ts",
+      "bytes": 139447,
+      "sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c"
+    },
+    {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+    }
+  ],
+  "scope": {
+    "production_import_graph_changed": false,
+    "production_worker_changed": false,
+    "production_pool_changed": false,
+    "production_runtime_changed": false,
+    "production_authority_changed": false,
+    "production_asset_changed": false,
+    "existing_wasm_changed": false,
+    "existing_weights_changed": false,
+    "existing_binding_changed": false,
+    "package_script_added": false,
+    "cli_added": false,
+    "file_writer_added": false
+  },
+  "outer_watchdog_nonclaim": {
+    "nominal_difference_ms": 15000,
+    "outer_watchdog_starts_at_child_spawn": true,
+    "cooperative_search_clock_is_sampled_inside_the_child": true,
+    "bootstrap_input_validation_instantiation_and_weight_copy_consume_outer_budget": true,
+    "guaranteed_post_search_cleanup_margin_ms": null,
+    "full_15000ms_cleanup_margin_established": false
+  },
+  "operational_state": {
+    "state": "STOP",
+    "real_diagnostic_runs": 0,
+    "real_private_inputs_read": 0,
+    "teacher_rows_created": 0,
+    "training_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false,
+    "production_activations": 0
+  },
+  "nonclaims": {
+    "operational_diagnostic_completed": false,
+    "all_previous_tail_cases_independently_timed_out": false,
+    "exact_internal_deadline_stop_location_known": false,
+    "nominal_15000ms_is_guaranteed_cleanup_time": false,
+    "host_callback_overhead_is_zero": false,
+    "constant_clock_and_deadline_clock_wall_performance_equal": false,
+    "same_600_second_wall_timing_as_production_established": false,
+    "production_timing_equivalence_established": false,
+    "teacher_data_created": false,
+    "retraining_completed": false,
+    "playing_strength_improved": false,
+    "stable_high_dan_established": false
+  },
+  "next_safe_gate": {
+    "state": "STOP",
+    "required_before_execution": [
+      "final-head-ci",
+      "independent-review",
+      "separate-non-production-run-binding",
+      "fast-sentinel-callback-overhead-ratio-aggregate",
+      "before-and-after-persistent-state-snapshot",
+      "fixed-twelve-request-aggregate-only-diagnostic",
+      "all-child-reap-proof"
+    ],
+    "live_weights_remain_unchanged": true
+  }
+}

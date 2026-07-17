@@ -16,7 +16,10 @@ import {
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
   type FloodgateV7ProductionApplicationSourceBinding,
 } from "./floodgate-v7-production-application-source-provenance";
-import type { FloodgateTeacherStageAuthorizationOptions } from "./floodgate-teacher-stage-authorization";
+import {
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests,
+  type FloodgateTeacherStageAuthorizationOptions,
+} from "./floodgate-teacher-stage-authorization";
 import type { FloodgateTrainingRowConsumerOptions } from "./floodgate-training-row-consumer";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT =
@@ -568,6 +571,9 @@ function assertTestHomeIsSeparate(dependencies: CapturedDependencies): void {
     throw new NativeError("production identity is unavailable");
   }
   const productionHome = pathResolve(userInfo.homedir);
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    dependencies.homeDirectory,
+  ]);
   const productionReal = realpathSync(productionHome);
   const testReal = realpathSync(dependencies.homeDirectory);
   const productionStat = namedSnapshot(productionHome);

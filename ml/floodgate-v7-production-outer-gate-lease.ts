@@ -52,11 +52,12 @@ import {
   claimFloodgateV7ProductionApplicationExecution,
   type FloodgateV7ProductionApplicationExecutionCapability,
 } from "./floodgate-v7-production-application-source-authorization";
+import { assertFloodgateTestPathsOutsideProductionHomeCoreForTests } from "./floodgate-teacher-stage-authorization";
 
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT =
   "shogi-floodgate-v7-production-outer-gate-lease-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_STATUS =
-  "all-four-fixed-mutation-purposes-serialized-by-os-lifetime-lock-source-bound-to-exact-clean-application-closure-and-authenticated-purpose-bound-durable-lease" as const;
+  "all-four-fixed-mutation-purposes-serialized-by-os-lifetime-lock-source-bound-to-exact-clean-tracked-application-closure-and-authenticated-purpose-bound-durable-lease" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM =
   "macos-lockf-inherited-registry-open-file-description-hkdf-sha256-purpose-bound-canonical-hmac-sha256-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY =
@@ -1042,8 +1043,24 @@ function canonicalAbsolute(value: unknown, label: string): string {
   return value;
 }
 
+function captureCanonicalHomeOutsideProduction(
+  value: unknown,
+  allowProductionHome: boolean,
+): string {
+  const home = canonicalAbsolute(value, "home");
+  const canonicalHome = nativeRealpathSync(home);
+  if (canonicalHome !== home) {
+    throw new NativeError("home is not canonical");
+  }
+  if (!allowProductionHome) {
+    assertFloodgateTestPathsOutsideProductionHomeCoreForTests([canonicalHome]);
+  }
+  return home;
+}
+
 function captureDependencies(
   value: FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
+  allowProductionHome = false,
 ): CapturedDependencies {
   if (
     value === null ||
@@ -1106,9 +1123,19 @@ function captureDependencies(
     fail("capture", "fresh-invocation-allowed");
   }
   const rootKey = bufferFrom(value.rootKey);
+  let homeDirectory: string;
+  try {
+    homeDirectory = captureCanonicalHomeOutsideProduction(
+      value.homeDirectory,
+      allowProductionHome,
+    );
+  } catch {
+    zero(rootKey);
+    fail("capture", "fresh-invocation-allowed");
+  }
   return frozenRecord({
     effectiveUserId,
-    homeDirectory: canonicalAbsolute(value.homeDirectory, "home"),
+    homeDirectory,
     rootKey,
     hostname,
     pid,
@@ -1133,6 +1160,7 @@ function captureDependencies(
 
 function capturePrefix100PreflightOuterLockDependencies(
   value: FloodgateV7ProductionPrefix100PreflightOuterLockDependenciesForTests,
+  allowProductionHome = false,
 ): CapturedPrefix100PreflightOuterLockDependencies {
   if (
     value === null ||
@@ -1190,9 +1218,18 @@ function capturePrefix100PreflightOuterLockDependencies(
   ) {
     fail("capture", "fresh-invocation-allowed");
   }
+  let canonicalHome: string;
+  try {
+    canonicalHome = captureCanonicalHomeOutsideProduction(
+      homeDirectory,
+      allowProductionHome,
+    );
+  } catch {
+    fail("capture", "fresh-invocation-allowed");
+  }
   return frozenRecord({
     effectiveUserId,
-    homeDirectory: canonicalAbsolute(homeDirectory, "home"),
+    homeDirectory: canonicalHome,
     lockfPath: canonicalAbsolute(lockfPath, "lockf path"),
     closeLockDescriptor: closeLockDescriptor as (descriptor: number) => void,
   });
@@ -2662,15 +2699,18 @@ function productionDependencies(): CapturedDependencies {
   const home = canonicalAbsolute(user.homedir, "production home");
   const rootKey = readProductionRootKey(home, uid);
   try {
-    return captureDependencies({
-      effectiveUserId: uid,
-      homeDirectory: home,
-      rootKey,
-      hostname: getHostname(),
-      pid: process.pid,
-      lockfPath: LOCKF_PATH,
-      installProcessLifecycleHandlers: true,
-    });
+    return captureDependencies(
+      {
+        effectiveUserId: uid,
+        homeDirectory: home,
+        rootKey,
+        hostname: getHostname(),
+        pid: process.pid,
+        lockfPath: LOCKF_PATH,
+        installProcessLifecycleHandlers: true,
+      },
+      true,
+    );
   } finally {
     zero(rootKey);
   }
@@ -3430,11 +3470,14 @@ function productionPrefix100PreflightOuterLockDependencies(): CapturedPrefix100P
   if (user.uid !== effectiveUserId) {
     fail("production-identity", "manual-reconciliation-required");
   }
-  return capturePrefix100PreflightOuterLockDependencies({
-    effectiveUserId,
-    homeDirectory: canonicalAbsolute(user.homedir, "production home"),
-    lockfPath: LOCKF_PATH,
-  });
+  return capturePrefix100PreflightOuterLockDependencies(
+    {
+      effectiveUserId,
+      homeDirectory: canonicalAbsolute(user.homedir, "production home"),
+      lockfPath: LOCKF_PATH,
+    },
+    true,
+  );
 }
 
 /**

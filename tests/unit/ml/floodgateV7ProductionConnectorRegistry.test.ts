@@ -495,6 +495,33 @@ describe("Floodgate v7 production connector registry", () => {
         homeDirectory: alias,
       }),
     ).rejects.toMatchObject({ phase: "test-boundary" });
+
+    const productionHome = await fs.promises.realpath(userInfo.homedir);
+    const productionDescendant = await fs.promises.realpath(process.cwd());
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    await expect(
+      loadFloodgateV7ProductionConnectorRegistryCoreForTests({
+        effectiveUserId: EUID,
+        homeDirectory: productionDescendant,
+      }),
+    ).rejects.toMatchObject({ phase: "test-boundary" });
+
+    const danglingAlias = path.join(aliasParent, "dangling-home");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `floodgate-v7-registry-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+    await expect(
+      loadFloodgateV7ProductionConnectorRegistryCoreForTests({
+        effectiveUserId: EUID,
+        homeDirectory: danglingAlias,
+      }),
+    ).rejects.toMatchObject({ phase: "test-boundary" });
   });
 
   it("requires exact private directory, file mode, and link count", async () => {

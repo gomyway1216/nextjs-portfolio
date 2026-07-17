@@ -34,6 +34,8 @@ import {
   type FloodgateV7DeploymentKeyReadinessStatus,
 } from "./floodgate-v7-deployment-key-readiness";
 import {
+  assertFloodgateTeacherStageLeaseTestRealmCoreForTests,
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests,
   authorizeFloodgateTeacherStage,
   type FloodgateTeacherStageAuthorizationOptions,
   type FloodgateTeacherStageLease,
@@ -878,6 +880,52 @@ function bindKeyEnrollment(
     stageAuthorization: options.stageAuthorization,
     consumer: options.consumer,
   });
+}
+
+function assertTestOptionsOutsideProductionHome(
+  options: Readonly<FloodgateV7ProductionCheckpointConnectorOptions>,
+): void {
+  const stage = options.stageAuthorization;
+  const consumer = options.consumer;
+  const paths = [
+    stage.repositoryRoot,
+    stage.rawLockRoot,
+    stage.roleLockRoot,
+    stage.roleBundleRoot,
+    stage.legacyProtectedPositionIdsPath,
+    stage.publicationParent,
+    stage.engineBin,
+    stage.engineReceipt,
+    consumer.repositoryRoot,
+    consumer.rawLockRoot,
+    consumer.roleLockRoot,
+    consumer.legacyProtectedPositionIdsPath,
+    consumer.outputRoot,
+  ];
+  if (stage.evalDir !== undefined) {
+    paths[paths.length] = stage.evalDir;
+  }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
+}
+
+function assertTestDependenciesExcludeProductionOwners<
+  TAuthorization extends AnyKeyAuthorization,
+>(
+  dependencies: Readonly<
+    FloodgateV7ProductionCheckpointConnectorCoreDependencies<TAuthorization>
+  >,
+): void {
+  for (let index = 0; index < DEPENDENCY_KEYS.length; index += 1) {
+    const key = DEPENDENCY_KEYS[index];
+    if (
+      key !== "observeFailureForTests" &&
+      dependencies[key] === PRODUCTION_DEPENDENCIES[key]
+    ) {
+      throw new NativeError(
+        "test connector dependency aliases production owner",
+      );
+    }
+  }
 }
 
 function captureDependencies<TAuthorization extends AnyKeyAuthorization>(
@@ -2138,6 +2186,9 @@ async function runCaptured<
       "stage authorization",
       () => dependencies.authorizeStage(options.stageAuthorization),
       (value) => {
+        if (boundary === "test-only-injected-capability-composition") {
+          assertFloodgateTeacherStageLeaseTestRealmCoreForTests(value);
+        }
         lease = value;
       },
     );
@@ -2158,7 +2209,15 @@ async function runCaptured<
       }
     }
     if (stageResult.status === "fulfilled") {
-      lease = stageResult.value;
+      try {
+        const candidate = stageResult.value;
+        if (boundary === "test-only-injected-capability-composition") {
+          assertFloodgateTeacherStageLeaseTestRealmCoreForTests(candidate);
+        }
+        lease = candidate;
+      } catch (error) {
+        append(startupFailures, error);
+      }
     } else {
       append(startupFailures, stageResult.reason);
     }
@@ -2511,6 +2570,8 @@ export function runFloodgateV7ProductionCheckpointConnectorCoreForTests<
   try {
     request = captureOptions(optionsValue);
     dependencies = captureDependencies(dependenciesValue);
+    assertTestOptionsOutsideProductionHome(request);
+    assertTestDependenciesExcludeProductionOwners(dependencies);
   } catch {
     return rejected(publicFailure("capture"));
   }

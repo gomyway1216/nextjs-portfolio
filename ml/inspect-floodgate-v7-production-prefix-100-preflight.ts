@@ -38,7 +38,7 @@ const CORE_CONTRACT =
 const CORE_STATUS =
   "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed" as const;
 const CORE_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-exact-clean-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
+  "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
 const CORE_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock" as const;
 const TOP_KEYS = objectFreeze([

@@ -4,9 +4,12 @@
  *
  * A public CLI loads this module before loading any mutation graph. The module
  * checks the fixed entrypoint context, verifies the complete tracked Git byte
- * and mode closure, and mints one opaque capability. Mutation owners then
- * consume that exact object in a fixed two-stage order. A module loaded from a
- * different checkout has a different WeakMap and cannot claim the capability.
+ * and mode closure, and mints one opaque capability. Ordinary mutation owners
+ * consume that exact object in a fixed two-stage order. Registry provisioning
+ * instead consumes the bootstrap capability into an opaque continuation and
+ * can mint a distinct installer capability only after it has fixed the exact
+ * installation input. A module loaded from a different checkout has different
+ * WeakMaps and cannot claim, continue, or arm either capability.
  */
 
 import { types as nodeUtilTypes } from "node:util";
@@ -18,9 +21,13 @@ import {
 } from "./floodgate-v7-production-application-source-provenance";
 
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT =
-  "shogi-floodgate-v7-production-application-execution-capability-v1" as const;
+  "shogi-floodgate-v7-production-application-execution-capability-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_STATUS =
-  "opaque-fixed-entry-exact-clean-tracked-source-two-stage-capability" as const;
+  "opaque-fixed-entry-exact-clean-tracked-source-late-armed-capability" as const;
+export const FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT =
+  "shogi-floodgate-v7-production-registry-provisioner-continuation-v1" as const;
+export const FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS =
+  "opaque-bootstrap-consumed-installer-not-armed" as const;
 
 export type FloodgateV7ProductionApplicationExecutionPurpose =
   | "durable-prefix-100"
@@ -35,6 +42,11 @@ export type FloodgateV7ProductionApplicationExecutionStage =
 export interface FloodgateV7ProductionApplicationExecutionCapability {
   readonly contract: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT;
   readonly status: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_STATUS;
+}
+
+export interface FloodgateV7ProductionRegistryProvisionerContinuation {
+  readonly contract: typeof FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS;
 }
 
 export class FloodgateV7ProductionApplicationSourceAuthorizationError extends Error {
@@ -73,6 +85,10 @@ interface CapabilityState {
   nextStage: number;
 }
 
+interface ProvisionerContinuationState {
+  readonly purpose: "production-registry-provision";
+}
+
 const NativePromise = Promise;
 const objectCreate = Object.create;
 const objectDefineProperty = Object.defineProperty;
@@ -87,6 +103,20 @@ const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const REVISION_RE = /^[0-9a-f]{40}$/u;
 const productionCapabilities = new WeakMap<object, CapabilityState>();
 const testCapabilities = new WeakMap<object, CapabilityState>();
+const productionProvisionerContinuations = new WeakMap<
+  object,
+  ProvisionerContinuationState
+>();
+const testProvisionerContinuations = new WeakMap<
+  object,
+  ProvisionerContinuationState
+>();
+const REGISTRY_PROVISIONER_STAGES = objectFreeze(["provisioner"] as const);
+const REGISTRY_INSTALLER_STAGES = objectFreeze(["installer"] as const);
+const ORDINARY_EXECUTION_STAGES = objectFreeze([
+  "runner-entry",
+  "outer-owner",
+] as const);
 
 function defineField(
   target: object,
@@ -170,8 +200,8 @@ function expectedStages(
   purpose: FloodgateV7ProductionApplicationExecutionPurpose,
 ): readonly FloodgateV7ProductionApplicationExecutionStage[] {
   return purpose === "production-registry-provision"
-    ? objectFreeze(["provisioner", "installer"] as const)
-    : objectFreeze(["runner-entry", "outer-owner"] as const);
+    ? REGISTRY_PROVISIONER_STAGES
+    : ORDINARY_EXECUTION_STAGES;
 }
 
 function validateSourceBinding(value: unknown): void {
@@ -210,6 +240,19 @@ function validateSourceBinding(value: unknown): void {
   }
 }
 
+function issueCapability(
+  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
+  stages: readonly FloodgateV7ProductionApplicationExecutionStage[],
+  registry: WeakMap<object, CapabilityState>,
+): Readonly<FloodgateV7ProductionApplicationExecutionCapability> {
+  const capability = frozenRecord({
+    contract: FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT,
+    status: FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_STATUS,
+  });
+  registry.set(capability, { purpose, stages, nextStage: 0 });
+  return capability;
+}
+
 async function authorizeInto(
   purpose: FloodgateV7ProductionApplicationExecutionPurpose,
   captureSource: () => Promise<unknown>,
@@ -222,16 +265,7 @@ async function authorizeInto(
       "source-verification",
     );
   }
-  const capability = frozenRecord({
-    contract: FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT,
-    status: FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_STATUS,
-  });
-  registry.set(capability, {
-    purpose,
-    stages: expectedStages(purpose),
-    nextStage: 0,
-  });
-  return capability;
+  return issueCapability(purpose, expectedStages(purpose), registry);
 }
 
 /**
@@ -294,6 +328,53 @@ function claimFrom(
   }
 }
 
+function claimProvisionerIntoContinuation(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  capabilityRegistry: WeakMap<object, CapabilityState>,
+  continuationRegistry: WeakMap<object, ProvisionerContinuationState>,
+): Readonly<FloodgateV7ProductionRegistryProvisionerContinuation> {
+  claimFrom(
+    capability,
+    "production-registry-provision",
+    "provisioner",
+    capabilityRegistry,
+  );
+  const continuation = frozenRecord({
+    contract: FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT,
+    status: FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS,
+  });
+  continuationRegistry.set(continuation, {
+    purpose: "production-registry-provision",
+  });
+  return continuation;
+}
+
+function armInstallerFromContinuation(
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+  continuationRegistry: WeakMap<object, ProvisionerContinuationState>,
+  capabilityRegistry: WeakMap<object, CapabilityState>,
+): Readonly<FloodgateV7ProductionApplicationExecutionCapability> {
+  if (
+    continuation === null ||
+    typeof continuation !== "object" ||
+    nodeIsProxy(continuation) ||
+    continuationRegistry.get(continuation)?.purpose !==
+      "production-registry-provision"
+  ) {
+    throw new FloodgateV7ProductionApplicationSourceAuthorizationError("claim");
+  }
+  continuationRegistry.delete(continuation);
+  return issueCapability(
+    "production-registry-provision",
+    REGISTRY_INSTALLER_STAGES,
+    capabilityRegistry,
+  );
+}
+
+function revokeFrom<T>(value: object, registry: WeakMap<object, T>): void {
+  registry.delete(value);
+}
+
 /** Consume one exact production capability stage in fixed order. */
 export function claimFloodgateV7ProductionApplicationExecution(
   capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
@@ -309,6 +390,53 @@ export function claimFloodgateV7ProductionApplicationExecution(
     captureStage(stageValue),
     productionCapabilities,
   );
+}
+
+/**
+ * Consume the production registry bootstrap and return an unarmed, opaque
+ * continuation. The original capability is dead before this function returns.
+ */
+export function claimFloodgateV7ProductionRegistryProvisionerApplicationExecution(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Readonly<FloodgateV7ProductionRegistryProvisionerContinuation> {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionApplicationSourceAuthorizationError("claim");
+  }
+  return claimProvisionerIntoContinuation(
+    capability,
+    productionCapabilities,
+    productionProvisionerContinuations,
+  );
+}
+
+/** Mint one distinct production installer capability from an unarmed continuation. */
+export function armFloodgateV7ProductionRegistryInstallerApplicationExecution(
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+): Readonly<FloodgateV7ProductionApplicationExecutionCapability> {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionApplicationSourceAuthorizationError("claim");
+  }
+  return armInstallerFromContinuation(
+    continuation,
+    productionProvisionerContinuations,
+    productionCapabilities,
+  );
+}
+
+/** Idempotently revoke an unarmed production registry continuation. */
+export function revokeFloodgateV7ProductionRegistryProvisionerContinuation(
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+): void {
+  if (arguments.length !== 1) return;
+  revokeFrom(continuation, productionProvisionerContinuations);
+}
+
+/** Idempotently revoke a production execution capability if it is still live. */
+export function revokeFloodgateV7ProductionApplicationExecution(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): void {
+  if (arguments.length !== 1) return;
+  revokeFrom(capability, productionCapabilities);
 }
 
 /** Test-only source-verification seam backed by a separate capability registry. */
@@ -351,4 +479,48 @@ export function claimFloodgateV7ProductionApplicationExecutionCoreForTests(
     captureStage(stageValue),
     testCapabilities,
   );
+}
+
+/** Test-only bootstrap consumption backed by the isolated test registries. */
+export function claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Readonly<FloodgateV7ProductionRegistryProvisionerContinuation> {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionApplicationSourceAuthorizationError("claim");
+  }
+  return claimProvisionerIntoContinuation(
+    capability,
+    testCapabilities,
+    testProvisionerContinuations,
+  );
+}
+
+/** Test-only late installer arming backed by the isolated test registries. */
+export function armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+): Readonly<FloodgateV7ProductionApplicationExecutionCapability> {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionApplicationSourceAuthorizationError("claim");
+  }
+  return armInstallerFromContinuation(
+    continuation,
+    testProvisionerContinuations,
+    testCapabilities,
+  );
+}
+
+/** Test-only idempotent continuation revocation. */
+export function revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests(
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+): void {
+  if (arguments.length !== 1) return;
+  revokeFrom(continuation, testProvisionerContinuations);
+}
+
+/** Test-only idempotent execution-capability revocation. */
+export function revokeFloodgateV7ProductionApplicationExecutionCoreForTests(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): void {
+  if (arguments.length !== 1) return;
+  revokeFrom(capability, testCapabilities);
 }

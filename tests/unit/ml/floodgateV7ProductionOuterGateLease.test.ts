@@ -43,6 +43,7 @@ import {
   runFloodgateV7ProductionOuterGatePrefix500,
   runFloodgateV7ProductionOuterGateTrainingLabelFinalization,
   runFloodgateV7ProductionOuterGateTrainingLabelFinalizationCoreForTests,
+  runFloodgateV7ProductionPrefix100PreflightOuterLockCoreForTests,
   runWithFloodgateV7ProductionOuterGateLeaseCoreForTests,
   type FloodgateV7ProductionOuterGate,
   type FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
@@ -1042,6 +1043,76 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
     expect(source).toContain(
       "opaque-single-use-valid-only-while-common-os-lock-is-held",
     );
+  });
+
+  it("rejects production-home aliasing through every test-only owner before callbacks or locks", async () => {
+    const environment = await fixture();
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    const aliasRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), `${PRIVATE_CANARY}-production-alias-`),
+    );
+    temporaryRoots.push(aliasRoot);
+    const alias = path.join(aliasRoot, "home");
+    await fs.promises.symlink(productionHome, alias);
+    const productionDescendant = fs.realpathSync.native(process.cwd());
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    const danglingAlias = path.join(aliasRoot, "dangling-home");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `${PRIVATE_CANARY}-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+
+    for (const candidateHome of [
+      productionHome,
+      alias,
+      productionDescendant,
+      danglingAlias,
+    ]) {
+      let operationCalls = 0;
+      const mutationFailure = await captureFailure(() =>
+        runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+          "durable-prefix-100",
+          {
+            ...environment.dependencies,
+            homeDirectory: candidateHome,
+          },
+          async () => {
+            operationCalls += 1;
+          },
+        ),
+      );
+      expect(mutationFailure).toMatchObject({
+        phase: "capture",
+        os_lock_acquired: false,
+        authenticated_lease_published: false,
+      });
+      expect(operationCalls).toBe(0);
+
+      let preflightLoads = 0;
+      const preflightFailure = await captureFailure(() =>
+        runFloodgateV7ProductionPrefix100PreflightOuterLockCoreForTests(
+          {
+            effectiveUserId: EUID,
+            homeDirectory: candidateHome,
+          },
+          () => {
+            preflightLoads += 1;
+            return {};
+          },
+        ),
+      );
+      expect(preflightFailure).toMatchObject({
+        phase: "capture",
+        os_lock_acquired: false,
+        authenticated_lease_published: false,
+      });
+      expect(preflightLoads).toBe(0);
+    }
   });
 
   it("serializes prefix and final gates with the same OS lock", async () => {

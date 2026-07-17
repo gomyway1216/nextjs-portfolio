@@ -19,6 +19,7 @@ import {
   type FloodgateV7ProductionApplicationExecutionStage,
 } from "./floodgate-v7-production-application-source-authorization";
 import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import { assertFloodgateTestPathsOutsideProductionHomeCoreForTests } from "./floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
@@ -628,6 +629,9 @@ async function assertTestBoundaryIsNotProductionHome(
   ) {
     throw new NativeError("test installer identity is not isolated");
   }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    dependencies.homeDirectory,
+  ]);
   const injectedRealpath = await capturedFs.realpath(
     dependencies.homeDirectory,
   );
@@ -1623,7 +1627,7 @@ export function installFloodgateV7ProductionConnectorRegistryCoreForTests(
   );
 }
 
-/** Test-only installer-stage claim against the isolated authorization registry. */
+/** Test-only claim for a distinct, late-armed installer capability. */
 export function claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
   applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
 ): void {

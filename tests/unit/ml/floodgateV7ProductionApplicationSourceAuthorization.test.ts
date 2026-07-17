@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT,
   FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_STATUS,
+  FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT,
+  FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS,
+  armFloodgateV7ProductionRegistryInstallerApplicationExecution,
+  armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests,
   authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
   claimFloodgateV7ProductionApplicationExecution,
   claimFloodgateV7ProductionApplicationExecutionCoreForTests,
-  type FloodgateV7ProductionApplicationExecutionPurpose,
-  type FloodgateV7ProductionApplicationExecutionStage,
+  claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests,
+  revokeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests,
 } from "../../../ml/floodgate-v7-production-application-source-authorization";
 
 const LAYOUT =
@@ -20,14 +25,6 @@ const PURPOSES = [
   "training-label-finalization-24000",
   "production-registry-provision",
 ] as const;
-
-function stages(
-  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
-): readonly FloodgateV7ProductionApplicationExecutionStage[] {
-  return purpose === "production-registry-provision"
-    ? ["provisioner", "installer"]
-    : ["runner-entry", "outer-owner"];
-}
 
 describe("Floodgate v7 production application source authorization", () => {
   it.each(PURPOSES)(
@@ -53,26 +50,157 @@ describe("Floodgate v7 production application source authorization", () => {
       expect(Object.isFrozen(capability)).toBe(true);
       expect(JSON.stringify(capability)).not.toContain(REVISION);
 
-      const [first, second] = stages(purpose);
-      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
-        capability,
-        purpose,
-        first,
-      );
-      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
-        capability,
-        purpose,
-        second,
-      );
-      expect(() =>
+      if (purpose === "production-registry-provision") {
+        const continuation =
+          claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+            capability,
+          );
+        const installerCapability =
+          armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+            continuation,
+          );
+        expect(installerCapability).not.toBe(capability);
+        claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+          installerCapability,
+          purpose,
+          "installer",
+        );
+        expect(() =>
+          claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+            installerCapability,
+            purpose,
+            "installer",
+          ),
+        ).toThrow("authorization failed");
+      } else {
         claimFloodgateV7ProductionApplicationExecutionCoreForTests(
           capability,
           purpose,
-          second,
-        ),
-      ).toThrow("authorization failed");
+          "runner-entry",
+        );
+        claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+          capability,
+          purpose,
+          "outer-owner",
+        );
+        expect(() =>
+          claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+            capability,
+            purpose,
+            "outer-owner",
+          ),
+        ).toThrow("authorization failed");
+      }
     },
   );
+
+  it("consumes the registry bootstrap synchronously and late-arms one distinct isolated installer capability", async () => {
+    const bootstrap =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({ layout: LAYOUT, revision: REVISION }),
+      );
+    const continuation =
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+        bootstrap,
+      );
+
+    expect(continuation).toEqual({
+      contract:
+        FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT,
+      status: FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS,
+    });
+    expect(Object.getPrototypeOf(continuation)).toBeNull();
+    expect(Object.isFrozen(continuation)).toBe(true);
+    expect(() =>
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+        bootstrap,
+        "production-registry-provision",
+        "installer",
+      ),
+    ).toThrow("authorization failed");
+    expect(() =>
+      armFloodgateV7ProductionRegistryInstallerApplicationExecution(
+        continuation,
+      ),
+    ).toThrow("authorization failed");
+    for (const transformed of [
+      { ...continuation },
+      new Proxy(continuation, {}),
+    ]) {
+      expect(() =>
+        armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+          transformed,
+        ),
+      ).toThrow("authorization failed");
+    }
+
+    const installerCapability =
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        continuation,
+      );
+    expect(installerCapability).not.toBe(bootstrap);
+    expect(() =>
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        continuation,
+      ),
+    ).toThrow("authorization failed");
+    claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+      installerCapability,
+      "production-registry-provision",
+      "installer",
+    );
+  });
+
+  it("idempotently revokes both an unarmed continuation and an unclaimed installer capability", async () => {
+    const firstBootstrap =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({ layout: LAYOUT, revision: REVISION }),
+      );
+    const revokedContinuation =
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+        firstBootstrap,
+      );
+    revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests(
+      revokedContinuation,
+    );
+    revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests(
+      revokedContinuation,
+    );
+    expect(() =>
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        revokedContinuation,
+      ),
+    ).toThrow("authorization failed");
+
+    const secondBootstrap =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({ layout: LAYOUT, revision: REVISION }),
+      );
+    const continuation =
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+        secondBootstrap,
+      );
+    const revokedInstaller =
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        continuation,
+      );
+    revokeFloodgateV7ProductionApplicationExecutionCoreForTests(
+      revokedInstaller,
+    );
+    revokeFloodgateV7ProductionApplicationExecutionCoreForTests(
+      revokedInstaller,
+    );
+    expect(() =>
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+        revokedInstaller,
+        "production-registry-provision",
+        "installer",
+      ),
+    ).toThrow("authorization failed");
+  });
 
   it("rejects wrong order and permanently consumes the failed capability", async () => {
     const capability =

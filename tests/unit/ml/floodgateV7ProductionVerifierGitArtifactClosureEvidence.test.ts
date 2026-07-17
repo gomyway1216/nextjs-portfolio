@@ -324,9 +324,12 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
     }
     for (const marker of [
       "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3",
-      "point-in-time-fixed-current-user-exact-clean-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
+      "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
       "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
-      "application_source_binding_matched_to_exact_clean_application_closure",
+      "application_source_binding_matched_to_exact_clean_tracked_application_closure",
+      "ignored_untracked_dependency_bytes_verified",
+      "same_uid_race_isolation",
+      "atomic_source_snapshot",
       "application_source_revision_disclosed",
       "application_source_path_disclosed",
       "application_source_digest_disclosed",
@@ -358,7 +361,10 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
       );
     }
     for (const marker of [
-      "application_source_binding_matched_to_exact_clean_application_closure",
+      "application_source_binding_matched_to_exact_clean_tracked_application_closure",
+      "ignored_untracked_dependency_bytes_verified",
+      "same_uid_race_isolation",
+      "atomic_source_snapshot",
       "application_source_revision_disclosed",
       "application_source_path_disclosed",
       "application_source_digest_disclosed",

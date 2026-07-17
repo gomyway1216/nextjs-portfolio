@@ -9,7 +9,9 @@
 
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
+import { types as nodeUtilTypes } from "node:util";
 
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT =
   "floodgate-teacher-private-stage-authorization-v3" as const;
@@ -45,6 +47,7 @@ const BIGINT_ONE = BigInt(1);
 const MODE_TYPE_MASK = BigInt(fs.constants.S_IFMT);
 const MODE_DIRECTORY = BigInt(fs.constants.S_IFDIR);
 const MODE_REGULAR_FILE = BigInt(fs.constants.S_IFREG);
+const MODE_SYMBOLIC_LINK = BigInt(fs.constants.S_IFLNK);
 const CONTROL_CHARACTER_RE = /[\u0000-\u001f\u007f]/;
 const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SAFE_ENGINE_OPTION_RE = /^--?[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -52,6 +55,7 @@ const CANONICAL_DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const ENTRY_INSPECTOR_TIMEOUT_MILLISECONDS = 5_000;
 const ENTRY_INSPECTOR_MAX_OUTPUT_BYTES = 4_096;
 const ENTRY_INSPECTOR_MAX_SCRIPT_BYTES = 32_768;
+const TEST_PATH_MAX_SYMBOLIC_LINKS = 64;
 const HELD_STAGE_ENTRY_INSPECTOR_SCRIPT = String.raw`import os
 import stat
 import sys
@@ -203,8 +207,10 @@ const arrayIsArray = Array.isArray;
 const numberIsSafeInteger = Number.isSafeInteger;
 const objectFreeze = Object.freeze;
 const objectCreate = Object.create;
+const nativeObjectPrototype = Object.prototype;
 const objectDefineProperty = Object.defineProperty;
 const objectSetPrototypeOf = Object.setPrototypeOf;
+const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectHasOwn = Object.prototype.hasOwnProperty;
@@ -228,7 +234,14 @@ const nativeStringSplit = String.prototype.split;
 const nativeStringTrim = String.prototype.trim;
 const nativeStringIncludes = String.prototype.includes;
 const nativeStringStartsWith = String.prototype.startsWith;
+const nodeIsProxy = nodeUtilTypes.isProxy;
+const getUserInfo = os.userInfo.bind(os);
+const nativeRealpathSync = fs.realpathSync.native.bind(fs.realpathSync);
+const nativeStatSync = fs.statSync.bind(fs);
+const nativeLstatSync = fs.lstatSync.bind(fs);
+const nativeReadlinkSync = fs.readlinkSync.bind(fs);
 const pathBasename = path.basename;
+const pathDirname = path.dirname;
 const pathIsAbsolute = path.isAbsolute;
 const pathJoin = path.join;
 const pathParse = path.parse;
@@ -378,6 +391,11 @@ interface RuntimePublicationController {
   ) => Readonly<FloodgateTeacherStagePublicationTransaction>;
 }
 
+interface SyntheticTestLeasePathBinding {
+  readonly stageRoot: string;
+  readonly destinationRoot: string;
+}
+
 function createRuntimeClaimRegistry(
   boundary: RuntimeClaimRegistry["boundary"],
 ): Readonly<RuntimeClaimRegistry> {
@@ -393,6 +411,16 @@ function createRuntimeClaimRegistry(
 
 const PRODUCTION_RUNTIME_CLAIMS = createRuntimeClaimRegistry("production");
 const TEST_RUNTIME_CLAIMS = createRuntimeClaimRegistry("test-only");
+const PRODUCTION_ORIGIN_LEASES = new NativeWeakSet<
+  Readonly<FloodgateTeacherStageLease>
+>();
+const TEST_REALM_LEASES = new NativeWeakSet<
+  Readonly<FloodgateTeacherStageLease>
+>();
+const SYNTHETIC_TEST_LEASE_PATH_BINDINGS = new NativeWeakMap<
+  Readonly<FloodgateTeacherStageLease>,
+  Readonly<SyntheticTestLeasePathBinding>
+>();
 
 interface LeaseNamespaceGuard {
   readonly leaseRoot: string;
@@ -519,6 +547,11 @@ function activateRuntimeClaim(
     lease,
     publicationController,
   );
+  if (registry === TEST_RUNTIME_CLAIMS) {
+    runtimeClaimAdd(TEST_REALM_LEASES, lease);
+  } else if (registry === PRODUCTION_RUNTIME_CLAIMS) {
+    runtimeClaimAdd(PRODUCTION_ORIGIN_LEASES, lease);
+  }
 }
 
 function revokeRuntimeClaim(
@@ -527,6 +560,9 @@ function revokeRuntimeClaim(
 ): void {
   runtimeClaimDelete(registry.available, lease);
   runtimePublicationDelete(registry.publicationControllers, lease);
+  if (registry === TEST_RUNTIME_CLAIMS) {
+    runtimeClaimDelete(TEST_REALM_LEASES, lease);
+  }
 }
 
 function claimRuntimeLease(
@@ -539,6 +575,9 @@ function claimRuntimeLease(
     );
   }
   runtimePublicationDelete(registry.publicationControllers, lease);
+  if (registry === TEST_RUNTIME_CLAIMS) {
+    runtimeClaimDelete(TEST_REALM_LEASES, lease);
+  }
 }
 
 /** Claim the exact active lease issued by the production authorizer once. */
@@ -553,6 +592,34 @@ export function claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(
   lease: Readonly<FloodgateTeacherStageLease>,
 ): void {
   claimRuntimeLease(TEST_RUNTIME_CLAIMS, lease);
+}
+
+/**
+ * Assert, without consuming it, that a lease is the exact active object issued
+ * by this module's test realm or explicitly registered as a safe synthetic
+ * test lease.
+ */
+export function assertFloodgateTeacherStageLeaseTestRealmCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  if (
+    lease === null ||
+    typeof lease !== "object" ||
+    nodeIsProxy(lease) ||
+    !runtimeClaimHas(TEST_REALM_LEASES, lease)
+  ) {
+    authorizationFailure(
+      "test realm assertion requires the exact active test lease",
+    );
+  }
+  const syntheticPathBinding = reflectApply(
+    nativeWeakMapGet,
+    SYNTHETIC_TEST_LEASE_PATH_BINDINGS,
+    [lease],
+  ) as Readonly<SyntheticTestLeasePathBinding> | undefined;
+  if (syntheticPathBinding !== undefined) {
+    assertSyntheticTestLeasePathBinding(lease, syntheticPathBinding);
+  }
 }
 
 const PUBLICATION_DEPENDENCY_KEYS = new Set<string>([
@@ -685,6 +752,9 @@ function beginPublicationFromRegistry(
     );
   }
   runtimePublicationDelete(registry.publicationControllers, lease);
+  if (registry === TEST_RUNTIME_CLAIMS) {
+    runtimeClaimDelete(TEST_REALM_LEASES, lease);
+  }
   return controller.begin(dependencies);
 }
 
@@ -1232,6 +1302,358 @@ function canonicalAbsolutePath(value: unknown, label: string): string {
   return value;
 }
 
+function pathFailureCode(value: unknown): string | undefined {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
+    return undefined;
+  }
+  const descriptor = objectGetOwnPropertyDescriptor(value, "code");
+  if (
+    descriptor === undefined ||
+    !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+    typeof descriptor.value !== "string"
+  ) {
+    return undefined;
+  }
+  return descriptor.value;
+}
+
+interface ResolvedTestBoundaryPath {
+  readonly resolved: string;
+  readonly existingAncestor: string;
+}
+
+interface ProductionHomeTestBoundary {
+  readonly path: string;
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
+function resolveThroughExistingAncestorForTestBoundary(
+  value: string,
+): Readonly<ResolvedTestBoundaryPath> {
+  let cursor = value;
+  let unresolvedSuffix = "";
+  let symbolicLinksResolved = 0;
+  for (;;) {
+    try {
+      const existingAncestor = nativeRealpathSync(cursor);
+      const resolved =
+        unresolvedSuffix.length === 0
+          ? existingAncestor
+          : pathJoin(existingAncestor, unresolvedSuffix);
+      return freezeNonThenable({
+        resolved: canonicalAbsolutePath(resolved, "resolved test path"),
+        existingAncestor,
+      });
+    } catch (cause) {
+      if (pathFailureCode(cause) !== "ENOENT") {
+        authorizationFailure(
+          "test path parent or directory cannot be resolved safely",
+          cause,
+        );
+      }
+      let danglingLinkStat: fs.BigIntStats | undefined;
+      try {
+        danglingLinkStat = nativeLstatSync(cursor, { bigint: true });
+      } catch (lstatCause) {
+        if (pathFailureCode(lstatCause) !== "ENOENT") {
+          authorizationFailure(
+            "test path ancestor cannot be inspected safely",
+            lstatCause,
+          );
+        }
+      }
+      if (
+        danglingLinkStat !== undefined &&
+        (danglingLinkStat.mode & MODE_TYPE_MASK) === MODE_SYMBOLIC_LINK
+      ) {
+        symbolicLinksResolved += 1;
+        if (symbolicLinksResolved > TEST_PATH_MAX_SYMBOLIC_LINKS) {
+          authorizationFailure("test path has too many symbolic links");
+        }
+        let target: string;
+        try {
+          target = nativeReadlinkSync(cursor, "utf8");
+        } catch (readlinkCause) {
+          authorizationFailure(
+            "test path symbolic link cannot be read safely",
+            readlinkCause,
+          );
+        }
+        const resolvedTarget = pathIsAbsolute(target)
+          ? pathResolve(target)
+          : pathResolve(pathDirname(cursor), target);
+        cursor =
+          unresolvedSuffix.length === 0
+            ? resolvedTarget
+            : pathJoin(resolvedTarget, unresolvedSuffix);
+        unresolvedSuffix = "";
+        continue;
+      }
+      if (danglingLinkStat !== undefined) {
+        authorizationFailure(
+          "test path resolution changed during boundary inspection",
+        );
+      }
+      const parent = pathDirname(cursor);
+      if (parent === cursor) {
+        authorizationFailure("test path has no resolvable ancestor", cause);
+      }
+      const basename = pathBasename(cursor);
+      unresolvedSuffix =
+        unresolvedSuffix.length === 0
+          ? basename
+          : pathJoin(basename, unresolvedSuffix);
+      cursor = parent;
+    }
+  }
+}
+
+function currentEffectiveUserProductionHomeForTestBoundary(): Readonly<ProductionHomeTestBoundary> {
+  if (nativeGetEffectiveUserId === null) {
+    authorizationFailure(
+      "POSIX effective-user identity is required for the test path boundary",
+    );
+  }
+  let user: ReturnType<typeof os.userInfo>;
+  try {
+    user = getUserInfo();
+  } catch (cause) {
+    authorizationFailure("current-EUID production home cannot be read", cause);
+  }
+  if (user.uid !== nativeGetEffectiveUserId()) {
+    authorizationFailure("current-EUID production home identity differs");
+  }
+  const requestedHome = canonicalAbsolutePath(
+    user.homedir,
+    "current-EUID production home",
+  );
+  let canonicalHome: string;
+  try {
+    canonicalHome = nativeRealpathSync(requestedHome);
+  } catch (cause) {
+    authorizationFailure(
+      "current-EUID production home cannot be resolved",
+      cause,
+    );
+  }
+  const productionHome = canonicalAbsolutePath(
+    canonicalHome,
+    "canonical current-EUID production home",
+  );
+  let identity: fs.BigIntStats;
+  try {
+    identity = nativeStatSync(productionHome, { bigint: true });
+  } catch (cause) {
+    authorizationFailure(
+      "canonical current-EUID production home identity cannot be read",
+      cause,
+    );
+  }
+  return freezeNonThenable({
+    path: productionHome,
+    dev: identity.dev,
+    ino: identity.ino,
+  });
+}
+
+function assertExistingAncestorOutsideProductionHomeIdentity(
+  existingAncestor: string,
+  productionHome: Readonly<ProductionHomeTestBoundary>,
+): void {
+  let cursor = existingAncestor;
+  for (;;) {
+    let identity: fs.BigIntStats;
+    try {
+      identity = nativeStatSync(cursor, { bigint: true });
+    } catch (cause) {
+      authorizationFailure("test path ancestor identity cannot be read", cause);
+    }
+    if (
+      identity.dev === productionHome.dev &&
+      identity.ino === productionHome.ino
+    ) {
+      authorizationFailure(
+        "test home aliases production home through a guarded path identity",
+      );
+    }
+    const parent = pathDirname(cursor);
+    if (parent === cursor) return;
+    cursor = parent;
+  }
+}
+
+/**
+ * Test-only shared path guard. Every entry must be a dense, plain-array data
+ * property and must resolve outside the canonical current-EUID home, including
+ * through a symlink at any existing ancestor.
+ */
+export function assertFloodgateTestPathsOutsideProductionHomeCoreForTests(
+  paths: readonly string[],
+): void {
+  if (
+    !arrayIsArray(paths) ||
+    nodeIsProxy(paths) ||
+    objectGetPrototypeOf(paths) !== nativeArrayPrototype
+  ) {
+    authorizationFailure("test paths must be a plain non-Proxy array");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(paths);
+  const ownKeys = reflectOwnKeys(descriptors);
+  const lengthDescriptor = objectGetOwnPropertyDescriptor(paths, "length");
+  if (
+    lengthDescriptor === undefined ||
+    !reflectApply(objectHasOwn, lengthDescriptor, ["value"]) ||
+    typeof lengthDescriptor.value !== "number" ||
+    !numberIsSafeInteger(lengthDescriptor.value) ||
+    lengthDescriptor.value < 1 ||
+    ownKeys.length !== lengthDescriptor.value + 1
+  ) {
+    authorizationFailure("test paths must be a nonempty dense plain array");
+  }
+  const length = lengthDescriptor.value;
+  const captured = mutableNullPrototypeArray<string>();
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[index];
+    if (
+      descriptor === undefined ||
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
+    ) {
+      authorizationFailure(
+        `test paths[${index}] must be an enumerable own data property`,
+      );
+    }
+    captured[captured.length] = canonicalAbsolutePath(
+      descriptor.value,
+      `test paths[${index}]`,
+    );
+  }
+
+  const productionHome = currentEffectiveUserProductionHomeForTestBoundary();
+  for (let index = 0; index < captured.length; index += 1) {
+    const resolved = resolveThroughExistingAncestorForTestBoundary(
+      captured[index],
+    );
+    if (sameOrAncestor(productionHome.path, resolved.resolved)) {
+      authorizationFailure(
+        "test home aliases production home through a guarded path",
+      );
+    }
+    assertExistingAncestorOutsideProductionHomeIdentity(
+      resolved.existingAncestor,
+      productionHome,
+    );
+  }
+}
+
+function assertSyntheticTestLeasePathBinding(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  binding: Readonly<SyntheticTestLeasePathBinding>,
+): void {
+  const stageDescriptor = objectGetOwnPropertyDescriptor(lease, "stageRoot");
+  const destinationDescriptor = objectGetOwnPropertyDescriptor(
+    lease,
+    "destinationRoot",
+  );
+  if (
+    stageDescriptor === undefined ||
+    !reflectApply(objectHasOwn, stageDescriptor, ["value"]) ||
+    stageDescriptor.enumerable !== true ||
+    stageDescriptor.value !== binding.stageRoot ||
+    destinationDescriptor === undefined ||
+    !reflectApply(objectHasOwn, destinationDescriptor, ["value"]) ||
+    destinationDescriptor.enumerable !== true ||
+    destinationDescriptor.value !== binding.destinationRoot
+  ) {
+    authorizationFailure("synthetic test lease path binding differs");
+  }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    binding.stageRoot,
+    binding.destinationRoot,
+  ]);
+}
+
+/**
+ * Register a structurally minimal synthetic lease for composition tests. This
+ * cannot rebrand a production lease, and its exposed paths must remain wholly
+ * outside the current-EUID production home.
+ */
+export function registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+  lease: unknown,
+): void {
+  if (
+    lease === null ||
+    typeof lease !== "object" ||
+    arrayIsArray(lease) ||
+    nodeIsProxy(lease) ||
+    (objectGetPrototypeOf(lease) !== nativeObjectPrototype &&
+      objectGetPrototypeOf(lease) !== null)
+  ) {
+    authorizationFailure(
+      "synthetic test lease must be a plain non-Proxy object",
+    );
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(lease);
+  const ownKeys = reflectOwnKeys(descriptors);
+  const requiredKeys = [
+    "receipt",
+    "stageRoot",
+    "destinationRoot",
+    "close",
+  ] as const;
+  if (ownKeys.length !== requiredKeys.length) {
+    authorizationFailure("synthetic test lease fields differ");
+  }
+  const captured = objectCreate(null) as Record<string, unknown>;
+  for (let index = 0; index < requiredKeys.length; index += 1) {
+    const key = requiredKeys[index];
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined ||
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
+    ) {
+      authorizationFailure(
+        `synthetic test lease.${key} must be an enumerable own data property`,
+      );
+    }
+    captured[key] = descriptor.value;
+  }
+  if (
+    captured.receipt === null ||
+    typeof captured.receipt !== "object" ||
+    nodeIsProxy(captured.receipt) ||
+    typeof captured.close !== "function" ||
+    nodeIsProxy(captured.close)
+  ) {
+    authorizationFailure("synthetic test lease fields differ");
+  }
+  const paths = [captured.stageRoot, captured.destinationRoot];
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests(
+    paths as readonly string[],
+  );
+  const capturedLease = lease as Readonly<FloodgateTeacherStageLease>;
+  if (
+    runtimeClaimHas(PRODUCTION_ORIGIN_LEASES, capturedLease) ||
+    runtimeClaimHas(TEST_REALM_LEASES, capturedLease)
+  ) {
+    authorizationFailure("synthetic test lease origin differs");
+  }
+  const pathBinding = freezeNonThenable({
+    stageRoot: captured.stageRoot as string,
+    destinationRoot: captured.destinationRoot as string,
+  });
+  reflectApply(nativeWeakMapSet, SYNTHETIC_TEST_LEASE_PATH_BINDINGS, [
+    capturedLease,
+    pathBinding,
+  ]);
+  runtimeClaimAdd(TEST_REALM_LEASES, capturedLease);
+}
+
 function strictBasename(value: unknown, label: string): string {
   if (
     typeof value !== "string" ||
@@ -1415,6 +1837,53 @@ function captureOptions(
     authorizationFailure("stage and destination basenames must be distinct");
   }
   return objectFreeze(captured);
+}
+
+function assertTestAuthorizationOptionsOutsideProductionHome(
+  options: Readonly<CapturedOptions>,
+): void {
+  const paths: string[] = [];
+  paths[paths.length] = options.repositoryRoot;
+  paths[paths.length] = options.rawLockRoot;
+  paths[paths.length] = options.roleLockRoot;
+  paths[paths.length] = options.roleBundleRoot;
+  paths[paths.length] = options.legacyProtectedPositionIdsPath;
+  paths[paths.length] = options.publicationParent;
+  paths[paths.length] = pathJoin(
+    options.publicationParent,
+    options.stageBasename,
+  );
+  paths[paths.length] = pathJoin(
+    options.publicationParent,
+    options.destinationBasename,
+  );
+  paths[paths.length] = pathJoin(
+    options.publicationParent,
+    `.${options.stageBasename}.authorization-lease`,
+  );
+  paths[paths.length] = options.engineBin;
+  paths[paths.length] = options.engineReceipt;
+  if (options.evalDir !== undefined) {
+    paths[paths.length] = options.evalDir;
+  }
+  for (let index = 0; index < options.engineArgs.length; index += 1) {
+    const argument = options.engineArgs[index];
+    if (pathIsAbsolute(argument)) {
+      paths[paths.length] = argument;
+    }
+  }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
+}
+
+function assertTestAuthorizationDependenciesOutsideProductionHome(
+  dependencies: Readonly<CapturedDependencies>,
+): void {
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    canonicalAbsolutePath(
+      dependencies.inspectorPythonExecutable,
+      "stage entry inspector Python executable",
+    ),
+  ]);
 }
 
 function effectiveUserId(
@@ -2304,7 +2773,13 @@ async function authorizeInternal(
   runtimeClaims: Readonly<RuntimeClaimRegistry>,
 ): Promise<Readonly<FloodgateTeacherStageLease>> {
   const options = captureOptions(optionsInput);
+  if (runtimeClaims === TEST_RUNTIME_CLAIMS) {
+    assertTestAuthorizationOptionsOutsideProductionHome(options);
+  }
   const dependencies = captureDependencies(dependenciesInput);
+  if (runtimeClaims === TEST_RUNTIME_CLAIMS) {
+    assertTestAuthorizationDependenciesOutsideProductionHome(dependencies);
+  }
   const expectedUserId = effectiveUserId(dependencies);
   const stageRoot = pathJoin(options.publicationParent, options.stageBasename);
   const destinationRoot = pathJoin(

@@ -73,7 +73,7 @@ export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CONTRACT =
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_STATUS =
   "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-exact-clean-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
+  "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_EXECUTION_BOUNDARY =
   "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_TEST_EXECUTION_BOUNDARY =

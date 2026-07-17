@@ -7,7 +7,6 @@
 
 import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
-import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
@@ -33,11 +32,16 @@ import {
   type FloodgateV7ProductionApplicationSourceBinding,
 } from "./floodgate-v7-production-application-source-provenance";
 import {
-  claimFloodgateV7ProductionApplicationExecution,
-  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+  armFloodgateV7ProductionRegistryInstallerApplicationExecution,
+  armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionRegistryProvisionerApplicationExecution,
+  claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests,
+  revokeFloodgateV7ProductionApplicationExecution,
+  revokeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  revokeFloodgateV7ProductionRegistryProvisionerContinuation,
+  revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests,
   type FloodgateV7ProductionApplicationExecutionCapability,
-  type FloodgateV7ProductionApplicationExecutionPurpose,
-  type FloodgateV7ProductionApplicationExecutionStage,
+  type FloodgateV7ProductionRegistryProvisionerContinuation,
 } from "./floodgate-v7-production-application-source-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
@@ -66,6 +70,7 @@ import {
   verifyFloodgateV7ProductionConnectorVerifierReadiness,
 } from "./floodgate-v7-production-connector-verifier-readiness";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
+import { assertFloodgateTestPathsOutsideProductionHomeCoreForTests } from "./floodgate-teacher-stage-authorization";
 
 export { FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_REVISION } from "./floodgate-v7-production-connector-verifier-readiness";
 
@@ -211,11 +216,24 @@ interface ProvisionerDependencies {
   ) => Readonly<FloodgateV7ProductionConnectorRegistryPrivateClaim>;
   readonly randomBytes: (size: number) => Buffer;
 }
-type ClaimApplicationExecution = (
-  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
-  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
-  stage: FloodgateV7ProductionApplicationExecutionStage,
+type ArmInstallerApplicationExecution = (
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
+) => Readonly<FloodgateV7ProductionApplicationExecutionCapability>;
+type RevokeProvisionerContinuation = (
+  continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>,
 ) => void;
+type RevokeApplicationExecution = (
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+) => void;
+interface ApplicationExecutionLifecycle {
+  readonly continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>;
+  readonly armInstaller: ArmInstallerApplicationExecution;
+  readonly revokeContinuation: RevokeProvisionerContinuation;
+  readonly revokeInstaller: RevokeApplicationExecution;
+}
+interface ApplicationExecutionCapabilitySlot {
+  installer: Readonly<FloodgateV7ProductionApplicationExecutionCapability> | null;
+}
 
 export type FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests =
   ProvisionerDependencies;
@@ -242,7 +260,6 @@ const pathIsAbsolute = path.isAbsolute.bind(path);
 const getUserInfo = os.userInfo.bind(os);
 const getEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
-const realpathSync = fs.realpathSync.native.bind(fs.realpathSync);
 const capturedRandomBytes = randomBytes;
 const HEX_64_RE = /^[0-9a-f]{64}$/u;
 const REVISION_RE = /^[0-9a-f]{40}$/u;
@@ -423,6 +440,10 @@ function captureDependencies(
       record.claimRegistry as ProvisionerDependencies["claimRegistry"],
     randomBytes: record.randomBytes as ProvisionerDependencies["randomBytes"],
   });
+}
+
+function assertTestHomeOutsideProductionHome(homeDirectory: string): void {
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([homeDirectory]);
 }
 
 function validateVerifierReadinessReceipt(
@@ -954,13 +975,14 @@ function buildReceipt<
   });
 }
 
-async function provision<
+async function provisionAfterBootstrap<
   TBoundary extends
     FloodgateV7ProductionConnectorRegistryProvisionerExecutionBoundary,
 >(
   dependencies: Readonly<ProvisionerDependencies>,
   boundary: TBoundary,
-  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability> | null,
+  applicationExecutionLifecycle: Readonly<ApplicationExecutionLifecycle> | null,
+  applicationExecutionCapabilitySlot: ApplicationExecutionCapabilitySlot,
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt<TBoundary>>
 > {
@@ -1059,13 +1081,30 @@ async function provision<
     );
   }
 
+  if (applicationExecutionLifecycle !== null) {
+    try {
+      applicationExecutionCapabilitySlot.installer = reflectApply(
+        applicationExecutionLifecycle.armInstaller,
+        undefined,
+        [applicationExecutionLifecycle.continuation],
+      );
+    } catch {
+      throw new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "application-source",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      );
+    }
+  }
+
   try {
     const receipt =
-      applicationExecutionCapability === null
+      applicationExecutionCapabilitySlot.installer === null
         ? await dependencies.installRegistry(input)
         : await dependencies.installRegistry(
             input,
-            applicationExecutionCapability,
+            applicationExecutionCapabilitySlot.installer,
           );
     if (
       receipt.contract !==
@@ -1118,19 +1157,43 @@ async function provision<
   return buildReceipt(boundary);
 }
 
-function rejected<T>(error: unknown): Promise<T> {
-  return new NativePromise((_resolve, reject) => reject(error));
+async function provision<
+  TBoundary extends
+    FloodgateV7ProductionConnectorRegistryProvisionerExecutionBoundary,
+>(
+  dependencies: Readonly<ProvisionerDependencies>,
+  boundary: TBoundary,
+  applicationExecutionLifecycle: Readonly<ApplicationExecutionLifecycle> | null,
+): Promise<
+  Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt<TBoundary>>
+> {
+  const applicationExecutionCapabilitySlot: ApplicationExecutionCapabilitySlot =
+    { installer: null };
+  try {
+    return await provisionAfterBootstrap(
+      dependencies,
+      boundary,
+      applicationExecutionLifecycle,
+      applicationExecutionCapabilitySlot,
+    );
+  } finally {
+    if (applicationExecutionLifecycle !== null) {
+      if (applicationExecutionCapabilitySlot.installer !== null) {
+        reflectApply(applicationExecutionLifecycle.revokeInstaller, undefined, [
+          applicationExecutionCapabilitySlot.installer,
+        ]);
+      }
+      reflectApply(
+        applicationExecutionLifecycle.revokeContinuation,
+        undefined,
+        [applicationExecutionLifecycle.continuation],
+      );
+    }
+  }
 }
 
-function claimProvisionerApplicationExecution(
-  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
-  claimApplicationExecution: ClaimApplicationExecution,
-): void {
-  reflectApply(claimApplicationExecution, undefined, [
-    capability,
-    "production-registry-provision",
-    "provisioner",
-  ]);
+function rejected<T>(error: unknown): Promise<T> {
+  return new NativePromise((_resolve, reject) => reject(error));
 }
 
 export function provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
@@ -1153,16 +1216,7 @@ export function provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
   let dependencies: Readonly<ProvisionerDependencies>;
   try {
     dependencies = captureDependencies(dependenciesValue);
-    const productionHome = pathResolve(getUserInfo().homedir);
-    let candidateHome = dependencies.homeDirectory;
-    try {
-      candidateHome = realpathSync(candidateHome);
-    } catch {
-      // The injected installer owns the authoritative test namespace check.
-    }
-    if (candidateHome === productionHome) {
-      throw new Error("test home aliases production home");
-    }
+    assertTestHomeOutsideProductionHome(dependencies.homeDirectory);
   } catch {
     return rejected(
       new FloodgateV7ProductionConnectorRegistryProvisionerError(
@@ -1203,10 +1257,12 @@ export function provisionFloodgateV7ProductionConnectorRegistryWithApplicationEx
       ),
     );
   }
+  let continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>;
   try {
-    claimProvisionerApplicationExecution(
-      applicationExecutionCapability,
-      claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+    continuation = reflectApply(
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests,
+      undefined,
+      [applicationExecutionCapability],
     );
   } catch {
     return rejected(
@@ -1221,17 +1277,11 @@ export function provisionFloodgateV7ProductionConnectorRegistryWithApplicationEx
   let dependencies: Readonly<ProvisionerDependencies>;
   try {
     dependencies = captureDependencies(dependenciesValue);
-    const productionHome = pathResolve(getUserInfo().homedir);
-    let candidateHome = dependencies.homeDirectory;
-    try {
-      candidateHome = realpathSync(candidateHome);
-    } catch {
-      // The injected installer owns the authoritative test namespace check.
-    }
-    if (candidateHome === productionHome) {
-      throw new Error("test home aliases production home");
-    }
+    assertTestHomeOutsideProductionHome(dependencies.homeDirectory);
   } catch {
+    revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests(
+      continuation,
+    );
     return rejected(
       new FloodgateV7ProductionConnectorRegistryProvisionerError(
         "capture",
@@ -1244,7 +1294,15 @@ export function provisionFloodgateV7ProductionConnectorRegistryWithApplicationEx
   return provision(
     dependencies,
     "test-only-injected-private-registry-provisioning",
-    applicationExecutionCapability,
+    objectFreeze({
+      continuation,
+      armInstaller:
+        armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests,
+      revokeContinuation:
+        revokeFloodgateV7ProductionRegistryProvisionerContinuationCoreForTests,
+      revokeInstaller:
+        revokeFloodgateV7ProductionApplicationExecutionCoreForTests,
+    }),
   );
 }
 
@@ -1265,13 +1323,15 @@ export function provisionFloodgateV7ProductionConnectorRegistry(
       ),
     );
   }
+  let continuation: Readonly<FloodgateV7ProductionRegistryProvisionerContinuation>;
   try {
     assertFloodgateV7ProductionApplicationEntrypointContext(
       "ml/provision-floodgate-v7-production-connector-registry.ts",
     );
-    claimProvisionerApplicationExecution(
-      applicationExecutionCapability,
-      claimFloodgateV7ProductionApplicationExecution,
+    continuation = reflectApply(
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecution,
+      undefined,
+      [applicationExecutionCapability],
     );
   } catch {
     return rejected(
@@ -1284,6 +1344,7 @@ export function provisionFloodgateV7ProductionConnectorRegistry(
     );
   }
   if (getEffectiveUserId === null) {
+    revokeFloodgateV7ProductionRegistryProvisionerContinuation(continuation);
     return rejected(
       new FloodgateV7ProductionConnectorRegistryProvisionerError(
         "capture",
@@ -1325,9 +1386,17 @@ export function provisionFloodgateV7ProductionConnectorRegistry(
     return provision(
       dependencies,
       "production-fixed-current-euid-private-registry-provisioning",
-      applicationExecutionCapability,
+      objectFreeze({
+        continuation,
+        armInstaller:
+          armFloodgateV7ProductionRegistryInstallerApplicationExecution,
+        revokeContinuation:
+          revokeFloodgateV7ProductionRegistryProvisionerContinuation,
+        revokeInstaller: revokeFloodgateV7ProductionApplicationExecution,
+      }),
     );
   } catch {
+    revokeFloodgateV7ProductionRegistryProvisionerContinuation(continuation);
     return rejected(
       new FloodgateV7ProductionConnectorRegistryProvisionerError(
         "capture",

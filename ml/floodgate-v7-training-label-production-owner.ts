@@ -25,6 +25,8 @@ import {
 } from "./floodgate-v7-approved-key-current-binding";
 import { FLOODGATE_V7_DEPLOYMENT_KEY_ID } from "./floodgate-v7-deployment-key-authority";
 import {
+  assertFloodgateTeacherStageLeaseTestRealmCoreForTests,
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests,
   authorizeFloodgateTeacherStage,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
@@ -88,6 +90,12 @@ export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS =
   "outer-gate-owned-sealed-work-training-label-finalization-complete" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY =
   "purpose-specific-common-outer-gate-capability-private-registry-approved-current-key-held-stage-unkeyed-header-preflight-fresh-training-callback-scanner-backed-plan-and-terminal-finalizer-without-public-path-binding-row-key-mac-training-weight-live-or-strength-authority-v1" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CONTRACT =
+  "shogi-floodgate-v7-training-label-test-owner-receipt-v1" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_STATUS =
+  "isolated-non-production-home-test-owner-finalization-complete" as const;
+export const FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CLAIM_BOUNDARY =
+  "non-production-home-test-owner-capability-injected-dependencies-exact-test-realm-stage-and-real-held-file-preflight-without-outer-gate-capability-os-lock-or-production-authority-v1" as const;
 
 export type FloodgateV7TrainingLabelProductionOwnerExecutionBoundary =
   | "production-fixed-outer-gate-registry-key-stage-training-composer-and-finalizer"
@@ -123,16 +131,22 @@ export type FloodgateV7TrainingLabelProductionOwnerRetryDisposition =
   | "publication-and-lease-reconciliation-required";
 
 export interface FloodgateV7TrainingLabelProductionOwnerReceipt {
-  readonly contract: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT;
-  readonly status: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS;
-  readonly claim_boundary: typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY;
+  readonly contract:
+    | typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT
+    | typeof FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CONTRACT;
+  readonly status:
+    | typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS
+    | typeof FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_STATUS;
+  readonly claim_boundary:
+    | typeof FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY
+    | typeof FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CLAIM_BOUNDARY;
   readonly execution_boundary: FloodgateV7TrainingLabelProductionOwnerExecutionBoundary;
   readonly verification: Readonly<{
-    readonly outer_gate_capability_claimed_synchronously: true;
+    readonly outer_gate_capability_claimed_synchronously: boolean;
     readonly registry_and_approved_enrollment_claimed_once: true;
     readonly registry_to_approved_binding_exact_match: true;
     readonly approved_binding_freshly_current: true;
-    readonly stage_authorized_under_outer_gate: true;
+    readonly stage_authorized_under_outer_gate: boolean;
     readonly held_stage_and_work_unkeyed_preflight: true;
     readonly canonical_v3_header_shape_verified: true;
     readonly composer_invoked_inside_fresh_training_callback: true;
@@ -256,9 +270,6 @@ export interface FloodgateV7TrainingLabelProductionOwnerCoreDependencies<
 > {
   readonly executionBoundary: FloodgateV7TrainingLabelProductionOwnerExecutionBoundary;
   readonly effectiveUserId: number;
-  readonly claimOuterGateCapability: (
-    capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
-  ) => void;
   readonly loadRegistry: () => Promise<
     Readonly<FloodgateV7ProductionConnectorRegistryCapability>
   >;
@@ -303,6 +314,11 @@ export interface FloodgateV7TrainingLabelProductionOwnerCoreDependencies<
   ) => Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>>;
 }
 
+export interface FloodgateV7TrainingLabelProductionOwnerTestCapability {
+  readonly contract: "shogi-floodgate-v7-training-label-production-owner-test-capability-v1";
+  readonly status: "opaque-single-use-non-production-home-test-owner-capability";
+}
+
 const NativeError = Error;
 const NativePromise = Promise;
 const NativeTextDecoder = TextDecoder;
@@ -311,9 +327,12 @@ const nativeNumberIsSafeInteger = Number.isSafeInteger;
 const objectCreate = Object.create;
 const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
+const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectKeys = Object.keys;
+const reflectOwnKeys = Reflect.ownKeys;
 const nodeIsProxy = nodeUtilTypes.isProxy;
+const nativeRealpathSync = fs.realpathSync.native.bind(fs.realpathSync);
 const MODE_MASK = 0o7777;
 const MODE_TYPE_MASK = fs.constants.S_IFMT;
 const MODE_DIRECTORY = fs.constants.S_IFDIR;
@@ -323,6 +342,7 @@ const REVISION_RE = /^[0-9a-f]{40}$/;
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const CANONICAL_DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const READ_CHUNK_BYTES = 1024 * 1024;
+const testOwnerCapabilities = new WeakMap<object, string>();
 
 const HEADER_KEYS = objectFreeze([
   "algorithm",
@@ -415,6 +435,21 @@ const PREFIX_STATE_NAMES = objectFreeze([
   "work-train-result",
   "work-train-result-manifest",
 ] as const);
+const OWNER_DEPENDENCY_KEYS = objectFreeze([
+  "executionBoundary",
+  "effectiveUserId",
+  "loadRegistry",
+  "claimRegistry",
+  "loadApprovedEnrollment",
+  "claimApprovedEnrollment",
+  "verifyCurrentBinding",
+  "authorizeStage",
+  "preflightStage",
+  "consumeRowsAndPostflight",
+  "createPlan",
+  "discardPlan",
+  "finalize",
+] as const);
 
 interface FileSnapshot {
   readonly dev: bigint;
@@ -473,6 +508,154 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   }
   const prototype = objectGetPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+
+function captureNonProductionTestHome(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new NativeError("test home differs");
+  }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([value]);
+  const home = nativeRealpathSync(value);
+  if (home !== value) {
+    throw new NativeError("test home is not canonical");
+  }
+  return home;
+}
+
+/** Mint one isolated test-owner capability bound to a canonical non-production home. */
+export function authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(
+  homeDirectory: string,
+): Readonly<FloodgateV7TrainingLabelProductionOwnerTestCapability> {
+  if (arguments.length !== 1) {
+    throw new NativeError("test owner authorization differs");
+  }
+  const home = captureNonProductionTestHome(homeDirectory);
+  const capability = nullRecord({
+    contract:
+      "shogi-floodgate-v7-training-label-production-owner-test-capability-v1" as const,
+    status:
+      "opaque-single-use-non-production-home-test-owner-capability" as const,
+  });
+  testOwnerCapabilities.set(capability, home);
+  return capability;
+}
+
+function claimTestOwnerCapability(
+  capability: Readonly<FloodgateV7TrainingLabelProductionOwnerTestCapability>,
+): string {
+  if (
+    capability === null ||
+    typeof capability !== "object" ||
+    nodeIsProxy(capability)
+  ) {
+    throw new NativeError("test owner capability differs");
+  }
+  const home = testOwnerCapabilities.get(capability);
+  if (home === undefined) {
+    throw new NativeError("test owner capability differs");
+  }
+  testOwnerCapabilities.delete(capability);
+  return home;
+}
+
+function captureOwnerDependenciesForTests<TPlan>(
+  value: Readonly<
+    FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>
+  >,
+): Readonly<FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>> {
+  if (!isPlainRecord(value)) {
+    throw new NativeError("test owner dependencies differ");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  if (
+    keys.length !== OWNER_DEPENDENCY_KEYS.length ||
+    keys.some(
+      (key, index) =>
+        typeof key !== "string" ||
+        key !== OWNER_DEPENDENCY_KEYS[index] ||
+        descriptors[key] === undefined ||
+        !("value" in descriptors[key]) ||
+        descriptors[key].enumerable !== true,
+    )
+  ) {
+    throw new NativeError("test owner dependencies differ");
+  }
+  const candidate = Object.create(null) as Record<string, unknown>;
+  for (let index = 0; index < OWNER_DEPENDENCY_KEYS.length; index += 1) {
+    const key = OWNER_DEPENDENCY_KEYS[index];
+    candidate[key] = descriptors[key]?.value;
+  }
+  if (
+    candidate.executionBoundary !==
+      "test-only-injected-owner-dependencies-and-real-held-file-preflight" ||
+    typeof candidate.effectiveUserId !== "number" ||
+    !nativeNumberIsSafeInteger(candidate.effectiveUserId) ||
+    candidate.effectiveUserId < 1
+  ) {
+    throw new NativeError("test owner boundary differs");
+  }
+  for (let index = 0; index < OWNER_DEPENDENCY_KEYS.length; index += 1) {
+    const key = OWNER_DEPENDENCY_KEYS[index];
+    if (key === "executionBoundary" || key === "effectiveUserId") continue;
+    if (typeof candidate[key] !== "function" || nodeIsProxy(candidate[key])) {
+      throw new NativeError("test owner dependency differs");
+    }
+  }
+  const productionOwners = [
+    loadFloodgateV7ProductionConnectorRegistry,
+    claimFloodgateV7ProductionConnectorRegistry,
+    loadFloodgateV7ApprovedKeyEnrollment,
+    claimFloodgateV7ApprovedKeyEnrollment,
+    verifyFloodgateV7ApprovedKeyCurrentBindingAgainstExpected,
+    authorizeFloodgateTeacherStage,
+    withVerifiedPinnedFloodgateTrainingRowsAndPostflight,
+    createFloodgateV7TrainingLabelFinalizationPlan,
+    discardFloodgateV7TrainingLabelFinalizationPlan,
+    finalizeAndPublishFloodgateV7TrainingLabels,
+  ];
+  for (let index = 0; index < OWNER_DEPENDENCY_KEYS.length; index += 1) {
+    const key = OWNER_DEPENDENCY_KEYS[index];
+    if (productionOwners.includes(candidate[key] as never)) {
+      throw new NativeError("test owner dependency aliases production owner");
+    }
+  }
+  return objectFreeze({ ...value });
+}
+
+function assertTestRegistryOutsideProductionHome(
+  registry: Readonly<FloodgateV7ProductionConnectorRegistryPrivateClaim>,
+): void {
+  const stage = registry.stageAuthorization as Record<string, unknown>;
+  const consumer = registry.consumer as Record<string, unknown>;
+  const candidates = [
+    stage.repositoryRoot,
+    stage.rawLockRoot,
+    stage.roleLockRoot,
+    stage.roleBundleRoot,
+    stage.legacyProtectedPositionIdsPath,
+    stage.publicationParent,
+    stage.engineBin,
+    stage.engineReceipt,
+    stage.evalDir,
+    consumer.repositoryRoot,
+    consumer.rawLockRoot,
+    consumer.roleLockRoot,
+    consumer.legacyProtectedPositionIdsPath,
+    consumer.outputRoot,
+  ];
+  const paths: string[] = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    if (candidate === undefined) continue;
+    if (typeof candidate !== "string") {
+      throw new NativeError("test registry path differs");
+    }
+    paths[paths.length] = candidate;
+  }
+  if (paths.length > 0) {
+    assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
+  }
 }
 
 function exactRecord(
@@ -985,17 +1168,26 @@ function buildOwnerReceipt(
   ) {
     throw new NativeError("finalization terminal verification differs");
   }
+  const productionBoundary =
+    boundary ===
+    "production-fixed-outer-gate-registry-key-stage-training-composer-and-finalizer";
   return nullRecord({
-    contract: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT,
-    status: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS,
-    claim_boundary: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY,
+    contract: productionBoundary
+      ? FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT
+      : FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CONTRACT,
+    status: productionBoundary
+      ? FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS
+      : FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_STATUS,
+    claim_boundary: productionBoundary
+      ? FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY
+      : FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CLAIM_BOUNDARY,
     execution_boundary: boundary,
     verification: nullRecord({
-      outer_gate_capability_claimed_synchronously: true as const,
+      outer_gate_capability_claimed_synchronously: productionBoundary,
       registry_and_approved_enrollment_claimed_once: true as const,
       registry_to_approved_binding_exact_match: true as const,
       approved_binding_freshly_current: true as const,
-      stage_authorized_under_outer_gate: true as const,
+      stage_authorized_under_outer_gate: productionBoundary,
       held_stage_and_work_unkeyed_preflight: true as const,
       canonical_v3_header_shape_verified: true as const,
       composer_invoked_inside_fresh_training_callback: true as const,
@@ -1070,6 +1262,7 @@ async function executeOwnerAfterClaim<TPlan>(
   dependencies: Readonly<
     FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>
   >,
+  testHome: string | null,
 ): Promise<Readonly<FloodgateV7TrainingLabelProductionOwnerReceipt>> {
   let phase: FloodgateV7TrainingLabelProductionOwnerPhase = "registry-load";
   let lease: Readonly<FloodgateTeacherStageLease> | undefined;
@@ -1084,6 +1277,9 @@ async function executeOwnerAfterClaim<TPlan>(
     const registryCapability = await dependencies.loadRegistry();
     phase = "registry-claim";
     const registry = dependencies.claimRegistry(registryCapability);
+    if (testHome !== null) {
+      assertTestRegistryOutsideProductionHome(registry);
+    }
     phase = "approved-enrollment-load";
     const approvedCapability = await dependencies.loadApprovedEnrollment();
     phase = "approved-enrollment-claim";
@@ -1100,7 +1296,15 @@ async function executeOwnerAfterClaim<TPlan>(
     phase = "current-binding";
     await dependencies.verifyCurrentBinding(expected);
     phase = "stage-authorization";
-    lease = await dependencies.authorizeStage(registry.stageAuthorization);
+    const stageLeaseCandidate = await dependencies.authorizeStage(
+      registry.stageAuthorization,
+    );
+    if (testHome !== null) {
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        stageLeaseCandidate,
+      );
+    }
+    lease = stageLeaseCandidate;
     phase = "stage-preflight";
     preflight = await dependencies.preflightStage(
       lease,
@@ -1187,7 +1391,7 @@ async function executeOwnerAfterClaim<TPlan>(
 export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests<
   TPlan,
 >(
-  capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
+  capability: Readonly<FloodgateV7TrainingLabelProductionOwnerTestCapability>,
   dependencies: Readonly<
     FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>
   >,
@@ -1202,8 +1406,13 @@ export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForT
       ),
     );
   }
+  let testHome: string;
+  let capturedDependencies: Readonly<
+    FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>
+  >;
   try {
-    dependencies.claimOuterGateCapability(capability);
+    testHome = claimTestOwnerCapability(capability);
+    capturedDependencies = captureOwnerDependenciesForTests(dependencies);
   } catch {
     return rejected(
       new FloodgateV7TrainingLabelProductionOwnerError(
@@ -1214,7 +1423,7 @@ export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForT
       ),
     );
   }
-  return executeOwnerAfterClaim(dependencies);
+  return executeOwnerAfterClaim(capturedDependencies, testHome);
 }
 
 function productionEffectiveUserId(): number {
@@ -1240,8 +1449,6 @@ function productionDependencies(
     executionBoundary:
       "production-fixed-outer-gate-registry-key-stage-training-composer-and-finalizer" as const,
     effectiveUserId,
-    claimOuterGateCapability:
-      claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability,
     loadRegistry: loadFloodgateV7ProductionConnectorRegistry,
     claimRegistry: claimFloodgateV7ProductionConnectorRegistry,
     loadApprovedEnrollment: loadFloodgateV7ApprovedKeyEnrollment,
@@ -1317,11 +1524,5 @@ export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate(
       ),
     );
   }
-  // The production capability was already consumed above. Avoid routing it
-  // through the test/core claim seam a second time.
-  const claimedDependencies = objectFreeze({
-    ...dependencies,
-    claimOuterGateCapability: (): void => {},
-  });
-  return executeOwnerAfterClaim(claimedDependencies);
+  return executeOwnerAfterClaim(dependencies, null);
 }

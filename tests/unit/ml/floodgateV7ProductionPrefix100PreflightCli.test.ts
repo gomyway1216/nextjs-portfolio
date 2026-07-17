@@ -128,7 +128,7 @@ Module._load = function(request, parent, isMain) {
         const receipt = {
           contract: "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3",
           status: "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed",
-          claim_boundary: "point-in-time-fixed-current-user-exact-clean-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
+          claim_boundary: "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
           execution_boundary: "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock",
           gate: "durable-prefix-100",
           decision: {

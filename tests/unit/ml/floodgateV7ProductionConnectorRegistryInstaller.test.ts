@@ -5,8 +5,9 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests,
   authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
-  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests,
 } from "../../../ml/floodgate-v7-production-application-source-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
@@ -219,7 +220,7 @@ afterEach(async () => {
 });
 
 posixDescribe("Floodgate v7 production connector registry installer", () => {
-  it("requires the fixed source entry and staged capability at the production export before input access or mutation", async () => {
+  it("requires the fixed source entry and a distinct late-armed capability at the production export before input access or mutation", async () => {
     expect(installer.installFloodgateV7ProductionConnectorRegistry.length).toBe(
       2,
     );
@@ -268,20 +269,29 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
           revision: APPLICATION_REVISION,
         }),
       );
-    claimFloodgateV7ProductionApplicationExecutionCoreForTests(
-      stagedCapability,
-      "production-registry-provision",
-      "provisioner",
-    );
+    const continuation =
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+        stagedCapability,
+      );
     expect(() =>
       installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
         stagedCapability,
+      ),
+    ).toThrow();
+    const installerCapability =
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        continuation,
+      );
+    expect(installerCapability).not.toBe(stagedCapability);
+    expect(() =>
+      installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        installerCapability,
       ),
     ).not.toThrow();
     expect(
       captureSynchronousFailure(() =>
         installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
-          stagedCapability,
+          installerCapability,
         ),
       ),
     ).toMatchObject({
@@ -815,5 +825,49 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       registry_may_have_been_created: false,
     });
     expect(String(productionFailure)).not.toContain(productionHome);
+
+    const productionDescendant = await fs.promises.realpath(process.cwd());
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    let descendantFailpointCalls = 0;
+    const descendantFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistryCoreForTests(
+        registryInput(productionDescendant),
+        dependencies(productionDescendant, {
+          failpointForTests: () => {
+            descendantFailpointCalls += 1;
+          },
+        }),
+      ),
+    );
+    expect(descendantFailure).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
+    expect(descendantFailpointCalls).toBe(0);
+
+    const aliasRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), `${PATH_CANARY}-dangling-home-`),
+    );
+    temporaryRoots.push(aliasRoot);
+    const danglingAlias = path.join(aliasRoot, "home");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `${PATH_CANARY}-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+    const danglingFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistryCoreForTests(
+        registryInput(danglingAlias),
+        dependencies(danglingAlias),
+      ),
+    );
+    expect(danglingFailure).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
   });
 });

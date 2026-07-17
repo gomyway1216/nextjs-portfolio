@@ -44,6 +44,7 @@ import {
   runWithFloodgateV7ProductionOuterGateLeaseCoreForTests,
   type FloodgateV7ProductionOuterGate,
 } from "../floodgate-v7-production-outer-gate-lease";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "../floodgate-v7-production-application-source-provenance";
 import { FLOODGATE_V7_DEPLOYMENT_KEY_ID } from "../floodgate-v7-deployment-key-authority";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
@@ -80,9 +81,19 @@ interface Config {
 const PRODUCER_REVISION = "a".repeat(40);
 const VERIFIER_REVISION = "b".repeat(40);
 const RUN_ID = "12".repeat(32);
+const DISPOSABLE_APPLICATION_SOURCE_REVISION = "e".repeat(40);
 const REQUIRED_NODE_VERSION = "v22.13.0";
 const childSend = process.send?.bind(process);
 let killOnDisconnect = false;
+
+function applicationSourceBinding() {
+  return Object.freeze(
+    Object.assign(Object.create(null) as Record<string, unknown>, {
+      layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      revision: DISPOSABLE_APPLICATION_SOURCE_REVISION,
+    }),
+  );
+}
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -443,6 +454,7 @@ async function arm(config: Config): Promise<never> {
       hostname: "disposable-kill-drill.local",
       pid: process.pid,
       installProcessLifecycleHandlers: true,
+      captureApplicationSourceForTests: async () => applicationSourceBinding(),
     },
     async () => {
       if (config.point === "outer-active-durable") {
@@ -537,6 +549,8 @@ async function outerProbe(config: Config): Promise<void> {
           hostname: "disposable-probe.local",
           pid: process.pid,
           installProcessLifecycleHandlers: false,
+          captureApplicationSourceForTests: async () =>
+            applicationSourceBinding(),
         },
         async () => {
           invoked = true;

@@ -1,134 +1,133 @@
-# Isolating a fixed production recovery-operator entry as STOP-only — Floodgate v7
+# Returning the production recovery operator to a non-operational contract — Floodgate v7
 
-> Safely handling the partial prefix-100 checkpoint first requires a fixed origin, native-launch proof, exact-clean-source proof, and a purpose-limited capability separate from the normal application. [Ready-for-review PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) implements only that entry boundary and accesses no production state. Its sole executable purpose is `inspect-stale-prefix-100`, but the current entrypoint always returns `NOT-YET-IMPLEMENTED / STOP` with exit 78. It does not yet implement an inspector, reconciliation, retry, cleanup, quarantine, or resumption. Production weights and live activation are unchanged. Japanese version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)
+> The former head of [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486), `6466c6f6f02c11ac8d2085304ca11d2c5c5b5a61`, passed every remote check, but an independent post-green audit found a circular bootstrap: repository code under verification executed before its checks. Implementation commit `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7` therefore removes the production package command, repository JXA, `tsx/cjs` preload, source authorizer, capability issuer, and CLI. Only an import-free `UNAVAILABLE / STOP` contract remains. It has neither an entrypoint nor authority to read production state. Japanese version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)
 
 ## 1. Result
 
-This is not a change that performs recovery. Before approaching production incident state, it creates a fail-closed foundation that limits who can start the operator, from which fixed source, and for which single purpose.
+This PR is not a recovery operator. It is a **non-operational design contract** that fixes the external trust requirements for a future operator and records that no operator is currently available.
 
-| Decision subject                       | Established result                                                                                                            |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| diagnostic-projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), regular merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
-| safe-failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485), regular merge `4b46fd3761512f38bada4c7c23537a969349a804` |
-| foundation delivery                    | [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486), OPEN / ready for review                                  |
-| foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                    |
-| initial `main` integration             | regular merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
-| latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                    |
-| latest integration merge               | regular merge `5f22bd14a10b35e09cef39a0cba93f733464dc52`                                                                      |
-| allowed purpose                        | only `inspect-stale-prefix-100`                                                                                               |
-| implemented stage                      | only `stop-entry`                                                                                                             |
-| CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                              |
-| process exit                           | 78                                                                                                                            |
-| production-state inspections           | 0                                                                                                                             |
-| registry / lease / stage / work access | 0 / 0 / 0 / 0                                                                                                                 |
-| persistent mutations                   | 0                                                                                                                             |
-| live-weight / activation changes       | 0 / 0                                                                                                                         |
+| Decision subject                             | Current established value                  |
+| -------------------------------------------- | ------------------------------------------ |
+| foundation delivery                          | PR #486, OPEN / ready for review           |
+| non-operational redesign                     | `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7` |
+| package recovery command                     | absent                                     |
+| repository JXA / native launcher             | absent                                     |
+| production `-r tsx/cjs` preload              | absent                                     |
+| production authorizer / issuer / capability  | absent                                     |
+| production CLI / entrypoint                  | absent                                     |
+| fixed contract decision                      | `UNAVAILABLE / STOP`                       |
+| production-state inspections                 | 0                                          |
+| registry / lease / stage / work / key access | 0 / 0 / 0 / 0 / 0                          |
+| persistent mutations / live changes          | 0 / 0                                      |
 
-The authenticated stale active lease and four complete records documented in the [first prefix-100 stop article](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md) remain preserved evidence. This foundation has not read them and has not rerun that article's read-only audit.
+This change has not read the stale active lease or three-parent partial checkpoint recorded in the [first prefix-100 stop article](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md). It has not deleted, quarantined, resumed, or retried them.
 
-#485 regularly merged code that preserves only an allowlisted `failure_kind` and required `timeout_ms` from the first branded, frozen worker failure through pool-wide poison. The same twelve-candidate read-only reproduction and use against the production incident state both remain zero. The source foundation does not treat this new code availability as a production observation.
+## 2. Why green CI was not enough
 
-## 2. Why isolate the entry first
+The former tests checked launch arguments, nonce, process lineage, and tracked source after startup. The trust decision nevertheless came after these components had already run:
 
-The prefix-100 incident cannot be retried automatically or cleaned up manually without rechecking the outer lease, inner stage, and checkpoint under one consistent authority. Connecting the inspector first, however, would let a source mix-up or reuse of a normal-application capability lead directly to production access.
+1. `package.json` passed a repository JXA file directly to `osascript`, so its bytes were interpreted before the helper could inspect itself.
+2. The JXA launched Node with `-r tsx/cjs`, so Git-ignored `node_modules/tsx` ran before the entrypoint and attestation modules.
+3. Source capture accepted any clean 40-hex HEAD and did not require equality with an externally approved commit and tree.
 
-This change therefore separates two stages:
+The old article and JSON also claimed closure over source ownership and mode plus the absolute Git, common, and object directories even though the implementation did not establish that closure.
 
-1. This candidate creates a fixed entry, launch proof, source proof, and STOP-only capability without importing production data.
-2. A later, separate review unit will implement the read-only inspector, followed by another gate for reconciliation authority.
+More tests inside the same bootstrap cannot remove this circularity. The redesign deletes the operational path and authority instead. Green CI at the old head remains useful regression history, but it is not merge authority for the new design.
 
-The foundation source root has a fixed suffix distinct from the normal production-application checkout. There is no interface through which a caller selects a path, revision, purpose, entrypoint, or runtime option. It also does not share the normal application's capability registry.
+## 3. The remaining pure STOP contract
 
-## 3. Fixed launch and source closure
+The only remaining source is [`ml/floodgate-v7-production-recovery-operator-foundation.ts`](../ml/floodgate-v7-production-recovery-operator-foundation.ts). It has no imports and no filesystem, process, Git, network, or production-module reference. No package script reaches it.
 
-The native helper launches fixed Node v22.13.0 from Darwin JXA and uses standard input as a private one-shot attestation pipe, not operator input. The child checks the nonce, parent process identifier, helper, purpose, entrypoint, and `osascript` parent command, and rejects replay.
+| Field                                                   | Fixed value                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `contract`                                              | `shogi-floodgate-v7-production-recovery-operator-non-operational-foundation-v1` |
+| `status` / `decision`                                   | `UNAVAILABLE` / `STOP`                                                          |
+| `future_purpose`                                        | `inspect-stale-prefix-100`                                                      |
+| `operational_entrypoint_available`                      | `false`                                                                         |
+| `production_issuer_available`                           | `false`                                                                         |
+| `repository_self_authorization_available`               | `false`                                                                         |
+| `external_trust_root_installed`                         | `false`                                                                         |
+| `approved_revision_enrolled` / `approved_tree_enrolled` | `false` / `false`                                                               |
+| `source_authorized`                                     | `false`                                                                         |
+| state access / mutation / live / disclosure             | all `false`                                                                     |
 
-Source authorization accepts only the clean revision of the fixed checkout and verifies these nine paths as its tracked closure.
+This is not a receipt-emitting CLI or a source-authentication API. Tests or explanatory code may directly import and read the same frozen marker, but no function can turn it into production authority.
 
-| Closure class   | Fixed target                                                      |
-| --------------- | ----------------------------------------------------------------- |
-| project binding | `package.json`, `package-lock.json`, and `tsconfig.json`          |
-| native launch   | production JXA helper and attestation module                      |
-| operator entry  | STOP-only entrypoint, source authorization, and source provenance |
-| Git verifier    | fixed Git helper                                                  |
+## 4. External trust root required in a later PR
 
-It also checks required-path agreement across HEAD, index, and ordinary files; real paths; absence of symlinks and hardlinks; and absence of group/other write access. Git object directories, common object directories, `info/alternates`, and environment alternates are rejected when they escape the fixed boundary. The entrypoint's working directory, arguments, main module, and loader options must also match an exact tuple before a capability can be issued.
+Before a read-only inspector exists, a separate PR must implement and review at least:
 
-## 4. Boundary guaranteed by the STOP receipt
+- a native or single-bundle launcher installed outside the repository;
+- no JXA self-attestation and no untracked loader execution;
+- authenticated, create-only enrollment of an approved commit and tree digest;
+- exact equality between HEAD and that approved revision;
+- owner, mode, link count, and canonical identity closure for the launcher, runtime, bundle, required source, and every ancestor;
+- Git control closure including `--absolute-git-dir`, `--git-common-dir`, the object directory, and alternates; and
+- negative tests for a clean but unapproved commit, an ignored-loader canary, external common/object stores, and group-writable or foreign-owner source.
 
-Even when source authorization succeeds, the current entrypoint can return only this fixed contract.
+Repository code must never mint a production capability except from the opaque one-shot attestation issued by that external root. This PR neither installs nor simulates that root.
 
-| Field                              | Value                                                         |
-| ---------------------------------- | ------------------------------------------------------------- |
-| `contract`                         | `shogi-floodgate-v7-production-recovery-operator-cli-stop-v1` |
-| `status`                           | `NOT-YET-IMPLEMENTED`                                         |
-| `decision`                         | `STOP`                                                        |
-| `purpose`                          | `inspect-stale-prefix-100`                                    |
-| `source_authorized`                | authorization result only                                     |
-| state-access flags                 | all `false`                                                   |
-| mutation / live / disclosure flags | all `false`                                                   |
+## 5. Progress from the same twelve-candidate diagnostic
 
-Authorization failure does not fall back to production. The entrypoint attempts a STOP receipt with `source_authorized = false` while preserving the nonzero exit. Exit 78 remains authoritative even if stderr is unavailable.
+[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487) separately records the read-only diagnostic of the same twelve candidates on PR #485's exact final head.
 
-The entrypoint does not import the production registry, lease, stage, work, or deployment key. “Correct source” must therefore never be reinterpreted as “incident state inspected,” “cleanup authorized,” or “resumption authorized.”
+| Subject                                 | Observation                                                      |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| final head                              | `6a804a7954a9685361944aeb2be32494638fae2e`                       |
+| run-start bounds                        | 2026-07-17 08:10:33Z–08:27:23.026Z                               |
+| regular merge                           | 2026-07-17 08:27:59Z                                             |
+| run-finish bounds                       | 2026-07-17 08:38:57.974Z–08:55:48Z                               |
+| chronology                              | began before merge, continued across merge, recorded after merge |
+| post-merge deployment start established | no                                                               |
+| outcome                                 | 7 fulfilled / 5 rejected                                         |
+| first pool failure safe kind            | `search-timeout`                                                 |
+| timeout                                 | 600,000 ms                                                       |
+| production gate / mutation              | 0 / 0                                                            |
 
-## 5. Validation
+The five rejections received the first genuine `search-timeout` through pool-wide poison broadcast. This does not establish five independent timeouts or the first triggering input. It advances failure classification, not the timeout fix, optimal worker count, partial-checkpoint resolution, or playing strength.
 
-The foundation's focused suite passed 50 / 50 tests. After the first `main` integration, including the #484 connector regressions, the combined focused run passed 77 / 77. On the latest integration that regularly merged #485, the six affected foundation, projection, and failure-kind files passed 188 / 188 tests. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
+## 6. Validation and open gates
 
-The first Darwin CI run for PR #486 exposed one issue confined to the existing production-launcher test fixture: it converted an inner protected-DYLD rejection status through ambiguous `Number(...)`, and a runner difference made the outer `osascript` terminate with `status = null`. After aligning that fixture with the strict `ObjC.unwrap` plus safe-integer validation already used by the production launcher and recovery fixture, the Darwin job passed. Review follow-up also replaced two stale PR-state records with `OPEN / ready_for_review` and aligned provenance/authorization frozen-record own-key handling; a regression test now fixes the descriptor-copy rule in both implementations.
+For the non-operational redesign itself, the focused tests passed 5 / 5, as did TypeScript, changed-file ESLint, and the Git whitespace check. The new final head still requires the full suite, GitHub CI, and fresh independent review; old-head results cannot substitute.
 
-On the final post-review tree, all 168 files and 3,123 / 3,123 tests passed with four workers in 308.28 seconds and zero swaps. Two preceding eight-worker attempts were stopped after one existing performance-sensitive test reached its 30-second limit under same-machine CPU contention; neither attempt is counted as a pass. Both the affected 188 / 188 run containing that test and the resource-isolated full run passed.
+| Validation                               | Current state |
+| ---------------------------------------- | ------------- |
+| non-operational contract focused test    | PASS, 5 / 5   |
+| TypeScript                               | PASS          |
+| changed-file ESLint                      | PASS          |
+| Git diff whitespace                      | PASS          |
+| full Vitest on redesign head             | PENDING       |
+| redesigned final-head GitHub CI          | PENDING       |
+| redesigned final-head independent review | PENDING       |
+| regular merge                            | PENDING       |
 
-| Validation                                 | Result              |
-| ------------------------------------------ | ------------------- |
-| foundation unit and source-hardening tests | PASS, 50 / 50       |
-| post-`main` focused regression             | PASS, 77 / 77       |
-| latest affected integration regression     | PASS, 188 / 188     |
-| full Vitest                                | PASS, 3,123 / 3,123 |
-| production build                           | PASS                |
-| TypeScript typecheck                       | PASS                |
-| changed-file ESLint                        | PASS                |
-| TypeScript / JSON / JXA formatting         | PASS                |
-| production and fixture JXA compile         | PASS                |
-| Git diff whitespace check                  | PASS                |
-| public-artifact privacy scan               | PASS                |
+## 7. Work not performed
 
-Tests cover fail-closed rejection of a wrong root, arguments, loader, or runtime; replayed attestation; symlinks and hardlinks; dirty tracked source; alternate object stores; proxy arguments; and module-loading bypass patterns. These passes are evidence for the source-entry boundary, not evidence that a production inspector is correct or that recovery is safe.
+| Operation                                           |         Count |
+| --------------------------------------------------- | ------------: |
+| recovery operator / production inspector invocation |         0 / 0 |
+| retry / cleanup / quarantine / resume               | 0 / 0 / 0 / 0 |
+| 4 / 6 / 8 / 12-worker comparison                    |             0 |
+| teacher generation / label finalization             |         0 / 0 |
+| retraining / optimizer step                         |         0 / 0 |
+| candidate selection / promotion                     |         0 / 0 |
+| formal A/B / external calibration                   |         0 / 0 |
+| production-weight overwrite / live activation       |         0 / 0 |
 
-## 6. Work not performed
+One exact-final-head twelve-candidate read-only diagnostic completed, but it began before the merge. It is not counted as post-merge deployment execution or a production incident-state operator invocation.
 
-| Operation                                     | Count / state |
-| --------------------------------------------- | ------------: |
-| production-operator invocation                |             0 |
-| production-state inspection                   |             0 |
-| registry / lease / stage / work access        | 0 / 0 / 0 / 0 |
-| deployment-key access                         |             0 |
-| retry / cleanup / quarantine / resume         | 0 / 0 / 0 / 0 |
-| merged failure-kind production rerun          |             0 |
-| 4 / 6 / 8 / 12-worker benchmark               |             0 |
-| teacher generation / label finalization       |         0 / 0 |
-| retraining / optimizer step                   |         0 / 0 |
-| candidate selection / promotion               |         0 / 0 |
-| formal A/B / external calibration             |         0 / 0 |
-| production-weight overwrite / live activation |         0 / 0 |
+## 8. Safe next order
 
-This change therefore has not altered playing strength. It creates no claim that the evaluator became stronger or reached high-dan strength.
+1. Complete the full suite, final-head CI, and fresh independent review for redesigned PR #486, then regular-merge it.
+2. Do not deploy or execute PR #486 as an operator; treat it only as a non-operational contract.
+3. Compare 4, 6, 8, and 12 workers under the same privacy boundary and measure tail latency, timeout, and throughput.
+4. Select a runtime fix that preserves playing quality and treat the changed binding as a new run.
+5. Implement the external trust root, approved commit/tree enrollment, and no-preload bundle in a separate PR.
+6. Only after that trust root passes review, CI, and regular merge, implement a zero-argument read-only inspector in another PR.
+7. After the inspector is reviewed and merged, perform exactly one fresh inspection; any mismatch, authentication failure, or indeterminate result means STOP.
+8. Only matching fresh evidence may open review of human-confirmed quarantine or a separately approved fresh restart.
+9. Retrain, select, run formal A/B, and calibrate externally only after complete teacher data; consider live activation only after playing-strength and rollback evidence.
 
-## 7. Safe next order
+## 9. Current decision
 
-1. Pass [foundation PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) through final-head CI, independent review, and a regular merge.
-2. Deliver that regularly merged revision to the dedicated fixed recovery checkout and pin clean tracked source, but do not run the STOP-only entrypoint as if it were production inspection.
-3. Rerun the same twelve candidates read-only on regularly merged [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485). Capture the first safe worker-failure kind and timeout without publishing stderr, process identifiers, positions, or parent identifiers.
-4. Compare 4, 6, 8, and 12 workers on the same read-only input and establish the cause of the timeout boundary and tail latency.
-5. In a PR separate from the foundation, implement a zero-argument read-only inspector that authenticates the production registry, lease, stage, and checkpoint in one process. Return only sanitized counts and fixed classifications.
-6. After the inspector passes final-head CI, independent review, and a regular merge, perform exactly one read-only inspection from that fixed merged revision. Any mismatch, authentication failure, or indeterminate result means STOP.
-7. Only if fresh evidence matches, separately review a reconciliation flow in which a human chooses either resumption or quarantine followed by a separately authorized fresh restart. Never select automatically.
-8. Even if exact-100 succeeds, stop once, then advance to 500, final-24,000, teacher finalization, retraining, candidate selection, formal A/B, and external calibration only after approval.
-9. Consider live activation only after safety, quality, playing-strength, and rollback evidence all pass.
-
-## 8. Current decision
-
-#484 regularly merged the corrected sanitized-outer-phase projection and #485 the safe worker-failure-kind propagation. Neither has been used against the production incident state, and the same twelve candidates remain unrun. [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) creates the fixed entry needed for a future read-only inspector, but it is deliberately **STOP-only**.
-
-The production decision therefore remains **STOP**. The [machine-readable evidence](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json) separates evidence for the source foundation from unimplemented and unexecuted production operations and playing-strength nonclaims.
+The unsafe bootstrap and issuer were removed instead of merging the green old design. PR #486 cannot operate production, and neither an external trust root nor an approved revision exists yet. The production decision therefore remains **STOP**, with live weights unchanged. The [machine-readable evidence](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json) separates removed authority, the corrected PR #487 chronology, zero production access, and open gates.

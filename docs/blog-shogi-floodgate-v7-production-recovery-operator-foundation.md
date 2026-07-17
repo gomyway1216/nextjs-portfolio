@@ -1,134 +1,133 @@
-# production復旧operatorの固定入口をSTOP-onlyで分離する — Floodgate v7
+# production復旧operatorを「実行不能な契約」へ戻す — Floodgate v7
 
-> prefix-100の部分checkpointを安全に扱うには、通常applicationとは別の固定origin、native launch証明、exact clean source証明、目的限定capabilityが先に必要である。[ready-for-review PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)はその入口だけを実装し、production stateへは一切accessしない。実行可能な唯一のpurposeは`inspect-stale-prefix-100`だが、現在のentrypointは必ず`NOT-YET-IMPLEMENTED / STOP`、exit 78を返す。inspector、reconciliation、retry、cleanup、quarantine、resumeはまだ実装していない。production weightとlive activationも変更していない。English version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md)
+> [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)の旧head `6466c6f6f02c11ac8d2085304ca11d2c5c5b5a61`は全remote checkを通過したが、独立したpost-green監査で、検証対象のrepository codeが検証より先に実行される循環bootstrapが見つかった。そこで実装commit `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7`はproduction package command、repository JXA、`tsx/cjs` preload、source authorizer、capability issuer、CLIを削除した。残るのはimport-freeな`UNAVAILABLE / STOP`契約だけであり、production stateを読む入口も権限もない。English version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md)
 
 ## 1. 結論
 
-これは「復旧を実行する変更」ではない。production incident stateへ近づく前に、誰が、どの固定sourceから、どの1目的でoperatorを開始できるかをfail-closedに限定する基盤である。
+このPRは復旧operatorではない。将来のoperatorが満たすべき外部信頼条件と、現時点では実行不能であることを固定する**非運用の設計契約**である。
 
-| 判断対象                               | 確定結果                                                                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| diagnostic projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)、通常merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
-| safe failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)、通常merge `4b46fd3761512f38bada4c7c23537a969349a804` |
-| foundation delivery                    | [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)、OPEN / ready for review                              |
-| foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                |
-| initial `main` integration             | 通常merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
-| latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                |
-| latest integration merge               | 通常merge `5f22bd14a10b35e09cef39a0cba93f733464dc52`                                                                      |
-| allowed purpose                        | `inspect-stale-prefix-100`だけ                                                                                            |
-| implemented stage                      | `stop-entry`だけ                                                                                                          |
-| CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                          |
-| process exit                           | 78                                                                                                                        |
-| production state inspection            | 0                                                                                                                         |
-| registry / lease / stage / work access | 0 / 0 / 0 / 0                                                                                                             |
-| persistent mutation                    | 0                                                                                                                         |
-| live weight / activation change        | 0 / 0                                                                                                                     |
+| 判断対象                                     | 現在の確定値                               |
+| -------------------------------------------- | ------------------------------------------ |
+| foundation delivery                          | PR #486、OPEN / ready for review           |
+| non-operational redesign                     | `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7` |
+| package recovery command                     | なし                                       |
+| repository JXA / native launcher             | なし                                       |
+| `-r tsx/cjs` production preload              | なし                                       |
+| production authorizer / issuer / capability  | なし                                       |
+| production CLI / entrypoint                  | なし                                       |
+| fixed contract decision                      | `UNAVAILABLE / STOP`                       |
+| production state inspection                  | 0                                          |
+| registry / lease / stage / work / key access | 0 / 0 / 0 / 0 / 0                          |
+| persistent mutation / live change            | 0 / 0                                      |
 
-[prefix-100初回停止の記事](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md)で記録した認証済みstale active leaseと4件の完全recordは、そのまま保全対象である。このfoundationはそれらを読んでおらず、記事のread-only auditを再実行したものでもない。
+[prefix-100初回停止の記事](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md)に記録したstale active leaseと3-parent partial checkpointは、この変更では読んでいない。削除、隔離、再開、retryもしていない。
 
-#485により、最初のbranded / frozen worker failureからpool-wide poisonまで、allowlist済み`failure_kind`と必要な`timeout_ms`だけを保持するcodeは通常mergeされた。ただし同じ12件のread-only再実行もproduction incident stateへの適用も0である。source foundationはこの新しいcode availabilityをproduction observationとして扱わない。
+## 2. green CIでも止めた理由
 
-## 2. なぜ入口を先に分離するのか
+旧設計のtestは、起動後の引数、nonce、process lineage、tracked sourceを細かく検査した。しかし、信頼判断の前に次のcodeが既に実行される構造だった。
 
-prefix-100 incidentでは、outer lease、inner stage、checkpointを一貫したauthorityで再検査しない限り、自動retryも手作業cleanupも安全ではない。ただしinspector本体を先に接続すると、sourceの取り違えや通常application capabilityの流用がproduction accessへ直結する。
+1. `package.json`がrepository内のJXAを`osascript`へ直接渡すため、JXA自身の検査より先にそのbytesが解釈される
+2. JXAがNodeを`-r tsx/cjs`で起動するため、Gitで追跡しない`node_modules/tsx`がentrypointとattestationより先に実行される
+3. source captureは「cleanな40桁HEAD」であることだけを確認し、外部で承認されたcommit / treeとの一致を要求しない
 
-そこで今回の変更は、次の二段階を分けた。
+さらに、required source全体のowner / mode、ancestor chain、absolute Git directory、common directory、object directoryを閉じていないのに、旧記事とJSONはそれらを検査済みと記録していた。
 
-1. 今回: production dataをimportしない固定入口、launch証明、source証明、STOP-only capabilityを作る
-2. 次回以降: 別review単位でread-only inspectorを実装し、さらに別gateでreconciliation authorityを作る
+これはtest追加だけでは直らない。検証されるcode自身を検証主体にすると循環が残るため、今回のredesignでは運用経路と権限発行を削除した。旧headのgreen CIは削除前実装の回帰test結果であり、新しい設計のmerge authorityとして再利用しない。
 
-foundationのsource rootは通常production application checkoutと異なる固定suffixを持つ。callerがpath、revision、purpose、entrypoint、runtime optionを選ぶinterfaceはない。通常applicationのcapability registryも共有しない。
+## 3. 残した純粋なSTOP契約
 
-## 3. 固定launchとsource closure
+残したsourceは[`ml/floodgate-v7-production-recovery-operator-foundation.ts`](../ml/floodgate-v7-production-recovery-operator-foundation.ts)だけである。import、filesystem、process、Git、network、production moduleへの参照を持たず、package scriptから到達できない。
 
-native helperはDarwin JXAから固定Node v22.13.0を起動し、標準入力をoperator inputではなくprivate one-shot attestation pipeとして使う。child側はnonce、parent PID、helper、purpose、entrypoint、`osascript` parent commandを照合し、replayを拒否する。
+| field                                                   | 固定値                                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `contract`                                              | `shogi-floodgate-v7-production-recovery-operator-non-operational-foundation-v1` |
+| `status` / `decision`                                   | `UNAVAILABLE` / `STOP`                                                          |
+| `future_purpose`                                        | `inspect-stale-prefix-100`                                                      |
+| `operational_entrypoint_available`                      | `false`                                                                         |
+| `production_issuer_available`                           | `false`                                                                         |
+| `repository_self_authorization_available`               | `false`                                                                         |
+| `external_trust_root_installed`                         | `false`                                                                         |
+| `approved_revision_enrolled` / `approved_tree_enrolled` | `false` / `false`                                                               |
+| `source_authorized`                                     | `false`                                                                         |
+| state access / mutation / live / disclosure             | すべて`false`                                                                   |
 
-source authorizationは固定checkoutのclean revisionだけを受理し、次の9 pathをtracked closureとして検査する。
+これはreceiptを出すCLIでも、sourceを認証するAPIでもない。direct importしたtestや説明用codeが同じfrozen markerを読むだけで、production authorityへ変換する関数は存在しない。
 
-| closure class   | 固定対象                                                      |
-| --------------- | ------------------------------------------------------------- |
-| project binding | `package.json`、`package-lock.json`、`tsconfig.json`          |
-| native launch   | production JXA helper、attestation module                     |
-| operator entry  | STOP-only entrypoint、source authorization、source provenance |
-| Git verifier    | fixed Git helper                                              |
+## 4. 次のPRに必要な外部信頼起点
 
-加えて、required pathのHEAD / index / ordinary-file一致、real path一致、symlinkなし、hardlinkなし、group/other書込みなしを検査する。Git object directory、common object directory、`info/alternates`、environment alternatesも固定境界外なら拒否する。entrypointのcwd、argv、main module、loader optionもexact tupleでなければcapabilityを発行しない。
+将来のread-only inspectorを作る前に、別PRで少なくとも次を実装・reviewする必要がある。
 
-## 4. STOP receiptが保証する境界
+- repository外へ固定installしたnativeまたは単一bundle launcher
+- JXA self-attestationやuntracked loaderに依存しない起動
+- create-onlyに登録したapproved commitとtree digestの認証
+- HEADがそのapproved revisionとexact一致すること
+- launcher、runtime、bundle、required source、全ancestorのowner / mode / nlink / canonical identity
+- `--absolute-git-dir`、`--git-common-dir`、object directory、alternatesを含むGit control closure
+- cleanだが未承認のcommit、ignored loader差替え、外部common/object store、group-writable / foreign-owner sourceを拒否するnegative test
 
-source authorizationが成功しても、現在のentrypointが返せるのは次の固定contractだけである。
+その外部rootが一度だけ発行するopaque attestation以外から、repository codeがproduction capabilityを作れてはならない。今回のPRはこのrootをinstallも模擬もしていない。
 
-| field                              | 値                                                            |
-| ---------------------------------- | ------------------------------------------------------------- |
-| `contract`                         | `shogi-floodgate-v7-production-recovery-operator-cli-stop-v1` |
-| `status`                           | `NOT-YET-IMPLEMENTED`                                         |
-| `decision`                         | `STOP`                                                        |
-| `purpose`                          | `inspect-stale-prefix-100`                                    |
-| `source_authorized`                | authorization結果だけ                                         |
-| state access flags                 | すべて`false`                                                 |
-| mutation / live / disclosure flags | すべて`false`                                                 |
+## 5. 同じ12候補の診断で前進した点
 
-authorizationが失敗してもproductionへfallbackしない。`source_authorized = false`のSTOP receiptを試み、nonzero exitを維持する。stderrへ書けない場合もexit 78がauthorityである。
+[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)は、PR #485のexact final headで同じ12候補をread-only診断した証拠を別管理している。
 
-entrypointはproduction registry、lease、stage、work、deployment keyをimportしない。このため「sourceが正しい」ことを「incident stateをinspectionした」「cleanupしてよい」「resumeしてよい」へ読み替えることはできない。
+| 項目                            | 観測                                            |
+| ------------------------------- | ----------------------------------------------- |
+| final head                      | `6a804a7954a9685361944aeb2be32494638fae2e`      |
+| run-start bounds                | 2026-07-17 08:10:33Z〜08:27:23.026Z             |
+| regular merge                   | 2026-07-17 08:27:59Z                            |
+| run-finish bounds               | 2026-07-17 08:38:57.974Z〜08:55:48Z             |
+| chronology                      | merge前に開始、merge中も継続、結果記録はmerge後 |
+| post-merge deployment開始の証拠 | なし                                            |
+| outcome                         | 7 fulfilled / 5 rejected                        |
+| first pool failure safe kind    | `search-timeout`                                |
+| timeout                         | 600,000 ms                                      |
+| production gate / mutation      | 0 / 0                                           |
 
-## 5. 検証
+5 rejectは、最初のgenuine `search-timeout`をpool-wide poisonがbroadcastした結果である。5件が個別にtimeoutしたことや最初のtrigger indexは確定していない。これはtimeout分類の前進だが、timeoutの修正、最適worker数、partial checkpointの解決、棋力向上ではない。
 
-foundation単独のfocused testは50 / 50、#484のconnector回帰を含む最初の`main`統合後は77 / 77がPASSした。さらに#485を通常mergeした最新integrationでは、foundation、projection、failure-kindのaffected 6 files、188 / 188がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
+## 6. 検証と未完gate
 
-PR #486の初回Darwin CIでは、既存production-launcher test fixtureだけが内側のDYLD拒否statusを曖昧な`Number(...)`で変換し、runner差により外側の`osascript`が`status = null`で終了した。本番launcherとrecovery fixtureが既に使うstrict `ObjC.unwrap` + safe-integer検証へ同fixtureを揃えた後、Darwin jobはPASSした。reviewでは、PR状態を`OPEN / ready_for_review`へ更新する2件と、provenance / authorizationのfrozen-record own-key処理を揃える1件を修正し、後者には両実装のdescriptor-copy規則を固定する回帰testを追加した。
+non-operational redesign単独では、focused test 5 / 5、TypeScript、changed-file ESLint、Git whitespace checkがPASSした。新しいfinal headのfull test、GitHub CI、独立reviewはまだ必要であり、旧headの結果を代用しない。
 
-review修正後のfinal treeでは、全168 files、3,123 / 3,123が4 workers、308.28秒、swap 0でPASSした。先行する8-worker試行2回は、同machine上のCPU競合中に既存の性能依存test 1件が30秒上限へ達した時点で打ち切っており、成功として数えていない。同testを含むaffected 188 / 188と、資源競合を抑えた全体走行の両方がPASSした。
+| validation                               | 現在の状態  |
+| ---------------------------------------- | ----------- |
+| non-operational contract focused test    | PASS、5 / 5 |
+| TypeScript                               | PASS        |
+| changed-file ESLint                      | PASS        |
+| Git diff whitespace                      | PASS        |
+| full Vitest on redesign head             | PENDING     |
+| redesigned final-head GitHub CI          | PENDING     |
+| redesigned final-head independent review | PENDING     |
+| regular merge                            | PENDING     |
 
-| validation                               | 結果                |
-| ---------------------------------------- | ------------------- |
-| foundation unit + source-hardening tests | PASS、50 / 50       |
-| post-`main` focused regression           | PASS、77 / 77       |
-| latest affected integration regression   | PASS、188 / 188     |
-| full Vitest                              | PASS、3,123 / 3,123 |
-| production build                         | PASS                |
-| TypeScript typecheck                     | PASS                |
-| changed-file ESLint                      | PASS                |
-| TypeScript / JSON / JXA formatting       | PASS                |
-| production + fixture JXA compile         | PASS                |
-| Git diff whitespace check                | PASS                |
-| public artifact privacy scan             | PASS                |
+## 7. 実行していないこと
 
-testは、wrong root / argv / loader / runtime、replayed attestation、symlink / hardlink、dirty tracked source、alternate object store、proxy argv、module-load bypass patternをfail-closedで拒否する境界を含む。これらのPASSはsource入口の証拠であり、production inspectorの正しさや復旧可能性の証拠ではない。
+| operation                                           |         count |
+| --------------------------------------------------- | ------------: |
+| recovery operator / production inspector invocation |         0 / 0 |
+| retry / cleanup / quarantine / resume               | 0 / 0 / 0 / 0 |
+| 4 / 6 / 8 / 12 worker comparison                    |             0 |
+| teacher generation / label finalization             |         0 / 0 |
+| retraining / optimizer step                         |         0 / 0 |
+| candidate selection / promotion                     |         0 / 0 |
+| formal A/B / external calibration                   |         0 / 0 |
+| production weight overwrite / live activation       |         0 / 0 |
 
-## 6. 実行していないこと
+exact-final-head 12候補read-only診断は1回完了したが、merge前に開始しており、post-merge deployment実行には数えない。production incident stateへのoperator invocationにも数えない。
 
-| operation                                     | count / state |
-| --------------------------------------------- | ------------: |
-| production operator invocation                |             0 |
-| production state inspection                   |             0 |
-| registry / lease / stage / work access        | 0 / 0 / 0 / 0 |
-| deployment key access                         |             0 |
-| retry / cleanup / quarantine / resume         | 0 / 0 / 0 / 0 |
-| merged failure-kind production rerun          |             0 |
-| 4 / 6 / 8 / 12 worker benchmark               |             0 |
-| teacher generation / label finalization       |         0 / 0 |
-| retraining / optimizer step                   |         0 / 0 |
-| candidate selection / promotion               |         0 / 0 |
-| formal A/B / external calibration             |         0 / 0 |
-| production weight overwrite / live activation |         0 / 0 |
+## 8. 安全な次の順序
 
-したがって、この変更は棋力を変えていない。「強くなった」「高段へ到達した」というclaimも作っていない。
+1. redesigned PR #486のfull test、final-head CI、fresh independent reviewを完了し、通常mergeする
+2. PR #486をoperatorとして配備・実行せず、非運用契約としてのみ扱う
+3. 4 / 6 / 8 / 12 workersを同じprivacy境界で比較し、tail latency、timeout、throughputを測る
+4. playing qualityを保つruntime修正を選び、変更後bindingを新runとして扱う
+5. repository外のtrust root、approved commit / tree enrollment、no-preload bundleを別PRで実装する
+6. そのtrust rootのreview・CI・通常merge後にだけ、zero-argument read-only inspectorを別PRで作る
+7. inspectorのreview・merge後に1回だけfresh inspectionし、不一致、認証不能、indeterminateならSTOPする
+8. fresh evidenceが一致した場合だけ、human-confirmed quarantineまたは別承認fresh restartをreviewする
+9. 完全な教師data後にのみ再学習、候補選抜、正式A/B、外部校正を行い、棋力とrollback証拠が揃った場合だけlive activationを検討する
 
-## 7. 安全な次の順序
+## 9. 現時点の判断
 
-1. [foundation PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)をfinal-head CI、独立review、通常mergeへ通す
-2. 通常merge済みrevisionを専用の固定recovery checkoutへ配備し、clean tracked sourceを固定する。ただしSTOP-only entrypointをproduction inspectionとして実行しない
-3. 通常merge済み[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)のcodeで、同じ12件をread-only再実行する。raw stderr、PID、局面、parent IDを公開せず、最初のsafe worker failure kindとtimeout値を取得する
-4. 同じread-only inputで4 / 6 / 8 / 12 workersを比較し、timeout境界とtail latencyの原因を確定する
-5. foundationとは別PRで、production registry、lease、stage、checkpointを同じprocessで認証するzero-argument read-only inspectorを実装する。出力はsanitized countと固定classificationだけにする
-6. inspectorをfinal-head CI、独立review、通常mergeした後、固定revisionからread-only inspectionを1回だけ実行する。不一致、認証不能、indeterminateならSTOPする
-7. fresh evidenceが一致した場合だけ、resumeまたはquarantine後の別承認fresh restartを人間が選ぶreconciliation flowを別途reviewする。自動選択しない
-8. exact-100が成功しても一度STOPし、承認後だけ500、final-24,000、教師確定、再学習、候補選抜、正式A/B、外部校正へ進む
-9. 安全性、品質、棋力、rollbackの証拠が揃った場合だけlive activationを検討する
-
-## 8. 現時点の判断
-
-#484によりsanitized outer phaseの投影修正、#485によりsafe worker failure-kind伝播は通常mergeされた。ただしどちらもproduction incident stateでは未実行で、同じ12件も再実行していない。[PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)は、将来のread-only inspectorを接続するための固定入口を作ったが、意図的に**STOP-only**である。
-
-従って現在のproduction判断は引き続き**STOP**である。[機械可読証拠](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json)は、source foundationの証拠と、未実装・未実行のproduction operation、棋力nonclaimを分離して記録する。
+旧設計をgreenのままマージせず、危険なbootstrapと権限発行を削除した。現在のPR #486はproductionを動かせず、外部trust rootもapproved revisionもまだない。従ってproduction判断は引き続き**STOP**であり、live weightsは変更しない。[機械可読証拠](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json)は、削除したauthority、#487の正確な時系列、zero production access、未完gateを分離して記録する。

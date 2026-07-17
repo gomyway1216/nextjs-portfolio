@@ -340,7 +340,8 @@ function claimProvisionerIntoContinuation(
     capabilityRegistry,
   );
   const continuation = frozenRecord({
-    contract: FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT,
+    contract:
+      FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_CONTRACT,
     status: FLOODGATE_V7_PRODUCTION_REGISTRY_PROVISIONER_CONTINUATION_STATUS,
   });
   continuationRegistry.set(continuation, {

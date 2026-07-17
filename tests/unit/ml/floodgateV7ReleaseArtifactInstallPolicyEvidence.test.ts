@@ -257,6 +257,34 @@ describe("Floodgate v7 release, artifact, and install policy boundary", () => {
     expect(source).toContain(
       "firstUnsignedBuildSHA256 == secondUnsignedBuildSHA256",
     );
+    const encodeBoundsGuard =
+      /precondition\(\s*Self\.expectedXcodeBuildIdentifier\.count\s*<= Self\.buildIdentifierSlotByteCount,/u;
+    const decodeBoundsGuard =
+      "guard buildIdentifierCount <= buildIdentifierSlotByteCount else";
+    const paddingSubtraction = "- Self.expectedXcodeBuildIdentifier.count";
+    const decodedSlice = "buildIdentifierSlot[..<buildIdentifierCount]";
+
+    const hasBoundsGuardsBeforeRiskyOperations = (candidate: string) => {
+      const encodeBoundsGuardIndex = candidate.search(encodeBoundsGuard);
+      return (
+        encodeBoundsGuardIndex >= 0 &&
+        encodeBoundsGuardIndex < candidate.indexOf(paddingSubtraction) &&
+        candidate.indexOf(decodeBoundsGuard) >= 0 &&
+        candidate.indexOf(decodeBoundsGuard) < candidate.indexOf(decodedSlice)
+      );
+    };
+
+    expect(hasBoundsGuardsBeforeRiskyOperations(source)).toBe(true);
+    expect(
+      hasBoundsGuardsBeforeRiskyOperations(
+        source.replace(encodeBoundsGuard, ""),
+      ),
+    ).toBe(false);
+    expect(
+      hasBoundsGuardsBeforeRiskyOperations(
+        source.replace(decodeBoundsGuard, ""),
+      ),
+    ).toBe(false);
     expect(tests).toContain(
       "testReleaseToolchainRejectsUnsupportedHostZeroAndDrift",
     );

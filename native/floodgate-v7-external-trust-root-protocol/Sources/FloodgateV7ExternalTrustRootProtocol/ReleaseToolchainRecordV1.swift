@@ -179,6 +179,11 @@ public struct ReleaseToolchainRecordV1: Equatable, Sendable {
         encoder.append(Self.expectedXcodeVersionMajor)
         encoder.append(Self.expectedXcodeVersionMinor)
         encoder.append(Self.expectedXcodeVersionPatch)
+        precondition(
+            Self.expectedXcodeBuildIdentifier.count
+                <= Self.buildIdentifierSlotByteCount,
+            "Xcode build identifier exceeds slot size"
+        )
         encoder.append(UInt8(Self.expectedXcodeBuildIdentifier.count))
         encoder.append(Self.expectedXcodeBuildIdentifier)
         encoder.append(
@@ -245,6 +250,10 @@ public struct ReleaseToolchainRecordV1: Equatable, Sendable {
             guard bytes.count == canonicalByteCount else {
                 throw CanonicalRecordError.invalidCanonicalRecord
             }
+            let buildIdentifierCount = expectedXcodeBuildIdentifier.count
+            guard buildIdentifierCount <= buildIdentifierSlotByteCount else {
+                throw CanonicalRecordError.invalidCanonicalRecord
+            }
             var decoder = CanonicalDecoder(bytes)
             guard
                 try decoder.readBytes(count: magic.count) == magic,
@@ -261,7 +270,7 @@ public struct ReleaseToolchainRecordV1: Equatable, Sendable {
                 try decoder.readByte() == expectedXcodeVersionMinor,
                 try decoder.readByte() == expectedXcodeVersionPatch,
                 try decoder.readByte()
-                    == UInt8(expectedXcodeBuildIdentifier.count)
+                    == UInt8(buildIdentifierCount)
             else {
                 throw CanonicalRecordError.invalidCanonicalRecord
             }
@@ -269,7 +278,6 @@ public struct ReleaseToolchainRecordV1: Equatable, Sendable {
             let buildIdentifierSlot = try decoder.readBytes(
                 count: buildIdentifierSlotByteCount
             )
-            let buildIdentifierCount = expectedXcodeBuildIdentifier.count
             guard
                 Array(buildIdentifierSlot[..<buildIdentifierCount])
                     == expectedXcodeBuildIdentifier,

@@ -6,12 +6,17 @@
 
 import { types as nodeUtilTypes } from "node:util";
 
+import {
+  authorizeFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
+
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_CLI_SUCCESS_CONTRACT =
-  "shogi-floodgate-v7-production-connector-cli-success-v1" as const;
+  "shogi-floodgate-v7-production-connector-cli-success-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_CLI_SUCCESS_STATUS =
   "fixed-production-connector-gate-complete" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_CLI_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-production-connector-cli-failure-v1" as const;
+  "shogi-floodgate-v7-production-connector-cli-failure-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_CLI_FAILURE_STATUS =
   "fixed-production-connector-gate-did-not-issue-success" as const;
 
@@ -25,9 +30,15 @@ interface RunnerModule {
   readonly FloodgateV7ProductionConnectorRunnerError: new (
     ...arguments_: never[]
   ) => Error;
-  readonly runFloodgateV7ProductionConnectorPrefix100: () => Promise<unknown>;
-  readonly runFloodgateV7ProductionConnectorPrefix500: () => Promise<unknown>;
-  readonly runFloodgateV7ProductionConnectorFinal24000: () => Promise<unknown>;
+  readonly runFloodgateV7ProductionConnectorPrefix100: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<unknown>;
+  readonly runFloodgateV7ProductionConnectorPrefix500: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<unknown>;
+  readonly runFloodgateV7ProductionConnectorFinal24000: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<unknown>;
 }
 
 const NativeError = Error;
@@ -45,13 +56,13 @@ const reflectOwnKeys = Reflect.ownKeys;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const nativeArrayIncludes = Array.prototype.includes;
 const RUNNER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-runner-v1" as const;
+  "shogi-floodgate-v7-production-connector-runner-v2" as const;
 const RUNNER_STATUS =
-  "registry-approved-current-bound-production-connector-gate-complete" as const;
+  "application-source-bound-registry-approved-current-production-connector-gate-complete" as const;
 const RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1" as const;
+  "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
 const RUNNER_EXECUTION_BOUNDARY =
-  "production-fixed-gate-private-registry-and-capability-owners" as const;
+  "production-fixed-application-source-bound-gate-private-registry-and-capability-owners" as const;
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const RUNNER_RECEIPT_KEYS = objectFreeze([
   "contract",
@@ -73,6 +84,7 @@ const RUNNER_VERIFICATION_KEYS = objectFreeze([
   "approved_record_binding_matched",
   "fresh_current_key_binding_validated",
   "connector_completed",
+  "exact_clean_tracked_application_source_closure_validated_under_outer_gate",
 ] as const);
 const RUNNER_PREFIX_100_VERIFICATION_KEYS = objectFreeze([
   ...RUNNER_VERIFICATION_KEYS,
@@ -85,6 +97,12 @@ const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "raw_connector_receipt_disclosed",
   "key_material_disclosed",
   "row_or_position_content_disclosed",
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "teacher_label",
   "optimizer_training",
   "weight",
@@ -181,6 +199,8 @@ function sanitizedSuccess(value: unknown, gate: Gate): Readonly<object> {
     verification.approved_record_binding_matched !== true ||
     verification.fresh_current_key_binding_validated !== true ||
     verification.connector_completed !== true ||
+    verification.exact_clean_tracked_application_source_closure_validated_under_outer_gate !==
+      true ||
     (gate === "durable-prefix-100" &&
       verification.exact_prefix_100_read_only_continuity_postflight_completed !==
         true)
@@ -200,6 +220,14 @@ function sanitizedSuccess(value: unknown, gate: Gate): Readonly<object> {
     sealed: gate === "sealed-final-24000",
     checkpoint_may_have_persisted: true as const,
     fresh_current_key_binding_validated: true as const,
+    exact_clean_tracked_application_source_closure_validated_under_outer_gate:
+      true as const,
+    application_source_revision_disclosed: false as const,
+    application_source_path_disclosed: false as const,
+    application_source_digest_disclosed: false as const,
+    ignored_untracked_dependency_bytes_verified: false as const,
+    same_uid_race_isolation: false as const,
+    atomic_source_snapshot: false as const,
     raw_connector_receipt_disclosed: false as const,
     private_registry_values_disclosed: false as const,
     connector_options_disclosed: false as const,
@@ -483,6 +511,8 @@ async function executeCli(
     ) {
       throw new NativeError("production connector CLI invocation differs");
     }
+    const applicationCapability =
+      await authorizeFloodgateV7ProductionApplicationExecution(gate);
     /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime checks. */
     const loadedRunner =
       require("./floodgate-v7-production-connector-runner") as RunnerModule;
@@ -493,7 +523,9 @@ async function executeCli(
       throw new NativeError("production connector runner export differs");
     }
     runnerInvoked = true;
-    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, []);
+    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, [
+      applicationCapability,
+    ]);
     const publicReceipt = sanitizedSuccess(rawRunnerReceipt, gate);
     try {
       await writeOutput(process.stdout, `${stringify(publicReceipt)}\n`);

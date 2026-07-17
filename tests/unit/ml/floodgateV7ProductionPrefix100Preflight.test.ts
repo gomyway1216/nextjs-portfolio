@@ -17,10 +17,12 @@ import {
   FLOODGATE_V7_DEPLOYMENT_KEY_READINESS_TRUST_BOUNDARY,
 } from "../../../ml/floodgate-v7-deployment-key-readiness";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "../../../ml/floodgate-production-teacher-asset-authority";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "../../../ml/floodgate-v7-production-application-source-provenance";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
+  serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
 } from "../../../ml/floodgate-v7-production-connector-registry";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_VERIFIER_READINESS_CLAIM_BOUNDARY,
@@ -54,12 +56,28 @@ const EUID = process.geteuid?.() ?? 501;
 const RUN_ID = "31".repeat(32);
 const RECORD_SHA = "41".repeat(32);
 const KEY_INSTANCE = "51".repeat(32);
+const APPLICATION_REVISION = "d".repeat(40);
+
+function applicationSourceBinding(revision = APPLICATION_REVISION): Readonly<{
+  layout: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT;
+  revision: string;
+}> {
+  return Object.freeze(
+    Object.assign(Object.create(null) as object, {
+      layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      revision,
+    }),
+  ) as Readonly<{
+    layout: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT;
+    revision: string;
+  }>;
+}
 
 it("preserves verifier-readiness through the strict under-lock outcome projection", () => {
   expect(
     captureFloodgateV7ProductionPrefix100PreflightOutcomeCoreForTests({
       contract:
-        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
       status: "NO-GO-observed-under-outer-lock",
       failure: {
         phase: "verifier-readiness",
@@ -68,7 +86,7 @@ it("preserves verifier-readiness through the strict under-lock outcome projectio
     }),
   ).toEqual({
     contract:
-      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
     status: "NO-GO-observed-under-outer-lock",
     failure: {
       phase: "verifier-readiness",
@@ -265,6 +283,7 @@ function privateClaim(home: string) {
       recordSha256: RECORD_SHA,
       keyInstanceId: KEY_INSTANCE,
     },
+    applicationSourceBinding: applicationSourceBinding(),
     stageAuthorization: {
       repositoryRoot,
       rawLockRoot,
@@ -325,13 +344,34 @@ async function fixture(): Promise<Fixture> {
     registryRoot,
     FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   );
-  await fs.promises.writeFile(
-    registryPath,
-    `${JSON.stringify({ private: PRIVATE_CANARY })}\n`,
-    { flag: "wx", mode: 0o600 },
-  );
-  await fs.promises.chmod(registryPath, 0o600);
   const claim = privateClaim(home);
+  const registryRecord =
+    serializeFloodgateV7ProductionConnectorRegistryForInstallationCore(
+      {
+        run_id: claim.runId,
+        approved_key_binding: {
+          record_bytes: claim.approvedKeyBinding.recordBytes,
+          record_sha256: claim.approvedKeyBinding.recordSha256,
+          key_instance_id: claim.approvedKeyBinding.keyInstanceId,
+        },
+        verifier_revision: claim.consumer.verifierRevision,
+        application_source_binding: claim.applicationSourceBinding,
+        repository_root: claim.consumer.repositoryRoot,
+        raw_lock_root: claim.consumer.rawLockRoot,
+        role_lock_root: claim.consumer.roleLockRoot,
+        role_bundle_root: claim.consumer.outputRoot,
+        legacy_protected_position_ids_path:
+          claim.consumer.legacyProtectedPositionIdsPath,
+        engine_args: claim.stageAuthorization.engineArgs,
+      },
+      EUID,
+      "test-only-injected-current-euid-home-production-connector-registry",
+    );
+  await fs.promises.writeFile(registryPath, registryRecord, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  await fs.promises.chmod(registryPath, 0o600);
   return {
     home,
     registryRoot,
@@ -347,6 +387,7 @@ async function fixture(): Promise<Fixture> {
       homeDirectory: home,
       loadRegistry: async () => ({ capability: true }),
       claimRegistry: () => claim,
+      captureApplicationSource: async () => applicationSourceBinding(),
       verifyVerifierReadiness: async () => verifierReadiness(),
       assertVerifierReadinessIdentityBinding: (
         _receipt,
@@ -593,6 +634,69 @@ describe("Floodgate v7 production prefix-100 read-only preflight core", () => {
     }
   });
 
+  it.each([
+    {
+      label: "mismatched application revision",
+      captureApplicationSource: async () =>
+        applicationSourceBinding("e".repeat(40)),
+    },
+    {
+      label: "throwing application source capture",
+      captureApplicationSource: async () => {
+        throw new Error(PRIVATE_CANARY);
+      },
+    },
+  ])(
+    "returns application-source NO-GO before later checks or mutation for $label",
+    async ({ captureApplicationSource }) => {
+      const environment = await fixture();
+      const registryEntriesBefore = await fs.promises.readdir(
+        environment.registryRoot,
+      );
+      const registryBytesBefore = await fs.promises.readFile(
+        environment.registryPath,
+      );
+      let verifierReadinessCalls = 0;
+      let keyReadinessCalls = 0;
+
+      const error = await captureFailure(() =>
+        inspectFloodgateV7ProductionPrefix100PreflightCoreForTests({
+          ...environment.dependencies,
+          captureApplicationSource,
+          verifyVerifierReadiness: async () => {
+            verifierReadinessCalls += 1;
+            return verifierReadiness();
+          },
+          inspectKeyReadiness: async () => {
+            keyReadinessCalls += 1;
+            return readiness();
+          },
+        }),
+      );
+
+      expect(error).toMatchObject({
+        decision: "NO-GO",
+        phase: "application-source",
+        persistent_mutation_performed: false,
+        gate_invoked: false,
+      });
+      expect(verifierReadinessCalls).toBe(0);
+      expect(keyReadinessCalls).toBe(0);
+      expect(await fs.promises.readdir(environment.registryRoot)).toEqual(
+        registryEntriesBefore,
+      );
+      expect(await fs.promises.readFile(environment.registryPath)).toEqual(
+        registryBytesBefore,
+      );
+      expect(await fs.promises.readdir(environment.runsParent)).toEqual([]);
+      await expect(
+        fs.promises.lstat(environment.controlRoot),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
+      expect(publicProjection(error)).not.toContain(environment.home);
+    },
+  );
+
   it("rejects readiness for another captured identity before key inspection or namespace mutation", async () => {
     const environment = await fixture();
     let bindingCalls = 0;
@@ -793,7 +897,7 @@ darwinDescribe("Floodgate v7 prefix-100 preflight outer lock", () => {
       );
     expect(result.value).toMatchObject({
       contract:
-        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+        "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
       status: "GO-observed-under-outer-lock",
       observation: { outer_control: "absent-pristine" },
     });
@@ -1002,6 +1106,8 @@ darwinDescribe("Floodgate v7 prefix-100 preflight outer lock", () => {
           homeDirectory: environment.home,
           rootKey: ROOT_KEY,
           installProcessLifecycleHandlers: false,
+          captureApplicationSourceForTests: async () =>
+            applicationSourceBinding(),
         },
         async () => {
           mutationCalls += 1;
@@ -1045,6 +1151,8 @@ darwinDescribe("Floodgate v7 prefix-100 preflight outer lock", () => {
         homeDirectory: environment.home,
         rootKey: ROOT_KEY,
         installProcessLifecycleHandlers: false,
+        captureApplicationSourceForTests: async () =>
+          applicationSourceBinding(),
       },
       async () => {
         mutationCalls += 1;

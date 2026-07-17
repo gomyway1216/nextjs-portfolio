@@ -6,10 +6,13 @@
 
 import { types as nodeUtilTypes } from "node:util";
 
+import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import { claimFloodgateV7ProductionNativeLauncherAttestation } from "./floodgate-v7-production-native-launcher-attestation";
+
 export const FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_SUCCESS_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v3" as const;
 export const FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v3" as const;
 
 interface PreflightModule {
   readonly FloodgateV7ProductionPrefix100PreflightError: new (
@@ -32,13 +35,13 @@ const reflectOwnKeys = Reflect.ownKeys;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const CORE_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3" as const;
 const CORE_STATUS =
-  "fresh-zero-work-prefix-100-read-only-preconditions-observed" as const;
+  "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed" as const;
 const CORE_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2" as const;
+  "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
 const CORE_EXECUTION_BOUNDARY =
-  "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
+  "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock" as const;
 const TOP_KEYS = objectFreeze([
   "contract",
   "status",
@@ -60,6 +63,7 @@ const VERIFICATION_KEYS = objectFreeze([
   "common_os_lock_held_through_all_checks",
   "registry_anchor_held_descriptor_and_bytes_revalidated",
   "private_registry_claimed_and_fixed_configuration_validated",
+  "application_source_binding_matched_to_exact_clean_tracked_application_closure",
   "verifier_source_artifact_closure_rechecked",
   "deployment_key_metadata_ready",
   "approved_enrollment_loaded_and_registry_binding_matched",
@@ -77,6 +81,12 @@ const NONCLAIM_KEYS = objectFreeze([
   "registry_or_control_created_written_removed",
   "stage_checkpoint_or_authorization_lease_created_written_removed",
   "registry_or_approved_capability_returned",
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "reviewed_git_head_or_ci_status",
   "kill_reboot_drill_or_monitor_owner",
   "human_gate_approval",
@@ -214,6 +224,7 @@ function isPhase(value: unknown): value is string {
     "registry-load",
     "registry-claim",
     "registry-fixed-configuration",
+    "application-source",
     "verifier-readiness",
     "key-readiness",
     "approved-record-load",
@@ -350,6 +361,12 @@ export async function runFloodgateV7ProductionPrefix100PreflightCli(): Promise<v
     ) {
       throw new NativeError("preflight CLI invocation differs");
     }
+    claimFloodgateV7ProductionNativeLauncherAttestation(
+      "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+    );
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+    );
     /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime guards. */
     preflight =
       require("./floodgate-v7-production-prefix-100-preflight") as PreflightModule;

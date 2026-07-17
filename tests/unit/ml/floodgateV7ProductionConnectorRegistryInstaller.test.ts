@@ -5,6 +5,11 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests,
+  authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests,
+} from "../../../ml/floodgate-v7-production-application-source-authorization";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
@@ -20,6 +25,7 @@ const RUN_ID = "a1".repeat(32);
 const RECORD_SHA256 = "b2".repeat(32);
 const KEY_INSTANCE_ID = "c3".repeat(32);
 const VERIFIER_REVISION = "d4".repeat(20);
+const APPLICATION_REVISION = "e5".repeat(20);
 const VALUE_CANARY = "registry-installer-secret-canary";
 const PATH_CANARY = "registry-installer-path-canary";
 const STAGING_BASENAME = ".registry.json.installing-v1";
@@ -70,6 +76,11 @@ function registryInput(
       key_instance_id: KEY_INSTANCE_ID,
     },
     verifier_revision: VERIFIER_REVISION,
+    application_source_binding: {
+      layout:
+        "fixed-current-euid-userinfo-home-production-application-v1" as const,
+      revision: APPLICATION_REVISION,
+    },
     repository_root: path.join(home, "repository"),
     raw_lock_root: path.join(home, "raw-lock"),
     role_lock_root: path.join(home, "role-lock"),
@@ -178,6 +189,15 @@ async function captureFailure(operation: () => Promise<unknown>) {
   throw new Error("expected registry installation to fail");
 }
 
+function captureSynchronousFailure(operation: () => void): unknown {
+  try {
+    operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected registry installation to fail synchronously");
+}
+
 function expectDeepFrozenNullRecords(
   value: unknown,
   seen = new Set<object>(),
@@ -200,6 +220,96 @@ afterEach(async () => {
 });
 
 posixDescribe("Floodgate v7 production connector registry installer", () => {
+  it("requires the fixed source entry and a distinct late-armed capability at the production export before input access or mutation", async () => {
+    expect(installer.installFloodgateV7ProductionConnectorRegistry.length).toBe(
+      2,
+    );
+    const home = await temporaryHome();
+    const input = registryInput(home);
+    const missingCapabilityFailure = await captureFailure(() =>
+      Reflect.apply(
+        installer.installFloodgateV7ProductionConnectorRegistry,
+        undefined,
+        [input],
+      ),
+    );
+    expect(missingCapabilityFailure).toMatchObject({
+      phase: "capture",
+      durability: "no-installation-change-established",
+      registry_may_have_been_created: false,
+    });
+
+    const forgedCapabilityFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistry(
+        input,
+        Object.freeze({
+          contract: "forged",
+          status: "forged",
+        }) as never,
+      ),
+    );
+    expect(forgedCapabilityFailure).toMatchObject({
+      phase: "production-identity",
+      durability: "no-installation-change-established",
+      registry_may_have_been_created: false,
+    });
+    expect(JSON.stringify(missingCapabilityFailure)).not.toContain(home);
+    expect(JSON.stringify(forgedCapabilityFailure)).not.toContain(home);
+    expect(JSON.stringify(forgedCapabilityFailure)).not.toContain(
+      APPLICATION_REVISION,
+    );
+    expect(await entriesOrEmpty(home)).toEqual([]);
+
+    const stagedCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout:
+            "fixed-current-euid-userinfo-home-production-application-v1" as const,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    const continuation =
+      claimFloodgateV7ProductionRegistryProvisionerApplicationExecutionCoreForTests(
+        stagedCapability,
+      );
+    expect(() =>
+      installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        stagedCapability,
+      ),
+    ).toThrow();
+    const installerCapability =
+      armFloodgateV7ProductionRegistryInstallerApplicationExecutionCoreForTests(
+        continuation,
+      );
+    expect(installerCapability).not.toBe(stagedCapability);
+    expect(() =>
+      installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        installerCapability,
+      ),
+    ).not.toThrow();
+    expect(
+      captureSynchronousFailure(() =>
+        installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          installerCapability,
+        ),
+      ),
+    ).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
+    expect(
+      captureSynchronousFailure(() =>
+        installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          Object.freeze({ contract: "forged", status: "forged" }) as never,
+        ),
+      ),
+    ).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
+  });
+
   it("publishes exact canonical bytes with the fixed private layout and loader integration", async () => {
     const home = await temporaryHome();
     const input = registryInput(home);
@@ -260,6 +370,7 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       registry_binding: {
         registry_canonical_bytes_validated: true,
         approved_record_binding_captured: true,
+        application_source_binding_captured: true,
         immutable_run_configuration_captured: true,
       },
       test_boundary: {
@@ -277,6 +388,7 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       RECORD_SHA256,
       KEY_INSTANCE_ID,
       VERIFIER_REVISION,
+      APPLICATION_REVISION,
       input.repository_root,
       input.engine_args[2],
     ]) {
@@ -713,5 +825,49 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       registry_may_have_been_created: false,
     });
     expect(String(productionFailure)).not.toContain(productionHome);
+
+    const productionDescendant = await fs.promises.realpath(process.cwd());
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    let descendantFailpointCalls = 0;
+    const descendantFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistryCoreForTests(
+        registryInput(productionDescendant),
+        dependencies(productionDescendant, {
+          failpointForTests: () => {
+            descendantFailpointCalls += 1;
+          },
+        }),
+      ),
+    );
+    expect(descendantFailure).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
+    expect(descendantFailpointCalls).toBe(0);
+
+    const aliasRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), `${PATH_CANARY}-dangling-home-`),
+    );
+    temporaryRoots.push(aliasRoot);
+    const danglingAlias = path.join(aliasRoot, "home");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `${PATH_CANARY}-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+    const danglingFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistryCoreForTests(
+        registryInput(danglingAlias),
+        dependencies(danglingAlias),
+      ),
+    );
+    expect(danglingFailure).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
   });
 });

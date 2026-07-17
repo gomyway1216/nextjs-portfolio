@@ -17,6 +17,7 @@ import {
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_MUTATION_PURPOSE,
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_STATUS,
   FloodgateV7TrainingLabelProductionRunnerError,
+  runFloodgateV7TrainingLabelProduction,
   runFloodgateV7TrainingLabelProductionRunnerCoreForTests,
 } from "../../../ml/floodgate-v7-training-label-production-runner";
 
@@ -103,6 +104,9 @@ function outerReceipt(
         FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
       mutation_purpose: "training-label-finalization-24000",
       verification: {
+        application_source_binding_read_from_locked_registry: true,
+        exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true,
+        registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
         one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
         os_lifetime_lock_held_before_operation: true,
         authenticated_purpose_bound_lease_metadata_durable_before_operation: true,
@@ -113,6 +117,12 @@ function outerReceipt(
         quarantine_empty_after_operation: true,
       },
       nonclaims: {
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         lock_or_lease_path_disclosed: false,
         private_lease_metadata_disclosed: false,
         key_material_disclosed: false,
@@ -163,6 +173,7 @@ describe("Floodgate v7 training-label production runner", () => {
         destination_content_reverified: true,
         purpose_bound_outer_lease_removed_durably: true,
         common_os_lock_released: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       },
       nonclaims: {
         path_disclosed: false,
@@ -175,6 +186,12 @@ describe("Floodgate v7 training-label production runner", () => {
         raw_owner_receipt_disclosed: false,
         raw_finalizer_receipt_disclosed: false,
         row_or_position_content_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         teacher_truth: false,
         optimizer_training: false,
         weight: false,
@@ -326,5 +343,54 @@ describe("Floodgate v7 training-label production runner", () => {
     expect(source).toContain("raw_outer_receipt_disclosed: false");
     expect(source).toContain("raw_owner_receipt_disclosed: false");
     expect(source).toContain("raw_finalizer_receipt_disclosed: false");
+    const runnerStart = source.indexOf(
+      "export function runFloodgateV7TrainingLabelProduction(",
+    );
+    const runner = source.slice(runnerStart);
+    const contextGuard = runner.indexOf(
+      "assertFloodgateV7ProductionApplicationEntrypointContext(",
+    );
+    const applicationClaim = runner.indexOf(
+      "claimFloodgateV7ProductionApplicationExecution(",
+    );
+    const outerOwner = runner.indexOf(
+      "runFloodgateV7ProductionOuterGateTrainingLabelFinalization(",
+    );
+    expect(contextGuard).toBeGreaterThan(-1);
+    expect(applicationClaim).toBeGreaterThan(contextGuard);
+    expect(outerOwner).toBeGreaterThan(applicationClaim);
+    expect(runner).toContain('"runner-entry"');
+    expect(runner).toContain("applicationExecutionCapability");
+  });
+
+  it("rejects a direct/stale production-runner import before the outer operation", async () => {
+    const failure = await Reflect.apply(
+      runFloodgateV7TrainingLabelProduction,
+      undefined,
+      [Object.freeze({})],
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(
+      FloodgateV7TrainingLabelProductionRunnerError,
+    );
+    expect(failure).toMatchObject({
+      phase: "capture",
+      publication_may_have_occurred: false,
+      lease_may_remain: false,
+      cleanup_failure_count: 0,
+      retry_disposition: "fresh-invocation-required",
+      raw_outer_receipt_disclosed: false,
+      raw_owner_receipt_disclosed: false,
+      raw_finalizer_receipt_disclosed: false,
+    });
+    const projection = [
+      String(failure),
+      failure instanceof Error ? failure.stack : "",
+      JSON.stringify(failure),
+    ].join("\n");
+    expect(projection).not.toContain(
+      "ml/run-floodgate-v7-training-label-production.ts",
+    );
+    expect(projection).not.toContain(".codex/worktrees");
   });
 });

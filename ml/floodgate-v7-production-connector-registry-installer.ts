@@ -12,6 +12,15 @@ import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  claimFloodgateV7ProductionApplicationExecution,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+  type FloodgateV7ProductionApplicationExecutionPurpose,
+  type FloodgateV7ProductionApplicationExecutionStage,
+} from "./floodgate-v7-production-application-source-authorization";
+import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import { assertFloodgateTestPathsOutsideProductionHomeCoreForTests } from "./floodgate-teacher-stage-authorization";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
@@ -21,7 +30,7 @@ import {
 } from "./floodgate-v7-production-connector-registry";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT =
-  "shogi-floodgate-v7-production-connector-registry-installer-v1" as const;
+  "shogi-floodgate-v7-production-connector-registry-installer-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS =
   "new-production-connector-registry-no-clobber-published-durable-and-revalidated" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CLAIM_BOUNDARY =
@@ -103,6 +112,7 @@ export interface FloodgateV7ProductionConnectorRegistryInstallerReceipt<
   readonly registry_binding: Readonly<{
     readonly registry_canonical_bytes_validated: true;
     readonly approved_record_binding_captured: true;
+    readonly application_source_binding_captured: true;
     readonly immutable_run_configuration_captured: true;
   }>;
   readonly test_boundary: Readonly<{
@@ -114,6 +124,8 @@ export interface FloodgateV7ProductionConnectorRegistryInstallerReceipt<
     readonly registry_contents_disclosed: false;
     readonly registry_digest_disclosed: false;
     readonly approved_record_binding_disclosed: false;
+    readonly application_source_binding_disclosed: false;
+    readonly application_source_revision_disclosed: false;
     readonly immutable_run_configuration_disclosed: false;
     readonly key_instance_id_disclosed: false;
     readonly owner_uid_disclosed: false;
@@ -221,6 +233,11 @@ type Reconciliation = Readonly<{
   mayHaveCommitted: boolean;
   retryDisposition: FloodgateV7ProductionConnectorRegistryInstallerRetryDisposition;
 }>;
+type ClaimApplicationExecution = (
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
+  stage: FloodgateV7ProductionApplicationExecutionStage,
+) => void;
 
 const STAGING_BASENAME = ".registry.json.installing-v1";
 const MODE_MASK = BigInt(0o7777);
@@ -270,6 +287,17 @@ const DEPENDENCY_KEYS = objectFreeze([
 
 function rejected<T>(error: unknown): Promise<T> {
   return new NativePromise((_resolve, reject) => reject(error));
+}
+
+function claimInstallerApplicationExecution(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  claimApplicationExecution: ClaimApplicationExecution,
+): void {
+  reflectApply(claimApplicationExecution, undefined, [
+    capability,
+    "production-registry-provision",
+    "installer",
+  ]);
 }
 
 function frozenRecord<T extends object>(value: T): Readonly<T> {
@@ -601,6 +629,9 @@ async function assertTestBoundaryIsNotProductionHome(
   ) {
     throw new NativeError("test installer identity is not isolated");
   }
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    dependencies.homeDirectory,
+  ]);
   const injectedRealpath = await capturedFs.realpath(
     dependencies.homeDirectory,
   );
@@ -1427,6 +1458,7 @@ function buildReceipt<
     registry_binding: frozenRecord({
       registry_canonical_bytes_validated: true as const,
       approved_record_binding_captured: true as const,
+      application_source_binding_captured: true as const,
       immutable_run_configuration_captured: true as const,
     }),
     test_boundary: frozenRecord({
@@ -1438,6 +1470,8 @@ function buildReceipt<
       registry_contents_disclosed: false as const,
       registry_digest_disclosed: false as const,
       approved_record_binding_disclosed: false as const,
+      application_source_binding_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
       immutable_run_configuration_disclosed: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,
@@ -1593,18 +1627,74 @@ export function installFloodgateV7ProductionConnectorRegistryCoreForTests(
   );
 }
 
+/** Test-only claim for a distinct, late-armed installer capability. */
+export function claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): void {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionConnectorRegistryInstallerError(
+      "capture",
+      "no-installation-change-established",
+      false,
+      "manual-reconciliation-required",
+    );
+  }
+  try {
+    claimInstallerApplicationExecution(
+      applicationExecutionCapability,
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+    );
+  } catch {
+    throw new FloodgateV7ProductionConnectorRegistryInstallerError(
+      "production-identity",
+      "no-installation-change-established",
+      false,
+      "manual-reconciliation-required",
+    );
+  }
+}
+
 /** Fixed production installer. Calling it may create the real registry. */
 export function installFloodgateV7ProductionConnectorRegistry(
   input: FloodgateV7ProductionConnectorRegistryInstallationInput,
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
 ): Promise<
   Readonly<
     FloodgateV7ProductionConnectorRegistryInstallerReceipt<"production-fixed-current-euid-userinfo-home-production-connector-registry-installation">
   >
 > {
-  if (arguments.length !== 1 || getEffectiveUserId === null) {
+  if (arguments.length !== 2) {
     return rejected(
       new FloodgateV7ProductionConnectorRegistryInstallerError(
         "capture",
+        "no-installation-change-established",
+        false,
+        "manual-reconciliation-required",
+      ),
+    );
+  }
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/provision-floodgate-v7-production-connector-registry.ts",
+    );
+    claimInstallerApplicationExecution(
+      applicationExecutionCapability,
+      claimFloodgateV7ProductionApplicationExecution,
+    );
+  } catch {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryInstallerError(
+        "production-identity",
+        "no-installation-change-established",
+        false,
+        "manual-reconciliation-required",
+      ),
+    );
+  }
+  if (getEffectiveUserId === null) {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryInstallerError(
+        "production-identity",
         "no-installation-change-established",
         false,
         "manual-reconciliation-required",

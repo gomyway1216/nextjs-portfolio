@@ -12,11 +12,20 @@ import * as path from "node:path";
 import { TextDecoder, types as nodeUtilTypes } from "node:util";
 
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
-import type { FloodgateTeacherStageAuthorizationOptions } from "./floodgate-teacher-stage-authorization";
+import {
+  FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  type FloodgateV7ProductionApplicationSourceBinding,
+} from "./floodgate-v7-production-application-source-provenance";
+import {
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests,
+  type FloodgateTeacherStageAuthorizationOptions,
+} from "./floodgate-teacher-stage-authorization";
 import type { FloodgateTrainingRowConsumerOptions } from "./floodgate-training-row-consumer";
 
-export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT =
+export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT =
   "shogi-floodgate-v7-production-connector-registry-record-v1" as const;
+export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT =
+  "shogi-floodgate-v7-production-connector-registry-record-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_STATUS =
   "fixed-private-production-connector-run-registry" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME =
@@ -46,6 +55,7 @@ export interface FloodgateV7ProductionConnectorRegistryRecord {
     readonly key_instance_id: string;
   }>;
   readonly verifier_revision: string;
+  readonly application_source_binding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
   readonly repository_root: string;
   readonly raw_lock_root: string;
   readonly role_lock_root: string;
@@ -53,6 +63,29 @@ export interface FloodgateV7ProductionConnectorRegistryRecord {
   readonly legacy_protected_position_ids_path: string;
   readonly engine_args: readonly string[];
 }
+
+interface FloodgateV7ProductionConnectorRegistryLegacyRecord {
+  readonly contract: typeof FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_STATUS;
+  readonly layout: "fixed-current-euid-userinfo-home-v1";
+  readonly run_id: string;
+  readonly approved_key_binding: Readonly<{
+    readonly record_bytes: number;
+    readonly record_sha256: string;
+    readonly key_instance_id: string;
+  }>;
+  readonly verifier_revision: string;
+  readonly repository_root: string;
+  readonly raw_lock_root: string;
+  readonly role_lock_root: string;
+  readonly role_bundle_root: string;
+  readonly legacy_protected_position_ids_path: string;
+  readonly engine_args: readonly string[];
+}
+
+type FloodgateV7ProductionConnectorRegistryParsedRecord =
+  | FloodgateV7ProductionConnectorRegistryRecord
+  | FloodgateV7ProductionConnectorRegistryLegacyRecord;
 
 /** Operator-reviewed data accepted by the pure canonical installer serializer. */
 export interface FloodgateV7ProductionConnectorRegistryInstallationInput {
@@ -63,6 +96,7 @@ export interface FloodgateV7ProductionConnectorRegistryInstallationInput {
     readonly key_instance_id: string;
   }>;
   readonly verifier_revision: string;
+  readonly application_source_binding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
   readonly repository_root: string;
   readonly raw_lock_root: string;
   readonly role_lock_root: string;
@@ -84,6 +118,7 @@ export interface FloodgateV7ProductionConnectorRegistryPrivateClaim {
     readonly recordSha256: string;
     readonly keyInstanceId: string;
   }>;
+  readonly applicationSourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
   readonly stageAuthorization: Readonly<FloodgateTeacherStageAuthorizationOptions>;
   readonly consumer: Readonly<FloodgateTrainingRowConsumerOptions>;
 }
@@ -197,6 +232,7 @@ const jsonParse = JSON.parse;
 const jsonStringify = JSON.stringify;
 const bufferAlloc = Buffer.alloc.bind(Buffer);
 const bufferFrom = Buffer.from.bind(Buffer);
+const bufferIsBuffer = Buffer.isBuffer.bind(Buffer);
 const bufferFill = Buffer.prototype.fill;
 const createSha256 = createHash;
 const openSync = fs.openSync.bind(fs);
@@ -238,6 +274,21 @@ const RECORD_KEYS = Object.freeze([
   "run_id",
   "approved_key_binding",
   "verifier_revision",
+  "application_source_binding",
+  "repository_root",
+  "raw_lock_root",
+  "role_lock_root",
+  "role_bundle_root",
+  "legacy_protected_position_ids_path",
+  "engine_args",
+] as const);
+const LEGACY_RECORD_KEYS = Object.freeze([
+  "contract",
+  "status",
+  "layout",
+  "run_id",
+  "approved_key_binding",
+  "verifier_revision",
   "repository_root",
   "raw_lock_root",
   "role_lock_root",
@@ -250,10 +301,15 @@ const APPROVED_KEY_BINDING_KEYS = Object.freeze([
   "record_sha256",
   "key_instance_id",
 ] as const);
+const APPLICATION_SOURCE_BINDING_KEYS = Object.freeze([
+  "layout",
+  "revision",
+] as const);
 const INSTALLATION_INPUT_KEYS = Object.freeze([
   "run_id",
   "approved_key_binding",
   "verifier_revision",
+  "application_source_binding",
   "repository_root",
   "raw_lock_root",
   "role_lock_root",
@@ -515,6 +571,9 @@ function assertTestHomeIsSeparate(dependencies: CapturedDependencies): void {
     throw new NativeError("production identity is unavailable");
   }
   const productionHome = pathResolve(userInfo.homedir);
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+    dependencies.homeDirectory,
+  ]);
   const productionReal = realpathSync(productionHome);
   const testReal = realpathSync(dependencies.homeDirectory);
   const productionStat = namedSnapshot(productionHome);
@@ -544,11 +603,26 @@ function requiredDigest(value: unknown, label: string): string {
   return value;
 }
 
-function requiredRevision(value: unknown): string {
+function requiredRevision(value: unknown, label: string): string {
   if (typeof value !== "string" || !REVISION_RE.test(value)) {
-    throw new NativeError("verifier_revision must be a lowercase commit id");
+    throw new NativeError(`${label} must be a lowercase commit id`);
   }
   return value;
+}
+
+function captureApplicationSourceBinding(
+  value: unknown,
+  label: string,
+): Readonly<FloodgateV7ProductionApplicationSourceBinding> {
+  const binding = exactRecord(value, APPLICATION_SOURCE_BINDING_KEYS, label);
+  return frozenRecord({
+    layout: requiredLiteral(
+      binding.layout,
+      FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      `${label}.layout`,
+    ),
+    revision: requiredRevision(binding.revision, `${label}.revision`),
+  });
 }
 
 function requiredPath(value: unknown, label: string): string {
@@ -601,7 +675,7 @@ function captureEngineArgs(value: unknown): readonly string[] {
 
 function parseCanonicalRecord(
   bytes: Buffer,
-): Readonly<FloodgateV7ProductionConnectorRegistryRecord> {
+): Readonly<FloodgateV7ProductionConnectorRegistryParsedRecord> {
   if (
     bytes.length < 2 ||
     bytes.length > FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_MAX_BYTES ||
@@ -628,7 +702,21 @@ function parseCanonicalRecord(
   if (`${jsonStringify(parsed)}\n` !== text) {
     throw new NativeError("registry JSON is not canonical");
   }
-  const record = exactRecord(parsed, RECORD_KEYS, "registry record");
+  const parsedDescriptors =
+    parsed !== null && typeof parsed === "object"
+      ? objectGetOwnPropertyDescriptors(parsed)
+      : undefined;
+  const parsedContract = parsedDescriptors?.contract;
+  const legacy =
+    parsedContract !== undefined &&
+    "value" in parsedContract &&
+    parsedContract.value ===
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT;
+  const record = exactRecord(
+    parsed,
+    legacy ? LEGACY_RECORD_KEYS : RECORD_KEYS,
+    "registry record",
+  );
   const binding = exactRecord(
     record.approved_key_binding,
     APPROVED_KEY_BINDING_KEYS,
@@ -654,12 +742,20 @@ function parseCanonicalRecord(
       "approved_key_binding.key_instance_id",
     ),
   });
-  return frozenRecord({
-    contract: requiredLiteral(
+  if (legacy) {
+    requiredLiteral(
+      record.contract,
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT,
+      "contract",
+    );
+  } else {
+    requiredLiteral(
       record.contract,
       FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT,
       "contract",
-    ),
+    );
+  }
+  const shared = {
     status: requiredLiteral(
       record.status,
       FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_STATUS,
@@ -672,7 +768,10 @@ function parseCanonicalRecord(
     ),
     run_id: requiredDigest(record.run_id, "run_id"),
     approved_key_binding: approvedKeyBinding,
-    verifier_revision: requiredRevision(record.verifier_revision),
+    verifier_revision: requiredRevision(
+      record.verifier_revision,
+      "verifier_revision",
+    ),
     repository_root: requiredPath(record.repository_root, "repository_root"),
     raw_lock_root: requiredPath(record.raw_lock_root, "raw_lock_root"),
     role_lock_root: requiredPath(record.role_lock_root, "role_lock_root"),
@@ -682,6 +781,52 @@ function parseCanonicalRecord(
       "legacy_protected_position_ids_path",
     ),
     engine_args: captureEngineArgs(record.engine_args),
+  };
+  if (legacy) {
+    return frozenRecord({
+      contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT,
+      ...shared,
+    });
+  }
+  return frozenRecord({
+    contract: FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT,
+    status: shared.status,
+    layout: shared.layout,
+    run_id: shared.run_id,
+    approved_key_binding: shared.approved_key_binding,
+    verifier_revision: shared.verifier_revision,
+    application_source_binding: captureApplicationSourceBinding(
+      record.application_source_binding,
+      "application_source_binding",
+    ),
+    repository_root: shared.repository_root,
+    raw_lock_root: shared.raw_lock_root,
+    role_lock_root: shared.role_lock_root,
+    role_bundle_root: shared.role_bundle_root,
+    legacy_protected_position_ids_path:
+      shared.legacy_protected_position_ids_path,
+    engine_args: shared.engine_args,
+  });
+}
+
+/**
+ * Strictly inspects canonical locked registry bytes and returns only the V2
+ * application-source binding needed by an enclosing production gate. Legacy
+ * V1 records remain inspectable by the loader but cannot pass this boundary.
+ */
+export function readFloodgateV7ProductionConnectorRegistryV2ApplicationSourceBindingCore(
+  bytes: Buffer,
+): Readonly<FloodgateV7ProductionApplicationSourceBinding> {
+  if (arguments.length !== 1 || !bufferIsBuffer(bytes) || nodeIsProxy(bytes)) {
+    throw new NativeError("registry V2 source-binding inspection differs");
+  }
+  const record = parseCanonicalRecord(bytes);
+  if (record.contract !== FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_CONTRACT) {
+    throw new NativeError("legacy registry cannot authorize production");
+  }
+  return frozenRecord({
+    layout: record.application_source_binding.layout,
+    revision: record.application_source_binding.revision,
   });
 }
 
@@ -746,7 +891,14 @@ export function serializeFloodgateV7ProductionConnectorRegistryForInstallationCo
     binding.key_instance_id,
     "approved_key_binding.key_instance_id",
   );
-  const verifierRevision = requiredRevision(input.verifier_revision);
+  const verifierRevision = requiredRevision(
+    input.verifier_revision,
+    "verifier_revision",
+  );
+  const applicationSourceBinding = captureApplicationSourceBinding(
+    input.application_source_binding,
+    "registry installation application_source_binding",
+  );
   const repositoryRoot = requiredPath(input.repository_root, "repository_root");
   const rawLockRoot = requiredPath(input.raw_lock_root, "raw_lock_root");
   const roleLockRoot = requiredPath(input.role_lock_root, "role_lock_root");
@@ -770,6 +922,7 @@ export function serializeFloodgateV7ProductionConnectorRegistryForInstallationCo
       key_instance_id: keyInstanceId,
     },
     verifier_revision: verifierRevision,
+    application_source_binding: applicationSourceBinding,
     repository_root: repositoryRoot,
     raw_lock_root: rawLockRoot,
     role_lock_root: roleLockRoot,
@@ -810,6 +963,10 @@ function buildPrivateClaim(
     recordSha256: record.approved_key_binding.record_sha256,
     keyInstanceId: record.approved_key_binding.key_instance_id,
   });
+  const applicationSourceBinding = frozenRecord({
+    layout: record.application_source_binding.layout,
+    revision: record.application_source_binding.revision,
+  });
   const stageAuthorization = frozenRecord({
     repositoryRoot: record.repository_root,
     rawLockRoot: record.raw_lock_root,
@@ -835,6 +992,7 @@ function buildPrivateClaim(
   return frozenRecord({
     runId: record.run_id,
     approvedKeyBinding,
+    applicationSourceBinding,
     stageAuthorization,
     consumer,
   });
@@ -979,6 +1137,14 @@ async function readFixedRegistry(
     phase = "record-validation";
     const record = parseCanonicalRecord(recordBytes);
     createSha256("sha256").update(recordBytes).digest("hex");
+    if (
+      record.contract ===
+      FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_LEGACY_CONTRACT
+    ) {
+      throw new NativeError(
+        "legacy registry is inspectable but cannot issue a capability",
+      );
+    }
     claim = buildPrivateClaim(record, dependencies.homeDirectory);
 
     phase = "revalidation";

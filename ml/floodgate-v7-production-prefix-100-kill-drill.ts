@@ -21,7 +21,9 @@ import {
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
+  serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
 } from "./floodgate-v7-production-connector-registry";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "./floodgate-v7-production-application-source-provenance";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -48,6 +50,7 @@ export const FLOODGATE_V7_PRODUCTION_PREFIX_100_KILL_DRILL_POINTS =
   ] as const);
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_KILL_DRILL_SIGNALS =
   Object.freeze(["SIGTERM", "SIGKILL"] as const);
+const DISPOSABLE_APPLICATION_SOURCE_REVISION = "e".repeat(40);
 
 export type FloodgateV7ProductionPrefix100KillDrillPoint =
   (typeof FLOODGATE_V7_PRODUCTION_PREFIX_100_KILL_DRILL_POINTS)[number];
@@ -700,6 +703,13 @@ async function populateFixture(
     home,
     ...FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   );
+  const repositoryRoot = path.join(root, "repository");
+  const rawLockRoot = path.join(root, "raw-lock");
+  const roleLockRoot = path.join(root, "role-lock");
+  const roleBundleRoot = path.join(root, "role-bundle");
+  const publicationParent = path.join(root, "publication");
+  const evalDir = path.join(root, "eval");
+  const legacy = path.join(root, "legacy", "protected-position-ids.txt");
   await mkdir0700(registryRoot);
   const registryPath = path.join(
     registryRoot,
@@ -707,18 +717,34 @@ async function populateFixture(
   );
   await write0600(
     registryPath,
-    `${JSON.stringify({ schema: "disposable-kill-drill-registry-v1" })}\n`,
+    serializeFloodgateV7ProductionConnectorRegistryForInstallationCore(
+      {
+        run_id: "11".repeat(32),
+        approved_key_binding: {
+          record_bytes: 4096,
+          record_sha256: "22".repeat(32),
+          key_instance_id: "33".repeat(32),
+        },
+        verifier_revision: "b".repeat(40),
+        application_source_binding: {
+          layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+          revision: DISPOSABLE_APPLICATION_SOURCE_REVISION,
+        },
+        repository_root: repositoryRoot,
+        raw_lock_root: rawLockRoot,
+        role_lock_root: roleLockRoot,
+        role_bundle_root: roleBundleRoot,
+        legacy_protected_position_ids_path: legacy,
+        engine_args: [],
+      },
+      dependencies.effectiveUserId,
+      "test-only-injected-current-euid-home-production-connector-registry",
+    ),
   );
   await dependencies.fixtureFailpoint?.(
     frozenRecord({ phase: "after-private-registry-created" as const }),
   );
 
-  const repositoryRoot = path.join(root, "repository");
-  const rawLockRoot = path.join(root, "raw-lock");
-  const roleLockRoot = path.join(root, "role-lock");
-  const roleBundleRoot = path.join(root, "role-bundle");
-  const publicationParent = path.join(root, "publication");
-  const evalDir = path.join(root, "eval");
   await Promise.all(
     [
       repositoryRoot,
@@ -729,7 +755,6 @@ async function populateFixture(
       evalDir,
     ].map(mkdir0700),
   );
-  const legacy = path.join(root, "legacy", "protected-position-ids.txt");
   const engineBin = path.join(root, "engine", "yaneuraou");
   const engineReceipt = path.join(root, "engine", "receipt.json");
   const engineArgument = path.join(root, "engine", "argument.bin");

@@ -1,0 +1,181 @@
+"use strict";
+
+/* Darwin-only harmless integration fixture for the production JXA/NSTask
+ * launch principle. Production launcher source contains no test mode. */
+
+ObjC.import("Foundation");
+ObjC.import("Security");
+ObjC.bindFunction("exit", ["void", ["int"]]);
+
+const CONTRACT = "shogi-floodgate-v7-production-native-launcher-attestation-v1";
+const PURPOSE = "launcher-self-test";
+const ENTRY =
+  "tests/fixtures/ml/floodgate-v7-production-native-launcher-child.ts";
+const fileManager = $.NSFileManager.defaultManager;
+
+function fail() {
+  $.exit(70);
+}
+
+function stringValue(value) {
+  return String(ObjC.unwrap(value));
+}
+
+function canonicalPath(value) {
+  if (typeof value !== "string" || value.charAt(0) !== "/") fail();
+  const standardized = stringValue($(value).stringByStandardizingPath);
+  const resolved = stringValue($(standardized).stringByResolvingSymlinksInPath);
+  if (standardized !== value || resolved !== value) fail();
+  return value;
+}
+
+function randomNonce() {
+  const bytes = $.NSMutableData.dataWithLength(32);
+  if ($.SecRandomCopyBytes($.kSecRandomDefault, 32, bytes.mutableBytes) !== 0) {
+    fail();
+  }
+  const nonce = stringValue(bytes.base64EncodedStringWithOptions(0));
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(nonce)) fail();
+  return nonce;
+}
+
+function run(arguments_) {
+  try {
+    if (arguments_.length !== 2 || String(arguments_[0]) !== PURPOSE) fail();
+    const processArguments = ObjC.deepUnwrap(
+      $.NSProcessInfo.processInfo.arguments,
+    ).map((value) => String(value));
+    const nodePath = canonicalPath(String(arguments_[1]));
+    if (
+      processArguments.length !== 6 ||
+      processArguments[0] !== "/usr/bin/osascript" ||
+      processArguments[1] !== "-l" ||
+      processArguments[2] !== "JavaScript" ||
+      processArguments[4] !== PURPOSE ||
+      processArguments[5] !== nodePath
+    ) {
+      fail();
+    }
+    const helperPath = canonicalPath(
+      stringValue($(processArguments[3]).stringByStandardizingPath),
+    );
+    const mlFixtures = stringValue(
+      $(helperPath).stringByDeletingLastPathComponent,
+    );
+    const fixtures = stringValue(
+      $(mlFixtures).stringByDeletingLastPathComponent,
+    );
+    const tests = stringValue($(fixtures).stringByDeletingLastPathComponent);
+    const repositoryRoot = canonicalPath(
+      stringValue($(tests).stringByDeletingLastPathComponent),
+    );
+    if (
+      canonicalPath(stringValue(fileManager.currentDirectoryPath)) !==
+      repositoryRoot
+    ) {
+      fail();
+    }
+    const entryPath = canonicalPath(
+      stringValue($(repositoryRoot).stringByAppendingPathComponent($(ENTRY))),
+    );
+    if (
+      !fileManager.isReadableFileAtPath($(helperPath)) ||
+      !fileManager.isReadableFileAtPath($(entryPath)) ||
+      !fileManager.isExecutableFileAtPath($(nodePath)) ||
+      !fileManager.isExecutableFileAtPath("/usr/bin/caffeinate")
+    ) {
+      fail();
+    }
+
+    const parentPid = Number($.NSProcessInfo.processInfo.processIdentifier);
+    const nonce = randomNonce();
+    const inheritedEnvironment = ObjC.deepUnwrap(
+      $.NSProcessInfo.processInfo.environment,
+    );
+    const mode =
+      inheritedEnvironment.FLOODGATE_V7_LAUNCHER_TEST_MODE || "success";
+    if (
+      ![
+        "success",
+        "no-frame",
+        "malformed-frame",
+        "wrong-purpose",
+        "wrong-environment",
+        "wrong-helper",
+        "wrong-base-environment",
+        "extra-node-path",
+        "extra-tsx",
+        "extra-dyld",
+        "extra-ld",
+        "wrong-exec-argv",
+        "extra-child-argument",
+        "reuse",
+      ].includes(mode)
+    ) {
+      fail();
+    }
+    const framePurpose =
+      mode === "wrong-purpose" ? "durable-prefix-100" : PURPOSE;
+    const environmentNonce =
+      mode === "wrong-environment"
+        ? "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        : nonce;
+    const frameHelper =
+      mode === "wrong-helper" ? "/tmp/not-the-helper.jxa" : helperPath;
+    const pipe = $.NSPipe.pipe;
+    const task = $.NSTask.alloc.init;
+    const nodeDirectory = stringValue(
+      $(nodePath).stringByDeletingLastPathComponent,
+    );
+    task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/caffeinate");
+    const childArguments = [
+      "-dimsu",
+      nodePath,
+      mode === "wrong-exec-argv" ? "--require" : "-r",
+      "tsx/cjs",
+      entryPath,
+    ];
+    if (mode === "extra-child-argument") childArguments.push("unexpected");
+    task.arguments = $(childArguments);
+    const childEnvironment = {
+      HOME: stringValue(fileManager.homeDirectoryForCurrentUser.path),
+      LANG: mode === "wrong-base-environment" ? "en_US.UTF-8" : "C",
+      LC_ALL: "C",
+      NODE_ENV: "production",
+      PATH: `${nodeDirectory}:/usr/bin:/bin:/usr/sbin:/sbin`,
+      FLOODGATE_V7_NATIVE_LAUNCHER_CONTRACT: CONTRACT,
+      FLOODGATE_V7_NATIVE_LAUNCHER_PURPOSE: PURPOSE,
+      FLOODGATE_V7_NATIVE_LAUNCHER_PARENT_PID: String(parentPid),
+      FLOODGATE_V7_NATIVE_LAUNCHER_NONCE: environmentNonce,
+      FLOODGATE_V7_NATIVE_LAUNCHER_HELPER: helperPath,
+      FLOODGATE_V7_LAUNCHER_TEST_CHILD_MODE: mode,
+    };
+    if (mode === "extra-node-path") childEnvironment.NODE_PATH = "/tmp";
+    if (mode === "extra-tsx")
+      childEnvironment.TSX_TSCONFIG_PATH = "/tmp/tsconfig.json";
+    if (mode === "extra-dyld")
+      childEnvironment.DYLD_INSERT_LIBRARIES = "/tmp/lib.dylib";
+    if (mode === "extra-ld") childEnvironment.LD_PRELOAD = "/tmp/lib.so";
+    task.environment = $(childEnvironment);
+    task.currentDirectoryURL = $.NSURL.fileURLWithPath($(repositoryRoot));
+    task.standardInput = pipe;
+    task.standardOutput = $.NSFileHandle.fileHandleWithStandardOutput;
+    task.standardError = $.NSFileHandle.fileHandleWithStandardError;
+    const error = Ref();
+    if (!task.launchAndReturnError(error)) fail();
+    const frame =
+      mode === "no-frame"
+        ? ""
+        : mode === "malformed-frame"
+          ? "malformed\n"
+          : `${CONTRACT}\n${framePurpose}\n${parentPid}\n${nonce}\n${frameHelper}\n`;
+    pipe.fileHandleForWriting.writeData(
+      $(frame).dataUsingEncoding($.NSUTF8StringEncoding),
+    );
+    pipe.fileHandleForWriting.closeFile;
+    task.waitUntilExit;
+    $.exit(Number(task.terminationStatus));
+  } catch (_error) {
+    $.exit(70);
+  }
+}

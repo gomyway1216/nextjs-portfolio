@@ -1,10 +1,17 @@
 import { Buffer } from "node:buffer";
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
+import {
+  authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "../../../ml/floodgate-v7-production-application-source-authorization";
 import {
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_ALGORITHM,
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CLAIM_BOUNDARY,
@@ -19,12 +26,14 @@ import {
   FloodgateV7ProductionConnectorRegistryProvisionerError,
   provisionFloodgateV7ProductionConnectorRegistry,
   provisionFloodgateV7ProductionConnectorRegistryCoreForTests,
+  provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests,
   type FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests,
 } from "../../../ml/floodgate-v7-production-connector-registry-provisioner";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS,
   FloodgateV7ProductionConnectorRegistryInstallerError,
+  claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests,
   installFloodgateV7ProductionConnectorRegistryCoreForTests,
   type FloodgateV7ProductionConnectorRegistryInstallerReceipt,
 } from "../../../ml/floodgate-v7-production-connector-registry-installer";
@@ -50,7 +59,15 @@ const EUID = process.geteuid?.() ?? 501;
 const RECORD_SHA256 = "cd".repeat(32);
 const KEY_INSTANCE_ID = "ef".repeat(32);
 const RUN_ID = "ab".repeat(32);
+const APPLICATION_REVISION = "12".repeat(20);
+const APPLICATION_SOURCE_LAYOUT =
+  "fixed-current-euid-userinfo-home-production-application-v1" as const;
 const VALUE_CANARY = "private-provisioner-canary-must-never-leak";
+const SOURCE_REVISION_CANARY = "98".repeat(20);
+const SOURCE_PATH_CANARY = "/private/stale/source/import/canary";
+const REPOSITORY_ROOT = path.resolve(
+  fileURLToPath(new URL("../../../", import.meta.url)),
+);
 const temporaryRoots: string[] = [];
 
 afterAll(async () => {
@@ -139,6 +156,12 @@ function expectedRegistryClaim(
         recordBytes: RECORD_BYTES,
         recordSha256: RECORD_SHA256,
         keyInstanceId: KEY_INSTANCE_ID,
+      }),
+    applicationSourceBinding:
+      overrides.applicationSourceBinding ??
+      Object.freeze({
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
       }),
     stageAuthorization:
       overrides.stageAuthorization ??
@@ -294,6 +317,7 @@ function verifierReadinessReceipt() {
 interface HarnessOverrides {
   readonly verifyVerifierReadiness?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyVerifierReadiness"];
   readonly assertVerifierReadinessIdentityBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["assertVerifierReadinessIdentityBinding"];
+  readonly captureApplicationSource?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["captureApplicationSource"];
   readonly verifyCurrentBinding?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["verifyCurrentBinding"];
   readonly loadApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["loadApprovedEnrollment"];
   readonly claimApprovedEnrollment?: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests["claimApprovedEnrollment"];
@@ -325,6 +349,13 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
       expect(receipt).toEqual(verifierReadinessReceipt());
       expect(effectiveUserId).toBe(EUID);
       expect(expectedHome).toBe(home);
+    },
+    captureApplicationSource: async () => {
+      calls.push("application-source");
+      return Object.freeze({
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
+      });
     },
     verifyCurrentBinding: async () => {
       calls.push("approved-current-binding");
@@ -374,6 +405,8 @@ function harness(home: string, overrides: HarnessOverrides = {}) {
       assertVerifierReadinessIdentityBinding:
         overrides.assertVerifierReadinessIdentityBinding ??
         defaults.assertVerifierReadinessIdentityBinding,
+      captureApplicationSource:
+        overrides.captureApplicationSource ?? defaults.captureApplicationSource,
       verifyCurrentBinding:
         overrides.verifyCurrentBinding ?? defaults.verifyCurrentBinding,
       loadApprovedEnrollment:
@@ -416,6 +449,455 @@ function expectSanitizedFailure(
 }
 
 describe("Floodgate v7 production connector registry provisioner", () => {
+  it("rejects direct stale imports of both production mutation exports before dependencies or namespace mutation", () => {
+    const sourcePath = path.join(
+      REPOSITORY_ROOT,
+      "ml/floodgate-v7-production-application-source-provenance.ts",
+    );
+    const installerPath = path.join(
+      REPOSITORY_ROOT,
+      "ml/floodgate-v7-production-connector-registry-installer.ts",
+    );
+    const provisionerPath = path.join(
+      REPOSITORY_ROOT,
+      "ml/floodgate-v7-production-connector-registry-provisioner.ts",
+    );
+    const childSource = String.raw`
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const Module = require("node:module");
+const source = require(${JSON.stringify(sourcePath)});
+let mutationCalls = 0;
+let entropyCalls = 0;
+let sourceCaptureCalls = 0;
+let installerCallsFromProvisioner = 0;
+for (const name of ["mkdir", "open", "link", "unlink", "chmod", "writeFile", "rename", "rm"]) {
+  const original = fs.promises[name];
+  fs.promises[name] = async function (...args) {
+    mutationCalls += 1;
+    return Reflect.apply(original, this, args);
+  };
+}
+const originalRandomBytes = crypto.randomBytes;
+crypto.randomBytes = function (...args) {
+  entropyCalls += 1;
+  return Reflect.apply(originalRandomBytes, this, args);
+};
+const installer = require(${JSON.stringify(installerPath)});
+const originalLoad = Module._load;
+Module._load = function (request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+    return {
+      ...source,
+      captureFloodgateV7ProductionApplicationSourceProvenance: async () => {
+        sourceCaptureCalls += 1;
+        throw new Error(${JSON.stringify(VALUE_CANARY)});
+      },
+    };
+  }
+  if (request.endsWith("floodgate-v7-production-connector-registry-installer")) {
+    return {
+      ...installer,
+      installFloodgateV7ProductionConnectorRegistry: async (...args) => {
+        installerCallsFromProvisioner += 1;
+        return installer.installFloodgateV7ProductionConnectorRegistry(...args);
+      },
+    };
+  }
+  return Reflect.apply(originalLoad, this, [request, parent, isMain]);
+};
+const provisioner = require(${JSON.stringify(provisionerPath)});
+const installationInput = {
+  application_source_binding: {
+    layout: "fixed-current-euid-userinfo-home-production-application-v1",
+    revision: ${JSON.stringify(SOURCE_REVISION_CANARY)},
+  },
+  repository_root: ${JSON.stringify(SOURCE_PATH_CANARY)},
+};
+const forgedCapability = Object.freeze({ forged: true });
+// Disregard loader cache maintenance. The wrapped functions retained by the
+// production modules continue counting from the invocation boundary onward.
+mutationCalls = 0;
+entropyCalls = 0;
+Promise.allSettled([
+  installer.installFloodgateV7ProductionConnectorRegistry(
+    installationInput,
+    forgedCapability,
+  ),
+  provisioner.provisionFloodgateV7ProductionConnectorRegistry(
+    forgedCapability,
+  ),
+]).then((results) => {
+  const project = (result) => {
+    if (result.status !== "rejected") return { status: result.status };
+    const failure = result.reason;
+    return {
+      name: failure && failure.name,
+      phase: failure && failure.phase,
+      durability: failure && failure.durability,
+      registry_may_have_been_created:
+        failure && failure.registry_may_have_been_created,
+      retry_disposition: failure && failure.retry_disposition,
+    };
+  };
+  process.stdout.write(JSON.stringify({
+    installer: project(results[0]),
+    provisioner: project(results[1]),
+    mutationCalls,
+    entropyCalls,
+    sourceCaptureCalls,
+    installerCallsFromProvisioner,
+  }) + "\n");
+});
+`;
+    const child = spawnSync(
+      process.execPath,
+      ["-r", "tsx/cjs", "-e", childSource],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: "utf8",
+        env: { ...process.env, NODE_OPTIONS: undefined },
+        timeout: 30_000,
+      },
+    );
+
+    expect(child.error).toBeUndefined();
+    expect(child.signal).toBeNull();
+    expect(child.status).toBe(0);
+    expect(child.stderr).toBe("");
+    expect(child.stdout).not.toContain(VALUE_CANARY);
+    expect(child.stdout).not.toContain(SOURCE_REVISION_CANARY);
+    expect(child.stdout).not.toContain(SOURCE_PATH_CANARY);
+    expect(JSON.parse(child.stdout)).toEqual({
+      installer: {
+        name: "FloodgateV7ProductionConnectorRegistryInstallerError",
+        phase: "production-identity",
+        durability: "no-installation-change-established",
+        registry_may_have_been_created: false,
+        retry_disposition: "manual-reconciliation-required",
+      },
+      provisioner: {
+        name: "FloodgateV7ProductionConnectorRegistryProvisionerError",
+        phase: "application-source",
+        durability: "no-registry-change-established",
+        registry_may_have_been_created: false,
+        retry_disposition: "fresh-invocation-required",
+      },
+      mutationCalls: 0,
+      entropyCalls: 0,
+      sourceCaptureCalls: 0,
+      installerCallsFromProvisioner: 0,
+    });
+  });
+
+  it("consumes the bootstrap and hands one distinct late-armed capability to the installer", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-handoff",
+    );
+    const applicationExecutionCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    let receivedCapability:
+      Readonly<FloodgateV7ProductionApplicationExecutionCapability> | undefined;
+    const state = harness(home, {
+      installRegistry: async (_input, capability) => {
+        receivedCapability = capability;
+        expect(capability).not.toBe(applicationExecutionCapability);
+        claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          capability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+        );
+        return installerReceipt();
+      },
+    });
+
+    const receipt =
+      await provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+        state.dependencies,
+        applicationExecutionCapability,
+      );
+
+    expect(receivedCapability).not.toBe(applicationExecutionCapability);
+    expect(receipt.execution_boundary).toBe(
+      "test-only-injected-private-registry-provisioning",
+    );
+    expect(() =>
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+        applicationExecutionCapability,
+        "production-registry-provision",
+        "installer",
+      ),
+    ).toThrow("authorization failed");
+    expect(() =>
+      claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        receivedCapability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+      ),
+    ).toThrow();
+  });
+
+  it("consumes the bootstrap before awaited readiness and does not arm the installer early", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-concurrency",
+    );
+    const applicationExecutionCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    let releaseReadiness:
+      | ((receipt: ReturnType<typeof verifierReadinessReceipt>) => void)
+      | undefined;
+    const readiness = new Promise<ReturnType<typeof verifierReadinessReceipt>>(
+      (resolve) => {
+        releaseReadiness = resolve;
+      },
+    );
+    let installerCapability:
+      Readonly<FloodgateV7ProductionApplicationExecutionCapability> | undefined;
+    const state = harness(home, {
+      verifyVerifierReadiness: () => readiness,
+      installRegistry: async (_input, capability) => {
+        installerCapability = capability;
+        claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          capability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+        );
+        return installerReceipt();
+      },
+    });
+
+    const operation =
+      provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+        state.dependencies,
+        applicationExecutionCapability,
+      );
+
+    expect(installerCapability).toBeUndefined();
+    expect(() =>
+      claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        applicationExecutionCapability,
+      ),
+    ).toThrow();
+    const callsWhileFirstWaits = [...state.calls];
+    expectSanitizedFailure(
+      await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+          state.dependencies,
+          applicationExecutionCapability,
+        ),
+      ),
+      { phase: "application-source", registry_may_have_been_created: false },
+    );
+    expect(state.calls).toEqual(callsWhileFirstWaits);
+    releaseReadiness?.(verifierReadinessReceipt());
+    await operation;
+    expect(installerCapability).toBeDefined();
+    expect(installerCapability).not.toBe(applicationExecutionCapability);
+  });
+
+  it("leaves no installer authority after every pre-install failure", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-preinstall-failure",
+    );
+    const poisonedClaim = Object.create(
+      null,
+    ) as FloodgateV7ApprovedKeyEnrollmentClaim;
+    Object.defineProperty(poisonedClaim, "record", {
+      enumerable: true,
+      get() {
+        throw new Error(VALUE_CANARY);
+      },
+    });
+    const scenarios: readonly [phase: string, overrides: HarnessOverrides][] = [
+      [
+        "verifier-readiness",
+        {
+          verifyVerifierReadiness: async () => {
+            throw new Error(VALUE_CANARY);
+          },
+        },
+      ],
+      [
+        "application-source",
+        {
+          captureApplicationSource: async () => {
+            throw new Error(VALUE_CANARY);
+          },
+        },
+      ],
+      [
+        "approved-current-binding",
+        {
+          verifyCurrentBinding: async () => {
+            throw new Error(VALUE_CANARY);
+          },
+        },
+      ],
+      [
+        "approved-enrollment",
+        {
+          loadApprovedEnrollment: async () => {
+            throw new Error(VALUE_CANARY);
+          },
+        },
+      ],
+      [
+        "entropy",
+        {
+          randomBytes: () => {
+            throw new Error(VALUE_CANARY);
+          },
+        },
+      ],
+      ["configuration", { claimApprovedEnrollment: () => poisonedClaim }],
+    ];
+
+    for (const [phase, overrides] of scenarios) {
+      const applicationExecutionCapability =
+        await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+          "production-registry-provision",
+          async () => ({
+            layout: APPLICATION_SOURCE_LAYOUT,
+            revision: APPLICATION_REVISION,
+          }),
+        );
+      let installerCalls = 0;
+      const state = harness(home, {
+        ...overrides,
+        installRegistry: async () => {
+          installerCalls += 1;
+          return installerReceipt();
+        },
+      });
+
+      const failure = await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+          state.dependencies,
+          applicationExecutionCapability,
+        ),
+      );
+
+      expectSanitizedFailure(failure, {
+        phase:
+          phase as FloodgateV7ProductionConnectorRegistryProvisionerError["phase"],
+        registry_may_have_been_created: false,
+      });
+      expect(installerCalls).toBe(0);
+      expect(() =>
+        claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          applicationExecutionCapability,
+        ),
+      ).toThrow();
+    }
+  });
+
+  it("revokes a late-armed installer capability when the installer throws before claiming it", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-installer-throw",
+    );
+    const applicationExecutionCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    let unclaimedInstallerCapability:
+      Readonly<FloodgateV7ProductionApplicationExecutionCapability> | undefined;
+    const typedFailure =
+      new FloodgateV7ProductionConnectorRegistryInstallerError(
+        "cleanup",
+        "parent-chain-durable-registry-absent",
+        false,
+        "safe-to-retry-after-not-installed",
+      );
+    const state = harness(home, {
+      installRegistry: (_input, capability) => {
+        unclaimedInstallerCapability = capability;
+        throw typedFailure;
+      },
+    });
+
+    const failure = await captureFailure(() =>
+      provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+        state.dependencies,
+        applicationExecutionCapability,
+      ),
+    );
+
+    expectSanitizedFailure(failure, {
+      phase: "installation",
+      durability: "no-registry-change-established",
+      registry_may_have_been_created: false,
+      retry_disposition: "safe-to-retry-after-not-installed",
+    });
+    expect(unclaimedInstallerCapability).toBeDefined();
+    expect(unclaimedInstallerCapability).not.toBe(
+      applicationExecutionCapability,
+    );
+    expect(() =>
+      claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        unclaimedInstallerCapability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+      ),
+    ).toThrow();
+  });
+
+  it("revokes an unclaimed installer capability when postflight fails", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-postflight-failure",
+    );
+    const applicationExecutionCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    let unclaimedInstallerCapability:
+      Readonly<FloodgateV7ProductionApplicationExecutionCapability> | undefined;
+    const state = harness(home, {
+      installRegistry: async (_input, capability) => {
+        unclaimedInstallerCapability = capability;
+        return installerReceipt();
+      },
+      loadRegistry: async () => {
+        throw new Error(VALUE_CANARY);
+      },
+    });
+
+    const failure = await captureFailure(() =>
+      provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+        state.dependencies,
+        applicationExecutionCapability,
+      ),
+    );
+
+    expectSanitizedFailure(failure, {
+      phase: "postflight",
+      registry_may_have_been_created: true,
+      retry_disposition: "registry-reconciliation-required",
+    });
+    expect(unclaimedInstallerCapability).toBeDefined();
+    expect(() =>
+      claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        unclaimedInstallerCapability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+      ),
+    ).toThrow();
+  });
+
   it("composes the actual provisioner, installer, loader, and claim in one test home", async () => {
     const createdHome = await fs.promises.mkdtemp(
       path.join(
@@ -451,6 +933,8 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     );
     expect(receipt.verification).toMatchObject({
       verifier_source_artifact_closure_checked_before_install: true,
+      production_application_tracked_source_closure_checked_before_current_key_and_install: true,
+      application_source_binding_bound_and_postflight_checked: true,
       create_only_install_succeeded: true,
       registry_loader_postflight_succeeded: true,
       exact_private_claim_postflight_succeeded: true,
@@ -470,6 +954,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect(state.calls).toEqual([
       "verifier-readiness",
       "verifier-readiness-binding",
+      "application-source",
       "approved-current-binding",
       "approved-enrollment-load",
       "approved-enrollment-claim",
@@ -487,6 +972,10 @@ describe("Floodgate v7 production connector registry provisioner", () => {
         key_instance_id: KEY_INSTANCE_ID,
       },
       verifier_revision: "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+      application_source_binding: {
+        layout: APPLICATION_SOURCE_LAYOUT,
+        revision: APPLICATION_REVISION,
+      },
       repository_root: path.join(
         home,
         ".codex",
@@ -529,8 +1018,10 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       execution_boundary: "test-only-injected-private-registry-provisioning",
       verification: {
         verifier_source_artifact_closure_checked_before_install: true,
+        production_application_tracked_source_closure_checked_before_current_key_and_install: true,
         approved_record_current_key_binding_checked: true,
         approved_record_bound_into_registry: true,
+        application_source_binding_bound_and_postflight_checked: true,
         run_id_generated_from_32_byte_csprng: true,
         fixed_configuration_only: true,
         create_only_install_succeeded: true,
@@ -541,6 +1032,12 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       nonclaims: {
         run_id_disclosed: false,
         approved_record_digest_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         key_instance_id_disclosed: false,
         path_disclosed: false,
         gate_executed: false,
@@ -553,6 +1050,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect(serialized).not.toContain(RUN_ID);
     expect(serialized).not.toContain(RECORD_SHA256);
     expect(serialized).not.toContain(KEY_INSTANCE_ID);
+    expect(serialized).not.toContain(APPLICATION_REVISION);
     expect(serialized).not.toContain(home);
     expect(Object.isFrozen(receipt)).toBe(true);
   });
@@ -626,6 +1124,72 @@ describe("Floodgate v7 production connector registry provisioner", () => {
     expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
   });
 
+  it("fails application-source closure before current-key, entropy, or any registry write", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-application-source",
+    );
+    let getterCalls = 0;
+    const accessorBinding = Object.create(null) as Record<string, unknown>;
+    Object.defineProperties(accessorBinding, {
+      layout: {
+        enumerable: true,
+        get() {
+          getterCalls += 1;
+          return APPLICATION_SOURCE_LAYOUT;
+        },
+      },
+      revision: { enumerable: true, value: APPLICATION_REVISION },
+    });
+    const invalidCaptures: readonly HarnessOverrides["captureApplicationSource"][] =
+      [
+        async () => {
+          throw new Error(VALUE_CANARY);
+        },
+        async () =>
+          ({
+            layout: "wrong-layout",
+            revision: APPLICATION_REVISION,
+          }) as never,
+        async () =>
+          ({
+            layout: APPLICATION_SOURCE_LAYOUT,
+            revision: "AB".repeat(20),
+          }) as never,
+        async () =>
+          ({
+            layout: APPLICATION_SOURCE_LAYOUT,
+            revision: APPLICATION_REVISION,
+            extra: VALUE_CANARY,
+          }) as never,
+        async () => new Proxy(accessorBinding, {}) as never,
+        async () => accessorBinding as never,
+      ];
+
+    for (const captureApplicationSource of invalidCaptures) {
+      if (captureApplicationSource === undefined) continue;
+      const state = harness(home, { captureApplicationSource });
+      const failure = await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+          state.dependencies,
+        ),
+      );
+      expectSanitizedFailure(failure, {
+        phase: "application-source",
+        durability: "no-registry-change-established",
+        registry_may_have_been_created: false,
+        retry_disposition: "fresh-invocation-required",
+      });
+      expect(state.calls).toEqual([
+        "verifier-readiness",
+        "verifier-readiness-binding",
+      ]);
+      expect(state.installedInput()).toBeUndefined();
+      expect([...state.entropy]).toEqual(new Array(32).fill(0xab));
+    }
+    expect(getterCalls).toBe(0);
+  });
+
   it("fails closed at current binding and enrollment load or claim before entropy", async () => {
     const home = path.join(os.tmpdir(), "floodgate-v7-provisioner-early");
     const scenarios: readonly [HarnessOverrides, string, readonly string[]][] =
@@ -637,14 +1201,22 @@ describe("Floodgate v7 production connector registry provisioner", () => {
             },
           },
           "approved-current-binding",
-          ["verifier-readiness", "verifier-readiness-binding"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "application-source",
+          ],
         ],
         [
           {
             verifyCurrentBinding: async () => Object.freeze({}) as never,
           },
           "approved-current-binding",
-          ["verifier-readiness", "verifier-readiness-binding"],
+          [
+            "verifier-readiness",
+            "verifier-readiness-binding",
+            "application-source",
+          ],
         ],
         [
           {
@@ -656,6 +1228,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
           [
             "verifier-readiness",
             "verifier-readiness-binding",
+            "application-source",
             "approved-current-binding",
           ],
         ],
@@ -669,6 +1242,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
           [
             "verifier-readiness",
             "verifier-readiness-binding",
+            "application-source",
             "approved-current-binding",
             "approved-enrollment-load",
           ],
@@ -956,6 +1530,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
         },
       },
       approvedKeyBinding: { enumerable: true, value: {} },
+      applicationSourceBinding: { enumerable: true, value: {} },
       stageAuthorization: { enumerable: true, value: {} },
       consumer: { enumerable: true, value: {} },
     });
@@ -978,6 +1553,15 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       {
         claimRegistry: () =>
           expectedRegistryClaim(home, { runId: "00".repeat(32) }),
+      },
+      {
+        claimRegistry: () =>
+          expectedRegistryClaim(home, {
+            applicationSourceBinding: Object.freeze({
+              layout: APPLICATION_SOURCE_LAYOUT,
+              revision: "34".repeat(20),
+            }),
+          }),
       },
       {
         claimRegistry: () =>
@@ -1048,6 +1632,7 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       ),
       { phase: "capture", registry_may_have_been_created: false },
     );
+    expect(realHomeState.calls).toEqual([]);
 
     const aliasRoot = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "floodgate-v7-provisioner-home-alias-"),
@@ -1064,19 +1649,91 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       ),
       { phase: "capture", registry_may_have_been_created: false },
     );
+    expect(aliasState.calls).toEqual([]);
+
+    const productionHome = await fs.promises.realpath(os.homedir());
+    const productionDescendant = await fs.promises.realpath(REPOSITORY_ROOT);
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    const descendantState = harness(productionDescendant);
+    expectSanitizedFailure(
+      await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+          descendantState.dependencies,
+        ),
+      ),
+      { phase: "capture", registry_may_have_been_created: false },
+    );
+    expect(descendantState.calls).toEqual([]);
+
+    const danglingAlias = path.join(aliasRoot, "dangling-home-alias");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `${VALUE_CANARY}-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+    const danglingState = harness(danglingAlias);
+    expectSanitizedFailure(
+      await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
+          danglingState.dependencies,
+        ),
+      ),
+      { phase: "capture", registry_may_have_been_created: false },
+    );
+    expect(danglingState.calls).toEqual([]);
+
+    const stagedCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    expectSanitizedFailure(
+      await captureFailure(() =>
+        provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+          aliasState.dependencies,
+          stagedCapability,
+        ),
+      ),
+      { phase: "capture", registry_may_have_been_created: false },
+    );
+    expect(aliasState.calls).toEqual([]);
+    expect(() =>
+      claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        stagedCapability,
+      ),
+    ).toThrow();
   });
 
-  it("keeps production argumentless and distinguishes test-only receipts without touching production", async () => {
-    expect(provisionFloodgateV7ProductionConnectorRegistry.length).toBe(0);
-    const failure = await captureFailure(() =>
+  it("requires one production source capability and keeps test-only receipts distinct without touching production", async () => {
+    expect(provisionFloodgateV7ProductionConnectorRegistry.length).toBe(1);
+    const missingCapabilityFailure = await captureFailure(() =>
+      Reflect.apply(
+        provisionFloodgateV7ProductionConnectorRegistry,
+        undefined,
+        [],
+      ),
+    );
+    expectSanitizedFailure(missingCapabilityFailure, {
+      phase: "capture",
+      durability: "no-registry-change-established",
+      registry_may_have_been_created: false,
+    });
+    const forgedCapabilityFailure = await captureFailure(() =>
       Reflect.apply(
         provisionFloodgateV7ProductionConnectorRegistry,
         undefined,
         [VALUE_CANARY],
       ),
     );
-    expectSanitizedFailure(failure, {
-      phase: "capture",
+    expectSanitizedFailure(forgedCapabilityFailure, {
+      phase: "application-source",
       durability: "no-registry-change-established",
       registry_may_have_been_created: false,
     });
@@ -1089,8 +1746,12 @@ describe("Floodgate v7 production connector registry provisioner", () => {
       "utf8",
     );
     expect(source).not.toMatch(/process\.(?:argv|env|cwd|stdin)\b/);
-    expect(source).toContain("getUserInfo().homedir");
-    expect(source).toContain("arguments.length !== 0");
+    expect(source).toContain("const userInfo = getUserInfo();");
+    expect(source).toContain("homeDirectory: userInfo.homedir");
+    expect(source).toContain("arguments.length !== 1");
+    expect(source).toContain(
+      "claimFloodgateV7ProductionRegistryProvisionerApplicationExecution",
+    );
     expect(source).toContain(
       '"production-fixed-current-euid-private-registry-provisioning"',
     );

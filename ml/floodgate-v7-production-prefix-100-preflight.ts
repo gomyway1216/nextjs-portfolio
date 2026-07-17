@@ -33,6 +33,11 @@ import {
 } from "./floodgate-v7-deployment-key-readiness";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
 import {
+  captureFloodgateV7ProductionApplicationSourceProvenance,
+  FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  type FloodgateV7ProductionApplicationSourceBinding,
+} from "./floodgate-v7-production-application-source-provenance";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_MAX_BYTES,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
@@ -64,17 +69,17 @@ import {
 import { FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME } from "./floodgate-v7-teacher-checkpoint";
 
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_STATUS =
-  "fresh-zero-work-prefix-100-read-only-preconditions-observed" as const;
+  "fresh-zero-work-application-source-bound-prefix-100-read-only-preconditions-observed" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_CLAIM_BOUNDARY =
-  "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2" as const;
+  "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_EXECUTION_BOUNDARY =
-  "production-fixed-current-euid-userinfo-home-common-os-lock" as const;
+  "production-fixed-current-euid-userinfo-home-application-source-bound-common-os-lock" as const;
 export const FLOODGATE_V7_PRODUCTION_PREFIX_100_PREFLIGHT_TEST_EXECUTION_BOUNDARY =
   "test-only-injected-current-euid-home-read-only-observation" as const;
 const INTERNAL_OUTCOME_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2" as const;
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3" as const;
 
 export type FloodgateV7ProductionPrefix100PreflightPhase =
   | "capture"
@@ -86,6 +91,7 @@ export type FloodgateV7ProductionPrefix100PreflightPhase =
   | "registry-load"
   | "registry-claim"
   | "registry-fixed-configuration"
+  | "application-source"
   | "verifier-readiness"
   | "key-readiness"
   | "approved-record-load"
@@ -120,6 +126,7 @@ export interface FloodgateV7ProductionPrefix100PreflightReceipt {
     readonly common_os_lock_held_through_all_checks: true;
     readonly registry_anchor_held_descriptor_and_bytes_revalidated: true;
     readonly private_registry_claimed_and_fixed_configuration_validated: true;
+    readonly application_source_binding_matched_to_exact_clean_tracked_application_closure: true;
     readonly verifier_source_artifact_closure_rechecked: true;
     readonly deployment_key_metadata_ready: true;
     readonly approved_enrollment_loaded_and_registry_binding_matched: true;
@@ -137,6 +144,12 @@ export interface FloodgateV7ProductionPrefix100PreflightReceipt {
     readonly registry_or_control_created_written_removed: false;
     readonly stage_checkpoint_or_authorization_lease_created_written_removed: false;
     readonly registry_or_approved_capability_returned: false;
+    readonly application_source_revision_disclosed: false;
+    readonly application_source_path_disclosed: false;
+    readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly reviewed_git_head_or_ci_status: false;
     readonly kill_reboot_drill_or_monitor_owner: false;
     readonly human_gate_approval: false;
@@ -200,6 +213,7 @@ export interface FloodgateV7ProductionPrefix100PreflightDependenciesForTests {
   readonly homeDirectory: string;
   readonly loadRegistry: () => Promise<unknown>;
   readonly claimRegistry: (capability: unknown) => unknown;
+  readonly captureApplicationSource: () => Promise<unknown>;
   readonly verifyVerifierReadiness: () => Promise<unknown>;
   readonly assertVerifierReadinessIdentityBinding: (
     receipt: unknown,
@@ -221,6 +235,7 @@ interface CapturedDependencies {
   readonly homeDirectory: string;
   readonly loadRegistry: () => Promise<unknown>;
   readonly claimRegistry: (capability: unknown) => unknown;
+  readonly captureApplicationSource: () => Promise<unknown>;
   readonly verifyVerifierReadiness: () => Promise<unknown>;
   readonly assertVerifierReadinessIdentityBinding: (
     receipt: unknown,
@@ -281,6 +296,7 @@ interface PrivateRegistryClaim {
     readonly recordSha256: string;
     readonly keyInstanceId: string;
   }>;
+  readonly applicationSourceBinding: Readonly<FloodgateV7ProductionApplicationSourceBinding>;
   readonly outerControlStatePaths: Readonly<{
     readonly registryRoot: string;
     readonly runsParent: string;
@@ -345,6 +361,7 @@ const bufferFill = Buffer.prototype.fill;
 const nativeTimingSafeEqual = timingSafeEqual;
 const HEX_64_RE = /^[0-9a-f]{64}$/u;
 const DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/u;
+const REVISION_RE = /^[0-9a-f]{40}$/u;
 const MODE_MASK = BigInt(0o7777);
 const TYPE_MASK = BigInt(fs.constants.S_IFMT);
 const DIRECTORY_TYPE = BigInt(fs.constants.S_IFDIR);
@@ -359,6 +376,7 @@ const DEPENDENCY_KEYS = objectFreeze([
   "homeDirectory",
   "loadRegistry",
   "claimRegistry",
+  "captureApplicationSource",
   "verifyVerifierReadiness",
   "assertVerifierReadinessIdentityBinding",
   "inspectKeyReadiness",
@@ -368,7 +386,7 @@ const DEPENDENCY_KEYS = objectFreeze([
   "beforeFinalSnapshotForTests",
   "closeDirectoryDescriptorForTests",
 ] as const);
-const REQUIRED_DEPENDENCY_KEYS = objectFreeze(DEPENDENCY_KEYS.slice(0, 10));
+const REQUIRED_DEPENDENCY_KEYS = objectFreeze(DEPENDENCY_KEYS.slice(0, 11));
 const VERIFIER_READINESS_RECEIPT_KEYS = objectFreeze([
   "contract",
   "status",
@@ -561,6 +579,7 @@ function captureDependencies(
   for (const key of [
     "loadRegistry",
     "claimRegistry",
+    "captureApplicationSource",
     "verifyVerifierReadiness",
     "assertVerifierReadinessIdentityBinding",
     "inspectKeyReadiness",
@@ -597,6 +616,8 @@ function captureDependencies(
     homeDirectory,
     loadRegistry: record.loadRegistry as () => Promise<unknown>,
     claimRegistry: record.claimRegistry as (capability: unknown) => unknown,
+    captureApplicationSource:
+      record.captureApplicationSource as () => Promise<unknown>,
     verifyVerifierReadiness:
       record.verifyVerifierReadiness as () => Promise<unknown>,
     assertVerifierReadinessIdentityBinding:
@@ -923,9 +944,48 @@ function equalPrivateHex(left: string, right: unknown): boolean {
   }
 }
 
+function equalPrivateRevision(left: string, right: unknown): boolean {
+  if (
+    typeof right !== "string" ||
+    !REVISION_RE.test(left) ||
+    !REVISION_RE.test(right)
+  ) {
+    return false;
+  }
+  const leftBytes = bufferFrom(left, "ascii");
+  const rightBytes = bufferFrom(right, "ascii");
+  try {
+    return nativeTimingSafeEqual(leftBytes, rightBytes);
+  } finally {
+    reflectApply(bufferFill, leftBytes, [0]);
+    reflectApply(bufferFill, rightBytes, [0]);
+  }
+}
+
 function requiredString(value: unknown, expected: string): void {
   if (value !== expected)
     throw new NativeError("fixed registry configuration differs");
+}
+
+function captureApplicationSourceBinding(
+  value: unknown,
+): Readonly<FloodgateV7ProductionApplicationSourceBinding> {
+  const binding = exactRecord(
+    value,
+    ["layout", "revision"],
+    "application source binding",
+  );
+  if (
+    binding.layout !== FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT ||
+    typeof binding.revision !== "string" ||
+    !REVISION_RE.test(binding.revision)
+  ) {
+    throw new NativeError("application source binding differs");
+  }
+  return frozenRecord({
+    layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+    revision: binding.revision,
+  });
 }
 
 function capturePrivateRegistryClaim(
@@ -934,7 +994,13 @@ function capturePrivateRegistryClaim(
 ): Readonly<PrivateRegistryClaim> {
   const claim = exactRecord(
     value,
-    ["runId", "approvedKeyBinding", "stageAuthorization", "consumer"],
+    [
+      "runId",
+      "approvedKeyBinding",
+      "applicationSourceBinding",
+      "stageAuthorization",
+      "consumer",
+    ],
     "private registry claim",
   );
   if (typeof claim.runId !== "string" || !HEX_64_RE.test(claim.runId)) {
@@ -958,6 +1024,9 @@ function capturePrivateRegistryClaim(
   ) {
     throw new NativeError("private registry approved binding differs");
   }
+  const applicationSourceBinding = captureApplicationSourceBinding(
+    claim.applicationSourceBinding,
+  );
   const stage = exactRecord(
     claim.stageAuthorization,
     [
@@ -1077,6 +1146,7 @@ function capturePrivateRegistryClaim(
       recordSha256: binding.recordSha256,
       keyInstanceId: binding.keyInstanceId,
     }),
+    applicationSourceBinding,
     outerControlStatePaths: frozenRecord({
       registryRoot,
       runsParent,
@@ -1524,6 +1594,28 @@ async function inspectCapturedWithBoundRegistry(
   }
 
   try {
+    phase = "application-source";
+    const observedApplicationSource = captureApplicationSourceBinding(
+      await dependencies.captureApplicationSource(),
+    );
+    if (
+      observedApplicationSource.layout !==
+        privateClaim.applicationSourceBinding.layout ||
+      !equalPrivateRevision(
+        privateClaim.applicationSourceBinding.revision,
+        observedApplicationSource.revision,
+      )
+    ) {
+      throw new NativeError("registry application source binding differs");
+    }
+  } catch (error) {
+    if (error instanceof FloodgateV7ProductionPrefix100PreflightError) {
+      throw error;
+    }
+    throw publicFailure(phase);
+  }
+
+  try {
     phase = "verifier-readiness";
     const readinessReceipt = await dependencies.verifyVerifierReadiness();
     validateVerifierReadinessReceipt(readinessReceipt, production);
@@ -1802,6 +1894,8 @@ function productionDependencies(): CapturedDependencies {
           typeof claimFloodgateV7ProductionConnectorRegistry
         >[0],
       ),
+    captureApplicationSource:
+      captureFloodgateV7ProductionApplicationSourceProvenance,
     verifyVerifierReadiness:
       verifyFloodgateV7ProductionConnectorVerifierReadiness,
     assertVerifierReadinessIdentityBinding:
@@ -2034,6 +2128,7 @@ function isPhase(
     "registry-load",
     "registry-claim",
     "registry-fixed-configuration",
+    "application-source",
     "verifier-readiness",
     "key-readiness",
     "approved-record-load",
@@ -2077,6 +2172,8 @@ function buildPublicReceipt(
       common_os_lock_held_through_all_checks: true as const,
       registry_anchor_held_descriptor_and_bytes_revalidated: true as const,
       private_registry_claimed_and_fixed_configuration_validated: true as const,
+      application_source_binding_matched_to_exact_clean_tracked_application_closure:
+        true as const,
       verifier_source_artifact_closure_rechecked: true as const,
       deployment_key_metadata_ready: true as const,
       approved_enrollment_loaded_and_registry_binding_matched: true as const,
@@ -2097,6 +2194,12 @@ function buildPublicReceipt(
       stage_checkpoint_or_authorization_lease_created_written_removed:
         false as const,
       registry_or_approved_capability_returned: false as const,
+      application_source_revision_disclosed: false as const,
+      application_source_path_disclosed: false as const,
+      application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       reviewed_git_head_or_ci_status: false as const,
       kill_reboot_drill_or_monitor_owner: false as const,
       human_gate_approval: false as const,

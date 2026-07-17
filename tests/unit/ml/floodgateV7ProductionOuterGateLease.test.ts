@@ -9,7 +9,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
+  serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
 } from "../../../ml/floodgate-v7-production-connector-registry";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "../../../ml/floodgate-v7-production-application-source-provenance";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -26,26 +28,34 @@ import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_RETIRED_BASENAME,
   FloodgateV7ProductionOuterGateLeaseError,
   cancelFloodgateV7ProductionOuterGateStaleLeaseInspectionCoreForTests,
+  cancelFloodgateV7ProductionOuterGateStaleLeaseInspection,
   claimFloodgateV7ProductionOuterGateConnectorCapability,
   claimFloodgateV7ProductionOuterGateConnectorCapabilityCoreForTests,
   claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability,
   claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapabilityCoreForTests,
   confirmFloodgateV7ProductionOuterGateStaleLeaseQuarantineCoreForTests,
+  confirmFloodgateV7ProductionOuterGateStaleLeaseQuarantine,
   inspectFloodgateV7ProductionOuterGateStaleLeaseCoreForTests,
+  inspectFloodgateV7ProductionOuterGateStaleLease,
   runFloodgateV7ProductionOuterGateFinal24000,
   runFloodgateV7ProductionOuterGateOwnerCoreForTests,
   runFloodgateV7ProductionOuterGatePrefix100,
   runFloodgateV7ProductionOuterGatePrefix500,
   runFloodgateV7ProductionOuterGateTrainingLabelFinalization,
   runFloodgateV7ProductionOuterGateTrainingLabelFinalizationCoreForTests,
+  runFloodgateV7ProductionPrefix100PreflightOuterLockCoreForTests,
   runWithFloodgateV7ProductionOuterGateLeaseCoreForTests,
   type FloodgateV7ProductionOuterGate,
   type FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
+  type FloodgateV7ProductionOuterGateMutationPurpose,
+  type FloodgateV7ProductionOuterGateStaleInspectionCapability,
 } from "../../../ml/floodgate-v7-production-outer-gate-lease";
 
 const EUID = process.geteuid?.() ?? 501;
 const ROOT_KEY = Buffer.from("17".repeat(32), "hex");
 const PRIVATE_CANARY = "outer-gate-private-canary";
+const APPLICATION_REVISION = "4a".repeat(20);
+const OTHER_APPLICATION_REVISION = "5b".repeat(20);
 const OUTER_SOURCE_PATH = path.resolve(
   "ml/floodgate-v7-production-outer-gate-lease.ts",
 );
@@ -62,6 +72,15 @@ interface Fixture {
   readonly quarantineRoot: string;
   readonly retiredRoot: string;
   readonly dependencies: FloodgateV7ProductionOuterGateLeaseDependenciesForTests;
+}
+
+function applicationSourceBinding(revision = APPLICATION_REVISION) {
+  return Object.freeze(
+    Object.assign(Object.create(null) as Record<string, unknown>, {
+      layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+      revision,
+    }),
+  );
 }
 
 async function fixture(): Promise<Fixture> {
@@ -81,11 +100,35 @@ async function fixture(): Promise<Fixture> {
     registryRoot,
     FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   );
-  await fs.promises.writeFile(
-    registryPath,
-    `${JSON.stringify({ private: PRIVATE_CANARY })}\n`,
-    { flag: "wx", mode: 0o600 },
-  );
+  const repositoryRoot = path.join(home, "repository");
+  const registry =
+    serializeFloodgateV7ProductionConnectorRegistryForInstallationCore(
+      {
+        run_id: "11".repeat(32),
+        approved_key_binding: {
+          record_bytes: 4096,
+          record_sha256: "22".repeat(32),
+          key_instance_id: "33".repeat(32),
+        },
+        verifier_revision: "44".repeat(20),
+        application_source_binding: applicationSourceBinding(),
+        repository_root: repositoryRoot,
+        raw_lock_root: path.join(home, "raw-lock"),
+        role_lock_root: path.join(home, "role-lock"),
+        role_bundle_root: path.join(home, "role-bundle"),
+        legacy_protected_position_ids_path: path.join(
+          repositoryRoot,
+          "protected-position-ids.txt",
+        ),
+        engine_args: [],
+      },
+      EUID,
+      "test-only-injected-current-euid-home-production-connector-registry",
+    );
+  await fs.promises.writeFile(registryPath, registry, {
+    flag: "wx",
+    mode: 0o600,
+  });
   await fs.promises.chmod(registryPath, 0o600);
   const controlRoot = path.join(
     registryRoot,
@@ -116,6 +159,7 @@ async function fixture(): Promise<Fixture> {
       now: () => new Date("2026-07-15T12:34:56.789Z"),
       nonce: () => randomBytes(32),
       installProcessLifecycleHandlers: false,
+      captureApplicationSourceForTests: async () => applicationSourceBinding(),
     },
   };
 }
@@ -157,6 +201,39 @@ async function preserveAuthenticatedStaleLease(
     mode: 0o600,
   });
   return bytes;
+}
+
+function runPurposeForPreoperationFailureTest(
+  purpose: FloodgateV7ProductionOuterGateMutationPurpose,
+  dependencies: FloodgateV7ProductionOuterGateLeaseDependenciesForTests,
+  operationObserved: () => void,
+): Promise<unknown> {
+  if (purpose === "training-label-finalization-24000") {
+    return runFloodgateV7ProductionOuterGateTrainingLabelFinalizationCoreForTests(
+      dependencies,
+      () => {
+        operationObserved();
+        return {
+          runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate: async (
+            capability: Parameters<
+              typeof claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapabilityCoreForTests
+            >[0],
+          ) => {
+            claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapabilityCoreForTests(
+              capability,
+            );
+          },
+        };
+      },
+    );
+  }
+  return runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+    purpose,
+    dependencies,
+    async () => {
+      operationObserved();
+    },
+  );
 }
 
 function publicProjection(error: unknown): string {
@@ -270,10 +347,18 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
     async (gate) => {
       const environment = await fixture();
       let operationObserved = false;
+      let sourceCaptureObserved = false;
       const result =
         await runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
           gate,
-          environment.dependencies,
+          {
+            ...environment.dependencies,
+            captureApplicationSourceForTests: async () => {
+              sourceCaptureObserved = true;
+              expect(fs.existsSync(environment.controlRoot)).toBe(false);
+              return applicationSourceBinding();
+            },
+          },
           async () => {
             operationObserved = true;
             const active = await fs.promises.readFile(
@@ -281,6 +366,12 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
               "utf8",
             );
             expect(active).toContain(`\"purpose\":\"${gate}\"`);
+            expect(active).toContain(
+              '"contract":"shogi-floodgate-v7-production-outer-gate-lease-v2"',
+            );
+            expect(active).not.toContain(
+              '"contract":"shogi-floodgate-v7-production-outer-gate-lease-v3"',
+            );
             expect(active).not.toContain(`\"gate\":`);
             expect(active).toMatch(/"mac":"[0-9a-f]{64}"/u);
             const competing = spawnSync(
@@ -294,6 +385,7 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
         );
 
       expect(operationObserved).toBe(true);
+      expect(sourceCaptureObserved).toBe(true);
       expect(result.value).toEqual({ gate });
       expect(result.lease).toEqual({
         contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
@@ -304,6 +396,9 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
         mutation_purpose: gate,
         verification: {
           one_os_lifetime_lock_shared_by_all_four_mutation_purposes: true,
+          application_source_binding_read_from_locked_registry: true,
+          exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true,
+          registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
           os_lifetime_lock_held_before_operation: true,
           authenticated_purpose_bound_lease_metadata_durable_before_operation: true,
           signal_and_exit_preserve_stale_evidence: true,
@@ -319,6 +414,12 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
           key_instance_id_disclosed: false,
           lease_mac_disclosed: false,
           connector_receipt_disclosed: false,
+          application_source_revision_disclosed: false,
+          application_source_path_disclosed: false,
+          application_source_digest_disclosed: false,
+          ignored_untracked_dependency_bytes_verified: false,
+          same_uid_race_isolation: false,
+          atomic_source_snapshot: false,
           graceful_signal_cleanup: false,
           checkpoint: false,
           teacher_label: false,
@@ -346,8 +447,188 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
       expect(JSON.stringify(result.lease)).not.toContain(
         ROOT_KEY.toString("hex"),
       );
+      expect(JSON.stringify(result.lease)).not.toContain(APPLICATION_REVISION);
+      expect(JSON.stringify(result.lease)).not.toContain(environment.home);
     },
   );
+
+  it.each([
+    "durable-prefix-100",
+    "durable-prefix-500",
+    "sealed-final-24000",
+    "training-label-finalization-24000",
+  ] as const)(
+    "rejects a wrong application source for %s before persistent mutation",
+    async (purpose) => {
+      const environment = await fixture();
+      let captureCalls = 0;
+      let operationCalls = 0;
+      const error = await captureFailure(() =>
+        runPurposeForPreoperationFailureTest(
+          purpose,
+          {
+            ...environment.dependencies,
+            captureApplicationSourceForTests: async () => {
+              captureCalls += 1;
+              expect(fs.existsSync(environment.controlRoot)).toBe(false);
+              const competing = spawnSync(
+                "/usr/bin/lockf",
+                ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+                { stdio: "ignore" },
+              );
+              expect(competing.status).toBe(75);
+              return applicationSourceBinding(OTHER_APPLICATION_REVISION);
+            },
+          },
+          () => {
+            operationCalls += 1;
+          },
+        ),
+      );
+
+      expect(captureCalls).toBe(1);
+      expect(operationCalls).toBe(0);
+      expect(error).toMatchObject({
+        phase: "application-source",
+        os_lock_acquired: true,
+        authenticated_lease_published: false,
+      });
+      expect(fs.existsSync(environment.controlRoot)).toBe(false);
+      expect(fs.existsSync(environment.activePath)).toBe(false);
+      expect(publicProjection(error)).not.toContain(APPLICATION_REVISION);
+      expect(publicProjection(error)).not.toContain(OTHER_APPLICATION_REVISION);
+      const after = spawnSync(
+        "/usr/bin/lockf",
+        ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+        { stdio: "ignore" },
+      );
+      expect(after.status).toBe(0);
+    },
+  );
+
+  it("rejects a registry byte race after source verification before creating the control namespace", async () => {
+    const environment = await fixture();
+    let operationCalls = 0;
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-500",
+        {
+          ...environment.dependencies,
+          captureApplicationSourceForTests: async () => {
+            expect(fs.existsSync(environment.controlRoot)).toBe(false);
+            fs.appendFileSync(environment.registryPath, " ");
+            return applicationSourceBinding();
+          },
+        },
+        async () => {
+          operationCalls += 1;
+        },
+      ),
+    );
+
+    expect(operationCalls).toBe(0);
+    expect(error).toMatchObject({
+      phase: "application-source",
+      os_lock_acquired: true,
+      authenticated_lease_published: false,
+    });
+    expect(fs.existsSync(environment.controlRoot)).toBe(false);
+    expect(fs.existsSync(environment.activePath)).toBe(false);
+    const after = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(after.status).toBe(0);
+  });
+
+  it("rejects a named registry anchor replacement after source verification before creating the control namespace", async () => {
+    const environment = await fixture();
+    const original = await fs.promises.readFile(environment.registryPath);
+    let operationCalls = 0;
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "sealed-final-24000",
+        {
+          ...environment.dependencies,
+          captureApplicationSourceForTests: async () => {
+            expect(fs.existsSync(environment.controlRoot)).toBe(false);
+            fs.renameSync(
+              environment.registryPath,
+              `${environment.registryPath}.replaced`,
+            );
+            fs.writeFileSync(environment.registryPath, original, {
+              flag: "wx",
+              mode: 0o600,
+            });
+            return applicationSourceBinding();
+          },
+        },
+        async () => {
+          operationCalls += 1;
+        },
+      ),
+    );
+    original.fill(0);
+
+    expect(operationCalls).toBe(0);
+    expect(error).toMatchObject({
+      phase: "application-source",
+      os_lock_acquired: true,
+      authenticated_lease_published: false,
+    });
+    expect(fs.existsSync(environment.controlRoot)).toBe(false);
+    expect(fs.existsSync(environment.activePath)).toBe(false);
+    const after = spawnSync(
+      "/usr/bin/lockf",
+      ["-s", "-t", "0", environment.registryPath, "/usr/bin/true"],
+      { stdio: "ignore" },
+    );
+    expect(after.status).toBe(0);
+  });
+
+  it("rejects a canonical legacy V1 registry before source capture or persistent mutation", async () => {
+    const environment = await fixture();
+    const current = JSON.parse(
+      await fs.promises.readFile(environment.registryPath, "utf8"),
+    ) as Record<string, unknown>;
+    const legacy = { ...current };
+    legacy.contract =
+      "shogi-floodgate-v7-production-connector-registry-record-v1";
+    delete legacy.application_source_binding;
+    await fs.promises.writeFile(
+      environment.registryPath,
+      `${JSON.stringify(legacy)}\n`,
+      { mode: 0o600 },
+    );
+    let sourceCaptureCalls = 0;
+    let operationCalls = 0;
+    const error = await captureFailure(() =>
+      runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+        "durable-prefix-100",
+        {
+          ...environment.dependencies,
+          captureApplicationSourceForTests: async () => {
+            sourceCaptureCalls += 1;
+            return applicationSourceBinding();
+          },
+        },
+        async () => {
+          operationCalls += 1;
+        },
+      ),
+    );
+
+    expect(sourceCaptureCalls).toBe(0);
+    expect(operationCalls).toBe(0);
+    expect(error).toMatchObject({
+      phase: "application-source",
+      os_lock_acquired: true,
+      authenticated_lease_published: false,
+    });
+    expect(fs.existsSync(environment.controlRoot)).toBe(false);
+    expect(fs.existsSync(environment.activePath)).toBe(false);
+  });
 
   it("marks an injected no-op descriptor close as test-only evidence", async () => {
     const environment = await fixture();
@@ -474,9 +755,17 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
 
   it("purpose-binds and isolates the fixed training-label capability", async () => {
     const environment = await fixture();
+    let sourceCaptureObserved = false;
     const result =
       await runFloodgateV7ProductionOuterGateTrainingLabelFinalizationCoreForTests(
-        environment.dependencies,
+        {
+          ...environment.dependencies,
+          captureApplicationSourceForTests: async () => {
+            sourceCaptureObserved = true;
+            expect(fs.existsSync(environment.controlRoot)).toBe(false);
+            return applicationSourceBinding();
+          },
+        },
         () => ({
           runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate: async (
             capability: Parameters<
@@ -514,7 +803,7 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
               await fs.promises.readFile(environment.activePath, "utf8"),
             ) as Record<string, unknown>;
             expect(active).toMatchObject({
-              contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+              contract: "shogi-floodgate-v7-production-outer-gate-lease-v2",
               purpose: "training-label-finalization-24000",
             });
             expect(active).not.toHaveProperty("gate");
@@ -524,12 +813,17 @@ darwinDescribe("Floodgate v7 production outer gate lease", () => {
       );
 
     expect(result.value).toBe("training-label-owner-complete");
+    expect(sourceCaptureObserved).toBe(true);
     expect(result.lease.mutation_purpose).toBe(
       "training-label-finalization-24000",
     );
     expect(
       result.lease.verification
         .one_os_lifetime_lock_shared_by_all_four_mutation_purposes,
+    ).toBe(true);
+    expect(
+      result.lease.verification
+        .exact_clean_tracked_application_source_closure_verified_before_persistent_mutation,
     ).toBe(true);
   });
 
@@ -646,6 +940,10 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
     hostname: "lazy-owner-test.local",
     pid: process.pid,
     installProcessLifecycleHandlers: false,
+    captureApplicationSourceForTests: async () => Object.freeze(Object.assign(Object.create(null), {
+      layout: ${JSON.stringify(FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT)},
+      revision: ${JSON.stringify(APPLICATION_REVISION)},
+    })),
   },
 ).then(
   (result) => process.stdout.write(JSON.stringify({ value: result.value, getterCalls, operationCalls }) + "\n"),
@@ -722,13 +1020,13 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
     expect(publicProjection(error)).not.toContain(PRIVATE_CANARY);
   });
 
-  it("exposes only four fixed zero-argument production owners and no generic callback owner", async () => {
-    expect(runFloodgateV7ProductionOuterGatePrefix100.length).toBe(0);
-    expect(runFloodgateV7ProductionOuterGatePrefix500.length).toBe(0);
-    expect(runFloodgateV7ProductionOuterGateFinal24000.length).toBe(0);
+  it("exposes only four fixed capability-required production owners and no generic callback owner", async () => {
+    expect(runFloodgateV7ProductionOuterGatePrefix100.length).toBe(1);
+    expect(runFloodgateV7ProductionOuterGatePrefix500.length).toBe(1);
+    expect(runFloodgateV7ProductionOuterGateFinal24000.length).toBe(1);
     expect(
       runFloodgateV7ProductionOuterGateTrainingLabelFinalization.length,
-    ).toBe(0);
+    ).toBe(1);
     const source = await fs.promises.readFile(OUTER_SOURCE_PATH, "utf8");
     expect(source).not.toMatch(
       /export function runWithFloodgateV7ProductionOuterGateLease(?!CoreForTests)/u,
@@ -745,6 +1043,76 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
     expect(source).toContain(
       "opaque-single-use-valid-only-while-common-os-lock-is-held",
     );
+  });
+
+  it("rejects production-home aliasing through every test-only owner before callbacks or locks", async () => {
+    const environment = await fixture();
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    const aliasRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), `${PRIVATE_CANARY}-production-alias-`),
+    );
+    temporaryRoots.push(aliasRoot);
+    const alias = path.join(aliasRoot, "home");
+    await fs.promises.symlink(productionHome, alias);
+    const productionDescendant = fs.realpathSync.native(process.cwd());
+    expect(
+      productionDescendant.startsWith(`${productionHome}${path.sep}`),
+    ).toBe(true);
+    const danglingAlias = path.join(aliasRoot, "dangling-home");
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        `${PRIVATE_CANARY}-missing-descendant-${process.pid}-${Date.now()}`,
+      ),
+      danglingAlias,
+    );
+
+    for (const candidateHome of [
+      productionHome,
+      alias,
+      productionDescendant,
+      danglingAlias,
+    ]) {
+      let operationCalls = 0;
+      const mutationFailure = await captureFailure(() =>
+        runWithFloodgateV7ProductionOuterGateLeaseCoreForTests(
+          "durable-prefix-100",
+          {
+            ...environment.dependencies,
+            homeDirectory: candidateHome,
+          },
+          async () => {
+            operationCalls += 1;
+          },
+        ),
+      );
+      expect(mutationFailure).toMatchObject({
+        phase: "capture",
+        os_lock_acquired: false,
+        authenticated_lease_published: false,
+      });
+      expect(operationCalls).toBe(0);
+
+      let preflightLoads = 0;
+      const preflightFailure = await captureFailure(() =>
+        runFloodgateV7ProductionPrefix100PreflightOuterLockCoreForTests(
+          {
+            effectiveUserId: EUID,
+            homeDirectory: candidateHome,
+          },
+          () => {
+            preflightLoads += 1;
+            return {};
+          },
+        ),
+      );
+      expect(preflightFailure).toMatchObject({
+        phase: "capture",
+        os_lock_acquired: false,
+        authenticated_lease_published: false,
+      });
+      expect(preflightLoads).toBe(0);
+    }
   });
 
   it("serializes prefix and final gates with the same OS lock", async () => {
@@ -934,7 +1302,7 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
           await fs.promises.readFile(environment.activePath, "utf8"),
         ) as Record<string, unknown>;
         expect(active).toMatchObject({
-          contract: FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
+          contract: "shogi-floodgate-v7-production-outer-gate-lease-v2",
           purpose: "durable-prefix-500",
         });
         expect(active).not.toHaveProperty("gate");
@@ -1522,9 +1890,13 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
       environment.dependencies,
       async () => undefined,
     );
+    const replacement = JSON.parse(
+      await fs.promises.readFile(environment.registryPath, "utf8"),
+    ) as Record<string, unknown>;
+    replacement.run_id = "66".repeat(32);
     await fs.promises.writeFile(
       environment.registryPath,
-      `${JSON.stringify({ private: "replacement-registry-binding" })}\n`,
+      `${JSON.stringify(replacement)}\n`,
       { mode: 0o600 },
     );
     let invoked = false;
@@ -1554,7 +1926,7 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
       `const key = Buffer.from(${JSON.stringify(ROOT_KEY.toString("hex"))}, "hex");`,
       'process.on("SIGTERM", () => {});',
       "setInterval(() => {}, 1000);",
-      `m.runWithFloodgateV7ProductionOuterGateLeaseCoreForTests("durable-prefix-100", {effectiveUserId:${EUID},homeDirectory:${JSON.stringify(environment.home)},rootKey:key,hostname:"signal-test.local",pid:process.pid,installProcessLifecycleHandlers:true}, async () => new Promise(() => {}));`,
+      `m.runWithFloodgateV7ProductionOuterGateLeaseCoreForTests("durable-prefix-100", {effectiveUserId:${EUID},homeDirectory:${JSON.stringify(environment.home)},rootKey:key,hostname:"signal-test.local",pid:process.pid,installProcessLifecycleHandlers:true,captureApplicationSourceForTests:async()=>Object.freeze(Object.assign(Object.create(null),{layout:${JSON.stringify(FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT)},revision:${JSON.stringify(APPLICATION_REVISION)}}))}, async () => new Promise(() => {}));`,
     ].join("\n");
     const child = spawn(
       process.execPath,
@@ -1600,6 +1972,42 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
     }
   }, 10_000);
 
+  it("keeps production manual reconciliation unavailable without a reviewed fixed operator entrypoint", async () => {
+    const capability: Readonly<FloodgateV7ProductionOuterGateStaleInspectionCapability> =
+      Object.freeze({
+        contract:
+          "shogi-floodgate-v7-production-outer-gate-stale-inspection-capability-v1",
+        status: "opaque-single-use-confirm-or-cancel",
+      });
+    await expect(
+      inspectFloodgateV7ProductionOuterGateStaleLease(),
+    ).rejects.toMatchObject({
+      phase: "capture",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: false,
+      stale_lease_quarantined: false,
+    });
+    await expect(
+      confirmFloodgateV7ProductionOuterGateStaleLeaseQuarantine(
+        capability,
+        FLOODGATE_V7_PRODUCTION_OUTER_GATE_MANUAL_CONFIRMATION,
+      ),
+    ).rejects.toMatchObject({
+      phase: "capture",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: false,
+      stale_lease_quarantined: false,
+    });
+    await expect(
+      cancelFloodgateV7ProductionOuterGateStaleLeaseInspection(capability),
+    ).rejects.toMatchObject({
+      phase: "capture",
+      disposition: "manual-reconciliation-required",
+      os_lock_acquired: false,
+      stale_lease_quarantined: false,
+    });
+  });
+
   it("releases a manual inspection lock on SIGTERM without mutating its stale source", async () => {
     const environment = await fixture();
     const staleBytes = await preserveAuthenticatedStaleLease(environment);
@@ -1613,7 +2021,7 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
       `const key = Buffer.from(${JSON.stringify(ROOT_KEY.toString("hex"))}, "hex");`,
       'process.on("SIGTERM", () => {});',
       "setInterval(() => {}, 1000);",
-      `m.inspectFloodgateV7ProductionOuterGateStaleLeaseCoreForTests({effectiveUserId:${EUID},homeDirectory:${JSON.stringify(environment.home)},rootKey:key,hostname:"manual-signal-test.local",pid:process.pid,installProcessLifecycleHandlers:true}).then((inspection) => { globalThis.inspection = inspection; fs.writeFileSync(${JSON.stringify(readyPath)}, "ready"); }, () => { process.exitCode = 2; });`,
+      `m.inspectFloodgateV7ProductionOuterGateStaleLeaseCoreForTests({effectiveUserId:${EUID},homeDirectory:${JSON.stringify(environment.home)},rootKey:key,hostname:"manual-signal-test.local",pid:process.pid,installProcessLifecycleHandlers:true,captureApplicationSourceForTests:async()=>Object.freeze(Object.assign(Object.create(null),{layout:${JSON.stringify(FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT)},revision:${JSON.stringify(APPLICATION_REVISION)}}))}).then((inspection) => { globalThis.inspection = inspection; fs.writeFileSync(${JSON.stringify(readyPath)}, "ready"); }, () => { process.exitCode = 2; });`,
     ].join("\n");
     const child = spawn(
       process.execPath,
@@ -1660,6 +2068,78 @@ outer.runFloodgateV7ProductionOuterGateLazyOwnerCoreForTests(
       staleBytes.fill(0);
     }
   }, 10_000);
+
+  it("rejects a stale inspection source mismatch before any namespace mutation", async () => {
+    const environment = await fixture();
+    const staleBytes = await preserveAuthenticatedStaleLease(environment);
+    const registryRoot = path.dirname(environment.registryPath);
+    const registryEntriesBefore = await fs.promises.readdir(registryRoot);
+    const controlEntriesBefore = await fs.promises.readdir(
+      environment.controlRoot,
+    );
+
+    const error = await captureFailure(() =>
+      inspectFloodgateV7ProductionOuterGateStaleLeaseCoreForTests({
+        ...environment.dependencies,
+        captureApplicationSourceForTests: async () =>
+          applicationSourceBinding(OTHER_APPLICATION_REVISION),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      phase: "application-source",
+      disposition: "manual-reconciliation-required",
+      authenticated_lease_published: false,
+      stale_lease_quarantined: false,
+    });
+    expect(await fs.promises.readdir(registryRoot)).toEqual(
+      registryEntriesBefore,
+    );
+    expect(await fs.promises.readdir(environment.controlRoot)).toEqual(
+      controlEntriesBefore,
+    );
+    expect(await fs.promises.readFile(environment.activePath)).toEqual(
+      staleBytes,
+    );
+    expect(await fs.promises.readdir(environment.quarantineRoot)).toEqual([]);
+    staleBytes.fill(0);
+  });
+
+  it("freshly rechecks application source before confirmed quarantine mutation", async () => {
+    const environment = await fixture();
+    const staleBytes = await preserveAuthenticatedStaleLease(environment);
+    let sourceCaptures = 0;
+    const inspection =
+      await inspectFloodgateV7ProductionOuterGateStaleLeaseCoreForTests({
+        ...environment.dependencies,
+        captureApplicationSourceForTests: async () => {
+          sourceCaptures += 1;
+          return applicationSourceBinding(
+            sourceCaptures === 1
+              ? APPLICATION_REVISION
+              : OTHER_APPLICATION_REVISION,
+          );
+        },
+      });
+
+    const error = await captureFailure(() =>
+      confirmFloodgateV7ProductionOuterGateStaleLeaseQuarantineCoreForTests(
+        inspection.capability,
+        FLOODGATE_V7_PRODUCTION_OUTER_GATE_MANUAL_CONFIRMATION,
+      ),
+    );
+    expect(sourceCaptures).toBe(2);
+    expect(error).toMatchObject({
+      phase: "application-source",
+      disposition: "manual-reconciliation-required",
+      stale_lease_quarantined: false,
+    });
+    expect(await fs.promises.readFile(environment.activePath)).toEqual(
+      staleBytes,
+    );
+    expect(await fs.promises.readdir(environment.quarantineRoot)).toEqual([]);
+    staleBytes.fill(0);
+  });
 
   it("requires an exact two-phase confirmation before create-only quarantine", async () => {
     const environment = await fixture();

@@ -19,9 +19,12 @@ import {
   FloodgateTeacherStageLeaseUnavailableError,
   authorizeFloodgateTeacherStage,
   authorizeFloodgateTeacherStageCoreForTests,
+  assertFloodgateTeacherStageLeaseTestRealmCoreForTests,
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests,
   beginFloodgateTeacherStagePublicationCoreForTests,
   claimActiveAuthorizedFloodgateTeacherStageLease,
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
+  registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests,
 } from "../../../ml/floodgate-teacher-stage-authorization";
 
 type AuthorizationOptions = Parameters<
@@ -200,6 +203,255 @@ afterEach(async () => {
 });
 
 describe("Floodgate teacher stage authorization", () => {
+  it("asserts the exact active test-realm lease without consuming it", async () => {
+    const value = await fixture();
+    const lease = await authorize(value);
+    const copied = { ...lease } as Readonly<AuthorizationLease>;
+    const proxied = new Proxy(lease, {});
+
+    expect(
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(lease),
+    ).toBeUndefined();
+    expect(
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(lease),
+    ).toBeUndefined();
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(copied),
+    ).toThrow(/exact active test lease/i);
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(proxied),
+    ).toThrow(/exact active test lease/i);
+
+    claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease);
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(lease),
+    ).toThrow(/exact active test lease/i);
+    await closeLease(lease);
+
+    const productionValue = await fixture();
+    const productionLease = await authorizeFloodgateTeacherStage(
+      productionValue.options,
+    );
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(productionLease),
+    ).toThrow(/exact active test lease/i);
+    claimActiveAuthorizedFloodgateTeacherStageLease(productionLease);
+    await closeLease(productionLease);
+  });
+
+  it("registers only exact non-production-path synthetic test leases", async () => {
+    const value = await fixture();
+    const realLease = await authorize(value);
+    const synthetic = Object.freeze({
+      receipt: realLease.receipt,
+      stageRoot: realLease.stageRoot,
+      destinationRoot: realLease.destinationRoot,
+      close: () => Promise.resolve(),
+    }) as Readonly<AuthorizationLease>;
+
+    expect(
+      registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        synthetic,
+      ),
+    ).toBeUndefined();
+    expect(
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(synthetic),
+    ).toBeUndefined();
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        new Proxy(synthetic, {}),
+      ),
+    ).toThrow(/exact active test lease/i);
+    expect(() =>
+      registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        synthetic,
+      ),
+    ).toThrow(/origin differs/i);
+
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    const mutableSynthetic = {
+      receipt: realLease.receipt,
+      stageRoot: realLease.stageRoot,
+      destinationRoot: realLease.destinationRoot,
+      close: () => Promise.resolve(),
+    };
+    registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+      mutableSynthetic,
+    );
+    mutableSynthetic.stageRoot = path.join(
+      productionHome,
+      "mutated-synthetic-stage-must-not-open",
+    );
+    expect(() =>
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(mutableSynthetic),
+    ).toThrow(/path binding differs/i);
+    mutableSynthetic.stageRoot = realLease.stageRoot;
+    expect(
+      assertFloodgateTeacherStageLeaseTestRealmCoreForTests(mutableSynthetic),
+    ).toBeUndefined();
+
+    const productionPathSynthetic = Object.freeze({
+      ...synthetic,
+      stageRoot: path.join(productionHome, "synthetic-stage-must-not-open"),
+    });
+    expect(() =>
+      registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        productionPathSynthetic,
+      ),
+    ).toThrow(/production home/i);
+
+    const productionValue = await fixture();
+    const productionLease = await authorizeFloodgateTeacherStage(
+      productionValue.options,
+    );
+    expect(() =>
+      registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+        productionLease,
+      ),
+    ).toThrow(/origin differs/i);
+    await closeLease(productionLease);
+    await closeLease(realLease);
+  });
+
+  it("shares a strict canonical current-EUID production-home path guard", async () => {
+    const value = await fixture();
+    const safePath = path.join(value.root, "future-safe-path");
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    const alias = path.join(value.root, "production-home-alias");
+    await fs.promises.symlink(productionHome, alias);
+    const danglingAlias = path.join(
+      value.root,
+      "dangling-production-home-child-alias",
+    );
+    await fs.promises.symlink(
+      path.join(
+        productionHome,
+        ".codex",
+        `future-stage-boundary-${process.pid}`,
+      ),
+      danglingAlias,
+    );
+
+    expect(
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests([safePath]),
+    ).toBeUndefined();
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+        productionHome,
+      ]),
+    ).toThrow(/production home/i);
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+        path.join(productionHome, "Library", "future-child"),
+      ]),
+    ).toThrow(/production home/i);
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+        path.join(alias, "Library", "future-child"),
+      ]),
+    ).toThrow(/production home/i);
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
+        path.join(danglingAlias, "future-child"),
+      ]),
+    ).toThrow(/production home/i);
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests(
+        new Proxy([safePath], {}),
+      ),
+    ).toThrow(/plain non-Proxy array/i);
+
+    const sparse = new Array<string>(1);
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests(sparse),
+    ).toThrow(/dense plain array/i);
+
+    const accessorPaths = [safePath];
+    let getterCalls = 0;
+    Object.defineProperty(accessorPaths, "0", {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return safePath;
+      },
+    });
+    expect(() =>
+      assertFloodgateTestPathsOutsideProductionHomeCoreForTests(accessorPaths),
+    ).toThrow(/data property/i);
+    expect(getterCalls).toBe(0);
+  });
+
+  it("rejects every test authorization path under production home before hooks or inspector access", async () => {
+    const value = await fixture();
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    const forbidden = path.join(
+      productionHome,
+      ".codex",
+      `stage-test-boundary-${process.pid}`,
+    );
+    const hook = vi.fn(() => {
+      throw new Error("test hook must not run");
+    });
+    const overrides: readonly Partial<AuthorizationOptions>[] = [
+      { repositoryRoot: forbidden },
+      { rawLockRoot: forbidden },
+      { roleLockRoot: forbidden },
+      { roleBundleRoot: forbidden },
+      { legacyProtectedPositionIdsPath: forbidden },
+      { publicationParent: forbidden },
+      { engineBin: forbidden },
+      { engineReceipt: forbidden },
+      { evalDir: forbidden },
+      { engineArgs: [forbidden] },
+    ];
+    for (let index = 0; index < overrides.length; index += 1) {
+      await expect(
+        authorizeFloodgateTeacherStageCoreForTests(
+          { ...value.options, ...overrides[index] },
+          dependencies({
+            inspectorPythonExecutable: path.join(
+              value.root,
+              "inspector-must-not-be-read",
+            ),
+            afterLeaseAcquiredForTests: hook,
+            beforeHeldStageEntryInspectionForTests: hook,
+            beforeLeaseRemovalForTests: hook,
+          }),
+        ),
+      ).rejects.toThrow(/production home/i);
+    }
+    expect(hook).not.toHaveBeenCalled();
+
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(
+        value.options,
+        dependencies({
+          inspectorPythonExecutable: forbidden,
+          afterLeaseAcquiredForTests: hook,
+          beforeHeldStageEntryInspectionForTests: hook,
+          beforeLeaseRemovalForTests: hook,
+        }),
+      ),
+    ).rejects.toThrow(/production home/i);
+    expect(hook).not.toHaveBeenCalled();
+
+    const alias = path.join(value.root, "home-parent-alias");
+    await fs.promises.symlink(productionHome, alias);
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(
+        { ...value.options, publicationParent: alias },
+        dependencies({
+          inspectorPythonExecutable: path.join(
+            value.root,
+            "inspector-must-not-be-read",
+          ),
+          afterLeaseAcquiredForTests: hook,
+        }),
+      ),
+    ).rejects.toThrow(/production home/i);
+    expect(hook).not.toHaveBeenCalled();
+  });
+
   it("allows one exact-object test lease claim while the lease is active", async () => {
     const value = await fixture();
     const lease = await authorize(value);

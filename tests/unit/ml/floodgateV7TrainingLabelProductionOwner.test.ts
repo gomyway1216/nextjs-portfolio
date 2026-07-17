@@ -11,6 +11,7 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+  registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests,
   type FloodgateTeacherStageLease,
 } from "../../../ml/floodgate-teacher-stage-authorization";
 import { FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA } from "../../../ml/floodgate-training-row-consumer";
@@ -18,6 +19,7 @@ import {
   FLOODGATE_V7_PRODUCTION_PARENT_COORDINATOR_ABORT_DRAIN_MS,
   FLOODGATE_V7_PRODUCTION_PARENT_COORDINATOR_PARENT_DEADLINE_MS,
 } from "../../../ml/floodgate-v7-production-parent-coordinator";
+import { loadFloodgateV7ProductionConnectorRegistry } from "../../../ml/floodgate-v7-production-connector-registry";
 import {
   FLOODGATE_FRESH_SIBLING_PLAN_BYTES,
   FLOODGATE_FRESH_SIBLING_PLAN_SHA256,
@@ -26,8 +28,13 @@ import {
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY,
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT,
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS,
+  FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CONTRACT,
+  FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_STATUS,
   FloodgateV7TrainingLabelProductionOwnerError,
+  authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests,
   inspectFloodgateV7TrainingLabelProductionStageCoreForTests,
+  runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate,
   runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests,
   type FloodgateV7TrainingLabelProductionOwnerCoreDependencies,
 } from "../../../ml/floodgate-v7-training-label-production-owner";
@@ -289,11 +296,23 @@ function makeOwnerFixture(): OwnerFixture {
   const plan = Object.freeze({ marker: "plan" as const });
   const fixture = {} as OwnerFixture;
   const lease = Object.freeze({
+    receipt: Object.freeze({}),
+    stageRoot: path.join(
+      fs.realpathSync.native(os.tmpdir()),
+      "floodgate-v7-training-owner-test",
+      "stage",
+    ),
+    destinationRoot: path.join(
+      fs.realpathSync.native(os.tmpdir()),
+      "floodgate-v7-training-owner-test",
+      "destination",
+    ),
     close: (): Promise<void> => {
       events.push("lease-close");
       return Promise.resolve();
     },
   }) as unknown as Readonly<FloodgateTeacherStageLease>;
+  registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(lease);
   const registryClaim = {
     runId: RUN_ID,
     approvedKeyBinding: {
@@ -311,9 +330,6 @@ function makeOwnerFixture(): OwnerFixture {
       executionBoundary:
         "test-only-injected-owner-dependencies-and-real-held-file-preflight",
       effectiveUserId: 501,
-      claimOuterGateCapability: () => {
-        events.push("outer-claim");
-      },
       loadRegistry: () => {
         events.push("registry-load");
         return Promise.resolve({} as never);
@@ -378,12 +394,9 @@ function makeOwnerFixture(): OwnerFixture {
       },
     };
   Object.assign(fixture, {
-    capability: Object.freeze({
-      contract:
-        "shogi-floodgate-v7-production-outer-gate-training-label-finalization-capability-v1",
-      status:
-        "opaque-single-use-valid-only-while-common-os-lock-and-purpose-bound-lease-are-held",
-    }),
+    capability: authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(
+      fs.realpathSync.native(os.tmpdir()),
+    ),
     dependencies,
     events,
     lease,
@@ -398,26 +411,20 @@ function makeOwnerFixture(): OwnerFixture {
 describe("Floodgate v7 training-label production owner", () => {
   it("claims a rejected outer capability synchronously and touches no later dependency", async () => {
     const fixture = makeOwnerFixture();
-    const dependencies = {
-      ...fixture.dependencies,
-      claimOuterGateCapability: () => {
-        fixture.events.push("outer-claim");
-        throw new Error("wrong purpose");
-      },
-    };
+    const forgedCapability = Object.freeze({ ...fixture.capability });
 
     const result =
       runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
-        fixture.capability,
-        dependencies,
+        forgedCapability,
+        fixture.dependencies,
       );
-    expect(fixture.events).toEqual(["outer-claim"]);
+    expect(fixture.events).toEqual([]);
     await expect(result).rejects.toMatchObject({
       phase: "outer-capability",
       publication_may_have_occurred: false,
       lease_may_remain: false,
     });
-    expect(fixture.events).toEqual(["outer-claim"]);
+    expect(fixture.events).toEqual([]);
   });
 
   it("claims the outer capability synchronously and keeps every authority in one ordered owner", async () => {
@@ -427,11 +434,10 @@ describe("Floodgate v7 training-label production owner", () => {
         fixture.capability,
         fixture.dependencies,
       );
-    expect(fixture.events[0]).toBe("outer-claim");
+    expect(fixture.events[0]).toBe("registry-load");
     const receipt = await result;
 
     expect(fixture.events).toEqual([
-      "outer-claim",
       "registry-load",
       "registry-claim",
       "approved-load",
@@ -445,10 +451,10 @@ describe("Floodgate v7 training-label production owner", () => {
       "finalizer",
     ]);
     expect(receipt).toMatchObject({
-      contract: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT,
-      status: FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS,
+      contract: FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CONTRACT,
+      status: FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_STATUS,
       claim_boundary:
-        FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY,
+        FLOODGATE_V7_TRAINING_LABEL_TEST_OWNER_RECEIPT_CLAIM_BOUNDARY,
       execution_boundary:
         "test-only-injected-owner-dependencies-and-real-held-file-preflight",
       output: {
@@ -462,11 +468,250 @@ describe("Floodgate v7 training-label production owner", () => {
     });
     expect(Object.getPrototypeOf(receipt)).toBeNull();
     expect(Object.getPrototypeOf(receipt.output)).toBeNull();
-    expect(Object.values(receipt.verification)).toEqual(Array(11).fill(true));
+    expect(receipt.contract).not.toBe(
+      FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CONTRACT,
+    );
+    expect(receipt.status).not.toBe(
+      FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS,
+    );
+    expect(receipt.claim_boundary).not.toBe(
+      FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_CLAIM_BOUNDARY,
+    );
+    expect(receipt.verification).toMatchObject({
+      outer_gate_capability_claimed_synchronously: false,
+      stage_authorized_under_outer_gate: false,
+    });
+    expect(
+      Object.values(receipt.verification).filter((value) => value === true),
+    ).toHaveLength(9);
     expect(Object.values(receipt.nonclaims)).toEqual(Array(12).fill(false));
     expect(JSON.stringify(receipt)).not.toContain(RUN_ID);
     expect(JSON.stringify(receipt)).not.toContain("stageRoot");
     expect(Object.isFrozen(receipt)).toBe(true);
+  });
+
+  it("rejects production-home aliases, production registry paths, and production owner identities at the test boundary", async () => {
+    const productionHome = fs.realpathSync.native(os.userInfo().homedir);
+    expect(() =>
+      authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(
+        productionHome,
+      ),
+    ).toThrow("production home");
+    const aliasRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "floodgate-v7-training-owner-home-alias-"),
+    );
+    temporaryRoots.push(aliasRoot);
+    const alias = path.join(aliasRoot, "home");
+    await fs.promises.symlink(productionHome, alias);
+    expect(() =>
+      authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(alias),
+    ).toThrow();
+
+    const ownerFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        ownerFixture.capability,
+        {
+          ...ownerFixture.dependencies,
+          loadRegistry: loadFloodgateV7ProductionConnectorRegistry,
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "outer-capability" });
+    expect(ownerFixture.events).toEqual([]);
+
+    const namespaceFixture = makeOwnerFixture();
+    const productionRepository = path.join(
+      productionHome,
+      ".codex",
+      "worktrees",
+      "shogi-floodgate-role-bundle",
+    );
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        namespaceFixture.capability,
+        {
+          ...namespaceFixture.dependencies,
+          claimRegistry: () => {
+            namespaceFixture.events.push("registry-claim");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: {
+                repositoryRoot: productionRepository,
+              },
+              consumer: {
+                repositoryRoot: productionRepository,
+              },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(namespaceFixture.events).toEqual([
+      "registry-load",
+      "registry-claim",
+    ]);
+
+    const engineArgumentFixture = makeOwnerFixture();
+    const claimRegistry = engineArgumentFixture.dependencies.claimRegistry;
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        engineArgumentFixture.capability,
+        {
+          ...engineArgumentFixture.dependencies,
+          claimRegistry: (capability) => {
+            const registry = claimRegistry(capability);
+            return {
+              ...registry,
+              stageAuthorization: {
+                ...registry.stageAuthorization,
+                engineArgs: [
+                  path.join(productionRepository, "engine-option.bin"),
+                ],
+              },
+            };
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(engineArgumentFixture.events).toEqual([
+      "registry-load",
+      "registry-claim",
+    ]);
+  });
+
+  it("binds test registry and lease paths to the exact authorized test home", async () => {
+    const canonicalTmp = fs.realpathSync.native(os.tmpdir());
+    const boundHome = await fs.promises.mkdtemp(
+      path.join(canonicalTmp, "floodgate-v7-training-owner-bound-home-"),
+    );
+    const foreignHome = await fs.promises.mkdtemp(
+      path.join(canonicalTmp, "floodgate-v7-training-owner-foreign-home-"),
+    );
+    temporaryRoots.push(boundHome, foreignHome);
+
+    const registryFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...registryFixture.dependencies,
+          claimRegistry: () => {
+            registryFixture.events.push("registry-claim");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: {
+                repositoryRoot: path.join(foreignHome, "repository"),
+              },
+              consumer: {
+                repositoryRoot: path.join(foreignHome, "repository"),
+              },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(registryFixture.events).toEqual(["registry-load", "registry-claim"]);
+
+    const foreignAlias = path.join(boundHome, "foreign-alias");
+    await fs.promises.symlink(foreignHome, foreignAlias);
+    const aliasFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...aliasFixture.dependencies,
+          claimRegistry: () => {
+            aliasFixture.events.push("registry-claim");
+            const repositoryRoot = path.join(foreignAlias, "repository");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: { repositoryRoot },
+              consumer: { repositoryRoot },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(aliasFixture.events).toEqual(["registry-load", "registry-claim"]);
+
+    const leaseFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...leaseFixture.dependencies,
+          claimRegistry: () => {
+            leaseFixture.events.push("registry-claim");
+            const repositoryRoot = path.join(boundHome, "repository");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: { repositoryRoot },
+              consumer: { repositoryRoot },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "stage-authorization" });
+    expect(leaseFixture.events).toEqual([
+      "registry-load",
+      "registry-claim",
+      "approved-load",
+      "approved-claim",
+      "current-binding",
+      "stage-authorize",
+    ]);
+  });
+
+  it("rejects a cloned or foreign stage lease before preflight, consumer, or finalizer authority", async () => {
+    const fixture = makeOwnerFixture();
+    let foreignCloseCalls = 0;
+    const dependencies = {
+      ...fixture.dependencies,
+      authorizeStage: () => {
+        fixture.events.push("stage-authorize");
+        return Promise.resolve({
+          ...fixture.lease,
+          close: (): Promise<void> => {
+            foreignCloseCalls += 1;
+            return Promise.reject(
+              new Error("foreign stage lease close must not run"),
+            );
+          },
+        });
+      },
+    };
+    const failure =
+      await runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        fixture.capability,
+        dependencies,
+      ).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ phase: "stage-authorization" });
+    expect(foreignCloseCalls).toBe(0);
+    expect(fixture.events).not.toContain("lease-close");
+    expect(fixture.events).not.toContain("stage-preflight");
+    expect(fixture.events).not.toContain("consumer-start");
+    expect(fixture.events).not.toContain("finalizer");
   });
 
   it("closes the still-owner-held lease on a pre-composer failure", async () => {
@@ -573,6 +818,45 @@ describe("Floodgate v7 training-label production owner", () => {
       "inspectFloodgateV7TrainingLabelProductionStageInternal",
     );
     expect(productionSlice).not.toContain("CoreForTests");
+    const ownerStart = source.indexOf(
+      "export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate(",
+    );
+    const owner = source.slice(ownerStart);
+    expect(
+      owner.indexOf("assertFloodgateV7ProductionApplicationEntrypointContext("),
+    ).toBeLessThan(
+      owner.indexOf(
+        "claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability(",
+      ),
+    );
+  });
+
+  it("rejects a direct/stale production-owner import before claiming the outer capability", async () => {
+    const failure = await Reflect.apply(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate,
+      undefined,
+      [Object.freeze({})],
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(
+      FloodgateV7TrainingLabelProductionOwnerError,
+    );
+    expect(failure).toMatchObject({
+      phase: "capture",
+      publication_may_have_occurred: false,
+      lease_may_remain: false,
+      cleanup_failure_count: 0,
+      retry_disposition: "fresh-invocation-required",
+    });
+    const projection = [
+      String(failure),
+      failure instanceof Error ? failure.stack : "",
+      JSON.stringify(failure),
+    ].join("\n");
+    expect(projection).not.toContain(
+      "ml/run-floodgate-v7-training-label-production.ts",
+    );
+    expect(projection).not.toContain(".codex/worktrees");
   });
 });
 

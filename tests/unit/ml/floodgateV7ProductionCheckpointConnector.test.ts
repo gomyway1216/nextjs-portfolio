@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
 
@@ -24,6 +25,7 @@ import {
   FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_STATUS,
   FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_ENROLLMENT_TRUST_BOUNDARY,
 } from "../../../ml/floodgate-v7-deployment-key-instance-enrollment";
+import { registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests } from "../../../ml/floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CLAIM_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_CHECKPOINT_CONNECTOR_CONTRACT,
@@ -36,6 +38,7 @@ import {
   type FloodgateV7ProductionCheckpointConnectorFailureEvidence,
   type FloodgateV7ProductionCheckpointConnectorOptions,
 } from "../../../ml/floodgate-v7-production-checkpoint-connector";
+import { inspectFloodgateV7DeploymentKeyReadiness } from "../../../ml/floodgate-v7-deployment-key-readiness";
 import {
   FLOODGATE_V7_DEPLOYMENT_KEY_READINESS_CLAIM_BOUNDARY,
   FLOODGATE_V7_DEPLOYMENT_KEY_READINESS_CONTRACT,
@@ -755,6 +758,7 @@ function makeFixture(
       return leaseClosePromise;
     },
   };
+  registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(lease);
   const bindingReceipt = configuration.runBindingOverride ?? runBinding();
   const produce = function executableCapabilityCanary(): Promise<never> {
     return Promise.reject(new Error(FUNCTION_CANARY));
@@ -1551,7 +1555,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
     },
   );
 
-  it("closes a malformed fulfilled stage when its receipt is a Proxy", async () => {
+  it("does not inspect or close a foreign fulfilled stage with a Proxy receipt", async () => {
     const fixture = makeFixture();
     let proxyTraps = 0;
     const receipt = new Proxy(
@@ -1589,12 +1593,13 @@ describe("Floodgate v7 production checkpoint connector", () => {
     expect(error).toMatchObject({
       phase: "coordinator-stage",
       checkpoint_may_have_persisted: false,
+      cleanup_failure_count: 0,
       retry_disposition: "operator-reconciliation-required",
     });
     expect(fixture.calls).toMatchObject({
       prepareKey: 0,
-      leaseCloseCalls: 1,
-      leaseCloseStarts: 1,
+      leaseCloseCalls: 0,
+      leaseCloseStarts: 0,
       coordinatorAbort: 1,
       coordinatorClose: 0,
     });
@@ -2691,6 +2696,7 @@ describe("Floodgate v7 production checkpoint connector", () => {
       ...fixture.lease,
       close: (): Promise<void> => settledVoid,
     };
+    registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(safeLease);
     const safeHandoff = {
       ...fixture.handoff,
       close: (): Promise<void> => settledVoid,
@@ -3189,6 +3195,114 @@ describe("Floodgate v7 production checkpoint connector", () => {
     ).rejects.toMatchObject({ phase: "capture" });
     expect(getterCalls).toBe(0);
     expect(fixture.calls.readiness).toBe(0);
+  });
+
+  it("rejects production namespace aliases and production owner identities at the test Core", async () => {
+    const namespaceFixture = makeFixture();
+    const productionRoot = path.join(
+      fs.realpathSync.native(os.userInfo().homedir),
+      ".codex",
+      "worktrees",
+      "shogi-floodgate-role-bundle",
+    );
+    const productionOptions = {
+      ...namespaceFixture.options,
+      stageAuthorization: {
+        ...namespaceFixture.options.stageAuthorization,
+        repositoryRoot: productionRoot,
+        legacyProtectedPositionIdsPath: path.join(
+          productionRoot,
+          "ml",
+          "data",
+          "wcsc36",
+          "int16-aware-replay-excluded-position-ids.txt",
+        ),
+      },
+      consumer: {
+        ...namespaceFixture.options.consumer,
+        repositoryRoot: productionRoot,
+        legacyProtectedPositionIdsPath: path.join(
+          productionRoot,
+          "ml",
+          "data",
+          "wcsc36",
+          "int16-aware-replay-excluded-position-ids.txt",
+        ),
+      },
+    };
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        productionOptions,
+        namespaceFixture.dependencies,
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
+    expect(namespaceFixture.calls.readiness).toBe(0);
+
+    const engineArgumentFixture = makeFixture();
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        {
+          ...engineArgumentFixture.options,
+          stageAuthorization: {
+            ...engineArgumentFixture.options.stageAuthorization,
+            engineArgs: [path.join(productionRoot, "engine-option.bin")],
+          },
+        },
+        engineArgumentFixture.dependencies,
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
+    expect(engineArgumentFixture.calls.readiness).toBe(0);
+
+    const ownerFixture = makeFixture();
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        ownerFixture.options,
+        {
+          ...ownerFixture.dependencies,
+          inspectKeyReadiness: inspectFloodgateV7DeploymentKeyReadiness,
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
+    expect(ownerFixture.calls.readiness).toBe(0);
+  });
+
+  it("rejects a cloned or foreign stage lease before key, consumer, or checkpoint authority", async () => {
+    const fixture = makeFixture();
+    const authorizeStage = fixture.dependencies.authorizeStage;
+    let foreignCloseCalls = 0;
+    fixture.dependencies = {
+      ...fixture.dependencies,
+      authorizeStage: async (options) => {
+        const authenticLease = await authorizeStage(options);
+        return {
+          ...authenticLease,
+          close: (): Promise<void> => {
+            foreignCloseCalls += 1;
+            return Promise.reject(
+              new Error("foreign stage lease close must not run"),
+            );
+          },
+        };
+      },
+    };
+
+    const failure = await rejectionOf(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        fixture.options,
+        fixture.dependencies,
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "coordinator-stage",
+      checkpoint_may_have_persisted: false,
+      cleanup_failure_count: 0,
+    });
+    expect(foreignCloseCalls).toBe(0);
+    expect(fixture.calls.leaseCloseCalls).toBe(0);
+    expect(fixture.calls.prepareKey).toBe(0);
+    expect(fixture.calls.consumer).toBe(0);
+    expect(fixture.calls.checkpoint).toBe(0);
   });
 
   it("rejects a test-only enrollment capability at the production entry before readiness", async () => {

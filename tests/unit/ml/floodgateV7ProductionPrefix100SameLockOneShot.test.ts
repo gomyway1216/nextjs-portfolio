@@ -10,7 +10,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
+  serializeFloodgateV7ProductionConnectorRegistryForInstallationCore,
 } from "../../../ml/floodgate-v7-production-connector-registry";
+import { FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT } from "../../../ml/floodgate-v7-production-application-source-provenance";
 import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_ACTIVE_BASENAME,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_CONTROL_BASENAME,
@@ -26,9 +28,9 @@ import {
 
 const EUID = process.geteuid?.() ?? 501;
 const ROOT_KEY = Buffer.from("73".repeat(32), "hex");
-const REGISTRY_CONTENT = `${JSON.stringify({ same_lock: true })}\n`;
+const APPLICATION_REVISION = "74".repeat(20);
 const PREFLIGHT_CONTRACT =
-  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2";
+  "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3";
 const TEST_PREFLIGHT_BOUNDARY =
   "test-only-injected-current-euid-home-read-only-observation";
 const roots: string[] = [];
@@ -37,9 +39,17 @@ interface Fixture {
   readonly home: string;
   readonly registryRoot: string;
   readonly registryPath: string;
+  readonly registryContent: string;
   readonly controlRoot: string;
   readonly activePath: string;
   readonly dependencies: FloodgateV7ProductionOuterGateLeaseDependenciesForTests;
+}
+
+function applicationSourceBinding(): Readonly<Record<string, unknown>> {
+  return frozenNullRecord({
+    layout: FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+    revision: APPLICATION_REVISION,
+  });
 }
 
 function frozenNullRecord(
@@ -81,13 +91,13 @@ function noGoOutcome(): Readonly<Record<string, unknown>> {
 
 function runnerReceipt(): Readonly<Record<string, unknown>> {
   return frozenNullRecord({
-    contract: "shogi-floodgate-v7-production-connector-runner-v1",
+    contract: "shogi-floodgate-v7-production-connector-runner-v2",
     status:
-      "registry-approved-current-bound-production-connector-gate-complete",
+      "application-source-bound-registry-approved-current-production-connector-gate-complete",
     claim_boundary:
-      "one-fixed-production-gate-after-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v1",
+      "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2",
     execution_boundary:
-      "production-fixed-gate-private-registry-and-capability-owners",
+      "production-fixed-application-source-bound-gate-private-registry-and-capability-owners",
     gate: "durable-prefix-100",
     checkpoint: frozenNullRecord({
       target_parents: 100,
@@ -99,6 +109,7 @@ function runnerReceipt(): Readonly<Record<string, unknown>> {
       approved_record_binding_matched: true,
       fresh_current_key_binding_validated: true,
       connector_completed: true,
+      exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       exact_prefix_100_read_only_continuity_postflight_completed: true,
     }),
     nonclaims: frozenNullRecord({
@@ -108,6 +119,12 @@ function runnerReceipt(): Readonly<Record<string, unknown>> {
       raw_connector_receipt_disclosed: false,
       key_material_disclosed: false,
       row_or_position_content_disclosed: false,
+      application_source_revision_disclosed: false,
+      application_source_path_disclosed: false,
+      application_source_digest_disclosed: false,
+      ignored_untracked_dependency_bytes_verified: false,
+      same_uid_race_isolation: false,
+      atomic_source_snapshot: false,
       teacher_label: false,
       optimizer_training: false,
       weight: false,
@@ -135,7 +152,35 @@ async function fixture(): Promise<Fixture> {
     registryRoot,
     FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   );
-  await fs.promises.writeFile(registryPath, REGISTRY_CONTENT, {
+  const repositoryRoot = path.join(home, "repository");
+  const registryContent =
+    serializeFloodgateV7ProductionConnectorRegistryForInstallationCore(
+      {
+        run_id: "11".repeat(32),
+        approved_key_binding: {
+          record_bytes: 4_096,
+          record_sha256: "22".repeat(32),
+          key_instance_id: "33".repeat(32),
+        },
+        verifier_revision: "44".repeat(20),
+        application_source_binding: applicationSourceBinding() as {
+          readonly layout: typeof FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT;
+          readonly revision: string;
+        },
+        repository_root: repositoryRoot,
+        raw_lock_root: path.join(home, "raw-lock"),
+        role_lock_root: path.join(home, "role-lock"),
+        role_bundle_root: path.join(home, "role-bundle"),
+        legacy_protected_position_ids_path: path.join(
+          repositoryRoot,
+          "protected-position-ids.txt",
+        ),
+        engine_args: [],
+      },
+      EUID,
+      "test-only-injected-current-euid-home-production-connector-registry",
+    );
+  await fs.promises.writeFile(registryPath, registryContent, {
     flag: "wx",
     mode: 0o600,
   });
@@ -148,6 +193,7 @@ async function fixture(): Promise<Fixture> {
     home,
     registryRoot,
     registryPath,
+    registryContent,
     controlRoot,
     activePath: path.join(
       controlRoot,
@@ -162,6 +208,7 @@ async function fixture(): Promise<Fixture> {
       now: () => new Date("2026-07-16T12:34:56.789Z"),
       nonce: () => randomBytes(32),
       installProcessLifecycleHandlers: false,
+      captureApplicationSourceForTests: async () => applicationSourceBinding(),
     },
   };
 }
@@ -301,11 +348,41 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
     ]);
     expect(descriptorCloses).toBe(1);
     expect(result.value).toEqual(runnerReceipt());
+    expect(result.lease).toMatchObject({
+      contract: "shogi-floodgate-v7-production-outer-gate-lease-v3",
+      mutation_purpose: "durable-prefix-100",
+      verification: {
+        application_source_binding_read_from_locked_registry: true,
+        exact_clean_tracked_application_source_closure_verified_before_persistent_mutation: true,
+        registry_anchor_revalidated_after_source_verification_before_persistent_mutation: true,
+      },
+      nonclaims: {
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
+      },
+    });
     expect(heldByCompetitor(environment.registryPath)).toBe(0);
   });
 
   it.each([
     ["NO-GO", () => noGoOutcome()],
+    [
+      "historical frozen v2 GO",
+      () =>
+        frozenNullRecord({
+          contract:
+            "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+          status: "GO-observed-under-outer-lock",
+          observation: frozenNullRecord({
+            execution_boundary: TEST_PREFLIGHT_BOUNDARY,
+            outer_control: "absent-pristine",
+          }),
+        }),
+    ],
     [
       "historical frozen v1 GO",
       () =>
@@ -372,7 +449,7 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
       expect(runnerCalls).toBe(0);
       expect(fs.existsSync(environment.controlRoot)).toBe(false);
       expect(await fs.promises.readFile(environment.registryPath, "utf8")).toBe(
-        REGISTRY_CONTENT,
+        environment.registryContent,
       );
     },
   );
@@ -420,10 +497,14 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
               capability,
             );
             const replacement = `${environment.registryPath}.replacement`;
-            await fs.promises.writeFile(replacement, REGISTRY_CONTENT, {
-              flag: "wx",
-              mode: 0o600,
-            });
+            await fs.promises.writeFile(
+              replacement,
+              environment.registryContent,
+              {
+                flag: "wx",
+                mode: 0o600,
+              },
+            );
             await fs.promises.rename(replacement, environment.registryPath);
             return goOutcome();
           },
@@ -484,6 +565,7 @@ darwinDescribe("Floodgate v7 prefix-100 same-lock one-shot outer owner", () => {
         approved_record_binding_matched: true,
         fresh_current_key_binding_validated: true,
         connector_completed: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       }),
       nonclaims: current.nonclaims,
     });

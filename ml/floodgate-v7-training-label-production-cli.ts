@@ -6,12 +6,17 @@
 
 import { types as nodeUtilTypes } from "node:util";
 
+import {
+  authorizeFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
+
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_CLI_SUCCESS_CONTRACT =
-  "shogi-floodgate-v7-training-label-production-cli-success-v1" as const;
+  "shogi-floodgate-v7-training-label-production-cli-success-v2" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_CLI_SUCCESS_STATUS =
   "fixed-production-training-label-finalization-complete" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_CLI_FAILURE_CONTRACT =
-  "shogi-floodgate-v7-training-label-production-cli-failure-v1" as const;
+  "shogi-floodgate-v7-training-label-production-cli-failure-v2" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_CLI_FAILURE_STATUS =
   "fixed-production-training-label-finalization-did-not-issue-success" as const;
 
@@ -19,7 +24,9 @@ interface RunnerModule {
   readonly FloodgateV7TrainingLabelProductionRunnerError: new (
     ...arguments_: never[]
   ) => Error;
-  readonly runFloodgateV7TrainingLabelProduction: () => Promise<unknown>;
+  readonly runFloodgateV7TrainingLabelProduction: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<unknown>;
 }
 
 const NativeError = Error;
@@ -41,13 +48,13 @@ const numberIsSafeInteger = Number.isSafeInteger;
 const REQUIRED_NODE_VERSION = "v22.13.0" as const;
 const MUTATION_PURPOSE = "training-label-finalization-24000" as const;
 const RUNNER_CONTRACT =
-  "shogi-floodgate-v7-training-label-production-runner-v1" as const;
+  "shogi-floodgate-v7-training-label-production-runner-v2" as const;
 const RUNNER_STATUS =
-  "authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate" as const;
+  "application-source-bound-authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate" as const;
 const RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-purpose-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v1" as const;
+  "one-fixed-purpose-and-application-source-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v2" as const;
 const RUNNER_EXECUTION_BOUNDARY =
-  "production-fixed-purpose-bound-outer-gate-owner-and-sanitized-artifact-evidence" as const;
+  "production-fixed-purpose-and-application-source-bound-outer-gate-owner-and-sanitized-artifact-evidence" as const;
 const RUNNER_RECEIPT_KEYS = objectFreeze([
   "contract",
   "status",
@@ -72,6 +79,7 @@ const RUNNER_VERIFICATION_KEYS = objectFreeze([
   "destination_content_reverified",
   "purpose_bound_outer_lease_removed_durably",
   "common_os_lock_released",
+  "exact_clean_tracked_application_source_closure_validated_under_outer_gate",
 ] as const);
 const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "path_disclosed",
@@ -84,6 +92,12 @@ const RUNNER_NONCLAIM_KEYS = objectFreeze([
   "raw_owner_receipt_disclosed",
   "raw_finalizer_receipt_disclosed",
   "row_or_position_content_disclosed",
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "teacher_truth",
   "optimizer_training",
   "weight",
@@ -192,7 +206,9 @@ function sanitizedSuccess(value: unknown): Readonly<object> {
     verification.owner_completed !== true ||
     verification.destination_content_reverified !== true ||
     verification.purpose_bound_outer_lease_removed_durably !== true ||
-    verification.common_os_lock_released !== true
+    verification.common_os_lock_released !== true ||
+    verification.exact_clean_tracked_application_source_closure_validated_under_outer_gate !==
+      true
   ) {
     throw new NativeError("training-label CLI success receipt differs");
   }
@@ -227,6 +243,14 @@ function sanitizedSuccess(value: unknown): Readonly<object> {
     destination_content_reverified: true as const,
     purpose_bound_outer_lease_removed_durably: true as const,
     common_os_lock_released: true as const,
+    exact_clean_tracked_application_source_closure_validated_under_outer_gate:
+      true as const,
+    application_source_revision_disclosed: false as const,
+    application_source_path_disclosed: false as const,
+    application_source_digest_disclosed: false as const,
+    ignored_untracked_dependency_bytes_verified: false as const,
+    same_uid_race_isolation: false as const,
+    atomic_source_snapshot: false as const,
     raw_outer_receipt_disclosed: false as const,
     raw_owner_receipt_disclosed: false as const,
     raw_finalizer_receipt_disclosed: false as const,
@@ -415,6 +439,10 @@ async function executeCli(): Promise<void> {
     ) {
       throw new NativeError("production training-label CLI invocation differs");
     }
+    const applicationCapability =
+      await authorizeFloodgateV7ProductionApplicationExecution(
+        MUTATION_PURPOSE,
+      );
     /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime checks. */
     const loadedRunner =
       require("./floodgate-v7-training-label-production-runner") as RunnerModule;
@@ -425,7 +453,9 @@ async function executeCli(): Promise<void> {
       throw new NativeError("production training-label runner export differs");
     }
     runnerInvoked = true;
-    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, []);
+    const rawRunnerReceipt = await nativeReflectApply(operation, undefined, [
+      applicationCapability,
+    ]);
     const publicReceipt = sanitizedSuccess(rawRunnerReceipt);
     try {
       await writeOutput(process.stdout, `${stringify(publicReceipt)}\n`);

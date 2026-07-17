@@ -8,6 +8,11 @@
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  claimFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
+import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import {
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_ALGORITHM,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_CONTRACT,
   FLOODGATE_V7_PRODUCTION_OUTER_GATE_LEASE_PRODUCTION_EXECUTION_BOUNDARY,
@@ -16,13 +21,13 @@ import {
 } from "./floodgate-v7-production-outer-gate-lease";
 
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_CONTRACT =
-  "shogi-floodgate-v7-training-label-production-runner-v1" as const;
+  "shogi-floodgate-v7-training-label-production-runner-v2" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_STATUS =
-  "authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate" as const;
+  "application-source-bound-authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-purpose-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v1" as const;
+  "one-fixed-purpose-and-application-source-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v2" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_EXECUTION_BOUNDARY =
-  "production-fixed-purpose-bound-outer-gate-owner-and-sanitized-artifact-evidence" as const;
+  "production-fixed-purpose-and-application-source-bound-outer-gate-owner-and-sanitized-artifact-evidence" as const;
 export const FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_RUNNER_MUTATION_PURPOSE =
   "training-label-finalization-24000" as const;
 
@@ -57,6 +62,7 @@ export interface FloodgateV7TrainingLabelProductionRunnerReceipt {
     readonly destination_content_reverified: true;
     readonly purpose_bound_outer_lease_removed_durably: true;
     readonly common_os_lock_released: true;
+    readonly exact_clean_tracked_application_source_closure_validated_under_outer_gate: true;
   }>;
   readonly nonclaims: Readonly<{
     readonly path_disclosed: false;
@@ -69,6 +75,12 @@ export interface FloodgateV7TrainingLabelProductionRunnerReceipt {
     readonly raw_owner_receipt_disclosed: false;
     readonly raw_finalizer_receipt_disclosed: false;
     readonly row_or_position_content_disclosed: false;
+    readonly application_source_revision_disclosed: false;
+    readonly application_source_path_disclosed: false;
+    readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly teacher_truth: false;
     readonly optimizer_training: false;
     readonly weight: false;
@@ -156,6 +168,9 @@ const OUTER_LEASE_KEYS = objectFreeze([
   "nonclaims",
 ] as const);
 const OUTER_VERIFICATION_KEYS = objectFreeze([
+  "application_source_binding_read_from_locked_registry",
+  "exact_clean_tracked_application_source_closure_verified_before_persistent_mutation",
+  "registry_anchor_revalidated_after_source_verification_before_persistent_mutation",
   "one_os_lifetime_lock_shared_by_all_four_mutation_purposes",
   "os_lifetime_lock_held_before_operation",
   "authenticated_purpose_bound_lease_metadata_durable_before_operation",
@@ -166,6 +181,12 @@ const OUTER_VERIFICATION_KEYS = objectFreeze([
   "quarantine_empty_after_operation",
 ] as const);
 const OUTER_NONCLAIM_KEYS = objectFreeze([
+  "application_source_revision_disclosed",
+  "application_source_path_disclosed",
+  "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "lock_or_lease_path_disclosed",
   "private_lease_metadata_disclosed",
   "key_material_disclosed",
@@ -444,6 +465,8 @@ function sanitizedSuccess(
       destination_content_reverified: true as const,
       purpose_bound_outer_lease_removed_durably: true as const,
       common_os_lock_released: true as const,
+      exact_clean_tracked_application_source_closure_validated_under_outer_gate:
+        true as const,
     }),
     nonclaims: frozenRecord({
       path_disclosed: false as const,
@@ -456,6 +479,12 @@ function sanitizedSuccess(
       raw_owner_receipt_disclosed: false as const,
       raw_finalizer_receipt_disclosed: false as const,
       row_or_position_content_disclosed: false as const,
+      application_source_revision_disclosed: false as const,
+      application_source_path_disclosed: false as const,
+      application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       teacher_truth: false as const,
       optimizer_training: false as const,
       weight: false as const,
@@ -529,11 +558,15 @@ export function runFloodgateV7TrainingLabelProductionRunnerCoreForTests(
   return runCapturedOuterOperation(operation);
 }
 
-/** Fixed production runner. No path, option, key, callback, or dependency seam. */
-export function runFloodgateV7TrainingLabelProduction(): Promise<
-  Readonly<FloodgateV7TrainingLabelProductionRunnerReceipt>
-> {
-  if (arguments.length !== 0) {
+/** Fixed production runner. Its sole input is the verified source capability. */
+export function runFloodgateV7TrainingLabelProduction(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<Readonly<FloodgateV7TrainingLabelProductionRunnerReceipt>> {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-training-label-production.ts",
+    );
+  } catch {
     return NativePromise.reject(
       new FloodgateV7TrainingLabelProductionRunnerError(
         "capture",
@@ -543,7 +576,35 @@ export function runFloodgateV7TrainingLabelProduction(): Promise<
       ),
     );
   }
-  return runCapturedOuterOperation(
-    runFloodgateV7ProductionOuterGateTrainingLabelFinalization,
+  if (arguments.length !== 1) {
+    return NativePromise.reject(
+      new FloodgateV7TrainingLabelProductionRunnerError(
+        "capture",
+        false,
+        false,
+        0,
+      ),
+    );
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "training-label-finalization-24000",
+      "runner-entry",
+    );
+  } catch {
+    return NativePromise.reject(
+      new FloodgateV7TrainingLabelProductionRunnerError(
+        "capture",
+        false,
+        false,
+        0,
+      ),
+    );
+  }
+  return runCapturedOuterOperation(() =>
+    runFloodgateV7ProductionOuterGateTrainingLabelFinalization(
+      applicationExecutionCapability,
+    ),
   );
 }

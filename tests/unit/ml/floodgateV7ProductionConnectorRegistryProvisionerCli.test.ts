@@ -81,6 +81,7 @@ function runCli(
   arguments_: readonly string[],
   mode:
     | "success"
+    | "source-context-failure"
     | "typed-failure"
     | "readiness-failure"
     | "forged-typed-failure"
@@ -95,6 +96,10 @@ function runCli(
 const Module = require("node:module");
 const originalLoad = Module._load;
 let provisionerLoads = 0;
+let sourceAuthorizationCalls = 0;
+const applicationExecutionCapability = Object.freeze({
+  contract: "test-opaque-application-execution-capability",
+});
 class ProvisionerError extends Error {
   constructor() {
     super(${JSON.stringify(VALUE_CANARY)});
@@ -107,13 +112,15 @@ class ProvisionerError extends Error {
   }
 }
 const successReceipt = () => ({
-  contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v2",
+  contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v3",
   status: "immutable-private-run-registry-created-bound-and-postflight-validated",
   execution_boundary: "production-fixed-current-euid-private-registry-provisioning",
   verification: {
     verifier_source_artifact_closure_checked_before_install: true,
+    production_application_tracked_source_closure_checked_before_current_key_and_install: true,
     approved_record_current_key_binding_checked: true,
     approved_record_bound_into_registry: true,
+    application_source_binding_bound_and_postflight_checked: true,
     run_id_generated_from_32_byte_csprng: true,
     fixed_configuration_only: true,
     create_only_install_succeeded: true,
@@ -124,6 +131,12 @@ const successReceipt = () => ({
   nonclaims: {
     run_id_disclosed: false,
     approved_record_digest_disclosed: false,
+    application_source_revision_disclosed: false,
+    application_source_path_disclosed: false,
+    application_source_digest_disclosed: false,
+    ignored_untracked_dependency_bytes_verified: false,
+    same_uid_race_isolation: false,
+    atomic_source_snapshot: false,
     key_instance_id_disclosed: false,
     owner_uid_disclosed: false,
     path_disclosed: false,
@@ -141,11 +154,23 @@ const successReceipt = () => ({
   },
 });
 Module._load = function (request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-application-source-authorization")) {
+    return {
+      authorizeFloodgateV7ProductionApplicationExecution: async (purpose) => {
+        sourceAuthorizationCalls += 1;
+        if (purpose !== "production-registry-provision") throw new Error("PURPOSE_DIFFERS");
+        if (${JSON.stringify(mode)} === "source-context-failure") throw new Error(${JSON.stringify(VALUE_CANARY)});
+        return applicationExecutionCapability;
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-production-connector-registry-provisioner")) {
+    if (sourceAuthorizationCalls !== 1) throw new Error("SOURCE_NOT_AUTHORIZED");
     provisionerLoads += 1;
     return {
       FloodgateV7ProductionConnectorRegistryProvisionerError: ProvisionerError,
-      provisionFloodgateV7ProductionConnectorRegistry: async () => {
+      provisionFloodgateV7ProductionConnectorRegistry: async (capability) => {
+        if (capability !== applicationExecutionCapability) throw new Error("CAPABILITY_DIFFERS");
         if (${JSON.stringify(mode)} === "typed-failure") throw new ProvisionerError();
         if (${JSON.stringify(mode)} === "readiness-failure") {
           const failure = new ProvisionerError();
@@ -169,7 +194,7 @@ Module._load = function (request, parent, isMain) {
           throw forged;
         }
         if (${JSON.stringify(mode)} === "unknown-failure") throw new Error(${JSON.stringify(VALUE_CANARY)});
-        if (${JSON.stringify(mode)} === "old-v1-receipt") return { ...successReceipt(), contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v1" };
+        if (${JSON.stringify(mode)} === "old-v1-receipt") return { ...successReceipt(), contract: "shogi-floodgate-v7-production-connector-registry-provisioner-v2" };
         if (${JSON.stringify(mode)} === "bad-receipt") return { ...successReceipt(), private_value: ${JSON.stringify(VALUE_CANARY)} };
         return successReceipt();
       },
@@ -253,6 +278,17 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     expect(result.stderr).not.toContain(VALUE_CANARY);
   });
 
+  it("rejects a mismatched application entrypoint before loading mutation-capable code", () => {
+    const result = runCli([], "source-context-failure");
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe(NO_CHANGE_FAILURE_MESSAGE);
+    expect(result.stderr).not.toContain("PROVISIONER_WAS_LOADED");
+    expect(result.stderr).not.toContain(VALUE_CANARY);
+  });
+
   it("prints one sanitized success receipt", () => {
     const result = runCli([], "success");
 
@@ -262,17 +298,20 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     const receipt = JSON.parse(result.stdout) as Record<string, unknown>;
     expect(receipt).toMatchObject({
       contract:
-        "shogi-floodgate-v7-production-connector-registry-provisioner-v2",
+        "shogi-floodgate-v7-production-connector-registry-provisioner-v3",
       status:
         "immutable-private-run-registry-created-bound-and-postflight-validated",
       execution_boundary:
         "production-fixed-current-euid-private-registry-provisioning",
       verification: {
         verifier_source_artifact_closure_checked_before_install: true,
+        production_application_tracked_source_closure_checked_before_current_key_and_install: true,
+        application_source_binding_bound_and_postflight_checked: true,
         sensitive_values_exported: false,
       },
       nonclaims: {
         run_id_disclosed: false,
+        application_source_revision_disclosed: false,
         path_disclosed: false,
         playing_strength: false,
       },
@@ -329,7 +368,7 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     },
   );
 
-  it("rejects a historical v1 success receipt at the v2 CLI boundary", () => {
+  it("rejects a historical v2 success receipt at the v3 CLI boundary", () => {
     const result = runCli([], "old-v1-receipt");
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
@@ -381,6 +420,12 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     const lazyRequire = mainSource.indexOf(
       'require("./floodgate-v7-production-connector-registry-provisioner")',
     );
+    const sourceAuthorizationRequire = mainSource.indexOf(
+      'require("./floodgate-v7-production-application-source-authorization")',
+    );
+    const sourceAuthorization = mainSource.indexOf(
+      "authorizeFloodgateV7ProductionApplicationExecution",
+    );
     const projectionStart = source.indexOf("function sanitizedFailure");
     const projection = source.slice(projectionStart, mainStart);
 
@@ -388,7 +433,9 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     expect(entryStart).toBeGreaterThan(mainStart);
     expect(argumentCheck).toBeGreaterThan(-1);
     expect(runtimeCheck).toBeGreaterThan(argumentCheck);
-    expect(lazyRequire).toBeGreaterThan(runtimeCheck);
+    expect(sourceAuthorizationRequire).toBeGreaterThan(runtimeCheck);
+    expect(sourceAuthorization).toBeGreaterThan(sourceAuthorizationRequire);
+    expect(lazyRequire).toBeGreaterThan(sourceAuthorization);
     expect(source).not.toMatch(/process\.(?:stdin|env)\b/);
     expect(source).not.toMatch(/\bJSON\.parse\b|\breadline\b|\bargv\s*\[/);
     expect(source).not.toMatch(

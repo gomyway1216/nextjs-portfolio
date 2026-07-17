@@ -295,7 +295,7 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
     });
   });
 
-  it("binds v1 readiness to current v2 consumer contracts and rejects old v1 shapes", () => {
+  it("binds v1 readiness to current source-bound v3 consumer contracts and rejects old source shapes", () => {
     const readiness = readText(READINESS_SOURCE_PATH);
     const provisioner = readText(PROVISIONER_SOURCE_PATH);
     const provisionerCli = readText(PROVISIONER_CLI_SOURCE_PATH);
@@ -307,21 +307,32 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
     );
     expect(readiness).toContain('"e8a9197608cb48b1160b6707d97b0c4f78f90a1d"');
     expect(provisioner).toContain(
-      '"shogi-floodgate-v7-production-connector-registry-provisioner-v2"',
+      '"shogi-floodgate-v7-production-connector-registry-provisioner-v3"',
     );
-    expect(provisioner).not.toContain(
-      '"shogi-floodgate-v7-production-connector-registry-provisioner-v1"',
-    );
+    for (const version of ["v1", "v2"]) {
+      expect(provisioner).not.toContain(
+        `"shogi-floodgate-v7-production-connector-registry-provisioner-${version}"`,
+      );
+    }
     expect(provisionerCli).toContain(
-      '"shogi-floodgate-v7-production-connector-registry-provision-failure-v2"',
+      '"shogi-floodgate-v7-production-connector-registry-provision-failure-v3"',
     );
-    expect(provisionerCli).not.toContain(
-      '"shogi-floodgate-v7-production-connector-registry-provision-failure-v1"',
-    );
+    for (const version of ["v1", "v2"]) {
+      expect(provisionerCli).not.toContain(
+        `"shogi-floodgate-v7-production-connector-registry-provision-failure-${version}"`,
+      );
+    }
     for (const marker of [
-      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2",
-      "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2",
-      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v3",
+      "point-in-time-fixed-current-user-exact-clean-tracked-application-source-bound-read-only-observation-without-gate-authority-or-persistent-mutation-v3",
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v3",
+      "application_source_binding_matched_to_exact_clean_tracked_application_closure",
+      "ignored_untracked_dependency_bytes_verified",
+      "same_uid_race_isolation",
+      "atomic_source_snapshot",
+      "application_source_revision_disclosed",
+      "application_source_path_disclosed",
+      "application_source_digest_disclosed",
     ]) {
       expect(preflight).toContain(marker);
     }
@@ -329,21 +340,37 @@ describe("Floodgate v7 production verifier Git/artifact closure evidence", () =>
       "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v1",
       "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v1",
       "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v1",
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-v2",
+      "point-in-time-fixed-current-user-read-only-observation-without-gate-authority-or-persistent-mutation-v2",
+      "shogi-floodgate-v7-production-prefix-100-read-only-preflight-under-lock-outcome-v2",
     ]) {
       expect(preflight).not.toContain(marker);
     }
     expect(preflightCli).toContain(
-      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v2"',
+      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v3"',
     );
     expect(preflightCli).toContain(
-      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v2"',
+      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v3"',
     );
-    expect(preflightCli).not.toContain(
-      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v1"',
-    );
-    expect(preflightCli).not.toContain(
-      '"shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-v1"',
-    );
+    for (const version of ["v1", "v2"]) {
+      expect(preflightCli).not.toContain(
+        `"shogi-floodgate-v7-production-prefix-100-preflight-cli-success-${version}"`,
+      );
+      expect(preflightCli).not.toContain(
+        `"shogi-floodgate-v7-production-prefix-100-preflight-cli-failure-${version}"`,
+      );
+    }
+    for (const marker of [
+      "application_source_binding_matched_to_exact_clean_tracked_application_closure",
+      "ignored_untracked_dependency_bytes_verified",
+      "same_uid_race_isolation",
+      "atomic_source_snapshot",
+      "application_source_revision_disclosed",
+      "application_source_path_disclosed",
+      "application_source_digest_disclosed",
+    ]) {
+      expect(preflightCli).toContain(marker);
+    }
   });
 
   it("fixes the identity, ordering, and failure-before-install boundary", () => {

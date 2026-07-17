@@ -268,6 +268,7 @@ describe("Floodgate v7 disposable prefix-100 kill drill contract", () => {
     expect(childSource).toContain(
       "checkpointFloodgateV7TeacherParentsV3CoreForTests",
     );
+    expect(childSource).toContain("captureApplicationSourceForTests");
     const parentSource = await fs.promises.readFile(
       path.resolve("ml/floodgate-v7-production-prefix-100-kill-drill.ts"),
       "utf8",

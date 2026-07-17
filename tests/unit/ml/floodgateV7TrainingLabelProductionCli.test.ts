@@ -81,14 +81,42 @@ function runEntry(
     | "unknown",
   arguments_: readonly string[] = [],
   wrongRuntime = false,
+  sourceGuard: Readonly<{
+    expectedPurposeEntrypoint?: string;
+    throws?: boolean;
+  }> = {},
 ): SpawnSyncReturns<string> {
+  const expectedPurposeEntrypoint =
+    sourceGuard.expectedPurposeEntrypoint ??
+    "ml/run-floodgate-v7-training-label-production.ts";
   const launcher = String.raw`
 const Module = require("node:module");
 const originalLoad = Module._load;
 const privateCanary = ${JSON.stringify(PRIVATE_CANARY)};
+const applicationCapability = Object.freeze({ applicationCapability: true });
+let sourceGuardCalls = 0;
 Module._load = function (request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-application-source-authorization")) {
+    return {
+      async authorizeFloodgateV7ProductionApplicationExecution(purpose) {
+        sourceGuardCalls += 1;
+        if (
+          sourceGuardCalls !== 1 ||
+          purpose !== "training-label-finalization-24000" ||
+          ${JSON.stringify(expectedPurposeEntrypoint)} !== "ml/run-floodgate-v7-training-label-production.ts" ||
+          ${JSON.stringify(sourceGuard.throws === true)}
+        ) {
+          throw new Error(privateCanary);
+        }
+        return applicationCapability;
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-training-label-production-runner")) {
-    if (${JSON.stringify(mode)} === "load-must-not-happen") throw new Error(privateCanary);
+    if (${JSON.stringify(mode)} === "load-must-not-happen" || sourceGuardCalls !== 1) {
+      process.stdout.write(privateCanary);
+      throw new Error(privateCanary);
+    }
     class RunnerError extends Error {
       constructor() {
         super("sanitized runner failure");
@@ -103,10 +131,10 @@ Module._load = function (request, parent, isMain) {
       }
     }
     const receipt = () => ({
-      contract: "shogi-floodgate-v7-training-label-production-runner-v1",
-      status: "authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate",
-      claim_boundary: "one-fixed-purpose-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v1",
-      execution_boundary: "production-fixed-purpose-bound-outer-gate-owner-and-sanitized-artifact-evidence",
+      contract: "shogi-floodgate-v7-training-label-production-runner-v2",
+      status: "application-source-bound-authenticated-training-label-artifacts-finalized-published-and-reverified-under-common-production-outer-gate",
+      claim_boundary: "one-fixed-purpose-and-application-source-bound-production-training-label-finalization-without-path-run-key-identity-row-or-raw-receipt-disclosure-v2",
+      execution_boundary: "production-fixed-purpose-and-application-source-bound-outer-gate-owner-and-sanitized-artifact-evidence",
       mutation_purpose: "training-label-finalization-24000",
       output: {
         parents: 24000,
@@ -121,6 +149,7 @@ Module._load = function (request, parent, isMain) {
         destination_content_reverified: true,
         purpose_bound_outer_lease_removed_durably: true,
         common_os_lock_released: true,
+        exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
       },
       nonclaims: {
         path_disclosed: false,
@@ -133,6 +162,12 @@ Module._load = function (request, parent, isMain) {
         raw_owner_receipt_disclosed: false,
         raw_finalizer_receipt_disclosed: false,
         row_or_position_content_disclosed: false,
+        application_source_revision_disclosed: false,
+        application_source_path_disclosed: false,
+        application_source_digest_disclosed: false,
+        ignored_untracked_dependency_bytes_verified: false,
+        same_uid_race_isolation: false,
+        atomic_source_snapshot: false,
         teacher_truth: false,
         optimizer_training: false,
         weight: false,
@@ -143,7 +178,8 @@ Module._load = function (request, parent, isMain) {
     });
     return {
       FloodgateV7TrainingLabelProductionRunnerError: RunnerError,
-      runFloodgateV7TrainingLabelProduction: async () => {
+      runFloodgateV7TrainingLabelProduction: async (capability) => {
+        if (capability !== applicationCapability) throw new Error(privateCanary);
         if (${JSON.stringify(mode)} === "unknown") throw new Error(privateCanary);
         if (${JSON.stringify(mode)} === "typed-failure") throw new RunnerError();
         if (${JSON.stringify(mode)} === "inconsistent-typed") {
@@ -248,6 +284,41 @@ describe("Floodgate v7 training-label production CLI", () => {
     });
   });
 
+  it("rejects a mismatched purpose entry before lazy-loading the runner", () => {
+    const result = runEntry("load-must-not-happen", [], false, {
+      expectedPurposeEntrypoint:
+        "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      phase: "capture",
+      publication_may_have_occurred: false,
+      lease_may_remain: false,
+      cleanup_failure_count: 0,
+      success_receipt_issued: false,
+    });
+  });
+
+  it("sanitizes a source guard failure before lazy-loading the runner", () => {
+    const result = runEntry("load-must-not-happen", [], false, {
+      throws: true,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toContain(PRIVATE_CANARY);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      phase: "capture",
+      publication_may_have_occurred: false,
+      lease_may_remain: false,
+      cleanup_failure_count: 0,
+      success_receipt_issued: false,
+    });
+  });
+
   it("publishes one allowlisted success line", () => {
     const result = runEntry("success");
     expect(result.error).toBeUndefined();
@@ -274,6 +345,13 @@ describe("Floodgate v7 training-label production CLI", () => {
       destination_content_reverified: true,
       purpose_bound_outer_lease_removed_durably: true,
       common_os_lock_released: true,
+      exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
+      application_source_revision_disclosed: false,
+      application_source_path_disclosed: false,
+      application_source_digest_disclosed: false,
+      ignored_untracked_dependency_bytes_verified: false,
+      same_uid_race_isolation: false,
+      atomic_source_snapshot: false,
       raw_outer_receipt_disclosed: false,
       raw_owner_receipt_disclosed: false,
       raw_finalizer_receipt_disclosed: false,
@@ -352,7 +430,7 @@ describe("Floodgate v7 training-label production CLI", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("checks argv and runtime before require and has no ambient input or raw projection", async () => {
+  it("checks argv, runtime, and source before require and has no ambient input or raw projection", async () => {
     const source = await fs.promises.readFile(CLI_SOURCE_PATH, "utf8");
     const executeStart = source.indexOf("async function executeCli");
     const executeSource = source.slice(executeStart);
@@ -360,13 +438,17 @@ describe("Floodgate v7 training-label production CLI", () => {
     const runtimeCheck = executeSource.indexOf(
       "process.version !== REQUIRED_NODE_VERSION",
     );
+    const sourceGuard = executeSource.indexOf(
+      "authorizeFloodgateV7ProductionApplicationExecution(",
+    );
     const lazyRequire = executeSource.indexOf(
       'require("./floodgate-v7-training-label-production-runner")',
     );
     expect(executeStart).toBeGreaterThan(-1);
     expect(argumentCheck).toBeGreaterThan(-1);
     expect(runtimeCheck).toBeGreaterThan(argumentCheck);
-    expect(runtimeCheck).toBeLessThan(lazyRequire);
+    expect(sourceGuard).toBeGreaterThan(runtimeCheck);
+    expect(sourceGuard).toBeLessThan(lazyRequire);
     expect(source).not.toMatch(/process\.(?:stdin|env|cwd)\b/u);
     expect(source).not.toMatch(/process\.exit\s*\(/u);
     expect(source).not.toContain("stringify(rawRunnerReceipt)");
@@ -375,7 +457,7 @@ describe("Floodgate v7 training-label production CLI", () => {
     expect(source).toContain("raw_finalizer_receipt_disclosed: false");
   });
 
-  it("publishes the caffeinated fixed production command", async () => {
+  it("publishes the native-attested fixed production command", async () => {
     const packageJson = JSON.parse(
       await fs.promises.readFile(
         path.join(REPOSITORY_ROOT, "package.json"),
@@ -385,7 +467,7 @@ describe("Floodgate v7 training-label production CLI", () => {
     expect(
       packageJson.scripts["shogi:floodgate-v7-training-label-production"],
     ).toBe(
-      "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-training-label-production.ts",
+      '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" training-label-finalization-24000',
     );
   });
 });

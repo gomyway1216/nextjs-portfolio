@@ -75,7 +75,7 @@
     "helper": "integerValue",
     "ordered_conversion": [
       "ObjC.unwrap-foundation-numeric-value",
-      "convert-with-Number",
+      "require-javascript-number-type",
       "require-Number.isSafeInteger",
       "return-integer-or-fail-closed-before-authorization"
     ],
@@ -85,11 +85,11 @@
       "child-task-termination-status"
     ],
     "darwin_runtime_regression_added": true,
-    "darwin_runtime_regression_scope": "read-real-foundation-file-mode-and-process-identifier-then-launch-usr-bin-true-and-validate-unwrapped-safe-integer-permission-pid-and-termination-status",
+    "darwin_runtime_regression_scope": "read-real-foundation-file-mode-and-process-identifier-then-launch-usr-bin-true-and-validate-unwrapped-number-typed-safe-integer-permission-pid-and-termination-status-while-rejecting-numeric-string-boolean-and-nsnull",
     "darwin_runtime_regression_final_result": "PASS-1-file-23-tests",
-    "exact_commit": "03d5ef257b19c4d429626065d957487517cd86c4",
-    "pull_request_number": "PENDING",
-    "pull_request_url": "PENDING",
+    "exact_commit": "49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a",
+    "pull_request_number": 483,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/483",
     "final_local_validation": "PASS",
     "independent_review": "PASS-P0-P1-P2-zero",
     "github_ci": "PENDING",
@@ -166,7 +166,7 @@
   "validation": {
     "root_cause_host_diagnostic": "PROVED",
     "pr482_checks_reused_as_fix_candidate_validation": false,
-    "exact_implementation_revision": "03d5ef257b19c4d429626065d957487517cd86c4",
+    "exact_implementation_revision": "49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a",
     "focused_darwin_launcher": {
       "status": "PASS",
       "test_files": 1,
@@ -176,45 +176,47 @@
       "status": "PASS",
       "test_files": 166,
       "tests": 3058,
-      "vitest_seconds": 303.62,
-      "wall_seconds": 303.99,
+      "vitest_seconds": 337.77,
+      "wall_seconds": 338.24,
       "max_workers": 8,
-      "maximum_resident_set_bytes": 2374696960,
+      "maximum_resident_set_bytes": 2348466176,
       "swaps": 0,
       "block_input_operations": 0,
       "block_output_operations": 0
     },
     "production_build": {
       "status": "PASS",
-      "wall_seconds": 24.67,
-      "maximum_resident_set_bytes": 2640740352,
+      "pages_built": 193,
+      "pages_total": 193,
+      "wall_seconds": 38.26,
+      "maximum_resident_set_bytes": 2565996544,
       "swaps": 0,
       "block_input_operations": 0,
       "block_output_operations": 0
     },
     "typescript": {
       "status": "PASS",
-      "wall_seconds": 2.75,
-      "maximum_resident_set_bytes": 1141014528
+      "wall_seconds": 3.65,
+      "maximum_resident_set_bytes": 1164427264
     },
     "full_eslint": {
       "status": "PASS",
       "errors": 0,
       "existing_warnings": 157,
-      "wall_seconds": 24.22,
-      "maximum_resident_set_bytes": 1397096448
+      "wall_seconds": 28.4,
+      "maximum_resident_set_bytes": 1470316544
     },
     "ml_stdlib": {
       "status": "PASS",
       "tests": 58,
-      "wall_seconds": 0.36,
-      "maximum_resident_set_bytes": 56967168
+      "wall_seconds": 0.42,
+      "maximum_resident_set_bytes": 64618496
     },
     "npm_audit": {
       "status": "PASS",
       "vulnerabilities": 0,
-      "wall_seconds": 0.47,
-      "maximum_resident_set_bytes": 132907008
+      "wall_seconds": 0.56,
+      "maximum_resident_set_bytes": 133251072
     },
     "osacompile": "PASS",
     "prettier_changed_files": "PASS",
@@ -255,7 +257,7 @@
     "automatic_adopt_overwrite_or_rotation": false
   },
   "nonclaims": {
-    "fix_pull_request_known": false,
+    "fix_pull_request_known": true,
     "fix_exact_commit_known": true,
     "fix_final_validation_complete": true,
     "fix_merged": false,

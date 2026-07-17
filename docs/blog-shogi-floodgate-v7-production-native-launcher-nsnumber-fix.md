@@ -1,6 +1,6 @@
 # JXAのNSNumber変換で止まったproduction launcherを修正する — Floodgate v7
 
-> [PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482)はGitHub check 6 / 6を通過し、通常のmerge commit `52d73dd5a82de2ca508da2aee664326c47acc5d2`で統合された。その後、固定production applicationをこのmergeへ合わせて最初のreadinessを実行したところ、native launcherがauthorizationより前にexit 70で停止した。原因はFoundationの`NSNumber`をJXAの`Number(...)`へ直接渡した数値変換だった。修正はexact commit `03d5ef257b19c4d429626065d957487517cd86c4`へ固定し、`ObjC.unwrap(...)`後のsafe integer変換をfile permissions、PID、task statusへ適用した。full 3,058 testsを含むlocal validationと独立auditはPASSしたが、修正PR番号、final-head GitHub CI、通常mergeはPENDINGである。productionは引き続き**STOP**であり、registry、教師、学習、weight、live評価は変更していない。English version: [blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.en.md](./blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.en.md)
+> [PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482)はGitHub check 6 / 6を通過し、通常のmerge commit `52d73dd5a82de2ca508da2aee664326c47acc5d2`で統合された。その後、固定production applicationをこのmergeへ合わせて最初のreadinessを実行したところ、native launcherがauthorizationより前にexit 70で停止した。原因はFoundationの`NSNumber`をJXAの`Number(...)`へ直接渡した数値変換だった。修正はexact commit `49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a`へ固定し、`ObjC.unwrap(...)`後にnumber型とsafe integerの両方を要求する変換をfile permissions、PID、task statusへ適用した。full 3,058 testsを含むlocal validationと独立auditはPASSし、修正はreview-readyの[PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)として公開済みだが、final-head GitHub CIと通常mergeはPENDINGである。productionは引き続き**STOP**であり、registry、教師、学習、weight、live評価は変更していない。English version: [blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.en.md](./blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.en.md)
 
 ## 1. 結論
 
@@ -55,7 +55,7 @@ JXAではObjective-C bridge objectの見た目がJavaScript primitiveに近く�
 ```text
 Foundation numeric value
   -> ObjC.unwrap
-  -> Number
+  -> require JavaScript number type
   -> Number.isSafeInteger
   -> integer、またはauthorization前にfail closed
 ```
@@ -66,7 +66,7 @@ Foundation numeric value
 2. live parent照合に使うcurrent process PID
 3. child taskの終了判定に使うtermination status
 
-Darwin runtime regressionは、source textに`unwrap`という文字があるだけでなく、実際にFoundationからfile attributeを取得し、unwrap後のpermissionがfilesystemのmodeと一致するsafe integerであることを検査する。これは今回のhost固有挙動を再現するための回帰境界である。
+Darwin runtime regressionは、source textに`unwrap`という文字があるだけでなく、実際にFoundationからfile attributeを取得し、unwrap後のpermissionがfilesystemのmodeと一致するsafe integerであることを検査する。さらにnumeric string、boolean、`NSNull`は拒否し、JavaScriptの数値coercionで異常型を0として受理しないことも固定する。これは今回のhost固有挙動とfail-closed型境界を再現するための回帰境界である。
 
 一方、この修正はtool byte closure、atomic process-lineage snapshot、same-UID / ancestor hostile process isolation、ignored dependency closureを追加しない。また、readiness success、registry authority、reconciliation authority、棋力証拠も発行しない。
 
@@ -93,15 +93,15 @@ registryがabsentであることも、作成してよいauthorityにはならな
 | gate / 検査                        | 状態    | exact結果                                                                                  |
 | ---------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
 | 根本原因のhost診断                 | PROVED  | direct wrapper conversionは`NaN`、unwrap後はexact 493                                      |
-| exact fix commit                   | PASS    | `03d5ef257b19c4d429626065d957487517cd86c4`                                                 |
+| exact fix commit                   | PASS    | `49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a`                                                 |
 | Darwin launcher regression         | PASS    | 1 file / 23 tests、Foundation mode / PID / `/usr/bin/true` termination statusを実機確認    |
-| full Vitest                        | PASS    | 166 / 166 files、3,058 / 3,058 tests、303.62秒、wall 303.99秒、最大RSS 2,374,696,960 bytes |
-| production build                   | PASS    | wall 24.67秒、最大RSS 2,640,740,352 bytes、swap / block I/O 0                              |
-| TypeScript / full ESLint           | PASS    | 2.75秒 / errors 0・既存warnings 157・24.22秒                                               |
-| ML stdlib / npm audit              | PASS    | 58 / 58、0.36秒 / vulnerabilities 0、0.47秒                                                |
+| full Vitest                        | PASS    | 166 / 166 files、3,058 / 3,058 tests、337.77秒、wall 338.24秒、最大RSS 2,348,466,176 bytes |
+| production build                   | PASS    | 193 / 193 pages、wall 38.26秒、最大RSS 2,565,996,544 bytes、swap / block I/O 0             |
+| TypeScript / full ESLint           | PASS    | 3.65秒 / errors 0・既存warnings 157・28.40秒                                               |
+| ML stdlib / npm audit              | PASS    | 58 / 58、0.42秒 / vulnerabilities 0、0.56秒                                                |
 | Prettier / JXA syntax              | PASS    | changed files / `osacompile -l JavaScript`                                                 |
 | independent final audit            | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                   |
-| fix pull request                   | PENDING | 番号未確定                                                                                 |
+| fix pull request                   | OPEN    | review-ready [#483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)              |
 | final-head GitHub CI / review      | PENDING | 完了を先取りしない                                                                         |
 | regular merge                      | PENDING | 全gate通過後のみ                                                                           |
 | production application realignment | BLOCKED | fix PR自身のmerge commit待ち                                                               |

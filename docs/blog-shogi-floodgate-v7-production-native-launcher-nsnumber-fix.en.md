@@ -1,6 +1,6 @@
 # Fixing the production launcher stopped by JXA NSNumber conversion — Floodgate v7
 
-> [PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482) passed all six GitHub checks and was integrated with regular merge commit `52d73dd5a82de2ca508da2aee664326c47acc5d2`. After aligning the fixed production application to that merge, the first readiness run stopped in the native launcher before authorization with exit 70. The cause was conversion of a Foundation `NSNumber` by passing it directly to JXA `Number(...)`. The fix is pinned to exact commit `03d5ef257b19c4d429626065d957487517cd86c4`; it centralizes safe-integer conversion after `ObjC.unwrap(...)` for file permissions, the PID, and task status. Local validation, including the full 3,058-test suite, and independent audit pass, while the fix PR number, final-head GitHub CI, and regular merge remain PENDING. Production remains **STOPPED**; registry, teacher, training, weight, and live evaluation have not changed. Japanese version: [blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.md](./blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.md)
+> [PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482) passed all six GitHub checks and was integrated with regular merge commit `52d73dd5a82de2ca508da2aee664326c47acc5d2`. After aligning the fixed production application to that merge, the first readiness run stopped in the native launcher before authorization with exit 70. The cause was conversion of a Foundation `NSNumber` by passing it directly to JXA `Number(...)`. The fix is pinned to exact commit `49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a`; it requires both JavaScript number type and safe-integer validity after `ObjC.unwrap(...)` for file permissions, the PID, and task status. Local validation, including the full 3,058-test suite, and independent audit pass. The fix is now published as review-ready [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483), while final-head GitHub CI and regular merge remain PENDING. Production remains **STOPPED**; registry, teacher, training, weight, and live evaluation have not changed. Japanese version: [blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.md](./blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.md)
 
 ## 1. Result
 
@@ -55,7 +55,7 @@ The candidate `integerValue` helper performs one shared sequence:
 ```text
 Foundation numeric value
   -> ObjC.unwrap
-  -> Number
+  -> require JavaScript number type
   -> Number.isSafeInteger
   -> integer, or fail closed before authorization
 ```
@@ -66,7 +66,7 @@ It is applied to:
 2. the current-process PID used in live-parent verification; and
 3. the termination status used to evaluate the child task.
 
-The Darwin runtime regression checks more than the presence of an `unwrap` string in source. It reads a file attribute through Foundation and verifies that the unwrapped permission is a safe integer equal to the filesystem mode. That reproduces the host behavior behind this finding.
+The Darwin runtime regression checks more than the presence of an `unwrap` string in source. It reads a file attribute through Foundation and verifies that the unwrapped permission is a safe integer equal to the filesystem mode. It also rejects a numeric string, a boolean, and `NSNull`, preventing JavaScript numeric coercion from accepting an abnormal type as zero. That reproduces both the host behavior and the fail-closed type boundary behind this finding.
 
 The fix does not add native-tool byte closure, an atomic process-lineage snapshot, isolation from a hostile same-UID or ancestor process, or ignored-dependency closure. It does not issue readiness success, registry authority, reconciliation authority, or playing-strength evidence.
 
@@ -93,15 +93,15 @@ An absent registry is not authority to create one. Create-only provisioning rema
 | Gate / check                       | State   | Exact result                                                                               |
 | ---------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
 | host root-cause diagnostic         | PROVED  | direct wrapper conversion is `NaN`; unwrapped result is exact 493                          |
-| exact fix commit                   | PASS    | `03d5ef257b19c4d429626065d957487517cd86c4`                                                 |
+| exact fix commit                   | PASS    | `49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a`                                                 |
 | Darwin launcher regression         | PASS    | 1 file / 23 tests; real Foundation mode, PID, and `/usr/bin/true` termination status       |
-| full Vitest                        | PASS    | 166 / 166 files, 3,058 / 3,058 tests, 303.62 s, wall 303.99 s, max RSS 2,374,696,960 bytes |
-| production build                   | PASS    | wall 24.67 s, max RSS 2,640,740,352 bytes, zero swap / block I/O                           |
-| TypeScript / full ESLint           | PASS    | 2.75 s / zero errors, 157 existing warnings, 24.22 s                                       |
-| ML stdlib / npm audit              | PASS    | 58 / 58, 0.36 s / zero vulnerabilities, 0.47 s                                             |
+| full Vitest                        | PASS    | 166 / 166 files, 3,058 / 3,058 tests, 337.77 s, wall 338.24 s, max RSS 2,348,466,176 bytes |
+| production build                   | PASS    | 193 / 193 pages, wall 38.26 s, max RSS 2,565,996,544 bytes, zero swap / block I/O          |
+| TypeScript / full ESLint           | PASS    | 3.65 s / zero errors, 157 existing warnings, 28.40 s                                       |
+| ML stdlib / npm audit              | PASS    | 58 / 58, 0.42 s / zero vulnerabilities, 0.56 s                                             |
 | Prettier / JXA syntax              | PASS    | changed files / `osacompile -l JavaScript`                                                 |
 | independent final audit            | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                   |
-| fix pull request                   | PENDING | number not yet established                                                                 |
+| fix pull request                   | OPEN    | review-ready [#483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)              |
 | final-head GitHub CI / review      | PENDING | not claimed complete                                                                       |
 | regular merge                      | PENDING | only after all gates pass                                                                  |
 | production application realignment | BLOCKED | waits for this fix PR's own merge commit                                                   |

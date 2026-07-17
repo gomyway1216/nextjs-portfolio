@@ -38,8 +38,8 @@ export const FLOODGATE_STABLE_WASM_DIAGNOSTIC_WEIGHTS_IDENTITY = Object.freeze({
   sha256: "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
 });
 export const FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY = Object.freeze({
-  bytes: 17_338,
-  sha256: "6d91d3373135484c9bcd9433b3629ad96854c5eb962a8d0453b6f876c7ee5ce7",
+  bytes: 17_346,
+  sha256: "7d085ddfce1c55e8ad792be13e44e48cd34344fe8a876c67fe89389271db16ca",
 });
 
 const COUNTER_BUCKETS = Object.freeze([
@@ -73,6 +73,16 @@ const WORKER_BOOTSTRAP_SOURCE =
   'const encoded=Buffer.from(source).toString("base64");' +
   'await import("data:text/javascript;base64,"+encoded);';
 const MAX_WORKER_STDOUT_BYTES = 1_024;
+const SENTE = 16;
+const GOTE = 32;
+const FIRST_HAND_KOMA = 17;
+const VALID_BOARD_PIECES = Object.freeze([
+  0, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 31, 33, 34, 35, 36, 37,
+  38, 39, 40, 41, 42, 43, 44, 46, 47,
+] as const);
+const MATERIAL_LIMIT_BY_KIND = Object.freeze([
+  0, 18, 4, 4, 4, 4, 2, 2,
+] as const);
 
 type CounterBucket = (typeof COUNTER_BUCKETS)[number];
 type DiagnosticPhase = (typeof PHASES)[number];
@@ -188,7 +198,7 @@ function sha256(bytes: Uint8Array): string {
 
 function snapshotBytes(value: Uint8Array, label: string): Buffer {
   if (!(value instanceof Uint8Array)) fail(`${label} must be a Uint8Array`);
-  return Buffer.from(value);
+  return Buffer.from(value.slice());
 }
 
 function assertIdentity(
@@ -246,6 +256,17 @@ function captureInteger(
   return value;
 }
 
+function pieceSide(koma: number): number {
+  if ((koma & SENTE) !== 0) return SENTE;
+  if ((koma & GOTE) !== 0) return GOTE;
+  return 0;
+}
+
+function basePieceKind(koma: number): number {
+  const kind = koma & 0x0f;
+  return kind >= 9 ? kind - 8 : kind;
+}
+
 function captureInput(
   input: Readonly<FloodgateStableWasmDeadlineDiagnosticInput>,
 ): CapturedInput {
@@ -258,16 +279,50 @@ function captureInput(
   if (!Array.isArray(input.hands) || input.hands.length !== 23) {
     fail("diagnostic hands must contain exactly 23 slots");
   }
+  const materialByKind = Array.from({ length: 9 }, () => 0);
+  let senteKings = 0;
+  let goteKings = 0;
   const board = Object.freeze(
-    input.board.map((value) =>
-      captureInteger(value, 0, 47, "diagnostic board piece"),
-    ),
+    input.board.map((value, index) => {
+      const koma = captureInteger(
+        value,
+        0,
+        47,
+        `diagnostic board square ${index}`,
+      );
+      if (!(VALID_BOARD_PIECES as readonly number[]).includes(koma)) {
+        fail(`diagnostic board square ${index} contains an invalid piece`);
+      }
+      if (koma === 24) senteKings += 1;
+      if (koma === 40) goteKings += 1;
+      if (koma !== 0) materialByKind[basePieceKind(koma)] += 1;
+      return koma;
+    }),
   );
+  if (senteKings !== 1 || goteKings !== 1) {
+    fail("diagnostic board must contain exactly one king for each side");
+  }
   const hands = Object.freeze(
-    input.hands.map((value) =>
-      captureInteger(value, 0, 18, "diagnostic hand count"),
-    ),
+    input.hands.map((value, index) => {
+      const count = captureInteger(value, 0, 18, `diagnostic hands[${index}]`);
+      const koma = FIRST_HAND_KOMA + index;
+      const kind = koma & 0x0f;
+      const droppable =
+        (pieceSide(koma) === SENTE || pieceSide(koma) === GOTE) &&
+        kind >= 1 &&
+        kind <= 7;
+      if (!droppable && count !== 0) {
+        fail(`diagnostic hands[${index}] is not a droppable-piece slot`);
+      }
+      if (count !== 0) materialByKind[kind] += count;
+      return count;
+    }),
   );
+  for (let kind = 1; kind < MATERIAL_LIMIT_BY_KIND.length; kind += 1) {
+    if (materialByKind[kind] > MATERIAL_LIMIT_BY_KIND[kind]) {
+      fail(`diagnostic position exceeds the material limit for kind ${kind}`);
+    }
+  }
   if (input.sideToMove !== 16 && input.sideToMove !== 32) {
     fail("diagnostic side to move is invalid");
   }

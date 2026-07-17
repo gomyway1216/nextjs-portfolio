@@ -288,8 +288,8 @@ function assertRequiredExports(wasm) {
 }
 
 function instantiateRuntime(wasmBytes, weightsBytes, now) {
-  const module = new WebAssembly.Module(wasmBytes);
-  const instance = new WebAssembly.Instance(module, {
+  const wasmModule = new WebAssembly.Module(wasmBytes);
+  const instance = new WebAssembly.Instance(wasmModule, {
     env: {
       abort() {
         throw new Error("WASM abort");

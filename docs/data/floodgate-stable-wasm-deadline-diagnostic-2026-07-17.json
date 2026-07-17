@@ -42,6 +42,9 @@
     "host_callback_boundary_crossing_present_when_max_time_is_1": true,
     "shared_tt_enabled": false,
     "global_pool_poison": false,
+    "assets_snapshotted_before_first_asynchronous_boundary": true,
+    "malformed_position_rejected_before_child_launch": true,
+    "parent_position_validation": "exact-board-piece-codes-exactly-one-king-per-side-droppable-hand-slots-and-physical-material-limits",
     "watchdog_kill_scope": "only-the-expired-child",
     "all_children_reaped_before_aggregate": true,
     "observed_parallel_children_increment_boundary": "successful-node-child-spawn-event-only",
@@ -105,8 +108,8 @@
       "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
     },
     "diagnostic_worker": {
-      "bytes": 17338,
-      "sha256": "6d91d3373135484c9bcd9433b3629ad96854c5eb962a8d0453b6f876c7ee5ce7"
+      "bytes": 17346,
+      "sha256": "7d085ddfce1c55e8ad792be13e44e48cd34344fe8a876c67fe89389271db16ca"
     }
   },
   "unit_verification": {
@@ -115,6 +118,8 @@
     "parity_values_published": false,
     "scaled_clock_cooperative_deadline": "PASS",
     "scaled_clock_partial_iteration_adopted": false,
+    "buffer_backed_asset_snapshot_isolation": "PASS",
+    "malformed_position_prelaunch_rejection": "PASS",
     "synthetic_complete_deadline_hang_failure_isolation": "PASS",
     "synthetic_maximum_observed_parallel_children": 6,
     "asynchronous_spawn_failure_observed_peak_parallel_children": 0,

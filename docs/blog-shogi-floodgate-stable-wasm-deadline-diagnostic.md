@@ -28,7 +28,7 @@ searchBestMove(1, 11, 10)
 
 ## 3. 1 request = 1 child と最大6並列
 
-各requestは新しいchildを1個だけ持ち、childを再利用しません。最大同時実行数は6で、12件は固定6-slot schedulerから供給します。
+各requestは新しいchildを1個だけ持ち、childを再利用しません。最大同時実行数は6で、12件は固定6-slot schedulerから供給します。schedule前に親が全assetをsnapshotし、盤上駒code、両側ちょうど1枚ずつの玉、drop可能な持駒slot、物理的な駒数上限を検証します。不正なcaller inputは一般的なchild failureへ数えず、child起動前に拒否します。
 
 ```text
 lane request

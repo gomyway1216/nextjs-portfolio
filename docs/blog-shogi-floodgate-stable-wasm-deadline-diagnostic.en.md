@@ -28,7 +28,7 @@ This does not establish equal wall performance. `maxTimeMs = 1` calls the JavaSc
 
 ## 3. One request per child, bounded at six
 
-Every request owns a fresh child and no child is reused. A fixed six-slot scheduler supplies at most six concurrent children for the twelve-request design.
+Every request owns a fresh child and no child is reused. A fixed six-slot scheduler supplies at most six concurrent children for the twelve-request design. Before scheduling, the parent snapshots every asset and validates exact board-piece codes, exactly one king per side, droppable hand slots, and physical material limits. Malformed caller input is rejected before child launch rather than counted as a generic child failure.
 
 ```text
 lane request

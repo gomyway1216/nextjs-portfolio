@@ -12,6 +12,7 @@ import {
   FLOODGATE_STABLE_WASM_DIAGNOSTIC_COOPERATIVE_DEADLINE_MS,
   FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_CONCURRENT_CHILDREN,
   FLOODGATE_STABLE_WASM_DIAGNOSTIC_OUTER_WATCHDOG_MS,
+  FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY,
   confirmFloodgateStableWasmDeadlineParityCoreForTests,
   runFloodgateStableWasmDeadlineDiagnosticCoreForTests,
   runFloodgateStableWasmDeadlineDiagnosticWithSourceCoreForTests,
@@ -181,6 +182,77 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
         .reduce((sum, entry) => sum + entry.count, 0),
     ).toBe(1);
   }, 30_000);
+
+  it("snapshots Buffer-backed assets before the first asynchronous boundary", async () => {
+    const workerSourceBytes = syntheticIsolationWorker();
+    const workerIdentity = {
+      bytes: workerSourceBytes.byteLength,
+      sha256: sha256(workerSourceBytes),
+    };
+    const mutableAssets = assets(workerSourceBytes);
+    const resultPromise =
+      runFloodgateStableWasmDeadlineDiagnosticWithSourceCoreForTests(
+        [input(MATE_SFEN, 4)],
+        mutableAssets,
+        {
+          cooperativeDeadlineMilliseconds: 20,
+          outerWatchdogMilliseconds: 1_000,
+        },
+        workerIdentity,
+      );
+
+    mutableAssets.wasmBytes.fill(0);
+    mutableAssets.weightsBytes.fill(0);
+    mutableAssets.workerSourceBytes.fill(0);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      outcome_counts: {
+        complete: 1,
+        deadline: 0,
+        watchdog: 0,
+        failure: 0,
+      },
+      all_children_reaped: true,
+    });
+  });
+
+  it("rejects malformed positions before launching a diagnostic child", () => {
+    const valid = input(INITIAL_SFEN);
+    const missingKingBoard = [...valid.board];
+    missingKingBoard[missingKingBoard.indexOf(24)] = 0;
+    const invalidPieceBoard = [...valid.board];
+    invalidPieceBoard[0] = 1;
+    const nonDroppableHands = [...valid.hands];
+    nonDroppableHands[7] = 1;
+    const excessiveMaterialHands = [...valid.hands];
+    excessiveMaterialHands[0] = 18;
+
+    for (const [malformed, message] of [
+      [
+        { ...valid, board: missingKingBoard },
+        "diagnostic board must contain exactly one king for each side",
+      ],
+      [
+        { ...valid, board: invalidPieceBoard },
+        "diagnostic board square 0 contains an invalid piece",
+      ],
+      [
+        { ...valid, hands: nonDroppableHands },
+        "diagnostic hands[7] is not a droppable-piece slot",
+      ],
+      [
+        { ...valid, hands: excessiveMaterialHands },
+        "diagnostic position exceeds the material limit for kind 1",
+      ],
+    ] as const) {
+      expect(() =>
+        runFloodgateStableWasmDeadlineDiagnosticCoreForTests(
+          [malformed],
+          assets(),
+        ),
+      ).toThrow(message);
+    }
+  });
 
   it("isolates children and matches histogram/count aggregates for two tested permutations", async () => {
     const workerSourceBytes = syntheticIsolationWorker();
@@ -386,6 +458,8 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
           "deadline-not-crossed-algorithmic-branch-sentinel-only",
         host_callback_boundary_crossing_present_when_max_time_is_1: true,
         shared_tt_enabled: false,
+        assets_snapshotted_before_first_asynchronous_boundary: true,
+        malformed_position_rejected_before_child_launch: true,
         observed_peak_parallelism_claim:
           "timing-sensitive-per-run-measurement-not-claimed-order-invariant",
         partial_iteration_results_adopted: 0,
@@ -397,6 +471,8 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       },
       unit_verification: {
         asynchronous_spawn_failure_observed_peak_parallel_children: 0,
+        buffer_backed_asset_snapshot_isolation: "PASS",
+        malformed_position_prelaunch_rejection: "PASS",
         synthetic_tested_input_and_completion_order_permutation_count: 2,
         synthetic_two_tested_permutations_same_histogram_count_aggregate:
           "PASS",
@@ -413,6 +489,22 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       status: FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_STATUS,
       claim_boundary: FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_CLAIM_BOUNDARY,
     });
+    const diagnosticWorker = readFileSync(
+      join(
+        REPOSITORY_ROOT,
+        "ml",
+        "floodgate-stable-wasm-deadline-diagnostic-worker.mjs",
+      ),
+    );
+    expect(evidence.pinned_assets.diagnostic_worker).toEqual(
+      FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY,
+    );
+    expect(diagnosticWorker.byteLength).toBe(
+      FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY.bytes,
+    );
+    expect(sha256(diagnosticWorker)).toBe(
+      FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY.sha256,
+    );
     expect(numberedSections(japanese)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(numberedSections(english)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     for (const marker of [

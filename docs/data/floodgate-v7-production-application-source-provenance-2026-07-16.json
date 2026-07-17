@@ -21,12 +21,13 @@
     "merge_commit": "4c71e664dae67ccd4afdb369a666bcdb4d4bbb37"
   },
   "current_delivery": {
-    "planned_pull_request": 480,
-    "actual_pull_request": "PENDING",
-    "url": "PENDING",
-    "state": "local-candidate-validated-not-yet-opened",
+    "originally_planned_pull_request": 480,
+    "actual_pull_request": 481,
+    "number_allocation_note": "pull-request-480-was-already-occupied-by-an-unrelated-dependabot-update",
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/481",
+    "state": "ready-pull-request-open-ci-running",
     "implementation_revision": "7223c3ddb50201614f62337827be9e22211c0aff",
-    "continuous_integration": "PENDING",
+    "continuous_integration": "RUNNING",
     "review": "PENDING",
     "unresolved_review_threads": "PENDING",
     "merge": "PENDING-regular-merge-required"
@@ -447,9 +448,9 @@
     "external_calibration_games_required": 200
   },
   "safe_next_order": [
-    "validate-review-and-regular-merge-application-source-provenance-pr480",
-    "operator-guards-pr481-exact-approved-current-binding-invocation-and-standalone-verifier-readiness-without-reconciliation-authority",
-    "align-fixed-application-to-pr480-merge-and-fixed-verifier-to-e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "validate-review-and-regular-merge-application-source-provenance-pr481",
+    "operator-guards-pr482-exact-approved-current-binding-invocation-and-standalone-verifier-readiness-without-reconciliation-authority",
+    "align-fixed-application-to-pr481-merge-and-fixed-verifier-to-e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
     "create-only-registry-v2-provision",
     "reviewed-disposable-kill-drill",
     "fresh-standalone-read-only-preflight",

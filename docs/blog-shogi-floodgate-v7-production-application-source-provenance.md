@@ -1,6 +1,6 @@
 # production実行アプリをexact sourceへ固定する — Floodgate v7
 
-> PR #479は通常のmerge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`で統合された。しかし統合後の独立棚卸しで、verifierは固定されていても、**production commandを実行するアプリケーションsourceそのものが固定されていない**というP1 blockerが見つかった。このplanned PR #480候補は、その穴をexact-clean tracked Git closure、pre-mutation capability、create-only registry V2、outer-gate receipt V3で閉じる。実装revision `7223c3ddb50201614f62337827be9e22211c0aff`のlocal validationと独立監査はPASSしたが、actual PR / URL、GitHub CI、review、mergeはPENDINGである。production registry、gate、teacher、label、training、selection、正式A/B、外部校正、live activationは実行しておらず、live weightとrunOp1は変更していない。English version: [blog-shogi-floodgate-v7-production-application-source-provenance.en.md](./blog-shogi-floodgate-v7-production-application-source-provenance.en.md)
+> PR #479は通常のmerge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`で統合された。しかし統合後の独立棚卸しで、verifierは固定されていても、**production commandを実行するアプリケーションsourceそのものが固定されていない**というP1 blockerが見つかった。[PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481)は、その穴をexact-clean tracked Git closure、pre-mutation capability、create-only registry V2、outer-gate receipt V3で閉じる。実装revision `7223c3ddb50201614f62337827be9e22211c0aff`のlocal validationと独立監査はPASSし、ready PRを作成してCIを開始した。GitHub CI、review、mergeはPENDINGである。production registry、gate、teacher、label、training、selection、正式A/B、外部校正、live activationは実行しておらず、live weightとrunOp1は変更していない。English version: [blog-shogi-floodgate-v7-production-application-source-provenance.en.md](./blog-shogi-floodgate-v7-production-application-source-provenance.en.md)
 
 ## 1. 結論と現在地
 
@@ -123,8 +123,8 @@ local validationは実装revision `7223c3ddb50201614f62337827be9e22211c0aff`へ�
 | ML stdlib                                           | PASS    | 58 / 58 tests                                                           |
 | npm audit                                           | PASS    | vulnerabilities 0                                                       |
 | independent security / docs audit                   | PASS    | P0 / P1 / P2 = 0 / 0 / 0、TypeScript import cycle 0                     |
-| GitHub CI                                           | PENDING | actual PR未作成                                                         |
-| GitHub review / unresolved threads                  | PENDING | actual PR未作成                                                         |
+| GitHub CI                                           | RUNNING | ready PR #481                                                           |
+| GitHub review / unresolved threads                  | PENDING | ready PR #481、review未完了                                             |
 | regular merge                                       | PENDING | 通常merge必須                                                           |
 
 全repositoryへのPrettier checkは、既存の巨大JSONLを読み切れないこと、AssemblyScript decoratorを標準parserが扱えないこと、今回と無関係な既存未整形ファイルが多数あるためfinal gateに数えない。代わりにbaseからの全変更47ファイルを検査しPASSした。full lintの157 warningsも今回の差分外にある既存warningで、errorは0だった。

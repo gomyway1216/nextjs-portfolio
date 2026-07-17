@@ -1,6 +1,6 @@
 # Binding production execution to exact application source — Floodgate v7
 
-> PR #479 was integrated with regular merge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`. An independent post-merge audit then found a P1 blocker: the verifier was fixed, but the **application source executing production commands was not**. This planned PR #480 candidate closes that gap with an exact-clean tracked Git closure, a pre-mutation capability, a create-only registry V2, and an outer-gate public receipt V3. Local validation and independent review passed for implementation revision `7223c3ddb50201614f62337827be9e22211c0aff`; the actual PR/URL, GitHub CI, review, and merge remain PENDING. It has executed no production registry, gate, teacher, label, training, selection, formal A/B, external calibration, or live-activation operation. It has not changed the live weight or runOp1. Japanese version: [blog-shogi-floodgate-v7-production-application-source-provenance.md](./blog-shogi-floodgate-v7-production-application-source-provenance.md)
+> PR #479 was integrated with regular merge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`. An independent post-merge audit then found a P1 blocker: the verifier was fixed, but the **application source executing production commands was not**. [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481) closes that gap with an exact-clean tracked Git closure, a pre-mutation capability, a create-only registry V2, and an outer-gate public receipt V3. Local validation and independent review passed for implementation revision `7223c3ddb50201614f62337827be9e22211c0aff`; the ready PR is open and CI has started. GitHub CI, review, and merge remain PENDING. It has executed no production registry, gate, teacher, label, training, selection, formal A/B, external calibration, or live-activation operation. It has not changed the live weight or runOp1. Japanese version: [blog-shogi-floodgate-v7-production-application-source-provenance.md](./blog-shogi-floodgate-v7-production-application-source-provenance.md)
 
 ## 1. Result and current position
 
@@ -124,8 +124,8 @@ Local validation is fixed to implementation revision `7223c3ddb50201614f62337827
 | ML stdlib                                           | PASS    | 58 / 58 tests                                                                 |
 | npm audit                                           | PASS    | 0 vulnerabilities                                                             |
 | Independent security / docs audit                   | PASS    | P0 / P1 / P2 = 0 / 0 / 0; zero TypeScript import cycles                       |
-| GitHub CI                                           | PENDING | actual PR not yet opened                                                      |
-| GitHub review / unresolved threads                  | PENDING | actual PR not yet opened                                                      |
+| GitHub CI                                           | RUNNING | ready PR #481                                                                 |
+| GitHub review / unresolved threads                  | PENDING | ready PR #481; review incomplete                                              |
 | Regular merge                                       | PENDING | regular merge required                                                        |
 
 A whole-repository Prettier check is not counted as a final gate because it cannot read an existing huge JSONL, its standard parser does not accept an AssemblyScript decorator, and many unrelated files are already unformatted. The complete 47-file change set relative to the base passed instead. Full lint's 157 warnings are pre-existing and outside this change; the error count is zero.

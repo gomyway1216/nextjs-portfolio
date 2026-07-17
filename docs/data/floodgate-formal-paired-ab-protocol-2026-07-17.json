@@ -1,0 +1,66 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-protocol-evidence-v1",
+  "recorded_date": "2026-07-17",
+  "base_revision": "ce33913014eb0e990dfaabe344e2e7c8d5e393d5",
+  "plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+    "bytes": 10890,
+    "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+    "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+  },
+  "implementation": {
+    "analyzer": "ml/formal_paired_ab_protocol.py",
+    "registry": "ml/protocols/floodgate-q1-2026-formal-paired-ab-registry.json",
+    "tests": "ml/tests_stdlib/test_formal_paired_ab_protocol.py",
+    "torch_imported": false,
+    "match_launcher_added": false,
+    "weight_reader_added": false,
+    "production_import_added": false
+  },
+  "fixed_protocol": {
+    "pairs": 192,
+    "games": 384,
+    "candidate_colors_per_pair": ["sente", "gote"],
+    "bootstrap_seed": 20260710,
+    "bootstrap_replicates": 100000,
+    "resampling_unit": "two-game-color-swapped-opening-pair",
+    "one_sided_95_lower_rank": 5000,
+    "two_sided_95_lower_rank": 2500,
+    "safety_gate": "strictly-above-0.45",
+    "stronger_claim_gate": "strictly-above-0.50",
+    "score_denominator": 768,
+    "threshold_comparison": "exact-integer-cross-product"
+  },
+  "deterministic_test_vector": {
+    "pair_units": "alternating-0-and-4-for-192-pairs",
+    "one_sided_95_lower_numerator": 340,
+    "two_sided_95_lower_numerator": 328,
+    "denominator": 768,
+    "playing_strength_evidence": false
+  },
+  "validation": {
+    "command": "npm run test:ml:stdlib",
+    "python_tests_passed": 79,
+    "python_tests_failed": 0,
+    "wall_seconds": 3.1,
+    "focused_formal_ab_tests": 11,
+    "exact_100000_replicate_vector_tested": true
+  },
+  "registry_state": {
+    "status": "blocked",
+    "enrolled_artifact_identities": 0,
+    "all_upstream_receipts_verified": false,
+    "execution_authorized": false,
+    "result_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "observations": {
+    "real_matches_executed": false,
+    "real_games_observed": 0,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

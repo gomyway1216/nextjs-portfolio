@@ -1,0 +1,50 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-registry-v1",
+  "status": "blocked",
+  "reason": "artifact-identities-and-upstream-receipts-not-enrolled",
+  "plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+    "bytes": 10890,
+    "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+    "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+  },
+  "fixed_protocol": {
+    "pairs": 192,
+    "games": 384,
+    "games_per_pair": 2,
+    "colors_per_pair": ["candidate-sente", "candidate-gote"],
+    "bootstrap_seed": 20260710,
+    "bootstrap_replicates": 100000,
+    "resampling_unit": "two-game-color-swapped-opening-pair",
+    "one_sided_95_lower_rank": 5000,
+    "two_sided_95_lower_rank": 2500,
+    "safety_gate": "one-sided-95-lower-strictly-above-0.45",
+    "stronger_claim_gate": "two-sided-95-lower-strictly-above-0.50"
+  },
+  "enrollments": {
+    "candidate_weights": null,
+    "stable_weights": null,
+    "selection_receipt": null,
+    "fresh_final_holdout_receipt": null,
+    "legacy_final_holdout_receipt": null,
+    "retention_receipt": null,
+    "known_regression_receipt": null,
+    "production_parity_receipt": null,
+    "openings_manifest": null,
+    "match_binding": null
+  },
+  "gates": {
+    "all_upstream_receipts_verified": false,
+    "execution_authorized": false,
+    "result_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "matches_executed": false,
+    "games_observed": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

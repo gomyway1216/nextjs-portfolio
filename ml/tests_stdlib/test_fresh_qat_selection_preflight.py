@@ -808,6 +808,18 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                 ),
                 "plan binding mismatch",
             ),
+            (
+                "cross-run runtime mismatch",
+                lambda fixture: rewrite_result(
+                    fixture,
+                    43,
+                    lambda result: result["training_runtime"].__setitem__(
+                        "mps_available",
+                        False,
+                    ),
+                ),
+                "do not share one pipeline/runtime",
+            ),
         )
         for label, mutate, expected in cases:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:

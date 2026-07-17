@@ -47,6 +47,7 @@
     "all_six_artifact_identities_and_bytes_before_result_parse": true,
     "results_parsed_from_captured_bytes": true,
     "all_three_results_before_first_checkpoint_load": true,
+    "all_three_runs_share_exact_pipeline_and_runtime": true,
     "checkpoints_loaded_from_captured_bytes": true,
     "checkpoint_loader_accepts_artifact_path": false,
     "all_three_checkpoints_strict_loaded": true,

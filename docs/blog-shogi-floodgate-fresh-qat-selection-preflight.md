@@ -78,6 +78,7 @@ receipt本体には状態を書けるfieldも`__dict__`もない。未使用状�
 - 3つすべてをstrict-loadする前にselection readerを呼ばない
 - result / checkpointのold WCSC36 schema、hybrid schema、boolによる整数偽装を拒否
 - wrong seed / output / plan / pipeline / contract / runtime / history / modelを拒否
+- 3 runのpipeline / runtime（MPS/CUDA flagを含む）が1件でも違えば拒否
 - duplicate JSON key、途中改変、missing / extra artifactを拒否
 - result / checkpoint pathの一時swap後にrestoreしてもcapture済みbytesだけをparse / load
 - replay unionのmissing / extra / same-count swap、component duplicate / overlap、非canonical IDを拒否

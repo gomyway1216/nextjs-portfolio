@@ -936,6 +936,21 @@ def _preflight_fresh_qat_selection(
             }
         )
 
+    shared_pipeline = parsed_results[0]["result_value"]["training_pipeline"]
+    shared_runtime = parsed_results[0]["result_value"]["training_runtime"]
+    if any(
+        not _typed_equal(
+            artifacts["result_value"]["training_pipeline"],
+            shared_pipeline,
+        )
+        or not _typed_equal(
+            artifacts["result_value"]["training_runtime"],
+            shared_runtime,
+        )
+        for artifacts in parsed_results[1:]
+    ):
+        raise ValueError("the three fresh QAT runs do not share one pipeline/runtime")
+
     runs = []
     for artifacts in parsed_results:
         registered_run = artifacts["registered_run"]

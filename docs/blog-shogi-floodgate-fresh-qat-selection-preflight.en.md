@@ -78,6 +78,7 @@ Temporary synthetic artifacts verify that:
 - selection cannot run before all three checkpoint and model strict-loads finish;
 - old WCSC36 and hybrid schemas, bool-as-integer values, and malformed results fail;
 - wrong seed, output, plan, pipeline, contract, runtime, history, or model fails;
+- any cross-run pipeline or runtime difference, including MPS/CUDA flags, fails;
 - duplicate JSON keys, mid-verification changes, and missing or extra artifacts fail;
 - a temporary result or checkpoint path swap cannot replace captured parse/load bytes;
 - union omissions, additions, same-count swaps, duplicate or overlapping components, and noncanonical IDs fail;

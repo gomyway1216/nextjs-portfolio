@@ -96,7 +96,10 @@ function runCli(
 const Module = require("node:module");
 const originalLoad = Module._load;
 let provisionerLoads = 0;
-let sourceContextChecks = 0;
+let sourceAuthorizationCalls = 0;
+const applicationExecutionCapability = Object.freeze({
+  contract: "test-opaque-application-execution-capability",
+});
 class ProvisionerError extends Error {
   constructor() {
     super(${JSON.stringify(VALUE_CANARY)});
@@ -114,7 +117,7 @@ const successReceipt = () => ({
   execution_boundary: "production-fixed-current-euid-private-registry-provisioning",
   verification: {
     verifier_source_artifact_closure_checked_before_install: true,
-    production_application_source_closure_checked_before_current_key_and_install: true,
+    production_application_tracked_source_closure_checked_before_current_key_and_install: true,
     approved_record_current_key_binding_checked: true,
     approved_record_bound_into_registry: true,
     application_source_binding_bound_and_postflight_checked: true,
@@ -131,6 +134,9 @@ const successReceipt = () => ({
     application_source_revision_disclosed: false,
     application_source_path_disclosed: false,
     application_source_digest_disclosed: false,
+    ignored_untracked_dependency_bytes_verified: false,
+    same_uid_race_isolation: false,
+    atomic_source_snapshot: false,
     key_instance_id_disclosed: false,
     owner_uid_disclosed: false,
     path_disclosed: false,
@@ -148,21 +154,23 @@ const successReceipt = () => ({
   },
 });
 Module._load = function (request, parent, isMain) {
-  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+  if (request.endsWith("floodgate-v7-production-application-source-authorization")) {
     return {
-      assertFloodgateV7ProductionApplicationEntrypointContext: (entrypoint) => {
-        sourceContextChecks += 1;
-        if (entrypoint !== "ml/provision-floodgate-v7-production-connector-registry.ts") throw new Error("ENTRYPOINT_DIFFERS");
+      authorizeFloodgateV7ProductionApplicationExecution: async (purpose) => {
+        sourceAuthorizationCalls += 1;
+        if (purpose !== "production-registry-provision") throw new Error("PURPOSE_DIFFERS");
         if (${JSON.stringify(mode)} === "source-context-failure") throw new Error(${JSON.stringify(VALUE_CANARY)});
+        return applicationExecutionCapability;
       },
     };
   }
   if (request.endsWith("floodgate-v7-production-connector-registry-provisioner")) {
-    if (sourceContextChecks !== 1) throw new Error("SOURCE_CONTEXT_NOT_CHECKED");
+    if (sourceAuthorizationCalls !== 1) throw new Error("SOURCE_NOT_AUTHORIZED");
     provisionerLoads += 1;
     return {
       FloodgateV7ProductionConnectorRegistryProvisionerError: ProvisionerError,
-      provisionFloodgateV7ProductionConnectorRegistry: async () => {
+      provisionFloodgateV7ProductionConnectorRegistry: async (capability) => {
+        if (capability !== applicationExecutionCapability) throw new Error("CAPABILITY_DIFFERS");
         if (${JSON.stringify(mode)} === "typed-failure") throw new ProvisionerError();
         if (${JSON.stringify(mode)} === "readiness-failure") {
           const failure = new ProvisionerError();
@@ -297,7 +305,7 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
         "production-fixed-current-euid-private-registry-provisioning",
       verification: {
         verifier_source_artifact_closure_checked_before_install: true,
-        production_application_source_closure_checked_before_current_key_and_install: true,
+        production_application_tracked_source_closure_checked_before_current_key_and_install: true,
         application_source_binding_bound_and_postflight_checked: true,
         sensitive_values_exported: false,
       },
@@ -412,11 +420,11 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     const lazyRequire = mainSource.indexOf(
       'require("./floodgate-v7-production-connector-registry-provisioner")',
     );
-    const sourceRequire = mainSource.indexOf(
-      'require("./floodgate-v7-production-application-source-provenance")',
+    const sourceAuthorizationRequire = mainSource.indexOf(
+      'require("./floodgate-v7-production-application-source-authorization")',
     );
-    const sourceAssertion = mainSource.indexOf(
-      "assertFloodgateV7ProductionApplicationEntrypointContext",
+    const sourceAuthorization = mainSource.indexOf(
+      "authorizeFloodgateV7ProductionApplicationExecution",
     );
     const projectionStart = source.indexOf("function sanitizedFailure");
     const projection = source.slice(projectionStart, mainStart);
@@ -425,9 +433,9 @@ describe("Floodgate v7 production connector registry provisioner CLI", () => {
     expect(entryStart).toBeGreaterThan(mainStart);
     expect(argumentCheck).toBeGreaterThan(-1);
     expect(runtimeCheck).toBeGreaterThan(argumentCheck);
-    expect(sourceRequire).toBeGreaterThan(runtimeCheck);
-    expect(sourceAssertion).toBeGreaterThan(sourceRequire);
-    expect(lazyRequire).toBeGreaterThan(sourceAssertion);
+    expect(sourceAuthorizationRequire).toBeGreaterThan(runtimeCheck);
+    expect(sourceAuthorization).toBeGreaterThan(sourceAuthorizationRequire);
+    expect(lazyRequire).toBeGreaterThan(sourceAuthorization);
     expect(source).not.toMatch(/process\.(?:stdin|env)\b/);
     expect(source).not.toMatch(/\bJSON\.parse\b|\breadline\b|\bargv\s*\[/);
     expect(source).not.toMatch(

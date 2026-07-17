@@ -28,9 +28,14 @@ import {
 } from "./floodgate-v7-approved-key-current-binding";
 import {
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  assertFloodgateV7ProductionApplicationEntrypointContext,
   captureFloodgateV7ProductionApplicationSourceProvenance,
   type FloodgateV7ProductionApplicationSourceBinding,
 } from "./floodgate-v7-production-application-source-provenance";
+import {
+  claimFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS,
@@ -100,7 +105,7 @@ export interface FloodgateV7ProductionConnectorRegistryProvisionerReceipt<
   readonly execution_boundary: TBoundary;
   readonly verification: Readonly<{
     readonly verifier_source_artifact_closure_checked_before_install: true;
-    readonly production_application_source_closure_checked_before_current_key_and_install: true;
+    readonly production_application_tracked_source_closure_checked_before_current_key_and_install: true;
     readonly approved_record_current_key_binding_checked: true;
     readonly approved_record_bound_into_registry: true;
     readonly application_source_binding_bound_and_postflight_checked: true;
@@ -117,6 +122,9 @@ export interface FloodgateV7ProductionConnectorRegistryProvisionerReceipt<
     readonly application_source_revision_disclosed: false;
     readonly application_source_path_disclosed: false;
     readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly key_instance_id_disclosed: false;
     readonly owner_uid_disclosed: false;
     readonly path_disclosed: false;
@@ -188,6 +196,7 @@ interface ProvisionerDependencies {
   ) => Readonly<FloodgateV7ApprovedKeyEnrollmentClaim>;
   readonly installRegistry: (
     input: FloodgateV7ProductionConnectorRegistryInstallationInput,
+    applicationExecutionCapability?: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
   ) => Promise<
     Readonly<FloodgateV7ProductionConnectorRegistryInstallerReceipt>
   >;
@@ -898,7 +907,7 @@ function buildReceipt<
     execution_boundary: boundary,
     verification: frozenRecord({
       verifier_source_artifact_closure_checked_before_install: true as const,
-      production_application_source_closure_checked_before_current_key_and_install:
+      production_application_tracked_source_closure_checked_before_current_key_and_install:
         true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
@@ -916,6 +925,9 @@ function buildReceipt<
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,
       path_disclosed: false as const,
@@ -940,6 +952,7 @@ async function provision<
 >(
   dependencies: Readonly<ProvisionerDependencies>,
   boundary: TBoundary,
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability> | null,
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt<TBoundary>>
 > {
@@ -1039,7 +1052,13 @@ async function provision<
   }
 
   try {
-    const receipt = await dependencies.installRegistry(input);
+    const receipt =
+      applicationExecutionCapability === null
+        ? await dependencies.installRegistry(input)
+        : await dependencies.installRegistry(
+            input,
+            applicationExecutionCapability,
+          );
     if (
       receipt.contract !==
         FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT ||
@@ -1138,15 +1157,47 @@ export function provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
   return provision(
     dependencies,
     "test-only-injected-private-registry-provisioning",
+    null,
   );
 }
 
-export function provisionFloodgateV7ProductionConnectorRegistry(): Promise<
+export function provisionFloodgateV7ProductionConnectorRegistry(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<
     FloodgateV7ProductionConnectorRegistryProvisionerReceipt<"production-fixed-current-euid-private-registry-provisioning">
   >
 > {
-  if (arguments.length !== 0 || getEffectiveUserId === null) {
+  if (arguments.length !== 1) {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "capture",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      ),
+    );
+  }
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/provision-floodgate-v7-production-connector-registry.ts",
+    );
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "production-registry-provision",
+      "provisioner",
+    );
+  } catch {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "application-source",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      ),
+    );
+  }
+  if (getEffectiveUserId === null) {
     return rejected(
       new FloodgateV7ProductionConnectorRegistryProvisionerError(
         "capture",
@@ -1188,6 +1239,7 @@ export function provisionFloodgateV7ProductionConnectorRegistry(): Promise<
     return provision(
       dependencies,
       "production-fixed-current-euid-private-registry-provisioning",
+      applicationExecutionCapability,
     );
   } catch {
     return rejected(

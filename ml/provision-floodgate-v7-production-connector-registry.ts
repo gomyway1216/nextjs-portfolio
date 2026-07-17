@@ -11,6 +11,7 @@ import type {
   FloodgateV7ProductionConnectorRegistryProvisionerError,
   FloodgateV7ProductionConnectorRegistryProvisionerReceipt,
 } from "./floodgate-v7-production-connector-registry-provisioner";
+import type { FloodgateV7ProductionApplicationExecutionCapability } from "./floodgate-v7-production-application-source-authorization";
 
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_PROVISION_FAILURE_CONTRACT =
   "shogi-floodgate-v7-production-connector-registry-provision-failure-v3" as const;
@@ -45,7 +46,7 @@ const SUCCESS_KEYS = objectFreeze([
 ] as const);
 const VERIFICATION_KEYS = objectFreeze([
   "verifier_source_artifact_closure_checked_before_install",
-  "production_application_source_closure_checked_before_current_key_and_install",
+  "production_application_tracked_source_closure_checked_before_current_key_and_install",
   "approved_record_current_key_binding_checked",
   "approved_record_bound_into_registry",
   "application_source_binding_bound_and_postflight_checked",
@@ -62,6 +63,9 @@ const NONCLAIM_KEYS = objectFreeze([
   "application_source_revision_disclosed",
   "application_source_path_disclosed",
   "application_source_digest_disclosed",
+  "ignored_untracked_dependency_bytes_verified",
+  "same_uid_race_isolation",
+  "atomic_source_snapshot",
   "key_instance_id_disclosed",
   "owner_uid_disclosed",
   "path_disclosed",
@@ -157,15 +161,17 @@ type ProvisionerModule = Readonly<{
   FloodgateV7ProductionConnectorRegistryProvisionerError: new (
     ...arguments_: never[]
   ) => FloodgateV7ProductionConnectorRegistryProvisionerError;
-  provisionFloodgateV7ProductionConnectorRegistry: () => Promise<
+  provisionFloodgateV7ProductionConnectorRegistry: (
+    capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  ) => Promise<
     Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt>
   >;
 }>;
 
-type ApplicationSourceModule = Readonly<{
-  assertFloodgateV7ProductionApplicationEntrypointContext: (
-    expectedRepositoryRelativeEntrypoint: string,
-  ) => void;
+type ApplicationSourceAuthorizationModule = Readonly<{
+  authorizeFloodgateV7ProductionApplicationExecution: (
+    purpose: "production-registry-provision",
+  ) => Promise<Readonly<FloodgateV7ProductionApplicationExecutionCapability>>;
 }>;
 
 function writeOutput(stream: NodeJS.WriteStream, value: string): Promise<void> {
@@ -314,7 +320,7 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     receipt.execution_boundary !== PROVISIONER_EXECUTION_BOUNDARY ||
     verification.verifier_source_artifact_closure_checked_before_install !==
       true ||
-    verification.production_application_source_closure_checked_before_current_key_and_install !==
+    verification.production_application_tracked_source_closure_checked_before_current_key_and_install !==
       true ||
     verification.approved_record_current_key_binding_checked !== true ||
     verification.approved_record_bound_into_registry !== true ||
@@ -340,7 +346,7 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
     execution_boundary: PROVISIONER_EXECUTION_BOUNDARY,
     verification: frozenRecord({
       verifier_source_artifact_closure_checked_before_install: true as const,
-      production_application_source_closure_checked_before_current_key_and_install:
+      production_application_tracked_source_closure_checked_before_current_key_and_install:
         true as const,
       approved_record_current_key_binding_checked: true as const,
       approved_record_bound_into_registry: true as const,
@@ -358,6 +364,9 @@ function sanitizedSuccess(value: unknown): Readonly<Record<string, unknown>> {
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       key_instance_id_disclosed: false as const,
       owner_uid_disclosed: false as const,
       path_disclosed: false as const,
@@ -383,17 +392,18 @@ async function main(): Promise<void> {
     );
   }
 
-  const applicationSource =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-argv source-context boundary.
-    require("./floodgate-v7-production-application-source-provenance") as ApplicationSourceModule;
-  applicationSource.assertFloodgateV7ProductionApplicationEntrypointContext(
-    "ml/provision-floodgate-v7-production-connector-registry.ts",
-  );
+  const applicationSourceAuthorization =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-argv minimal source-authorization bootstrap.
+    require("./floodgate-v7-production-application-source-authorization") as ApplicationSourceAuthorizationModule;
+  const applicationExecutionCapability =
+    await applicationSourceAuthorization.authorizeFloodgateV7ProductionApplicationExecution(
+      "production-registry-provision",
+    );
 
-  // Keep the provisioner require after both invocation and source-context
-  // checks. A mismatched entry point must not load mutation-capable code.
+  // Keep the provisioner require after exact tracked-source authorization.
+  // A mismatched or dirty source must not load mutation-capable code.
   const provisioner =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-argv lazy production boundary.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Deliberate post-source-authorization lazy production boundary.
     require("./floodgate-v7-production-connector-registry-provisioner") as ProvisionerModule;
 
   let receipt: Readonly<FloodgateV7ProductionConnectorRegistryProvisionerReceipt>;
@@ -401,8 +411,9 @@ async function main(): Promise<void> {
     // From the instant this boundary is invoked, an unknown failure must assume
     // that create-only publication may have crossed its commit point.
     registryMayHaveBeenCreatedForPublicFailure = true;
-    receipt =
-      await provisioner.provisionFloodgateV7ProductionConnectorRegistry();
+    receipt = await provisioner.provisionFloodgateV7ProductionConnectorRegistry(
+      applicationExecutionCapability,
+    );
   } catch (failure) {
     const projection = sanitizedFailure(
       failure,

@@ -12,6 +12,11 @@ import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  claimFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
+import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
@@ -1602,15 +1607,45 @@ export function installFloodgateV7ProductionConnectorRegistryCoreForTests(
 /** Fixed production installer. Calling it may create the real registry. */
 export function installFloodgateV7ProductionConnectorRegistry(
   input: FloodgateV7ProductionConnectorRegistryInstallationInput,
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
 ): Promise<
   Readonly<
     FloodgateV7ProductionConnectorRegistryInstallerReceipt<"production-fixed-current-euid-userinfo-home-production-connector-registry-installation">
   >
 > {
-  if (arguments.length !== 1 || getEffectiveUserId === null) {
+  if (arguments.length !== 2) {
     return rejected(
       new FloodgateV7ProductionConnectorRegistryInstallerError(
         "capture",
+        "no-installation-change-established",
+        false,
+        "manual-reconciliation-required",
+      ),
+    );
+  }
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/provision-floodgate-v7-production-connector-registry.ts",
+    );
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "production-registry-provision",
+      "installer",
+    );
+  } catch {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryInstallerError(
+        "production-identity",
+        "no-installation-change-established",
+        false,
+        "manual-reconciliation-required",
+      ),
+    );
+  }
+  if (getEffectiveUserId === null) {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryInstallerError(
+        "production-identity",
         "no-installation-change-established",
         false,
         "manual-reconciliation-required",

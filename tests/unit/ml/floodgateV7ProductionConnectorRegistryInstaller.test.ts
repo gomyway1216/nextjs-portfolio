@@ -206,6 +206,47 @@ afterEach(async () => {
 });
 
 posixDescribe("Floodgate v7 production connector registry installer", () => {
+  it("requires the fixed source entry and staged capability at the production export before input access or mutation", async () => {
+    expect(installer.installFloodgateV7ProductionConnectorRegistry.length).toBe(
+      2,
+    );
+    const home = await temporaryHome();
+    const input = registryInput(home);
+    const missingCapabilityFailure = await captureFailure(() =>
+      Reflect.apply(
+        installer.installFloodgateV7ProductionConnectorRegistry,
+        undefined,
+        [input],
+      ),
+    );
+    expect(missingCapabilityFailure).toMatchObject({
+      phase: "capture",
+      durability: "no-installation-change-established",
+      registry_may_have_been_created: false,
+    });
+
+    const forgedCapabilityFailure = await captureFailure(() =>
+      installer.installFloodgateV7ProductionConnectorRegistry(
+        input,
+        Object.freeze({
+          contract: "forged",
+          status: "forged",
+        }) as never,
+      ),
+    );
+    expect(forgedCapabilityFailure).toMatchObject({
+      phase: "production-identity",
+      durability: "no-installation-change-established",
+      registry_may_have_been_created: false,
+    });
+    expect(JSON.stringify(missingCapabilityFailure)).not.toContain(home);
+    expect(JSON.stringify(forgedCapabilityFailure)).not.toContain(home);
+    expect(JSON.stringify(forgedCapabilityFailure)).not.toContain(
+      APPLICATION_REVISION,
+    );
+    expect(await entriesOrEmpty(home)).toEqual([]);
+  });
+
   it("publishes exact canonical bytes with the fixed private layout and loader integration", async () => {
     const home = await temporaryHome();
     const input = registryInput(home);

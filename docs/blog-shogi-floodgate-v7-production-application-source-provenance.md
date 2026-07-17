@@ -1,6 +1,6 @@
 # production実行アプリをexact sourceへ固定する — Floodgate v7
 
-> PR #479は通常のmerge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`で統合された。しかし統合後の独立棚卸しで、verifierは固定されていても、**production commandを実行するアプリケーションsourceそのものが固定されていない**というP1 blockerが見つかった。[PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481)は、その穴をexact-clean tracked Git closure、pre-mutation capability、create-only registry V2、outer-gate receipt V3で閉じる。実装revision `7223c3ddb50201614f62337827be9e22211c0aff`のlocal validationと独立監査はPASSし、ready PRを作成してCIを開始した。GitHub CI、review、mergeはPENDINGである。production registry、gate、teacher、label、training、selection、正式A/B、外部校正、live activationは実行しておらず、live weightとrunOp1は変更していない。English version: [blog-shogi-floodgate-v7-production-application-source-provenance.en.md](./blog-shogi-floodgate-v7-production-application-source-provenance.en.md)
+> PR #479は通常のmerge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`で統合された。しかし統合後の独立棚卸しで、verifierは固定されていても、**production commandを実行するアプリケーションsourceそのものが固定されていない**というP1 blockerが見つかった。[PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481)は、その穴をexact-clean tracked Git closure、pre-mutation capability、create-only registry V2、outer-gate receipt V3で閉じる。実装revision `7223c3ddb50201614f62337827be9e22211c0aff`はfocused 610件とfull 3,004件を通過し、その後のPR head `f69322583bf2d86df302e43022ac56788bc5eb5f`もremote check 6 / 6を通過した。ただしmerge前のpost-green監査で、production child Node開始前の`NODE_OPTIONS` preloadを閉じていないP1と、absolute `engineArgs`、exact test-home、文書claimに関するP2が見つかったため、greenのままmergeを保留した。native JXA clean launcherを含むremediationはexact実装revision `9ec2d01da4b6e50c4b4c5afd83ce68999d501019`としてcommit済みで、isolated local validationは165 / 165 files、3,027 / 3,027 testsを通過し、独立final auditもP0 / P1 / P2 = 0 / 0 / 0だった。この証拠文書の変更はその実装revision外なので、最終PR headのGitHub CI、re-review、通常mergeはPENDINGである。production registry、gate、teacher、label、training、selection、正式A/B、外部校正、live activationは実行しておらず、live weightとrunOp1は変更していない。English version: [blog-shogi-floodgate-v7-production-application-source-provenance.en.md](./blog-shogi-floodgate-v7-production-application-source-provenance.en.md)
 
 ## 1. 結論と現在地
 
@@ -14,7 +14,7 @@
 
 そこから40桁Git revisionを取得し、nonignored statusがcleanで、全tracked entryのbytes / modesが一致することを検査して、private registryへ一度だけ固定する。この文書でいうexact-cleanはこの**tracked closure**を指し、ignored / untracked dependency bytesを含まない。以後のmutationは、そのregistry bindingと現在のtracked source closureが一致した場合にだけ先へ進む。
 
-ただし、これはまだ**候補実装**である。local validationはPASSしたが、GitHub CI、review、通常mergeはPENDINGで、固定worktreeのmerge revisionへのalignmentもregistry provisionも行っていない。現時点のproduction開始判定は明確に**NO-GO**である。
+ただし、これはまだ**候補実装**である。exact remediation revision `9ec2d01...`はfinal isolated local validationと独立auditを通過したが、最終PR headのGitHub CI、re-review、通常mergeはPENDINGである。固定worktreeのmerge revisionへのalignmentもregistry provisionも行っていない。現時点のproduction開始判定は明確に**NO-GO**である。
 
 ## 2. #479後と実装監査で見つかったP1 blocker
 
@@ -31,7 +31,16 @@
 
 候補実装は、production mutation graphをloadする**前**に固定entrypointとtracked closureを検査し、module-privateなsingle-use capabilityを発行する。通常gateでは同じexact objectを`runner-entry -> outer-owner`の順に消費し、registry provisionではbootstrap capabilityをprovisionerが消費した後、入力確定までinstaller authorityを発行しない。production exportは正しいcapabilityとentrypoint contextの両方を要求する。
 
-今回hardeningしたouter-gate、registry loader / installer / provisioner、stage / connector / training-label compositionのtest-only ownerは、明示的に渡されたtest home / optionsがproduction home、そのcanonical descendant、symlink alias（未存在のproduction-home descendantを指すdangling linkを含む）、または同じdevice / inodeを経由するaliasなら、ownerやOS lockへ入る前に拒否する。callbackから返るregistry pathと、認証済みexact test-realm lease bindingのpathだけをdownstream mutation authority前にproduction-home境界へ再照合する。foreign / cloned leaseはpropertyやpathを検査せず、`close()`も呼ばず、key / consumer / checkpoint / preflight / finalizer authorityへ進む前に拒否する。test capability / continuationはproductionとは別のWeakMap realmに置き、production objectとtest objectを相互利用できない。test-only training-label ownerの成功receiptも専用contract / status / claim boundaryを使い、outer-gate capabilityやOS lockを取得したとはclaimしない。production receiptの既存contractとtrue verificationは変更しない。ただし、任意に注入されたcallback自身の副作用を隔離するsandboxではない。これらのremediationはlocal validationと独立監査を通過したが、GitHub reviewはまだPENDINGである。
+今回hardeningしたouter-gate、registry loader / installer / provisioner、stage / connector / training-label compositionのtest-only ownerは、明示的に渡されたtest home / optionsがproduction home、そのcanonical descendant、symlink alias（未存在のproduction-home descendantを指すdangling linkを含む）、または同じdevice / inodeを経由するaliasなら、ownerやOS lockへ入る前に拒否する。callbackから返るregistry pathと、認証済みexact test-realm lease bindingのpathだけをdownstream mutation authority前にproduction-home境界へ再照合する。foreign / cloned leaseはpropertyやpathを検査せず、`close()`も呼ばず、key / consumer / checkpoint / preflight / finalizer authorityへ進む前に拒否する。test capability / continuationはproductionとは別のWeakMap realmに置き、production objectとtest objectを相互利用できない。test-only training-label ownerの成功receiptも専用contract / status / claim boundaryを使い、outer-gate capabilityやOS lockを取得したとはclaimしない。production receiptの既存contractとtrue verificationは変更しない。ただし、任意に注入されたcallback自身の副作用を隔離するsandboxではない。ここまでのremediationは`7223c3d...`のhistorical validationを通過した。
+
+さらに、`f693225...`がremote check 6 / 6を通過した後もmergeせず監査を続け、次のpost-green findingを見つけた。
+
+- **P1 — hidden preload:** direct Node起動ではapplication codeの最初のguardより前に`NODE_OPTIONS=--require=...`が実行される。preload自身が`NODE_OPTIONS`と`process.execArgv`を消し、module loaderやcaptured予定のintrinsicを変更すると、Node内だけの検査では先行実行を後から証明できなかった
+- **P2 — absolute `engineArgs`:** test-only connector / training-label経路は主要pathを検査しても、absoluteなengine argumentを同じ境界へ含め切れていなかった
+- **P2 — exact test-home:** production homeの外であることだけでは、認証したtest homeとは別のsiblingやsymlink先へtest registry / lease pathが出ることを拒否できなかった
+- **P2 — documentation claims:** 「最小source-authorization moduleだけ」「application source revision値を一切含めない」という表現は、mutation-neutral shared CLI boundaryやprivate registry bindingまで含めた実際の境界より広すぎた
+
+P1はattested production child Nodeより前に評価されるtracked native JXA launcherが、そのchild専用のclean environmentを作ることでremediateし、P2はabsolute `engineArgs`をpath検査へ追加し、test registry / lease pathを認証済みexact test home内へ固定し、文書claimを実装境界へ狭めた。これらはexact実装revision `9ec2d01...`へcommitされ、focused / final isolated local validationと独立final auditを通過した。最終PR headのGitHub CIとre-reviewは別のdelivery gateとして残る。
 
 ## 3. registry record V2へsource bindingを一度だけ固定する
 
@@ -80,7 +89,16 @@ public receipt、connector receipt、training-label receiptはapplication source
 
 ## 6. mutation graphより先にsource authorityを確定する
 
-対象production CLIはNode `v22.13.0`、引数なし、`node -r tsx/cjs`、固定application rootと一致するcurrent working directory、exactなentrypoint path、`require.main.filename`を要求する。最小のsource-authorization moduleだけを先にloadし、固定tracked closureを検査してopaque capabilityを得た後に、production mutation moduleを遅延loadする。別checkoutや古い作業treeから同じscript名を実行しても、そのmodule固有のWeakMapでcapabilityをclaimできず、mutation graphへ入る前に失敗する。clone、proxy、purpose違い、stage順序違い、再利用も拒否する。
+post-green remediationでは、対象production evidence commandのattested production childをdirect Nodeでは起動しない。package scriptを実行するnpm自体はNode processであり、`osascript` / JXA processもinvoking shell / npm environmentを見得る。境界が保証するのは、canonicalな固定application rootからroot-owned absolute `/usr/bin/osascript`がcanonical helper pathのtracked JXAと固定purposeを**production child Nodeより先に**評価し、operator由来の任意keyをそのchildへforwardしないことである。JXAは`NODE_OPTIONS`を含まないfresh fixed minimal NSTask environmentを組み立て、fixed Node `v22.13.0`を`/usr/bin/caffeinate`経由で`-r tsx/cjs`とexact entrypointだけに固定して起動する。
+
+native launcherが現在coverするのはexactly 8 commandsである。
+
+- mutation-capable 5件: create-only registry provision、durable prefix-100、durable prefix-500、sealed final-24000、training-label finalization
+- read-only / disposable 3件: application-source readiness、prefix-100 read-only preflight、disposable kill drill
+
+launcherは32-byte CSPRNG nonceをprivate one-shot stdin pipeとclean child environmentへ結び、Node側はlive parentのexact commandと`/usr/bin/osascript` imageをroot-owned `/usr/sbin/lsof`と`/bin/ps`で照合する。さらにproduction childのcwd、`process.execPath`、main filename、`process.argv`、`process.execArgv`、allowlisted environmentをexact tupleとして照合する。attestationは一度だけclaimでき、claim後は5つのattestation keyを`process.env`から削除する。ただしJS string copyのmemory zeroizationはclaimしない。その後、mutation-neutralなentrypoint / shared CLI boundaryとsource-authorization moduleが固定tracked closureを検査してopaque capabilityを得てから、該当するproduction operation module / graphを遅延loadする。別checkout、direct Node parent、preloadを含むchild environment、clone、proxy、purpose違い、stage順序違い、再利用はfail closedする。
+
+これはfixed toolのowner / mode / canonical path、live parent image / command、exact child tuple、one-shot pipeを照合する境界であり、`osascript`、`lsof`、`ps`、`caffeinate`、Node binaryのbyte digest closure、process lineageのatomic snapshot、same-UID hostile / ancestor process isolationをclaimしない。
 
 productionとtestはcapability registry、provisioner continuation registryを分離している。test-stage realmはstate machineと失敗経路を検証するためのもので、production capabilityをmint、claim、armできず、production namespaceへaliasするhomeも受け付けない。
 
@@ -106,28 +124,52 @@ preflightの`GO`は**read-only core preconditionsをその時点で観測した*
 
 tracked Git entriesはfull bytesとmodeを検査するが、これはOS-level sandboxやsame-UID adversary isolationではない。残る前提と非保証を隠さず、production approval時の判断材料として残す。
 
-outer、connector runner / CLI、training-label runner / CLI、preflight、readiness、provision receiptは、保証境界を曖昧にしないため、`ignored_untracked_dependency_bytes_verified: false`、`same_uid_race_isolation: false`、`atomic_source_snapshot: false`を明示する。したがって「exact clean」を`node_modules`を含む全dependency bytesの検証やatomic source snapshotと読み替えてはならない。
+outer、connector runner / CLI、training-label runner / CLI、preflight、readiness、provision receiptは、保証境界を曖昧にしないため、`ignored_untracked_dependency_bytes_verified: false`、`same_uid_race_isolation: false`、`atomic_source_snapshot: false`を明示する。native launcherも`tool_byte_closure_verified: false`、`atomic_process_lineage_snapshot: false`に相当する境界である。したがって「exact clean」を`node_modules`を含む全dependency bytesの検証、fixed toolのbyte closure、atomic source / process-lineage snapshotと読み替えてはならない。
 
-## 9. local validationはPASS、remote deliveryはPENDING
+## 9. exact remediation実装はlocal PASS、最終deliveryはPENDING
 
-local validationは実装revision `7223c3ddb50201614f62337827be9e22211c0aff`へ固定した。証拠記事とJSONの未commit変更はこのrevisionに含めないため、ここでclaimするのは**exact implementation revision**の検証であり、最終PR headやmerge commitのGitHub CIではない。
+最初のlocal validationは実装revision `7223c3ddb50201614f62337827be9e22211c0aff`へ固定した。証拠記事とJSONの未commit変更はこのrevisionに含まれなかったため、これはその時点の**exact historical implementation revision**の検証である。その後の`f693225...`もremote check 6 / 6を通過したが、post-green findingより前の結果なので、現在のmerge gateには使わない。
 
-| 検査                                                | 状態    | 確定値                                                                  |
-| --------------------------------------------------- | ------- | ----------------------------------------------------------------------- |
-| focused source / registry / outer / preflight tests | PASS    | 21 files / 610 tests / 9.93秒                                           |
-| full Vitest                                         | PASS    | 164 files / 3,004 tests / 312.58秒、max RSS 2,416,541,696 bytes、swap 0 |
-| TypeScript                                          | PASS    | `tsc --noEmit`                                                          |
-| full lint                                           | PASS    | errors 0、既存warning 157                                               |
-| changed-file Prettier                               | PASS    | 47 files                                                                |
-| production build                                    | PASS    | exit 0 / 30.68秒、max RSS 2,625,978,368 bytes、swap 0                   |
-| ML stdlib                                           | PASS    | 58 / 58 tests                                                           |
-| npm audit                                           | PASS    | vulnerabilities 0                                                       |
-| independent security / docs audit                   | PASS    | P0 / P1 / P2 = 0 / 0 / 0、TypeScript import cycle 0                     |
-| GitHub CI                                           | RUNNING | ready PR #481                                                           |
-| GitHub review / unresolved threads                  | PENDING | ready PR #481、review未完了                                             |
-| regular merge                                       | PENDING | 通常merge必須                                                           |
+| `7223c3d...` historical検査                         | 状態 | 確定値                                                                  |
+| --------------------------------------------------- | ---- | ----------------------------------------------------------------------- |
+| focused source / registry / outer / preflight tests | PASS | 21 files / 610 tests / 9.93秒                                           |
+| full Vitest                                         | PASS | 164 files / 3,004 tests / 312.58秒、max RSS 2,416,541,696 bytes、swap 0 |
+| TypeScript                                          | PASS | `tsc --noEmit`                                                          |
+| full lint                                           | PASS | errors 0、既存warning 157                                               |
+| changed-file Prettier                               | PASS | 47 files                                                                |
+| production build                                    | PASS | exit 0 / 30.68秒、max RSS 2,625,978,368 bytes、swap 0                   |
+| ML stdlib                                           | PASS | 58 / 58 tests                                                           |
+| npm audit                                           | PASS | vulnerabilities 0                                                       |
+| 当時のindependent security / docs audit             | PASS | P0 / P1 / P2 = 0 / 0 / 0、TypeScript import cycle 0                     |
 
-全repositoryへのPrettier checkは、既存の巨大JSONLを読み切れないこと、AssemblyScript decoratorを標準parserが扱えないこと、今回と無関係な既存未整形ファイルが多数あるためfinal gateに数えない。代わりにbaseからの全変更47ファイルを検査しPASSした。full lintの157 warningsも今回の差分外にある既存warningで、errorは0だった。
+post-green remediationの現在地は別に扱う。下のexact実装revisionにはこの記事とJSONの証拠変更を含まない。これらを後続commitした最終PR headをremote gateへ通す。
+
+| timeline / gate                                      | 状態        | 確定値またはPENDING境界                                                         |
+| ---------------------------------------------------- | ----------- | ------------------------------------------------------------------------------- |
+| PR head `f693225...` remote checks                   | PASS-HELD   | 6 / 6 PASS。ただし後続監査のためmergeに使用しない                               |
+| post-green independent audit                         | FOUND-FIXED | P1 hidden preload 1件、P2 3件。`9ec2d01...`でremediate                          |
+| exact remediation実装revision                        | PASS        | `9ec2d01da4b6e50c4b4c5afd83ce68999d501019`                                      |
+| native-launcher + 8 CLI focused Node 22 tests        | PASS        | 9 files / 136 tests。production command / namespace使用0                        |
+| native-launcher exact-child-tuple adversarial matrix | PASS        | 22 / 22、wall 2.34秒、max RSS 146,620,416 bytes、swap / block I/O 0             |
+| P2 exact-home / absolute-`engineArgs` boundary tests | PASS        | 2 files / 139 tests                                                             |
+| combined focused run                                 | PASS        | 9 files / 255 tests、wall 2.51秒、max RSS 298,795,008 bytes、swap / block I/O 0 |
+| final isolated full Vitest                           | PASS        | 165 / 165 files、3,027 / 3,027 tests、Vitest 314.34秒、wall 314.51秒            |
+| full-suite resource envelope                         | PASS        | max RSS 2,402,271,232 bytes、swap / block I/O 0、開始13 workers、tail 1 worker  |
+| production build                                     | PASS        | wall 26.83秒、max RSS 2,637,201,408 bytes、swap / block I/O 0                   |
+| TypeScript                                           | PASS        | `tsc --noEmit`、exit 0、3.08秒                                                  |
+| full ESLint                                          | PASS        | 1,168 files、errors 0 / 既存warnings 157、26.88秒                               |
+| Prettier / JXA syntax                                | PASS        | normal 23 files + JXA 2 files、`osacompile` 2 / 2                               |
+| ML stdlib / npm audit                                | PASS        | 58 / 58、wall 1.38秒、vulnerabilities 0                                         |
+| evidence JSON / 日英parity                           | PASS        | JSON parseと記事parity check通過                                                |
+| independent final audit                              | PASS        | P0 / P1 / P2 = 0 / 0 / 0                                                        |
+| 最終PR headのGitHub CI / re-review                   | PENDING     | 証拠文書commitで最終headを作った後に再実行                                      |
+| regular merge                                        | PENDING     | 最終headの全gateがgreenになるまで保留                                           |
+
+launcher test fixtureはtracked test helperとdisposable childだけを使い、production application root、registry、control namespace、gateを使わない。この22件をproduction command、kill drill、preflight、gateの実行数へ加算しない。
+
+全repositoryへのPrettier checkは、既存の巨大JSONLを読み切れないこと、AssemblyScript decoratorを標準parserが扱えないこと、今回と無関係な既存未整形ファイルが多数あるためfinal gateに数えない。final remediation revisionではnormal変更23 filesとJXA 2 filesを該当format checkへ通し、JXA 2 filesは`osacompile`も通過した。full ESLintは1,168 filesを検査し、157 warningsは既存warning、errorは0だった。
+
+duplicate full-suite run 1件は、先に動いていたisolated validationの方が進んでいたため77.10秒で意図的にinterruptした。これは証拠に数えない。上記の165 files / 3,027 testsのfinal timed isolated runがこれをsupersedeする。
 
 途中でfull Vitestをbuild / lintなどの重いjobと並行実行した観測では、163 files中162、2,963 tests中2,955まで進み、kill-drillのarm IPC周辺8件が失敗した。別のisolated開始runは実行中にsource treeが変わり、164 files中2 files、2,989 tests中9 testsが失敗した。当初はresource contentionだけが疑われたが、後のisolated再現で、disposable child fixtureがsource-bound V2ではない仮registryを使い、exact application bindingも返していなかった回帰だと判明した。fixtureをcanonical V2と一致するexact frozen test bindingへ更新した後、isolated kill-drill diagnosticは20 / 20 testsを70.38秒で通過した。古い2 runとcommit前diagnosticはいずれも最終証拠には数えず、最終証拠には`7223c3d...`のisolated full runだけを使う。
 
@@ -146,14 +188,14 @@ execution_boundary = test-only-fixed-synthetic-read-only-current-euid-home-exclu
 
 この変更でのproduction command、registry provision、kill drill、prefix-100 / 500 / final-24000 gate、teacher generation、label finalization、training、optimizer step、candidate selection / promotion、正式A/B、外部校正、weight overwrite、live activationはすべて0である。
 
-今回、registry / control / evaluatorなどのmanaged production stateはfreshには読んでいない。test-isolation境界のためcurrent-EUID homeのidentity metadataだけをread-onlyで検査し、production application / control contentは読んでいない。PR #479までの既存証拠でrunOp1がcurrent evaluatorかつrollback evaluatorだった状態をlast-knownとして継承し、この変更ではrunOp1もlive weightも変更していない。したがって、このsource provenanceを「強くなった」「高段になった」という証拠には数えない。これは、その後に得る棋力証拠を信用できるようにする安全基盤である。
+今回、registry / control / evaluatorなどのmanaged production stateはfreshには読んでいない。test-isolation境界のためcurrent-EUID homeのidentity metadataだけをread-onlyで検査し、production application / control contentは読んでいない。native launcherのtest-only fixtureもproduction countには含めない。PR #479までの既存証拠でrunOp1がcurrent evaluatorかつrollback evaluatorだった状態をlast-knownとして継承し、この変更ではrunOp1もlive weightも変更していない。したがって、このsource provenanceを「強くなった」「高段になった」という証拠には数えない。これは、その後に得る棋力証拠を信用できるようにする安全基盤である。
 
 ## 11. 次に進む順序
 
 安全な順序は次で固定する。
 
-1. このapplication-source provenance候補をvalidation、reviewし、通常mergeする
-2. 次PRでoperator guardsを完成させる（approved-current-binding CLIのexact invocation、standalone verifier readiness）。reconciliation authorityはまだ実装しない
+1. この証拠文書をcommitし、その最終PR headでGitHub CIと独立re-reviewを通してから、このapplication-source provenance候補を通常mergeする
+2. 番号を先取りしない次PRでoperator guardsを完成させる（approved-current-binding standalone CLIのnative exact launch、standalone verifier readiness）。reconciliation authorityはまだ実装しない
 3. 固定application worktreeをこのPRのmerge revisionへ、固定verifier worktreeを`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へalignする
 4. create-only registry V2を一度だけprovisionする
 5. reviewed disposable kill drillを行う
@@ -170,6 +212,6 @@ production向けmanual inspect / confirm quarantine / cancel reconciliation expo
 
 ## 12. 現時点の判断
 
-P1の原因は評価関数そのものではなく、教師生成へ入る前のproduction application provenanceが閉じていなかったことだった。この候補はその穴を具体的に塞ぎlocal validationも通過したが、GitHub CI、review、通常mergeが終わるまではproduction application worktreeのalignmentもregistry provisionも**NO-GO**である。
+P1の原因は評価関数そのものではなく、教師生成へ入る前のproduction application provenanceとpre-production-child launch boundaryが閉じていなかったことだった。exact実装revision `9ec2d01...`はfinal isolated local validationと独立auditを通過したが、最終PR headのGitHub CI、re-review、通常mergeが終わるまではproduction application worktreeのalignmentもregistry provisionも**NO-GO**である。
 
 [機械可読証拠](./data/floodgate-v7-production-application-source-provenance-2026-07-16.json)は、確定事項、PENDING、production 0、nonclaim、次の停止点を分けて記録する。

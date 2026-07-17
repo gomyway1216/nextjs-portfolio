@@ -1,6 +1,6 @@
 # Binding production execution to exact application source — Floodgate v7
 
-> PR #479 was integrated with regular merge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`. An independent post-merge audit then found a P1 blocker: the verifier was fixed, but the **application source executing production commands was not**. [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481) closes that gap with an exact-clean tracked Git closure, a pre-mutation capability, a create-only registry V2, and an outer-gate public receipt V3. Local validation and independent review passed for implementation revision `7223c3ddb50201614f62337827be9e22211c0aff`; the ready PR is open and CI has started. GitHub CI, review, and merge remain PENDING. It has executed no production registry, gate, teacher, label, training, selection, formal A/B, external calibration, or live-activation operation. It has not changed the live weight or runOp1. Japanese version: [blog-shogi-floodgate-v7-production-application-source-provenance.md](./blog-shogi-floodgate-v7-production-application-source-provenance.md)
+> PR #479 was integrated with regular merge commit `4c71e664dae67ccd4afdb369a666bcdb4d4bbb37`. An independent post-merge audit then found a P1 blocker: the verifier was fixed, but the **application source executing production commands was not**. [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481) closes that gap with an exact-clean tracked Git closure, a pre-mutation capability, a create-only registry V2, and an outer-gate public receipt V3. Implementation revision `7223c3ddb50201614f62337827be9e22211c0aff` passed 610 focused tests and 3,004 full-suite tests, and later PR head `f69322583bf2d86df302e43022ac56788bc5eb5f` passed 6 / 6 remote checks. Merge was nevertheless held because a post-green audit found a P1 gap in `NODE_OPTIONS` preload handling before the production child Node and P2 gaps involving absolute `engineArgs`, exact test-home confinement, and documentation claims. The remediation, including a native JXA clean launcher, is now committed as exact implementation revision `9ec2d01da4b6e50c4b4c5afd83ce68999d501019`; its isolated local validation passed 165 / 165 files and 3,027 / 3,027 tests, and the independent final audit found P0 / P1 / P2 = 0 / 0 / 0. These evidence-document edits are outside that implementation revision, so GitHub CI, re-review, and regular merge for the eventual final PR head remain PENDING. It has executed no production registry, gate, teacher, label, training, selection, formal A/B, external calibration, or live-activation operation. It has not changed the live weight or runOp1. Japanese version: [blog-shogi-floodgate-v7-production-application-source-provenance.md](./blog-shogi-floodgate-v7-production-application-source-provenance.md)
 
 ## 1. Result and current position
 
@@ -14,7 +14,7 @@ This candidate permits one fixed application worktree:
 
 It captures the worktree's 40-character Git revision, requires a clean nonignored status, verifies every tracked entry's bytes and mode, and then binds the result once in the private registry. In this document, exact-clean means that **tracked closure**; it does not include ignored or untracked dependency bytes. Every later mutation may proceed only when the current tracked source closure matches the registry binding.
 
-This remains a **candidate implementation**. Local validation passed, but GitHub CI, review, and regular merge are PENDING. The fixed worktree has not been aligned to the eventual merge revision, and the registry has not been provisioned. The production decision is therefore explicitly **NO-GO**.
+This remains a **candidate implementation**. Exact remediation revision `9ec2d01...` passed final isolated local validation and independent audit, but GitHub CI, re-review, and regular merge for the eventual final PR head are PENDING. The fixed worktree has not been aligned to the eventual merge revision, and the registry has not been provisioned. The production decision is therefore explicitly **NO-GO**.
 
 ## 2. P1 blockers found after PR #479 and during implementation audit
 
@@ -31,7 +31,16 @@ Independent auditing continued after the first fix and found two direct bypasses
 
 The candidate now verifies the fixed entrypoint and tracked closure **before** loading the production mutation graph and issues a module-private, single-use capability. Ordinary gates consume the same exact object in `runner-entry -> outer-owner` order. Registry provisioning consumes its bootstrap capability in the provisioner and issues no installer authority until its input is fixed. Production exports require both the correct capability and entrypoint context.
 
-The hardened outer-gate, registry loader / installer / provisioner, and stage / connector / training-label composition test owners reject explicitly supplied test homes or options that resolve to the production home, a canonical descendant, a symlink alias (including a dangling link targeting a nonexistent production-home descendant), or an alias through the same device/inode before entering the owner or OS lock. Only callback-returned registry paths and paths bound to an authenticated exact test-realm lease are rechecked against the production-home boundary before downstream mutation authority. A foreign or cloned lease is rejected without inspecting its properties or paths, invoking its `close()`, or reaching key / consumer / checkpoint / preflight / finalizer authority. Test capabilities and continuations live in WeakMap realms separate from production, so production and test objects cannot be exchanged. A successful test-only training-label owner receipt now uses a dedicated contract, status, and claim boundary and does not claim an outer-gate capability or OS lock. The existing production receipt contract and true verification remain unchanged. This is not a sandbox for arbitrary side effects inside an injected callback. These remediations passed local validation and independent audit; GitHub review remains PENDING.
+The hardened outer-gate, registry loader / installer / provisioner, and stage / connector / training-label composition test owners reject explicitly supplied test homes or options that resolve to the production home, a canonical descendant, a symlink alias (including a dangling link targeting a nonexistent production-home descendant), or an alias through the same device/inode before entering the owner or OS lock. Only callback-returned registry paths and paths bound to an authenticated exact test-realm lease are rechecked against the production-home boundary before downstream mutation authority. A foreign or cloned lease is rejected without inspecting its properties or paths, invoking its `close()`, or reaching key / consumer / checkpoint / preflight / finalizer authority. Test capabilities and continuations live in WeakMap realms separate from production, so production and test objects cannot be exchanged. A successful test-only training-label owner receipt now uses a dedicated contract, status, and claim boundary and does not claim an outer-gate capability or OS lock. The existing production receipt contract and true verification remain unchanged. This is not a sandbox for arbitrary side effects inside an injected callback. These remediations passed the historical validation at `7223c3d...`.
+
+Auditing continued even after `f693225...` passed 6 / 6 remote checks. Merge was held when that post-green audit found:
+
+- **P1 — hidden preload:** direct Node startup executes `NODE_OPTIONS=--require=...` before the application's first guard. A preload can erase `NODE_OPTIONS` and `process.execArgv` after running and can alter the module loader or intrinsics that the application intended to capture, so a Node-only check could not prove that no code ran first;
+- **P2 — absolute `engineArgs`:** the test-only connector and training-label paths checked their main paths but did not include every absolute engine argument in the same boundary;
+- **P2 — exact test home:** merely staying outside production did not reject a test registry or lease path that escaped its authenticated test home through a sibling or symlink; and
+- **P2 — documentation claims:** phrases such as “only the minimal source-authorization module” and “no application-source revision values” were broader than the implemented boundary, which also includes a mutation-neutral shared CLI boundary and a private registry binding.
+
+The P1 remediation uses a tracked native JXA launcher evaluated before the attested production child Node to establish a clean environment dedicated to that child. The P2 remediations add absolute `engineArgs` to path checks, confine test registry and lease paths to the authenticated exact test home, and narrow the documentation to the implemented boundary. These changes are committed in exact implementation revision `9ec2d01...`, which passed focused and final isolated local validation plus an independent final audit. Final PR-head GitHub CI and re-review remain separate delivery gates.
 
 ## 3. Capturing source once in registry record V2
 
@@ -81,7 +90,16 @@ Public outer, connector, and training-label receipts disclose no application rev
 
 ## 6. Establishing source authority before the mutation graph
 
-The affected production CLIs require Node `v22.13.0`, zero operator arguments, `node -r tsx/cjs`, a current working directory equal to the fixed application root, the exact entrypoint path, and a matching `require.main.filename`. They first load only the minimal source-authorization module, verify the fixed tracked closure, and obtain an opaque capability before lazily loading a production mutation module. A module from another or stale checkout cannot claim that object in its module-specific WeakMap and fails before entering the mutation graph. Clones, proxies, wrong purposes, wrong stage order, and reuse are also rejected.
+The post-green remediation no longer starts the attested production child for an affected evidence command through direct Node. The npm package-script runner is itself a Node process, and the `osascript` / JXA process may see the invoking shell or npm environment. The boundary instead guarantees that, from the canonical fixed application root, root-owned absolute `/usr/bin/osascript` evaluates the tracked JXA at the canonical helper path with one fixed purpose **before the production child Node**, and that arbitrary operator-provided keys are not forwarded to that child. JXA constructs a fresh fixed minimal NSTask environment with no `NODE_OPTIONS` and starts fixed Node `v22.13.0` through `/usr/bin/caffeinate` with only `-r tsx/cjs` and the exact entrypoint.
+
+The native launcher currently covers exactly 8 commands:
+
+- 5 mutation-capable commands: create-only registry provisioning, durable prefix-100, durable prefix-500, sealed final-24000, and training-label finalization; and
+- 3 read-only or disposable commands: application-source readiness, prefix-100 read-only preflight, and the disposable kill drill.
+
+The launcher binds a 32-byte CSPRNG nonce to a private one-shot stdin pipe and the clean child environment. The Node side checks the live parent's exact command and `/usr/bin/osascript` image through root-owned `/usr/sbin/lsof` and `/bin/ps`. It also checks the production child's cwd, `process.execPath`, main filename, `process.argv`, `process.execArgv`, and allowlisted environment as one exact tuple. The attestation is claimable once. After claim, its five attestation keys are removed from `process.env`; zeroization of JS string copies is not claimed. The mutation-neutral entry/shared-CLI boundary and source-authorization module then verify the fixed tracked closure and obtain an opaque capability before lazily loading the applicable production operation module or graph. An alternate checkout, direct Node parent, preload-bearing child environment, clone, proxy, wrong purpose, wrong stage order, or reuse fails closed.
+
+This boundary checks fixed-tool ownership, mode, and canonical path; the live parent image and command; the exact child tuple; and the one-shot pipe. It does not claim byte-digest closure for `osascript`, `lsof`, `ps`, `caffeinate`, or the Node binary, an atomic process-lineage snapshot, or isolation from a hostile same-UID or ancestor process.
 
 Production and test capability registries and provisioner-continuation registries are separate. The test-stage realm exists to exercise state machines and failure paths; it cannot mint, claim, or arm a production capability and does not accept a home that aliases the production namespace.
 
@@ -107,28 +125,52 @@ The candidate does not claim:
 
 Every tracked Git entry is checked by full bytes and mode, but this is not an OS sandbox or same-UID adversary-isolation boundary. The remaining assumptions stay explicit for later production approval.
 
-Outer, connector-runner / CLI, training-label-runner / CLI, preflight, readiness, and provision receipts explicitly state `ignored_untracked_dependency_bytes_verified: false`, `same_uid_race_isolation: false`, and `atomic_source_snapshot: false`. “Exact clean” must therefore not be read as verification of every dependency byte in `node_modules` or as an atomic source snapshot.
+Outer, connector-runner / CLI, training-label-runner / CLI, preflight, readiness, and provision receipts explicitly state `ignored_untracked_dependency_bytes_verified: false`, `same_uid_race_isolation: false`, and `atomic_source_snapshot: false`. The native launch boundary likewise has the equivalent of `tool_byte_closure_verified: false` and `atomic_process_lineage_snapshot: false`. “Exact clean” must therefore not be read as verification of every dependency byte in `node_modules`, fixed-tool byte closure, or an atomic source or process-lineage snapshot.
 
-## 9. Local validation passed; remote delivery remains PENDING
+## 9. Exact remediation implementation passed locally; final delivery is PENDING
 
-Local validation is fixed to implementation revision `7223c3ddb50201614f62337827be9e22211c0aff`. The uncommitted evidence article and JSON edits are not part of that revision, so this is a claim about the **exact implementation revision**, not GitHub CI for the eventual PR head or merge commit.
+The first local validation is fixed to implementation revision `7223c3ddb50201614f62337827be9e22211c0aff`. The then-uncommitted article and JSON edits were not part of that revision, so this is validation of the **exact historical implementation revision** at that time. Later head `f693225...` also passed 6 / 6 remote checks, but that predates the post-green findings and is not a current merge gate.
 
-| Check                                               | State   | Final value                                                                   |
-| --------------------------------------------------- | ------- | ----------------------------------------------------------------------------- |
-| Focused source / registry / outer / preflight tests | PASS    | 21 files / 610 tests / 9.93 seconds                                           |
-| Full Vitest                                         | PASS    | 164 files / 3,004 tests / 312.58 seconds; RSS 2,416,541,696 bytes; zero swaps |
-| TypeScript                                          | PASS    | `tsc --noEmit`                                                                |
-| Full lint                                           | PASS    | 0 errors; 157 pre-existing warnings                                           |
-| Changed-file Prettier                               | PASS    | 47 files                                                                      |
-| Production build                                    | PASS    | exit 0 / 30.68 seconds; RSS 2,625,978,368 bytes; zero swaps                   |
-| ML stdlib                                           | PASS    | 58 / 58 tests                                                                 |
-| npm audit                                           | PASS    | 0 vulnerabilities                                                             |
-| Independent security / docs audit                   | PASS    | P0 / P1 / P2 = 0 / 0 / 0; zero TypeScript import cycles                       |
-| GitHub CI                                           | RUNNING | ready PR #481                                                                 |
-| GitHub review / unresolved threads                  | PENDING | ready PR #481; review incomplete                                              |
-| Regular merge                                       | PENDING | regular merge required                                                        |
+| Historical check at `7223c3d...`                    | State | Final value                                                                   |
+| --------------------------------------------------- | ----- | ----------------------------------------------------------------------------- |
+| Focused source / registry / outer / preflight tests | PASS  | 21 files / 610 tests / 9.93 seconds                                           |
+| Full Vitest                                         | PASS  | 164 files / 3,004 tests / 312.58 seconds; RSS 2,416,541,696 bytes; zero swaps |
+| TypeScript                                          | PASS  | `tsc --noEmit`                                                                |
+| Full lint                                           | PASS  | 0 errors; 157 pre-existing warnings                                           |
+| Changed-file Prettier                               | PASS  | 47 files                                                                      |
+| Production build                                    | PASS  | exit 0 / 30.68 seconds; RSS 2,625,978,368 bytes; zero swaps                   |
+| ML stdlib                                           | PASS  | 58 / 58 tests                                                                 |
+| npm audit                                           | PASS  | 0 vulnerabilities                                                             |
+| Independent security / docs audit at that time      | PASS  | P0 / P1 / P2 = 0 / 0 / 0; zero TypeScript import cycles                       |
 
-A whole-repository Prettier check is not counted as a final gate because it cannot read an existing huge JSONL, its standard parser does not accept an AssemblyScript decorator, and many unrelated files are already unformatted. The complete 47-file change set relative to the base passed instead. Full lint's 157 warnings are pre-existing and outside this change; the error count is zero.
+The post-green remediation is tracked separately. The exact implementation revision below excludes these article and JSON evidence edits; their later commit will form the final PR head that must pass remote gates.
+
+| Timeline / gate                                      | State       | Established value or PENDING boundary                                                   |
+| ---------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| Remote checks for PR head `f693225...`               | PASS-HELD   | 6 / 6 passed; not used for merge after the later audit                                  |
+| Post-green independent audit                         | FOUND-FIXED | 1 P1 hidden preload and 3 P2 findings; remediated at `9ec2d01...`                       |
+| Exact remediation implementation revision            | PASS        | `9ec2d01da4b6e50c4b4c5afd83ce68999d501019`                                              |
+| Native launcher + 8 CLI focused Node 22 tests        | PASS        | 9 files / 136 tests; 0 production command or namespace use                              |
+| Native-launcher exact-child-tuple adversarial matrix | PASS        | 22 / 22; wall 2.34 seconds; RSS 146,620,416 bytes; zero swaps and block I/O             |
+| P2 exact-home / absolute-`engineArgs` boundary tests | PASS        | 2 files / 139 tests                                                                     |
+| Combined focused run                                 | PASS        | 9 files / 255 tests; wall 2.51 seconds; RSS 298,795,008 bytes; zero swaps and block I/O |
+| Final isolated full Vitest                           | PASS        | 165 / 165 files; 3,027 / 3,027 tests; Vitest 314.34 seconds; wall 314.51 seconds        |
+| Full-suite resource envelope                         | PASS        | RSS 2,402,271,232 bytes; zero swaps and block I/O; 13 workers initially, 1 at the tail  |
+| Production build                                     | PASS        | wall 26.83 seconds; RSS 2,637,201,408 bytes; zero swaps and block I/O                   |
+| TypeScript                                           | PASS        | `tsc --noEmit`; exit 0; 3.08 seconds                                                    |
+| Full ESLint                                          | PASS        | 1,168 files; 0 errors / 157 pre-existing warnings; 26.88 seconds                        |
+| Prettier / JXA syntax                                | PASS        | 23 normal files + 2 JXA files; `osacompile` 2 / 2                                       |
+| ML stdlib / npm audit                                | PASS        | 58 / 58 in 1.38 seconds; 0 vulnerabilities                                              |
+| Evidence JSON / Japanese-English parity              | PASS        | JSON parse and article-parity checks passed                                             |
+| Independent final audit                              | PASS        | P0 / P1 / P2 = 0 / 0 / 0                                                                |
+| GitHub CI / re-review for the final PR head          | PENDING     | rerun after the evidence-document commit creates the final head                         |
+| Regular merge                                        | PENDING     | held until every final-head gate is green                                               |
+
+The launcher test fixture uses only a tracked test helper and disposable child. It does not use the production application root, registry, control namespace, or gate. Its 22 tests do not increment production command, kill-drill, preflight, or gate counts.
+
+A whole-repository Prettier check is not counted as a final gate because it cannot read an existing huge JSONL, its standard parser does not accept an AssemblyScript decorator, and many unrelated files are already unformatted. For the final remediation revision, all 23 normal changed files and both JXA files passed the applicable formatting checks, and both JXA files passed `osacompile`. Full ESLint covered 1,168 files; its 157 warnings are pre-existing, and the error count is zero.
+
+One duplicate full-suite run was intentionally interrupted after 77.10 seconds because the already-running isolated validation was further ahead. It is non-evidence. The final timed isolated run of 165 files and 3,027 tests above supersedes it.
 
 One intermediate full-Vitest observation overlapped heavy build and lint jobs. It reached 162 of 163 files and 2,955 of 2,963 tests, with eight kill-drill failures around arm-stage IPC. A separate run that started in isolation then saw its source tree change and ended with 2 failed files out of 164 and 9 failed tests out of 2,989. Resource contention was initially suspected, but an isolated reproduction later showed a real disposable-fixture regression: the child still used a placeholder registry that was not source-bound V2 and did not return the exact application binding. After updating the fixture to canonical V2 plus a matching exact frozen test binding, an isolated kill-drill diagnostic passed 20 / 20 tests in 70.38 seconds. The two old runs and the pre-commit diagnostic are not final evidence; only the isolated full run at `7223c3d...` counts as final local evidence.
 
@@ -145,16 +187,16 @@ execution_boundary = test-only-fixed-synthetic-read-only-current-euid-home-exclu
 
 ## 10. Every production and playing-strength counter remains zero
 
-For this change, production commands, registry provisions, kill drills, prefix-100 / 500 / final-24000 gates, teacher generation, label finalization, training, optimizer steps, candidate selection or promotion, formal A/B, external calibration, weight overwrite, and live activation all remain zero.
+For this change, production commands, registry provisions, kill drills, prefix-100 / 500 / final-24000 gates, teacher generation, label finalization, training, optimizer steps, candidate selection or promotion, formal A/B, external calibration, weight overwrite, and live activation all remain 0.
 
-Managed production state such as the registry, control namespace, and evaluator was not freshly read for this change. Only current-EUID home identity metadata was inspected read-only for the test-isolation boundary; no production application or control content was read. The last-known evidence through PR #479 had runOp1 as both current and rollback evaluator, and this change has modified neither runOp1 nor the live weight. Application provenance is therefore not evidence that the engine became stronger or reached high-dan strength. It is safety infrastructure that makes later strength evidence trustworthy.
+Managed production state such as the registry, control namespace, and evaluator was not freshly read for this change. Only current-EUID home identity metadata was inspected read-only for the test-isolation boundary; no production application or control content was read. The native-launcher test-only fixture is also excluded from production counts. The last-known evidence through PR #479 had runOp1 as both current and rollback evaluator, and this change has modified neither runOp1 nor the live weight. Application provenance is therefore not evidence that the engine became stronger or reached high-dan strength. It is safety infrastructure that makes later strength evidence trustworthy.
 
 ## 11. Safe next order
 
 The order remains:
 
-1. validate and review this application-source provenance candidate, then integrate it with a regular merge;
-2. complete operator guards in the next PR: exact invocation for the approved-current-binding CLI and standalone verifier readiness, without claiming unimplemented reconciliation authority;
+1. commit these evidence documents, run GitHub CI and independent re-review on the resulting final PR head, then integrate this application-source provenance candidate with a regular merge;
+2. in the next PR, without preassigning its number, complete operator guards: native exact launch for the standalone approved-current-binding CLI and standalone verifier readiness, without claiming unimplemented reconciliation authority;
 3. align the fixed application worktree to this PR's merge revision and the fixed verifier worktree to `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`;
 4. provision create-only registry V2 exactly once;
 5. run the reviewed disposable kill drill;
@@ -171,6 +213,6 @@ The production manual inspect, quarantine-confirmation, and reconciliation-cance
 
 ## 12. Current decision
 
-The P1 cause was not the evaluator formula itself. It was an open production-application provenance boundary before teacher generation. This candidate closes that specific gap and passed local validation, but fixed-worktree alignment and registry provisioning remain **NO-GO** until GitHub CI, review, and regular merge complete.
+The P1 cause was not the evaluator formula itself. It was an open production-application provenance and pre-production-child launch boundary before teacher generation. Exact implementation revision `9ec2d01...` passed final isolated local validation and independent audit, but fixed-worktree alignment and registry provisioning remain **NO-GO** until GitHub CI, re-review, and regular merge of the final PR head complete.
 
 The [machine-readable evidence](./data/floodgate-v7-production-application-source-provenance-2026-07-16.json) keeps established facts, PENDING work, zero production counters, nonclaims, and stop points separate.

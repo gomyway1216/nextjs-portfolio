@@ -90,7 +90,7 @@ stderrを1 byteでも受けたchildは内容を保持せずfixed failureにな�
 | synthetic isolation / max 6 / reap        | PASS            |
 | 実データ診断                              | 0               |
 
-最新main `040f61ad6b44c6accb0db68375ec66877c021f17` のproduction関連9 identityをbytesとSHA-256で固定し、すべて不変であることをtestします。
+最新main `398b6d20dbe9b2de4648e77424c2a15820f15dec` のproduction関連9 identityをbytesとSHA-256で固定し、すべて不変であることをtestします。
 
 ## 8. 現在の判断と次のgate
 

@@ -1,0 +1,486 @@
+{
+  "schema": "shogi-floodgate-v7-release-artifact-install-policy-evidence-v1",
+  "evidence_date": "2026-07-17",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-release-artifact-install-policy.md",
+    "english": "../blog-shogi-floodgate-v7-release-artifact-install-policy.en.md",
+    "previous_protocol_japanese": "../blog-shogi-floodgate-v7-external-trust-root-protocol.md",
+    "previous_protocol_english": "../blog-shogi-floodgate-v7-external-trust-root-protocol.en.md"
+  },
+  "scope": {
+    "description": "canonical-source-only-release-toolchain-artifact-closure-and-install-policy-records",
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "swift_library_source_only": true,
+    "canonical_validators_added": [
+      "ReleaseToolchainRecordV1",
+      "ArtifactClosureRecordV1",
+      "InstallPolicyRecordV1"
+    ],
+    "executable_created": false,
+    "flat_package_created": false,
+    "installer_created": false,
+    "signer_created": false,
+    "notarizer_created": false,
+    "credential_or_key_material_added": false,
+    "root_install_performed": false,
+    "production_binding_changed": false,
+    "live_evaluator_changed": false
+  },
+  "base": {
+    "repository_main_revision": "398b6d20dbe9b2de4648e77424c2a15820f15dec",
+    "repository_main_tree": "f9aa0ed71f3fb722ce4e08c8a49993a512fe3e40",
+    "latest_main_integration_method": "regular-merge-commit",
+    "latest_main_integration_pull_request": 493,
+    "latest_main_integration_commit": "398b6d20dbe9b2de4648e77424c2a15820f15dec",
+    "latest_main_integration_main_parent": "2a40bc97fc5cfdcc80e83599141449758c8f09f3",
+    "latest_main_integration_feature_parent": "c3a31883e20353b0ffd6f98fea51af56048eadf1"
+  },
+  "official_apple_sources": [
+    {
+      "claim": "Xcode 15.3 final release build is 15E204a",
+      "url": "https://developer.apple.com/xcode-cloud/release-notes/",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "Xcode 15.3 supported build host is macOS Sonoma 14.x",
+      "url": "https://developer.apple.com/support/xcode/",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "Developer ID Application signs a Mac app and Developer ID Installer signs its installer package",
+      "url": "https://developer.apple.com/help/account/certificates/create-developer-id-certificates/",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "this Developer ID distribution policy validates artifacts with Apple's documented notarization workflow",
+      "url": "https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "custom notarization workflows use Apple's documented submission and ticket flow",
+      "url": "https://developer.apple.com/documentation/security/customizing-the-notarization-workflow",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "this policy requires hardened runtime, which Apple documents as a security capability",
+      "url": "https://developer.apple.com/documentation/security/hardened-runtime",
+      "publisher": "Apple"
+    },
+    {
+      "claim": "this Developer ID distribution policy follows Apple's distribution-signed-code guidance",
+      "url": "https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/",
+      "publisher": "Apple"
+    }
+  ],
+  "canonical_policy": {
+    "module_path": "native/floodgate-v7-external-trust-root-protocol",
+    "module": "FloodgateV7ExternalTrustRootProtocol",
+    "standard_library_only": true,
+    "integer_encoding": "big-endian",
+    "decode_error": "invalidCanonicalRecord",
+    "all_decode_failures_collapsed_to_one_safe_error": true,
+    "fixed_length_records": true,
+    "unknown_fields_representable": false,
+    "trailing_bytes_rejected": true,
+    "records": {
+      "release_toolchain": {
+        "type": "ReleaseToolchainRecordV1",
+        "magic": "FGV7RTL1",
+        "encoded_bytes": 798,
+        "purpose": "externalTrustRootPair",
+        "test_vector_sha256": "ebc2f03a02894cfcbfc9b8f206efe0dc470b951b506b1ed4616fbd0f9575d38a",
+        "fixed_release_identity": {
+          "channel": "Apple-final-release-catalog",
+          "xcode_version": "15.3.0",
+          "xcode_build": "15E204a",
+          "supported_build_host_minimum_inclusive": "14.0.0",
+          "supported_build_host_maximum_exclusive": "15.0.0",
+          "target_os": "macOS",
+          "target_architecture": "arm64",
+          "swift_language_mode": "Swift-5"
+        },
+        "filesystem_policy": {
+          "owner_uid": 0,
+          "owner_group": "wheel",
+          "owner_gid": 0,
+          "directory_mode_octal": "0755",
+          "immutable_closure_required": true,
+          "writable_acl_entries_allowed": 0
+        },
+        "required_identity_digests": [
+          "record_id",
+          "final_release_catalog_evidence_sha256",
+          "xcode_archive_sha256",
+          "xcode_designated_requirement_sha256",
+          "xcode_cdhash",
+          "developer_directory_sha256",
+          "tool_manifest_sha256",
+          "xcodebuild_version_output_sha256",
+          "swift_version_output_sha256",
+          "clang_version_output_sha256",
+          "ld_version_output_sha256",
+          "sdk_manifest_sha256",
+          "host_identity_sha256",
+          "target_triple_sha256",
+          "language_mode_sha256",
+          "build_arguments_sha256",
+          "build_environment_sha256",
+          "source_closure_sha256",
+          "build_recipe_sha256",
+          "pre_build_identity_sha256",
+          "post_build_identity_sha256",
+          "first_unsigned_build_sha256",
+          "second_unsigned_build_sha256"
+        ],
+        "required_equalities": {
+          "pre_build_identity_equals_post_build_identity": true,
+          "first_unsigned_build_equals_second_unsigned_build": true
+        },
+        "fixed_zero_counts": {
+          "network_accesses": 0,
+          "plugins": 0,
+          "external_dependencies": 0
+        },
+        "clean_unsigned_builds_required": 2
+      },
+      "artifact_closure": {
+        "type": "ArtifactClosureRecordV1",
+        "magic": "FGV7ACL1",
+        "encoded_bytes": 993,
+        "purpose": "externalTrustRootPair",
+        "test_vector_sha256": "1f8afdd61b3ba4c61dd8b8854f9a9dd1084c61b4429dae19cb5b3ffd03934b8b",
+        "executables": [
+          "floodgate-v7-trust-root-supervisor",
+          "floodgate-v7-trust-root-verifier"
+        ],
+        "separate_identity_fields_per_executable": [
+          "whole_file_sha256",
+          "semantic_macho_sha256",
+          "executable_identifier_sha256",
+          "designated_requirement_sha256",
+          "code_directory_sha256",
+          "cdhash",
+          "dependency_closure_sha256",
+          "entitlement_policy_sha256"
+        ],
+        "must_differ_between_executables": [
+          "whole_file_sha256",
+          "semantic_macho_sha256",
+          "executable_identifier_sha256",
+          "designated_requirement_sha256",
+          "code_directory_sha256",
+          "cdhash"
+        ],
+        "may_match_between_executables": [
+          "dependency_closure_sha256",
+          "entitlement_policy_sha256"
+        ],
+        "macho_policy": {
+          "format": "thin",
+          "architecture": "arm64",
+          "file_type": "MH_EXECUTE",
+          "minimum_os": "13.0.0",
+          "sdk": "14.4.0",
+          "load_dependencies": "Apple-system-only"
+        },
+        "fixed_zero_counts_in_encoded_order": [
+          "fat_binary_slices",
+          "rpath_load_commands",
+          "relative_loads",
+          "non_system_loads",
+          "weak_loads",
+          "reexport_loads",
+          "upward_loads",
+          "lazy_loads",
+          "dyld_environment_entries",
+          "plugins",
+          "preloads",
+          "dangerous_entitlements",
+          "package_scripts",
+          "code_signing_warnings",
+          "notary_warnings",
+          "staple_warnings",
+          "gatekeeper_warnings"
+        ],
+        "application_signing_policy": {
+          "identity": "Developer ID Application",
+          "secure_timestamp_required": true,
+          "hardened_runtime_required": true,
+          "library_validation_required": true,
+          "dangerous_entitlements_allowed": 0
+        },
+        "container_policy": {
+          "format": "signed-flat-pkg",
+          "payload_executables": 2,
+          "payload_regular_files": 2,
+          "non_executable_regular_files_allowed": 0,
+          "symlinks_allowed": 0,
+          "hardlink_aliases_allowed": 0,
+          "special_files_allowed": 0,
+          "directory_entries": "exact-install-policy-ancestors-only",
+          "package_scripts_allowed": 0,
+          "identity": "Developer ID Installer",
+          "secure_timestamp_required": true,
+          "notary_status": "accepted",
+          "stapled_ticket_required": true,
+          "gatekeeper_acceptance_required": true,
+          "warnings_allowed": 0
+        }
+      },
+      "install_policy": {
+        "type": "InstallPolicyRecordV1",
+        "magic": "FGV7INP1",
+        "encoded_bytes": 980,
+        "purpose": "externalTrustRootPair",
+        "test_vector_sha256": "96caea25356a637228a233a15c7dcba1e3e8683f4866b1cd1408ef405ee60827",
+        "global_policy": {
+          "no_follow_required": true,
+          "same_device_required": true,
+          "local_filesystem_required": true,
+          "writable_acl_entries_allowed": 0
+        },
+        "artifact_composition": {
+          "artifact_closure_record_sha256_exact_match_required": true,
+          "supervisor_leaf_matches_supervisor_whole_file_sha256": true,
+          "verifier_leaf_matches_verifier_whole_file_sha256": true,
+          "swapped_leaf_identities_rejected": true
+        },
+        "paths": [
+          {
+            "path": "/",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "admin",
+            "gid": 80,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1/bin",
+            "kind": "directory",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0755",
+            "link_policy": "positive-and-stable",
+            "exact_link_count": null
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1/bin/floodgate-v7-trust-root-supervisor",
+            "kind": "regular-file",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0555",
+            "link_policy": "exact",
+            "exact_link_count": 1,
+            "artifact_identity_field": "supervisorWholeFileSHA256"
+          },
+          {
+            "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1/bin/floodgate-v7-trust-root-verifier",
+            "kind": "regular-file",
+            "owner": "root",
+            "uid": 0,
+            "group": "wheel",
+            "gid": 0,
+            "mode_octal": "0555",
+            "link_policy": "exact",
+            "exact_link_count": 1,
+            "artifact_identity_field": "verifierWholeFileSHA256"
+          }
+        ]
+      }
+    }
+  },
+  "local_source_test_only": {
+    "role": "compiler-and-source-test-only",
+    "eligible_for_release_artifact_generation": false,
+    "host": {
+      "product": "macOS",
+      "version": "15.1",
+      "xcode_15_3_supported_host": "macOS-Sonoma-14.x",
+      "inside_supported_matrix": false
+    },
+    "xcode": {
+      "version": "15.3",
+      "installed_build": "15E5188j",
+      "required_final_build": "15E204a",
+      "matches_required_final_build": false,
+      "bundle_ownership": "user-owned",
+      "developer_directory_ownership": "user-owned",
+      "owner_class": "current-nonroot-user",
+      "matches_root_wheel_policy": false
+    },
+    "credential_readiness": {
+      "developer_id_identities": 0,
+      "notary_profile_present": false,
+      "fact_source": "preexisting-sanitized-local-diagnostic-supplied-to-task",
+      "credential_inventory_rechecked_in_this_change": false,
+      "keychain_or_notary_profile_accesses_in_this_change": 0
+    },
+    "release_rejection_reasons": [
+      "installed-xcode-build-differs-from-apple-final-release-build",
+      "host-macos-is-outside-xcode-15.3-supported-host-matrix",
+      "xcode-and-developer-directory-are-user-owned-not-root-wheel",
+      "developer-id-identities-are-zero",
+      "notary-profile-is-absent"
+    ]
+  },
+  "privacy": {
+    "personal_username_disclosed": false,
+    "private_selected_xcode_path_disclosed": false,
+    "local_tool_output_fingerprint_disclosed": false,
+    "unnecessary_host_build_disclosed": false,
+    "fixed_future_install_paths_are_public_policy": true
+  },
+  "privacy_counters": {
+    "personal_usernames": 0,
+    "private_local_paths": 0,
+    "local_tool_output_fingerprints": 0,
+    "unnecessary_host_build_identifiers": 0
+  },
+  "validation": {
+    "local_xcode_results_counted_as_release_artifact_evidence": false,
+    "swift_source_tests": {
+      "status": "PASS",
+      "tests_present": 25,
+      "tests_passed": 25,
+      "tests_failed": 0,
+      "existing_canonical_tests": 9,
+      "existing_state_tests": 5,
+      "new_policy_tests": 11
+    },
+    "repository_evidence_tests": {
+      "status": "PASS",
+      "tests_present": 11,
+      "tests_passed": 11,
+      "tests_failed": 0
+    },
+    "full_repository_validation": {
+      "status": "NOT-RUN-IN-THIS-SOURCE-ONLY-CHANGE"
+    },
+    "release_toolchain_evidence_established": false,
+    "release_artifacts_established": false,
+    "signed_flat_package_established": false,
+    "notarization_established": false,
+    "installed_closure_established": false
+  },
+  "current_absences": {
+    "executable_target_available": false,
+    "main_entrypoint_available": false,
+    "installer_available": false,
+    "signer_available": false,
+    "notarizer_available": false,
+    "developer_id_application_identity_available": false,
+    "developer_id_installer_identity_available": false,
+    "notary_profile_available": false,
+    "release_toolchain_available": false,
+    "signed_flat_package_available": false,
+    "stapled_package_available": false,
+    "root_owned_install_available": false,
+    "production_inspector_available": false
+  },
+  "production_counters": {
+    "credential_store_accesses": 0,
+    "keychain_accesses": 0,
+    "notary_profile_accesses": 0,
+    "release_artifacts_built": 0,
+    "artifacts_signed": 0,
+    "notarization_submissions": 0,
+    "packages_stapled": 0,
+    "gatekeeper_assessments": 0,
+    "root_install_attempts": 0,
+    "production_state_inspections": 0,
+    "production_state_mutations": 0,
+    "recovery_attempts": 0,
+    "retry_attempts": 0,
+    "cleanup_attempts": 0,
+    "resume_attempts": 0,
+    "teacher_generation_attempts": 0,
+    "training_attempts": 0,
+    "candidate_promotions": 0,
+    "live_weight_changes": 0
+  },
+  "future_gates": {
+    "eligible_root_owned_release_host_and_final_xcode": "OPEN",
+    "two_clean_unsigned_byte_identical_builds": "OPEN",
+    "two_distinct_macho_closures": "OPEN",
+    "developer_id_application_signing": "OPEN",
+    "developer_id_installer_flat_package": "OPEN",
+    "notary_acceptance_and_staple": "OPEN",
+    "gatekeeper_acceptance": "OPEN",
+    "reviewed_root_owned_install": "OPEN",
+    "installed_artifact_negative_tests": "OPEN",
+    "approved_commit_tree_enrollment": "OPEN",
+    "read_only_inspector": "OPEN",
+    "fresh_production_inspection": "OPEN"
+  },
+  "nonclaims": [
+    "Canonical policy validation is not proof that a matching release toolchain or artifact exists.",
+    "The fixture digests pin test vectors only and are not release artifact identities.",
+    "Local Swift source tests are not code-signing, notarization, Gatekeeper, package, or install evidence.",
+    "No credential inventory was opened during this source-only change.",
+    "No production state, teacher data, trained candidate, or live evaluator was changed."
+  ]
+}

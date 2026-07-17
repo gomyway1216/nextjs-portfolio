@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:ml:stdlib": "python3 -m py_compile ml/train.py ml/eval-sibling.py ml/checkpoint_compat.py ml/sibling_selection_audit.py ml/sibling_evidence_reproduction.py ml/qat_protocol.py ml/fresh_qat_protocol.py ml/qat_plan_registry.py ml/qat_selection_audit.py ml/fresh_qat_selection_preflight.py ml/prepare_qat_replay_exclusion.py ml/int16_forward.py ml/helpers/floodgate-exclusive-directory-rename.py && python3 -m unittest discover -s ml/tests_stdlib -v",
+    "test:ml:stdlib": "python3 -m py_compile ml/train.py ml/eval-sibling.py ml/checkpoint_compat.py ml/sibling_selection_audit.py ml/sibling_evidence_reproduction.py ml/qat_protocol.py ml/fresh_qat_protocol.py ml/qat_plan_registry.py ml/qat_selection_audit.py ml/fresh_qat_selection_preflight.py ml/prepare_qat_replay_exclusion.py ml/formal_paired_ab_protocol.py ml/int16_forward.py ml/helpers/floodgate-exclusive-directory-rename.py && python3 -m unittest discover -s ml/tests_stdlib -v",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --testTimeout=20000",
     "test:e2e": "playwright test",

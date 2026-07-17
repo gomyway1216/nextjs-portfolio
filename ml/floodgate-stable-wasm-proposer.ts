@@ -84,6 +84,7 @@ const NativeString = String;
 const NativeTextDecoder = TextDecoder;
 const NativeUint8Array = Uint8Array;
 const NativeSet = Set;
+const NativeWeakMap = WeakMap;
 const nativeClearTimeout = clearTimeout;
 const nativeSetTimeout = setTimeout;
 const nativeProcessExecPath = process.execPath;
@@ -134,6 +135,8 @@ const nativeSetSize = Object.getOwnPropertyDescriptor(
   Set.prototype,
   "size",
 )?.get;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
 const nativeStringIncludes = String.prototype.includes;
 const nativeStringIndexOf = String.prototype.indexOf;
 const nativeStringSlice = String.prototype.slice;
@@ -235,6 +238,25 @@ const RAW_RESULT_KEYS = objectFreeze([
 
 export type FloodgateStableWasmTermination =
   "requested-depth-complete" | "winning-mate-band-early";
+
+export type FloodgateStableWasmWorkerFailureKind =
+  | "search-timeout"
+  | "startup-timeout"
+  | "worker-exit"
+  | "transport"
+  | "protocol"
+  | "validation"
+  | "unknown";
+
+export interface FloodgateStableWasmWorkerFailureMetadata {
+  readonly failure_kind: FloodgateStableWasmWorkerFailureKind;
+  readonly timeout_ms: number | null;
+}
+
+export interface FloodgateStableWasmWorkerFailureError extends Error {
+  readonly failure_kind: FloodgateStableWasmWorkerFailureKind;
+  readonly timeout_ms: number | null;
+}
 
 export interface FloodgateStableWasmProposerAssets {
   readonly planBytes: Uint8Array;
@@ -483,6 +505,96 @@ function frozenRecord<T extends object>(value: T): Readonly<T> {
     });
   }
   return objectFreeze(output);
+}
+
+const workerFailureMetadata =
+  new NativeWeakMap<
+    object,
+    Readonly<FloodgateStableWasmWorkerFailureMetadata>
+  >();
+
+function makeWorkerFailure(
+  failureKind: FloodgateStableWasmWorkerFailureKind,
+  timeoutMilliseconds: number | null = null,
+): FloodgateStableWasmWorkerFailureError {
+  const failure = new NativeError(
+    `stable-WASM worker failure (${failureKind})`,
+  ) as FloodgateStableWasmWorkerFailureError;
+  objectDefineProperty(failure, "name", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: "FloodgateStableWasmWorkerFailureError",
+  });
+  objectDefineProperty(failure, "message", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: `stable-WASM worker failure (${failureKind})`,
+  });
+  objectDefineProperty(failure, "stack", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value:
+      "FloodgateStableWasmWorkerFailureError: stable-WASM worker failure",
+  });
+  objectDefineProperty(failure, "failure_kind", {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: failureKind,
+  });
+  objectDefineProperty(failure, "timeout_ms", {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: timeoutMilliseconds,
+  });
+  const metadata = frozenRecord({
+    failure_kind: failureKind,
+    timeout_ms: timeoutMilliseconds,
+  });
+  reflectApply(nativeWeakMapSet, workerFailureMetadata, [failure, metadata]);
+  return objectFreeze(failure);
+}
+
+/**
+ * Returns safe worker-failure metadata only for a genuine error minted by this
+ * module. Proxies, structural forgeries, and accessor-bearing lookalikes fail
+ * closed without consulting their properties.
+ */
+export function inspectFloodgateStableWasmWorkerFailure(
+  value: unknown,
+): Readonly<FloodgateStableWasmWorkerFailureMetadata> | null {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function") ||
+    isProxy(value)
+  ) {
+    return null;
+  }
+  const metadata = reflectApply(nativeWeakMapGet, workerFailureMetadata, [
+    value,
+  ]) as Readonly<FloodgateStableWasmWorkerFailureMetadata> | undefined;
+  return metadata ?? null;
+}
+
+function normalizeWorkerFailure(
+  primary: unknown,
+  fallbackKind: FloodgateStableWasmWorkerFailureKind,
+): FloodgateStableWasmWorkerFailureError {
+  if (inspectFloodgateStableWasmWorkerFailure(primary) !== null) {
+    return primary as FloodgateStableWasmWorkerFailureError;
+  }
+  return makeWorkerFailure(fallbackKind);
+}
+
+/** Test-only seam for the fail-closed unknown worker-failure boundary. */
+export function normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests(
+  primary: unknown,
+): FloodgateStableWasmWorkerFailureError {
+  return normalizeWorkerFailure(primary, "unknown");
 }
 
 function frozenList<T>(values: T[]): readonly T[] {
@@ -1696,7 +1808,6 @@ const stableWasmChildRuntime =
   );
 
 interface PendingWorkerResponse {
-  readonly label: string;
   readonly resolve: (line: string) => void;
   readonly reject: (error: Error) => void;
   readonly timer: ReturnType<typeof setTimeout>;
@@ -1704,34 +1815,42 @@ interface PendingWorkerResponse {
 
 class StableWasmWorkerClient {
   private readonly child: ChildProcessWithoutNullStreams;
-  private readonly onFailure: ((error: Error) => void) | undefined;
+  private readonly onFailure:
+    | ((error: FloodgateStableWasmWorkerFailureError) => void)
+    | undefined;
   private stdout = "";
-  private stderr = "";
   private stderrBytes = 0;
   private pending: PendingWorkerResponse | undefined;
-  private failure: Error | undefined;
+  private failure: FloodgateStableWasmWorkerFailureError | undefined;
   private failureNotified = false;
   private gracefulClosing = false;
   private closePromise: Promise<void>;
   private resolveClose!: () => void;
 
-  constructor(sourceBytes: Uint8Array, onFailure?: (error: Error) => void) {
+  constructor(
+    sourceBytes: Uint8Array,
+    onFailure?: (error: FloodgateStableWasmWorkerFailureError) => void,
+  ) {
     this.onFailure = onFailure;
     this.closePromise = pinNativePromise(
       new NativePromise<void>((resolve) => {
         this.resolveClose = resolve;
       }),
     );
-    this.child = spawn(
-      nativeProcessExecPath,
-      ["--input-type=module", "--eval", WORKER_BOOTSTRAP_SOURCE],
-      {
-        cwd: stableWasmChildRuntime.cwd,
-        env: stableWasmChildRuntime.env,
-        shell: false,
-        stdio: ["pipe", "pipe", "pipe", "pipe"],
-      },
-    );
+    try {
+      this.child = spawn(
+        nativeProcessExecPath,
+        ["--input-type=module", "--eval", WORKER_BOOTSTRAP_SOURCE],
+        {
+          cwd: stableWasmChildRuntime.cwd,
+          env: stableWasmChildRuntime.env,
+          shell: false,
+          stdio: ["pipe", "pipe", "pipe", "pipe"],
+        },
+      );
+    } catch {
+      throw makeWorkerFailure("transport");
+    }
     try {
       this.child.on(
         "close",
@@ -1743,41 +1862,26 @@ class StableWasmWorkerClient {
             signal !== null ||
             this.stdout !== ""
           ) {
-            this.failWorker(
-              `process closed (code=${NativeString(code)}, signal=${NativeString(signal)})`,
-            );
+            this.failWorker("worker-exit");
           }
         },
       );
       this.child.stdout.on("data", (chunk: Buffer) => this.onStdout(chunk));
       this.child.stderr.on("data", (chunk: Buffer) => this.onStderr(chunk));
-      this.child.on("error", (error: Error) =>
-        this.failWorker(`process error: ${error.message}`),
-      );
-      this.child.stdin.on("error", (error: Error) =>
-        this.failWorker(`stdin error: ${error.message}`),
-      );
+      this.child.on("error", () => this.failWorker("worker-exit"));
+      this.child.stdin.on("error", () => this.failWorker("transport"));
       const sourcePipe = this.child.stdio[3] as Writable | null | undefined;
       if (sourcePipe === null || sourcePipe === undefined) {
-        this.failWorker("has no worker-source pipe");
+        this.failWorker("transport");
         return;
       }
-      sourcePipe.once("error", (error: Error) =>
-        this.failWorker(`worker-source pipe error: ${error.message}`),
-      );
+      sourcePipe.once("error", () => this.failWorker("transport"));
       sourcePipe.end(sourceBytes);
     } catch {
       // Once spawn succeeds, constructor setup failures become client failure
       // state so the factory can register the instance and await group cleanup.
-      this.failWorker("post-spawn transport setup failed");
+      this.failWorker("transport");
     }
-  }
-
-  private diagnostic(message: string): Error {
-    const detail = reflectApply(nativeStringTrim, this.stderr, []) as string;
-    return new NativeError(
-      `stable-WASM worker ${message}${detail === "" ? "" : `; stderr: ${detail}`}`,
-    );
   }
 
   private signalChild(signal: NodeJS.Signals): void {
@@ -1788,18 +1892,21 @@ class StableWasmWorkerClient {
     }
   }
 
-  private failWorker(message: string): void {
-    if (this.failure === undefined) this.failure = this.diagnostic(message);
+  private failWorker(
+    failureKind: FloodgateStableWasmWorkerFailureKind,
+    timeoutMilliseconds: number | null = null,
+  ): FloodgateStableWasmWorkerFailureError {
+    if (this.failure === undefined) {
+      this.failure = makeWorkerFailure(failureKind, timeoutMilliseconds);
+    }
     if (!this.failureNotified) {
       this.failureNotified = true;
       const workerFailure = this.failure;
       try {
         this.onFailure?.(workerFailure);
-      } catch (notificationFailure) {
-        this.failure = new NativeAggregateError(
-          [workerFailure, notificationFailure],
-          "stable-WASM worker failure and failure notification both failed",
-        );
+      } catch {
+        // The genuine safe failure remains authoritative even if notification
+        // itself is unexpectedly hostile.
       }
     }
     const pending = this.pending;
@@ -1815,18 +1922,19 @@ class StableWasmWorkerClient {
     ) {
       this.signalChild("SIGKILL");
     }
+    return this.failure;
   }
 
   private onStdout(chunk: Buffer): void {
     if (this.failure !== undefined) return;
     if (chunk.byteLength > WORKER_STDOUT_LINE_MAX_BYTES - this.stdout.length) {
-      this.failWorker("exceeded the stdout line bound");
+      this.failWorker("protocol");
       return;
     }
     for (let index = 0; index < chunk.byteLength; index += 1) {
       const byte = chunk[index];
       if (byte !== 0x0a && (byte < 0x20 || byte > 0x7e)) {
-        this.failWorker("emitted non-canonical stdout bytes");
+        this.failWorker("protocol");
         return;
       }
     }
@@ -1834,7 +1942,7 @@ class StableWasmWorkerClient {
       "ascii",
     ]) as string;
     if (bufferByteLength(this.stdout, "ascii") > WORKER_STDOUT_LINE_MAX_BYTES) {
-      this.failWorker("exceeded the stdout line bound");
+      this.failWorker("protocol");
       return;
     }
     let newline = reflectApply(nativeStringIndexOf, this.stdout, [
@@ -1850,7 +1958,7 @@ class StableWasmWorkerClient {
       ]) as string;
       const pending = this.pending;
       if (pending === undefined || line === "") {
-        this.failWorker("emitted an unsolicited or empty stdout frame");
+        this.failWorker("protocol");
         return;
       }
       this.pending = undefined;
@@ -1865,30 +1973,20 @@ class StableWasmWorkerClient {
   private onStderr(chunk: Buffer): void {
     if (this.failure !== undefined) return;
     if (chunk.byteLength > WORKER_STDERR_MAX_BYTES - this.stderrBytes) {
-      this.failWorker("exceeded the stderr bound");
+      this.failWorker("transport");
       return;
     }
-    this.stderr += reflectApply(nativeBufferToString, chunk, [
-      "utf8",
-    ]) as string;
     this.stderrBytes += chunk.byteLength;
+    this.failWorker("transport");
   }
 
-  private waitForClose(timeout: number, label: string): Promise<void> {
+  private waitForClose(timeout: number): Promise<void> {
     const completion = new NativePromise<void>((resolve, reject) => {
       let settled = false;
       const timer = nativeSetTimeout(() => {
         if (settled) return;
         settled = true;
-        const error = this.diagnostic(`${label} timed out after ${timeout}ms`);
-        if (this.failure === undefined) this.failure = error;
-        if (
-          this.child.pid !== undefined &&
-          this.child.exitCode === null &&
-          this.child.signalCode === null
-        ) {
-          this.signalChild("SIGKILL");
-        }
+        const error = this.failWorker("transport");
         reject(error);
       }, timeout);
       reflectApply(nativePromiseThen, this.closePromise, [
@@ -1934,11 +2032,14 @@ class StableWasmWorkerClient {
   request(
     message: Readonly<Record<string, unknown>>,
     timeout: number,
-    label: string,
+    timeoutFailureKind:
+      | "startup-timeout"
+      | "search-timeout"
+      | "transport",
   ): Promise<string> {
     if (this.pending !== undefined) {
       return pinNativePromise(
-        NativePromise.reject(this.diagnostic("already has a pending request")),
+        NativePromise.reject(makeWorkerFailure("unknown")),
       );
     }
     if (this.failure !== undefined)
@@ -1946,26 +2047,18 @@ class StableWasmWorkerClient {
     const line = canonicalJson(message);
     const response = new NativePromise<string>((resolve, reject) => {
       const timer = nativeSetTimeout(() => {
-        this.pending = undefined;
-        const error = this.diagnostic(`${label} timed out after ${timeout}ms`);
-        this.failure = error;
-        reject(error);
-        this.signalChild("SIGKILL");
+        this.failWorker(
+          timeoutFailureKind,
+          timeoutFailureKind === "transport" ? null : timeout,
+        );
       }, timeout);
-      this.pending = frozenRecord({ label, resolve, reject, timer });
+      this.pending = frozenRecord({ resolve, reject, timer });
       const writePromise = this.writeLine(line);
       reflectApply(nativePromiseThen, writePromise, [
         undefined,
-        (error: unknown) => {
+        () => {
           if (this.pending?.timer === timer) {
-            this.pending = undefined;
-            nativeClearTimeout(timer);
-            const failure = this.diagnostic(
-              `${label} write failed: ${NativeString(error)}`,
-            );
-            this.failure = failure;
-            reject(failure);
-            this.signalChild("SIGKILL");
+            this.failWorker("transport");
           }
         },
       ]);
@@ -1977,39 +2070,48 @@ class StableWasmWorkerClient {
     assets: Readonly<FloodgateStableWasmSearchAssets>,
     timeout: number,
   ): Promise<void> {
-    const line = await this.request(
-      frozenRecord({
-        schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
-        type: "init",
-        wasm_base64: reflectApply(
-          nativeBufferToString,
-          bufferFrom(assets.wasmBytes),
-          ["base64"],
-        ) as string,
-        weights_base64: reflectApply(
-          nativeBufferToString,
-          bufferFrom(assets.weightsBytes),
-          ["base64"],
-        ) as string,
-      }),
-      timeout,
-      "initialization",
-    );
-    const message = parseCanonicalWorkerLine(line, [
-      "node_version",
-      "schema",
-      "type",
-      "wasm_sha256",
-      "weights_sha256",
-    ]);
-    if (
-      message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
-      message.type !== "ready" ||
-      message.node_version !== nativeProcessVersion ||
-      message.wasm_sha256 !== FLOODGATE_STABLE_WASM_SHA256 ||
-      message.weights_sha256 !== FLOODGATE_STABLE_WEIGHTS_SHA256
-    ) {
-      fail("worker ready receipt does not bind the pinned runtime assets");
+    let line: string;
+    try {
+      line = await this.request(
+        frozenRecord({
+          schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
+          type: "init",
+          wasm_base64: reflectApply(
+            nativeBufferToString,
+            bufferFrom(assets.wasmBytes),
+            ["base64"],
+          ) as string,
+          weights_base64: reflectApply(
+            nativeBufferToString,
+            bufferFrom(assets.weightsBytes),
+            ["base64"],
+          ) as string,
+        }),
+        timeout,
+        "startup-timeout",
+      );
+    } catch (primary) {
+      throw normalizeWorkerFailure(primary, "unknown");
+    }
+    try {
+      const message = parseCanonicalWorkerLine(line, [
+        "node_version",
+        "schema",
+        "type",
+        "wasm_sha256",
+        "weights_sha256",
+      ]);
+      if (
+        message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
+        message.type !== "ready" ||
+        message.node_version !== nativeProcessVersion ||
+        message.wasm_sha256 !== FLOODGATE_STABLE_WASM_SHA256 ||
+        message.weights_sha256 !== FLOODGATE_STABLE_WEIGHTS_SHA256
+      ) {
+        fail("worker ready receipt does not bind the pinned runtime assets");
+      }
+    } catch {
+      throw this.failWorker("protocol");
     }
   }
 
@@ -2017,83 +2119,103 @@ class StableWasmWorkerClient {
     request: Readonly<FloodgateStableWasmSearchRequest>,
     timeout: number,
   ): Promise<Readonly<FloodgateStableWasmRawSearchResult>> {
-    const requestPayload = frozenRecord({
-      schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
-      type: "search",
-      index: request.index,
-      board: request.board,
-      hands: request.hands,
-      side_to_move: request.side_to_move,
-      root_tesu: request.root_tesu,
-    });
-    const requestSha256 = sha256Hex(
-      `shogi-floodgate-stable-wasm-worker-request-v1\0${canonicalJson(requestPayload)}`,
-    );
-    const line = await this.request(
-      frozenRecord({
-        ...requestPayload,
-        request_sha256: requestSha256,
-      }),
-      timeout,
-      `search ${request.index}`,
-    );
-    const message = parseCanonicalWorkerLine(line, [
-      "completed_depth",
-      "index",
-      "leaves",
-      "nodes",
-      "packed_move",
-      "raw_search_score",
-      "request_sha256",
-      "schema",
-      "type",
-    ]);
-    if (
-      message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
-      message.type !== "result" ||
-      message.request_sha256 !== requestSha256
-    ) {
-      fail("worker search response schema, type, or request digest is invalid");
+    let requestPayload: Readonly<Record<string, unknown>>;
+    let requestSha256: string;
+    let line: string;
+    try {
+      requestPayload = frozenRecord({
+        schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
+        type: "search",
+        index: request.index,
+        board: request.board,
+        hands: request.hands,
+        side_to_move: request.side_to_move,
+        root_tesu: request.root_tesu,
+      });
+      requestSha256 = sha256Hex(
+        `shogi-floodgate-stable-wasm-worker-request-v1\0${canonicalJson(requestPayload)}`,
+      );
+      line = await this.request(
+        frozenRecord({
+          ...requestPayload,
+          request_sha256: requestSha256,
+        }),
+        timeout,
+        "search-timeout",
+      );
+    } catch (primary) {
+      throw normalizeWorkerFailure(primary, "unknown");
     }
-    return captureRawResult(
-      frozenRecord({
-        index: message.index,
-        packed_move: message.packed_move,
-        raw_search_score: message.raw_search_score,
-        completed_depth: message.completed_depth,
-        nodes: message.nodes,
-        leaves: message.leaves,
-      }),
-      Number.MAX_SAFE_INTEGER,
-      "worker result",
-    );
+    let message: Readonly<Record<string, unknown>>;
+    try {
+      message = parseCanonicalWorkerLine(line, [
+        "completed_depth",
+        "index",
+        "leaves",
+        "nodes",
+        "packed_move",
+        "raw_search_score",
+        "request_sha256",
+        "schema",
+        "type",
+      ]);
+      if (
+        message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
+        message.type !== "result" ||
+        message.request_sha256 !== requestSha256
+      ) {
+        fail("worker search response schema, type, or request digest is invalid");
+      }
+    } catch {
+      throw this.failWorker("protocol");
+    }
+    try {
+      return captureRawResult(
+        frozenRecord({
+          index: message.index,
+          packed_move: message.packed_move,
+          raw_search_score: message.raw_search_score,
+          completed_depth: message.completed_depth,
+          nodes: message.nodes,
+          leaves: message.leaves,
+        }),
+        Number.MAX_SAFE_INTEGER,
+        "worker result",
+      );
+    } catch {
+      throw this.failWorker("validation");
+    }
   }
 
   async quit(): Promise<void> {
     if (this.failure !== undefined) throw this.failure;
     this.gracefulClosing = true;
-    const line = await this.request(
-      frozenRecord({
-        schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
-        type: "quit",
-      }),
-      WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
-      "shutdown",
-    );
-    const message = parseCanonicalWorkerLine(line, ["schema", "type"]);
-    if (
-      message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
-      message.type !== "bye"
-    ) {
-      fail("worker shutdown response is invalid");
+    let line: string;
+    try {
+      line = await this.request(
+        frozenRecord({
+          schema: FLOODGATE_STABLE_WASM_WORKER_SCHEMA,
+          type: "quit",
+        }),
+        WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
+        "transport",
+      );
+    } catch (primary) {
+      throw normalizeWorkerFailure(primary, "transport");
+    }
+    try {
+      const message = parseCanonicalWorkerLine(line, ["schema", "type"]);
+      if (
+        message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
+        message.type !== "bye"
+      ) {
+        fail("worker shutdown response is invalid");
+      }
+    } catch {
+      throw this.failWorker("protocol");
     }
     this.child.stdin.end();
-    await this.waitForClose(
-      WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
-      "shutdown close",
-    );
-    if (this.stderr !== "")
-      fail("worker emitted stderr during a successful run");
+    await this.waitForClose(WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS);
     if (this.failure !== undefined) throw this.failure;
   }
 
@@ -2102,7 +2224,7 @@ class StableWasmWorkerClient {
     this.pending = undefined;
     if (pending !== undefined) {
       nativeClearTimeout(pending.timer);
-      pending.reject(this.diagnostic("was force-stopped"));
+      pending.reject(this.failWorker("unknown"));
     }
     if (
       this.child.pid !== undefined &&
@@ -2112,17 +2234,11 @@ class StableWasmWorkerClient {
       this.signalChild("SIGKILL");
     }
     try {
-      await this.waitForClose(
-        WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
-        "force-stop close",
-      );
+      await this.waitForClose(WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS);
     } catch (primaryFailure) {
       this.signalChild("SIGKILL");
       try {
-        await this.waitForClose(
-          WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
-          "force-stop reap",
-        );
+        await this.waitForClose(WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS);
       } catch (cleanupFailure) {
         throw new NativeAggregateError(
           [primaryFailure, cleanupFailure],
@@ -2555,7 +2671,9 @@ function buildReusableProposalPool(
   clients: readonly StableWasmWorkerClient[],
   options: Readonly<FloodgateStableWasmReusableProposalPoolOptions>,
   receipt: Readonly<FloodgateStableWasmReusableProposalPoolReceipt>,
-  installPoisonHandler: (handler: (error: Error) => void) => void,
+  installPoisonHandler: (
+    handler: (error: FloodgateStableWasmWorkerFailureError) => void,
+  ) => void,
 ): Readonly<FloodgateStableWasmReusableProposalPool> {
   let state: ReusablePoolState = "open";
   let queue: ReusableProposalJob[] = [];
@@ -2564,6 +2682,9 @@ function buildReusableProposalPool(
   const busy: boolean[] = [];
   let stopPromise: Promise<void> | undefined;
   let closePromise: Promise<void> | undefined;
+  let terminalWorkerFailure:
+    | FloodgateStableWasmWorkerFailureError
+    | undefined;
 
   for (let index = 0; index < clients.length; index += 1) {
     arraySetOwn(active, index, undefined);
@@ -2572,10 +2693,6 @@ function buildReusableProposalPool(
 
   const closedError = () =>
     new NativeError("stable-WASM reusable pool is closed");
-  const poisonedError = () =>
-    new NativeError(
-      "stable-WASM reusable pool was poisoned by a worker failure",
-    );
 
   const queuedCount = (): number => queue.length - queueHead;
 
@@ -2640,10 +2757,11 @@ function buildReusableProposalPool(
     return stopPromise;
   };
 
-  const poison = (_error: Error): void => {
+  const poison = (primary: unknown): void => {
     if (state !== "open") return;
     state = "poisoned";
-    const error = poisonedError();
+    const error = normalizeWorkerFailure(primary, "unknown");
+    terminalWorkerFailure = error;
     rejectQueued(error);
     rejectActive(error);
     const forceWorkers: boolean[] = [];
@@ -2671,8 +2789,8 @@ function buildReusableProposalPool(
           buildSearchRequest(job.parent, 0),
           options.searchTimeoutMilliseconds,
         );
-      } catch {
-        poison(new NativeError("worker search dispatch failed"));
+      } catch (primary) {
+        poison(normalizeWorkerFailure(primary, "unknown"));
         return;
       }
       reflectApply(nativePromiseThen, searchPromise, [
@@ -2694,10 +2812,10 @@ function buildReusableProposalPool(
             job.resolve(row);
             pump();
           } catch {
-            poison(new NativeError("worker proposal validation failed"));
+            poison(makeWorkerFailure("validation"));
           }
         },
-        () => poison(new NativeError("worker search failed")),
+        (primary: unknown) => poison(primary),
       ]);
     }
   };
@@ -2715,7 +2833,11 @@ function buildReusableProposalPool(
         return pinNativePromise(NativePromise.reject(error));
       }
       if (state === "poisoned") {
-        return pinNativePromise(NativePromise.reject(poisonedError()));
+        return pinNativePromise(
+          NativePromise.reject(
+            terminalWorkerFailure ?? makeWorkerFailure("unknown"),
+          ),
+        );
       }
       if (state !== "open") {
         return pinNativePromise(NativePromise.reject(closedError()));
@@ -2808,9 +2930,13 @@ function createReusableProposalPoolWithIdentity(
     Readonly<FloodgateStableWasmReusableProposalPool>
   > => {
     const clients: StableWasmWorkerClient[] = [];
-    let installedPoisonHandler: ((error: Error) => void) | undefined;
-    let startupFailure: Error | undefined;
-    const forwardFailure = (error: Error): void => {
+    let installedPoisonHandler:
+      | ((error: FloodgateStableWasmWorkerFailureError) => void)
+      | undefined;
+    let startupFailure: FloodgateStableWasmWorkerFailureError | undefined;
+    const forwardFailure = (
+      error: FloodgateStableWasmWorkerFailureError,
+    ): void => {
       if (installedPoisonHandler === undefined) startupFailure = error;
       else installedPoisonHandler(error);
     };

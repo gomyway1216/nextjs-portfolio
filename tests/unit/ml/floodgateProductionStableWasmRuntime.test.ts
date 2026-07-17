@@ -40,6 +40,8 @@ import {
   FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA,
   FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS,
   FLOODGATE_STABLE_WASM_SCORE_ENCODING,
+  inspectFloodgateStableWasmWorkerFailure,
+  normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests,
   type FloodgateStableWasmProposalRow,
   type FloodgateStableWasmReusableProposalPool,
   type FloodgateStableWasmReusableProposalPoolOptions,
@@ -998,6 +1000,53 @@ describe("Floodgate production stable-WASM runtime", () => {
       ),
     ).rejects.toMatchObject({ phase: "proposal" });
     expect(state.proposeCalls).toBe(1);
+    await runtime.close();
+  });
+
+  it("preserves only genuine safe worker metadata through the runtime wrapper", async () => {
+    const fixture = assetFixture();
+    const state = controls();
+    const canary = "SENSITIVE_PRIVATE_STABLE_WORKER_CAUSE";
+    const raw = new Error(canary);
+    Object.defineProperty(raw, "failure_kind", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error(`${canary}_ACCESSOR`);
+      },
+    });
+    const safe =
+      normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests(raw);
+    const runtime =
+      await createFloodgateProductionStableWasmRuntimeCoreForTests({
+        assetProvider: assetProvider(fixture),
+        poolFactory: poolFactory(state, { poison: safe }),
+      });
+
+    let rejection: unknown;
+    try {
+      await runtime.propose(parent());
+    } catch (primary) {
+      rejection = primary;
+    }
+    expect(rejection).toBeInstanceOf(
+      FloodgateProductionStableWasmRuntimeError,
+    );
+    expect(rejection).toMatchObject({ phase: "proposal" });
+    const primary = Object.getOwnPropertyDescriptor(
+      rejection as object,
+      "primary",
+    )?.value;
+    expect(primary).toBe(safe);
+    expect(inspectFloodgateStableWasmWorkerFailure(primary)).toEqual({
+      failure_kind: "unknown",
+      timeout_ms: null,
+    });
+    expect(
+      `${String(rejection)}\n${JSON.stringify(rejection)}\n${
+        (rejection as Error).stack ?? ""
+      }`,
+    ).not.toContain(canary);
     await runtime.close();
   });
 });

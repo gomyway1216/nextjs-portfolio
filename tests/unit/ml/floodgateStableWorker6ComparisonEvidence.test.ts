@@ -32,15 +32,31 @@ function numberedSections(article: string): number[] {
 }
 
 function mean(values: number[]): number {
+  if (values.length === 0) {
+    throw new Error("mean requires at least one value");
+  }
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 function median(values: number[]): number {
+  if (values.length === 0) {
+    throw new Error("median requires at least one value");
+  }
   const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.floor(sorted.length / 2)];
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 describe("stable-WASM six-versus-twelve-worker evidence", () => {
+  it("uses total helper semantics for empty and even-length inputs", () => {
+    expect(() => mean([])).toThrow("at least one value");
+    expect(() => median([])).toThrow("at least one value");
+    expect(mean([1, 2, 3, 4])).toBe(2.5);
+    expect(median([4, 1, 3, 2])).toBe(2.5);
+  });
+
   it("keeps Japanese and English articles aligned on the seven-section STOP boundary", () => {
     const japanese = readText(JAPANESE_ARTICLE_PATH);
     const english = readText(ENGLISH_ARTICLE_PATH);
@@ -226,10 +242,11 @@ describe("stable-WASM six-versus-twelve-worker evidence", () => {
       .filter(([key]) => key.endsWith("_mutation_counter"))
       .map(([, value]) => value);
 
-    expect(persistentCounters).toEqual([0, 0, 0, 0, 0]);
-    expect(Object.values(evidence.downstream_counters)).toEqual([
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]);
+    expect(persistentCounters).toHaveLength(5);
+    expect(persistentCounters.every((value) => value === 0)).toBe(true);
+    const downstreamCounters = Object.values(evidence.downstream_counters);
+    expect(downstreamCounters).toHaveLength(12);
+    expect(downstreamCounters.every((value) => value === 0)).toBe(true);
     expect(evidence.cleanup).toEqual({
       runtime_close: "fulfilled",
       diagnostic_root_residual_processes: 0,

@@ -55,15 +55,17 @@ closed selection registry
 
 ready selection registry
   -> exact training registry + plan
-  -> identity-snapshot all 3 results + all 3 checkpoints
-  -> strict-parse and validate all 3 results
-  -> Torch strict-load all 3 checkpoints and strict-load every model
+  -> capture the exact bytes of all 3 results + all 3 checkpoints
+  -> strict-parse and validate all 3 captured result byte strings
+  -> Torch strict-load all 3 captured checkpoint byte strings and every model
   -> recheck registry, plan, and all 6 artifacts
   -> issue an opaque one-shot receipt
   -> allow one selection-reader call
 ```
 
 The public preflight API accepts only the exact audit revision. Callers cannot replace its checkpoint loader or model validator; it always uses the fixed Torch loader and strict `DistillNet` validator. Injectable callbacks exist only on the private synthetic-test helper.
+
+Checkpoints are not reopened by path after hashing. The preflight first retains all three immutable byte strings that match the registered identities, then passes those same bytes to Torch through `BytesIO`. A temporary path swap followed by restoration therefore cannot change what is strict-loaded. Results are likewise parsed only from their captured bytes.
 
 The receipt has no writable state fields and no `__dict__`. Its unused state lives in a module-private weak map and is atomically removed when the reader claims it. Forged objects, field writes, a second reader call, and reading a consumed receipt are rejected. Even a valid receipt states that the final holdout was not opened and that production promotion is false.
 
@@ -77,6 +79,7 @@ Temporary synthetic artifacts verify that:
 - old WCSC36 and hybrid schemas, bool-as-integer values, and malformed results fail;
 - wrong seed, output, plan, pipeline, contract, runtime, history, or model fails;
 - duplicate JSON keys, mid-verification changes, and missing or extra artifacts fail;
+- a temporary result or checkpoint path swap cannot replace captured parse/load bytes;
 - union omissions, additions, same-count swaps, duplicate or overlapping components, and noncanonical IDs fail;
 - protected IDs never appear in error messages;
 - the public API cannot replace the loader or validator;
@@ -85,9 +88,9 @@ Temporary synthetic artifacts verify that:
 
 | Suite | Result |
 | --- | ---: |
-| focused fresh stdlib tests | 24 passed |
-| complete Python stdlib ML suite | 82 passed |
-| complete Torch ML suite | 72 passed |
+| focused fresh stdlib tests | 26 passed |
+| complete Python stdlib ML suite | 84 passed |
+| complete Torch ML suite | 73 passed |
 | legacy/fresh emitted-schema integration | 1 passed (one synthetic run each) |
 | related TypeScript tests | 5 passed |
 | `py_compile`, Ruff, Black, and diff check | passed |

@@ -301,6 +301,7 @@ def synthetic_fixture(root):
     }
     registered_runs = []
     checkpoints = {}
+    checkpoint_payloads = {}
     results = {}
     for slot in plan["slots"]:
         seed = slot["seed"]
@@ -395,6 +396,7 @@ def synthetic_fixture(root):
             "training_history": copy.deepcopy(history),
         }
         checkpoints[str(checkpoint_path)] = checkpoint
+        checkpoint_payloads[checkpoint_raw] = checkpoint
         results[seed] = result
         registered_runs.append(
             {
@@ -437,6 +439,7 @@ def synthetic_fixture(root):
         "selection_registry": selection_registry,
         "selection_registry_path": selection_registry_path,
         "checkpoints": checkpoints,
+        "checkpoint_payloads": checkpoint_payloads,
         "results": results,
     }
 
@@ -479,8 +482,8 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
         if events is None:
             events = []
 
-        def load_checkpoint(path):
-            checkpoint = fixture["checkpoints"][str(Path(path))]
+        def load_checkpoint(raw):
+            checkpoint = fixture["checkpoint_payloads"][raw]
             events.append(f"load-{checkpoint['epoch']}-{checkpoint['args']['seed']}")
             return copy.deepcopy(checkpoint)
 
@@ -597,6 +600,87 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                 with self.assertRaises(AttributeError):
                     setattr(receipt, field, False)
             self.assertEqual(len(reader_calls), 1)
+
+    def test_checkpoint_loader_receives_captured_registered_bytes_during_swap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory).resolve())
+            first_run = fixture["selection_registry"]["runs"][0]
+            checkpoint_path = fixture["root"] / first_run["checkpoint"]["path"]
+            original_raw = checkpoint_path.read_bytes()
+            original_identity = identity_bytes(original_raw)
+            loaded_raw = []
+
+            def load_checkpoint(raw):
+                self.assertIs(type(raw), bytes)
+                loaded_raw.append(raw)
+                if len(loaded_raw) == 1:
+                    checkpoint_path.write_bytes(b"temporary swapped checkpoint\n")
+                    self.assertEqual(raw, original_raw)
+                    checkpoint_path.write_bytes(original_raw)
+                return copy.deepcopy(fixture["checkpoint_payloads"][raw])
+
+            receipt = PREFLIGHT._preflight_fresh_qat_selection(
+                repo_root=str(fixture["root"]),
+                tracking_verifier=lambda *_: None,
+                checkpoint_loader=load_checkpoint,
+                strict_model_validator=lambda model, seed: self.assertEqual(
+                    model,
+                    {"synthetic_seed": seed},
+                ),
+            )
+            public = receipt.to_dict()
+            self.assertEqual(len(loaded_raw), 3)
+            self.assertEqual(
+                public["runs"][0]["checkpoint"],
+                {
+                    "path": str(checkpoint_path),
+                    **original_identity,
+                },
+            )
+
+    def test_result_parser_uses_captured_bytes_during_swap_and_restore(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory).resolve())
+            first_run = fixture["selection_registry"]["runs"][0]
+            result_path = fixture["root"] / first_run["result"]["path"]
+            original_raw = result_path.read_bytes()
+            original_identity = identity_bytes(original_raw)
+            swapped_raw = b'{"tampered":true}\n'
+            original_snapshot = PREFLIGHT._registered_content_snapshot
+            original_strict_json = PREFLIGHT._strict_json
+
+            def snapshot(root, identity, label):
+                receipt, raw = original_snapshot(root, identity, label)
+                if label == "fresh seed 44 checkpoint":
+                    result_path.write_bytes(swapped_raw)
+                return receipt, raw
+
+            def strict_json(raw, label):
+                if label == "fresh seed 42 result":
+                    self.assertEqual(result_path.read_bytes(), swapped_raw)
+                    self.assertEqual(raw, original_raw)
+                    result_path.write_bytes(original_raw)
+                return original_strict_json(raw, label)
+
+            with mock.patch.object(
+                PREFLIGHT,
+                "_registered_content_snapshot",
+                side_effect=snapshot,
+            ), mock.patch.object(
+                PREFLIGHT,
+                "_strict_json",
+                side_effect=strict_json,
+            ):
+                receipt, _events = self.preflight(fixture)
+
+            public = receipt.to_dict()
+            self.assertEqual(
+                public["runs"][0]["result"],
+                {
+                    "path": str(result_path),
+                    **original_identity,
+                },
+            )
 
     def test_missing_result_and_one_checkpoint_never_reach_loader_or_reader(self):
         mutations = {

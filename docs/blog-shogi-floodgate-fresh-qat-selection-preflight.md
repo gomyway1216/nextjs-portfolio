@@ -55,15 +55,17 @@ closed selection registry
 
 ready selection registry
   -> exact training registry + plan
-  -> 3 result + 3 checkpointをすべてidentity snapshot
-  -> 3 resultをすべてstrict parse / validate
-  -> 3 checkpointをすべてTorch strict-load / model strict-load
+  -> 3 result + 3 checkpointのexact bytesをすべてcapture
+  -> capture済み3 result bytesをすべてstrict parse / validate
+  -> capture済み3 checkpoint bytesをすべてTorch strict-load / model strict-load
   -> registry / plan / 6 artifactを再確認
   -> opaque one-shot receiptを発行
   -> selection readerを1回だけ呼べる
 ```
 
 公開preflight APIが受け取るのはexact audit revisionだけである。checkpoint loaderやmodel validatorは差し替えられず、固定Torch loaderと`DistillNet` strict validatorを使う。synthetic test用の注入点はprivate helperだけに閉じた。
+
+checkpointはhash確認後にpathから読み直さない。登録identityと一致したimmutable bytesを3件とも先に保持し、その同じbytesを`BytesIO`経由でTorchへ渡す。検証中にpathを一時的に別fileへ差し替えて元へ戻しても、strict-load対象をすり替えられない。resultも同じくcapture済みbytesだけをparseする。
 
 receipt本体には状態を書けるfieldも`__dict__`もない。未使用状態はmodule-privateなweak mapに置き、reader呼び出し時に原子的に取り出して消す。偽造object、field書換え、2回目のreader、使用後の再読は拒否される。receiptが発行されてもfinal holdoutは未開封で、production昇格は`false`のままである。
 
@@ -77,6 +79,7 @@ receipt本体には状態を書けるfieldも`__dict__`もない。未使用状�
 - result / checkpointのold WCSC36 schema、hybrid schema、boolによる整数偽装を拒否
 - wrong seed / output / plan / pipeline / contract / runtime / history / modelを拒否
 - duplicate JSON key、途中改変、missing / extra artifactを拒否
+- result / checkpoint pathの一時swap後にrestoreしてもcapture済みbytesだけをparse / load
 - replay unionのmissing / extra / same-count swap、component duplicate / overlap、非canonical IDを拒否
 - protected IDがエラー文字列へ漏れない
 - 公開APIからloader / validatorを差し替えられない
@@ -85,9 +88,9 @@ receipt本体には状態を書けるfieldも`__dict__`もない。未使用状�
 
 | Suite | 結果 |
 | --- | ---: |
-| fresh focused stdlib | 24 pass |
-| Python stdlib ML全体 | 82 pass |
-| Torch ML全体 | 72 pass |
+| fresh focused stdlib | 26 pass |
+| Python stdlib ML全体 | 84 pass |
+| Torch ML全体 | 73 pass |
 | legacy / fresh schema実出力 integration | 1 pass（synthetic run各1） |
 | 関連TypeScript | 5 pass |
 | `py_compile` / Ruff / Black / diff check | pass |

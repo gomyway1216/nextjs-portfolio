@@ -44,8 +44,11 @@
     "protected_ids_exposed_in_errors": false
   },
   "preflight_order": {
-    "all_six_artifact_identities_before_result_parse": true,
+    "all_six_artifact_identities_and_bytes_before_result_parse": true,
+    "results_parsed_from_captured_bytes": true,
     "all_three_results_before_first_checkpoint_load": true,
+    "checkpoints_loaded_from_captured_bytes": true,
+    "checkpoint_loader_accepts_artifact_path": false,
     "all_three_checkpoints_strict_loaded": true,
     "all_three_models_strict_loaded": true,
     "artifact_recheck_before_receipt": true,
@@ -65,11 +68,11 @@
   },
   "validation": {
     "focused_stdlib_tests": {
-      "passed": 24,
+      "passed": 26,
       "failed": 0
     },
     "complete_python_stdlib_suite": {
-      "passed": 82,
+      "passed": 84,
       "failed": 0
     },
     "training_schema_integration": {
@@ -80,7 +83,7 @@
       "torch_version": "2.13.0"
     },
     "complete_torch_suite": {
-      "passed": 72,
+      "passed": 73,
       "failed": 0,
       "torch_version": "2.13.0"
     },

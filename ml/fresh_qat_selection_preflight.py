@@ -9,6 +9,7 @@ strict-load validation.  Selection labels are not accepted by the preflight.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
 import os
@@ -285,6 +286,22 @@ def _registered_snapshot(
         "bytes": snapshot["bytes"],
         "sha256": snapshot["sha256"],
     }
+
+
+def _registered_content_snapshot(
+    root: str,
+    identity: Mapping[str, Any],
+    label: str,
+) -> tuple[dict[str, Any], bytes]:
+    """Capture the exact registered bytes that later parsing/loading must use."""
+    receipt = _registered_snapshot(root, identity, label)
+    raw = _read_exact_file(receipt["path"], label)
+    if (
+        len(raw) != receipt["bytes"]
+        or hashlib.sha256(raw).hexdigest() != receipt["sha256"]
+    ):
+        raise ValueError(f"{label} changed after identity snapshot")
+    return receipt, raw
 
 
 def _validate_history(value: Any, label: str) -> list[Mapping[str, Any]]:
@@ -718,11 +735,17 @@ def _validate_checkpoint(
     return {"schema": checkpoint["schema"], "epoch": checkpoint["epoch"]}
 
 
-def _torch_checkpoint_loader(path: str) -> Mapping[str, Any]:
+def _torch_checkpoint_loader(raw: bytes) -> Mapping[str, Any]:
     try:
+        if type(raw) is not bytes or not raw:
+            raise TypeError("checkpoint input must be nonempty immutable bytes")
         import torch
 
-        value = torch.load(path, map_location="cpu", weights_only=True)
+        value = torch.load(
+            io.BytesIO(raw),
+            map_location="cpu",
+            weights_only=True,
+        )
     except Exception as error:
         raise ValueError(
             f"cannot strict-load fresh final checkpoint: {error}"
@@ -813,7 +836,7 @@ def _preflight_fresh_qat_selection(
     *,
     repo_root: str,
     tracking_verifier: Callable[[str], None],
-    checkpoint_loader: Callable[[str], Mapping[str, Any]],
+    checkpoint_loader: Callable[[bytes], Mapping[str, Any]],
     strict_model_validator: Callable[[Any, int], None],
 ) -> FreshQatSelectionPreflightReceipt:
     root = os.path.realpath(repo_root)
@@ -871,12 +894,12 @@ def _preflight_fresh_qat_selection(
     artifact_receipts = []
     for registered_run in registered_runs:
         seed = registered_run["seed"]
-        result_receipt = _registered_snapshot(
+        result_receipt, result_raw = _registered_content_snapshot(
             root,
             registered_run["result"],
             f"fresh seed {seed} result",
         )
-        checkpoint_receipt = _registered_snapshot(
+        checkpoint_receipt, checkpoint_raw = _registered_content_snapshot(
             root,
             registered_run["checkpoint"],
             f"fresh seed {seed} checkpoint",
@@ -885,7 +908,9 @@ def _preflight_fresh_qat_selection(
             {
                 "registered_run": registered_run,
                 "result": result_receipt,
+                "result_raw": result_raw,
                 "checkpoint": checkpoint_receipt,
+                "checkpoint_raw": checkpoint_raw,
             }
         )
 
@@ -893,15 +918,7 @@ def _preflight_fresh_qat_selection(
     for artifacts in artifact_receipts:
         registered_run = artifacts["registered_run"]
         seed = registered_run["seed"]
-        result_raw = _read_exact_file(
-            artifacts["result"]["path"],
-            f"fresh seed {seed} result",
-        )
-        if (
-            len(result_raw) != artifacts["result"]["bytes"]
-            or hashlib.sha256(result_raw).hexdigest() != artifacts["result"]["sha256"]
-        ):
-            raise ValueError(f"fresh seed {seed} result changed after snapshot")
+        result_raw = artifacts["result_raw"]
         result = _strict_json(result_raw, f"fresh seed {seed} result")
         _validate_result(
             result,
@@ -916,7 +933,6 @@ def _preflight_fresh_qat_selection(
             {
                 **artifacts,
                 "result_value": result,
-                "result_raw": result_raw,
             }
         )
 
@@ -925,7 +941,7 @@ def _preflight_fresh_qat_selection(
         registered_run = artifacts["registered_run"]
         seed = registered_run["seed"]
         try:
-            checkpoint = checkpoint_loader(artifacts["checkpoint"]["path"])
+            checkpoint = checkpoint_loader(artifacts["checkpoint_raw"])
         except Exception as error:
             if isinstance(error, ValueError):
                 raise

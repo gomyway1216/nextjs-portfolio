@@ -123,6 +123,8 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
     const evidence = JSON.parse(readText(EVIDENCE_PATH));
     const japanese = readText(JAPANESE_ARTICLE_PATH);
     const english = readText(ENGLISH_ARTICLE_PATH);
+    const contractJapanese = readText(CONTRACT_ARTICLE_PATH);
+    const contractEnglish = readText(CONTRACT_ENGLISH_ARTICLE_PATH);
 
     expect(evidence.execution_chronology).toEqual({
       exact_start_timestamp_recorded: false,
@@ -173,6 +175,22 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
     expect(english).toContain("no post-merge deployment execution is claimed");
     expect(japanese).not.toContain("通常mergeした後");
     expect(english).not.toContain("After PR #485 final head");
+    const japaneseOrder = [
+      "final-head CIと独立reviewを完了",
+      "read-only再実行を開始",
+      "final headをrun中に通常merge",
+      "merge後にrun結果を記録",
+    ].map((marker) => contractJapanese.indexOf(marker));
+    const englishOrder = [
+      "final-head CI and independent review",
+      "Start the same twelve-candidate read-only rerun",
+      "Regular-merge that same final head",
+      "Record the result after merge",
+    ].map((marker) => contractEnglish.indexOf(marker));
+    expect(japaneseOrder).not.toContain(-1);
+    expect(englishOrder).not.toContain(-1);
+    expect(japaneseOrder).toEqual([...japaneseOrder].sort((a, b) => a - b));
+    expect(englishOrder).toEqual([...englishOrder].sort((a, b) => a - b));
   });
 
   it("states the pool-broadcast nonclaim without assigning a trigger index", () => {

@@ -104,13 +104,15 @@ runtime wrapperとparent coordinatorは、nested `primary`がgenuine safe error�
 
 ## 8. 安全な次の順序
 
-1. PR #485のfinal-head CI、独立review、通常mergeを完了する（完了）
-2. exact final headで同じ12候補をread-only再実行し、最初のsafe failure kindとtimeout値を取得する（完了。run開始は通常merge前）
-3. 4 / 6 / 8 / 12 workersでtail latency、timeout、throughputを比較する
-4. playing-quality contractを保った修正を選び、変更後run bindingを新runとして扱う
-5. recovery inspectorとhuman-confirmed quarantineを完成し、現在のstale lease / partial checkpointを別authorityで解決する
-6. fresh prefix-100を成功させても一度STOPし、独立review後だけ500、final-24,000へ進む
-7. 完全な教師data後にのみ再学習、候補選抜、正式A/B、外部校正を実行する
+1. PR #485のfinal-head CIと独立reviewを完了する（完了）
+2. exact clean final headで同じ12候補のread-only再実行を開始する（完了。通常merge前に開始）
+3. 同じfinal headをrun中に通常mergeする（完了）
+4. merge後にrun結果を記録し、最初のsafe failure kindとtimeout値を確定する（完了）
+5. 4 / 6 / 8 / 12 workersでtail latency、timeout、throughputを比較する
+6. playing-quality contractを保った修正を選び、変更後run bindingを新runとして扱う
+7. recovery inspectorとhuman-confirmed quarantineを完成し、現在のstale lease / partial checkpointを別authorityで解決する
+8. fresh prefix-100を成功させても一度STOPし、独立review後だけ500、final-24,000へ進む
+9. 完全な教師data後にのみ再学習、候補選抜、正式A/B、外部校正を実行する
 
 ## 9. 現時点の判断
 

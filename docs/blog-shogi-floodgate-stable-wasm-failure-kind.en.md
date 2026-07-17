@@ -104,13 +104,15 @@ The source change also changes the existing V3 run binding and application-sourc
 
 ## 8. Safe next order
 
-1. Complete PR #485 final-head CI, independent review, and regular merge (complete).
-2. Rerun the same twelve candidates read-only on the exact final head to capture the first safe failure kind and timeout value (complete; the run began before regular merge).
-3. Compare tail latency, timeout, and throughput with 4, 6, 8, and 12 workers.
-4. Select a fix that preserves the playing-quality contract and treat its changed run binding as a new run.
-5. Finish the recovery inspector and human-confirmed quarantine, resolving the current stale lease and partial checkpoint under separate authority.
-6. Even after a fresh prefix-100 succeeds, stop once for independent review before advancing to 500 and final-24,000.
-7. Retrain, select candidates, run formal A/B, and calibrate externally only after the complete teacher data is finalized.
+1. Complete PR #485 final-head CI and independent review (complete).
+2. Start the same twelve-candidate read-only rerun on the exact clean final head (complete; started before regular merge).
+3. Regular-merge that same final head while the run is in progress (complete).
+4. Record the result after merge and establish the first safe failure kind and timeout value (complete).
+5. Compare tail latency, timeout, and throughput with 4, 6, 8, and 12 workers.
+6. Select a fix that preserves the playing-quality contract and treat its changed run binding as a new run.
+7. Finish the recovery inspector and human-confirmed quarantine, resolving the current stale lease and partial checkpoint under separate authority.
+8. Even after a fresh prefix-100 succeeds, stop once for independent review before advancing to 500 and final-24,000.
+9. Retrain, select candidates, run formal A/B, and calibrate externally only after the complete teacher data is finalized.
 
 ## 9. Current decision
 

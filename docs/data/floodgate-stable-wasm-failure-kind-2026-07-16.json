@@ -1,0 +1,128 @@
+{
+  "schema": "shogi-floodgate-stable-wasm-safe-failure-kind-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-stable-wasm-failure-kind.md",
+    "english": "../blog-shogi-floodgate-stable-wasm-failure-kind.en.md"
+  },
+  "scope": {
+    "description": "safe-worker-failure-kind-preservation-through-reusable-pool-poison",
+    "operational_decision": "STOP",
+    "production_state_mutated": false,
+    "live_evaluator_changed": false,
+    "playing_strength_evidence_created": false
+  },
+  "incident_reproduction": {
+    "candidate_count": 12,
+    "fulfilled_count": 7,
+    "generic_pool_poison_count": 5,
+    "fulfilled_elapsed_seconds_range": [0.839, 244.88],
+    "generic_pool_poison_elapsed_seconds": "approximately-600.0",
+    "timing_inference": "search-timeout",
+    "typed_trigger_kind_established_by_incident_revision": false,
+    "trigger_parent_identified": false,
+    "residual_workers": 0
+  },
+  "implementation": {
+    "exact_commit": "7ca6e09",
+    "safe_failure_kinds": [
+      "search-timeout",
+      "startup-timeout",
+      "worker-exit",
+      "transport",
+      "protocol",
+      "validation",
+      "unknown"
+    ],
+    "timeout_ms": "exact-number-only-for-search-or-startup-timeout-otherwise-null",
+    "genuine_error_authority": "module-private-weakmap-exact-object-brand",
+    "error_object_frozen": true,
+    "metadata_record_frozen": true,
+    "proxy_rejected_before_lookup": true,
+    "forged_or_accessor_fields_read": false,
+    "first_terminal_error_preserved": true,
+    "same_error_identity_for_active_jobs": true,
+    "same_error_identity_for_queued_jobs": true,
+    "same_error_identity_for_future_poisoned_proposals": true,
+    "later_worker_failure_replaces_first": false,
+    "all_workers_force_stopped_and_reaped": true,
+    "normal_proposal_row_changed": false,
+    "normal_runtime_receipt_changed": false,
+    "production_binding_builder_changed": false
+  },
+  "non_disclosure": {
+    "raw_stderr_retained": false,
+    "raw_error_message_retained": false,
+    "pid_disclosed": false,
+    "worker_index_disclosed": false,
+    "input_index_disclosed": false,
+    "sfen_or_move_disclosed": false,
+    "game_parent_or_position_id_disclosed": false,
+    "request_or_result_payload_disclosed": false,
+    "private_path_or_filesystem_identity_disclosed": false
+  },
+  "validation": {
+    "focused_tests": {
+      "status": "PASS",
+      "files": 3,
+      "tests": 110
+    },
+    "typescript": "PASS",
+    "changed_file_eslint": "PASS",
+    "git_diff_check": "PASS",
+    "independent_review": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    }
+  },
+  "delivery": {
+    "pull_request": "PENDING",
+    "final_head_github_ci": "PENDING",
+    "regular_merge": "PENDING",
+    "used_in_production": false,
+    "same_twelve_candidate_rerun_on_merged_code": false
+  },
+  "checkpoint_binding": {
+    "source_or_runtime_binding_changes_existing_v3_binding": true,
+    "existing_three_parent_partial_resumable_under_changed_code": false,
+    "required_resolution": "reviewed-quarantine-then-separately-approved-fresh-run"
+  },
+  "counters": {
+    "production_retry_runs": 0,
+    "production_cleanup_runs": 0,
+    "production_quarantines": 0,
+    "checkpoint_resumes": 0,
+    "teacher_generation_runs": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_activations": 0
+  },
+  "nonclaims": {
+    "all_five_generic_rejections_individually_timed_out": false,
+    "trigger_parent_identified": false,
+    "optimal_worker_count_identified": false,
+    "root_cause_fix_selected": false,
+    "partial_checkpoint_resume_authorized": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  },
+  "safe_next_order": [
+    "publish-ready-for-review-pull-request",
+    "pass-final-head-ci-independent-review-and-regular-merge",
+    "rerun-same-twelve-candidates-read-only-and-capture-first-safe-failure-kind",
+    "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers",
+    "select-quality-preserving-root-cause-fix-and-use-a-new-run-binding",
+    "finish-recovery-inspector-and-human-confirmed-quarantine",
+    "run-fresh-prefix-100-then-stop-for-review-before-500-and-final-24000",
+    "after-complete-teacher-finalization-run-retraining-selection-formal-ab-and-external-calibration"
+  ]
+}

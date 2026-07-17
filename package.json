@@ -33,6 +33,7 @@
     "shogi:floodgate-v7-production-connector-verifier-readiness": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" connector-verifier-readiness",
     "shogi:floodgate-v7-production-prefix-100-preflight": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" prefix-100-read-only-preflight",
     "shogi:floodgate-v7-production-prefix-100-kill-drill": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" prefix-100-disposable-kill-drill",
+    "shogi:floodgate-v7-production-recovery-inspect-stale-prefix-100": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-recovery-operator-native-launcher.jxa\" inspect-stale-prefix-100",
     "shogi:floodgate-v7-production-connector-prefix-100": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" durable-prefix-100",
     "shogi:floodgate-v7-production-connector-prefix-500": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" durable-prefix-500",
     "shogi:floodgate-v7-production-connector-final-24000": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" sealed-final-24000",

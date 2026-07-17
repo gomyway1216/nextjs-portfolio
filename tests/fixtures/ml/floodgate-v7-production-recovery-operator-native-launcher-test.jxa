@@ -1,0 +1,217 @@
+"use strict";
+
+/*
+ * Darwin-only harmless integration fixture for the isolated recovery
+ * JXA/NSTask/caffeinate/private-pipe attestation path.
+ */
+
+ObjC.import("Foundation");
+ObjC.import("Security");
+ObjC.bindFunction("exit", ["void", ["int"]]);
+
+const CONTRACT =
+  "shogi-floodgate-v7-production-recovery-operator-native-launcher-attestation-v1";
+const PURPOSE = "recovery-launcher-self-test";
+const ENTRY =
+  "tests/fixtures/ml/floodgate-v7-production-recovery-operator-native-launcher-child.ts";
+const fileManager = $.NSFileManager.defaultManager;
+
+function fail() {
+  $.exit(70);
+}
+
+function stringValue(value) {
+  return String(ObjC.unwrap(value));
+}
+
+function integerValue(value) {
+  const unwrapped = ObjC.unwrap(value);
+  if (typeof unwrapped !== "number" || !Number.isSafeInteger(unwrapped)) fail();
+  return unwrapped;
+}
+
+function canonicalPath(value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.charAt(0) !== "/" ||
+    value.indexOf("\u0000") !== -1 ||
+    value.indexOf("\n") !== -1 ||
+    value.indexOf("\r") !== -1
+  ) {
+    fail();
+  }
+  const standardized = stringValue($(value).stringByStandardizingPath);
+  const resolved = stringValue($(standardized).stringByResolvingSymlinksInPath);
+  if (standardized !== value || resolved !== value) fail();
+  return value;
+}
+
+function assertSingleLinkRegularFile(value) {
+  const error = Ref();
+  const attributes = fileManager.attributesOfItemAtPathError($(value), error);
+  if (
+    !attributes ||
+    stringValue(attributes.objectForKey($.NSFileType)) !==
+      stringValue($.NSFileTypeRegular) ||
+    integerValue(attributes.objectForKey($.NSFileReferenceCount)) !== 1
+  ) {
+    fail();
+  }
+}
+
+function randomNonce() {
+  const bytes = $.NSMutableData.dataWithLength(32);
+  if ($.SecRandomCopyBytes($.kSecRandomDefault, 32, bytes.mutableBytes) !== 0) {
+    fail();
+  }
+  const nonce = stringValue(bytes.base64EncodedStringWithOptions(0));
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(nonce)) fail();
+  return nonce;
+}
+
+function run(arguments_) {
+  try {
+    if (arguments_.length !== 2 || String(arguments_[0]) !== PURPOSE) fail();
+    const processArguments = ObjC.deepUnwrap(
+      $.NSProcessInfo.processInfo.arguments,
+    ).map((value) => String(value));
+    const nodePath = canonicalPath(String(arguments_[1]));
+    if (
+      processArguments.length !== 6 ||
+      processArguments[0] !== "/usr/bin/osascript" ||
+      processArguments[1] !== "-l" ||
+      processArguments[2] !== "JavaScript" ||
+      processArguments[4] !== PURPOSE ||
+      processArguments[5] !== nodePath
+    ) {
+      fail();
+    }
+    const helperPath = canonicalPath(processArguments[3]);
+    const mlFixtures = stringValue(
+      $(helperPath).stringByDeletingLastPathComponent,
+    );
+    const fixtures = stringValue(
+      $(mlFixtures).stringByDeletingLastPathComponent,
+    );
+    const tests = stringValue($(fixtures).stringByDeletingLastPathComponent);
+    const repositoryRoot = canonicalPath(
+      stringValue($(tests).stringByDeletingLastPathComponent),
+    );
+    if (
+      canonicalPath(stringValue(fileManager.currentDirectoryPath)) !==
+      repositoryRoot
+    ) {
+      fail();
+    }
+    const entryPath = canonicalPath(
+      stringValue($(repositoryRoot).stringByAppendingPathComponent($(ENTRY))),
+    );
+    assertSingleLinkRegularFile(helperPath);
+    assertSingleLinkRegularFile(entryPath);
+    assertSingleLinkRegularFile(nodePath);
+    assertSingleLinkRegularFile("/usr/bin/caffeinate");
+    if (
+      !fileManager.isReadableFileAtPath($(helperPath)) ||
+      !fileManager.isReadableFileAtPath($(entryPath)) ||
+      !fileManager.isExecutableFileAtPath($(nodePath)) ||
+      !fileManager.isExecutableFileAtPath("/usr/bin/caffeinate")
+    ) {
+      fail();
+    }
+
+    const parentPid = integerValue(
+      $.NSProcessInfo.processInfo.processIdentifier,
+    );
+    if (parentPid <= 1) fail();
+    const nonce = randomNonce();
+    const otherNonce = `${nonce.charAt(0) === "A" ? "B" : "A"}${nonce.slice(1)}`;
+    const inheritedEnvironment = ObjC.deepUnwrap(
+      $.NSProcessInfo.processInfo.environment,
+    );
+    const mode =
+      inheritedEnvironment.FLOODGATE_V7_RECOVERY_LAUNCHER_TEST_MODE ||
+      "success";
+    if (
+      ![
+        "success",
+        "reuse",
+        "no-frame",
+        "wrong-nonce-frame",
+        "wrong-nonce-environment",
+        "wrong-parent-frame",
+        "wrong-parent-environment",
+        "wrong-helper",
+        "wrong-base-environment",
+        "extra-environment",
+        "wrong-exec-argv",
+        "extra-child-argument",
+      ].includes(mode)
+    ) {
+      fail();
+    }
+
+    const frameNonce = mode === "wrong-nonce-frame" ? otherNonce : nonce;
+    const environmentNonce =
+      mode === "wrong-nonce-environment" ? otherNonce : nonce;
+    const frameParent =
+      mode === "wrong-parent-frame" ? parentPid + 1 : parentPid;
+    const environmentParent =
+      mode === "wrong-parent-environment" ? parentPid + 1 : parentPid;
+    const frameHelper =
+      mode === "wrong-helper" ? "/tmp/not-recovery-helper.jxa" : helperPath;
+    const pipe = $.NSPipe.pipe;
+    const task = $.NSTask.alloc.init;
+    const nodeDirectory = stringValue(
+      $(nodePath).stringByDeletingLastPathComponent,
+    );
+    task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/caffeinate");
+    const childArguments = [
+      "-dimsu",
+      nodePath,
+      mode === "wrong-exec-argv" ? "--require" : "-r",
+      "tsx/cjs",
+      entryPath,
+    ];
+    if (mode === "extra-child-argument") childArguments.push("unexpected");
+    task.arguments = $(childArguments);
+    const childEnvironment = {
+      HOME: stringValue(fileManager.homeDirectoryForCurrentUser.path),
+      LANG: mode === "wrong-base-environment" ? "en_US.UTF-8" : "C",
+      LC_ALL: "C",
+      NODE_ENV: "production",
+      PATH: `${nodeDirectory}:/usr/bin:/bin:/usr/sbin:/sbin`,
+      FLOODGATE_V7_RECOVERY_OPERATOR_NATIVE_LAUNCHER_CONTRACT: CONTRACT,
+      FLOODGATE_V7_RECOVERY_OPERATOR_NATIVE_LAUNCHER_PURPOSE: PURPOSE,
+      FLOODGATE_V7_RECOVERY_OPERATOR_NATIVE_LAUNCHER_PARENT_PID:
+        String(environmentParent),
+      FLOODGATE_V7_RECOVERY_OPERATOR_NATIVE_LAUNCHER_NONCE: environmentNonce,
+      FLOODGATE_V7_RECOVERY_OPERATOR_NATIVE_LAUNCHER_HELPER: helperPath,
+      FLOODGATE_V7_RECOVERY_LAUNCHER_TEST_CHILD_MODE: mode,
+    };
+    if (mode === "extra-environment") {
+      childEnvironment.FLOODGATE_V7_UNTRUSTED_SENTINEL = "must-be-rejected";
+    }
+    task.environment = $(childEnvironment);
+    task.currentDirectoryURL = $.NSURL.fileURLWithPath($(repositoryRoot));
+    task.standardInput = pipe;
+    task.standardOutput = $.NSFileHandle.fileHandleWithStandardOutput;
+    task.standardError = $.NSFileHandle.fileHandleWithStandardError;
+    const launchError = Ref();
+    if (!task.launchAndReturnError(launchError)) fail();
+    const frame =
+      mode === "no-frame"
+        ? ""
+        : `${CONTRACT}\n${PURPOSE}\n${frameParent}\n${frameNonce}\n${frameHelper}\n`;
+    pipe.fileHandleForWriting.writeData(
+      $(frame).dataUsingEncoding($.NSUTF8StringEncoding),
+    );
+    pipe.fileHandleForWriting.closeFile;
+    task.waitUntilExit;
+    const status = integerValue(task.terminationStatus);
+    if (status < 0 || status > 255) fail();
+    $.exit(status);
+  } catch (_error) {
+    fail();
+  }
+}

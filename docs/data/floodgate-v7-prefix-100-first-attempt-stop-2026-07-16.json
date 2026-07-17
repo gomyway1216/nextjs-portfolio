@@ -1,0 +1,305 @@
+{
+  "schema": "shogi-floodgate-v7-prefix-100-first-attempt-stop-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "evidence_timezone": "America/Los_Angeles",
+  "corresponding_utc_date": "2026-07-17",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md",
+    "english": "../blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md"
+  },
+  "scope": {
+    "description": "first-exactly-once-durable-prefix-100-attempt-and-preserved-authenticated-partial-checkpoint",
+    "operational_decision": "STOP",
+    "production_ready_for_retry": false,
+    "live_evaluator_changed": false,
+    "playing_strength_evidence_created": false
+  },
+  "prerequisite_launcher_fix_delivery": {
+    "scope": "prerequisite-pr-483-that-enabled-the-production-attempt-not-the-current-projection-fix-delivery",
+    "pull_request_number": 483,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/483",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "9ddcc032329a4a9f3931494f2348c10d9fe2d696"
+  },
+  "prerequisite_gates": {
+    "application_source_readiness": "PASS",
+    "connector_verifier_readiness": "PASS",
+    "approved_current_binding_readiness": "PASS",
+    "immutable_registry_v2_create_only_provision": "PASS",
+    "registry_postflight": "PASS",
+    "kill_drill": {
+      "status": "PASS",
+      "failpoints": 3,
+      "signal_classes": 2,
+      "cases": 6,
+      "production_gate_invocations": 0
+    },
+    "fresh_prefix_100_preflight": {
+      "status": "PASS",
+      "persistent_mutations": 0,
+      "gate_invocations": 0
+    }
+  },
+  "prefix_100_first_attempt": {
+    "invocation_policy": "exactly-once",
+    "attempts": 1,
+    "duration_seconds": 1597,
+    "outcome": "STOPPED-without-success-receipt",
+    "success_receipts": 0,
+    "successful_exact_prefix_100_postflights": 0,
+    "sanitized_public_failure": {
+      "contract": "shogi-floodgate-v7-production-connector-cli-failure-v2",
+      "public_phase": "runner",
+      "connector_invoked": true,
+      "checkpoint_may_have_persisted": true,
+      "retry_disposition": "checkpoint-reconciliation-required",
+      "exact_prefix_100_postflight": false,
+      "private_path_disclosed": false,
+      "execution_identifier_disclosed": false,
+      "key_or_digest_disclosed": false,
+      "position_or_parent_identifier_disclosed": false,
+      "raw_error_disclosed": false
+    }
+  },
+  "public_failure_projection_finding": {
+    "found": true,
+    "classification": "sanitized-cli-phase-projection-bug",
+    "safe_source_phase": "outer-gate-lock",
+    "safe_source_connector_invoked": true,
+    "safe_source_checkpoint_may_have_persisted": true,
+    "safe_source_tuple_valid": true,
+    "cli_accepts_safe_source_tuple": false,
+    "fallback_public_phase": "runner",
+    "fallback_public_phase_establishes_root_cause": false,
+    "success_incorrectly_claimed": false,
+    "fix_implemented_in_this_evidence": true,
+    "fix_exact_candidate_commit": "f5feacd9a24615cb0e75c580181a0cf79419aef8",
+    "accepted_shapes_after_fix": [
+      "outer-gate-lock-before-invocation-false-false-operator-reconciliation",
+      "outer-gate-lock-after-invocation-true-true-checkpoint-reconciliation"
+    ],
+    "invalid_or_nested_shape_remains_generic": true,
+    "regression_test_added_in_this_evidence": true,
+    "focused_tests": {
+      "status": "PASS",
+      "passed": 28,
+      "total": 28
+    },
+    "changed_file_eslint": {
+      "status": "PASS",
+      "files": 2
+    },
+    "pull_request": {
+      "number": 484,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/484",
+      "state": "OPEN",
+      "ready_for_review": true
+    },
+    "final_head_github_ci": "PENDING",
+    "independent_review": "PENDING",
+    "regular_merge": "PENDING",
+    "used_in_production": false,
+    "exact_inner_phase_restored_by_this_fix": false
+  },
+  "independent_read_only_audit": {
+    "status": "PASS",
+    "production_state_mutated": false,
+    "active_lease": {
+      "present": true,
+      "authenticated": true,
+      "stale": true,
+      "recorded_owner_process_present": false
+    },
+    "common_os_lifetime_lock": "free",
+    "quarantine_entries": 0,
+    "retired_entries": 0,
+    "stage_work": {
+      "exact_files": 1,
+      "complete_authenticated_records": 4,
+      "header_records": 1,
+      "parent_records": 3,
+      "torn_tail": false,
+      "prefix_100_milestone_present": false,
+      "final_seal_present": false
+    },
+    "residual_production_processes": 0,
+    "private_path_disclosed": false,
+    "numeric_user_identity_disclosed": false,
+    "execution_identifier_disclosed": false,
+    "key_or_digest_disclosed": false,
+    "position_or_parent_identifier_disclosed": false,
+    "raw_error_disclosed": false
+  },
+  "root_cause_status": {
+    "stable_fixed_timeout_seconds": 600,
+    "stable_timeout_is_strongest_hypothesis": true,
+    "stable_timeout_timing_reproduced": true,
+    "stable_timeout_confirmed_as_typed_root_cause": false,
+    "exact_failing_inner_phase_identified": false,
+    "trigger_parent_identified": false,
+    "machine_resource_exhaustion_established": false,
+    "stable_runtime_defect_established": false,
+    "same_configuration_read_only_reproduction": {
+      "status": "PASS",
+      "candidate_indices": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "fulfilled": [
+        {
+          "index": 4,
+          "elapsed_seconds": 5.798
+        },
+        {
+          "index": 5,
+          "elapsed_seconds": 93.027
+        },
+        {
+          "index": 8,
+          "elapsed_seconds": 244.88
+        },
+        {
+          "index": 10,
+          "elapsed_seconds": 1.388
+        },
+        {
+          "index": 11,
+          "elapsed_seconds": 0.839
+        },
+        {
+          "index": 12,
+          "elapsed_seconds": 64.223
+        },
+        {
+          "index": 13,
+          "elapsed_seconds": 105.684
+        }
+      ],
+      "generic_pool_poison_indices": [3, 6, 7, 9, 14],
+      "generic_pool_poison_elapsed_seconds": "approximately-600.0",
+      "safe_failure_kind": "unknown",
+      "timing_inference": "search-timeout",
+      "trigger_error_preserved_by_current_pool": false,
+      "trigger_parent_identified": false,
+      "runtime_close": "PASS",
+      "residual_workers": 0,
+      "production_state_mutated": false,
+      "production_cleanup_or_retry_performed": false
+    },
+    "safe_failure_kind_propagation_required": true,
+    "worker_count_tail_latency_benchmark_required": true
+  },
+  "checkpoint_run_binding": {
+    "v3_header_hmac_authenticated_fields": [
+      "stable-runtime-receipt-hash",
+      "teacher-runtime-receipt-hash",
+      "worker-count",
+      "search-timeout",
+      "depth",
+      "source"
+    ],
+    "private_hash_or_binding_value_disclosed": false,
+    "identical_bytes_and_configuration_is_structural_resume_candidate": true,
+    "identical_bytes_and_configuration_authorizes_resume": false,
+    "same_timeout_recurrence_risk_present": true,
+    "changed_runtime_bytes_or_configuration_allows_existing_partial_resume": false,
+    "changed_binding_required_action": "reviewed-quarantine-then-separately-approved-fresh-run"
+  },
+  "counters": {
+    "prefix_100_attempts": 1,
+    "prefix_100_successes": 0,
+    "complete_authenticated_checkpoint_records": 4,
+    "authenticated_header_records": 1,
+    "authenticated_parent_records": 3,
+    "same_configuration_read_only_reproduction_runs": 1,
+    "reproduction_candidates": 12,
+    "reproduction_fulfilled_candidates": 7,
+    "reproduction_generic_pool_poison_candidates": 5,
+    "prefix_100_retries_after_stop": 0,
+    "active_lease_cleanups_after_stop": 0,
+    "quarantines_after_stop": 0,
+    "checkpoint_resumes_after_stop": 0,
+    "teacher_generation_runs_after_stop": 0,
+    "teacher_labels_finalized_after_stop": 0,
+    "training_runs_after_stop": 0,
+    "optimizer_steps_after_stop": 0,
+    "candidate_selection_runs_after_stop": 0,
+    "candidate_promotions_after_stop": 0,
+    "formal_ab_games_after_stop": 0,
+    "external_calibration_games_after_stop": 0,
+    "production_weight_overwrites_after_stop": 0,
+    "live_evaluation_activations_after_stop": 0
+  },
+  "live_and_strength": {
+    "live_weight_changed": false,
+    "live_activation_changed": false,
+    "playing_strength_changed_by_this_attempt": false,
+    "playing_strength_evaluated_by_this_attempt": false,
+    "playing_strength_improvement_claimed": false,
+    "stable_high_dan_claimed": false
+  },
+  "safe_next_order": [
+    "preserve-active-lease-and-stage-work-without-retry-cleanup-quarantine-or-resume",
+    "independently-review-current-cli-projection-candidate-then-pass-pr-final-head-ci-and-regular-merge",
+    "implement-fixed-origin-zero-argument-read-only-authenticated-production-inspector",
+    "preserve-safe-worker-failure-kind-and-timeout-through-pool-wide-poison-and-rerun-the-same-candidates",
+    "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers-on-the-same-read-only-input",
+    "fix-only-a-confirmed-root-cause-and-test-timeout-cancellation-partial-checkpoint-and-resumption-boundaries-while-prohibiting-resume-after-binding-change",
+    "implement-reviewed-same-process-outer-lease-and-inner-stage-checkpoint-reconciliation-with-explicit-human-confirmation",
+    "publish-ready-for-review-pull-request-pass-final-head-ci-independent-review-and-regular-merge",
+    "rerun-read-only-inspection-from-merged-fixed-revision",
+    "resume-only-with-proved-safe-resumption-authority-otherwise-separate-authenticated-quarantine-from-approved-fresh-restart",
+    "after-exact-100-postflight-stop-for-independent-review-and-informed-human-approval",
+    "then-run-500-final-24000-teacher-finalization-retraining-candidate-selection-formal-ab-and-external-calibration-under-stop-gates",
+    "consider-live-activation-only-after-safety-quality-playing-strength-and-rollback-evidence"
+  ],
+  "stop_conditions": {
+    "retry_before_checkpoint_reconciliation": "STOP",
+    "cleanup_before_reviewed-authority": "STOP",
+    "authentication_failure": "STOP",
+    "fresh_inspection_mismatch": "STOP",
+    "indeterminate_state": "STOP",
+    "quarantine_present": "STOP",
+    "automatic_retry": false,
+    "automatic_cleanup": false,
+    "automatic_quarantine": false,
+    "automatic_resume": false
+  },
+  "nonclaims": {
+    "prefix_100_completed": false,
+    "prefix_100_milestone_created": false,
+    "checkpoint_sealed": false,
+    "public_runner_phase_is_root_cause": false,
+    "stable_timeout_confirmed_as_typed_root_cause": false,
+    "all-five-generic-poisoned-candidates-individually-timed-out": false,
+    "trigger_parent_identified": false,
+    "partial_checkpoint_authorizes_resume": false,
+    "identical_run_binding_alone_authorizes_resume": false,
+    "changed_runtime-or-configuration-allows-existing-partial-resume": false,
+    "stale_active_lease_authorizes_deletion": false,
+    "reviewed_production_reconciliation_operator_available": false,
+    "projection_fix_pull_request_open": true,
+    "projection_fix_pull_request_merged": false,
+    "projection_fix_github_ci_complete": false,
+    "projection_fix_merged": false,
+    "projection_fix_used_in_production": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  },
+  "validation": {
+    "evidence_json_parse": "PASS",
+    "japanese_english_fact_parity": "PASS",
+    "article_format": "PASS",
+    "git_diff_check": "PASS",
+    "public_artifact_private_path_count": 0,
+    "public_artifact_numeric_user_identity_count": 0,
+    "public_artifact_execution_identifier_count": 0,
+    "public_artifact_key_or_digest_value_count": 0,
+    "public_artifact_position_or_parent_identifier_count": 0,
+    "public_artifact_raw_error_count": 0
+  }
+}

@@ -82,7 +82,6 @@ const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
-const objectKeys = Object.keys;
 const objectPrototype = Object.prototype;
 const arrayPrototype = Array.prototype;
 const arrayIsArray = Array.isArray;
@@ -370,14 +369,15 @@ async function assertRequiredTrackedClosure(
 function frozenRecord<T extends object>(value: T): Readonly<T> {
   const output = objectCreate(null) as T;
   const descriptors = objectGetOwnPropertyDescriptors(value);
-  for (const key of objectKeys(descriptors)) {
+  for (const key of reflectOwnKeys(descriptors)) {
+    if (typeof key !== "string") continue;
     const descriptor = descriptors[key];
     if (descriptor === undefined || !("value" in descriptor)) {
       throw new FloodgateV7ProductionRecoveryOperatorSourceProvenanceError();
     }
     objectDefineProperty(output, key, {
       configurable: false,
-      enumerable: descriptor.enumerable,
+      enumerable: descriptor.enumerable ?? false,
       writable: false,
       value: descriptor.value,
     });

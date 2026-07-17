@@ -502,6 +502,28 @@ describe("Floodgate v7 production recovery operator foundation", () => {
     );
   });
 
+  it("keeps recovery frozen records on explicit own-key descriptor copying", async () => {
+    const sources = await Promise.all(
+      [
+        "ml/floodgate-v7-production-recovery-operator-source-provenance.ts",
+        "ml/floodgate-v7-production-recovery-operator-source-authorization.ts",
+      ].map((relative) =>
+        fs.promises.readFile(path.join(REPOSITORY_ROOT, relative), "utf8"),
+      ),
+    );
+
+    for (const source of sources) {
+      expect(source).toContain(
+        "for (const key of reflectOwnKeys(descriptors))",
+      );
+      expect(source).toContain('if (typeof key !== "string") continue;');
+      expect(source).toContain("descriptor.enumerable ?? false");
+      expect(source).not.toContain(
+        "for (const key of objectKeys(descriptors))",
+      );
+    }
+  });
+
   it("captures only the dedicated fixed root and exact clean tracked revision", async () => {
     const fixture = await createFixture();
 

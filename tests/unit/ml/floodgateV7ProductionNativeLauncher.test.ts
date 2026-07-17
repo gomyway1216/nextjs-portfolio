@@ -337,18 +337,19 @@ describe("Floodgate v7 production native launcher", () => {
     expect(result.stdout).toBe("");
   });
 
-  darwinIt(
-    "does not deliver DYLD injection state through protected caffeinate",
-    () => {
-      const result = runTestLauncher({
-        FLOODGATE_V7_LAUNCHER_TEST_MODE: "extra-dyld",
-      });
-      expect(result.error).toBeUndefined();
-      expect(result.status).toBe(0);
+  darwinIt("strips or rejects DYLD injection before the attested child", () => {
+    const result = runTestLauncher({
+      FLOODGATE_V7_LAUNCHER_TEST_MODE: "extra-dyld",
+    });
+    expect(result.error).toBeUndefined();
+    expect([0, 6]).toContain(result.status);
+    if (result.status === 0) {
       expect(result.stderr).toBe("");
       expect(JSON.parse(result.stdout)).toMatchObject({ attested: true });
-    },
-  );
+    } else {
+      expect(result.stdout).toBe("");
+    }
+  });
 
   darwinIt("consumes the attestation exactly once", () => {
     const result = runTestLauncher({

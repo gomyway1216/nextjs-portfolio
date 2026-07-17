@@ -153,6 +153,17 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
       persistent_mutation_performed: false,
       live_evaluator_changed: false,
     });
+    expect(evidence.base).toMatchObject({
+      repository_main_revision: "040f61ad6b44c6accb0db68375ec66877c021f17",
+      repository_main_tree: "3630df561f25d3d222f77ba650cddd97728071d9",
+      latest_main_integration_method: "regular-merge-commit",
+      latest_main_integration_commit:
+        "d7565c31b7fc862792858fc90f8ac66f68f30a7b",
+      latest_main_integration_feature_parent:
+        "9a66959842e1d9bc8dd7b7f74fca6d43aabcf4b3",
+      latest_main_integration_main_parent:
+        "040f61ad6b44c6accb0db68375ec66877c021f17",
+    });
     expect(evidence.validation_boundary).toMatchObject({
       local_xcode_role: "compiler-and-source-test-only",
       local_xcode_tests_are_source_level_only: true,
@@ -163,9 +174,9 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
       swift_tests_present: 14,
       swift_tests_passed: 14,
       swift_tests_failed: 0,
-      latest_review_fix_local_run: {
-        build_seconds: 4.12,
-        test_seconds: 0.014,
+      latest_main_integration_local_run: {
+        build_seconds: 0.09,
+        test_seconds: 0.023,
       },
       repository_vitest_evidence_tests_status: "PASS",
       repository_vitest_evidence_tests_passed: 5,
@@ -175,14 +186,14 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
         runtime: "node-v22.13.0",
         vitest: {
           status: "PASS",
-          files_passed: 169,
-          tests_passed: 3089,
+          files_passed: 170,
+          tests_passed: 3096,
           tests_failed: 0,
           max_workers: 4,
         },
         python_stdlib: {
           status: "PASS",
-          tests_passed: 68,
+          tests_passed: 80,
           tests_failed: 0,
         },
         eslint: {

@@ -25,6 +25,8 @@ import {
   FLOODGATE_STABLE_REQUESTED_DEPTH,
   FLOODGATE_STABLE_WASM_PROPOSAL_ROW_SCHEMA,
   FLOODGATE_STABLE_WASM_SCORE_ENCODING,
+  inspectFloodgateStableWasmWorkerFailure,
+  normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests,
 } from "../../../ml/floodgate-stable-wasm-proposer";
 import { buildFloodgateV7CompletedParentCoreForTests } from "../../../ml/floodgate-v7-completed-parent";
 import {
@@ -1124,6 +1126,46 @@ describe("Floodgate v7 production parent coordinator", () => {
     };
     expect(cleanup.phase).toBe("cleanup");
     expect(cleanup.cleanupFailures).toHaveLength(2);
+  });
+
+  it("preserves only genuine safe worker metadata through parent coordination", async () => {
+    const fixture = makeRuntimeFixture();
+    const canary = "SENSITIVE_PRIVATE_PARENT_STABLE_CAUSE";
+    const raw = new Error(canary);
+    Object.defineProperty(raw, "timeout_ms", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error(`${canary}_ACCESSOR`);
+      },
+    });
+    const safe =
+      normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests(raw);
+    fixture.stableProposeImplementation = () => Promise.reject(safe);
+    const coordinator =
+      await createFloodgateV7ProductionParentCoordinatorCoreForTests(
+        fixture.dependencies,
+      );
+
+    const failure = (await rejectionOf(
+      coordinator.produce({
+        input_index: 10,
+        parent: makeParent(),
+        signal: new AbortController().signal,
+      }),
+    )) as FloodgateV7ProductionParentCoordinatorError;
+    expect(failure.phase).toBe("stable-proposal");
+    expect(failure.primary).toBe(safe);
+    expect(
+      inspectFloodgateStableWasmWorkerFailure(failure.primary),
+    ).toEqual({
+      failure_kind: "unknown",
+      timeout_ms: null,
+    });
+    expect(
+      `${String(failure)}\n${JSON.stringify(failure)}\n${failure.stack ?? ""}`,
+    ).not.toContain(canary);
+    await coordinator.close();
   });
 
   it("quarantines a rescore that settles after cancellation without scheduling later candidates", async () => {

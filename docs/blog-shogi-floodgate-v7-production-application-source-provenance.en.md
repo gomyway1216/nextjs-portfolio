@@ -199,7 +199,7 @@ The order remains:
 
 1. commit these evidence documents, run GitHub CI and independent re-review on the resulting final PR head, then integrate this application-source provenance candidate with a regular merge;
 2. in the next PR, without preassigning its number, complete operator guards: native exact launch for the standalone approved-current-binding CLI and standalone verifier readiness, without claiming unimplemented reconciliation authority;
-3. align the fixed application worktree to this PR's merge revision and the fixed verifier worktree to `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`;
+3. after the operator-guard PR is regularly merged, align the fixed application worktree to **that operator-guard PR's own merge revision** and the fixed verifier worktree to `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`. Do not align only to PR #481's merge revision, because it does not contain the new standalone CLIs;
 4. provision create-only registry V2 exactly once;
 5. run the reviewed disposable kill drill;
 6. run a fresh standalone read-only preflight;

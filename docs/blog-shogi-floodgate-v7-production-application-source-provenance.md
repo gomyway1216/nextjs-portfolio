@@ -198,7 +198,7 @@ execution_boundary = test-only-fixed-synthetic-read-only-current-euid-home-exclu
 
 1. この証拠文書をcommitし、その最終PR headでGitHub CIと独立re-reviewを通してから、このapplication-source provenance候補を通常mergeする
 2. 番号を先取りしない次PRでoperator guardsを完成させる（approved-current-binding standalone CLIのnative exact launch、standalone verifier readiness）。reconciliation authorityはまだ実装しない
-3. 固定application worktreeをこのPRのmerge revisionへ、固定verifier worktreeを`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へalignする
+3. operator-guard PRを通常mergeした後、固定application worktreeを**そのoperator-guard PR自身のmerge revision**へ、固定verifier worktreeを`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`へalignする。#481のmerge revisionには新しいstandalone CLIが含まれないため、#481だけへalignしてはならない
 4. create-only registry V2を一度だけprovisionする
 5. reviewed disposable kill drillを行う
 6. fresh standalone read-only preflightを行う

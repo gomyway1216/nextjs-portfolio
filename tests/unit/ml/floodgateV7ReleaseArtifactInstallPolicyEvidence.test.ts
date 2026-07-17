@@ -552,12 +552,16 @@ describe("Floodgate v7 release, artifact, and install policy boundary", () => {
     const record = evidence();
 
     expect(record.base).toMatchObject({
-      repository_main_revision: "398b6d20dbe9b2de4648e77424c2a15820f15dec",
-      repository_main_tree: "f9aa0ed71f3fb722ce4e08c8a49993a512fe3e40",
+      repository_main_revision: "cae5de16f91f2eff04ca98a48ef0739f5b48a11f",
+      repository_main_tree: "e00cdc17f4fe0ba4cd90752421eacfff25c4095d",
       latest_main_integration_method: "regular-merge-commit",
-      latest_main_integration_pull_request: 493,
+      latest_main_integration_pull_request: 494,
       latest_main_integration_commit:
+        "cae5de16f91f2eff04ca98a48ef0739f5b48a11f",
+      latest_main_integration_main_parent:
         "398b6d20dbe9b2de4648e77424c2a15820f15dec",
+      latest_main_integration_feature_parent:
+        "7fe9fe60eb00fadc823174ae883aa251ae11ee72",
     });
     expect(record.scope).toMatchObject({
       status: "UNAVAILABLE",

@@ -35,7 +35,10 @@
     "v3_stream_continuity_requirement": "single-authenticated-stage-work-stream",
     "gate_authority_boundary": "three-ordered-single-use-authorities-within-one-future-runner-invocation",
     "sealed_final_resumes_exact_prefix_500": true,
-    "durable_prefixes_published_or_finalized": false
+    "durable_prefixes_published_or_finalized": false,
+    "namespace_mkdir_success_marks_may_exist_before_later_steps": true,
+    "namespace_absence_report_requires_definitive_enoent": true,
+    "namespace_unknown_probe_failure_requires_manual_reconciliation": true
   },
   "copy_by_value": {
     "contract": "shogi-floodgate-v7-clean-room-copy-by-value-v1",
@@ -58,6 +61,12 @@
     "parallel_tree_materializations": 4,
     "file_copy_concurrency_per_tree": 8,
     "maximum_parallel_copy_core_file_workers": 32,
+    "inventory_hash_buffer_scope": "one-1mib-buffer-per-sequential-inventory-walk",
+    "copy_buffer_scope": "one-1mib-buffer-per-copy-worker",
+    "standalone_file_buffer_scope": "one-1mib-buffer-per-operation",
+    "reusable_buffer_shared_between_concurrent_workers": false,
+    "reusable_buffer_owner_finally_zeroization": true,
+    "per_file_one_mib_buffer_allocation": false,
     "git_clone_internal_io_bounded_by_copy_worker_counter": false,
     "all_filesystem_writes_bounded_by_copy_worker_counter": false,
     "first_failure_stops_new_file_scheduling_within_failing_tree": true,
@@ -142,45 +151,38 @@
     "files": 1000,
     "bytes": 1000,
     "repetitions_per_limit": 3,
-    "measurement_order": [
-      8,
-      1,
-      1,
-      8,
-      8,
-      1
-    ],
+    "measurement_order": [1, 8, 1, 8, 1, 8],
     "measurements": [
       {
-        "concurrency": 8,
-        "elapsed_ms": 537.238
-      },
-      {
         "concurrency": 1,
-        "elapsed_ms": 627.608
-      },
-      {
-        "concurrency": 1,
-        "elapsed_ms": 650.036
+        "elapsed_ms": 489.61
       },
       {
         "concurrency": 8,
-        "elapsed_ms": 588.452
-      },
-      {
-        "concurrency": 8,
-        "elapsed_ms": 515.862
+        "elapsed_ms": 376.715
       },
       {
         "concurrency": 1,
-        "elapsed_ms": 595.691
+        "elapsed_ms": 453.631
+      },
+      {
+        "concurrency": 8,
+        "elapsed_ms": 354.841
+      },
+      {
+        "concurrency": 1,
+        "elapsed_ms": 456.123
+      },
+      {
+        "concurrency": 8,
+        "elapsed_ms": 361.01
       }
     ],
     "median_ms": {
-      "concurrency_1": 627.608,
-      "concurrency_8": 537.238
+      "concurrency_1": 456.123,
+      "concurrency_8": 361.01
     },
-    "median_speedup": 1.168,
+    "median_speedup": 1.263,
     "per_file_fsync_used": false,
     "success": true,
     "private_input_used": false,
@@ -199,7 +201,7 @@
   },
   "verification": {
     "targeted_test_files": 2,
-    "targeted_tests": 20,
+    "targeted_tests": 23,
     "targeted_tests_result": "PASS",
     "simultaneous_two_file_repeat_processes": 4,
     "simultaneous_two_file_repeat_total_tests": 80,
@@ -208,12 +210,12 @@
     "independent_simultaneous_repeat_total_tests": 60,
     "independent_simultaneous_repeat_result": "PASS",
     "related_test_files": 9,
-    "related_tests": 258,
+    "related_tests": 331,
     "related_tests_result": "PASS",
     "repository_test_files": 174,
-    "repository_tests": 3132,
+    "repository_tests": 3135,
     "repository_tests_result": "PASS",
-    "repository_tests_duration_seconds": 319.46,
+    "repository_tests_duration_seconds": 301.91,
     "typescript_no_emit": "PASS",
     "targeted_eslint": "PASS",
     "repository_eslint_errors": 0,
@@ -225,6 +227,9 @@
     "npm_audit_vulnerabilities": 0,
     "npm_audit_result": "PASS",
     "synthetic_failure_stops_new_schedule_and_drains_started_callbacks": "PASS",
+    "synthetic_eight_worker_owner_scoped_buffer_reuse": "PASS",
+    "synthetic_standalone_buffer_owner_finally_invariant": "PASS",
+    "synthetic_namespace_absent_vs_partial_creation_disposition": "PASS",
     "synthetic_source_close_failure_still_closes_destination": "PASS",
     "synthetic_pending_materialization_drained_after_later_synchronous_throw": "PASS",
     "synthetic_pending_verifier_drained_after_later_synchronous_throw": "PASS",

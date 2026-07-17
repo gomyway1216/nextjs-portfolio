@@ -16,19 +16,19 @@ Running the teacher faster would not make such output valid retraining or live-w
 
 ## 2. What this PR fixes
 
-| Item | Fixed binding |
-| --- | --- |
-| Execution plan | Fixed plan with no caller-supplied path or revision |
-| Clean room | Outside the current-EUID home, owner-only `0700` |
-| Verifier | Accepted revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d` |
-| Verifier materialization | `--no-local` independent clone, no alternates, and no shared source/destination inode across 1,431 tracked files |
-| Inputs | Four trees—raw lock, role lock, role bundle, teacher assets—and one standalone legacy exclusion |
-| Stable runtime | Real stable-WASM test-core factory |
-| Teacher runtime | Real YaneuraOu USI test-core factory, 12 engines, one thread per engine, depth 16 |
-| Capability authority | Separate WeakMap/WeakSet registries for synthetic preparation and the fixed runner |
-| Gate order | Durable prefix 100 → durable prefix 500 → sealed final 24,000 |
-| Package commands | Zero added |
-| Gates executed by this PR | Zero |
+| Item                      | Fixed binding                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Execution plan            | Fixed plan with no caller-supplied path or revision                                                              |
+| Clean room                | Outside the current-EUID home, owner-only `0700`                                                                 |
+| Verifier                  | Accepted revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`                                                     |
+| Verifier materialization  | `--no-local` independent clone, no alternates, and no shared source/destination inode across 1,431 tracked files |
+| Inputs                    | Four trees—raw lock, role lock, role bundle, teacher assets—and one standalone legacy exclusion                  |
+| Stable runtime            | Real stable-WASM test-core factory                                                                               |
+| Teacher runtime           | Real YaneuraOu USI test-core factory, 12 engines, one thread per engine, depth 16                                |
+| Capability authority      | Separate WeakMap/WeakSet registries for synthetic preparation and the fixed runner                               |
+| Gate order                | Durable prefix 100 → durable prefix 500 → sealed final 24,000                                                    |
+| Package commands          | Zero added                                                                                                       |
+| Gates executed by this PR | Zero                                                                                                             |
 
 The public argumentless inspection checks only these fixed plan conditions. It opens no private source and creates no clean-room entry. The mutating preparation function is not connected to a package script or CLI, so merging this PR alone cannot start a copy or teacher run.
 
@@ -40,7 +40,11 @@ The copy uses neither a generic `copyFile` operation nor a filesystem clone. It 
 
 Because the raw lock contains many small files, each tree now uses a fixed pool of eight file-copy workers. Four trees materialize concurrently, so the copy cores have a combined limit of 32 file workers. Internal I/O from the concurrently running Git verifier clone is not counted or bounded by that counter; 32 is not a bound on all filesystem writes. Once a tree observes its first failure, only that tree stops scheduling new files and drains its started workers. This does not globally cancel the other three trees or the Git clone; the overall failure waits for all five materializations to settle. The partial namespace is preserved for manual reconciliation instead of being automatically deleted.
 
+To avoid reallocating a 1 MiB buffer for each of 72,717 files, each sequential inventory walk owns one hash buffer, each copy worker owns a copy buffer that is not shared with concurrent workers, and the standalone-file operation owns one buffer across inventory, copy, and revalidation. Each buffer is zeroed once in its owner's `finally` block; concurrent workers never share private bytes.
+
 Per-file `fsync` is not used. The copy receipt does not claim crash durability after power loss, and an existing namespace is never reused as success. Rehashing proves content identity before the process reports success; recovery after a machine crash needs a separate recovery contract.
+
+On namespace-creation failure, `clean_room_may_exist` becomes true immediately after the root `mkdir` succeeds. If that `mkdir` itself fails, the root is probed: only a definite `ENOENT` permits a fresh retry, while permission, I/O, and other unknown states require manual reconciliation.
 
 Source and destination file descriptors are both drained with `allSettled`, even when closing one fails. Parallel materialization and the two verifiers are all deferred before invocation, so a later synchronous dependency throw cannot strand an earlier promise. An asynchronous runtime-factory rejection collapses to a fixed error, and the failed capability cannot be reused.
 
@@ -48,19 +52,19 @@ Source and destination file descriptors are both drained with `allSettled`, even
 
 Only metadata was aggregated; private bytes were not published.
 
-| Inspection | Result |
-| --- | ---: |
-| Four input trees | 72,717 files / 519 nested directories |
-| Four-tree logical bytes | 1,227,490,748 |
-| Standalone legacy exclusion | 624,816 bytes |
-| Copy-by-value input bytes | 1,228,115,564 |
-| Raw lock | 72,698 files / 592,412,617 bytes |
-| Unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
-| Maximum source file | Below 1 GiB |
-| Accepted verifier | Exact `e8a9197`, clean, 1,431 tracked files |
-| Independent-clone smoke | PASS, 3,852.636 ms, temporary clone removed |
-| Capacity preflight | PASS |
-| Minimum free space to fix in PR2 | 20 GiB |
+| Inspection                                |                                      Result |
+| ----------------------------------------- | ------------------------------------------: |
+| Four input trees                          |       72,717 files / 519 nested directories |
+| Four-tree logical bytes                   |                               1,227,490,748 |
+| Standalone legacy exclusion               |                               624,816 bytes |
+| Copy-by-value input bytes                 |                               1,228,115,564 |
+| Raw lock                                  |            72,698 files / 592,412,617 bytes |
+| Unsafe names / modes / links / node types |                               0 / 0 / 0 / 0 |
+| Maximum source file                       |                                 Below 1 GiB |
+| Accepted verifier                         | Exact `e8a9197`, clean, 1,431 tracked files |
+| Independent-clone smoke                   | PASS, 3,852.636 ms, temporary clone removed |
+| Capacity preflight                        |                                        PASS |
+| Minimum free space to fix in PR2          |                                      20 GiB |
 
 Tracked evidence publishes no exact free-space value, utilization, home, or volume name. The runtime gate in PR2 must likewise reveal only whether at least 20 GiB is available, never the measured capacity.
 
@@ -68,12 +72,12 @@ Tracked evidence publishes no exact free-space value, utilization, home, or volu
 
 The benchmark copied 1,000 identical one-byte files and included both complete hash/metadata inventories. Limits 1 and 8 were alternated and measured three times each.
 
-| Limit | Elapsed milliseconds | Three-run median |
-| ---: | --- | ---: |
-| 1 | 627.608 / 650.036 / 595.691 | 627.608 |
-| 8 | 537.238 / 588.452 / 515.862 | 537.238 |
+| Limit | Elapsed milliseconds        | Three-run median |
+| ----: | --------------------------- | ---------------: |
+|     1 | 489.610 / 453.631 / 456.123 |          456.123 |
+|     8 | 376.715 / 354.841 / 361.010 |          361.010 |
 
-The median ratio was 1.168x. This is a local synthetic small-file result, not a prediction for the 72,717-file private copy, general SSD performance, or teacher-generation time. Its useful result is narrower: the sequential file loop is no longer left as an avoidable bottleneck, while bounded concurrency and failure draining remain enforced.
+The median ratio was 1.263x. This is a local synthetic small-file result, not a prediction for the 72,717-file private copy, general SSD performance, or teacher-generation time. Its useful result is narrower: the sequential file loop and per-file allocation churn are no longer left as avoidable bottlenecks, while bounded concurrency, owner-scoped buffers, and failure draining remain enforced.
 
 ## 6. Do not open all gates at once
 
@@ -87,14 +91,14 @@ The V3 protocol does not create separate work files for 100, 500, and 24,000 par
 
 ## 7. Why this is split into two PRs
 
-| Boundary | This PR | Next PR |
-| --- | --- | --- |
-| Copy by value / verifier clone | Implemented and tested synthetically | Invoked by the fixed runner |
-| Real stable / YaneuraOu factory binding | Implemented with synthetic handoff | Owned by a native launcher |
-| 20 GiB capacity gate | Requirement fixed | Argumentless preflight implemented |
-| Key / stage / checkpoint connector | Not connected | Resumes one authenticated stream through 100 → 500 → 24,000 under three one-shot authorities |
-| Signal / recovery / finalizer | Not connected | Implemented with fault injection |
-| Private copy / teacher labels | Zero | Only after merge, CI, and review |
+| Boundary                                | This PR                              | Next PR                                                                                      |
+| --------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Copy by value / verifier clone          | Implemented and tested synthetically | Invoked by the fixed runner                                                                  |
+| Real stable / YaneuraOu factory binding | Implemented with synthetic handoff   | Owned by a native launcher                                                                   |
+| 20 GiB capacity gate                    | Requirement fixed                    | Argumentless preflight implemented                                                           |
+| Key / stage / checkpoint connector      | Not connected                        | Resumes one authenticated stream through 100 → 500 → 24,000 under three one-shot authorities |
+| Signal / recovery / finalizer           | Not connected                        | Implemented with fault injection                                                             |
+| Private copy / teacher labels           | Zero                                 | Only after merge, CI, and review                                                             |
 
 Keeping the operator command out of PR1 makes the copy and runtime binding independently reviewable. PR2 must single-use-claim this preparation capability and create a clean-room-specific owner that does not connect to the existing production lease, registry, or control plane.
 

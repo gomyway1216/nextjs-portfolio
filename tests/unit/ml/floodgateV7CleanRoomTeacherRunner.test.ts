@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
@@ -117,15 +117,12 @@ function successfulDependencies(
     _effectiveUserId: number,
   ): Promise<void> {
     events.push("materialize");
-    await fs.promises.mkdir(
-      path.join(destinationRepository, "ml"),
-      { recursive: true, mode: 0o700 },
-    );
+    await fs.promises.mkdir(path.join(destinationRepository, "ml"), {
+      recursive: true,
+      mode: 0o700,
+    });
     await fs.promises.chmod(destinationRepository, 0o700);
-    await fs.promises.chmod(
-      path.join(destinationRepository, "ml"),
-      0o700,
-    );
+    await fs.promises.chmod(path.join(destinationRepository, "ml"), 0o700);
   }
   async function copyTree(
     sourceRoot: string,
@@ -196,9 +193,9 @@ async function waitForBarrier(
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) =>
-      fs.promises.rm(root, { force: true, recursive: true }),
-    ),
+    roots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { force: true, recursive: true })),
   );
 });
 
@@ -209,9 +206,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(value.plan.verifierRevision).toBe(
       FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
     );
-    expect(value.plan.gateSequence).toBe(
-      FLOODGATE_V7_CLEAN_ROOM_GATE_SEQUENCE,
-    );
+    expect(value.plan.gateSequence).toBe(FLOODGATE_V7_CLEAN_ROOM_GATE_SEQUENCE);
     expect(value.plan.gateSequence).toEqual([
       "durable-prefix-100",
       "durable-prefix-500",
@@ -287,17 +282,15 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
       assetRoot?: string;
     } = {};
 
-    const capability =
-      await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
-        value.plan,
-        successfulDependencies(events, verified),
-      );
+    const capability = await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+      value.plan,
+      successfulDependencies(events, verified),
+    );
 
     expect(capability.receipt).toMatchObject({
       contract: FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
       status: FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS,
-      execution_boundary:
-        "test-only-injected-home-external-preparation-route",
+      execution_boundary: "test-only-injected-home-external-preparation-route",
       preparation: {
         copied_trees: 4,
         copied_standalone_files: 1,
@@ -308,8 +301,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
         file_copy_concurrency_per_tree: 8,
         maximum_parallel_copy_core_file_workers: 32,
         git_clone_internal_io_bounded_by_copy_worker_counter: false,
-        first_failure_stops_new_file_scheduling_within_failing_tree:
-          true,
+        first_failure_stops_new_file_scheduling_within_failing_tree: true,
         first_failure_globally_cancels_other_trees_or_clone: false,
         started_parallel_operations_drained_before_return: true,
         per_file_fsync_used: false,
@@ -362,9 +354,8 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     );
     expect(
       Number(
-        (
-          await fs.promises.lstat(value.cleanRoot, { bigint: true })
-        ).mode & BigInt(0o7777),
+        (await fs.promises.lstat(value.cleanRoot, { bigint: true })).mode &
+          BigInt(0o7777),
       ),
     ).toBe(0o700);
   });
@@ -452,9 +443,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(startedBeforeRelease).toBe(5);
     expect(settledBeforeRelease).toBe(1);
     expect(settled).toBe(5);
-    expect(failure).toBeInstanceOf(
-      FloodgateV7CleanRoomTeacherPreparationError,
-    );
+    expect(failure).toBeInstanceOf(FloodgateV7CleanRoomTeacherPreparationError);
     expect(failure).toMatchObject({
       phase: "materialization",
       clean_room_may_exist: true,
@@ -463,9 +452,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     });
     expect(String(failure)).not.toContain(secret);
     expect(JSON.stringify(failure)).not.toContain(secret);
-    expect(
-      (await fs.promises.lstat(value.cleanRoot)).isDirectory(),
-    ).toBe(true);
+    expect((await fs.promises.lstat(value.cleanRoot)).isDirectory()).toBe(true);
   });
 
   it("drains a pending verifier when the second verifier throws synchronously", async () => {
@@ -591,19 +578,67 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("distinguishes a definitely absent namespace from a partially created root", async () => {
+    const absent = await fixture();
+    await fs.promises.rm(absent.cleanParent, {
+      force: true,
+      recursive: true,
+    });
+
+    const absentFailure = await rejectionOf(
+      prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+        absent.plan,
+        successfulDependencies([]),
+      ),
+    );
+
+    expect(absentFailure).toMatchObject({
+      phase: "namespace",
+      clean_room_may_exist: false,
+      retry_disposition: "fresh-absent-clean-room-required",
+      sensitive_values_disclosed: false,
+    });
+    await expect(fs.promises.lstat(absent.cleanRoot)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const partial = await fixture();
+    const chmodSpy = vi
+      .spyOn(fs.promises, "chmod")
+      .mockRejectedValueOnce(new Error("fixed post-mkdir failure"));
+    let partialFailure: unknown;
+    try {
+      partialFailure = await rejectionOf(
+        prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+          partial.plan,
+          successfulDependencies([]),
+        ),
+      );
+    } finally {
+      chmodSpy.mockRestore();
+    }
+
+    expect(partialFailure).toMatchObject({
+      phase: "namespace",
+      clean_room_may_exist: true,
+      retry_disposition: "manual-clean-room-reconciliation-required",
+      sensitive_values_disclosed: false,
+    });
+    expect((await fs.promises.lstat(partial.cleanRoot)).isDirectory()).toBe(
+      true,
+    );
+  });
+
   it("hands the prepared plan to a coordinator factory exactly once", async () => {
     const value = await fixture();
-    const capability =
-      await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
-        value.plan,
-        successfulDependencies([]),
-      );
+    const capability = await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+      value.plan,
+      successfulDependencies([]),
+    );
     const coordinator = Object.freeze({
       marker: "synthetic coordinator",
     }) as unknown as FloodgateV7ProductionParentCoordinator;
-    let received:
-      | Readonly<FloodgateV7CleanRoomTeacherPlanForTests>
-      | undefined;
+    let received: Readonly<FloodgateV7CleanRoomTeacherPlanForTests> | undefined;
     async function createCoordinator(
       plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
     ): Promise<FloodgateV7ProductionParentCoordinator> {
@@ -639,11 +674,10 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
 
   it("sanitizes an asynchronous coordinator failure and consumes the capability", async () => {
     const value = await fixture();
-    const capability =
-      await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
-        value.plan,
-        successfulDependencies([]),
-      );
+    const capability = await prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+      value.plan,
+      successfulDependencies([]),
+    );
     const secret = "private-coordinator-rejection-path";
     let factoryCalls = 0;
     async function createCoordinator(
@@ -740,9 +774,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(source).toContain("const fixedPreparedPlans");
     expect(source).toContain("const testCapturedPlans");
     expect(source).toContain("const fixedCapturedPlans");
-    expect(source).not.toContain(
-      'from "./floodgate-v7-production-connector"',
-    );
+    expect(source).not.toContain('from "./floodgate-v7-production-connector"');
     expect(source).not.toContain(
       'from "./floodgate-v7-production-checkpoint-runner"',
     );

@@ -247,8 +247,7 @@ export interface FloodgateV7CleanRoomTeacherPreparationReceipt {
 
 export interface FloodgateV7CleanRoomTeacherPreparedCapability {
   readonly contract: typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT;
-  readonly execution_boundary:
-    FloodgateV7CleanRoomTeacherPreparationReceipt["execution_boundary"];
+  readonly execution_boundary: FloodgateV7CleanRoomTeacherPreparationReceipt["execution_boundary"];
   readonly receipt: Readonly<FloodgateV7CleanRoomTeacherPreparationReceipt>;
 }
 
@@ -326,11 +325,7 @@ function sameOrDescendant(ancestor: string, candidate: string): boolean {
 }
 
 function assertEffectiveUserId(value: unknown): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 1
-  ) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
     throw new Error("effective user differs");
   }
   return value;
@@ -348,10 +343,7 @@ function frozenPlan(
     ),
     rawLockRoot: path.join(homeDirectory, ...RAW_LOCK_SOURCE_COMPONENTS),
     roleLockRoot: path.join(homeDirectory, ...ROLE_LOCK_SOURCE_COMPONENTS),
-    roleBundleRoot: path.join(
-      homeDirectory,
-      ...ROLE_BUNDLE_SOURCE_COMPONENTS,
-    ),
+    roleBundleRoot: path.join(homeDirectory, ...ROLE_BUNDLE_SOURCE_COMPONENTS),
     legacyProtectedPositionIdsPath: path.join(
       homeDirectory,
       ...FIXED_VERIFIER_SOURCE_COMPONENTS,
@@ -407,9 +399,7 @@ function capturePlan(
   ) {
     throw new Error("clean-room aliases current-EUID home");
   }
-  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([
-    cleanRoomRoot,
-  ]);
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests([cleanRoomRoot]);
   const plan = frozenPlan(effectiveUserId, homeDirectory, cleanRoomRoot);
   registry.add(plan);
   return plan;
@@ -519,10 +509,9 @@ async function createPrivateDirectory(
   await assertPrivateDirectory(directory, effectiveUserId);
 }
 
-async function createPreparationNamespace(
+async function finishPreparationNamespace(
   plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
 ): Promise<void> {
-  await fs.promises.mkdir(plan.cleanRoomRoot, { mode: 0o700 });
   await fs.promises.chmod(plan.cleanRoomRoot, 0o700);
   await assertPrivateDirectory(plan.cleanRoomRoot, plan.effectiveUserId);
   const directories = [
@@ -536,6 +525,22 @@ async function createPreparationNamespace(
   ];
   for (const directory of directories) {
     await createPrivateDirectory(directory, plan.effectiveUserId);
+  }
+}
+
+async function cleanRoomEntryMayExistConservatively(
+  cleanRoomRoot: string,
+): Promise<boolean> {
+  try {
+    await fs.promises.lstat(cleanRoomRoot);
+    return true;
+  } catch (error) {
+    // Only a definite missing entry proves that reconciliation is unnecessary.
+    // Permission and I/O failures preserve the safer "may exist" disposition.
+    return !(
+      error instanceof Error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    );
   }
 }
 
@@ -645,14 +650,7 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
   );
   await fs.promises.chmod(destinationRepository, 0o700);
   await fixedGit(
-    [
-      "-C",
-      destinationRepository,
-      "checkout",
-      "--quiet",
-      "--detach",
-      revision,
-    ],
+    ["-C", destinationRepository, "checkout", "--quiet", "--detach", revision],
     "/",
   );
   const alternates = path.join(
@@ -676,10 +674,7 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
     }
   }
   await assertFloodgateGitExactCleanRevision(destinationRepository, revision);
-  await assertIndependentTrackedFiles(
-    sourceRepository,
-    destinationRepository,
-  );
+  await assertIndependentTrackedFiles(sourceRepository, destinationRepository);
   await assertFloodgateGitExactCleanRevision(sourceRepository, revision);
 }
 
@@ -760,7 +755,9 @@ function capturePreparationDependencies(
     keyof FloodgateV7CleanRoomTeacherPreparationDependencies,
     (...arguments_: never[]) => unknown
   >;
-  for (const key of Object.keys(expected) as readonly (keyof typeof expected)[]) {
+  for (const key of Object.keys(
+    expected,
+  ) as readonly (keyof typeof expected)[]) {
     const descriptor = descriptors[key];
     const dependency =
       descriptor !== undefined && "value" in descriptor
@@ -785,7 +782,10 @@ async function ensureLegacyDestinationParent(
 ): Promise<void> {
   const parent = path.dirname(plan.targets.legacyProtectedPositionIdsPath);
   await fs.promises.mkdir(parent, { recursive: true, mode: 0o700 });
-  await fs.promises.chmod(path.join(plan.targets.verifierRepository, "ml"), 0o700);
+  await fs.promises.chmod(
+    path.join(plan.targets.verifierRepository, "ml"),
+    0o700,
+  );
   await fs.promises.chmod(
     path.join(plan.targets.verifierRepository, "ml", "data"),
     0o700,
@@ -800,13 +800,15 @@ function preparationReceipt(
 ): Readonly<FloodgateV7CleanRoomTeacherPreparationReceipt> {
   if (
     copies.length !== 5 ||
-    copies.slice(0, 4).some(
-      (receipt) =>
-        receipt.copied.file_copy_concurrency_limit !==
-          FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY ||
-        receipt.copied.per_file_fsync_used !== false ||
-        receipt.nonclaims.crash_durable_copy !== false,
-    ) ||
+    copies
+      .slice(0, 4)
+      .some(
+        (receipt) =>
+          receipt.copied.file_copy_concurrency_limit !==
+            FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY ||
+          receipt.copied.per_file_fsync_used !== false ||
+          receipt.nonclaims.crash_durable_copy !== false,
+      ) ||
     copies[4]?.copied.file_copy_concurrency_limit !== 1 ||
     copies[4]?.copied.per_file_fsync_used !== false ||
     copies[4]?.nonclaims.crash_durable_copy !== false
@@ -839,8 +841,7 @@ function preparationReceipt(
       copied_bytes: copiedBytes,
       copy_by_value_revalidated: true as const,
       parallel_tree_materializations: 4 as const,
-      file_copy_concurrency_per_tree:
-        FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY,
+      file_copy_concurrency_per_tree: FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY,
       maximum_parallel_copy_core_file_workers: 32 as const,
       git_clone_internal_io_bounded_by_copy_worker_counter: false as const,
       first_failure_stops_new_file_scheduling_within_failing_tree:
@@ -922,8 +923,9 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
       plan.targets.stateRoot,
     ]);
     phase = "namespace";
+    await fs.promises.mkdir(plan.cleanRoomRoot, { mode: 0o700 });
     cleanRoomMayExist = true;
-    await createPreparationNamespace(plan);
+    await finishPreparationNamespace(plan);
     phase = "materialization";
     const operations = await Promise.allSettled([
       deferredOperation(() =>
@@ -1004,10 +1006,7 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
         }),
       ),
       deferredOperation(() =>
-        dependencies.verifyAssets(
-          plan.targets.assetRoot,
-          plan.effectiveUserId,
-        ),
+        dependencies.verifyAssets(plan.targets.assetRoot, plan.effectiveUserId),
       ),
     ]);
     if (verifications.some((result) => result.status !== "fulfilled")) {
@@ -1026,6 +1025,11 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
     preparedPlanRegistry.set(capability, plan);
     return capability;
   } catch {
+    if (phase === "namespace" && !cleanRoomMayExist) {
+      cleanRoomMayExist = await cleanRoomEntryMayExistConservatively(
+        plan.cleanRoomRoot,
+      );
+    }
     throw new FloodgateV7CleanRoomTeacherPreparationError(
       phase,
       cleanRoomMayExist,
@@ -1153,8 +1157,7 @@ async function createRealTestCoreCoordinator(
             detached: true,
           });
         },
-        engineCount:
-          FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines,
+        engineCount: FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines,
         depth: FLOODGATE_PRODUCTION_TEACHER_RUNTIME.proposal.depth,
       }),
     getStableRuntimeReceiptDigest: (runtime) =>

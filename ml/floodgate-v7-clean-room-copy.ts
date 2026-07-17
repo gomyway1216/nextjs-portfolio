@@ -150,9 +150,7 @@ interface CapturedDependencies {
   readonly maxTotalBytes: number;
   readonly maxConcurrency: number;
   readonly afterSourceInventory?: () => void | Promise<void>;
-  readonly afterFileCopied?: (
-    relativePath: string,
-  ) => void | Promise<void>;
+  readonly afterFileCopied?: (relativePath: string) => void | Promise<void>;
   readonly beforeFinalRevalidation?: () => void | Promise<void>;
   readonly closeCopiedFileHandle?: (
     handle: fs.promises.FileHandle,
@@ -260,12 +258,8 @@ function captureDependencies(
         );
   const afterSourceInventory = valueOf("afterSourceInventoryForTests");
   const afterFileCopied = valueOf("afterFileCopiedForTests");
-  const beforeFinalRevalidation = valueOf(
-    "beforeFinalRevalidationForTests",
-  );
-  const closeCopiedFileHandle = valueOf(
-    "closeCopiedFileHandleForTests",
-  );
+  const beforeFinalRevalidation = valueOf("beforeFinalRevalidationForTests");
+  const closeCopiedFileHandle = valueOf("closeCopiedFileHandleForTests");
   for (const [callback, arity] of [
     [afterSourceInventory, 0],
     [afterFileCopied, 1],
@@ -303,16 +297,15 @@ function captureDependencies(
       ? {}
       : {
           beforeFinalRevalidation:
-          beforeFinalRevalidation as () => void | Promise<void>,
+            beforeFinalRevalidation as () => void | Promise<void>,
         }),
     ...(closeCopiedFileHandle === undefined
       ? {}
       : {
-          closeCopiedFileHandle:
-            closeCopiedFileHandle as (
-              handle: fs.promises.FileHandle,
-              kind: "source" | "destination",
-            ) => void | Promise<void>,
+          closeCopiedFileHandle: closeCopiedFileHandle as (
+            handle: fs.promises.FileHandle,
+            kind: "source" | "destination",
+          ) => void | Promise<void>,
         }),
   });
 }
@@ -380,9 +373,7 @@ async function assertPrivateRealDirectory(
   return snapshot(stat);
 }
 
-function sourceFileMode(
-  stat: fs.BigIntStats,
-): 0o400 | 0o500 | 0o600 | 0o700 {
+function sourceFileMode(stat: fs.BigIntStats): 0o400 | 0o500 | 0o600 | 0o700 {
   const mode = Number(stat.mode & MODE_MASK);
   if (mode !== 0o400 && mode !== 0o500 && mode !== 0o600 && mode !== 0o700) {
     throw new Error("source file mode differs");
@@ -393,14 +384,14 @@ function sourceFileMode(
 async function hashHeldRegularFile(
   file: string,
   expectedUserId: number,
+  chunk: Buffer,
 ): Promise<Readonly<{ identity: Readonly<StatIdentity>; sha256: string }>> {
+  if (chunk.byteLength !== READ_CHUNK_BYTES) {
+    throw new Error("hash chunk size differs");
+  }
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number") throw new Error("O_NOFOLLOW unavailable");
-  const handle = await fs.promises.open(
-    file,
-    fs.constants.O_RDONLY | noFollow,
-  );
-  const chunk = Buffer.alloc(READ_CHUNK_BYTES);
+  const handle = await fs.promises.open(file, fs.constants.O_RDONLY | noFollow);
   try {
     const before = await handle.stat({ bigint: true });
     if (
@@ -416,10 +407,7 @@ async function hashHeldRegularFile(
     const digest = createHash("sha256");
     let offset = 0;
     while (offset < Number(before.size)) {
-      const wanted = Math.min(
-        chunk.byteLength,
-        Number(before.size) - offset,
-      );
+      const wanted = Math.min(chunk.byteLength, Number(before.size) - offset);
       const { bytesRead } = await handle.read(chunk, 0, wanted, offset);
       if (bytesRead !== wanted) throw new Error("source read shortened");
       digest.update(chunk.subarray(0, bytesRead));
@@ -437,7 +425,6 @@ async function hashHeldRegularFile(
     }
     return Object.freeze({ identity, sha256: digest.digest("hex") });
   } finally {
-    chunk.fill(0);
     await handle.close();
   }
 }
@@ -480,6 +467,7 @@ async function inventoryTree(
   const directoryIdentities: StatIdentity[] = [];
   const files: InventoryFile[] = [];
   let bytes = 0;
+  const hashChunk = Buffer.alloc(READ_CHUNK_BYTES);
 
   const walk = async (
     absolute: string,
@@ -519,14 +507,13 @@ async function inventoryTree(
       const hashed = await hashHeldRegularFile(
         childAbsolute,
         dependencies.effectiveUserId,
+        hashChunk,
       );
       const mode = sourceFileMode(
         await fs.promises.lstat(childAbsolute, { bigint: true }),
       );
       const destinationMode =
-        (mode & 0o100) === 0
-          ? PRIVATE_FILE_MODE
-          : PRIVATE_EXECUTABLE_MODE;
+        (mode & 0o100) === 0 ? PRIVATE_FILE_MODE : PRIVATE_EXECUTABLE_MODE;
       bytes += Number(hashed.identity.size);
       if (bytes > dependencies.maxTotalBytes) {
         throw new Error("byte limit exceeded");
@@ -536,9 +523,7 @@ async function inventoryTree(
           relativePath: childRelative,
           bytes: Number(hashed.identity.size),
           sha256: hashed.sha256,
-          sourceMode: expectedDestinationModes
-            ? destinationMode
-            : mode,
+          sourceMode: expectedDestinationModes ? destinationMode : mode,
           destinationMode,
           identity: hashed.identity,
         }),
@@ -546,16 +531,20 @@ async function inventoryTree(
     }
   };
 
-  await walk(root, "", 0);
-  return Object.freeze({
-    rootIdentity,
-    directories: Object.freeze(directories),
-    directoryIdentities: Object.freeze(directoryIdentities),
-    files: Object.freeze(files),
-    bytes,
-    sourceTreeSha256: digestInventory(directories, files, false),
-    destinationTreeSha256: digestInventory(directories, files, true),
-  });
+  try {
+    await walk(root, "", 0);
+    return Object.freeze({
+      rootIdentity,
+      directories: Object.freeze(directories),
+      directoryIdentities: Object.freeze(directoryIdentities),
+      files: Object.freeze(files),
+      bytes,
+      sourceTreeSha256: digestInventory(directories, files, false),
+      destinationTreeSha256: digestInventory(directories, files, true),
+    });
+  } finally {
+    hashChunk.fill(0);
+  }
 }
 
 async function syncDirectory(directory: string): Promise<void> {
@@ -580,10 +569,13 @@ async function copyInventoryFile(
   destination: string,
   file: Readonly<InventoryFile>,
   dependencies: Readonly<CapturedDependencies>,
+  chunk: Buffer,
 ): Promise<void> {
+  if (chunk.byteLength !== READ_CHUNK_BYTES) {
+    throw new Error("copy chunk size differs");
+  }
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number") throw new Error("O_NOFOLLOW unavailable");
-  const chunk = Buffer.alloc(Math.min(READ_CHUNK_BYTES, Math.max(1, file.bytes)));
   const sourceHandle = await fs.promises.open(
     source,
     fs.constants.O_RDONLY | noFollow,
@@ -646,12 +638,6 @@ async function copyInventoryFile(
     primaryFailed = true;
     primary = error;
   }
-  let zeroizationFailed = false;
-  try {
-    chunk.fill(0);
-  } catch {
-    zeroizationFailed = true;
-  }
   const closeHandle = async (
     handle: fs.promises.FileHandle,
     kind: "source" | "destination",
@@ -671,10 +657,7 @@ async function copyInventoryFile(
   if (primaryFailed) {
     throw primary;
   }
-  if (
-    zeroizationFailed ||
-    closeResults.some((result) => result.status === "rejected")
-  ) {
+  if (closeResults.some((result) => result.status === "rejected")) {
     throw new Error("copy descriptor cleanup failed");
   }
 }
@@ -700,39 +683,52 @@ async function copyInventoryFilesBounded(
   let failureObserved = false;
   let firstFailure: BoundedCopyFailure | undefined;
   const worker = async (): Promise<void> => {
-    while (!failureObserved) {
-      const index = nextIndex;
-      if (index >= files.length) return;
-      nextIndex += 1;
-      const file = files[index];
-      try {
-        await copyInventoryFile(
-          path.join(sourceRoot, ...file.relativePath.split("/")),
-          path.join(destinationRoot, ...file.relativePath.split("/")),
-          file,
-          dependencies,
-        );
-      } catch {
-        if (!failureObserved) {
-          failureObserved = true;
-          firstFailure = new BoundedCopyFailure("copy");
+    const workerChunk = Buffer.alloc(READ_CHUNK_BYTES);
+    try {
+      while (!failureObserved) {
+        const index = nextIndex;
+        if (index >= files.length) return;
+        nextIndex += 1;
+        const file = files[index];
+        try {
+          await copyInventoryFile(
+            path.join(sourceRoot, ...file.relativePath.split("/")),
+            path.join(destinationRoot, ...file.relativePath.split("/")),
+            file,
+            dependencies,
+            workerChunk,
+          );
+        } catch {
+          if (!failureObserved) {
+            failureObserved = true;
+            firstFailure = new BoundedCopyFailure("copy");
+          }
+          return;
         }
-        return;
-      }
-      try {
-        await dependencies.afterFileCopied?.(file.relativePath);
-      } catch {
-        if (!failureObserved) {
-          failureObserved = true;
-          firstFailure = new BoundedCopyFailure("callback");
+        try {
+          await dependencies.afterFileCopied?.(file.relativePath);
+        } catch {
+          if (!failureObserved) {
+            failureObserved = true;
+            firstFailure = new BoundedCopyFailure("callback");
+          }
+          return;
         }
-        return;
       }
+    } finally {
+      workerChunk.fill(0);
     }
   };
   const workerCount = Math.min(dependencies.maxConcurrency, files.length);
   const workers = Array.from({ length: workerCount }, () => worker());
-  await Promise.allSettled(workers);
+  const workerResults = await Promise.allSettled(workers);
+  if (
+    !failureObserved &&
+    workerResults.some((result) => result.status === "rejected")
+  ) {
+    failureObserved = true;
+    firstFailure = new BoundedCopyFailure("copy");
+  }
   if (failureObserved) {
     throw firstFailure ?? new BoundedCopyFailure("copy");
   }
@@ -881,8 +877,7 @@ export async function copyFloodgateV7CleanRoomTreeByValueCoreForTests(
       before.directories.length !== destinationAfter.directories.length ||
       before.files.length !== destinationAfter.files.length ||
       before.bytes !== destinationAfter.bytes ||
-      before.destinationTreeSha256 !==
-        destinationAfter.destinationTreeSha256
+      before.destinationTreeSha256 !== destinationAfter.destinationTreeSha256
     ) {
       throw new Error("final tree identity differs");
     }
@@ -935,6 +930,7 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
 ): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
   let phase: CopyPhase = "capture";
   let destinationCreated = false;
+  let operationChunk: Buffer | undefined;
   try {
     if (arguments.length !== 3) throw new Error("argument count differs");
     const sourceFile = canonicalAbsolutePath(sourceFileValue);
@@ -953,17 +949,17 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
       destinationParent,
       dependencies.effectiveUserId,
     );
+    operationChunk = Buffer.alloc(READ_CHUNK_BYTES);
     phase = "source-inventory";
     const before = await hashHeldRegularFile(
       sourceFile,
       dependencies.effectiveUserId,
+      operationChunk,
     );
     const sourceStat = await fs.promises.lstat(sourceFile, { bigint: true });
     const sourceMode = sourceFileMode(sourceStat);
     const destinationMode =
-      (sourceMode & 0o100) === 0
-        ? PRIVATE_FILE_MODE
-        : PRIVATE_EXECUTABLE_MODE;
+      (sourceMode & 0o100) === 0 ? PRIVATE_FILE_MODE : PRIVATE_EXECUTABLE_MODE;
     const file = Object.freeze({
       relativePath: path.basename(sourceFile),
       bytes: Number(before.identity.size),
@@ -984,6 +980,7 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
       path.join(destinationParent, file.relativePath),
       file,
       dependencies,
+      operationChunk,
     );
     phase = "callback";
     await dependencies.afterFileCopied?.(file.relativePath);
@@ -992,17 +989,20 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
     const sourceAfter = await hashHeldRegularFile(
       sourceFile,
       dependencies.effectiveUserId,
+      operationChunk,
     );
     const destinationAfter = await hashHeldRegularFile(
       destinationFile,
       dependencies.effectiveUserId,
+      operationChunk,
     );
     if (
       !sameIdentity(before.identity, sourceAfter.identity) ||
       before.sha256 !== sourceAfter.sha256 ||
       before.sha256 !== destinationAfter.sha256 ||
       destinationAfter.identity.nlink !== BigInt(1) ||
-      (destinationAfter.identity.mode & MODE_MASK) !== BigInt(destinationMode) ||
+      (destinationAfter.identity.mode & MODE_MASK) !==
+        BigInt(destinationMode) ||
       (before.identity.dev === destinationAfter.identity.dev &&
         before.identity.ino === destinationAfter.identity.ino)
     ) {
@@ -1044,5 +1044,7 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
     });
   } catch {
     throw new FloodgateV7CleanRoomCopyError(phase, destinationCreated);
+  } finally {
+    operationChunk?.fill(0);
   }
 }

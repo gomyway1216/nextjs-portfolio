@@ -16,12 +16,14 @@ import {
 const roots: string[] = [];
 const effectiveUserId = process.geteuid?.() ?? 501;
 
-async function fixture(): Promise<Readonly<{
-  root: string;
-  source: string;
-  destinationParent: string;
-  destination: string;
-}>> {
+async function fixture(): Promise<
+  Readonly<{
+    root: string;
+    source: string;
+    destinationParent: string;
+    destination: string;
+  }>
+> {
   const root = await fs.promises.realpath(
     await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "floodgate-v7-clean-room-copy-"),
@@ -57,11 +59,31 @@ async function rejectionOf(run: Promise<unknown>): Promise<unknown> {
   throw new Error("expected rejection");
 }
 
+async function waitForBarrier(
+  barrier: Promise<void>,
+  timeoutMs = 5_000,
+): Promise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      barrier,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("synthetic barrier timed out")),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) =>
-      fs.promises.rm(root, { force: true, recursive: true }),
-    ),
+    roots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { force: true, recursive: true })),
   );
 });
 
@@ -71,7 +93,11 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
     const nested = path.join(value.source, "nested");
     await fs.promises.mkdir(nested, { mode: 0o700 });
     await fs.promises.chmod(nested, 0o700);
-    await writePrivate(path.join(value.source, "read-only.txt"), "alpha\n", 0o400);
+    await writePrivate(
+      path.join(value.source, "read-only.txt"),
+      "alpha\n",
+      0o400,
+    );
     await writePrivate(path.join(nested, "engine"), "engine\n", 0o500);
 
     const receipt = await copyFloodgateV7CleanRoomTreeByValueCoreForTests(
@@ -274,9 +300,9 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
       retry_disposition: "manual-clean-room-reconciliation-required",
       sensitive_values_disclosed: false,
     });
-    expect(
-      (await fs.promises.lstat(value.destination)).isDirectory(),
-    ).toBe(true);
+    expect((await fs.promises.lstat(value.destination)).isDirectory()).toBe(
+      true,
+    );
   });
 
   it("drains both copied-file descriptors when the first close fails", async () => {
@@ -338,116 +364,219 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
       retry_disposition: "manual-clean-room-reconciliation-required",
     });
     expect(
-      (await fs.promises.lstat(path.join(value.destination, "input"))).isSymbolicLink(),
+      (
+        await fs.promises.lstat(path.join(value.destination, "input"))
+      ).isSymbolicLink(),
     ).toBe(true);
   });
 
-  it(
-    "stops scheduling after the first bounded-worker failure and drains already-started callbacks",
-    async () => {
-      const value = await fixture();
-      await Promise.all(
-        Array.from({ length: 40 }, (_, index) =>
-          writePrivate(
-            path.join(value.source, `input-${index.toString().padStart(2, "0")}`),
-            `${index}\n`,
-          ),
+  it("stops scheduling after the first bounded-worker failure and drains already-started callbacks", async () => {
+    const value = await fixture();
+    await Promise.all(
+      Array.from({ length: 40 }, (_, index) =>
+        writePrivate(
+          path.join(value.source, `input-${index.toString().padStart(2, "0")}`),
+          `${index}\n`,
         ),
+      ),
+    );
+    let callbackIndex = 0;
+    let callbacksActive = 0;
+    let resolveAllEight: (() => void) | undefined;
+    let releaseFailure: (() => void) | undefined;
+    let releaseOthers: (() => void) | undefined;
+    const allEight = new Promise<void>((resolve) => {
+      resolveAllEight = resolve;
+    });
+    const failureGate = new Promise<void>((resolve) => {
+      releaseFailure = resolve;
+    });
+    const otherGate = new Promise<void>((resolve) => {
+      releaseOthers = resolve;
+    });
+    const run = copyFloodgateV7CleanRoomTreeByValueCoreForTests(
+      value.source,
+      value.destination,
+      {
+        effectiveUserId,
+        afterFileCopiedForTests: async (_relativePath) => {
+          const index = callbackIndex;
+          callbackIndex += 1;
+          callbacksActive += 1;
+          if (callbacksActive === 8) resolveAllEight?.();
+          if (index === 0) {
+            await failureGate;
+            callbacksActive -= 1;
+            throw new Error("fixed synthetic failure");
+          }
+          await otherGate;
+          callbacksActive -= 1;
+        },
+      },
+    );
+    await allEight;
+    releaseFailure?.();
+    let returned = false;
+    void run.catch(() => {
+      returned = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(returned).toBe(false);
+    releaseOthers?.();
+
+    const failure = await rejectionOf(run);
+
+    expect(failure).toMatchObject({
+      phase: "callback",
+      partial_destination_preserved: true,
+    });
+    expect(callbackIndex).toBe(8);
+    expect(callbacksActive).toBe(0);
+    expect((await fs.promises.readdir(value.destination)).length).toBe(8);
+  }, 30_000);
+
+  it("copies a synthetic 1,000-small-file tree with the fixed eight-worker limit", async () => {
+    const value = await fixture();
+    await Promise.all(
+      Array.from({ length: 1_000 }, (_, index) =>
+        writePrivate(
+          path.join(
+            value.source,
+            `small-${index.toString().padStart(4, "0")}.txt`,
+          ),
+          "x",
+        ),
+      ),
+    );
+
+    const receipt = await copyFloodgateV7CleanRoomTreeByValueCoreForTests(
+      value.source,
+      value.destination,
+      { effectiveUserId },
+    );
+
+    expect(receipt.copied).toMatchObject({
+      files: 1_000,
+      bytes: 1_000,
+      file_copy_concurrency_limit: 8,
+      per_file_fsync_used: false,
+    });
+    expect(receipt.nonclaims.crash_durable_copy).toBe(false);
+    expect((await fs.promises.readdir(value.destination)).length).toBe(1_000);
+  }, 30_000);
+
+  it("runs eight copy workers while preserving per-owner reusable-buffer invariants", async () => {
+    const value = await fixture();
+    await Promise.all(
+      Array.from({ length: 16 }, (_, index) =>
+        writePrivate(
+          path.join(
+            value.source,
+            `buffer-${index.toString().padStart(2, "0")}.txt`,
+          ),
+          "x",
+        ),
+      ),
+    );
+    let activeCallbacks = 0;
+    let maximumActiveCallbacks = 0;
+    let releaseCallbacks: (() => void) | undefined;
+    let resolveAllWorkers: (() => void) | undefined;
+    const callbackGate = new Promise<void>((resolve) => {
+      releaseCallbacks = resolve;
+    });
+    const allWorkers = new Promise<void>((resolve) => {
+      resolveAllWorkers = resolve;
+    });
+    const run = copyFloodgateV7CleanRoomTreeByValueCoreForTests(
+      value.source,
+      value.destination,
+      {
+        effectiveUserId,
+        afterFileCopiedForTests: async (_relativePath) => {
+          activeCallbacks += 1;
+          maximumActiveCallbacks = Math.max(
+            maximumActiveCallbacks,
+            activeCallbacks,
+          );
+          if (activeCallbacks === 8) resolveAllWorkers?.();
+          await callbackGate;
+          activeCallbacks -= 1;
+        },
+      },
+    );
+    const observedRun = run.then(
+      () => Object.freeze({ status: "fulfilled" as const }),
+      (error: unknown) => Object.freeze({ status: "rejected" as const, error }),
+    );
+    try {
+      await waitForBarrier(allWorkers);
+      releaseCallbacks?.();
+
+      const outcome = await observedRun;
+      if (outcome.status === "rejected") throw outcome.error;
+
+      expect(activeCallbacks).toBe(0);
+      expect(maximumActiveCallbacks).toBe(8);
+      const implementation = fs.readFileSync(
+        path.join(process.cwd(), "ml", "floodgate-v7-clean-room-copy.ts"),
+        "utf8",
       );
-      let callbackIndex = 0;
-      let callbacksActive = 0;
-      let resolveAllEight: (() => void) | undefined;
-      let releaseFailure: (() => void) | undefined;
-      let releaseOthers: (() => void) | undefined;
-      const allEight = new Promise<void>((resolve) => {
-        resolveAllEight = resolve;
-      });
-      const failureGate = new Promise<void>((resolve) => {
-        releaseFailure = resolve;
-      });
-      const otherGate = new Promise<void>((resolve) => {
-        releaseOthers = resolve;
-      });
-      const run = copyFloodgateV7CleanRoomTreeByValueCoreForTests(
-        value.source,
-        value.destination,
+      expect(
+        implementation.match(/Buffer\.alloc\(READ_CHUNK_BYTES\)/gu),
+      ).toHaveLength(3);
+      expect(implementation).toContain(
+        "const workerChunk = Buffer.alloc(READ_CHUNK_BYTES)",
+      );
+      expect(implementation).toContain(
+        "dependencies,\n            workerChunk,\n          )",
+      );
+      expect(implementation).toContain("workerChunk.fill(0)");
+      expect(implementation).toContain("hashChunk.fill(0)");
+    } finally {
+      releaseCallbacks?.();
+      await observedRun;
+    }
+  }, 30_000);
+
+  it("reuses and clears one standalone-file chunk on success and failure", async () => {
+    const value = await fixture();
+    const source = path.join(value.source, "legacy.txt");
+    const destination = path.join(value.destinationParent, "legacy.txt");
+    await writePrivate(source, "legacy\n");
+    await copyFloodgateV7CleanRoomFileByValueCoreForTests(source, destination, {
+      effectiveUserId,
+    });
+
+    const failed = await fixture();
+    const failedSource = path.join(failed.source, "legacy.txt");
+    const failedDestination = path.join(failed.destinationParent, "legacy.txt");
+    await writePrivate(failedSource, "legacy failure\n");
+    const failure = await rejectionOf(
+      copyFloodgateV7CleanRoomFileByValueCoreForTests(
+        failedSource,
+        failedDestination,
         {
           effectiveUserId,
-          afterFileCopiedForTests: async (_relativePath) => {
-            const index = callbackIndex;
-            callbackIndex += 1;
-            callbacksActive += 1;
-            if (callbacksActive === 8) resolveAllEight?.();
-            if (index === 0) {
-              await failureGate;
-              callbacksActive -= 1;
-              throw new Error("fixed synthetic failure");
-            }
-            await otherGate;
-            callbacksActive -= 1;
+          afterFileCopiedForTests: (_relativePath) => {
+            throw new Error("fixed callback failure");
           },
         },
-      );
-      await allEight;
-      releaseFailure?.();
-      let returned = false;
-      void run.catch(() => {
-        returned = true;
-      });
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(returned).toBe(false);
-      releaseOthers?.();
-
-      const failure = await rejectionOf(run);
-
-      expect(failure).toMatchObject({
-        phase: "callback",
-        partial_destination_preserved: true,
-      });
-      expect(callbackIndex).toBe(8);
-      expect(callbacksActive).toBe(0);
-      expect(
-        (await fs.promises.readdir(value.destination)).length,
-      ).toBe(8);
-    },
-    30_000,
-  );
-
-  it(
-    "copies a synthetic 1,000-small-file tree with the fixed eight-worker limit",
-    async () => {
-      const value = await fixture();
-      await Promise.all(
-        Array.from({ length: 1_000 }, (_, index) =>
-          writePrivate(
-            path.join(
-              value.source,
-              `small-${index.toString().padStart(4, "0")}.txt`,
-            ),
-            "x",
-          ),
-        ),
-      );
-
-      const receipt = await copyFloodgateV7CleanRoomTreeByValueCoreForTests(
-        value.source,
-        value.destination,
-        { effectiveUserId },
-      );
-
-      expect(receipt.copied).toMatchObject({
-        files: 1_000,
-        bytes: 1_000,
-        file_copy_concurrency_limit: 8,
-        per_file_fsync_used: false,
-      });
-      expect(receipt.nonclaims.crash_durable_copy).toBe(false);
-      expect(
-        (await fs.promises.readdir(value.destination)).length,
-      ).toBe(1_000);
-    },
-    30_000,
-  );
+      ),
+    );
+    expect(failure).toMatchObject({
+      phase: "callback",
+      partial_destination_preserved: true,
+    });
+    const implementation = fs.readFileSync(
+      path.join(process.cwd(), "ml", "floodgate-v7-clean-room-copy.ts"),
+      "utf8",
+    );
+    expect(implementation).toContain(
+      "operationChunk = Buffer.alloc(READ_CHUNK_BYTES)",
+    );
+    expect(implementation).toContain("operationChunk?.fill(0)");
+  });
 
   it("rejects an existing destination and overlapping namespaces without deleting evidence", async () => {
     const existing = await fixture();
@@ -490,11 +619,7 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
 
   it("contains no filesystem clone or generic copy-file path", () => {
     const source = fs.readFileSync(
-      path.join(
-        process.cwd(),
-        "ml",
-        "floodgate-v7-clean-room-copy.ts",
-      ),
+      path.join(process.cwd(), "ml", "floodgate-v7-clean-room-copy.ts"),
       "utf8",
     );
     expect(source).not.toContain("COPYFILE_FICLONE");
@@ -502,9 +627,7 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
     expect(source).toContain("O_NOFOLLOW");
     expect(source).toContain("O_EXCL");
     expect(source).toContain("destinationAfter.nlink !== BigInt(1)");
-    expect(source).toContain(
-      "before.size >= BigInt(MAX_FILE_BYTES)",
-    );
+    expect(source).toContain("before.size >= BigInt(MAX_FILE_BYTES)");
     expect(source).not.toContain("destinationHandle.sync()");
     expect(source).toContain("Promise.allSettled(workers)");
   });

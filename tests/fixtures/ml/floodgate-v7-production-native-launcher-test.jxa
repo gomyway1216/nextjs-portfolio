@@ -21,6 +21,12 @@ function stringValue(value) {
   return String(ObjC.unwrap(value));
 }
 
+function integerValue(value) {
+  const unwrapped = ObjC.unwrap(value);
+  if (typeof unwrapped !== "number" || !Number.isSafeInteger(unwrapped)) fail();
+  return unwrapped;
+}
+
 function canonicalPath(value) {
   if (typeof value !== "string" || value.charAt(0) !== "/") fail();
   const standardized = stringValue($(value).stringByStandardizingPath);
@@ -174,7 +180,9 @@ function run(arguments_) {
     );
     pipe.fileHandleForWriting.closeFile;
     task.waitUntilExit;
-    $.exit(Number(task.terminationStatus));
+    const status = integerValue(task.terminationStatus);
+    if (status < 0 || status > 255) fail();
+    $.exit(status);
   } catch (_error) {
     $.exit(70);
   }

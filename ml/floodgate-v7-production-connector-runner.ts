@@ -40,8 +40,13 @@ import {
 } from "./floodgate-v7-production-connector-registry";
 import {
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
+  assertFloodgateV7ProductionApplicationEntrypointContext,
   type FloodgateV7ProductionApplicationSourceBinding,
 } from "./floodgate-v7-production-application-source-provenance";
+import {
+  claimFloodgateV7ProductionApplicationExecution,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "./floodgate-v7-production-application-source-authorization";
 import type { FloodgateTeacherStageAuthorizationOptions } from "./floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
@@ -80,7 +85,7 @@ export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CONTRACT =
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_STATUS =
   "application-source-bound-registry-approved-current-production-connector-gate-complete" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_CLAIM_BOUNDARY =
-  "one-fixed-production-gate-after-exact-clean-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
+  "one-fixed-production-gate-after-exact-clean-tracked-application-source-private-registry-approved-record-and-current-key-binding-without-public-run-binding-options-or-raw-connector-receipt-v2" as const;
 export const FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNNER_EXECUTION_BOUNDARY =
   "production-fixed-application-source-bound-gate-private-registry-and-capability-owners" as const;
 
@@ -126,7 +131,7 @@ export interface FloodgateV7ProductionConnectorRunnerReceipt<
       readonly approved_record_binding_matched: true;
       readonly fresh_current_key_binding_validated: true;
       readonly connector_completed: true;
-      readonly application_source_exact_clean_closure_validated_under_outer_gate: true;
+      readonly exact_clean_tracked_application_source_closure_validated_under_outer_gate: true;
     } & (TGate extends "durable-prefix-100"
       ? {
           readonly exact_prefix_100_read_only_continuity_postflight_completed: true;
@@ -143,6 +148,9 @@ export interface FloodgateV7ProductionConnectorRunnerReceipt<
     readonly application_source_revision_disclosed: false;
     readonly application_source_path_disclosed: false;
     readonly application_source_digest_disclosed: false;
+    readonly ignored_untracked_dependency_bytes_verified: false;
+    readonly same_uid_race_isolation: false;
+    readonly atomic_source_snapshot: false;
     readonly teacher_label: false;
     readonly optimizer_training: false;
     readonly weight: false;
@@ -999,7 +1007,7 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
           approved_record_binding_matched: true as const,
           fresh_current_key_binding_validated: true as const,
           connector_completed: true as const,
-          application_source_exact_clean_closure_validated_under_outer_gate:
+          exact_clean_tracked_application_source_closure_validated_under_outer_gate:
             true as const,
           exact_prefix_100_read_only_continuity_postflight_completed:
             true as const,
@@ -1009,7 +1017,7 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
           approved_record_binding_matched: true as const,
           fresh_current_key_binding_validated: true as const,
           connector_completed: true as const,
-          application_source_exact_clean_closure_validated_under_outer_gate:
+          exact_clean_tracked_application_source_closure_validated_under_outer_gate:
             true as const,
         });
   return frozenRecord({
@@ -1035,6 +1043,9 @@ function buildReceipt<TGate extends FloodgateV7ProductionConnectorRunnerGate>(
       application_source_revision_disclosed: false as const,
       application_source_path_disclosed: false as const,
       application_source_digest_disclosed: false as const,
+      ignored_untracked_dependency_bytes_verified: false as const,
+      same_uid_race_isolation: false as const,
+      atomic_source_snapshot: false as const,
       teacher_label: false as const,
       optimizer_training: false as const,
       weight: false as const,
@@ -1296,6 +1307,13 @@ export function runFloodgateV7ProductionConnectorPrefix100UnderOuterGate(
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-100">>
 > {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "durable-prefix-100"));
+  }
   if (arguments.length !== 1) {
     return rejected(publicFailure("capture", "durable-prefix-100"));
   }
@@ -1312,6 +1330,13 @@ export function runFloodgateV7ProductionConnectorPrefix500UnderOuterGate(
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-500">>
 > {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "durable-prefix-500"));
+  }
   if (arguments.length !== 1) {
     return rejected(publicFailure("capture", "durable-prefix-500"));
   }
@@ -1328,6 +1353,13 @@ export function runFloodgateV7ProductionConnectorFinal24000UnderOuterGate(
 ): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"sealed-final-24000">>
 > {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-final-24000.ts",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "sealed-final-24000"));
+  }
   if (arguments.length !== 1) {
     return rejected(publicFailure("capture", "sealed-final-24000"));
   }
@@ -1338,41 +1370,92 @@ export function runFloodgateV7ProductionConnectorFinal24000UnderOuterGate(
   );
 }
 
-/** Run only the fixed durable-prefix-100 production gate. */
-export function runFloodgateV7ProductionConnectorPrefix100(): Promise<
+/** Run only the source-authorized fixed durable-prefix-100 production gate. */
+export function runFloodgateV7ProductionConnectorPrefix100(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-100">>
 > {
-  if (arguments.length !== 0) {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+    );
+  } catch {
     return rejected(publicFailure("capture", "durable-prefix-100"));
   }
-  return runProductionGate(
-    "durable-prefix-100",
-    runFloodgateV7ProductionOuterGatePrefix100,
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "durable-prefix-100"));
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "durable-prefix-100",
+      "runner-entry",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "durable-prefix-100"));
+  }
+  return runProductionGate("durable-prefix-100", () =>
+    runFloodgateV7ProductionOuterGatePrefix100(applicationExecutionCapability),
   );
 }
 
-/** Run only the fixed durable-prefix-500 production gate. */
-export function runFloodgateV7ProductionConnectorPrefix500(): Promise<
+/** Run only the source-authorized fixed durable-prefix-500 production gate. */
+export function runFloodgateV7ProductionConnectorPrefix500(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"durable-prefix-500">>
 > {
-  if (arguments.length !== 0) {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+    );
+  } catch {
     return rejected(publicFailure("capture", "durable-prefix-500"));
   }
-  return runProductionGate(
-    "durable-prefix-500",
-    runFloodgateV7ProductionOuterGatePrefix500,
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "durable-prefix-500"));
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "durable-prefix-500",
+      "runner-entry",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "durable-prefix-500"));
+  }
+  return runProductionGate("durable-prefix-500", () =>
+    runFloodgateV7ProductionOuterGatePrefix500(applicationExecutionCapability),
   );
 }
 
-/** Run only the fixed sealed-final-24000 production gate. */
-export function runFloodgateV7ProductionConnectorFinal24000(): Promise<
+/** Run only the source-authorized fixed sealed-final-24000 production gate. */
+export function runFloodgateV7ProductionConnectorFinal24000(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
   Readonly<FloodgateV7ProductionConnectorRunnerReceipt<"sealed-final-24000">>
 > {
-  if (arguments.length !== 0) {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-connector-final-24000.ts",
+    );
+  } catch {
     return rejected(publicFailure("capture", "sealed-final-24000"));
   }
-  return runProductionGate(
-    "sealed-final-24000",
-    runFloodgateV7ProductionOuterGateFinal24000,
+  if (arguments.length !== 1) {
+    return rejected(publicFailure("capture", "sealed-final-24000"));
+  }
+  try {
+    claimFloodgateV7ProductionApplicationExecution(
+      applicationExecutionCapability,
+      "sealed-final-24000",
+      "runner-entry",
+    );
+  } catch {
+    return rejected(publicFailure("capture", "sealed-final-24000"));
+  }
+  return runProductionGate("sealed-final-24000", () =>
+    runFloodgateV7ProductionOuterGateFinal24000(applicationExecutionCapability),
   );
 }

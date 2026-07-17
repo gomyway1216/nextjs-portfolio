@@ -505,7 +505,7 @@ describe("Floodgate v7 production connector runner", () => {
           approved_record_binding_matched: true,
           fresh_current_key_binding_validated: true,
           connector_completed: true,
-          application_source_exact_clean_closure_validated_under_outer_gate: true,
+          exact_clean_tracked_application_source_closure_validated_under_outer_gate: true,
           ...(gate === "durable-prefix-100"
             ? {
                 exact_prefix_100_read_only_continuity_postflight_completed: true,
@@ -522,6 +522,9 @@ describe("Floodgate v7 production connector runner", () => {
           application_source_revision_disclosed: false,
           application_source_path_disclosed: false,
           application_source_digest_disclosed: false,
+          ignored_untracked_dependency_bytes_verified: false,
+          same_uid_race_isolation: false,
+          atomic_source_snapshot: false,
           teacher_label: false,
           optimizer_training: false,
           weight: false,
@@ -1029,10 +1032,10 @@ describe("Floodgate v7 production connector runner", () => {
     },
   );
 
-  it("exports only three zero-argument production gate wrappers and no generic production gate", async () => {
-    expect(runFloodgateV7ProductionConnectorPrefix100.length).toBe(0);
-    expect(runFloodgateV7ProductionConnectorPrefix500.length).toBe(0);
-    expect(runFloodgateV7ProductionConnectorFinal24000.length).toBe(0);
+  it("exports only three source-capability production gate wrappers and no generic production gate", async () => {
+    expect(runFloodgateV7ProductionConnectorPrefix100.length).toBe(1);
+    expect(runFloodgateV7ProductionConnectorPrefix500.length).toBe(1);
+    expect(runFloodgateV7ProductionConnectorFinal24000.length).toBe(1);
     expect(
       runFloodgateV7ProductionConnectorPrefix100UnderOuterGate.length,
     ).toBe(1);
@@ -1054,5 +1057,88 @@ describe("Floodgate v7 production connector runner", () => {
     expect(source).not.toMatch(
       /export function runFloodgateV7ProductionConnectorUnderOuterGate/u,
     );
+    for (const functionName of [
+      "runFloodgateV7ProductionConnectorPrefix100",
+      "runFloodgateV7ProductionConnectorPrefix500",
+      "runFloodgateV7ProductionConnectorFinal24000",
+    ]) {
+      const start = source.indexOf(`export function ${functionName}(`);
+      const next = source.indexOf("\n/**", start);
+      const body = source.slice(start, next === -1 ? source.length : next);
+      const contextGuard = body.indexOf(
+        "assertFloodgateV7ProductionApplicationEntrypointContext(",
+      );
+      const applicationClaim = body.indexOf(
+        "claimFloodgateV7ProductionApplicationExecution(",
+      );
+      const outerOwner = body.indexOf("runFloodgateV7ProductionOuterGate");
+      expect(contextGuard).toBeGreaterThan(-1);
+      expect(applicationClaim).toBeGreaterThan(contextGuard);
+      expect(outerOwner).toBeGreaterThan(applicationClaim);
+      expect(body).toContain('"runner-entry"');
+      expect(body).toContain("applicationExecutionCapability");
+    }
+    for (const functionName of [
+      "runFloodgateV7ProductionConnectorPrefix100UnderOuterGate",
+      "runFloodgateV7ProductionConnectorPrefix500UnderOuterGate",
+      "runFloodgateV7ProductionConnectorFinal24000UnderOuterGate",
+    ]) {
+      const start = source.indexOf(`export function ${functionName}(`);
+      const next = source.indexOf("\n/**", start);
+      const body = source.slice(start, next === -1 ? source.length : next);
+      expect(
+        body.indexOf(
+          "assertFloodgateV7ProductionApplicationEntrypointContext(",
+        ),
+      ).toBeLessThan(body.indexOf("return runCaptured("));
+    }
   });
+
+  it.each([
+    {
+      gate: "durable-prefix-100",
+      wrapper: "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+      run: runFloodgateV7ProductionConnectorPrefix100,
+      runUnderOuterGate:
+        runFloodgateV7ProductionConnectorPrefix100UnderOuterGate,
+    },
+    {
+      gate: "durable-prefix-500",
+      wrapper: "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+      run: runFloodgateV7ProductionConnectorPrefix500,
+      runUnderOuterGate:
+        runFloodgateV7ProductionConnectorPrefix500UnderOuterGate,
+    },
+    {
+      gate: "sealed-final-24000",
+      wrapper: "ml/run-floodgate-v7-production-connector-final-24000.ts",
+      run: runFloodgateV7ProductionConnectorFinal24000,
+      runUnderOuterGate:
+        runFloodgateV7ProductionConnectorFinal24000UnderOuterGate,
+    },
+  ] as const)(
+    "rejects direct/stale $gate imports before either production boundary",
+    async ({ gate, wrapper, run, runUnderOuterGate }) => {
+      const invocations: readonly (() => Promise<unknown>)[] = [
+        () => Reflect.apply(run, undefined, [Object.freeze({})]),
+        () => Reflect.apply(runUnderOuterGate, undefined, [Object.freeze({})]),
+      ];
+      for (const invoke of invocations) {
+        const error = await invoke().catch((failure: unknown) => failure);
+        expectSanitized(error, false);
+        expect(error).toMatchObject({
+          phase: "capture",
+          gate,
+          retry_disposition: "fresh-invocation-required",
+        });
+        const projection = [
+          String(error),
+          error instanceof Error ? error.stack : "",
+          JSON.stringify(error),
+        ].join("\n");
+        expect(projection).not.toContain(wrapper);
+        expect(projection).not.toContain(".codex/worktrees");
+      }
+    },
+  );
 });

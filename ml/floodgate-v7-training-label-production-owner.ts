@@ -42,6 +42,7 @@ import {
   type FloodgateV7ProductionConnectorRegistryCapability,
   type FloodgateV7ProductionConnectorRegistryPrivateClaim,
 } from "./floodgate-v7-production-connector-registry";
+import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
 import {
   claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability,
   type FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability,
@@ -1274,6 +1275,20 @@ function productionDependencies(
 export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate(
   capability: Readonly<FloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability>,
 ): Promise<Readonly<FloodgateV7TrainingLabelProductionOwnerReceipt>> {
+  try {
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-training-label-production.ts",
+    );
+  } catch {
+    return rejected(
+      new FloodgateV7TrainingLabelProductionOwnerError(
+        "capture",
+        false,
+        false,
+        0,
+      ),
+    );
+  }
   if (arguments.length !== 1) {
     return rejected(
       new FloodgateV7TrainingLabelProductionOwnerError(

@@ -28,6 +28,7 @@ import {
   FLOODGATE_V7_TRAINING_LABEL_PRODUCTION_OWNER_STATUS,
   FloodgateV7TrainingLabelProductionOwnerError,
   inspectFloodgateV7TrainingLabelProductionStageCoreForTests,
+  runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate,
   runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests,
   type FloodgateV7TrainingLabelProductionOwnerCoreDependencies,
 } from "../../../ml/floodgate-v7-training-label-production-owner";
@@ -573,6 +574,45 @@ describe("Floodgate v7 training-label production owner", () => {
       "inspectFloodgateV7TrainingLabelProductionStageInternal",
     );
     expect(productionSlice).not.toContain("CoreForTests");
+    const ownerStart = source.indexOf(
+      "export function runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate(",
+    );
+    const owner = source.slice(ownerStart);
+    expect(
+      owner.indexOf("assertFloodgateV7ProductionApplicationEntrypointContext("),
+    ).toBeLessThan(
+      owner.indexOf(
+        "claimFloodgateV7ProductionOuterGateTrainingLabelFinalizationCapability(",
+      ),
+    );
+  });
+
+  it("rejects a direct/stale production-owner import before claiming the outer capability", async () => {
+    const failure = await Reflect.apply(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGate,
+      undefined,
+      [Object.freeze({})],
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(
+      FloodgateV7TrainingLabelProductionOwnerError,
+    );
+    expect(failure).toMatchObject({
+      phase: "capture",
+      publication_may_have_occurred: false,
+      lease_may_remain: false,
+      cleanup_failure_count: 0,
+      retry_disposition: "fresh-invocation-required",
+    });
+    const projection = [
+      String(failure),
+      failure instanceof Error ? failure.stack : "",
+      JSON.stringify(failure),
+    ].join("\n");
+    expect(projection).not.toContain(
+      "ml/run-floodgate-v7-training-label-production.ts",
+    );
+    expect(projection).not.toContain(".codex/worktrees");
   });
 });
 

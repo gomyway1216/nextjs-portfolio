@@ -1,6 +1,6 @@
 # Verifying production operator readiness with standalone CLIs — Floodgate v7
 
-> [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481) integrated the production application-source provenance foundation with regular merge commit `67ccd9b8c49392132fdffaa625468ac1d128a5d5`. Building on that foundation, this candidate adds standalone approved/current-binding and fixed-verifier readiness checks to the native exact-launch boundary, expanding the production evidence launcher to exactly ten purposes. The current operator-readiness PR is not yet numbered or merged. Post-merge revision alignment, production commands, registry provisioning, teacher generation, retraining, candidate selection, formal A/B, external calibration, and live activation have not run. Japanese version: [blog-shogi-floodgate-v7-production-operator-readiness.md](./blog-shogi-floodgate-v7-production-operator-readiness.md)
+> [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481) integrated the production application-source provenance foundation with regular merge commit `67ccd9b8c49392132fdffaa625468ac1d128a5d5`. Building on that foundation, this candidate adds standalone approved/current-binding and fixed-verifier readiness checks to the native exact-launch boundary, expanding the production evidence launcher to exactly ten purposes. [PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482) is open and ready for review, but it is not merged and final-head GitHub CI / review remain PENDING. Post-merge revision alignment, production commands, registry provisioning, teacher generation, retraining, candidate selection, formal A/B, external calibration, and live activation have not run. Japanese version: [blog-shogi-floodgate-v7-production-operator-readiness.md](./blog-shogi-floodgate-v7-production-operator-readiness.md)
 
 ## 1. Result
 
@@ -69,24 +69,25 @@ A stale, quarantined, or indeterminate production state found through a readines
 
 ## 6. Validation and delivery status
 
-The operator-readiness implementation is fixed at exact commit `947f6e547039a62c17d74e08d1102af26dc46903`. The local validation below ran against that implementation commit. This article and its JSON belong to a later evidence commit and are not part of the measured implementation revision. The PR number, final PR head, GitHub CI, review, and regular merge remain PENDING and are not preassigned.
+The operator-readiness implementation is fixed at exact commit `947f6e547039a62c17d74e08d1102af26dc46903`. The local validation below ran against that implementation commit. This article and its JSON belong to a later evidence commit and are not part of the measured implementation revision. PR #482 is open and ready for review, but GitHub CI, review, and regular merge for the final head that includes this PR-state evidence update remain PENDING.
 
-| Gate / check                               | State   | Exact result                                                                                      |
-| ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------- |
-| PR #481 application-source foundation      | MERGED  | regular merge `67ccd9b8...`                                                                       |
-| operator-readiness implementation          | PASS    | `947f6e547039a62c17d74e08d1102af26dc46903`                                                        |
-| focused launcher + two standalone CLIs     | PASS    | 3 files / 57 tests                                                                                |
-| full Vitest                                | PASS    | 166 / 166 files, 3,057 / 3,057 tests, Vitest 319.41 s, wall 319.81 s, max RSS 2,376,368,128 bytes |
-| full-suite resource boundary               | PASS    | 8 workers, zero swaps, zero block input / output                                                  |
-| production build                           | PASS    | wall 27.59 s, max RSS 2,641,051,648 bytes, zero swap / block I/O                                  |
-| TypeScript                                 | PASS    | `tsc --noEmit`, wall 2.85 s, max RSS 1,146,142,720 bytes                                          |
-| full ESLint                                | PASS    | zero errors, 157 existing warnings, wall 27.27 s, max RSS 2,041,626,624 bytes                     |
-| ML stdlib / npm audit                      | PASS    | 58 / 58 tests, wall 0.48 s / zero vulnerabilities, wall 0.52 s                                    |
-| Prettier / JXA syntax / JSON               | PASS    | changed files, `osacompile -l JavaScript`, JSON parse / ten-purpose mapping parity                |
-| independent final audit                    | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                          |
-| operator-readiness PR / GitHub CI / review | PENDING | no number or result is preassigned                                                                |
-| regular merge                              | PENDING | only after every final-head gate passes                                                           |
-| production alignment / commands            | BLOCKED | NO-GO before merge and fresh checks                                                               |
+| Gate / check                           | State   | Exact result                                                                                      |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| PR #481 application-source foundation  | MERGED  | regular merge `67ccd9b8...`                                                                       |
+| operator-readiness implementation      | PASS    | `947f6e547039a62c17d74e08d1102af26dc46903`                                                        |
+| focused launcher + two standalone CLIs | PASS    | 3 files / 57 tests                                                                                |
+| full Vitest                            | PASS    | 166 / 166 files, 3,057 / 3,057 tests, Vitest 319.41 s, wall 319.81 s, max RSS 2,376,368,128 bytes |
+| full-suite resource boundary           | PASS    | 8 workers, zero swaps, zero block input / output                                                  |
+| production build                       | PASS    | wall 27.59 s, max RSS 2,641,051,648 bytes, zero swap / block I/O                                  |
+| TypeScript                             | PASS    | `tsc --noEmit`, wall 2.85 s, max RSS 1,146,142,720 bytes                                          |
+| full ESLint                            | PASS    | zero errors, 157 existing warnings, wall 27.27 s, max RSS 2,041,626,624 bytes                     |
+| ML stdlib / npm audit                  | PASS    | 58 / 58 tests, wall 0.48 s / zero vulnerabilities, wall 0.52 s                                    |
+| Prettier / JXA syntax / JSON           | PASS    | changed files, `osacompile -l JavaScript`, JSON parse / ten-purpose mapping parity                |
+| independent final audit                | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                          |
+| operator-readiness PR                  | OPEN    | [#482](https://github.com/gomyway1216/nextjs-portfolio/pull/482), ready for review                |
+| final-head GitHub CI / review          | PENDING | evaluate after pushing this PR-state evidence update                                              |
+| regular merge                          | PENDING | only after every final-head gate passes                                                           |
+| production alignment / commands        | BLOCKED | NO-GO before merge and fresh checks                                                               |
 
 The build completed with exit zero. Existing diagnostics about build-time Firebase initialization suppression and dynamic-route fallback appeared, while compilation, TypeScript, all 193 generated pages, and final optimization completed. The full lint's 157 findings were existing warnings; errors remained zero.
 

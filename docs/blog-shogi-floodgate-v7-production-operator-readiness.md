@@ -1,6 +1,6 @@
 # production operator readinessを独立CLIで確かめる — Floodgate v7
 
-> [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481)は、production application source provenanceを通常のmerge commit `67ccd9b8c49392132fdffaa625468ac1d128a5d5`で統合した。今回の候補は、その基盤上でapproved/current bindingと固定verifierのstandalone readinessをnative exact launchへ追加し、production evidence launcherをexactly 10用途へ広げる。現在のoperator-readiness PRはまだ番号未確定・未mergeであり、統合後のrevision alignment、production command、registry provision、教師生成、再学習、候補選抜、正式A/B、外部校正、live activationはすべて未実行である。English version: [blog-shogi-floodgate-v7-production-operator-readiness.en.md](./blog-shogi-floodgate-v7-production-operator-readiness.en.md)
+> [PR #481](https://github.com/gomyway1216/nextjs-portfolio/pull/481)は、production application source provenanceを通常のmerge commit `67ccd9b8c49392132fdffaa625468ac1d128a5d5`で統合した。今回の候補は、その基盤上でapproved/current bindingと固定verifierのstandalone readinessをnative exact launchへ追加し、production evidence launcherをexactly 10用途へ広げる。[PR #482](https://github.com/gomyway1216/nextjs-portfolio/pull/482)をreview-readyで作成したが、まだ未mergeであり、最終headのGitHub CI / reviewもPENDINGである。統合後のrevision alignment、production command、registry provision、教師生成、再学習、候補選抜、正式A/B、外部校正、live activationはすべて未実行である。English version: [blog-shogi-floodgate-v7-production-operator-readiness.en.md](./blog-shogi-floodgate-v7-production-operator-readiness.en.md)
 
 ## 1. 結論
 
@@ -69,24 +69,25 @@ stale、quarantined、indeterminateなproduction stateをreadiness failureで見
 
 ## 6. validationとdeliveryの現在地
 
-operator-readiness実装はexact commit `947f6e547039a62c17d74e08d1102af26dc46903`へ固定した。下のlocal validationはその実装commitに対して実行した。この記事とJSONは後続のevidence commitになるため、実装revisionの測定対象には含めない。PR番号、final PR head、GitHub CI、review、通常mergeは引き続きPENDINGであり、先取りしない。
+operator-readiness実装はexact commit `947f6e547039a62c17d74e08d1102af26dc46903`へ固定した。下のlocal validationはその実装commitに対して実行した。この記事とJSONは後続のevidence commitであり、実装revisionの測定対象には含めない。PR #482はreview-readyでOPENだが、このPR-state更新を含む最終headのGitHub CI、review、通常mergeはPENDINGであり、先取りしない。
 
-| gate / 検査                              | 状態    | exact結果                                                                                         |
-| ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
-| PR #481 application-source foundation    | MERGED  | regular merge `67ccd9b8...`                                                                       |
-| operator-readiness implementation        | PASS    | `947f6e547039a62c17d74e08d1102af26dc46903`                                                        |
-| focused launcher + 2 standalone CLI      | PASS    | 3 files / 57 tests                                                                                |
-| full Vitest                              | PASS    | 166 / 166 files、3,057 / 3,057 tests、Vitest 319.41秒、wall 319.81秒、最大RSS 2,376,368,128 bytes |
-| full-suite resource boundary             | PASS    | 8 workers、swap 0、block input / output 0                                                         |
-| production build                         | PASS    | wall 27.59秒、最大RSS 2,641,051,648 bytes、swap / block I/O 0                                     |
-| TypeScript                               | PASS    | `tsc --noEmit`、wall 2.85秒、最大RSS 1,146,142,720 bytes                                          |
-| full ESLint                              | PASS    | errors 0、既存warnings 157、wall 27.27秒、最大RSS 2,041,626,624 bytes                             |
-| ML stdlib / npm audit                    | PASS    | 58 / 58 tests、wall 0.48秒 / vulnerabilities 0、wall 0.52秒                                       |
-| Prettier / JXA syntax / JSON             | PASS    | changed files、`osacompile -l JavaScript`、JSON parse / 10-purpose mapping parity                 |
-| independent final audit                  | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                          |
-| operator-readiness PR / GitHub CI/review | PENDING | 番号と結果を先取りしない                                                                          |
-| regular merge                            | PENDING | final headの全gate通過後                                                                          |
-| production alignment / commands          | BLOCKED | mergeとfresh checks前はNO-GO                                                                      |
+| gate / 検査                           | 状態    | exact結果                                                                                         |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| PR #481 application-source foundation | MERGED  | regular merge `67ccd9b8...`                                                                       |
+| operator-readiness implementation     | PASS    | `947f6e547039a62c17d74e08d1102af26dc46903`                                                        |
+| focused launcher + 2 standalone CLI   | PASS    | 3 files / 57 tests                                                                                |
+| full Vitest                           | PASS    | 166 / 166 files、3,057 / 3,057 tests、Vitest 319.41秒、wall 319.81秒、最大RSS 2,376,368,128 bytes |
+| full-suite resource boundary          | PASS    | 8 workers、swap 0、block input / output 0                                                         |
+| production build                      | PASS    | wall 27.59秒、最大RSS 2,641,051,648 bytes、swap / block I/O 0                                     |
+| TypeScript                            | PASS    | `tsc --noEmit`、wall 2.85秒、最大RSS 1,146,142,720 bytes                                          |
+| full ESLint                           | PASS    | errors 0、既存warnings 157、wall 27.27秒、最大RSS 2,041,626,624 bytes                             |
+| ML stdlib / npm audit                 | PASS    | 58 / 58 tests、wall 0.48秒 / vulnerabilities 0、wall 0.52秒                                       |
+| Prettier / JXA syntax / JSON          | PASS    | changed files、`osacompile -l JavaScript`、JSON parse / 10-purpose mapping parity                 |
+| independent final audit               | PASS    | P0 / P1 / P2 = 0 / 0 / 0                                                                          |
+| operator-readiness PR                 | OPEN    | [#482](https://github.com/gomyway1216/nextjs-portfolio/pull/482)、review-ready                    |
+| final-head GitHub CI / review         | PENDING | このPR-state evidence更新をpush後に判定                                                           |
+| regular merge                         | PENDING | final headの全gate通過後                                                                          |
+| production alignment / commands       | BLOCKED | mergeとfresh checks前はNO-GO                                                                      |
 
 buildはexit 0で完了した。既存のbuild-time Firebase初期化抑止とdynamic route fallbackの診断logは出たが、compile、TypeScript、193 page generation、最終optimizationは完了している。full lintの157件は既存warningで、errorは0だった。
 

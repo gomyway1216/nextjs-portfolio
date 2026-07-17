@@ -6,7 +6,7 @@
     "english": "../blog-shogi-floodgate-v7-production-operator-readiness.en.md"
   },
   "scope": {
-    "class": "unmerged-local-operator-readiness-candidate-only",
+    "class": "open-unmerged-operator-readiness-candidate-only",
     "production_state_freshly_observed_for_this_evidence": false,
     "production_managed_namespace_read_for_this_evidence": false,
     "production_namespace_or_file_content_mutated": false,
@@ -23,9 +23,9 @@
   },
   "current_delivery": {
     "description": "standalone-approved-current-binding-and-connector-verifier-readiness-under-native-exact-launch",
-    "pull_request_number": "PENDING-not-yet-created",
-    "pull_request_url": "PENDING-not-yet-created",
-    "state": "implementation-committed-local-evidence-draft",
+    "pull_request_number": 482,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/482",
+    "state": "open-ready-for-review",
     "exact_implementation_revision": "947f6e547039a62c17d74e08d1102af26dc46903",
     "final_pull_request_head": "PENDING",
     "github_ci": "PENDING",
@@ -313,7 +313,7 @@
     "pr481_merge_commit_is_sufficient_as_final_application_alignment": false
   },
   "nonclaims": {
-    "current_operator_readiness_pull_request_number_known": false,
+    "current_operator_readiness_pull_request_number_known": true,
     "current_candidate_merged": false,
     "production_ready": false,
     "registry_created": false,

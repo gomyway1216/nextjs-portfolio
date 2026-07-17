@@ -117,21 +117,20 @@ source readinessは成功0回で、registry provision、kill drill、prefix-100 
 
 ## 8. 安全な次の順序
 
-1. このevidenceをcommitし、NSNumber修正をreview-ready PRとして公開する
-2. final headのGitHub CIとreviewをすべて通し、通常mergeする
-3. 固定production application worktreeを**この修正PR自身のmerge commit**へrealignする
-4. 固定verifierが`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`であることをfreshに確認する
-5. standalone application-source readinessをfreshに実行する
-6. standalone connector-verifier readinessをfreshに実行する
-7. standalone approved/current binding readinessをfreshに実行する
-8. 3つすべてが成功した場合だけ、provisioner内でもfreshに再検査してregistry V2をcreate-onlyで作成する
-9. その後もkill drill、prefix-100 preflight、prefix-100 exactly onceのstop gateを守る
-10. 教師生成、再学習、候補選抜、正式A/B、外部校正を終え、安全性・品質・棋力・rollback証拠が揃った場合だけlive activationを検討する
+1. [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)のfinal headでGitHub CIとreviewをすべて通し、通常mergeする
+2. 固定production application worktreeを**この修正PR自身のmerge commit**へrealignする
+3. 固定verifierが`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`であることをfreshに確認する
+4. standalone application-source readinessをfreshに実行する
+5. standalone connector-verifier readinessをfreshに実行する
+6. standalone approved/current binding readinessをfreshに実行する
+7. 3つすべてが成功した場合だけ、provisioner内でもfreshに再検査してregistry V2をcreate-onlyで作成する
+8. その後もkill drill、prefix-100 preflight、prefix-100 exactly onceのstop gateを守る
+9. 教師生成、再学習、候補選抜、正式A/B、外部校正を終え、安全性・品質・棋力・rollback証拠が揃った場合だけlive activationを検討する
 
 いずれかのfresh checkが失敗、stale、quarantined、indeterminateならSTOPする。自動修復、adopt、overwrite、rotation、retry、次gateへの進行はしない。
 
 ## 9. 現時点の判断
 
-NSNumberの根本原因は再現でき、修正はexact commitへ固定され、full local validationと独立auditも通過した。しかし、修正PR、final-head CI、通常mergeはまだ確定していない。sanitized auditに危険なcontrol / lease / quarantine / indeterminate stateは見えていない一方、それはGO evidenceではない。
+NSNumberの根本原因は再現でき、修正はexact commitへ固定され、full local validationと独立auditも通過した。PR #483はreview-readyで公開済みだが、final-head CIと通常mergeはまだ確定していない。sanitized auditに危険なcontrol / lease / quarantine / indeterminate stateは見えていない一方、それはGO evidenceではない。
 
 したがって現時点は**STOP**である。次の有効な前進はlauncher fixを通常mergeし、そのmerge revisionへapplicationを再固定して、source、verifier、approved/current bindingの3つをfreshに通すことである。[機械可読証拠](./data/floodgate-v7-production-native-launcher-nsnumber-fix-2026-07-16.json)も、確定した#482、実行済み準備、失敗したreadiness、sanitized state、未確定のfix deliveryを分けて記録する。

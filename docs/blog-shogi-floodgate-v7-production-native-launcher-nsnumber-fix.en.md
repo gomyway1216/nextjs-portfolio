@@ -117,21 +117,20 @@ There were zero successful source-readiness checks and zero registry provisions,
 
 ## 8. Safe next order
 
-1. Commit this evidence and publish the NSNumber fix as a ready-for-review PR.
-2. Pass every final-head GitHub CI check and review, then integrate it with a regular merge.
-3. Realign the fixed production application worktree to **this fix PR's own merge commit**.
-4. Freshly confirm that the fixed verifier is at `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`.
-5. Run fresh standalone application-source readiness.
-6. Run fresh standalone connector-verifier readiness.
-7. Run fresh standalone approved/current-binding readiness.
-8. Only if all three succeed, have the provisioner freshly recheck them and create-only provision registry V2.
-9. Continue to preserve the stop gates for the kill drill, prefix-100 preflight, and prefix-100 exactly once.
-10. Consider live activation only after teacher generation, retraining, candidate selection, formal A/B, and external calibration establish all safety, quality, strength, and rollback evidence.
+1. Pass every final-head GitHub CI check and review on [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483), then integrate it with a regular merge.
+2. Realign the fixed production application worktree to **this fix PR's own merge commit**.
+3. Freshly confirm that the fixed verifier is at `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`.
+4. Run fresh standalone application-source readiness.
+5. Run fresh standalone connector-verifier readiness.
+6. Run fresh standalone approved/current-binding readiness.
+7. Only if all three succeed, have the provisioner freshly recheck them and create-only provision registry V2.
+8. Continue to preserve the stop gates for the kill drill, prefix-100 preflight, and prefix-100 exactly once.
+9. Consider live activation only after teacher generation, retraining, candidate selection, formal A/B, and external calibration establish all safety, quality, strength, and rollback evidence.
 
 Any failed, stale, quarantined, or indeterminate fresh check means STOP. There is no automatic repair, adoption, overwrite, rotation, retry, or progression to the next gate.
 
 ## 9. Current decision
 
-The NSNumber root cause is reproduced, the fix is pinned to an exact commit, and full local validation plus independent audit pass. The fix PR, final-head CI, and regular merge remain unsettled. The sanitized audit found no dangerous control, lease, quarantine, or indeterminate state, but that is not GO evidence.
+The NSNumber root cause is reproduced, the fix is pinned to an exact commit, and full local validation plus independent audit pass. PR #483 is published ready for review, while final-head CI and regular merge remain unsettled. The sanitized audit found no dangerous control, lease, quarantine, or indeterminate state, but that is not GO evidence.
 
 The current decision is therefore **STOP**. The next valid advance is to regularly merge the launcher fix, repin the application to that merge revision, and freshly pass source, verifier, and approved/current-binding readiness. The [machine-readable evidence](./data/floodgate-v7-production-native-launcher-nsnumber-fix-2026-07-16.json) likewise separates established #482 facts, completed preparation, stopped readiness attempts, sanitized state, and the unresolved fix delivery.

@@ -234,7 +234,6 @@
     "japanese_english_fact_parity": "PASS"
   },
   "safe_next_order": [
-    "commit-evidence-and-open-ready-nsnumber-fix-pull-request",
     "pass-final-head-github-ci-and-review",
     "regularly-merge-fix-pull-request",
     "realign-fixed-production-application-to-this-fix-pull-requests-own-merge-commit",

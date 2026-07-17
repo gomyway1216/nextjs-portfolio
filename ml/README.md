@@ -491,6 +491,13 @@ process-wide scheduler、live取得以降の進捗と途中監査値は
 [日本語run log](../docs/blog-shogi-floodgate-fresh-sibling-run.md) /
 [English run log](../docs/blog-shogi-floodgate-fresh-sibling-run.en.md)へ逐次追記する。
 
+fresh QATは旧WCSC36 verifierを変更せず、exact fresh pathだけを別versionへ送る
+dispatcherまで準備した。現在のtracked registryはexecution plan bytes / SHA-256を
+`null`にして閉じており、実teacher・partition・training artifact identityが完成するまで
+`data-only blocked`で停止する。詳細は
+[日本語binding記事](../docs/blog-shogi-floodgate-fresh-qat-plan-binding.md) /
+[English binding article](../docs/blog-shogi-floodgate-fresh-qat-plan-binding.en.md)を参照。
+
 取得先はGit worktreeと交差しないcanonical absolute pathに限定する。PR #417以降の
 status確認と単一process取得は次のCLIを使う。
 

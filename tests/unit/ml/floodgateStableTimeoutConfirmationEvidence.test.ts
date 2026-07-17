@@ -119,6 +119,62 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
     );
   });
 
+  it("records bounded chronology without claiming a post-merge deployment run", () => {
+    const evidence = JSON.parse(readText(EVIDENCE_PATH));
+    const japanese = readText(JAPANESE_ARTICLE_PATH);
+    const english = readText(ENGLISH_ARTICLE_PATH);
+
+    expect(evidence.execution_chronology).toEqual({
+      exact_start_timestamp_recorded: false,
+      exact_finish_timestamp_recorded: false,
+      final_head_committed_at: "2026-07-17T08:10:33Z",
+      first_evidence_commit: "cdb6fe8455b2bb841a01cee20f8c8d7cd18eeeb9",
+      first_evidence_commit_committed_at: "2026-07-17T08:55:48Z",
+      derived_start_not_before: "2026-07-17T08:10:33Z",
+      derived_start_not_after: "2026-07-17T08:27:23.026Z",
+      derived_finish_not_before: "2026-07-17T08:38:57.974Z",
+      derived_finish_not_after: "2026-07-17T08:55:48Z",
+      run_started_after_merge: false,
+      run_started_before_merge_derived: true,
+      merge_occurred_during_run_derived: true,
+      result_recorded_after_merge: true,
+      merge_second_parent_is_implementation_head: true,
+      merge_tree_matches_implementation_head_tree: true,
+      post_merge_deployment_execution_established: false,
+      basis:
+        "public-final-head-and-first-evidence-commit-times-plus-1704.974-second-measured-duration",
+    });
+    expect(evidence.nonclaims).toMatchObject({
+      run_started_after_merge: false,
+      post_merge_deployment_execution_established: false,
+      exact_start_timestamp_available: false,
+      exact_finish_timestamp_available: false,
+    });
+    const chronology = evidence.execution_chronology;
+    const durationMs = evidence.timing.diagnostic_total_seconds * 1_000;
+    const mergeMs = Date.parse(evidence.source_delivery.merged_at);
+    expect(Date.parse(chronology.derived_start_not_after) + durationMs).toBe(
+      Date.parse(chronology.first_evidence_commit_committed_at),
+    );
+    expect(Date.parse(chronology.derived_start_not_before) + durationMs).toBe(
+      Date.parse(chronology.derived_finish_not_before),
+    );
+    expect(Date.parse(chronology.derived_start_not_after)).toBeLessThan(
+      mergeMs,
+    );
+    expect(Date.parse(chronology.derived_finish_not_before)).toBeGreaterThan(
+      mergeMs,
+    );
+    expect(japanese).toContain("後に通常mergeされたexact final-head bytes");
+    expect(japanese).toContain("post-merge deployment実行とはclaimしない");
+    expect(english).toContain(
+      "exact final-head bytes that were later regular-merged",
+    );
+    expect(english).toContain("no post-merge deployment execution is claimed");
+    expect(japanese).not.toContain("通常mergeした後");
+    expect(english).not.toContain("After PR #485 final head");
+  });
+
   it("states the pool-broadcast nonclaim without assigning a trigger index", () => {
     const evidence = JSON.parse(readText(EVIDENCE_PATH));
     const japanese = readText(JAPANESE_ARTICLE_PATH);
@@ -200,7 +256,7 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
     expect(contractEnglish).toContain(
       "blog-shogi-floodgate-stable-timeout-confirmation.en.md",
     );
-    expect(contractEvidence.merged_code_confirmation).toMatchObject({
+    expect(contractEvidence.final_head_confirmation).toMatchObject({
       evidence_path: "floodgate-stable-timeout-confirmation-2026-07-17.json",
       all_rejections_genuine_failure_kind: "search-timeout",
       all_rejections_timeout_ms: 600000,
@@ -214,7 +270,9 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
       pull_request: 485,
       final_head_github_ci: "PASS",
       regular_merge: "PASS",
-      same_twelve_candidate_rerun_on_merged_code: true,
+      same_twelve_candidate_rerun_on_exact_final_head: true,
+      rerun_started_after_regular_merge: false,
+      post_merge_deployment_execution_established: false,
     });
   });
 });

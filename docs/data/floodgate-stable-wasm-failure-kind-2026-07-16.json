@@ -25,7 +25,7 @@
     "trigger_parent_identified": false,
     "residual_workers": 0
   },
-  "merged_code_confirmation": {
+  "final_head_confirmation": {
     "evidence_path": "floodgate-stable-timeout-confirmation-2026-07-17.json",
     "implementation_head": "6a804a7954a9685361944aeb2be32494638fae2e",
     "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
@@ -115,7 +115,9 @@
     "regular_merge": "PASS",
     "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
     "used_in_production": false,
-    "same_twelve_candidate_rerun_on_merged_code": true
+    "same_twelve_candidate_rerun_on_exact_final_head": true,
+    "rerun_started_after_regular_merge": false,
+    "post_merge_deployment_execution_established": false
   },
   "checkpoint_binding": {
     "source_or_runtime_binding_changes_existing_v3_binding": true,
@@ -148,8 +150,10 @@
     "stable_high_dan_established": false
   },
   "safe_next_order": [
-    "completed-publish-pass-final-head-ci-and-regular-merge-pr-485",
-    "completed-rerun-same-twelve-candidates-read-only-and-confirm-search-timeout-600000ms",
+    "completed-final-head-ci-and-independent-review-pr-485",
+    "completed-start-read-only-rerun-on-exact-final-head-before-regular-merge",
+    "completed-regular-merge-of-the-same-final-head-during-the-rerun",
+    "completed-record-rerun-results-after-regular-merge-and-confirm-search-timeout-600000ms",
     "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers",
     "select-quality-preserving-root-cause-fix-and-use-a-new-run-binding",
     "finish-recovery-inspector-and-human-confirmed-quarantine",

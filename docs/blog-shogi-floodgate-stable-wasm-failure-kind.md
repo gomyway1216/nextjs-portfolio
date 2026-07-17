@@ -1,6 +1,6 @@
 # stable-WASMのpool poisonで失われた原因を安全に保持する
 
-> 最初のdurable prefix-100は1,597秒で停止し、旧codeの同一構成read-only再現では候補12件中7件が0.8〜244.9秒で成功、5件が約600.0秒で同じgeneric pool-poison errorへ落ちた。従来のpoolは最初のworker errorを捨てたため、safe kindは`unknown`、`search-timeout`は時間推定に留まった。今回の変更はraw stderr、PID、index、局面、IDを公開せず、7種類のsafe failure kindとtimeout値だけを最初のworker境界からpool-wide poisonへ保持する。PR #485 final head `6a804a7954a9685361944aeb2be32494638fae2e`は6 / 6 checksを通過して通常mergeされ、merged codeの同一構成read-only再実行では7件成功、5 reject全てがgenuine `search-timeout`、`timeout_ms = 600000`を受け取った。ただし5個別の独立timeoutと最初のtrigger indexは特定していない。English version: [blog-shogi-floodgate-stable-wasm-failure-kind.en.md](./blog-shogi-floodgate-stable-wasm-failure-kind.en.md)
+> 最初のdurable prefix-100は1,597秒で停止し、旧codeの同一構成read-only再現では候補12件中7件が0.8〜244.9秒で成功、5件が約600.0秒で同じgeneric pool-poison errorへ落ちた。従来のpoolは最初のworker errorを捨てたため、safe kindは`unknown`、`search-timeout`は時間推定に留まった。今回の変更はraw stderr、PID、index、局面、IDを公開せず、7種類のsafe failure kindとtimeout値だけを最初のworker境界からpool-wide poisonへ保持する。PR #485 final head `6a804a7954a9685361944aeb2be32494638fae2e`は6 / 6 checksを通過して通常mergeされた。同一構成read-only再実行はそのexact clean final headでmerge前に開始し、merge中も継続したため、後に通常mergeされたfinal-head bytesの確認ではあるが、post-merge deployment実行ではない。7件成功、5 reject全てがgenuine `search-timeout`、`timeout_ms = 600000`を受け取った。ただし5個別の独立timeoutと最初のtrigger indexは特定していない。English version: [blog-shogi-floodgate-stable-wasm-failure-kind.en.md](./blog-shogi-floodgate-stable-wasm-failure-kind.en.md)
 
 ## 1. 結論
 
@@ -71,23 +71,23 @@ runtime wrapperとparent coordinatorは、nested `primary`がgenuine safe error�
 
 ## 6. 検証
 
-| 検査                               | 結果                         |
-| ---------------------------------- | ---------------------------- |
-| stable proposer focused tests      | PASS                         |
-| production stable runtime tests    | PASS                         |
-| production parent coordinator      | PASS                         |
-| focused合計                        | 3 files / 110 tests          |
-| TypeScript                         | PASS                         |
-| changed-file ESLint                | PASS                         |
-| `git diff --check`                 | PASS                         |
-| independent review                 | P0 / P1 / P2 = 0 / 0 / 0     |
-| PR #485 final-head checks          | 6 / 6 PASS                   |
-| regular merge                      | PASS                         |
-| merged-code read-only confirmation | 7 fulfilled / 5 safe rejects |
+| 検査                                    | 結果                         |
+| --------------------------------------- | ---------------------------- |
+| stable proposer focused tests           | PASS                         |
+| production stable runtime tests         | PASS                         |
+| production parent coordinator           | PASS                         |
+| focused合計                             | 3 files / 110 tests          |
+| TypeScript                              | PASS                         |
+| changed-file ESLint                     | PASS                         |
+| `git diff --check`                      | PASS                         |
+| independent review                      | P0 / P1 / P2 = 0 / 0 / 0     |
+| PR #485 final-head checks               | 6 / 6 PASS                   |
+| regular merge                           | PASS                         |
+| exact-final-head read-only confirmation | 7 fulfilled / 5 safe rejects |
 
 テストはsearch / startup timeout、worker exit、transport、protocol、validation、unknown、Proxy、forgery、accessor、active / queued / future identity、全child reap、runtime / coordinatorのraw-canary非公開を含む。
 
-merged codeの[専用確認記事](./blog-shogi-floodgate-stable-timeout-confirmation.md)は、入力認証・整列1,103.693秒、runtime初期化0.165秒、成功7件の実測、約600秒のreject 5件、parent peak RSS 6,781.5 MiB、runtime close、残存worker 0、全persistent-state mutation counter 0を別証拠として記録する。
+後に通常mergeされたexact final headの[専用確認記事](./blog-shogi-floodgate-stable-timeout-confirmation.md)は、入力認証・整列1,103.693秒、runtime初期化0.165秒、成功7件の実測、約600秒のreject 5件、parent peak RSS 6,781.5 MiB、runtime close、残存worker 0、全persistent-state mutation counter 0を別証拠として記録する。runはmerge前に開始しており、post-merge deployment実行は未確定である。
 
 ## 7. nonclaims
 
@@ -105,7 +105,7 @@ merged codeの[専用確認記事](./blog-shogi-floodgate-stable-timeout-confirm
 ## 8. 安全な次の順序
 
 1. PR #485のfinal-head CI、独立review、通常mergeを完了する（完了）
-2. merge済みcodeで同じ12候補をread-only再実行し、最初のsafe failure kindとtimeout値を取得する（完了）
+2. exact final headで同じ12候補をread-only再実行し、最初のsafe failure kindとtimeout値を取得する（完了。run開始は通常merge前）
 3. 4 / 6 / 8 / 12 workersでtail latency、timeout、throughputを比較する
 4. playing-quality contractを保った修正を選び、変更後run bindingを新runとして扱う
 5. recovery inspectorとhuman-confirmed quarantineを完成し、現在のstale lease / partial checkpointを別authorityで解決する
@@ -114,6 +114,6 @@ merged codeの[専用確認記事](./blog-shogi-floodgate-stable-timeout-confirm
 
 ## 9. 現時点の判断
 
-pool poisonが捨てていたtrigger原因をprivate情報を増やさず保持する変更は、実装、検証、PR #485 final-head CI、通常merge、認証済み実データによる12候補read-only確認まで完了した。最初のpool poison safe kindは`search-timeout`、timeout値は600,000 msと確認できた。ただしpool broadcastで5 rejectが同じgenuine safe metadataを受けたのであり、5件が個別にtimeoutしたことや最初のtrigger indexは確定していない。
+pool poisonが捨てていたtrigger原因をprivate情報を増やさず保持する変更は、実装、検証、PR #485 final-head CI、通常merge、認証済み実データによるexact-final-head 12候補read-only確認まで完了した。runは通常merge前に開始し、merge中も継続したので、post-merge deployment実行とはclaimしない。最初のpool poison safe kindは`search-timeout`、timeout値は600,000 msと確認できた。ただしpool broadcastで5 rejectが同じgenuine safe metadataを受けたのであり、5件が個別にtimeoutしたことや最初のtrigger indexは確定していない。
 
-timeout自体、最適worker数、既存partial state、教師data、棋力は未解決なので、productionは引き続き**STOP**である。[機械可読証拠](./data/floodgate-stable-wasm-failure-kind-2026-07-16.json)は安全境界とmerged-code confirmationを分け、[専用実測証拠](./data/floodgate-stable-timeout-confirmation-2026-07-17.json)は時間、resource、cleanup、zero mutation、nonclaimを記録する。
+timeout自体、最適worker数、既存partial state、教師data、棋力は未解決なので、productionは引き続き**STOP**である。[機械可読証拠](./data/floodgate-stable-wasm-failure-kind-2026-07-16.json)は安全境界とfinal-head confirmationを分け、[専用実測証拠](./data/floodgate-stable-timeout-confirmation-2026-07-17.json)は導出した時系列境界、実測、resource、cleanup、zero mutation、nonclaimを記録する。

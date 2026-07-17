@@ -18,6 +18,25 @@
     "final_head_checks_passed": 6,
     "unresolved_review_threads": 0
   },
+  "execution_chronology": {
+    "exact_start_timestamp_recorded": false,
+    "exact_finish_timestamp_recorded": false,
+    "final_head_committed_at": "2026-07-17T08:10:33Z",
+    "first_evidence_commit": "cdb6fe8455b2bb841a01cee20f8c8d7cd18eeeb9",
+    "first_evidence_commit_committed_at": "2026-07-17T08:55:48Z",
+    "derived_start_not_before": "2026-07-17T08:10:33Z",
+    "derived_start_not_after": "2026-07-17T08:27:23.026Z",
+    "derived_finish_not_before": "2026-07-17T08:38:57.974Z",
+    "derived_finish_not_after": "2026-07-17T08:55:48Z",
+    "run_started_after_merge": false,
+    "run_started_before_merge_derived": true,
+    "merge_occurred_during_run_derived": true,
+    "result_recorded_after_merge": true,
+    "merge_second_parent_is_implementation_head": true,
+    "merge_tree_matches_implementation_head_tree": true,
+    "post_merge_deployment_execution_established": false,
+    "basis": "public-final-head-and-first-evidence-commit-times-plus-1704.974-second-measured-duration"
+  },
   "execution_boundary": {
     "mode": "same-configuration-read-only-stable-proposal-diagnostic",
     "fixed_node_version": "v22.13.0",
@@ -115,6 +134,10 @@
     "live_activations": 0
   },
   "nonclaims": {
+    "run_started_after_merge": false,
+    "post_merge_deployment_execution_established": false,
+    "exact_start_timestamp_available": false,
+    "exact_finish_timestamp_available": false,
     "all_five_rejections_independently_timed_out": false,
     "first_trigger_worker_identified": false,
     "first_trigger_input_index_identified": false,

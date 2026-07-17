@@ -21,9 +21,9 @@
   },
   "source_base": {
     "branch_base": "origin/main",
-    "commit": "040f61ad6b44c6accb0db68375ec66877c021f17",
-    "tree": "3630df561f25d3d222f77ba650cddd97728071d9",
-    "committed_at": "2026-07-17T04:25:52-07:00"
+    "commit": "398b6d20dbe9b2de4648e77424c2a15820f15dec",
+    "tree": "f9aa0ed71f3fb722ce4e08c8a49993a512fe3e40",
+    "committed_at": "2026-07-17T05:28:13-07:00"
   },
   "runtime_exports": {
     "schema": "shogi-floodgate-stable-wasm-deadline-diagnostic-v1",

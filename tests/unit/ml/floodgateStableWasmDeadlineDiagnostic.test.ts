@@ -461,7 +461,7 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
         "shogi-floodgate-stable-wasm-deadline-diagnostic-design-evidence-v1",
       evidence_date: "2026-07-17",
       source_base: {
-        commit: "040f61ad6b44c6accb0db68375ec66877c021f17",
+        commit: "398b6d20dbe9b2de4648e77424c2a15820f15dec",
       },
       contract: {
         cooperative_deadline_ms: 600000,

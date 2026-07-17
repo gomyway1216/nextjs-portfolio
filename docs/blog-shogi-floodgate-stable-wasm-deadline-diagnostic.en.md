@@ -92,7 +92,7 @@ The diff is limited to a diagnostic-only worker, a non-operational in-memory cor
 | synthetic isolation / max six / reap      | PASS            |
 | real-data diagnostic runs                 | 0               |
 
-Tests pin the byte count and SHA-256 for nine production-relevant identities from latest main `040f61ad6b44c6accb0db68375ec66877c021f17` and establish that every one remains unchanged.
+Tests pin the byte count and SHA-256 for nine production-relevant identities from latest main `398b6d20dbe9b2de4648e77424c2a15820f15dec` and establish that every one remains unchanged.
 
 ## 8. Current decision and next gate
 

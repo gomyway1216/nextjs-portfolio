@@ -88,18 +88,20 @@
 
 ## 6. 検証と未完gate
 
-non-operational redesign単独では、focused test 5 / 5、TypeScript、changed-file ESLint、Git whitespace checkがPASSした。新しいfinal headのfull test、GitHub CI、独立reviewはまだ必要であり、旧headの結果を代用しない。
+non-operational redesignと証拠更新を含むvalidation head `29b37ec25d5acd334a26d199c2617249f202e932`では、focused test 5 / 5、全167 files / 3,078 tests、production build、TypeScript、changed-file ESLint、format、Git whitespace checkがPASSした。新しいfinal headのGitHub CIと独立reviewはまだ必要であり、旧headの結果を代用しない。
 
-| validation                               | 現在の状態  |
-| ---------------------------------------- | ----------- |
-| non-operational contract focused test    | PASS、5 / 5 |
-| TypeScript                               | PASS        |
-| changed-file ESLint                      | PASS        |
-| Git diff whitespace                      | PASS        |
-| full Vitest on redesign head             | PENDING     |
-| redesigned final-head GitHub CI          | PENDING     |
-| redesigned final-head independent review | PENDING     |
-| regular merge                            | PENDING     |
+| validation                               | 現在の状態                               |
+| ---------------------------------------- | ---------------------------------------- |
+| non-operational contract focused test    | PASS、5 / 5                              |
+| full Vitest                              | PASS、167 files / 3,078 tests / 303.47秒 |
+| production build                         | PASS                                     |
+| TypeScript                               | PASS                                     |
+| format                                   | PASS                                     |
+| changed-file ESLint                      | PASS                                     |
+| Git diff whitespace                      | PASS                                     |
+| redesigned final-head GitHub CI          | PENDING                                  |
+| redesigned final-head independent review | PENDING                                  |
+| regular merge                            | PENDING                                  |
 
 ## 7. 実行していないこと
 

@@ -88,18 +88,20 @@ The five rejections received the first genuine `search-timeout` through pool-wid
 
 ## 6. Validation and open gates
 
-For the non-operational redesign itself, the focused tests passed 5 / 5, as did TypeScript, changed-file ESLint, and the Git whitespace check. The new final head still requires the full suite, GitHub CI, and fresh independent review; old-head results cannot substitute.
+At validation head `29b37ec25d5acd334a26d199c2617249f202e932`, which includes the non-operational redesign and evidence update, the focused tests passed 5 / 5, the full suite passed all 167 files and 3,078 tests, and the production build, TypeScript, changed-file ESLint, formatting, and Git whitespace check passed. The new final head still requires GitHub CI and fresh independent review; old-head results cannot substitute.
 
-| Validation                               | Current state |
-| ---------------------------------------- | ------------- |
-| non-operational contract focused test    | PASS, 5 / 5   |
-| TypeScript                               | PASS          |
-| changed-file ESLint                      | PASS          |
-| Git diff whitespace                      | PASS          |
-| full Vitest on redesign head             | PENDING       |
-| redesigned final-head GitHub CI          | PENDING       |
-| redesigned final-head independent review | PENDING       |
-| regular merge                            | PENDING       |
+| Validation                               | Current state                                  |
+| ---------------------------------------- | ---------------------------------------------- |
+| non-operational contract focused test    | PASS, 5 / 5                                    |
+| full Vitest                              | PASS, 167 files / 3,078 tests / 303.47 seconds |
+| production build                         | PASS                                           |
+| TypeScript                               | PASS                                           |
+| formatting                               | PASS                                           |
+| changed-file ESLint                      | PASS                                           |
+| Git diff whitespace                      | PASS                                           |
+| redesigned final-head GitHub CI          | PENDING                                        |
+| redesigned final-head independent review | PENDING                                        |
+| regular merge                            | PENDING                                        |
 
 ## 7. Work not performed
 

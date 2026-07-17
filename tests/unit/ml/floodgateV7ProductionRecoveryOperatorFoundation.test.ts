@@ -146,6 +146,26 @@ describe("Floodgate v7 non-operational recovery foundation", () => {
       git_object_directory_closure_required: true,
       repository_local_production_issuer_permitted: false,
     });
+    expect(evidence.validation_at_evidence_capture).toMatchObject({
+      validation_head: "29b37ec25d5acd334a26d199c2617249f202e932",
+      non_operational_contract_focused_tests: {
+        status: "PASS",
+        passed: 5,
+        total: 5,
+      },
+      full_vitest: {
+        status: "PASS",
+        files: 167,
+        passed: 3078,
+        total: 3078,
+        max_workers: 4,
+        duration_seconds: 303.47,
+        runtime: "node-v22.13.0",
+      },
+      production_build: "PASS",
+      redesigned_final_head_github_ci: "PENDING",
+      redesigned_final_head_independent_review: "PENDING",
+    });
     for (const article of [japanese, english]) {
       expect(article).toContain("33a1ebee795b16bc38e8b98fb99ad2b31a2544a7");
       expect(article).toContain("UNAVAILABLE / STOP");

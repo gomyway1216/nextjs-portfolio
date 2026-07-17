@@ -1,0 +1,79 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-plan-binding-evidence-v1",
+  "recorded_on": "2026-07-17",
+  "source_base_revision": "4b46fd3761512f38bada4c7c23537a969349a804",
+  "status": "code-ready-data-only-blocked",
+  "historical_wcsc36_contract": {
+    "verifier_source_modified": false,
+    "plan_path": "ml/protocols/wcsc36-int16-aware-plan.json",
+    "plan_bytes": 8152,
+    "plan_sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "fallback_behavior_preserved": true
+  },
+  "fresh_dispatch": {
+    "execution_plan_schema": "shogi-floodgate-fresh-qat-execution-plan-v1",
+    "execution_plan_path": "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan.json",
+    "registered_bytes": null,
+    "registered_sha256": null,
+    "artifact_identities_registered": false,
+    "training_dispatch_ready": false,
+    "next_change_kind": "data-only-exact-plan-and-real-artifact-identities"
+  },
+  "frozen_training": {
+    "initializer": "fixed-warm-model-only",
+    "initializer_sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "epochs": 20,
+    "learning_rate": 0.0001,
+    "selection_path_received": false,
+    "selection_evaluations_during_training": 0,
+    "final_holdout_labels_received": false
+  },
+  "validation": {
+    "python_stdlib_tests": {
+      "passed": 68,
+      "failed": 0
+    },
+    "fresh_verifier_focused_tests": {
+      "passed": 7,
+      "failed": 0
+    },
+    "dispatcher_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "historical_qat_protocol_tests": {
+      "passed": 6,
+      "failed": 0
+    },
+    "preregistered_floodgate_plan_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "py_compile": "pass",
+    "ruff": "pass",
+    "black_new_python_files": "pass",
+    "git_diff_check": "pass"
+  },
+  "scope_boundary": {
+    "real_teacher_or_partition_reads": 0,
+    "real_checkpoint_reads": 0,
+    "torch_training_runs": 0,
+    "fresh_selection_reads": 0,
+    "final_holdout_reads": 0,
+    "production_state_reads": 0,
+    "live_weight_writes": 0,
+    "paired_ab_games": 0,
+    "external_81dojo_games": 0,
+    "playing_strength_evidence": false
+  }
+}

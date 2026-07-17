@@ -283,6 +283,11 @@
     },
     "exact_final_head_safe_failure_kind_confirmation": {
       "evidence_pull_request": 487,
+      "evidence_pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/487",
+      "evidence_pull_request_state": "MERGED",
+      "evidence_pull_request_final_head": "cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff",
+      "evidence_pull_request_merge_commit": "bf643ceedb78c5103019609f7991f1a9f9664fef",
+      "evidence_pull_request_merged_at": "2026-07-17T09:45:33Z",
       "implementation_head": "6a804a7954a9685361944aeb2be32494638fae2e",
       "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
       "exact_start_timestamp_recorded": false,

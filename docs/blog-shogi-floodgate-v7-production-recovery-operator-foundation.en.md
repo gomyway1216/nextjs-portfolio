@@ -10,6 +10,7 @@ This PR is not a recovery operator. It is a **non-operational design contract** 
 | -------------------------------------------- | ------------------------------------------ |
 | foundation delivery                          | PR #486, OPEN / ready for review           |
 | non-operational redesign                     | `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7` |
+| latest `main` integration                    | `beb1dc817b0c2dd2cc6891dca31d64d7b94e7384` |
 | package recovery command                     | absent                                     |
 | repository JXA / native launcher             | absent                                     |
 | production `-r tsx/cjs` preload              | absent                                     |
@@ -69,7 +70,7 @@ Repository code must never mint a production capability except from the opaque o
 
 ## 5. Progress from the same twelve-candidate diagnostic
 
-[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487) separately records the read-only diagnostic of the same twelve candidates on PR #485's exact final head.
+[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487) separately records the read-only diagnostic of the same twelve candidates on PR #485's exact final head. Its final head, `cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff`, entered `main` through regular merge commit `bf643ceedb78c5103019609f7991f1a9f9664fef`.
 
 | Subject                                 | Observation                                                      |
 | --------------------------------------- | ---------------------------------------------------------------- |
@@ -88,7 +89,7 @@ The five rejections received the first genuine `search-timeout` through pool-wid
 
 ## 6. Validation and open gates
 
-At validation head `29b37ec25d5acd334a26d199c2617249f202e932`, which includes the non-operational redesign and evidence update, the focused tests passed 5 / 5, the full suite passed all 167 files and 3,078 tests, and the production build, TypeScript, changed-file ESLint, formatting, and Git whitespace check passed. The new final head still requires GitHub CI and fresh independent review; old-head results cannot substitute.
+At validation head `29b37ec25d5acd334a26d199c2617249f202e932`, which includes the non-operational redesign and evidence update, the focused tests passed 5 / 5, the full suite passed all 167 files and 3,078 tests, and the production build, TypeScript, changed-file ESLint, formatting, and Git whitespace check passed. Latest `main` revision `f1cc9bb9ad80af6916a5a9112f4128b38adc887b` was then integrated through regular merge commit `beb1dc817b0c2dd2cc6891dca31d64d7b94e7384`; the affected Vitest set passed 11 / 11, the Python stdlib suite passed 68 / 68, and the production build, TypeScript, changed-file ESLint, formatting, JSON parse, and Git whitespace check passed again. The new final head still requires GitHub CI and fresh independent review; old-head results cannot substitute.
 
 | Validation                               | Current state                                  |
 | ---------------------------------------- | ---------------------------------------------- |
@@ -99,6 +100,9 @@ At validation head `29b37ec25d5acd334a26d199c2617249f202e932`, which includes th
 | formatting                               | PASS                                           |
 | changed-file ESLint                      | PASS                                           |
 | Git diff whitespace                      | PASS                                           |
+| latest-main affected Vitest              | PASS, 2 files / 11 tests                       |
+| latest-main Python stdlib                | PASS, 68 / 68                                  |
+| latest-main production build             | PASS                                           |
 | redesigned final-head GitHub CI          | PENDING                                        |
 | redesigned final-head independent review | PENDING                                        |
 | regular merge                            | PENDING                                        |

@@ -10,6 +10,7 @@
 | -------------------------------------------- | ------------------------------------------ |
 | foundation delivery                          | PR #486、OPEN / ready for review           |
 | non-operational redesign                     | `33a1ebee795b16bc38e8b98fb99ad2b31a2544a7` |
+| latest `main` integration                    | `beb1dc817b0c2dd2cc6891dca31d64d7b94e7384` |
 | package recovery command                     | なし                                       |
 | repository JXA / native launcher             | なし                                       |
 | `-r tsx/cjs` production preload              | なし                                       |
@@ -69,7 +70,7 @@
 
 ## 5. 同じ12候補の診断で前進した点
 
-[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)は、PR #485のexact final headで同じ12候補をread-only診断した証拠を別管理している。
+[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)は、PR #485のexact final headで同じ12候補をread-only診断した証拠を別管理し、最終head `cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff`を通常のmerge commit `bf643ceedb78c5103019609f7991f1a9f9664fef`で統合済みである。
 
 | 項目                            | 観測                                            |
 | ------------------------------- | ----------------------------------------------- |
@@ -88,7 +89,7 @@
 
 ## 6. 検証と未完gate
 
-non-operational redesignと証拠更新を含むvalidation head `29b37ec25d5acd334a26d199c2617249f202e932`では、focused test 5 / 5、全167 files / 3,078 tests、production build、TypeScript、changed-file ESLint、format、Git whitespace checkがPASSした。新しいfinal headのGitHub CIと独立reviewはまだ必要であり、旧headの結果を代用しない。
+non-operational redesignと証拠更新を含むvalidation head `29b37ec25d5acd334a26d199c2617249f202e932`では、focused test 5 / 5、全167 files / 3,078 tests、production build、TypeScript、changed-file ESLint、format、Git whitespace checkがPASSした。その後、最新`main` `f1cc9bb9ad80af6916a5a9112f4128b38adc887b`を通常のmerge commit `beb1dc817b0c2dd2cc6891dca31d64d7b94e7384`で取り込み、影響範囲Vitest 11 / 11、Python stdlib 68 / 68、production build、TypeScript、changed-file ESLint、format、JSON parse、Git whitespace checkを再度PASSした。新しいfinal headのGitHub CIと独立reviewはまだ必要であり、旧headの結果を代用しない。
 
 | validation                               | 現在の状態                               |
 | ---------------------------------------- | ---------------------------------------- |
@@ -99,6 +100,9 @@ non-operational redesignと証拠更新を含むvalidation head `29b37ec25d5acd3
 | format                                   | PASS                                     |
 | changed-file ESLint                      | PASS                                     |
 | Git diff whitespace                      | PASS                                     |
+| latest-main affected Vitest              | PASS、2 files / 11 tests                 |
+| latest-main Python stdlib                | PASS、68 / 68                            |
+| latest-main production build             | PASS                                     |
 | redesigned final-head GitHub CI          | PENDING                                  |
 | redesigned final-head independent review | PENDING                                  |
 | regular merge                            | PENDING                                  |

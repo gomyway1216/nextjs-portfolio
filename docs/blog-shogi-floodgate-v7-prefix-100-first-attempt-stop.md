@@ -4,7 +4,7 @@
 
 > **2026-07-17更新:** 投影修正の[PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)は、最終head `e9451cb2e3e673ce930f9a40645d1aecb9f8df3f`で全checkとreview対応を完了し、通常のmerge commit `1c5ec24a8c3a9ad9871bef1621034113112396b5`で統合された。ただし、この修正をproduction incident stateに対して実行していない。[PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)の旧recovery入口はgreen CI後の独立監査で循環bootstrapが見つかったため削除され、[非運用の復旧設計契約](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)へ縮小された。package command、JXA、`tsx/cjs` preload、source authorizer、production issuer、CLIは存在せず、固定markerは`UNAVAILABLE / STOP`である。production stateのinspection、reconciliation、retry、cleanup、quarantine、resumeは実装も実行もしていない。
 
-> **同日追加:** 安全なstable-WASM failure kind伝播の[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)も、最終head `6a804a7954a9685361944aeb2be32494638fae2e`で全checkとreview対応を完了し、通常のmerge commit `4b46fd3761512f38bada4c7c23537a969349a804`で統合された。同じ12件のread-only診断はそのexact final headでmerge前に開始し、merge中も継続した。7件が成功し、5 rejectは全てgenuine `search-timeout`、`timeout_ms = 600000`を受けた。ただしこれはpost-merge deployment開始の証拠ではなく、5件の個別timeoutやincident attempt自体のtyped原因を後付けで証明しない。
+> **同日追加:** 安全なstable-WASM failure kind伝播の[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)も、最終head `6a804a7954a9685361944aeb2be32494638fae2e`で全checkとreview対応を完了し、通常のmerge commit `4b46fd3761512f38bada4c7c23537a969349a804`で統合された。同じ12件のread-only診断はそのexact final headでmerge前に開始し、merge中も継続した。7件が成功し、5 rejectは全てgenuine `search-timeout`、`timeout_ms = 600000`を受けた。この証拠を記録した[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)も、最終head `cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff`を通常のmerge commit `bf643ceedb78c5103019609f7991f1a9f9664fef`で統合済みである。ただしこれはpost-merge deployment開始の証拠ではなく、5件の個別timeoutやincident attempt自体のtyped原因を後付けで証明しない。
 
 ## 1. 結論
 
@@ -111,7 +111,7 @@ production checkpoint、lease、registryへ書かず、固定application revisio
 
 したがって「index 3 / 6 / 7 / 9 / 14がすべて個別timeoutした」「特定の1件がtriggerだった」「machine resource不足だった」とはまだclaimしない。[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)はraw stderrや局面を公開せず、worker境界のsafe failure kindとtimeout値をpool-wide poisonまで保持する実装を通常mergeした。
 
-[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)のexact-final-head診断では、12件中7件が0.855〜264.590秒で成功し、残る5件は599.997〜600.003秒でrejectされた。最初のgenuine `search-timeout`、`timeout_ms = 600000`がpool-wide poisonで5 rejectへbroadcastされたことを確認したが、5件の独立timeoutやtrigger indexは確認していない。公開commit時刻と1,704.974秒の実行時間から、run開始はmerge前、mergeはrun中、結果記録はmerge後と導出される。従ってこれは後に通常mergeされたexact final-head bytesの確認であり、post-merge deployment実行でもproduction incident stateの再inspectionでもない。historical incident attemptのclassificationは引き続き`unknown`である。
+通常merge済み[PR #487](https://github.com/gomyway1216/nextjs-portfolio/pull/487)のexact-final-head診断では、12件中7件が0.855〜264.590秒で成功し、残る5件は599.997〜600.003秒でrejectされた。最初のgenuine `search-timeout`、`timeout_ms = 600000`がpool-wide poisonで5 rejectへbroadcastされたことを確認したが、5件の独立timeoutやtrigger indexは確認していない。公開commit時刻と1,704.974秒の実行時間から、run開始はmerge前、mergeはrun中、結果記録はmerge後と導出される。従ってこれは後に通常mergeされたexact final-head bytesの確認であり、post-merge deployment実行でもproduction incident stateの再inspectionでもない。historical incident attemptのclassificationは引き続き`unknown`である。
 
 ## 6. 実行していない変更
 

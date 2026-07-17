@@ -135,6 +135,13 @@ describe("Floodgate v7 non-operational recovery foundation", () => {
       production_cli_available: false,
       source_authorized: false,
     });
+    expect(evidence.candidate_delivery).toMatchObject({
+      latest_main_revision_integrated:
+        "f1cc9bb9ad80af6916a5a9112f4128b38adc887b",
+      latest_main_integration_method: "regular-merge-commit",
+      latest_main_integration_commit:
+        "beb1dc817b0c2dd2cc6891dca31d64d7b94e7384",
+    });
     expect(evidence.future_external_trust_requirements).toMatchObject({
       implemented_by_this_pull_request: false,
       launcher_installed_outside_repository_required: true,
@@ -163,6 +170,26 @@ describe("Floodgate v7 non-operational recovery foundation", () => {
         runtime: "node-v22.13.0",
       },
       production_build: "PASS",
+      latest_main_integration_head: "beb1dc817b0c2dd2cc6891dca31d64d7b94e7384",
+      post_latest_main_affected_validation: {
+        vitest: {
+          status: "PASS",
+          files: 2,
+          passed: 11,
+          total: 11,
+        },
+        python_stdlib: {
+          status: "PASS",
+          passed: 68,
+          total: 68,
+        },
+        production_build: "PASS",
+        typescript_typecheck: "PASS",
+        changed_file_eslint: "PASS",
+        format: "PASS",
+        json_parse: "PASS",
+        git_diff_check: "PASS",
+      },
       redesigned_final_head_github_ci: "PENDING",
       redesigned_final_head_independent_review: "PENDING",
     });
@@ -203,6 +230,11 @@ describe("Floodgate v7 non-operational recovery foundation", () => {
 
     expect(evidence.exact_final_head_read_only_diagnostic).toMatchObject({
       ...chronology,
+      evidence_pull_request_state: "MERGED",
+      evidence_pull_request_final_head:
+        "cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff",
+      evidence_pull_request_merge_commit:
+        "bf643ceedb78c5103019609f7991f1a9f9664fef",
       candidate_count: 12,
       fulfilled_count: 7,
       rejected_count: 5,
@@ -214,6 +246,11 @@ describe("Floodgate v7 non-operational recovery foundation", () => {
       incidentEvidence.root_cause_status
         .exact_final_head_safe_failure_kind_confirmation,
     ).toMatchObject({
+      evidence_pull_request_state: "MERGED",
+      evidence_pull_request_final_head:
+        "cb3fd9697a8d5dfc5402c0a73b2a1e110a6adbff",
+      evidence_pull_request_merge_commit:
+        "bf643ceedb78c5103019609f7991f1a9f9664fef",
       run_started_after_merge: false,
       merge_occurred_during_run_derived: true,
       result_recorded_after_merge: true,

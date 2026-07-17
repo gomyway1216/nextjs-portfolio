@@ -154,8 +154,9 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
       live_evaluator_changed: false,
     });
     expect(evidence.validation_boundary).toMatchObject({
-      xcode_beta_role: "compiler-and-source-test-only",
-      xcode_beta_test_status: "PASS",
+      local_xcode_role: "compiler-and-source-test-only",
+      local_xcode_tests_are_source_level_only: true,
+      local_xcode_test_status: "PASS",
       xcode_version: "15.3",
       xcode_build: "15E5188j",
       swift_tests_status: "PASS",
@@ -191,12 +192,17 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
         json_parse: "PASS",
         git_diff_check: "PASS",
       },
-      xcode_beta_results_counted_as_release_artifact_evidence: false,
+      local_xcode_results_counted_as_release_artifact_evidence: false,
       release_toolchain_compatibility_established: false,
       signed_artifact_evidence_established: false,
       notarized_artifact_evidence_established: false,
       installed_artifact_evidence_established: false,
     });
+    expect(
+      Object.keys(evidence.validation_boundary).filter((key) =>
+        key.startsWith("xcode_beta"),
+      ),
+    ).toEqual([]);
     expect(
       Object.values(evidence.production_counters).every((value) => value === 0),
     ).toBe(true);
@@ -213,5 +219,7 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
     expect(english).toContain(
       "blog-shogi-floodgate-v7-external-trust-root-protocol.md",
     );
+    expect(japanese).not.toContain("Xcode beta");
+    expect(english).not.toContain("Xcode beta");
   });
 });

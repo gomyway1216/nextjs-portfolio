@@ -87,13 +87,13 @@ The protocol can advance toward operation only after all of this evidence exists
 | handoff         | separately from this record protocol: fresh challenge, short expiry, one-shot consumption, replay / substitution / downgrade rejection |
 | inspector       | separate PR, zero arguments, read-only, STOP on mismatch / authentication failure / indeterminate                                      |
 
-Repository unit tests that round-trip protocol values do not substitute for any row in this table. Tests run with an Xcode beta establish only source-level development behavior; they are not evidence for a release binary, signature, notarization, installation, or installed artifact.
+Repository unit tests that round-trip protocol values do not substitute for any row in this table. Tests run with the local Xcode toolchain establish only source-level development behavior; they are not evidence for a release binary, signature, notarization, installation, or installed artifact.
 
 ## 6. How to read validation
 
 The validation allowed in this PR covers pure behavior such as exact 232 / 124-byte lengths, big-endian round trips, collapse of invalid magic / tag / length / trailing bytes to one error, copy isolation for `CanonicalBytes20` / `CanonicalBytes32`, SHA-256 test vectors, and state transitions with fixed errors. It opens no production path and touches no private path, key, or incident value.
 
-The source-level measurements passed. Under Xcode 15.3 build 15E5188j, Apple Swift 5.10 (swiftlang-5.10.0.12.7 clang-1500.3.9.3), targeting `arm64-apple-macosx15.0`, all 14 / 14 Swift tests passed (nine canonical-record tests and five state tests). The final local run after strict hardening built in 0.53 seconds and tested in 0.015 seconds. The repository-side Vitest evidence tests also passed 5 / 5 under Node 22.13.0. The full 169-file / 3,089-test Vitest suite, 68 Python stdlib tests, lint, and the production build passed as well (full lint retains 157 existing warnings outside this change and zero errors). A pass under this Xcode beta establishes only source-level behavior under that beta toolchain. Release-toolchain compatibility, artifact closure, code-signing, notarization, and Gatekeeper acceptance remain unestablished.
+The source-level measurements passed. Under local Xcode 15.3 build 15E5188j, Apple Swift 5.10 (swiftlang-5.10.0.12.7 clang-1500.3.9.3), targeting `arm64-apple-macosx15.0`, all 14 / 14 Swift tests passed (nine canonical-record tests and five state tests). The final local run after strict hardening built in 0.53 seconds and tested in 0.015 seconds. The repository-side Vitest evidence tests also passed 5 / 5 under Node 22.13.0. The full 169-file / 3,089-test Vitest suite, 68 Python stdlib tests, lint, and the production build passed as well (full lint retains 157 existing warnings outside this change and zero errors). A pass under this local Xcode establishes only source-level behavior under that local toolchain. Adoption of a release-artifact toolchain, artifact closure, code-signing, notarization, and Gatekeeper acceptance remain unestablished.
 
 ## 7. Safe next order
 

@@ -2790,7 +2790,7 @@ function buildReusableProposalPool(
           options.searchTimeoutMilliseconds,
         );
       } catch (primary) {
-        poison(normalizeWorkerFailure(primary, "unknown"));
+        poison(primary);
         return;
       }
       reflectApply(nativePromiseThen, searchPromise, [

@@ -64,6 +64,9 @@
   },
   "tracked_input_git_verification": {
     "executable": "/usr/bin/git",
+    "required_object_format": "sha1",
+    "object_id_hex_length": 40,
+    "non_sha1_repository_accepted": false,
     "inherited_path_used": false,
     "inherited_git_dyld_ld_controls_used": false,
     "replace_objects_enabled": false,
@@ -89,11 +92,11 @@
   },
   "validation": {
     "focused_stdlib_tests": {
-      "passed": 30,
+      "passed": 31,
       "failed": 0
     },
     "complete_python_stdlib_suite": {
-      "passed": 100,
+      "passed": 101,
       "failed": 0
     },
     "training_schema_integration": {

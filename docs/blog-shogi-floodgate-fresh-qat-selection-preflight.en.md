@@ -1,6 +1,6 @@
 # Keeping fresh Floodgate QAT selection closed until all three runs are complete
 
-> As of 2026-07-17, real teacher generation, three-seed fresh QAT training, and candidate selection have not started. This change adds a fresh-only preflight that makes the future selection reader unreachable until all three `result.json` and `final.pt` artifacts have passed exact identity and content validation. Every bytes and SHA-256 field in the tracked registry remains `null`. The final holdout, production state, and live weights are unchanged. [日本語版](./blog-shogi-floodgate-fresh-qat-selection-preflight.md)
+> As of 2026-07-17, real teacher generation, three-seed fresh QAT training, and candidate selection have not started. This change adds a fresh-only preflight that makes the future selection reader unreachable until all three `result.json` and `final.pt` artifacts have passed exact identity and content validation. All byte-length and SHA-256 fields in the tracked registry remain `null`. The final holdout, production state, and live weights are unchanged. [日本語版](./blog-shogi-floodgate-fresh-qat-selection-preflight.md)
 
 ## Why this is separate from the WCSC36 audit
 
@@ -65,7 +65,7 @@ ready selection registry
 
 The public preflight API accepts only the exact audit revision. Callers cannot replace its checkpoint loader or model validator; it always uses the fixed Torch loader and strict `DistillNet` validator. The injectable synthetic-test core returns only a plain validated value and cannot issue a guard accepted by the selection reader. Only the public path through the fixed root, fixed Git verifier, fixed byte loader, and fixed model validator can issue that guard.
 
-Tracked selection-registry, training-registry, and plan verification uses fixed `/usr/bin/git`, never a `git` found through `PATH`. It does not inherit `GIT_*`, `DYLD_*`, `LD_*`, or PATH controls, and disables replace objects, grafts, fsmonitor, optional locks, and the untracked cache. It checks exact HEAD, the complete non-ignored status, special index flags such as assume-unchanged and skip-worktree, and the target's HEAD-tree blob plus index mode/object. It independently computes the Git blob ID from the captured real bytes, so a same-size tamper with restored mtime cannot pass. The valid untracked legacy replay component remains outside this tracked-file verifier.
+Tracked selection-registry, training-registry, and plan verification uses fixed `/usr/bin/git`, never a `git` found through `PATH`. It does not inherit `GIT_*`, `DYLD_*`, `LD_*`, or PATH controls, and disables replace objects, grafts, fsmonitor, optional locks, and the untracked cache. The current fresh plan and training protocols deliberately pin 40-hex SHA-1 revisions, so the verifier rejects repositories whose Git object format is not `sha1` and requires 40-hex HEAD, tree, and index object IDs. It checks exact HEAD, the complete non-ignored status, special index flags such as assume-unchanged and skip-worktree, and the target's HEAD-tree blob plus index mode/object. It independently computes the SHA-1 Git blob ID from the captured real bytes, so a same-size tamper with restored mtime cannot pass. The valid untracked legacy replay component remains outside this tracked-file verifier.
 
 Checkpoints are not reopened by path after hashing. The preflight first retains all three immutable byte strings that match the registered identities, then passes those same bytes to Torch through `BytesIO`. A temporary path swap followed by restoration therefore cannot change what is strict-loaded. Results are likewise parsed only from their captured bytes.
 
@@ -93,8 +93,8 @@ Temporary synthetic artifacts verify that:
 
 | Suite | Result |
 | --- | ---: |
-| focused fresh stdlib tests | 30 passed |
-| complete Python stdlib ML suite | 100 passed |
+| focused fresh stdlib tests | 31 passed |
+| complete Python stdlib ML suite | 101 passed |
 | complete Torch ML suite | 74 passed |
 | legacy/fresh emitted-schema integration | 1 passed (one synthetic run each) |
 | related TypeScript tests | 5 passed |

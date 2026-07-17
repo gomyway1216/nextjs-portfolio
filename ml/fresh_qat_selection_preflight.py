@@ -56,7 +56,6 @@ FRESH_QAT_SELECTION_READY_STATUS = (
 )
 GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-GIT_OBJECT_ID_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 FIXED_GIT_EXECUTABLE = "/usr/bin/git"
 FIXED_GIT_ENVIRONMENT = {
     "PATH": "/usr/bin:/bin",
@@ -1116,7 +1115,7 @@ def _verify_tracked_file(
         not isinstance(expected_revision, str)
         or GIT_REVISION_RE.fullmatch(expected_revision) is None
     ):
-        raise ValueError("audit revision must be a lowercase 40-digit Git revision")
+        raise ValueError("audit revision must be a lowercase 40-hex SHA-1 Git revision")
     if type(captured_bytes) is not bytes or not captured_bytes:
         raise ValueError("tracked verification requires captured immutable bytes")
     try:
@@ -1130,7 +1129,9 @@ def _verify_tracked_file(
     ):
         raise ValueError("fixed Git executable is unavailable")
 
-    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    repo_root = os.path.realpath(
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
+    )
     canonical_path = os.path.abspath(path)
     if (
         os.path.realpath(canonical_path) != canonical_path
@@ -1193,9 +1194,12 @@ def _verify_tracked_file(
     initial = capture_git_context()
     top_level = _git_single_line(initial[0], "top-level")
     head = _git_single_line(initial[1], "HEAD")
+    object_format = _git_single_line(initial[6], "object format")
     if top_level != repo_root:
         raise ValueError("fixed Git top-level does not match the repository")
-    if GIT_OBJECT_ID_RE.fullmatch(head) is None or head != expected_revision:
+    if object_format != "sha1":
+        raise ValueError("fresh selection Git object format must be sha1")
+    if GIT_REVISION_RE.fullmatch(head) is None or head != expected_revision:
         raise ValueError("fresh selection audit revision does not match exact HEAD")
     if initial[2]:
         raise ValueError(
@@ -1215,7 +1219,7 @@ def _verify_tracked_file(
         or len(tree_fields) != 4
         or tree_fields[1] != b"blob"
         or tree_fields[0] not in (b"100644", b"100755")
-        or re.fullmatch(rb"[0-9a-f]+", tree_fields[2]) is None
+        or re.fullmatch(rb"[0-9a-f]{40}", tree_fields[2]) is None
         or re.fullmatch(rb"(?:0|[1-9][0-9]*)", tree_fields[3]) is None
     ):
         raise ValueError("fresh selection tracked HEAD entry is invalid")
@@ -1238,12 +1242,6 @@ def _verify_tracked_file(
     ):
         raise ValueError("fresh selection tracked index entry is invalid")
 
-    object_format = _git_single_line(initial[6], "object format")
-    if object_format not in ("sha1", "sha256"):
-        raise ValueError("fresh selection Git object format is invalid")
-    if len(tree_object) != (40 if object_format == "sha1" else 64):
-        raise ValueError("fresh selection tracked object identity is invalid")
-
     try:
         before = os.lstat(canonical_path)
         current_bytes = _read_exact_file(canonical_path, "tracked preflight input")
@@ -1261,10 +1259,7 @@ def _verify_tracked_file(
     ):
         raise ValueError("fresh selection tracked bytes or mode differ from HEAD")
     blob_header = f"blob {len(captured_bytes)}\0".encode("ascii")
-    actual_object = hashlib.new(
-        object_format,
-        blob_header + captured_bytes,
-    ).hexdigest()
+    actual_object = hashlib.sha1(blob_header + captured_bytes).hexdigest()
     if actual_object != tree_object:
         raise ValueError("fresh selection tracked bytes or mode differ from HEAD")
 
@@ -1278,7 +1273,9 @@ def preflight_fresh_qat_selection(
     audit_revision: str,
 ) -> FreshQatSelectionPreflightReceipt:
     """Return a one-shot API guard, or fail before any selection reader exists."""
-    root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    root = os.path.realpath(
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
+    )
     validated = _preflight_fresh_qat_selection(
         repo_root=root,
         tracking_verifier=lambda path, raw: _verify_tracked_file(

@@ -65,7 +65,7 @@ ready selection registry
 
 公開preflight APIが受け取るのはexact audit revisionだけである。checkpoint loaderやmodel validatorは差し替えられず、固定Torch loaderと`DistillNet` strict validatorを使う。synthetic test用の注入可能coreは検証済みplain valueを返すだけで、selection readerが受理するguardを発行できない。guardを発行するのは、固定root、固定Git verifier、固定bytes loader、固定model validatorを通る公開経路だけである。
 
-tracked selection registry、training registry、planの検証には、PATH上の`git`ではなく固定`/usr/bin/git`を使う。継承した`GIT_*`、`DYLD_*`、`LD_*`、PATHを採用せず、replace object、graft、fsmonitor、optional lock、untracked cacheを無効化する。exact HEAD、全non-ignored status、indexのassume-unchanged / skip-worktree等の特殊flagを検査し、対象fileのHEAD tree blob、index mode/object、capture済み実bytesから独立計算したGit blob IDを照合する。同じsize / mtimeへ戻した改変でも通らない。Git管理外が正常な旧legacy replay componentは、従来どおりこのtracked-file verifierへ渡さない。
+tracked selection registry、training registry、planの検証には、PATH上の`git`ではなく固定`/usr/bin/git`を使う。継承した`GIT_*`、`DYLD_*`、`LD_*`、PATHを採用せず、replace object、graft、fsmonitor、optional lock、untracked cacheを無効化する。現行のfresh plan / training protocolは40桁hexのSHA-1 revisionを意図的に固定しているため、Git object formatが`sha1`でないrepositoryを拒否し、HEAD / tree / index object IDにも40桁hexを要求する。exact HEAD、全non-ignored status、indexのassume-unchanged / skip-worktree等の特殊flagを検査し、対象fileのHEAD tree blob、index mode/object、capture済み実bytesから独立計算したSHA-1 Git blob IDを照合する。同じsize / mtimeへ戻した改変でも通らない。Git管理外が正常な旧legacy replay componentは、従来どおりこのtracked-file verifierへ渡さない。
 
 checkpointはhash確認後にpathから読み直さない。登録identityと一致したimmutable bytesを3件とも先に保持し、その同じbytesを`BytesIO`経由でTorchへ渡す。検証中にpathを一時的に別fileへ差し替えて元へ戻しても、strict-load対象をすり替えられない。resultも同じくcapture済みbytesだけをparseする。
 
@@ -93,8 +93,8 @@ guard本体には状態を書けるfieldも`__dict__`もない。未使用状態
 
 | Suite | 結果 |
 | --- | ---: |
-| fresh focused stdlib | 30 pass |
-| Python stdlib ML全体 | 100 pass |
+| fresh focused stdlib | 31 pass |
+| Python stdlib ML全体 | 101 pass |
 | Torch ML全体 | 74 pass |
 | legacy / fresh schema実出力 integration | 1 pass（synthetic run各1） |
 | 関連TypeScript | 5 pass |

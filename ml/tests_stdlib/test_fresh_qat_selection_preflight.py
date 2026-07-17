@@ -490,14 +490,14 @@ def git(root, *arguments, env=None):
     ).stdout
 
 
-def tracked_verifier_fixture(root):
+def tracked_verifier_fixture(root, *, object_format="sha1"):
     module_path = write_bytes(
         root,
         "ml/fresh_qat_selection_preflight.py",
         b"# verifier root anchor\n",
     )
     tracked_path = write_bytes(root, "ml/tracked-registry.json", b'{"ok":true}\n')
-    git(root, "init", "-q")
+    git(root, "init", "-q", f"--object-format={object_format}")
     git(root, "config", "user.name", "Fresh QAT Test")
     git(root, "config", "user.email", "fresh-qat@example.invalid")
     git(root, "add", ".")
@@ -607,6 +607,35 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                     tracked_path.read_bytes(),
                 )
             self.assertFalse(marker.exists())
+
+    def test_fixed_git_requires_sha1_object_format_and_revision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            module_path, tracked_path, revision = tracked_verifier_fixture(
+                root,
+                object_format="sha256",
+            )
+            self.assertEqual(len(revision), 64)
+            with mock.patch.object(
+                PREFLIGHT,
+                "__file__",
+                str(module_path),
+            ), self.assertRaisesRegex(ValueError, "40-hex SHA-1"):
+                PREFLIGHT._verify_tracked_file(
+                    str(tracked_path),
+                    revision,
+                    tracked_path.read_bytes(),
+                )
+            with mock.patch.object(
+                PREFLIGHT,
+                "__file__",
+                str(module_path),
+            ), self.assertRaisesRegex(ValueError, "object format must be sha1"):
+                PREFLIGHT._verify_tracked_file(
+                    str(tracked_path),
+                    revision[:40],
+                    tracked_path.read_bytes(),
+                )
 
     def test_fixed_git_rejects_assume_unchanged_and_skip_worktree(self):
         with tempfile.TemporaryDirectory() as directory:

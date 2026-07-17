@@ -39,7 +39,7 @@ lane request
   -> aggregate histogram only
 ```
 
-1 laneのdeadline・failure・hangは他laneをpoisonしません。外側watchdogは対象childだけをkillし、すべてのchildがcloseしてから集約します。観測peak child数はNodeの成功 `spawn` eventでだけ増やし、そのchildの `close` でだけ減らすため、論理slot数とは混同しません。synthetic testではcomplete、deadline、hang、stderr canaryを同じbatchに置き、最大同時6、他lane継続、全child reap、入力順と完了順に依存しない同一集約を確認しました。非同期spawn failureのnegative testでは観測peakが0です。
+1 laneのdeadline・failure・hangは他laneをpoisonしません。外側watchdogは対象childだけをkillし、すべてのchildがcloseしてから集約します。観測peak child数はNodeの成功 `spawn` eventでだけ増やし、そのchildの `close` でだけ減らすため、論理slot数でも順序不変値でもなく、実行ごとのtiming-sensitiveな実測値です。synthetic testではcomplete、deadline、hang、stderr canaryを同じbatchに置き、実測peak 6、他lane継続、全child reapを確認しました。テストした2通りのsynthetic入力・完了順ではhistogram/count集約が一致しましたが、あらゆる順序で同じだとはclaimしません。非同期spawn failureのnegative testでは観測peakが0です。
 
 ## 4. phaseは断定しすぎない
 

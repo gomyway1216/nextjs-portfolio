@@ -182,7 +182,7 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     ).toBe(1);
   }, 30_000);
 
-  it("isolates complete, deadline, hung, and stderr-canary children and aggregates deterministically", async () => {
+  it("isolates children and matches histogram/count aggregates for two tested permutations", async () => {
     const workerSourceBytes = syntheticIsolationWorker();
     const workerIdentity = {
       bytes: workerSourceBytes.byteLength,
@@ -207,7 +207,27 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     const first = await run(inputs);
     const second = await run([...inputs].reverse());
 
-    expect(first).toEqual(second);
+    const histogramCountAggregate = ({
+      outcome_counts,
+      phase_histogram,
+      completed_depth_histogram,
+      nodes_bucket_histogram,
+      leaves_bucket_histogram,
+      individual_lane_records_returned,
+      partial_iteration_results_adopted,
+    }: typeof first) => ({
+      outcome_counts,
+      phase_histogram,
+      completed_depth_histogram,
+      nodes_bucket_histogram,
+      leaves_bucket_histogram,
+      individual_lane_records_returned,
+      partial_iteration_results_adopted,
+    });
+
+    expect(histogramCountAggregate(first)).toEqual(
+      histogramCountAggregate(second),
+    );
     expect(first.outcome_counts).toEqual({
       complete: 9,
       deadline: 1,
@@ -366,6 +386,8 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
           "deadline-not-crossed-algorithmic-branch-sentinel-only",
         host_callback_boundary_crossing_present_when_max_time_is_1: true,
         shared_tt_enabled: false,
+        observed_peak_parallelism_claim:
+          "timing-sensitive-per-run-measurement-not-claimed-order-invariant",
         partial_iteration_results_adopted: 0,
       },
       operational_state: {
@@ -375,6 +397,9 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       },
       unit_verification: {
         asynchronous_spawn_failure_observed_peak_parallel_children: 0,
+        synthetic_tested_input_and_completion_order_permutation_count: 2,
+        synthetic_two_tested_permutations_same_histogram_count_aggregate:
+          "PASS",
       },
       nonclaims: {
         host_callback_overhead_is_zero: false,

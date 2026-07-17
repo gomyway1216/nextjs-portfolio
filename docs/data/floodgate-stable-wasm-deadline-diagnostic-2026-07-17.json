@@ -46,9 +46,9 @@
     "all_children_reaped_before_aggregate": true,
     "observed_parallel_children_increment_boundary": "successful-node-child-spawn-event-only",
     "observed_parallel_children_decrement_boundary": "close-event-after-successful-spawn-event-only",
+    "observed_peak_parallelism_claim": "timing-sensitive-per-run-measurement-not-claimed-order-invariant",
     "individual_lane_records_returned": 0,
-    "partial_iteration_results_adopted": 0,
-    "completion_order_affects_aggregate": false
+    "partial_iteration_results_adopted": 0
   },
   "phase_contract": {
     "fixed_phase_histogram_order": [
@@ -118,7 +118,8 @@
     "synthetic_complete_deadline_hang_failure_isolation": "PASS",
     "synthetic_maximum_observed_parallel_children": 6,
     "asynchronous_spawn_failure_observed_peak_parallel_children": 0,
-    "synthetic_completion_order_independence": "PASS",
+    "synthetic_tested_input_and_completion_order_permutation_count": 2,
+    "synthetic_two_tested_permutations_same_histogram_count_aggregate": "PASS",
     "synthetic_only_expired_child_killed": "PASS",
     "synthetic_all_children_reaped": "PASS",
     "privacy_canary_absent_from_aggregate": "PASS"

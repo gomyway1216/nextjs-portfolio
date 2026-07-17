@@ -39,7 +39,7 @@ lane request
   -> aggregate histogram only
 ```
 
-A deadline, failure, or hang in one lane never poisons another lane. The outer watchdog kills only the child it guards, and aggregation waits for every child to close. Observed peak children increments only on Node's successful `spawn` event and decrements only on that child's `close`, so it is not a logical-slot count. One synthetic batch combines complete, deadline, hang, and stderr-canary children. It verifies a peak of six, continued sibling work, complete reap, and the same aggregate regardless of input and completion order. A negative asynchronous-spawn-failure test records an observed peak of zero.
+A deadline, failure, or hang in one lane never poisons another lane. The outer watchdog kills only the child it guards, and aggregation waits for every child to close. Observed peak children increments only on Node's successful `spawn` event and decrements only on that child's `close`, so it is a timing-sensitive per-run measurement rather than a logical-slot count or an order-invariant value. One synthetic batch combines complete, deadline, hang, and stderr-canary children. It verifies a measured peak of six, continued sibling work, and complete reap. The two tested synthetic input/completion-order permutations produced the same histogram/count aggregate; this is not a claim about every possible ordering. A negative asynchronous-spawn-failure test records an observed peak of zero.
 
 ## 4. Phase names avoid false precision
 

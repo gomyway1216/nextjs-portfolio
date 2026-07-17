@@ -124,6 +124,13 @@
     "implementation_commit": "dfa295d6bb505652ec4fa39fe9fc71c6205b3834",
     "initial_main_integration_commit": "3a12802acc0a538d22a92b76f7e02669fde61ea3",
     "latest_main_revision_integrated": "4b46fd3761512f38bada4c7c23537a969349a804",
+    "latest_main_integration_commit": "5f22bd14a10b35e09cef39a0cba93f733464dc52",
+    "latest_affected_integration_focused_tests": {
+      "status": "PASS",
+      "files": 6,
+      "passed": 187,
+      "total": 187
+    },
     "branch": "codex/floodgate-v7-recovery-operator",
     "pull_request_state_at_evidence_capture": "NOT-CREATED",
     "operator_contract": "shogi-floodgate-v7-production-recovery-operator-cli-stop-v1",

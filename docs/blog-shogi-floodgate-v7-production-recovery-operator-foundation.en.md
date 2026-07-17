@@ -13,6 +13,7 @@ This is not a change that performs recovery. Before approaching production incid
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                    |
 | initial `main` integration             | regular merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
 | latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                    |
+| latest integration merge               | regular merge `5f22bd14a10b35e09cef39a0cba93f733464dc52`                                                                      |
 | allowed purpose                        | only `inspect-stale-prefix-100`                                                                                               |
 | implemented stage                      | only `stop-entry`                                                                                                             |
 | CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                              |
@@ -72,18 +73,19 @@ The entrypoint does not import the production registry, lease, stage, work, or d
 
 ## 5. Validation
 
-The foundation's focused suite passed 49 / 49 tests. After integration with the latest `main`, including the #484 connector regressions, the combined focused run passed 77 / 77. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
+The foundation's focused suite passed 49 / 49 tests. After the first `main` integration, including the #484 connector regressions, the combined focused run passed 77 / 77. On the latest integration that regularly merged #485, the six affected foundation, projection, and failure-kind files passed 187 / 187 tests. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
 
-| Validation                                 | Result        |
-| ------------------------------------------ | ------------- |
-| foundation unit and source-hardening tests | PASS, 49 / 49 |
-| post-`main` focused regression             | PASS, 77 / 77 |
-| TypeScript typecheck                       | PASS          |
-| changed-file ESLint                        | PASS          |
-| TypeScript / JSON / JXA formatting         | PASS          |
-| production and fixture JXA compile         | PASS          |
-| Git diff whitespace check                  | PASS          |
-| public-artifact privacy scan               | PASS          |
+| Validation                                 | Result          |
+| ------------------------------------------ | --------------- |
+| foundation unit and source-hardening tests | PASS, 49 / 49   |
+| post-`main` focused regression             | PASS, 77 / 77   |
+| latest affected integration regression     | PASS, 187 / 187 |
+| TypeScript typecheck                       | PASS            |
+| changed-file ESLint                        | PASS            |
+| TypeScript / JSON / JXA formatting         | PASS            |
+| production and fixture JXA compile         | PASS            |
+| Git diff whitespace check                  | PASS            |
+| public-artifact privacy scan               | PASS            |
 
 Tests cover fail-closed rejection of a wrong root, arguments, loader, or runtime; replayed attestation; symlinks and hardlinks; dirty tracked source; alternate object stores; proxy arguments; and module-loading bypass patterns. These passes are evidence for the source-entry boundary, not evidence that a production inspector is correct or that recovery is safe.
 

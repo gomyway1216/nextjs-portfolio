@@ -13,6 +13,7 @@
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                |
 | initial `main` integration             | 通常merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
 | latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                |
+| latest integration merge               | 通常merge `5f22bd14a10b35e09cef39a0cba93f733464dc52`                                                                      |
 | allowed purpose                        | `inspect-stale-prefix-100`だけ                                                                                            |
 | implemented stage                      | `stop-entry`だけ                                                                                                          |
 | CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                          |
@@ -72,18 +73,19 @@ entrypointはproduction registry、lease、stage、work、deployment keyをimpor
 
 ## 5. 検証
 
-foundation単独のfocused testは49 / 49、#484のconnector回帰を含む最新`main`統合後は77 / 77がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
+foundation単独のfocused testは49 / 49、#484のconnector回帰を含む最初の`main`統合後は77 / 77がPASSした。さらに#485を通常mergeした最新integrationでは、foundation、projection、failure-kindのaffected 6 files、187 / 187がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
 
-| validation                               | 結果          |
-| ---------------------------------------- | ------------- |
-| foundation unit + source-hardening tests | PASS、49 / 49 |
-| post-`main` focused regression           | PASS、77 / 77 |
-| TypeScript typecheck                     | PASS          |
-| changed-file ESLint                      | PASS          |
-| TypeScript / JSON / JXA formatting       | PASS          |
-| production + fixture JXA compile         | PASS          |
-| Git diff whitespace check                | PASS          |
-| public artifact privacy scan             | PASS          |
+| validation                               | 結果            |
+| ---------------------------------------- | --------------- |
+| foundation unit + source-hardening tests | PASS、49 / 49   |
+| post-`main` focused regression           | PASS、77 / 77   |
+| latest affected integration regression   | PASS、187 / 187 |
+| TypeScript typecheck                     | PASS            |
+| changed-file ESLint                      | PASS            |
+| TypeScript / JSON / JXA formatting       | PASS            |
+| production + fixture JXA compile         | PASS            |
+| Git diff whitespace check                | PASS            |
+| public artifact privacy scan             | PASS            |
 
 testは、wrong root / argv / loader / runtime、replayed attestation、symlink / hardlink、dirty tracked source、alternate object store、proxy argv、module-load bypass patternをfail-closedで拒否する境界を含む。これらのPASSはsource入口の証拠であり、production inspectorの正しさや復旧可能性の証拠ではない。
 

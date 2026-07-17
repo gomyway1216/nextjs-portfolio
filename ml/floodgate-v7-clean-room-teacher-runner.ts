@@ -210,8 +210,10 @@ export interface FloodgateV7CleanRoomTeacherPreparationReceipt {
     readonly copy_by_value_revalidated: true;
     readonly parallel_tree_materializations: 4;
     readonly file_copy_concurrency_per_tree: typeof FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY;
-    readonly maximum_parallel_file_copies_during_tree_phase: 32;
-    readonly first_failure_stops_new_file_scheduling: true;
+    readonly maximum_parallel_copy_core_file_workers: 32;
+    readonly git_clone_internal_io_bounded_by_copy_worker_counter: false;
+    readonly first_failure_stops_new_file_scheduling_within_failing_tree: true;
+    readonly first_failure_globally_cancels_other_trees_or_clone: false;
     readonly started_parallel_operations_drained_before_return: true;
     readonly per_file_fsync_used: false;
     readonly accepted_verifier_materialized_without_local_hardlinks: true;
@@ -834,8 +836,11 @@ function preparationReceipt(
       parallel_tree_materializations: 4 as const,
       file_copy_concurrency_per_tree:
         FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY,
-      maximum_parallel_file_copies_during_tree_phase: 32 as const,
-      first_failure_stops_new_file_scheduling: true as const,
+      maximum_parallel_copy_core_file_workers: 32 as const,
+      git_clone_internal_io_bounded_by_copy_worker_counter: false as const,
+      first_failure_stops_new_file_scheduling_within_failing_tree:
+        true as const,
+      first_failure_globally_cancels_other_trees_or_clone: false as const,
       started_parallel_operations_drained_before_return: true as const,
       per_file_fsync_used: false as const,
       accepted_verifier_materialized_without_local_hardlinks: true as const,

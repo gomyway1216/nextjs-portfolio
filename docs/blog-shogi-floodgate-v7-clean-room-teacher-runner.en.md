@@ -38,7 +38,7 @@ Before copying, the implementation inventories every entry and retains directory
 
 The copy uses neither a generic `copyFile` operation nor a filesystem clone. It creates fresh inodes through `O_NOFOLLOW | O_EXCL`, transfers bytes with explicit read/write loops, and normalizes destination modes to `0600/0700`. A complete second inventory proves an unchanged source, byte identity, one destination link, and no source/destination inode alias. Receipts disclose neither paths nor digests.
 
-Because the raw lock contains many small files, each tree now uses a fixed pool of eight file-copy workers. Four trees materialize concurrently, so the tree phase has an upper bound of 32 concurrent file copies. Once the first failure is observed, no new file is scheduled; every already-started operation settles before failure returns. The partial namespace is preserved for manual reconciliation instead of being automatically deleted.
+Because the raw lock contains many small files, each tree now uses a fixed pool of eight file-copy workers. Four trees materialize concurrently, so the copy cores have a combined limit of 32 file workers. Internal I/O from the concurrently running Git verifier clone is not counted or bounded by that counter; 32 is not a bound on all filesystem writes. Once a tree observes its first failure, only that tree stops scheduling new files and drains its started workers. This does not globally cancel the other three trees or the Git clone; the overall failure waits for all five materializations to settle. The partial namespace is preserved for manual reconciliation instead of being automatically deleted.
 
 Per-file `fsync` is not used. The copy receipt does not claim crash durability after power loss, and an existing namespace is never reused as success. Rehashing proves content identity before the process reports success; recovery after a machine crash needs a separate recovery contract.
 
@@ -56,7 +56,7 @@ Only metadata was aggregated; private bytes were not published.
 | Unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | Maximum source file | Below 1 GiB |
 | Accepted verifier | Exact `e8a9197`, clean, 1,431 tracked files |
-| Independent-clone smoke | PASS, 2,414.419 ms, temporary clone removed |
+| Independent-clone smoke | PASS, 4,313.462 ms, temporary clone removed |
 | Capacity preflight | PASS |
 | Minimum free space to fix in PR2 | 20 GiB |
 

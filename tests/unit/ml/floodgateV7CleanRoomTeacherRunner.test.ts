@@ -306,8 +306,11 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
         copy_by_value_revalidated: true,
         parallel_tree_materializations: 4,
         file_copy_concurrency_per_tree: 8,
-        maximum_parallel_file_copies_during_tree_phase: 32,
-        first_failure_stops_new_file_scheduling: true,
+        maximum_parallel_copy_core_file_workers: 32,
+        git_clone_internal_io_bounded_by_copy_worker_counter: false,
+        first_failure_stops_new_file_scheduling_within_failing_tree:
+          true,
+        first_failure_globally_cancels_other_trees_or_clone: false,
         started_parallel_operations_drained_before_return: true,
         per_file_fsync_used: false,
         full_role_bundle_verifier_passed: true,

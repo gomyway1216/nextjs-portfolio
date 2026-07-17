@@ -38,7 +38,7 @@
 
 コピーには汎用`copyFile`やfilesystem cloneを使いません。`O_NOFOLLOW | O_EXCL`で新規inodeを作り、read/write loopで内容を移し、destinationを`0600/0700`へ正規化します。完了後にsourceとdestinationをもう一度全走査し、source不変、byte identity、single link、source/destination inode非共有を確認します。receiptにpathやdigestは出しません。
 
-raw lockは小さいfileが多いため、tree内のfile copyを固定8 workerへ変更しました。4 treeは並行materializeするのでtree phaseの上限は32 file copyです。最初の失敗後は新しいfileをscheduleせず、すでに始まったoperationをすべてsettleさせてから失敗を返します。途中namespaceは自動削除せず、手動reconciliationが必要な証拠として保持します。
+raw lockは小さいfileが多いため、tree内のfile copyを固定8 workerへ変更しました。4 treeは並行materializeするため、copy coreの合成上限は32 file workerです。同時実行するverifierのGit clone内部I/Oはこのcounterへ含まれず、32という値で全filesystem writeをboundする主張ではありません。あるtreeで最初の失敗を観測した後は、そのtreeだけが新しいfileをscheduleせず、すでに始まったworkerをdrainします。他の3 treeやGit cloneをglobal cancelする主張はなく、5本すべてがsettleしてから全体失敗を返します。途中namespaceは自動削除せず、手動reconciliationが必要な証拠として保持します。
 
 per-file `fsync`は使いません。このcopy receiptはpower loss後のcrash durabilityをclaimせず、既存namespaceを成功として再利用しません。processが成功を返す前の内容同一性は再hashで確認しますが、machine crash後の再開は別のrecovery contractが必要です。
 
@@ -56,7 +56,7 @@ private bytesは公開せず、metadataだけを集計しました。
 | unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | maximum source file | 1 GiB未満 |
 | accepted verifier | exact `e8a9197`, clean, tracked 1,431 |
-| independent clone smoke | PASS、2,414.419 ms、一時clone削除済み |
+| independent clone smoke | PASS、4,313.462 ms、一時clone削除済み |
 | capacity preflight | PASS |
 | PR2で固定するminimum free space | 20 GiB |
 

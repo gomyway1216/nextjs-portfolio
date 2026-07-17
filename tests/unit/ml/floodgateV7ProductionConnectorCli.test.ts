@@ -95,6 +95,11 @@ function runEntry(
     | "success"
     | "bad-success"
     | "typed-failure"
+    | "outer-lock-before-invocation"
+    | "outer-lock-after-invocation"
+    | "outer-lock-mixed"
+    | "outer-lock-wrong-retry"
+    | "outer-lock-nested"
     | "postflight-failure"
     | "inconsistent-typed"
     | "proxy-typed"
@@ -200,6 +205,36 @@ Module._load = function (request, parent, isMain) {
       if (capability !== applicationCapability) throw new Error(privateCanary);
       if (${JSON.stringify(mode)} === "unknown") throw new Error(privateCanary);
       if (${JSON.stringify(mode)} === "typed-failure") throw new RunnerError(gate);
+      if (${JSON.stringify(mode)}.startsWith("outer-lock-")) {
+        const error = new RunnerError(gate);
+        error.phase = "outer-gate-lock";
+        error.connector_phase = null;
+        error.connector_retry_disposition = null;
+        if (${JSON.stringify(mode)} === "outer-lock-before-invocation") {
+          error.connector_invoked = false;
+          error.checkpoint_may_have_persisted = false;
+          error.retry_disposition = "operator-reconciliation-required";
+        } else if (${JSON.stringify(mode)} === "outer-lock-after-invocation") {
+          error.connector_invoked = true;
+          error.checkpoint_may_have_persisted = true;
+          error.retry_disposition = "checkpoint-reconciliation-required";
+        } else if (${JSON.stringify(mode)} === "outer-lock-mixed") {
+          error.connector_invoked = true;
+          error.checkpoint_may_have_persisted = false;
+          error.retry_disposition = "operator-reconciliation-required";
+        } else if (${JSON.stringify(mode)} === "outer-lock-wrong-retry") {
+          error.connector_invoked = false;
+          error.checkpoint_may_have_persisted = false;
+          error.retry_disposition = "checkpoint-reconciliation-required";
+        } else {
+          error.connector_invoked = false;
+          error.checkpoint_may_have_persisted = false;
+          error.retry_disposition = "operator-reconciliation-required";
+          error.connector_phase = "checkpoint";
+          error.connector_retry_disposition = "checkpoint-reconciliation-required";
+        }
+        throw error;
+      }
       if (${JSON.stringify(mode)} === "postflight-failure") {
         const error = new RunnerError(gate);
         error.phase = "exact-prefix-100-postflight";
@@ -423,6 +458,70 @@ describe("Floodgate v7 production connector CLI", () => {
       success_receipt_issued: false,
     });
   });
+
+  it.each([
+    {
+      mode: "outer-lock-before-invocation",
+      connectorInvoked: false,
+      checkpointMayHavePersisted: false,
+      retryDisposition: "operator-reconciliation-required",
+    },
+    {
+      mode: "outer-lock-after-invocation",
+      connectorInvoked: true,
+      checkpointMayHavePersisted: true,
+      retryDisposition: "checkpoint-reconciliation-required",
+    },
+  ] as const)(
+    "projects the valid $mode failure shape",
+    ({
+      mode,
+      connectorInvoked,
+      checkpointMayHavePersisted,
+      retryDisposition,
+    }) => {
+      const result = runEntry(ENTRY_CASES[0].path, mode);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).not.toContain(PRIVATE_CANARY);
+      expect(JSON.parse(result.stderr)).toMatchObject({
+        gate: "durable-prefix-100",
+        phase: "outer-gate-lock",
+        connector_invoked: connectorInvoked,
+        checkpoint_may_have_persisted: checkpointMayHavePersisted,
+        retry_disposition: retryDisposition,
+        connector_phase: null,
+        connector_retry_disposition: null,
+        raw_connector_receipt_disclosed: false,
+        success_receipt_issued: false,
+      });
+    },
+  );
+
+  it.each([
+    "outer-lock-mixed",
+    "outer-lock-wrong-retry",
+    "outer-lock-nested",
+  ] as const)(
+    "maps the invalid %s metadata to the conservative generic failure",
+    (mode) => {
+      const result = runEntry(ENTRY_CASES[0].path, mode);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).not.toContain(PRIVATE_CANARY);
+      expect(JSON.parse(result.stderr)).toMatchObject({
+        gate: "durable-prefix-100",
+        phase: "runner",
+        connector_invoked: true,
+        checkpoint_may_have_persisted: true,
+        retry_disposition: "checkpoint-reconciliation-required",
+        connector_phase: null,
+        connector_retry_disposition: null,
+        raw_connector_receipt_disclosed: false,
+        success_receipt_issued: false,
+      });
+    },
+  );
 
   it("projects a typed prefix-100 postflight failure without private anchor data", () => {
     const result = runEntry(ENTRY_CASES[0].path, "postflight-failure");

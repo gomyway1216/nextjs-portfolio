@@ -1,7 +1,9 @@
 /**
  * Deterministic, test-only composition of all three Floodgate v7 connector
- * gates. This module intentionally has no production capability, filesystem,
- * network, child-process, dataset, training, or live-activation boundary.
+ * gates. It performs only the shared read-only current-EUID home exclusion
+ * check needed to keep its synthetic lease in the test realm; it has no
+ * production capability, persistent filesystem mutation, network,
+ * child-process, dataset, training, or live-activation boundary.
  */
 
 import { Buffer } from "node:buffer";
@@ -36,17 +38,18 @@ import {
   type FloodgateV7ProductionCheckpointConnectorOptions,
   type FloodgateV7ProductionCheckpointConnectorReceipt,
 } from "./floodgate-v7-production-checkpoint-connector";
+import { registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests } from "./floodgate-teacher-stage-authorization";
 
 export const FLOODGATE_V7_OFFLINE_CONNECTOR_GATE_RUNNER_SCHEMA =
   "shogi-floodgate-v7-offline-connector-gate-contract-composition-v1" as const;
 export const FLOODGATE_V7_OFFLINE_CONNECTOR_GATE_RUNNER_STATUS =
-  "complete-fixed-in-memory-three-gate-test-only-contract-composition" as const;
+  "complete-fixed-synthetic-three-gate-test-only-contract-composition-with-read-only-home-exclusion" as const;
 export const FLOODGATE_V7_OFFLINE_CONNECTOR_GATE_RUNNER_CLAIM_BOUNDARY =
-  "fixed-in-memory-test-only-approved-enrollment-and-connector-core-contract-composition-for-100-500-24000-gates-with-closed-synthetic-lifecycles-and-pathless-summaries-not-production-filesystem-continuity-dataset-training-live-or-strength-evidence" as const;
+  "fixed-synthetic-test-only-approved-enrollment-and-connector-core-contract-composition-for-100-500-24000-gates-with-read-only-current-euid-production-home-exclusion-closed-synthetic-lifecycles-and-pathless-summaries-not-production-filesystem-continuity-dataset-training-live-or-strength-evidence" as const;
 export const FLOODGATE_V7_OFFLINE_CONNECTOR_GATE_RUNNER_TRUST_BOUNDARY =
-  "trusted-current-process-js-realm-captured-intrinsics-and-imported-test-only-core-seams-with-fixed-synthetic-metadata-v1" as const;
+  "trusted-current-process-js-realm-captured-intrinsics-current-euid-userinfo-home-read-only-existing-ancestor-resolution-and-imported-test-only-core-seams-with-fixed-synthetic-metadata-v2" as const;
 export const FLOODGATE_V7_OFFLINE_CONNECTOR_GATE_RUNNER_EXECUTION_BOUNDARY =
-  "test-only-fixed-in-memory-no-production-capability-composition" as const;
+  "test-only-fixed-synthetic-read-only-current-euid-home-exclusion-no-production-capability-composition" as const;
 
 type OfflineGate =
   "durable-prefix-100" | "durable-prefix-500" | "sealed-final-24000";
@@ -257,6 +260,8 @@ const SYNTHETIC_ROLE_LOCK_ROOT = `${SYNTHETIC_PATH_ROOT}/role-lock`;
 const SYNTHETIC_ROLE_BUNDLE_ROOT = `${SYNTHETIC_PATH_ROOT}/role-bundle`;
 const SYNTHETIC_PROTECTED_IDS_PATH = `${SYNTHETIC_REPOSITORY_ROOT}/ml/protocols/wcsc36-policy-exposed-parent-ids.txt`;
 const SYNTHETIC_PUBLICATION_PARENT = `${SYNTHETIC_PATH_ROOT}/publication`;
+const SYNTHETIC_STAGE_ROOT = `${SYNTHETIC_PUBLICATION_PARENT}/floodgate-v7-${RUN_ID}-stage`;
+const SYNTHETIC_DESTINATION_ROOT = `${SYNTHETIC_PUBLICATION_PARENT}/floodgate-v7-${RUN_ID}-final`;
 const SYNTHETIC_ENGINE_BIN = `${SYNTHETIC_PATH_ROOT}/assets/engine/yaneuraou`;
 const SYNTHETIC_ENGINE_RECEIPT = `${SYNTHETIC_PATH_ROOT}/assets/engine/receipt.json`;
 const SYNTHETIC_EVAL_DIR = `${SYNTHETIC_PATH_ROOT}/assets/eval`;
@@ -886,8 +891,11 @@ function connectorDependencies(
   });
   const lease = frozenRecord({
     receipt: stageReceipt,
+    stageRoot: SYNTHETIC_STAGE_ROOT,
+    destinationRoot: SYNTHETIC_DESTINATION_ROOT,
     close: closeLease,
   });
+  registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(lease);
   let preparedRunBinding: unknown;
   let preparedRunBindingPlan: unknown;
   let preparedRunBindingControl: unknown;

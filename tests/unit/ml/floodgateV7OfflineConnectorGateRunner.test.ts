@@ -17,6 +17,7 @@ import {
   runFloodgateV7OfflineConnectorGateContractComposition,
 } from "../../../ml/floodgate-v7-offline-connector-gate-runner";
 import * as connectorModule from "../../../ml/floodgate-v7-production-checkpoint-connector";
+import { registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests } from "../../../ml/floodgate-teacher-stage-authorization";
 
 const REPOSITORY_ROOT = path.resolve(
   fileURLToPath(new URL("../../../", import.meta.url)),
@@ -585,10 +586,10 @@ describe("Floodgate v7 offline connector gate runner", () => {
             return new NativePromise((resolve, reject) => {
               nativeReflectApply(nativePromiseThen, source, [
                 (lease: Awaited<typeof source>) =>
-                  resolve(
-                    (() => {
+                  (() => {
+                    try {
                       originalLease = lease;
-                      return Object.freeze({
+                      const instrumentedLease = Object.freeze({
                         ...lease,
                         close: Object.freeze(() => {
                           recordLifecycle("lease-close");
@@ -612,8 +613,14 @@ describe("Floodgate v7 offline connector gate runner", () => {
                           });
                         }),
                       });
-                    })(),
-                  ),
+                      registerSyntheticFloodgateTeacherStageLeaseTestRealmCoreForTests(
+                        instrumentedLease,
+                      );
+                      resolve(instrumentedLease);
+                    } catch (error) {
+                      reject(error);
+                    }
+                  })(),
                 reject,
               ]);
             });
@@ -1113,7 +1120,7 @@ describe("Floodgate v7 offline connector gate runner source boundary", () => {
     expect(parsed.gates).toHaveLength(3);
   });
 
-  it("reports zero unexpected enumerated application API calls while loader reads, realpaths, config, Worker, geteuid/userInfo, and parent IPC stay nonzero", () => {
+  it("reports zero unexpected application API calls while exact loader and read-only test-isolation boundary calls stay counted", () => {
     const script = `
 const fs = require("node:fs");
 const os = require("node:os");
@@ -1149,8 +1156,61 @@ const exactConfigPaths = new Set([
   typescriptPackagePath,
 ]);
 const runnerPath = ${JSON.stringify(RUNNER_SOURCE_PATH)};
+const syntheticPathRoot = "/offline-floodgate-v7-contract-fixture";
+const boundaryUserInfo = os.userInfo();
+const requestedProductionHome = path.resolve(boundaryUserInfo.homedir);
+const canonicalProductionHome = fs.realpathSync.native(requestedProductionHome);
+const syntheticFilesystemRoot = path.parse(syntheticPathRoot).root;
+if (fs.existsSync(syntheticPathRoot)) {
+  throw new Error("fixed synthetic test-boundary root unexpectedly exists");
+}
+const exactSyntheticBoundaryLeafInspectionCounts = new Map([
+  [syntheticPathRoot + "/repository", 6],
+  [syntheticPathRoot + "/repository/ml/protocols/wcsc36-policy-exposed-parent-ids.txt", 6],
+  [syntheticPathRoot + "/raw-lock", 6],
+  [syntheticPathRoot + "/role-lock", 6],
+  [syntheticPathRoot + "/role-bundle", 6],
+  [syntheticPathRoot + "/publication", 3],
+  [syntheticPathRoot + "/publication/floodgate-v7-" + ${JSON.stringify("12".repeat(32))} + "-stage", 6],
+  [syntheticPathRoot + "/publication/floodgate-v7-" + ${JSON.stringify("12".repeat(32))} + "-final", 6],
+  [syntheticPathRoot + "/assets/engine/yaneuraou", 3],
+  [syntheticPathRoot + "/assets/engine/receipt.json", 3],
+  [syntheticPathRoot + "/assets/eval", 3],
+]);
+const expectedSyntheticBoundaryPathInspectionCounts = new Map();
+for (const [leaf, inspectionCount] of exactSyntheticBoundaryLeafInspectionCounts) {
+  let cursor = leaf;
+  for (;;) {
+    expectedSyntheticBoundaryPathInspectionCounts.set(
+      cursor,
+      (expectedSyntheticBoundaryPathInspectionCounts.get(cursor) || 0) + inspectionCount,
+    );
+    if (cursor === syntheticPathRoot) break;
+    cursor = path.dirname(cursor);
+    if (
+      cursor !== syntheticPathRoot &&
+      !cursor.startsWith(syntheticPathRoot + path.sep)
+    ) {
+      throw new Error("fixed synthetic boundary leaf escaped its root");
+    }
+  }
+}
+const exactSyntheticBoundaryPaths = new Set(
+  expectedSyntheticBoundaryPathInspectionCounts.keys(),
+);
 const traps = [];
 const allowedLoaderCalls = [];
+const allowedTestBoundaryCalls = Object.assign(Object.create(null), {
+  "current-euid": 0,
+  "current-user-info": 0,
+  "production-home-realpath": 0,
+  "production-home-stat": 0,
+  "synthetic-realpath": 0,
+  "synthetic-lstat": 0,
+  "root-ancestor-realpath": 0,
+  "root-ancestor-stat": 0,
+});
+const observedSyntheticBoundaryPathInspectionCounts = new Map();
 let phase = "loader";
 function exactRepositorySourceCandidate(value) {
   if (typeof value !== "string") return false;
@@ -1218,11 +1278,116 @@ function classifyObservedLoaderCall(api, args) {
   }
   return null;
 }
+function exactBigIntStatOptions(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    Reflect.ownKeys(value).join("\\n") === "bigint" &&
+    value.bigint === true
+  );
+}
+function exactSyntheticBoundaryPath(value) {
+  return (
+    typeof value === "string" &&
+    path.resolve(value) === value &&
+    exactSyntheticBoundaryPaths.has(value)
+  );
+}
+function classifyObservedTestBoundaryCall(api, args) {
+  if (phase !== "execution") return null;
+  const value = args[0];
+  if (
+    api === "geteuid" &&
+    args.length === 0 &&
+    hasEffectiveUserIdApi
+  ) {
+    return "current-euid";
+  }
+  if (api === "os.userInfo" && args.length === 0) {
+    return "current-user-info";
+  }
+  if (
+    api === "fs.realpathSync.native" &&
+    args.length === 1 &&
+    value === requestedProductionHome
+  ) {
+    return "production-home-realpath";
+  }
+  if (
+    api === "statSync" &&
+    args.length === 2 &&
+    value === canonicalProductionHome &&
+    exactBigIntStatOptions(args[1])
+  ) {
+    return "production-home-stat";
+  }
+  if (
+    api === "fs.realpathSync.native" &&
+    args.length === 1 &&
+    exactSyntheticBoundaryPath(value)
+  ) {
+    return "synthetic-realpath";
+  }
+  if (
+    api === "lstatSync" &&
+    args.length === 2 &&
+    exactSyntheticBoundaryPath(value) &&
+    exactBigIntStatOptions(args[1])
+  ) {
+    return "synthetic-lstat";
+  }
+  if (
+    api === "fs.realpathSync.native" &&
+    args.length === 1 &&
+    value === syntheticFilesystemRoot
+  ) {
+    return "root-ancestor-realpath";
+  }
+  if (
+    api === "statSync" &&
+    args.length === 2 &&
+    value === syntheticFilesystemRoot &&
+    exactBigIntStatOptions(args[1])
+  ) {
+    return "root-ancestor-stat";
+  }
+  return null;
+}
 function trap(object, key, allowObservedLoaderCall, api = key) {
   const descriptor = Object.getOwnPropertyDescriptor(object, key);
   if (descriptor === undefined || typeof descriptor.value !== "function") return;
   const original = descriptor.value;
   const trapped = function trappedApplicationOperation(...args) {
+    const testBoundaryClassification = classifyObservedTestBoundaryCall(
+      api,
+      args,
+    );
+    if (testBoundaryClassification !== null) {
+      allowedTestBoundaryCalls[testBoundaryClassification] += 1;
+      if (
+        testBoundaryClassification === "synthetic-realpath" ||
+        testBoundaryClassification === "synthetic-lstat"
+      ) {
+        const input = args[0];
+        let counts = observedSyntheticBoundaryPathInspectionCounts.get(input);
+        if (counts === undefined) {
+          counts = Object.assign(Object.create(null), {
+            realpath: 0,
+            lstat: 0,
+          });
+          observedSyntheticBoundaryPathInspectionCounts.set(input, counts);
+        }
+        counts[
+          testBoundaryClassification === "synthetic-realpath"
+            ? "realpath"
+            : "lstat"
+        ] += 1;
+      }
+      if (new.target !== undefined) {
+        return Reflect.construct(original, args, original);
+      }
+      return Reflect.apply(original, this, args);
+    }
     const classification = allowObservedLoaderCall
       ? classifyObservedLoaderCall(api, args)
       : null;
@@ -1330,7 +1495,7 @@ function trap(object, key, allowObservedLoaderCall, api = key) {
     value: trapped,
   });
 }
-trap(fs.realpathSync, "native", false);
+trap(fs.realpathSync, "native", false, "fs.realpathSync.native");
 trap(fs.realpath, "native", false);
 for (const key of [
   "openSync", "readSync", "readvSync", "readFileSync", "writeSync",
@@ -1668,6 +1833,69 @@ function validatedAllowedLoaderSummary() {
   }
   return { summary, workerOptions };
 }
+function validatedTestBoundarySummary() {
+  const expectedSummary = Object.assign(Object.create(null), {
+    "current-euid": 9,
+    "current-user-info": 9,
+    "production-home-realpath": 9,
+    "production-home-stat": 9,
+    "synthetic-realpath": 153,
+    "synthetic-lstat": 153,
+    "root-ancestor-realpath": 54,
+    "root-ancestor-stat": 54,
+  });
+  const expectedKeys = Reflect.ownKeys(expectedSummary);
+  if (
+    Reflect.ownKeys(allowedTestBoundaryCalls).join("\\n") !==
+    expectedKeys.map(String).join("\\n")
+  ) {
+    throw new Error("test-boundary allowance shape changed");
+  }
+  for (const key of expectedKeys) {
+    if (
+      typeof key !== "string" ||
+      allowedTestBoundaryCalls[key] !== expectedSummary[key]
+    ) {
+      throw new Error("test-boundary allowance count changed for " + key);
+    }
+  }
+  const expectedSyntheticPaths = Array.from(
+    expectedSyntheticBoundaryPathInspectionCounts.keys(),
+  ).sort();
+  const observedSyntheticPaths = Array.from(
+    observedSyntheticBoundaryPathInspectionCounts.keys(),
+  ).sort();
+  if (expectedSyntheticPaths.join("\\n") !== observedSyntheticPaths.join("\\n")) {
+    throw new Error("test-boundary synthetic path multiset shape changed");
+  }
+  let expectedSyntheticCallsPerApi = 0;
+  for (const syntheticPath of expectedSyntheticPaths) {
+    const expectedCount = expectedSyntheticBoundaryPathInspectionCounts.get(
+      syntheticPath,
+    );
+    const observedCounts = observedSyntheticBoundaryPathInspectionCounts.get(
+      syntheticPath,
+    );
+    if (
+      !Number.isSafeInteger(expectedCount) ||
+      expectedCount <= 0 ||
+      observedCounts === undefined ||
+      Reflect.ownKeys(observedCounts).join("\\n") !== "realpath\\nlstat" ||
+      observedCounts.realpath !== expectedCount ||
+      observedCounts.lstat !== expectedCount
+    ) {
+      throw new Error(
+        "test-boundary synthetic path multiset count changed for " +
+          syntheticPath,
+      );
+    }
+    expectedSyntheticCallsPerApi += expectedCount;
+  }
+  if (expectedSyntheticCallsPerApi !== 153) {
+    throw new Error("test-boundary synthetic path accounting changed");
+  }
+  return allowedTestBoundaryCalls;
+}
 (async () => {
   try {
     require("tsx/cjs");
@@ -1692,6 +1920,7 @@ function validatedAllowedLoaderSummary() {
     phase = "execution";
     const receipt = await runner.runFloodgateV7OfflineConnectorGateContractComposition();
     const allowedLoader = validatedAllowedLoaderSummary();
+    const allowedTestBoundary = validatedTestBoundarySummary();
     process.stdout.write(JSON.stringify({
       unexpected_enumerated_application_public_api_call_count: traps.length,
       unexpected_enumerated_application_public_api_calls: traps,
@@ -1711,6 +1940,7 @@ function validatedAllowedLoaderSummary() {
         "exact-tsx-parent-ipc-Socket-connect",
       ],
       validated_loader_infrastructure_call_summary: allowedLoader.summary,
+      validated_test_isolation_boundary_call_summary: allowedTestBoundary,
       worker_options: allowedLoader.workerOptions,
     }) + "\\n");
   } catch (error) {
@@ -1734,6 +1964,9 @@ function validatedAllowedLoaderSummary() {
       readonly boundary: string;
       readonly validated_loader_infrastructure: readonly string[];
       readonly validated_loader_infrastructure_call_summary: Readonly<
+        Record<string, number>
+      >;
+      readonly validated_test_isolation_boundary_call_summary: Readonly<
         Record<string, number>
       >;
       readonly worker_options: Readonly<Record<string, unknown>>;
@@ -1769,6 +2002,16 @@ function validatedAllowedLoaderSummary() {
         "tsx-parent-ipc-pipe": 1,
         "tsx-parent-ipc-socket-connect": 1,
       },
+      validated_test_isolation_boundary_call_summary: {
+        "current-euid": 9,
+        "current-user-info": 9,
+        "production-home-realpath": 9,
+        "production-home-stat": 9,
+        "synthetic-realpath": 153,
+        "synthetic-lstat": 153,
+        "root-ancestor-realpath": 54,
+        "root-ancestor-stat": 54,
+      },
       worker_options: {
         keys: ["workerData", "transferList", "execArgv"],
         worker_data_keys: ["workerPort", "defaultWD", "esbuildVersion"],
@@ -1789,5 +2032,10 @@ function validatedAllowedLoaderSummary() {
         "require-cache-source-realpath"
       ],
     ).toBeGreaterThan(0);
+    expect(
+      Object.values(
+        parsed.validated_test_isolation_boundary_call_summary,
+      ).reduce((total, count) => total + count, 0),
+    ).toBe(450);
   });
 });

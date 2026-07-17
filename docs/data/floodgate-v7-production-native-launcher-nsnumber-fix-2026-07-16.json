@@ -1,0 +1,282 @@
+{
+  "schema": "shogi-floodgate-v7-production-native-launcher-nsnumber-fix-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.md",
+    "english": "../blog-shogi-floodgate-v7-production-native-launcher-nsnumber-fix.en.md"
+  },
+  "scope": {
+    "description": "post-pr482-production-native-launcher-foundation-nsnumber-conversion-finding-and-fix-candidate",
+    "operational_decision": "STOP",
+    "production_ready": false,
+    "playing_strength_evidence_created": false
+  },
+  "operator_readiness_delivery": {
+    "pull_request_number": 482,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/482",
+    "github_checks_passed": 6,
+    "github_checks_total": 6,
+    "merge_method": "regular-merge-commit",
+    "state": "merged",
+    "merge_commit": "52d73dd5a82de2ca508da2aee664326c47acc5d2"
+  },
+  "production_preparation": {
+    "fixed_application_worktree_initial_state": "absent",
+    "fixed_application_worktree_created": true,
+    "fixed_application_worktree_head_mode": "detached",
+    "fixed_application_worktree_aligned_revision": "52d73dd5a82de2ca508da2aee664326c47acc5d2",
+    "fixed_verifier_previous_revision": "b086243",
+    "fixed_verifier_aligned_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "application_dependencies_installed": true,
+    "dependency_install_node_version": "v22.13.0",
+    "dependency_install_npm_version": "11.14.1",
+    "dependency_install_command_class": "npm-ci-ignore-scripts",
+    "dependency_install_scripts_executed": false,
+    "ignored_or_untracked_dependency_byte_closure_verified": false
+  },
+  "first_source_readiness_attempts": {
+    "successful_attempts": 0,
+    "attempts": [
+      {
+        "invocation": "npm-package-script",
+        "outcome": "STOPPED-before-authorization",
+        "exit_code": 70
+      },
+      {
+        "invocation": "direct-osascript",
+        "outcome": "STOPPED-before-authorization",
+        "exit_code": 70
+      }
+    ],
+    "attested_child_authorization_reached": false,
+    "source_readiness_core_reached": false,
+    "approved_current_binding_check_reached": false,
+    "sanitized_failure_only": true
+  },
+  "root_cause": {
+    "platform": "darwin",
+    "runtime": "javascript-for-automation-with-foundation-bridge",
+    "finding": "foundation-nsnumber-required-explicit-objc-unwrapping-before-safe-integer-conversion-on-this-host",
+    "direct_number_conversion": {
+      "input": "NSFilePosixPermissions-NSNumber",
+      "result": "NaN"
+    },
+    "unwrapped_number_conversion": {
+      "input": "ObjC.unwrap-NSFilePosixPermissions-value",
+      "result": 493,
+      "safe_integer": true,
+      "matches_exact_observed_file_mode": true
+    },
+    "source_dirty_established": false,
+    "owner_or_mode_invalid_established": false,
+    "approved_current_binding_mismatch_established": false
+  },
+  "fix_candidate": {
+    "helper": "integerValue",
+    "ordered_conversion": [
+      "ObjC.unwrap-foundation-numeric-value",
+      "require-javascript-number-type",
+      "require-Number.isSafeInteger",
+      "return-integer-or-fail-closed-before-authorization"
+    ],
+    "call_sites": [
+      "ns-file-posix-permissions",
+      "current-process-parent-pid",
+      "child-task-termination-status"
+    ],
+    "darwin_runtime_regression_added": true,
+    "darwin_runtime_regression_scope": "read-real-foundation-file-mode-and-process-identifier-then-launch-usr-bin-true-and-validate-unwrapped-number-typed-safe-integer-permission-pid-and-termination-status-while-rejecting-numeric-string-boolean-and-nsnull",
+    "darwin_runtime_regression_final_result": "PASS-1-file-23-tests",
+    "exact_commit": "49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a",
+    "pull_request_number": 483,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/483",
+    "final_local_validation": "PASS",
+    "independent_review": "PASS-P0-P1-P2-zero",
+    "github_ci": "PENDING",
+    "regular_merge": "PENDING"
+  },
+  "sanitized_read_only_state_audit": {
+    "fresh_observation": true,
+    "read_only_metadata_only": true,
+    "private_values_disclosed": false,
+    "path_disclosed": false,
+    "numeric_user_identity_disclosed": false,
+    "key_identity_disclosed": false,
+    "digest_disclosed": false,
+    "private_record_value_disclosed": false,
+    "production_registry": "absent",
+    "human_approved_record": "present-metadata-only",
+    "current_key": "present-metadata-only",
+    "control_state": "absent",
+    "active_lease": "absent",
+    "quarantine_state": "absent",
+    "indeterminate_state": "absent",
+    "approved_current_exact_eight_field_binding": "NOT-ESTABLISHED",
+    "atime_invariance_claimed": false,
+    "go_evidence": false,
+    "decision": "NOT-GO-STOP"
+  },
+  "authorization_and_mutation_boundary": {
+    "application_source_authorization_issued": false,
+    "registry_authority_issued": false,
+    "gate_authority_issued": false,
+    "reconciliation_authority_issued": false,
+    "child_authorization_executions": 0,
+    "production_registry_provisions": 0,
+    "registry_adoptions": 0,
+    "registry_overwrites": 0,
+    "registry_rotations": 0,
+    "control_namespace_mutations": 0,
+    "durable_lease_publications": 0,
+    "quarantine_mutations": 0,
+    "indeterminate_state_mutations": 0
+  },
+  "production_execution": {
+    "production_application_worktree_creations": 1,
+    "production_application_alignments": 1,
+    "production_verifier_alignments": 1,
+    "production_dependency_installs": 1,
+    "successful_production_source_readiness_checks": 0,
+    "successful_production_connector_verifier_readiness_checks": 0,
+    "successful_production_approved_current_binding_readiness_checks": 0,
+    "production_registry_provisions": 0,
+    "production_kill_drills": 0,
+    "production_prefix_100_preflights": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels_finalized": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "runop1_changed": false,
+    "live_weight_changed": false,
+    "playing_strength_evaluated": false,
+    "playing_strength_improvement_claimed": false,
+    "stable_high_dan_claimed": false
+  },
+  "validation": {
+    "root_cause_host_diagnostic": "PROVED",
+    "pr482_checks_reused_as_fix_candidate_validation": false,
+    "exact_implementation_revision": "49e93e8284c3b3fc24fe6eadee1b7c327d95eb5a",
+    "focused_darwin_launcher": {
+      "status": "PASS",
+      "test_files": 1,
+      "tests": 23
+    },
+    "full_vitest": {
+      "status": "PASS",
+      "test_files": 166,
+      "tests": 3058,
+      "vitest_seconds": 337.77,
+      "wall_seconds": 338.24,
+      "max_workers": 8,
+      "maximum_resident_set_bytes": 2348466176,
+      "swaps": 0,
+      "block_input_operations": 0,
+      "block_output_operations": 0
+    },
+    "production_build": {
+      "status": "PASS",
+      "pages_built": 193,
+      "pages_total": 193,
+      "wall_seconds": 38.26,
+      "maximum_resident_set_bytes": 2565996544,
+      "swaps": 0,
+      "block_input_operations": 0,
+      "block_output_operations": 0
+    },
+    "typescript": {
+      "status": "PASS",
+      "wall_seconds": 3.65,
+      "maximum_resident_set_bytes": 1164427264
+    },
+    "full_eslint": {
+      "status": "PASS",
+      "errors": 0,
+      "existing_warnings": 157,
+      "wall_seconds": 28.4,
+      "maximum_resident_set_bytes": 1470316544
+    },
+    "ml_stdlib": {
+      "status": "PASS",
+      "tests": 58,
+      "wall_seconds": 0.42,
+      "maximum_resident_set_bytes": 64618496
+    },
+    "npm_audit": {
+      "status": "PASS",
+      "vulnerabilities": 0,
+      "wall_seconds": 0.56,
+      "maximum_resident_set_bytes": 133251072
+    },
+    "osacompile": "PASS",
+    "prettier_changed_files": "PASS",
+    "independent_final_audit": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "fix_candidate_final_local_validation": "PASS",
+    "fix_candidate_final_head_github_ci": "PENDING",
+    "fix_candidate_regular_merge": "PENDING",
+    "evidence_json_parse": "PASS",
+    "article_format": "PASS",
+    "japanese_english_fact_parity": "PASS"
+  },
+  "safe_next_order": [
+    "pass-final-head-github-ci-and-review",
+    "regularly-merge-fix-pull-request",
+    "realign-fixed-production-application-to-this-fix-pull-requests-own-merge-commit",
+    "freshly-confirm-fixed-verifier-e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "run-fresh-standalone-application-source-readiness",
+    "run-fresh-standalone-connector-verifier-readiness",
+    "run-fresh-standalone-approved-current-binding-readiness",
+    "provisioner-freshly-rechecks-all-three-and-create-only-provisions-registry-v2",
+    "run-reviewed-kill-drill-and-fresh-prefix-100-preflight",
+    "run-prefix-100-exactly-once-then-stop-for-independent-review-and-informed-human-approval",
+    "continue-teacher-training-selection-formal-ab-and-external-calibration-under-stop-gates",
+    "consider-live-only-after-safety-quality-strength-and-rollback-evidence"
+  ],
+  "stop_conditions": {
+    "failed_fresh_check": "STOP-no-retry-no-next-gate",
+    "stale_state": "STOP-no-retry-no-next-gate",
+    "quarantined_state": "STOP-no-retry-no-next-gate",
+    "indeterminate_state": "STOP-no-retry-no-next-gate",
+    "automatic_repair": false,
+    "automatic_adopt_overwrite_or_rotation": false
+  },
+  "nonclaims": {
+    "fix_pull_request_known": true,
+    "fix_exact_commit_known": true,
+    "fix_final_validation_complete": true,
+    "fix_merged": false,
+    "production_go": false,
+    "registry_created": false,
+    "source_readiness_successful": false,
+    "approved_current_binding_established": false,
+    "native_tool_byte_closure_verified": false,
+    "atomic_process_lineage_snapshot": false,
+    "same_uid_or_ancestor_hostile_process_isolation": false,
+    "ignored_untracked_dependency_bytes_verified": false,
+    "atime_invariance_claimed": false,
+    "reconciliation_authority_claimed": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

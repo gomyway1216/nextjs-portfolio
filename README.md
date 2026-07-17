@@ -38,3 +38,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Project Notes
 
 - Shogi AI implementation details: `SHOGI_AI_IMPROVEMENTS.md`
+- Bilingual everyday-technology article drafts: `docs/everyday-tech-series.md`

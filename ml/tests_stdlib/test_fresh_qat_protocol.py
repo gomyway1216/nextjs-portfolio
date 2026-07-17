@@ -312,6 +312,24 @@ class FreshQatProtocolTests(unittest.TestCase):
                 b'{"status":"one","status":"two"}',
                 "synthetic duplicate registry",
             )
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            rewrite_plan(
+                fixture,
+                lambda plan: plan["training"].__setitem__("replay_ratio", True),
+            )
+            with self.assertRaisesRegex(ValueError, "warm-only final"):
+                self.verify_fixture(fixture)
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory))
+            rewrite_plan(
+                fixture,
+                lambda plan: plan["selection"].__setitem__(
+                    "evaluations_per_checkpoint", True
+                ),
+            )
+            with self.assertRaisesRegex(ValueError, "post-training selection"):
+                self.verify_fixture(fixture)
 
     def test_registry_requires_exact_schema_path_and_consistent_state(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -445,6 +463,18 @@ class FreshQatProtocolTests(unittest.TestCase):
         self.assertIsNone(registry["plan"]["sha256"])
         self.assertFalse(registry["artifact_identities_registered"])
         self.assertFalse(registry["training_dispatch_ready"])
+        args = SimpleNamespace(
+            experiment_plan=str(
+                REPO_ROOT / FRESH.FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH
+            ),
+            pipeline_revision="a" * 40,
+        )
+        with self.assertRaisesRegex(ValueError, "data-only blocked"):
+            FRESH.verify_fresh_qat_experiment_plan(
+                args,
+                {},
+                tracking_verifier=lambda *_: None,
+            )
 
 
 if __name__ == "__main__":

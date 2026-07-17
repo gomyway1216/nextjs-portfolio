@@ -162,6 +162,21 @@ def _valid_sha256(value: Any) -> bool:
     return isinstance(value, str) and LOWER_SHA256_RE.fullmatch(value) is not None
 
 
+def _typed_equal(value: Any, expected: Any) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        return set(value) == set(expected) and all(
+            _typed_equal(value[key], expected[key]) for key in expected
+        )
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _typed_equal(item, expected_item)
+            for item, expected_item in zip(value, expected)
+        )
+    return value == expected
+
+
 def _require_file_identity(value: Any, label: str) -> None:
     _exact_keys(value, {"bytes", "sha256"}, label)
     if type(value["bytes"]) is not int or value["bytes"] < 1:
@@ -320,7 +335,7 @@ def _validate_plan_shape(plan: dict[str, Any]) -> None:
         "sha256": FRESH_QAT_PREREGISTERED_PLAN_SHA256,
         "schema": FRESH_QAT_PREREGISTERED_PLAN_SCHEMA,
     }
-    if preregistered_plan != expected_preregistered_plan:
+    if not _typed_equal(preregistered_plan, expected_preregistered_plan):
         raise ValueError("fresh QAT preregistered plan identity mismatch")
 
     inputs = plan["inputs"]
@@ -353,7 +368,7 @@ def _validate_plan_shape(plan: dict[str, Any]) -> None:
 
     runtime = plan["runtime"]
     _exact_keys(runtime, _RUNTIME_FIELDS, "fresh QAT runtime")
-    if plan["training"] != FRESH_QAT_REQUIRED_TRAINING:
+    if not _typed_equal(plan["training"], FRESH_QAT_REQUIRED_TRAINING):
         raise ValueError("fresh QAT warm-only final training contract mismatch")
     expected_slots = [
         {
@@ -363,9 +378,9 @@ def _validate_plan_shape(plan: dict[str, Any]) -> None:
         }
         for seed in FRESH_QAT_SLOT_ORDER
     ]
-    if plan["slots"] != expected_slots:
+    if not _typed_equal(plan["slots"], expected_slots):
         raise ValueError("fresh QAT slot registry mismatch")
-    if plan["selection"] != FRESH_QAT_REQUIRED_SELECTION:
+    if not _typed_equal(plan["selection"], FRESH_QAT_REQUIRED_SELECTION):
         raise ValueError("fresh QAT post-training selection contract mismatch")
 
 
@@ -448,6 +463,18 @@ def _verify_fresh_qat_experiment_plan(
     if getattr(args, "experiment_family", None) != "int16-aware":
         raise ValueError("fresh QAT experiment family mismatch")
 
+    selected_slot = next(
+        (slot for slot in plan["slots"] if slot["seed"] == args.seed),
+        None,
+    )
+    if selected_slot is None:
+        raise ValueError("fresh QAT seed is not preregistered")
+    expected_output = os.path.realpath(os.path.join(root, selected_slot["output"]))
+    if os.path.realpath(args.out) != expected_output:
+        raise ValueError(
+            f"fresh QAT seed {args.seed} must use output " f"{selected_slot['output']}"
+        )
+
     input_paths = {
         "sibling_teacher_manifest": args.sibling_manifest,
         "validation_partition_manifest": args.validation_partition_manifest,
@@ -485,18 +512,6 @@ def _verify_fresh_qat_experiment_plan(
     for field in ("mps_built", "mps_available", "cuda_available"):
         if type(training_runtime.get(field)) is not bool:
             raise ValueError(f"fresh QAT runtime {field} must be boolean")
-
-    selected_slot = next(
-        (slot for slot in plan["slots"] if slot["seed"] == args.seed),
-        None,
-    )
-    if selected_slot is None:
-        raise ValueError("fresh QAT seed is not preregistered")
-    expected_output = os.path.realpath(os.path.join(root, selected_slot["output"]))
-    if os.path.realpath(args.out) != expected_output:
-        raise ValueError(
-            f"fresh QAT seed {args.seed} must use output " f"{selected_slot['output']}"
-        )
 
     model_training = plan["inputs"]["model_training"]
     contract = {

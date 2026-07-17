@@ -23,7 +23,12 @@ def verify_qat_experiment_plan(
     """Dispatch only the exact fresh path; preserve every old fallback."""
     repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     fresh_path = os.path.join(repo_root, FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH)
-    requested = os.path.realpath(getattr(args, "experiment_plan", ""))
+    plan_argument = getattr(args, "experiment_plan", "")
+    requested = (
+        os.path.realpath(plan_argument)
+        if isinstance(plan_argument, (str, bytes, os.PathLike))
+        else None
+    )
     if requested == fresh_path:
         return verify_fresh_qat_experiment_plan(
             args,

@@ -56,6 +56,11 @@ class QatPlanRegistryTests(unittest.TestCase):
         wcsc36.assert_called_once()
         fresh.assert_not_called()
 
+        result, fresh, wcsc36 = self.dispatch(None)
+        self.assertEqual(result, {"route": "wcsc36"})
+        wcsc36.assert_called_once()
+        fresh.assert_not_called()
+
     def test_historical_constants_remain_exact(self):
         self.assertEqual(
             WCSC36.QAT_PLAN_RELATIVE_PATH,

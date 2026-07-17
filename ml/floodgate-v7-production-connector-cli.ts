@@ -384,6 +384,21 @@ function sanitizedRunnerFailure(
       ) {
         return null;
       }
+    } else if (phase === "outer-gate-lock") {
+      const failedBeforeInvocation =
+        !connectorInvoked &&
+        !checkpointMayHavePersisted &&
+        retryDisposition === "operator-reconciliation-required";
+      const failedAfterInvocation =
+        connectorInvoked &&
+        checkpointMayHavePersisted &&
+        retryDisposition === "checkpoint-reconciliation-required";
+      if (
+        (!failedBeforeInvocation && !failedAfterInvocation) ||
+        !nestedFieldsAreNull
+      ) {
+        return null;
+      }
     } else if (phase === "connector") {
       if (!connectorInvoked) return null;
       if (nestedFieldsAreNull) {

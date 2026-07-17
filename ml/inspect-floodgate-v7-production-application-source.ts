@@ -11,6 +11,7 @@ import {
   captureFloodgateV7ProductionApplicationSourceProvenance,
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
 } from "./floodgate-v7-production-application-source-provenance";
+import { claimFloodgateV7ProductionNativeLauncherAttestation } from "./floodgate-v7-production-native-launcher-attestation";
 
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_READINESS_CONTRACT =
   "shogi-floodgate-v7-production-application-source-readiness-v1" as const;
@@ -265,6 +266,7 @@ async function runCli(): Promise<void> {
     ) {
       throw new FloodgateV7ProductionApplicationSourceReadinessError("capture");
     }
+    claimFloodgateV7ProductionNativeLauncherAttestation(ENTRYPOINT);
     assertFloodgateV7ProductionApplicationEntrypointContext(ENTRYPOINT);
     const receipt =
       await inspectFloodgateV7ProductionApplicationSourceReadiness();

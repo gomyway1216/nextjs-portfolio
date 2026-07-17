@@ -7,6 +7,7 @@
 import { types as nodeUtilTypes } from "node:util";
 
 import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
+import { claimFloodgateV7ProductionNativeLauncherAttestation } from "./floodgate-v7-production-native-launcher-attestation";
 
 export const FLOODGATE_V7_PREFIX_100_PREFLIGHT_CLI_SUCCESS_CONTRACT =
   "shogi-floodgate-v7-production-prefix-100-preflight-cli-success-v3" as const;
@@ -360,6 +361,9 @@ export async function runFloodgateV7ProductionPrefix100PreflightCli(): Promise<v
     ) {
       throw new NativeError("preflight CLI invocation differs");
     }
+    claimFloodgateV7ProductionNativeLauncherAttestation(
+      "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+    );
     assertFloodgateV7ProductionApplicationEntrypointContext(
       "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
     );

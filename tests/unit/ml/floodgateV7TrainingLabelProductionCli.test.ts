@@ -457,7 +457,7 @@ describe("Floodgate v7 training-label production CLI", () => {
     expect(source).toContain("raw_finalizer_receipt_disclosed: false");
   });
 
-  it("publishes the caffeinated fixed production command", async () => {
+  it("publishes the native-attested fixed production command", async () => {
     const packageJson = JSON.parse(
       await fs.promises.readFile(
         path.join(REPOSITORY_ROOT, "package.json"),
@@ -467,7 +467,7 @@ describe("Floodgate v7 training-label production CLI", () => {
     expect(
       packageJson.scripts["shogi:floodgate-v7-training-label-production"],
     ).toBe(
-      "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-training-label-production.ts",
+      '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" training-label-finalization-24000',
     );
   });
 });

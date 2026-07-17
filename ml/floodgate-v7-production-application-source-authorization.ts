@@ -19,6 +19,7 @@ import {
   captureFloodgateV7ProductionApplicationSourceProvenance,
   FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT,
 } from "./floodgate-v7-production-application-source-provenance";
+import { claimFloodgateV7ProductionNativeLauncherAttestation } from "./floodgate-v7-production-native-launcher-attestation";
 
 export const FLOODGATE_V7_PRODUCTION_APPLICATION_EXECUTION_CAPABILITY_CONTRACT =
   "shogi-floodgate-v7-production-application-execution-capability-v2" as const;
@@ -283,6 +284,9 @@ export function authorizeFloodgateV7ProductionApplicationExecution(
       );
     }
     purpose = capturePurpose(purposeValue);
+    claimFloodgateV7ProductionNativeLauncherAttestation(
+      expectedEntrypoint(purpose),
+    );
     assertFloodgateV7ProductionApplicationEntrypointContext(
       expectedEntrypoint(purpose),
     );

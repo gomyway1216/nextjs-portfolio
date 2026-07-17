@@ -38,6 +38,15 @@ function runMockedEntry(mode: "success" | "source-failure") {
 const Module = require("node:module");
 const originalLoad = Module._load;
 Module._load = function(request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-native-launcher-attestation")) {
+    return {
+      claimFloodgateV7ProductionNativeLauncherAttestation(expected) {
+        if (expected !== "ml/inspect-floodgate-v7-production-application-source.ts") {
+          throw new Error(${JSON.stringify(PRIVATE_CANARY)});
+        }
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
     return {
       FLOODGATE_V7_PRODUCTION_APPLICATION_SOURCE_LAYOUT: ${JSON.stringify(SOURCE_LAYOUT)},

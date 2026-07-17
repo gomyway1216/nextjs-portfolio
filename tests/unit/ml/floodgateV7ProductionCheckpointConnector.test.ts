@@ -3238,6 +3238,21 @@ describe("Floodgate v7 production checkpoint connector", () => {
     ).rejects.toMatchObject({ phase: "capture" });
     expect(namespaceFixture.calls.readiness).toBe(0);
 
+    const engineArgumentFixture = makeFixture();
+    await expect(
+      runFloodgateV7ProductionCheckpointConnectorCoreForTests(
+        {
+          ...engineArgumentFixture.options,
+          stageAuthorization: {
+            ...engineArgumentFixture.options.stageAuthorization,
+            engineArgs: [path.join(productionRoot, "engine-option.bin")],
+          },
+        },
+        engineArgumentFixture.dependencies,
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
+    expect(engineArgumentFixture.calls.readiness).toBe(0);
+
     const ownerFixture = makeFixture();
     await expect(
       runFloodgateV7ProductionCheckpointConnectorCoreForTests(

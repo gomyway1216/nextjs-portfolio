@@ -94,6 +94,13 @@ const nonclaimKeys = ${JSON.stringify([
     "playing_strength",
   ])};
 Module._load = function(request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-native-launcher-attestation")) {
+    return {
+      claimFloodgateV7ProductionNativeLauncherAttestation: (entrypoint) => {
+        if (entrypoint !== expectedEntrypoint) throw new Error(canary);
+      },
+    };
+  }
   if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
     return {
       assertFloodgateV7ProductionApplicationEntrypointContext: (entrypoint) => {

@@ -1,0 +1,235 @@
+"use strict";
+
+/*
+ * Darwin-native launch boundary for the eight current Floodgate v7 production
+ * evidence CLIs. /usr/bin/osascript evaluates this tracked source before the
+ * attested production child Node exists. NSTask then starts
+ * /usr/bin/caffeinate with a fixed, minimal child environment; caffeinate
+ * execs the exact Node child and osascript remains its parent. Standard input
+ * is a private one-shot attestation pipe, not operator input.
+ */
+
+ObjC.import("Foundation");
+ObjC.import("Security");
+ObjC.bindFunction("exit", ["void", ["int"]]);
+
+const ATTESTATION_CONTRACT =
+  "shogi-floodgate-v7-production-native-launcher-attestation-v1";
+const PRODUCTION_ROOT_SUFFIX =
+  ".codex/worktrees/shogi-floodgate-v7-production-application";
+const NODE_SUFFIX = ".nvm/versions/node/v22.13.0/bin/node";
+const HELPER_SUFFIX = "ml/helpers/floodgate-v7-production-native-launcher.jxa";
+const PURPOSE_ENTRIES = Object.freeze({
+  "application-source-readiness":
+    "ml/inspect-floodgate-v7-production-application-source.ts",
+  "prefix-100-read-only-preflight":
+    "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+  "prefix-100-disposable-kill-drill":
+    "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
+  "durable-prefix-100":
+    "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+  "durable-prefix-500":
+    "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+  "sealed-final-24000":
+    "ml/run-floodgate-v7-production-connector-final-24000.ts",
+  "training-label-finalization-24000":
+    "ml/run-floodgate-v7-training-label-production.ts",
+  "production-registry-provision":
+    "ml/provision-floodgate-v7-production-connector-registry.ts",
+});
+
+const fileManager = $.NSFileManager.defaultManager;
+const utf8 = $.NSUTF8StringEncoding;
+
+function fail() {
+  try {
+    const data = $(
+      "Floodgate v7 production native launch failed before authorization.\n",
+    ).dataUsingEncoding(utf8);
+    $.NSFileHandle.fileHandleWithStandardError.writeData(data);
+  } finally {
+    $.exit(70);
+  }
+}
+
+function stringValue(value) {
+  return String(ObjC.unwrap(value));
+}
+
+function canonicalPath(value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.indexOf("\u0000") !== -1 ||
+    value.indexOf("\n") !== -1 ||
+    value.indexOf("\r") !== -1
+  ) {
+    fail();
+  }
+  const standardized = stringValue($(value).stringByStandardizingPath);
+  const resolved = stringValue($(standardized).stringByResolvingSymlinksInPath);
+  if (standardized !== value || resolved !== value || value.charAt(0) !== "/") {
+    fail();
+  }
+  return value;
+}
+
+function joinedPath(parent, child) {
+  return canonicalPath(
+    stringValue($(parent).stringByAppendingPathComponent($(child))),
+  );
+}
+
+function pathAttributes(value) {
+  const error = Ref();
+  const attributes = fileManager.attributesOfItemAtPathError($(value), error);
+  if (!attributes) fail();
+  return attributes;
+}
+
+function assertOwnedNonWritablePath(value, expectedType, expectedOwner) {
+  const attributes = pathAttributes(value);
+  const type = stringValue(attributes.objectForKey($.NSFileType));
+  const owner = stringValue(attributes.objectForKey($.NSFileOwnerAccountName));
+  const permissions = Number(attributes.objectForKey($.NSFilePosixPermissions));
+  if (
+    type !== stringValue(expectedType) ||
+    owner !== expectedOwner ||
+    !Number.isSafeInteger(permissions) ||
+    (permissions & 0o022) !== 0
+  ) {
+    fail();
+  }
+}
+
+function exactProcessArguments() {
+  const raw = ObjC.deepUnwrap($.NSProcessInfo.processInfo.arguments);
+  if (!Array.isArray(raw)) fail();
+  return raw.map((value) => String(value));
+}
+
+function randomNonce() {
+  const bytes = $.NSMutableData.dataWithLength(32);
+  if ($.SecRandomCopyBytes($.kSecRandomDefault, 32, bytes.mutableBytes) !== 0) {
+    fail();
+  }
+  const nonce = stringValue(bytes.base64EncodedStringWithOptions(0));
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(nonce)) fail();
+  return nonce;
+}
+
+function launcherConfiguration(arguments_) {
+  if (arguments_.length !== 1) fail();
+  const purpose = String(arguments_[0]);
+  const processArguments = exactProcessArguments();
+  if (
+    processArguments.length !== 5 ||
+    processArguments[0] !== "/usr/bin/osascript" ||
+    processArguments[1] !== "-l" ||
+    processArguments[2] !== "JavaScript" ||
+    processArguments[4] !== purpose
+  ) {
+    fail();
+  }
+
+  const repositoryRoot = canonicalPath(
+    stringValue(fileManager.currentDirectoryPath),
+  );
+  const helperPath = canonicalPath(processArguments[3]);
+  if (joinedPath(repositoryRoot, HELPER_SUFFIX) !== helperPath) fail();
+
+  const userName = stringValue($.NSUserName());
+  const home = canonicalPath(
+    stringValue(fileManager.homeDirectoryForCurrentUser.path),
+  );
+  if (joinedPath(home, PRODUCTION_ROOT_SUFFIX) !== repositoryRoot) {
+    fail();
+  }
+  const entryRelative = PURPOSE_ENTRIES[purpose];
+  if (typeof entryRelative !== "string") fail();
+  const entryPath = joinedPath(repositoryRoot, entryRelative);
+  const nodePath = joinedPath(home, NODE_SUFFIX);
+
+  assertOwnedNonWritablePath(repositoryRoot, $.NSFileTypeDirectory, userName);
+  assertOwnedNonWritablePath(helperPath, $.NSFileTypeRegular, userName);
+  assertOwnedNonWritablePath(entryPath, $.NSFileTypeRegular, userName);
+  const nodeOwner = stringValue(
+    pathAttributes(nodePath).objectForKey($.NSFileOwnerAccountName),
+  );
+  if (nodeOwner !== userName && nodeOwner !== "root") fail();
+  assertOwnedNonWritablePath(nodePath, $.NSFileTypeRegular, nodeOwner);
+  assertOwnedNonWritablePath(
+    "/usr/bin/caffeinate",
+    $.NSFileTypeRegular,
+    "root",
+  );
+  if (!fileManager.isExecutableFileAtPath($(nodePath))) fail();
+  if (!fileManager.isExecutableFileAtPath("/usr/bin/caffeinate")) fail();
+
+  return Object.freeze({
+    purpose,
+    helperPath,
+    repositoryRoot,
+    entryPath,
+    nodePath,
+    home,
+  });
+}
+
+function execute(configuration) {
+  const parentPid = Number($.NSProcessInfo.processInfo.processIdentifier);
+  if (!Number.isSafeInteger(parentPid) || parentPid <= 1) fail();
+  const nonce = randomNonce();
+  const pipe = $.NSPipe.pipe;
+  const task = $.NSTask.alloc.init;
+  const nodeDirectory = stringValue(
+    $(configuration.nodePath).stringByDeletingLastPathComponent,
+  );
+  const environment = {
+    HOME: configuration.home,
+    LANG: "C",
+    LC_ALL: "C",
+    NODE_ENV: "production",
+    PATH: `${nodeDirectory}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    FLOODGATE_V7_NATIVE_LAUNCHER_CONTRACT: ATTESTATION_CONTRACT,
+    FLOODGATE_V7_NATIVE_LAUNCHER_PURPOSE: configuration.purpose,
+    FLOODGATE_V7_NATIVE_LAUNCHER_PARENT_PID: String(parentPid),
+    FLOODGATE_V7_NATIVE_LAUNCHER_NONCE: nonce,
+    FLOODGATE_V7_NATIVE_LAUNCHER_HELPER: configuration.helperPath,
+  };
+  const frame = `${ATTESTATION_CONTRACT}\n${configuration.purpose}\n${parentPid}\n${nonce}\n${configuration.helperPath}\n`;
+
+  task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/caffeinate");
+  task.arguments = $([
+    "-dimsu",
+    configuration.nodePath,
+    "-r",
+    "tsx/cjs",
+    configuration.entryPath,
+  ]);
+  task.environment = $(environment);
+  task.currentDirectoryURL = $.NSURL.fileURLWithPath(
+    $(configuration.repositoryRoot),
+  );
+  task.standardInput = pipe;
+  task.standardOutput = $.NSFileHandle.fileHandleWithStandardOutput;
+  task.standardError = $.NSFileHandle.fileHandleWithStandardError;
+
+  const launchError = Ref();
+  if (!task.launchAndReturnError(launchError)) fail();
+  const frameData = $(frame).dataUsingEncoding(utf8);
+  pipe.fileHandleForWriting.writeData(frameData);
+  pipe.fileHandleForWriting.closeFile;
+  task.waitUntilExit;
+  const status = Number(task.terminationStatus);
+  if (!Number.isSafeInteger(status) || status < 0 || status > 255) fail();
+  $.exit(status);
+}
+
+function run(arguments_) {
+  try {
+    execute(launcherConfiguration(arguments_));
+  } catch (_error) {
+    fail();
+  }
+}

@@ -49,6 +49,25 @@ const canary = ${JSON.stringify(PRIVATE_CANARY)};
 const points = ["outer-active-durable", "stage-lease-durable", "checkpoint-first-byte-written"];
 const signals = ["SIGTERM", "SIGKILL"];
 Module._load = function(request, parent, isMain) {
+  if (request.endsWith("floodgate-v7-production-native-launcher-attestation")) {
+    return {
+      claimFloodgateV7ProductionNativeLauncherAttestation: (entrypoint) => {
+        if (entrypoint !== "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts") {
+          throw new Error(canary);
+        }
+      },
+    };
+  }
+  if (request.endsWith("floodgate-v7-production-application-source-provenance")) {
+    return {
+      assertFloodgateV7ProductionApplicationEntrypointContext: (entrypoint) => {
+        if (entrypoint !== "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts") {
+          throw new Error(canary);
+        }
+      },
+      captureFloodgateV7ProductionApplicationSourceProvenance: async () => Object.freeze({}),
+    };
+  }
   if (request.endsWith("floodgate-v7-production-prefix-100-kill-drill")) {
     if (${JSON.stringify(mode)} === "load-must-not-happen") throw new Error(canary);
     return {

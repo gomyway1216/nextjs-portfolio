@@ -84,6 +84,12 @@ jobs:
       - name: Require the fixed Darwin process-lifetime helper
         run: test -x /usr/bin/caffeinate
 
+      - name: Require the fixed Darwin native launcher tools
+        run: test -x /usr/bin/osascript && test -x /usr/sbin/lsof && test -x /bin/ps
+
+      - name: Run Darwin native-launcher preload adversarial tests
+        run: npm test -- tests/unit/ml/floodgateV7ProductionNativeLauncher.test.ts
+
       - name: Run Darwin exclusive-rename adversarial tests
         run: npm test -- tests/unit/ml/floodgateExclusiveDirectoryRename.test.ts
 

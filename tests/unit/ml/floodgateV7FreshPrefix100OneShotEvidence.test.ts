@@ -233,15 +233,17 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     const packageJson = JSON.parse(readText(PACKAGE_JSON_PATH));
     const scripts = packageJson.scripts as Record<string, unknown>;
     const ci = readText(CI_WORKFLOW_PATH);
+    const nativeLauncher =
+      '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa"';
 
     expect(scripts["shogi:floodgate-v7-production-prefix-100-preflight"]).toBe(
-      "node -r tsx/cjs ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+      `${nativeLauncher} prefix-100-read-only-preflight`,
     );
     expect(scripts["shogi:floodgate-v7-production-prefix-100-kill-drill"]).toBe(
-      "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
+      `${nativeLauncher} prefix-100-disposable-kill-drill`,
     );
     expect(scripts["shogi:floodgate-v7-production-connector-prefix-100"]).toBe(
-      "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-100.ts",
+      `${nativeLauncher} durable-prefix-100`,
     );
 
     expect(
@@ -249,6 +251,9 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
     ).toBeGreaterThanOrEqual(2);
     expect(ci).toContain("run: test -x /usr/bin/lockf");
     expect(ci).toContain("run: test -x /usr/bin/caffeinate");
+    expect(ci).toContain(
+      "run: test -x /usr/bin/osascript && test -x /usr/sbin/lsof && test -x /bin/ps",
+    );
     expect(ci).toContain(
       "tests/unit/ml/floodgateV7ProductionPrefix100Preflight.test.ts tests/unit/ml/floodgateV7ProductionPrefix100PreflightCli.test.ts",
     );
@@ -511,16 +516,22 @@ describe("Floodgate v7 fresh prefix-100 one-shot public evidence", () => {
         "recorded-after-pr-471-final-review-repair",
     });
     expect(evidence.implementation.package_and_ci).toMatchObject({
+      existing_production_prefix_100_script_changed_by_post_green_native_launch_remediation: true,
       package_source_contract_rechecked: true,
+      command_strings_are_current_post_green_native_launch_source_contract: true,
+      historical_execution_count_or_class_rewritten_by_command_update: false,
       preflight_script_exact:
-        "node -r tsx/cjs ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+        '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" prefix-100-read-only-preflight',
       kill_drill_script_exact:
-        "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
-      production_prefix_100_script_exact_and_unchanged:
-        "/usr/bin/caffeinate -dimsu node -r tsx/cjs ml/run-floodgate-v7-production-connector-prefix-100.ts",
+        '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" prefix-100-disposable-kill-drill',
+      production_prefix_100_script_exact_current:
+        '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" durable-prefix-100',
       ci_exact_node_version: "22.13.0",
       darwin_lockf_required: true,
       darwin_caffeinate_required: true,
+      darwin_osascript_required: true,
+      darwin_lsof_required: true,
+      darwin_ps_required: true,
       darwin_preflight_suite_required: true,
       darwin_kill_drill_suite_required: true,
       ci_production_package_commands_invoked: 0,

@@ -11,6 +11,7 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { TextDecoder, types as nodeUtilTypes } from "node:util";
 
 import {
@@ -331,8 +332,15 @@ const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectKeys = Object.keys;
 const reflectOwnKeys = Reflect.ownKeys;
+const nativeReflectApply = Reflect.apply;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const nativeRealpathSync = fs.realpathSync.native.bind(fs.realpathSync);
+const nativeLstatSync = fs.lstatSync.bind(fs);
+const pathDirname = path.dirname.bind(path);
+const pathIsAbsolute = path.isAbsolute.bind(path);
+const pathRelative = path.relative.bind(path);
+const pathSeparator = path.sep;
+const nativeStringStartsWith = String.prototype.startsWith;
 const MODE_MASK = 0o7777;
 const MODE_TYPE_MASK = fs.constants.S_IFMT;
 const MODE_DIRECTORY = fs.constants.S_IFDIR;
@@ -558,6 +566,58 @@ function claimTestOwnerCapability(
   return home;
 }
 
+function sameOrDescendant(home: string, candidate: string): boolean {
+  const relative = pathRelative(home, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." &&
+      !nativeReflectApply(nativeStringStartsWith, relative, [
+        `..${pathSeparator}`,
+      ]) &&
+      !pathIsAbsolute(relative))
+  );
+}
+
+function resolveExistingAncestorForTestHome(candidate: string): string {
+  let cursor = candidate;
+  for (;;) {
+    try {
+      nativeLstatSync(cursor);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw new NativeError("test path ancestor cannot be inspected");
+      }
+      const parent = pathDirname(cursor);
+      if (parent === cursor) {
+        throw new NativeError("test path has no existing ancestor");
+      }
+      cursor = parent;
+      continue;
+    }
+    try {
+      return nativeRealpathSync(cursor);
+    } catch {
+      throw new NativeError("test path ancestor cannot be resolved");
+    }
+  }
+}
+
+function assertTestPathsWithinExactHome(
+  home: string,
+  paths: readonly string[],
+): void {
+  assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
+  for (let index = 0; index < paths.length; index += 1) {
+    const candidate = paths[index];
+    if (
+      !sameOrDescendant(home, candidate) ||
+      !sameOrDescendant(home, resolveExistingAncestorForTestHome(candidate))
+    ) {
+      throw new NativeError("test path differs from authorized test home");
+    }
+  }
+}
+
 function captureOwnerDependenciesForTests<TPlan>(
   value: Readonly<
     FloodgateV7TrainingLabelProductionOwnerCoreDependencies<TPlan>
@@ -623,8 +683,9 @@ function captureOwnerDependenciesForTests<TPlan>(
   return objectFreeze({ ...value });
 }
 
-function assertTestRegistryOutsideProductionHome(
+function assertTestRegistryWithinExactHome(
   registry: Readonly<FloodgateV7ProductionConnectorRegistryPrivateClaim>,
+  testHome: string,
 ): void {
   const stage = registry.stageAuthorization as Record<string, unknown>;
   const consumer = registry.consumer as Record<string, unknown>;
@@ -644,6 +705,21 @@ function assertTestRegistryOutsideProductionHome(
     consumer.legacyProtectedPositionIdsPath,
     consumer.outputRoot,
   ];
+  const engineArgs = stage.engineArgs;
+  if (engineArgs !== undefined) {
+    if (!nativeArrayIsArray(engineArgs) || nodeIsProxy(engineArgs)) {
+      throw new NativeError("test registry engine arguments differ");
+    }
+    for (let index = 0; index < engineArgs.length; index += 1) {
+      const argument = engineArgs[index];
+      if (typeof argument !== "string") {
+        throw new NativeError("test registry engine argument differs");
+      }
+      if (pathIsAbsolute(argument)) {
+        candidates[candidates.length] = argument;
+      }
+    }
+  }
   const paths: string[] = [];
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
@@ -654,7 +730,7 @@ function assertTestRegistryOutsideProductionHome(
     paths[paths.length] = candidate;
   }
   if (paths.length > 0) {
-    assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
+    assertTestPathsWithinExactHome(testHome, paths);
   }
 }
 
@@ -1278,7 +1354,7 @@ async function executeOwnerAfterClaim<TPlan>(
     phase = "registry-claim";
     const registry = dependencies.claimRegistry(registryCapability);
     if (testHome !== null) {
-      assertTestRegistryOutsideProductionHome(registry);
+      assertTestRegistryWithinExactHome(registry, testHome);
     }
     phase = "approved-enrollment-load";
     const approvedCapability = await dependencies.loadApprovedEnrollment();
@@ -1303,6 +1379,10 @@ async function executeOwnerAfterClaim<TPlan>(
       assertFloodgateTeacherStageLeaseTestRealmCoreForTests(
         stageLeaseCandidate,
       );
+      assertTestPathsWithinExactHome(testHome, [
+        stageLeaseCandidate.stageRoot,
+        stageLeaseCandidate.destinationRoot,
+      ]);
     }
     lease = stageLeaseCandidate;
     phase = "stage-preflight";

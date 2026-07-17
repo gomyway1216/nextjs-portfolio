@@ -555,6 +555,131 @@ describe("Floodgate v7 training-label production owner", () => {
       "registry-load",
       "registry-claim",
     ]);
+
+    const engineArgumentFixture = makeOwnerFixture();
+    const claimRegistry = engineArgumentFixture.dependencies.claimRegistry;
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        engineArgumentFixture.capability,
+        {
+          ...engineArgumentFixture.dependencies,
+          claimRegistry: (capability) => {
+            const registry = claimRegistry(capability);
+            return {
+              ...registry,
+              stageAuthorization: {
+                ...registry.stageAuthorization,
+                engineArgs: [
+                  path.join(productionRepository, "engine-option.bin"),
+                ],
+              },
+            };
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(engineArgumentFixture.events).toEqual([
+      "registry-load",
+      "registry-claim",
+    ]);
+  });
+
+  it("binds test registry and lease paths to the exact authorized test home", async () => {
+    const canonicalTmp = fs.realpathSync.native(os.tmpdir());
+    const boundHome = await fs.promises.mkdtemp(
+      path.join(canonicalTmp, "floodgate-v7-training-owner-bound-home-"),
+    );
+    const foreignHome = await fs.promises.mkdtemp(
+      path.join(canonicalTmp, "floodgate-v7-training-owner-foreign-home-"),
+    );
+    temporaryRoots.push(boundHome, foreignHome);
+
+    const registryFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...registryFixture.dependencies,
+          claimRegistry: () => {
+            registryFixture.events.push("registry-claim");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: {
+                repositoryRoot: path.join(foreignHome, "repository"),
+              },
+              consumer: {
+                repositoryRoot: path.join(foreignHome, "repository"),
+              },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(registryFixture.events).toEqual(["registry-load", "registry-claim"]);
+
+    const foreignAlias = path.join(boundHome, "foreign-alias");
+    await fs.promises.symlink(foreignHome, foreignAlias);
+    const aliasFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...aliasFixture.dependencies,
+          claimRegistry: () => {
+            aliasFixture.events.push("registry-claim");
+            const repositoryRoot = path.join(foreignAlias, "repository");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: { repositoryRoot },
+              consumer: { repositoryRoot },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "registry-claim" });
+    expect(aliasFixture.events).toEqual(["registry-load", "registry-claim"]);
+
+    const leaseFixture = makeOwnerFixture();
+    await expect(
+      runFloodgateV7TrainingLabelProductionOwnerUnderOuterGateCoreForTests(
+        authorizeFloodgateV7TrainingLabelProductionOwnerCoreForTests(boundHome),
+        {
+          ...leaseFixture.dependencies,
+          claimRegistry: () => {
+            leaseFixture.events.push("registry-claim");
+            const repositoryRoot = path.join(boundHome, "repository");
+            return {
+              runId: RUN_ID,
+              approvedKeyBinding: {
+                recordBytes: 7,
+                recordSha256: DIGEST,
+                keyInstanceId: DIGEST,
+              },
+              stageAuthorization: { repositoryRoot },
+              consumer: { repositoryRoot },
+            } as never;
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ phase: "stage-authorization" });
+    expect(leaseFixture.events).toEqual([
+      "registry-load",
+      "registry-claim",
+      "approved-load",
+      "approved-claim",
+      "current-binding",
+      "stage-authorize",
+    ]);
   });
 
   it("rejects a cloned or foreign stage lease before preflight, consumer, or finalizer authority", async () => {

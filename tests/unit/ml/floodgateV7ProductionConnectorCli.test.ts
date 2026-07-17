@@ -513,7 +513,7 @@ describe("Floodgate v7 production connector CLI", () => {
     expect(source).toContain("raw_connector_receipt_disclosed: false");
   });
 
-  it("publishes one provision command and caffeinated fixed gate commands", async () => {
+  it("publishes native-attested provision and fixed gate commands", async () => {
     const packageJson = JSON.parse(
       await fs.promises.readFile(
         path.join(REPOSITORY_ROOT, "package.json"),
@@ -525,24 +525,24 @@ describe("Floodgate v7 production connector CLI", () => {
         "shogi:floodgate-v7-production-connector-registry-provision"
       ],
     ).toBe(
-      "node -r tsx/cjs ml/provision-floodgate-v7-production-connector-registry.ts",
+      '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" production-registry-provision',
     );
-    for (const [script, entry] of [
+    for (const [script, purpose] of [
       [
         "shogi:floodgate-v7-production-connector-prefix-100",
-        "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+        "durable-prefix-100",
       ],
       [
         "shogi:floodgate-v7-production-connector-prefix-500",
-        "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+        "durable-prefix-500",
       ],
       [
         "shogi:floodgate-v7-production-connector-final-24000",
-        "ml/run-floodgate-v7-production-connector-final-24000.ts",
+        "sealed-final-24000",
       ],
     ] as const) {
       expect(packageJson.scripts[script]).toBe(
-        `/usr/bin/caffeinate -dimsu node -r tsx/cjs ${entry}`,
+        `/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa" ${purpose}`,
       );
     }
   });

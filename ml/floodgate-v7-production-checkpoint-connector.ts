@@ -905,6 +905,12 @@ function assertTestOptionsOutsideProductionHome(
   if (stage.evalDir !== undefined) {
     paths[paths.length] = stage.evalDir;
   }
+  for (let index = 0; index < stage.engineArgs.length; index += 1) {
+    const argument = stage.engineArgs[index];
+    if (argument[0] === "/") {
+      paths[paths.length] = argument;
+    }
+  }
   assertFloodgateTestPathsOutsideProductionHomeCoreForTests(paths);
 }
 

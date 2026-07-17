@@ -6,6 +6,12 @@
 
 import { types as nodeUtilTypes } from "node:util";
 
+import {
+  assertFloodgateV7ProductionApplicationEntrypointContext,
+  captureFloodgateV7ProductionApplicationSourceProvenance,
+} from "./floodgate-v7-production-application-source-provenance";
+import { claimFloodgateV7ProductionNativeLauncherAttestation } from "./floodgate-v7-production-native-launcher-attestation";
+
 export const FLOODGATE_V7_PREFIX_100_KILL_DRILL_CLI_SUCCESS_CONTRACT =
   "shogi-floodgate-v7-production-prefix-100-kill-drill-cli-success-v1" as const;
 export const FLOODGATE_V7_PREFIX_100_KILL_DRILL_CLI_FAILURE_CONTRACT =
@@ -323,6 +329,13 @@ export async function runFloodgateV7ProductionPrefix100KillDrillCli(): Promise<v
     ) {
       throw new NativeError("kill drill CLI invocation differs");
     }
+    claimFloodgateV7ProductionNativeLauncherAttestation(
+      "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
+    );
+    assertFloodgateV7ProductionApplicationEntrypointContext(
+      "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
+    );
+    await captureFloodgateV7ProductionApplicationSourceProvenance();
     /* eslint-disable @typescript-eslint/no-require-imports -- Deliberately lazy after argv and runtime guards. */
     const drill =
       require("./floodgate-v7-production-prefix-100-kill-drill") as KillDrillModule;

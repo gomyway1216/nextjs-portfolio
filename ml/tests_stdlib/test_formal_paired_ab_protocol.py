@@ -115,6 +115,10 @@ class FormalPairedAbProtocolTest(unittest.TestCase):
         self.assertTrue(report["gates"]["stronger_claim_strictly_above_0_50"])
         self.assertFalse(report["authority"]["promotion_authorized"])
         self.assertFalse(report["authority"]["production_weight_write_authorized"])
+        self.assertEqual(
+            report["nonclaims"],
+            {"strength_improved": False, "high_dan_calibrated": False},
+        )
 
     def test_exact_half_score_does_not_claim_stronger(self):
         report = analyze_formal_paired_ab(

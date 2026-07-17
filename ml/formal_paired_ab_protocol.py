@@ -362,8 +362,8 @@ def analyze_formal_paired_ab(payload: Mapping) -> dict[str, object]:
             "production_weight_write_authorized": False,
         },
         "nonclaims": {
-            "human_rank_proved": False,
-            "external_high_dan_calibrated": False,
+            "strength_improved": False,
+            "high_dan_calibrated": False,
         },
     }
 

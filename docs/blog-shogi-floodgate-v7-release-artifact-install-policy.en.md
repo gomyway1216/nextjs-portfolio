@@ -135,6 +135,8 @@ Eleven new Swift tests bring the dependency-free package to **25 / 25** local so
 
 Repository-side evidence tests also enforce that the Swift package remains one library with no executable target, operational script, dependency, signer, installer, filesystem API, process API, network API, or production import.
 
+Full-repository validation on the latest merged base also passed all **172 test files / 3,112 tests**.
+
 ## 7. What remains open
 
 Policy source does not satisfy any artifact gate. The safe order remains:

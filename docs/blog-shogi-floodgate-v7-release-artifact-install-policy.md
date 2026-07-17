@@ -135,6 +135,8 @@ dependency-free Swift packageには11 testを追加し、local source testは合
 
 repository側evidence testも、Swift packageがlibrary 1個だけであり、executable target、operational script、dependency、signer、installer、filesystem / process / network API、production importを持たないことを固定する。
 
+最新merge済みbaseでのrepository全体検証も、**172 test files / 3,112 tests**すべてPASSした。
+
 ## 7. 未完gate
 
 policy sourceはartifact gateを1つも満たさない。安全な次工程は次の順序である。

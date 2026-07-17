@@ -54,7 +54,7 @@ The machine-readable registry is [here](../ml/protocols/floodgate-q1-2026-formal
 
 Synthetic validation confirms that an all-win fixture passes both gates, while an exact 50% fixture passes only safety and cannot claim “stronger.” For an alternating pair-score vector of 0% / 100%, the exact 100,000-replicate deterministic vector yields lower numerators `340/768` one-sided and `328/768` two-sided. These are implementation-reproducibility values, not playing-strength evidence.
 
-The ML stdlib suite passes 79/79 in 3.10 seconds. It covers the exact 100,000-replicate vector, strict schemas, pair/game uniqueness, color swapping, the closed registry, and the always-STOP promotion validator.
+The ML stdlib suite passes 80/80 in 2.99 seconds. It covers the exact 100,000-replicate vector, strict type/schema rejection including adversarial non-JSON equality objects, pair/game uniqueness, color swapping, the closed registry, and the always-STOP promotion validator.
 
 ## What must happen next
 

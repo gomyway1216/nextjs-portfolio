@@ -40,10 +40,11 @@
   },
   "validation": {
     "command": "npm run test:ml:stdlib",
-    "python_tests_passed": 79,
+    "python_tests_passed": 80,
     "python_tests_failed": 0,
-    "wall_seconds": 3.1,
-    "focused_formal_ab_tests": 11,
+    "wall_seconds": 2.99,
+    "focused_formal_ab_tests": 12,
+    "adversarial_non_json_equality_objects_rejected": true,
     "exact_100000_replicate_vector_tested": true
   },
   "registry_state": {

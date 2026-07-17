@@ -39,6 +39,14 @@ def semantic_id(number):
     return f"sha256:{number:064x}"
 
 
+class EqualToEveryString:
+    def __eq__(self, _other):
+        return True
+
+    def __ne__(self, _other):
+        return False
+
+
 def result_fixture(pair_results=None):
     if pair_results is None:
         pair_results = [("win", "win")] * PAIR_COUNT
@@ -192,6 +200,22 @@ class FormalPairedAbProtocolTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "result is invalid"):
             decode_pair_score_units(fixture)
 
+    def test_non_json_equality_objects_cannot_impersonate_protocol_strings(self):
+        fixture = result_fixture()
+        fixture["schema"] = EqualToEveryString()
+        with self.assertRaisesRegex(ValueError, "schema is invalid"):
+            decode_pair_score_units(fixture)
+
+        fixture = result_fixture()
+        fixture["pairs"][0]["games"][0]["candidate_color"] = EqualToEveryString()
+        with self.assertRaisesRegex(ValueError, "candidate sente then candidate gote"):
+            decode_pair_score_units(fixture)
+
+        fixture = result_fixture()
+        fixture["pairs"][0]["games"][0]["result"] = EqualToEveryString()
+        with self.assertRaisesRegex(ValueError, "result is invalid"):
+            decode_pair_score_units(fixture)
+
     def test_closed_registry_rejects_any_enrollment_or_open_gate(self):
         path = os.path.join(REPO_ROOT, FORMAL_AB_REGISTRY_PATH)
         registry = validate_closed_formal_ab_registry(path)
@@ -214,6 +238,17 @@ class FormalPairedAbProtocolTest(unittest.TestCase):
         unsupported["nonclaims"]["games_observed"] = False
         with self.assertRaisesRegex(ValueError, "integer zero"):
             validate_closed_formal_ab_registry_data(unsupported)
+
+        for field in ("schema", "status", "reason"):
+            spoofed = copy.deepcopy(registry)
+            spoofed[field] = EqualToEveryString()
+            with self.assertRaisesRegex(ValueError, "schema is invalid|not closed"):
+                validate_closed_formal_ab_registry_data(spoofed)
+
+        spoofed_fixed = copy.deepcopy(registry)
+        spoofed_fixed["fixed_protocol"]["resampling_unit"] = EqualToEveryString()
+        with self.assertRaisesRegex(ValueError, "string types are invalid"):
+            validate_closed_formal_ab_registry_data(spoofed_fixed)
 
     def test_strict_registry_json_rejects_duplicates_and_nonfinite_values(self):
         with self.assertRaisesRegex(ValueError, "duplicate JSON key"):

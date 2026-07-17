@@ -181,7 +181,9 @@ def _require_exact_plan(value) -> Mapping:
     return plan
 
 
-def _score_units(result: str) -> int:
+def _score_units(result: object) -> int:
+    if type(result) is not str:
+        raise ValueError("formal A/B game result is invalid")
     if result == "win":
         return 2
     if result == "draw":
@@ -200,7 +202,10 @@ def decode_pair_score_units(payload: Mapping) -> tuple[list[int], dict[str, str]
     """
 
     result = _require_exact_mapping(payload, _RESULT_FIELDS, "formal A/B result")
-    if result.get("schema") != FORMAL_AB_RESULT_SCHEMA:
+    if (
+        type(result.get("schema")) is not str
+        or result["schema"] != FORMAL_AB_RESULT_SCHEMA
+    ):
         raise ValueError("formal A/B result schema is invalid")
     _require_exact_plan(result.get("plan"))
     candidate_sha256 = _require_sha256(
@@ -248,7 +253,10 @@ def decode_pair_score_units(payload: Mapping) -> tuple[list[int], dict[str, str]
             )
             if type(game.get("game_index")) is not int or game["game_index"] != game_index:
                 raise ValueError("formal A/B game indices must be 0 then 1")
-            if game.get("candidate_color") != expected_colors[game_index]:
+            if (
+                type(game.get("candidate_color")) is not str
+                or game["candidate_color"] != expected_colors[game_index]
+            ):
                 raise ValueError(
                     "formal A/B pair must contain candidate sente then candidate gote"
                 )
@@ -364,10 +372,17 @@ def validate_closed_formal_ab_registry_data(registry: Mapping) -> Mapping:
     """Validate one decoded registry as an exact all-closed value."""
 
     root = _require_exact_mapping(registry, _REGISTRY_FIELDS, "formal A/B registry")
-    if root.get("schema") != FORMAL_AB_REGISTRY_SCHEMA:
+    if (
+        type(root.get("schema")) is not str
+        or root["schema"] != FORMAL_AB_REGISTRY_SCHEMA
+    ):
         raise ValueError("formal A/B registry schema is invalid")
-    if root.get("status") != "blocked" or root.get("reason") != (
-        "artifact-identities-and-upstream-receipts-not-enrolled"
+    if (
+        type(root.get("status")) is not str
+        or root["status"] != "blocked"
+        or type(root.get("reason")) is not str
+        or root["reason"]
+        != "artifact-identities-and-upstream-receipts-not-enrolled"
     ):
         raise ValueError("formal A/B registry is not closed")
     _require_exact_plan(root.get("plan"))
@@ -401,6 +416,16 @@ def validate_closed_formal_ab_registry_data(registry: Mapping) -> Mapping:
         raise ValueError("formal A/B fixed protocol numeric types are invalid")
     if type(fixed.get("colors_per_pair")) is not list:
         raise ValueError("formal A/B fixed colors are invalid")
+    if any(
+        type(value) is not str
+        for value in (
+            *fixed["colors_per_pair"],
+            fixed.get("resampling_unit"),
+            fixed.get("safety_gate"),
+            fixed.get("stronger_claim_gate"),
+        )
+    ):
+        raise ValueError("formal A/B fixed protocol string types are invalid")
     if dict(fixed) != expected_fixed:
         raise ValueError("formal A/B fixed protocol differs from preregistration")
 

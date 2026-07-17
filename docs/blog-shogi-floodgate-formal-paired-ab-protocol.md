@@ -54,7 +54,7 @@
 
 synthetic検証では、全勝fixtureが両gateを通り、exact 50% fixtureは安全gateだけ通って「強くなった」gateを通らないことを確認した。交互にpair score 0 / 100%を置いた固定vectorでは、100,000 replicateのlower numeratorがone-sided `340/768`、two-sided `328/768`になった。これは実棋力の数字ではなく、固定seed・pair resampling実装の再現性testである。
 
-Node環境から実行するML stdlib suiteは79/79 pass、実時間3.10秒だった。ここにはexact 100,000 replicate vector、strict schema、pair/game一意性、色反転、closed registry、常時STOPのpromotion validatorが含まれる。
+Node環境から実行するML stdlib suiteは80/80 pass、実時間2.99秒だった。ここにはexact 100,000 replicate vector、非JSON equality objectを含むstrict type/schema、pair/game一意性、色反転、closed registry、常時STOPのpromotion validatorが含まれる。
 
 ## 次に必要なもの
 

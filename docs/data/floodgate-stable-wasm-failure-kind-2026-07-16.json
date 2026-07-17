@@ -1,6 +1,7 @@
 {
   "schema": "shogi-floodgate-stable-wasm-safe-failure-kind-evidence-v1",
   "evidence_date": "2026-07-16",
+  "latest_confirmation_date": "2026-07-17",
   "evidence_timezone": "America/Los_Angeles",
   "articles": {
     "japanese": "../blog-shogi-floodgate-stable-wasm-failure-kind.md",
@@ -24,8 +25,30 @@
     "trigger_parent_identified": false,
     "residual_workers": 0
   },
+  "final_head_confirmation": {
+    "evidence_path": "floodgate-stable-timeout-confirmation-2026-07-17.json",
+    "implementation_head": "6a804a7954a9685361944aeb2be32494638fae2e",
+    "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
+    "mode": "same-configuration-read-only-stable-proposal-diagnostic",
+    "candidate_count": 12,
+    "fulfilled_count": 7,
+    "fulfilled_elapsed_seconds": [
+      0.855, 1.334, 5.728, 66.382, 95.132, 107.763, 264.59
+    ],
+    "rejected_count": 5,
+    "rejected_elapsed_seconds": [599.997, 599.999, 600.0, 600.001, 600.003],
+    "all_rejections_genuine_failure_kind": "search-timeout",
+    "all_rejections_timeout_ms": 600000,
+    "all_five_independently_timed_out_established": false,
+    "first_trigger_input_index_identified": false,
+    "runtime_close": "fulfilled",
+    "residual_stable_workers": 0,
+    "persistent_state_unchanged": true,
+    "production_mutation_counters_total": 0,
+    "live_weights_changed": false
+  },
   "implementation": {
-    "exact_commit": "7ca6e09",
+    "exact_commit": "6a804a7954a9685361944aeb2be32494638fae2e",
     "safe_failure_kinds": [
       "search-timeout",
       "startup-timeout",
@@ -76,14 +99,25 @@
       "p0": 0,
       "p1": 0,
       "p2": 0
+    },
+    "pull_request_485_final_head": {
+      "status": "PASS",
+      "checks_total": 6,
+      "checks_passed": 6,
+      "unresolved_review_threads": 0,
+      "regular_merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804"
     }
   },
   "delivery": {
-    "pull_request": "PENDING",
-    "final_head_github_ci": "PENDING",
-    "regular_merge": "PENDING",
+    "pull_request": 485,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/485",
+    "final_head_github_ci": "PASS",
+    "regular_merge": "PASS",
+    "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
     "used_in_production": false,
-    "same_twelve_candidate_rerun_on_merged_code": false
+    "same_twelve_candidate_rerun_on_exact_final_head": true,
+    "rerun_started_after_regular_merge": false,
+    "post_merge_deployment_execution_established": false
   },
   "checkpoint_binding": {
     "source_or_runtime_binding_changes_existing_v3_binding": true,
@@ -116,9 +150,10 @@
     "stable_high_dan_established": false
   },
   "safe_next_order": [
-    "publish-ready-for-review-pull-request",
-    "pass-final-head-ci-independent-review-and-regular-merge",
-    "rerun-same-twelve-candidates-read-only-and-capture-first-safe-failure-kind",
+    "completed-final-head-ci-and-independent-review-pr-485",
+    "completed-start-read-only-rerun-on-exact-final-head-before-regular-merge",
+    "completed-regular-merge-of-the-same-final-head-during-the-rerun",
+    "completed-record-rerun-results-after-regular-merge-and-confirm-search-timeout-600000ms",
     "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers",
     "select-quality-preserving-root-cause-fix-and-use-a-new-run-binding",
     "finish-recovery-inspector-and-human-confirmed-quarantine",

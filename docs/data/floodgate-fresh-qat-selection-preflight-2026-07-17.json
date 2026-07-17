@@ -1,0 +1,109 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-selection-preflight-evidence-v1",
+  "recorded_on": "2026-07-17",
+  "source_base_revision": "ce33913014eb0e990dfaabe344e2e7c8d5e393d5",
+  "status": "code-ready-data-only-blocked",
+  "registries": {
+    "training": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "status": "awaiting-exact-tracked-execution-plan-and-artifact-identities",
+      "plan_bytes": null,
+      "plan_sha256": null,
+      "ready": false
+    },
+    "selection": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "status": "awaiting-exact-fresh-plan-and-three-final-run-identities",
+      "plan_bytes": null,
+      "plan_sha256": null,
+      "registered_result_identities": 0,
+      "registered_checkpoint_identities": 0,
+      "ready": false
+    }
+  },
+  "fresh_artifact_schemas": {
+    "training_contract": "shogi-floodgate-fresh-qat-training-experiment-v1",
+    "result": "shogi-floodgate-fresh-qat-training-result-v1",
+    "checkpoint": "shogi-floodgate-fresh-qat-final-checkpoint-v1",
+    "selection_registry": "shogi-floodgate-fresh-qat-selection-preflight-registry-v1",
+    "preflight_receipt": "shogi-floodgate-fresh-qat-selection-preflight-v1",
+    "hybrid_dispatch_accepted": false
+  },
+  "replay_isolation": {
+    "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+    "components": [
+      "legacy",
+      "fresh_final_holdout",
+      "fresh_selection"
+    ],
+    "component_identities_exact": true,
+    "components_pairwise_disjoint_required": true,
+    "exact_union_required": true,
+    "canonical_identifier_digest_has_final_lf": false,
+    "legacy_component_sent_to_git_tracking_verifier": false,
+    "protected_ids_exposed_in_errors": false
+  },
+  "preflight_order": {
+    "all_six_artifact_identities_before_result_parse": true,
+    "all_three_results_before_first_checkpoint_load": true,
+    "all_three_checkpoints_strict_loaded": true,
+    "all_three_models_strict_loaded": true,
+    "artifact_recheck_before_receipt": true,
+    "receipt_state_writable_on_object": false,
+    "reader_claims_allowed": 1,
+    "public_loader_or_validator_injection": false,
+    "final_holdout_opened": false,
+    "production_promotion_authorized": false
+  },
+  "historical_wcsc36": {
+    "qat_protocol_modified": false,
+    "selection_audit_modified": false,
+    "selection_artifact_modified": false,
+    "legacy_result_schema": "shogi-int16-aware-training-result-v1",
+    "legacy_checkpoint_schema": "shogi-int16-aware-final-checkpoint-v1",
+    "output_schema_behavior_preserved": true
+  },
+  "validation": {
+    "focused_stdlib_tests": {
+      "passed": 24,
+      "failed": 0
+    },
+    "complete_python_stdlib_suite": {
+      "passed": 82,
+      "failed": 0
+    },
+    "training_schema_integration": {
+      "passed": 1,
+      "failed": 0,
+      "synthetic_legacy_runs": 1,
+      "synthetic_fresh_runs": 1,
+      "torch_version": "2.13.0"
+    },
+    "complete_torch_suite": {
+      "passed": 72,
+      "failed": 0,
+      "torch_version": "2.13.0"
+    },
+    "related_typescript_test": {
+      "passed": 5,
+      "failed": 0,
+      "node_version": "22.13.0"
+    },
+    "py_compile": "pass",
+    "ruff": "pass",
+    "black_selected_files": "pass",
+    "git_diff_check": "pass"
+  },
+  "scope_boundary": {
+    "real_teacher_or_partition_reads": 0,
+    "real_checkpoint_reads": 0,
+    "real_qat_training_runs": 0,
+    "fresh_selection_reads": 0,
+    "final_holdout_reads": 0,
+    "production_state_reads": 0,
+    "live_weight_writes": 0,
+    "paired_ab_games": 0,
+    "external_calibration_games": 0,
+    "playing_strength_evidence": false
+  }
+}

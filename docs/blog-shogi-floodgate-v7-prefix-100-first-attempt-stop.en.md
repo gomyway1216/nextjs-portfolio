@@ -1,6 +1,6 @@
 # Safely stopping the first prefix-100 attempt and preserving its partial checkpoint — Floodgate v7
 
-> [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483) passed every check and was integrated with regular merge commit `9ddcc032329a4a9f3931494f2348c10d9fe2d696`. After aligning the fixed application to that merge, application-source, connector-verifier, and approved/current-binding readiness, create-only registry provisioning, the six-case kill drill, and fresh preflight all passed. Prefix-100 was then started exactly once, but stopped safely after 1,597 seconds without a success receipt. Sanitized failure v2 published `phase = runner`, but that is a projection bug in which the CLI incorrectly rejects a valid true/true `outer-gate-lock` tuple; it does not establish the actual causal phase. An independent read-only audit found an authenticated stale active lease, four complete authenticated records (one header + three parents), no torn tail, no milestone or seal, and zero residual processes. Retry, cleanup, quarantine, resume, teacher generation, training, weight changes, and live activation all remain zero. The production decision is **STOP**. Japanese version: [blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md)
+> [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483) passed every check and was integrated with regular merge commit `9ddcc032329a4a9f3931494f2348c10d9fe2d696`. After aligning the fixed application to that merge, application-source, connector-verifier, and approved/current-binding readiness, create-only registry provisioning, the six-case kill drill, and fresh preflight all passed. Prefix-100 was then started exactly once, but stopped safely after 1,597 seconds without a success receipt. Sanitized failure v2 published `phase = runner`, but that is a projection bug in which the CLI incorrectly rejects a valid true/true `outer-gate-lock` tuple; it does not establish the actual causal phase. An independent read-only audit found an authenticated stale active lease, four complete authenticated records (one header + three parents), no torn tail, no milestone or seal, and zero residual processes. A later same-configuration read-only reproduction completed seven of twelve candidates in 0.8 to 244.9 seconds, while five fell into pool-wide rejection at approximately 600.0 seconds. The current code discards the triggering error, so the typed cause and trigger parent remain unknown, but the fixed ten-minute timing boundary is reproduced. Retry, cleanup, quarantine, resume, teacher generation, training, weight changes, and live activation all remain zero. The production decision is **STOP**. Japanese version: [blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md)
 
 ## 1. Result
 
@@ -75,19 +75,37 @@ An independent audit that did not mutate production state established only the f
 
 `Stale` does not mean “safe to delete.” Even though the owner process is absent and the OS lock is free, the active lease is authenticated crash evidence and the stage work contains authenticated partial progress. The read-only audit is inspection, not cleanup, quarantine, checkpoint resumption, or authorization for the next gate.
 
-## 5. What is and is not known about the root cause
+## 5. Same-configuration read-only reproduction and remaining unknowns
 
-The leading hypothesis is that the stable-side fixed ten-minute timeout was reached. This is not yet a confirmed cause.
+Without writing to the production checkpoint, lease, or registry, the fixed application revision authenticated the same input and submitted indices 3 through 14, the twelve candidates that could have been active immediately after the authenticated three-parent prefix, to the same twelve-worker stable runtime.
+
+| Input index | Outcome             | Elapsed seconds |
+| ----------: | ------------------- | --------------: |
+|           3 | generic pool poison |          ~600.0 |
+|           4 | fulfilled           |           5.798 |
+|           5 | fulfilled           |          93.027 |
+|           6 | generic pool poison |          ~600.0 |
+|           7 | generic pool poison |          ~600.0 |
+|           8 | fulfilled           |         244.880 |
+|           9 | generic pool poison |          ~600.0 |
+|          10 | fulfilled           |           1.388 |
+|          11 | fulfilled           |           0.839 |
+|          12 | fulfilled           |          64.223 |
+|          13 | fulfilled           |         105.684 |
+|          14 | generic pool poison |          ~600.0 |
+
+Seven candidates completed normally. The other five received the same generic pool-poison error at the fixed 600-second boundary. This reproduces the timing predicted by the ten-minute-timeout hypothesis. The current pool, however, discards the first worker error and distributes one generic error to every active job. It is therefore not valid to claim that all five individually timed out or to identify which parent triggered the poison. The safe classification remains `unknown`; only the timing inference is `search-timeout`. Runtime close succeeded and left zero workers.
 
 | Cause question                  | Current state                                         |
 | ------------------------------- | ----------------------------------------------------- |
-| stable ten-minute timeout       | strongest hypothesis, unconfirmed                     |
+| stable 600-second boundary      | timing matched in same-configuration read-only replay |
+| typed worker failure kind       | `unknown`; the current pool discards the trigger      |
 | exact failing inner phase       | unknown; removed from the public result by projection |
-| trigger parent                  | not identified                                        |
+| trigger parent                  | not identified among five generic rejections          |
 | torn checkpoint write           | ruled out; no torn tail                               |
 | prefix-100 completion           | ruled out; no milestone or seal                       |
 
-No claim is therefore made that a particular parent is bad, that the stable runtime is broken, or that machine resources were insufficient. Reproduction must use a disposable namespace isolated from the production checkpoint and return only a sanitized phase and timeout boundary.
+No claim is therefore made that indices 3, 6, 7, 9, and 14 each timed out independently, that one specific index was the trigger, or that machine resources were insufficient. The next diagnostic boundary must preserve a safe failure kind and timeout value before pool-wide poison, without publishing stderr, process identifiers, positions, or parent identities.
 
 ## 6. Changes not executed
 
@@ -128,19 +146,20 @@ The V3 header also authenticates, through HMAC, the stable and teacher runtime-r
 1. Preserve the current active lease and stage work unchanged; do not retry, clean up, quarantine, or resume.
 2. Independently review the CLI projection fix and regressions at exact candidate `f5feacd9a24615cb0e75c580181a0cf79419aef8` in [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), then pass final-head CI and a regular merge. Do not use an unmerged or production-unpinned candidate as operational evidence.
 3. Implement a fixed-origin, zero-argument, read-only production inspector that authenticates the active lease, registry binding, checkpoint records, milestone, seal, and tail, and returns sanitized counts only.
-4. Test the stable ten-minute-timeout hypothesis in a disposable namespace isolated from production state, then confirm or reject the exact inner phase.
-5. Only after establishing the root cause, fix it and pass regressions for timeout, cancellation, partial checkpointing, and the resumption boundary. If the fix changes worker count, timeout, depth, a runtime receipt, or source binding, prohibit resumption of the existing partial.
-6. Implement a fixed operator reconciliation flow that rechecks the outer lease and inner stage/checkpoint in the same process. Require explicit human confirmation for either resumption or quarantine followed by separately authorized resolution/restart; never choose automatically.
-7. Pass final-head CI, independent review, and a regular merge on ready-for-review [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), which contains the code, tests, Japanese and English articles, and machine-readable evidence.
-8. Rerun read-only inspection through the fixed operator from the merged revision. Consider explicit reconciliation only if the fresh evidence matches.
-9. Resume from the partial checkpoint only if both exact bytes/configuration and safe resumption authority are established, and address the timeout-recurrence risk even under the same binding. If the binding changes or safety cannot be proved, split authenticated quarantine from a separately approved fresh restart.
-10. Even if exact-100 passes postflight, stop once for independent review and informed human approval before advancing to 500 and final-24,000.
-11. Only after producing and finalizing the complete teacher data should retraining, candidate selection, formal A/B, and external calibration proceed. Consider live activation only when safety, quality, playing-strength, and rollback evidence all pass.
+4. Preserve a safe failure kind and timeout value from the worker boundary through pool-wide poison, without exposing stderr, process identifiers, positions, or IDs, then rerun the same twelve candidates.
+5. Compare tail latency, timeout, and throughput at 4, 6, 8, and 12 workers on the same read-only input. Choose a cause- and quality-aware configuration instead of blindly extending the timeout or retrying.
+6. Only after establishing the root cause, fix it and pass regressions for timeout, cancellation, partial checkpointing, and the resumption boundary. If the fix changes worker count, timeout, depth, a runtime receipt, or source binding, prohibit resumption of the existing partial.
+7. Implement a fixed operator reconciliation flow that rechecks the outer lease and inner stage/checkpoint in the same process. Require explicit human confirmation for either resumption or quarantine followed by separately authorized resolution/restart; never choose automatically.
+8. Pass final-head CI, independent review, and a regular merge on ready-for-review [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), which contains the code, tests, Japanese and English articles, and machine-readable evidence.
+9. Rerun read-only inspection through the fixed operator from the merged revision. Consider explicit reconciliation only if the fresh evidence matches.
+10. Resume from the partial checkpoint only if both exact bytes/configuration and safe resumption authority are established, and address the timeout-recurrence risk even under the same binding. If the binding changes or safety cannot be proved, split authenticated quarantine from a separately approved fresh restart.
+11. Even if exact-100 passes postflight, stop once for independent review and informed human approval before advancing to 500 and final-24,000.
+12. Only after producing and finalizing the complete teacher data should retraining, candidate selection, formal A/B, and external calibration proceed. Consider live activation only when safety, quality, playing-strength, and rollback evidence all pass.
 
 Any fresh inspection mismatch, authentication failure, indeterminate state, or new quarantine means STOP. Speed is not authority to skip this sequence.
 
 ## 9. Current decision
 
-The launcher fix and production-readiness chain passed, but the first durable prefix-100 attempt stopped after 1,597 seconds without a success receipt. Three authenticated parent records are real progress, but they are neither a 100-parent milestone nor playing-strength evidence. The public `runner` phase is also a fallback caused by a projection bug and does not establish the root cause.
+The launcher fix and production-readiness chain passed, but the first durable prefix-100 attempt stopped after 1,597 seconds without a success receipt. Three authenticated parent records are real progress, but they are neither a 100-parent milestone nor playing-strength evidence. The public `runner` phase is also a fallback caused by a projection bug. The same-configuration read-only reproduction matched the fixed 600-second boundary, but the current pool discards the triggering error, so the typed cause and trigger parent remain unknown.
 
-The current decision is therefore **STOP**. The next valid advance is not a retry; it is to take the implemented diagnostic-projection candidate through review, CI, and regular merge, then complete the read-only inspector, disposable reproduction, and reviewed reconciliation operator. The [machine-readable evidence](./data/floodgate-v7-prefix-100-first-attempt-stop-2026-07-16.json) separately records the successful prerequisite gates, the single stopped attempt, the authenticated partial state, unexecuted mutations, and nonclaims.
+The current decision is therefore **STOP**. The next valid advance is not a retry; it is to take the implemented diagnostic-projection candidate through review, CI, and regular merge, complete safe worker-failure propagation plus the 4 / 6 / 8 / 12-worker comparison, and finish the read-only inspector and reviewed reconciliation operator. The [machine-readable evidence](./data/floodgate-v7-prefix-100-first-attempt-stop-2026-07-16.json) separately records the successful prerequisite gates, the single stopped attempt, the authenticated partial state, the read-only reproduction, unexecuted mutations, and nonclaims.

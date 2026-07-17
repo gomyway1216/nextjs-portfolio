@@ -1,6 +1,6 @@
 # prefix-100初回を安全に停止し、部分checkpointを保全する — Floodgate v7
 
-> [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)は全checkを通過し、通常のmerge commit `9ddcc032329a4a9f3931494f2348c10d9fe2d696`で統合された。そのmergeへ固定applicationを合わせた後、application source、connector verifier、approved/current bindingのreadiness、create-only registry provision、6-case kill drill、fresh preflightはすべてPASSした。そこでprefix-100をexactly onceで1回だけ開始したが、1,597秒後にsuccess receiptなしで安全に停止した。sanitized failure v2は`phase = runner`を公開したものの、これは有効な`outer-gate-lock`のtrue/true tupleをCLIが誤って拒否した投影不具合であり、実際の原因phaseを証明しない。独立したread-only auditは、認証済みstale active lease、認証済み完全record 4件（header 1件 + parent 3件）、torn tailなし、milestone / sealなし、残存process 0を確認した。retry、cleanup、quarantine、resume、教師生成、学習、weight変更、live activationはすべて0で、production判断は**STOP**である。English version: [blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md)
+> [PR #483](https://github.com/gomyway1216/nextjs-portfolio/pull/483)は全checkを通過し、通常のmerge commit `9ddcc032329a4a9f3931494f2348c10d9fe2d696`で統合された。そのmergeへ固定applicationを合わせた後、application source、connector verifier、approved/current bindingのreadiness、create-only registry provision、6-case kill drill、fresh preflightはすべてPASSした。そこでprefix-100をexactly onceで1回だけ開始したが、1,597秒後にsuccess receiptなしで安全に停止した。sanitized failure v2は`phase = runner`を公開したものの、これは有効な`outer-gate-lock`のtrue/true tupleをCLIが誤って拒否した投影不具合であり、実際の原因phaseを証明しない。独立したread-only auditは、認証済みstale active lease、認証済み完全record 4件（header 1件 + parent 3件）、torn tailなし、milestone / sealなし、残存process 0を確認した。その後の同一構成read-only再現では候補12件中7件が0.8〜244.9秒で成功し、5件が約600.0秒でpool-wide rejectとなった。trigger errorは現コードが捨てるためtyped原因とtrigger parentは未確定だが、固定10分timeout境界は実測再現できた。retry、cleanup、quarantine、resume、教師生成、学習、weight変更、live activationはすべて0で、production判断は**STOP**である。English version: [blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md)
 
 ## 1. 結論
 
@@ -75,19 +75,37 @@ production stateを変更しない独立auditは、認証とfilesystem metadata�
 
 `stale`は「消してよい」を意味しない。owner processが存在せずOS lockがfreeでも、active leaseは認証済みのcrash evidenceであり、stage workには認証済みpartial progressがある。read-only auditはinspectionであって、cleanup、quarantine、checkpoint resume、次gateのauthorizationではない。
 
-## 5. 根本原因について分かったことと、まだ分からないこと
+## 5. 同一構成read-only再現と、まだ分からないこと
 
-現在の最有力仮説は、stable側の固定10分timeoutに到達したことである。しかし、これはまだ確定原因ではない。
+production checkpoint、lease、registryへ書かず、固定application revisionと同じstable runtime構成で、認証済み3-parent prefixの直後に当時activeになり得たindex 3〜14の12件を同時投入した。大規模入力のread-only認証・整列後、12 workerで得たsanitized結果は次のとおりである。
+
+| input index | outcome             | elapsed seconds |
+| ----------: | ------------------- | --------------: |
+|           3 | generic pool poison |          ~600.0 |
+|           4 | fulfilled           |           5.798 |
+|           5 | fulfilled           |          93.027 |
+|           6 | generic pool poison |          ~600.0 |
+|           7 | generic pool poison |          ~600.0 |
+|           8 | fulfilled           |         244.880 |
+|           9 | generic pool poison |          ~600.0 |
+|          10 | fulfilled           |           1.388 |
+|          11 | fulfilled           |           0.839 |
+|          12 | fulfilled           |          64.223 |
+|          13 | fulfilled           |         105.684 |
+|          14 | generic pool poison |          ~600.0 |
+
+7件は正常完了し、残る5件は検索開始から固定600秒境界で同じgeneric pool-poison errorへ落ちた。これは固定10分timeout仮説を時間境界として再現する。ただし現poolの`poison`は最初のworker errorを破棄し、全active jobへ同じgeneric errorを配るため、5件すべてが個別timeoutしたとはclaimできず、最初にtriggerしたparentも特定できない。安全な分類は`unknown`、時間からの推定だけが`search-timeout`である。runtime closeは成功し、残存workerは0だった。
 
 | cause question                   | 現在の状態                                      |
 | -------------------------------- | ----------------------------------------------- |
-| stable 10-minute timeout         | strongest hypothesis、未確定                    |
+| stable 600-second boundary       | 同一構成read-only再現でtiming一致               |
+| typed worker failure kind        | `unknown`。現poolがtrigger errorを破棄          |
 | exact failing inner phase        | 未確定。CLI projection bugにより公開結果から消失 |
-| trigger parent                   | 未特定                                          |
+| trigger parent                   | 5件のgeneric rejectから未特定                   |
 | torn checkpoint write            | 否定。torn tailなし                             |
 | prefix-100 completion            | 否定。milestone / sealなし                      |
 
-したがって「特定のparentが悪い」「stable runtimeが壊れた」「machine resource不足だった」とはまだclaimしない。再現はproduction checkpointを触らないdisposable namespaceで行い、sanitizedなphaseとtimeout境界だけを取得する必要がある。
+したがって「index 3 / 6 / 7 / 9 / 14がすべて個別timeoutした」「特定の1件がtriggerだった」「machine resource不足だった」とはまだclaimしない。次はraw stderrや局面を公開せず、worker境界でsafe failure kindとtimeout値を保存してpool-wide poisonへ伝播する必要がある。
 
 ## 6. 実行していない変更
 
@@ -128,19 +146,20 @@ partial checkpointがある状態で同じexactly-once commandをもう一度呼
 1. 現在のactive leaseとstage workをそのまま保全し、retry、cleanup、quarantine、resumeを行わない
 2. [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)のexact candidate `f5feacd9a24615cb0e75c580181a0cf79419aef8`と回帰testを独立reviewし、final-head CIと通常mergeを通す。merge前またはproduction未固定の候補を運用証拠として使わない
 3. 固定origin、zero-argument、read-onlyのproduction inspectorを実装し、active lease、registry binding、checkpoint record、milestone、seal、tailを認証してsanitized countだけを返す
-4. production stateと分離したdisposable namespaceでstable 10分timeout仮説を再現し、exact inner phaseを確定または棄却する
-5. 根本原因が確定した場合だけ修正し、timeout、cancellation、partial checkpoint、再開境界の回帰testを通す。worker数、timeout、depth、runtime receiptまたはsource bindingが変わる修正なら、既存partialのresumeを禁止する
-6. outer leaseとinner stage/checkpointを同じprocessで再検査する固定operator reconciliation flowを実装する。resume、またはquarantine後の別承認resolution / restartの選択には明示的な人間確認を要求し、自動判断しない
-7. code、test、日英記事、機械可読証拠をまとめたready-for-review [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)で、final-head CI、独立review、通常mergeを通す
-8. merge済みrevisionの固定operatorでread-only inspectionを再実行し、fresh evidenceが一致した場合だけ明示reconciliationを検討する
-9. exact bytes / configと安全なresume authorityの両方が証明された場合だけpartial checkpointから再開する。同一bindingでもtimeout再発riskを先に解消する。bindingが変わる、または安全性を証明できない場合は、認証済みquarantineと別承認のfresh restartへ分ける
-10. exact-100がpostflightまで成功しても一度STOPし、独立reviewとinformed human approvalの後だけ500、final-24,000へ進む
-11. 完全な教師dataの生成と確定後にのみ再学習、候補選抜、正式A/B、外部校正を行い、安全性、品質、棋力、rollback証拠が揃った場合だけlive activationを検討する
+4. 再現で失われたtrigger原因を保持するため、raw stderr、PID、局面、IDを出さないsafe failure kindとtimeout値をworker境界からpool-wide poisonへ伝播し、同じ12件で再検証する
+5. 4 / 6 / 8 / 12 workersのtail latency、timeout、throughputを同じread-only入力で比較し、単純なtimeout延長やblind retryではなく、原因と品質境界を両立する構成を選ぶ
+6. 根本原因が確定した場合だけ修正し、timeout、cancellation、partial checkpoint、再開境界の回帰testを通す。worker数、timeout、depth、runtime receiptまたはsource bindingが変わる修正なら、既存partialのresumeを禁止する
+7. outer leaseとinner stage/checkpointを同じprocessで再検査する固定operator reconciliation flowを実装する。resume、またはquarantine後の別承認resolution / restartの選択には明示的な人間確認を要求し、自動判断しない
+8. code、test、日英記事、機械可読証拠をまとめたready-for-review [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)で、final-head CI、独立review、通常mergeを通す
+9. merge済みrevisionの固定operatorでread-only inspectionを再実行し、fresh evidenceが一致した場合だけ明示reconciliationを検討する
+10. exact bytes / configと安全なresume authorityの両方が証明された場合だけpartial checkpointから再開する。同一bindingでもtimeout再発riskを先に解消する。bindingが変わる、または安全性を証明できない場合は、認証済みquarantineと別承認のfresh restartへ分ける
+11. exact-100がpostflightまで成功しても一度STOPし、独立reviewとinformed human approvalの後だけ500、final-24,000へ進む
+12. 完全な教師dataの生成と確定後にのみ再学習、候補選抜、正式A/B、外部校正を行い、安全性、品質、棋力、rollback証拠が揃った場合だけlive activationを検討する
 
 途中のfresh inspectionが不一致、認証不能、indeterminate、または新たなquarantineを示した場合はSTOPする。速度を理由にこの順序を飛ばさない。
 
 ## 9. 現時点の判断
 
-launcher fixとproduction readiness chainは通過したが、最初のdurable prefix-100は1,597秒でsuccess receiptなしに停止した。認証済みparent 3件は実progressである一方、100件milestoneでも棋力証拠でもない。さらにpublic `runner` phaseはprojection bugによるfallbackで、根本原因を確定していない。
+launcher fixとproduction readiness chainは通過したが、最初のdurable prefix-100は1,597秒でsuccess receiptなしに停止した。認証済みparent 3件は実progressである一方、100件milestoneでも棋力証拠でもない。さらにpublic `runner` phaseはprojection bugによるfallbackである。同一構成read-only再現は固定600秒境界を再現したが、現poolがtrigger errorを捨てるためtyped原因とtrigger parentはまだ確定していない。
 
-したがって現在は**STOP**である。次の有効な前進はretryではなく、実装済みdiagnostic projection candidateをreview・CI・通常mergeへ通し、read-only inspector、disposable reproduction、review済みreconciliation operatorを完成させることである。[機械可読証拠](./data/floodgate-v7-prefix-100-first-attempt-stop-2026-07-16.json)は、成功した事前gate、停止した1回のattempt、認証済みpartial state、実行していないmutation、nonclaimを分離して記録する。
+したがって現在は**STOP**である。次の有効な前進はretryではなく、実装済みdiagnostic projection candidateをreview・CI・通常mergeへ通し、安全なworker failure kind伝播と4 / 6 / 8 / 12 worker比較を完了し、read-only inspectorとreview済みreconciliation operatorを完成させることである。[機械可読証拠](./data/floodgate-v7-prefix-100-first-attempt-stop-2026-07-16.json)は、成功した事前gate、停止した1回のattempt、認証済みpartial state、read-only再現、実行していないmutation、nonclaimを分離して記録する。

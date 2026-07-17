@@ -1,6 +1,8 @@
 {
   "schema": "shogi-floodgate-v7-prefix-100-first-attempt-stop-evidence-v1",
   "evidence_date": "2026-07-16",
+  "evidence_timezone": "America/Los_Angeles",
+  "corresponding_utc_date": "2026-07-17",
   "articles": {
     "japanese": "../blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md",
     "english": "../blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md"
@@ -12,7 +14,8 @@
     "live_evaluator_changed": false,
     "playing_strength_evidence_created": false
   },
-  "delivery": {
+  "prerequisite_launcher_fix_delivery": {
+    "scope": "prerequisite-pr-483-that-enabled-the-production-attempt-not-the-current-projection-fix-delivery",
     "pull_request_number": 483,
     "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/483",
     "state": "merged",
@@ -131,12 +134,58 @@
   "root_cause_status": {
     "stable_fixed_timeout_seconds": 600,
     "stable_timeout_is_strongest_hypothesis": true,
-    "stable_timeout_confirmed_as_root_cause": false,
+    "stable_timeout_timing_reproduced": true,
+    "stable_timeout_confirmed_as_typed_root_cause": false,
     "exact_failing_inner_phase_identified": false,
     "trigger_parent_identified": false,
     "machine_resource_exhaustion_established": false,
     "stable_runtime_defect_established": false,
-    "disposable_isolated_reproduction_required": true
+    "same_configuration_read_only_reproduction": {
+      "status": "PASS",
+      "candidate_indices": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "fulfilled": [
+        {
+          "index": 4,
+          "elapsed_seconds": 5.798
+        },
+        {
+          "index": 5,
+          "elapsed_seconds": 93.027
+        },
+        {
+          "index": 8,
+          "elapsed_seconds": 244.88
+        },
+        {
+          "index": 10,
+          "elapsed_seconds": 1.388
+        },
+        {
+          "index": 11,
+          "elapsed_seconds": 0.839
+        },
+        {
+          "index": 12,
+          "elapsed_seconds": 64.223
+        },
+        {
+          "index": 13,
+          "elapsed_seconds": 105.684
+        }
+      ],
+      "generic_pool_poison_indices": [3, 6, 7, 9, 14],
+      "generic_pool_poison_elapsed_seconds": "approximately-600.0",
+      "safe_failure_kind": "unknown",
+      "timing_inference": "search-timeout",
+      "trigger_error_preserved_by_current_pool": false,
+      "trigger_parent_identified": false,
+      "runtime_close": "PASS",
+      "residual_workers": 0,
+      "production_state_mutated": false,
+      "production_cleanup_or_retry_performed": false
+    },
+    "safe_failure_kind_propagation_required": true,
+    "worker_count_tail_latency_benchmark_required": true
   },
   "checkpoint_run_binding": {
     "v3_header_hmac_authenticated_fields": [
@@ -160,6 +209,10 @@
     "complete_authenticated_checkpoint_records": 4,
     "authenticated_header_records": 1,
     "authenticated_parent_records": 3,
+    "same_configuration_read_only_reproduction_runs": 1,
+    "reproduction_candidates": 12,
+    "reproduction_fulfilled_candidates": 7,
+    "reproduction_generic_pool_poison_candidates": 5,
     "prefix_100_retries_after_stop": 0,
     "active_lease_cleanups_after_stop": 0,
     "quarantines_after_stop": 0,
@@ -187,7 +240,8 @@
     "preserve-active-lease-and-stage-work-without-retry-cleanup-quarantine-or-resume",
     "independently-review-current-cli-projection-candidate-then-pass-pr-final-head-ci-and-regular-merge",
     "implement-fixed-origin-zero-argument-read-only-authenticated-production-inspector",
-    "test-stable-ten-minute-timeout-hypothesis-in-production-isolated-disposable-namespace",
+    "preserve-safe-worker-failure-kind-and-timeout-through-pool-wide-poison-and-rerun-the-same-candidates",
+    "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers-on-the-same-read-only-input",
     "fix-only-a-confirmed-root-cause-and-test-timeout-cancellation-partial-checkpoint-and-resumption-boundaries-while-prohibiting-resume-after-binding-change",
     "implement-reviewed-same-process-outer-lease-and-inner-stage-checkpoint-reconciliation-with-explicit-human-confirmation",
     "publish-ready-for-review-pull-request-pass-final-head-ci-independent-review-and-regular-merge",
@@ -214,7 +268,8 @@
     "prefix_100_milestone_created": false,
     "checkpoint_sealed": false,
     "public_runner_phase_is_root_cause": false,
-    "stable_timeout_confirmed": false,
+    "stable_timeout_confirmed_as_typed_root_cause": false,
+    "all-five-generic-poisoned-candidates-individually-timed-out": false,
     "trigger_parent_identified": false,
     "partial_checkpoint_authorizes_resume": false,
     "identical_run_binding_alone_authorizes_resume": false,

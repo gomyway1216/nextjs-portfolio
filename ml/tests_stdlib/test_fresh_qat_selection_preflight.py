@@ -3,7 +3,9 @@ import hashlib
 import inspect
 import json
 import math
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -477,6 +479,33 @@ def rewrite_plan(fixture, mutate):
     )
 
 
+def git(root, *arguments, env=None):
+    return subprocess.run(
+        ["/usr/bin/git", *arguments],
+        cwd=root,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def tracked_verifier_fixture(root):
+    module_path = write_bytes(
+        root,
+        "ml/fresh_qat_selection_preflight.py",
+        b"# verifier root anchor\n",
+    )
+    tracked_path = write_bytes(root, "ml/tracked-registry.json", b'{"ok":true}\n')
+    git(root, "init", "-q")
+    git(root, "config", "user.name", "Fresh QAT Test")
+    git(root, "config", "user.email", "fresh-qat@example.invalid")
+    git(root, "add", ".")
+    git(root, "commit", "-q", "-m", "tracked fixture")
+    revision = git(root, "rev-parse", "HEAD").strip()
+    return module_path, tracked_path, revision
+
+
 class FreshQatSelectionPreflightTests(unittest.TestCase):
     def preflight(self, fixture, events=None):
         if events is None:
@@ -491,13 +520,15 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
             events.append(f"model-{seed}")
             self.assertEqual(model, {"synthetic_seed": seed})
 
-        receipt = PREFLIGHT._preflight_fresh_qat_selection(
+        validated = PREFLIGHT._preflight_fresh_qat_selection(
             repo_root=str(fixture["root"]),
-            tracking_verifier=lambda path: events.append(f"tracked-{Path(path).name}"),
+            tracking_verifier=lambda path, _raw: events.append(
+                f"tracked-{Path(path).name}"
+            ),
             checkpoint_loader=load_checkpoint,
             strict_model_validator=validate_model,
         )
-        return receipt, events
+        return validated, events
 
     def test_checked_in_registry_is_closed_before_artifacts_or_torch(self):
         loader = mock.Mock()
@@ -513,7 +544,7 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
         ), self.assertRaisesRegex(ValueError, "data-only blocked"):
             PREFLIGHT._preflight_fresh_qat_selection(
                 repo_root=str(REPO_ROOT),
-                tracking_verifier=lambda path: tracked.append(path),
+                tracking_verifier=lambda path, _raw: tracked.append(path),
                 checkpoint_loader=loader,
                 strict_model_validator=model_validator,
             )
@@ -543,63 +574,171 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                 strict_model_validator=lambda *_args: None,
             )
 
-    def test_all_three_strict_load_before_opaque_one_shot_reader(self):
+    def test_fixed_git_ignores_fake_path_and_inherited_repository_controls(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as fake_directory:
+            root = Path(directory).resolve()
+            module_path, tracked_path, revision = tracked_verifier_fixture(root)
+            fake_bin = Path(fake_directory).resolve()
+            marker = fake_bin / "fake-git-used"
+            fake_git = fake_bin / "git"
+            fake_git.write_text(
+                f"#!/bin/sh\nprintf used > {marker}\nexit 0\n",
+                encoding="utf-8",
+            )
+            fake_git.chmod(0o755)
+            inherited = {
+                "PATH": str(fake_bin),
+                "GIT_DIR": str(root / "attacker.git"),
+                "GIT_WORK_TREE": str(root / "attacker-worktree"),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                "GIT_CONFIG_VALUE_0": str(fake_git),
+                "DYLD_INSERT_LIBRARIES": str(root / "attacker.dylib"),
+                "LD_PRELOAD": str(root / "attacker.so"),
+            }
+            with mock.patch.object(
+                PREFLIGHT,
+                "__file__",
+                str(module_path),
+            ), mock.patch.dict(os.environ, inherited, clear=False):
+                PREFLIGHT._verify_tracked_file(
+                    str(tracked_path),
+                    revision,
+                    tracked_path.read_bytes(),
+                )
+            self.assertFalse(marker.exists())
+
+    def test_fixed_git_rejects_assume_unchanged_and_skip_worktree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            module_path, tracked_path, revision = tracked_verifier_fixture(root)
+            cases = (
+                ("--assume-unchanged", "--no-assume-unchanged"),
+                ("--skip-worktree", "--no-skip-worktree"),
+            )
+            for set_flag, clear_flag in cases:
+                with self.subTest(flag=set_flag):
+                    git(root, "update-index", set_flag, "ml/tracked-registry.json")
+                    with mock.patch.object(
+                        PREFLIGHT,
+                        "__file__",
+                        str(module_path),
+                    ), self.assertRaisesRegex(ValueError, "special tracked flags"):
+                        PREFLIGHT._verify_tracked_file(
+                            str(tracked_path),
+                            revision,
+                            tracked_path.read_bytes(),
+                        )
+                    git(root, "update-index", clear_flag, "ml/tracked-registry.json")
+
+    def test_fixed_git_rejects_replace_graft_fsmonitor_and_restored_stat_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            module_path, tracked_path, revision = tracked_verifier_fixture(root)
+            original_raw = tracked_path.read_bytes()
+            original_stat = tracked_path.stat()
+
+            tracked_path.write_bytes(b'{"ok":null}\n')
+            git(root, "add", "ml/tracked-registry.json")
+            git(root, "commit", "-q", "-m", "replacement tree")
+            replacement = git(root, "rev-parse", "HEAD").strip()
+            git(root, "--no-replace-objects", "reset", "--hard", "-q", revision)
+            git(root, "replace", revision, replacement)
+            graft_path = root / ".git/info/grafts"
+            graft_path.write_text(f"{revision} {replacement}\n", encoding="utf-8")
+
+            hook = root / ".git/hooks/fake-fsmonitor"
+            hook.write_text(
+                "#!/bin/sh\nprintf 'fake-token\\0'\n",
+                encoding="utf-8",
+            )
+            hook.chmod(0o755)
+            git(root, "config", "core.fsmonitor", str(hook))
+            git(root, "config", "core.fsmonitorHookVersion", "2")
+            git(root, "status", "--porcelain=v1", "--untracked-files=all")
+
+            tracked_path.write_bytes(b'{"ok":null}\n')
+            os.utime(
+                tracked_path,
+                ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+            )
+            self.assertEqual(len(tracked_path.read_bytes()), len(original_raw))
+            with mock.patch.object(
+                PREFLIGHT,
+                "__file__",
+                str(module_path),
+            ), self.assertRaisesRegex(
+                ValueError,
+                "clean non-ignored|bytes or mode differ",
+            ):
+                PREFLIGHT._verify_tracked_file(
+                    str(tracked_path),
+                    revision,
+                    tracked_path.read_bytes(),
+                )
+
+    def test_injected_core_is_unbranded_after_all_three_strict_loads(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = synthetic_fixture(Path(directory).resolve())
             events = []
-            receipt, events = self.preflight(fixture, events)
-            public = receipt.to_dict()
-            self.assertTrue(public["all_three_complete_before_selection_read"])
-            self.assertFalse(public["selection_labels_read"])
-            self.assertEqual([run["seed"] for run in public["runs"]], [42, 43, 44])
-            self.assertFalse(hasattr(receipt, "__dict__"))
-            for field, value in (
-                ("_brand", object()),
-                ("_serialized", b'{"tampered":true}\n'),
-                ("_used", False),
-            ):
-                with self.subTest(field=field), self.assertRaises(AttributeError):
-                    setattr(receipt, field, value)
+            validated, events = self.preflight(fixture, events)
+            self.assertIs(type(validated), dict)
+            self.assertTrue(validated["all_three_complete_before_selection_read"])
+            self.assertFalse(validated["selection_labels_read"])
+            self.assertEqual(
+                [run["seed"] for run in validated["runs"]],
+                [42, 43, 44],
+            )
             self.assertEqual(
                 [event for event in events if event.startswith("load-")],
                 ["load-20-42", "load-20-43", "load-20-44"],
             )
-
-            reader_calls = []
-
-            def reader(preflight):
-                self.assertEqual(
-                    [event for event in events if event.startswith("model-")],
-                    ["model-42", "model-43", "model-44"],
-                )
-                reader_calls.append(preflight["schema"])
-                return {"reader": "synthetic"}
-
             self.assertEqual(
-                PREFLIGHT.call_fresh_selection_reader(receipt, reader),
-                {"reader": "synthetic"},
+                [event for event in events if event.startswith("model-")],
+                ["model-42", "model-43", "model-44"],
             )
-            self.assertEqual(
-                reader_calls,
-                [PREFLIGHT.FRESH_QAT_SELECTION_PREFLIGHT_SCHEMA],
-            )
+            reader = mock.Mock()
             with self.assertRaisesRegex(ValueError, "unused preflight receipt"):
-                PREFLIGHT.call_fresh_selection_reader(receipt, reader)
-            with self.assertRaisesRegex(ValueError, "invalid or already used"):
-                receipt.to_dict()
-            self.assertEqual(len(reader_calls), 1)
+                PREFLIGHT.call_fresh_selection_reader(validated, reader)
+            reader.assert_not_called()
             with self.assertRaisesRegex(TypeError, "cannot be constructed"):
                 PREFLIGHT.FreshQatSelectionPreflightReceipt(
                     object(),
-                    public,
+                    validated,
                 )
             forged = object.__new__(PREFLIGHT.FreshQatSelectionPreflightReceipt)
             with self.assertRaisesRegex(ValueError, "unused preflight receipt"):
                 PREFLIGHT.call_fresh_selection_reader(forged, reader)
-            for field in ("_brand", "_serialized", "_used"):
-                with self.assertRaises(AttributeError):
-                    setattr(receipt, field, False)
-            self.assertEqual(len(reader_calls), 1)
+            reader.assert_not_called()
+
+    def test_internal_branded_reader_guard_is_spent_even_when_reader_raises(self):
+        value = {
+            "schema": PREFLIGHT.FRESH_QAT_SELECTION_PREFLIGHT_SCHEMA,
+            "validated": True,
+        }
+        receipt = PREFLIGHT.FreshQatSelectionPreflightReceipt(
+            PREFLIGHT._RECEIPT_BRAND,
+            value,
+        )
+        self.assertFalse(hasattr(receipt, "__dict__"))
+        self.assertEqual(receipt.to_dict(), value)
+        for field, replacement in (
+            ("_brand", object()),
+            ("_serialized", b'{"tampered":true}\n'),
+            ("_used", False),
+        ):
+            with self.subTest(field=field), self.assertRaises(AttributeError):
+                setattr(receipt, field, replacement)
+
+        reader = mock.Mock(side_effect=RuntimeError("synthetic reader failure"))
+        with self.assertRaisesRegex(RuntimeError, "synthetic reader failure"):
+            PREFLIGHT.call_fresh_selection_reader(receipt, reader)
+        reader.assert_called_once_with(value)
+        with self.assertRaisesRegex(ValueError, "unused preflight receipt"):
+            PREFLIGHT.call_fresh_selection_reader(receipt, reader)
+        with self.assertRaisesRegex(ValueError, "invalid or already used"):
+            receipt.to_dict()
+        self.assertEqual(reader.call_count, 1)
 
     def test_checkpoint_loader_receives_captured_registered_bytes_during_swap(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -619,7 +758,7 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                     checkpoint_path.write_bytes(original_raw)
                 return copy.deepcopy(fixture["checkpoint_payloads"][raw])
 
-            receipt = PREFLIGHT._preflight_fresh_qat_selection(
+            validated = PREFLIGHT._preflight_fresh_qat_selection(
                 repo_root=str(fixture["root"]),
                 tracking_verifier=lambda *_: None,
                 checkpoint_loader=load_checkpoint,
@@ -628,10 +767,9 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                     {"synthetic_seed": seed},
                 ),
             )
-            public = receipt.to_dict()
             self.assertEqual(len(loaded_raw), 3)
             self.assertEqual(
-                public["runs"][0]["checkpoint"],
+                validated["runs"][0]["checkpoint"],
                 {
                     "path": str(checkpoint_path),
                     **original_identity,
@@ -671,11 +809,10 @@ class FreshQatSelectionPreflightTests(unittest.TestCase):
                 "_strict_json",
                 side_effect=strict_json,
             ):
-                receipt, _events = self.preflight(fixture)
+                validated, _events = self.preflight(fixture)
 
-            public = receipt.to_dict()
             self.assertEqual(
-                public["runs"][0]["result"],
+                validated["runs"][0]["result"],
                 {
                     "path": str(result_path),
                     **original_identity,

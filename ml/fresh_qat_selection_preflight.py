@@ -1,9 +1,11 @@
 """Fail-closed three-run preflight for fresh Floodgate QAT selection.
 
 The historical WCSC36 selection audit remains sealed in ``qat_selection_audit``.
-This module has a separate registry and returns an opaque, one-shot receipt only
+This module has a separate registry and returns a one-shot public-API guard only
 after all three result manifests and final checkpoints pass identity and
-strict-load validation.  Selection labels are not accepted by the preflight.
+strict-load validation. Selection labels are not accepted by the preflight.
+This is an accidental-misuse boundary, not cryptographic isolation from
+adversarial Python code already executing inside this module's process.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import weakref
 from collections.abc import Callable, Mapping
@@ -53,6 +56,36 @@ FRESH_QAT_SELECTION_READY_STATUS = (
 )
 GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+GIT_OBJECT_ID_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+FIXED_GIT_EXECUTABLE = "/usr/bin/git"
+FIXED_GIT_ENVIRONMENT = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_GRAFT_FILE": "/dev/null",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "LC_ALL": "C",
+    "LANG": "C",
+}
+FIXED_GIT_COMMAND_PREFIX = (
+    "--no-replace-objects",
+    "--no-optional-locks",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.untrackedCache=false",
+    "-c",
+    "core.preloadIndex=false",
+    "-c",
+    "core.ignoreStat=false",
+    "-c",
+    "core.trustctime=true",
+    "-c",
+    "core.checkStat=default",
+)
 
 RESULT_FIELDS = {
     "schema",
@@ -790,7 +823,7 @@ def _torch_strict_model_validator(model: Any, seed: int) -> None:
 
 
 class FreshQatSelectionPreflightReceipt:
-    """Opaque one-shot capability created only by a complete three-run preflight."""
+    """One-shot public-API guard created only by the fixed public preflight."""
 
     __slots__ = ("__weakref__",)
 
@@ -835,10 +868,10 @@ def call_fresh_selection_reader(
 def _preflight_fresh_qat_selection(
     *,
     repo_root: str,
-    tracking_verifier: Callable[[str], None],
+    tracking_verifier: Callable[[str, bytes], None],
     checkpoint_loader: Callable[[bytes], Mapping[str, Any]],
     strict_model_validator: Callable[[Any, int], None],
-) -> FreshQatSelectionPreflightReceipt:
+) -> dict[str, Any]:
     root = os.path.realpath(repo_root)
     registry_path = os.path.join(
         root,
@@ -853,7 +886,7 @@ def _preflight_fresh_qat_selection(
         raise _data_only_blocker("tracked selection registry is absent") from error
     registry = _strict_json(registry_raw, "fresh QAT selection registry")
     ready = _validate_registry(registry)
-    tracking_verifier(registry_path)
+    tracking_verifier(registry_path, registry_raw)
     if _read_exact_file(registry_path, "fresh QAT selection registry") != registry_raw:
         raise ValueError("fresh QAT selection registry changed during verification")
     if not ready:
@@ -875,7 +908,7 @@ def _preflight_fresh_qat_selection(
         registry["execution_plan"],
     ):
         raise ValueError("fresh training/selection plan registry mismatch")
-    tracking_verifier(training_registry_path)
+    tracking_verifier(training_registry_path, training_registry_raw)
 
     plan_identity = registry["execution_plan"]
     plan_receipt = _registered_snapshot(root, plan_identity, "fresh execution plan")
@@ -888,7 +921,7 @@ def _preflight_fresh_qat_selection(
         raise ValueError("fresh execution plan changed after snapshot")
     plan = _strict_json(plan_raw, "fresh execution plan")
     _validate_plan_shape(plan)
-    tracking_verifier(plan_path)
+    tracking_verifier(plan_path, plan_raw)
 
     registered_runs = registry["runs"]
     artifact_receipts = []
@@ -1030,61 +1063,233 @@ def _preflight_fresh_qat_selection(
             "tracked_tree_clean": True,
         },
         "runs": runs,
-        "reader_gate": "opaque-one-shot-preflight-receipt",
+        "reader_gate": "one-shot-public-api-preflight-guard",
         "final_holdout": "not_opened_by_this_preflight",
         "production_promotion_authorized": False,
     }
-    return FreshQatSelectionPreflightReceipt(_RECEIPT_BRAND, receipt_value)
+    return receipt_value
 
 
-def _verify_tracked_file(path: str, expected_revision: str) -> None:
+def _git_single_line(raw: bytes, label: str) -> str:
+    if (
+        not raw.endswith(b"\n")
+        or len(raw) <= 1
+        or b"\n" in raw[:-1]
+        or b"\r" in raw
+        or b"\0" in raw
+    ):
+        raise ValueError(f"invalid fixed Git {label} output")
+    try:
+        return raw[:-1].decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"invalid fixed Git {label} output") from error
+
+
+def _ordinary_index_flags(raw: bytes) -> bool:
+    if not raw:
+        return True
+    if not raw.endswith(b"\0"):
+        return False
+    return all(
+        len(record) > 2 and record.startswith(b"H ") for record in raw[:-1].split(b"\0")
+    )
+
+
+def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+        value.st_nlink,
+    )
+
+
+def _verify_tracked_file(
+    path: str,
+    expected_revision: str,
+    captured_bytes: bytes,
+) -> None:
     if (
         not isinstance(expected_revision, str)
         or GIT_REVISION_RE.fullmatch(expected_revision) is None
     ):
         raise ValueError("audit revision must be a lowercase 40-digit Git revision")
-    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-    relative = os.path.relpath(os.path.realpath(path), repo_root)
-    if relative == ".." or relative.startswith(".." + os.sep):
-        raise ValueError("fresh selection tracked file is outside the repository")
+    if type(captured_bytes) is not bytes or not captured_bytes:
+        raise ValueError("tracked verification requires captured immutable bytes")
+    try:
+        git_stat = os.lstat(FIXED_GIT_EXECUTABLE)
+    except OSError as error:
+        raise ValueError("fixed Git executable is unavailable") from error
+    if (
+        not stat.S_ISREG(git_stat.st_mode)
+        or not os.access(FIXED_GIT_EXECUTABLE, os.X_OK)
+        or os.path.realpath(FIXED_GIT_EXECUTABLE) != FIXED_GIT_EXECUTABLE
+    ):
+        raise ValueError("fixed Git executable is unavailable")
 
-    def git(*arguments: str) -> str:
+    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    canonical_path = os.path.abspath(path)
+    if (
+        os.path.realpath(canonical_path) != canonical_path
+        or os.path.commonpath((repo_root, canonical_path)) != repo_root
+    ):
+        raise ValueError("fresh selection tracked file is outside the repository")
+    relative = os.path.relpath(canonical_path, repo_root)
+    if (
+        relative in ("", ".", "..")
+        or relative.startswith(".." + os.sep)
+        or "\0" in relative
+        or "\n" in relative
+        or "\r" in relative
+    ):
+        raise ValueError("fresh selection tracked file is outside the repository")
+    relative_bytes = os.fsencode(relative)
+
+    def git(*arguments: str) -> bytes:
         try:
             return subprocess.run(
-                ["git", "-C", repo_root, *arguments],
+                [
+                    FIXED_GIT_EXECUTABLE,
+                    *FIXED_GIT_COMMAND_PREFIX,
+                    *arguments,
+                ],
+                cwd=repo_root,
+                env=dict(FIXED_GIT_ENVIRONMENT),
                 check=True,
                 capture_output=True,
-                text=True,
+                text=False,
             ).stdout
         except (OSError, subprocess.CalledProcessError) as error:
-            raise ValueError(
-                f"cannot verify fresh selection revision: {error}"
-            ) from error
+            raise ValueError("cannot verify fresh selection tracked state") from error
 
-    if git("rev-parse", "HEAD").strip() != expected_revision:
-        raise ValueError("fresh selection audit revision does not match HEAD")
-    if git("status", "--porcelain=v1", "--untracked-files=normal"):
-        raise ValueError("fresh selection audit requires a clean Git worktree")
-    git("ls-files", "--error-unmatch", "--", relative)
-    if git("status", "--porcelain=v1", "--untracked-files=all", "--", relative):
-        raise ValueError("fresh selection tracked file is modified or untracked")
+    def capture_git_context() -> tuple[bytes, ...]:
+        return (
+            git("rev-parse", "--show-toplevel"),
+            git("rev-parse", "--verify", "HEAD^{commit}"),
+            git(
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+            ),
+            git("ls-files", "-v", "-z"),
+            git(
+                "ls-tree",
+                "-r",
+                "-l",
+                "-z",
+                "--full-tree",
+                "HEAD",
+                "--",
+                relative,
+            ),
+            git("ls-files", "-s", "-z", "--", relative),
+            git("rev-parse", "--show-object-format"),
+        )
+
+    initial = capture_git_context()
+    top_level = _git_single_line(initial[0], "top-level")
+    head = _git_single_line(initial[1], "HEAD")
+    if top_level != repo_root:
+        raise ValueError("fixed Git top-level does not match the repository")
+    if GIT_OBJECT_ID_RE.fullmatch(head) is None or head != expected_revision:
+        raise ValueError("fresh selection audit revision does not match exact HEAD")
+    if initial[2]:
+        raise ValueError(
+            "fresh selection audit requires a clean non-ignored worktree and index"
+        )
+    if not _ordinary_index_flags(initial[3]):
+        raise ValueError("fresh selection Git index contains special tracked flags")
+
+    tree_raw = initial[4]
+    if not tree_raw.endswith(b"\0") or tree_raw[:-1].count(b"\0") != 0:
+        raise ValueError("fresh selection tracked HEAD entry is invalid")
+    tree_header, separator, tree_path = tree_raw[:-1].partition(b"\t")
+    tree_fields = tree_header.split()
+    if (
+        separator != b"\t"
+        or tree_path != relative_bytes
+        or len(tree_fields) != 4
+        or tree_fields[1] != b"blob"
+        or tree_fields[0] not in (b"100644", b"100755")
+        or re.fullmatch(rb"[0-9a-f]+", tree_fields[2]) is None
+        or re.fullmatch(rb"(?:0|[1-9][0-9]*)", tree_fields[3]) is None
+    ):
+        raise ValueError("fresh selection tracked HEAD entry is invalid")
+    tree_mode = tree_fields[0].decode("ascii")
+    tree_object = tree_fields[2].decode("ascii")
+    tree_bytes = int(tree_fields[3])
+
+    index_raw = initial[5]
+    if not index_raw.endswith(b"\0") or index_raw[:-1].count(b"\0") != 0:
+        raise ValueError("fresh selection tracked index entry is invalid")
+    index_header, separator, index_path = index_raw[:-1].partition(b"\t")
+    index_fields = index_header.split()
+    if (
+        separator != b"\t"
+        or index_path != relative_bytes
+        or len(index_fields) != 3
+        or index_fields[2] != b"0"
+        or index_fields[0].decode("ascii", "ignore") != tree_mode
+        or index_fields[1].decode("ascii", "ignore") != tree_object
+    ):
+        raise ValueError("fresh selection tracked index entry is invalid")
+
+    object_format = _git_single_line(initial[6], "object format")
+    if object_format not in ("sha1", "sha256"):
+        raise ValueError("fresh selection Git object format is invalid")
+    if len(tree_object) != (40 if object_format == "sha1" else 64):
+        raise ValueError("fresh selection tracked object identity is invalid")
+
+    try:
+        before = os.lstat(canonical_path)
+        current_bytes = _read_exact_file(canonical_path, "tracked preflight input")
+        after = os.lstat(canonical_path)
+    except OSError as error:
+        raise ValueError("cannot verify fresh selection tracked bytes") from error
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or _stat_identity(before) != _stat_identity(after)
+        or os.path.realpath(canonical_path) != canonical_path
+        or current_bytes != captured_bytes
+        or before.st_size != len(captured_bytes)
+        or (tree_mode == "100755") != bool(before.st_mode & 0o111)
+        or tree_bytes != len(captured_bytes)
+    ):
+        raise ValueError("fresh selection tracked bytes or mode differ from HEAD")
+    blob_header = f"blob {len(captured_bytes)}\0".encode("ascii")
+    actual_object = hashlib.new(
+        object_format,
+        blob_header + captured_bytes,
+    ).hexdigest()
+    if actual_object != tree_object:
+        raise ValueError("fresh selection tracked bytes or mode differ from HEAD")
+
+    final = capture_git_context()
+    if final != initial:
+        raise ValueError("fresh selection Git state changed during verification")
 
 
 def preflight_fresh_qat_selection(
     *,
     audit_revision: str,
 ) -> FreshQatSelectionPreflightReceipt:
-    """Return an opaque receipt, or fail before any selection-label reader exists."""
+    """Return a one-shot API guard, or fail before any selection reader exists."""
     root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-    return _preflight_fresh_qat_selection(
+    validated = _preflight_fresh_qat_selection(
         repo_root=root,
-        tracking_verifier=lambda path: _verify_tracked_file(
+        tracking_verifier=lambda path, raw: _verify_tracked_file(
             path,
             audit_revision,
+            raw,
         ),
         checkpoint_loader=_torch_checkpoint_loader,
         strict_model_validator=_torch_strict_model_validator,
     )
+    return FreshQatSelectionPreflightReceipt(_RECEIPT_BRAND, validated)
 
 
 __all__ = [

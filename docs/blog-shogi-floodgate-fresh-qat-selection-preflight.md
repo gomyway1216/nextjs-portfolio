@@ -59,15 +59,17 @@ ready selection registry
   -> capture済み3 result bytesをすべてstrict parse / validate
   -> capture済み3 checkpoint bytesをすべてTorch strict-load / model strict-load
   -> registry / plan / 6 artifactを再確認
-  -> opaque one-shot receiptを発行
+  -> one-shot public-API guardを発行
   -> selection readerを1回だけ呼べる
 ```
 
-公開preflight APIが受け取るのはexact audit revisionだけである。checkpoint loaderやmodel validatorは差し替えられず、固定Torch loaderと`DistillNet` strict validatorを使う。synthetic test用の注入点はprivate helperだけに閉じた。
+公開preflight APIが受け取るのはexact audit revisionだけである。checkpoint loaderやmodel validatorは差し替えられず、固定Torch loaderと`DistillNet` strict validatorを使う。synthetic test用の注入可能coreは検証済みplain valueを返すだけで、selection readerが受理するguardを発行できない。guardを発行するのは、固定root、固定Git verifier、固定bytes loader、固定model validatorを通る公開経路だけである。
+
+tracked selection registry、training registry、planの検証には、PATH上の`git`ではなく固定`/usr/bin/git`を使う。継承した`GIT_*`、`DYLD_*`、`LD_*`、PATHを採用せず、replace object、graft、fsmonitor、optional lock、untracked cacheを無効化する。exact HEAD、全non-ignored status、indexのassume-unchanged / skip-worktree等の特殊flagを検査し、対象fileのHEAD tree blob、index mode/object、capture済み実bytesから独立計算したGit blob IDを照合する。同じsize / mtimeへ戻した改変でも通らない。Git管理外が正常な旧legacy replay componentは、従来どおりこのtracked-file verifierへ渡さない。
 
 checkpointはhash確認後にpathから読み直さない。登録identityと一致したimmutable bytesを3件とも先に保持し、その同じbytesを`BytesIO`経由でTorchへ渡す。検証中にpathを一時的に別fileへ差し替えて元へ戻しても、strict-load対象をすり替えられない。resultも同じくcapture済みbytesだけをparseする。
 
-receipt本体には状態を書けるfieldも`__dict__`もない。未使用状態はmodule-privateなweak mapに置き、reader呼び出し時に原子的に取り出して消す。偽造object、field書換え、2回目のreader、使用後の再読は拒否される。receiptが発行されてもfinal holdoutは未開封で、production昇格は`false`のままである。
+guard本体には状態を書けるfieldも`__dict__`もない。未使用状態はmodule-privateなweak mapに置き、reader呼び出し時に原子的に取り出して消す。通常APIへ別objectを渡す、fieldを書き換える、2回読む、使用後に再読する、といった誤用は拒否され、reader自身が例外を出してもguardは使用済みになる。ただし、同一process内でmodule internalsへ自由にアクセスできる敵対的Python codeに対する暗号的な偽造不能性やsecurity isolationは主張しない。このguardの境界は公開APIのcallback差し替えと偶発的誤用の防止である。guardが発行されてもfinal holdoutは未開封で、production昇格は`false`のままである。
 
 ## synthetic検証で見つけて塞いだもの
 
@@ -84,16 +86,19 @@ receipt本体には状態を書けるfieldも`__dict__`もない。未使用状�
 - replay unionのmissing / extra / same-count swap、component duplicate / overlap、非canonical IDを拒否
 - protected IDがエラー文字列へ漏れない
 - 公開APIからloader / validatorを差し替えられない
-- opaque receiptのfield書換え、偽造、replayを拒否
+- 注入可能coreのplain valueではselection readerを呼べない
+- one-shot guardのfield書換え、replayを拒否し、reader例外時も使用済みにする
+- 偽PATH `git`、`GIT_DIR` / `GIT_WORK_TREE`、replace / graft、fsmonitor、assume-unchanged / skip-worktree、同size / mtime復元改変を拒否または無効化
 - 旧WCSC36 result / checkpoint schemaの出力を維持し、fresh bindingだけfresh schemaを出す
 
 | Suite | 結果 |
 | --- | ---: |
-| fresh focused stdlib | 26 pass |
-| Python stdlib ML全体 | 84 pass |
-| Torch ML全体 | 73 pass |
+| fresh focused stdlib | 30 pass |
+| Python stdlib ML全体 | 100 pass |
+| Torch ML全体 | 74 pass |
 | legacy / fresh schema実出力 integration | 1 pass（synthetic run各1） |
 | 関連TypeScript | 5 pass |
+| clean HEADの実repo public closed-registry integration | data-only blocked（固定Git検証通過、Torch / artifact未到達） |
 | `py_compile` / Ruff / Black / diff check | pass |
 
 検証件数とscope boundaryは

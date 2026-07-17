@@ -1,7 +1,7 @@
 {
   "schema": "shogi-floodgate-fresh-qat-selection-preflight-evidence-v1",
   "recorded_on": "2026-07-17",
-  "source_base_revision": "ce33913014eb0e990dfaabe344e2e7c8d5e393d5",
+  "source_base_revision": "040f61ad6b44c6accb0db68375ec66877c021f17",
   "status": "code-ready-data-only-blocked",
   "registries": {
     "training": {
@@ -56,8 +56,28 @@
     "receipt_state_writable_on_object": false,
     "reader_claims_allowed": 1,
     "public_loader_or_validator_injection": false,
+    "injected_core_mints_reader_guard": false,
+    "reader_exception_spends_guard": true,
+    "same_process_python_adversary_unforgeability_claimed": false,
     "final_holdout_opened": false,
     "production_promotion_authorized": false
+  },
+  "tracked_input_git_verification": {
+    "executable": "/usr/bin/git",
+    "inherited_path_used": false,
+    "inherited_git_dyld_ld_controls_used": false,
+    "replace_objects_enabled": false,
+    "graft_file": "/dev/null",
+    "fsmonitor_enabled": false,
+    "optional_locks_enabled": false,
+    "complete_nonignored_status_required_clean": true,
+    "special_index_flags_allowed": false,
+    "exact_head_tree_blob_required": true,
+    "index_mode_and_object_match_required": true,
+    "git_blob_id_recomputed_from_captured_bytes": true,
+    "same_size_mtime_restored_tamper_accepted": false,
+    "legacy_untracked_replay_component_in_scope": false,
+    "production_authority_claimed": false
   },
   "historical_wcsc36": {
     "qat_protocol_modified": false,
@@ -69,11 +89,11 @@
   },
   "validation": {
     "focused_stdlib_tests": {
-      "passed": 26,
+      "passed": 30,
       "failed": 0
     },
     "complete_python_stdlib_suite": {
-      "passed": 84,
+      "passed": 100,
       "failed": 0
     },
     "training_schema_integration": {
@@ -84,7 +104,7 @@
       "torch_version": "2.13.0"
     },
     "complete_torch_suite": {
-      "passed": 73,
+      "passed": 74,
       "failed": 0,
       "torch_version": "2.13.0"
     },
@@ -92,6 +112,12 @@
       "passed": 5,
       "failed": 0,
       "node_version": "22.13.0"
+    },
+    "clean_head_public_closed_registry_integration": {
+      "status": "pass",
+      "fixed_git_verifier_completed": true,
+      "stopped_as": "data-only-blocked",
+      "torch_or_artifact_path_reached": false
     },
     "py_compile": "pass",
     "ruff": "pass",

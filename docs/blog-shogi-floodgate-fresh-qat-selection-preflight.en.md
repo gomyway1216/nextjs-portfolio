@@ -59,15 +59,17 @@ ready selection registry
   -> strict-parse and validate all 3 captured result byte strings
   -> Torch strict-load all 3 captured checkpoint byte strings and every model
   -> recheck registry, plan, and all 6 artifacts
-  -> issue an opaque one-shot receipt
+  -> issue a one-shot public-API guard
   -> allow one selection-reader call
 ```
 
-The public preflight API accepts only the exact audit revision. Callers cannot replace its checkpoint loader or model validator; it always uses the fixed Torch loader and strict `DistillNet` validator. Injectable callbacks exist only on the private synthetic-test helper.
+The public preflight API accepts only the exact audit revision. Callers cannot replace its checkpoint loader or model validator; it always uses the fixed Torch loader and strict `DistillNet` validator. The injectable synthetic-test core returns only a plain validated value and cannot issue a guard accepted by the selection reader. Only the public path through the fixed root, fixed Git verifier, fixed byte loader, and fixed model validator can issue that guard.
+
+Tracked selection-registry, training-registry, and plan verification uses fixed `/usr/bin/git`, never a `git` found through `PATH`. It does not inherit `GIT_*`, `DYLD_*`, `LD_*`, or PATH controls, and disables replace objects, grafts, fsmonitor, optional locks, and the untracked cache. It checks exact HEAD, the complete non-ignored status, special index flags such as assume-unchanged and skip-worktree, and the target's HEAD-tree blob plus index mode/object. It independently computes the Git blob ID from the captured real bytes, so a same-size tamper with restored mtime cannot pass. The valid untracked legacy replay component remains outside this tracked-file verifier.
 
 Checkpoints are not reopened by path after hashing. The preflight first retains all three immutable byte strings that match the registered identities, then passes those same bytes to Torch through `BytesIO`. A temporary path swap followed by restoration therefore cannot change what is strict-loaded. Results are likewise parsed only from their captured bytes.
 
-The receipt has no writable state fields and no `__dict__`. Its unused state lives in a module-private weak map and is atomically removed when the reader claims it. Forged objects, field writes, a second reader call, and reading a consumed receipt are rejected. Even a valid receipt states that the final holdout was not opened and that production promotion is false.
+The guard has no writable state fields and no `__dict__`. Its unused state lives in a module-private weak map and is atomically removed when the reader claims it. Passing an unrelated object through the normal API, field writes, a second reader call, and reading a consumed guard are rejected; the guard is also spent if the reader itself raises. This is an accidental-misuse and public-callback-substitution boundary. It does **not** claim cryptographic unforgeability or security isolation from adversarial Python code that already has unrestricted access to module internals in the same process. Even a valid guard states that the final holdout was not opened and that production promotion is false.
 
 ## Synthetic validation and fixes
 
@@ -84,16 +86,19 @@ Temporary synthetic artifacts verify that:
 - union omissions, additions, same-count swaps, duplicate or overlapping components, and noncanonical IDs fail;
 - protected IDs never appear in error messages;
 - the public API cannot replace the loader or validator;
-- opaque receipt mutation, forgery, and replay fail; and
+- an injected-core plain value cannot call the selection reader;
+- one-shot guard field mutation and replay fail, including after a reader exception;
+- fake PATH Git, inherited `GIT_DIR` / `GIT_WORK_TREE`, replace/graft, fsmonitor, assume-unchanged/skip-worktree, and restored-size/mtime tampering are rejected or neutralized; and
 - historical training still emits historical schemas while a fresh binding emits fresh schemas.
 
 | Suite | Result |
 | --- | ---: |
-| focused fresh stdlib tests | 26 passed |
-| complete Python stdlib ML suite | 84 passed |
-| complete Torch ML suite | 73 passed |
+| focused fresh stdlib tests | 30 passed |
+| complete Python stdlib ML suite | 100 passed |
+| complete Torch ML suite | 74 passed |
 | legacy/fresh emitted-schema integration | 1 passed (one synthetic run each) |
 | related TypeScript tests | 5 passed |
+| real-repo public closed-registry integration at clean HEAD | data-only blocked (fixed Git passed; no Torch/artifact access) |
 | `py_compile`, Ruff, Black, and diff check | passed |
 
 The exact validation record and scope boundary are in

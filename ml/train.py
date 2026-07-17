@@ -62,11 +62,10 @@ import torch.nn.functional as F
 
 from checkpoint_compat import expected_arch, sha256_file, validate_arch
 from int16_forward import int16_forward_ste
-from qat_protocol import (
-    QAT_FINAL_CHECKPOINT_SCHEMA,
-    QAT_TRAINING_RESULT_SCHEMA,
+from qat_plan_registry import (
+    resolve_qat_artifact_schemas,
+    verify_qat_experiment_plan,
 )
-from qat_plan_registry import verify_qat_experiment_plan
 from sibling_manifest import (
     SiblingManifestError,
     load_policy_exposed_semantic_position_ids,
@@ -2041,6 +2040,7 @@ def run_int16_aware_training(args) -> None:
             training_runtime,
             tracking_verifier=verify_tracked_experiment_plan,
         )
+        artifact_schemas = resolve_qat_artifact_schemas(binding)
     except (OSError, RuntimeError, ValueError) as error:
         raise SystemExit(f"[train] int16-aware plan rejected: {error}") from error
     if type(binding) is not dict or not {
@@ -2052,6 +2052,8 @@ def run_int16_aware_training(args) -> None:
     experiment_plan = binding["provenance"]
     experiment_contract = binding["contract"]
     replay_exclusion_contract = binding["replay_exclusion"]
+    result_schema = artifact_schemas["result"]
+    checkpoint_schema = artifact_schemas["checkpoint"]
     if type(experiment_plan) is not dict or type(experiment_contract) is not dict:
         raise SystemExit("[train] int16-aware plan binding must contain objects")
 
@@ -2398,7 +2400,7 @@ def run_int16_aware_training(args) -> None:
     if final_pipeline != training_pipeline:
         raise SystemExit("[train] training pipeline changed during the int16-aware run")
     checkpoint = {
-        "schema": QAT_FINAL_CHECKPOINT_SCHEMA,
+        "schema": checkpoint_schema,
         "model": model.state_dict(),
         "epoch": INT16_AWARE_EPOCHS,
         "args": vars(args),
@@ -2434,7 +2436,7 @@ def run_int16_aware_training(args) -> None:
         "sha256": sha256_file(candidate_path),
     }
     result = {
-        "schema": QAT_TRAINING_RESULT_SCHEMA,
+        "schema": result_schema,
         "status": "complete",
         "experiment_plan": experiment_plan,
         "experiment_contract": experiment_contract,

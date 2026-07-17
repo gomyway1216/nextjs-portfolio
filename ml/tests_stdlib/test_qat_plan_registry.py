@@ -11,12 +11,15 @@ if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
 import qat_plan_registry as REGISTRY  # noqa: E402
+import fresh_qat_protocol as FRESH  # noqa: E402
 import qat_protocol as WCSC36  # noqa: E402
 
 
 class QatPlanRegistryTests(unittest.TestCase):
     def dispatch(self, plan_path):
-        args = SimpleNamespace(experiment_plan=str(plan_path))
+        args = SimpleNamespace(
+            experiment_plan=None if plan_path is None else str(plan_path)
+        )
         runtime = {}
         tracker = mock.Mock()
         with mock.patch.object(
@@ -56,10 +59,50 @@ class QatPlanRegistryTests(unittest.TestCase):
         wcsc36.assert_called_once()
         fresh.assert_not_called()
 
+    def test_true_none_is_not_stringified_before_fallback(self):
         result, fresh, wcsc36 = self.dispatch(None)
         self.assertEqual(result, {"route": "wcsc36"})
         wcsc36.assert_called_once()
         fresh.assert_not_called()
+
+    def test_artifact_schema_dispatch_preserves_legacy_and_separates_fresh(self):
+        legacy = REGISTRY.resolve_qat_artifact_schemas(
+            {
+                "provenance": {"schema": WCSC36.QAT_PLAN_SCHEMA},
+                "contract": {"schema": WCSC36.QAT_TRAINING_CONTRACT_SCHEMA},
+            }
+        )
+        self.assertEqual(
+            legacy,
+            {
+                "result": WCSC36.QAT_TRAINING_RESULT_SCHEMA,
+                "checkpoint": WCSC36.QAT_FINAL_CHECKPOINT_SCHEMA,
+            },
+        )
+
+        fresh = REGISTRY.resolve_qat_artifact_schemas(
+            {
+                "provenance": {"schema": FRESH.FRESH_QAT_EXECUTION_PLAN_SCHEMA},
+                "contract": {"schema": FRESH.FRESH_QAT_TRAINING_CONTRACT_SCHEMA},
+            }
+        )
+        self.assertEqual(
+            fresh,
+            {
+                "result": FRESH.FRESH_QAT_TRAINING_RESULT_SCHEMA,
+                "checkpoint": FRESH.FRESH_QAT_FINAL_CHECKPOINT_SCHEMA,
+            },
+        )
+        self.assertNotEqual(fresh["result"], legacy["result"])
+        self.assertNotEqual(fresh["checkpoint"], legacy["checkpoint"])
+
+        with self.assertRaisesRegex(ValueError, "unknown or hybrid"):
+            REGISTRY.resolve_qat_artifact_schemas(
+                {
+                    "provenance": {"schema": FRESH.FRESH_QAT_EXECUTION_PLAN_SCHEMA},
+                    "contract": {"schema": WCSC36.QAT_TRAINING_CONTRACT_SCHEMA},
+                }
+            )
 
     def test_historical_constants_remain_exact(self):
         self.assertEqual(

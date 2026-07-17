@@ -16,6 +16,8 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 import train as train_module  # noqa: E402
+import fresh_qat_protocol as fresh_qat_protocol  # noqa: E402
+import qat_protocol as qat_protocol  # noqa: E402
 
 from train import (  # noqa: E402
     INT16_AWARE_CANDIDATE_ARTIFACT,
@@ -439,13 +441,14 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
             }
             plan_binding = {
                 "provenance": {
-                    "schema": "test-plan",
+                    "schema": qat_protocol.QAT_PLAN_SCHEMA,
                     "slot_id": "seed-42",
                     "verified_input_sha256": {
                         "replay_exclusion": exclusion_contract["sha256"]
                     },
                 },
                 "contract": {
+                    "schema": qat_protocol.QAT_TRAINING_CONTRACT_SCHEMA,
                     "init_checkpoint_sha256": initializer_sha256,
                     "replay_sha256": replay_sha256,
                     "model_training_sha256": train_fingerprint["sha256"],
@@ -512,6 +515,10 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
             with open(os.path.join(args.out, "result.json"), encoding="utf-8") as source:
                 result = json.load(source)
             self.assertEqual(result["status"], "complete")
+            self.assertEqual(
+                result["schema"],
+                qat_protocol.QAT_TRAINING_RESULT_SCHEMA,
+            )
             self.assertEqual(result["completed_epochs"], 1)
             self.assertEqual(result["selection_evaluations"], 0)
             self.assertFalse(result["selection_labels_read"])
@@ -524,10 +531,85 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
             )
             self.assertEqual(checkpoint["checkpoint_selection"]["mode"], "final-only")
             self.assertEqual(
+                checkpoint["schema"],
+                qat_protocol.QAT_FINAL_CHECKPOINT_SCHEMA,
+            )
+            self.assertEqual(
                 checkpoint["checkpoint_selection"]["selection_evaluations"], 0
             )
             self.assertEqual(len(checkpoint["training_history"]), 1)
             self.assertEqual(verify_pipeline.call_count, 2)
+
+            args.out = os.path.join(tmp, "fresh-qat-run")
+            plan_binding["provenance"][
+                "schema"
+            ] = fresh_qat_protocol.FRESH_QAT_EXECUTION_PLAN_SCHEMA
+            plan_binding["contract"][
+                "schema"
+            ] = fresh_qat_protocol.FRESH_QAT_TRAINING_CONTRACT_SCHEMA
+            with mock.patch.object(
+                train_module, "SEALED_REPLAY_ROWS", 2
+            ), mock.patch.object(
+                train_module, "INT16_AWARE_EPOCHS", 1
+            ), mock.patch.object(
+                train_module,
+                "configure_sealed_torch_runtime",
+                return_value=runtime,
+            ), mock.patch.object(
+                train_module,
+                "verify_training_pipeline_revision",
+                return_value=pipeline,
+            ), mock.patch.object(
+                train_module,
+                "load_dataset_with_metadata",
+                return_value=(
+                    board,
+                    hands,
+                    targets,
+                    cp,
+                    bucket,
+                    metadata,
+                    train_fingerprint,
+                ),
+            ), mock.patch.object(
+                train_module,
+                "load_replay_dataset",
+                return_value=(
+                    board.clone(),
+                    hands.clone(),
+                    targets.clone(),
+                    cp.clone(),
+                    bucket.clone(),
+                    replay_fingerprint,
+                ),
+            ), mock.patch.object(
+                train_module,
+                "validate_sibling_metadata",
+                return_value=[[0, 1]],
+            ), mock.patch.object(
+                train_module, "semantic_position_ids", return_value=set()
+            ), mock.patch.object(
+                train_module,
+                "verify_qat_experiment_plan",
+                return_value=plan_binding,
+            ):
+                run_int16_aware_training(args)
+
+            with open(os.path.join(args.out, "result.json"), encoding="utf-8") as source:
+                fresh_result = json.load(source)
+            self.assertEqual(
+                fresh_result["schema"],
+                fresh_qat_protocol.FRESH_QAT_TRAINING_RESULT_SCHEMA,
+            )
+            fresh_checkpoint = torch.load(
+                os.path.join(args.out, "final.pt"),
+                map_location="cpu",
+                weights_only=True,
+            )
+            self.assertEqual(
+                fresh_checkpoint["schema"],
+                fresh_qat_protocol.FRESH_QAT_FINAL_CHECKPOINT_SCHEMA,
+            )
 
     def test_six_run_plan_pins_exact_grid_inputs_runtime_and_output_slot(self):
         with tempfile.TemporaryDirectory() as tmp:

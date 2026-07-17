@@ -51,7 +51,9 @@ Only metadata was aggregated; private bytes were not published.
 | Inspection | Result |
 | --- | ---: |
 | Four input trees | 72,717 files / 519 nested directories |
-| Logical input bytes | 1,227,490,748 |
+| Four-tree logical bytes | 1,227,490,748 |
+| Standalone legacy exclusion | 624,816 bytes |
+| Copy-by-value input bytes | 1,228,115,564 |
 | Raw lock | 72,698 files / 592,412,617 bytes |
 | Unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | Maximum source file | Below 1 GiB |

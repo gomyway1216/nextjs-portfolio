@@ -51,7 +51,9 @@ private bytesは公開せず、metadataだけを集計しました。
 | 検査 | 結果 |
 | --- | ---: |
 | 4 input trees | 72,717 files / 519 nested directories |
-| logical input bytes | 1,227,490,748 |
+| 4 tree logical bytes | 1,227,490,748 |
+| standalone legacy exclusion | 624,816 bytes |
+| copy-by-value input bytes | 1,228,115,564 |
 | raw lock | 72,698 files / 592,412,617 bytes |
 | unsafe names / modes / links / node types | 0 / 0 / 0 / 0 |
 | maximum source file | 1 GiB未満 |

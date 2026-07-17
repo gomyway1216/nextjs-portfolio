@@ -110,7 +110,9 @@
     "scope": "four-fixed-input-trees-metadata-only",
     "files": 72717,
     "nested_directories_excluding_four_roots": 519,
-    "input_bytes": 1227490748,
+    "four_tree_input_bytes": 1227490748,
+    "standalone_legacy_exclusion_bytes": 624816,
+    "copy_by_value_input_bytes": 1228115564,
     "raw_lock_files": 72698,
     "raw_lock_bytes": 592412617,
     "unsafe_names": 0,
@@ -124,6 +126,7 @@
   "capacity_preflight": {
     "status": "PASS",
     "minimum_required_gib": 20,
+    "input_bytes": 1228115564,
     "exact_free_space_published": false,
     "utilization_published": false,
     "home_or_volume_name_published": false,

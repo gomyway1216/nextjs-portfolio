@@ -87,7 +87,12 @@
       "status": "PASS",
       "files": 2
     },
-    "pull_request": "PENDING",
+    "pull_request": {
+      "number": 484,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/484",
+      "state": "OPEN",
+      "ready_for_review": true
+    },
     "final_head_github_ci": "PENDING",
     "independent_review": "PENDING",
     "regular_merge": "PENDING",
@@ -216,7 +221,8 @@
     "changed_runtime-or-configuration-allows-existing-partial-resume": false,
     "stale_active_lease_authorizes_deletion": false,
     "reviewed_production_reconciliation_operator_available": false,
-    "projection_fix_pull_request_open": false,
+    "projection_fix_pull_request_open": true,
+    "projection_fix_pull_request_merged": false,
     "projection_fix_github_ci_complete": false,
     "projection_fix_merged": false,
     "projection_fix_used_in_production": false,

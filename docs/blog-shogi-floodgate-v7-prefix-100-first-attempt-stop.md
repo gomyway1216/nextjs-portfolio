@@ -53,7 +53,7 @@ readiness、provision、kill drill、preflightのPASSは、各gateが検査し�
 
 ただし、`public phase = runner`を根本原因として読んではならない。外側lease ownerから返る安全な`outer-gate-lock` failureは、operationが始まりcheckpointが残り得る場合に`connector invoked = true`、`checkpoint may have persisted = true`を持つ。incident revisionのCLI sanitizerはこの有効なtrue/true tupleを`outer-gate-lock`として受理せず、unknown fallbackの`runner`へ落とした。この投影不具合により、公開結果から正確な内側phaseを区別できなかった。
 
-これは失敗を成功へ変える不具合ではない。success receiptを出さずSTOPしたfail-closed判断は正しい。現在のPR candidateではexact commit `f5feacd9a24615cb0e75c580181a0cf79419aef8`が、operation前のfalse/false tupleとoperation後のtrue/true tupleだけを`outer-gate-lock`として受理し、nested fieldを持つ不正shapeは引き続きgeneric failureへ落とす。focused 28 / 28 testsとchanged 2-file ESLintはPASSした。ただしPR、final-head CI、review、通常mergeはまだPENDINGで、この候補をproductionで実行していない。また、この修正が復元するのは安全な外側phaseまでであり、今回のexact inner phaseは依然未確定である。
+これは失敗を成功へ変える不具合ではない。success receiptを出さずSTOPしたfail-closed判断は正しい。現在のPR candidateではexact commit `f5feacd9a24615cb0e75c580181a0cf79419aef8`が、operation前のfalse/false tupleとoperation後のtrue/true tupleだけを`outer-gate-lock`として受理し、nested fieldを持つ不正shapeは引き続きgeneric failureへ落とす。focused 28 / 28 testsとchanged 2-file ESLintはPASSし、ready-for-reviewの[PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)として公開した。ただしfinal-head CI、review、通常mergeはまだPENDINGで、この候補をproductionで実行していない。また、この修正が復元するのは安全な外側phaseまでであり、今回のexact inner phaseは依然未確定である。
 
 ## 4. 停止後の独立read-only audit
 
@@ -126,12 +126,12 @@ partial checkpointがある状態で同じexactly-once commandをもう一度呼
 ## 8. 安全な次の順序
 
 1. 現在のactive leaseとstage workをそのまま保全し、retry、cleanup、quarantine、resumeを行わない
-2. exact candidate `f5feacd9a24615cb0e75c580181a0cf79419aef8`のCLI projection修正と回帰testを独立reviewし、PR、final-head CI、通常mergeを通す。merge前またはproduction未固定の候補を運用証拠として使わない
+2. [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)のexact candidate `f5feacd9a24615cb0e75c580181a0cf79419aef8`と回帰testを独立reviewし、final-head CIと通常mergeを通す。merge前またはproduction未固定の候補を運用証拠として使わない
 3. 固定origin、zero-argument、read-onlyのproduction inspectorを実装し、active lease、registry binding、checkpoint record、milestone、seal、tailを認証してsanitized countだけを返す
 4. production stateと分離したdisposable namespaceでstable 10分timeout仮説を再現し、exact inner phaseを確定または棄却する
 5. 根本原因が確定した場合だけ修正し、timeout、cancellation、partial checkpoint、再開境界の回帰testを通す。worker数、timeout、depth、runtime receiptまたはsource bindingが変わる修正なら、既存partialのresumeを禁止する
 6. outer leaseとinner stage/checkpointを同じprocessで再検査する固定operator reconciliation flowを実装する。resume、またはquarantine後の別承認resolution / restartの選択には明示的な人間確認を要求し、自動判断しない
-7. code、test、日英記事、機械可読証拠をready-for-review PRへまとめ、final-head CI、独立review、通常mergeを通す
+7. code、test、日英記事、機械可読証拠をまとめたready-for-review [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)で、final-head CI、独立review、通常mergeを通す
 8. merge済みrevisionの固定operatorでread-only inspectionを再実行し、fresh evidenceが一致した場合だけ明示reconciliationを検討する
 9. exact bytes / configと安全なresume authorityの両方が証明された場合だけpartial checkpointから再開する。同一bindingでもtimeout再発riskを先に解消する。bindingが変わる、または安全性を証明できない場合は、認証済みquarantineと別承認のfresh restartへ分ける
 10. exact-100がpostflightまで成功しても一度STOPし、独立reviewとinformed human approvalの後だけ500、final-24,000へ進む

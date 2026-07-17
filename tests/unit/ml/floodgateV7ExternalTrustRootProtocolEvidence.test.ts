@@ -47,9 +47,12 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
   it("keeps the source surface standard-library-only and non-operational", () => {
     const expectedSources = [
       "ActivationRecord.swift",
+      "ArtifactClosureRecordV1.swift",
       "CanonicalBytes.swift",
       "EnrollmentRecord.swift",
+      "InstallPolicyRecordV1.swift",
       "ProtocolState.swift",
+      "ReleaseToolchainRecordV1.swift",
     ];
     const sourceDirectory = path.join(repositoryRoot, sourceRelative);
     const actualSources = fs.readdirSync(sourceDirectory).sort();

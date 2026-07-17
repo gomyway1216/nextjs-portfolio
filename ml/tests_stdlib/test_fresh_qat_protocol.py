@@ -271,6 +271,10 @@ class FreshQatProtocolTests(unittest.TestCase):
                 binding["contract"]["init_checkpoint_sha256"],
                 FRESH.FRESH_QAT_WARM_INITIALIZER_SHA256,
             )
+            self.assertEqual(
+                binding["contract"]["objective"],
+                fixture["plan"]["training"]["objective"],
+            )
             self.assertEqual(binding["contract"]["selection_evaluations"], 0)
             self.assertFalse(binding["contract"]["early_stopping"])
             self.assertEqual(

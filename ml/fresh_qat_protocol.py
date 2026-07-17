@@ -544,7 +544,7 @@ def _verify_fresh_qat_experiment_plan(
         "replay_ratio": 1.0,
         "primary_limit": 0,
         "allow_legacy_init": True,
-        "objective": "0.5*float_full_task+0.5*int16_ste_full_task",
+        "objective": FRESH_QAT_REQUIRED_TRAINING["objective"],
         "checkpoint_policy": "fixed-final-epoch-only",
         "candidate_artifact": "final.pt",
         "selection_evaluations": 0,

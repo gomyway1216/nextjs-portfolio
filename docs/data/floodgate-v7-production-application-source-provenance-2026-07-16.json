@@ -596,6 +596,25 @@
       "reason": "the-already-running-isolated-validation-was-further-ahead",
       "disposition": "non-evidence-superseded-by-final-timed-isolated-full-vitest"
     },
+    "first_post_remediation_github_ci_attempt": {
+      "head": "6d00f65d6bb1772b336021a8ac425437fd7f9727",
+      "authoritative_final_head_gate": false,
+      "security_audit": "PASS",
+      "e2e": "PASS",
+      "vercel": "PASS",
+      "darwin": "FAIL-test-only-cross-version-dyld-assumption",
+      "darwin_runner": "macos-26.4-image-20260715.0248.1",
+      "native_launcher_tests_passed": 21,
+      "native_launcher_tests_total": 22,
+      "observed_child_status": 6,
+      "original_test_expected_child_status": 0,
+      "injection_state_reached_attested_child": false,
+      "production_implementation_failure": false,
+      "remediation_commit": "494ad72e55a4eaa890b775bbeafc9a52d9e2bf4d",
+      "remediation": "accept-either-protected-strip-and-attested-success-or-protected-loader-status-6-rejection-before-child-startup",
+      "targeted_node_22_tests_after_remediation": "PASS-22-of-22",
+      "disposition": "superseded-by-later-final-pr-head-ci"
+    },
     "final_isolated_full_vitest": {
       "status": "PASS",
       "files_passed": 165,

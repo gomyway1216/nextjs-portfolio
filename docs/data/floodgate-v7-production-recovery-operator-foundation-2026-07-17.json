@@ -46,12 +46,44 @@
     "used_against_production_incident_state": false,
     "fresh_production_observation_created": false
   },
+  "safe_worker_failure_kind_prerequisite": {
+    "pull_request_number": 485,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/485",
+    "state": "MERGED",
+    "ready_for_review": true,
+    "implementation_commit": "7ca6e09b49f306fd5e7e057dbd7780f0e93f4786",
+    "final_head": "6a804a7954a9685361944aeb2be32494638fae2e",
+    "final_head_checks": {
+      "github_ci": "PASS",
+      "security_audit": "PASS",
+      "vercel": "PASS"
+    },
+    "review": {
+      "status": "PASS",
+      "actionable_threads": 1,
+      "addressed_threads": 1,
+      "resolved_threads": 1,
+      "unresolved_threads": 0
+    },
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
+    "merged_at_utc": "2026-07-17T08:27:59Z",
+    "safe_metadata": [
+      "allowlisted-failure-kind",
+      "timeout-ms-only-when-required"
+    ],
+    "first_branded_frozen_failure_preserved_through_pool_poison": true,
+    "raw_error_or_private_context_preserved": false,
+    "same_twelve_candidate_rerun_on_merged_code": false,
+    "used_against_production_incident_state": false,
+    "fresh_production_observation_created": false
+  },
   "candidate_delivery": {
     "branch": "codex/floodgate-v7-recovery-operator",
     "implementation_commit": "dfa295d6bb505652ec4fa39fe9fc71c6205b3834",
-    "main_integration_method": "regular-merge-commit",
-    "main_integration_commit": "3a12802acc0a538d22a92b76f7e02669fde61ea3",
-    "main_revision_integrated": "1c5ec24a8c3a9ad9871bef1621034113112396b5",
+    "initial_main_integration_method": "regular-merge-commit",
+    "initial_main_integration_commit": "3a12802acc0a538d22a92b76f7e02669fde61ea3",
+    "latest_main_revision_integrated": "4b46fd3761512f38bada4c7c23537a969349a804",
     "pull_request_state_at_evidence_capture": "NOT-CREATED",
     "ready_for_review_requested": true,
     "regular_merge_required": true,
@@ -153,6 +185,12 @@
       "total": 77,
       "includes_projection_regressions_from_pr_484": true
     },
+    "safe_failure_kind_prerequisite_focused_tests": {
+      "status": "PASS",
+      "passed": 110,
+      "total": 110,
+      "source": "pr-485-final-head"
+    },
     "native_integer_value_branch": {
       "status": "PASS",
       "foundation_nsnumber_values_executed": true,
@@ -179,7 +217,7 @@
     "active_lease_cleanups": 0,
     "quarantines": 0,
     "checkpoint_resumes": 0,
-    "worker_failure_propagation_changes": 0,
+    "merged_failure_kind_production_reruns": 0,
     "worker_count_benchmark_runs": 0,
     "teacher_generation_runs": 0,
     "teacher_labels_finalized": 0,
@@ -195,7 +233,7 @@
   "safe_next_order": [
     "pass-the-foundation-candidate-through-final-head-ci-independent-review-and-regular-merge",
     "deliver-the-regularly-merged-revision-to-the-dedicated-fixed-recovery-checkout-without-treating-the-stop-entrypoint-as-inspection",
-    "preserve-safe-worker-failure-kind-and-timeout-through-pool-wide-poison-in-a-separate-reviewed-change",
+    "rerun-the-same-twelve-candidates-read-only-on-regularly-merged-pr-485-and-capture-only-the-first-safe-failure-kind-and-timeout",
     "benchmark-the-same-read-only-input-at-4-6-8-and-12-workers",
     "implement-the-zero-argument-read-only-authenticated-production-inspector-in-a-separate-pull-request",
     "after-inspector-final-head-ci-independent-review-and-regular-merge-run-exactly-one-fixed-revision-read-only-inspection",
@@ -225,6 +263,9 @@
     "partial_checkpoint_resumed": false,
     "root_cause_confirmed": false,
     "worker_count_selected": false,
+    "safe_worker_failure_kind_pull_request_merged": true,
+    "safe_worker_failure_kind_used_in_production": false,
+    "same_twelve_candidate_rerun_on_merged_failure_kind_completed": false,
     "teacher_dataset_created": false,
     "training_completed": false,
     "candidate_selected": false,

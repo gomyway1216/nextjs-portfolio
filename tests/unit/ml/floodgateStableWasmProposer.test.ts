@@ -38,6 +38,8 @@ import {
   createFloodgateStableWasmReusableProposalPool,
   createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests,
   generateFloodgateStableWasmProposalsCoreForTests,
+  inspectFloodgateStableWasmWorkerFailure,
+  normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests,
   runFloodgateStableWasmWorkerPoolCoreForTests,
   runFloodgateStableWasmWorkerPoolWithSourceCoreForTests,
   type FloodgateStableWasmProposerAssets,
@@ -309,6 +311,7 @@ function fakeWorkerSource(
     | "malformed-search"
     | "duplicate-search"
     | "wrong-digest"
+    | "invalid-search-result"
     | "stderr-search"
     | "stdout-flood"
     | "stderr-flood"
@@ -321,17 +324,20 @@ function fakeWorkerSource(
     | "invalid-bye"
     | "partial-by-index",
   packed: number,
+  pidPath?: string,
 ): Uint8Array {
   const source = `
+import {appendFileSync} from "node:fs";
 const S=${JSON.stringify("shogi-floodgate-stable-wasm-worker-v1")};
 const W=${JSON.stringify(FLOODGATE_STABLE_WASM_SHA256)};
 const N=${JSON.stringify(FLOODGATE_STABLE_WEIGHTS_SHA256)};
 const MODE=${JSON.stringify(mode)};
 const PACKED=${packed};
+const PID_PATH=${JSON.stringify(pidPath ?? null)};
 let buffer="";
 function send(value, done=false){process.stdout.write(JSON.stringify(value)+"\\n","ascii",()=>{if(done)process.exit(0);});}
 function ready(){send({node_version:process.version,schema:S,type:"ready",wasm_sha256:W,weights_sha256:N});}
-function result(message){return {completed_depth:11,index:message.index,leaves:20,nodes:10,packed_move:PACKED,raw_search_score:0,request_sha256:MODE==="wrong-digest"?"0".repeat(64):message.request_sha256,schema:S,type:"result"};}
+function result(message){return {completed_depth:11,index:message.index,leaves:20,nodes:MODE==="invalid-search-result"?-1:10,packed_move:PACKED,raw_search_score:0,request_sha256:MODE==="wrong-digest"?"0".repeat(64):message.request_sha256,schema:S,type:"result"};}
 process.stdin.setEncoding("ascii");
 process.stdin.on("data",chunk=>{
   buffer+=chunk;
@@ -340,6 +346,7 @@ process.stdin.on("data",chunk=>{
     const line=buffer.slice(0,newline);buffer=buffer.slice(newline+1);
     const message=JSON.parse(line);
     if(message.type==="init"){
+      if(PID_PATH!==null)appendFileSync(PID_PATH,String(process.pid)+"\\n",{encoding:"utf8"});
       if(MODE==="hang-startup")continue;
       if(MODE==="crash-startup")process.exit(7);
       if(MODE==="large-source"&&process.execArgv.some(argument=>argument.includes("FD3_UNIQUE_MARKER")))process.exit(9);
@@ -349,7 +356,7 @@ process.stdin.on("data",chunk=>{
       if(MODE==="hang-search")continue;
       if(MODE==="crash-search"||(MODE==="partial-by-index"&&message.index===1))process.exit(8);
       if(MODE==="malformed-search"){process.stdout.write("{\\\"bad\\\":\\n");continue;}
-      if(MODE==="stderr-search")process.stderr.write("synthetic stderr\\n");
+      if(MODE==="stderr-search")process.stderr.write("SENSITIVE_WORKER_STDERR_CANARY pid="+process.pid+" index="+message.index+"\\n");
       if(MODE==="stdout-flood"){process.stdout.write("A".repeat(1024*1024));continue;}
       if(MODE==="stderr-flood"){process.stderr.write("B".repeat(1024*1024));continue;}
       if(MODE==="control-tab"){process.stdout.write(Buffer.from([0x09]));continue;}
@@ -1229,23 +1236,24 @@ describe("Floodgate stable-WASM real child pool", () => {
   }, 120_000);
 
   it.each([
-    ["hang-startup", /timed out/],
-    ["crash-startup", /closed|error/],
-    ["hang-search", /timed out/],
-    ["crash-search", /closed|error/],
-    ["malformed-search", /JSON|closed|canonical/],
-    ["duplicate-search", /unsolicited|closed|keys are not exact/],
-    ["wrong-digest", /digest/],
-    ["stderr-search", /stderr/],
-    ["stdout-flood", /stdout line bound/],
-    ["stderr-flood", /stderr bound/],
-    ["control-tab", /non-canonical stdout bytes/],
-    ["control-escape", /non-canonical stdout bytes/],
-    ["control-del", /non-canonical stdout bytes/],
-    ["bye-hang", /shutdown close timed out/],
+    ["hang-startup", "startup-timeout", 250],
+    ["crash-startup", "worker-exit", null],
+    ["hang-search", "search-timeout", 250],
+    ["crash-search", "worker-exit", null],
+    ["malformed-search", "protocol", null],
+    ["duplicate-search", "protocol", null],
+    ["wrong-digest", "protocol", null],
+    ["invalid-search-result", "validation", null],
+    ["stderr-search", "transport", null],
+    ["stdout-flood", "protocol", null],
+    ["stderr-flood", "transport", null],
+    ["control-tab", "protocol", null],
+    ["control-escape", "protocol", null],
+    ["control-del", "protocol", null],
+    ["bye-hang", "transport", null],
   ] as const)(
     "kills and rejects the synthetic %s worker without returning a partial box",
-    async (mode, expected) => {
+    async (mode, failureKind, timeoutMilliseconds) => {
       const row = parent(`transport-${mode}`, MATE_SFEN, 0, MATE_MOVE);
       const source = fakeWorkerSource(mode, packedMove(MATE_SFEN, MATE_MOVE));
       let rejection: unknown;
@@ -1264,12 +1272,18 @@ describe("Floodgate stable-WASM real child pool", () => {
         rejection = error;
       }
       expect(rejection).toBeInstanceOf(Error);
-      expect((rejection as Error).message).toMatch(expected);
-      if (mode === "stdout-flood" || mode === "stderr-flood") {
-        expect(
-          Buffer.byteLength((rejection as Error).message, "utf8"),
-        ).toBeLessThan(9_000);
-      }
+      expect(inspectFloodgateStableWasmWorkerFailure(rejection)).toEqual({
+        failure_kind: failureKind,
+        timeout_ms: timeoutMilliseconds,
+      });
+      expect(Object.isFrozen(rejection)).toBe(true);
+      const serialized = `${String(rejection)}\n${JSON.stringify(rejection)}\n${
+        (rejection as Error).stack ?? ""
+      }`;
+      expect(serialized).not.toMatch(
+        /SENSITIVE_WORKER_STDERR_CANARY|pid=|index=/,
+      );
+      expect(Buffer.byteLength(serialized, "utf8")).toBeLessThan(1_500);
     },
     10_000,
   );
@@ -1351,28 +1365,24 @@ describe("Floodgate stable-WASM real child pool", () => {
       name: "primitive string",
       setup: "",
       statement: 'throw "SENSITIVE_STRING_SENTINEL";',
-      expected: /unknown failure/,
     },
     {
       name: "hostile coercion object",
       setup:
         'const hostile={};Object.defineProperty(hostile,"message",{get(){process.stderr.write("GETTER_SENTINEL");return "SENSITIVE_MESSAGE";}});hostile[Symbol.toPrimitive]=()=>{process.stderr.write("COERCION_SENTINEL");return "SENSITIVE_COERCION";};hostile.toString=()=>{process.stderr.write("TOSTRING_SENTINEL");return "SENSITIVE_TOSTRING";};',
       statement: "throw hostile;",
-      expected: /unknown failure/,
     },
     {
       name: "native Error with inherited descriptor value getter",
       setup:
         'const accessorError=new Error("discarded");Object.defineProperty(accessorError,"message",{configurable:true,get(){process.stderr.write("MESSAGE_GETTER_SENTINEL");return "SENSITIVE_MESSAGE_GETTER";}});Object.defineProperty(Object.prototype,"value",{configurable:true,get(){process.stderr.write("VALUE_GETTER_SENTINEL");return "SENSITIVE_INHERITED_VALUE";}});',
       statement: "throw accessorError;",
-      expected: /unknown failure/,
     },
     {
       name: "native Error with poisoned instanceof",
       setup:
         "Object.defineProperty(Error,Symbol.hasInstance,{configurable:true,value:()=>false});",
       statement: 'throw new Error("native-error-detail");',
-      expected: /native-error-detail/,
     },
   ])(
     "bounds $name without invoking unknown coercion hooks",
@@ -1403,12 +1413,17 @@ describe("Floodgate stable-WASM real child pool", () => {
         rejection = error;
       }
       expect(rejection).toBeInstanceOf(Error);
-      const message = (rejection as Error).message;
-      expect(message).toMatch(testCase.expected);
-      expect(message).not.toMatch(
-        /SENSITIVE_|GETTER_SENTINEL|COERCION_SENTINEL|TOSTRING_SENTINEL/,
+      expect(inspectFloodgateStableWasmWorkerFailure(rejection)).toEqual({
+        failure_kind: "transport",
+        timeout_ms: null,
+      });
+      const serialized = `${String(rejection)}\n${JSON.stringify(rejection)}\n${
+        (rejection as Error).stack ?? ""
+      }`;
+      expect(serialized).not.toMatch(
+        /SENSITIVE_|GETTER_SENTINEL|COERCION_SENTINEL|TOSTRING_SENTINEL|native-error-detail/,
       );
-      expect(Buffer.byteLength(message, "utf8")).toBeLessThan(1_500);
+      expect(Buffer.byteLength(serialized, "utf8")).toBeLessThan(1_500);
     },
   );
 
@@ -1430,7 +1445,10 @@ describe("Floodgate stable-WASM real child pool", () => {
         },
         { bytes: source.byteLength, sha256: sha256(source) },
       ),
-    ).rejects.toThrow(/closed|error/);
+    ).rejects.toMatchObject({
+      failure_kind: "worker-exit",
+      timeout_ms: null,
+    });
   });
 
   it("reproduces the pinned winning-mate early exit without a fallback", async () => {
@@ -1666,28 +1684,164 @@ describe("Floodgate stable-WASM reusable proposal pool", () => {
     await pool.close();
   });
 
-  it("poisons the whole pool, rejects every pending parent, and cleans up", async () => {
-    const pool = await syntheticReusablePool("crash-search", {
-      workers: 2,
-      queueBound: 3,
-      searchTimeoutMilliseconds: 3_000,
-    });
-    const pending = Array.from({ length: 5 }, (_, index) =>
-      pool.propose(parent(`reusable-poison-${index}`, MATE_SFEN, 0, MATE_MOVE)),
-    );
-    const settlements = await Promise.allSettled(pending);
-    expect(settlements.every((entry) => entry.status === "rejected")).toBe(
-      true,
-    );
-    for (const settlement of settlements) {
-      expect((settlement as PromiseRejectedResult).reason).toMatchObject({
-        message: expect.stringMatching(/poisoned/),
-      });
+  it("poisons the whole pool with one identical safe cause and reaps every child", async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "stable-pool-poison-"));
+    const pidPath = join(temporaryRoot, "workers.pid");
+    try {
+      const source = fakeWorkerSource(
+        "crash-search",
+        packedMove(MATE_SFEN, MATE_MOVE),
+        pidPath,
+      );
+      const pool =
+        await createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+          workerSearchAssets(source),
+          {
+            ...REUSABLE_POOL_OPTIONS,
+            workers: 3,
+            queueBound: 3,
+            searchTimeoutMilliseconds: 3_000,
+          },
+          { bytes: source.byteLength, sha256: sha256(source) },
+        );
+      const pending = Array.from({ length: 6 }, (_, index) =>
+        pool.propose(
+          parent(`reusable-poison-${index}`, MATE_SFEN, 0, MATE_MOVE),
+        ),
+      );
+      const settlements = await Promise.allSettled(pending);
+      expect(settlements.every((entry) => entry.status === "rejected")).toBe(
+        true,
+      );
+      const reasons = settlements.map(
+        (entry) => (entry as PromiseRejectedResult).reason as unknown,
+      );
+      for (const reason of reasons) {
+        expect(reason).toBe(reasons[0]);
+        expect(inspectFloodgateStableWasmWorkerFailure(reason)).toEqual({
+          failure_kind: "worker-exit",
+          timeout_ms: null,
+        });
+      }
+      let afterPoison: unknown;
+      try {
+        await pool.propose(
+          parent("after-poison", MATE_SFEN, 0, MATE_MOVE),
+        );
+      } catch (primary) {
+        afterPoison = primary;
+      }
+      expect(afterPoison).toBe(reasons[0]);
+      await pool.close();
+
+      const workerPids = readFileSync(pidPath, "utf8")
+        .trim()
+        .split("\n")
+        .map(Number);
+      expect(workerPids).toHaveLength(3);
+      expect(new Set(workerPids).size).toBe(3);
+      for (const workerPid of workerPids) {
+        expect(() => process.kill(workerPid, 0)).toThrow();
+      }
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
     }
-    await expect(
-      pool.propose(parent("after-poison", MATE_SFEN, 0, MATE_MOVE)),
-    ).rejects.toThrow(/poisoned/);
-    await pool.close();
+  });
+
+  it.each([
+    ["hang-search", "search-timeout", 100],
+    ["crash-search", "worker-exit", null],
+    ["stderr-search", "transport", null],
+    ["malformed-search", "protocol", null],
+    ["invalid-search-result", "validation", null],
+  ] as const)(
+    "keeps exact safe %s metadata at the reusable search boundary",
+    async (mode, failureKind, timeoutMilliseconds) => {
+      const pool = await syntheticReusablePool(mode, {
+        searchTimeoutMilliseconds: 100,
+      });
+      let rejection: unknown;
+      try {
+        await pool.propose(
+          parent(`reusable-safe-${mode}`, MATE_SFEN, 0, MATE_MOVE),
+        );
+      } catch (primary) {
+        rejection = primary;
+      }
+      expect(inspectFloodgateStableWasmWorkerFailure(rejection)).toEqual({
+        failure_kind: failureKind,
+        timeout_ms: timeoutMilliseconds,
+      });
+      expect(Object.isFrozen(rejection)).toBe(true);
+      const serialized = `${String(rejection)}\n${JSON.stringify(rejection)}\n${
+        (rejection as Error).stack ?? ""
+      }`;
+      expect(serialized).not.toMatch(
+        /SENSITIVE_WORKER_STDERR_CANARY|pid=|index=|parent_id|parent_sfen|sha256:/,
+      );
+      await pool.close();
+    },
+  );
+
+  it("reports the exact startup timeout before exposing a reusable pool", async () => {
+    const source = fakeWorkerSource(
+      "hang-startup",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    let rejection: unknown;
+    try {
+      await createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+        workerSearchAssets(source),
+        { ...REUSABLE_POOL_OPTIONS, startupTimeoutMilliseconds: 100 },
+        { bytes: source.byteLength, sha256: sha256(source) },
+      );
+    } catch (primary) {
+      rejection = primary;
+    }
+    expect(inspectFloodgateStableWasmWorkerFailure(rejection)).toEqual({
+      failure_kind: "startup-timeout",
+      timeout_ms: 100,
+    });
+  });
+
+  it("fails closed for unknown, forged, proxied, and accessor metadata", () => {
+    const canary = vi.fn(() => "SENSITIVE_FAILURE_KIND");
+    const forged = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(forged, "failure_kind", {
+      configurable: true,
+      enumerable: true,
+      get: canary,
+    });
+    Object.defineProperty(forged, "timeout_ms", {
+      configurable: true,
+      enumerable: true,
+      get: canary,
+    });
+    const proxy = new Proxy(forged, {
+      get() {
+        throw new Error("SENSITIVE_PROXY_CANARY");
+      },
+    });
+
+    expect(inspectFloodgateStableWasmWorkerFailure(forged)).toBeNull();
+    expect(inspectFloodgateStableWasmWorkerFailure(proxy)).toBeNull();
+    expect(canary).not.toHaveBeenCalled();
+
+    const unknown = normalizeFloodgateStableWasmUnknownWorkerFailureCoreForTests(
+      proxy,
+    );
+    const metadata = inspectFloodgateStableWasmWorkerFailure(unknown);
+    expect(metadata).toEqual({
+      failure_kind: "unknown",
+      timeout_ms: null,
+    });
+    expect(Object.getPrototypeOf(metadata)).toBeNull();
+    expect(Object.isFrozen(metadata)).toBe(true);
+    expect(Object.isFrozen(unknown)).toBe(true);
+    expect(Reflect.set(unknown, "failure_kind", "search-timeout")).toBe(false);
+    expect(
+      `${String(unknown)}\n${JSON.stringify(unknown)}\n${unknown.stack ?? ""}`,
+    ).not.toMatch(/SENSITIVE_|Proxy|accessor/);
   });
 
   it("rejects Proxy, accessor, mutation, and after-close inputs safely", async () => {

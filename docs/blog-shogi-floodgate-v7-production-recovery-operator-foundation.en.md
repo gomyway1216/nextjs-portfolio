@@ -9,8 +9,10 @@ This is not a change that performs recovery. Before approaching production incid
 | Decision subject                       | Established result                                                                                                            |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | diagnostic-projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), regular merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
+| safe-failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485), regular merge `4b46fd3761512f38bada4c7c23537a969349a804` |
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                    |
-| latest `main` integration              | regular merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
+| initial `main` integration             | regular merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
+| latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                    |
 | allowed purpose                        | only `inspect-stale-prefix-100`                                                                                               |
 | implemented stage                      | only `stop-entry`                                                                                                             |
 | CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                              |
@@ -21,6 +23,8 @@ This is not a change that performs recovery. Before approaching production incid
 | live-weight / activation changes       | 0 / 0                                                                                                                         |
 
 The authenticated stale active lease and four complete records documented in the [first prefix-100 stop article](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.en.md) remain preserved evidence. This foundation has not read them and has not rerun that article's read-only audit.
+
+#485 regularly merged code that preserves only an allowlisted `failure_kind` and required `timeout_ms` from the first branded, frozen worker failure through pool-wide poison. The same twelve-candidate read-only reproduction and use against the production incident state both remain zero. The source foundation does not treat this new code availability as a production observation.
 
 ## 2. Why isolate the entry first
 
@@ -92,7 +96,7 @@ Tests cover fail-closed rejection of a wrong root, arguments, loader, or runtime
 | registry / lease / stage / work access        | 0 / 0 / 0 / 0 |
 | deployment-key access                         |             0 |
 | retry / cleanup / quarantine / resume         | 0 / 0 / 0 / 0 |
-| worker-failure propagation change             |             0 |
+| merged failure-kind production rerun          |             0 |
 | 4 / 6 / 8 / 12-worker benchmark               |             0 |
 | teacher generation / label finalization       |         0 / 0 |
 | retraining / optimizer step                   |         0 / 0 |
@@ -106,7 +110,7 @@ This change therefore has not altered playing strength. It creates no claim that
 
 1. Pass the foundation candidate through final-head CI, independent review, and a regular merge.
 2. Deliver that regularly merged revision to the dedicated fixed recovery checkout and pin clean tracked source, but do not run the STOP-only entrypoint as if it were production inspection.
-3. In a separate PR, preserve a safe worker-failure kind and timeout through pool-wide poison without publishing stderr, process identifiers, positions, or parent identifiers.
+3. Rerun the same twelve candidates read-only on regularly merged [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485). Capture the first safe worker-failure kind and timeout without publishing stderr, process identifiers, positions, or parent identifiers.
 4. Compare 4, 6, 8, and 12 workers on the same read-only input and establish the cause of the timeout boundary and tail latency.
 5. In a PR separate from the foundation, implement a zero-argument read-only inspector that authenticates the production registry, lease, stage, and checkpoint in one process. Return only sanitized counts and fixed classifications.
 6. After the inspector passes final-head CI, independent review, and a regular merge, perform exactly one read-only inspection from that fixed merged revision. Any mismatch, authentication failure, or indeterminate result means STOP.
@@ -116,6 +120,6 @@ This change therefore has not altered playing strength. It creates no claim that
 
 ## 8. Current decision
 
-#484 regularly merged the corrected sanitized-outer-phase projection, but that code remains unused against the production incident state. This candidate creates the fixed entry needed for a future read-only inspector, but it is deliberately **STOP-only**.
+#484 regularly merged the corrected sanitized-outer-phase projection and #485 the safe worker-failure-kind propagation. Neither has been used against the production incident state, and the same twelve candidates remain unrun. This candidate creates the fixed entry needed for a future read-only inspector, but it is deliberately **STOP-only**.
 
 The production decision therefore remains **STOP**. The [machine-readable evidence](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json) separates evidence for the source foundation from unimplemented and unexecuted production operations and playing-strength nonclaims.

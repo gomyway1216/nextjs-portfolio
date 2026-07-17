@@ -95,7 +95,9 @@
       "number": 484,
       "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/484",
       "state": "MERGED",
-      "ready_for_review": true
+      "ready_for_review": true,
+      "merge_commit": "1c5ec24a8c3a9ad9871bef1621034113112396b5",
+      "merge_method": "regular-merge-commit"
     },
     "final_head_checks": {
       "github_ci": "PASS",
@@ -120,7 +122,8 @@
   "recovery_operator_foundation_candidate": {
     "purpose": "inspect-stale-prefix-100",
     "implementation_commit": "dfa295d6bb505652ec4fa39fe9fc71c6205b3834",
-    "main_integration_commit": "3a12802acc0a538d22a92b76f7e02669fde61ea3",
+    "initial_main_integration_commit": "3a12802acc0a538d22a92b76f7e02669fde61ea3",
+    "latest_main_revision_integrated": "4b46fd3761512f38bada4c7c23537a969349a804",
     "branch": "codex/floodgate-v7-recovery-operator",
     "pull_request_state_at_evidence_capture": "NOT-CREATED",
     "operator_contract": "shogi-floodgate-v7-production-recovery-operator-cli-stop-v1",
@@ -144,6 +147,44 @@
     "playing_strength_evidence_created": false,
     "article": "../blog-shogi-floodgate-v7-production-recovery-operator-foundation.md",
     "machine_readable_evidence": "floodgate-v7-production-recovery-operator-foundation-2026-07-17.json"
+  },
+  "safe_worker_failure_kind_delivery": {
+    "implemented": true,
+    "exact_implementation_commit": "7ca6e09b49f306fd5e7e057dbd7780f0e93f4786",
+    "final_pull_request_head": "6a804a7954a9685361944aeb2be32494638fae2e",
+    "pull_request": {
+      "number": 485,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/485",
+      "state": "MERGED",
+      "ready_for_review": true
+    },
+    "final_head_checks": {
+      "github_ci": "PASS",
+      "security_audit": "PASS",
+      "vercel": "PASS"
+    },
+    "independent_review": {
+      "status": "PASS",
+      "actionable_threads": 1,
+      "addressed_threads": 1,
+      "resolved_threads": 1,
+      "unresolved_threads": 0
+    },
+    "regular_merge": {
+      "status": "PASS",
+      "merge_commit": "4b46fd3761512f38bada4c7c23537a969349a804",
+      "merged_at_utc": "2026-07-17T08:27:59Z"
+    },
+    "safe_metadata": [
+      "allowlisted-failure-kind",
+      "timeout-ms-only-when-required"
+    ],
+    "first_branded_frozen_failure_preserved_through_pool_poison": true,
+    "raw_error_or_private_context_preserved": false,
+    "same_twelve_candidate_rerun_on_merged_code": false,
+    "used_against_production_incident_state": false,
+    "article": "../blog-shogi-floodgate-stable-wasm-failure-kind.md",
+    "machine_readable_evidence": "floodgate-stable-wasm-failure-kind-2026-07-16.json"
   },
   "independent_read_only_audit": {
     "status": "PASS",
@@ -220,14 +261,15 @@
       "generic_pool_poison_elapsed_seconds": "approximately-600.0",
       "safe_failure_kind": "unknown",
       "timing_inference": "search-timeout",
-      "trigger_error_preserved_by_current_pool": false,
+      "trigger_error_preserved_by_incident_revision_pool": false,
       "trigger_parent_identified": false,
       "runtime_close": "PASS",
       "residual_workers": 0,
       "production_state_mutated": false,
       "production_cleanup_or_retry_performed": false
     },
-    "safe_failure_kind_propagation_required": true,
+    "safe_failure_kind_propagation_merged": true,
+    "same_configuration_rerun_on_merged_failure_kind_required": true,
     "worker_count_tail_latency_benchmark_required": true
   },
   "checkpoint_run_binding": {
@@ -282,8 +324,9 @@
   "safe_next_order": [
     "preserve-active-lease-and-stage-work-without-retry-cleanup-quarantine-or-resume",
     "pin-regularly-merged-pr-484-as-a-diagnostic-prerequisite-without-claiming-a-fresh-production-observation",
+    "pin-regularly-merged-pr-485-as-the-safe-failure-kind-prerequisite-without-retroactively-reclassifying-the-incident",
     "pass-the-stop-only-fixed-origin-recovery-operator-foundation-through-final-head-ci-independent-review-and-regular-merge-without-treating-it-as-an-inspector",
-    "preserve-safe-worker-failure-kind-and-timeout-through-pool-wide-poison-and-rerun-the-same-candidates",
+    "rerun-the-same-candidates-with-merged-safe-worker-failure-kind-and-timeout-propagation",
     "benchmark-tail-latency-timeout-and-throughput-at-4-6-8-and-12-workers-on-the-same-read-only-input",
     "fix-only-a-confirmed-root-cause-and-test-timeout-cancellation-partial-checkpoint-and-resumption-boundaries-while-prohibiting-resume-after-binding-change",
     "implement-the-fixed-origin-zero-argument-read-only-authenticated-production-inspector-as-a-separate-review-unit",
@@ -324,6 +367,11 @@
     "projection_fix_github_ci_complete": true,
     "projection_fix_merged": true,
     "projection_fix_used_in_production": false,
+    "safe_worker_failure_kind_pull_request_open": false,
+    "safe_worker_failure_kind_pull_request_merged": true,
+    "safe_worker_failure_kind_github_ci_complete": true,
+    "safe_worker_failure_kind_used_in_production": false,
+    "same_twelve_candidate_rerun_on_merged_failure_kind_completed": false,
     "recovery_operator_foundation_is_production_inspector": false,
     "recovery_operator_foundation_inspected_production_state": false,
     "recovery_operator_foundation_is_reconciliation_authority": false,

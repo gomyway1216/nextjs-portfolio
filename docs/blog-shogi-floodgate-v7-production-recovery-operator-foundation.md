@@ -9,8 +9,10 @@
 | 判断対象                               | 確定結果                                                                                                                  |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | diagnostic projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)、通常merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
+| safe failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)、通常merge `4b46fd3761512f38bada4c7c23537a969349a804` |
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                |
-| latest `main` integration              | 通常merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
+| initial `main` integration             | 通常merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
+| latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                |
 | allowed purpose                        | `inspect-stale-prefix-100`だけ                                                                                            |
 | implemented stage                      | `stop-entry`だけ                                                                                                          |
 | CLI status / decision                  | `NOT-YET-IMPLEMENTED` / **STOP**                                                                                          |
@@ -21,6 +23,8 @@
 | live weight / activation change        | 0 / 0                                                                                                                     |
 
 [prefix-100初回停止の記事](./blog-shogi-floodgate-v7-prefix-100-first-attempt-stop.md)で記録した認証済みstale active leaseと4件の完全recordは、そのまま保全対象である。このfoundationはそれらを読んでおらず、記事のread-only auditを再実行したものでもない。
+
+#485により、最初のbranded / frozen worker failureからpool-wide poisonまで、allowlist済み`failure_kind`と必要な`timeout_ms`だけを保持するcodeは通常mergeされた。ただし同じ12件のread-only再実行もproduction incident stateへの適用も0である。source foundationはこの新しいcode availabilityをproduction observationとして扱わない。
 
 ## 2. なぜ入口を先に分離するのか
 
@@ -92,7 +96,7 @@ testは、wrong root / argv / loader / runtime、replayed attestation、symlink 
 | registry / lease / stage / work access        | 0 / 0 / 0 / 0 |
 | deployment key access                         |             0 |
 | retry / cleanup / quarantine / resume         | 0 / 0 / 0 / 0 |
-| worker failure propagation change             |             0 |
+| merged failure-kind production rerun          |             0 |
 | 4 / 6 / 8 / 12 worker benchmark               |             0 |
 | teacher generation / label finalization       |         0 / 0 |
 | retraining / optimizer step                   |         0 / 0 |
@@ -106,7 +110,7 @@ testは、wrong root / argv / loader / runtime、replayed attestation、symlink 
 
 1. foundation candidateをfinal-head CI、独立review、通常mergeへ通す
 2. 通常merge済みrevisionを専用の固定recovery checkoutへ配備し、clean tracked sourceを固定する。ただしSTOP-only entrypointをproduction inspectionとして実行しない
-3. raw stderr、PID、局面、parent IDを公開せず、safe worker failure kindとtimeout値をpool-wide poisonまで保持する変更を別PRで検証する
+3. 通常merge済み[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)のcodeで、同じ12件をread-only再実行する。raw stderr、PID、局面、parent IDを公開せず、最初のsafe worker failure kindとtimeout値を取得する
 4. 同じread-only inputで4 / 6 / 8 / 12 workersを比較し、timeout境界とtail latencyの原因を確定する
 5. foundationとは別PRで、production registry、lease、stage、checkpointを同じprocessで認証するzero-argument read-only inspectorを実装する。出力はsanitized countと固定classificationだけにする
 6. inspectorをfinal-head CI、独立review、通常mergeした後、固定revisionからread-only inspectionを1回だけ実行する。不一致、認証不能、indeterminateならSTOPする
@@ -116,6 +120,6 @@ testは、wrong root / argv / loader / runtime、replayed attestation、symlink 
 
 ## 8. 現時点の判断
 
-#484によりsanitized outer phaseの投影修正は通常mergeされた。ただしproduction incident stateでは未実行である。今回のcandidateは、将来のread-only inspectorを接続するための固定入口を作ったが、意図的に**STOP-only**である。
+#484によりsanitized outer phaseの投影修正、#485によりsafe worker failure-kind伝播は通常mergeされた。ただしどちらもproduction incident stateでは未実行で、同じ12件も再実行していない。今回のcandidateは、将来のread-only inspectorを接続するための固定入口を作ったが、意図的に**STOP-only**である。
 
 従って現在のproduction判断は引き続き**STOP**である。[機械可読証拠](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json)は、source foundationの証拠と、未実装・未実行のproduction operation、棋力nonclaimを分離して記録する。

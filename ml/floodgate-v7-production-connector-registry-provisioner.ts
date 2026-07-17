@@ -34,7 +34,10 @@ import {
 } from "./floodgate-v7-production-application-source-provenance";
 import {
   claimFloodgateV7ProductionApplicationExecution,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
   type FloodgateV7ProductionApplicationExecutionCapability,
+  type FloodgateV7ProductionApplicationExecutionPurpose,
+  type FloodgateV7ProductionApplicationExecutionStage,
 } from "./floodgate-v7-production-application-source-authorization";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
@@ -208,6 +211,11 @@ interface ProvisionerDependencies {
   ) => Readonly<FloodgateV7ProductionConnectorRegistryPrivateClaim>;
   readonly randomBytes: (size: number) => Buffer;
 }
+type ClaimApplicationExecution = (
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
+  stage: FloodgateV7ProductionApplicationExecutionStage,
+) => void;
 
 export type FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests =
   ProvisionerDependencies;
@@ -1114,6 +1122,17 @@ function rejected<T>(error: unknown): Promise<T> {
   return new NativePromise((_resolve, reject) => reject(error));
 }
 
+function claimProvisionerApplicationExecution(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  claimApplicationExecution: ClaimApplicationExecution,
+): void {
+  reflectApply(claimApplicationExecution, undefined, [
+    capability,
+    "production-registry-provision",
+    "provisioner",
+  ]);
+}
+
 export function provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
   dependenciesValue: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests,
 ): Promise<
@@ -1161,6 +1180,74 @@ export function provisionFloodgateV7ProductionConnectorRegistryCoreForTests(
   );
 }
 
+/**
+ * Test-only staged-capability integration. The injected home remains barred
+ * from aliasing the production home, and the separate test authorization
+ * registry cannot mint or consume production capabilities.
+ */
+export function provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+  dependenciesValue: FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests,
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): Promise<
+  Readonly<
+    FloodgateV7ProductionConnectorRegistryProvisionerReceipt<"test-only-injected-private-registry-provisioning">
+  >
+> {
+  if (arguments.length !== 2) {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "capture",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      ),
+    );
+  }
+  try {
+    claimProvisionerApplicationExecution(
+      applicationExecutionCapability,
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+    );
+  } catch {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "application-source",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      ),
+    );
+  }
+  let dependencies: Readonly<ProvisionerDependencies>;
+  try {
+    dependencies = captureDependencies(dependenciesValue);
+    const productionHome = pathResolve(getUserInfo().homedir);
+    let candidateHome = dependencies.homeDirectory;
+    try {
+      candidateHome = realpathSync(candidateHome);
+    } catch {
+      // The injected installer owns the authoritative test namespace check.
+    }
+    if (candidateHome === productionHome) {
+      throw new Error("test home aliases production home");
+    }
+  } catch {
+    return rejected(
+      new FloodgateV7ProductionConnectorRegistryProvisionerError(
+        "capture",
+        "no-registry-change-established",
+        false,
+        "fresh-invocation-required",
+      ),
+    );
+  }
+  return provision(
+    dependencies,
+    "test-only-injected-private-registry-provisioning",
+    applicationExecutionCapability,
+  );
+}
+
 export function provisionFloodgateV7ProductionConnectorRegistry(
   applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
 ): Promise<
@@ -1182,10 +1269,9 @@ export function provisionFloodgateV7ProductionConnectorRegistry(
     assertFloodgateV7ProductionApplicationEntrypointContext(
       "ml/provision-floodgate-v7-production-connector-registry.ts",
     );
-    claimFloodgateV7ProductionApplicationExecution(
+    claimProvisionerApplicationExecution(
       applicationExecutionCapability,
-      "production-registry-provision",
-      "provisioner",
+      claimFloodgateV7ProductionApplicationExecution,
     );
   } catch {
     return rejected(

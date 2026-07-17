@@ -5,6 +5,10 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+} from "../../../ml/floodgate-v7-production-application-source-authorization";
+import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_FILENAME,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_ROOT_RELATIVE_COMPONENTS,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_RUNS_BASENAME,
@@ -184,6 +188,15 @@ async function captureFailure(operation: () => Promise<unknown>) {
   throw new Error("expected registry installation to fail");
 }
 
+function captureSynchronousFailure(operation: () => void): unknown {
+  try {
+    operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected registry installation to fail synchronously");
+}
+
 function expectDeepFrozenNullRecords(
   value: unknown,
   seen = new Set<object>(),
@@ -245,6 +258,46 @@ posixDescribe("Floodgate v7 production connector registry installer", () => {
       APPLICATION_REVISION,
     );
     expect(await entriesOrEmpty(home)).toEqual([]);
+
+    const stagedCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout:
+            "fixed-current-euid-userinfo-home-production-application-v1" as const,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+      stagedCapability,
+      "production-registry-provision",
+      "provisioner",
+    );
+    expect(() =>
+      installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+        stagedCapability,
+      ),
+    ).not.toThrow();
+    expect(
+      captureSynchronousFailure(() =>
+        installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          stagedCapability,
+        ),
+      ),
+    ).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
+    expect(
+      captureSynchronousFailure(() =>
+        installer.claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          Object.freeze({ contract: "forged", status: "forged" }) as never,
+        ),
+      ),
+    ).toMatchObject({
+      phase: "production-identity",
+      registry_may_have_been_created: false,
+    });
   });
 
   it("publishes exact canonical bytes with the fixed private layout and loader integration", async () => {

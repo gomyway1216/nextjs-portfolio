@@ -13,7 +13,10 @@ import { types as nodeUtilTypes } from "node:util";
 
 import {
   claimFloodgateV7ProductionApplicationExecution,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
   type FloodgateV7ProductionApplicationExecutionCapability,
+  type FloodgateV7ProductionApplicationExecutionPurpose,
+  type FloodgateV7ProductionApplicationExecutionStage,
 } from "./floodgate-v7-production-application-source-authorization";
 import { assertFloodgateV7ProductionApplicationEntrypointContext } from "./floodgate-v7-production-application-source-provenance";
 import {
@@ -229,6 +232,11 @@ type Reconciliation = Readonly<{
   mayHaveCommitted: boolean;
   retryDisposition: FloodgateV7ProductionConnectorRegistryInstallerRetryDisposition;
 }>;
+type ClaimApplicationExecution = (
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  purpose: FloodgateV7ProductionApplicationExecutionPurpose,
+  stage: FloodgateV7ProductionApplicationExecutionStage,
+) => void;
 
 const STAGING_BASENAME = ".registry.json.installing-v1";
 const MODE_MASK = BigInt(0o7777);
@@ -278,6 +286,17 @@ const DEPENDENCY_KEYS = objectFreeze([
 
 function rejected<T>(error: unknown): Promise<T> {
   return new NativePromise((_resolve, reject) => reject(error));
+}
+
+function claimInstallerApplicationExecution(
+  capability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+  claimApplicationExecution: ClaimApplicationExecution,
+): void {
+  reflectApply(claimApplicationExecution, undefined, [
+    capability,
+    "production-registry-provision",
+    "installer",
+  ]);
 }
 
 function frozenRecord<T extends object>(value: T): Readonly<T> {
@@ -1604,6 +1623,33 @@ export function installFloodgateV7ProductionConnectorRegistryCoreForTests(
   );
 }
 
+/** Test-only installer-stage claim against the isolated authorization registry. */
+export function claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+  applicationExecutionCapability: Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+): void {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7ProductionConnectorRegistryInstallerError(
+      "capture",
+      "no-installation-change-established",
+      false,
+      "manual-reconciliation-required",
+    );
+  }
+  try {
+    claimInstallerApplicationExecution(
+      applicationExecutionCapability,
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+    );
+  } catch {
+    throw new FloodgateV7ProductionConnectorRegistryInstallerError(
+      "production-identity",
+      "no-installation-change-established",
+      false,
+      "manual-reconciliation-required",
+    );
+  }
+}
+
 /** Fixed production installer. Calling it may create the real registry. */
 export function installFloodgateV7ProductionConnectorRegistry(
   input: FloodgateV7ProductionConnectorRegistryInstallationInput,
@@ -1627,10 +1673,9 @@ export function installFloodgateV7ProductionConnectorRegistry(
     assertFloodgateV7ProductionApplicationEntrypointContext(
       "ml/provision-floodgate-v7-production-connector-registry.ts",
     );
-    claimFloodgateV7ProductionApplicationExecution(
+    claimInstallerApplicationExecution(
       applicationExecutionCapability,
-      "production-registry-provision",
-      "installer",
+      claimFloodgateV7ProductionApplicationExecution,
     );
   } catch {
     return rejected(

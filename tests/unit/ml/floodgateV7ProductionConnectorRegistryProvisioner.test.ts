@@ -8,6 +8,11 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  authorizeFloodgateV7ProductionApplicationExecutionCoreForTests,
+  claimFloodgateV7ProductionApplicationExecutionCoreForTests,
+  type FloodgateV7ProductionApplicationExecutionCapability,
+} from "../../../ml/floodgate-v7-production-application-source-authorization";
+import {
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_ALGORITHM,
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CLAIM_BOUNDARY,
   FLOODGATE_V7_APPROVED_KEY_CURRENT_BINDING_CONTRACT,
@@ -21,12 +26,14 @@ import {
   FloodgateV7ProductionConnectorRegistryProvisionerError,
   provisionFloodgateV7ProductionConnectorRegistry,
   provisionFloodgateV7ProductionConnectorRegistryCoreForTests,
+  provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests,
   type FloodgateV7ProductionConnectorRegistryProvisionerDependenciesForTests,
 } from "../../../ml/floodgate-v7-production-connector-registry-provisioner";
 import {
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_CONTRACT,
   FLOODGATE_V7_PRODUCTION_CONNECTOR_REGISTRY_INSTALLER_STATUS,
   FloodgateV7ProductionConnectorRegistryInstallerError,
+  claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests,
   installFloodgateV7ProductionConnectorRegistryCoreForTests,
   type FloodgateV7ProductionConnectorRegistryInstallerReceipt,
 } from "../../../ml/floodgate-v7-production-connector-registry-installer";
@@ -581,6 +588,51 @@ Promise.allSettled([
       sourceCaptureCalls: 0,
       installerCallsFromProvisioner: 0,
     });
+  });
+
+  it("hands the exact isolated source capability from the provisioner stage to the installer stage", async () => {
+    const home = path.join(
+      os.tmpdir(),
+      "floodgate-v7-provisioner-capability-handoff",
+    );
+    const applicationExecutionCapability =
+      await authorizeFloodgateV7ProductionApplicationExecutionCoreForTests(
+        "production-registry-provision",
+        async () => ({
+          layout: APPLICATION_SOURCE_LAYOUT,
+          revision: APPLICATION_REVISION,
+        }),
+      );
+    let receivedCapability:
+      Readonly<FloodgateV7ProductionApplicationExecutionCapability> | undefined;
+    const state = harness(home, {
+      installRegistry: async (_input, capability) => {
+        receivedCapability = capability;
+        expect(capability).toBe(applicationExecutionCapability);
+        claimFloodgateV7ProductionConnectorRegistryInstallerApplicationExecutionCoreForTests(
+          capability as Readonly<FloodgateV7ProductionApplicationExecutionCapability>,
+        );
+        return installerReceipt();
+      },
+    });
+
+    const receipt =
+      await provisionFloodgateV7ProductionConnectorRegistryWithApplicationExecutionCapabilityCoreForTests(
+        state.dependencies,
+        applicationExecutionCapability,
+      );
+
+    expect(receivedCapability).toBe(applicationExecutionCapability);
+    expect(receipt.execution_boundary).toBe(
+      "test-only-injected-private-registry-provisioning",
+    );
+    expect(() =>
+      claimFloodgateV7ProductionApplicationExecutionCoreForTests(
+        applicationExecutionCapability,
+        "production-registry-provision",
+        "installer",
+      ),
+    ).toThrow("authorization failed");
   });
 
   it("composes the actual provisioner, installer, loader, and claim in one test home", async () => {

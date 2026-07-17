@@ -23,6 +23,81 @@ const TEST_CHILD = path.join(
 );
 const temporaryRoots: string[] = [];
 const darwinIt = process.platform === "darwin" ? it : it.skip;
+const PRODUCTION_PURPOSE_ENTRIES = Object.freeze({
+  "application-source-readiness":
+    "ml/inspect-floodgate-v7-production-application-source.ts",
+  "approved-current-binding-readiness":
+    "ml/inspect-floodgate-v7-approved-key-current-binding.ts",
+  "connector-verifier-readiness":
+    "ml/inspect-floodgate-v7-production-connector-verifier-readiness.ts",
+  "prefix-100-read-only-preflight":
+    "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
+  "prefix-100-disposable-kill-drill":
+    "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
+  "durable-prefix-100":
+    "ml/run-floodgate-v7-production-connector-prefix-100.ts",
+  "durable-prefix-500":
+    "ml/run-floodgate-v7-production-connector-prefix-500.ts",
+  "sealed-final-24000":
+    "ml/run-floodgate-v7-production-connector-final-24000.ts",
+  "training-label-finalization-24000":
+    "ml/run-floodgate-v7-training-label-production.ts",
+  "production-registry-provision":
+    "ml/provision-floodgate-v7-production-connector-registry.ts",
+} as const);
+const NATIVE_PRODUCTION_SCRIPT_PURPOSES = Object.freeze({
+  "shogi:floodgate-v7-key-enrollment-binding-preflight":
+    "approved-current-binding-readiness",
+  "shogi:floodgate-v7-production-connector-registry-provision":
+    "production-registry-provision",
+  "shogi:floodgate-v7-production-application-source-readiness":
+    "application-source-readiness",
+  "shogi:floodgate-v7-production-connector-verifier-readiness":
+    "connector-verifier-readiness",
+  "shogi:floodgate-v7-production-prefix-100-preflight":
+    "prefix-100-read-only-preflight",
+  "shogi:floodgate-v7-production-prefix-100-kill-drill":
+    "prefix-100-disposable-kill-drill",
+  "shogi:floodgate-v7-production-connector-prefix-100": "durable-prefix-100",
+  "shogi:floodgate-v7-production-connector-prefix-500": "durable-prefix-500",
+  "shogi:floodgate-v7-production-connector-final-24000": "sealed-final-24000",
+  "shogi:floodgate-v7-training-label-production":
+    "training-label-finalization-24000",
+} as const);
+
+function sorted(values: readonly string[]): string[] {
+  return [...values].sort();
+}
+
+function objectFreezeBody(source: string, name: string): string {
+  const match = new RegExp(
+    `const ${name} = Object\\.freeze\\(\\{([\\s\\S]*?)\\n\\} as const\\);`,
+    "u",
+  ).exec(source);
+  if (match?.[1] === undefined) {
+    throw new Error(`missing ${name} frozen object`);
+  }
+  return match[1];
+}
+
+function assertNativeClaimOrdering(source: string, lazyModule: string): void {
+  const argvGuard = source.indexOf("process.argv.length");
+  const claim = source.indexOf(
+    "claimFloodgateV7ProductionNativeLauncherAttestation(ENTRYPOINT)",
+  );
+  const entrypointContext = source.indexOf(
+    "assertFloodgateV7ProductionApplicationEntrypointContext(ENTRYPOINT)",
+    claim,
+  );
+  const lazyLoad = source.indexOf(
+    `require("${lazyModule}")`,
+    entrypointContext,
+  );
+  expect(argvGuard).toBeGreaterThan(0);
+  expect(claim).toBeGreaterThan(argvGuard);
+  expect(entrypointContext).toBeGreaterThan(claim);
+  expect(lazyLoad).toBeGreaterThan(entrypointContext);
+}
 
 function launcherEnvironment(
   overrides: Partial<NodeJS.ProcessEnv> = {},
@@ -62,8 +137,17 @@ afterEach(async () => {
 });
 
 describe("Floodgate v7 production native launcher", () => {
-  it("keeps the production helper limited to eight fixed evidence purposes", async () => {
-    const source = await fs.promises.readFile(PRODUCTION_HELPER, "utf8");
+  it("keeps an exact ten-purpose bijection across the production parent and child", async () => {
+    const [source, attestation] = await Promise.all([
+      fs.promises.readFile(PRODUCTION_HELPER, "utf8"),
+      fs.promises.readFile(
+        path.join(
+          REPOSITORY_ROOT,
+          "ml/floodgate-v7-production-native-launcher-attestation.ts",
+        ),
+        "utf8",
+      ),
+    ]);
     expect(source).toContain('ObjC.import("Foundation")');
     expect(source).toContain('ObjC.import("Security")');
     expect(source).toContain('ObjC.bindFunction("exit"');
@@ -80,13 +164,82 @@ describe("Floodgate v7 production native launcher", () => {
     expect(source).toContain(
       'const NODE_SUFFIX = ".nvm/versions/node/v22.13.0/bin/node";',
     );
+    expect(source).toContain(
+      "Darwin-native launch boundary for the ten current Floodgate v7 production",
+    );
     expect(source).not.toContain("launcher-self-test");
     expect(source).not.toContain("FLOODGATE_V7_LAUNCHER_SELF_TEST_NODE");
-    expect(
-      source.match(
-        /"(?:application-source-readiness|prefix-100-read-only-preflight|prefix-100-disposable-kill-drill|durable-prefix-(?:100|500)|sealed-final-24000|training-label-finalization-24000|production-registry-provision)":/gu,
-      ),
-    ).toHaveLength(8);
+    expect(source).not.toContain("CoreForTests");
+
+    const helperBodyMatch =
+      /const PURPOSE_ENTRIES = Object\.freeze\(\{([\s\S]*?)\n\}\);/u.exec(
+        source,
+      );
+    if (helperBodyMatch?.[1] === undefined) {
+      throw new Error("missing production helper purpose map");
+    }
+    const helperEntryPairs = [
+      ...helperBodyMatch[1].matchAll(/"([^"]+)":\s*"([^"]+)",/gu),
+    ].map((match) => [match[1], match[2]] as const);
+    expect(helperEntryPairs).toHaveLength(10);
+    expect(new Set(helperEntryPairs.map(([purpose]) => purpose)).size).toBe(10);
+    expect(helperBodyMatch[1].replace(/\s+/gu, "")).toBe(
+      Object.entries(PRODUCTION_PURPOSE_ENTRIES)
+        .map(
+          ([purpose, entrypoint]) =>
+            `${JSON.stringify(purpose)}:${JSON.stringify(entrypoint)},`,
+        )
+        .join(""),
+    );
+    const helperEntries = Object.fromEntries(helperEntryPairs);
+    expect(helperEntries).toEqual(PRODUCTION_PURPOSE_ENTRIES);
+    expect(Object.keys(helperEntries)).toHaveLength(10);
+    expect(new Set(Object.values(helperEntries)).size).toBe(10);
+
+    const purposeTypeMatch =
+      /export type FloodgateV7ProductionNativeLauncherPurpose =([\s\S]*?);/u.exec(
+        attestation,
+      );
+    if (purposeTypeMatch?.[1] === undefined) {
+      throw new Error("missing production launcher purpose type");
+    }
+    const purposeTypeValues = [
+      ...purposeTypeMatch[1].matchAll(/"([^"]+)"/gu),
+    ].map((match) => match[1]);
+    expect(sorted(purposeTypeValues)).toEqual(
+      sorted(Object.keys(PRODUCTION_PURPOSE_ENTRIES)),
+    );
+
+    const attestationMap = objectFreezeBody(
+      attestation,
+      "PURPOSE_BY_ENTRYPOINT",
+    );
+    const compactAttestationMap = attestationMap
+      .replace(/\s+/gu, "")
+      .replace(/,\)\]/gu, ")]");
+    const mappedPurposes = [...attestationMap.matchAll(/:\s*"([^"]+)",/gu)].map(
+      (match) => match[1],
+    );
+    expect(sorted(mappedPurposes)).toEqual(
+      sorted(Object.keys(PRODUCTION_PURPOSE_ENTRIES)),
+    );
+    expect(compactAttestationMap).toBe(
+      Object.entries(PRODUCTION_PURPOSE_ENTRIES)
+        .map(([purpose, entrypoint]) => {
+          const joinedEntrypoint = entrypoint
+            .split("/")
+            .map((component) => JSON.stringify(component))
+            .join(",");
+          return `[path.join(${joinedEntrypoint})]:${JSON.stringify(purpose)},`;
+        })
+        .join(""),
+    );
+    expect(attestation).toContain(
+      "assertExactStringArray(process.argv, [expectedNodePath, entrypoint]);",
+    );
+    expect(attestation).toContain(
+      'assertExactStringArray(process.execArgv, ["-r", "tsx/cjs"]);',
+    );
   });
 
   it("routes every current production evidence command through the fixed helper", async () => {
@@ -98,23 +251,42 @@ describe("Floodgate v7 production native launcher", () => {
     ) as { scripts: Record<string, string> };
     const base =
       '/usr/bin/osascript -l JavaScript "$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa"';
-    expect(packageJson.scripts).toMatchObject({
-      "shogi:floodgate-v7-production-connector-registry-provision": `${base} production-registry-provision`,
-      "shogi:floodgate-v7-production-connector-prefix-100": `${base} durable-prefix-100`,
-      "shogi:floodgate-v7-production-connector-prefix-500": `${base} durable-prefix-500`,
-      "shogi:floodgate-v7-production-connector-final-24000": `${base} sealed-final-24000`,
-      "shogi:floodgate-v7-training-label-production": `${base} training-label-finalization-24000`,
-      "shogi:floodgate-v7-production-application-source-readiness": `${base} application-source-readiness`,
-      "shogi:floodgate-v7-production-prefix-100-preflight": `${base} prefix-100-read-only-preflight`,
-      "shogi:floodgate-v7-production-prefix-100-kill-drill": `${base} prefix-100-disposable-kill-drill`,
-    });
+    const nativeScripts = Object.fromEntries(
+      Object.entries(packageJson.scripts).filter(([, command]) =>
+        command.startsWith(`${base} `),
+      ),
+    );
+    expect(nativeScripts).toEqual(
+      Object.fromEntries(
+        Object.entries(NATIVE_PRODUCTION_SCRIPT_PURPOSES).map(
+          ([script, purpose]) => [script, `${base} ${purpose}`],
+        ),
+      ),
+    );
+    expect(Object.keys(nativeScripts)).toHaveLength(10);
+    expect(
+      sorted(
+        Object.values(nativeScripts).map((command) =>
+          command.slice(base.length + 1),
+        ),
+      ),
+    ).toEqual(sorted(Object.keys(PRODUCTION_PURPOSE_ENTRIES)));
   });
 
   it("claims the native parent before source capture or lazy production loading", async () => {
-    const [authorization, readiness, preflight, killDrill] = await Promise.all(
+    const [
+      authorization,
+      readiness,
+      currentBinding,
+      verifierReadiness,
+      preflight,
+      killDrill,
+    ] = await Promise.all(
       [
         "ml/floodgate-v7-production-application-source-authorization.ts",
         "ml/inspect-floodgate-v7-production-application-source.ts",
+        "ml/inspect-floodgate-v7-approved-key-current-binding.ts",
+        "ml/inspect-floodgate-v7-production-connector-verifier-readiness.ts",
         "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
         "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts",
       ].map((relative) =>
@@ -141,6 +313,15 @@ describe("Floodgate v7 production native launcher", () => {
         readinessClaim,
       ),
     ).toBeGreaterThan(readinessClaim);
+
+    assertNativeClaimOrdering(
+      currentBinding,
+      "./floodgate-v7-approved-key-current-binding",
+    );
+    assertNativeClaimOrdering(
+      verifierReadiness,
+      "./floodgate-v7-production-connector-verifier-readiness",
+    );
 
     const preflightClaim = preflight.indexOf(
       'claimFloodgateV7ProductionNativeLauncherAttestation(\n      "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts"',

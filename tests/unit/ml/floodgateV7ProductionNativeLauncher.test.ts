@@ -167,6 +167,13 @@ describe("Floodgate v7 production native launcher", () => {
     expect(source).toContain(
       "Darwin-native launch boundary for the ten current Floodgate v7 production",
     );
+    expect(source).toContain("function integerValue(value)");
+    expect(source).toContain(
+      "attributes.objectForKey($.NSFilePosixPermissions)",
+    );
+    expect(source).not.toContain(
+      "Number(attributes.objectForKey($.NSFilePosixPermissions))",
+    );
     expect(source).not.toContain("launcher-self-test");
     expect(source).not.toContain("FLOODGATE_V7_LAUNCHER_SELF_TEST_NODE");
     expect(source).not.toContain("CoreForTests");
@@ -241,6 +248,57 @@ describe("Floodgate v7 production native launcher", () => {
       'assertExactStringArray(process.execArgv, ["-r", "tsx/cjs"]);',
     );
   });
+
+  darwinIt(
+    "unwraps Foundation numeric values before checking them",
+    async () => {
+      const source = String.raw`
+ObjC.import("Foundation");
+const fileManager = $.NSFileManager.defaultManager;
+const target = ${JSON.stringify(PRODUCTION_HELPER)};
+const error = Ref();
+const attributes = fileManager.attributesOfItemAtPathError($(target), error);
+if (!attributes) throw new Error("missing attributes");
+const raw = attributes.objectForKey($.NSFilePosixPermissions);
+const permissions = Number(ObjC.unwrap(raw));
+const processIdentifier = Number(
+  ObjC.unwrap($.NSProcessInfo.processInfo.processIdentifier),
+);
+const task = $.NSTask.alloc.init;
+task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/true");
+const launchError = Ref();
+if (!task.launchAndReturnError(launchError)) throw new Error("launch failed");
+task.waitUntilExit;
+const terminationStatus = Number(ObjC.unwrap(task.terminationStatus));
+JSON.stringify({
+  permissions,
+  permissionsSafe: Number.isSafeInteger(permissions),
+  processIdentifierSafe:
+    Number.isSafeInteger(processIdentifier) && processIdentifier > 1,
+  terminationStatus,
+});
+`;
+      const child = spawnSync(
+        "/usr/bin/osascript",
+        ["-l", "JavaScript", "-e", source],
+        {
+          cwd: REPOSITORY_ROOT,
+          encoding: "utf8",
+          env: launcherEnvironment(),
+          timeout: 30_000,
+        },
+      );
+      expect(child.error).toBeUndefined();
+      expect(child.status).toBe(0);
+      expect(child.stderr).toBe("");
+      expect(JSON.parse(child.stdout)).toEqual({
+        permissions: (await fs.promises.stat(PRODUCTION_HELPER)).mode & 0o7777,
+        permissionsSafe: true,
+        processIdentifierSafe: true,
+        terminationStatus: 0,
+      });
+    },
+  );
 
   it("routes every current production evidence command through the fixed helper", async () => {
     const packageJson = JSON.parse(

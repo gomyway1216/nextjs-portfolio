@@ -60,6 +60,12 @@ function stringValue(value) {
   return String(ObjC.unwrap(value));
 }
 
+function integerValue(value) {
+  const parsed = Number(ObjC.unwrap(value));
+  if (!Number.isSafeInteger(parsed)) fail();
+  return parsed;
+}
+
 function canonicalPath(value) {
   if (
     typeof value !== "string" ||
@@ -95,11 +101,12 @@ function assertOwnedNonWritablePath(value, expectedType, expectedOwner) {
   const attributes = pathAttributes(value);
   const type = stringValue(attributes.objectForKey($.NSFileType));
   const owner = stringValue(attributes.objectForKey($.NSFileOwnerAccountName));
-  const permissions = Number(attributes.objectForKey($.NSFilePosixPermissions));
+  const permissions = integerValue(
+    attributes.objectForKey($.NSFilePosixPermissions),
+  );
   if (
     type !== stringValue(expectedType) ||
     owner !== expectedOwner ||
-    !Number.isSafeInteger(permissions) ||
     (permissions & 0o022) !== 0
   ) {
     fail();
@@ -181,8 +188,8 @@ function launcherConfiguration(arguments_) {
 }
 
 function execute(configuration) {
-  const parentPid = Number($.NSProcessInfo.processInfo.processIdentifier);
-  if (!Number.isSafeInteger(parentPid) || parentPid <= 1) fail();
+  const parentPid = integerValue($.NSProcessInfo.processInfo.processIdentifier);
+  if (parentPid <= 1) fail();
   const nonce = randomNonce();
   const pipe = $.NSPipe.pipe;
   const task = $.NSTask.alloc.init;
@@ -225,8 +232,8 @@ function execute(configuration) {
   pipe.fileHandleForWriting.writeData(frameData);
   pipe.fileHandleForWriting.closeFile;
   task.waitUntilExit;
-  const status = Number(task.terminationStatus);
-  if (!Number.isSafeInteger(status) || status < 0 || status > 255) fail();
+  const status = integerValue(task.terminationStatus);
+  if (status < 0 || status > 255) fail();
   $.exit(status);
 }
 

@@ -10,7 +10,7 @@
 - 入力を検査中に別processが変更していないか
 - コピー先がsymlink、hard link、inode aliasで元入力を共有していないか
 - test-only実行が本番lease、registry、control、weightへ接続していないか
-- 100件、500件、24,000件のgateが混ざっていないか
+- 同じ認証済みstreamを進める100件、500件、24,000件の権限gateが混ざっていないか
 
 教師を速く回しても、この境界が曖昧なら、その出力を再学習やlive weightの判断材料にはできません。このPRは速度改善そのものではなく、安全に速度を使える土台です。
 
@@ -81,9 +81,9 @@ private bytesは公開せず、metadataだけを集計しました。
 
 1. 100件: runtime wiring、output schema、停止・回収、安全receiptを確認
 2. 500件: throughput、長尾、checkpoint resume、resource上限を確認
-3. 24,000件: 100/500と分離されたsealed final run
+3. 24,000件: 同じ認証済みV3 streamの500件prefixを厳密resumeし、24,000件でseal
 
-100件や500件の出力を24,000件の正式artifactへ継ぎ足しません。24,000件を完了しても、それだけで再学習候補やlive weightにはなりません。label projection、training、候補選抜、formal A/B、外部校正はそれぞれ別gateです。
+V3 protocolは100件、500件、24,000件を別work fileにしません。単一の認証済みstage/work streamで100件と500件をdurable milestoneとして保持し、次のgateがそのexact prefixを検証して続きだけを追加します。一方、各gateのcapabilityとleaseは別のsingle-use authorityで、前gateのcleanupが完了するまで次を開始しません。100件・500件prefixは公開もfinalizeもせず、sealed finalだけをlabel finalizerへ渡します。24,000件を完了しても、それだけで再学習候補やlive weightにはなりません。label projection、training、候補選抜、formal A/B、外部校正はそれぞれ別gateです。
 
 ## 7. なぜ2 PRに分けるか
 
@@ -92,7 +92,7 @@ private bytesは公開せず、metadataだけを集計しました。
 | copy-by-value / verifier clone | 実装・synthetic検証 | fixed runnerから実行 |
 | real stable / YaneuraOu factory binding | 実装・synthetic handoff | native launcherで所有 |
 | 20 GiB capacity gate | requirement固定 | argumentless preflight実装 |
-| key / stage / checkpoint connector | 接続なし | 100 → 500 → 24,000を分離実行 |
+| key / stage / checkpoint connector | 接続なし | 同じ認証済みstreamを、3つのone-shot権限で100 → 500 → 24,000へ順次resume |
 | signal / recovery / finalizer | 接続なし | 実装・故障注入検証 |
 | private copy / teacher labels | 0 | merge・CI・review後だけ |
 
@@ -115,6 +115,6 @@ test-injected preparationのcapabilityは固定runner registryに存在しない
 - formal A/B / external calibration: 0 / 0
 - live weight change / activation: false / 0
 
-次はこのPRのCIと独立reviewを閉じ、別PRで20 GiB gate、native launcher、100/500/24,000 checkpoint separation、signal/recovery/finalizerを完成させます。証拠が揃うまでlive weightsは変更しません。
+次はこのPRのCIと独立reviewを閉じ、別PRで20 GiB gate、native launcher、同一stream上の100/500/24,000 ordered one-shot checkpoint authority、signal/recovery/finalizerを完成させます。証拠が揃うまでlive weightsは変更しません。
 
 Machine-readable evidence: [floodgate-v7-clean-room-teacher-runner-2026-07-17.json](./data/floodgate-v7-clean-room-teacher-runner-2026-07-17.json)

@@ -687,6 +687,36 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
       ),
       "utf8",
     );
+    const japaneseArticle = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "docs",
+        "blog-shogi-floodgate-v7-clean-room-teacher-runner.md",
+      ),
+      "utf8",
+    );
+    const englishArticle = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "docs",
+        "blog-shogi-floodgate-v7-clean-room-teacher-runner.en.md",
+      ),
+      "utf8",
+    );
+    const evidence = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          process.cwd(),
+          "docs",
+          "data",
+          "floodgate-v7-clean-room-teacher-runner-2026-07-17.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      fixed_plan?: Record<string, unknown>;
+      two_pr_boundary?: { next_pr_required?: unknown[] };
+    };
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),
     ) as { scripts?: Record<string, string> };
@@ -718,6 +748,37 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     );
     expect(source).not.toContain(
       'from "./floodgate-v7-production-stage-control"',
+    );
+    expect(japaneseArticle).toContain(
+      "単一の認証済みstage/work streamで100件と500件をdurable milestoneとして保持",
+    );
+    expect(japaneseArticle).toContain(
+      "100件・500件prefixは公開もfinalizeもせず",
+    );
+    expect(japaneseArticle).not.toContain(
+      "100件や500件の出力を24,000件の正式artifactへ継ぎ足しません",
+    );
+    expect(englishArticle).toContain(
+      "One authenticated stage/work stream retains the 100- and 500-parent durable milestones",
+    );
+    expect(englishArticle).toContain(
+      "The 100- and 500-parent prefixes are neither published nor finalized",
+    );
+    expect(englishArticle).not.toContain(
+      "The 100- or 500-parent output is not appended to the formal 24,000-parent artifact",
+    );
+    expect(evidence.fixed_plan).toMatchObject({
+      v3_stream_continuity_requirement:
+        "single-authenticated-stage-work-stream",
+      gate_authority_boundary: "three-ordered-single-use-invocations",
+      sealed_final_resumes_exact_prefix_500: true,
+      durable_prefixes_published_or_finalized: false,
+    });
+    expect(evidence.fixed_plan).not.toHaveProperty(
+      "prefix_outputs_appended_to_sealed_final",
+    );
+    expect(evidence.two_pr_boundary?.next_pr_required).toContain(
+      "ordered-single-use-100-500-24000-authorities-over-one-authenticated-stream",
     );
     expect(
       Object.keys(packageJson.scripts ?? {}).some((key) =>

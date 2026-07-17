@@ -10,7 +10,7 @@ The current label-free role bundle contains 24,000 fixed parents. Combining an o
 - whether another process changed an input during inspection;
 - whether a destination symlink, hard link, or inode alias still shared the source;
 - whether a test-only run touched a production lease, registry, control plane, or weight;
-- whether the 100-, 500-, and 24,000-parent gates remained separate.
+- whether the authority gates that advance one authenticated stream through 100, 500, and 24,000 parents remained separate.
 
 Running the teacher faster would not make such output valid retraining or live-weight evidence. This PR is the foundation that lets later work use the machine safely; it is not itself a speed or strength result.
 
@@ -81,9 +81,9 @@ This PR fixes only the names and ordering of three gates; it executes none.
 
 1. 100 parents: validate runtime wiring, output schema, shutdown/reaping, and safe receipts.
 2. 500 parents: measure throughput, tails, checkpoint resume, and resource bounds.
-3. 24,000 parents: run a sealed final job separate from the 100/500 prefixes.
+3. 24,000 parents: exactly resume the 500-parent prefix in the same authenticated V3 stream and seal at 24,000.
 
-The 100- or 500-parent output is not appended to the formal 24,000-parent artifact. Completing 24,000 labels would still not authorize retraining or a live weight. Label projection, training, candidate selection, formal A/B, and external calibration remain separate gates.
+The V3 protocol does not create separate work files for 100, 500, and 24,000 parents. One authenticated stage/work stream retains the 100- and 500-parent durable milestones; the next gate verifies that exact prefix and appends only the missing continuation. Each gate capability and lease is nevertheless a distinct single-use authority, and the next gate cannot start until the previous gate has cleaned up. The 100- and 500-parent prefixes are neither published nor finalized; only the sealed final may reach the label finalizer. Completing 24,000 labels would still not authorize retraining or a live weight. Label projection, training, candidate selection, formal A/B, and external calibration remain separate gates.
 
 ## 7. Why this is split into two PRs
 
@@ -92,7 +92,7 @@ The 100- or 500-parent output is not appended to the formal 24,000-parent artifa
 | Copy by value / verifier clone | Implemented and tested synthetically | Invoked by the fixed runner |
 | Real stable / YaneuraOu factory binding | Implemented with synthetic handoff | Owned by a native launcher |
 | 20 GiB capacity gate | Requirement fixed | Argumentless preflight implemented |
-| Key / stage / checkpoint connector | Not connected | Separates 100 → 500 → 24,000 |
+| Key / stage / checkpoint connector | Not connected | Resumes one authenticated stream through 100 → 500 → 24,000 under three one-shot authorities |
 | Signal / recovery / finalizer | Not connected | Implemented with fault injection |
 | Private copy / teacher labels | Zero | Only after merge, CI, and review |
 
@@ -115,6 +115,6 @@ This PR has not made the evaluation function stronger. It provides a reviewable 
 - Formal A/B / external calibration: 0 / 0
 - Live weight changes / activations: false / 0
 
-The next step is to close CI and independent review for this PR, then implement the 20 GiB gate, native launcher, separated 100/500/24,000 checkpoints, signal/recovery handling, and finalizer in a separate PR. Live weights remain unchanged until the evidence chain is complete.
+The next step is to close CI and independent review for this PR, then implement the 20 GiB gate, native launcher, ordered one-shot 100/500/24,000 checkpoint authorities over the same stream, signal/recovery handling, and finalizer in a separate PR. Live weights remain unchanged until the evidence chain is complete.
 
 Machine-readable evidence: [floodgate-v7-clean-room-teacher-runner-2026-07-17.json](./data/floodgate-v7-clean-room-teacher-runner-2026-07-17.json)

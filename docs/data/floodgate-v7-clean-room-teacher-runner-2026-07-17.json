@@ -32,7 +32,10 @@
       "durable-prefix-500",
       "sealed-final-24000"
     ],
-    "prefix_outputs_appended_to_sealed_final": false
+    "v3_stream_continuity_requirement": "single-authenticated-stage-work-stream",
+    "gate_authority_boundary": "three-ordered-single-use-invocations",
+    "sealed_final_resumes_exact_prefix_500": true,
+    "durable_prefixes_published_or_finalized": false
   },
   "copy_by_value": {
     "contract": "shogi-floodgate-v7-clean-room-copy-by-value-v1",
@@ -238,7 +241,7 @@
     "next_pr_required": [
       "argumentless-20-gib-runtime-capacity-gate",
       "native-launcher-and-process-ownership",
-      "separate-100-500-24000-checkpoint-execution",
+      "ordered-single-use-100-500-24000-authorities-over-one-authenticated-stream",
       "signal-recovery-and-finalizer",
       "sanitized-nonproduction-operational-receipts"
     ]

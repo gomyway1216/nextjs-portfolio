@@ -44,7 +44,7 @@ public struct CanonicalBytes32: Equatable, Hashable, Comparable, Sendable {
     public static let zero = Self.unchecked(Array(repeating: 0, count: 32))
 
     var isAllZero: Bool {
-        bytes.allSatisfy { $0 == 0 }
+        self == .zero
     }
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
@@ -82,9 +82,17 @@ enum CanonicalSHA256 {
     }
 
     static func digest(_ input: [UInt8]) -> CanonicalBytes32 {
-        precondition(input.count <= Int(UInt64.max / 8))
+        precondition(UInt64(input.count) <= UInt64.max / 8)
 
         var message = Array(input)
+        let trailingBlockCount = input.count % 64 <= 55 ? 1 : 2
+        let (paddedBlockCount, blockCountOverflow) =
+            (input.count / 64).addingReportingOverflow(trailingBlockCount)
+        let (paddedLength, paddedLengthOverflow) =
+            paddedBlockCount.multipliedReportingOverflow(by: 64)
+        precondition(!blockCountOverflow && !paddedLengthOverflow)
+        message.reserveCapacity(paddedLength)
+
         let bitLength = UInt64(message.count) * 8
         message.append(0x80)
         while message.count % 64 != 56 {
@@ -234,9 +242,15 @@ struct CanonicalDecoder {
 
     mutating func readUInt64() throws -> UInt64 {
         let value = try readBytes(count: 8)
-        return value.reduce(UInt64(0)) { partial, byte in
-            (partial << 8) | UInt64(byte)
-        }
+        return
+            (UInt64(value[0]) << 56)
+            | (UInt64(value[1]) << 48)
+            | (UInt64(value[2]) << 40)
+            | (UInt64(value[3]) << 32)
+            | (UInt64(value[4]) << 24)
+            | (UInt64(value[5]) << 16)
+            | (UInt64(value[6]) << 8)
+            | UInt64(value[7])
     }
 
     mutating func readBytes(count: Int) throws -> [UInt8] {

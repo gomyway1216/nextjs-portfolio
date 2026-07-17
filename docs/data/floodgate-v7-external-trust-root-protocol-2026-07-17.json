@@ -190,9 +190,9 @@
     "swift_tests_status": "PASS",
     "swift_tests_passed": 14,
     "swift_tests_failed": 0,
-    "strict_hardening_final_local_run": {
-      "build_seconds": 0.53,
-      "test_seconds": 0.015
+    "latest_review_fix_local_run": {
+      "build_seconds": 4.12,
+      "test_seconds": 0.014
     },
     "repository_vitest_evidence_tests_status": "PASS",
     "repository_vitest_evidence_tests_passed": 5,

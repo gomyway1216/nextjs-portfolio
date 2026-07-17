@@ -93,7 +93,7 @@ repository内のunit testがprotocol round-tripを通すことは、この表の
 
 このPRで許されるvalidationは、232 / 124-byte exact length、big-endian round-trip、不正magic / tag / length / trailing byteの単一error化、`CanonicalBytes20` / `CanonicalBytes32`のcopy isolation、SHA-256 test vector、state transitionと固定errorなどのpure testである。testはproduction pathを開かず、private path、key、incident valueへ接触しない。
 
-source-levelの実測はPASSした。local Xcode 15.3 build 15E5188j、Apple Swift 5.10（swiftlang-5.10.0.12.7 clang-1500.3.9.3）、target `arm64-apple-macosx15.0`で、Swift 14 / 14 tests（canonical 9、state 5）がPASSした。strict hardening後の最終local runはbuild 0.53秒、tests 0.015秒である。repository側のVitest evidence testもNode 22.13.0で5 / 5 PASSした。さらに全Vitest 169 files / 3,089 tests、Python stdlib 68 tests、lint、production buildもPASSした（全lintには今回の差分外にある既存warning 157件、error 0件が残る）。ただし、このlocal XcodeでのPASSが確定するのは「そのlocal toolchainでsource-level testが通った」ことだけである。release artifact用toolchainの採用、artifact closure、code-signing、notarization、Gatekeeper acceptanceはすべて未確定のまま残す。
+source-levelの実測はPASSした。local Xcode 15.3 build 15E5188j、Apple Swift 5.10（swiftlang-5.10.0.12.7 clang-1500.3.9.3）、target `arm64-apple-macosx15.0`で、Swift 14 / 14 tests（canonical 9、state 5）がPASSした。review修正後の最新local runはbuild 4.12秒、tests 0.014秒である。repository側のVitest evidence testもNode 22.13.0で5 / 5 PASSした。さらに全Vitest 169 files / 3,089 tests、Python stdlib 68 tests、lint、production buildもPASSした（全lintには今回の差分外にある既存warning 157件、error 0件が残る）。ただし、このlocal XcodeでのPASSが確定するのは「そのlocal toolchainでsource-level testが通った」ことだけである。release artifact用toolchainの採用、artifact closure、code-signing、notarization、Gatekeeper acceptanceはすべて未確定のまま残す。
 
 ## 7. 次の安全な順序
 

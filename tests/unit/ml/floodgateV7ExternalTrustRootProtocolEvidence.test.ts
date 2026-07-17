@@ -26,7 +26,7 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
     };
 
     expect(packageSource.match(/\.library\(/gu)).toHaveLength(1);
-    expect(packageSource).toContain("dependencies: []");
+    expect(packageSource).toMatch(/dependencies\s*:\s*\[\s*\]/u);
     expect(packageSource).not.toMatch(/\.executable(?:Target)?\(/u);
     expect(packageSource).not.toContain(".plugin(");
     expect(packageSource).not.toContain(".binaryTarget(");
@@ -163,6 +163,10 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
       swift_tests_present: 14,
       swift_tests_passed: 14,
       swift_tests_failed: 0,
+      latest_review_fix_local_run: {
+        build_seconds: 4.12,
+        test_seconds: 0.014,
+      },
       repository_vitest_evidence_tests_status: "PASS",
       repository_vitest_evidence_tests_passed: 5,
       repository_vitest_evidence_tests_failed: 0,

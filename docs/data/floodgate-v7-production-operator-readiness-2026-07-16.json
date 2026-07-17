@@ -1,0 +1,330 @@
+{
+  "schema": "shogi-floodgate-v7-production-operator-readiness-evidence-v1",
+  "evidence_date": "2026-07-16",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-production-operator-readiness.md",
+    "english": "../blog-shogi-floodgate-v7-production-operator-readiness.en.md"
+  },
+  "scope": {
+    "class": "open-unmerged-operator-readiness-candidate-only",
+    "production_state_freshly_observed_for_this_evidence": false,
+    "production_managed_namespace_read_for_this_evidence": false,
+    "production_namespace_or_file_content_mutated": false,
+    "production_authority_issued": false,
+    "playing_strength_evidence_created": false,
+    "operational_decision": "NO-GO"
+  },
+  "application_source_foundation": {
+    "pull_request": 481,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/481",
+    "state": "merged",
+    "merge_method": "regular-merge-commit",
+    "merge_commit": "67ccd9b8c49392132fdffaa625468ac1d128a5d5"
+  },
+  "current_delivery": {
+    "description": "standalone-approved-current-binding-and-connector-verifier-readiness-under-native-exact-launch",
+    "pull_request_number": 482,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/482",
+    "state": "open-ready-for-review",
+    "exact_implementation_revision": "947f6e547039a62c17d74e08d1102af26dc46903",
+    "final_pull_request_head": "PENDING",
+    "github_ci": "PENDING",
+    "independent_review": "PASS-local-implementation-and-evidence-boundary-P0-P1-P2-zero",
+    "unresolved_review_threads": "PENDING",
+    "merge": "PENDING-regular-merge-required",
+    "fixed_production_application_alignment": "BLOCKED-until-this-delivery-is-regularly-merged"
+  },
+  "native_launch_boundary": {
+    "contract": "shogi-floodgate-v7-production-native-launcher-attestation-v1",
+    "platform": "darwin",
+    "required_node_version": "v22.13.0",
+    "required_exec_argv": ["-r", "tsx/cjs"],
+    "operator_arguments_accepted": false,
+    "fixed_minimal_child_environment": true,
+    "one_shot_attestation": true,
+    "purpose_entrypoint_bijection_required": true,
+    "purpose_count": 10,
+    "mutation_capable_count": 5,
+    "read_only_count": 4,
+    "disposable_safety_drill_count": 1,
+    "purposes": [
+      {
+        "class": "read-only",
+        "purpose": "application-source-readiness",
+        "entrypoint": "ml/inspect-floodgate-v7-production-application-source.ts"
+      },
+      {
+        "class": "read-only",
+        "purpose": "approved-current-binding-readiness",
+        "entrypoint": "ml/inspect-floodgate-v7-approved-key-current-binding.ts"
+      },
+      {
+        "class": "read-only",
+        "purpose": "connector-verifier-readiness",
+        "entrypoint": "ml/inspect-floodgate-v7-production-connector-verifier-readiness.ts"
+      },
+      {
+        "class": "read-only",
+        "purpose": "prefix-100-read-only-preflight",
+        "entrypoint": "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts"
+      },
+      {
+        "class": "disposable-safety-drill",
+        "purpose": "prefix-100-disposable-kill-drill",
+        "entrypoint": "ml/run-floodgate-v7-production-prefix-100-kill-drill.ts"
+      },
+      {
+        "class": "mutation-capable",
+        "purpose": "durable-prefix-100",
+        "entrypoint": "ml/run-floodgate-v7-production-connector-prefix-100.ts"
+      },
+      {
+        "class": "mutation-capable",
+        "purpose": "durable-prefix-500",
+        "entrypoint": "ml/run-floodgate-v7-production-connector-prefix-500.ts"
+      },
+      {
+        "class": "mutation-capable",
+        "purpose": "sealed-final-24000",
+        "entrypoint": "ml/run-floodgate-v7-production-connector-final-24000.ts"
+      },
+      {
+        "class": "mutation-capable",
+        "purpose": "training-label-finalization-24000",
+        "entrypoint": "ml/run-floodgate-v7-training-label-production.ts"
+      },
+      {
+        "class": "create-only-mutation-capable",
+        "purpose": "production-registry-provision",
+        "entrypoint": "ml/provision-floodgate-v7-production-connector-registry.ts"
+      }
+    ],
+    "tool_byte_closure_verified": false,
+    "atomic_process_lineage_snapshot": false,
+    "same_uid_or_ancestor_hostile_process_isolation": false,
+    "invoking_shell_npm_and_osascript_may_observe_caller_environment_before_clean_child": true
+  },
+  "standalone_operator_guard_order": {
+    "ordered_steps": [
+      "check-required-node-version-and-argumentless-argv",
+      "claim-exact-purpose-entrypoint-native-launcher-attestation-once",
+      "assert-fixed-production-application-entrypoint-context",
+      "lazy-load-readiness-core-for-the-first-time",
+      "validate-core-receipt-against-exact-plain-data-allowlist",
+      "rebuild-fixed-public-success-or-sanitized-failure"
+    ],
+    "readiness_core_loaded_before_node_and_argv_check": false,
+    "readiness_core_loaded_before_native_attestation": false,
+    "readiness_core_loaded_before_application_entrypoint_context": false,
+    "direct_node_accepted": false,
+    "additional_operator_arguments_accepted": false,
+    "attestation_reusable": false
+  },
+  "approved_current_binding_readiness": {
+    "purpose": "approved-current-binding-readiness",
+    "core_contract": "shogi-floodgate-v7-approved-key-current-binding-preflight-v1",
+    "cli_success_contract": "shogi-floodgate-v7-approved-key-current-binding-readiness-cli-success-v1",
+    "cli_failure_contract": "shogi-floodgate-v7-approved-key-current-binding-readiness-cli-failure-v1",
+    "read_only": true,
+    "success_requires_fresh_current_key_inspection": true,
+    "success_requires_exact_eight_field_binding": true,
+    "success_reports_held_descriptors_revalidated": true,
+    "success_reports_memory_only_comparison": true,
+    "approval_record_or_key_content_or_namespace_mutation_performed": false,
+    "run_stage_connector_checkpoint_authority": false,
+    "reconciliation_performed": false,
+    "reconciliation_authority": false
+  },
+  "connector_verifier_readiness": {
+    "purpose": "connector-verifier-readiness",
+    "core_contract": "shogi-floodgate-v7-production-connector-verifier-readiness-v1",
+    "cli_success_contract": "shogi-floodgate-v7-production-connector-verifier-readiness-cli-success-v1",
+    "cli_failure_contract": "shogi-floodgate-v7-production-connector-verifier-readiness-cli-failure-v1",
+    "read_only": true,
+    "success_requires_fixed_current_euid_home_repository_root": true,
+    "success_requires_fixed_verifier_revision": true,
+    "success_requires_pinned_receipt_git_closure_check": true,
+    "success_requires_closure_receipt_validation": true,
+    "external_role_bundle_files_read": false,
+    "full_role_bundle_verifier_run": false,
+    "gate_registry_connector_authority": false,
+    "reconciliation_performed": false,
+    "reconciliation_authority": false
+  },
+  "public_projection": {
+    "core_object_serialized_directly": false,
+    "exact_own_enumerable_plain_data_key_allowlist_required": true,
+    "proxy_accepted": false,
+    "accessor_accepted": false,
+    "extra_or_missing_key_accepted": false,
+    "unexpected_constant_or_boolean_accepted": false,
+    "success_rebuilt_from_known_values": true,
+    "failure_sanitized_to_fixed_schema": true,
+    "failure_exit_nonzero": true,
+    "raw_failure_disclosed": false,
+    "path_disclosed": false,
+    "revision_disclosed": false,
+    "digest_disclosed": false,
+    "numeric_effective_user_id_disclosed": false,
+    "home_directory_disclosed": false,
+    "key_identity_material_disclosed": false,
+    "private_registry_value_disclosed": false,
+    "production_managed_namespace_or_file_content_mutation_performed": false,
+    "atime_invariance": false,
+    "success_and_failure_explicitly_fix_residual_nonclaims": true,
+    "reconciliation_performed": false,
+    "reconciliation_authority": false,
+    "ignored_untracked_dependency_bytes_verified": false,
+    "same_uid_race_isolation": false,
+    "atomic_source_snapshot": false,
+    "tool_byte_closure_verified": false,
+    "atomic_process_lineage_snapshot": false,
+    "same_uid_or_ancestor_hostile_process_isolation": false
+  },
+  "validation": {
+    "component_local_results_counted_as_final_integrated_evidence": false,
+    "integrated_final_tree_validation": "PASS-exact-implementation-commit",
+    "exact_committed_head_validation": "PASS-947f6e547039a62c17d74e08d1102af26dc46903",
+    "focused_operator_boundary": {
+      "status": "PASS",
+      "test_files": 3,
+      "tests": 57
+    },
+    "full_vitest": {
+      "status": "PASS",
+      "test_files": 166,
+      "tests": 3057,
+      "vitest_seconds": 319.41,
+      "wall_seconds": 319.81,
+      "max_workers": 8,
+      "maximum_resident_set_bytes": 2376368128,
+      "swaps": 0,
+      "block_input_operations": 0,
+      "block_output_operations": 0
+    },
+    "production_build": {
+      "status": "PASS",
+      "wall_seconds": 27.59,
+      "maximum_resident_set_bytes": 2641051648,
+      "swaps": 0,
+      "block_input_operations": 0,
+      "block_output_operations": 0,
+      "existing_build_time_fallback_diagnostics_observed": true
+    },
+    "typescript": {
+      "status": "PASS",
+      "wall_seconds": 2.85,
+      "maximum_resident_set_bytes": 1146142720
+    },
+    "full_eslint": {
+      "status": "PASS",
+      "errors": 0,
+      "existing_warnings": 157,
+      "wall_seconds": 27.27,
+      "maximum_resident_set_bytes": 2041626624
+    },
+    "ml_stdlib": {
+      "status": "PASS",
+      "tests": 58,
+      "wall_seconds": 0.48,
+      "maximum_resident_set_bytes": 58064896
+    },
+    "npm_audit": {
+      "status": "PASS",
+      "vulnerabilities": 0,
+      "wall_seconds": 0.52,
+      "maximum_resident_set_bytes": 132710400
+    },
+    "prettier_changed_files": "PASS",
+    "jxa_osacompile": "PASS",
+    "ten_purpose_mapping_parity": "PASS",
+    "independent_final_audit": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "github_ci_for_final_head": "PENDING",
+    "independent_review_for_final_head": "PENDING",
+    "elapsed_times_claimed": true,
+    "evidence_json_parse": "PASS",
+    "article_and_json_format_check": "PASS"
+  },
+  "production_execution_for_this_candidate": {
+    "production_application_alignments": 0,
+    "production_verifier_alignments": 0,
+    "production_source_readiness_checks": 0,
+    "production_connector_verifier_readiness_checks": 0,
+    "production_approved_current_binding_readiness_checks": 0,
+    "production_registry_provisions": 0,
+    "production_kill_drills": 0,
+    "production_prefix_100_preflights": 0,
+    "production_prefix_100_gates": 0,
+    "production_prefix_500_gates": 0,
+    "production_final_24000_gates": 0,
+    "teacher_generation_runs": 0,
+    "teacher_labels_finalized": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "candidate_promotions": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "playing_strength": {
+    "runop1_changed_by_this_candidate": false,
+    "live_weight_changed_by_this_candidate": false,
+    "playing_strength_evaluated": false,
+    "playing_strength_improvement_claimed": false,
+    "stable_high_dan_claimed": false
+  },
+  "production_reconciliation": {
+    "implemented_by_this_candidate": false,
+    "manual_inspect_authority_available": false,
+    "manual_quarantine_confirmation_authority_available": false,
+    "manual_cancel_authority_available": false,
+    "existing_production_exports_deliberately_always_reject": true,
+    "test_only_state_machine_grants_production_authority": false,
+    "stale_state": "STOP-no-retry-no-next-gate",
+    "quarantined_state": "STOP-no-retry-no-next-gate",
+    "indeterminate_state": "STOP-no-retry-no-next-gate"
+  },
+  "post_merge_safe_order": [
+    "regularly-merge-this-operator-readiness-delivery-after-final-head-local-ci-and-independent-review-gates-pass",
+    "align-fixed-production-application-worktree-to-this-operator-readiness-pull-requests-own-merge-commit-not-pr481-only",
+    "align-fixed-verifier-worktree-to-e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "run-fresh-standalone-application-source-readiness",
+    "run-fresh-standalone-connector-verifier-readiness",
+    "run-fresh-standalone-approved-current-binding-readiness",
+    "provisioner-freshly-rechecks-source-verifier-and-approved-current-binding",
+    "create-only-provision-registry-v2-within-the-same-fail-closed-provisioner-invocation",
+    "run-reviewed-disposable-kill-drill",
+    "run-fresh-read-only-prefix-100-preflight",
+    "run-prefix-100-exactly-once",
+    "stop-for-independent-evidence-review-and-informed-human-approval",
+    "continue-with-prefix-500-final-24000-label-finalization-retraining-selection-formal-ab-and-external-calibration-under-their-stop-gates",
+    "consider-live-only-after-safety-quality-strength-and-rollback-rehearsal-evidence"
+  ],
+  "fixed_revisions_after_merge": {
+    "production_application": "PENDING-this-operator-readiness-pull-requests-own-merge-commit",
+    "connector_verifier": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "pr481_merge_commit_is_sufficient_as_final_application_alignment": false
+  },
+  "nonclaims": {
+    "current_operator_readiness_pull_request_number_known": true,
+    "current_candidate_merged": false,
+    "production_ready": false,
+    "registry_created": false,
+    "reconciliation_authority_claimed": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_established": false,
+    "stable_high_dan_established": false
+  }
+}

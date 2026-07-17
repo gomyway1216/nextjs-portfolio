@@ -20,6 +20,8 @@ export const FLOODGATE_V7_PRODUCTION_NATIVE_LAUNCHER_ATTESTATION_CONTRACT =
 
 export type FloodgateV7ProductionNativeLauncherPurpose =
   | "application-source-readiness"
+  | "approved-current-binding-readiness"
+  | "connector-verifier-readiness"
   | "prefix-100-read-only-preflight"
   | "prefix-100-disposable-kill-drill"
   | "durable-prefix-100"
@@ -85,6 +87,12 @@ const SELF_TEST_HELPER = path.join(
 const PURPOSE_BY_ENTRYPOINT = Object.freeze({
   [path.join("ml", "inspect-floodgate-v7-production-application-source.ts")]:
     "application-source-readiness",
+  [path.join("ml", "inspect-floodgate-v7-approved-key-current-binding.ts")]:
+    "approved-current-binding-readiness",
+  [path.join(
+    "ml",
+    "inspect-floodgate-v7-production-connector-verifier-readiness.ts",
+  )]: "connector-verifier-readiness",
   [path.join("ml", "inspect-floodgate-v7-production-prefix-100-preflight.ts")]:
     "prefix-100-read-only-preflight",
   [path.join("ml", "run-floodgate-v7-production-prefix-100-kill-drill.ts")]:

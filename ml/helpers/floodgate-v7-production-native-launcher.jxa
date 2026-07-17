@@ -1,7 +1,7 @@
 "use strict";
 
 /*
- * Darwin-native launch boundary for the eight current Floodgate v7 production
+ * Darwin-native launch boundary for the ten current Floodgate v7 production
  * evidence CLIs. /usr/bin/osascript evaluates this tracked source before the
  * attested production child Node exists. NSTask then starts
  * /usr/bin/caffeinate with a fixed, minimal child environment; caffeinate
@@ -22,6 +22,10 @@ const HELPER_SUFFIX = "ml/helpers/floodgate-v7-production-native-launcher.jxa";
 const PURPOSE_ENTRIES = Object.freeze({
   "application-source-readiness":
     "ml/inspect-floodgate-v7-production-application-source.ts",
+  "approved-current-binding-readiness":
+    "ml/inspect-floodgate-v7-approved-key-current-binding.ts",
+  "connector-verifier-readiness":
+    "ml/inspect-floodgate-v7-production-connector-verifier-readiness.ts",
   "prefix-100-read-only-preflight":
     "ml/inspect-floodgate-v7-production-prefix-100-preflight.ts",
   "prefix-100-disposable-kill-drill":

@@ -182,8 +182,8 @@
   "validation_at_evidence_capture": {
     "foundation_focused_tests": {
       "status": "PASS",
-      "passed": 49,
-      "total": 49,
+      "passed": 50,
+      "total": 50,
       "real_darwin_integration_included": true
     },
     "post_main_integration_focused_tests": {
@@ -201,19 +201,40 @@
     "latest_affected_integration_focused_tests": {
       "status": "PASS",
       "files": 6,
-      "passed": 187,
-      "total": 187,
+      "passed": 188,
+      "total": 188,
       "includes_recovery_foundation": true,
       "includes_projection_regressions": true,
       "includes_safe_failure_kind_regressions": true
     },
+    "darwin_ci_regression": {
+      "initial_status": "FAIL",
+      "cause": "legacy-production-launcher-test-fixture-used-ambiguous-number-conversion-for-protected-dyld-rejection-status",
+      "production_launcher_changed": false,
+      "fixture_strict_objc_unwrap_safe_integer_fix": true,
+      "rerun_status": "PASS"
+    },
+    "review_follow_up": {
+      "total_threads": 3,
+      "stale_pull_request_state_threads_addressed": 2,
+      "frozen_record_own_key_alignment_threads_addressed": 1,
+      "descriptor_copy_regression_test_added": true,
+      "addressed_threads": 3,
+      "resolved_threads": 3,
+      "unresolved_threads": 0
+    },
     "full_vitest": {
       "status": "PASS",
       "files": 168,
-      "passed": 3122,
-      "total": 3122,
-      "max_workers": 8,
-      "runtime": "node-v22.13.0"
+      "passed": 3123,
+      "total": 3123,
+      "max_workers": 4,
+      "duration_seconds": 308.28,
+      "runtime": "node-v22.13.0",
+      "swap_count": 0,
+      "preceding_eight_worker_attempts_stopped": 2,
+      "preceding_attempt_failure": "existing-performance-sensitive-test-reached-30-second-limit-under-same-machine-cpu-contention",
+      "preceding_attempts_counted_as_pass": false
     },
     "production_build": "PASS",
     "native_integer_value_branch": {

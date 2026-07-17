@@ -128,8 +128,8 @@
     "latest_affected_integration_focused_tests": {
       "status": "PASS",
       "files": 6,
-      "passed": 187,
-      "total": 187
+      "passed": 188,
+      "total": 188
     },
     "branch": "codex/floodgate-v7-recovery-operator",
     "pull_request": {

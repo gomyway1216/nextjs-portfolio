@@ -74,14 +74,18 @@ The entrypoint does not import the production registry, lease, stage, work, or d
 
 ## 5. Validation
 
-The foundation's focused suite passed 49 / 49 tests. After the first `main` integration, including the #484 connector regressions, the combined focused run passed 77 / 77. On the latest integration that regularly merged #485, the six affected foundation, projection, and failure-kind files passed 187 / 187 tests. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
+The foundation's focused suite passed 50 / 50 tests. After the first `main` integration, including the #484 connector regressions, the combined focused run passed 77 / 77. On the latest integration that regularly merged #485, the six affected foundation, projection, and failure-kind files passed 188 / 188 tests. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
+
+The first Darwin CI run for PR #486 exposed one issue confined to the existing production-launcher test fixture: it converted an inner protected-DYLD rejection status through ambiguous `Number(...)`, and a runner difference made the outer `osascript` terminate with `status = null`. After aligning that fixture with the strict `ObjC.unwrap` plus safe-integer validation already used by the production launcher and recovery fixture, the Darwin job passed. Review follow-up also replaced two stale PR-state records with `OPEN / ready_for_review` and aligned provenance/authorization frozen-record own-key handling; a regression test now fixes the descriptor-copy rule in both implementations.
+
+On the final post-review tree, all 168 files and 3,123 / 3,123 tests passed with four workers in 308.28 seconds and zero swaps. Two preceding eight-worker attempts were stopped after one existing performance-sensitive test reached its 30-second limit under same-machine CPU contention; neither attempt is counted as a pass. Both the affected 188 / 188 run containing that test and the resource-isolated full run passed.
 
 | Validation                                 | Result              |
 | ------------------------------------------ | ------------------- |
-| foundation unit and source-hardening tests | PASS, 49 / 49       |
+| foundation unit and source-hardening tests | PASS, 50 / 50       |
 | post-`main` focused regression             | PASS, 77 / 77       |
-| latest affected integration regression     | PASS, 187 / 187     |
-| full Vitest                                | PASS, 3,122 / 3,122 |
+| latest affected integration regression     | PASS, 188 / 188     |
+| full Vitest                                | PASS, 3,123 / 3,123 |
 | production build                           | PASS                |
 | TypeScript typecheck                       | PASS                |
 | changed-file ESLint                        | PASS                |

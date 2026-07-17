@@ -74,14 +74,18 @@ entrypointはproduction registry、lease、stage、work、deployment keyをimpor
 
 ## 5. 検証
 
-foundation単独のfocused testは49 / 49、#484のconnector回帰を含む最初の`main`統合後は77 / 77がPASSした。さらに#485を通常mergeした最新integrationでは、foundation、projection、failure-kindのaffected 6 files、187 / 187がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
+foundation単独のfocused testは50 / 50、#484のconnector回帰を含む最初の`main`統合後は77 / 77がPASSした。さらに#485を通常mergeした最新integrationでは、foundation、projection、failure-kindのaffected 6 files、188 / 188がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
+
+PR #486の初回Darwin CIでは、既存production-launcher test fixtureだけが内側のDYLD拒否statusを曖昧な`Number(...)`で変換し、runner差により外側の`osascript`が`status = null`で終了した。本番launcherとrecovery fixtureが既に使うstrict `ObjC.unwrap` + safe-integer検証へ同fixtureを揃えた後、Darwin jobはPASSした。reviewでは、PR状態を`OPEN / ready_for_review`へ更新する2件と、provenance / authorizationのfrozen-record own-key処理を揃える1件を修正し、後者には両実装のdescriptor-copy規則を固定する回帰testを追加した。
+
+review修正後のfinal treeでは、全168 files、3,123 / 3,123が4 workers、308.28秒、swap 0でPASSした。先行する8-worker試行2回は、同machine上のCPU競合中に既存の性能依存test 1件が30秒上限へ達した時点で打ち切っており、成功として数えていない。同testを含むaffected 188 / 188と、資源競合を抑えた全体走行の両方がPASSした。
 
 | validation                               | 結果                |
 | ---------------------------------------- | ------------------- |
-| foundation unit + source-hardening tests | PASS、49 / 49       |
+| foundation unit + source-hardening tests | PASS、50 / 50       |
 | post-`main` focused regression           | PASS、77 / 77       |
-| latest affected integration regression   | PASS、187 / 187     |
-| full Vitest                              | PASS、3,122 / 3,122 |
+| latest affected integration regression   | PASS、188 / 188     |
+| full Vitest                              | PASS、3,123 / 3,123 |
 | production build                         | PASS                |
 | TypeScript typecheck                     | PASS                |
 | changed-file ESLint                      | PASS                |

@@ -65,8 +65,8 @@ from int16_forward import int16_forward_ste
 from qat_protocol import (
     QAT_FINAL_CHECKPOINT_SCHEMA,
     QAT_TRAINING_RESULT_SCHEMA,
-    verify_qat_experiment_plan,
 )
+from qat_plan_registry import verify_qat_experiment_plan
 from sibling_manifest import (
     SiblingManifestError,
     load_policy_exposed_semantic_position_ids,

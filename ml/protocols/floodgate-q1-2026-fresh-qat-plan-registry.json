@@ -1,0 +1,12 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-plan-registry-v1",
+  "status": "awaiting-exact-tracked-execution-plan-and-artifact-identities",
+  "plan": {
+    "schema": "shogi-floodgate-fresh-qat-execution-plan-v1",
+    "path": "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan.json",
+    "bytes": null,
+    "sha256": null
+  },
+  "artifact_identities_registered": false,
+  "training_dispatch_ready": false
+}

@@ -151,11 +151,10 @@ describe("stable-WASM merged timeout confirmation evidence", () => {
       .filter(([key]) => key.endsWith("_mutation_counter"))
       .map(([, value]) => value);
 
-    expect(persistentCounters).toHaveLength(5);
-    expect(persistentCounters.every((value) => value === 0)).toBe(true);
-    expect(
-      Object.values(evidence.downstream_counters).every((value) => value === 0),
-    ).toBe(true);
+    expect(persistentCounters).toEqual([0, 0, 0, 0, 0]);
+    expect(Object.values(evidence.downstream_counters)).toEqual([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
     expect(evidence.persistent_state).toMatchObject({
       existing_lease_stage_checkpoint_or_quarantine_mutated: false,
       live_weights_mutated: false,

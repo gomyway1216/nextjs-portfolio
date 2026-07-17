@@ -55,6 +55,20 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
           NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:ci"
 
+  external_trust_root_protocol:
+    name: External trust-root protocol (source only)
+    runs-on: macos-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run dependency-free Swift protocol tests
+        run: >-
+          xcrun swift test
+          --package-path native/floodgate-v7-external-trust-root-protocol
+
   darwin_exclusive_directory_rename:
     name: Darwin exclusive directory rename
     runs-on: macos-latest

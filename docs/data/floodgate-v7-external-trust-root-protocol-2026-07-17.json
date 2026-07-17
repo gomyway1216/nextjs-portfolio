@@ -1,0 +1,300 @@
+{
+  "schema": "shogi-floodgate-v7-external-trust-root-protocol-evidence-v1",
+  "evidence_date": "2026-07-17",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-external-trust-root-protocol.md",
+    "english": "../blog-shogi-floodgate-v7-external-trust-root-protocol.en.md",
+    "foundation_japanese": "../blog-shogi-floodgate-v7-production-recovery-operator-foundation.md",
+    "foundation_english": "../blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md"
+  },
+  "scope": {
+    "description": "code-only-dependency-free-swift-protocol-for-a-future-outside-repository-trust-root",
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "protocol_library_source_only": true,
+    "external_trust_root_installed": false,
+    "approved_revision_enrolled": false,
+    "approved_tree_enrolled": false,
+    "production_state_inspected": false,
+    "persistent_mutation_performed": false,
+    "live_evaluator_changed": false
+  },
+  "base": {
+    "repository_main_revision": "040f61ad6b44c6accb0db68375ec66877c021f17",
+    "repository_main_tree": "3630df561f25d3d222f77ba650cddd97728071d9",
+    "latest_main_integration_method": "regular-merge-commit",
+    "latest_main_integration_commit": "d7565c31b7fc862792858fc90f8ac66f68f30a7b",
+    "latest_main_integration_feature_parent": "9a66959842e1d9bc8dd7b7f74fca6d43aabcf4b3",
+    "latest_main_integration_main_parent": "040f61ad6b44c6accb0db68375ec66877c021f17",
+    "recovery_foundation_pull_request": 486,
+    "recovery_foundation_state": "MERGED",
+    "recovery_foundation_merge_commit": "ce33913014eb0e990dfaabe344e2e7c8d5e393d5"
+  },
+  "design_choice": {
+    "future_runtime": "signed-and-notarized-native-swift-command-line-artifact-installed-outside-the-repository",
+    "current_delivery": "dependency-free-swift-protocol-library-source-only",
+    "javascript_bundle_selected": false,
+    "reason": [
+      "native-macos-code-signing-and-notarization-boundary",
+      "repository-code-does-not-run-before-the-trust-decision",
+      "no-node-or-jsc-preload-module-resolution-or-ignored-loader-bootstrap",
+      "small-reviewable-message-and-canonicalization-boundary"
+    ]
+  },
+  "implementation_surface": {
+    "module_path": "native/floodgate-v7-external-trust-root-protocol",
+    "module": "FloodgateV7ExternalTrustRootProtocol",
+    "swift_standard_library_only": true,
+    "source_files": [
+      "CanonicalBytes.swift",
+      "EnrollmentRecord.swift",
+      "ActivationRecord.swift",
+      "ProtocolState.swift"
+    ],
+    "canonical_bytes": {
+      "fixed_byte_types": [
+        {
+          "name": "CanonicalBytes20",
+          "bytes": 20
+        },
+        {
+          "name": "CanonicalBytes32",
+          "bytes": 32
+        }
+      ],
+      "integer_encoding": "big-endian",
+      "dependency_free_sha256": true,
+      "decode_error": "invalidCanonicalRecord",
+      "decode_error_equatable": true,
+      "detailed_private_input_error_disclosed": false
+    },
+    "enrollment_record": {
+      "encoded_bytes": 232,
+      "fixed_magic_distinct_from_activation": true,
+      "fixed_audience": "productionRecovery",
+      "fixed_purpose": "inspectStalePrefix100",
+      "fields": {
+        "enrollment_id": "CanonicalBytes32",
+        "expected_uid": "UInt32-nonzero",
+        "approved_commit": "CanonicalBytes20",
+        "approved_tree": "CanonicalBytes20",
+        "source_manifest_sha256": "CanonicalBytes32",
+        "supervisor_artifact_sha256": "CanonicalBytes32",
+        "child_artifact_sha256": "CanonicalBytes32",
+        "runtime_closure_sha256": "CanonicalBytes32",
+        "not_before": "UInt64-nonzero",
+        "expires_at": "UInt64"
+      },
+      "validity_interval": "0 < not-before < expires-at"
+    },
+    "activation_record": {
+      "encoded_bytes": 124,
+      "fixed_magic_distinct_from_enrollment": true,
+      "fixed_audience": "productionRecovery",
+      "actions": ["activate", "revoke", "rollback"],
+      "fields": {
+        "sequence": "UInt64",
+        "activation_id": "CanonicalBytes32",
+        "target_enrollment_id": "CanonicalBytes32",
+        "previous_activation_digest": "CanonicalBytes32",
+        "issued_at": "UInt64"
+      }
+    },
+    "protocol_state": {
+      "pure_state_transition": true,
+      "partial_transition_on_failure": false,
+      "fixed_error_categories": [
+        "duplicateEnrollment",
+        "duplicateActivation",
+        "invalidSequence",
+        "invalidPreviousActivationDigest",
+        "nonMonotonicIssuedAt",
+        "unknownEnrollment",
+        "revokedEnrollment",
+        "alreadyRevoked",
+        "alreadyActivated",
+        "rollbackTargetNeverActivated",
+        "enrollmentNotYetValid",
+        "enrollmentExpired",
+        "sameEnrollmentAlreadyActive"
+      ],
+      "activation_chain_digest": "canonical-sha256-of-previous-activation-record",
+      "rollback_scope": "any-previously-activated-unrevoked-currently-valid-enrollment",
+      "revoke_registered_never_activated_allowed": true,
+      "revoke_outside_validity_window_allowed": true,
+      "activate_same_enrollment_more_than_once_allowed": false,
+      "return_to_previously_activated_enrollment_requires_rollback": true,
+      "previous_activation_digest_authority": "protocol-state-internal-computation"
+    }
+  },
+  "current_absences": {
+    "executable_target_available": false,
+    "main_entrypoint_available": false,
+    "package_script_available": false,
+    "installer_available": false,
+    "canonical_outside_repository_install_performed": false,
+    "signer_available": false,
+    "issuer_available": false,
+    "private_key_material_present": false,
+    "public_key_enrollment_present": false,
+    "certificate_present": false,
+    "signed_artifact_present": false,
+    "notarized_artifact_present": false,
+    "production_import_present": false,
+    "production_capability_mint_available": false
+  },
+  "canonical_protocol_properties": {
+    "version_and_domain_fixed_by_encoding": true,
+    "separate_enrollment_and_activation_magic": true,
+    "fixed_length_records": true,
+    "string_fields_present": false,
+    "map_fields_present": false,
+    "optional_fields_present": false,
+    "variable_field_order_present": false,
+    "unknown_fields_representable": false,
+    "duplicate_fields_representable": false,
+    "invalid_lengths_rejected": true,
+    "invalid_magic_rejected": true,
+    "invalid_tags_rejected": true,
+    "invalid_fixed_values_rejected": true,
+    "invalid_ranges_rejected": true,
+    "trailing_bytes_rejected": true,
+    "all_decode_failures_collapsed_to_one_safe_error": true
+  },
+  "future_non_circular_bootstrap_gates": {
+    "release_toolchain_pinned": false,
+    "single_native_artifact_built": false,
+    "artifact_dependency_closure_verified": false,
+    "code_signature_verified": false,
+    "notarization_verified": false,
+    "gatekeeper_acceptance_verified": false,
+    "canonical_root_owned_install_completed": false,
+    "ancestor_owner_mode_nlink_closure_verified": false,
+    "create_only_approved_commit_tree_enrollment_completed": false,
+    "git_directory_common_directory_object_directory_and_alternates_closure_verified": false,
+    "negative_tests_run_against_installed_artifact": false,
+    "fresh_challenge_handoff_protocol_implemented": false,
+    "one_shot_attestation_handoff_implemented": false,
+    "replay_substitution_and_downgrade_rejection_established": false,
+    "external_one_shot_attestation_issued": false,
+    "read_only_inspector_implemented": false
+  },
+  "validation_boundary": {
+    "local_xcode_role": "compiler-and-source-test-only",
+    "local_xcode_tests_are_source_level_only": true,
+    "local_xcode_test_status": "PASS",
+    "xcode_version": "15.3",
+    "xcode_build": "15E5188j",
+    "swift_version": "Apple Swift 5.10 (swiftlang-5.10.0.12.7 clang-1500.3.9.3)",
+    "swift_target": "arm64-apple-macosx15.0",
+    "swift_tests_present": 14,
+    "swift_canonical_tests_present": 9,
+    "swift_state_tests_present": 5,
+    "swift_tests_status": "PASS",
+    "swift_tests_passed": 14,
+    "swift_tests_failed": 0,
+    "latest_main_integration_local_run": {
+      "build_seconds": 0.09,
+      "test_seconds": 0.023
+    },
+    "repository_vitest_evidence_tests_status": "PASS",
+    "repository_vitest_evidence_tests_passed": 5,
+    "repository_vitest_evidence_tests_failed": 0,
+    "repository_vitest_runtime": "node-v22.13.0",
+    "full_repository_validation": {
+      "runtime": "node-v22.13.0",
+      "vitest": {
+        "status": "PASS",
+        "files_passed": 170,
+        "tests_passed": 3096,
+        "tests_failed": 0,
+        "max_workers": 4,
+        "duration_seconds": 309.81
+      },
+      "python_stdlib": {
+        "status": "PASS",
+        "tests_passed": 80,
+        "tests_failed": 0
+      },
+      "eslint": {
+        "status": "PASS",
+        "errors": 0,
+        "repository_warnings_outside_this_change": 157,
+        "changed_typescript_warnings": 0
+      },
+      "production_build": "PASS",
+      "prettier": "PASS",
+      "json_parse": "PASS",
+      "git_diff_check": "PASS"
+    },
+    "local_xcode_results_counted_as_release_artifact_evidence": false,
+    "release_toolchain_compatibility_established": false,
+    "signed_artifact_evidence_established": false,
+    "notarized_artifact_evidence_established": false,
+    "installed_artifact_evidence_established": false
+  },
+  "production_counters": {
+    "operator_invocations": 0,
+    "production_state_inspections": 0,
+    "registry_accesses": 0,
+    "lease_accesses": 0,
+    "stage_accesses": 0,
+    "checkpoint_accesses": 0,
+    "quarantine_accesses": 0,
+    "deployment_key_accesses": 0,
+    "persistent_mutations": 0,
+    "prefix_100_retries": 0,
+    "active_lease_cleanups": 0,
+    "quarantines": 0,
+    "checkpoint_resumes": 0,
+    "teacher_generation_runs": 0,
+    "training_runs": 0,
+    "optimizer_steps": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "safe_next_order": [
+    "review-and-regularly-merge-the-code-only-swift-protocol-and-negative-tests",
+    "pin-a-release-toolchain-artifact-closure-and-canonical-outside-repository-install-policy-separately",
+    "build-sign-notarize-and-install-the-outside-repository-verifier-under-a-separate-gate",
+    "complete-authenticated-create-only-approved-commit-and-tree-enrollment",
+    "run-installed-artifact-negative-tests-for-unapproved-loader-git-store-owner-mode-and-replay-failures",
+    "implement-the-zero-argument-read-only-inspector-in-a-separate-reviewed-pull-request",
+    "run-exactly-one-fresh-inspection-and-stop-on-mismatch-authentication-failure-or-indeterminate-state",
+    "only-after-matching-fresh-evidence-review-human-confirmed-quarantine-or-a-separately-approved-fresh-restart",
+    "after-complete-teacher-data-run-retraining-selection-formal-ab-and-external-calibration",
+    "consider-live-activation-only-after-playing-strength-safety-and-rollback-evidence"
+  ],
+  "nonclaims": {
+    "external_trust_root_available": false,
+    "production_operator_available": false,
+    "production_inspector_available": false,
+    "production_reconciliation_authority_available": false,
+    "approved_revision_available": false,
+    "source_authorized": false,
+    "artifact_signed": false,
+    "artifact_notarized": false,
+    "artifact_installed": false,
+    "incident_state_reconciled": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_improved": false,
+    "stable_high_dan_established": false
+  },
+  "privacy": {
+    "private_absolute_path_disclosed": false,
+    "numeric_user_identity_disclosed": false,
+    "execution_identifier_disclosed": false,
+    "key_or_private_digest_value_disclosed": false,
+    "incident_record_value_disclosed": false,
+    "position_or_parent_identifier_disclosed": false
+  }
+}

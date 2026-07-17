@@ -86,7 +86,12 @@
     "latest_main_revision_integrated": "4b46fd3761512f38bada4c7c23537a969349a804",
     "latest_main_integration_method": "regular-merge-commit",
     "latest_main_integration_commit": "5f22bd14a10b35e09cef39a0cba93f733464dc52",
-    "pull_request_state_at_evidence_capture": "NOT-CREATED",
+    "pull_request": {
+      "number": 486,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/486",
+      "state": "OPEN",
+      "ready_for_review": true
+    },
     "ready_for_review_requested": true,
     "regular_merge_required": true,
     "squash_or_rebase_requested": false
@@ -202,6 +207,15 @@
       "includes_projection_regressions": true,
       "includes_safe_failure_kind_regressions": true
     },
+    "full_vitest": {
+      "status": "PASS",
+      "files": 168,
+      "passed": 3122,
+      "total": 3122,
+      "max_workers": 8,
+      "runtime": "node-v22.13.0"
+    },
+    "production_build": "PASS",
     "native_integer_value_branch": {
       "status": "PASS",
       "foundation_nsnumber_values_executed": true,

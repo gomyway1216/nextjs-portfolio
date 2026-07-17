@@ -1,6 +1,6 @@
 # Isolating a fixed production recovery-operator entry as STOP-only — Floodgate v7
 
-> Safely handling the partial prefix-100 checkpoint first requires a fixed origin, native-launch proof, exact-clean-source proof, and a purpose-limited capability separate from the normal application. This candidate implements only that entry boundary and accesses no production state. Its sole executable purpose is `inspect-stale-prefix-100`, but the current entrypoint always returns `NOT-YET-IMPLEMENTED / STOP` with exit 78. It does not yet implement an inspector, reconciliation, retry, cleanup, quarantine, or resumption. Production weights and live activation are unchanged. Japanese version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)
+> Safely handling the partial prefix-100 checkpoint first requires a fixed origin, native-launch proof, exact-clean-source proof, and a purpose-limited capability separate from the normal application. [Ready-for-review PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) implements only that entry boundary and accesses no production state. Its sole executable purpose is `inspect-stale-prefix-100`, but the current entrypoint always returns `NOT-YET-IMPLEMENTED / STOP` with exit 78. It does not yet implement an inspector, reconciliation, retry, cleanup, quarantine, or resumption. Production weights and live activation are unchanged. Japanese version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)
 
 ## 1. Result
 
@@ -10,6 +10,7 @@ This is not a change that performs recovery. Before approaching production incid
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | diagnostic-projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484), regular merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
 | safe-failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485), regular merge `4b46fd3761512f38bada4c7c23537a969349a804` |
+| foundation delivery                    | [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486), OPEN / ready for review                                  |
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                    |
 | initial `main` integration             | regular merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
 | latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                    |
@@ -75,17 +76,19 @@ The entrypoint does not import the production registry, lease, stage, work, or d
 
 The foundation's focused suite passed 49 / 49 tests. After the first `main` integration, including the #484 connector regressions, the combined focused run passed 77 / 77. On the latest integration that regularly merged #485, the six affected foundation, projection, and failure-kind files passed 187 / 187 tests. The real-Darwin JXA integration exercises the native `integerValue` branch with actual Foundation `NSNumber` values and values coercible to numbers.
 
-| Validation                                 | Result          |
-| ------------------------------------------ | --------------- |
-| foundation unit and source-hardening tests | PASS, 49 / 49   |
-| post-`main` focused regression             | PASS, 77 / 77   |
-| latest affected integration regression     | PASS, 187 / 187 |
-| TypeScript typecheck                       | PASS            |
-| changed-file ESLint                        | PASS            |
-| TypeScript / JSON / JXA formatting         | PASS            |
-| production and fixture JXA compile         | PASS            |
-| Git diff whitespace check                  | PASS            |
-| public-artifact privacy scan               | PASS            |
+| Validation                                 | Result              |
+| ------------------------------------------ | ------------------- |
+| foundation unit and source-hardening tests | PASS, 49 / 49       |
+| post-`main` focused regression             | PASS, 77 / 77       |
+| latest affected integration regression     | PASS, 187 / 187     |
+| full Vitest                                | PASS, 3,122 / 3,122 |
+| production build                           | PASS                |
+| TypeScript typecheck                       | PASS                |
+| changed-file ESLint                        | PASS                |
+| TypeScript / JSON / JXA formatting         | PASS                |
+| production and fixture JXA compile         | PASS                |
+| Git diff whitespace check                  | PASS                |
+| public-artifact privacy scan               | PASS                |
 
 Tests cover fail-closed rejection of a wrong root, arguments, loader, or runtime; replayed attestation; symlinks and hardlinks; dirty tracked source; alternate object stores; proxy arguments; and module-loading bypass patterns. These passes are evidence for the source-entry boundary, not evidence that a production inspector is correct or that recovery is safe.
 
@@ -110,7 +113,7 @@ This change therefore has not altered playing strength. It creates no claim that
 
 ## 7. Safe next order
 
-1. Pass the foundation candidate through final-head CI, independent review, and a regular merge.
+1. Pass [foundation PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) through final-head CI, independent review, and a regular merge.
 2. Deliver that regularly merged revision to the dedicated fixed recovery checkout and pin clean tracked source, but do not run the STOP-only entrypoint as if it were production inspection.
 3. Rerun the same twelve candidates read-only on regularly merged [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485). Capture the first safe worker-failure kind and timeout without publishing stderr, process identifiers, positions, or parent identifiers.
 4. Compare 4, 6, 8, and 12 workers on the same read-only input and establish the cause of the timeout boundary and tail latency.
@@ -122,6 +125,6 @@ This change therefore has not altered playing strength. It creates no claim that
 
 ## 8. Current decision
 
-#484 regularly merged the corrected sanitized-outer-phase projection and #485 the safe worker-failure-kind propagation. Neither has been used against the production incident state, and the same twelve candidates remain unrun. This candidate creates the fixed entry needed for a future read-only inspector, but it is deliberately **STOP-only**.
+#484 regularly merged the corrected sanitized-outer-phase projection and #485 the safe worker-failure-kind propagation. Neither has been used against the production incident state, and the same twelve candidates remain unrun. [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486) creates the fixed entry needed for a future read-only inspector, but it is deliberately **STOP-only**.
 
 The production decision therefore remains **STOP**. The [machine-readable evidence](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json) separates evidence for the source foundation from unimplemented and unexecuted production operations and playing-strength nonclaims.

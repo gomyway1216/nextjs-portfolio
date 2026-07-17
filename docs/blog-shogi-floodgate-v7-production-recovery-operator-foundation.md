@@ -1,6 +1,6 @@
 # production復旧operatorの固定入口をSTOP-onlyで分離する — Floodgate v7
 
-> prefix-100の部分checkpointを安全に扱うには、通常applicationとは別の固定origin、native launch証明、exact clean source証明、目的限定capabilityが先に必要である。本candidateはその入口だけを実装し、production stateへは一切accessしない。実行可能な唯一のpurposeは`inspect-stale-prefix-100`だが、現在のentrypointは必ず`NOT-YET-IMPLEMENTED / STOP`、exit 78を返す。inspector、reconciliation、retry、cleanup、quarantine、resumeはまだ実装していない。production weightとlive activationも変更していない。English version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md)
+> prefix-100の部分checkpointを安全に扱うには、通常applicationとは別の固定origin、native launch証明、exact clean source証明、目的限定capabilityが先に必要である。[ready-for-review PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)はその入口だけを実装し、production stateへは一切accessしない。実行可能な唯一のpurposeは`inspect-stale-prefix-100`だが、現在のentrypointは必ず`NOT-YET-IMPLEMENTED / STOP`、exit 78を返す。inspector、reconciliation、retry、cleanup、quarantine、resumeはまだ実装していない。production weightとlive activationも変更していない。English version: [blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md)
 
 ## 1. 結論
 
@@ -10,6 +10,7 @@
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | diagnostic projection prerequisite     | [PR #484](https://github.com/gomyway1216/nextjs-portfolio/pull/484)、通常merge `1c5ec24a8c3a9ad9871bef1621034113112396b5` |
 | safe failure-kind prerequisite         | [PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)、通常merge `4b46fd3761512f38bada4c7c23537a969349a804` |
+| foundation delivery                    | [PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)、OPEN / ready for review                              |
 | foundation implementation              | `dfa295d6bb505652ec4fa39fe9fc71c6205b3834`                                                                                |
 | initial `main` integration             | 通常merge `3a12802acc0a538d22a92b76f7e02669fde61ea3`                                                                      |
 | latest integrated `main` revision      | `4b46fd3761512f38bada4c7c23537a969349a804`                                                                                |
@@ -75,17 +76,19 @@ entrypointはproduction registry、lease、stage、work、deployment keyをimpor
 
 foundation単独のfocused testは49 / 49、#484のconnector回帰を含む最初の`main`統合後は77 / 77がPASSした。さらに#485を通常mergeした最新integrationでは、foundation、projection、failure-kindのaffected 6 files、187 / 187がPASSした。Darwin実機のJXA integrationは、実際のFoundation `NSNumber`と数値へcoerceできる値を通し、native `integerValue`分岐も検証した。
 
-| validation                               | 結果            |
-| ---------------------------------------- | --------------- |
-| foundation unit + source-hardening tests | PASS、49 / 49   |
-| post-`main` focused regression           | PASS、77 / 77   |
-| latest affected integration regression   | PASS、187 / 187 |
-| TypeScript typecheck                     | PASS            |
-| changed-file ESLint                      | PASS            |
-| TypeScript / JSON / JXA formatting       | PASS            |
-| production + fixture JXA compile         | PASS            |
-| Git diff whitespace check                | PASS            |
-| public artifact privacy scan             | PASS            |
+| validation                               | 結果                |
+| ---------------------------------------- | ------------------- |
+| foundation unit + source-hardening tests | PASS、49 / 49       |
+| post-`main` focused regression           | PASS、77 / 77       |
+| latest affected integration regression   | PASS、187 / 187     |
+| full Vitest                              | PASS、3,122 / 3,122 |
+| production build                         | PASS                |
+| TypeScript typecheck                     | PASS                |
+| changed-file ESLint                      | PASS                |
+| TypeScript / JSON / JXA formatting       | PASS                |
+| production + fixture JXA compile         | PASS                |
+| Git diff whitespace check                | PASS                |
+| public artifact privacy scan             | PASS                |
 
 testは、wrong root / argv / loader / runtime、replayed attestation、symlink / hardlink、dirty tracked source、alternate object store、proxy argv、module-load bypass patternをfail-closedで拒否する境界を含む。これらのPASSはsource入口の証拠であり、production inspectorの正しさや復旧可能性の証拠ではない。
 
@@ -110,7 +113,7 @@ testは、wrong root / argv / loader / runtime、replayed attestation、symlink 
 
 ## 7. 安全な次の順序
 
-1. foundation candidateをfinal-head CI、独立review、通常mergeへ通す
+1. [foundation PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)をfinal-head CI、独立review、通常mergeへ通す
 2. 通常merge済みrevisionを専用の固定recovery checkoutへ配備し、clean tracked sourceを固定する。ただしSTOP-only entrypointをproduction inspectionとして実行しない
 3. 通常merge済み[PR #485](https://github.com/gomyway1216/nextjs-portfolio/pull/485)のcodeで、同じ12件をread-only再実行する。raw stderr、PID、局面、parent IDを公開せず、最初のsafe worker failure kindとtimeout値を取得する
 4. 同じread-only inputで4 / 6 / 8 / 12 workersを比較し、timeout境界とtail latencyの原因を確定する
@@ -122,6 +125,6 @@ testは、wrong root / argv / loader / runtime、replayed attestation、symlink 
 
 ## 8. 現時点の判断
 
-#484によりsanitized outer phaseの投影修正、#485によりsafe worker failure-kind伝播は通常mergeされた。ただしどちらもproduction incident stateでは未実行で、同じ12件も再実行していない。今回のcandidateは、将来のread-only inspectorを接続するための固定入口を作ったが、意図的に**STOP-only**である。
+#484によりsanitized outer phaseの投影修正、#485によりsafe worker failure-kind伝播は通常mergeされた。ただしどちらもproduction incident stateでは未実行で、同じ12件も再実行していない。[PR #486](https://github.com/gomyway1216/nextjs-portfolio/pull/486)は、将来のread-only inspectorを接続するための固定入口を作ったが、意図的に**STOP-only**である。
 
 従って現在のproduction判断は引き続き**STOP**である。[機械可読証拠](./data/floodgate-v7-production-recovery-operator-foundation-2026-07-17.json)は、source foundationの証拠と、未実装・未実行のproduction operation、棋力nonclaimを分離して記録する。

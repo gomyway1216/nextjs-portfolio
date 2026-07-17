@@ -132,7 +132,12 @@
       "total": 187
     },
     "branch": "codex/floodgate-v7-recovery-operator",
-    "pull_request_state_at_evidence_capture": "NOT-CREATED",
+    "pull_request": {
+      "number": 486,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/486",
+      "state": "OPEN",
+      "ready_for_review": true
+    },
     "operator_contract": "shogi-floodgate-v7-production-recovery-operator-cli-stop-v1",
     "operator_status": "NOT-YET-IMPLEMENTED",
     "operator_decision": "STOP",

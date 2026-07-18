@@ -2,6 +2,8 @@
 
 > チャットの吹き出しは相手の画面へ直接飛ぶわけではない。多くのサービスでは、送信者の端末、サービスのサーバー、Push通知基盤、受信者の複数端末が協調する。暗号化されたサービスでも、配送そのものには宛先・時刻・端末といったメタデータが必要になる。英語版は [blog-how-messaging-works.en.md](./blog-how-messaging-works.en.md)。
 
+![暗号化された経路を通り、送信端末から受信端末へ届くチャットメッセージ](/img/blog/everyday-tech/instant-messaging.webp)
+
 ---
 
 ## 30秒で分かる答え

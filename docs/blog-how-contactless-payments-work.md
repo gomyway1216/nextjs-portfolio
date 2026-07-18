@@ -2,6 +2,8 @@
 
 > カードやスマホを端末へ近づけた瞬間、NFCで支払い情報と取引ごとの暗号データが交換される。端末は店、決済代行・加盟店契約会社、カードnetwork、発行会社へ承認を問い合わせる。ただし「承認」と、後で実際に資金を精算する処理は別だ。英語版は [blog-how-contactless-payments-work.en.md](./blog-how-contactless-payments-work.en.md)。
 
+![スマホと決済端末のタッチから安全なネットワークを通って承認される支払い](/img/blog/everyday-tech/contactless-payment.webp)
+
 ---
 
 ## 30秒で分かる答え

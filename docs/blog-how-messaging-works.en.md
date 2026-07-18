@@ -2,6 +2,8 @@
 
 > A chat bubble usually does not travel directly to someone else's screen. The sender's device, the service's servers, push-notification infrastructure, and the recipient's devices cooperate. Even with end-to-end encryption, delivery still needs metadata such as destinations, devices, and timing. Japanese version: [blog-how-messaging-works.md](./blog-how-messaging-works.md).
 
+![A chat message traveling through a secure relay from one phone to another](/img/blog/everyday-tech/instant-messaging.webp)
+
 ---
 
 ## The 30-second answer

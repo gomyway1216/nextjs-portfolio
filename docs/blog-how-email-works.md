@@ -2,6 +2,8 @@
 
 > メールは「相手のスマホへ直接飛ぶメッセージ」ではない。複数の郵便局に相当するサーバーが、宛先を調べ、預かり、転送し、相手のメールボックスへ置く **store and forward（蓄積交換）** の仕組みだ。英語版は [blog-how-email-works.en.md](./blog-how-email-works.en.md)。
 
+![送信端末から複数のメールサーバーを経由して受信トレイへ届くメール](/img/blog/everyday-tech/email-delivery.webp)
+
 ---
 
 ## 30秒で分かる答え

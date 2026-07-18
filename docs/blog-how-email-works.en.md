@@ -2,6 +2,8 @@
 
 > Email is not a message fired directly at someone else's phone. It is a **store-and-forward** system: servers act like post offices that look up an address, accept the message, relay it, and place it in a mailbox. Japanese version: [blog-how-email-works.md](./blog-how-email-works.md).
 
+![An email traveling from a sender through mail servers into an inbox](/img/blog/everyday-tech/email-delivery.webp)
+
 ---
 
 ## The 30-second answer

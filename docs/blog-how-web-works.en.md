@@ -2,6 +2,8 @@
 
 > A browser first resolves an address, creates a protected connection, receives HTML, discovers CSS, JavaScript, images, and other dependencies, and finally constructs a screen. The server does not necessarily send a finished page. Japanese version: [blog-how-web-works.md](./blog-how-web-works.md).
 
+![A web page assembled from layers after DNS resolution and a secure connection](/img/blog/everyday-tech/web-page-loading.webp)
+
 ---
 
 ## The 30-second answer

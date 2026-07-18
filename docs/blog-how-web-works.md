@@ -2,6 +2,8 @@
 
 > ブラウザにURLを入れると、まず住所を引き、暗号化された通信路を作り、HTMLを受け取り、そこから必要なCSS・JavaScript・画像を集め、最後に画面を組み立てる。「サーバーが完成画面を送る」とは限らない。英語版は [blog-how-web-works.en.md](./blog-how-web-works.en.md)。
 
+![DNSと安全な通信を経て、複数の層からWebページが組み立てられる様子](/img/blog/everyday-tech/web-page-loading.webp)
+
 ---
 
 ## 30秒で分かる答え

@@ -2,6 +2,8 @@
 
 > When a card or phone approaches a terminal, NFC carries payment credentials and transaction-specific cryptographic data. The terminal sends an authorization request through the merchant side, the card network, and the issuer. Authorization is not the same as the later clearing and settlement of funds. Japanese version: [blog-how-contactless-payments-work.md](./blog-how-contactless-payments-work.md).
 
+![A phone tapping a payment terminal and sending a secure authorization through a network](/img/blog/everyday-tech/contactless-payment.webp)
+
 ---
 
 ## The 30-second answer

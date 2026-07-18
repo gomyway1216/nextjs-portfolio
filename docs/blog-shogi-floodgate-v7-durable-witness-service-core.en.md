@@ -2,7 +2,7 @@
 
 > This candidate translates the transaction ordering required of a future durable remote-witness provider into a Swift source/test-only core. No real service, cloud adapter, endpoint, KMS key, root writer, or production entry point exists. The service target is not a package product and has **0 public / SPI symbols and 0 production consumers**. The operational decision remains **UNAVAILABLE / STOP**, and live weights are unchanged. Japanese version: [blog-shogi-floodgate-v7-durable-witness-service-core.md](./blog-shogi-floodgate-v7-durable-witness-service-core.md)
 
-> **Publication status: LOCAL SNAPSHOT MEASURED; EXACT COMMIT PENDING.** All discovered OP / STATE retry, endpoint-generation binding, and divergent-fork findings are reflected in the snapshot and local measurements below. The implementation revision, independent exact-commit review, PR, and GitHub CI remain pending, so these local results do not authorize production.
+> **Publication status: EXACT REVIEW SEALED; PR CI PENDING.** All discovered OP / STATE retry, endpoint-generation binding, and divergent-fork fixes are pinned to reviewed PR #506 anchor `8074545c`. GitHub CI for this seal commit is not complete, so these results do not authorize production.
 
 ## 1. Conclusion
 
@@ -101,7 +101,7 @@ The full Swift package ran locally with Xcode 15.3 build 15E5188j, Apple Swift 5
 
 The 23 tests cover post-sign query / rejection reread, role / independently observed generation mismatch, sign / commit failure, post-commit reconciliation, transient / ambiguous exact-plan resend, ambiguous-applied-then-definitive-loss, same-request and different-fork CAS outcomes, three-ambiguity STOP, competing forks, exact / direct-successor retry, same-sequence and direct divergent forks, unproved multi-step lineage STOP, expired retry and its post-sign reread, committed-but-expired response, clock rollback before and after commit and during refresh, the 4,096 boundary, endpoint-generation reuse, wrong signer, and alias rejection across identities plus expected, candidate, and request digests.
 
-This is local source/test evidence. The implementation revision, exact-commit review, PR, and GitHub-CI symbol graph are still pending.
+This is source/test evidence for an exactly reviewed anchor. The implementation/publication anchor and PR are fixed, while the seal commit's GitHub-CI symbol graph remains `PENDING`.
 
 ## 7. What remains between this core and AWS
 

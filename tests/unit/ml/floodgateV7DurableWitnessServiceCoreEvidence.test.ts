@@ -48,26 +48,33 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       evidence_date: "2026-07-18",
       evidence_timezone: "America/Los_Angeles",
       publication_state: {
-        status: "LOCAL-SNAPSHOT-MEASURED-EXACT-COMMIT-PENDING",
+        status: "SEALED-EXACT-REVIEW-PASS-CI-PENDING",
         claims_final: false,
         implementation_snapshot_final: true,
         validation_counts_final: true,
-        required_next_action:
-          "seal-exact-commit-and-complete-independent-review-and-pr-ci",
+        required_next_action: "complete-pr-ci",
       },
       revision: {
         base_revision: "9aacb89670f566ab3b5d219e815f490580713455",
-        implementation_revision: null,
-        implementation_tree: null,
-        pull_request: null,
-        implementation_exact_commit_review: "PENDING",
-        implementation_exact_commit_reviewers: 0,
-        implementation_exact_commit_findings: null,
-        publication_revision: null,
-        publication_tree: null,
-        publication_exact_commit_review: "PENDING",
-        publication_exact_commit_reviewers: 0,
-        publication_exact_commit_findings: null,
+        implementation_revision: "8074545c2c4cdc2fae606169490c978008c7b4fd",
+        implementation_tree: "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
+        pull_request: 506,
+        implementation_exact_commit_review: "PASS",
+        implementation_exact_commit_reviewers: 2,
+        implementation_exact_commit_findings: {
+          p0: 0,
+          p1: 0,
+          p2: 0,
+        },
+        publication_revision: "8074545c2c4cdc2fae606169490c978008c7b4fd",
+        publication_tree: "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
+        publication_exact_commit_review: "PASS",
+        publication_exact_commit_reviewers: 2,
+        publication_exact_commit_findings: {
+          p0: 0,
+          p1: 0,
+          p2: 0,
+        },
         continuous_integration: "PENDING",
       },
       scope: {
@@ -111,7 +118,7 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
     });
   });
 
-  it("pins the local implementation snapshot and leaves the PR 504 publication unchanged", () => {
+  it("pins the exact committed snapshot and leaves the PR 504 publication unchanged", () => {
     const record = evidence();
     const expectedImplementationPaths = [
       ".github/workflows/ci.yml",
@@ -125,12 +132,12 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       expectedImplementationPaths,
     );
     expect(
-      record.implementation_surface.local_uncommitted_snapshot.map(
+      record.implementation_surface.exact_committed_snapshot.map(
         (entry: { path: string }) => entry.path,
       ),
     ).toEqual(expectedImplementationPaths);
     for (const entry of record.implementation_surface
-      .local_uncommitted_snapshot as {
+      .exact_committed_snapshot as {
       path: string;
       bytes: number;
       sha256: string;

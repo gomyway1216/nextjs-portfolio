@@ -2,7 +2,7 @@
 
 > この変更候補は、将来のdurable remote witness providerが守るtransaction orderingをSwiftのsource / test-only coreへ落とした。実service、cloud adapter、endpoint、KMS key、root writer、production entrypointは存在しない。service targetはpackage productではなく、**0 public / SPI symbols、0 production consumers**である。本番判断は引き続き **UNAVAILABLE / STOP**、live weightsは不変である。English version: [blog-shogi-floodgate-v7-durable-witness-service-core.en.md](./blog-shogi-floodgate-v7-durable-witness-service-core.en.md)
 
-> **Publication status: LOCAL SNAPSHOT MEASURED; EXACT COMMIT PENDING.** 発見されたOP / STATE retry、endpoint-generation binding、divergent-forkの修正を以下のsnapshotとlocal測定へ反映済みである。ただしimplementation revision、独立exact-commit review、PR、GitHub CIは未確定なので、このlocal結果に本番実行のauthorityはない。
+> **Publication status: EXACT REVIEW SEALED; PR CI PENDING.** 発見されたOP / STATE retry、endpoint-generation binding、divergent-forkの修正はPR #506のreview済みanchor `8074545c`へ固定した。ただしseal commitのGitHub CIは未完了なので、この結果に本番実行のauthorityはない。
 
 ## 1. 結論
 
@@ -101,7 +101,7 @@ local Xcode 15.3 build 15E5188j、Apple Swift 5.10、target `arm64-apple-macosx1
 
 23 testsは署名後query / rejection reread、role / independently observed generation mismatch、sign / commit failure、commit後reconciliation、transient / ambiguous exact-plan resend、ambiguous applied then definitive loss、same-request / different-fork CAS outcome、3回ambiguous STOP、competing fork、exact / direct-successor retry、same-sequence / direct divergent fork、未証明multi-step lineage STOP、expired retryと署名後reread、commit済みresponse expiry、commit前後とrefresh中のclock rollback、4,096境界、endpoint-generation reuse、wrong signer、identity / expected / candidate / request digestとのalias拒否を含む。
 
-これはlocal source/test evidenceである。implementation revision、exact commit review、PR、GitHub CI symbol graphはまだ確定していない。
+これはreview済みexact anchorのsource/test evidenceである。implementation / publication anchorとPRは確定したが、seal commitのGitHub CI symbol graphはまだ`PENDING`である。
 
 ## 7. AWSへ実装するときに残る差
 

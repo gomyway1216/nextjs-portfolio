@@ -1,0 +1,461 @@
+{
+  "schema": "shogi-floodgate-v7-durable-witness-service-core-evidence-v1",
+  "evidence_date": "2026-07-18",
+  "evidence_timezone": "America/Los_Angeles",
+  "publication_state": {
+    "status": "ANCHOR-REVIEW-PASS-POST-ANCHOR-REMEDIATION-REVIEW-CI-PENDING",
+    "claims_final": false,
+    "implementation_snapshot_final": false,
+    "reviewed_anchor_snapshot_final": true,
+    "validation_counts_final": true,
+    "required_next_action": "exact-review-post-anchor-remediation-and-complete-pr-ci"
+  },
+  "revision": {
+    "base_revision": "9aacb89670f566ab3b5d219e815f490580713455",
+    "implementation_revision": "8074545c2c4cdc2fae606169490c978008c7b4fd",
+    "implementation_tree": "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
+    "pull_request": 506,
+    "implementation_exact_commit_review": "PASS",
+    "implementation_exact_commit_reviewers": 2,
+    "implementation_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "publication_revision": "8074545c2c4cdc2fae606169490c978008c7b4fd",
+    "publication_tree": "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
+    "publication_exact_commit_review": "PASS",
+    "publication_exact_commit_reviewers": 2,
+    "publication_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "continuous_integration": "PENDING"
+  },
+  "scope": {
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "source_and_test_service_core_only": true,
+    "provider_neutral_transaction_ordering_core_present": true,
+    "post_sign_state_revalidation_contract_present": true,
+    "independent_observed_store_generation_contract_present": true,
+    "accepted_operation_state_lineage_contract_present": true,
+    "endpoint_generation_cryptographic_binding_present": true,
+    "service_target_published_as_package_product": false,
+    "service_target_public_or_spi_symbols": 0,
+    "service_target_production_consumers": 0,
+    "cloud_provider_adapter_present": false,
+    "real_transactional_read_present": false,
+    "physical_store_generation_observer_present": false,
+    "network_transport_present": false,
+    "production_endpoint_present": false,
+    "production_witness_key_present": false,
+    "root_writer_present": false,
+    "root_provisioner_present": false,
+    "root_inspector_present": false,
+    "production_entrypoint_present": false,
+    "production_execution_performed": false,
+    "live_evaluator_changed": false
+  },
+  "implementation_surface": {
+    "candidate_paths": [
+      ".github/workflows/ci.yml",
+      "native/floodgate-v7-external-trust-root-protocol/Package.swift",
+      "native/floodgate-v7-external-trust-root-protocol/Sources/FloodgateV7RemoteWitnessServiceCore/DurableRemoteWitnessServiceCoreV1.swift",
+      "native/floodgate-v7-external-trust-root-protocol/Tests/FloodgateV7RemoteWitnessServiceCoreTests/DurableRemoteWitnessServiceCoreTests.swift",
+      "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py"
+    ],
+    "exact_committed_snapshot_revision": "8074545c2c4cdc2fae606169490c978008c7b4fd",
+    "exact_committed_snapshot": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "bytes": 6843,
+        "sha256": "efbcd55fe0c799420dc7cd456addd3dcccbf860e9b5edd4409bab60656d8675a"
+      },
+      {
+        "path": "native/floodgate-v7-external-trust-root-protocol/Package.swift",
+        "bytes": 1589,
+        "sha256": "94e342afc86a647b4bed8d0f997daeebccc1f6ffd7a780fc42214fe66fbcd36d"
+      },
+      {
+        "path": "native/floodgate-v7-external-trust-root-protocol/Sources/FloodgateV7RemoteWitnessServiceCore/DurableRemoteWitnessServiceCoreV1.swift",
+        "bytes": 27556,
+        "sha256": "6101fa441e1482189a349a2257004c679a1e69f0a8029022e5eb09ef1a4a143a"
+      },
+      {
+        "path": "native/floodgate-v7-external-trust-root-protocol/Tests/FloodgateV7RemoteWitnessServiceCoreTests/DurableRemoteWitnessServiceCoreTests.swift",
+        "bytes": 53082,
+        "sha256": "f1dc6f4af8e0896bc8219867b644e12973b3a45967d978f3f46c5c49791ca012"
+      },
+      {
+        "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py",
+        "bytes": 6506,
+        "sha256": "4aae982a7d904b2a8364a41a07d16359f39e90b2215a5714895ea496018b9884"
+      }
+    ],
+    "swift_target": "FloodgateV7RemoteWitnessServiceCore",
+    "swift_source_files": 1,
+    "swift_source_imports": [
+      "CryptoKit",
+      "Foundation",
+      "FloodgateV7ExternalTrustRootProtocol"
+    ],
+    "package_external_dependencies": 0,
+    "package_products_containing_service_target": 0,
+    "non_test_targets_consuming_service_target": 0,
+    "public_symbols": 0,
+    "spi_symbols": 0,
+    "public_relationships": 0,
+    "service_executable_or_entrypoint": false,
+    "cloud_sdk_import": false,
+    "filesystem_api_use": false,
+    "environment_api_use": false,
+    "network_api_use": false,
+    "root_api_use": false,
+    "live_application_import": false,
+    "recursive_swift_source_boundary_scan": true
+  },
+  "post_anchor_ci_remediation": {
+    "status": "LOCAL-PASS-EXACT-REVIEW-PENDING-CI-PENDING",
+    "base_revision": "a6e4a68b16e5bc9d67c66d9aee4c11566d09f21c",
+    "reason": "close-symbol-graph-shard-and-documentation-visibility-escapes",
+    "exact_review": "PENDING",
+    "continuous_integration": "PENDING",
+    "boundary_snapshot": {
+      "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py",
+      "bytes": 13964,
+      "sha256": "9090aadad9c13a8ce4686eb1471dfe93f8f9deccef3ac81700def1146e72ee43"
+    },
+    "actual_swift_5_10_probe": {
+      "source_declaration_kind": "public-extension",
+      "base_graph": {
+        "filename": "FloodgateSymbolGraphProbe.symbols.json",
+        "module_name": "FloodgateSymbolGraphProbe",
+        "metadata_format_version": "0.6.0",
+        "symbols": 0,
+        "relationships": 0
+      },
+      "extension_shard_graph": {
+        "filename": "FloodgateSymbolGraphProbe@Swift.symbols.json",
+        "module_name": "FloodgateSymbolGraphProbe",
+        "metadata_format_version": "0.6.0",
+        "symbols": 1,
+        "relationships": 1
+      },
+      "temporary_probe_source_removed": true,
+      "repository_files_changed_by_probe": false,
+      "documentation_visibility_escape_probe": {
+        "source_declaration_kind": "documentation-hidden-public-extension",
+        "source": "@_documentation(visibility: internal) public extension String { var fgv7Escape: Int { count } }",
+        "emitted_extension_shards": 0,
+        "base_graph_symbols": 0,
+        "base_graph_relationships": 0,
+        "separate_client_member_access_typechecked": true,
+        "checker_decision": "REJECT"
+      }
+    }
+  },
+  "legacy_pr504_publication": {
+    "edited_by_this_publication_candidate": false,
+    "artifacts": [
+      {
+        "path": "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.md",
+        "bytes": 14626,
+        "sha256": "28c52210511a72eed2d755a540d0a5e0809d2d3e53da0fd53da9468c1663e3a6"
+      },
+      {
+        "path": "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.en.md",
+        "bytes": 16573,
+        "sha256": "6c4b9906ba87e1f71ae7d4db783e5d5fcdd6072f9ad4456c89b0cb8fcec50024"
+      },
+      {
+        "path": "docs/data/floodgate-v7-remote-monotonic-witness-2026-07-18.json",
+        "bytes": 14625,
+        "sha256": "523a3172dd856f5b2be04862bc4a2ac1280a22a080bbb25a79feca89042071a0"
+      }
+    ]
+  },
+  "transaction_contract": {
+    "status": "ABSTRACT-ADAPTER-CONTRACT-NOT-DURABLE-PROVIDER",
+    "maximum_accepted_operation_count": 4096,
+    "maximum_journal_sequence": 4096,
+    "maximum_exact_commit_attempts": 3,
+    "deployment_identity_fields": [
+      "witnessID",
+      "endpointID",
+      "witnessSignerKeyID",
+      "storeGenerationID"
+    ],
+    "deployment_identity_values_nonzero_and_pairwise_distinct": true,
+    "endpoint_binding_domain": "FGV7DEI1",
+    "endpoint_id_formula": "SHA256(FGV7DEI1 || witnessID || storeGenerationID)",
+    "endpoint_reuse_after_store_generation_change": "STOP-AT-DEPLOYMENT-IDENTITY-CONSTRUCTION",
+    "exact_attempt_id_rejected_aliases": [
+      "operationID",
+      "clientNonce",
+      "witnessID",
+      "endpointID",
+      "witnessSignerKeyID",
+      "storeGenerationID",
+      "expectedCheckpointSHA256",
+      "candidateCheckpointSHA256",
+      "requestSHA256"
+    ],
+    "advance_requires_role": "advanceWriter",
+    "query_only_role_can_advance": false,
+    "query_uses_transactional_snapshot": true,
+    "query_revalidates_exact_snapshot_after_signing": true,
+    "signed_rejection_revalidates_exact_snapshot_after_signing": true,
+    "query_commits": false,
+    "snapshot_has_independently_observed_store_generation_id": true,
+    "ordering": [
+      "validate-fixed-deployment-request-role-and-exact-attempt-identities",
+      "transactional-read-by-operation-id",
+      "validate-persisted-identity-independent-observed-generation-checkpoint-and-operation-count",
+      "resolve-exact-prior-operation-or-validate-new-successor",
+      "construct-sign-freshness-verify-and-record-last-observed-time-for-initial-receipt",
+      "construct-one-exact-immutable-commit-plan",
+      "submit-exact-plan-to-abstract-commit-adapter",
+      "on-ambiguous-or-transient-conflict-resend-only-the-same-plan-up-to-three-attempts",
+      "on-committed-reread-and-reconcile-the-exact-durable-operation",
+      "on-definitive-cas-loss-reread-and-return-only-the-exact-winner-or-an-exactly-revalidated-rejection",
+      "verify-stored-receipt-is-still-fresh-with-monotonically-chained-clock",
+      "return-only-the-reconciled-stored-receipt"
+    ],
+    "commit_plan_fields": [
+      "exactAttemptID",
+      "deploymentIdentity",
+      "expectedCheckpointSHA256",
+      "expectedAcceptedOperationCount",
+      "replacementCheckpoint",
+      "createOnlyOperation"
+    ],
+    "abstract_adapter_obligations": {
+      "checkpoint_operation_ledger_and_initial_receipt_one_atomic_transition": true,
+      "checkpoint_compare_and_swap": "expectedCheckpointSHA256",
+      "operation_count_compare_and_swap": "expectedAcceptedOperationCount",
+      "operation_record_create_only": true,
+      "exact_attempt_idempotency_required": true,
+      "implemented_by_this_source": false,
+      "durability_established_by_this_source": false
+    }
+  },
+  "ambiguous_commit": {
+    "same_exact_plan_resent": true,
+    "transient_conflict_same_exact_plan_resent": true,
+    "receipt_resigned_between_ambiguous_attempts": false,
+    "candidate_or_expected_state_recomputed_between_attempts": false,
+    "maximum_attempts": 3,
+    "three_ambiguous_results": "STOP-WITHOUT-INFERRING-ABSENCE",
+    "ambiguous_applied_then_definitive_cas_loss": "REREAD-AND-RECONCILE-EXACT-WINNER",
+    "committed_without_matching_durable_operation": "STOP",
+    "definitive_cas_loss_same_request_winner": "RETURN-ONLY-DURABLE-WINNER-RECEIPT",
+    "definitive_cas_loss_different_fork": "RETURN-FRESH-REJECTION-ONLY-AFTER-EXACT-POST-SIGN-STATE-REVALIDATION"
+  },
+  "immutable_receipt_outbox": {
+    "contract_present": true,
+    "durable_provider_implemented": false,
+    "stored_operation_fields": [
+      "operationID",
+      "requestSHA256",
+      "requestCanonicalBytes",
+      "acceptedCheckpoint",
+      "immutableInitialReceipt"
+    ],
+    "initial_receipt_signed_and_freshness_verified_before_commit": true,
+    "initial_receipt_in_same_abstract_commit_plan_as_checkpoint": true,
+    "response_before_commit": false,
+    "response_before_durable_reconciliation": false,
+    "exact_unexpired_retry_returns_immutable_initial_receipt": true,
+    "accepted_operation_sequence_bounded_at_4096": true,
+    "initial_and_expired_retry_require_matching_operation_state_lineage": true,
+    "equal_sequence_requires_exact_accepted_checkpoint": true,
+    "direct_successor_requires_full_validate_successor_including_previous_digest": true,
+    "more_than_one_step_without_immutable_intermediates": "STOP",
+    "proof_carrying_multi_step_snapshot_present": false,
+    "maximum_retry_lineage_distance_without_intermediate_proof": 1,
+    "request_drift_for_existing_operation_id": "STOP"
+  },
+  "expiry_retry": {
+    "receipt_maximum_lifetime_seconds": 30,
+    "expired_initial_receipt_changes_stored_operation": false,
+    "expired_exact_retry_signs_fresh_receipt_for_accepted_checkpoint": true,
+    "expired_exact_retry_post_sign_transactional_reread": true,
+    "expired_exact_retry_requires_same_immutable_operation_and_observed_generation": true,
+    "expired_exact_retry_commits": false,
+    "commit_may_be_durable_when_response_freshness_check_stops": true,
+    "exact_or_direct_successor_retry_recovers_with_fresh_receipt": true,
+    "more_than_one_later_advance_without_intermediate_proof": "STOP",
+    "clock_samples_monotonically_chained_across_sign_commit_reconcile_and_response": true,
+    "clock_rollback": "STOP",
+    "receipt_expiring_during_signing": "STOP-BEFORE-COMMIT"
+  },
+  "restore_generation": {
+    "store_generation_id_in_fixed_deployment_identity": true,
+    "observed_store_generation_id_is_a_separate_snapshot_field": true,
+    "observed_store_generation_must_come_from_provider_metadata_independent_of_restored_data": true,
+    "endpoint_id_cryptographically_binds_witness_and_store_generation": true,
+    "endpoint_binding_domain": "FGV7DEI1",
+    "endpoint_id_formula": "SHA256(FGV7DEI1 || witnessID || storeGenerationID)",
+    "transactional_snapshot_generation_must_match": true,
+    "mismatch_decision": "STOP-BEFORE-SIGNING",
+    "restore_generation_provisioner_implemented": false,
+    "restore_generation_rotation_implemented": false,
+    "restored_table_binding_established": false,
+    "backup_restore_drill_performed": false,
+    "offline_rollback_excluded": false
+  },
+  "validation": {
+    "red_team_remediation": "POST-ANCHOR-LOCAL-COMPLETE-EXACT-REVIEW-PENDING",
+    "local_xcode": {
+      "version": "15.3",
+      "build": "15E5188j"
+    },
+    "local_swift": {
+      "version": "5.10",
+      "swiftlang": "5.10.0.12.7",
+      "clang": "1500.3.9.3",
+      "target": "arm64-apple-macosx15.0"
+    },
+    "swift_package_tests": {
+      "status": "PASS",
+      "tests_present": 127,
+      "tests_passed": 127,
+      "tests_failed": 0,
+      "service_core_tests_present": 23,
+      "service_core_tests_passed": 23,
+      "service_core_tests_failed": 0,
+      "build_seconds": 0.77,
+      "test_body_seconds": 3.186,
+      "wall_seconds": 4.47,
+      "service_core_focused_test_body_seconds": 0.452,
+      "service_core_focused_wall_seconds": 0.79
+    },
+    "swift_release_build": {
+      "status": "PASS",
+      "swift_reported_seconds": 0.21,
+      "wall_seconds": 0.38
+    },
+    "local_service_symbol_graph": {
+      "status": "PASS",
+      "measurement_kind": "MEASURED-LOCAL-ONLY",
+      "bytes": 359,
+      "raw_sha256": "dacd78e60fc7cee7386772a25a4c3282588d4059cb4bb4fdcf336e045f1aec34",
+      "symbols": 0,
+      "relationships": 0,
+      "dump_wall_seconds": 0.73
+    },
+    "service_boundary_script": {
+      "status": "PASS",
+      "products": 0,
+      "external_dependencies": 0,
+      "production_consumers": 0,
+      "public_or_spi_symbols": 0,
+      "all_discovered_symbol_graphs_verified": true,
+      "base_and_extension_shards_verified": true,
+      "exact_module_name_required": true,
+      "empty_extension_shard_accepted": true,
+      "nonempty_extension_shard_rejected": true,
+      "unknown_matching_filename_rejected": true,
+      "actual_swift_5_10_extension_shard_probe": true,
+      "attribute_prefixed_public_declaration_rejected": true,
+      "documentation_visibility_suppression_rejected": true,
+      "separate_client_access_escape_probe": true,
+      "wall_seconds": 0.49
+    },
+    "focused_vitest": {
+      "status": "PASS",
+      "files_passed": 1,
+      "tests_passed": 5,
+      "tests_failed": 0
+    },
+    "github_ci": {
+      "status": "PENDING",
+      "swift_tests_measured": false,
+      "service_symbol_graph_measured": false,
+      "boundary_script_measured": false
+    }
+  },
+  "provider_context": {
+    "provider_selected": false,
+    "adapter_implemented": false,
+    "real_transactional_read_implemented": false,
+    "physical_table_id_observation_implemented": false,
+    "aws_research_candidate_only": "API-Gateway-Lambda-DynamoDB-KMS",
+    "official_primary_docs": {
+      "dynamodb_read_consistency": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html",
+      "dynamodb_condition_expressions": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html",
+      "dynamodb_transactions": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html",
+      "dynamodb_point_in_time_restore": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/pointintimerecovery_restores.html",
+      "kms_asymmetric_key_specs": "https://docs.aws.amazon.com/kms/latest/developerguide/symm-asymm-choose-key-spec.html"
+    },
+    "dynamodb_transaction_client_token_replaces_service_operation_ledger": false,
+    "dynamodb_restore_creates_new_table": true,
+    "aws_resources_created": 0
+  },
+  "production_counters": {
+    "remote_endpoints_created": 0,
+    "remote_database_tables_created": 0,
+    "production_witness_keys_created": 0,
+    "production_network_requests": 0,
+    "production_service_runs": 0,
+    "root_state_reads": 0,
+    "root_state_writes": 0,
+    "writer_runs": 0,
+    "provisioner_runs": 0,
+    "inspector_runs": 0,
+    "teacher_positions_generated": 0,
+    "training_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "durable_cloud_provider_implemented": false,
+    "real_transactional_read_implemented": false,
+    "physical_table_id_observation_implemented": false,
+    "physical_generation_derivation_and_uniqueness_enforcement_implemented": false,
+    "proof_carrying_multi_step_retry_snapshot_implemented": false,
+    "durable_transactional_receipt_outbox_deployed": false,
+    "restart_persistent_remote_rollback_protection_established": false,
+    "restore_generation_lifecycle_established": false,
+    "advance_authentication_and_authorization_implemented": false,
+    "mtls_implemented": false,
+    "fixed_tls_endpoint_and_key_pinning_implemented": false,
+    "production_kms_signer_implemented": false,
+    "provider_operator_and_signer_collusion_excluded": false,
+    "malicious_witness_signer_excluded": false,
+    "split_view_excluded": false,
+    "offline_rollback_excluded": false,
+    "root_owned_writer_implemented": false,
+    "prepare_recovery_implemented": false,
+    "production_inspector_implemented": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "playing_strength_improved": false,
+    "stable_high_dan_established": false,
+    "live_weight_changed": false
+  },
+  "next_gates": [
+    "post-anchor-ci-remediation-exact-review",
+    "pull-request-CI-and-regular-merge",
+    "fixed-provider-adapter-and-atomic-durable-store",
+    "real-strong-transactional-read-and-independent-physical-table-id-observation",
+    "proof-carrying-multi-step-operation-state-lineage-or-explicit-retry-window-policy",
+    "KMS-signer-endpoint-authentication-and-authorization",
+    "restore-generation-provisioning-backup-and-recovery-drill",
+    "root-writer-provisioner-release-installer-and-inspector",
+    "wire-remote-gate-into-every-protected-handoff",
+    "target-mac-safe-production-probe",
+    "teacher-prefix-100",
+    "teacher-prefix-500",
+    "teacher-24000",
+    "retraining-and-candidate-selection",
+    "formal-AB",
+    "external-calibration",
+    "evidence-gated-live-weight-change"
+  ]
+}

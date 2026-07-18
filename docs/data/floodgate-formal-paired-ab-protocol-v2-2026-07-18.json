@@ -1,0 +1,173 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-protocol-v2-evidence-v1",
+  "recorded_date": "2026-07-18",
+  "base_revision": "9aacb89670f566ab3b5d219e815f490580713455",
+  "review_state": "local-independent-rereview-clean-exact-commit-pending",
+  "supersession_chain": {
+    "original_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1",
+      "edited_by_this_candidate": false
+    },
+    "original_v1_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-registry.json",
+      "bytes": 1642,
+      "sha256": "79e5b559c7d58bc5facec207bcc26813c2e797ff27f95068eea8b4110e10de50",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v1",
+      "edited_by_this_candidate": false
+    },
+    "pre_result_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+      "bytes": 4459,
+      "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+      "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2"
+    },
+    "current_closed_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+      "bytes": 3480,
+      "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v2",
+      "execution_authority": false
+    },
+    "v1_disposition": "retired-before-execution-and-preserved-byte-for-byte",
+    "v1_pairs_observed_before_amendment": 0,
+    "v1_games_observed_before_amendment": 0
+  },
+  "implementation": {
+    "analyzer": "ml/formal_paired_ab_protocol_v2.py",
+    "registry": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+    "tests": "ml/tests_stdlib/test_formal_paired_ab_protocol_v2.py",
+    "publication_test": "tests/unit/ml/floodgateFormalPairedAbV2Evidence.test.ts",
+    "japanese_article": "docs/blog-shogi-floodgate-formal-paired-ab-protocol-v2.md",
+    "english_article": "docs/blog-shogi-floodgate-formal-paired-ab-protocol-v2.en.md",
+    "torch_imported": false,
+    "match_launcher_added": false,
+    "weight_reader_added": false,
+    "holdout_reader_added": false,
+    "production_import_added": false
+  },
+  "fixed_protocol": {
+    "pairs": 384,
+    "games": 768,
+    "candidate_colors_per_pair": ["sente", "gote"],
+    "bootstrap_seed": 20260710,
+    "bootstrap_replicates": 100000,
+    "resampling_unit": "two-game-color-swapped-opening-pair",
+    "one_sided_95_lower_rank": 5000,
+    "two_sided_95_lower_rank": 2500,
+    "safety_gate": "strictly-above-0.45",
+    "stronger_claim_gate": "strictly-above-0.50",
+    "score_denominator": 1536,
+    "threshold_comparison": "exact-integer-cross-product",
+    "valid_partial_pair_decision": "forbidden",
+    "analyzable_result": "exactly-384-pairs-768-games-and-zero-technical-faults",
+    "technical_fault": "immediately-invalidates-and-stops-without-strength-conclusion",
+    "same_run_fault_retry": "forbidden",
+    "maximum_attempts_per_experiment": 2,
+    "attempt_ledger": "append-only-all-attempt-fault-and-partial-result-identities",
+    "rerun_authorization": "at-most-one-new-run-from-technical-evidence-before-any-result-unblinding",
+    "faulted_attempt_results": "sealed-and-unread-until-rerun-decision-is-immutably-recorded",
+    "second_fault": "experiment-stops-without-strength-conclusion-and-candidate-cannot-rerun",
+    "result_identity_binding": [
+      "experiment_id",
+      "run_id",
+      "attempt_index",
+      "attempt_ledger_sha256",
+      "rerun_authorization_sha256",
+      "match_binding_sha256"
+    ]
+  },
+  "precision_statement": {
+    "purpose": "planning-scale-only",
+    "formula": "1.96*sqrt(0.25/pairs)",
+    "original_192_pair_approximate_half_width": 0.07073,
+    "v2_384_pair_approximate_half_width": 0.05001,
+    "bootstrap_width_is_data_dependent": true,
+    "guaranteed_at_most_five_percentage_points": false,
+    "power_guarantee": false,
+    "acceptance_uses_normal_approximation": false
+  },
+  "deterministic_test_vector": {
+    "pair_units": "alternating-0-and-4-for-384-pairs",
+    "one_sided_95_lower_numerator": 704,
+    "two_sided_95_lower_numerator": 692,
+    "denominator": 1536,
+    "playing_strength_evidence": false
+  },
+  "validation": {
+    "focused_command": "python3 -m py_compile ml/formal_paired_ab_protocol_v2.py ml/tests_stdlib/test_formal_paired_ab_protocol_v2.py && python3 -m unittest ml.tests_stdlib.test_formal_paired_ab_protocol_v2 -v",
+    "focused_tests_passed": 18,
+    "focused_tests_failed": 0,
+    "focused_wall_seconds": 6.04,
+    "full_command": "npm run test:ml:stdlib",
+    "full_tests_passed": 119,
+    "full_tests_failed": 0,
+    "full_wall_seconds": 10.27,
+    "publication_command": "vitest run tests/unit/ml/floodgateFormalPairedAbV2Evidence.test.ts --reporter=verbose",
+    "publication_tests_passed": 5,
+    "publication_tests_failed": 0,
+    "publication_wall_seconds": 0.11,
+    "publication_runtime": "node-v24.14.0",
+    "exact_100000_replicate_vector_tested": true,
+    "missing_and_drifted_v1_chain_rejected": true,
+    "retrospective_observation_and_authority_rejected": true,
+    "partial_and_technical_fault_results_rejected": true,
+    "non_json_string_and_mapping_subclasses_rejected": true,
+    "complete_decision_rule_bound_by_amendment_sha256": true,
+    "closed_registry_bytes_and_sha256_pinned": true,
+    "cross_run_attempt_identity_and_blinded_rerun_fields_required": true,
+    "precision_nonclaim_tested": true
+  },
+  "independent_review": {
+    "scope": "current-working-tree-before-exact-commit",
+    "p0_remaining": 0,
+    "p1_remaining": 0,
+    "p2_remaining": 0,
+    "prior_complete_decision_rule_binding_p1_resolved": true,
+    "prior_exact_json_type_p1_resolved": true,
+    "prior_cross_run_optional_stopping_p1_resolved": true,
+    "review_mutated_files": false,
+    "exact_commit_review_pending": true
+  },
+  "registry_state": {
+    "status": "blocked",
+    "enrolled_artifact_identities": 0,
+    "attempt_ledger_enrolled": false,
+    "rerun_authorization_enrolled": false,
+    "attempt_ledger_verified": false,
+    "rerun_authorization_verified": false,
+    "all_upstream_receipts_verified": false,
+    "execution_authorized": false,
+    "complete_result_verified": false,
+    "zero_technical_faults_verified": false,
+    "result_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "external_calibration_basis": {
+    "official_terms_url": "https://81dojo.com/jp/terms.html",
+    "official_rating_threshold_announcement_url": "https://81dojo.com/announcements/260411.html",
+    "verified_date": "2026-07-18",
+    "software_account_prefix_required": "COM_",
+    "official_apps_only": true,
+    "2026_five_dan_lower_rating": 2050,
+    "our_future_stability_rule": "200-rated-games-and-every-post-game-rating-for-games-171-through-200-at-or-above-2050",
+    "our_rule_is_an_81dojo_official_rule": false,
+    "rules_must_be_reverified_before_execution": true,
+    "external_games_observed": 0
+  },
+  "observations": {
+    "real_matches_executed": false,
+    "formal_experiments_observed": 0,
+    "formal_attempts_observed": 0,
+    "real_pairs_observed": 0,
+    "real_games_observed": 0,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "external_calibration_games_observed": 0,
+    "live_weights_changed": false
+  }
+}

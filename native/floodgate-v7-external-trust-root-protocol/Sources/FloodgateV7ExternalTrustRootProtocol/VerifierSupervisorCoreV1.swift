@@ -522,6 +522,7 @@ public final class TrustRootSupervisorSessionV1:
 
     private let supervisorProcessIdentity: ProcessIdentityV1
     private let replayRetentionCapacity: Int
+    private let authorityStateStore: TrustRootAuthorityStateStoreV1
     private let lock = NSLock()
     private var lastWallClockSeconds: UInt64 = 0
     private var lastMonotonicNanoseconds: UInt64 = 0
@@ -535,13 +536,26 @@ public final class TrustRootSupervisorSessionV1:
         try self.init(
             supervisorProcessIdentity: supervisorProcessIdentity,
             replayRetentionCapacity:
-                Self.maximumReplayRetentionCount
+                Self.maximumReplayRetentionCount,
+            authorityStateStore: .production
+        )
+    }
+
+    convenience init(
+        supervisorProcessIdentity: ProcessIdentityV1,
+        replayRetentionCapacity: Int
+    ) throws {
+        try self.init(
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            replayRetentionCapacity: replayRetentionCapacity,
+            authorityStateStore: .production
         )
     }
 
     init(
         supervisorProcessIdentity: ProcessIdentityV1,
-        replayRetentionCapacity: Int
+        replayRetentionCapacity: Int,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
     ) throws {
         guard supervisorProcessIdentity.role == .supervisor else {
             throw CanonicalRecordError.invalidCanonicalRecord
@@ -555,6 +569,7 @@ public final class TrustRootSupervisorSessionV1:
         }
         self.supervisorProcessIdentity = supervisorProcessIdentity
         self.replayRetentionCapacity = replayRetentionCapacity
+        self.authorityStateStore = authorityStateStore
     }
 
     private func advanceClock(
@@ -603,6 +618,77 @@ public final class TrustRootSupervisorSessionV1:
     }
 
     public func issueChallenge(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        verifierAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1
+    ) throws -> SupervisorChallengeV1 {
+        try issueChallenge(
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            verifierAnonymousFDChannelBindingSHA256:
+                verifierAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            randomBytes: randomBytes,
+            sign: sign,
+            authorityStateStore: authorityStateStore
+        )
+    }
+
+    func issueChallenge(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        verifierAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
+    ) throws -> SupervisorChallengeV1 {
+        let authorityState = try authorityStateStore.freshSnapshot()
+        let challenge = try issueChallenge(
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            authorityPublicKeyRawRepresentation:
+                authorityState.authorityPublicKeyRawRepresentation,
+            expectedActivationHead:
+                authorityState.expectedActivationHead,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            verifierAnonymousFDChannelBindingSHA256:
+                verifierAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            randomBytes: randomBytes,
+            sign: sign
+        )
+        _ = try authorityStateStore.requireUnchanged(
+            authorityState.token
+        )
+        return challenge
+    }
+
+    func issueChallenge(
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],
@@ -662,6 +748,111 @@ public final class TrustRootSupervisorSessionV1:
     }
 
     public func issueAttestation(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        challenge: SupervisorChallengeV1,
+        receipt: VerifierReceiptV1,
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        verifierPublicKeyRawRepresentation: [UInt8],
+        childProcessIdentity: ProcessIdentityV1,
+        childAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1
+    ) throws -> OneShotAttestationV1 {
+        try issueAttestation(
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            challenge: challenge,
+            receipt: receipt,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            observation: observation,
+            verifierProcessIdentity: verifierProcessIdentity,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            childProcessIdentity: childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                childAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            randomBytes: randomBytes,
+            sign: sign,
+            authorityStateStore: authorityStateStore
+        )
+    }
+
+    func issueAttestation(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        challenge: SupervisorChallengeV1,
+        receipt: VerifierReceiptV1,
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        verifierPublicKeyRawRepresentation: [UInt8],
+        childProcessIdentity: ProcessIdentityV1,
+        childAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
+    ) throws -> OneShotAttestationV1 {
+        let authorityState = try authorityStateStore.freshSnapshot()
+        let authenticatedState =
+            try AuthenticatedProtocolStateV1.replay(
+                enrollmentEnvelopes: enrollmentEnvelopes,
+                activationEnvelopes: activationEnvelopes,
+                authorityPublicKeyRawRepresentation:
+                    authorityState
+                    .authorityPublicKeyRawRepresentation,
+                expectedActivationHead:
+                    authorityState.expectedActivationHead,
+                nowUnixSeconds: nowUnixSeconds
+            )
+        let attestation = try issueAttestation(
+            challenge: challenge,
+            receipt: receipt,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            expectedActivationHead:
+                authorityState.expectedActivationHead,
+            enrollment: authenticatedState.activeEnrollment,
+            observation: observation,
+            verifierProcessIdentity: verifierProcessIdentity,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            childProcessIdentity: childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                childAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            randomBytes: randomBytes,
+            sign: sign
+        )
+        _ = try authorityStateStore.requireUnchanged(
+            authorityState.token
+        )
+        return attestation
+    }
+
+    func issueAttestation(
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
@@ -746,6 +937,93 @@ struct TrustRootSupervisorReplayRetentionCountSnapshotV1:
 
 public enum TrustRootVerifierCoreV1 {
     public static func issueReceipt(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        challenge: SupervisorChallengeV1,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        supervisorProcessIdentity: ProcessIdentityV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        verifierPublicKeyRawRepresentation: [UInt8],
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1
+    ) throws -> VerifierReceiptV1 {
+        try issueReceipt(
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            challenge: challenge,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            observation: observation,
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            verifierProcessIdentity: verifierProcessIdentity,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            randomBytes: randomBytes,
+            sign: sign,
+            authorityStateStore: .production
+        )
+    }
+
+    static func issueReceipt(
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        challenge: SupervisorChallengeV1,
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        supervisorProcessIdentity: ProcessIdentityV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        verifierPublicKeyRawRepresentation: [UInt8],
+        randomBytes: TrustRootRandomBytesProviderV1,
+        sign: TrustRootSignatureProviderV1,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
+    ) throws -> VerifierReceiptV1 {
+        let authorityState = try authorityStateStore.freshSnapshot()
+        let receipt = try issueReceipt(
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            authorityPublicKeyRawRepresentation:
+                authorityState.authorityPublicKeyRawRepresentation,
+            expectedActivationHead:
+                authorityState.expectedActivationHead,
+            challenge: challenge,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            observation: observation,
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            verifierProcessIdentity: verifierProcessIdentity,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            randomBytes: randomBytes,
+            sign: sign
+        )
+        _ = try authorityStateStore.requireUnchanged(
+            authorityState.token
+        )
+        return receipt
+    }
+
+    static func issueReceipt(
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],
@@ -925,6 +1203,7 @@ public final class OneShotAttestationConsumerV1:
     static let maximumReplayRetentionCount = 4_096
 
     private let replayRetentionCapacity: Int
+    private let authorityStateStore: TrustRootAuthorityStateStoreV1
     private let lock = NSLock()
     private var lastWallClockSeconds: UInt64 = 0
     private var lastMonotonicNanoseconds: UInt64 = 0
@@ -936,9 +1215,20 @@ public final class OneShotAttestationConsumerV1:
     public init() {
         replayRetentionCapacity =
             Self.maximumReplayRetentionCount
+        authorityStateStore = .production
     }
 
-    init(replayRetentionCapacity: Int) throws {
+    convenience init(replayRetentionCapacity: Int) throws {
+        try self.init(
+            replayRetentionCapacity: replayRetentionCapacity,
+            authorityStateStore: .production
+        )
+    }
+
+    init(
+        replayRetentionCapacity: Int,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
+    ) throws {
         guard
             replayRetentionCapacity > 0,
             replayRetentionCapacity
@@ -947,6 +1237,7 @@ public final class OneShotAttestationConsumerV1:
             throw CanonicalRecordError.invalidCanonicalRecord
         }
         self.replayRetentionCapacity = replayRetentionCapacity
+        self.authorityStateStore = authorityStateStore
     }
 
     private func advanceClockAndEvict(
@@ -1000,6 +1291,110 @@ public final class OneShotAttestationConsumerV1:
     }
 
     public func consume(
+        _ attestation: OneShotAttestationV1,
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        verifierPublicKeyRawRepresentation: [UInt8],
+        challenge: SupervisorChallengeV1,
+        receipt: VerifierReceiptV1,
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        supervisorProcessIdentity: ProcessIdentityV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        childProcessIdentity: ProcessIdentityV1,
+        childAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64
+    ) throws {
+        try consume(
+            attestation,
+            enrollmentEnvelopes: enrollmentEnvelopes,
+            activationEnvelopes: activationEnvelopes,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            challenge: challenge,
+            receipt: receipt,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            observation: observation,
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            verifierProcessIdentity: verifierProcessIdentity,
+            childProcessIdentity: childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                childAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds,
+            authorityStateStore: authorityStateStore
+        )
+    }
+
+    func consume(
+        _ attestation: OneShotAttestationV1,
+        enrollmentEnvelopes: [SignedEnrollmentRecordV1],
+        activationEnvelopes: [SignedActivationRecordV1],
+        supervisorPublicKeyRawRepresentation: [UInt8],
+        verifierPublicKeyRawRepresentation: [UInt8],
+        challenge: SupervisorChallengeV1,
+        receipt: VerifierReceiptV1,
+        manifest: RepositorySourceManifestV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
+        observation: RepositoryObservationV1,
+        supervisorProcessIdentity: ProcessIdentityV1,
+        verifierProcessIdentity: ProcessIdentityV1,
+        childProcessIdentity: ProcessIdentityV1,
+        childAnonymousFDChannelBindingSHA256: CanonicalBytes32,
+        nowUnixSeconds: UInt64,
+        nowMonotonicNanoseconds: UInt64,
+        authorityStateStore: TrustRootAuthorityStateStoreV1
+    ) throws {
+        let authorityState = try authorityStateStore.freshSnapshot()
+        let authenticatedState =
+            try AuthenticatedProtocolStateV1.replay(
+                enrollmentEnvelopes: enrollmentEnvelopes,
+                activationEnvelopes: activationEnvelopes,
+                authorityPublicKeyRawRepresentation:
+                    authorityState
+                    .authorityPublicKeyRawRepresentation,
+                expectedActivationHead:
+                    authorityState.expectedActivationHead,
+                nowUnixSeconds: nowUnixSeconds
+            )
+        try consume(
+            attestation,
+            supervisorPublicKeyRawRepresentation:
+                supervisorPublicKeyRawRepresentation,
+            verifierPublicKeyRawRepresentation:
+                verifierPublicKeyRawRepresentation,
+            challenge: challenge,
+            receipt: receipt,
+            manifest: manifest,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
+            expectedActivationHead:
+                authorityState.expectedActivationHead,
+            enrollment: authenticatedState.activeEnrollment,
+            observation: observation,
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            verifierProcessIdentity: verifierProcessIdentity,
+            childProcessIdentity: childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                childAnonymousFDChannelBindingSHA256,
+            nowUnixSeconds: nowUnixSeconds,
+            nowMonotonicNanoseconds: nowMonotonicNanoseconds
+        )
+        _ = try authorityStateStore.requireUnchanged(
+            authorityState.token
+        )
+    }
+
+    func consume(
         _ attestation: OneShotAttestationV1,
         supervisorPublicKeyRawRepresentation: [UInt8],
         verifierPublicKeyRawRepresentation: [UInt8],

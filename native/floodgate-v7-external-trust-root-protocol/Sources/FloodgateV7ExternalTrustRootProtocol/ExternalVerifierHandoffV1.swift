@@ -613,6 +613,10 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         }
         try manifest.validateEnrollment(enrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try supervisorProcessIdentity.validateSupervisorAgainstManifest(
+            manifest,
+            expectedUID: enrollment.expectedUID
+        )
         try verifierProcessIdentity.validateChildOf(
             supervisorProcessIdentity,
             expectedRole: .verifier,
@@ -959,6 +963,10 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
+        try supervisorProcessIdentity.validateSupervisorAgainstManifest(
+            manifest,
+            expectedUID: expectedUID
+        )
         try childProcessIdentity.validateChildOf(
             supervisorProcessIdentity,
             expectedRole: .diagnosticChild,

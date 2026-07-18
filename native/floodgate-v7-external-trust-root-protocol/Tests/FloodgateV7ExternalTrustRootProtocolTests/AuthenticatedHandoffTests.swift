@@ -1106,4 +1106,230 @@ final class AuthenticatedHandoffTests: XCTestCase {
             )
         )
     }
+
+    func testVerifierIndependentlyRejectsEverySupervisorIdentityDrift()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        func supervisor(
+            wholeFile: CanonicalBytes32? = nil,
+            codeDirectory: CanonicalBytes32? = nil,
+            designatedRequirement: CanonicalBytes32? = nil,
+            heldExecutable: CanonicalBytes32? = nil
+        ) throws -> ProcessIdentityV1 {
+            try ProcessIdentityV1(
+                audience: .productionRecovery,
+                role: .supervisor,
+                processID:
+                    fixture.supervisorProcessIdentity.processID,
+                parentProcessID:
+                    fixture.supervisorProcessIdentity
+                        .parentProcessID,
+                effectiveUID:
+                    fixture.supervisorProcessIdentity.effectiveUID,
+                processUniqueID:
+                    fixture.supervisorProcessIdentity.processUniqueID,
+                startTimeNanoseconds:
+                    fixture.supervisorProcessIdentity
+                        .startTimeNanoseconds,
+                executableWholeFileSHA256:
+                    wholeFile
+                    ?? fixture.supervisorProcessIdentity
+                        .executableWholeFileSHA256,
+                codeDirectorySHA256:
+                    codeDirectory
+                    ?? fixture.supervisorProcessIdentity
+                        .codeDirectorySHA256,
+                designatedRequirementSHA256:
+                    designatedRequirement
+                    ?? fixture.supervisorProcessIdentity
+                        .designatedRequirementSHA256,
+                auditTokenSHA256:
+                    fixture.supervisorProcessIdentity
+                        .auditTokenSHA256,
+                parentProcessIdentitySHA256:
+                    fixture.supervisorProcessIdentity
+                        .parentProcessIdentitySHA256,
+                anonymousFDChannelBindingSHA256: .zero,
+                heldExecutableIdentitySHA256:
+                    heldExecutable
+                    ?? fixture.supervisorProcessIdentity
+                        .heldExecutableIdentitySHA256
+            )
+        }
+        let substitutions = try [
+            supervisor(wholeFile: handoffBytes32(0xf3)),
+            supervisor(codeDirectory: handoffBytes32(0xf4)),
+            supervisor(designatedRequirement: handoffBytes32(0xf5)),
+            supervisor(heldExecutable: handoffBytes32(0xf6)),
+        ]
+
+        for (index, substitutedSupervisor) in
+            substitutions.enumerated()
+        {
+            assertInvalidHandoff(
+                try substitutedSupervisor
+                    .validateSupervisorAgainstManifest(
+                        fixture.manifest,
+                        expectedUID: fixture.enrollment.expectedUID
+                    )
+            )
+            let challengeID =
+                handoffBytes32(UInt8(0x31 + index * 2))
+            let nonce =
+                handoffBytes32(UInt8(0x32 + index * 2))
+            let payload = try SupervisorChallengeV1.signaturePayload(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                challengeID: challengeID,
+                nonce: nonce,
+                enrollmentID: fixture.enrollment.enrollmentID,
+                activationDigest:
+                    fixture.signedActivation.canonicalSHA256(),
+                sourceManifestSHA256:
+                    fixture.manifest.canonicalSHA256(),
+                targetProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                supervisorProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                signerKeyID:
+                    fixture.manifest.supervisorAttestationKeyID,
+                targetProcessID: substitutedSupervisor.processID,
+                expectedUID: fixture.enrollment.expectedUID,
+                issuedAtUnixSeconds: 120,
+                expiresAtUnixSeconds: 150,
+                monotonicIssuedAtNanoseconds: 1_000_000_000,
+                monotonicExpiresAtNanoseconds:
+                    31_000_000_000
+            )
+            let challenge = try SupervisorChallengeV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                challengeID: challengeID,
+                nonce: nonce,
+                enrollmentID: fixture.enrollment.enrollmentID,
+                activationDigest:
+                    fixture.signedActivation.canonicalSHA256(),
+                sourceManifestSHA256:
+                    fixture.manifest.canonicalSHA256(),
+                targetProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                supervisorProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                signerKeyID:
+                    fixture.manifest.supervisorAttestationKeyID,
+                targetProcessID: substitutedSupervisor.processID,
+                expectedUID: fixture.enrollment.expectedUID,
+                issuedAtUnixSeconds: 120,
+                expiresAtUnixSeconds: 150,
+                monotonicIssuedAtNanoseconds: 1_000_000_000,
+                monotonicExpiresAtNanoseconds:
+                    31_000_000_000,
+                signature: try handoffSignature(
+                    fixture.supervisorKey,
+                    payload: payload
+                )
+            )
+            let substitutedVerifier = try ProcessIdentityV1(
+                audience: .productionRecovery,
+                role: .verifier,
+                processID:
+                    fixture.verifierProcessIdentity.processID,
+                parentProcessID: substitutedSupervisor.processID,
+                effectiveUID: fixture.enrollment.expectedUID,
+                processUniqueID:
+                    fixture.verifierProcessIdentity.processUniqueID,
+                startTimeNanoseconds:
+                    fixture.verifierProcessIdentity
+                        .startTimeNanoseconds,
+                executableWholeFileSHA256:
+                    fixture.manifest.verifierArtifactSHA256,
+                codeDirectorySHA256:
+                    fixture.manifest.verifierCodeDirectorySHA256,
+                designatedRequirementSHA256:
+                    fixture.manifest
+                        .verifierDesignatedRequirementSHA256,
+                auditTokenSHA256:
+                    fixture.verifierProcessIdentity.auditTokenSHA256,
+                parentProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                anonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                heldExecutableIdentitySHA256:
+                    fixture.manifest
+                        .verifierHeldExecutableIdentitySHA256
+            )
+            let substitutedObservation = try RepositoryObservationV1(
+                approvedCommit: fixture.manifest.approvedCommit,
+                approvedTree: fixture.manifest.approvedTree,
+                repositorySourceClosureSHA256:
+                    fixture.manifest.repositorySourceClosureSHA256,
+                diagnosticBundleSHA256:
+                    fixture.manifest.diagnosticBundleSHA256,
+                diagnosticLauncherJXASHA256:
+                    fixture.manifest.diagnosticLauncherJXASHA256,
+                pinnedNodeRuntimeSHA256:
+                    fixture.manifest.pinnedNodeRuntimeSHA256,
+                supervisorArtifactSHA256:
+                    fixture.manifest.supervisorArtifactSHA256,
+                verifierArtifactSHA256:
+                    fixture.manifest.verifierArtifactSHA256,
+                gitDirectoryPolicySHA256:
+                    fixture.manifest.gitDirectoryPolicySHA256,
+                repositoryPathPolicySHA256:
+                    fixture.manifest.repositoryPathPolicySHA256,
+                artifactClosureRecordSHA256:
+                    fixture.manifest.artifactClosureRecordSHA256,
+                installPolicyRecordSHA256:
+                    fixture.manifest.installPolicyRecordSHA256,
+                targetProcessIdentitySHA256:
+                    substitutedSupervisor.canonicalSHA256(),
+                targetProcessID: substitutedSupervisor.processID,
+                effectiveUID: fixture.enrollment.expectedUID,
+                exactCleanRepository: true,
+                heldNoFollowIdentities: true,
+                gitDirectoryCommonDirectoryAndObjectDirectoryVerified:
+                    true,
+                gitAlternatesAbsent: true,
+                gitReplacementObjectsAbsent: true,
+                callerSuppliedPathAccepted: false
+            )
+            assertInvalidHandoff(
+                try TrustRootVerifierCoreV1.issueReceipt(
+                    enrollmentEnvelopes:
+                        [fixture.signedEnrollment],
+                    activationEnvelopes:
+                        [fixture.signedActivation],
+                    authorityPublicKeyRawRepresentation:
+                        fixture.authorityPublicKey,
+                    challenge: challenge,
+                    supervisorPublicKeyRawRepresentation:
+                        fixture.supervisorPublicKey,
+                    manifest: fixture.manifest,
+                    runtimeLaunchPolicy:
+                        fixture.runtimeLaunchPolicy,
+                    observation: substitutedObservation,
+                    supervisorProcessIdentity:
+                        substitutedSupervisor,
+                    verifierProcessIdentity: substitutedVerifier,
+                    nowUnixSeconds: 121,
+                    nowMonotonicNanoseconds: 2_000_000_000,
+                    verifierPublicKeyRawRepresentation:
+                        fixture.verifierPublicKey,
+                    randomBytes:
+                        FixedRandomSequence(
+                            start: UInt8(0xe1 + index)
+                        ).provider,
+                    sign: handoffSigner(fixture.verifierKey)
+                )
+            )
+        }
+    }
 }

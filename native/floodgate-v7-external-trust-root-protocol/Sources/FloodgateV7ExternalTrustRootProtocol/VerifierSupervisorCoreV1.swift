@@ -257,18 +257,11 @@ public enum TrustRootSupervisorCoreV1 {
         )
         try manifest.validateEnrollment(state.activeEnrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try supervisorProcessIdentity.validateSupervisorAgainstManifest(
+            manifest,
+            expectedUID: state.activeEnrollment.expectedUID
+        )
         guard
-            supervisorProcessIdentity.role == .supervisor,
-            supervisorProcessIdentity.effectiveUID
-                == state.activeEnrollment.expectedUID,
-            supervisorProcessIdentity.executableWholeFileSHA256
-                == manifest.supervisorArtifactSHA256,
-            supervisorProcessIdentity.codeDirectorySHA256
-                == manifest.supervisorCodeDirectorySHA256,
-            supervisorProcessIdentity.designatedRequirementSHA256
-                == manifest.supervisorDesignatedRequirementSHA256,
-            supervisorProcessIdentity.heldExecutableIdentitySHA256
-                == manifest.supervisorHeldExecutableIdentitySHA256,
             !verifierAnonymousFDChannelBindingSHA256.isAllZero
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
@@ -682,6 +675,10 @@ public enum TrustRootVerifierCoreV1 {
         try observation.validate(
             manifest: manifest,
             enrollment: state.activeEnrollment
+        )
+        try supervisorProcessIdentity.validateSupervisorAgainstManifest(
+            manifest,
+            expectedUID: state.activeEnrollment.expectedUID
         )
         try verifierProcessIdentity.validateChildOf(
             supervisorProcessIdentity,

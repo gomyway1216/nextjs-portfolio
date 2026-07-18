@@ -124,6 +124,27 @@ public struct ProcessIdentityV1: Equatable, Sendable {
         CanonicalSHA256.digest(canonicalBytes())
     }
 
+    func validateSupervisorAgainstManifest(
+        _ manifest: RepositorySourceManifestV1,
+        expectedUID: UInt32
+    ) throws {
+        guard
+            role == .supervisor,
+            audience == manifest.audience,
+            effectiveUID == expectedUID,
+            executableWholeFileSHA256
+                == manifest.supervisorArtifactSHA256,
+            codeDirectorySHA256
+                == manifest.supervisorCodeDirectorySHA256,
+            designatedRequirementSHA256
+                == manifest.supervisorDesignatedRequirementSHA256,
+            heldExecutableIdentitySHA256
+                == manifest.supervisorHeldExecutableIdentitySHA256
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+
     public func validateChildOf(
         _ supervisor: ProcessIdentityV1,
         expectedRole: TrustRootProcessRoleV1,

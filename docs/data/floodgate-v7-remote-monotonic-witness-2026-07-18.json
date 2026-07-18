@@ -260,6 +260,9 @@
       "workflow_job_id": 88112184102,
       "artifact_id": 8433092951,
       "artifact_name": "floodgate-v7-public-symbol-graphs-macOS-ARM64-7b4d2a058457e938eb2eeff440445e43fc05936d-1",
+      "artifact_manifest": "tests/fixtures/floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1.json",
+      "artifact_archive_sha256": "1ad7b53f2aa1a9060f037b3214b18075942b89ff91534b1dbf4e1c679ca88369",
+      "artifact_module_graph_raw_sha256": "944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81",
       "previous_derived_projection_matched": true,
       "counted_as_ci_evidence": true
     },

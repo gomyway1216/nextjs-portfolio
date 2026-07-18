@@ -13,6 +13,8 @@ const evidenceTestRelative =
   "tests/unit/ml/floodgateV7RemoteMonotonicWitnessEvidence.test.ts";
 const fixtureRelative =
   "tests/fixtures/floodgate-v7-remote-monotonic-witness-golden-v1.json";
+const ciSymbolGraphManifestRelative =
+  "tests/fixtures/floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1.json";
 const japaneseArticleRelative =
   "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.md";
 const englishArticleRelative =
@@ -490,6 +492,11 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
         artifact_id: 8433092951,
         artifact_name:
           "floodgate-v7-public-symbol-graphs-macOS-ARM64-7b4d2a058457e938eb2eeff440445e43fc05936d-1",
+        artifact_manifest: ciSymbolGraphManifestRelative,
+        artifact_archive_sha256:
+          "1ad7b53f2aa1a9060f037b3214b18075942b89ff91534b1dbf4e1c679ca88369",
+        artifact_module_graph_raw_sha256:
+          "944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81",
         previous_derived_projection_matched: true,
         counted_as_ci_evidence: true,
       },
@@ -505,6 +512,7 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
     });
 
     const ciGraph = evidence.validation.ci_public_symbol_graph_measurement;
+    const ciManifest = JSON.parse(read(ciSymbolGraphManifestRelative));
     expect(
       gitOutput([
         "--no-replace-objects",
@@ -526,6 +534,99 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       ciGraph.source_branch_head_revision,
     ]);
     expect(ciGraph.artifact_name).toContain(ciGraph.workflow_merge_revision);
+    expect(ciManifest).toMatchObject({
+      schema:
+        "shogi-floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1",
+      retrieved_at: "2026-07-18T19:03:06Z",
+      repository: "gomyway1216/nextjs-portfolio",
+      pull_request: ciGraph.pull_request,
+      github_artifact_api: {
+        id: ciGraph.artifact_id,
+        name: ciGraph.artifact_name,
+        size_in_bytes: 51056,
+        digest: `sha256:${ciGraph.artifact_archive_sha256}`,
+        expired_at_retrieval: false,
+        workflow_run: {
+          id: ciGraph.workflow_run_id,
+          head_sha: ciGraph.source_branch_head_revision,
+        },
+      },
+      workflow_job: {
+        id: ciGraph.workflow_job_id,
+        name: "External trust-root protocol (source only)",
+        conclusion: "success",
+      },
+      synthetic_merge: {
+        revision: ciGraph.workflow_merge_revision,
+        tree: ciGraph.workflow_merge_tree,
+        parents: ciGraph.workflow_merge_parents,
+      },
+      archive: {
+        sha256: ciGraph.artifact_archive_sha256,
+        bytes: 51056,
+      },
+      module_graph: {
+        generator:
+          "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+        module: "FloodgateV7ExternalTrustRootProtocol",
+        architecture: "arm64",
+        raw_bytes: 1234153,
+        raw_sha256: ciGraph.artifact_module_graph_raw_sha256,
+        normalized_symbols: ciGraph.symbols,
+        normalized_relationships: ciGraph.relationships,
+        normalized_sha256: ciGraph.normalized_sha256,
+        semantic_gate: ciGraph.semantic_gate,
+      },
+    });
+    expect(ciManifest.github_artifact_api.size_in_bytes).toBe(
+      ciManifest.archive.bytes,
+    );
+    expect(ciManifest.github_artifact_api).toEqual({
+      id: ciGraph.artifact_id,
+      node_id: "MDg6QXJ0aWZhY3Q4NDMzMDkyOTUx",
+      name: ciGraph.artifact_name,
+      size_in_bytes: 51056,
+      digest: `sha256:${ciGraph.artifact_archive_sha256}`,
+      expired_at_retrieval: false,
+      created_at: "2026-07-18T18:53:24Z",
+      updated_at: "2026-07-18T18:53:24Z",
+      expires_at: "2026-08-01T18:53:23Z",
+      url: "https://api.github.com/repos/gomyway1216/nextjs-portfolio/actions/artifacts/8433092951",
+      archive_download_url:
+        "https://api.github.com/repos/gomyway1216/nextjs-portfolio/actions/artifacts/8433092951/zip",
+      workflow_run: {
+        id: ciGraph.workflow_run_id,
+        repository_id: 1102298330,
+        head_repository_id: 1102298330,
+        head_branch: "codex/floodgate-v7-remote-monotonic-witness",
+        head_sha: ciGraph.source_branch_head_revision,
+      },
+    });
+    expect(ciManifest.archive).toEqual({
+      sha256: ciGraph.artifact_archive_sha256,
+      bytes: 51056,
+      entries: [
+        {
+          path: "arm64-apple-macosx/symbolgraph/FloodgateV7ExternalTrustRootProtocol.symbols.json",
+          bytes: 1234153,
+          sha256:
+            "944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81",
+        },
+        {
+          path: "arm64-apple-macosx/symbolgraph/FloodgateV7ExternalTrustRootProtocolPackageTests.symbols.json",
+          bytes: 375,
+          sha256:
+            "8b496cd8b0f5093431c1ac3e2fb452ab40ae8f12da4f142321d5b424cf822372",
+        },
+      ],
+    });
+    expect(ciManifest.normalizer).toEqual({
+      path: `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`,
+      git_blob: gitOutput([
+        "hash-object",
+        `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`,
+      ]),
+    });
   });
 
   it("keeps the nine-section Japanese and English articles aligned on facts and nonclaims", () => {

@@ -73,7 +73,7 @@ witness ID、endpoint ID、期待する公開鍵、nonce、operation ID、clock�
 - exact public symbol graph（Xcode 15.3 / Swift 5.10）：575 symbols、635 relationships、`57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461`、semantic gate PASS
 - PR #504 の external trust-root CI 実測（Xcode 26.5 / Swift 6.3.2）：575 symbols、678 relationships、`1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a`、semantic gate PASS
 
-Swift 6.3.2 の値は当初の derived projection と完全一致した。PR #504 の head `ead8bf5a3965f48878c798aa14e33f01694828b5` を main `bb08e6019b1a42f631be06e400df01b1baf336f4` へ試験 merge した revision `7b4d2a058457e938eb2eeff440445e43fc05936d` について、workflow run `29656667943` / job `88112184102` / artifact ID `8433092951` から取得した **measured PR CI artifact** である。external trust-root job の証拠には数えるが、PR 全体の CI は引き続き完了待ちである。
+Swift 6.3.2 の値は当初の derived projection と完全一致した。PR #504 の head `ead8bf5a3965f48878c798aa14e33f01694828b5` を main `bb08e6019b1a42f631be06e400df01b1baf336f4` へ試験 merge した revision `7b4d2a058457e938eb2eeff440445e43fc05936d` について、workflow run `29656667943` / job `88112184102` / artifact ID `8433092951` から取得した **measured PR CI artifact** である。GitHub Artifact API の archive digest `1ad7b53f2aa1a9060f037b3214b18075942b89ff91534b1dbf4e1c679ca88369` と、展開した module graph の生 SHA-256 `944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81` は独立 manifest `floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1.json` に固定した。external trust-root job の証拠には数えるが、PR 全体の CI は引き続き完了待ちである。
 
 implementation exact-state の独立レビューは、途中で見つかった原子性・時計・履歴・semantic guard の問題を修正した後、P0 / P1 / P2 = 0 / 0 / 0 になった。
 

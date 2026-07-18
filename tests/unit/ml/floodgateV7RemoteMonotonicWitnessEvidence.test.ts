@@ -66,15 +66,11 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
           p2: 0,
         },
         publication_base_revision: "92f3f5850c2896fb4194a1d4b885ec9e378a75b6",
-        publication_revision: "5e84223f423944650587efcc6cd5684c6a12dc90",
-        publication_tree: "9e6b7e718bf3abccb6e765750af438447d7dd1d7",
-        publication_exact_commit_review: "PASS",
-        publication_exact_commit_reviewers: 2,
-        publication_exact_commit_findings: {
-          p0: 0,
-          p1: 0,
-          p2: 0,
-        },
+        publication_revision: null,
+        publication_tree: null,
+        publication_exact_commit_review: "PENDING",
+        publication_exact_commit_reviewers: 0,
+        publication_exact_commit_findings: null,
         pull_request: 504,
         continuous_integration: "PENDING",
       },
@@ -212,6 +208,58 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       expect(currentBlob, relativePath).toBe(pinnedBlob);
     }
 
+    expect(evidence.revision.publication_base_revision).toBe(
+      evidence.revision.integration_merge_revision,
+    );
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "merge-base",
+        "--is-ancestor",
+        evidence.revision.publication_base_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
+
+    const publicationPaths = evidence.publication_surface
+      .exact_changed_paths_since_base as string[];
+    const expectedPublicationPaths = [
+      englishArticleRelative,
+      japaneseArticleRelative,
+      evidenceRelative,
+      ciSymbolGraphManifestRelative,
+      evidenceTestRelative,
+    ].sort();
+    expect(publicationPaths).toEqual(expectedPublicationPaths);
+
+    if (evidence.revision.publication_revision === null) {
+      expect(evidence.revision.publication_tree).toBeNull();
+      expect(evidence.revision.publication_exact_commit_review).toBe("PENDING");
+      expect(evidence.revision.publication_exact_commit_reviewers).toBe(0);
+      expect(evidence.revision.publication_exact_commit_findings).toBeNull();
+      expect(evidence.publication_surface.status).toBe(
+        "PENDING-EXACT-REVIEW-AND-METADATA-SEAL",
+      );
+      expect(
+        evidence.publication_surface.article_paths_unchanged_after_anchor,
+      ).toEqual([]);
+      expect(
+        evidence.publication_surface.post_anchor_metadata_seal_paths,
+      ).toEqual([]);
+      const candidatePaths = gitOutput([
+        "--no-replace-objects",
+        "diff",
+        "--name-only",
+        evidence.revision.publication_base_revision,
+        "HEAD",
+      ])
+        .split("\n")
+        .filter(Boolean)
+        .sort();
+      expect(candidatePaths).toEqual(expectedPublicationPaths);
+      return;
+    }
+
     expect(
       gitOutput([
         "--no-replace-objects",
@@ -219,20 +267,15 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
         `${evidence.revision.publication_revision}^{tree}`,
       ]),
     ).toBe(evidence.revision.publication_tree);
-    expect(evidence.revision.publication_base_revision).toBe(
-      evidence.revision.integration_merge_revision,
-    );
-    for (const descendant of [evidence.revision.publication_revision, "HEAD"]) {
-      expect(
-        gitOutput([
-          "--no-replace-objects",
-          "merge-base",
-          "--is-ancestor",
-          evidence.revision.publication_base_revision,
-          descendant,
-        ]),
-      ).toBe("");
-    }
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "merge-base",
+        "--is-ancestor",
+        evidence.revision.publication_base_revision,
+        evidence.revision.publication_revision,
+      ]),
+    ).toBe("");
     expect(
       gitOutput([
         "--no-replace-objects",
@@ -242,10 +285,9 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
         "HEAD",
       ]),
     ).toBe("");
-
-    const publicationPaths = evidence.publication_surface
-      .exact_changed_paths_since_base as string[];
-    expect(publicationPaths).toEqual([...publicationPaths].sort());
+    expect(evidence.publication_surface.status).toBe(
+      "SEALED-EXACT-REVIEW-PASS",
+    );
     const publicationCommittedPaths = gitOutput([
       "--no-replace-objects",
       "diff",
@@ -256,7 +298,7 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       .split("\n")
       .filter(Boolean)
       .sort();
-    expect(publicationCommittedPaths).toEqual(publicationPaths);
+    expect(publicationCommittedPaths).toEqual(expectedPublicationPaths);
     const expectedArticlePaths = [
       englishArticleRelative,
       japaneseArticleRelative,

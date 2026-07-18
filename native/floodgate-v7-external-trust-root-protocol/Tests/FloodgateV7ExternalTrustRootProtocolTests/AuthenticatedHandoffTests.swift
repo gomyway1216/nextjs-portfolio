@@ -590,7 +590,7 @@ private func manifestDriftedRuntimeLaunchPreimageClosure(
 }
 
 final class AuthenticatedHandoffTests: XCTestCase {
-    func testFourPublicHandoffsUseFreshFixedAuthorityState()
+    func testFourHandoffStagesUseFreshFixedAuthorityState()
         throws
     {
         let fixture = try HandoffFixture()
@@ -620,9 +620,13 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 fixture.supervisorPublicKey,
             randomBytes:
                 FixedRandomSequence(start: 0x11).provider,
-            sign: handoffSigner(fixture.supervisorKey),
-            authorityStateStore: store
+            sign: handoffSigner(fixture.supervisorKey)
         )
+        // The public verifier wrapper is deliberately fixed to the
+        // production store and has no test-store injection seam. This
+        // internal overload exercises the same receipt stage with the
+        // fixture; repository evidence separately pins the wrapper's
+        // forwarding to `.production`.
         let receipt = try TrustRootVerifierCoreV1.issueReceipt(
             enrollmentEnvelopes: [fixture.signedEnrollment],
             activationEnvelopes: [fixture.signedActivation],
@@ -669,8 +673,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             nowMonotonicNanoseconds: 3_000_000_000,
             randomBytes:
                 FixedRandomSequence(start: 0x31).provider,
-            sign: handoffSigner(fixture.supervisorKey),
-            authorityStateStore: store
+            sign: handoffSigner(fixture.supervisorKey)
         )
         let consumer = try OneShotAttestationConsumerV1(
             replayRetentionCapacity:
@@ -701,8 +704,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 fixture.childProcessIdentity
                 .anonymousFDChannelBindingSHA256,
             nowUnixSeconds: 123,
-            nowMonotonicNanoseconds: 4_000_000_000,
-            authorityStateStore: store
+            nowMonotonicNanoseconds: 4_000_000_000
         )
 
         XCTAssertEqual(
@@ -753,8 +755,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
                 randomBytes: advancingRandom.provider,
-                sign: handoffSigner(fixture.supervisorKey),
-                authorityStateStore: store
+                sign: handoffSigner(fixture.supervisorKey)
             )
         ) {
             XCTAssertEqual(

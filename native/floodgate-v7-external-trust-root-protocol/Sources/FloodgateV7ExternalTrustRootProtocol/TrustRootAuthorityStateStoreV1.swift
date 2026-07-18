@@ -103,11 +103,14 @@ final class TrustRootAuthorityStateStoreV1: @unchecked Sendable {
                         }
                     }
                 }
-                if highWater == nil
-                    || loadedToken.journalSequence
-                        > highWater!.journalSequence
-                {
-                    highWater = loadedToken
+                if let highWater {
+                    if loadedToken.journalSequence
+                        > highWater.journalSequence
+                    {
+                        self.highWater = loadedToken
+                    }
+                } else {
+                    self.highWater = loadedToken
                 }
                 return loaded.snapshot
             }
@@ -632,6 +635,10 @@ private final class OpenedAuthorityNodeV1 {
         self.absolutePath = absolutePath
     }
 
+    deinit {
+        close()
+    }
+
     func close() {
         guard !didClose else {
             return
@@ -1037,13 +1044,21 @@ private func directoryEntryNames(
     var names: [String] = []
     errno = 0
     while let entry = readdir(directory) {
-        let name = withUnsafePointer(to: &entry.pointee.d_name) {
-            $0.withMemoryRebound(
-                to: CChar.self,
-                capacity: Int(MAXNAMLEN) + 1
-            ) {
-                String(cString: $0)
+        let name = try withUnsafeBytes(
+            of: entry.pointee.d_name
+        ) { bytes -> String in
+            guard
+                let terminator = bytes.firstIndex(of: 0),
+                terminator > bytes.startIndex,
+                let decoded = String(
+                    bytes: bytes[..<terminator],
+                    encoding: .utf8
+                )
+            else {
+                throw TrustRootAuthorityStateStoreError
+                    .invalidAuthorityState
             }
+            return decoded
         }
         if name != "." && name != ".." {
             names.append(name)

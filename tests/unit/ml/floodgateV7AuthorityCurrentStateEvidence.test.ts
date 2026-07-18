@@ -205,6 +205,9 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
     const storeSource = read(
       `${sourceRelative}/TrustRootAuthorityStateStoreV1.swift`,
     );
+    const handoffSource = read(
+      `${sourceRelative}/VerifierSupervisorCoreV1.swift`,
+    );
     const surfaceGate = read(
       `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`,
     );
@@ -264,6 +267,23 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
     expect(surfaceGate).toContain("FORBIDDEN_AUTHORITY_PARAMETER_MARKERS");
     expect(surfaceGate).toContain(
       "public callable exposes caller-injected authority state",
+    );
+    const publicReceiptStart = handoffSource.indexOf(
+      "    public static func issueReceipt(",
+    );
+    const internalReceiptStart = handoffSource.indexOf(
+      "\n    static func issueReceipt(",
+      publicReceiptStart,
+    );
+    expect(publicReceiptStart).toBeGreaterThanOrEqual(0);
+    expect(internalReceiptStart).toBeGreaterThan(publicReceiptStart);
+    const publicReceiptWrapper = handoffSource.slice(
+      publicReceiptStart,
+      internalReceiptStart,
+    );
+    expect(publicReceiptWrapper).toContain("authorityStateStore: .production");
+    expect(publicReceiptWrapper.match(/authorityStateStore:/gu)).toHaveLength(
+      1,
     );
     expect(evidence.read_only_store_contract).toMatchObject({
       production_root_is_not_caller_redirectable: true,

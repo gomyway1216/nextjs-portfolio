@@ -131,7 +131,18 @@ function assertCalibrationArtifactStep(step: string): void {
   }
 }
 
-function assertSingleCalibrationArtifactUpload(job: string): void {
+function assertSingleCalibrationArtifactUpload(
+  job: string,
+  workflow = job,
+): void {
+  const yamlAnchorOrAliasTokens = workflow.match(
+    /(?:^|[ \t:[\]{},?])(?:&|\*)(?![&*])[^\s\[\]{},#]+/gmu,
+  );
+  if (yamlAnchorOrAliasTokens !== null) {
+    throw new Error(
+      `workflow YAML anchors and aliases are forbidden in this provenance gate: ${yamlAnchorOrAliasTokens.join(", ")}`,
+    );
+  }
   const stepMarkers = job.match(
     /^      - name: Preserve public symbol graphs for exact-diff calibration$/gmu,
   );
@@ -140,10 +151,25 @@ function assertSingleCalibrationArtifactUpload(job: string): void {
       `expected exactly one calibration artifact step, found ${stepMarkers?.length ?? 0}`,
     );
   }
-  const uploadActionReferences = job.match(/actions\/upload-artifact@/giu);
+  const uploadActionReferences = workflow.match(/actions\/upload-artifact@/giu);
   if (uploadActionReferences?.length !== 1) {
     throw new Error(
-      `expected exactly one upload-artifact action reference in the job, found ${uploadActionReferences?.length ?? 0}`,
+      `expected exactly one upload-artifact action reference in the workflow, found ${uploadActionReferences?.length ?? 0}`,
+    );
+  }
+  const usesValues = job.split("\n").flatMap((line) => {
+    const match = line
+      .trimStart()
+      .match(/^(?:-[ \t]+)?uses[ \t]*:[ \t]*([^#\n]*?)(?:[ \t]+#.*)?$/iu);
+    return match === null ? [] : [match[1].trim()];
+  });
+  const expectedUsesValues = [
+    "actions/checkout@v7",
+    "actions/upload-artifact@v7",
+  ];
+  if (JSON.stringify(usesValues) !== JSON.stringify(expectedUsesValues)) {
+    throw new Error(
+      `unexpected external trust-root job uses values: ${JSON.stringify(usesValues)}`,
     );
   }
   assertCalibrationArtifactStep(
@@ -154,7 +180,7 @@ function assertSingleCalibrationArtifactUpload(job: string): void {
   );
 }
 
-function assertExternalTrustRootProtocolJob(job: string): void {
+function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
   const calibrationContextStep = workflowStep(
     job,
     "Record Swift symbol-graph calibration context",
@@ -180,7 +206,7 @@ function assertExternalTrustRootProtocolJob(job: string): void {
   ]) {
     assertExactLineOnce(verificationStep, line);
   }
-  assertSingleCalibrationArtifactUpload(job);
+  assertSingleCalibrationArtifactUpload(job, workflow);
 }
 
 function expectSubstringsInOrder(text: string, substrings: string[]): void {
@@ -407,7 +433,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "external_trust_root_protocol",
     );
     expect(() =>
-      assertExternalTrustRootProtocolJob(externalTrustRootJob),
+      assertExternalTrustRootProtocolJob(externalTrustRootJob, workflow),
     ).not.toThrow();
     const artifactStep = workflowStep(
       externalTrustRootJob,
@@ -490,6 +516,35 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     );
     expect(() =>
       assertSingleCalibrationArtifactUpload(uppercaseDuplicateUploadJob),
+    ).toThrow();
+    const scalarAliasJob = externalTrustRootJob.concat(
+      "      - uses: *unsafe_upload\n",
+      "        with:\n",
+      "          path: /etc/passwd\n",
+    );
+    const scalarAliasWorkflow = workflow
+      .replace(
+        "\njobs:\n",
+        "\nenv:\n  UNSAFE_UPLOAD: &unsafe_upload Actions/Upload-Artifact@v7\n\njobs:\n",
+      )
+      .replace(externalTrustRootJob, scalarAliasJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(scalarAliasJob, scalarAliasWorkflow),
+    ).toThrow();
+    const wholeStepAliasJob = externalTrustRootJob.concat(
+      "      - *unsafe_upload_step\n",
+    );
+    const wholeStepAliasWorkflow = workflow
+      .replace(
+        "\njobs:\n",
+        "\nx-unsafe-upload-step: &unsafe_upload_step\n  uses: Actions/Upload-Artifact@v7\n  with:\n    path: /etc/passwd\n\njobs:\n",
+      )
+      .replace(externalTrustRootJob, wholeStepAliasJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(
+        wholeStepAliasJob,
+        wholeStepAliasWorkflow,
+      ),
     ).toThrow();
     const movedSpiFlagToDecoyStepJob = externalTrustRootJob
       .replace("            --include-spi-symbols \\\n", "")
@@ -701,6 +756,32 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     );
     expect(Number.isNaN(remediationUpdatedAtMillis)).toBe(false);
     expect(recordedAtMillis).toBeGreaterThanOrEqual(remediationUpdatedAtMillis);
+    const reviewedRevisions = new Set<string>();
+    for (const history of [
+      evidence.validation.independent_security_review.review_history,
+      evidence.validation.publication_evidence_review.review_history,
+    ] as Array<Array<Record<string, unknown>>>) {
+      for (const entry of history) {
+        for (const key of [
+          "reviewed_revision",
+          "reviewed_technical_revision",
+        ]) {
+          const revision = entry[key];
+          if (typeof revision === "string") {
+            reviewedRevisions.add(revision);
+          }
+        }
+      }
+    }
+    for (const reviewedRevision of reviewedRevisions) {
+      const reviewedCommitMillis =
+        Number(gitOutput(["show", "-s", "--format=%ct", reviewedRevision])) *
+        1_000;
+      expect(
+        recordedAtMillis,
+        `recorded_at predates reviewed revision ${reviewedRevision}`,
+      ).toBeGreaterThanOrEqual(reviewedCommitMillis);
+    }
     expect(evidence.pull_request_validation).toEqual({
       pull_request: 501,
       url: "https://github.com/gomyway1216/nextjs-portfolio/pull/501",
@@ -803,7 +884,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       },
       local_remediation: {
         status: "IN_PROGRESS",
-        updated_at: "2026-07-18T04:30:20-07:00",
+        updated_at: "2026-07-18T04:58:08-07:00",
         intermediate_remediation_revision:
           "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
         intermediate_remediation_tree:
@@ -866,7 +947,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             status: "CHANGES_REQUESTED",
             unresolved_p0: 0,
             unresolved_p1: 5,
-            unresolved_p2: 28,
+            unresolved_p2: 30,
             finding_ids: [
               "bare-git-inherited-npm-path-could-intercept-provenance-command",
               "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
@@ -901,6 +982,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
               "calibration-artifact-test-step-slice-allowed-later-always-bypass",
               "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push",
               "calibration-artifact-test-string-assertions-accepted-comment-decoys",
+              "calibration-artifact-upload-uniqueness-accepted-yaml-anchor-alias-step",
+              "in-progress-publication-review-recorded-at-predated-reviewed-publication-commit",
             ],
           },
         ],
@@ -1123,7 +1206,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           "PENDING_PUBLICATION_COMMIT_AND_EXACT_REVISION_REVIEW",
         current_content_exact_review_status: "PENDING_PUBLICATION_COMMIT",
         resolved_p1_total: 4,
-        resolved_p2_total: 20,
+        resolved_p2_total: 22,
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
@@ -1316,6 +1399,34 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p2: 1,
         finding_ids: [
           "calibration-artifact-test-string-assertions-accepted-comment-decoys",
+        ],
+      },
+      {
+        review_sequence: 15,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "publication-commit-before-yaml-anchor-and-alias-rejection",
+        reviewed_revision: "6e6697ec9fb976825866e4b2d44eb28648926357",
+        reviewed_tree: "b438ad59b5387e39cd884ffba2d1721755b71996",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "calibration-artifact-upload-uniqueness-accepted-yaml-anchor-alias-step",
+        ],
+      },
+      {
+        review_sequence: 16,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "sequence-fifteen-yaml-anchor-alias-remediation-and-chronology",
+        reviewed_revision: "6e6697ec9fb976825866e4b2d44eb28648926357",
+        reviewed_tree: "b438ad59b5387e39cd884ffba2d1721755b71996",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "in-progress-publication-review-recorded-at-predated-reviewed-publication-commit",
         ],
       },
     ]);
@@ -1568,12 +1679,12 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "signalは初回logに記録されなかった",
       "既存のrunner依存CI portability failure",
       "publication tracking 4 path",
-      "current headのremediation 2 commit",
+      "remote initial head以後のlocal commit",
       "remote未反映",
       "最終local validation",
       "exact review",
       "以前の実装security review PASS",
-      "追加P1を5件、P2を28件",
+      "追加P1を5件、P2を30件",
       "735398093f7c839c8c2a97f33ef96607961bd829",
       "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       "external-extension shard",
@@ -1612,12 +1723,11 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "0 production inspector or handoff runs",
       "signal was not logged",
       "pre-existing runner-dependent CI portability failure",
-      "two remediation commits at the current head",
-      "four publication-tracking paths remain unpushed",
+      "local commits and four-path publication-tracking changes after the remote initial head remain unpushed",
       "final local validation",
       "exact review",
       "previous implementation-security-review PASS",
-      "five further P1 and twenty-eight further P2",
+      "five further P1 and thirty further P2",
       "735398093f7c839c8c2a97f33ef96607961bd829",
       "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       "external-extension shards",

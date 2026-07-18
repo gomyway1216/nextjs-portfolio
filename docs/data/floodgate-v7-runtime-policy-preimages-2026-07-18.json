@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-runtime-policy-preimages-v1",
-  "recorded_at": "2026-07-18T04:30:20-07:00",
+  "recorded_at": "2026-07-18T04:58:08-07:00",
   "scope": {
     "status": "UNAVAILABLE",
     "operational_decision": "STOP",
@@ -143,7 +143,7 @@
     },
     "local_remediation": {
       "status": "IN_PROGRESS",
-      "updated_at": "2026-07-18T04:30:20-07:00",
+      "updated_at": "2026-07-18T04:58:08-07:00",
       "intermediate_remediation_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
       "intermediate_remediation_tree": "c770f08c6df12f6a2d0a602025571aa0406b85d2",
       "remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
@@ -201,7 +201,7 @@
           "status": "CHANGES_REQUESTED",
           "unresolved_p0": 0,
           "unresolved_p1": 5,
-          "unresolved_p2": 28,
+          "unresolved_p2": 30,
           "finding_ids": [
             "bare-git-inherited-npm-path-could-intercept-provenance-command",
             "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
@@ -235,7 +235,9 @@
             "publication-complete-status-overstated-current-content-exact-review",
             "calibration-artifact-test-step-slice-allowed-later-always-bypass",
             "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push",
-            "calibration-artifact-test-string-assertions-accepted-comment-decoys"
+            "calibration-artifact-test-string-assertions-accepted-comment-decoys",
+            "calibration-artifact-upload-uniqueness-accepted-yaml-anchor-alias-step",
+            "in-progress-publication-review-recorded-at-predated-reviewed-publication-commit"
           ]
         }
       ],
@@ -839,12 +841,38 @@
           "finding_ids": [
             "calibration-artifact-test-string-assertions-accepted-comment-decoys"
           ]
+        },
+        {
+          "review_sequence": 15,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "publication-commit-before-yaml-anchor-and-alias-rejection",
+          "reviewed_revision": "6e6697ec9fb976825866e4b2d44eb28648926357",
+          "reviewed_tree": "b438ad59b5387e39cd884ffba2d1721755b71996",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "calibration-artifact-upload-uniqueness-accepted-yaml-anchor-alias-step"
+          ]
+        },
+        {
+          "review_sequence": 16,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "sequence-fifteen-yaml-anchor-alias-remediation-and-chronology",
+          "reviewed_revision": "6e6697ec9fb976825866e4b2d44eb28648926357",
+          "reviewed_tree": "b438ad59b5387e39cd884ffba2d1721755b71996",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "in-progress-publication-review-recorded-at-predated-reviewed-publication-commit"
+          ]
         }
       ],
       "remediation_status": "PENDING_PUBLICATION_COMMIT_AND_EXACT_REVISION_REVIEW",
       "current_content_exact_review_status": "PENDING_PUBLICATION_COMMIT",
       "resolved_p1_total": 4,
-      "resolved_p2_total": 20,
+      "resolved_p2_total": 22,
       "unresolved_p0": 0,
       "unresolved_p1": 0,
       "unresolved_p2": 0

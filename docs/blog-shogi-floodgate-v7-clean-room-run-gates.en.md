@@ -79,15 +79,22 @@ Error messages, stacks, and JSON fields omit dependency failures, paths, capacit
 
 ## 6. Tests measured so far
 
-| Validation                                                          |                   Result |
-| ------------------------------------------------------------------- | -----------------------: |
-| New run-gates tests                                                 |   1 file / 13 tests PASS |
-| Clean-room preparation + run gates + parent coordinator             |  3 files / 59 tests PASS |
-| Affected set including stage + row + deployment key + V3 checkpoint | 7 files / 298 tests PASS |
-| TypeScript no-emit                                                  |                     PASS |
-| Targeted ESLint                                                     |                     PASS |
+| Validation                                                          |                                            Result |
+| ------------------------------------------------------------------- | ------------------------------------------------: |
+| New run-gates tests                                                 |                            1 file / 13 tests PASS |
+| Clean-room preparation + run gates + parent coordinator             |                           3 files / 59 tests PASS |
+| Affected set including stage + row + deployment key + V3 checkpoint |                          7 files / 298 tests PASS |
+| Full post-merge Vitest suite                                        |   179 files / 3,222 passed / 1 skipped / 0 failed |
+| ML stdlib                                                           |                                    101 tests PASS |
+| TypeScript no-emit                                                  |                                              PASS |
+| Repository ESLint                                                   |             0 errors (pre-existing warnings only) |
+| Production build                                                    |                                              PASS |
+| Clean `npm ci` audit                                                |                                 0 vulnerabilities |
+| Independent final review                                            | 8 files / 347 tests PASS; unresolved P0/P1/P2 = 0 |
 
 The new tests cover the exact 20 GiB boundary, insufficient capacity, pre-existing partial state, the opaque grant and one-shot claims, 100 → 500 → final order, exact 0 → 100 → 500 resume, broken stage continuity, self-cleanup when one coordinator side fails to initialize, failures before and after claim, output followed by rejection, replacement of an empty directory with a different identity, abort/drain plus close joining, and sanitized errors. The real V3 checkpoint test also rejects receipt cloning, replay, registry confusion, and deployment-key bypass.
+
+The first independent review found three P1 issues (receipt provenance, prepared-plan bypass, and an incorrect absent-state downgrade) plus one P2 issue (owner cleanup during partial coordinator initialization). All four were fixed. The independent final re-review reported zero unresolved P0, P1, or P2 findings.
 
 ## 7. Current operational state
 

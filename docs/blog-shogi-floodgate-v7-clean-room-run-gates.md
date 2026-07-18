@@ -79,15 +79,22 @@ error message、stack、JSON fieldにはdependencyの例外、path、容量値�
 
 ## 6. 実測したtest
 
-| 検証                                                           |                     結果 |
-| -------------------------------------------------------------- | -----------------------: |
-| 新規run-gates test                                             |   1 file / 13 tests PASS |
-| clean-room preparation + run gates + parent coordinator        |  3 files / 59 tests PASS |
-| stage + row + deployment key + V3 checkpointを含むaffected set | 7 files / 298 tests PASS |
-| TypeScript no-emit                                             |                     PASS |
-| targeted ESLint                                                |                     PASS |
+| 検証                                                           |                                              結果 |
+| -------------------------------------------------------------- | ------------------------------------------------: |
+| 新規run-gates test                                             |                            1 file / 13 tests PASS |
+| clean-room preparation + run gates + parent coordinator        |                           3 files / 59 tests PASS |
+| stage + row + deployment key + V3 checkpointを含むaffected set |                          7 files / 298 tests PASS |
+| merge後の全Vitest                                              |   179 files / 3,222 passed / 1 skipped / 0 failed |
+| ML stdlib                                                      |                                    101 tests PASS |
+| TypeScript no-emit                                             |                                              PASS |
+| repository ESLint                                              |                       0 errors（既存warningのみ） |
+| production build                                               |                                              PASS |
+| clean `npm ci` audit                                           |                                 0 vulnerabilities |
+| 独立最終review                                                 | 8 files / 347 tests PASS、unresolved P0/P1/P2 = 0 |
 
 新規testはexact 20 GiB境界、容量不足、nonempty partial state、opaque grantとsingle-use claim、100 → 500 → final順序、exact 0 → 100 → 500 resume、stage continuity破壊、coordinator片側初期化失敗の自己清掃、executorのclaim前後の失敗、出力後reject、empty directory identity差し替え、abort/drain/close join、sanitized errorを確認します。実V3 checkpoint testはreceiptのclone・replay・registry取り違え・deployment-key迂回を拒否することも確認します。
+
+初回の独立reviewで見つかった3件のP1（receipt provenance、prepared plan迂回、失敗時のabsent誤判定）と1件のP2（coordinator初期化途中のowner回収）はすべて修正しました。修正後の独立再reviewでは未解決P0/P1/P2は0でした。
 
 ## 7. 現在のoperational state
 

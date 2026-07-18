@@ -313,6 +313,8 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       request_start_clock_sampled_before_first_local_snapshot: true,
       internal_test_inputs_caller_supplied: true,
       receipt_binding_to_supplied_nonce_operation_id_and_key: true,
+      clock_and_fetch_callbacks_control_test_execution: true,
+      clock_and_fetch_identity_receipt_bound: false,
       nonce_unpredictability_established: false,
       production_public_key_pinning_established: false,
       receipt_checked_at_receive_and_completion: true,

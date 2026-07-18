@@ -56,7 +56,7 @@ advance は、遠隔の現 checkpoint SHA-256 が request の expected digest �
 
 内部の `RemoteMonotonicWitnessGateV1` は、request 開始時計を読み、ローカル state を fresh read してから、nonce と operation ID に束縛した query を作り、署名済み receipt を検証する。その checkpoint とローカル token の journal ID、sequence、authority key record、journal header、最後の entry、期待 activation head の六項目が完全一致しなければ STOP する。最後にローカル state をもう一度読み、通信中に変化していないことも要求する。
 
-witness ID、endpoint ID、期待する公開鍵、nonce、operation ID、clock、fetch は internal test harness から渡す。この gate が証明するのは receipt が渡された値に束縛されることまでで、nonce の予測不能性や本番公開鍵の固定そのものではない。それらは今後の production wiring の必須条件である。
+witness ID、endpoint ID、期待する公開鍵、nonce、operation ID、clock、fetch は internal test harness から渡す。receipt が暗号学的に束縛されるのは witness / endpoint ID、期待する公開鍵に対応する signer key ID、nonce、operation ID、request、checkpoint である。clock と fetch callback はテスト実行を制御する入力であり、その識別子自体が receipt に入るわけではない。この gate は nonce の予測不能性や本番公開鍵の固定そのものも証明しない。それらは今後の production wiring の必須条件である。
 
 レビューではもう一つ、通信前に渡された `nowUnixSeconds` を受信後にも使うと、30 秒を超えて遅延した receipt を新鮮と誤認できる問題が見つかった。修正版は内部の trusted clock を request 開始、receipt 受信、ローカル再確認完了の三回読む。時計の巻き戻り、受信時の期限切れ、完了境界での期限切れをすべて拒否し、receipt は受信時と完了時の二回検証する。
 

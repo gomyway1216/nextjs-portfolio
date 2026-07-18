@@ -61,7 +61,7 @@ This is not a durable transaction design. A production provider must atomically 
 
 ## 4. Fresh signed comparison
 
-The internal gate samples its request-start clock and then takes a fresh local authority snapshot. Its internal test harness supplies the witness ID, endpoint ID, expected public-key bytes, client nonce, operation ID, clock, and fetch callback. The gate creates a fixed-audience, fixed-purpose query and proves that the signed receipt is bound to those supplied values, the complete request digest, and the signed checkpoint digest.
+The internal gate samples its request-start clock and then takes a fresh local authority snapshot. Its internal test harness supplies the witness ID, endpoint ID, expected public-key bytes, client nonce, operation ID, clock, and fetch callback. The gate creates a fixed-audience, fixed-purpose query and proves that the signed receipt is bound to the witness and endpoint IDs, the signer-key ID derived from the expected public key, the nonce, the operation ID, the complete request digest, and the signed checkpoint digest. The clock and fetch callback control the test execution; their identities are not encoded in the receipt.
 
 This establishes receipt binding, not nonce unpredictability or production public-key pinning. A production integration must provide and separately prove both properties.
 

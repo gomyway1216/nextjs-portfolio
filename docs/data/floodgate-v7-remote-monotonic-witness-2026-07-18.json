@@ -123,6 +123,8 @@
     "nonce_bound_query": true,
     "operation_id_bound_query": true,
     "receipt_binding_to_supplied_nonce_operation_id_and_key": true,
+    "clock_and_fetch_callbacks_control_test_execution": true,
+    "clock_and_fetch_identity_receipt_bound": false,
     "nonce_unpredictability_established": false,
     "production_public_key_pinning_established": false,
     "receipt_signature_verified": true,

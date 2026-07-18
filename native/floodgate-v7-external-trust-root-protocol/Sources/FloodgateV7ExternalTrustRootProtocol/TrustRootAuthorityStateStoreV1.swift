@@ -6,10 +6,12 @@ enum TrustRootAuthorityStateStoreError: Error, Equatable, Sendable {
 }
 
 struct TrustRootAuthorityStateTokenV1: Equatable, Sendable {
+    let journalID: CanonicalBytes32
     let journalSequence: UInt64
     let authorityPublicKeyRecordSHA256: CanonicalBytes32
     let journalHeaderSHA256: CanonicalBytes32
     let lastJournalEntrySHA256: CanonicalBytes32
+    let expectedActivationHeadSHA256: CanonicalBytes32
 }
 
 struct TrustRootAuthorityStateSnapshotV1: Sendable {
@@ -67,6 +69,8 @@ final class TrustRootAuthorityStateStoreV1: @unchecked Sendable {
                 let loadedToken = loaded.snapshot.token
                 if let highWater {
                     guard
+                        loadedToken.journalID
+                            == highWater.journalID,
                         loadedToken
                             .authorityPublicKeyRecordSHA256
                             == highWater
@@ -96,7 +100,11 @@ final class TrustRootAuthorityStateStoreV1: @unchecked Sendable {
                         guard
                             loadedToken.lastJournalEntrySHA256
                                 == highWater
-                                .lastJournalEntrySHA256
+                                .lastJournalEntrySHA256,
+                            loadedToken
+                                .expectedActivationHeadSHA256
+                                == highWater
+                                .expectedActivationHeadSHA256
                         else {
                             throw TrustRootAuthorityStateStoreError
                                 .invalidAuthorityState
@@ -388,13 +396,17 @@ final class TrustRootAuthorityStateStoreV1: @unchecked Sendable {
                 expectedActivationHead:
                     lastEntry.expectedActivationHead,
                 token: TrustRootAuthorityStateTokenV1(
+                    journalID: header.journalID,
                     journalSequence: lastEntry.journalSequence,
                     authorityPublicKeyRecordSHA256:
                         keyRecord.canonicalSHA256(),
                     journalHeaderSHA256:
                         header.canonicalSHA256(),
                     lastJournalEntrySHA256:
-                        lastEntry.canonicalSHA256()
+                        lastEntry.canonicalSHA256(),
+                    expectedActivationHeadSHA256:
+                        lastEntry.expectedActivationHead
+                        .canonicalSHA256()
                 )
             ),
             journalEntrySHA256s: journalEntrySHA256s

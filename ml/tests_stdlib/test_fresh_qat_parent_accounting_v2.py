@@ -587,6 +587,21 @@ class FreshQATParentAccountingV2Test(unittest.TestCase):
                 ),
                 "not unique and canonical",
             ),
+            (
+                lambda rows: (
+                    rows[0].__setitem__(
+                        "sfen",
+                        rows[0]["sfen"].rsplit(" ", 1)[0]
+                        + " ٢٤",
+                    ),
+                    rows[0].__setitem__(
+                        "child_sfen",
+                        rows[0]["child_sfen"].rsplit(" ", 1)[0]
+                        + " ٢٤",
+                    ),
+                ),
+                "canonical four-field SFEN",
+            ),
         )
         for mutation, message in mutations:
             with self.subTest(message=message):

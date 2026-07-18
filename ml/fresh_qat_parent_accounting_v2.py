@@ -781,7 +781,10 @@ def _normalized_sfen(value: Any, label: str) -> str:
     if (
         len(parts) != 4
         or " ".join(parts) != text
-        or not parts[3].isdigit()
+        or not all(
+            character in "0123456789"
+            for character in parts[3]
+        )
         or int(parts[3]) <= 0
     ):
         raise ValueError(f"{label} is not a canonical four-field SFEN")

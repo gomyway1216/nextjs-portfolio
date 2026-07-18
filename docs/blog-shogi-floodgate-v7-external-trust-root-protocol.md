@@ -2,6 +2,8 @@
 
 > [production recovery foundation](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.md)は、検証対象のrepository codeが検証より先に実行される循環bootstrapを発見し、旧operatorのlauncher、preload、issuer、CLIを削除した。本稿の対象は、その次の境界を定義するdependency-freeなSwift protocol library `FloodgateV7ExternalTrustRootProtocol`である。ただし、これは外部trust rootそのものではない。実行物、installer、署名鍵、issuer、production entrypointは作らず、運用判断は引き続き`UNAVAILABLE / STOP`である。English version: [blog-shogi-floodgate-v7-external-trust-root-protocol.en.md](./blog-shogi-floodgate-v7-external-trust-root-protocol.en.md)
 
+> **履歴注記:** 「executable targetなし」など以下のsurface/countは本稿revisionのsnapshotである。後続の[current source boundary](./blog-shogi-floodgate-v7-external-supervisor-verifier-source.md)は、protocolへlinkせずexit 78するfixed STOP targetだけを追加しており、production entrypointは引き続き無い。
+
 ## 1. 結論
 
 今回切り出すのは、将来repository外へinstallするnative verifierが保持するapproved enrollmentと、そのenrollmentをactivate / revoke / rollbackする順序を表す**純粋なprotocol境界**である。目的は、trust policyを曖昧なobjectやrepository内callbackではなく、固定長・version付き・strictなcanonical bytesとして表現できるようにすることだ。

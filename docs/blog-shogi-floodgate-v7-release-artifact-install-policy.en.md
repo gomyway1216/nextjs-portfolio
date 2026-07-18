@@ -2,6 +2,8 @@
 
 > The preceding [external trust-root protocol](./blog-shogi-floodgate-v7-external-trust-root-protocol.en.md) made enrollment and activation canonical, but it deliberately left the release artifact and installation gates open. This change adds three dependency-free Swift **policy record validators**. It does not create the supervisor, verifier, package, installer, signer, notary client, credential, or root-owned installation. The current decision remains **`UNAVAILABLE / STOP`**. Japanese version: [blog-shogi-floodgate-v7-release-artifact-install-policy.md](./blog-shogi-floodgate-v7-release-artifact-install-policy.md)
 
+> **Historical note:** “No executable target” below describes this article's revision. The two targets in the later [current source boundary](./blog-shogi-floodgate-v7-external-supervisor-verifier-source.en.md) have no dependencies and are fixed to exit 78; they are not signed, notarized, or installed artifacts.
+
 ## 1. Result
 
 The new source fixes what a future release must prove before any repository code may run:

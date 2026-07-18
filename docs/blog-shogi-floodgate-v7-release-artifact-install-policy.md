@@ -2,6 +2,8 @@
 
 > 直前の[external trust-root protocol](./blog-shogi-floodgate-v7-external-trust-root-protocol.md)はenrollmentとactivationをcanonicalにしたが、release artifactとinstallのgateは意図的に未完のまま残した。今回はdependency-free Swiftの**policy record validator**を3種類追加する。supervisor、verifier、package、installer、signer、notary client、credential、root-owned installのどれも作らない。現在の判断は引き続き**`UNAVAILABLE / STOP`**である。English version: [blog-shogi-floodgate-v7-release-artifact-install-policy.en.md](./blog-shogi-floodgate-v7-release-artifact-install-policy.en.md)
 
+> **履歴注記:** 以下の「executable targetなし」は本稿revisionのsnapshotである。後続の[current source boundary](./blog-shogi-floodgate-v7-external-supervisor-verifier-source.md)にある2 targetはdependencyなし・exit 78固定で、signed / notarized / installed artifactではない。
+
 ## 1. 結論
 
 将来repository codeを実行する前に何を証明しなければならないかを、次の3 recordで固定した。

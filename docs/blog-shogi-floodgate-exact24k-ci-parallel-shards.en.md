@@ -67,6 +67,8 @@ The measurement host is macOS arm64 with 14 physical/logical CPUs, 48 GiB RAM, N
 | Core unit with six explicit exclusions             | **186 files, 3,221 pass, 1 skip, 0 fail** |
 | Core unit wall                                     | **80.86 seconds**                         |
 | Lint / workflow / evidence validation              | **PASS**                                  |
+| Dependency-free ML contracts                       | **119 / 119 PASS, 11.59 seconds**         |
+| Production build                                   | **PASS, 28.87 seconds**                   |
 | Local test-only critical path                      | **135.12 seconds (cleanup shard)**        |
 | GitHub Actions                                     | **PENDING — not yet run**                 |
 | Production `ml/` source changes                    | **0**                                     |

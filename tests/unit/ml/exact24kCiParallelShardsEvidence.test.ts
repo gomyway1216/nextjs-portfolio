@@ -170,6 +170,18 @@ describe("exact-24k CI parallel-shard evidence", () => {
       source: "five concurrent scanner shard processes",
       github_ci_inference_allowed: false,
     });
+    expect(record.supporting_validation).toMatchObject({
+      dependency_free_ml_contracts: {
+        status: "PASS",
+        tests_passed: 119,
+        tests_failed: 0,
+        process_wall_seconds: 11.59,
+      },
+      production_build: {
+        status: "PASS",
+        process_wall_seconds: 28.87,
+      },
+    });
   });
 
   it("publishes matching bilingual limits, findings, and next gates", () => {

@@ -67,6 +67,8 @@ inventory自身もschema、24,000 parent、`[100, 500, 24000]` gate、5 shard、
 | core unit with six explicit exclusions             | **186 files、3,221 PASS、1 skip、0 fail** |
 | core unit wall                                     | **80.86秒**                               |
 | lint / workflow / evidence validation              | **PASS**                                  |
+| dependency-free ML contract                        | **119 / 119 PASS、11.59秒**               |
+| production build                                   | **PASS、28.87秒**                         |
 | local test-only critical path                      | **135.12秒（cleanup shard）**             |
 | GitHub Actions                                     | **PENDING — not yet run**                 |
 | production `ml/` source changes                    | **0**                                     |

@@ -150,7 +150,27 @@ def approved_public_surface_profile(
     return profile
 
 
+def consistent_public_surface_profile(
+    graph_label: str,
+    expected_profiles: list[PublicSurfaceProfile],
+) -> PublicSurfaceProfile:
+    if not expected_profiles:
+        raise VerificationError(
+            f"{graph_label}: no approved calibration profiles"
+        )
+    distinct_profiles = set(expected_profiles)
+    if len(distinct_profiles) != 1:
+        raise VerificationError(
+            f"{graph_label}: base/shard files use different "
+            f"calibration profiles: {distinct_profiles}"
+        )
+    return expected_profiles[0]
+
+
 def run_calibration_profile_self_checks() -> None:
+    approved_contexts: list[
+        tuple[dict[str, object], dict[str, object], PublicSurfaceProfile]
+    ] = []
     for (
         generator,
         format_key,
@@ -171,25 +191,84 @@ def run_calibration_profile_self_checks() -> None:
             raise VerificationError(
                 "approved calibration profile self-check mismatch"
             )
-    unknown_metadata = {
-        "formatVersion": json.loads(SYMBOL_GRAPH_FORMAT_VERSION_0_6_0),
-        "generator": "Apple Swift version unapproved",
+        approved_contexts.append((metadata, module, expected_profile))
+
+    if len(approved_contexts) != 2:
+        raise VerificationError(
+            "calibration profile self-check expected exactly two profiles"
+        )
+    baseline_metadata, baseline_module, _ = approved_contexts[0]
+    unknown_generator_metadata = dict(baseline_metadata)
+    unknown_generator_metadata["generator"] = "Apple Swift version unapproved"
+    unknown_format_metadata = {
+        **baseline_metadata,
+        "formatVersion": {"major": 0, "minor": 6, "patch": 1},
     }
-    unknown_module = {
-        "name": SYMBOL_GRAPH_MODULE,
-        "platform": json.loads(ARM64_MACOS_13_PLATFORM),
+    unknown_platform_module = {
+        **baseline_module,
+        "platform": {
+            **baseline_module["platform"],
+            "architecture": "x86_64",
+        },
     }
+    unknown_name_module = {
+        **baseline_module,
+        "name": f"{SYMBOL_GRAPH_MODULE}Unexpected",
+    }
+    for context_label, metadata, module in (
+        (
+            "generator",
+            unknown_generator_metadata,
+            baseline_module,
+        ),
+        (
+            "format",
+            unknown_format_metadata,
+            baseline_module,
+        ),
+        (
+            "platform",
+            baseline_metadata,
+            unknown_platform_module,
+        ),
+        (
+            "module",
+            baseline_metadata,
+            unknown_name_module,
+        ),
+    ):
+        try:
+            approved_public_surface_profile(metadata, module)
+        except VerificationError as error:
+            expected_fragments = (
+                "unapproved symbol-graph calibration context",
+                "invalid symbol-graph generator",
+            )
+            if not any(
+                fragment in str(error)
+                for fragment in expected_fragments
+            ):
+                raise
+        else:
+            raise VerificationError(
+                f"unknown {context_label} calibration context "
+                "unexpectedly passed"
+            )
+
     try:
-        approved_public_surface_profile(
-            unknown_metadata,
-            unknown_module,
+        consistent_public_surface_profile(
+            "mixed-profile self-check",
+            [
+                approved_contexts[0][2],
+                approved_contexts[1][2],
+            ],
         )
     except VerificationError as error:
-        if "unapproved symbol-graph calibration context" not in str(error):
+        if "different calibration profiles" not in str(error):
             raise
     else:
         raise VerificationError(
-            "unknown calibration profile unexpectedly passed"
+            "mixed base/shard calibration profiles unexpectedly passed"
         )
 
 
@@ -1085,13 +1164,13 @@ def main() -> None:
             symbols.extend(graph_symbols)
             relationships.extend(graph_relationships)
         verified_file_count += len(symbol_graph_files)
-        distinct_profiles = set(expected_profiles)
-        if len(distinct_profiles) != 1:
-            fail(
-                f"{symbol_graph_directory}: base/shard files use "
-                f"different calibration profiles: {distinct_profiles}"
+        try:
+            expected_profile = consistent_public_surface_profile(
+                str(symbol_graph_directory),
+                expected_profiles,
             )
-        expected_profile = expected_profiles[0]
+        except VerificationError as error:
+            fail(str(error))
         verified_profile_labels.add(expected_profile[0])
         graph_label = ", ".join(
             str(path) for path in symbol_graph_files

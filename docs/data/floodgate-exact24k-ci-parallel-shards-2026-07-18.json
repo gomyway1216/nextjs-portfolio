@@ -1,0 +1,280 @@
+{
+  "schema": "shogi-floodgate-exact24k-ci-parallel-shards-evidence-v1",
+  "evidence_date": "2026-07-18",
+  "evidence_timezone": "America/Los_Angeles",
+  "publication_state": {
+    "status": "LOCAL-PASS-AWS-SYNC-REVIEW-GITHUB-CI-PENDING",
+    "claims_final": false,
+    "local_validation_final": true,
+    "github_ci_measured": false,
+    "required_next_action": "merge-aws-adapter-contract-sync-main-add-aggregate-edge-review-and-run-github-ci"
+  },
+  "revision": {
+    "base_revision": "ec64549e429803d406383376162eaeb9456df9ef",
+    "test_split_revision": "fb9f3c25c7def9f0007ca4d6b3dc351754fe0682",
+    "ci_wiring_revision": "2210569cd6a26530afd72ce5bd9407b6385f702f",
+    "ci_wiring_tree": "51e294f7b0fd84b3c8816e56d9dc9f3aaf12bd0c",
+    "branch": "codex/ci-exact24k-parallel-shards",
+    "continuous_integration": "PENDING",
+    "pull_request": null
+  },
+  "scope": {
+    "test_workflow_documentation_only": true,
+    "production_ml_source_files_changed": 0,
+    "application_source_files_changed": 0,
+    "package_json_changed": false,
+    "package_lock_changed": false,
+    "teacher_generation_performed": false,
+    "training_performed": false,
+    "candidate_selection_performed": false,
+    "formal_ab_performed": false,
+    "external_calibration_performed": false,
+    "production_execution_performed": false,
+    "live_evaluator_changed": false,
+    "live_weights_changed": false
+  },
+  "machine": {
+    "os": "Darwin 24.1.0 arm64",
+    "logical_cpus": 14,
+    "physical_cpus": 14,
+    "memory_bytes": 51539607552,
+    "memory_gib": 48,
+    "node": "22.13.0",
+    "npm": "11.14.1"
+  },
+  "split_contract": {
+    "exact_parent_count": 24000,
+    "gates": [100, 500, 24000],
+    "old_scanner_test_files": 1,
+    "old_scanner_runtime_tests": 1,
+    "scanner_shards": 5,
+    "scanner_runtime_tests": 5,
+    "conceptual_case_ids": 19,
+    "conceptual_case_duplicate_ids": 0,
+    "conceptual_case_missing_ids": 0,
+    "teacher_direct_it_titles": 40,
+    "teacher_runtime_titles": 49,
+    "core_explicit_exclusions": 6,
+    "vitest_title_filter_used": false,
+    "vitest_generic_shard_used": false,
+    "each_scanner_shard_builds_fresh_fixture": true,
+    "each_scanner_shard_runs_all_exact_gates": true
+  },
+  "scanner_parallel_validation": {
+    "status": "PASS",
+    "started_utc": "2026-07-18T23:36:36.097Z",
+    "last_report_end_utc": "2026-07-18T23:38:50.809Z",
+    "parallel_process_wall_seconds": 135.12,
+    "sum_individual_process_wall_seconds": 530.07,
+    "observed_wall_speedup_over_serial_sum": 3.922,
+    "files_passed": 5,
+    "tests_passed": 5,
+    "tests_failed": 0,
+    "tests_pending": 0,
+    "tests_todo": 0,
+    "reports_exact_file_and_title_verified": 5,
+    "shards": [
+      {
+        "id": "authority",
+        "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+        "process_wall_seconds": 73.98,
+        "vitest_report_duration_ms": 73587.8095703125,
+        "report_bytes": 1130,
+        "report_sha256": "dd33bbcc14270772f3907e48626692ad30122c2c29d68977218161a54fb5de33"
+      },
+      {
+        "id": "mutation",
+        "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+        "process_wall_seconds": 109.28,
+        "vitest_report_duration_ms": 108906.919921875,
+        "report_bytes": 1116,
+        "report_sha256": "f15ed42a1fec95bf93bf0bf123f099fe208e02a4c7102be28c8187c03fd7dae6"
+      },
+      {
+        "id": "replay",
+        "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
+        "process_wall_seconds": 106.27,
+        "vitest_report_duration_ms": 105908.21801757812,
+        "report_bytes": 1114,
+        "report_sha256": "10dcdfaac7c48ce666ffd6c7c4afb79aa005594b6dd2c1e8d602f79f5af14458"
+      },
+      {
+        "id": "cleanup",
+        "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+        "process_wall_seconds": 135.12,
+        "vitest_report_duration_ms": 134712.1103515625,
+        "report_bytes": 1134,
+        "report_sha256": "2fcc936ae6c3e5676544c1bdbadf2703a978feebffc430e93afb42a3f86d0491"
+      },
+      {
+        "id": "production",
+        "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
+        "process_wall_seconds": 105.42,
+        "vitest_report_duration_ms": 105069.35034179688,
+        "report_bytes": 1118,
+        "report_sha256": "6e0b29dd1aa13f95a1877a7ee6a69737d92c47f22588f28726bea30d9254e95d"
+      }
+    ]
+  },
+  "teacher_validation": {
+    "status": "PASS",
+    "file": "tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts",
+    "started_utc": "2026-07-18T23:39:03.257Z",
+    "ended_utc": "2026-07-18T23:40:44.073Z",
+    "process_wall_seconds": 101.16,
+    "vitest_report_duration_ms": 100816.90600585938,
+    "direct_it_titles": 40,
+    "runtime_tests": 49,
+    "tests_passed": 49,
+    "tests_failed": 0,
+    "tests_pending": 0,
+    "tests_todo": 0,
+    "exact_file_and_all_runtime_titles_verified": true,
+    "report_bytes": 20346,
+    "report_sha256": "2b3c6c1316936bfc32e31aa75724876b3e545cd54b653344da43c75cb7f06080"
+  },
+  "core_validation": {
+    "status": "PASS",
+    "started_utc": "2026-07-18T23:46:01.967Z",
+    "ended_utc": "2026-07-18T23:47:22.534Z",
+    "process_wall_seconds": 80.86,
+    "vitest_report_duration_ms": 80567.84350585938,
+    "test_files": 186,
+    "test_suites": 619,
+    "tests_total": 3222,
+    "tests_passed": 3221,
+    "tests_failed": 0,
+    "tests_pending": 1,
+    "tests_todo": 0,
+    "six_heavy_files_explicitly_excluded": true,
+    "report_bytes": 1137389,
+    "report_sha256": "d8cd2d3a60cd08629807a52ad7179f633d0e947b9a49e7f554b9de0858b96847"
+  },
+  "supporting_validation": {
+    "inventory_and_adversarial_verifier_tests": {
+      "status": "PASS",
+      "files": 1,
+      "tests_passed": 4,
+      "tests_failed": 0
+    },
+    "historical_evidence_compatibility_focus": {
+      "status": "PASS",
+      "files": 4,
+      "tests_passed": 24,
+      "tests_failed": 0
+    },
+    "eslint": {
+      "status": "PASS",
+      "errors": 0,
+      "preexisting_warnings": 157
+    },
+    "workflow_yaml_parse": "PASS",
+    "workflow_inventory_wiring": "PASS",
+    "prettier_selected_files": "PASS",
+    "typescript_non_gating_check": {
+      "status": "BASELINE-FAIL",
+      "candidate_errors": 0,
+      "baseline_error_kind": "BigInt literals in preexisting golden tests with repository target below ES2020"
+    }
+  },
+  "intermediate_findings": [
+    {
+      "finding": "Teacher has 40 direct it declarations but 49 runtime assertions after three parameterized declarations expand",
+      "initial_result": "40-title inventory rejected by the exact report verifier",
+      "resolution": "pin all 49 measured runtime titles and retain the separate direct-title count of 40"
+    },
+    {
+      "finding": "historical workflow snapshot tests treated current workflow bytes as permanently immutable and counted upload-artifact references across unrelated jobs",
+      "initial_result": "initial core run had 3 failures, 3218 passes, 1 skip, and 84.86-second wall",
+      "resolution": "preserve historical revision and hashes while validating the exact live external-trust-root job boundary; focused 24 tests and full core rerun pass"
+    },
+    {
+      "finding": "adding package scripts would mutate a package.json identity intentionally pinned by existing production evidence",
+      "initial_result": "initial core run detected the package byte and digest drift",
+      "resolution": "keep package.json and package-lock.json unchanged and place exact commands directly in the workflow"
+    }
+  ],
+  "ci_contract": {
+    "core_job": "core_quality_build",
+    "scanner_job": "exact24k_scanner",
+    "scanner_matrix_entries": 5,
+    "teacher_job": "exact24k_teacher",
+    "required_aggregate_job": "test_and_build",
+    "required_aggregate_name": "Test and build",
+    "required_aggregate_if_always": true,
+    "required_aggregate_checks_every_current_dependency_result": true,
+    "aws_witness_adapter_contract_present_in_base": false,
+    "aws_aggregate_edge_status": "PENDING-AFTER-AWS-PR-MERGE-AND-MAIN-SYNC",
+    "verifier_requires_aws_edge_when_aws_job_is_present": true,
+    "github_ci_critical_path_seconds": null,
+    "github_ci_critical_path_status": "UNMEASURED"
+  },
+  "committed_candidate_snapshots": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 11406,
+      "sha256": "b1a9c60cf54b04b05d18cda6731fa246e073021db615fc448ddbad1d9764d9aa"
+    },
+    {
+      "path": ".github/ci/exact24k-vitest-inventory.json",
+      "bytes": 8264,
+      "sha256": "966680eec7f199af6a6dec4c85f77fabdc0a04806d43f21c083f01225824c1d5"
+    },
+    {
+      "path": "scripts/verify-exact24k-vitest-report.mjs",
+      "bytes": 15905,
+      "sha256": "67ef75b76b46128f46d1e849fe84958ec19b54594414a5ad4db3f50ef55418b9"
+    },
+    {
+      "path": "tests/unit/ml/exact24kVitestInventory.test.ts",
+      "bytes": 5255,
+      "sha256": "0399a585159c5898077037218cdd2ce2663b8a6862e9c4fc2dc912f5d8b6d515"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScanner.shared.ts",
+      "bytes": 53202,
+      "sha256": "9ccc5dde198cafb3ade2be1792bd35302e04ebe5079d725fbad886f970e183a4"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+      "bytes": 543,
+      "sha256": "869c9014747ae195a88d1fa8fb04601d98d232252aba8806027bd6b7dc745872"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+      "bytes": 537,
+      "sha256": "d2ca8f8e9c7f48d8079a6c23d1828b27b74f9bb58a97484d37138e8584e63087"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
+      "bytes": 528,
+      "sha256": "9e9b5c725ae58ff66e73e648e49cd3f40228c8f82eb97040e3003ca03b37210f"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+      "bytes": 539,
+      "sha256": "52c1d37ecee2da59445ee46701e61a787c409491fb34512e267b63e34f253ccc"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
+      "bytes": 538,
+      "sha256": "92597df676f92d66c47cac2ed5736d3056f4ebec415e73b83b362956370614b7"
+    }
+  ],
+  "local_test_only_critical_path": {
+    "seconds": 135.12,
+    "source": "five concurrent scanner shard processes",
+    "github_ci_inference_allowed": false
+  },
+  "next_gates": [
+    "exact-review-local-commits",
+    "merge-aws-witness-adapter-contract-first",
+    "sync-latest-main",
+    "add-aws-witness-adapter-contract-to-required-aggregate-needs-and-result-check",
+    "rerun-local-validation",
+    "open-ready-for-review-pr",
+    "measure-and-pass-github-ci",
+    "address-review-comments",
+    "normal-merge"
+  ]
+}

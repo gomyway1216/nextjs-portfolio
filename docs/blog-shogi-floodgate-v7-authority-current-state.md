@@ -92,7 +92,7 @@ Node 22.13.0でfocused golden parserは**1 file / 7 tests PASS**した。depende
 
 local Xcode 15.3 / Apple Swift 5.10のpublic symbol graphは実測516 symbols / 570 relationships、normalized SHA-256 `879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a`でsemantic gate PASSだった。既に実測したtoolchain transformから導出したXcode 26.5 / Swift 6.3.2 profileは516 / 609、SHA-256 `1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce`だが、これは**derived / remote confirmation pending**であり、CI実測として数えない。
 
-`Package.swift`と2つの`main.swift`はmerge baseと同じblobであることをrepository evidence testで固定する。従って、今回のsourceが存在してもsupervisorとverifierはdependencyを持たないfixed STOP executableのままであり、production authorityを実行しない。
+`Package.swift`は、このsnapshotのmerge baseからimplementation commitを経て、後続のservice-core target追加直前のmain `9aacb89670f566ab3b5d219e815f490580713455`まで同じblobだったことをrepository evidence testで履歴固定する。現在のmanifestは別のsource / test-only target追加により意図的に異なる。一方、現在の2つの`main.swift`は引き続きmerge baseとbyte-identicalなfixed STOP executableとして検査され、supervisorとverifierはproduction authorityを実行しない。
 
 ## 8. 今回していないこと
 

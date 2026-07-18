@@ -19,6 +19,10 @@ const japaneseArticleRelative =
   "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.md";
 const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.en.md";
+const runtimePolicyEvidenceRelative =
+  "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts";
+const runtimePolicyEvidenceEvolutionBaseRevision =
+  "3971ddab4e408dc7d2c2934c117d5c331e157ef0";
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -203,12 +207,42 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       .sort();
     expect(committedPaths).toEqual(pinnedPaths);
     for (const relativePath of pinnedPaths) {
-      const currentBlob = gitOutput(["hash-object", relativePath]);
       const pinnedBlob = gitOutput([
         "--no-replace-objects",
         "rev-parse",
         `${evidence.revision.implementation_revision}:${relativePath}`,
       ]);
+      if (relativePath === runtimePolicyEvidenceRelative) {
+        const baseBlob = gitOutput([
+          "--no-replace-objects",
+          "rev-parse",
+          `${evidence.revision.merge_base_revision}:${relativePath}`,
+        ]);
+        expect(pinnedBlob, relativePath).not.toBe(baseBlob);
+        for (const historicalRevision of [
+          evidence.revision.integration_merge_revision,
+          evidence.revision.publication_revision,
+          runtimePolicyEvidenceEvolutionBaseRevision,
+        ]) {
+          expect(
+            gitOutput([
+              "--no-replace-objects",
+              "merge-base",
+              "--is-ancestor",
+              evidence.revision.implementation_revision,
+              historicalRevision,
+            ]),
+          ).toBe("");
+          const historicalBlob = gitOutput([
+            "--no-replace-objects",
+            "rev-parse",
+            `${historicalRevision}:${relativePath}`,
+          ]);
+          expect(historicalBlob, relativePath).toBe(pinnedBlob);
+        }
+        continue;
+      }
+      const currentBlob = gitOutput(["hash-object", relativePath]);
       expect(currentBlob, relativePath).toBe(pinnedBlob);
     }
 

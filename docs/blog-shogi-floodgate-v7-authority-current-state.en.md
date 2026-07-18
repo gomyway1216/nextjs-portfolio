@@ -92,7 +92,7 @@ Under Node 22.13.0, the focused golden parser recorded **1 file / 7 tests PASS**
 
 The locally measured public symbol graph under Xcode 15.3 / Apple Swift 5.10 has 516 symbols, 570 relationships, normalized SHA-256 `879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a`, and a passing semantic gate. Applying only the previously observed toolchain transform derives an Xcode 26.5 / Swift 6.3.2 profile of 516 / 609 with SHA-256 `1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce`, but that value is **derived / remote confirmation pending** and is not counted as remotely measured CI evidence.
 
-The repository evidence test pins `Package.swift` and both `main.swift` blobs to the merge base. The presence of this source therefore leaves supervisor and verifier as dependency-free fixed STOP executables and does not execute production authority.
+The repository evidence test historically pins `Package.swift` from this snapshot's merge base through its implementation commit and the last main revision before the later service-core target was added, `9aacb89670f566ab3b5d219e815f490580713455`. The current manifest is intentionally different because another source/test-only target was added. Both current `main.swift` files, however, are still checked byte-for-byte against the merge base as fixed STOP executables, so supervisor and verifier do not execute production authority.
 
 ## 8. Work not performed
 

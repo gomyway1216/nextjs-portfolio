@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import {
   FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
@@ -47,7 +47,6 @@ import {
   FLOODGATE_V7_TRAINING_LABEL_RESULT_SCHEMA,
   FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
   FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS,
-  FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
   createFloodgateV7TrainingLabelProductionPlanCoreForTests,
   discardFloodgateV7TrainingLabelProductionPlanCoreForTests,
   finalizeAndPublishFloodgateV7TrainingLabelsProductionCoreForTests,
@@ -112,7 +111,6 @@ const RUN_ID = "12".repeat(32);
 const ROOT_KEY_BYTE = 0x4b;
 const FORCED_MOVE = "5a4a";
 const temporaryRoots: string[] = [];
-const posixDescribe = describe.runIf(typeof process.geteuid === "function");
 
 interface TrainingFixture {
   readonly outputRoot: string;
@@ -800,7 +798,29 @@ async function createOutputEntry(
   }
 }
 
-afterEach(async () => {
+async function prepareExact24kScannerShard(): Promise<
+  Readonly<{
+    value: ScannerFixture;
+    deployment: DeploymentKeyFixture;
+    work: Readonly<{ bytes: number; sha256: string }>;
+    publication: Readonly<FloodgateTeacherStagePublicationDependencies>;
+  }>
+> {
+  const value = await fixture();
+  const deployment = await deploymentKeyFixture();
+  expect(value.training.identity.records).toBe(
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  );
+  expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS).toBe(24_000);
+  await sealWork(value);
+  const [work, publication] = await Promise.all([
+    workBinding(value),
+    publicationDependencies(value),
+  ]);
+  return Object.freeze({ value, deployment, work, publication });
+}
+
+export async function cleanupExact24kScannerFixtures(): Promise<void> {
   vi.restoreAllMocks();
   while (temporaryRoots.length > 0) {
     const root = temporaryRoots.pop();
@@ -808,65 +828,46 @@ afterEach(async () => {
       await fs.promises.rm(root, { recursive: true, force: true });
     }
   }
-});
+}
 
-posixDescribe("Floodgate v7 two-pass sealed training-label scanner", () => {
-  it("claims fresh authorities synchronously, scans/replays exact W/WT/WTR/WTRM, terminally reverifies, zeroizes, and commits", async () => {
-    const value = await fixture();
-    const deployment = await deploymentKeyFixture();
-    await sealWork(value);
-    const work = await workBinding(value);
+export async function runExact24kScannerAuthorityShard(): Promise<void> {
+  const { value, deployment, work, publication } =
+    await prepareExact24kScannerShard();
 
-    // A lease-independent capture failure prepares no key, claims no bogus
-    // rows, and leaves the exact active lease untouched for later use.
-    const invalidLease = await authorize(value);
-    await expect(
-      createFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        invalidLease,
-        {} as AuthenticatedFloodgateTrainingRows,
-        runBinding(),
-        {
-          runId: RUN_ID,
-          keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-          work,
-        },
-        null as never,
-        {},
-        keyAuthorityDependencies(deployment),
-        { exclusiveRename: async () => undefined },
-      ),
-    ).rejects.toThrow(/sink must be a non-Proxy function/);
+  // A lease-independent capture failure prepares no key, claims no bogus
+  // rows, and leaves the exact active lease untouched for later use.
+  const invalidLease = await authorize(value);
+  await expect(
+    createFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      invalidLease,
+      {} as AuthenticatedFloodgateTrainingRows,
+      runBinding(),
+      {
+        runId: RUN_ID,
+        keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        work,
+      },
+      null as never,
+      {},
+      keyAuthorityDependencies(deployment),
+      { exclusiveRename: async () => undefined },
+    ),
+  ).rejects.toThrow(/sink must be a non-Proxy function/);
 
-    const publication = await publicationDependencies(value);
-
-    // A valid scanner in W state cannot consume terminal authority. The
-    // failed terminal check aborts, zeroizes, and a later fresh open proves
-    // that the exact stage lease was released. The retained caller alias is
-    // inert immediately after the synchronous publication transfer.
-    let prematureTerminalKey: Uint8Array | undefined;
-    const transferredLease = invalidLease;
-    let premature:
-      Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult> | undefined;
-    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
-      value.training.options,
-      async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
-        const clonedLeaseFailure =
-          createFloodgateV7TrainingLabelSealedScannerCoreForTests(
-            { ...transferredLease },
-            input,
-            runBinding(),
-            {
-              runId: RUN_ID,
-              keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-              work,
-            },
-            async () => undefined,
-            {},
-            keyAuthorityDependencies(deployment),
-            publication,
-          );
-        const opening = createFloodgateV7TrainingLabelSealedScannerCoreForTests(
-          transferredLease,
+  // A valid scanner in W state cannot consume terminal authority. The
+  // failed terminal check aborts, zeroizes, and a later fresh open proves
+  // that the exact stage lease was released. The retained caller alias is
+  // inert immediately after the synchronous publication transfer.
+  let prematureTerminalKey: Uint8Array | undefined;
+  const transferredLease = invalidLease;
+  let premature:
+    Readonly<FloodgateV7TrainingLabelSealedScannerOpenResult> | undefined;
+  await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+    value.training.options,
+    async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+      const clonedLeaseFailure =
+        createFloodgateV7TrainingLabelSealedScannerCoreForTests(
+          { ...transferredLease },
           input,
           runBinding(),
           {
@@ -875,617 +876,612 @@ posixDescribe("Floodgate v7 two-pass sealed training-label scanner", () => {
             work,
           },
           async () => undefined,
-          {
-            observeKeyForTests: (key) => {
-              prematureTerminalKey = key;
-              return undefined;
-            },
-          },
+          {},
           keyAuthorityDependencies(deployment),
           publication,
         );
-        await expect(clonedLeaseFailure).rejects.toThrow(
-          /begin requires the exact active unclaimed lease/,
-        );
-        await expect(transferredLease.close()).rejects.toThrow();
-        premature = await opening;
-      },
-      trainingDependencies(value.training.identity),
-    );
-    if (premature === undefined) {
-      throw new Error("premature terminal scanner did not open");
-    }
-    await expect(
-      terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        premature.scanner,
-      ),
-    ).rejects.toThrow(/requires exact WTRM stage state/);
-    expect(prematureTerminalKey?.every((byte) => byte === 0)).toBe(true);
-    await expect(
-      discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        premature.scanner,
-      ),
-    ).resolves.toBeUndefined();
-
-    // Internal key preparation happens only after a complete same-held-FD
-    // unkeyed preflight. A rejected key authority aborts the transaction and
-    // leaves no derived key or scanner facade behind.
-    let unkeyedPreflightReads = 0;
-    let escapedKeyPrepareScanner:
-      Readonly<FloodgateV7TrainingLabelSealedScanner> | undefined;
-    await expect(
-      openScanner(
-        value,
-        deployment,
-        work,
-        publication,
-        async () => undefined,
-        {
-          readForTests: async (request, read) => {
-            if (request.purpose === "unkeyed-preflight") {
-              unkeyedPreflightReads += 1;
-            }
-            return read();
-          },
-        },
-        {
-          effectiveUserId: effectiveUserId(),
-          homeDirectory: path.join(deployment.home, "missing-home"),
-        },
-      ).then((opened) => {
-        escapedKeyPrepareScanner = opened.scanner;
-        return opened;
-      }),
-    ).rejects.toThrow(/home identity check failed/);
-    expect(unkeyedPreflightReads).toBeGreaterThan(0);
-    expect(escapedKeyPrepareScanner).toBeUndefined();
-
-    // Pass one never calls the sink. A pass-two sink failure after a few
-    // parents mints no scanner, aborts the internal publication transaction,
-    // zeroizes the owned key, and leaves the stage freshly authorizable.
-    let failedPassTwoKey: Uint8Array | undefined;
-    let escapedFailedScanner:
-      Readonly<FloodgateV7TrainingLabelSealedScanner> | undefined;
-    let failedPassTwoCalls = 0;
-    await expect(
-      openScanner(
-        value,
-        deployment,
-        work,
-        publication,
-        async (event) => {
-          expect(event.input_index).toBe(failedPassTwoCalls);
-          failedPassTwoCalls += 1;
-          if (event.input_index === 3) {
-            throw new Error("forced pass-two sink failure");
-          }
-        },
-        {
-          observeKeyForTests: (key) => {
-            failedPassTwoKey = key;
-            return undefined;
-          },
-        },
-      ).then((opened) => {
-        escapedFailedScanner = opened.scanner;
-        return opened;
-      }),
-    ).rejects.toThrow(/forced pass-two sink failure/);
-    expect(failedPassTwoCalls).toBe(4);
-    expect(escapedFailedScanner).toBeUndefined();
-    expect(failedPassTwoKey).toBeDefined();
-    expect(failedPassTwoKey?.every((byte) => byte === 0)).toBe(true);
-    expect(
-      (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),
-    ).toEqual([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]);
-
-    // Replacing only the named path while pass two is backpressured cannot
-    // redirect the held descriptor and is rejected at the enclosing path
-    // confirmation. The replacement is restored only after abort completes.
-    const workPath = path.join(
-      value.stageRoot,
-      FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
-    );
-    const heldWorkBackup = path.join(value.root, "held-original-work.jsonl");
-    let replacementPerformed = false;
-    let replacementKey: Uint8Array | undefined;
-    let replacementSinkCalls = 0;
-    try {
-      await expect(
-        openScanner(
-          value,
-          deployment,
-          work,
-          publication,
-          async (event) => {
-            expect(event.input_index).toBe(replacementSinkCalls);
-            replacementSinkCalls += 1;
-            if (!replacementPerformed) {
-              await fs.promises.rename(workPath, heldWorkBackup);
-              await fs.promises.copyFile(heldWorkBackup, workPath);
-              await fs.promises.chmod(workPath, 0o600);
-              replacementPerformed = true;
-            }
-          },
-          {
-            observeKeyForTests: (key) => {
-              replacementKey = key;
-              return undefined;
-            },
-          },
-        ),
-      ).rejects.toThrow(/mutated during read|path snapshot changed/);
-    } finally {
-      if (replacementPerformed) {
-        await fs.promises.rm(workPath, { force: true });
-        await fs.promises.rename(heldWorkBackup, workPath);
-      }
-    }
-    expect(replacementSinkCalls).toBe(
-      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-    );
-    expect(replacementKey?.every((byte) => byte === 0)).toBe(true);
-
-    // A pass-two stream can authenticate every parent provisionally and still
-    // fail its enclosing seal. No scanner escapes and the owned key is erased.
-    const originalWork = await fs.promises.readFile(workPath);
-    const corruptedWork = Buffer.from(originalWork);
-    const sealMarker = Buffer.from('"seal_mac":"');
-    const sealMarkerOffset = corruptedWork.lastIndexOf(sealMarker);
-    if (sealMarkerOffset < 0) throw new Error("fixture seal marker is absent");
-    const sealHexOffset = sealMarkerOffset + sealMarker.byteLength;
-    corruptedWork[sealHexOffset] =
-      corruptedWork[sealHexOffset] === 0x30 ? 0x31 : 0x30;
-    let keyedScanStarts = 0;
-    let badSealWritten = false;
-    let badSealKey: Uint8Array | undefined;
-    let badSealSinkCalls = 0;
-    try {
-      await expect(
-        openScanner(
-          value,
-          deployment,
-          work,
-          publication,
-          async (event) => {
-            expect(event.input_index).toBe(badSealSinkCalls);
-            badSealSinkCalls += 1;
-          },
-          {
-            readForTests: async (request, read) => {
-              if (
-                request.purpose === "sealed-final" &&
-                request.position === 0
-              ) {
-                keyedScanStarts += 1;
-                if (keyedScanStarts === 2) {
-                  await fs.promises.writeFile(workPath, corruptedWork);
-                  badSealWritten = true;
-                }
-              }
-              return read();
-            },
-            observeKeyForTests: (key) => {
-              badSealKey = key;
-              return undefined;
-            },
-          },
-        ),
-      ).rejects.toThrow(/work seal MAC is invalid/);
-    } finally {
-      if (badSealWritten) {
-        await fs.promises.writeFile(workPath, originalWork);
-      }
-    }
-    expect(badSealSinkCalls).toBe(
-      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-    );
-    expect(badSealKey?.every((byte) => byte === 0)).toBe(true);
-
-    let passTwoCalls = 0;
-    let activeSinks = 0;
-    let maximumActiveSinks = 0;
-    let observedKey: Uint8Array | undefined;
-    let failFirstStageClose = true;
-    const opened = await openScanner(
-      value,
-      deployment,
-      work,
-      publication,
-      async (event) => {
-        activeSinks += 1;
-        maximumActiveSinks = Math.max(maximumActiveSinks, activeSinks);
-        expect(event.input_index).toBe(passTwoCalls);
-        passTwoCalls += 1;
-        await Promise.resolve();
-        activeSinks -= 1;
-      },
-      {
-        observeKeyForTests: (key) => {
-          observedKey = key;
-          return undefined;
-        },
-        closeForTests: async (kind, close) => {
-          if (kind === "stage" && failFirstStageClose) {
-            failFirstStageClose = false;
-            throw new Error("forced first stage descriptor close failure");
-          }
-          await close();
-        },
-      },
-    );
-    const { scanner, receipt: openReceipt } = opened;
-    expect(passTwoCalls).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS);
-    expect(maximumActiveSinks).toBe(1);
-    expect(openReceipt.work).toMatchObject(work);
-    expect(openReceipt.teacher_run_binding_sha256).toBe(
-      sha256(canonicalJson(runBinding())),
-    );
-    expect(openReceipt.training.binding_sha256).toBe(
-      sha256(canonicalJson(openReceipt.training.binding)),
-    );
-    expect(openReceipt.verification).toMatchObject({
-      unkeyed_preflight_full_file: true,
-      unkeyed_preflight_matches_expected_work: true,
-      key_prepared_from_same_held_preflight: true,
-      first_pass_without_sink: true,
-      second_pass_sink_awaited_with_backpressure: true,
-      same_held_work_descriptor: true,
-      same_full_work_snapshot: true,
-      exact_sealed_records: 24_004,
-      exact_completed_parents: 24_000,
-    });
-    expect(Object.keys(scanner).sort(compareBytewise)).toEqual(
-      ["claim_boundary", "contract", "execution_boundary", "status"].sort(
-        compareBytewise,
-      ),
-    );
-    expect(observedKey).toBeDefined();
-    expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
-
-    await expect(
-      replayFloodgateV7TrainingLabelSealedScanner(scanner, async () => {}),
-    ).rejects.toThrow(/other execution boundary/);
-    await expect(
-      replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        { ...scanner },
-        async () => {},
-      ),
-    ).rejects.toThrow(/cloned or foreign/);
-
-    const decoratedPromise = Promise.resolve();
-    Object.defineProperty(decoratedPromise, "scanner_test_marker", {
-      value: true,
-    });
-    await expect(
-      replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        scanner,
-        () => decoratedPromise,
-      ),
-    ).rejects.toThrow(/must return an exact native Promise/);
-    expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
-
-    const context =
-      getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
-        scanner,
-      );
-    expect(context.stageRoot).toBe(value.stageRoot);
-    await createOutputEntry(context.stageRoot, "train.jsonl");
-
-    let releaseFirstSink!: () => void;
-    let markFirstSinkEntered!: () => void;
-    const firstSinkEntered = new Promise<void>((resolve) => {
-      markFirstSinkEntered = resolve;
-    });
-    const holdFirstSink = new Promise<void>((resolve) => {
-      releaseFirstSink = resolve;
-    });
-    let concurrentReplayCalls = 0;
-    const activeReplay =
-      replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        scanner,
-        async (event) => {
-          expect(event.input_index).toBe(concurrentReplayCalls);
-          concurrentReplayCalls += 1;
-          if (event.input_index === 0) {
-            markFirstSinkEntered();
-            await holdFirstSink;
-          }
-        },
-      );
-    await firstSinkEntered;
-    try {
-      await expect(
-        replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-          scanner,
-          async () => undefined,
-        ),
-      ).rejects.toThrow(/replay is already active/);
-      await expect(
-        terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
-          scanner,
-        ),
-      ).rejects.toThrow(/terminal reverify is already active/);
-    } finally {
-      releaseFirstSink();
-    }
-    await activeReplay;
-    expect(concurrentReplayCalls).toBe(
-      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-    );
-
-    for (const filename of ["result.json", "manifest.json"] as const) {
-      await createOutputEntry(context.stageRoot, filename);
-      let replayCalls = 0;
-      await replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        scanner,
-        async (event) => {
-          expect(event.input_index).toBe(replayCalls);
-          replayCalls += 1;
-        },
-      );
-      expect(replayCalls).toBe(
-        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-      );
-    }
-
-    // The key is zeroized before either descriptor close. If the first stage
-    // close fails, cleanup retries only that still-open descriptor and aborts
-    // publication; no terminal receipt escapes.
-    await expect(
-      terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        scanner,
-      ),
-    ).rejects.toThrow(/forced first stage descriptor close failure/);
-    expect(failFirstStageClose).toBe(false);
-    expect(observedKey?.every((byte) => byte === 0)).toBe(true);
-    await expect(
-      discardFloodgateV7TrainingLabelSealedScannerCoreForTests(scanner),
-    ).resolves.toBeUndefined();
-
-    // A fresh scanner reuses the exact bound WTRM stage. Work close reports a
-    // failure after the real close, while publication abort succeeds and
-    // releases the namespace. The facade retains that cleanup-indeterminate
-    // rejection for discard, replay, and context instead of becoming a no-op.
-    const indeterminatePublication = await publicationDependencies(value);
-    let indeterminateKey: Uint8Array | undefined;
-    const indeterminate = await openScanner(
-      value,
-      deployment,
-      work,
-      indeterminatePublication,
-      async () => undefined,
-      {
-        observeKeyForTests: (key) => {
-          indeterminateKey = key;
-          return undefined;
-        },
-        closeForTests: async (kind, close) => {
-          await close();
-          if (kind === "work") {
-            throw new Error("forced post-close scanner failure");
-          }
-        },
-      },
-    );
-    let rememberedCleanupFailure: unknown;
-    try {
-      await discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        indeterminate.scanner,
-      );
-    } catch (error) {
-      rememberedCleanupFailure = error;
-    }
-    expect(rememberedCleanupFailure).toBeInstanceOf(AggregateError);
-    expect(indeterminateKey?.every((byte) => byte === 0)).toBe(true);
-    await expect(
-      discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        indeterminate.scanner,
-      ),
-    ).rejects.toBe(rememberedCleanupFailure);
-    await expect(
-      replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
-        indeterminate.scanner,
-        async () => undefined,
-      ),
-    ).rejects.toBe(rememberedCleanupFailure);
-    let rememberedContextFailure: unknown;
-    try {
-      getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
-        indeterminate.scanner,
-      );
-    } catch (error) {
-      rememberedContextFailure = error;
-    }
-    expect(rememberedContextFailure).toBe(rememberedCleanupFailure);
-
-    // Remove the raw scanner's synthetic WTRM successors. The real test-core
-    // composition then starts from W using the same 24k authenticated corpus.
-    for (const filename of [
-      FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
-      FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
-      FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
-    ] as const) {
-      await fs.promises.rm(path.join(value.stageRoot, filename));
-    }
-    expect(
-      (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),
-    ).toEqual([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]);
-
-    const preparedOutputKeys: Uint8Array[] = [];
-    const finalizerOwnedKeys: Uint8Array[] = [];
-    const e2eKeyDependencies = {
-      ...keyAuthorityDependencies(deployment),
-      observePreparedKeyForTests: (
-        kind:
-          "sealed-scan" | "training-label-result" | "training-label-manifest",
-        key: Uint8Array,
-      ) => {
-        if (kind !== "sealed-scan") preparedOutputKeys.push(key);
-      },
-    };
-    let e2eScannerKey: Uint8Array | undefined;
-    let e2eScannerCloseCalls = 0;
-    const e2eScannerDependencies: FloodgateV7TrainingLabelSealedScannerDependenciesForTests =
-      {
-        observeKeyForTests: (key) => {
-          e2eScannerKey = key;
-          return undefined;
-        },
-        closeForTests: async (_kind, close) => {
-          expect(e2eScannerKey?.every((byte) => byte === 0)).toBe(true);
-          e2eScannerCloseCalls += 1;
-          await close();
-        },
-      };
-    const productionLease = await authorize(value);
-    await expect(
-      createFloodgateV7TrainingLabelProductionPlanCoreForTests(
-        productionLease,
-        {} as AuthenticatedFloodgateTrainingRows,
-        new Proxy(runBinding(), {}),
+      const opening = createFloodgateV7TrainingLabelSealedScannerCoreForTests(
+        transferredLease,
+        input,
+        runBinding(),
         {
           runId: RUN_ID,
           keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
           work,
         },
-        e2eKeyDependencies,
-        e2eScannerDependencies,
-        publication,
-      ),
-    ).rejects.toThrow();
-    let productionPlan:
-      Readonly<FloodgateV7TrainingLabelProductionPlanForTests> | undefined;
-    const postflight =
-      await withVerifiedPinnedFloodgateTrainingRowsAndPostflightCoreForTests(
-        value.training.options,
-        async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
-          productionPlan =
-            await createFloodgateV7TrainingLabelProductionPlanCoreForTests(
-              productionLease,
-              input,
-              runBinding(),
-              {
-                runId: RUN_ID,
-                keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-                work,
-              },
-              e2eKeyDependencies,
-              e2eScannerDependencies,
-              publication,
-            );
-        },
-        trainingDependencies(value.training.identity),
-      );
-    if (productionPlan === undefined) {
-      throw new Error("test production composer did not mint a plan");
-    }
-    const receipt =
-      await finalizeAndPublishFloodgateV7TrainingLabelsProductionCoreForTests(
-        productionPlan,
-        postflight,
-        e2eKeyDependencies,
+        async () => undefined,
         {
-          effectiveUserId: effectiveUserId(),
-          observeKeyForTests: (kind, key) => {
-            if (kind !== "root") finalizerOwnedKeys.push(key);
+          observeKeyForTests: (key) => {
+            prematureTerminalKey = key;
             return undefined;
           },
         },
+        keyAuthorityDependencies(deployment),
+        publication,
       );
-    expect(receipt.status).toBe(
-      FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS,
-    );
-    expect(receipt.execution_boundary).toBe(
-      "test-only-injected-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication",
-    );
-    expect(receipt.content).toMatchObject({
-      parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-      training_records: 0,
-    });
-    expect(receipt.publication.publication_durability).toBe(
-      "published-and-lease-removal-durable",
-    );
-    expect(receipt.postpublication).toEqual({
-      destination_reopened: true,
-      exact_entries: FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES,
-      content_reverified: true,
-    });
-    expect(e2eScannerCloseCalls).toBe(2);
-    expect(e2eScannerKey?.every((byte) => byte === 0)).toBe(true);
-    expect(preparedOutputKeys).toHaveLength(2);
-    expect(
-      preparedOutputKeys.every((key) => key.every((byte) => byte === 0)),
-    ).toBe(true);
-    expect(finalizerOwnedKeys).toHaveLength(2);
-    expect(
-      finalizerOwnedKeys.every((key) => key.every((byte) => byte === 0)),
-    ).toBe(true);
+      await expect(clonedLeaseFailure).rejects.toThrow(
+        /begin requires the exact active unclaimed lease/,
+      );
+      await expect(transferredLease.close()).rejects.toThrow();
+      premature = await opening;
+    },
+    trainingDependencies(value.training.identity),
+  );
+  if (premature === undefined) {
+    throw new Error("premature terminal scanner did not open");
+  }
+  await expect(
+    terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      premature.scanner,
+    ),
+  ).rejects.toThrow(/requires exact WTRM stage state/);
+  expect(prematureTerminalKey?.every((byte) => byte === 0)).toBe(true);
+  await expect(
+    discardFloodgateV7TrainingLabelSealedScannerCoreForTests(premature.scanner),
+  ).resolves.toBeUndefined();
 
-    await expect(fs.promises.lstat(value.stageRoot)).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-    expect(
-      (await fs.promises.readdir(value.destinationRoot)).sort(compareBytewise),
-    ).toEqual(
-      [...FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES].sort(compareBytewise),
-    );
-    const result = JSON.parse(
-      await fs.promises.readFile(
-        path.join(
-          value.destinationRoot,
-          FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
-        ),
-        "utf8",
-      ),
-    ) as Record<string, unknown>;
-    const manifest = JSON.parse(
-      await fs.promises.readFile(
-        path.join(
-          value.destinationRoot,
-          FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
-        ),
-        "utf8",
-      ),
-    ) as Record<string, unknown>;
-    expect(result).toMatchObject({
-      schema: FLOODGATE_V7_TRAINING_LABEL_RESULT_SCHEMA,
-      status:
-        "test-only-authenticated-sealed-scan-work-byte-continuity-bound-deterministic-training-label-result-not-trained",
-      training: {
-        input_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-        forced_parents_skipped:
-          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
-        records: 0,
+  // Internal key preparation happens only after a complete same-held-FD
+  // unkeyed preflight. A rejected key authority aborts the transaction and
+  // leaves no derived key or scanner facade behind.
+  let unkeyedPreflightReads = 0;
+  let escapedKeyPrepareScanner:
+    Readonly<FloodgateV7TrainingLabelSealedScanner> | undefined;
+  await expect(
+    openScanner(
+      value,
+      deployment,
+      work,
+      publication,
+      async () => undefined,
+      {
+        readForTests: async (request, read) => {
+          if (request.purpose === "unkeyed-preflight") {
+            unkeyedPreflightReads += 1;
+          }
+          return read();
+        },
       },
-    });
-    expect(manifest).toMatchObject({
-      schema: FLOODGATE_V7_TRAINING_LABEL_MANIFEST_SCHEMA,
-      status:
-        "durable-complete-training-label-artifact-set-ready-for-exclusive-publication",
-    });
+      {
+        effectiveUserId: effectiveUserId(),
+        homeDirectory: path.join(deployment.home, "missing-home"),
+      },
+    ).then((opened) => {
+      escapedKeyPrepareScanner = opened.scanner;
+      return opened;
+    }),
+  ).rejects.toThrow(/home identity check failed/);
+  expect(unkeyedPreflightReads).toBeGreaterThan(0);
+  expect(escapedKeyPrepareScanner).toBeUndefined();
+}
 
-    // Restore the published directory to its original bound stage basename.
-    // Rename preserves the stage/work inodes authenticated by the V3 header.
-    await fs.promises.rename(value.destinationRoot, value.stageRoot);
-    const planCleanupPublication = await publicationDependencies(value);
-    let planAbortFailureArmed = false;
-    const planCleanupLease = await authorize(value, {
-      beforeLeaseRemovalForTests: async () => {
-        if (planAbortFailureArmed) {
-          throw new Error("forced plan publication abort failure");
+export async function runExact24kScannerMutationShard(): Promise<void> {
+  const { value, deployment, work, publication } =
+    await prepareExact24kScannerShard();
+
+  // Pass one never calls the sink. A pass-two sink failure after a few
+  // parents mints no scanner, aborts the internal publication transaction,
+  // zeroizes the owned key, and leaves the stage freshly authorizable.
+  let failedPassTwoKey: Uint8Array | undefined;
+  let escapedFailedScanner:
+    Readonly<FloodgateV7TrainingLabelSealedScanner> | undefined;
+  let failedPassTwoCalls = 0;
+  await expect(
+    openScanner(
+      value,
+      deployment,
+      work,
+      publication,
+      async (event) => {
+        expect(event.input_index).toBe(failedPassTwoCalls);
+        failedPassTwoCalls += 1;
+        if (event.input_index === 3) {
+          throw new Error("forced pass-two sink failure");
         }
       },
-    });
-    let planScannerKey: Uint8Array | undefined;
-    let cleanupPlan:
-      Readonly<FloodgateV7TrainingLabelProductionPlanForTests> | undefined;
-    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      {
+        observeKeyForTests: (key) => {
+          failedPassTwoKey = key;
+          return undefined;
+        },
+      },
+    ).then((opened) => {
+      escapedFailedScanner = opened.scanner;
+      return opened;
+    }),
+  ).rejects.toThrow(/forced pass-two sink failure/);
+  expect(failedPassTwoCalls).toBe(4);
+  expect(escapedFailedScanner).toBeUndefined();
+  expect(failedPassTwoKey).toBeDefined();
+  expect(failedPassTwoKey?.every((byte) => byte === 0)).toBe(true);
+  expect(
+    (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),
+  ).toEqual([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]);
+
+  // Replacing only the named path while pass two is backpressured cannot
+  // redirect the held descriptor and is rejected at the enclosing path
+  // confirmation. The replacement is restored only after abort completes.
+  const workPath = path.join(
+    value.stageRoot,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  );
+  const heldWorkBackup = path.join(value.root, "held-original-work.jsonl");
+  let replacementPerformed = false;
+  let replacementKey: Uint8Array | undefined;
+  let replacementSinkCalls = 0;
+  try {
+    await expect(
+      openScanner(
+        value,
+        deployment,
+        work,
+        publication,
+        async (event) => {
+          expect(event.input_index).toBe(replacementSinkCalls);
+          replacementSinkCalls += 1;
+          if (!replacementPerformed) {
+            await fs.promises.rename(workPath, heldWorkBackup);
+            await fs.promises.copyFile(heldWorkBackup, workPath);
+            await fs.promises.chmod(workPath, 0o600);
+            replacementPerformed = true;
+          }
+        },
+        {
+          observeKeyForTests: (key) => {
+            replacementKey = key;
+            return undefined;
+          },
+        },
+      ),
+    ).rejects.toThrow(/mutated during read|path snapshot changed/);
+  } finally {
+    if (replacementPerformed) {
+      await fs.promises.rm(workPath, { force: true });
+      await fs.promises.rename(heldWorkBackup, workPath);
+    }
+  }
+  expect(replacementSinkCalls).toBe(
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  );
+  expect(replacementKey?.every((byte) => byte === 0)).toBe(true);
+
+  // A pass-two stream can authenticate every parent provisionally and still
+  // fail its enclosing seal. No scanner escapes and the owned key is erased.
+  const originalWork = await fs.promises.readFile(workPath);
+  const corruptedWork = Buffer.from(originalWork);
+  const sealMarker = Buffer.from('"seal_mac":"');
+  const sealMarkerOffset = corruptedWork.lastIndexOf(sealMarker);
+  if (sealMarkerOffset < 0) throw new Error("fixture seal marker is absent");
+  const sealHexOffset = sealMarkerOffset + sealMarker.byteLength;
+  corruptedWork[sealHexOffset] =
+    corruptedWork[sealHexOffset] === 0x30 ? 0x31 : 0x30;
+  let keyedScanStarts = 0;
+  let badSealWritten = false;
+  let badSealKey: Uint8Array | undefined;
+  let badSealSinkCalls = 0;
+  try {
+    await expect(
+      openScanner(
+        value,
+        deployment,
+        work,
+        publication,
+        async (event) => {
+          expect(event.input_index).toBe(badSealSinkCalls);
+          badSealSinkCalls += 1;
+        },
+        {
+          readForTests: async (request, read) => {
+            if (request.purpose === "sealed-final" && request.position === 0) {
+              keyedScanStarts += 1;
+              if (keyedScanStarts === 2) {
+                await fs.promises.writeFile(workPath, corruptedWork);
+                badSealWritten = true;
+              }
+            }
+            return read();
+          },
+          observeKeyForTests: (key) => {
+            badSealKey = key;
+            return undefined;
+          },
+        },
+      ),
+    ).rejects.toThrow(/work seal MAC is invalid/);
+  } finally {
+    if (badSealWritten) {
+      await fs.promises.writeFile(workPath, originalWork);
+    }
+  }
+  expect(badSealSinkCalls).toBe(
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  );
+  expect(badSealKey?.every((byte) => byte === 0)).toBe(true);
+}
+
+export async function runExact24kScannerReplayShard(): Promise<void> {
+  const { value, deployment, work, publication } =
+    await prepareExact24kScannerShard();
+
+  let passTwoCalls = 0;
+  let activeSinks = 0;
+  let maximumActiveSinks = 0;
+  let observedKey: Uint8Array | undefined;
+  const opened = await openScanner(
+    value,
+    deployment,
+    work,
+    publication,
+    async (event) => {
+      activeSinks += 1;
+      maximumActiveSinks = Math.max(maximumActiveSinks, activeSinks);
+      expect(event.input_index).toBe(passTwoCalls);
+      passTwoCalls += 1;
+      await Promise.resolve();
+      activeSinks -= 1;
+    },
+    {
+      observeKeyForTests: (key) => {
+        observedKey = key;
+        return undefined;
+      },
+    },
+  );
+  const { scanner, receipt: openReceipt } = opened;
+  expect(passTwoCalls).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS);
+  expect(maximumActiveSinks).toBe(1);
+  expect(openReceipt.work).toMatchObject(work);
+  expect(openReceipt.teacher_run_binding_sha256).toBe(
+    sha256(canonicalJson(runBinding())),
+  );
+  expect(openReceipt.training.binding_sha256).toBe(
+    sha256(canonicalJson(openReceipt.training.binding)),
+  );
+  expect(openReceipt.verification).toMatchObject({
+    unkeyed_preflight_full_file: true,
+    unkeyed_preflight_matches_expected_work: true,
+    key_prepared_from_same_held_preflight: true,
+    first_pass_without_sink: true,
+    second_pass_sink_awaited_with_backpressure: true,
+    same_held_work_descriptor: true,
+    same_full_work_snapshot: true,
+    exact_sealed_records: 24_004,
+    exact_completed_parents: 24_000,
+  });
+  expect(Object.keys(scanner).sort(compareBytewise)).toEqual(
+    ["claim_boundary", "contract", "execution_boundary", "status"].sort(
+      compareBytewise,
+    ),
+  );
+  expect(observedKey).toBeDefined();
+  expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
+
+  await expect(
+    replayFloodgateV7TrainingLabelSealedScanner(scanner, async () => {}),
+  ).rejects.toThrow(/other execution boundary/);
+  await expect(
+    replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      { ...scanner },
+      async () => {},
+    ),
+  ).rejects.toThrow(/cloned or foreign/);
+
+  const decoratedPromise = Promise.resolve();
+  Object.defineProperty(decoratedPromise, "scanner_test_marker", {
+    value: true,
+  });
+  await expect(
+    replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      scanner,
+      () => decoratedPromise,
+    ),
+  ).rejects.toThrow(/must return an exact native Promise/);
+  expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
+
+  const context =
+    getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
+      scanner,
+    );
+  expect(context.stageRoot).toBe(value.stageRoot);
+  await createOutputEntry(context.stageRoot, "train.jsonl");
+
+  let releaseFirstSink!: () => void;
+  let markFirstSinkEntered!: () => void;
+  const firstSinkEntered = new Promise<void>((resolve) => {
+    markFirstSinkEntered = resolve;
+  });
+  const holdFirstSink = new Promise<void>((resolve) => {
+    releaseFirstSink = resolve;
+  });
+  let concurrentReplayCalls = 0;
+  const activeReplay = replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+    scanner,
+    async (event) => {
+      expect(event.input_index).toBe(concurrentReplayCalls);
+      concurrentReplayCalls += 1;
+      if (event.input_index === 0) {
+        markFirstSinkEntered();
+        await holdFirstSink;
+      }
+    },
+  );
+  await firstSinkEntered;
+  try {
+    await expect(
+      replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+        scanner,
+        async () => undefined,
+      ),
+    ).rejects.toThrow(/replay is already active/);
+    await expect(
+      terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
+        scanner,
+      ),
+    ).rejects.toThrow(/terminal reverify is already active/);
+  } finally {
+    releaseFirstSink();
+  }
+  await activeReplay;
+  expect(concurrentReplayCalls).toBe(
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  );
+
+  for (const filename of ["result.json", "manifest.json"] as const) {
+    await createOutputEntry(context.stageRoot, filename);
+    let replayCalls = 0;
+    await replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      scanner,
+      async (event) => {
+        expect(event.input_index).toBe(replayCalls);
+        replayCalls += 1;
+      },
+    );
+    expect(replayCalls).toBe(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS);
+  }
+
+  await expect(
+    discardFloodgateV7TrainingLabelSealedScannerCoreForTests(scanner),
+  ).resolves.toBeUndefined();
+  expect(observedKey?.every((byte) => byte === 0)).toBe(true);
+}
+
+export async function runExact24kScannerCleanupShard(): Promise<void> {
+  const { value, deployment, work, publication } =
+    await prepareExact24kScannerShard();
+
+  let cleanupPassTwoCalls = 0;
+  let observedKey: Uint8Array | undefined;
+  let failFirstStageClose = true;
+  const opened = await openScanner(
+    value,
+    deployment,
+    work,
+    publication,
+    async (event) => {
+      expect(event.input_index).toBe(cleanupPassTwoCalls);
+      cleanupPassTwoCalls += 1;
+    },
+    {
+      observeKeyForTests: (key) => {
+        observedKey = key;
+        return undefined;
+      },
+      closeForTests: async (kind, close) => {
+        if (kind === "stage" && failFirstStageClose) {
+          failFirstStageClose = false;
+          throw new Error("forced first stage descriptor close failure");
+        }
+        await close();
+      },
+    },
+  );
+  const { scanner } = opened;
+  expect(cleanupPassTwoCalls).toBe(
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  );
+  const cleanupContext =
+    getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
+      scanner,
+    );
+  for (const filename of [
+    "train.jsonl",
+    "result.json",
+    "manifest.json",
+  ] as const) {
+    await createOutputEntry(cleanupContext.stageRoot, filename);
+  }
+
+  // The key is zeroized before either descriptor close. If the first stage
+  // close fails, cleanup retries only that still-open descriptor and aborts
+  // publication; no terminal receipt escapes.
+  await expect(
+    terminallyReverifyFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      scanner,
+    ),
+  ).rejects.toThrow(/forced first stage descriptor close failure/);
+  expect(failFirstStageClose).toBe(false);
+  expect(observedKey?.every((byte) => byte === 0)).toBe(true);
+  await expect(
+    discardFloodgateV7TrainingLabelSealedScannerCoreForTests(scanner),
+  ).resolves.toBeUndefined();
+
+  // A fresh scanner reuses the exact bound WTRM stage. Work close reports a
+  // failure after the real close, while publication abort succeeds and
+  // releases the namespace. The facade retains that cleanup-indeterminate
+  // rejection for discard, replay, and context instead of becoming a no-op.
+  const indeterminatePublication = await publicationDependencies(value);
+  let indeterminateKey: Uint8Array | undefined;
+  const indeterminate = await openScanner(
+    value,
+    deployment,
+    work,
+    indeterminatePublication,
+    async () => undefined,
+    {
+      observeKeyForTests: (key) => {
+        indeterminateKey = key;
+        return undefined;
+      },
+      closeForTests: async (kind, close) => {
+        await close();
+        if (kind === "work") {
+          throw new Error("forced post-close scanner failure");
+        }
+      },
+    },
+  );
+  let rememberedCleanupFailure: unknown;
+  try {
+    await discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      indeterminate.scanner,
+    );
+  } catch (error) {
+    rememberedCleanupFailure = error;
+  }
+  expect(rememberedCleanupFailure).toBeInstanceOf(AggregateError);
+  expect(indeterminateKey?.every((byte) => byte === 0)).toBe(true);
+  await expect(
+    discardFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      indeterminate.scanner,
+    ),
+  ).rejects.toBe(rememberedCleanupFailure);
+  await expect(
+    replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
+      indeterminate.scanner,
+      async () => undefined,
+    ),
+  ).rejects.toBe(rememberedCleanupFailure);
+  let rememberedContextFailure: unknown;
+  try {
+    getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
+      indeterminate.scanner,
+    );
+  } catch (error) {
+    rememberedContextFailure = error;
+  }
+  expect(rememberedContextFailure).toBe(rememberedCleanupFailure);
+
+  // Plan-level cleanup combines a scanner post-close failure with a
+  // publication abort failure and preserves the exact aggregate rejection.
+  const planCleanupPublication = await publicationDependencies(value);
+  let planAbortFailureArmed = false;
+  const planCleanupLease = await authorize(value, {
+    beforeLeaseRemovalForTests: async () => {
+      if (planAbortFailureArmed) {
+        throw new Error("forced plan publication abort failure");
+      }
+    },
+  });
+  let planScannerKey: Uint8Array | undefined;
+  let cleanupPlan:
+    Readonly<FloodgateV7TrainingLabelProductionPlanForTests> | undefined;
+  await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+    value.training.options,
+    async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+      cleanupPlan =
+        await createFloodgateV7TrainingLabelProductionPlanCoreForTests(
+          planCleanupLease,
+          input,
+          runBinding(),
+          {
+            runId: RUN_ID,
+            keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+            work,
+          },
+          keyAuthorityDependencies(deployment),
+          {
+            observeKeyForTests: (key) => {
+              planScannerKey = key;
+              return undefined;
+            },
+            closeForTests: async (kind, close) => {
+              await close();
+              if (kind === "work") {
+                throw new Error("forced plan scanner post-close failure");
+              }
+            },
+          },
+          planCleanupPublication,
+        );
+    },
+    trainingDependencies(value.training.identity),
+  );
+  if (cleanupPlan === undefined) {
+    throw new Error("cleanup-indeterminate test plan did not open");
+  }
+  planAbortFailureArmed = true;
+  let rememberedPlanCleanupFailure: unknown;
+  try {
+    await discardFloodgateV7TrainingLabelProductionPlanCoreForTests(
+      cleanupPlan,
+    );
+  } catch (error) {
+    rememberedPlanCleanupFailure = error;
+  }
+  expect(rememberedPlanCleanupFailure).toBeInstanceOf(AggregateError);
+  expect(planScannerKey?.every((byte) => byte === 0)).toBe(true);
+  await expect(
+    discardFloodgateV7TrainingLabelProductionPlanCoreForTests(cleanupPlan),
+  ).rejects.toBe(rememberedPlanCleanupFailure);
+}
+
+export async function runExact24kScannerProductionShard(): Promise<void> {
+  const { value, deployment, work, publication } =
+    await prepareExact24kScannerShard();
+
+  expect(
+    (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),
+  ).toEqual([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]);
+
+  const preparedOutputKeys: Uint8Array[] = [];
+  const finalizerOwnedKeys: Uint8Array[] = [];
+  const e2eKeyDependencies = {
+    ...keyAuthorityDependencies(deployment),
+    observePreparedKeyForTests: (
+      kind: "sealed-scan" | "training-label-result" | "training-label-manifest",
+      key: Uint8Array,
+    ) => {
+      if (kind !== "sealed-scan") preparedOutputKeys.push(key);
+    },
+  };
+  let e2eScannerKey: Uint8Array | undefined;
+  let e2eScannerCloseCalls = 0;
+  const e2eScannerDependencies: FloodgateV7TrainingLabelSealedScannerDependenciesForTests =
+    {
+      observeKeyForTests: (key) => {
+        e2eScannerKey = key;
+        return undefined;
+      },
+      closeForTests: async (_kind, close) => {
+        expect(e2eScannerKey?.every((byte) => byte === 0)).toBe(true);
+        e2eScannerCloseCalls += 1;
+        await close();
+      },
+    };
+  const productionLease = await authorize(value);
+  await expect(
+    createFloodgateV7TrainingLabelProductionPlanCoreForTests(
+      productionLease,
+      {} as AuthenticatedFloodgateTrainingRows,
+      new Proxy(runBinding(), {}),
+      {
+        runId: RUN_ID,
+        keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        work,
+      },
+      e2eKeyDependencies,
+      e2eScannerDependencies,
+      publication,
+    ),
+  ).rejects.toThrow();
+  let productionPlan:
+    Readonly<FloodgateV7TrainingLabelProductionPlanForTests> | undefined;
+  const postflight =
+    await withVerifiedPinnedFloodgateTrainingRowsAndPostflightCoreForTests(
       value.training.options,
       async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
-        cleanupPlan =
+        productionPlan =
           await createFloodgateV7TrainingLabelProductionPlanCoreForTests(
-            planCleanupLease,
+            productionLease,
             input,
             runBinding(),
             {
@@ -1493,40 +1489,97 @@ posixDescribe("Floodgate v7 two-pass sealed training-label scanner", () => {
               keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
               work,
             },
-            keyAuthorityDependencies(deployment),
-            {
-              observeKeyForTests: (key) => {
-                planScannerKey = key;
-                return undefined;
-              },
-              closeForTests: async (kind, close) => {
-                await close();
-                if (kind === "work") {
-                  throw new Error("forced plan scanner post-close failure");
-                }
-              },
-            },
-            planCleanupPublication,
+            e2eKeyDependencies,
+            e2eScannerDependencies,
+            publication,
           );
       },
       trainingDependencies(value.training.identity),
     );
-    if (cleanupPlan === undefined) {
-      throw new Error("cleanup-indeterminate test plan did not open");
-    }
-    planAbortFailureArmed = true;
-    let rememberedPlanCleanupFailure: unknown;
-    try {
-      await discardFloodgateV7TrainingLabelProductionPlanCoreForTests(
-        cleanupPlan,
-      );
-    } catch (error) {
-      rememberedPlanCleanupFailure = error;
-    }
-    expect(rememberedPlanCleanupFailure).toBeInstanceOf(AggregateError);
-    expect(planScannerKey?.every((byte) => byte === 0)).toBe(true);
-    await expect(
-      discardFloodgateV7TrainingLabelProductionPlanCoreForTests(cleanupPlan),
-    ).rejects.toBe(rememberedPlanCleanupFailure);
-  }, 1_200_000);
-});
+  if (productionPlan === undefined) {
+    throw new Error("test production composer did not mint a plan");
+  }
+  const receipt =
+    await finalizeAndPublishFloodgateV7TrainingLabelsProductionCoreForTests(
+      productionPlan,
+      postflight,
+      e2eKeyDependencies,
+      {
+        effectiveUserId: effectiveUserId(),
+        observeKeyForTests: (kind, key) => {
+          if (kind !== "root") finalizerOwnedKeys.push(key);
+          return undefined;
+        },
+      },
+    );
+  expect(receipt.status).toBe(
+    FLOODGATE_V7_TRAINING_LABEL_TEST_PRODUCTION_FINALIZATION_STATUS,
+  );
+  expect(receipt.execution_boundary).toBe(
+    "test-only-injected-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication",
+  );
+  expect(receipt.content).toMatchObject({
+    parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    training_records: 0,
+  });
+  expect(receipt.publication.publication_durability).toBe(
+    "published-and-lease-removal-durable",
+  );
+  expect(receipt.postpublication).toEqual({
+    destination_reopened: true,
+    exact_entries: FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES,
+    content_reverified: true,
+  });
+  expect(e2eScannerCloseCalls).toBe(2);
+  expect(e2eScannerKey?.every((byte) => byte === 0)).toBe(true);
+  expect(preparedOutputKeys).toHaveLength(2);
+  expect(
+    preparedOutputKeys.every((key) => key.every((byte) => byte === 0)),
+  ).toBe(true);
+  expect(finalizerOwnedKeys).toHaveLength(2);
+  expect(
+    finalizerOwnedKeys.every((key) => key.every((byte) => byte === 0)),
+  ).toBe(true);
+
+  await expect(fs.promises.lstat(value.stageRoot)).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect(
+    (await fs.promises.readdir(value.destinationRoot)).sort(compareBytewise),
+  ).toEqual(
+    [...FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES].sort(compareBytewise),
+  );
+  const result = JSON.parse(
+    await fs.promises.readFile(
+      path.join(
+        value.destinationRoot,
+        FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  const manifest = JSON.parse(
+    await fs.promises.readFile(
+      path.join(
+        value.destinationRoot,
+        FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  expect(result).toMatchObject({
+    schema: FLOODGATE_V7_TRAINING_LABEL_RESULT_SCHEMA,
+    status:
+      "test-only-authenticated-sealed-scan-work-byte-continuity-bound-deterministic-training-label-result-not-trained",
+    training: {
+      input_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+      forced_parents_skipped: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+      records: 0,
+    },
+  });
+  expect(manifest).toMatchObject({
+    schema: FLOODGATE_V7_TRAINING_LABEL_MANIFEST_SCHEMA,
+    status:
+      "durable-complete-training-label-artifact-set-ready-for-exclusive-publication",
+  });
+}

@@ -240,15 +240,28 @@
       "normalized_sha256": "57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461",
       "semantic_gate": "PASS"
     },
-    "ci_public_symbol_graph_projection": {
-      "status": "PENDING-REMOTE-CONFIRMATION",
+    "ci_public_symbol_graph_measurement": {
+      "status": "PASS",
       "toolchain": "Xcode-26.5-Swift-6.3.2",
-      "measurement_kind": "DERIVED-NOT-REMOTELY-MEASURED",
+      "measurement_kind": "MEASURED-PR-CI-ARTIFACT",
       "symbols": 575,
       "relationships": 678,
       "normalized_sha256": "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
-      "derivation": "exact-PR-502-artifact-SendableMetatype-and-Sendable-fragment-transform",
-      "counted_as_ci_evidence": false
+      "semantic_gate": "PASS",
+      "pull_request": 504,
+      "source_branch_head_revision": "ead8bf5a3965f48878c798aa14e33f01694828b5",
+      "workflow_merge_revision": "7b4d2a058457e938eb2eeff440445e43fc05936d",
+      "workflow_merge_tree": "1e6f038de4ac50a3f6c2df08f56bcb9f746b7348",
+      "workflow_merge_parents": [
+        "bb08e6019b1a42f631be06e400df01b1baf336f4",
+        "ead8bf5a3965f48878c798aa14e33f01694828b5"
+      ],
+      "workflow_run_id": 29656667943,
+      "workflow_job_id": 88112184102,
+      "artifact_id": 8433092951,
+      "artifact_name": "floodgate-v7-public-symbol-graphs-macOS-ARM64-7b4d2a058457e938eb2eeff440445e43fc05936d-1",
+      "previous_derived_projection_matched": true,
+      "counted_as_ci_evidence": true
     },
     "implementation_exact_commit_review": {
       "status": "PASS",

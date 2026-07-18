@@ -434,7 +434,7 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
     });
   });
 
-  it("records measured local validation separately from the derived CI projection", () => {
+  it("records measured local and PR CI symbol-graph validation separately", () => {
     const evidence = JSON.parse(read(evidenceRelative));
 
     expect(evidence.validation).toMatchObject({
@@ -468,14 +468,30 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
           "57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461",
         semantic_gate: "PASS",
       },
-      ci_public_symbol_graph_projection: {
-        status: "PENDING-REMOTE-CONFIRMATION",
-        measurement_kind: "DERIVED-NOT-REMOTELY-MEASURED",
+      ci_public_symbol_graph_measurement: {
+        status: "PASS",
+        toolchain: "Xcode-26.5-Swift-6.3.2",
+        measurement_kind: "MEASURED-PR-CI-ARTIFACT",
         symbols: 575,
         relationships: 678,
         normalized_sha256:
           "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
-        counted_as_ci_evidence: false,
+        semantic_gate: "PASS",
+        pull_request: 504,
+        source_branch_head_revision: "ead8bf5a3965f48878c798aa14e33f01694828b5",
+        workflow_merge_revision: "7b4d2a058457e938eb2eeff440445e43fc05936d",
+        workflow_merge_tree: "1e6f038de4ac50a3f6c2df08f56bcb9f746b7348",
+        workflow_merge_parents: [
+          "bb08e6019b1a42f631be06e400df01b1baf336f4",
+          "ead8bf5a3965f48878c798aa14e33f01694828b5",
+        ],
+        workflow_run_id: 29656667943,
+        workflow_job_id: 88112184102,
+        artifact_id: 8433092951,
+        artifact_name:
+          "floodgate-v7-public-symbol-graphs-macOS-ARM64-7b4d2a058457e938eb2eeff440445e43fc05936d-1",
+        previous_derived_projection_matched: true,
+        counted_as_ci_evidence: true,
       },
       implementation_exact_commit_review: {
         status: "PASS",
@@ -487,6 +503,29 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       target_mac_compatibility_probe: "PENDING",
       continuous_integration: "PENDING",
     });
+
+    const ciGraph = evidence.validation.ci_public_symbol_graph_measurement;
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "rev-parse",
+        `${ciGraph.source_branch_head_revision}^{tree}`,
+      ]),
+    ).toBe(ciGraph.workflow_merge_tree);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "merge-base",
+        "--is-ancestor",
+        ciGraph.source_branch_head_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
+    expect(ciGraph.workflow_merge_parents).toEqual([
+      evidence.revision.latest_main_revision_integrated,
+      ciGraph.source_branch_head_revision,
+    ]);
+    expect(ciGraph.artifact_name).toContain(ciGraph.workflow_merge_revision);
   });
 
   it("keeps the nine-section Japanese and English articles aligned on facts and nonclaims", () => {
@@ -509,7 +548,7 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
         "9 / 9",
         "57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461",
         "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
-        "derived / remote confirmation pending",
+        "measured PR CI artifact",
         "P0 / P1 / P2 = 0 / 0 / 0",
         "split view",
         "DynamoDB",

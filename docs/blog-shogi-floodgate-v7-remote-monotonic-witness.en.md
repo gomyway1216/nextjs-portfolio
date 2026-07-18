@@ -89,7 +89,9 @@ Validation at commit `b6bc5146f7512db9653a7e04aacaf363f65e3735` recorded:
 - local Xcode 15.3 / Swift 5.10 public surface: **575 symbols / 635 relationships**, normalized SHA-256 `57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461`; and
 - final read-only source review: **P0 / P1 / P2 = 0 / 0 / 0**.
 
-Applying only the previously measured toolchain transform yields a derived Xcode 26.5 / Swift 6.3.2 profile of **575 symbols / 678 relationships**, normalized SHA-256 `1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a`. That profile is **derived / remote confirmation pending**. It is not counted as a remotely measured CI pass.
+PR #504 measured the Xcode 26.5 / Swift 6.3.2 profile as **575 symbols / 678 relationships**, normalized SHA-256 `1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a`, with the semantic gate passing. It exactly matches the earlier derived projection.
+
+This is a **measured PR CI artifact** from workflow run `29656667943`, job `88112184102`, artifact ID `8433092951`, for synthetic merge revision `7b4d2a058457e938eb2eeff440445e43fc05936d`. That revision merges PR head `ead8bf5a3965f48878c798aa14e33f01694828b5` into main `bb08e6019b1a42f631be06e400df01b1baf336f4`. It now counts as external trust-root CI evidence; the complete PR CI remains pending.
 
 The tests cover canonical round trips and drift, zero and aliased roles, request and receipt binding, wrong key, signature mutation, issue/expiry boundaries, concurrent forks, exact and delayed idempotent retries, operation-ID drift, receipt-before-memory-commit atomicity, local mutation during fetch, post-fetch expiry, completion-time expiry, and trusted-clock rollback. Passing synthetic tests does not create operational evidence.
 

@@ -281,6 +281,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       golden_domain_separation_tree: implementationEvidenceTree,
       implementation_evidence_revision: implementationEvidenceRevision,
       implementation_evidence_tree: implementationEvidenceTree,
+      integrated_main_revision: "0601268a57af32c910b785c3f79da647d3fbb428",
+      integrated_main_tree: "436f76b1108a96f756f865725ee3ff81ec96ef58",
+      post_main_merge_revision: "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+      post_main_merge_tree: "3b7e499d6cac376053a4a1e0852428ddfc83ba8a",
       base_pull_request: 499,
       base_integration_method: "regular-merge-commit",
     });
@@ -293,6 +297,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       ["public_api_enforcement_revision", "public_api_enforcement_tree"],
       ["golden_domain_separation_revision", "golden_domain_separation_tree"],
       ["implementation_evidence_revision", "implementation_evidence_tree"],
+      ["integrated_main_revision", "integrated_main_tree"],
+      ["post_main_merge_revision", "post_main_merge_tree"],
     ] as const) {
       const revision = evidence.revision[revisionKey] as string;
       expect(gitOutput(["rev-parse", `${revision}^{tree}`])).toBe(
@@ -309,9 +315,21 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           implementationEvidenceRevision,
         ]),
       ) * 1_000;
+    const postMainMergeCommittedAtMillis =
+      Number(
+        gitOutput([
+          "show",
+          "-s",
+          "--format=%ct",
+          evidence.revision.post_main_merge_revision,
+        ]),
+      ) * 1_000;
     expect(Number.isNaN(recordedAtMillis)).toBe(false);
     expect(recordedAtMillis).toBeGreaterThanOrEqual(
       implementationCommittedAtMillis,
+    );
+    expect(recordedAtMillis).toBeGreaterThanOrEqual(
+      postMainMergeCommittedAtMillis,
     );
     expect(evidence.canonical_records.fixed_argv).toMatchObject({
       encoded_bytes: 265,
@@ -433,16 +451,18 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p2: 0,
       },
       publication_evidence_review: {
-        status: "IN_PROGRESS",
+        status: "PASS",
         review_scope:
           "publication-artifacts-and-provenance-ci-delta-working-tree-content",
         reviewed_implementation_revision: implementationEvidenceRevision,
-        remediation_status: "IN_PROGRESS",
+        reviewed_integration_revision:
+          "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+        remediation_status: "COMPLETE",
         resolved_p1_total: 3,
-        resolved_p2_total: 10,
-        unresolved_p0: null,
-        unresolved_p1: null,
-        unresolved_p2: null,
+        resolved_p2_total: 12,
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
       },
     });
     expect(evidence.validation.publication_evidence_review.paths).toEqual(
@@ -496,6 +516,57 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           "in-progress-snapshot-recorded-at-predated-latest-remediation",
           "in-progress-snapshot-evidence-test-intentionally-failed",
         ],
+      },
+      {
+        review_sequence: 4,
+        status: "PASS",
+        reviewed_content:
+          "post-main-merge-five-path-content-and-integration-tree",
+        reviewed_revision: "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
+      {
+        review_sequence: 5,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "post-merge-finalization-working-tree-before-format-remediation",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "finalization-evidence-test-formatting-drift-contradicted-prettier-pass",
+        ],
+      },
+      {
+        review_sequence: 6,
+        status: "PASS",
+        reviewed_content: "post-main-finalized-five-path-working-tree-content",
+        integration_base_revision: "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
+      {
+        review_sequence: 7,
+        status: "CHANGES_REQUESTED",
+        reviewed_content: "sequence-six-publication-provenance-metadata",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "finalized-working-tree-review-was-misattributed-to-integration-base-commit",
+        ],
+      },
+      {
+        review_sequence: 8,
+        status: "PASS",
+        reviewed_content: "post-main-finalized-five-path-working-tree-content",
+        integration_base_revision: "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
       },
     ]);
     expect(
@@ -597,8 +668,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     for (const fact of [
       "実装treeだけを対象",
       "publication reviewで確認",
-      "P1 3件 / P2 10件",
-      "3回のCHANGES_REQUESTED",
+      "P1 3件 / P2 12件",
+      "5回のCHANGES_REQUESTED",
+      "0601268a57af32c910b785c3f79da647d3fbb428",
+      "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
       "6つのNode / bundle identity digest",
       "record ID",
       "filesystem identity policy digest",
@@ -620,8 +693,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     for (const fact of [
       "implementation-tree-only",
       "separate publication review",
-      "three P1 and ten P2 findings",
-      "three CHANGES_REQUESTED entries",
+      "three P1 and twelve P2 findings",
+      "five CHANGES_REQUESTED entries",
+      "0601268a57af32c910b785c3f79da647d3fbb428",
+      "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
       "six Node/bundle identity digests",
       "record ID",
       "filesystem-identity-policy digest",

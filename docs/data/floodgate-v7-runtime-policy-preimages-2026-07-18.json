@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-runtime-policy-preimages-v1",
-  "recorded_at": "2026-07-18T02:38:02-07:00",
+  "recorded_at": "2026-07-18T02:51:51-07:00",
   "scope": {
     "status": "UNAVAILABLE",
     "operational_decision": "STOP",
@@ -38,6 +38,10 @@
     "golden_domain_separation_tree": "ef6a4f738393d1dfc59ce2c4752628633cf16f14",
     "implementation_evidence_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
     "implementation_evidence_tree": "ef6a4f738393d1dfc59ce2c4752628633cf16f14",
+    "integrated_main_revision": "0601268a57af32c910b785c3f79da647d3fbb428",
+    "integrated_main_tree": "436f76b1108a96f756f865725ee3ff81ec96ef58",
+    "post_main_merge_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+    "post_main_merge_tree": "3b7e499d6cac376053a4a1e0852428ddfc83ba8a",
     "base_integration_method": "regular-merge-commit",
     "base_pull_request": 499
   },
@@ -306,7 +310,7 @@
       "unresolved_p2": 0
     },
     "publication_evidence_review": {
-      "status": "IN_PROGRESS",
+      "status": "PASS",
       "review_scope": "publication-artifacts-and-provenance-ci-delta-working-tree-content",
       "paths": [
         "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md",
@@ -316,6 +320,7 @@
         ".github/workflows/ci.yml"
       ],
       "reviewed_implementation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "reviewed_integration_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
       "review_history": [
         {
           "review_sequence": 1,
@@ -359,14 +364,63 @@
             "in-progress-snapshot-recorded-at-predated-latest-remediation",
             "in-progress-snapshot-evidence-test-intentionally-failed"
           ]
+        },
+        {
+          "review_sequence": 4,
+          "status": "PASS",
+          "reviewed_content": "post-main-merge-five-path-content-and-integration-tree",
+          "reviewed_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
+        },
+        {
+          "review_sequence": 5,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "post-merge-finalization-working-tree-before-format-remediation",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "finalization-evidence-test-formatting-drift-contradicted-prettier-pass"
+          ]
+        },
+        {
+          "review_sequence": 6,
+          "status": "PASS",
+          "reviewed_content": "post-main-finalized-five-path-working-tree-content",
+          "integration_base_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
+        },
+        {
+          "review_sequence": 7,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "sequence-six-publication-provenance-metadata",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "finalized-working-tree-review-was-misattributed-to-integration-base-commit"
+          ]
+        },
+        {
+          "review_sequence": 8,
+          "status": "PASS",
+          "reviewed_content": "post-main-finalized-five-path-working-tree-content",
+          "integration_base_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
         }
       ],
-      "remediation_status": "IN_PROGRESS",
+      "remediation_status": "COMPLETE",
       "resolved_p1_total": 3,
-      "resolved_p2_total": 10,
-      "unresolved_p0": null,
-      "unresolved_p1": null,
-      "unresolved_p2": null
+      "resolved_p2_total": 12,
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 0
     }
   },
   "production_counters": {

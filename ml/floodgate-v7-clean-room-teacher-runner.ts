@@ -44,6 +44,13 @@ import {
   type FloodgateV7ProductionParentCoordinator,
 } from "./floodgate-v7-production-parent-coordinator";
 import {
+  FloodgateV7CleanRoomRunGateError,
+  assertFloodgateV7CleanRoomRunGateDependenciesCoreForTests,
+  runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests,
+  type FloodgateV7CleanRoomRunGateDependenciesForTests,
+  type FloodgateV7CleanRoomRunGatesReceipt,
+} from "./floodgate-v7-clean-room-run-gates";
+import {
   copyFloodgateV7CleanRoomFileByValueCoreForTests,
   copyFloodgateV7CleanRoomTreeByValueCoreForTests,
   FLOODGATE_V7_CLEAN_ROOM_COPY_CONCURRENCY,
@@ -251,6 +258,11 @@ export interface FloodgateV7CleanRoomTeacherPreparedCapability {
   readonly receipt: Readonly<FloodgateV7CleanRoomTeacherPreparationReceipt>;
 }
 
+export interface FloodgateV7CleanRoomPreparedRunGrantForTests {
+  readonly contract: typeof FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT;
+  readonly execution_boundary: "test-only-pr1-owned-prepared-run-grant";
+}
+
 export interface FloodgateV7CleanRoomTeacherPreparationDependencies {
   readonly materializeVerifierRepository: (
     sourceRepository: string,
@@ -299,6 +311,10 @@ const fixedPreparedPlans: PreparedPlanRegistry = new WeakMap<
 >();
 const testCapturedPlans: CapturedPlanRegistry = new WeakSet<object>();
 const fixedCapturedPlans: CapturedPlanRegistry = new WeakSet<object>();
+const testPreparedRunGrantPlans = new WeakMap<
+  object,
+  Readonly<FloodgateV7CleanRoomTeacherPlanForTests>
+>();
 
 function canonicalAbsolutePath(value: unknown): string {
   if (
@@ -1106,6 +1122,35 @@ function consumePreparedPlan(
   }
 }
 
+function mintPreparedRunGrantForTests(
+  plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
+): Readonly<FloodgateV7CleanRoomPreparedRunGrantForTests> {
+  const grant = Object.freeze({
+    contract: FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+    execution_boundary: "test-only-pr1-owned-prepared-run-grant" as const,
+  });
+  testPreparedRunGrantPlans.set(grant, plan);
+  return grant;
+}
+
+/**
+ * Consume the exact private grant minted while this module consumed one PR1
+ * test preparation capability. A structurally identical object carries no
+ * plan authority.
+ */
+export function claimFloodgateV7CleanRoomPreparedRunGrantCoreForTests(
+  grant: Readonly<FloodgateV7CleanRoomPreparedRunGrantForTests>,
+): Readonly<FloodgateV7CleanRoomTeacherPlanForTests> {
+  if (arguments.length !== 1 || grant === null || typeof grant !== "object") {
+    throw new FloodgateV7CleanRoomTeacherPreparationError("capability", true);
+  }
+  const plan = testPreparedRunGrantPlans.get(grant);
+  if (plan === undefined || !testPreparedRunGrantPlans.delete(grant)) {
+    throw new FloodgateV7CleanRoomTeacherPreparationError("capability", true);
+  }
+  return plan;
+}
+
 async function createRealTestCoreCoordinator(
   plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
 ): Promise<FloodgateV7ProductionParentCoordinator> {
@@ -1259,5 +1304,40 @@ export function createFloodgateV7CleanRoomParentCoordinator(
     capability,
     FIXED_RUNTIME_DEPENDENCIES,
     fixedPreparedPlans,
+  );
+}
+
+/**
+ * Consume one test-prepared capability and execute only the source/test gate
+ * owner. There is deliberately no fixed-capability or package-command wrapper:
+ * merge alone cannot read private inputs, start a teacher, or write a
+ * checkpoint.
+ */
+export function runFloodgateV7CleanRoomTeacherGatesCoreForTests(
+  capability: Readonly<FloodgateV7CleanRoomTeacherPreparedCapability>,
+  dependenciesValue: FloodgateV7CleanRoomRunGateDependenciesForTests,
+): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new FloodgateV7CleanRoomRunGateError("capture", false),
+    );
+  }
+  let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
+  try {
+    // Validate immutable callbacks before consuming the one-shot capability.
+    assertFloodgateV7CleanRoomRunGateDependenciesCoreForTests(
+      dependenciesValue,
+    );
+    plan = lookupPreparedPlan(capability, testPreparedPlans);
+    consumePreparedPlan(capability, testPreparedPlans);
+  } catch {
+    return Promise.reject(
+      new FloodgateV7CleanRoomRunGateError("capture", false),
+    );
+  }
+  const grant = mintPreparedRunGrantForTests(plan);
+  return runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests(
+    grant,
+    dependenciesValue,
   );
 }

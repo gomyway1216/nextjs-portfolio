@@ -239,6 +239,9 @@ const nativeTypedArrayFill = typedArrayPrototype.fill as (
   end?: number,
 ) => Uint8Array;
 const NativePromise = Promise;
+const NativeWeakSet = WeakSet;
+const nativeWeakSetAdd = WeakSet.prototype.add;
+const nativeWeakSetDelete = WeakSet.prototype.delete;
 const nativeGetEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
 const NativeAbortController = AbortController;
@@ -255,6 +258,8 @@ const nodeIsPromise = nodeUtilTypes.isPromise;
 const nodeIsProxy = nodeUtilTypes.isProxy;
 const nodeIsUint8Array = nodeUtilTypes.isUint8Array;
 const nodeIsSharedArrayBuffer = nodeUtilTypes.isSharedArrayBuffer;
+const productionV3ReceiptClaims = new NativeWeakSet<object>();
+const testDeploymentKeyV3ReceiptClaims = new NativeWeakSet<object>();
 
 const INPUT_KEYS = Object.freeze([
   "binding",
@@ -775,6 +780,57 @@ export type FloodgateV7TeacherCheckpointV3Receipt =
   | FloodgateV7TeacherCheckpointV3Prefix100Receipt
   | FloodgateV7TeacherCheckpointV3Prefix500Receipt
   | FloodgateV7TeacherCheckpointV3FinalReceipt;
+
+function claimV3Receipt(
+  registry: WeakSet<object>,
+  receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+  label: string,
+): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
+  if (
+    receipt === null ||
+    typeof receipt !== "object" ||
+    !reflectApply(nativeWeakSetDelete, registry, [receipt])
+  ) {
+    failure(`${label} requires an exact successful unclaimed receipt`);
+  }
+  return receipt;
+}
+
+/**
+ * Consume one exact receipt issued by the fixed production deployment-key V3
+ * checkpoint. Shape-equivalent objects and replayed receipts are rejected.
+ */
+export function claimFloodgateV7ProductionTeacherCheckpointV3Receipt(
+  receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
+  if (arguments.length !== 1) {
+    failure("production v3 receipt claim accepts exactly one argument");
+  }
+  return claimV3Receipt(
+    productionV3ReceiptClaims,
+    receipt,
+    "production v3 receipt claim",
+  );
+}
+
+/**
+ * Consume one exact receipt issued by the injected deployment-key V3 test
+ * core. This is the only receipt origin accepted by the clean-room test owner.
+ */
+export function claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
+  receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
+  if (arguments.length !== 1) {
+    failure(
+      "test deployment-key v3 receipt claim accepts exactly one argument",
+    );
+  }
+  return claimV3Receipt(
+    testDeploymentKeyV3ReceiptClaims,
+    receipt,
+    "test deployment-key v3 receipt claim",
+  );
+}
 
 export class FloodgateV7TeacherCheckpointError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -4973,6 +5029,7 @@ async function executeAndClose(
 
 async function executeV3AndClose(
   invocation: CapturedV3Invocation,
+  successfulReceiptRegistry?: WeakSet<object>,
 ): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
   let result: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
   let primary: unknown;
@@ -5004,6 +5061,9 @@ async function executeV3AndClose(
   }
   if (primary !== undefined) throw primary;
   if (result === undefined) failure("v3 checkpoint produced no result");
+  if (successfulReceiptRegistry !== undefined) {
+    reflectApply(nativeWeakSetAdd, successfulReceiptRegistry, [result]);
+  }
   return result;
 }
 
@@ -5067,6 +5127,7 @@ function checkpointV3WithDeploymentKey<
   claimStage: (lease: Readonly<FloodgateTeacherStageLease>) => void,
   claimTraining: (input: Readonly<AuthenticatedFloodgateTrainingRows>) => void,
   claimKey: DeploymentV3KeyClaim<TBoundary>,
+  successfulReceiptRegistry?: WeakSet<object>,
 ): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
   // Invoking the sink transfers the key capability immediately. The lease
   // remains caller-owned until the exact production/test registry claim wins.
@@ -5127,7 +5188,7 @@ function checkpointV3WithDeploymentKey<
       stageClaimed,
     );
   }
-  return executeV3AndClose(invocation);
+  return executeV3AndClose(invocation, successfulReceiptRegistry);
 }
 
 /**
@@ -5192,6 +5253,7 @@ export function checkpointFloodgateV7TeacherParentsV3(
     claimActiveAuthorizedFloodgateTeacherStageLease,
     claimActiveVerifiedPinnedFloodgateTrainingRows,
     claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey,
+    productionV3ReceiptClaims,
   );
 }
 
@@ -5226,6 +5288,7 @@ export function checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTes
     claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
     claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
     claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests,
+    testDeploymentKeyV3ReceiptClaims,
   );
 }
 

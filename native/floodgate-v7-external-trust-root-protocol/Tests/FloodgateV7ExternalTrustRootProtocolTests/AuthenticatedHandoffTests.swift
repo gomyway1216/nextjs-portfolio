@@ -58,7 +58,10 @@ private struct HandoffFixture {
     let authorityKey = Curve25519.Signing.PrivateKey()
     let supervisorKey = Curve25519.Signing.PrivateKey()
     let verifierKey = Curve25519.Signing.PrivateKey()
+    let runtimeInstallPolicy: RuntimeInstallPolicyRecordV1
     let runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1
+    let runtimeLaunchPreimageClosure:
+        RuntimeLaunchPreimageClosureV1
     let manifest: RepositorySourceManifestV1
     let enrollment: EnrollmentRecord
     let signedEnrollment: SignedEnrollmentRecordV1
@@ -71,15 +74,42 @@ private struct HandoffFixture {
     let observation: RepositoryObservationV1
 
     init() throws {
+        let fixedArgv = FixedArgvRecordV1()
+        let fixedWorkingDirectory =
+            FixedWorkingDirectoryRecordV1()
+        let fixedEnvironment = FixedEnvironmentRecordV1()
+        runtimeInstallPolicy = try RuntimeInstallPolicyRecordV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            recordID: handoffBytes32(0x05),
+            nodeWholeFileSHA256: handoffBytes32(0x70),
+            nodeCodeDirectorySHA256: handoffBytes32(0x97),
+            nodeDesignatedRequirementSHA256:
+                handoffBytes32(0x98),
+            nodeHeldExecutableIdentitySHA256:
+                handoffBytes32(0x99),
+            diagnosticEntryBundleWholeFileSHA256:
+                handoffBytes32(0x50),
+            diagnosticEntryBundleHeldFileIdentitySHA256:
+                handoffBytes32(0x51),
+            filesystemIdentityPolicySHA256:
+                handoffBytes32(0x52),
+            aclPolicySHA256: handoffBytes32(0x53)
+        )
         runtimeLaunchPolicy = try RuntimeLaunchPolicyRecordV1(
             audience: .productionRecovery,
             purpose: .inspectStalePrefix100,
             recordID: handoffBytes32(0x01),
-            fixedArgvSHA256: handoffBytes32(0x02),
-            fixedWorkingDirectorySHA256: handoffBytes32(0x03),
-            fixedEnvironmentSHA256: handoffBytes32(0x04),
-            runtimeInstallPolicySHA256: handoffBytes32(0x05),
-            diagnosticEntryBundleSHA256: handoffBytes32(0x50)
+            fixedArgvSHA256: fixedArgv.canonicalSHA256(),
+            fixedWorkingDirectorySHA256:
+                fixedWorkingDirectory.canonicalSHA256(),
+            fixedEnvironmentSHA256:
+                fixedEnvironment.canonicalSHA256(),
+            runtimeInstallPolicySHA256:
+                runtimeInstallPolicy.canonicalSHA256(),
+            diagnosticEntryBundleSHA256:
+                runtimeInstallPolicy
+                    .diagnosticEntryBundleWholeFileSHA256
         )
         manifest = try RepositorySourceManifestV1(
             audience: .productionRecovery,
@@ -125,6 +155,15 @@ private struct HandoffFixture {
             artifactClosureRecordSHA256: handoffBytes32(0xc0),
             installPolicyRecordSHA256: handoffBytes32(0xd0)
         )
+        runtimeLaunchPreimageClosure =
+            try RuntimeLaunchPreimageClosureV1(
+                fixedArgv: fixedArgv,
+                fixedWorkingDirectory: fixedWorkingDirectory,
+                fixedEnvironment: fixedEnvironment,
+                runtimeInstallPolicy: runtimeInstallPolicy,
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                sourceManifest: manifest
+            )
         enrollment = try EnrollmentRecord(
             audience: .productionRecovery,
             purpose: .inspectStalePrefix100,
@@ -315,6 +354,28 @@ private func assertInvalidHandoff<T>(
             line: line
         )
     }
+}
+
+private func manifestDriftedRuntimeLaunchPreimageClosure(
+    _ fixture: HandoffFixture
+) throws -> RuntimeLaunchPreimageClosureV1 {
+    var driftedManifestBytes = fixture.manifest.canonicalBytes()
+    // RepositorySourceManifestV1 places the repository-source
+    // closure digest after its 12-byte header, 32-byte ID, and
+    // two 20-byte Git identities.
+    driftedManifestBytes[84] ^= 1
+    let driftedManifest =
+        try RepositorySourceManifestV1.decodeCanonical(
+            driftedManifestBytes
+        )
+    return try RuntimeLaunchPreimageClosureV1(
+        fixedArgv: FixedArgvRecordV1(),
+        fixedWorkingDirectory: FixedWorkingDirectoryRecordV1(),
+        fixedEnvironment: FixedEnvironmentRecordV1(),
+        runtimeInstallPolicy: fixture.runtimeInstallPolicy,
+        runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+        sourceManifest: driftedManifest
+    )
 }
 
 final class AuthenticatedHandoffTests: XCTestCase {
@@ -564,7 +625,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             expectedActivationHead:
                 fixture.expectedActivationHead,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             verifierAnonymousFDChannelBindingSHA256:
                 fixture.verifierProcessIdentity
                     .anonymousFDChannelBindingSHA256,
@@ -593,7 +654,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             supervisorPublicKeyRawRepresentation:
                 fixture.supervisorPublicKey,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             observation: fixture.observation,
             supervisorProcessIdentity:
                 fixture.supervisorProcessIdentity,
@@ -637,8 +698,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     fixture.verifierPublicKey,
                 challenge: challenge,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy:
-                    fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: substitutedLifetimeEnrollment,
@@ -657,7 +717,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 receipt: receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -715,8 +775,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     challenge: challenge,
                     receipt: receipt,
                     manifest: fixture.manifest,
-                    runtimeLaunchPolicy:
-                        fixture.runtimeLaunchPolicy,
+                    runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                     expectedActivationHead: head,
                     enrollment: fixture.enrollment,
                     observation: fixture.observation,
@@ -845,7 +904,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             challenge: challenge,
             receipt: receipt,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             expectedActivationHead:
                 fixture.expectedActivationHead,
             enrollment: fixture.enrollment,
@@ -871,7 +930,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 receipt: receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -894,7 +953,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 receipt: receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -919,6 +978,211 @@ final class AuthenticatedHandoffTests: XCTestCase {
         )
     }
 
+    func testEveryPublicHandoffEntryPointRejectsManifestMismatchedClosure()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        let driftedRuntimeClosure =
+            try manifestDriftedRuntimeLaunchPreimageClosure(fixture)
+
+        func issueChallenge(
+            session: TrustRootSupervisorSessionV1,
+            runtimeClosure: RuntimeLaunchPreimageClosureV1,
+            randomStart: UInt8
+        ) throws -> SupervisorChallengeV1 {
+            try session.issueChallenge(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure: runtimeClosure,
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 120,
+                nowMonotonicNanoseconds: 1_000_000_000,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                randomBytes:
+                    FixedRandomSequence(start: randomStart)
+                    .provider,
+                sign: handoffSigner(fixture.supervisorKey)
+            )
+        }
+
+        func issueReceipt(
+            challenge: SupervisorChallengeV1,
+            runtimeClosure: RuntimeLaunchPreimageClosureV1,
+            randomStart: UInt8
+        ) throws -> VerifierReceiptV1 {
+            try TrustRootVerifierCoreV1.issueReceipt(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                challenge: challenge,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure: runtimeClosure,
+                observation: fixture.observation,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                nowUnixSeconds: 121,
+                nowMonotonicNanoseconds: 2_000_000_000,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                randomBytes:
+                    FixedRandomSequence(start: randomStart)
+                    .provider,
+                sign: handoffSigner(fixture.verifierKey)
+            )
+        }
+
+        func issueAttestation(
+            session: TrustRootSupervisorSessionV1,
+            challenge: SupervisorChallengeV1,
+            receipt: VerifierReceiptV1,
+            runtimeClosure: RuntimeLaunchPreimageClosureV1,
+            randomStart: UInt8
+        ) throws -> OneShotAttestationV1 {
+            try session.issueAttestation(
+                challenge: challenge,
+                receipt: receipt,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure: runtimeClosure,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                enrollment: fixture.enrollment,
+                observation: fixture.observation,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                childProcessIdentity:
+                    fixture.childProcessIdentity,
+                childAnonymousFDChannelBindingSHA256:
+                    fixture.childProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 122,
+                nowMonotonicNanoseconds: 3_000_000_000,
+                randomBytes:
+                    FixedRandomSequence(start: randomStart)
+                    .provider,
+                sign: handoffSigner(fixture.supervisorKey)
+            )
+        }
+
+        let challengeSession = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity
+        )
+        assertInvalidHandoff(
+            try issueChallenge(
+                session: challengeSession,
+                runtimeClosure: driftedRuntimeClosure,
+                randomStart: 0x11
+            )
+        )
+        let challenge = try issueChallenge(
+            session: challengeSession,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x21
+        )
+        assertInvalidHandoff(
+            try issueReceipt(
+                challenge: challenge,
+                runtimeClosure: driftedRuntimeClosure,
+                randomStart: 0x31
+            )
+        )
+
+        let attestationSession =
+            try TrustRootSupervisorSessionV1(
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity
+            )
+        let attestationChallenge = try issueChallenge(
+            session: attestationSession,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x41
+        )
+        let attestationReceipt = try issueReceipt(
+            challenge: attestationChallenge,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x51
+        )
+        assertInvalidHandoff(
+            try issueAttestation(
+                session: attestationSession,
+                challenge: attestationChallenge,
+                receipt: attestationReceipt,
+                runtimeClosure: driftedRuntimeClosure,
+                randomStart: 0x61
+            )
+        )
+
+        let consumerSession = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity
+        )
+        let consumerChallenge = try issueChallenge(
+            session: consumerSession,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x71
+        )
+        let consumerReceipt = try issueReceipt(
+            challenge: consumerChallenge,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x81
+        )
+        let attestation = try issueAttestation(
+            session: consumerSession,
+            challenge: consumerChallenge,
+            receipt: consumerReceipt,
+            runtimeClosure: fixture.runtimeLaunchPreimageClosure,
+            randomStart: 0x91
+        )
+        assertInvalidHandoff(
+            try OneShotAttestationConsumerV1().consume(
+                attestation,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                challenge: consumerChallenge,
+                receipt: consumerReceipt,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure:
+                    driftedRuntimeClosure,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                enrollment: fixture.enrollment,
+                observation: fixture.observation,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                childProcessIdentity:
+                    fixture.childProcessIdentity,
+                childAnonymousFDChannelBindingSHA256:
+                    fixture.childProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 123,
+                nowMonotonicNanoseconds: 4_000_000_000
+            )
+        )
+    }
+
     func testHandoffRejectsExpiryProcessSubstitutionAndClosureDrift()
         throws
     {
@@ -931,7 +1195,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             expectedActivationHead:
                 fixture.expectedActivationHead,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             supervisorProcessIdentity:
                 fixture.supervisorProcessIdentity,
             verifierAnonymousFDChannelBindingSHA256:
@@ -943,6 +1207,33 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 fixture.supervisorPublicKey,
             randomBytes: FixedRandomSequence(start: 0x41).provider,
             sign: handoffSigner(fixture.supervisorKey)
+        )
+        let driftedRuntimeClosure =
+            try manifestDriftedRuntimeLaunchPreimageClosure(fixture)
+        assertInvalidHandoff(
+            try TrustRootSupervisorCoreV1.issueChallenge(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure:
+                    driftedRuntimeClosure,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 120,
+                nowMonotonicNanoseconds: 1_000_000_000,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                randomBytes:
+                    FixedRandomSequence(start: 0x49).provider,
+                sign: handoffSigner(fixture.supervisorKey)
+            )
         )
         assertInvalidHandoff(
             try challenge.verify(
@@ -1087,7 +1378,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     fixture.verifierPublicKey,
                 challenge: challenge,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -1111,7 +1402,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 observation: substituted,
                 supervisorProcessIdentity:
                     fixture.supervisorProcessIdentity,
@@ -1138,7 +1429,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 observation: fixture.observation,
                 supervisorProcessIdentity:
                     fixture.supervisorProcessIdentity,
@@ -1348,7 +1639,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             expectedActivationHead:
                 fixture.expectedActivationHead,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             verifierAnonymousFDChannelBindingSHA256:
                 fixture.verifierProcessIdentity
                     .anonymousFDChannelBindingSHA256,
@@ -1369,7 +1660,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 verifierAnonymousFDChannelBindingSHA256:
                     fixture.verifierProcessIdentity
                         .anonymousFDChannelBindingSHA256,
@@ -1391,7 +1682,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 supervisorProcessIdentity:
                     fixture.supervisorProcessIdentity,
                 verifierAnonymousFDChannelBindingSHA256:
@@ -1420,7 +1711,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             expectedActivationHead:
                 fixture.expectedActivationHead,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             supervisorProcessIdentity:
                 fixture.supervisorProcessIdentity,
             verifierAnonymousFDChannelBindingSHA256:
@@ -1445,7 +1736,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
             supervisorPublicKeyRawRepresentation:
                 fixture.supervisorPublicKey,
             manifest: fixture.manifest,
-            runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
             observation: fixture.observation,
             supervisorProcessIdentity:
                 fixture.supervisorProcessIdentity,
@@ -1498,7 +1789,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     fixture.verifierPublicKey,
                 challenge: challenge,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -1515,7 +1806,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 receipt: receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -1577,7 +1868,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 receipt: receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 supervisorProcessIdentity:
@@ -1803,8 +2094,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     supervisorPublicKeyRawRepresentation:
                         fixture.supervisorPublicKey,
                     manifest: fixture.manifest,
-                    runtimeLaunchPolicy:
-                        fixture.runtimeLaunchPolicy,
+                    runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                     observation: substitutedObservation,
                     supervisorProcessIdentity:
                         substitutedSupervisor,
@@ -1934,7 +2224,7 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 observation: observation,
                 supervisorProcessIdentity:
                     fixture.supervisorProcessIdentity,

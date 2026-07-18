@@ -240,7 +240,8 @@ public enum TrustRootSupervisorCoreV1 {
         authorityPublicKeyRawRepresentation: [UInt8],
         expectedActivationHead: ExpectedActivationHeadV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         supervisorProcessIdentity: ProcessIdentityV1,
         verifierAnonymousFDChannelBindingSHA256: CanonicalBytes32,
         nowUnixSeconds: UInt64,
@@ -261,7 +262,9 @@ public enum TrustRootSupervisorCoreV1 {
             expectedActivationHead.authoritySignerKeyID
         )
         try manifest.validateEnrollment(state.activeEnrollment)
-        try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try runtimeLaunchPreimageClosure.validate(
+            sourceManifest: manifest
+        )
         try supervisorProcessIdentity.validateSupervisorAgainstManifest(
             manifest,
             expectedUID: state.activeEnrollment.expectedUID
@@ -367,7 +370,8 @@ public enum TrustRootSupervisorCoreV1 {
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         expectedActivationHead: ExpectedActivationHeadV1,
         enrollment: EnrollmentRecord,
         observation: RepositoryObservationV1,
@@ -399,7 +403,8 @@ public enum TrustRootSupervisorCoreV1 {
                 verifierPublicKeyRawRepresentation,
             challenge: challenge,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             enrollment: enrollment,
             observation: observation,
@@ -496,7 +501,8 @@ public enum TrustRootSupervisorCoreV1 {
             challenge: challenge,
             receipt: receipt,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             supervisorProcessIdentity:
                 supervisorProcessIdentity,
@@ -602,7 +608,8 @@ public final class TrustRootSupervisorSessionV1:
         authorityPublicKeyRawRepresentation: [UInt8],
         expectedActivationHead: ExpectedActivationHeadV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         verifierAnonymousFDChannelBindingSHA256: CanonicalBytes32,
         nowUnixSeconds: UInt64,
         nowMonotonicNanoseconds: UInt64,
@@ -621,7 +628,8 @@ public final class TrustRootSupervisorSessionV1:
                 authorityPublicKeyRawRepresentation,
             expectedActivationHead: expectedActivationHead,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             supervisorProcessIdentity: supervisorProcessIdentity,
             verifierAnonymousFDChannelBindingSHA256:
                 verifierAnonymousFDChannelBindingSHA256,
@@ -657,7 +665,8 @@ public final class TrustRootSupervisorSessionV1:
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         expectedActivationHead: ExpectedActivationHeadV1,
         enrollment: EnrollmentRecord,
         observation: RepositoryObservationV1,
@@ -705,7 +714,8 @@ public final class TrustRootSupervisorSessionV1:
             challenge: challenge,
             receipt: receipt,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             enrollment: enrollment,
             observation: observation,
@@ -743,7 +753,8 @@ public enum TrustRootVerifierCoreV1 {
         challenge: SupervisorChallengeV1,
         supervisorPublicKeyRawRepresentation: [UInt8],
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         observation: RepositoryObservationV1,
         supervisorProcessIdentity: ProcessIdentityV1,
         verifierProcessIdentity: ProcessIdentityV1,
@@ -771,7 +782,9 @@ public enum TrustRootVerifierCoreV1 {
             expectedActivationHead.authoritySignerKeyID
         )
         try manifest.validateEnrollment(state.activeEnrollment)
-        try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try runtimeLaunchPreimageClosure.validate(
+            sourceManifest: manifest
+        )
         try observation.validate(
             manifest: manifest,
             enrollment: state.activeEnrollment
@@ -893,7 +906,8 @@ public enum TrustRootVerifierCoreV1 {
                 verifierPublicKeyRawRepresentation,
             challenge: challenge,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             enrollment: state.activeEnrollment,
             observation: observation,
@@ -992,7 +1006,8 @@ public final class OneShotAttestationConsumerV1:
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         expectedActivationHead: ExpectedActivationHeadV1,
         enrollment: EnrollmentRecord,
         observation: RepositoryObservationV1,
@@ -1024,7 +1039,8 @@ public final class OneShotAttestationConsumerV1:
                 verifierPublicKeyRawRepresentation,
             challenge: challenge,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             enrollment: enrollment,
             observation: observation,
@@ -1038,7 +1054,8 @@ public final class OneShotAttestationConsumerV1:
             challenge: challenge,
             receipt: receipt,
             manifest: manifest,
-            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            runtimeLaunchPreimageClosure:
+                runtimeLaunchPreimageClosure,
             expectedActivationHead: expectedActivationHead,
             supervisorProcessIdentity: supervisorProcessIdentity,
             childProcessIdentity: childProcessIdentity,

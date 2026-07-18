@@ -209,7 +209,7 @@ public struct RepositorySourceManifestV1: Equatable, Sendable {
         }
     }
 
-    public func validateRuntimeLaunchPolicy(
+    func validateRuntimeLaunchPolicy(
         _ policy: RuntimeLaunchPolicyRecordV1
     ) throws {
         guard

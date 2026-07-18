@@ -39,7 +39,7 @@ A query reads one transactional snapshot by operation ID, validates the deployme
 
 A deployment identity also requires `endpointID = SHA256("FGV7DEI1" || witnessID || storeGenerationID)`. Reusing the old endpoint ID with a changed generation stops at construction. A new advance then follows this fixed order:
 
-1. validate witness, endpoint, signer key, `storeGenerationID`, caller role, and `exactAttemptID`
+1. validate witness, endpoint, signer key, `storeGenerationID`, and caller role, then `STOP` if `exactAttemptID` aliases any identity, expected-checkpoint SHA, candidate SHA, or request SHA
 2. transactionally read by operation ID
 3. validate persisted deployment identity, independently observed `observedStoreGenerationID`, current checkpoint, and accepted-operation count
 4. validate expected-checkpoint CAS, successor chain, and the 4,096-operation bound
@@ -96,10 +96,10 @@ The full Swift package ran locally with Xcode 15.3 build 15E5188j, Apple Swift 5
 - new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**
 - release build: PASS, 0.65 Swift-reported seconds, 0.83-second wall time
 - local service symbol graph: 359 bytes, zero symbols / zero relationships
-- boundary checker: zero products, zero external dependencies, zero production consumers, **0 public / SPI symbols**
+- boundary checker: across every discovered build-configuration graph, zero products, zero external dependencies, zero production consumers, and **0 public / SPI symbols**
 - focused repository Vitest evidence boundary: one file / five tests PASS
 
-The 23 tests cover post-sign query / rejection reread, role / independently observed generation mismatch, sign / commit failure, post-commit reconciliation, transient / ambiguous exact-plan resend, ambiguous-applied-then-definitive-loss, same-request and different-fork CAS outcomes, three-ambiguity STOP, competing forks, exact / direct-successor retry, same-sequence and direct divergent forks, unproved multi-step lineage STOP, expired retry and its post-sign reread, committed-but-expired response, clock rollback before and after commit and during refresh, the 4,096 boundary, endpoint-generation reuse, and wrong signer / aliased identity.
+The 23 tests cover post-sign query / rejection reread, role / independently observed generation mismatch, sign / commit failure, post-commit reconciliation, transient / ambiguous exact-plan resend, ambiguous-applied-then-definitive-loss, same-request and different-fork CAS outcomes, three-ambiguity STOP, competing forks, exact / direct-successor retry, same-sequence and direct divergent forks, unproved multi-step lineage STOP, expired retry and its post-sign reread, committed-but-expired response, clock rollback before and after commit and during refresh, the 4,096 boundary, endpoint-generation reuse, wrong signer, and alias rejection across identities plus expected, candidate, and request digests.
 
 This is local source/test evidence. The implementation revision, exact-commit review, PR, and GitHub-CI symbol graph are still pending.
 

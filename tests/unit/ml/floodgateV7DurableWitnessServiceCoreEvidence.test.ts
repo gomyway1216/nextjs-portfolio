@@ -199,6 +199,9 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
     expect(source).toContain("issueLinearizableStateReceipt(");
     expect(source).toContain("finishPreparedReceipt(");
     expect(source).toContain("notBeforeUnixSeconds");
+    expect(source).toContain("!= request.expectedCheckpointSHA256");
+    expect(source).toContain("!= request.canonicalSHA256()");
+    expect(source).toContain("candidateAttemptAlias");
     expect(tests.match(/^\s*func test/gmu)).toHaveLength(23);
     for (const testName of [
       "testQueryStopsIfStateAdvancesAfterSigningBeforeRevalidation",
@@ -227,6 +230,19 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       "expectedAcceptedOperationCount",
       "replacementCheckpoint",
       "createOnlyOperation",
+    ]);
+    expect(
+      record.transaction_contract.exact_attempt_id_rejected_aliases,
+    ).toEqual([
+      "operationID",
+      "clientNonce",
+      "witnessID",
+      "endpointID",
+      "witnessSignerKeyID",
+      "storeGenerationID",
+      "expectedCheckpointSHA256",
+      "candidateCheckpointSHA256",
+      "requestSHA256",
     ]);
     expect(record.ambiguous_commit).toMatchObject({
       same_exact_plan_resent: true,
@@ -319,7 +335,10 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       "service-core is reachable from a non-test target",
     );
     expect(boundary).toContain(
-      "service-core public/SPI symbol graph is not exactly empty",
+      "service-core public/SPI symbol graph is not exactly ",
+    );
+    expect(boundary).toContain(
+      "expected at least one generated service-core symbol graph",
     );
     expect(boundary).toContain('.rglob("*.swift")');
     expect(ci).toContain("verify-remote-witness-service-core-boundary.py");
@@ -351,6 +370,7 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       external_dependencies: 0,
       production_consumers: 0,
       public_or_spi_symbols: 0,
+      all_discovered_symbol_graphs_verified: true,
     });
   });
 

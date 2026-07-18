@@ -70,18 +70,18 @@
       },
       {
         "path": "native/floodgate-v7-external-trust-root-protocol/Sources/FloodgateV7RemoteWitnessServiceCore/DurableRemoteWitnessServiceCoreV1.swift",
-        "bytes": 27147,
-        "sha256": "6654e473ed93e1496b9a26b4ca7c99ddf390e69fc86142927588693bc66f40eb"
+        "bytes": 27556,
+        "sha256": "6101fa441e1482189a349a2257004c679a1e69f0a8029022e5eb09ef1a4a143a"
       },
       {
         "path": "native/floodgate-v7-external-trust-root-protocol/Tests/FloodgateV7RemoteWitnessServiceCoreTests/DurableRemoteWitnessServiceCoreTests.swift",
-        "bytes": 51495,
-        "sha256": "b0161504220d2b3c39f37ea120d2485f5b254d7f6f4efca20c65782e552b8243"
+        "bytes": 53082,
+        "sha256": "f1dc6f4af8e0896bc8219867b644e12973b3a45967d978f3f46c5c49791ca012"
       },
       {
         "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py",
-        "bytes": 6454,
-        "sha256": "f4a1620bd8e01b119e499bf7b4014bc7440b450628595b6a9f14c25f7fc0a335"
+        "bytes": 6506,
+        "sha256": "4aae982a7d904b2a8364a41a07d16359f39e90b2215a5714895ea496018b9884"
       }
     ],
     "swift_target": "FloodgateV7RemoteWitnessServiceCore",
@@ -141,6 +141,17 @@
     "endpoint_binding_domain": "FGV7DEI1",
     "endpoint_id_formula": "SHA256(FGV7DEI1 || witnessID || storeGenerationID)",
     "endpoint_reuse_after_store_generation_change": "STOP-AT-DEPLOYMENT-IDENTITY-CONSTRUCTION",
+    "exact_attempt_id_rejected_aliases": [
+      "operationID",
+      "clientNonce",
+      "witnessID",
+      "endpointID",
+      "witnessSignerKeyID",
+      "storeGenerationID",
+      "expectedCheckpointSHA256",
+      "candidateCheckpointSHA256",
+      "requestSHA256"
+    ],
     "advance_requires_role": "advanceWriter",
     "query_only_role_can_advance": false,
     "query_uses_transactional_snapshot": true,
@@ -287,7 +298,8 @@
       "products": 0,
       "external_dependencies": 0,
       "production_consumers": 0,
-      "public_or_spi_symbols": 0
+      "public_or_spi_symbols": 0,
+      "all_discovered_symbol_graphs_verified": true
     },
     "focused_vitest": {
       "status": "PASS",

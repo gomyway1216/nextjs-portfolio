@@ -1578,5 +1578,52 @@ final class DurableRemoteWitnessServiceCoreTests:
                 storeGenerationID: serviceBytes32(0x67)
             )
         )
+
+        let core = try DurableRemoteWitnessServiceCoreV1(
+            deploymentIdentity: identity,
+            witnessSignerPublicKeyRawRepresentation:
+                Array(key.publicKey.rawRepresentation)
+        )
+        let signer = CountingServiceSigner(key)
+        let initial = try serviceCheckpoint(
+            sequence: 1,
+            lastByte: 0x31
+        )
+        let candidate = try serviceCheckpoint(
+            sequence: 2,
+            previous: initial.canonicalSHA256(),
+            lastByte: 0x41
+        )
+        let request = try serviceAdvance(
+            current: initial,
+            candidate: candidate
+        )
+        let store = FakeDurableWitnessStore(
+            identity: identity,
+            current: initial
+        )
+        for aliasedAttemptID in [
+            request.expectedCheckpointSHA256,
+            candidate.canonicalSHA256(),
+            request.canonicalSHA256(),
+        ] {
+            XCTAssertThrowsError(
+                try core.handle(
+                    request,
+                    callerRole: .advanceWriter,
+                    exactAttemptID: aliasedAttemptID,
+                    clock: ScriptedServiceClock([]).read,
+                    sign: signer.provider,
+                    transactionalRead:
+                        store.transactionalRead,
+                    commit: store.commit
+                )
+            )
+        }
+        XCTAssertTrue(
+            store.transactionalReadOperationIDs.isEmpty
+        )
+        XCTAssertTrue(store.commitPlans.isEmpty)
+        XCTAssertEqual(signer.callCount, 0)
     }
 }

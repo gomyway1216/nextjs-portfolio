@@ -39,7 +39,7 @@ queryはoperation IDで一つのtransactional snapshotを読み、deployment ide
 
 deployment identityは`endpointID = SHA256("FGV7DEI1" || witnessID || storeGenerationID)`も要求する。generationを変更したまま旧endpoint IDを再利用するとconstruction時点で`STOP`する。new advanceは次の順序に固定した。
 
-1. witness / endpoint / signer key / `storeGenerationID`とcaller role、`exactAttemptID`を検証
+1. witness / endpoint / signer key / `storeGenerationID`とcaller roleを検証し、`exactAttemptID`が各identity、expected checkpoint SHA、candidate SHA、request SHAの別名なら`STOP`
 2. operation IDでtransactional snapshotを読む
 3. persisted deployment identity、独立観測した`observedStoreGenerationID`、current checkpoint、accepted-operation countを検証
 4. expected checkpoint CAS、successor chain、4,096件上限を検証
@@ -96,10 +96,10 @@ local Xcode 15.3 build 15E5188j、Apple Swift 5.10、target `arm64-apple-macosx1
 - new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**
 - release build: PASS、Swift reported 0.65秒、wall 0.83秒
 - local service symbol graph: 359 bytes、0 symbols / 0 relationships
-- boundary checker: 0 products、0 external dependencies、0 production consumers、**0 public / SPI symbols**
+- boundary checker: 検出した全build configurationのgraphについて0 products、0 external dependencies、0 production consumers、**0 public / SPI symbols**
 - focused repository Vitest evidence boundary: 1 file / 5 tests PASS
 
-23 testsは署名後query / rejection reread、role / independently observed generation mismatch、sign / commit failure、commit後reconciliation、transient / ambiguous exact-plan resend、ambiguous applied then definitive loss、same-request / different-fork CAS outcome、3回ambiguous STOP、competing fork、exact / direct-successor retry、same-sequence / direct divergent fork、未証明multi-step lineage STOP、expired retryと署名後reread、commit済みresponse expiry、commit前後とrefresh中のclock rollback、4,096境界、endpoint-generation reuse、wrong signer / aliased identityを含む。
+23 testsは署名後query / rejection reread、role / independently observed generation mismatch、sign / commit failure、commit後reconciliation、transient / ambiguous exact-plan resend、ambiguous applied then definitive loss、same-request / different-fork CAS outcome、3回ambiguous STOP、competing fork、exact / direct-successor retry、same-sequence / direct divergent fork、未証明multi-step lineage STOP、expired retryと署名後reread、commit済みresponse expiry、commit前後とrefresh中のclock rollback、4,096境界、endpoint-generation reuse、wrong signer、identity / expected / candidate / request digestとのalias拒否を含む。
 
 これはlocal source/test evidenceである。implementation revision、exact commit review、PR、GitHub CI symbol graphはまだ確定していない。
 

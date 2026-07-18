@@ -172,20 +172,21 @@ def verify_zero_symbol_graph() -> None:
     graphs = sorted(
         PACKAGE_ROOT.glob(f".build/**/symbolgraph/{SYMBOL_GRAPH_NAME}")
     )
-    if len(graphs) != 1:
-        fail(
-            "expected exactly one generated service-core symbol graph, "
-            f"found {len(graphs)}"
-        )
-    payload = json.loads(graphs[0].read_text(encoding="utf-8"))
-    if (
-        not isinstance(payload, dict)
-        or not isinstance(payload.get("module"), dict)
-        or payload["module"].get("name") != SERVICE_TARGET
-        or payload.get("symbols") != []
-        or payload.get("relationships") != []
-    ):
-        fail("service-core public/SPI symbol graph is not exactly empty")
+    if not graphs:
+        fail("expected at least one generated service-core symbol graph")
+    for graph in graphs:
+        payload = json.loads(graph.read_text(encoding="utf-8"))
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("module"), dict)
+            or payload["module"].get("name") != SERVICE_TARGET
+            or payload.get("symbols") != []
+            or payload.get("relationships") != []
+        ):
+            fail(
+                "service-core public/SPI symbol graph is not exactly "
+                f"empty: {graph}"
+            )
 
 
 def main() -> None:

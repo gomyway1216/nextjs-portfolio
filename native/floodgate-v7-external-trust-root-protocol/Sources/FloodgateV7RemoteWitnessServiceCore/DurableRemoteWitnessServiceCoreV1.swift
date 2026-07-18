@@ -198,6 +198,11 @@ final class DurableRemoteWitnessServiceCoreV1 {
         commit: DurableRemoteWitnessCommitV1
     ) throws -> RemoteMonotonicWitnessReceiptV1 {
         do {
+            let candidateAttemptAlias =
+                request.candidateCheckpoint.map {
+                    exactAttemptID
+                        == $0.canonicalSHA256()
+                } ?? false
             guard
                 request.witnessID
                     == deploymentIdentity.witnessID,
@@ -208,6 +213,11 @@ final class DurableRemoteWitnessServiceCoreV1 {
                 exactAttemptID != request.clientNonce,
                 exactAttemptID != request.witnessID,
                 exactAttemptID != request.endpointID,
+                exactAttemptID
+                    != request.expectedCheckpointSHA256,
+                exactAttemptID
+                    != request.canonicalSHA256(),
+                !candidateAttemptAlias,
                 exactAttemptID
                     != deploymentIdentity.witnessSignerKeyID,
                 exactAttemptID

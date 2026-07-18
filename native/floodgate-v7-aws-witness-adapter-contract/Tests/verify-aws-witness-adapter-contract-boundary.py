@@ -134,6 +134,8 @@ REQUIRED_MARKERS = (
     "subjectPublicKeyInfoDER",
     "isValidSignature",
     "ed25519SmallOrder",
+    "RFC 8032 section 5.1.3",
+    "squareRootExponent",
     "state.witnessSignerKeyID",
     "operation.request.endpointID",
     "transactionInProgress",

@@ -2,6 +2,287 @@ import CryptoKit
 import Foundation
 import FloodgateV7ExternalTrustRootProtocol
 
+/// Fixed-width arithmetic used only to fail closed while decoding an
+/// untrusted RFC 8032 Ed25519 compressed point. Values are always reduced
+/// modulo p = 2^255 - 19.
+private struct Ed25519FieldElementV1:
+    Equatable
+{
+    private static let modulus = Self(
+        0xffff_ffff_ffff_ffed,
+        0xffff_ffff_ffff_ffff,
+        0xffff_ffff_ffff_ffff,
+        0x7fff_ffff_ffff_ffff
+    )
+
+    static let zero = Self(0, 0, 0, 0)
+    static let one = Self(1, 0, 0, 0)
+    static let curveD = Self(
+        0x75eb_4dca_1359_78a3,
+        0x0070_0a4d_4141_d8ab,
+        0x8cc7_4079_7779_e898,
+        0x5203_6cee_2b6f_fe73
+    )
+    static let squareRootOfMinusOne = Self(
+        0xc4ee_1b27_4a0e_a0b0,
+        0x2f43_1806_ad2f_e478,
+        0x2b4d_0099_3dfb_d7a7,
+        0x2b83_2480_4fc1_df0b
+    )
+    static let inverseExponent = Self(
+        0xffff_ffff_ffff_ffeb,
+        0xffff_ffff_ffff_ffff,
+        0xffff_ffff_ffff_ffff,
+        0x7fff_ffff_ffff_ffff
+    )
+    static let squareRootExponent = Self(
+        0xffff_ffff_ffff_fffe,
+        0xffff_ffff_ffff_ffff,
+        0xffff_ffff_ffff_ffff,
+        0x0fff_ffff_ffff_ffff
+    )
+
+    private let limb0: UInt64
+    private let limb1: UInt64
+    private let limb2: UInt64
+    private let limb3: UInt64
+
+    private init(
+        _ limb0: UInt64,
+        _ limb1: UInt64,
+        _ limb2: UInt64,
+        _ limb3: UInt64
+    ) {
+        self.limb0 = limb0
+        self.limb1 = limb1
+        self.limb2 = limb2
+        self.limb3 = limb3
+    }
+
+    static func canonicalLittleEndian(
+        _ bytes: [UInt8]
+    ) -> Self? {
+        guard bytes.count == 32 else {
+            return nil
+        }
+        func limb(_ offset: Int) -> UInt64 {
+            bytes[offset..<(offset + 8)]
+                .enumerated()
+                .reduce(UInt64(0)) {
+                    $0
+                        | (
+                            UInt64($1.element)
+                                << UInt64(
+                                    $1.offset * 8
+                                )
+                        )
+                }
+        }
+        let value = Self(
+            limb(0),
+            limb(8),
+            limb(16),
+            limb(24)
+        )
+        return value.isLessThan(modulus)
+            ? value
+            : nil
+    }
+
+    var isZero: Bool {
+        self == Self.zero
+    }
+
+    var isOdd: Bool {
+        limb0 & 1 == 1
+    }
+
+    func addingModulo(
+        _ other: Self
+    ) -> Self {
+        let (sum0, carry0) =
+            limb0.addingReportingOverflow(
+                other.limb0
+            )
+        let (partial1, carry1a) =
+            limb1.addingReportingOverflow(
+                other.limb1
+            )
+        let (sum1, carry1b) =
+            partial1.addingReportingOverflow(
+                carry0 ? 1 : 0
+            )
+        let carry1 = carry1a || carry1b
+        let (partial2, carry2a) =
+            limb2.addingReportingOverflow(
+                other.limb2
+            )
+        let (sum2, carry2b) =
+            partial2.addingReportingOverflow(
+                carry1 ? 1 : 0
+            )
+        let carry2 = carry2a || carry2b
+        let (partial3, carry3a) =
+            limb3.addingReportingOverflow(
+                other.limb3
+            )
+        let (sum3, carry3b) =
+            partial3.addingReportingOverflow(
+                carry2 ? 1 : 0
+            )
+        precondition(
+            !(carry3a || carry3b),
+            "reduced Ed25519 field addition overflowed"
+        )
+        let sum = Self(
+            sum0,
+            sum1,
+            sum2,
+            sum3
+        )
+        return sum.isLessThan(Self.modulus)
+            ? sum
+            : sum.subtractingWithoutUnderflow(
+                Self.modulus
+            )
+    }
+
+    func subtractingModulo(
+        _ other: Self
+    ) -> Self {
+        if !isLessThan(other) {
+            return subtractingWithoutUnderflow(
+                other
+            )
+        }
+        return Self.modulus
+            .subtractingWithoutUnderflow(
+                other
+                    .subtractingWithoutUnderflow(
+                        self
+                    )
+            )
+    }
+
+    func multipliedModulo(
+        by other: Self
+    ) -> Self {
+        var result = Self.zero
+        var addend = self
+        for bitIndex in 0..<255 {
+            if other.bit(at: bitIndex) {
+                result = result.addingModulo(
+                    addend
+                )
+            }
+            addend = addend.addingModulo(
+                addend
+            )
+        }
+        return result
+    }
+
+    func raised(
+        to exponent: Self
+    ) -> Self {
+        var result = Self.one
+        var base = self
+        for bitIndex in 0..<255 {
+            if exponent.bit(at: bitIndex) {
+                result = result
+                    .multipliedModulo(by: base)
+            }
+            base = base.multipliedModulo(
+                by: base
+            )
+        }
+        return result
+    }
+
+    func negatedModulo() -> Self {
+        isZero
+            ? self
+            : Self.modulus
+                .subtractingWithoutUnderflow(self)
+    }
+
+    private func bit(
+        at index: Int
+    ) -> Bool {
+        let shift = UInt64(index % 64)
+        switch index / 64 {
+        case 0:
+            return (limb0 >> shift) & 1 == 1
+        case 1:
+            return (limb1 >> shift) & 1 == 1
+        case 2:
+            return (limb2 >> shift) & 1 == 1
+        default:
+            return (limb3 >> shift) & 1 == 1
+        }
+    }
+
+    private func isLessThan(
+        _ other: Self
+    ) -> Bool {
+        if limb3 != other.limb3 {
+            return limb3 < other.limb3
+        }
+        if limb2 != other.limb2 {
+            return limb2 < other.limb2
+        }
+        if limb1 != other.limb1 {
+            return limb1 < other.limb1
+        }
+        return limb0 < other.limb0
+    }
+
+    private func subtractingWithoutUnderflow(
+        _ other: Self
+    ) -> Self {
+        let (difference0, borrow0) =
+            limb0.subtractingReportingOverflow(
+                other.limb0
+            )
+        let (partial1, borrow1a) =
+            limb1.subtractingReportingOverflow(
+                other.limb1
+            )
+        let (difference1, borrow1b) =
+            partial1.subtractingReportingOverflow(
+                borrow0 ? 1 : 0
+            )
+        let borrow1 = borrow1a || borrow1b
+        let (partial2, borrow2a) =
+            limb2.subtractingReportingOverflow(
+                other.limb2
+            )
+        let (difference2, borrow2b) =
+            partial2.subtractingReportingOverflow(
+                borrow1 ? 1 : 0
+            )
+        let borrow2 = borrow2a || borrow2b
+        let (partial3, borrow3a) =
+            limb3.subtractingReportingOverflow(
+                other.limb3
+            )
+        let (difference3, borrow3b) =
+            partial3.subtractingReportingOverflow(
+                borrow2 ? 1 : 0
+            )
+        precondition(
+            !(borrow3a || borrow3b),
+            "Ed25519 field subtraction underflowed"
+        )
+        return Self(
+            difference0,
+            difference1,
+            difference2,
+            difference3
+        )
+    }
+}
+
 struct KMSWitnessKeyBindingV1:
     Equatable,
     Sendable
@@ -13,12 +294,6 @@ struct KMSWitnessKeyBindingV1:
         0x06, 0x03, 0x2b, 0x65, 0x70,
         0x03, 0x21, 0x00,
     ]
-
-    private static let ed25519FieldPrime:
-        [UInt8] =
-        [0xed]
-        + Array(repeating: 0xff, count: 30)
-        + [0x7f]
 
     /// The eight canonical encodings of Ed25519's small-order subgroup.
     private static let ed25519SmallOrder:
@@ -231,25 +506,66 @@ struct KMSWitnessKeyBindingV1:
         else {
             return false
         }
+        let sign = raw[31] & 0x80 != 0
         var y = raw
         y[31] &= 0x7f
-        for index in stride(
-            from: 31,
-            through: 0,
-            by: -1
-        ) {
-            if y[index]
-                < ed25519FieldPrime[index]
-            {
-                return true
-            }
-            if y[index]
-                > ed25519FieldPrime[index]
-            {
-                return false
-            }
+        guard let fieldY =
+            Ed25519FieldElementV1
+                .canonicalLittleEndian(y)
+        else {
+            return false
         }
-        return false
+
+        // RFC 8032 section 5.1.3: recover x from the complete curve
+        // equation and reject a non-square, including x = 0 with sign = 1.
+        let ySquared = fieldY
+            .multipliedModulo(by: fieldY)
+        let numerator = ySquared
+            .subtractingModulo(.one)
+        let denominator =
+            Ed25519FieldElementV1.curveD
+                .multipliedModulo(
+                    by: ySquared
+                )
+                .addingModulo(.one)
+        guard !denominator.isZero else {
+            return false
+        }
+        let xSquared = numerator
+            .multipliedModulo(
+                by: denominator.raised(
+                    to:
+                        Ed25519FieldElementV1
+                        .inverseExponent
+                )
+            )
+        if xSquared.isZero {
+            return !sign
+        }
+        var x = xSquared.raised(
+            to:
+                Ed25519FieldElementV1
+                .squareRootExponent
+        )
+        if x.multipliedModulo(by: x)
+            != xSquared
+        {
+            x = x.multipliedModulo(
+                by:
+                    Ed25519FieldElementV1
+                    .squareRootOfMinusOne
+            )
+        }
+        guard x.multipliedModulo(by: x)
+            == xSquared
+        else {
+            return false
+        }
+        if x.isOdd != sign {
+            x = x.negatedModulo()
+        }
+        return !x.isZero
+            && x.isOdd == sign
     }
 
     private static func validKeyARN(

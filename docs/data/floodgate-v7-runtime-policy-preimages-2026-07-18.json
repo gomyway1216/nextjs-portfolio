@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-runtime-policy-preimages-v1",
-  "recorded_at": "2026-07-18T02:51:51-07:00",
+  "recorded_at": "2026-07-18T04:30:20-07:00",
   "scope": {
     "status": "UNAVAILABLE",
     "operational_decision": "STOP",
@@ -42,8 +42,208 @@
     "integrated_main_tree": "436f76b1108a96f756f865725ee3ff81ec96ef58",
     "post_main_merge_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
     "post_main_merge_tree": "3b7e499d6cac376053a4a1e0852428ddfc83ba8a",
+    "pr_review_intermediate_remediation_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+    "pr_review_intermediate_remediation_tree": "c770f08c6df12f6a2d0a602025571aa0406b85d2",
+    "pr_review_remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+    "pr_review_remediation_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
     "base_integration_method": "regular-merge-commit",
     "base_pull_request": 499
+  },
+  "pull_request_validation": {
+    "pull_request": 501,
+    "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/501",
+    "status": "IN_PROGRESS",
+    "operational_decision": "STOP",
+    "initial_head_revision": "3b0b37a353d478cf235901d391848886574621be",
+    "observed_at": "2026-07-18T03:23:44-07:00",
+    "initial_ci_observation": {
+      "ci_run_id": 29639949306,
+      "workflow_status": "COMPLETED",
+      "workflow_conclusion": "FAILURE",
+      "blocking_failure_present": true,
+      "failed_job_id": 88068705524,
+      "failed_job_name": "Darwin exclusive directory rename",
+      "failed_step": "Run Darwin native-launcher preload adversarial tests",
+      "test_file": "tests/unit/ml/floodgateV7ProductionNativeLauncher.test.ts",
+      "failed_test_name": "strips or rejects DYLD injection before the attested child",
+      "test_file_present": 23,
+      "test_file_passed": 22,
+      "test_file_failed": 1,
+      "spawn_result_status": null,
+      "child_process_error_assertion_passed": true,
+      "spawn_result_signal_logged": false,
+      "test_and_build_job_id": 88068705540,
+      "test_and_build_status": "COMPLETED",
+      "test_and_build_conclusion": "SUCCESS",
+      "successful_test_and_build_steps": [
+        "lint",
+        "unit-tests",
+        "isolated-pinned-public-deadline-calibration",
+        "dependency-free-ml-contract-tests",
+        "production-build"
+      ],
+      "completed_successful_checks": [
+        "npm-audit",
+        "external-trust-root-protocol-source-only",
+        "e2e-smoke-tests",
+        "vercel"
+      ],
+      "baseline_comparison": {
+        "main_revision": "0601268a57af32c910b785c3f79da647d3fbb428",
+        "main_ci_run_id": 29637691079,
+        "main_darwin_job_id": 88062776481,
+        "main_launcher_test_result": "23/23 PASS",
+        "same_runner_image": true,
+        "runner_os": "macOS 26.4",
+        "runner_image": "macos-26-arm64",
+        "runner_image_version": "20260715.0248.1",
+        "runner_provisioner_version": "20260707.563",
+        "launcher_test_blob_at_initial_head": "a7f3e5c9f820305c42f8361d931cc222bd2ab221",
+        "launcher_test_blob_at_main": "a7f3e5c9f820305c42f8361d931cc222bd2ab221",
+        "test_launcher_fixture_blob_at_initial_head": "d1e92b7f7526c5dc3978a0094feeb90653c71f30",
+        "test_launcher_fixture_blob_at_main": "d1e92b7f7526c5dc3978a0094feeb90653c71f30",
+        "failed_paths_changed_by_unit_b": false,
+        "inference": "pre-existing-runner-dependent-ci-portability-failure-not-unit-b-product-regression"
+      }
+    },
+    "review_feedback": {
+      "reviewed_head_revision": "3b0b37a353d478cf235901d391848886574621be",
+      "github_review_states": ["COMMENTED"],
+      "remediation_decision": "CHANGES_REQUESTED",
+      "actionable_p2_total": 3,
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 3,
+      "findings": [
+        {
+          "thread_id": "PRRT_kwDOQbO82s6R-b_9",
+          "author": "gemini-code-assist",
+          "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py",
+          "finding_id": "symbol-graph-verifier-required-exactly-one-build-product",
+          "remote_status": "UNRESOLVED",
+          "local_status": "PENDING_REREVIEW"
+        },
+        {
+          "thread_id": "PRRT_kwDOQbO82s6R-cAA",
+          "author": "gemini-code-assist",
+          "path": "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+          "finding_id": "evidence-test-hardcoded-usr-bin-git",
+          "remote_status": "UNRESOLVED",
+          "local_status": "PENDING_REREVIEW"
+        },
+        {
+          "thread_id": "PRRT_kwDOQbO82s6R-cuK",
+          "author": "copilot-pull-request-reviewer",
+          "path": "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+          "finding_id": "evidence-test-counted-ci-settings-across-unrelated-jobs",
+          "remote_status": "UNRESOLVED",
+          "local_status": "PENDING_REREVIEW"
+        }
+      ]
+    },
+    "local_remediation": {
+      "status": "IN_PROGRESS",
+      "updated_at": "2026-07-18T04:30:20-07:00",
+      "intermediate_remediation_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+      "intermediate_remediation_tree": "c770f08c6df12f6a2d0a602025571aa0406b85d2",
+      "remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+      "remediation_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+      "technical_commit_created_at": "2026-07-18T04:18:27-07:00",
+      "technical_exact_revision_review": {
+        "status": "PASS",
+        "reviewed_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+        "reviewed_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+        "unresolved_p0": 0,
+        "unresolved_p1": 0,
+        "unresolved_p2": 0
+      },
+      "pushed": false,
+      "ci_rerun_status": "NOT_STARTED",
+      "review_threads_resolved": false,
+      "technical_changed_paths": [
+        ".github/workflows/ci.yml",
+        "native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py",
+        "tests/unit/ml/floodgateV7ProductionNativeLauncher.test.ts"
+      ],
+      "publication_tracking_paths": [
+        "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md",
+        "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md",
+        "docs/data/floodgate-v7-runtime-policy-preimages-2026-07-18.json",
+        "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts"
+      ],
+      "changes": [
+        "validate-every-build-configurations-base-and-extension-shard-symbol-graphs-including-spi-and-fail-if-none",
+        "enforce-the-exact-four-composed-public-callables-and-zero-raw-policy-callable-consumers-including-global-initializer-operator-subscript-function-property-returned-function-and-typealias-surfaces",
+        "pin-every-public-and-spi-symbol-access-kind-path-precise-identity-declaration-fragments-and-canonical-relationships-with-same-count-type-and-conformance-mutation-self-checks",
+        "record-xcode-swift-symbol-graph-metadata-and-preserve-exact-base-and-shard-graphs-per-ci-run-attempt-for-fail-closed-calibration",
+        "resolve-git-without-a-shell-through-the-sanitized-system-path-usr-bin-and-bin-only",
+        "scope-provenance-ci-counts-from-test-and-build-to-the-next-arbitrary-job-boundary",
+        "retry-once-only-after-empty-output-sigabrt-or-sigkill-parent-exit-log-only-sanitized-outcome-shape-and-still-require-final-status-zero-or-six-with-null-signal"
+      ],
+      "symbol_graph_toolchain_calibration": {
+        "local_toolchain": "xcode-15.3-swift-5.10",
+        "local_normalized_surface_symbol_count": 491,
+        "local_normalized_surface_relationship_count": 542,
+        "local_normalized_surface_sha256": "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+        "pr_ci_toolchain": "newer-than-local-exact-version-pending-rerun-observation",
+        "status": "NOT_STARTED",
+        "mismatch_policy": "fail-closed-inspect-exact-surface-diff-before-any-expected-fingerprint-update",
+        "ci_calibration_evidence": [
+          "xcodebuild-version",
+          "swift-version",
+          "symbol-graph-generator-format-and-module-platform",
+          "base-and-shard-symbol-graph-artifact-keyed-by-sha-and-run-attempt"
+        ]
+      },
+      "independent_review_history": [
+        {
+          "review_sequence": 1,
+          "status": "CHANGES_REQUESTED",
+          "unresolved_p0": 0,
+          "unresolved_p1": 5,
+          "unresolved_p2": 28,
+          "finding_ids": [
+            "bare-git-inherited-npm-path-could-intercept-provenance-command",
+            "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
+            "symbol-graph-gate-skipped-single-path-global-functions",
+            "workflow-job-slice-used-a-specific-next-job-as-its-boundary",
+            "successful-dyld-retry-would-hide-the-first-parent-signal",
+            "symbol-graph-callable-scan-omitted-operators-and-subscripts",
+            "new-pr-publication-facts-and-baseline-provenance-were-self-declared",
+            "recorded-at-was-not-ordered-after-pull-request-observed-at",
+            "sanitized-git-environment-omitted-required-node-env-and-failed-typescript-noemit",
+            "symbol-graph-closure-detection-depended-on-the-parameter-label",
+            "symbol-graph-composed-scan-omitted-public-initializers",
+            "symbol-graph-required-method-check-missed-partial-overloads",
+            "symbol-graph-callable-scan-omitted-static-subscripts",
+            "symbol-graph-security-typealiases-bypassed-semantic-type-classification",
+            "symbol-graph-function-properties-exposed-protected-runtime-launch-types",
+            "symbol-graph-callables-returned-functions-that-exposed-protected-runtime-launch-types",
+            "symbol-graph-extension-shards-were-not-loaded",
+            "swift-spi-public-symbols-were-omitted-from-the-ci-symbol-graph",
+            "launcher-assertion-diagnostic-could-log-raw-child-stderr",
+            "public-spi-symbol-surface-was-not-structurally-pinned-across-all-kinds-and-protected-self-owners",
+            "public-surface-fingerprint-collapsed-overloads-and-declaration-types",
+            "public-surface-fingerprint-omitted-symbol-graph-relationships-and-conformances",
+            "ci-toolchain-mismatch-lacked-retrievable-exact-symbol-graph-evidence",
+            "symbol-graph-artifact-excluded-hidden-dot-build-path",
+            "symbol-graph-artifact-name-collided-across-run-attempts",
+            "symbol-graph-calibration-metadata-accepted-empty-objects",
+            "calibration-artifact-test-did-not-pin-always-safe-path-and-no-files-policy",
+            "independent-security-review-resolved-totals-omitted-pr-remediation-findings",
+            "publication-review-resolved-total-omitted-post-pr-findings",
+            "publication-complete-status-overstated-current-content-exact-review",
+            "calibration-artifact-test-step-slice-allowed-later-always-bypass",
+            "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push",
+            "calibration-artifact-test-string-assertions-accepted-comment-decoys"
+          ]
+        }
+      ],
+      "validation_status": "PENDING_FINAL_RERUN_AFTER_REVIEW_FIXES"
+    },
+    "live_weights_changed": false,
+    "live_configuration_changed": false,
+    "new_strength_measurements": 0
   },
   "canonical_records": {
     "fixed_argv": {
@@ -156,9 +356,35 @@
     },
     "public_api_surface": {
       "enforcement": "swift-public-symbol-graph",
+      "minimum_access_level": "public",
+      "spi_symbols_included": true,
+      "synthesized_members_skipped": true,
+      "base_and_external_extension_shards_unioned_per_build_configuration": true,
+      "normalized_surface_fields": [
+        "access-level",
+        "spi-marker",
+        "kind-identifier",
+        "path-components",
+        "symbol-precise-identifier",
+        "declaration-fragments-kind-spelling-precise-identifier",
+        "canonical-json-of-every-symbol-relationship-field"
+      ],
+      "normalized_surface_symbol_count": 491,
+      "normalized_surface_relationship_count": 542,
+      "normalized_surface_sha256": "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+      "same_path_declaration_mutation_self_check": "PASS",
+      "relationship_only_conformance_mutation_self_check": "PASS",
+      "local_fingerprint_toolchain": "xcode-15.3-swift-5.10",
+      "ci_toolchain_calibration_status": "NOT_STARTED",
       "composed_entrypoints_present": 4,
       "partial_entrypoints_absent": 6,
       "raw_runtime_launch_policy_public_handoff_overloads": 0,
+      "signature_gate_scope": "direct-public-and-spi-symbol-surface-relationships-protocol-conformances-self-owner-and-protected-type-signatures",
+      "semantic_nonclaims": [
+        "does-not-prove-existing-public-symbol-body-behavior",
+        "does-not-prove-arbitrary-wrapper-byte-decoder-generic-or-dynamic-cast-behavior",
+        "source-security-review-and-adversarial-tests-remain-required"
+      ],
       "ci_gate": true,
       "local_result": "PASS"
     }
@@ -278,6 +504,17 @@
     },
     "public_api_symbol_graph": {
       "status": "PASS",
+      "build_configurations_checked": 1,
+      "base_and_shard_files_checked": 1,
+      "spi_symbols_included": true,
+      "synthesized_members_skipped": true,
+      "normalized_surface_symbol_count": 491,
+      "normalized_surface_relationship_count": 542,
+      "normalized_surface_sha256": "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+      "same_path_declaration_mutation_self_check": "PASS",
+      "relationship_only_conformance_mutation_self_check": "PASS",
+      "fingerprint_toolchain": "xcode-15.3-swift-5.10",
+      "ci_toolchain_calibration_status": "NOT_STARTED",
       "composed_entrypoints_present": 4,
       "partial_entrypoints_absent": 6
     },
@@ -300,17 +537,125 @@
           "unresolved_p0": 0,
           "unresolved_p1": 0,
           "unresolved_p2": 2
+        },
+        {
+          "reviewed_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+          "status": "PASS",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
+        },
+        {
+          "reviewed_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 4,
+          "finding_ids": [
+            "symbol-graph-verifier-required-exactly-one-build-product",
+            "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
+            "symbol-graph-gate-skipped-single-path-global-functions",
+            "symbol-graph-callable-scan-omitted-operators-and-subscripts"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-symbol-graph-remediation-before-second-hardening",
+          "integration_base_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 4,
+          "finding_ids": [
+            "symbol-graph-closure-detection-depended-on-the-parameter-label",
+            "symbol-graph-composed-scan-omitted-public-initializers",
+            "symbol-graph-required-method-check-missed-partial-overloads",
+            "symbol-graph-callable-scan-omitted-static-subscripts"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-symbol-graph-second-hardening-before-typealias-rejection",
+          "integration_base_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "symbol-graph-security-typealiases-bypassed-semantic-type-classification"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-symbol-graph-typealias-hardening-before-complete-callable-shard-and-spi-enforcement",
+          "integration_base_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 4,
+          "finding_ids": [
+            "symbol-graph-function-properties-exposed-protected-runtime-launch-types",
+            "symbol-graph-callables-returned-functions-that-exposed-protected-runtime-launch-types",
+            "symbol-graph-extension-shards-were-not-loaded",
+            "swift-spi-public-symbols-were-omitted-from-the-ci-symbol-graph"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-complete-callable-shard-and-spi-enforcement-before-normalized-surface-pin",
+          "integration_base_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "public-spi-symbol-surface-was-not-structurally-pinned-across-all-kinds-and-protected-self-owners"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-normalized-public-spi-surface-pin-before-signature-aware-fingerprint",
+          "integration_base_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "public-surface-fingerprint-collapsed-overloads-and-declaration-types"
+          ]
+        },
+        {
+          "reviewed_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+          "status": "CHANGES_REQUESTED",
+          "unresolved_p0": 0,
+          "unresolved_p1": 1,
+          "unresolved_p2": 0,
+          "finding_ids": [
+            "public-surface-fingerprint-omitted-symbol-graph-relationships-and-conformances"
+          ]
+        },
+        {
+          "reviewed_content": "uncommitted-relationship-aware-surface-before-complete-ci-calibration-hardening",
+          "integration_base_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+          "unresolved_p0": 0,
+          "unresolved_p1": 1,
+          "unresolved_p2": 3,
+          "finding_ids": [
+            "ci-toolchain-mismatch-lacked-retrievable-exact-symbol-graph-evidence",
+            "symbol-graph-artifact-excluded-hidden-dot-build-path",
+            "symbol-graph-artifact-name-collided-across-run-attempts",
+            "symbol-graph-calibration-metadata-accepted-empty-objects"
+          ]
+        },
+        {
+          "reviewed_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "reviewed_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+          "status": "PASS",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
         }
       ],
-      "remediation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
-      "reviewed_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
-      "resolved_p2_total": 5,
+      "latest_completed_remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+      "latest_completed_pass_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+      "current_remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+      "resolved_p1_total": 2,
+      "resolved_p2_total": 23,
       "unresolved_p0": 0,
       "unresolved_p1": 0,
       "unresolved_p2": 0
     },
     "publication_evidence_review": {
-      "status": "PASS",
+      "status": "IN_PROGRESS",
       "review_scope": "publication-artifacts-and-provenance-ci-delta-working-tree-content",
       "paths": [
         "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md",
@@ -319,7 +664,8 @@
         "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
         ".github/workflows/ci.yml"
       ],
-      "reviewed_implementation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "reviewed_implementation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+      "reviewed_implementation_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       "reviewed_integration_revision": "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
       "review_history": [
         {
@@ -413,11 +759,92 @@
           "unresolved_p0": 0,
           "unresolved_p1": 0,
           "unresolved_p2": 0
+        },
+        {
+          "review_sequence": 9,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "pr-501-initial-publication-review-feedback",
+          "reviewed_revision": "3b0b37a353d478cf235901d391848886574621be",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 2,
+          "finding_ids": [
+            "evidence-test-hardcoded-usr-bin-git",
+            "evidence-test-counted-ci-settings-across-unrelated-jobs"
+          ]
+        },
+        {
+          "review_sequence": 10,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "pr-501-symbol-graph-calibration-artifact-evidence-test",
+          "reviewed_technical_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "calibration-artifact-test-did-not-pin-always-safe-path-and-no-files-policy"
+          ]
+        },
+        {
+          "review_sequence": 11,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "pr-501-remediated-publication-review-aggregate-metadata",
+          "reviewed_technical_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 2,
+          "finding_ids": [
+            "independent-security-review-resolved-totals-omitted-pr-remediation-findings",
+            "publication-review-resolved-total-omitted-post-pr-findings"
+          ]
+        },
+        {
+          "review_sequence": 12,
+          "status": "PASS",
+          "reviewed_content": "pre-publication-commit-four-path-working-tree-content",
+          "reviewed_technical_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "reviewed_technical_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+          "reviewed_git_blobs": {
+            "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md": "9c73d6e8bd61eb614b56cff2c295da0ba6ad4ca0",
+            "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md": "99b7923964ffad962be5fbe575b80667e15fcb3b",
+            "docs/data/floodgate-v7-runtime-policy-preimages-2026-07-18.json": "872b5b294de227443a5e760f1ee43481e001d76e",
+            "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts": "a42ad12de7cc559adabf475b4af1702a7905fecb"
+          },
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
+        },
+        {
+          "review_sequence": 13,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "sequence-twelve-final-metadata-and-artifact-step-boundary",
+          "reviewed_technical_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "unresolved_p0": 0,
+          "unresolved_p1": 1,
+          "unresolved_p2": 2,
+          "finding_ids": [
+            "publication-complete-status-overstated-current-content-exact-review",
+            "calibration-artifact-test-step-slice-allowed-later-always-bypass",
+            "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push"
+          ]
+        },
+        {
+          "review_sequence": 14,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "sequence-thirteen-artifact-step-exact-scalar-assertions",
+          "reviewed_technical_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 1,
+          "finding_ids": [
+            "calibration-artifact-test-string-assertions-accepted-comment-decoys"
+          ]
         }
       ],
-      "remediation_status": "COMPLETE",
-      "resolved_p1_total": 3,
-      "resolved_p2_total": 12,
+      "remediation_status": "PENDING_PUBLICATION_COMMIT_AND_EXACT_REVISION_REVIEW",
+      "current_content_exact_review_status": "PENDING_PUBLICATION_COMMIT",
+      "resolved_p1_total": 4,
+      "resolved_p2_total": 20,
       "unresolved_p0": 0,
       "unresolved_p1": 0,
       "unresolved_p2": 0

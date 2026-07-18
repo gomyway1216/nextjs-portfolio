@@ -19,6 +19,8 @@ const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md";
 const workflowRelative = ".github/workflows/ci.yml";
 const symbolGraphVerifierRelative = `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`;
+const productionLauncherTestRelative =
+  "tests/unit/ml/floodgateV7ProductionNativeLauncher.test.ts";
 const implementationEvidenceRevision =
   "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12";
 const implementationEvidenceTree = "ef6a4f738393d1dfc59ce2c4752628633cf16f14";
@@ -35,10 +37,150 @@ function read(relativePath: string): string {
 }
 
 function gitOutput(arguments_: string[]): string {
-  return execFileSync("/usr/bin/git", arguments_, {
+  return execFileSync("git", arguments_, {
     cwd: repositoryRoot,
     encoding: "utf8",
+    env: {
+      LANG: "C",
+      LC_ALL: "C",
+      NODE_ENV: "test",
+      PATH: "/usr/bin:/bin",
+    },
   }).trim();
+}
+
+function workflowJob(workflow: string, jobName: string): string {
+  const marker = `  ${jobName}:\n`;
+  const start = workflow.indexOf(marker);
+  expect(start, `missing workflow job: ${jobName}`).toBeGreaterThanOrEqual(0);
+  const afterMarker = start + marker.length;
+  const nextJobOffset = workflow
+    .slice(afterMarker)
+    .search(/^  [A-Za-z0-9_-]+:\n/gmu);
+  const end =
+    nextJobOffset === -1 ? workflow.length : afterMarker + nextJobOffset;
+  return workflow.slice(start, end);
+}
+
+function workflowStep(job: string, stepName: string): string {
+  const marker = `      - name: ${stepName}\n`;
+  const start = job.indexOf(marker);
+  expect(start, `missing workflow step: ${stepName}`).toBeGreaterThanOrEqual(0);
+  const afterMarker = start + marker.length;
+  const nextStepOffset = job.slice(afterMarker).search(/^      - /gmu);
+  const end = nextStepOffset === -1 ? job.length : afterMarker + nextStepOffset;
+  return job.slice(start, end);
+}
+
+function workflowScalar(
+  step: string,
+  indentation: number,
+  key: string,
+): string {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const matches = Array.from(
+    step.matchAll(
+      new RegExp(
+        `^${" ".repeat(indentation)}${escapedKey}:[ \\t]*([^#\\n]*?)(?:[ \\t]+#.*)?$`,
+        "gmu",
+      ),
+    ),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `expected exactly one ${key} scalar at indentation ${indentation}, found ${matches.length}`,
+    );
+  }
+  return matches[0][1].trim();
+}
+
+function assertExactLineOnce(text: string, line: string): void {
+  const count = text
+    .split("\n")
+    .filter((candidate) => candidate === line).length;
+  if (count !== 1) {
+    throw new Error(`expected exact line once, found ${count}: ${line}`);
+  }
+}
+
+function assertCalibrationArtifactStep(step: string): void {
+  for (const [indentation, key, expectedValue] of [
+    [8, "if", "always()"],
+    [8, "uses", "actions/upload-artifact@v7"],
+    [8, "with", ""],
+    [
+      10,
+      "name",
+      "floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
+    ],
+    [
+      10,
+      "path",
+      `${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
+    ],
+    [10, "if-no-files-found", "error"],
+    [10, "include-hidden-files", "true"],
+    [10, "retention-days", "14"],
+  ] as const) {
+    const actualValue = workflowScalar(step, indentation, key);
+    if (actualValue !== expectedValue) {
+      throw new Error(
+        `unsafe ${key} scalar: expected ${expectedValue}, received ${actualValue}`,
+      );
+    }
+  }
+}
+
+function assertSingleCalibrationArtifactUpload(job: string): void {
+  const stepMarkers = job.match(
+    /^      - name: Preserve public symbol graphs for exact-diff calibration$/gmu,
+  );
+  if (stepMarkers?.length !== 1) {
+    throw new Error(
+      `expected exactly one calibration artifact step, found ${stepMarkers?.length ?? 0}`,
+    );
+  }
+  const uploadActionReferences = job.match(/actions\/upload-artifact@/giu);
+  if (uploadActionReferences?.length !== 1) {
+    throw new Error(
+      `expected exactly one upload-artifact action reference in the job, found ${uploadActionReferences?.length ?? 0}`,
+    );
+  }
+  assertCalibrationArtifactStep(
+    workflowStep(
+      job,
+      "Preserve public symbol graphs for exact-diff calibration",
+    ),
+  );
+}
+
+function assertExternalTrustRootProtocolJob(job: string): void {
+  const calibrationContextStep = workflowStep(
+    job,
+    "Record Swift symbol-graph calibration context",
+  );
+  for (const line of [
+    "          xcodebuild -version",
+    "          xcrun swift --version",
+  ]) {
+    assertExactLineOnce(calibrationContextStep, line);
+  }
+  const verificationStep = workflowStep(
+    job,
+    "Verify external trust-root public API surface",
+  );
+  for (const line of [
+    "          xcrun swift package \\",
+    "            dump-symbol-graph \\",
+    "            --minimum-access-level public \\",
+    "            --include-spi-symbols \\",
+    "            --skip-synthesized-members",
+    "          /usr/bin/python3 \\",
+    `            ${symbolGraphVerifierRelative}`,
+  ]) {
+    assertExactLineOnce(verificationStep, line);
+  }
+  assertSingleCalibrationArtifactUpload(job);
 }
 
 function expectSubstringsInOrder(text: string, substrings: string[]): void {
@@ -132,6 +274,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     );
     const workflow = read(workflowRelative);
     const symbolGraphVerifier = read(symbolGraphVerifierRelative);
+    const productionLauncherTest = read(productionLauncherTestRelative);
+    const evidenceTestSource = read(
+      "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+    );
 
     expect(preimageSource).toContain(
       "public struct RuntimeLaunchPreimageClosureV1",
@@ -176,12 +322,204 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     expect(symbolGraphVerifier).toContain(
       '"OneShotAttestationConsumerV1", "consume("',
     );
-    expect(symbolGraphVerifier).toContain("runtimeLaunchPreimageClosure: ");
-    expect(symbolGraphVerifier).toContain("forbidden_partial_entrypoints");
-    expect(workflow).toContain("dump-symbol-graph");
-    expect(workflow).toContain("verify-public-api-symbol-graph.py");
-    expect(workflow.match(/fetch-depth: 0/gu)).toHaveLength(1);
-    expect(workflow.match(/timeout-minutes: 25/gu)).toHaveLength(1);
+    expect(symbolGraphVerifier).toContain("REQUIRED_FULL_ENTRYPOINTS");
+    expect(symbolGraphVerifier).toContain("FORBIDDEN_PARTIAL_ENTRYPOINTS");
+    expect(symbolGraphVerifier).toContain("CALLABLE_KINDS");
+    expect(symbolGraphVerifier).toContain("FUNCTION_PROPERTY_KINDS");
+    expect(symbolGraphVerifier).toContain("ALLOWED_RAW_POLICY_PRODUCER");
+    expect(symbolGraphVerifier).toContain(
+      "EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT = 491",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT = 542",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+    );
+    expect(symbolGraphVerifier).toContain("normalized_public_surface");
+    expect(symbolGraphVerifier).toContain("access_level");
+    expect(symbolGraphVerifier).toContain('symbol.get("spi", False)');
+    expect(symbolGraphVerifier).toContain('identifier.get("precise")');
+    expect(symbolGraphVerifier).toContain("declaration_fragments");
+    expect(symbolGraphVerifier).toContain("preciseIdentifier");
+    expect(symbolGraphVerifier).toContain("public/SPI symbol surface mismatch");
+    expect(symbolGraphVerifier).toContain("UnexpectedPublicSurface");
+    expect(symbolGraphVerifier).toContain("same-path declaration mutation");
+    expect(symbolGraphVerifier).toContain("normalized_relationships");
+    expect(symbolGraphVerifier).toContain("relationship-only mutation");
+    expect(symbolGraphVerifier).toContain('"kind") == "conformsTo"');
+    expect(symbolGraphVerifier).toContain(
+      "public API symbol-graph calibration context",
+    );
+    expect(symbolGraphVerifier).toContain('metadata.get("formatVersion")');
+    expect(symbolGraphVerifier).toContain(
+      'module.get("name") != SYMBOL_GRAPH_MODULE',
+    );
+    expect(symbolGraphVerifier).toContain("is_protocol_symbol_graph_filename");
+    expect(symbolGraphVerifier).toContain("@Swift.symbols.json");
+    expect(symbolGraphVerifier).toContain('"swift.func.op"');
+    expect(symbolGraphVerifier).toContain('"swift.subscript"');
+    expect(symbolGraphVerifier).toContain('"swift.type.subscript"');
+    expect(symbolGraphVerifier).toContain('"bypass(preimages:)"');
+    expect(symbolGraphVerifier).toContain('"issueChallenge(manifest:)"');
+    expect(symbolGraphVerifier).toContain(
+      "public callable accepts a raw launch policy",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "public security typealias is forbidden",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "public function property exposes a protected runtime-launch type",
+    );
+    expect(symbolGraphVerifier).toContain('("Preimages",');
+    expect(symbolGraphVerifier).toContain('("RawPolicy",');
+    expect(symbolGraphVerifier).toContain('"rawPolicyBypass"');
+    expect(symbolGraphVerifier).toContain('"closureBypass"');
+    expect(symbolGraphVerifier).toContain('"makeRawBypass()"');
+    expect(symbolGraphVerifier).toContain('"makeClosureBypass()"');
+    expect(symbolGraphVerifier).toContain("run_synthetic_regression_checks");
+    expect(symbolGraphVerifier).toContain(
+      "for symbol_graph_directory in symbol_graph_directories:",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "for symbol_graph_file in symbol_graph_files:",
+    );
+    expect(productionLauncherTest).toContain("retryableParentSignal");
+    expect(productionLauncherTest).toContain(
+      'firstSignal === "SIGABRT" || firstSignal === "SIGKILL"',
+    );
+    expect(productionLauncherTest).toContain(
+      "[floodgate-v7-test] retrying DYLD rejection",
+    );
+    expect(productionLauncherTest).toContain(
+      "expect(result.signal).toBeNull()",
+    );
+    expect(productionLauncherTest).toContain("stderr_utf8_bytes=");
+    expect(productionLauncherTest).not.toContain(
+      "JSON.stringify(result.stderr)",
+    );
+    expect(evidenceTestSource).toContain('PATH: "/usr/bin:/bin"');
+    expect(evidenceTestSource).toContain('NODE_ENV: "test"');
+    expect(evidenceTestSource).toContain("function workflowJob");
+    expect(evidenceTestSource).toContain(".search(/^  [A-Za-z0-9_-]+:\\n/gmu)");
+    const externalTrustRootJob = workflowJob(
+      workflow,
+      "external_trust_root_protocol",
+    );
+    expect(() =>
+      assertExternalTrustRootProtocolJob(externalTrustRootJob),
+    ).not.toThrow();
+    const artifactStep = workflowStep(
+      externalTrustRootJob,
+      "Preserve public symbol graphs for exact-diff calibration",
+    );
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(externalTrustRootJob),
+    ).not.toThrow();
+    const commentDecoyMutations = [
+      ["        if: always()", "        if: success() # if: always()"],
+      [
+        "        uses: actions/upload-artifact@v7",
+        "        uses: actions/upload-artifact@v6 # uses: actions/upload-artifact@v7",
+      ],
+      [
+        "          name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
+        "          name: unsafe # name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
+      ],
+      [
+        `          path: ${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
+        `          path: /etc/passwd # path: ${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
+      ],
+      [
+        "          if-no-files-found: error",
+        "          if-no-files-found: warn # if-no-files-found: error",
+      ],
+      [
+        "          include-hidden-files: true",
+        "          include-hidden-files: false # include-hidden-files: true",
+      ],
+      [
+        "          retention-days: 14",
+        "          retention-days: 1 # retention-days: 14",
+      ],
+    ] as const;
+    for (const [safeLine, unsafeLine] of commentDecoyMutations) {
+      const mutation = artifactStep.replace(safeLine, unsafeLine);
+      expect(mutation).not.toBe(artifactStep);
+      expect(() => assertCalibrationArtifactStep(mutation)).toThrow();
+    }
+    const movedAlwaysToDecoyJob = externalTrustRootJob
+      .replace(
+        "        if: always()\n        uses: actions/upload-artifact@v7\n",
+        "        if: success()\n        uses: actions/upload-artifact@v7\n",
+      )
+      .concat(
+        "      - name: Decoy always condition\n",
+        "        if: always()\n",
+        "        run: true\n",
+      );
+    const movedAlwaysArtifactStep = workflowStep(
+      movedAlwaysToDecoyJob,
+      "Preserve public symbol graphs for exact-diff calibration",
+    );
+    expect(movedAlwaysArtifactStep).toContain("if: success()");
+    expect(movedAlwaysArtifactStep).not.toContain("if: always()");
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(movedAlwaysToDecoyJob),
+    ).toThrow();
+    const duplicateUnsafeUploadJob = externalTrustRootJob.concat(
+      "      - uses: actions/upload-artifact@v7\n",
+      "        with:\n",
+      "          path: /etc/passwd\n",
+    );
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(duplicateUnsafeUploadJob),
+    ).toThrow();
+    const multiSpaceDuplicateUploadJob = externalTrustRootJob.concat(
+      "      -  uses: actions/upload-artifact@v7\n",
+      "         with:\n",
+      "           path: /etc/passwd\n",
+    );
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(multiSpaceDuplicateUploadJob),
+    ).toThrow();
+    const uppercaseDuplicateUploadJob = externalTrustRootJob.concat(
+      "      - uses: Actions/Upload-Artifact@v7\n",
+      "        with:\n",
+      "          path: /etc/passwd\n",
+    );
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(uppercaseDuplicateUploadJob),
+    ).toThrow();
+    const movedSpiFlagToDecoyStepJob = externalTrustRootJob
+      .replace("            --include-spi-symbols \\\n", "")
+      .concat(
+        "      - name: Decoy SPI flag\n",
+        "        run: |\n",
+        "            --include-spi-symbols \\\n",
+        "            true\n",
+      );
+    expect(() =>
+      assertExternalTrustRootProtocolJob(movedSpiFlagToDecoyStepJob),
+    ).toThrow();
+    const testAndBuildJob = workflowJob(workflow, "test_and_build");
+    expect(workflowScalar(testAndBuildJob, 4, "timeout-minutes")).toBe("25");
+    expect(workflowScalar(testAndBuildJob, 10, "fetch-depth")).toBe("0");
+    const commentedSafeProvenanceJob = testAndBuildJob
+      .replace(
+        "    timeout-minutes: 25",
+        "    timeout-minutes: 10 # timeout-minutes: 25",
+      )
+      .replace(
+        "          fetch-depth: 0",
+        "          fetch-depth: 1 # fetch-depth: 0",
+      );
+    expect(
+      workflowScalar(commentedSafeProvenanceJob, 4, "timeout-minutes"),
+    ).toBe("10");
+    expect(workflowScalar(commentedSafeProvenanceJob, 10, "fetch-depth")).toBe(
+      "1",
+    );
   });
 
   it("records exact independent Swift and Node golden-vector results", () => {
@@ -285,6 +623,13 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       integrated_main_tree: "436f76b1108a96f756f865725ee3ff81ec96ef58",
       post_main_merge_revision: "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
       post_main_merge_tree: "3b7e499d6cac376053a4a1e0852428ddfc83ba8a",
+      pr_review_intermediate_remediation_revision:
+        "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+      pr_review_intermediate_remediation_tree:
+        "c770f08c6df12f6a2d0a602025571aa0406b85d2",
+      pr_review_remediation_revision:
+        "735398093f7c839c8c2a97f33ef96607961bd829",
+      pr_review_remediation_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       base_pull_request: 499,
       base_integration_method: "regular-merge-commit",
     });
@@ -299,6 +644,11 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       ["implementation_evidence_revision", "implementation_evidence_tree"],
       ["integrated_main_revision", "integrated_main_tree"],
       ["post_main_merge_revision", "post_main_merge_tree"],
+      [
+        "pr_review_intermediate_remediation_revision",
+        "pr_review_intermediate_remediation_tree",
+      ],
+      ["pr_review_remediation_revision", "pr_review_remediation_tree"],
     ] as const) {
       const revision = evidence.revision[revisionKey] as string;
       expect(gitOutput(["rev-parse", `${revision}^{tree}`])).toBe(
@@ -331,6 +681,270 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     expect(recordedAtMillis).toBeGreaterThanOrEqual(
       postMainMergeCommittedAtMillis,
     );
+    const pullRequestObservedAtMillis = Date.parse(
+      evidence.pull_request_validation.observed_at,
+    );
+    expect(Number.isNaN(pullRequestObservedAtMillis)).toBe(false);
+    expect(recordedAtMillis).toBeGreaterThanOrEqual(
+      pullRequestObservedAtMillis,
+    );
+    const technicalCommitCreatedAtMillis = Date.parse(
+      evidence.pull_request_validation.local_remediation
+        .technical_commit_created_at,
+    );
+    expect(Number.isNaN(technicalCommitCreatedAtMillis)).toBe(false);
+    expect(recordedAtMillis).toBeGreaterThanOrEqual(
+      technicalCommitCreatedAtMillis,
+    );
+    const remediationUpdatedAtMillis = Date.parse(
+      evidence.pull_request_validation.local_remediation.updated_at,
+    );
+    expect(Number.isNaN(remediationUpdatedAtMillis)).toBe(false);
+    expect(recordedAtMillis).toBeGreaterThanOrEqual(remediationUpdatedAtMillis);
+    expect(evidence.pull_request_validation).toEqual({
+      pull_request: 501,
+      url: "https://github.com/gomyway1216/nextjs-portfolio/pull/501",
+      status: "IN_PROGRESS",
+      operational_decision: "STOP",
+      initial_head_revision: "3b0b37a353d478cf235901d391848886574621be",
+      observed_at: "2026-07-18T03:23:44-07:00",
+      initial_ci_observation: {
+        ci_run_id: 29639949306,
+        workflow_status: "COMPLETED",
+        workflow_conclusion: "FAILURE",
+        blocking_failure_present: true,
+        failed_job_id: 88068705524,
+        failed_job_name: "Darwin exclusive directory rename",
+        failed_step: "Run Darwin native-launcher preload adversarial tests",
+        test_file: productionLauncherTestRelative,
+        failed_test_name:
+          "strips or rejects DYLD injection before the attested child",
+        test_file_present: 23,
+        test_file_passed: 22,
+        test_file_failed: 1,
+        spawn_result_status: null,
+        child_process_error_assertion_passed: true,
+        spawn_result_signal_logged: false,
+        test_and_build_job_id: 88068705540,
+        test_and_build_status: "COMPLETED",
+        test_and_build_conclusion: "SUCCESS",
+        successful_test_and_build_steps: [
+          "lint",
+          "unit-tests",
+          "isolated-pinned-public-deadline-calibration",
+          "dependency-free-ml-contract-tests",
+          "production-build",
+        ],
+        completed_successful_checks: [
+          "npm-audit",
+          "external-trust-root-protocol-source-only",
+          "e2e-smoke-tests",
+          "vercel",
+        ],
+        baseline_comparison: {
+          main_revision: "0601268a57af32c910b785c3f79da647d3fbb428",
+          main_ci_run_id: 29637691079,
+          main_darwin_job_id: 88062776481,
+          main_launcher_test_result: "23/23 PASS",
+          same_runner_image: true,
+          runner_os: "macOS 26.4",
+          runner_image: "macos-26-arm64",
+          runner_image_version: "20260715.0248.1",
+          runner_provisioner_version: "20260707.563",
+          launcher_test_blob_at_initial_head:
+            "a7f3e5c9f820305c42f8361d931cc222bd2ab221",
+          launcher_test_blob_at_main:
+            "a7f3e5c9f820305c42f8361d931cc222bd2ab221",
+          test_launcher_fixture_blob_at_initial_head:
+            "d1e92b7f7526c5dc3978a0094feeb90653c71f30",
+          test_launcher_fixture_blob_at_main:
+            "d1e92b7f7526c5dc3978a0094feeb90653c71f30",
+          failed_paths_changed_by_unit_b: false,
+          inference:
+            "pre-existing-runner-dependent-ci-portability-failure-not-unit-b-product-regression",
+        },
+      },
+      review_feedback: {
+        reviewed_head_revision: "3b0b37a353d478cf235901d391848886574621be",
+        github_review_states: ["COMMENTED"],
+        remediation_decision: "CHANGES_REQUESTED",
+        actionable_p2_total: 3,
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 3,
+        findings: [
+          {
+            thread_id: "PRRT_kwDOQbO82s6R-b_9",
+            author: "gemini-code-assist",
+            path: symbolGraphVerifierRelative,
+            finding_id:
+              "symbol-graph-verifier-required-exactly-one-build-product",
+            remote_status: "UNRESOLVED",
+            local_status: "PENDING_REREVIEW",
+          },
+          {
+            thread_id: "PRRT_kwDOQbO82s6R-cAA",
+            author: "gemini-code-assist",
+            path: "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+            finding_id: "evidence-test-hardcoded-usr-bin-git",
+            remote_status: "UNRESOLVED",
+            local_status: "PENDING_REREVIEW",
+          },
+          {
+            thread_id: "PRRT_kwDOQbO82s6R-cuK",
+            author: "copilot-pull-request-reviewer",
+            path: "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+            finding_id:
+              "evidence-test-counted-ci-settings-across-unrelated-jobs",
+            remote_status: "UNRESOLVED",
+            local_status: "PENDING_REREVIEW",
+          },
+        ],
+      },
+      local_remediation: {
+        status: "IN_PROGRESS",
+        updated_at: "2026-07-18T04:30:20-07:00",
+        intermediate_remediation_revision:
+          "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+        intermediate_remediation_tree:
+          "c770f08c6df12f6a2d0a602025571aa0406b85d2",
+        remediation_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        remediation_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+        technical_commit_created_at: "2026-07-18T04:18:27-07:00",
+        technical_exact_revision_review: {
+          status: "PASS",
+          reviewed_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+          reviewed_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+          unresolved_p0: 0,
+          unresolved_p1: 0,
+          unresolved_p2: 0,
+        },
+        pushed: false,
+        ci_rerun_status: "NOT_STARTED",
+        review_threads_resolved: false,
+        technical_changed_paths: [
+          workflowRelative,
+          symbolGraphVerifierRelative,
+          productionLauncherTestRelative,
+        ],
+        publication_tracking_paths: [
+          japaneseArticleRelative,
+          englishArticleRelative,
+          evidenceRelative,
+          "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+        ],
+        changes: [
+          "validate-every-build-configurations-base-and-extension-shard-symbol-graphs-including-spi-and-fail-if-none",
+          "enforce-the-exact-four-composed-public-callables-and-zero-raw-policy-callable-consumers-including-global-initializer-operator-subscript-function-property-returned-function-and-typealias-surfaces",
+          "pin-every-public-and-spi-symbol-access-kind-path-precise-identity-declaration-fragments-and-canonical-relationships-with-same-count-type-and-conformance-mutation-self-checks",
+          "record-xcode-swift-symbol-graph-metadata-and-preserve-exact-base-and-shard-graphs-per-ci-run-attempt-for-fail-closed-calibration",
+          "resolve-git-without-a-shell-through-the-sanitized-system-path-usr-bin-and-bin-only",
+          "scope-provenance-ci-counts-from-test-and-build-to-the-next-arbitrary-job-boundary",
+          "retry-once-only-after-empty-output-sigabrt-or-sigkill-parent-exit-log-only-sanitized-outcome-shape-and-still-require-final-status-zero-or-six-with-null-signal",
+        ],
+        symbol_graph_toolchain_calibration: {
+          local_toolchain: "xcode-15.3-swift-5.10",
+          local_normalized_surface_symbol_count: 491,
+          local_normalized_surface_relationship_count: 542,
+          local_normalized_surface_sha256:
+            "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+          pr_ci_toolchain:
+            "newer-than-local-exact-version-pending-rerun-observation",
+          status: "NOT_STARTED",
+          mismatch_policy:
+            "fail-closed-inspect-exact-surface-diff-before-any-expected-fingerprint-update",
+          ci_calibration_evidence: [
+            "xcodebuild-version",
+            "swift-version",
+            "symbol-graph-generator-format-and-module-platform",
+            "base-and-shard-symbol-graph-artifact-keyed-by-sha-and-run-attempt",
+          ],
+        },
+        independent_review_history: [
+          {
+            review_sequence: 1,
+            status: "CHANGES_REQUESTED",
+            unresolved_p0: 0,
+            unresolved_p1: 5,
+            unresolved_p2: 28,
+            finding_ids: [
+              "bare-git-inherited-npm-path-could-intercept-provenance-command",
+              "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
+              "symbol-graph-gate-skipped-single-path-global-functions",
+              "workflow-job-slice-used-a-specific-next-job-as-its-boundary",
+              "successful-dyld-retry-would-hide-the-first-parent-signal",
+              "symbol-graph-callable-scan-omitted-operators-and-subscripts",
+              "new-pr-publication-facts-and-baseline-provenance-were-self-declared",
+              "recorded-at-was-not-ordered-after-pull-request-observed-at",
+              "sanitized-git-environment-omitted-required-node-env-and-failed-typescript-noemit",
+              "symbol-graph-closure-detection-depended-on-the-parameter-label",
+              "symbol-graph-composed-scan-omitted-public-initializers",
+              "symbol-graph-required-method-check-missed-partial-overloads",
+              "symbol-graph-callable-scan-omitted-static-subscripts",
+              "symbol-graph-security-typealiases-bypassed-semantic-type-classification",
+              "symbol-graph-function-properties-exposed-protected-runtime-launch-types",
+              "symbol-graph-callables-returned-functions-that-exposed-protected-runtime-launch-types",
+              "symbol-graph-extension-shards-were-not-loaded",
+              "swift-spi-public-symbols-were-omitted-from-the-ci-symbol-graph",
+              "launcher-assertion-diagnostic-could-log-raw-child-stderr",
+              "public-spi-symbol-surface-was-not-structurally-pinned-across-all-kinds-and-protected-self-owners",
+              "public-surface-fingerprint-collapsed-overloads-and-declaration-types",
+              "public-surface-fingerprint-omitted-symbol-graph-relationships-and-conformances",
+              "ci-toolchain-mismatch-lacked-retrievable-exact-symbol-graph-evidence",
+              "symbol-graph-artifact-excluded-hidden-dot-build-path",
+              "symbol-graph-artifact-name-collided-across-run-attempts",
+              "symbol-graph-calibration-metadata-accepted-empty-objects",
+              "calibration-artifact-test-did-not-pin-always-safe-path-and-no-files-policy",
+              "independent-security-review-resolved-totals-omitted-pr-remediation-findings",
+              "publication-review-resolved-total-omitted-post-pr-findings",
+              "publication-complete-status-overstated-current-content-exact-review",
+              "calibration-artifact-test-step-slice-allowed-later-always-bypass",
+              "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push",
+              "calibration-artifact-test-string-assertions-accepted-comment-decoys",
+            ],
+          },
+        ],
+        validation_status: "PENDING_FINAL_RERUN_AFTER_REVIEW_FIXES",
+      },
+      live_weights_changed: false,
+      live_configuration_changed: false,
+      new_strength_measurements: 0,
+    });
+    const pullRequestBaseline =
+      evidence.pull_request_validation.initial_ci_observation
+        .baseline_comparison;
+    const initialHead = evidence.pull_request_validation
+      .initial_head_revision as string;
+    const mainRevision = pullRequestBaseline.main_revision as string;
+    const blobPairs = [
+      {
+        path: productionLauncherTestRelative,
+        initialKey: "launcher_test_blob_at_initial_head",
+        mainKey: "launcher_test_blob_at_main",
+      },
+      {
+        path: "tests/fixtures/ml/floodgate-v7-production-native-launcher-test.jxa",
+        initialKey: "test_launcher_fixture_blob_at_initial_head",
+        mainKey: "test_launcher_fixture_blob_at_main",
+      },
+    ];
+    const changedBaselinePaths = blobPairs.filter(
+      ({ path: relativePath, initialKey, mainKey }) => {
+        const initialBlob = gitOutput([
+          "rev-parse",
+          `${initialHead}:${relativePath}`,
+        ]);
+        const mainBlob = gitOutput([
+          "rev-parse",
+          `${mainRevision}:${relativePath}`,
+        ]);
+        expect(initialBlob).toBe(pullRequestBaseline[initialKey]);
+        expect(mainBlob).toBe(pullRequestBaseline[mainKey]);
+        return initialBlob !== mainBlob;
+      },
+    );
+    expect(changedBaselinePaths).toEqual([]);
+    expect(pullRequestBaseline.failed_paths_changed_by_unit_b).toBe(false);
     expect(evidence.canonical_records.fixed_argv).toMatchObject({
       encoded_bytes: 265,
       sha256:
@@ -378,9 +992,37 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       },
       public_api_surface: {
         enforcement: "swift-public-symbol-graph",
+        minimum_access_level: "public",
+        spi_symbols_included: true,
+        synthesized_members_skipped: true,
+        base_and_external_extension_shards_unioned_per_build_configuration: true,
+        normalized_surface_fields: [
+          "access-level",
+          "spi-marker",
+          "kind-identifier",
+          "path-components",
+          "symbol-precise-identifier",
+          "declaration-fragments-kind-spelling-precise-identifier",
+          "canonical-json-of-every-symbol-relationship-field",
+        ],
+        normalized_surface_symbol_count: 491,
+        normalized_surface_relationship_count: 542,
+        normalized_surface_sha256:
+          "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+        same_path_declaration_mutation_self_check: "PASS",
+        relationship_only_conformance_mutation_self_check: "PASS",
+        local_fingerprint_toolchain: "xcode-15.3-swift-5.10",
+        ci_toolchain_calibration_status: "NOT_STARTED",
         composed_entrypoints_present: 4,
         partial_entrypoints_absent: 6,
         raw_runtime_launch_policy_public_handoff_overloads: 0,
+        signature_gate_scope:
+          "direct-public-and-spi-symbol-surface-relationships-protocol-conformances-self-owner-and-protected-type-signatures",
+        semantic_nonclaims: [
+          "does-not-prove-existing-public-symbol-body-behavior",
+          "does-not-prove-arbitrary-wrapper-byte-decoder-generic-or-dynamic-cast-behavior",
+          "source-security-review-and-adversarial-tests-remain-required",
+        ],
         ci_gate: true,
         local_result: "PASS",
       },
@@ -432,6 +1074,18 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       },
       public_api_symbol_graph: {
         status: "PASS",
+        build_configurations_checked: 1,
+        base_and_shard_files_checked: 1,
+        spi_symbols_included: true,
+        synthesized_members_skipped: true,
+        normalized_surface_symbol_count: 491,
+        normalized_surface_relationship_count: 542,
+        normalized_surface_sha256:
+          "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+        same_path_declaration_mutation_self_check: "PASS",
+        relationship_only_conformance_mutation_self_check: "PASS",
+        fingerprint_toolchain: "xcode-15.3-swift-5.10",
+        ci_toolchain_calibration_status: "NOT_STARTED",
         composed_entrypoints_present: 4,
         partial_entrypoints_absent: 6,
       },
@@ -443,23 +1097,33 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         status: "PASS",
         review_scope:
           "implementation-tree-only-docs-data-and-evidence-test-excluded",
-        remediation_revision: implementationEvidenceRevision,
-        reviewed_revision: implementationEvidenceRevision,
-        resolved_p2_total: 5,
+        latest_completed_remediation_revision:
+          "735398093f7c839c8c2a97f33ef96607961bd829",
+        latest_completed_pass_revision:
+          "735398093f7c839c8c2a97f33ef96607961bd829",
+        current_remediation_revision:
+          "735398093f7c839c8c2a97f33ef96607961bd829",
+        resolved_p1_total: 2,
+        resolved_p2_total: 23,
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
       },
       publication_evidence_review: {
-        status: "PASS",
+        status: "IN_PROGRESS",
         review_scope:
           "publication-artifacts-and-provenance-ci-delta-working-tree-content",
-        reviewed_implementation_revision: implementationEvidenceRevision,
+        reviewed_implementation_revision:
+          "735398093f7c839c8c2a97f33ef96607961bd829",
+        reviewed_implementation_tree:
+          "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
         reviewed_integration_revision:
           "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
-        remediation_status: "COMPLETE",
-        resolved_p1_total: 3,
-        resolved_p2_total: 12,
+        remediation_status:
+          "PENDING_PUBLICATION_COMMIT_AND_EXACT_REVISION_REVIEW",
+        current_content_exact_review_status: "PENDING_PUBLICATION_COMMIT",
+        resolved_p1_total: 4,
+        resolved_p2_total: 20,
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
@@ -568,6 +1232,92 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p1: 0,
         unresolved_p2: 0,
       },
+      {
+        review_sequence: 9,
+        status: "CHANGES_REQUESTED",
+        reviewed_content: "pr-501-initial-publication-review-feedback",
+        reviewed_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 2,
+        finding_ids: [
+          "evidence-test-hardcoded-usr-bin-git",
+          "evidence-test-counted-ci-settings-across-unrelated-jobs",
+        ],
+      },
+      {
+        review_sequence: 10,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "pr-501-symbol-graph-calibration-artifact-evidence-test",
+        reviewed_technical_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "calibration-artifact-test-did-not-pin-always-safe-path-and-no-files-policy",
+        ],
+      },
+      {
+        review_sequence: 11,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "pr-501-remediated-publication-review-aggregate-metadata",
+        reviewed_technical_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 2,
+        finding_ids: [
+          "independent-security-review-resolved-totals-omitted-pr-remediation-findings",
+          "publication-review-resolved-total-omitted-post-pr-findings",
+        ],
+      },
+      {
+        review_sequence: 12,
+        status: "PASS",
+        reviewed_content:
+          "pre-publication-commit-four-path-working-tree-content",
+        reviewed_technical_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        reviewed_technical_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+        reviewed_git_blobs: {
+          [japaneseArticleRelative]: "9c73d6e8bd61eb614b56cff2c295da0ba6ad4ca0",
+          [englishArticleRelative]: "99b7923964ffad962be5fbe575b80667e15fcb3b",
+          [evidenceRelative]: "872b5b294de227443a5e760f1ee43481e001d76e",
+          "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts":
+            "a42ad12de7cc559adabf475b4af1702a7905fecb",
+        },
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
+      {
+        review_sequence: 13,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "sequence-twelve-final-metadata-and-artifact-step-boundary",
+        reviewed_technical_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        unresolved_p0: 0,
+        unresolved_p1: 1,
+        unresolved_p2: 2,
+        finding_ids: [
+          "publication-complete-status-overstated-current-content-exact-review",
+          "calibration-artifact-test-step-slice-allowed-later-always-bypass",
+          "articles-described-entire-pr-branch-as-unpushed-after-initial-head-push",
+        ],
+      },
+      {
+        review_sequence: 14,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "sequence-thirteen-artifact-step-exact-scalar-assertions",
+        reviewed_technical_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "calibration-artifact-test-string-assertions-accepted-comment-decoys",
+        ],
+      },
     ]);
     expect(
       evidence.validation.independent_security_review.review_history,
@@ -583,6 +1333,118 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 2,
+      },
+      {
+        reviewed_revision: implementationEvidenceRevision,
+        status: "PASS",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
+      {
+        reviewed_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 4,
+        finding_ids: [
+          "symbol-graph-verifier-required-exactly-one-build-product",
+          "symbol-graph-gate-did-not-enforce-exact-composed-set-or-zero-raw-policy-consumers",
+          "symbol-graph-gate-skipped-single-path-global-functions",
+          "symbol-graph-callable-scan-omitted-operators-and-subscripts",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-symbol-graph-remediation-before-second-hardening",
+        integration_base_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 4,
+        finding_ids: [
+          "symbol-graph-closure-detection-depended-on-the-parameter-label",
+          "symbol-graph-composed-scan-omitted-public-initializers",
+          "symbol-graph-required-method-check-missed-partial-overloads",
+          "symbol-graph-callable-scan-omitted-static-subscripts",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-symbol-graph-second-hardening-before-typealias-rejection",
+        integration_base_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "symbol-graph-security-typealiases-bypassed-semantic-type-classification",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-symbol-graph-typealias-hardening-before-complete-callable-shard-and-spi-enforcement",
+        integration_base_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 4,
+        finding_ids: [
+          "symbol-graph-function-properties-exposed-protected-runtime-launch-types",
+          "symbol-graph-callables-returned-functions-that-exposed-protected-runtime-launch-types",
+          "symbol-graph-extension-shards-were-not-loaded",
+          "swift-spi-public-symbols-were-omitted-from-the-ci-symbol-graph",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-complete-callable-shard-and-spi-enforcement-before-normalized-surface-pin",
+        integration_base_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "public-spi-symbol-surface-was-not-structurally-pinned-across-all-kinds-and-protected-self-owners",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-normalized-public-spi-surface-pin-before-signature-aware-fingerprint",
+        integration_base_revision: "3b0b37a353d478cf235901d391848886574621be",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "public-surface-fingerprint-collapsed-overloads-and-declaration-types",
+        ],
+      },
+      {
+        reviewed_revision: "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+        status: "CHANGES_REQUESTED",
+        unresolved_p0: 0,
+        unresolved_p1: 1,
+        unresolved_p2: 0,
+        finding_ids: [
+          "public-surface-fingerprint-omitted-symbol-graph-relationships-and-conformances",
+        ],
+      },
+      {
+        reviewed_content:
+          "uncommitted-relationship-aware-surface-before-complete-ci-calibration-hardening",
+        integration_base_revision: "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
+        unresolved_p0: 0,
+        unresolved_p1: 1,
+        unresolved_p2: 3,
+        finding_ids: [
+          "ci-toolchain-mismatch-lacked-retrievable-exact-symbol-graph-evidence",
+          "symbol-graph-artifact-excluded-hidden-dot-build-path",
+          "symbol-graph-artifact-name-collided-across-run-attempts",
+          "symbol-graph-calibration-metadata-accepted-empty-objects",
+        ],
+      },
+      {
+        reviewed_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
+        reviewed_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+        status: "PASS",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
       },
     ]);
 
@@ -658,6 +1520,22 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       expect(article).toContain("CryptoKit");
       expect(article).toContain("exit 78");
       expect(article).toContain("UNKNOWN / NOT MEASURED");
+      expect(article).toContain("PR #501");
+      expect(article).toContain("3b0b37a353d478cf235901d391848886574621be");
+      expect(article).toContain("COMMENTED");
+      expect(article).toContain("29639949306");
+      expect(article).toContain("88068705524");
+      expect(article).toContain(
+        "strips or rejects DYLD injection before the attested child",
+      );
+      expect(article).toContain("22 PASS / 1 FAIL");
+      expect(article).toContain("88068705540");
+      expect(article).toContain("29637691079");
+      expect(article).toContain("88062776481");
+      expect(article).toContain("20260715.0248.1");
+      expect(article).toContain("20260707.563");
+      expect(article).toContain("23 / 23 PASS");
+      expect(article).toContain("IN_PROGRESS / STOP");
     }
     expect(japanese).toContain(
       "blog-shogi-floodgate-v7-runtime-policy-preimages.en.md",
@@ -687,6 +1565,26 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "signed / notarized release artifact",
       "一度だけのfresh evidence",
       "production inspector / handoff: 0",
+      "signalは初回logに記録されなかった",
+      "既存のrunner依存CI portability failure",
+      "publication tracking 4 path",
+      "current headのremediation 2 commit",
+      "remote未反映",
+      "最終local validation",
+      "exact review",
+      "以前の実装security review PASS",
+      "追加P1を5件、P2を28件",
+      "735398093f7c839c8c2a97f33ef96607961bd829",
+      "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+      "external-extension shard",
+      "SPI symbol込み",
+      "raw child outputを含まない",
+      "symbol precise identifier",
+      "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+      "542 relationship",
+      "protocol conformance relationship",
+      "run attempt別のartifact",
+      "校正はまだ`NOT_STARTED`",
     ]) {
       expect(japanese).toContain(fact);
     }
@@ -712,6 +1610,25 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "signed/notarized release artifact",
       "exactly one fresh evidence",
       "0 production inspector or handoff runs",
+      "signal was not logged",
+      "pre-existing runner-dependent CI portability failure",
+      "two remediation commits at the current head",
+      "four publication-tracking paths remain unpushed",
+      "final local validation",
+      "exact review",
+      "previous implementation-security-review PASS",
+      "five further P1 and twenty-eight further P2",
+      "735398093f7c839c8c2a97f33ef96607961bd829",
+      "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+      "external-extension shards",
+      "SPI symbols included",
+      "no raw child output",
+      "symbol's precise identifier",
+      "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+      "542 relationships",
+      "protocol-conformance relationship",
+      "run attempt",
+      "calibration is still `NOT_STARTED`",
     ]) {
       expect(english).toContain(fact);
     }

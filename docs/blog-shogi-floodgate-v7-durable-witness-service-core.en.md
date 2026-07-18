@@ -21,7 +21,7 @@ Only source-level ordering has been established.
 | Teacher / training / formal A/B / external calibration |              0 / 0 / 0 / 0 |
 | Live weights changes                                   |                          0 |
 
-The implementation revision, tree, PR, exact-commit review, and GitHub CI remain `null` or `PENDING`. A local PASS is not a reviewed commit or remote-CI result.
+The implementation/publication anchor revision and tree, PR #506, and two exact reviews are fixed. Only GitHub CI for the seal head remains `PENDING`; it must not be reported as a remote-CI PASS before completion.
 
 ## 2. Isolated from products, public API, cloud, and root
 
@@ -119,7 +119,7 @@ There are currently zero DynamoDB tables, Lambda functions, API Gateway endpoint
 
 ## 8. Next gate
 
-The immediate next step is to seal this implementation as an exact commit, complete independent review, run PR CI, and merge normally. The later order remains:
+The immediate next step is to complete PR CI for the seal head that pins the reviewed anchor, then merge normally. The later order remains:
 
 1. implement the abstract commit plan, real strongly consistent transactional read, and independent physical table-ID observation against one fixed provider adapter and atomic durable store
 2. add proof-carrying multi-step OP / STATE lineage or freeze an explicit one-step retry-window policy

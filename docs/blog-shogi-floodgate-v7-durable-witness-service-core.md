@@ -21,7 +21,7 @@ PR #504で固定したwire recordと署名検証の上に、provider-neutralな`
 | teacher / training / formal A/B / external calibration |              0 / 0 / 0 / 0 |
 | live weights change                                    |                          0 |
 
-implementation revision、tree、PR、exact-commit review、GitHub CIはまだ`null`または`PENDING`である。local PASSをreview済みcommitやremote CIへ読み替えない。
+implementation / publication anchorのrevisionとtree、PR #506、2件のexact reviewは固定済みである。seal headのGitHub CIだけが`PENDING`であり、完了前にremote CI PASSへ読み替えない。
 
 ## 2. product・public・cloud・rootから隔離した
 
@@ -119,7 +119,7 @@ DynamoDBのtransaction client tokenは10分のidempotency windowであり、こ�
 
 ## 8. 次のgate
 
-次はこの実装をexact commitとしてsealし、独立review、PR CI、通常mergeを完了する。その後も順序は次のままである。
+次はreview済みanchorを固定したseal headのPR CIを完了し、通常mergeする。その後も順序は次のままである。
 
 1. fixed provider adapterでabstract commit plan、real strongly consistent transactional read、independent physical table-ID observationをatomic durable storeへ実装
 2. proof-carrying multi-step OP / STATE lineageを追加するか、explicitなone-step retry-window policyを固定

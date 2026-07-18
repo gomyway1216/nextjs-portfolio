@@ -185,7 +185,11 @@ private struct HandoffFixture {
             authoritySignerKeyID: authorityKeyID,
             latestActivationSequence: activation.sequence,
             latestActivationEnvelopeSHA256:
-                signedActivation.canonicalSHA256()
+                signedActivation.canonicalSHA256(),
+            activeEnrollmentEnvelopeSHA256:
+                signedEnrollment.canonicalSHA256(),
+            activeEnrollmentRecordSHA256:
+                enrollment.canonicalSHA256()
         )
         supervisorProcessIdentity = try ProcessIdentityV1(
             audience: .productionRecovery,
@@ -356,6 +360,10 @@ final class AuthenticatedHandoffTests: XCTestCase {
             snapshot.lastActivationEnvelopeSHA256,
             fixture.signedActivation.canonicalSHA256()
         )
+        XCTAssertEqual(
+            snapshot.activeEnrollmentEnvelopeSHA256,
+            fixture.signedEnrollment.canonicalSHA256()
+        )
 
         let wrongKey = Curve25519.Signing.PrivateKey()
         assertInvalidHandoff(
@@ -377,6 +385,89 @@ final class AuthenticatedHandoffTests: XCTestCase {
             try SignedEnrollmentRecordV1.decodeCanonical(
                 fixture.signedEnrollment.canonicalBytes() + [0]
             )
+        )
+    }
+
+    func testExpectedHeadSelectsTheExactActiveEnrollmentEnvelope()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        let alternateEnrollment = try EnrollmentRecord(
+            audience: fixture.enrollment.audience,
+            purpose: fixture.enrollment.purpose,
+            expectedUID: fixture.enrollment.expectedUID,
+            enrollmentID: fixture.enrollment.enrollmentID,
+            approvedCommit: handoffBytes20(0x21),
+            approvedTree: fixture.enrollment.approvedTree,
+            sourceManifestSHA256:
+                fixture.enrollment.sourceManifestSHA256,
+            supervisorArtifactSHA256:
+                fixture.enrollment.supervisorArtifactSHA256,
+            childArtifactSHA256:
+                fixture.enrollment.childArtifactSHA256,
+            runtimeClosureSHA256:
+                fixture.enrollment.runtimeClosureSHA256,
+            notBeforeUnixSeconds:
+                fixture.enrollment.notBeforeUnixSeconds,
+            expiresAtUnixSeconds:
+                fixture.enrollment.expiresAtUnixSeconds
+        )
+        let alternatePayload =
+            try SignedEnrollmentRecordV1.signaturePayload(
+                record: alternateEnrollment,
+                signerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID
+            )
+        let alternateEnvelope = try SignedEnrollmentRecordV1(
+            signerKeyID:
+                fixture.expectedActivationHead.authoritySignerKeyID,
+            record: alternateEnrollment,
+            signature: try handoffSignature(
+                fixture.authorityKey,
+                payload: alternatePayload
+            )
+        )
+
+        assertInvalidHandoff(
+            try AuthenticatedProtocolStateV1.replay(
+                enrollmentEnvelopes: [alternateEnvelope],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                nowUnixSeconds: 120
+            )
+        )
+
+        let alternateHead = try ExpectedActivationHeadV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authoritySignerKeyID:
+                fixture.expectedActivationHead.authoritySignerKeyID,
+            latestActivationSequence:
+                fixture.expectedActivationHead.latestActivationSequence,
+            latestActivationEnvelopeSHA256:
+                fixture.expectedActivationHead
+                .latestActivationEnvelopeSHA256,
+            activeEnrollmentEnvelopeSHA256:
+                alternateEnvelope.canonicalSHA256(),
+            activeEnrollmentRecordSHA256:
+                alternateEnrollment.canonicalSHA256()
+        )
+        let alternateSnapshot =
+            try AuthenticatedProtocolStateV1.replay(
+                enrollmentEnvelopes: [alternateEnvelope],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead: alternateHead,
+                nowUnixSeconds: 120
+            )
+        XCTAssertEqual(
+            alternateSnapshot.activeEnrollment,
+            alternateEnrollment
         )
     }
 
@@ -428,7 +519,11 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 fixture.expectedActivationHead.authoritySignerKeyID,
             latestActivationSequence: revoke.sequence,
             latestActivationEnvelopeSHA256:
-                signedRevoke.canonicalSHA256()
+                signedRevoke.canonicalSHA256(),
+            activeEnrollmentEnvelopeSHA256:
+                fixture.signedEnrollment.canonicalSHA256(),
+            activeEnrollmentRecordSHA256:
+                fixture.enrollment.canonicalSHA256()
         )
         assertInvalidHandoff(
             try AuthenticatedProtocolStateV1.replay(
@@ -516,6 +611,45 @@ final class AuthenticatedHandoffTests: XCTestCase {
             VerifierReceiptV1.canonicalByteCount
         )
         XCTAssertEqual(receipt.expiresAtUnixSeconds, 150)
+        let substitutedLifetimeEnrollment = try EnrollmentRecord(
+            audience: fixture.enrollment.audience,
+            purpose: fixture.enrollment.purpose,
+            expectedUID: fixture.enrollment.expectedUID,
+            enrollmentID: fixture.enrollment.enrollmentID,
+            approvedCommit: fixture.enrollment.approvedCommit,
+            approvedTree: fixture.enrollment.approvedTree,
+            sourceManifestSHA256:
+                fixture.enrollment.sourceManifestSHA256,
+            supervisorArtifactSHA256:
+                fixture.enrollment.supervisorArtifactSHA256,
+            childArtifactSHA256:
+                fixture.enrollment.childArtifactSHA256,
+            runtimeClosureSHA256:
+                fixture.enrollment.runtimeClosureSHA256,
+            notBeforeUnixSeconds:
+                fixture.enrollment.notBeforeUnixSeconds,
+            expiresAtUnixSeconds:
+                fixture.enrollment.expiresAtUnixSeconds - 1
+        )
+        assertInvalidHandoff(
+            try receipt.verify(
+                publicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                challenge: challenge,
+                manifest: fixture.manifest,
+                runtimeLaunchPolicy:
+                    fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                enrollment: substitutedLifetimeEnrollment,
+                observation: fixture.observation,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                nowUnixSeconds: 122
+            )
+        )
 
         let attestationRandom = FixedRandomSequence(start: 0x31)
         let attestation =
@@ -611,7 +745,13 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     fixture.expectedActivationHead
                     .latestActivationSequence + 1,
                 latestActivationEnvelopeSHA256:
-                    handoffBytes32(0xf8)
+                    handoffBytes32(0xf8),
+                activeEnrollmentEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentEnvelopeSHA256,
+                activeEnrollmentRecordSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentRecordSHA256
             )
         )
         assertFinalConsumerRejects(
@@ -624,7 +764,13 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     .latestActivationSequence,
                 latestActivationEnvelopeSHA256:
                     fixture.expectedActivationHead
-                    .latestActivationEnvelopeSHA256
+                    .latestActivationEnvelopeSHA256,
+                activeEnrollmentEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentEnvelopeSHA256,
+                activeEnrollmentRecordSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentRecordSHA256
             )
         )
         assertFinalConsumerRejects(
@@ -639,7 +785,53 @@ final class AuthenticatedHandoffTests: XCTestCase {
                     .latestActivationSequence + 1,
                 latestActivationEnvelopeSHA256:
                     fixture.expectedActivationHead
-                    .latestActivationEnvelopeSHA256
+                    .latestActivationEnvelopeSHA256,
+                activeEnrollmentEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentEnvelopeSHA256,
+                activeEnrollmentRecordSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentRecordSHA256
+            )
+        )
+        assertFinalConsumerRejects(
+            try ExpectedActivationHeadV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                authoritySignerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID,
+                latestActivationSequence:
+                    fixture.expectedActivationHead
+                    .latestActivationSequence,
+                latestActivationEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .latestActivationEnvelopeSHA256,
+                activeEnrollmentEnvelopeSHA256:
+                    handoffBytes32(0xfa),
+                activeEnrollmentRecordSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentRecordSHA256
+            )
+        )
+        assertFinalConsumerRejects(
+            try ExpectedActivationHeadV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                authoritySignerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID,
+                latestActivationSequence:
+                    fixture.expectedActivationHead
+                    .latestActivationSequence,
+                latestActivationEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .latestActivationEnvelopeSHA256,
+                activeEnrollmentEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .activeEnrollmentEnvelopeSHA256,
+                activeEnrollmentRecordSHA256:
+                    handoffBytes32(0xfb)
             )
         )
 

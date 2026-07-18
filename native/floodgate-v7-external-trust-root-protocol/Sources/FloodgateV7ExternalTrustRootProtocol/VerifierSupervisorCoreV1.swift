@@ -512,19 +512,43 @@ public enum TrustRootSupervisorCoreV1 {
 public final class TrustRootSupervisorSessionV1:
     @unchecked Sendable
 {
+    static let maximumReplayRetentionCount = 4_096
+
     private let supervisorProcessIdentity: ProcessIdentityV1
+    private let replayRetentionCapacity: Int
     private let lock = NSLock()
     private var lastWallClockSeconds: UInt64 = 0
     private var lastMonotonicNanoseconds: UInt64 = 0
-    private var issuedChallenges: Set<CanonicalBytes32> = []
-    private var consumedChallenges: Set<CanonicalBytes32> = []
-    private var consumedReceipts: Set<CanonicalBytes32> = []
+    private var issuedChallenges: [CanonicalBytes32: UInt64] = [:]
+    private var consumedChallenges: [CanonicalBytes32: UInt64] = [:]
+    private var consumedReceipts: [CanonicalBytes32: UInt64] = [:]
 
-    public init(supervisorProcessIdentity: ProcessIdentityV1) throws {
+    public convenience init(
+        supervisorProcessIdentity: ProcessIdentityV1
+    ) throws {
+        try self.init(
+            supervisorProcessIdentity: supervisorProcessIdentity,
+            replayRetentionCapacity:
+                Self.maximumReplayRetentionCount
+        )
+    }
+
+    init(
+        supervisorProcessIdentity: ProcessIdentityV1,
+        replayRetentionCapacity: Int
+    ) throws {
         guard supervisorProcessIdentity.role == .supervisor else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
+        guard
+            replayRetentionCapacity > 0,
+            replayRetentionCapacity
+                <= Self.maximumReplayRetentionCount
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
         self.supervisorProcessIdentity = supervisorProcessIdentity
+        self.replayRetentionCapacity = replayRetentionCapacity
     }
 
     private func advanceClock(
@@ -541,8 +565,35 @@ public final class TrustRootSupervisorSessionV1:
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
+        evictExpiredReplayEntries(nowUnixSeconds: wallClockSeconds)
         lastWallClockSeconds = wallClockSeconds
         lastMonotonicNanoseconds = monotonicNanoseconds
+    }
+
+    private func evictExpiredReplayEntries(
+        nowUnixSeconds: UInt64
+    ) {
+        issuedChallenges = issuedChallenges.filter {
+            $0.value > nowUnixSeconds
+        }
+        consumedChallenges = consumedChallenges.filter {
+            $0.value > nowUnixSeconds
+        }
+        consumedReceipts = consumedReceipts.filter {
+            $0.value > nowUnixSeconds
+        }
+    }
+
+    func replayRetentionCountSnapshot()
+        -> TrustRootSupervisorReplayRetentionCountSnapshotV1
+    {
+        lock.lock()
+        defer { lock.unlock() }
+        return TrustRootSupervisorReplayRetentionCountSnapshotV1(
+            issuedChallengeCount: issuedChallenges.count,
+            consumedChallengeCount: consumedChallenges.count,
+            consumedReceiptCount: consumedReceipts.count
+        )
     }
 
     public func issueChallenge(
@@ -583,13 +634,22 @@ public final class TrustRootSupervisorSessionV1:
         )
         lock.lock()
         defer { lock.unlock() }
+        evictExpiredReplayEntries(
+            nowUnixSeconds: lastWallClockSeconds
+        )
+        let challengeDigest = challenge.canonicalSHA256()
         guard
-            issuedChallenges.insert(
-                challenge.canonicalSHA256()
-            ).inserted
+            nowUnixSeconds == lastWallClockSeconds,
+            nowMonotonicNanoseconds == lastMonotonicNanoseconds,
+            challenge.expiresAtUnixSeconds > lastWallClockSeconds,
+            issuedChallenges[challengeDigest] == nil,
+            issuedChallenges.count + consumedChallenges.count
+                < replayRetentionCapacity
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
+        issuedChallenges[challengeDigest] =
+            challenge.expiresAtUnixSeconds
         return challenge
     }
 
@@ -618,13 +678,22 @@ public final class TrustRootSupervisorSessionV1:
         let challengeDigest = challenge.canonicalSHA256()
         let receiptDigest = receipt.canonicalSHA256()
         lock.lock()
+        evictExpiredReplayEntries(
+            nowUnixSeconds: lastWallClockSeconds
+        )
         let accepted =
-            issuedChallenges.contains(challengeDigest)
-            && !consumedChallenges.contains(challengeDigest)
-            && !consumedReceipts.contains(receiptDigest)
+            nowUnixSeconds == lastWallClockSeconds
+            && nowMonotonicNanoseconds == lastMonotonicNanoseconds
+            && issuedChallenges[challengeDigest] != nil
+            && consumedChallenges[challengeDigest] == nil
+            && consumedReceipts[receiptDigest] == nil
+            && consumedReceipts.count < replayRetentionCapacity
         if accepted {
-            consumedChallenges.insert(challengeDigest)
-            consumedReceipts.insert(receiptDigest)
+            issuedChallenges.removeValue(forKey: challengeDigest)
+            consumedChallenges[challengeDigest] =
+                challenge.expiresAtUnixSeconds
+            consumedReceipts[receiptDigest] =
+                receipt.expiresAtUnixSeconds
         }
         lock.unlock()
         guard accepted else {
@@ -653,6 +722,14 @@ public final class TrustRootSupervisorSessionV1:
             sign: sign
         )
     }
+}
+
+struct TrustRootSupervisorReplayRetentionCountSnapshotV1:
+    Equatable, Sendable
+{
+    let issuedChallengeCount: Int
+    let consumedChallengeCount: Int
+    let consumedReceiptCount: Int
 }
 
 public enum TrustRootVerifierCoreV1 {
@@ -829,13 +906,82 @@ public enum TrustRootVerifierCoreV1 {
 public final class OneShotAttestationConsumerV1:
     @unchecked Sendable
 {
-    private let lock = NSLock()
-    private var consumedAttestations: Set<CanonicalBytes32> = []
-    private var consumedChallenges: Set<CanonicalBytes32> = []
-    private var consumedReceipts: Set<CanonicalBytes32> = []
-    private var consumedChildProcesses: Set<CanonicalBytes32> = []
+    static let maximumReplayRetentionCount = 4_096
 
-    public init() {}
+    private let replayRetentionCapacity: Int
+    private let lock = NSLock()
+    private var lastWallClockSeconds: UInt64 = 0
+    private var lastMonotonicNanoseconds: UInt64 = 0
+    private var consumedAttestations: [CanonicalBytes32: UInt64] = [:]
+    private var consumedChallenges: [CanonicalBytes32: UInt64] = [:]
+    private var consumedReceipts: [CanonicalBytes32: UInt64] = [:]
+    private var consumedChildProcesses: [CanonicalBytes32: UInt64] = [:]
+
+    public init() {
+        replayRetentionCapacity =
+            Self.maximumReplayRetentionCount
+    }
+
+    init(replayRetentionCapacity: Int) throws {
+        guard
+            replayRetentionCapacity > 0,
+            replayRetentionCapacity
+                <= Self.maximumReplayRetentionCount
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        self.replayRetentionCapacity = replayRetentionCapacity
+    }
+
+    private func advanceClockAndEvict(
+        wallClockSeconds: UInt64,
+        monotonicNanoseconds: UInt64
+    ) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard
+            wallClockSeconds > 0,
+            monotonicNanoseconds > 0,
+            wallClockSeconds >= lastWallClockSeconds,
+            monotonicNanoseconds >= lastMonotonicNanoseconds
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        evictExpiredReplayEntries(nowUnixSeconds: wallClockSeconds)
+        lastWallClockSeconds = wallClockSeconds
+        lastMonotonicNanoseconds = monotonicNanoseconds
+    }
+
+    private func evictExpiredReplayEntries(
+        nowUnixSeconds: UInt64
+    ) {
+        consumedAttestations = consumedAttestations.filter {
+            $0.value > nowUnixSeconds
+        }
+        consumedChallenges = consumedChallenges.filter {
+            $0.value > nowUnixSeconds
+        }
+        consumedReceipts = consumedReceipts.filter {
+            $0.value > nowUnixSeconds
+        }
+        consumedChildProcesses = consumedChildProcesses.filter {
+            $0.value > nowUnixSeconds
+        }
+    }
+
+    func replayRetentionCountSnapshot()
+        -> OneShotAttestationReplayRetentionCountSnapshotV1
+    {
+        lock.lock()
+        defer { lock.unlock() }
+        return OneShotAttestationReplayRetentionCountSnapshotV1(
+            consumedAttestationCount: consumedAttestations.count,
+            consumedChallengeCount: consumedChallenges.count,
+            consumedReceiptCount: consumedReceipts.count,
+            consumedChildProcessCount:
+                consumedChildProcesses.count
+        )
+    }
 
     public func consume(
         _ attestation: OneShotAttestationV1,
@@ -855,6 +1001,10 @@ public final class OneShotAttestationConsumerV1:
         nowUnixSeconds: UInt64,
         nowMonotonicNanoseconds: UInt64
     ) throws {
+        try advanceClockAndEvict(
+            wallClockSeconds: nowUnixSeconds,
+            monotonicNanoseconds: nowMonotonicNanoseconds
+        )
         try challenge.verify(
             publicKeyRawRepresentation:
                 supervisorPublicKeyRawRepresentation,
@@ -899,17 +1049,39 @@ public final class OneShotAttestationConsumerV1:
         let childDigest = childProcessIdentity.canonicalSHA256()
         lock.lock()
         defer { lock.unlock() }
+        evictExpiredReplayEntries(
+            nowUnixSeconds: lastWallClockSeconds
+        )
         guard
-            !consumedAttestations.contains(attestation.attestationID),
-            !consumedChallenges.contains(challengeDigest),
-            !consumedReceipts.contains(receiptDigest),
-            !consumedChildProcesses.contains(childDigest)
+            nowUnixSeconds == lastWallClockSeconds,
+            nowMonotonicNanoseconds == lastMonotonicNanoseconds,
+            consumedAttestations[attestation.attestationID] == nil,
+            consumedChallenges[challengeDigest] == nil,
+            consumedReceipts[receiptDigest] == nil,
+            consumedChildProcesses[childDigest] == nil,
+            consumedAttestations.count < replayRetentionCapacity,
+            consumedChallenges.count < replayRetentionCapacity,
+            consumedReceipts.count < replayRetentionCapacity,
+            consumedChildProcesses.count < replayRetentionCapacity
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
-        consumedAttestations.insert(attestation.attestationID)
-        consumedChallenges.insert(challengeDigest)
-        consumedReceipts.insert(receiptDigest)
-        consumedChildProcesses.insert(childDigest)
+        consumedAttestations[attestation.attestationID] =
+            attestation.expiresAtUnixSeconds
+        consumedChallenges[challengeDigest] =
+            challenge.expiresAtUnixSeconds
+        consumedReceipts[receiptDigest] =
+            receipt.expiresAtUnixSeconds
+        consumedChildProcesses[childDigest] =
+            attestation.expiresAtUnixSeconds
     }
+}
+
+struct OneShotAttestationReplayRetentionCountSnapshotV1:
+    Equatable, Sendable
+{
+    let consumedAttestationCount: Int
+    let consumedChallengeCount: Int
+    let consumedReceiptCount: Int
+    let consumedChildProcessCount: Int
 }

@@ -1,5 +1,5 @@
 public struct ExpectedActivationHeadV1: Equatable, Sendable {
-    public static let canonicalByteCount = 84
+    public static let canonicalByteCount = 148
 
     private static let magic = Array("FGV7EAH1".utf8)
     private static let schemaVersion: UInt8 = 1
@@ -10,20 +10,26 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
     public let authoritySignerKeyID: CanonicalBytes32
     public let latestActivationSequence: UInt64
     public let latestActivationEnvelopeSHA256: CanonicalBytes32
+    public let activeEnrollmentEnvelopeSHA256: CanonicalBytes32
+    public let activeEnrollmentRecordSHA256: CanonicalBytes32
 
     public init(
         audience: TrustRootAudience,
         purpose: TrustRootPurpose,
         authoritySignerKeyID: CanonicalBytes32,
         latestActivationSequence: UInt64,
-        latestActivationEnvelopeSHA256: CanonicalBytes32
+        latestActivationEnvelopeSHA256: CanonicalBytes32,
+        activeEnrollmentEnvelopeSHA256: CanonicalBytes32,
+        activeEnrollmentRecordSHA256: CanonicalBytes32
     ) throws {
         guard
             audience == .productionRecovery,
             purpose == .inspectStalePrefix100,
             !authoritySignerKeyID.isAllZero,
             latestActivationSequence > 0,
-            !latestActivationEnvelopeSHA256.isAllZero
+            !latestActivationEnvelopeSHA256.isAllZero,
+            !activeEnrollmentEnvelopeSHA256.isAllZero,
+            !activeEnrollmentRecordSHA256.isAllZero
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
@@ -33,6 +39,10 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
         self.latestActivationSequence = latestActivationSequence
         self.latestActivationEnvelopeSHA256 =
             latestActivationEnvelopeSHA256
+        self.activeEnrollmentEnvelopeSHA256 =
+            activeEnrollmentEnvelopeSHA256
+        self.activeEnrollmentRecordSHA256 =
+            activeEnrollmentRecordSHA256
     }
 
     public func canonicalBytes() -> [UInt8] {
@@ -45,6 +55,8 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
         encoder.append(authoritySignerKeyID.bytes)
         encoder.append(latestActivationSequence)
         encoder.append(latestActivationEnvelopeSHA256.bytes)
+        encoder.append(activeEnrollmentEnvelopeSHA256.bytes)
+        encoder.append(activeEnrollmentRecordSHA256.bytes)
         precondition(encoder.bytes.count == Self.canonicalByteCount)
         return encoder.bytes
     }
@@ -65,6 +77,17 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
             activationEnvelopeSHA256
                 == latestActivationEnvelopeSHA256,
             expectedHeadSHA256 == canonicalSHA256()
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+
+    func validateTranscriptEnrollment(
+        _ enrollment: EnrollmentRecord
+    ) throws {
+        guard
+            enrollment.canonicalSHA256()
+                == activeEnrollmentRecordSHA256
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
@@ -97,6 +120,12 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
                 ),
                 latestActivationSequence: try decoder.readUInt64(),
                 latestActivationEnvelopeSHA256: CanonicalBytes32(
+                    try decoder.readBytes(count: 32)
+                ),
+                activeEnrollmentEnvelopeSHA256: CanonicalBytes32(
+                    try decoder.readBytes(count: 32)
+                ),
+                activeEnrollmentRecordSHA256: CanonicalBytes32(
                     try decoder.readBytes(count: 32)
                 )
             )
@@ -198,7 +227,13 @@ public enum AuthenticatedProtocolStateV1 {
                     == expectedActivationHead.latestActivationSequence,
                 lastActivationEnvelopeSHA256
                     == expectedActivationHead
-                    .latestActivationEnvelopeSHA256
+                    .latestActivationEnvelopeSHA256,
+                active.envelopeSHA256
+                    == expectedActivationHead
+                    .activeEnrollmentEnvelopeSHA256,
+                active.record.canonicalSHA256()
+                    == expectedActivationHead
+                    .activeEnrollmentRecordSHA256
             else {
                 throw CanonicalRecordError.invalidCanonicalRecord
             }

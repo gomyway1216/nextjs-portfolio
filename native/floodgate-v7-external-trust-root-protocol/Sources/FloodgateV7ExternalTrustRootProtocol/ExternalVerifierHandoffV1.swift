@@ -631,6 +631,9 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         }
         try manifest.validateEnrollment(enrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try expectedActivationHead.validateTranscriptEnrollment(
+            enrollment
+        )
         try expectedActivationHead.validateTranscriptActivation(
             challenge.activationDigest,
             expectedHeadSHA256: challenge.activationHeadSHA256,

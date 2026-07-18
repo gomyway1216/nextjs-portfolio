@@ -444,7 +444,9 @@ float/int16評価し、int16 pair、top-1、MAE、seed、checkpoint SHAの固定
 代表が4 gateすべて、3 seed中2つ以上が4 gateすべて、かつ全3 seedが2つの量子化delta gateを通った
 場合だけ次へ進む。失敗後のseed追加、ratio/lr/epoch調整、よい非中央seedへの差替えは禁止する。
 通過してもproduction昇格ではなく、sealed final holdout、既知回帰、量子化後探索/browser、
-事前登録した384局paired A/B、外部高段ratingを順に要求する。
+事前登録したformal paired A/B、外部高段ratingを順に要求する。original v1の192 pair /
+384局は未実行のままbyte不変で保存し、結果を見る前の明示amendmentでv2を384 pair /
+768局へ拡張した。v2も全artifact identityが未登録なので実行は閉じている。
 
 公式のselection入口は次の集約commandだけである。最初に3つの`result.json`、`final.pt`のbytes/SHA、
 checkpoint metadata、共通runtime/revisionを検証し、全部揃った後で初めてmodel-selectionを1回読む。

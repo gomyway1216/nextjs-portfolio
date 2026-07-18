@@ -1,0 +1,82 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-registry-v2",
+  "status": "blocked",
+  "reason": "artifact-identities-match-binding-and-upstream-receipts-not-enrolled",
+  "supersession": {
+    "amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+      "bytes": 4459,
+      "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+      "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2"
+    },
+    "original_v1_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-registry.json",
+      "bytes": 1642,
+      "sha256": "79e5b559c7d58bc5facec207bcc26813c2e797ff27f95068eea8b4110e10de50",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v1"
+    }
+  },
+  "plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+    "bytes": 10890,
+    "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+    "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+  },
+  "fixed_protocol": {
+    "pairs": 384,
+    "games": 768,
+    "games_per_pair": 2,
+    "colors_per_pair": ["candidate-sente", "candidate-gote"],
+    "bootstrap_seed": 20260710,
+    "bootstrap_replicates": 100000,
+    "resampling_unit": "two-game-color-swapped-opening-pair",
+    "one_sided_95_lower_rank": 5000,
+    "two_sided_95_lower_rank": 2500,
+    "safety_gate": "one-sided-95-lower-strictly-above-0.45",
+    "stronger_claim_gate": "two-sided-95-lower-strictly-above-0.50",
+    "partial_pair_policy": "no-statistical-or-adoption-decision-from-valid-partial-pairs",
+    "analyzable_result_gate": "exactly-384-pairs-and-768-games-with-zero-technical-faults",
+    "technical_fault_policy": "immediately-invalidate-and-stop-without-a-strength-conclusion",
+    "same_run_fault_retry_policy": "cannot-be-erased-or-retried",
+    "maximum_attempts_per_experiment": 2,
+    "attempt_ledger_policy": "append-only-ledger-retains-every-attempt-fault-and-partial-result-identity",
+    "rerun_authorization_policy": "at-most-one-new-run-authorized-from-technical-evidence-before-any-result-unblinding",
+    "faulted_attempt_result_policy": "sealed-and-unread-until-rerun-decision-is-immutably-recorded",
+    "second_fault_policy": "experiment-stops-without-strength-conclusion-and-candidate-cannot-rerun",
+    "precision_statement": "normal-approximation-planning-half-width-about-0.05001-not-a-guarantee",
+    "acceptance_statistic": "full-run-pair-bootstrap-only"
+  },
+  "enrollments": {
+    "candidate_weights": null,
+    "stable_weights": null,
+    "selection_receipt": null,
+    "fresh_final_holdout_receipt": null,
+    "legacy_final_holdout_receipt": null,
+    "retention_receipt": null,
+    "known_regression_receipt": null,
+    "production_parity_receipt": null,
+    "openings_manifest": null,
+    "match_binding": null,
+    "attempt_ledger": null,
+    "rerun_authorization": null
+  },
+  "gates": {
+    "all_upstream_receipts_verified": false,
+    "attempt_ledger_verified": false,
+    "rerun_authorization_verified": false,
+    "execution_authorized": false,
+    "complete_result_verified": false,
+    "zero_technical_faults_verified": false,
+    "result_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "matches_executed": false,
+    "pairs_observed": 0,
+    "games_observed": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

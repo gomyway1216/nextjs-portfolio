@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -35,6 +35,80 @@ function gitOutput(arguments_: string[]): string {
       PATH: "/usr/bin:/bin",
     },
   }).trim();
+}
+
+function gitIsAncestor(ancestor: string, descendant: string): boolean {
+  const result = spawnSync(
+    "git",
+    [
+      "--no-replace-objects",
+      "merge-base",
+      "--is-ancestor",
+      ancestor,
+      descendant,
+    ],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: {
+        LANG: "C",
+        LC_ALL: "C",
+        NODE_ENV: "test",
+        PATH: "/usr/bin:/bin",
+      },
+    },
+  );
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status === 0) {
+    return true;
+  }
+  if (result.status === 1) {
+    return false;
+  }
+  throw new Error(
+    `git merge-base --is-ancestor failed with status ${String(result.status)}: ${result.stderr.trim()}`,
+  );
+}
+
+function requireFullCommitRevision(value: unknown, field: string): string {
+  if (typeof value !== "string" || !/^[0-9a-f]{40}$/u.test(value)) {
+    throw new Error(`${field} must be one full lowercase Git commit revision`);
+  }
+  return value;
+}
+
+function pinnedEvidenceBase(revision: {
+  merge_base_revision: unknown;
+  implementation_revision: unknown;
+}): string {
+  const baseRevision = requireFullCommitRevision(
+    revision.merge_base_revision,
+    "merge_base_revision",
+  );
+  const implementationRevision = requireFullCommitRevision(
+    revision.implementation_revision,
+    "implementation_revision",
+  );
+  const implementationParent = gitOutput([
+    "--no-replace-objects",
+    "rev-parse",
+    "--verify",
+    `${implementationRevision}^`,
+  ]);
+  if (implementationParent !== baseRevision) {
+    throw new Error(
+      "implementation_revision must be a direct child of merge_base_revision",
+    );
+  }
+  if (!gitIsAncestor(baseRevision, "HEAD")) {
+    throw new Error("merge_base_revision must be an ancestor of HEAD");
+  }
+  if (!gitIsAncestor(implementationRevision, "HEAD")) {
+    throw new Error("implementation_revision must be an ancestor of HEAD");
+  }
+  return baseRevision;
 }
 
 function numberedSections(article: string): number[] {
@@ -306,15 +380,9 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
     });
   });
 
-  it("keeps Package.swift and both fixed STOP main files byte-identical to the merge base", () => {
+  it("keeps Package.swift and both fixed STOP main files byte-identical to the pinned evidence base", () => {
     const evidence = JSON.parse(read(evidenceRelative));
-    const mergeBase = gitOutput([
-      "--no-replace-objects",
-      "merge-base",
-      "HEAD",
-      "origin/main",
-    ]);
-    expect(mergeBase).toBe(evidence.revision.merge_base_revision);
+    const evidenceBase = pinnedEvidenceBase(evidence.revision);
 
     for (const relativePath of [
       packageRelative,
@@ -322,7 +390,11 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
       verifierMainRelative,
     ]) {
       const currentBlob = gitOutput(["hash-object", relativePath]);
-      const baseBlob = gitOutput(["rev-parse", `${mergeBase}:${relativePath}`]);
+      const baseBlob = gitOutput([
+        "--no-replace-objects",
+        "rev-parse",
+        `${evidenceBase}:${relativePath}`,
+      ]);
       expect(currentBlob, relativePath).toBe(baseBlob);
     }
 
@@ -336,6 +408,45 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
     ].join("\n");
     expect(read(supervisorMainRelative)).toBe(exactMain);
     expect(read(verifierMainRelative)).toBe(exactMain);
+  });
+
+  it("rejects malformed or revision-shifted authority evidence provenance", () => {
+    const evidence = JSON.parse(read(evidenceRelative));
+    const revision = evidence.revision;
+
+    expect(() =>
+      pinnedEvidenceBase({
+        ...revision,
+        merge_base_revision: revision.merge_base_revision.slice(0, -1),
+      }),
+    ).toThrow("merge_base_revision must be one full lowercase Git commit");
+
+    expect(() =>
+      pinnedEvidenceBase({
+        ...revision,
+        implementation_revision: revision.implementation_revision.toUpperCase(),
+      }),
+    ).toThrow("implementation_revision must be one full lowercase Git commit");
+
+    const mutatedBasePrefix =
+      revision.merge_base_revision[0] === "0" ? "1" : "0";
+    expect(() =>
+      pinnedEvidenceBase({
+        ...revision,
+        merge_base_revision: `${mutatedBasePrefix}${revision.merge_base_revision.slice(1)}`,
+      }),
+    ).toThrow(
+      "implementation_revision must be a direct child of merge_base_revision",
+    );
+
+    expect(() =>
+      pinnedEvidenceBase({
+        ...revision,
+        implementation_revision: revision.publication_revision,
+      }),
+    ).toThrow(
+      "implementation_revision must be a direct child of merge_base_revision",
+    );
   });
 
   it("keeps the nine-section Japanese and English articles aligned on claims and open gates", () => {

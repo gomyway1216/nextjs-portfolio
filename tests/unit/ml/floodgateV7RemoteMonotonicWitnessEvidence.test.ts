@@ -73,7 +73,7 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
           p1: 0,
           p2: 0,
         },
-        pull_request: null,
+        pull_request: 504,
         continuous_integration: "PENDING",
       },
       scope: {

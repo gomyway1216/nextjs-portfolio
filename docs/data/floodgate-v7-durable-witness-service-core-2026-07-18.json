@@ -3,11 +3,12 @@
   "evidence_date": "2026-07-18",
   "evidence_timezone": "America/Los_Angeles",
   "publication_state": {
-    "status": "SEALED-EXACT-REVIEW-PASS-CI-PENDING",
+    "status": "ANCHOR-REVIEW-PASS-POST-ANCHOR-REMEDIATION-REVIEW-CI-PENDING",
     "claims_final": false,
-    "implementation_snapshot_final": true,
+    "implementation_snapshot_final": false,
+    "reviewed_anchor_snapshot_final": true,
     "validation_counts_final": true,
-    "required_next_action": "complete-pr-ci"
+    "required_next_action": "exact-review-post-anchor-remediation-and-complete-pr-ci"
   },
   "revision": {
     "base_revision": "9aacb89670f566ab3b5d219e815f490580713455",
@@ -65,6 +66,7 @@
       "native/floodgate-v7-external-trust-root-protocol/Tests/FloodgateV7RemoteWitnessServiceCoreTests/DurableRemoteWitnessServiceCoreTests.swift",
       "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py"
     ],
+    "exact_committed_snapshot_revision": "8074545c2c4cdc2fae606169490c978008c7b4fd",
     "exact_committed_snapshot": [
       {
         "path": ".github/workflows/ci.yml",
@@ -113,6 +115,46 @@
     "root_api_use": false,
     "live_application_import": false,
     "recursive_swift_source_boundary_scan": true
+  },
+  "post_anchor_ci_remediation": {
+    "status": "LOCAL-PASS-EXACT-REVIEW-PENDING-CI-PENDING",
+    "base_revision": "a6e4a68b16e5bc9d67c66d9aee4c11566d09f21c",
+    "reason": "close-symbol-graph-shard-and-documentation-visibility-escapes",
+    "exact_review": "PENDING",
+    "continuous_integration": "PENDING",
+    "boundary_snapshot": {
+      "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py",
+      "bytes": 13964,
+      "sha256": "9090aadad9c13a8ce4686eb1471dfe93f8f9deccef3ac81700def1146e72ee43"
+    },
+    "actual_swift_5_10_probe": {
+      "source_declaration_kind": "public-extension",
+      "base_graph": {
+        "filename": "FloodgateSymbolGraphProbe.symbols.json",
+        "module_name": "FloodgateSymbolGraphProbe",
+        "metadata_format_version": "0.6.0",
+        "symbols": 0,
+        "relationships": 0
+      },
+      "extension_shard_graph": {
+        "filename": "FloodgateSymbolGraphProbe@Swift.symbols.json",
+        "module_name": "FloodgateSymbolGraphProbe",
+        "metadata_format_version": "0.6.0",
+        "symbols": 1,
+        "relationships": 1
+      },
+      "temporary_probe_source_removed": true,
+      "repository_files_changed_by_probe": false,
+      "documentation_visibility_escape_probe": {
+        "source_declaration_kind": "documentation-hidden-public-extension",
+        "source": "@_documentation(visibility: internal) public extension String { var fgv7Escape: Int { count } }",
+        "emitted_extension_shards": 0,
+        "base_graph_symbols": 0,
+        "base_graph_relationships": 0,
+        "separate_client_member_access_typechecked": true,
+        "checker_decision": "REJECT"
+      }
+    }
   },
   "legacy_pr504_publication": {
     "edited_by_this_publication_candidate": false,
@@ -265,7 +307,7 @@
     "offline_rollback_excluded": false
   },
   "validation": {
-    "red_team_remediation": "COMPLETE-LOCALLY-REMEASURED",
+    "red_team_remediation": "POST-ANCHOR-LOCAL-COMPLETE-EXACT-REVIEW-PENDING",
     "local_xcode": {
       "version": "15.3",
       "build": "15E5188j"
@@ -284,14 +326,16 @@
       "service_core_tests_present": 23,
       "service_core_tests_passed": 23,
       "service_core_tests_failed": 0,
-      "build_seconds": 0.29,
-      "test_body_seconds": 3.343,
-      "wall_seconds": 4.11
+      "build_seconds": 0.77,
+      "test_body_seconds": 3.186,
+      "wall_seconds": 4.47,
+      "service_core_focused_test_body_seconds": 0.452,
+      "service_core_focused_wall_seconds": 0.79
     },
     "swift_release_build": {
       "status": "PASS",
-      "swift_reported_seconds": 0.65,
-      "wall_seconds": 0.83
+      "swift_reported_seconds": 0.21,
+      "wall_seconds": 0.38
     },
     "local_service_symbol_graph": {
       "status": "PASS",
@@ -299,7 +343,8 @@
       "bytes": 359,
       "raw_sha256": "dacd78e60fc7cee7386772a25a4c3282588d4059cb4bb4fdcf336e045f1aec34",
       "symbols": 0,
-      "relationships": 0
+      "relationships": 0,
+      "dump_wall_seconds": 0.73
     },
     "service_boundary_script": {
       "status": "PASS",
@@ -307,7 +352,17 @@
       "external_dependencies": 0,
       "production_consumers": 0,
       "public_or_spi_symbols": 0,
-      "all_discovered_symbol_graphs_verified": true
+      "all_discovered_symbol_graphs_verified": true,
+      "base_and_extension_shards_verified": true,
+      "exact_module_name_required": true,
+      "empty_extension_shard_accepted": true,
+      "nonempty_extension_shard_rejected": true,
+      "unknown_matching_filename_rejected": true,
+      "actual_swift_5_10_extension_shard_probe": true,
+      "attribute_prefixed_public_declaration_rejected": true,
+      "documentation_visibility_suppression_rejected": true,
+      "separate_client_access_escape_probe": true,
+      "wall_seconds": 0.49
     },
     "focused_vitest": {
       "status": "PASS",
@@ -385,7 +440,7 @@
     "live_weight_changed": false
   },
   "next_gates": [
-    "implementation-exact-commit-seal-and-independent-review",
+    "post-anchor-ci-remediation-exact-review",
     "pull-request-CI-and-regular-merge",
     "fixed-provider-adapter-and-atomic-durable-store",
     "real-strong-transactional-read-and-independent-physical-table-id-observation",

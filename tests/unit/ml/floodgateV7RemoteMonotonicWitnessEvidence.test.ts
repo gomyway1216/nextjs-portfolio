@@ -206,6 +206,15 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       .filter(Boolean)
       .sort();
     expect(committedPaths).toEqual(pinnedPaths);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "merge-base",
+        "--is-ancestor",
+        runtimePolicyEvidenceEvolutionBaseRevision,
+        "HEAD",
+      ]),
+    ).toBe("");
     for (const relativePath of pinnedPaths) {
       const pinnedBlob = gitOutput([
         "--no-replace-objects",

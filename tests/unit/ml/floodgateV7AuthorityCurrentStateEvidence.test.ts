@@ -395,6 +395,7 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
       "rev-parse",
       `${evidenceBase}:${packageRelative}`,
     ]);
+    expect(gitIsAncestor(latestPackageSnapshotRevision, "HEAD")).toBe(true);
     for (const historicalRevision of [
       implementationRevision,
       latestPackageSnapshotRevision,

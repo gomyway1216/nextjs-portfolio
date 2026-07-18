@@ -2,7 +2,7 @@
 
 > This candidate translates the transaction ordering required of a future durable remote-witness provider into a Swift source/test-only core. No real service, cloud adapter, endpoint, KMS key, root writer, or production entry point exists. The service target is not a package product and has **0 public / SPI symbols and 0 production consumers**. The operational decision remains **UNAVAILABLE / STOP**, and live weights are unchanged. Japanese version: [blog-shogi-floodgate-v7-durable-witness-service-core.md](./blog-shogi-floodgate-v7-durable-witness-service-core.md)
 
-> **Publication status: EXACT REVIEW SEALED; PR CI PENDING.** All discovered OP / STATE retry, endpoint-generation binding, and divergent-fork fixes are pinned to reviewed PR #506 anchor `8074545c`. GitHub CI for this seal commit is not complete, so these results do not authorize production.
+> **Publication status: REVIEWED ANCHOR FIXED; POST-ANCHOR REMEDIATION REVIEW / CI PENDING.** The OP / STATE retry, endpoint-generation binding, and divergent-fork implementation remains pinned to reviewed PR #506 anchor `8074545c`. A later local fix closes both the old checker's failure to inspect every Swift extension shard included by the CI artifact glob and an `@_documentation` escape that hid a public extension behind a zero-symbol graph. Local validation passes, but exact review and GitHub CI for this additional remediation are incomplete, so it does not authorize production.
 
 ## 1. Conclusion
 
@@ -21,13 +21,15 @@ Only source-level ordering has been established.
 | Teacher / training / formal A/B / external calibration |              0 / 0 / 0 / 0 |
 | Live weights changes                                   |                          0 |
 
-The implementation/publication anchor revision and tree, PR #506, and two exact reviews are fixed. Only GitHub CI for the seal head remains `PENDING`; it must not be reported as a remote-CI PASS before completion.
+The implementation/publication anchor revision and tree, PR #506, and two exact reviews remain fixed as a historical anchor. The post-anchor checker remediation passes locally, but its exact review and GitHub CI remain `PENDING`; it must not be reported as a reviewed head or remote-CI PASS before completion.
 
 ## 2. Isolated from products, public API, cloud, and root
 
 The new Swift target is a regular package target but belongs to no package product. Its only dependency is the existing `FloodgateV7ExternalTrustRootProtocol`, and its only consumer is its test target.
 
-An independent boundary checker inspects the package graph, source files, imports, forbidden capability markers, and symbol graph. The locally generated service graph under Xcode 15.3 / Swift 5.10 contains zero symbols and zero relationships. A release build also passes.
+An independent boundary checker inspects the package graph, source files, imports, forbidden capability markers, and symbol graph. The locally generated service base graph under Xcode 15.3 / Swift 5.10 contains zero symbols and zero relationships. A release build also passes. The checker discovers every `FloodgateV7RemoteWitnessServiceCore*.symbols.json` file covered by the CI artifact glob, then subjects both the base graph and canonical `@Module` extension shards to the same zero-symbol rule. An unknown matching filename, a shard without a base graph, a wrong module name, or a nonempty shard fails closed.
+
+An additional Swift 5.10 probe found that `@_documentation(visibility: internal) public extension String` remained callable from a separate client while leaving the base graph at zero symbols / zero relationships and producing no extension shard. The source gate therefore no longer depends on access control appearing at the start of a line: it rejects `public` / `open` / `package` declarations after attributes and independently forbids `@_documentation`. Symbol graphs are not treated as the sole proof of the exposed surface.
 
 The source imports only `CryptoKit`, `Foundation`, and the existing protocol. It has no `public`, `open`, or `package` declaration, AWS SDK, `URLSession`, `FileManager`, environment access, Darwin / Glibc import, or executable entry point. The checker recursively scans the target's Swift sources. This is a structural surface gate; it does not establish cloud-provider safety.
 
@@ -91,17 +93,20 @@ No component currently reads a physical table ID or provisions, uniquely derives
 
 The full Swift package ran locally with Xcode 15.3 build 15E5188j, Apple Swift 5.10, targeting `arm64-apple-macosx15.0`.
 
-- debug build: 0.29 seconds
-- tests: **127 / 127 PASS**, 3.343-second test body, 4.11-second wall time
-- new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**
-- release build: PASS, 0.65 Swift-reported seconds, 0.83-second wall time
+- debug build: 0.77 seconds
+- tests: **127 / 127 PASS**, 3.186-second test body, 4.47-second wall time
+- new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**, 0.452-second focused test body, 0.79-second wall time
+- release build: PASS, 0.21 Swift-reported seconds, 0.38-second wall time
 - local service symbol graph: 359 bytes, zero symbols / zero relationships
-- boundary checker: across every discovered build-configuration graph, zero products, zero external dependencies, zero production consumers, and **0 public / SPI symbols**
+- actual Swift 5.10 probe: `public extension String` produced a separate `@Swift` shard beside an empty base graph, with one symbol and one relationship in the shard
+- documentation-visibility escape probe: the public extension typechecked from a separate client while the graph remained 0 / 0, so both the attribute-aware source gate and the `@_documentation` ban reject it
+- boundary checker: across every discovered build-configuration base / `@Module` shard, zero products, zero external dependencies, zero production consumers, and **0 public / SPI symbols**
+- adversarial regression: an empty `@Swift` shard is accepted; a nonempty `@Swift` shard and an unknown matching filename are rejected
 - focused repository Vitest evidence boundary: one file / five tests PASS
 
 The 23 tests cover post-sign query / rejection reread, role / independently observed generation mismatch, sign / commit failure, post-commit reconciliation, transient / ambiguous exact-plan resend, ambiguous-applied-then-definitive-loss, same-request and different-fork CAS outcomes, three-ambiguity STOP, competing forks, exact / direct-successor retry, same-sequence and direct divergent forks, unproved multi-step lineage STOP, expired retry and its post-sign reread, committed-but-expired response, clock rollback before and after commit and during refresh, the 4,096 boundary, endpoint-generation reuse, wrong signer, and alias rejection across identities plus expected, candidate, and request digests.
 
-This is source/test evidence for an exactly reviewed anchor. The implementation/publication anchor and PR are fixed, while the seal commit's GitHub-CI symbol graph remains `PENDING`.
+`8074545c` remains immutable source/test evidence for the exactly reviewed anchor. The boundary-checker remediation is recorded as a separate post-anchor local snapshot and does not overwrite the historical anchor hashes. Exact review and the GitHub-CI symbol graph for this additional fix remain `PENDING`.
 
 ## 7. What remains between this core and AWS
 
@@ -119,7 +124,7 @@ There are currently zero DynamoDB tables, Lambda functions, API Gateway endpoint
 
 ## 8. Next gate
 
-The immediate next step is to complete PR CI for the seal head that pins the reviewed anchor, then merge normally. The later order remains:
+The immediate next step is to exact-review the post-anchor boundary-checker remediation, complete PR CI, and then merge normally. The later order remains:
 
 1. implement the abstract commit plan, real strongly consistent transactional read, and independent physical table-ID observation against one fixed provider adapter and atomic durable store
 2. add proof-carrying multi-step OP / STATE lineage or freeze an explicit one-step retry-window policy

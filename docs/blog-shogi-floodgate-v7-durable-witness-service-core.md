@@ -2,7 +2,7 @@
 
 > この変更候補は、将来のdurable remote witness providerが守るtransaction orderingをSwiftのsource / test-only coreへ落とした。実service、cloud adapter、endpoint、KMS key、root writer、production entrypointは存在しない。service targetはpackage productではなく、**0 public / SPI symbols、0 production consumers**である。本番判断は引き続き **UNAVAILABLE / STOP**、live weightsは不変である。English version: [blog-shogi-floodgate-v7-durable-witness-service-core.en.md](./blog-shogi-floodgate-v7-durable-witness-service-core.en.md)
 
-> **Publication status: EXACT REVIEW SEALED; PR CI PENDING.** 発見されたOP / STATE retry、endpoint-generation binding、divergent-forkの修正はPR #506のreview済みanchor `8074545c`へ固定した。ただしseal commitのGitHub CIは未完了なので、この結果に本番実行のauthorityはない。
+> **Publication status: REVIEWED ANCHOR FIXED; POST-ANCHOR REMEDIATION REVIEW / CI PENDING.** OP / STATE retry、endpoint-generation binding、divergent-forkの実装はPR #506のreview済みanchor `8074545c`へ固定した。その後、CI artifact globが含むSwift extension shardを旧checkerが全件検証していない逃げ道と、`@_documentation`で公開extensionを0-symbol graphへ隠せる逃げ道を閉じ、local検証はPASSした。ただしこの追加修正のexact reviewとGitHub CIは未完了なので、本番実行のauthorityはない。
 
 ## 1. 結論
 
@@ -21,13 +21,15 @@ PR #504で固定したwire recordと署名検証の上に、provider-neutralな`
 | teacher / training / formal A/B / external calibration |              0 / 0 / 0 / 0 |
 | live weights change                                    |                          0 |
 
-implementation / publication anchorのrevisionとtree、PR #506、2件のexact reviewは固定済みである。seal headのGitHub CIだけが`PENDING`であり、完了前にremote CI PASSへ読み替えない。
+implementation / publication anchorのrevisionとtree、PR #506、2件のexact reviewは歴史的なanchorとして固定済みである。post-anchor checker修正はlocal PASSだがexact review / GitHub CIは`PENDING`であり、完了前にreview済みheadまたはremote CI PASSへ読み替えない。
 
 ## 2. product・public・cloud・rootから隔離した
 
 新しいSwift targetはpackage内のregular targetだが、どのpackage productにも含まれない。依存先は既存の`FloodgateV7ExternalTrustRootProtocol`だけで、service coreを読むtargetはtest targetだけである。
 
-独立boundary checkerはpackage graph、source file、import、forbidden capability marker、symbol graphを検査する。local Xcode 15.3 / Swift 5.10で生成したservice graphは0 symbols / 0 relationshipsで、release buildもPASSした。
+独立boundary checkerはpackage graph、source file、import、forbidden capability marker、symbol graphを検査する。local Xcode 15.3 / Swift 5.10で生成したservice base graphは0 symbols / 0 relationshipsで、release buildもPASSした。checkerはCI artifact globと同じ`FloodgateV7RemoteWitnessServiceCore*.symbols.json`の全件を発見し、base graphと正規の`@Module` extension shardを同じ0-symbol条件で検査する。globへ一致する未知のfilename、baseなしshard、module名違い、非empty shardはすべてfail closedにした。
+
+追加のSwift 5.10 probeでは、`@_documentation(visibility: internal) public extension String`が別clientから呼べる一方、base graphを0 symbols / 0 relationshipsのままにしてextension shardも生成しなかった。そこでsource gateを行頭依存から外して属性の後にある`public` / `open` / `package` declarationも拒否し、`@_documentation`自体も禁止した。symbol graphだけを公開surfaceの唯一の根拠にはしない。
 
 sourceは`CryptoKit`、`Foundation`、既存protocolだけをimportし、`public`、`open`、`package` declaration、AWS SDK、`URLSession`、`FileManager`、environment、Darwin / Glibc、executable entrypointを持たない。checkerはtarget内のSwift sourceをrecursive scanする。これは構造上のsurface gateであり、cloud providerの安全性を証明するものではない。
 
@@ -91,17 +93,20 @@ deployment identityには`storeGenerationID`を含め、snapshotは別fieldと�
 
 local Xcode 15.3 build 15E5188j、Apple Swift 5.10、target `arm64-apple-macosx15.0`でSwift package全体を実行した。
 
-- debug build: 0.29秒
-- tests: **127 / 127 PASS**、test body 3.343秒、wall 4.11秒
-- new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**
-- release build: PASS、Swift reported 0.65秒、wall 0.83秒
+- debug build: 0.77秒
+- tests: **127 / 127 PASS**、test body 3.186秒、wall 4.47秒
+- new `DurableRemoteWitnessServiceCoreTests`: **23 / 23 PASS**、focused test body 0.452秒、wall 0.79秒
+- release build: PASS、Swift reported 0.21秒、wall 0.38秒
 - local service symbol graph: 359 bytes、0 symbols / 0 relationships
-- boundary checker: 検出した全build configurationのgraphについて0 products、0 external dependencies、0 production consumers、**0 public / SPI symbols**
+- actual Swift 5.10 probe: `public extension String`はempty base graphとは別に`@Swift` shardを生成し、そのshardへ1 symbol / 1 relationshipを記録
+- documentation-visibility escape probe: 公開extensionは別clientからtypecheckできたがgraphは0 / 0だったため、attribute-aware source gateと`@_documentation`禁止の両方で拒否
+- boundary checker: 検出した全build configurationのbase / `@Module` shardについて0 products、0 external dependencies、0 production consumers、**0 public / SPI symbols**
+- adversarial regression: empty `@Swift` shardは受理、nonempty `@Swift` shardと未知のmatching filenameは拒否
 - focused repository Vitest evidence boundary: 1 file / 5 tests PASS
 
 23 testsは署名後query / rejection reread、role / independently observed generation mismatch、sign / commit failure、commit後reconciliation、transient / ambiguous exact-plan resend、ambiguous applied then definitive loss、same-request / different-fork CAS outcome、3回ambiguous STOP、competing fork、exact / direct-successor retry、same-sequence / direct divergent fork、未証明multi-step lineage STOP、expired retryと署名後reread、commit済みresponse expiry、commit前後とrefresh中のclock rollback、4,096境界、endpoint-generation reuse、wrong signer、identity / expected / candidate / request digestとのalias拒否を含む。
 
-これはreview済みexact anchorのsource/test evidenceである。implementation / publication anchorとPRは確定したが、seal commitのGitHub CI symbol graphはまだ`PENDING`である。
+`8074545c`はreview済みexact anchorのsource/test evidenceとして不変である。boundary-checker remediationは別のpost-anchor local snapshotとして記録し、歴史的anchorのhashを上書きしていない。この追加修正のexact reviewとGitHub CI symbol graphはまだ`PENDING`である。
 
 ## 7. AWSへ実装するときに残る差
 
@@ -119,7 +124,7 @@ DynamoDBのtransaction client tokenは10分のidempotency windowであり、こ�
 
 ## 8. 次のgate
 
-次はreview済みanchorを固定したseal headのPR CIを完了し、通常mergeする。その後も順序は次のままである。
+次はpost-anchor boundary-checker remediationをexact reviewし、PR CIを完了してから通常mergeする。その後も順序は次のままである。
 
 1. fixed provider adapterでabstract commit plan、real strongly consistent transactional read、independent physical table-ID observationをatomic durable storeへ実装
 2. proof-carrying multi-step OP / STATE lineageを追加するか、explicitなone-step retry-window policyを固定

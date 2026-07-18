@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -16,6 +17,8 @@ const japaneseArticleRelative =
   "docs/blog-shogi-floodgate-v7-durable-witness-service-core.md";
 const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-durable-witness-service-core.en.md";
+const reviewedAnchorRevision =
+  "8074545c2c4cdc2fae606169490c978008c7b4fd";
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -23,6 +26,47 @@ function read(relativePath: string): string {
 
 function raw(relativePath: string): Buffer {
   return fs.readFileSync(path.join(repositoryRoot, relativePath));
+}
+
+function rawAtRevision(revision: string, relativePath: string): Buffer {
+  return execFileSync(
+    "git",
+    [
+      "--no-replace-objects",
+      "show",
+      `${revision}:${relativePath}`,
+    ],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_SYSTEM: "/dev/null",
+      },
+    },
+  );
+}
+
+function assertGitAncestor(ancestor: string, descendant: string): void {
+  execFileSync(
+    "git",
+    [
+      "--no-replace-objects",
+      "merge-base",
+      "--is-ancestor",
+      ancestor,
+      descendant,
+    ],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_SYSTEM: "/dev/null",
+      },
+      stdio: "pipe",
+    },
+  );
 }
 
 function sha256(bytes: Buffer): string {
@@ -48,15 +92,18 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       evidence_date: "2026-07-18",
       evidence_timezone: "America/Los_Angeles",
       publication_state: {
-        status: "SEALED-EXACT-REVIEW-PASS-CI-PENDING",
+        status:
+          "ANCHOR-REVIEW-PASS-POST-ANCHOR-REMEDIATION-REVIEW-CI-PENDING",
         claims_final: false,
-        implementation_snapshot_final: true,
+        implementation_snapshot_final: false,
+        reviewed_anchor_snapshot_final: true,
         validation_counts_final: true,
-        required_next_action: "complete-pr-ci",
+        required_next_action:
+          "exact-review-post-anchor-remediation-and-complete-pr-ci",
       },
       revision: {
         base_revision: "9aacb89670f566ab3b5d219e815f490580713455",
-        implementation_revision: "8074545c2c4cdc2fae606169490c978008c7b4fd",
+        implementation_revision: reviewedAnchorRevision,
         implementation_tree: "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
         pull_request: 506,
         implementation_exact_commit_review: "PASS",
@@ -66,7 +113,7 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
           p1: 0,
           p2: 0,
         },
-        publication_revision: "8074545c2c4cdc2fae606169490c978008c7b4fd",
+        publication_revision: reviewedAnchorRevision,
         publication_tree: "78313441b72c5eadb74cf9da95e7ab28ba7f4795",
         publication_exact_commit_review: "PASS",
         publication_exact_commit_reviewers: 2,
@@ -118,7 +165,7 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
     });
   });
 
-  it("pins the exact committed snapshot and leaves the PR 504 publication unchanged", () => {
+  it("pins the reviewed anchor separately from the post-anchor boundary remediation", () => {
     const record = evidence();
     const expectedImplementationPaths = [
       ".github/workflows/ci.yml",
@@ -132,6 +179,10 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       expectedImplementationPaths,
     );
     expect(
+      record.implementation_surface.exact_committed_snapshot_revision,
+    ).toBe(reviewedAnchorRevision);
+    assertGitAncestor(reviewedAnchorRevision, "HEAD");
+    expect(
       record.implementation_surface.exact_committed_snapshot.map(
         (entry: { path: string }) => entry.path,
       ),
@@ -142,10 +193,70 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       bytes: number;
       sha256: string;
     }[]) {
-      const bytes = raw(entry.path);
+      const bytes = rawAtRevision(reviewedAnchorRevision, entry.path);
       expect(bytes.byteLength, entry.path).toBe(entry.bytes);
       expect(sha256(bytes), entry.path).toBe(entry.sha256);
+      if (entry.path !== boundaryRelative) {
+        expect(raw(entry.path).equals(bytes), entry.path).toBe(true);
+      }
     }
+
+    expect(record.post_anchor_ci_remediation).toMatchObject({
+      status: "LOCAL-PASS-EXACT-REVIEW-PENDING-CI-PENDING",
+      base_revision: "a6e4a68b16e5bc9d67c66d9aee4c11566d09f21c",
+      reason:
+        "close-symbol-graph-shard-and-documentation-visibility-escapes",
+      exact_review: "PENDING",
+      continuous_integration: "PENDING",
+      boundary_snapshot: {
+        path: boundaryRelative,
+        bytes: 13964,
+        sha256:
+          "9090aadad9c13a8ce4686eb1471dfe93f8f9deccef3ac81700def1146e72ee43",
+      },
+      actual_swift_5_10_probe: {
+        source_declaration_kind: "public-extension",
+        base_graph: {
+          filename: "FloodgateSymbolGraphProbe.symbols.json",
+          module_name: "FloodgateSymbolGraphProbe",
+          symbols: 0,
+          relationships: 0,
+        },
+        extension_shard_graph: {
+          filename: "FloodgateSymbolGraphProbe@Swift.symbols.json",
+          module_name: "FloodgateSymbolGraphProbe",
+          symbols: 1,
+          relationships: 1,
+        },
+        temporary_probe_source_removed: true,
+        documentation_visibility_escape_probe: {
+          source_declaration_kind:
+            "documentation-hidden-public-extension",
+          emitted_extension_shards: 0,
+          base_graph_symbols: 0,
+          base_graph_relationships: 0,
+          separate_client_member_access_typechecked: true,
+          checker_decision: "REJECT",
+        },
+      },
+    });
+    assertGitAncestor(
+      record.post_anchor_ci_remediation.base_revision,
+      "HEAD",
+    );
+    assertGitAncestor(
+      reviewedAnchorRevision,
+      record.post_anchor_ci_remediation.base_revision,
+    );
+    const remediationBytes = raw(
+      record.post_anchor_ci_remediation.boundary_snapshot.path,
+    );
+    expect(remediationBytes.byteLength).toBe(
+      record.post_anchor_ci_remediation.boundary_snapshot.bytes,
+    );
+    expect(sha256(remediationBytes)).toBe(
+      record.post_anchor_ci_remediation.boundary_snapshot.sha256,
+    );
 
     expect(
       record.legacy_pr504_publication.edited_by_this_publication_candidate,
@@ -347,6 +458,26 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
     expect(boundary).toContain(
       "expected at least one generated service-core symbol graph",
     );
+    expect(boundary).toContain("SYMBOL_GRAPH_SHARD_PATTERN");
+    expect(boundary).toContain("run_synthetic_shard_regression_checks");
+    expect(boundary).toContain("run_synthetic_source_regression_checks");
+    expect(boundary).toContain("EXPOSED_SOURCE_DECLARATION_PATTERN");
+    expect(boundary).toContain('"@_documentation"');
+    expect(boundary).toContain(
+      'shard_name = f"{SERVICE_TARGET}@Swift.symbols.json"',
+    );
+    expect(boundary).toContain(
+      'other_shard_name = f"{SERVICE_TARGET}@Other.symbols.json"',
+    );
+    expect(boundary).toContain(
+      "unknown matching service-core symbol graph filename",
+    );
+    expect(boundary).toContain(
+      "service-core exposes a public, open, or package declaration",
+    );
+    expect(boundary).toContain(
+      "(?:class|enum|extension|func|let|protocol|struct|typealias|var)",
+    );
     expect(boundary).toContain('.rglob("*.swift")');
     expect(ci).toContain("verify-remote-witness-service-core-boundary.py");
     expect(ci).toContain("FloodgateV7RemoteWitnessServiceCore*.symbols.json");
@@ -362,8 +493,8 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
     });
     expect(record.validation.swift_release_build).toMatchObject({
       status: "PASS",
-      swift_reported_seconds: 0.65,
-      wall_seconds: 0.83,
+      swift_reported_seconds: 0.21,
+      wall_seconds: 0.38,
     });
     expect(record.validation.local_service_symbol_graph).toMatchObject({
       status: "PASS",
@@ -378,6 +509,16 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       production_consumers: 0,
       public_or_spi_symbols: 0,
       all_discovered_symbol_graphs_verified: true,
+      base_and_extension_shards_verified: true,
+      exact_module_name_required: true,
+      empty_extension_shard_accepted: true,
+      nonempty_extension_shard_rejected: true,
+      unknown_matching_filename_rejected: true,
+      actual_swift_5_10_extension_shard_probe: true,
+      attribute_prefixed_public_declaration_rejected: true,
+      documentation_visibility_suppression_rejected: true,
+      separate_client_access_escape_probe: true,
+      wall_seconds: 0.49,
     });
   });
 
@@ -406,6 +547,9 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       "immutableInitialReceipt",
       "definitiveCASLoss",
       "0 public / SPI",
+      "@_documentation",
+      "@Module",
+      "post-anchor",
       "DynamoDB",
       "KMS",
       "live weights",
@@ -429,7 +573,7 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
 
     const gates = record.next_gates as string[];
     expect(gates[0]).toBe(
-      "implementation-exact-commit-seal-and-independent-review",
+      "post-anchor-ci-remediation-exact-review",
     );
     expect(
       gates.indexOf("fixed-provider-adapter-and-atomic-durable-store"),

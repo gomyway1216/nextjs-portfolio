@@ -34,11 +34,12 @@ import {
   type FloodgateRoleBundleRawIdentity,
   type VerifyExistingFloodgateRoleBundleOptions,
 } from "./floodgate-role-bundle";
-import { floodgateCanonicalUrlGameId } from "./floodgate-raw-lock";
-import { floodgateIdentifierDigest } from "./floodgate-roles";
-import { toSfen } from "./generate-teacher";
-import { positionKeyFromSfen } from "./sibling-data";
-import { positionFromSfen, rulesCompleteLegalMoves } from "./shogi-sfen";
+import {
+  parseAuthenticatedFloodgateTrainingRows,
+  type FloodgateTrainingParent,
+} from "./floodgate-training-row-validation";
+
+export type { FloodgateTrainingParent } from "./floodgate-training-row-validation";
 
 export const FLOODGATE_TRAINING_RAW_FILENAME = "training.raw.jsonl" as const;
 export const FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA =
@@ -57,8 +58,6 @@ const NativeError = Error;
 const NativeBigInt = BigInt;
 const NativeNumber = Number;
 const NativePromise = Promise;
-const NativeTextDecoder = TextDecoder;
-const NativeURL = URL;
 const NativeWeakSet = WeakSet;
 const nativePromiseThen = Promise.prototype.then;
 const nativeWeakSetAdd = WeakSet.prototype.add;
@@ -77,7 +76,6 @@ const objectHasOwn = Object.hasOwn;
 const objectIsFrozen = Object.isFrozen;
 const reflectOwnKeys = Reflect.ownKeys;
 const promiseSpeciesSymbol = Symbol.species;
-const jsonParse = JSON.parse;
 const jsonStringify = JSON.stringify;
 const bufferByteLength = Buffer.byteLength.bind(Buffer);
 const openFile = fs.promises.open.bind(fs.promises);
@@ -101,19 +99,6 @@ const internallyPinnedPromises = new NativeWeakSet<object>();
 
 const REVISION_RE = /^[0-9a-f]{40}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
-const POSITION_ID_RE = /^sha256:[0-9a-f]{64}$/;
-const RAW_PARENT_KEYS = Object.freeze([
-  "game_id",
-  "game_sha256",
-  "parent_id",
-  "parent_sfen",
-  "played_move",
-  "ply",
-  "position_id",
-  "schema_version",
-  "source",
-  "source_url",
-] as const);
 const OPTION_KEYS = Object.freeze([
   "legacyProtectedPositionIdsPath",
   "outputRoot",
@@ -164,16 +149,6 @@ const RESULT_KEYS = Object.freeze([
 
 export type FloodgateTrainingRowConsumerOptions =
   VerifyExistingFloodgateRoleBundleOptions;
-
-export interface FloodgateTrainingParent {
-  readonly schema_version: 1;
-  readonly game_id: string;
-  readonly parent_id: string;
-  readonly position_id: string;
-  readonly parent_sfen: string;
-  readonly ply: number;
-  readonly played_move: string;
-}
 
 export interface FloodgateTrainingInputBinding {
   readonly result_receipt_bytes: number;
@@ -468,10 +443,6 @@ function canonicalJson(value: unknown): string {
       .join(",")}}`;
   }
   return fail(`canonical JSON rejects ${typeof value}`);
-}
-
-function parentOccurrenceId(gameId: string, ply: number): string {
-  return `sha256:${sha256Hex(`parent-occurrence-v1\0${gameId}\0${ply}`)}`;
 }
 
 function strictDataObject(
@@ -986,234 +957,12 @@ function captureVerifiedTrainingBundle(
   });
 }
 
-function requiredString(value: unknown, label: string): string {
-  if (
-    typeof value !== "string" ||
-    value === "" ||
-    value.trim() !== value ||
-    value.includes("\0")
-  ) {
-    fail(`${label} must be a non-empty canonical string`);
-  }
-  return value;
-}
-
-function parseRawParent(
-  value: unknown,
-  line: string,
-  lineNumber: number,
-): Readonly<{
-  sourceUrl: string;
-  gameSha256: string;
-  parent: Readonly<FloodgateTrainingParent>;
-}> {
-  const raw = strictDataObject(
-    value,
-    RAW_PARENT_KEYS,
-    `training raw line ${lineNumber}`,
-  );
-  if (canonicalJson(value) !== line) {
-    fail(`training raw line ${lineNumber} is not canonical JSON`);
-  }
-  if (raw.schema_version !== 1 || raw.source !== "floodgate") {
-    fail(`training raw line ${lineNumber} has an unsupported source schema`);
-  }
-  const sourceUrl = requiredString(
-    raw.source_url,
-    `training raw line ${lineNumber} source_url`,
-  );
-  let gameIdFromUrl: string;
-  try {
-    const parsedUrl = new NativeURL(sourceUrl);
-    if (parsedUrl.protocol !== "https:") throw new NativeError("not HTTPS");
-    gameIdFromUrl = floodgateCanonicalUrlGameId(sourceUrl);
-  } catch {
-    fail(`training raw line ${lineNumber} source_url is not canonical`);
-  }
-  const gameSha256 = requiredString(
-    raw.game_sha256,
-    `training raw line ${lineNumber} game_sha256`,
-  );
-  if (!SHA256_RE.test(gameSha256)) {
-    fail(`training raw line ${lineNumber} game_sha256 is invalid`);
-  }
-  const gameId = requiredString(
-    raw.game_id,
-    `training raw line ${lineNumber} game_id`,
-  );
-  const parentId = requiredString(
-    raw.parent_id,
-    `training raw line ${lineNumber} parent_id`,
-  );
-  const positionId = requiredString(
-    raw.position_id,
-    `training raw line ${lineNumber} position_id`,
-  );
-  if (
-    !POSITION_ID_RE.test(gameId) ||
-    !POSITION_ID_RE.test(parentId) ||
-    !POSITION_ID_RE.test(positionId) ||
-    gameId !== gameIdFromUrl
-  ) {
-    fail(`training raw line ${lineNumber} contains an invalid semantic ID`);
-  }
-  const parentSfen = requiredString(
-    raw.parent_sfen,
-    `training raw line ${lineNumber} parent_sfen`,
-  );
-  if (parentSfen.split(/\s+/).join(" ") !== parentSfen) {
-    fail(`training raw line ${lineNumber} parent_sfen is not normalized`);
-  }
-  if (!Number.isSafeInteger(raw.ply) || (raw.ply as number) < 0) {
-    fail(`training raw line ${lineNumber} ply is invalid`);
-  }
-  const ply = raw.ply as number;
-  if (parentId !== parentOccurrenceId(gameId, ply)) {
-    fail(
-      `training raw line ${lineNumber} parent_id does not match game and ply`,
-    );
-  }
-  const playedMove = requiredString(
-    raw.played_move,
-    `training raw line ${lineNumber} played_move`,
-  );
-  let moveNumber: number;
-  let legalMoves: readonly Readonly<{ readonly usi: string }>[];
-  try {
-    const parsed = positionFromSfen(parentSfen);
-    moveNumber = parsed.moveNumber;
-    if (toSfen(parsed.position, parsed.moveNumber) !== parentSfen) {
-      fail(`training raw line ${lineNumber} parent_sfen is not canonical`);
-    }
-    legalMoves = rulesCompleteLegalMoves(parsed.position);
-  } catch (error) {
-    const message =
-      error instanceof NativeError ? error.message : String(error);
-    fail(`training raw line ${lineNumber} has invalid SFEN: ${message}`);
-  }
-  if (moveNumber !== ply + 1) {
-    fail(`training raw line ${lineNumber} SFEN move number does not match ply`);
-  }
-  if (!legalMoves.some((move) => move.usi === playedMove)) {
-    fail(`training raw line ${lineNumber} played_move is illegal`);
-  }
-  if (positionKeyFromSfen(parentSfen) !== positionId) {
-    fail(`training raw line ${lineNumber} position_id does not match SFEN`);
-  }
-  return objectFreeze({
-    sourceUrl,
-    gameSha256,
-    parent: objectFreeze({
-      schema_version: 1 as const,
-      game_id: gameId,
-      parent_id: parentId,
-      position_id: positionId,
-      parent_sfen: parentSfen,
-      ply,
-      played_move: playedMove,
-    }),
-  });
-}
-
 /** Strict production parser exported so unit tests can exercise malformed snapshots. */
 export function parseAuthenticatedFloodgateTrainingRowsCoreForTests(
   bytes: Uint8Array,
   expectedIdentityInput: Readonly<FloodgateRoleBundleRawIdentity>,
 ): readonly Readonly<FloodgateTrainingParent>[] {
-  if (!(bytes instanceof Uint8Array) || nodeUtilTypes.isProxy(bytes)) {
-    fail("training raw snapshot must be a non-Proxy Uint8Array");
-  }
-  const expectedIdentity = validateRawIdentity(expectedIdentityInput);
-  if (
-    bytes.byteLength !== expectedIdentity.bytes ||
-    sha256Hex(bytes) !== expectedIdentity.sha256
-  ) {
-    fail("training raw snapshot identity does not match the verified manifest");
-  }
-  if (
-    bytes.byteLength >= 3 &&
-    bytes[0] === 0xef &&
-    bytes[1] === 0xbb &&
-    bytes[2] === 0xbf
-  ) {
-    fail("training raw snapshot must not contain a UTF-8 BOM");
-  }
-  let text: string;
-  try {
-    text = new NativeTextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    fail("training raw snapshot is not fatal-valid UTF-8");
-  }
-  if (
-    text.startsWith("\uFEFF") ||
-    text.includes("\0") ||
-    text.includes("\r") ||
-    !text.endsWith("\n") ||
-    text.endsWith("\n\n")
-  ) {
-    fail("training raw snapshot framing is not canonical UTF-8 JSONL");
-  }
-  const lines = text.slice(0, -1).split("\n");
-  if (
-    lines.length !== expectedIdentity.records ||
-    lines.some((line) => line === "")
-  ) {
-    fail("training raw snapshot record count or blank-line framing differs");
-  }
-
-  const rows: Readonly<FloodgateTrainingParent>[] = [];
-  const gameIds = new Set<string>();
-  const parentIds = new Set<string>();
-  const positionIds = new Set<string>();
-  const gameSources = new Map<string, string>();
-  let previousParentId: string | undefined;
-  for (let index = 0; index < lines.length; index += 1) {
-    let parsed: unknown;
-    try {
-      parsed = jsonParse(lines[index]);
-    } catch {
-      fail(`training raw line ${index + 1} is not valid JSON`);
-    }
-    const parsedRow = parseRawParent(parsed, lines[index], index + 1);
-    const row = parsedRow.parent;
-    if (
-      previousParentId !== undefined &&
-      compareBytewise(previousParentId, row.parent_id) >= 0
-    ) {
-      fail("training raw parent_id order is not strict UTF-8 byte order");
-    }
-    previousParentId = row.parent_id;
-    if (parentIds.has(row.parent_id))
-      fail("training raw parent_id is duplicated");
-    if (positionIds.has(row.position_id)) {
-      fail("training raw semantic position is duplicated");
-    }
-    const sourceIdentity = `${parsedRow.sourceUrl}\0${parsedRow.gameSha256}`;
-    const existingSource = gameSources.get(row.game_id);
-    if (existingSource !== undefined && existingSource !== sourceIdentity) {
-      fail("training raw game source identity is inconsistent");
-    }
-    gameSources.set(row.game_id, sourceIdentity);
-    gameIds.add(row.game_id);
-    parentIds.add(row.parent_id);
-    positionIds.add(row.position_id);
-    rows.push(row);
-  }
-  if (
-    gameIds.size !== expectedIdentity.games ||
-    parentIds.size !== expectedIdentity.records ||
-    positionIds.size !== expectedIdentity.position_ids_count ||
-    floodgateIdentifierDigest(gameIds) !== expectedIdentity.game_ids_sha256 ||
-    floodgateIdentifierDigest(parentIds) !==
-      expectedIdentity.parent_ids_sha256 ||
-    floodgateIdentifierDigest(positionIds) !==
-      expectedIdentity.position_ids_sha256
-  ) {
-    fail(
-      "training raw aggregate identity does not match the verified manifest",
-    );
-  }
-  return objectFreeze(rows);
+  return parseAuthenticatedFloodgateTrainingRows(bytes, expectedIdentityInput);
 }
 
 function buildAuthenticatedInput(

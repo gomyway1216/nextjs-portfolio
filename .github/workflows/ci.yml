@@ -39,6 +39,9 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Run isolated pinned public deadline calibration
+        run: npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration
+
       - name: Run dependency-free ML contract tests
         run: npm run test:ml:stdlib
 

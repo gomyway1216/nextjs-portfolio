@@ -2,6 +2,8 @@
 
 > 12 worker と6 workerの比較はいずれも12候補中7件完了・5件が約600秒で停止し、6 worker化は中央値・平均・RSSを改善しませんでした。ただし既存poolは最初の失敗を残りのlaneへ配るため、5件を5個の独立timeoutとは判定できません。このPRは同じpinned WASMを変更せず、1 request = 1 child、最大6 child並列、600,000 msの協調期限、615,000 msの外側watchdogという非運用の診断contractだけを追加します。実データ診断は0回で、本番とlive weightsは変更していません。English version: [blog-shogi-floodgate-stable-wasm-deadline-diagnostic.en.md](./blog-shogi-floodgate-stable-wasm-deadline-diagnostic.en.md)
 
+> 追記: 後続の[非稼働child artifact](./blog-shogi-floodgate-stable-wasm-deadline-run-binding.md)は、出力containmentと独立real public-calibration commandを追加しましたが、formal package runは意図的に削除し、直接起動を固定STOPにしました。以下のscope表は、この元のdesign PR単体についての記録です。後続PRでもprivate診断とlive変更は0のままです。
+
 ## 1. まだ分からないこと
 
 既存の再実行で分かったのは、最初の安全な失敗種別が `search-timeout`、timeout値が600,000 msだったことです。一方、pool-wide poisonにより、残りの未完了laneも同じ失敗を受け取りました。そのため次の問いは未解決です。

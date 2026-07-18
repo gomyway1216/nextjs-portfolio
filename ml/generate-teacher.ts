@@ -25,7 +25,6 @@ import * as path from 'path';
 import * as readline from 'readline';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 
-import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
@@ -36,15 +35,10 @@ import {
   isNnueWeightsLoaded,
 } from '../src/components/game/ShogiImproved/wasmEngine';
 import { getOpeningMoveImproved } from '../src/components/game/ShogiImproved/OpeningBookImproved';
-import {
-  SENTE,
-  GOTE,
-  EMPTY,
-  getKomashu,
-  isSente,
-  PROMOTE,
-  Te,
-} from '../src/components/game/ShogiImproved/types';
+import { SENTE, GOTE, Te } from '../src/components/game/ShogiImproved/types';
+import { toSfen } from './shogi-sfen-codec';
+
+export { toSfen } from './shogi-sfen-codec';
 
 // ---------------------------------------------------------------------------
 // CLI 引数
@@ -100,74 +94,6 @@ function parseArgs(): Args {
     nnueWeights: get('nnue-weights', ''),
     nnueK: parseFloat(get('nnue-k', '600')),
   };
-}
-
-// ---------------------------------------------------------------------------
-// SFEN 変換 (KyokumenImproved → SFEN)
-// ---------------------------------------------------------------------------
-
-// 駒種(1..7,8)→SFEN文字。TO..RY は "+基本駒"。
-const SFEN_LETTER: { [k: number]: string } = {
-  1: 'P', // FU
-  2: 'L', // KY
-  3: 'N', // KE
-  4: 'S', // GI
-  5: 'G', // KI
-  6: 'B', // KA
-  7: 'R', // HI
-  8: 'K', // OU
-};
-
-function pieceToSfen(koma: number): string {
-  const kind = getKomashu(koma);
-  const base = kind & 0x07; // 成りフラグを除いた基本駒種
-  const promoted = (kind & PROMOTE) !== 0 && base !== 0;
-  // OU(8)は kind & 0x07 === 0 になるので特別扱い
-  const letter = kind === 8 ? 'K' : SFEN_LETTER[base];
-  if (!letter) throw new Error(`unknown koma: ${koma}`);
-  const s = (promoted ? '+' : '') + letter;
-  return isSente(koma) ? s : s.toLowerCase();
-}
-
-/** KyokumenImproved を SFEN 文字列に変換する。moveCount は手数(1始まり)。 */
-export function toSfen(k: KyokumenImproved, moveCount: number): string {
-  // 盤面: 一段目(dan=1)から九段目、各段は 9筋→1筋 の順。
-  const rows: string[] = [];
-  for (let dan = 1; dan <= 9; dan++) {
-    let row = '';
-    let emptyRun = 0;
-    for (let suji = 9; suji >= 1; suji--) {
-      const koma = k.ban[(suji << 4) + dan];
-      if (koma === EMPTY) {
-        emptyRun++;
-      } else {
-        if (emptyRun > 0) {
-          row += emptyRun;
-          emptyRun = 0;
-        }
-        row += pieceToSfen(koma);
-      }
-    }
-    if (emptyRun > 0) row += emptyRun;
-    rows.push(row);
-  }
-  const board = rows.join('/');
-  const teban = k.teban === SENTE ? 'b' : 'w';
-
-  // 持ち駒: 慣例に従い 飛角金銀桂香歩 (R,B,G,S,N,L,P) の順。先手(大文字)→後手(小文字)。
-  const HAND_ORDER = [7, 6, 5, 4, 3, 2, 1]; // HI,KA,KI,GI,KE,KY,FU
-  let hand = '';
-  for (const kind of HAND_ORDER) {
-    const n = k.hand[SENTE + kind] || 0;
-    if (n > 0) hand += (n > 1 ? String(n) : '') + SFEN_LETTER[kind];
-  }
-  for (const kind of HAND_ORDER) {
-    const n = k.hand[GOTE + kind] || 0;
-    if (n > 0) hand += (n > 1 ? String(n) : '') + SFEN_LETTER[kind].toLowerCase();
-  }
-  if (hand === '') hand = '-';
-
-  return `${board} ${teban} ${hand} ${moveCount}`;
 }
 
 /** 重複排除キー: 手数を除いた SFEN */

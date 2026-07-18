@@ -2,6 +2,8 @@
 
 > Both the twelve-worker and six-worker comparisons completed seven of twelve candidates and stopped five at approximately 600 seconds. Six workers did not improve the median, mean, or RSS. The existing pool, however, broadcasts its first failure to the remaining lanes, so the five rejections are not evidence of five independent timeouts. This PR adds only a non-operational diagnostic contract: the same unchanged pinned WASM, one request per child, at most six concurrent children, a 600,000 ms cooperative deadline, and a 615,000 ms outer watchdog. It performs zero real-data diagnostic runs and changes neither production nor live weights. Japanese version: [blog-shogi-floodgate-stable-wasm-deadline-diagnostic.md](./blog-shogi-floodgate-stable-wasm-deadline-diagnostic.md)
 
+> Follow-up: the later [non-operational child artifact](./blog-shogi-floodgate-stable-wasm-deadline-run-binding.en.md) adds output containment and an isolated real public-calibration command, but intentionally removes the formal package run and makes direct launch a fixed STOP. The scope table below remains the historical record for this original design PR alone. The follow-up still performs zero private diagnostic runs and zero live changes.
+
 ## 1. What remains unknown
 
 The existing rerun established that the first safe failure kind was `search-timeout` and its timeout value was 600,000 ms. Pool-wide poison then delivered that same failure to every unfinished lane. It did not answer:

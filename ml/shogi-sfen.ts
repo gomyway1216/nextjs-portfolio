@@ -1,7 +1,7 @@
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
 import { buildDeclinablePromotion } from "../src/components/game/ShogiImproved/PromotionRulesImproved";
-import { toSfen } from "./generate-teacher";
+import { toSfen } from "./shogi-sfen-codec";
 import {
   EMPTY,
   FU,

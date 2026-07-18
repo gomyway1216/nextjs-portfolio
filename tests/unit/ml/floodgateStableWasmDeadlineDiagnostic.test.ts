@@ -358,6 +358,40 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     }
   }, 10_000);
 
+  it("kills and reaps every active lane before a stop-requested aggregate settles", async () => {
+    const workerSourceBytes = syntheticIsolationWorker();
+    const workerIdentity = {
+      bytes: workerSourceBytes.byteLength,
+      sha256: sha256(workerSourceBytes),
+    };
+    let stopped = false;
+    setTimeout(() => {
+      stopped = true;
+    }, 200);
+    const started = Date.now();
+    const result =
+      await runFloodgateStableWasmDeadlineDiagnosticWithSourceCoreForTests(
+        Array.from({ length: 12 }, () => input(MATE_SFEN, 2)),
+        assets(workerSourceBytes),
+        {
+          cooperativeDeadlineMilliseconds: 20,
+          outerWatchdogMilliseconds: 5_000,
+          shouldStop: () => stopped,
+        },
+        workerIdentity,
+      );
+
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(result.observed_peak_parallel_children).toBe(6);
+    expect(result.outcome_counts).toEqual({
+      complete: 0,
+      deadline: 0,
+      failure: 12,
+      watchdog: 0,
+    });
+    expect(result.all_children_reaped).toBe(true);
+  });
+
   it("does not count an asynchronous spawn failure as an observed child", async () => {
     const result = await runFloodgateStableWasmDeadlineDiagnosticCoreForTests(
       [input(MATE_SFEN)],
@@ -383,7 +417,7 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     expect(result.all_children_reaped).toBe(true);
   });
 
-  it("fixes the 600s cooperative and 615s outer boundaries without a package command", () => {
+  it("fixes the 600s cooperative and 615s outer boundaries and exact follow-up commands", () => {
     expect(FLOODGATE_STABLE_WASM_DIAGNOSTIC_COOPERATIVE_DEADLINE_MS).toBe(
       600_000,
     );
@@ -393,10 +427,24 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       readFileSync(join(REPOSITORY_ROOT, "package.json"), "utf8"),
     );
     expect(
-      Object.keys(packageJson.scripts).filter((name) =>
-        name.includes("deadline-diagnostic"),
-      ),
-    ).toEqual([]);
+      Object.keys(packageJson.scripts)
+        .filter((name) => name.includes("floodgate-stable-wasm-deadline"))
+        .sort(),
+    ).toEqual(
+      [
+        "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle",
+        "test:shogi-floodgate-stable-wasm-deadline-public-calibration",
+      ].sort(),
+    );
+    expect(packageJson.scripts).toMatchObject({
+      "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle":
+        "node ml/build-floodgate-stable-wasm-deadline-diagnostic-bundle.mjs --write",
+      "test:shogi-floodgate-stable-wasm-deadline-public-calibration":
+        'FLOODGATE_STABLE_WASM_DEADLINE_REAL_PUBLIC_CALIBRATION=1 vitest run tests/unit/ml/floodgateStableWasmDeadlineRunBinding.test.ts -t "runs the pinned public sentinel" --reporter=verbose',
+    });
+    expect(
+      packageJson.scripts["shogi:floodgate-stable-wasm-deadline-diagnostic"],
+    ).toBeUndefined();
   });
 
   it("keeps the worker clock, search knobs, shared-TT, and privacy boundary explicit", () => {

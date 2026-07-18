@@ -355,14 +355,29 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     expect(symbolGraphVerifier).toContain("CALLABLE_KINDS");
     expect(symbolGraphVerifier).toContain("FUNCTION_PROPERTY_KINDS");
     expect(symbolGraphVerifier).toContain("ALLOWED_RAW_POLICY_PRODUCER");
+    expect(symbolGraphVerifier).toContain("EXPECTED_PUBLIC_SURFACE_PROFILES");
     expect(symbolGraphVerifier).toContain(
-      "EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT = 491",
-    );
-    expect(symbolGraphVerifier).toContain(
-      "EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT = 542",
+      "xcode-15.3-swift-5.10-arm64-macos13",
     );
     expect(symbolGraphVerifier).toContain(
       "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "xcode-26.5-swift-6.3.2-arm64-macos13",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+    );
+    expect(symbolGraphVerifier).toContain("Apple Swift version 6.3.2 ");
+    expect(symbolGraphVerifier).toContain(
+      "(swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+    );
+    expect(symbolGraphVerifier).toContain("approved_public_surface_profile");
+    expect(symbolGraphVerifier).toContain(
+      "run_calibration_profile_self_checks",
+    );
+    expect(symbolGraphVerifier).toContain(
+      "unapproved symbol-graph calibration context",
     );
     expect(symbolGraphVerifier).toContain("normalized_public_surface");
     expect(symbolGraphVerifier).toContain("access_level");

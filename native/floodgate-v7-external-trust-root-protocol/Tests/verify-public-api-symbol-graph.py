@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import Optional
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -10,11 +11,39 @@ SYMBOL_GRAPH_MODULE = "FloodgateV7ExternalTrustRootProtocol"
 SYMBOL_GRAPH_NAME = (
     f"{SYMBOL_GRAPH_MODULE}.symbols.json"
 )
-EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT = 491
-EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT = 542
-EXPECTED_PUBLIC_SURFACE_SHA256 = (
-    "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160"
+SYMBOL_GRAPH_FORMAT_VERSION_0_6_0 = '{"major":0,"minor":6,"patch":0}'
+ARM64_MACOS_13_PLATFORM = (
+    '{"architecture":"arm64","operatingSystem":{"minimumVersion":'
+    '{"major":13,"minor":0},"name":"macosx"},"vendor":"apple"}'
 )
+PublicSurfaceProfile = tuple[str, int, int, str]
+EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
+    tuple[str, str, str],
+    PublicSurfaceProfile,
+] = {
+    (
+        "Apple Swift version 5.10 "
+        "(swiftlang-5.10.0.12.7 clang-1500.3.9.3)",
+        SYMBOL_GRAPH_FORMAT_VERSION_0_6_0,
+        ARM64_MACOS_13_PLATFORM,
+    ): (
+        "xcode-15.3-swift-5.10-arm64-macos13",
+        491,
+        542,
+        "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+    ),
+    (
+        "Apple Swift version 6.3.2 "
+        "(swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+        SYMBOL_GRAPH_FORMAT_VERSION_0_6_0,
+        ARM64_MACOS_13_PLATFORM,
+    ): (
+        "xcode-26.5-swift-6.3.2-arm64-macos13",
+        491,
+        579,
+        "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+    ),
+}
 CALLABLE_KINDS = {
     "swift.func",
     "swift.func.op",
@@ -66,6 +95,102 @@ class VerificationError(Exception):
 
 def fail(message: str) -> None:
     raise SystemExit(f"public API symbol-graph check failed: {message}")
+
+
+def approved_public_surface_profile(
+    metadata: object,
+    module: object,
+) -> PublicSurfaceProfile:
+    if not isinstance(metadata, dict) or not isinstance(module, dict):
+        raise VerificationError(
+            "missing calibration metadata or module context"
+        )
+    format_version = metadata.get("formatVersion")
+    generator = metadata.get("generator")
+    module_platform = module.get("platform")
+    if (
+        not isinstance(format_version, dict)
+        or not all(
+            type(format_version.get(component)) is int
+            for component in ("major", "minor", "patch")
+        )
+        or not isinstance(generator, str)
+        or not generator
+        or module.get("name") != SYMBOL_GRAPH_MODULE
+        or not isinstance(module_platform, dict)
+        or not module_platform
+    ):
+        raise VerificationError(
+            "invalid symbol-graph generator, format version, "
+            "module name, or platform"
+        )
+    format_key = json.dumps(
+        format_version,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    platform_key = json.dumps(
+        module_platform,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    profile = EXPECTED_PUBLIC_SURFACE_PROFILES.get(
+        (generator, format_key, platform_key)
+    )
+    if profile is None:
+        raise VerificationError(
+            "unapproved symbol-graph calibration context: "
+            f"generator={generator!r} "
+            f"format={format_key} platform={platform_key}"
+        )
+    return profile
+
+
+def run_calibration_profile_self_checks() -> None:
+    for (
+        generator,
+        format_key,
+        platform_key,
+    ), expected_profile in EXPECTED_PUBLIC_SURFACE_PROFILES.items():
+        metadata = {
+            "formatVersion": json.loads(format_key),
+            "generator": generator,
+        }
+        module = {
+            "name": SYMBOL_GRAPH_MODULE,
+            "platform": json.loads(platform_key),
+        }
+        if (
+            approved_public_surface_profile(metadata, module)
+            != expected_profile
+        ):
+            raise VerificationError(
+                "approved calibration profile self-check mismatch"
+            )
+    unknown_metadata = {
+        "formatVersion": json.loads(SYMBOL_GRAPH_FORMAT_VERSION_0_6_0),
+        "generator": "Apple Swift version unapproved",
+    }
+    unknown_module = {
+        "name": SYMBOL_GRAPH_MODULE,
+        "platform": json.loads(ARM64_MACOS_13_PLATFORM),
+    }
+    try:
+        approved_public_surface_profile(
+            unknown_metadata,
+            unknown_module,
+        )
+    except VerificationError as error:
+        if "unapproved symbol-graph calibration context" not in str(error):
+            raise
+    else:
+        raise VerificationError(
+            "unknown calibration profile unexpectedly passed"
+        )
 
 
 def public_declarations(
@@ -285,20 +410,28 @@ def verify_exact_public_surface(
     graph_label: str,
     symbols: list[object],
     relationships: list[object],
+    expected_profile: PublicSurfaceProfile,
 ) -> None:
+    (
+        profile_label,
+        expected_symbol_count,
+        expected_relationship_count,
+        expected_surface_sha256,
+    ) = expected_profile
     (
         symbol_count,
         relationship_count,
         surface_sha256,
     ) = normalized_public_surface(symbols, relationships)
     if (
-        symbol_count != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT
+        symbol_count != expected_symbol_count
         or relationship_count
-        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
-        or surface_sha256 != EXPECTED_PUBLIC_SURFACE_SHA256
+        != expected_relationship_count
+        or surface_sha256 != expected_surface_sha256
     ):
         raise VerificationError(
             f"{graph_label}: public/SPI symbol surface mismatch: "
+            f"profile={profile_label} "
             f"symbols={symbol_count} "
             f"relationships={relationship_count} "
             f"sha256={surface_sha256}"
@@ -309,13 +442,19 @@ def verify_public_api(
     graph_label: str,
     symbols: list[object],
     relationships: list[object],
+    expected_profile: Optional[PublicSurfaceProfile] = None,
     enforce_exact_surface: bool = True,
 ) -> None:
     if enforce_exact_surface:
+        if expected_profile is None:
+            raise VerificationError(
+                f"{graph_label}: exact surface profile is required"
+            )
         verify_exact_public_surface(
             graph_label,
             symbols,
             relationships,
+            expected_profile,
         )
     declarations = public_declarations(symbols)
     callable_declarations = [
@@ -460,7 +599,14 @@ def run_synthetic_regression_checks(
     graph_label: str,
     symbols: list[object],
     relationships: list[object],
+    expected_profile: PublicSurfaceProfile,
 ) -> None:
+    (
+        _,
+        expected_symbol_count,
+        expected_relationship_count,
+        expected_surface_sha256,
+    ) = expected_profile
     symbol_base = {
         "accessLevel": "public",
         "identifier": {
@@ -486,6 +632,7 @@ def run_synthetic_regression_checks(
                 },
             ],
             relationships,
+            expected_profile,
         )
     except VerificationError as error:
         if "public/SPI symbol surface mismatch" not in str(error):
@@ -553,20 +700,20 @@ def run_synthetic_regression_checks(
         mutated_symbols,
         relationships,
     )
-    if mutated_count != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT:
+    if mutated_count != expected_symbol_count:
         raise VerificationError(
             f"{graph_label}: same-path declaration mutation changed "
             f"surface count to {mutated_count}"
         )
     if (
         mutated_relationship_count
-        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
+        != expected_relationship_count
     ):
         raise VerificationError(
             f"{graph_label}: same-path declaration mutation changed "
             f"relationship count to {mutated_relationship_count}"
         )
-    if mutated_sha256 == EXPECTED_PUBLIC_SURFACE_SHA256:
+    if mutated_sha256 == expected_surface_sha256:
         raise VerificationError(
             f"{graph_label}: same-path declaration mutation did not "
             "change the public surface hash"
@@ -576,6 +723,7 @@ def run_synthetic_regression_checks(
             graph_label,
             mutated_symbols,
             relationships,
+            expected_profile,
         )
     except VerificationError as error:
         if "public/SPI symbol surface mismatch" not in str(error):
@@ -622,15 +770,15 @@ def run_synthetic_regression_checks(
     ) = normalized_public_surface(symbols, mutated_relationships)
     if (
         relationship_mutation_symbol_count
-        != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT
+        != expected_symbol_count
         or relationship_mutation_count
-        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
+        != expected_relationship_count
     ):
         raise VerificationError(
             f"{graph_label}: relationship-only mutation changed "
             "the normalized surface counts"
         )
-    if relationship_mutation_sha256 == EXPECTED_PUBLIC_SURFACE_SHA256:
+    if relationship_mutation_sha256 == expected_surface_sha256:
         raise VerificationError(
             f"{graph_label}: relationship-only mutation did not "
             "change the public surface hash"
@@ -640,6 +788,7 @@ def run_synthetic_regression_checks(
             graph_label,
             symbols,
             mutated_relationships,
+            expected_profile,
         )
     except VerificationError as error:
         if "public/SPI symbol surface mismatch" not in str(error):
@@ -867,6 +1016,10 @@ def run_synthetic_regression_checks(
 
 
 def main() -> None:
+    try:
+        run_calibration_profile_self_checks()
+    except VerificationError as error:
+        fail(str(error))
     base_symbol_graphs = sorted(
         (PACKAGE_ROOT / ".build").glob(
             f"**/symbolgraph/{SYMBOL_GRAPH_NAME}"
@@ -889,6 +1042,7 @@ def main() -> None:
         {symbol_graph.parent for symbol_graph in base_symbol_graphs}
     )
     verified_file_count = 0
+    verified_profile_labels: set[str] = set()
     for symbol_graph_directory in symbol_graph_directories:
         symbol_graph_files = sorted(
             path
@@ -899,6 +1053,7 @@ def main() -> None:
         )
         symbols: list[object] = []
         relationships: list[object] = []
+        expected_profiles: list[PublicSurfaceProfile] = []
         for symbol_graph_file in symbol_graph_files:
             with symbol_graph_file.open(encoding="utf-8") as handle:
                 graph = json.load(handle)
@@ -912,48 +1067,47 @@ def main() -> None:
                 fail(f"{symbol_graph_file}: missing relationships array")
             metadata = graph.get("metadata")
             module = graph.get("module")
-            if not isinstance(metadata, dict) or not isinstance(module, dict):
-                fail(
-                    f"{symbol_graph_file}: missing calibration metadata "
-                    "or module context"
+            try:
+                expected_profile = approved_public_surface_profile(
+                    metadata,
+                    module,
                 )
-            format_version = metadata.get("formatVersion")
-            generator = metadata.get("generator")
-            module_platform = module.get("platform")
-            if (
-                not isinstance(format_version, dict)
-                or not all(
-                    type(format_version.get(component)) is int
-                    for component in ("major", "minor", "patch")
-                )
-                or not isinstance(generator, str)
-                or not generator
-                or module.get("name") != SYMBOL_GRAPH_MODULE
-                or not isinstance(module_platform, dict)
-                or not module_platform
-            ):
-                fail(
-                    f"{symbol_graph_file}: invalid symbol-graph "
-                    "generator, format version, module name, or platform"
-                )
+            except VerificationError as error:
+                fail(f"{symbol_graph_file}: {error}")
+            expected_profiles.append(expected_profile)
             print(
                 "public API symbol-graph calibration context: "
                 f"file={symbol_graph_file.name} "
+                f"profile={expected_profile[0]} "
                 f"metadata={json.dumps(metadata, sort_keys=True)} "
                 f"module={json.dumps(module, sort_keys=True)}"
             )
             symbols.extend(graph_symbols)
             relationships.extend(graph_relationships)
         verified_file_count += len(symbol_graph_files)
+        distinct_profiles = set(expected_profiles)
+        if len(distinct_profiles) != 1:
+            fail(
+                f"{symbol_graph_directory}: base/shard files use "
+                f"different calibration profiles: {distinct_profiles}"
+            )
+        expected_profile = expected_profiles[0]
+        verified_profile_labels.add(expected_profile[0])
         graph_label = ", ".join(
             str(path) for path in symbol_graph_files
         )
         try:
-            verify_public_api(graph_label, symbols, relationships)
+            verify_public_api(
+                graph_label,
+                symbols,
+                relationships,
+                expected_profile,
+            )
             run_synthetic_regression_checks(
                 graph_label,
                 symbols,
                 relationships,
+                expected_profile,
             )
         except VerificationError as error:
             fail(str(error))
@@ -962,8 +1116,7 @@ def main() -> None:
         "public API symbol-graph check passed: "
         f"{len(symbol_graph_directories)} build configurations, "
         f"{verified_file_count} base/shard files, "
-        f"{EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT} public/SPI symbols, "
-        f"{EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT} relationships, "
+        f"profiles={','.join(sorted(verified_profile_labels))}, "
         f"{len(REQUIRED_FULL_ENTRYPOINTS)} exact composed entrypoints, "
         f"{len(FORBIDDEN_PARTIAL_ENTRYPOINTS)} partial entrypoints absent, "
         "0 public callable raw-policy consumers"

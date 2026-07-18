@@ -100,6 +100,8 @@ import {
   checkpointFloodgateV7TeacherParentsCoreForTests,
   checkpointFloodgateV7TeacherParentsV3CoreForTests,
   checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests,
+  claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests,
+  claimFloodgateV7ProductionTeacherCheckpointV3Receipt,
   invokeFloodgateV7TeacherCheckpointV3VerifiedParentVisitorCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
   type FloodgateV7TeacherCheckpointOptions,
@@ -3694,6 +3696,55 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     }
     expect(producerCalls).toBe(0);
   });
+
+  it("brands only successful deployment-key v3 receipt objects for one-shot test claims", async () => {
+    const value = await fixture(fixedV3Corpus().rawRows);
+    const deployment = await deploymentKeyFixture();
+    const produced: number[] = [];
+    const receipt = await runDeploymentV3Checkpoint(
+      value,
+      deployment,
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      fixedV3Producer(produced),
+    );
+    const clone = Object.freeze({
+      ...receipt,
+    }) as Readonly<FloodgateV7TeacherCheckpointV3Receipt>;
+
+    expect(produced).toHaveLength(100);
+    expect(() =>
+      claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
+        clone,
+      ),
+    ).toThrow(/exact successful unclaimed receipt/);
+    expect(() =>
+      claimFloodgateV7ProductionTeacherCheckpointV3Receipt(receipt),
+    ).toThrow(/exact successful unclaimed receipt/);
+    expect(
+      claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
+        receipt,
+      ),
+    ).toBe(receipt);
+    expect(() =>
+      claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
+        receipt,
+      ),
+    ).toThrow(/exact successful unclaimed receipt/);
+
+    const directTestCoreReceipt = await runV3Checkpoint(
+      value,
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      async () => {
+        throw new Error("complete prefix must not produce");
+      },
+    );
+    expect(directTestCoreReceipt.work.resumed_parents).toBe(100);
+    expect(() =>
+      claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
+        directTestCoreReceipt,
+      ),
+    ).toThrow(/exact successful unclaimed receipt/);
+  }, 20_000);
 
   it("advances authenticated v3 100/500/final-24000 gates and visits only verified sealed-final parents", async () => {
     const corpus = fixedV3Corpus();

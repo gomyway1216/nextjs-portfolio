@@ -63,7 +63,15 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
           p1: 0,
           p2: 0,
         },
-        publication_exact_commit_review: "PENDING",
+        publication_revision: "59cca9876b7114d2a728166aa6850ef58e452786",
+        publication_tree: "ce63b5fd023d4c5cf89dbeab9437fee25501172f",
+        publication_exact_commit_review: "PASS",
+        publication_exact_commit_reviewers: 2,
+        publication_exact_commit_findings: {
+          p0: 0,
+          p1: 0,
+          p2: 0,
+        },
         continuous_integration: "PENDING",
       },
       scope: {
@@ -407,7 +415,7 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
         duration_seconds: 313.3,
       },
       continuous_integration: "PENDING",
-      exact_commit_review: "IMPLEMENTATION-PASS-PUBLICATION-PENDING",
+      exact_commit_review: "IMPLEMENTATION-AND-PUBLICATION-PASS",
     });
   });
 });

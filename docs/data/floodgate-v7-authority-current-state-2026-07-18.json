@@ -18,7 +18,15 @@
       "p1": 0,
       "p2": 0
     },
-    "publication_exact_commit_review": "PENDING",
+    "publication_revision": "59cca9876b7114d2a728166aa6850ef58e452786",
+    "publication_tree": "ce63b5fd023d4c5cf89dbeab9437fee25501172f",
+    "publication_exact_commit_review": "PASS",
+    "publication_exact_commit_reviewers": 2,
+    "publication_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
     "continuous_integration": "PENDING"
   },
   "scope": {
@@ -246,7 +254,7 @@
       "duration_seconds": 313.3
     },
     "continuous_integration": "PENDING",
-    "exact_commit_review": "IMPLEMENTATION-PASS-PUBLICATION-PENDING"
+    "exact_commit_review": "IMPLEMENTATION-AND-PUBLICATION-PASS"
   },
   "production_counters": {
     "real_authority_state_reads": 0,
@@ -285,7 +293,7 @@
     "stable_high_dan_established": false
   },
   "safe_next_order": [
-    "finish-publication-exact-commit-review",
+    "create-ready-pull-request-and-run-exact-head-ci",
     "run-exact-commit-ci-and-address-review-comments",
     "regular-merge-only-after-all-required-checks-pass",
     "design-and-review-a-separate-root-provisioner-and-writer",

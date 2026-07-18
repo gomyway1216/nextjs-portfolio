@@ -1,0 +1,82 @@
+{
+  "schema": "shogi-floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1",
+  "retrieved_at": "2026-07-18T19:03:06Z",
+  "repository": "gomyway1216/nextjs-portfolio",
+  "pull_request": 504,
+  "github_artifact_api": {
+    "id": 8433092951,
+    "node_id": "MDg6QXJ0aWZhY3Q4NDMzMDkyOTUx",
+    "name": "floodgate-v7-public-symbol-graphs-macOS-ARM64-7b4d2a058457e938eb2eeff440445e43fc05936d-1",
+    "size_in_bytes": 51056,
+    "digest": "sha256:1ad7b53f2aa1a9060f037b3214b18075942b89ff91534b1dbf4e1c679ca88369",
+    "expired_at_retrieval": false,
+    "created_at": "2026-07-18T18:53:24Z",
+    "updated_at": "2026-07-18T18:53:24Z",
+    "expires_at": "2026-08-01T18:53:23Z",
+    "url": "https://api.github.com/repos/gomyway1216/nextjs-portfolio/actions/artifacts/8433092951",
+    "archive_download_url": "https://api.github.com/repos/gomyway1216/nextjs-portfolio/actions/artifacts/8433092951/zip",
+    "workflow_run": {
+      "id": 29656667943,
+      "repository_id": 1102298330,
+      "head_repository_id": 1102298330,
+      "head_branch": "codex/floodgate-v7-remote-monotonic-witness",
+      "head_sha": "ead8bf5a3965f48878c798aa14e33f01694828b5"
+    }
+  },
+  "workflow_job": {
+    "id": 88112184102,
+    "name": "External trust-root protocol (source only)",
+    "conclusion": "success"
+  },
+  "synthetic_merge": {
+    "revision": "7b4d2a058457e938eb2eeff440445e43fc05936d",
+    "tree": "1e6f038de4ac50a3f6c2df08f56bcb9f746b7348",
+    "parents": [
+      "bb08e6019b1a42f631be06e400df01b1baf336f4",
+      "ead8bf5a3965f48878c798aa14e33f01694828b5"
+    ],
+    "message": "Merge ead8bf5a3965f48878c798aa14e33f01694828b5 into bb08e6019b1a42f631be06e400df01b1baf336f4"
+  },
+  "archive": {
+    "sha256": "1ad7b53f2aa1a9060f037b3214b18075942b89ff91534b1dbf4e1c679ca88369",
+    "bytes": 51056,
+    "entries": [
+      {
+        "path": "arm64-apple-macosx/symbolgraph/FloodgateV7ExternalTrustRootProtocol.symbols.json",
+        "bytes": 1234153,
+        "sha256": "944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81"
+      },
+      {
+        "path": "arm64-apple-macosx/symbolgraph/FloodgateV7ExternalTrustRootProtocolPackageTests.symbols.json",
+        "bytes": 375,
+        "sha256": "8b496cd8b0f5093431c1ac3e2fb452ab40ae8f12da4f142321d5b424cf822372"
+      }
+    ]
+  },
+  "module_graph": {
+    "format_version": {
+      "major": 0,
+      "minor": 6,
+      "patch": 0
+    },
+    "generator": "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+    "module": "FloodgateV7ExternalTrustRootProtocol",
+    "architecture": "arm64",
+    "vendor": "apple",
+    "operating_system": "macosx",
+    "minimum_operating_system_version": {
+      "major": 13,
+      "minor": 0
+    },
+    "raw_bytes": 1234153,
+    "raw_sha256": "944aa91e95911dfb475c825f706af6b10127af4d32fb3d9c7065bd96efceaf81",
+    "normalized_symbols": 575,
+    "normalized_relationships": 678,
+    "normalized_sha256": "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
+    "semantic_gate": "PASS"
+  },
+  "normalizer": {
+    "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py",
+    "git_blob": "c7e3a84ebe1dcd98b62a429a98f7012118b2ae21"
+  }
+}

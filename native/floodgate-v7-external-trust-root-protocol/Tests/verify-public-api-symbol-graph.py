@@ -28,9 +28,9 @@ EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
         ARM64_MACOS_13_PLATFORM,
     ): (
         "xcode-15.3-swift-5.10-arm64-macos13",
-        516,
-        570,
-        "879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a",
+        575,
+        635,
+        "57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461",
     ),
     (
         "Apple Swift version 6.3.2 "
@@ -39,9 +39,9 @@ EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
         ARM64_MACOS_13_PLATFORM,
     ): (
         "xcode-26.5-swift-6.3.2-arm64-macos13",
-        516,
-        609,
-        "1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce",
+        575,
+        678,
+        "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
     ),
 }
 CALLABLE_KINDS = {
@@ -103,6 +103,160 @@ FORBIDDEN_AUTHORITY_PARAMETER_MARKERS = (
     "authorityStateProvider:",
 )
 AUTHORITY_STATE_STORE_TYPE = "TrustRootAuthorityStateStoreV1"
+ALLOWED_WITNESS_DATA_OWNERS = {
+    "AuthorityRollbackCheckpointV1",
+    "RemoteMonotonicWitnessOperationV1",
+    "RemoteMonotonicWitnessRequestV1",
+    "RemoteMonotonicWitnessReceiptV1",
+}
+ALLOWED_WITNESS_DATA_CALLABLES = {
+    (
+        "swift.init",
+        "AuthorityRollbackCheckpointV1",
+        (
+            "init(audience:purpose:journalID:journalSequence:"
+            "authorityPublicKeyRecordSHA256:journalHeaderSHA256:"
+            "lastJournalEntrySHA256:expectedActivationHeadSHA256:"
+            "previousWitnessedCheckpointSHA256:)"
+        ),
+    ),
+    (
+        "swift.method",
+        "AuthorityRollbackCheckpointV1",
+        "canonicalBytes()",
+    ),
+    (
+        "swift.method",
+        "AuthorityRollbackCheckpointV1",
+        "canonicalSHA256()",
+    ),
+    (
+        "swift.type.method",
+        "AuthorityRollbackCheckpointV1",
+        "decodeCanonical(_:)",
+    ),
+    (
+        "swift.init",
+        "RemoteMonotonicWitnessOperationV1",
+        "init(rawValue:)",
+    ),
+    (
+        "swift.init",
+        "RemoteMonotonicWitnessRequestV1",
+        (
+            "init(audience:purpose:operation:witnessID:endpointID:"
+            "clientNonce:operationID:expectedCheckpointSHA256:"
+            "candidateCheckpoint:)"
+        ),
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessRequestV1",
+        "canonicalBytes()",
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessRequestV1",
+        "canonicalSHA256()",
+    ),
+    (
+        "swift.type.method",
+        "RemoteMonotonicWitnessRequestV1",
+        "decodeCanonical(_:)",
+    ),
+    (
+        "swift.init",
+        "RemoteMonotonicWitnessReceiptV1",
+        (
+            "init(audience:purpose:operation:accepted:witnessID:"
+            "endpointID:witnessSignerKeyID:clientNonce:operationID:"
+            "requestSHA256:checkpoint:issuedAtUnixSeconds:"
+            "expiresAtUnixSeconds:signature:)"
+        ),
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        "canonicalBytes()",
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        "canonicalSHA256()",
+    ),
+    (
+        "swift.type.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        "decodeCanonical(_:)",
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        "signaturePayload()",
+    ),
+    (
+        "swift.type.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        (
+            "signaturePayload(audience:purpose:operation:accepted:"
+            "witnessID:endpointID:witnessSignerKeyID:clientNonce:"
+            "operationID:requestSHA256:checkpoint:issuedAtUnixSeconds:"
+            "expiresAtUnixSeconds:)"
+        ),
+    ),
+    (
+        "swift.method",
+        "RemoteMonotonicWitnessReceiptV1",
+        (
+            "verifiedCheckpoint(for:publicKeyRawRepresentation:"
+            "nowUnixSeconds:)"
+        ),
+    ),
+}
+ALLOWED_WITNESS_DATA_PROPERTIES = {
+    (
+        "swift.property",
+        "RemoteMonotonicWitnessRequestV1",
+        "operation",
+    ),
+    (
+        "swift.property",
+        "RemoteMonotonicWitnessRequestV1",
+        "candidateCheckpoint",
+    ),
+    (
+        "swift.property",
+        "RemoteMonotonicWitnessReceiptV1",
+        "operation",
+    ),
+    (
+        "swift.property",
+        "RemoteMonotonicWitnessReceiptV1",
+        "checkpoint",
+    ),
+}
+FORBIDDEN_WITNESS_PARAMETER_MARKERS = (
+    "witnessID:",
+    "endpointID:",
+    "witnessStateStore:",
+    "witnessStateProvider:",
+    "witnessEndpoint:",
+    "witnessEndpointURL:",
+    "witnessPublicKeyRawRepresentation:",
+    "remoteWitnessProvider:",
+    "remoteAuthority:",
+    "witnessClient:",
+    "witnessService:",
+    "witnessTransport:",
+)
+FORBIDDEN_PUBLIC_WITNESS_IMPLEMENTATION_TYPES = (
+    "RemoteMonotonicWitnessGateV1",
+    "RemoteMonotonicWitnessReferenceStateMachineV1",
+)
+PROTECTED_WITNESS_PUBLIC_TYPES = (
+    tuple(sorted(ALLOWED_WITNESS_DATA_OWNERS))
+    + FORBIDDEN_PUBLIC_WITNESS_IMPLEMENTATION_TYPES
+)
 
 
 class VerificationError(Exception):
@@ -623,6 +777,55 @@ def verify_public_api(
             + ", ".join(authority_injection_consumers)
         )
 
+    witness_injection_consumers = []
+    for kind, owner, symbol_name, declaration in declarations:
+        if kind not in CALLABLE_KINDS:
+            continue
+        parameters = parameter_clause(declaration)
+        is_witness_data_owner = (
+            owner in ALLOWED_WITNESS_DATA_OWNERS
+        )
+        has_unapproved_data_callable = (
+            is_witness_data_owner
+            and (kind, owner, symbol_name)
+            not in ALLOWED_WITNESS_DATA_CALLABLES
+        )
+        exposes_witness_injection = (
+            not is_witness_data_owner
+            and any(
+                marker in parameters
+                for marker in FORBIDDEN_WITNESS_PARAMETER_MARKERS
+            )
+        )
+        exposes_witness_data_type = (
+            not is_witness_data_owner
+            and any(
+                witness_type in declaration
+                for witness_type
+                in PROTECTED_WITNESS_PUBLIC_TYPES
+            )
+        )
+        exposes_witness_implementation = any(
+            implementation_type in declaration
+            for implementation_type
+            in FORBIDDEN_PUBLIC_WITNESS_IMPLEMENTATION_TYPES
+        )
+        if (
+            has_unapproved_data_callable
+            or exposes_witness_injection
+            or exposes_witness_data_type
+            or exposes_witness_implementation
+        ):
+            witness_injection_consumers.append(
+                f"{owner}.{symbol_name}"
+            )
+    if witness_injection_consumers:
+        raise VerificationError(
+            f"{graph_label}: public callable exposes caller-injected "
+            "remote witness authority: "
+            + ", ".join(witness_injection_consumers)
+        )
+
     raw_policy_consumers = []
     for kind, owner, symbol_name, declaration in declarations:
         if kind not in CALLABLE_KINDS:
@@ -659,6 +862,11 @@ def verify_public_api(
             or "RuntimeLaunchPolicyRecordV1" in declaration
             or "ExpectedActivationHeadV1" in declaration
             or AUTHORITY_STATE_STORE_TYPE in declaration
+            or any(
+                witness_type in declaration
+                for witness_type
+                in PROTECTED_WITNESS_PUBLIC_TYPES
+            )
         )
     ]
     if security_typealiases:
@@ -684,6 +892,24 @@ def verify_public_api(
             f"{graph_label}: public function property exposes a "
             "protected runtime-launch type: "
             + ", ".join(protected_function_properties)
+        )
+
+    protected_witness_properties = [
+        f"{owner}.{symbol_name}"
+        for kind, owner, symbol_name, declaration in declarations
+        if kind in FUNCTION_PROPERTY_KINDS
+        and any(
+            witness_type in declaration
+            for witness_type in PROTECTED_WITNESS_PUBLIC_TYPES
+        )
+        and (kind, owner, symbol_name)
+        not in ALLOWED_WITNESS_DATA_PROPERTIES
+    ]
+    if protected_witness_properties:
+        raise VerificationError(
+            f"{graph_label}: public property exposes a protected "
+            "witness type: "
+            + ", ".join(protected_witness_properties)
         )
 
     for owner, method_prefix in FORBIDDEN_PARTIAL_ENTRYPOINTS:
@@ -1057,6 +1283,79 @@ def run_synthetic_regression_checks(
             },
             "public callable exposes caller-injected authority state",
         )
+    for symbol_name, declaration in (
+        (
+            "bypass(witnessID:)",
+            "func bypass(witnessID: CanonicalBytes32)",
+        ),
+        (
+            "bypass(endpointID:)",
+            "func bypass(endpointID: CanonicalBytes32)",
+        ),
+        (
+            "bypass(witnessStateProvider:)",
+            "func bypass(witnessStateProvider: () -> Void)",
+        ),
+        (
+            "bypass(witnessEndpointURL:)",
+            "func bypass(witnessEndpointURL: String)",
+        ),
+        (
+            "connect(remoteAuthority:)",
+            "func connect(remoteAuthority: String)",
+        ),
+        (
+            "bypass(witnessGate:)",
+            (
+                "func bypass(witnessGate: "
+                "RemoteMonotonicWitnessGateV1)"
+            ),
+        ),
+    ):
+        expect_synthetic_rejection(
+            graph_label,
+            symbols,
+            relationships,
+            {
+                **symbol_base,
+                "kind": {"identifier": "swift.func"},
+                "pathComponents": [
+                    "UnexpectedWitnessConsumerV1",
+                    symbol_name,
+                ],
+                "declarationFragments": [{"spelling": declaration}],
+            },
+            "public callable exposes caller-injected remote "
+            "witness authority",
+        )
+    for owner, symbol_name, declaration in (
+        (
+            "RemoteMonotonicWitnessRequestV1",
+            "connect(remoteAuthority:)",
+            "func connect(remoteAuthority: String)",
+        ),
+        (
+            "UnexpectedWitnessConsumerV1",
+            "makeReceipt()",
+            (
+                "func makeReceipt() -> "
+                "RemoteMonotonicWitnessReceiptV1"
+            ),
+        ),
+    ):
+        expect_synthetic_rejection(
+            graph_label,
+            symbols,
+            relationships,
+            {
+                **symbol_base,
+                "kind": {"identifier": "swift.method"},
+                "pathComponents": [owner, symbol_name],
+                "declarationFragments": [{"spelling": declaration}],
+            },
+            "public callable exposes caller-injected remote "
+            "witness authority",
+        )
     for kind, owner, symbol_name, declaration, expected_fragment in (
         (
             "swift.type.method",
@@ -1096,6 +1395,10 @@ def run_synthetic_regression_checks(
         ("RawPolicy", "RuntimeLaunchPolicyRecordV1"),
         ("AuthorityHead", "ExpectedActivationHeadV1"),
         ("AuthorityStore", "TrustRootAuthorityStateStoreV1"),
+        (
+            "WitnessReceipt",
+            "RemoteMonotonicWitnessReceiptV1",
+        ),
     ):
         expect_synthetic_rejection(
             graph_label,
@@ -1114,6 +1417,41 @@ def run_synthetic_regression_checks(
                 ],
             },
             "public security typealias is forbidden",
+        )
+    for kind, property_name, property_type in (
+        (
+            "swift.property",
+            "witnessReceipt",
+            "RemoteMonotonicWitnessReceiptV1",
+        ),
+        (
+            "swift.type.property",
+            "witnessFactory",
+            "() -> RemoteMonotonicWitnessReceiptV1",
+        ),
+    ):
+        expect_synthetic_rejection(
+            graph_label,
+            symbols,
+            relationships,
+            {
+                **symbol_base,
+                "kind": {"identifier": kind},
+                "pathComponents": [
+                    "UnexpectedWitnessConsumerV1",
+                    property_name,
+                ],
+                "declarationFragments": [
+                    {
+                        "spelling": (
+                            f"static let {property_name}: {property_type}"
+                            if kind == "swift.type.property"
+                            else f"let {property_name}: {property_type}"
+                        )
+                    }
+                ],
+            },
+            "public property exposes a protected witness type",
         )
     for kind, property_name, property_type in (
         (

@@ -368,13 +368,13 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "xcode-15.3-swift-5.10-arm64-macos13",
     );
     expect(symbolGraphVerifier).toContain(
-      "879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a",
+      "57ff6311d811d0f4ae3459cdc65d0a87c2595f78a45d91565ba714f5c39f2461",
     );
     expect(symbolGraphVerifier).toContain(
       "xcode-26.5-swift-6.3.2-arm64-macos13",
     );
     expect(symbolGraphVerifier).toContain(
-      "1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce",
+      "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
     );
     expect(symbolGraphVerifier).toContain("Apple Swift version 6.3.2 ");
     expect(symbolGraphVerifier).toContain(

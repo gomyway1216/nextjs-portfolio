@@ -42,7 +42,7 @@ private func writeAuthorityStateFile(
     try setAuthorityStateMode(url, mode)
 }
 
-private final class AuthorityStateFilesystemFixture {
+final class AuthorityStateFilesystemFixture {
     let root: URL
     let lockFile: URL
     let keyFile: URL

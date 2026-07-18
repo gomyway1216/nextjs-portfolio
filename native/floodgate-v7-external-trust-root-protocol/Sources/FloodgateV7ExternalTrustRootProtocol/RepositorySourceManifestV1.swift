@@ -97,6 +97,8 @@ public struct RepositorySourceManifestV1: Equatable, Sendable {
             diagnosticBundleSHA256 != pinnedNodeRuntimeSHA256,
             diagnosticLauncherJXASHA256 != pinnedNodeRuntimeSHA256,
             supervisorArtifactSHA256 != verifierArtifactSHA256,
+            supervisorArtifactSHA256 != pinnedNodeRuntimeSHA256,
+            verifierArtifactSHA256 != pinnedNodeRuntimeSHA256,
             supervisorAttestationKeyID != verifierAttestationKeyID,
             supervisorArtifactSHA256 != diagnosticBundleSHA256,
             verifierArtifactSHA256 != diagnosticBundleSHA256
@@ -216,6 +218,18 @@ public struct RepositorySourceManifestV1: Equatable, Sendable {
             runtimeLaunchPolicySHA256 == policy.canonicalSHA256(),
             policy.diagnosticEntryBundleSHA256
                 == diagnosticBundleSHA256
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+
+    public func validateAuthorityKeySeparation(
+        _ authoritySignerKeyID: CanonicalBytes32
+    ) throws {
+        guard
+            !authoritySignerKeyID.isAllZero,
+            authoritySignerKeyID != supervisorAttestationKeyID,
+            authoritySignerKeyID != verifierAttestationKeyID
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }

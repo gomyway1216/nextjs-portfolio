@@ -64,6 +64,7 @@ private struct HandoffFixture {
     let signedEnrollment: SignedEnrollmentRecordV1
     let activation: ActivationRecord
     let signedActivation: SignedActivationRecordV1
+    let expectedActivationHead: ExpectedActivationHeadV1
     let supervisorProcessIdentity: ProcessIdentityV1
     let verifierProcessIdentity: ProcessIdentityV1
     let childProcessIdentity: ProcessIdentityV1
@@ -177,6 +178,14 @@ private struct HandoffFixture {
                 authorityKey,
                 payload: activationPayload
             )
+        )
+        expectedActivationHead = try ExpectedActivationHeadV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authoritySignerKeyID: authorityKeyID,
+            latestActivationSequence: activation.sequence,
+            latestActivationEnvelopeSHA256:
+                signedActivation.canonicalSHA256()
         )
         supervisorProcessIdentity = try ProcessIdentityV1(
             audience: .productionRecovery,
@@ -336,6 +345,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             nowUnixSeconds: 120
         )
         XCTAssertEqual(snapshot.activeEnrollment, fixture.enrollment)
@@ -369,6 +380,78 @@ final class AuthenticatedHandoffTests: XCTestCase {
         )
     }
 
+    func testExpectedHeadRejectsTruncatedActivationHistoryAndRoleKeyReuse()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        XCTAssertEqual(
+            fixture.expectedActivationHead.canonicalBytes().count,
+            ExpectedActivationHeadV1.canonicalByteCount
+        )
+        XCTAssertEqual(
+            try ExpectedActivationHeadV1.decodeCanonical(
+                fixture.expectedActivationHead.canonicalBytes()
+            ),
+            fixture.expectedActivationHead
+        )
+
+        let revoke = try ActivationRecord(
+            audience: .productionRecovery,
+            action: .revoke,
+            sequence: 2,
+            activationID: handoffBytes32(0xee),
+            targetEnrollmentID: fixture.enrollment.enrollmentID,
+            previousActivationDigest:
+                fixture.activation.canonicalSHA256(),
+            issuedAtUnixSeconds: 125
+        )
+        let revokePayload =
+            try SignedActivationRecordV1.signaturePayload(
+                record: revoke,
+                signerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID
+            )
+        let signedRevoke = try SignedActivationRecordV1(
+            signerKeyID:
+                fixture.expectedActivationHead.authoritySignerKeyID,
+            record: revoke,
+            signature: try handoffSignature(
+                fixture.authorityKey,
+                payload: revokePayload
+            )
+        )
+        let currentHead = try ExpectedActivationHeadV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authoritySignerKeyID:
+                fixture.expectedActivationHead.authoritySignerKeyID,
+            latestActivationSequence: revoke.sequence,
+            latestActivationEnvelopeSHA256:
+                signedRevoke.canonicalSHA256()
+        )
+        assertInvalidHandoff(
+            try AuthenticatedProtocolStateV1.replay(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead: currentHead,
+                nowUnixSeconds: 126
+            )
+        )
+        assertInvalidHandoff(
+            try fixture.manifest.validateAuthorityKeySeparation(
+                fixture.manifest.supervisorAttestationKeyID
+            )
+        )
+        assertInvalidHandoff(
+            try fixture.manifest.validateAuthorityKeySeparation(
+                fixture.manifest.verifierAttestationKeyID
+            )
+        )
+    }
+
     func testManifestAndFreshSignedHandoffAreExactAndOneShot()
         throws
     {
@@ -383,6 +466,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             manifest: fixture.manifest,
             runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
             verifierAnonymousFDChannelBindingSHA256:
@@ -407,6 +492,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             challenge: challenge,
             supervisorPublicKeyRawRepresentation:
                 fixture.supervisorPublicKey,
@@ -566,6 +653,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             manifest: fixture.manifest,
             runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
             supervisorProcessIdentity:
@@ -655,12 +744,90 @@ final class AuthenticatedHandoffTests: XCTestCase {
             gitReplacementObjectsAbsent: true,
             callerSuppliedPathAccepted: false
         )
+        let badReceiptID = handoffBytes32(0x62)
+        let badReceiptPayload =
+            try VerifierReceiptV1.signaturePayload(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                receiptID: badReceiptID,
+                challengeSHA256: challenge.canonicalSHA256(),
+                enrollmentID: fixture.enrollment.enrollmentID,
+                activationDigest:
+                    fixture.signedActivation.canonicalSHA256(),
+                sourceManifestSHA256:
+                    fixture.manifest.canonicalSHA256(),
+                repositoryObservationSHA256:
+                    substituted.canonicalSHA256(),
+                approvedCommit: fixture.enrollment.approvedCommit,
+                approvedTree: fixture.enrollment.approvedTree,
+                targetProcessIdentitySHA256:
+                    challenge.targetProcessIdentitySHA256,
+                verifierArtifactSHA256:
+                    fixture.manifest.verifierArtifactSHA256,
+                verifierProcessIdentitySHA256:
+                    fixture.verifierProcessIdentity.canonicalSHA256(),
+                signerKeyID:
+                    fixture.manifest.verifierAttestationKeyID,
+                targetProcessID: challenge.targetProcessID,
+                expectedUID: challenge.expectedUID,
+                issuedAtUnixSeconds: 121,
+                expiresAtUnixSeconds: 150
+            )
+        let badReceipt = try VerifierReceiptV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            receiptID: badReceiptID,
+            challengeSHA256: challenge.canonicalSHA256(),
+            enrollmentID: fixture.enrollment.enrollmentID,
+            activationDigest:
+                fixture.signedActivation.canonicalSHA256(),
+            sourceManifestSHA256:
+                fixture.manifest.canonicalSHA256(),
+            repositoryObservationSHA256:
+                substituted.canonicalSHA256(),
+            approvedCommit: fixture.enrollment.approvedCommit,
+            approvedTree: fixture.enrollment.approvedTree,
+            targetProcessIdentitySHA256:
+                challenge.targetProcessIdentitySHA256,
+            verifierArtifactSHA256:
+                fixture.manifest.verifierArtifactSHA256,
+            verifierProcessIdentitySHA256:
+                fixture.verifierProcessIdentity.canonicalSHA256(),
+            signerKeyID:
+                fixture.manifest.verifierAttestationKeyID,
+            targetProcessID: challenge.targetProcessID,
+            expectedUID: challenge.expectedUID,
+            issuedAtUnixSeconds: 121,
+            expiresAtUnixSeconds: 150,
+            signature: try handoffSignature(
+                fixture.verifierKey,
+                payload: badReceiptPayload
+            )
+        )
+        assertInvalidHandoff(
+            try badReceipt.verify(
+                publicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                challenge: challenge,
+                manifest: fixture.manifest,
+                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                enrollment: fixture.enrollment,
+                observation: substituted,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                nowUnixSeconds: 122
+            )
+        )
         assertInvalidHandoff(
             try TrustRootVerifierCoreV1.issueReceipt(
                 enrollmentEnvelopes: [fixture.signedEnrollment],
                 activationEnvelopes: [fixture.signedActivation],
                 authorityPublicKeyRawRepresentation:
                     fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 challenge: challenge,
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
@@ -686,6 +853,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 activationEnvelopes: [fixture.signedActivation],
                 authorityPublicKeyRawRepresentation:
                     fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 challenge: challenge,
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,
@@ -840,6 +1009,26 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 fixture.manifest.canonicalBytes() + [0]
             )
         )
+        var nodeEqualsSupervisor = fixture.manifest.canonicalBytes()
+        nodeEqualsSupervisor.replaceSubrange(
+            180..<212,
+            with: nodeEqualsSupervisor[244..<276]
+        )
+        assertInvalidHandoff(
+            try RepositorySourceManifestV1.decodeCanonical(
+                nodeEqualsSupervisor
+            )
+        )
+        var nodeEqualsVerifier = fixture.manifest.canonicalBytes()
+        nodeEqualsVerifier.replaceSubrange(
+            180..<212,
+            with: nodeEqualsVerifier[276..<308]
+        )
+        assertInvalidHandoff(
+            try RepositorySourceManifestV1.decodeCanonical(
+                nodeEqualsVerifier
+            )
+        )
         let substitutedPolicy = try RuntimeLaunchPolicyRecordV1(
             audience: .productionRecovery,
             purpose: .inspectStalePrefix100,
@@ -877,6 +1066,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             manifest: fixture.manifest,
             runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
             verifierAnonymousFDChannelBindingSHA256:
@@ -896,6 +1087,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 activationEnvelopes: [fixture.signedActivation],
                 authorityPublicKeyRawRepresentation:
                     fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
                 verifierAnonymousFDChannelBindingSHA256:
@@ -916,6 +1109,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 activationEnvelopes: [fixture.signedActivation],
                 authorityPublicKeyRawRepresentation:
                     fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
                 supervisorProcessIdentity:
@@ -943,6 +1138,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             manifest: fixture.manifest,
             runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
             supervisorProcessIdentity:
@@ -963,6 +1160,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             activationEnvelopes: [fixture.signedActivation],
             authorityPublicKeyRawRepresentation:
                 fixture.authorityPublicKey,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             challenge: challenge,
             supervisorPublicKeyRawRepresentation:
                 fixture.supervisorPublicKey,
@@ -1309,6 +1508,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                         [fixture.signedActivation],
                     authorityPublicKeyRawRepresentation:
                         fixture.authorityPublicKey,
+                    expectedActivationHead:
+                        fixture.expectedActivationHead,
                     challenge: challenge,
                     supervisorPublicKeyRawRepresentation:
                         fixture.supervisorPublicKey,
@@ -1434,6 +1635,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 activationEnvelopes: [fixture.signedActivation],
                 authorityPublicKeyRawRepresentation:
                     fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 challenge: challenge,
                 supervisorPublicKeyRawRepresentation:
                     fixture.supervisorPublicKey,

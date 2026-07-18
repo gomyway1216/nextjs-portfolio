@@ -560,7 +560,7 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         CanonicalSHA256.digest(canonicalBytes())
     }
 
-    public func verify(
+    func verify(
         publicKeyRawRepresentation: [UInt8],
         challenge: SupervisorChallengeV1,
         manifest: RepositorySourceManifestV1,
@@ -586,12 +586,16 @@ public struct VerifierReceiptV1: Equatable, Sendable {
             repositoryObservationSHA256
                 == observation.canonicalSHA256(),
             targetProcessIdentitySHA256
+                == observation.targetProcessIdentitySHA256,
+            targetProcessIdentitySHA256
                 == challenge.targetProcessIdentitySHA256,
+            targetProcessID == observation.targetProcessID,
             targetProcessID == challenge.targetProcessID,
             targetProcessID == supervisorProcessIdentity.processID,
             targetProcessIdentitySHA256
                 == supervisorProcessIdentity.canonicalSHA256(),
             expectedUID == challenge.expectedUID,
+            expectedUID == observation.effectiveUID,
             challenge.signerKeyID
                 == manifest.supervisorAttestationKeyID,
             signerKeyID != challenge.signerKeyID,
@@ -616,6 +620,10 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         }
         try manifest.validateEnrollment(enrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try observation.validate(
+            manifest: manifest,
+            enrollment: enrollment
+        )
         try supervisorProcessIdentity.validateSupervisorAgainstManifest(
             manifest,
             expectedUID: enrollment.expectedUID
@@ -917,7 +925,7 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         CanonicalSHA256.digest(canonicalBytes())
     }
 
-    public func verify(
+    func verify(
         publicKeyRawRepresentation: [UInt8],
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,

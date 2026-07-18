@@ -238,6 +238,7 @@ public enum TrustRootSupervisorCoreV1 {
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],
+        expectedActivationHead: ExpectedActivationHeadV1,
         manifest: RepositorySourceManifestV1,
         runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
         supervisorProcessIdentity: ProcessIdentityV1,
@@ -253,7 +254,11 @@ public enum TrustRootSupervisorCoreV1 {
             activationEnvelopes: activationEnvelopes,
             authorityPublicKeyRawRepresentation:
                 authorityPublicKeyRawRepresentation,
+            expectedActivationHead: expectedActivationHead,
             nowUnixSeconds: nowUnixSeconds
+        )
+        try manifest.validateAuthorityKeySeparation(
+            expectedActivationHead.authoritySignerKeyID
         )
         try manifest.validateEnrollment(state.activeEnrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
@@ -537,6 +542,7 @@ public final class TrustRootSupervisorSessionV1:
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],
+        expectedActivationHead: ExpectedActivationHeadV1,
         manifest: RepositorySourceManifestV1,
         runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
         verifierAnonymousFDChannelBindingSHA256: CanonicalBytes32,
@@ -555,6 +561,7 @@ public final class TrustRootSupervisorSessionV1:
             activationEnvelopes: activationEnvelopes,
             authorityPublicKeyRawRepresentation:
                 authorityPublicKeyRawRepresentation,
+            expectedActivationHead: expectedActivationHead,
             manifest: manifest,
             runtimeLaunchPolicy: runtimeLaunchPolicy,
             supervisorProcessIdentity: supervisorProcessIdentity,
@@ -644,6 +651,7 @@ public enum TrustRootVerifierCoreV1 {
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],
+        expectedActivationHead: ExpectedActivationHeadV1,
         challenge: SupervisorChallengeV1,
         supervisorPublicKeyRawRepresentation: [UInt8],
         manifest: RepositorySourceManifestV1,
@@ -668,7 +676,11 @@ public enum TrustRootVerifierCoreV1 {
             activationEnvelopes: activationEnvelopes,
             authorityPublicKeyRawRepresentation:
                 authorityPublicKeyRawRepresentation,
+            expectedActivationHead: expectedActivationHead,
             nowUnixSeconds: nowUnixSeconds
+        )
+        try manifest.validateAuthorityKeySeparation(
+            expectedActivationHead.authoritySignerKeyID
         )
         try manifest.validateEnrollment(state.activeEnrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)

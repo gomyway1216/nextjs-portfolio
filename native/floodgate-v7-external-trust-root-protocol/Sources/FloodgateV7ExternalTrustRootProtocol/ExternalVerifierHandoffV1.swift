@@ -565,6 +565,7 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         challenge: SupervisorChallengeV1,
         manifest: RepositorySourceManifestV1,
         runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        expectedActivationHead: ExpectedActivationHeadV1,
         enrollment: EnrollmentRecord,
         observation: RepositoryObservationV1,
         supervisorProcessIdentity: ProcessIdentityV1,
@@ -620,6 +621,10 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         }
         try manifest.validateEnrollment(enrollment)
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try expectedActivationHead.validateTranscriptActivation(
+            challenge.activationDigest,
+            manifest: manifest
+        )
         try observation.validate(
             manifest: manifest,
             enrollment: enrollment
@@ -931,6 +936,7 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
         runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        expectedActivationHead: ExpectedActivationHeadV1,
         supervisorProcessIdentity: ProcessIdentityV1,
         childProcessIdentity: ProcessIdentityV1,
         expectedChildAnonymousFDChannelBindingSHA256:
@@ -977,6 +983,10 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         try supervisorProcessIdentity.validateSupervisorAgainstManifest(
             manifest,
             expectedUID: expectedUID
+        )
+        try expectedActivationHead.validateTranscriptActivation(
+            activationDigest,
+            manifest: manifest
         )
         try childProcessIdentity.validateChildOf(
             supervisorProcessIdentity,

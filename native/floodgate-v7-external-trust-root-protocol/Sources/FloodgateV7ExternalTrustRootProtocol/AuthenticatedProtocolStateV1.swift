@@ -53,6 +53,21 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
         CanonicalSHA256.digest(canonicalBytes())
     }
 
+    func validateTranscriptActivation(
+        _ activationEnvelopeSHA256: CanonicalBytes32,
+        manifest: RepositorySourceManifestV1
+    ) throws {
+        try manifest.validateAuthorityKeySeparation(
+            authoritySignerKeyID
+        )
+        guard
+            activationEnvelopeSHA256
+                == latestActivationEnvelopeSHA256
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+
     public static func decodeCanonical(_ bytes: [UInt8]) throws -> Self {
         do {
             guard bytes.count == canonicalByteCount else {

@@ -524,6 +524,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 receipt: receipt,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: fixture.observation,
                 verifierProcessIdentity:
@@ -566,6 +568,46 @@ final class AuthenticatedHandoffTests: XCTestCase {
             attestation
         )
 
+        let newerHead = try ExpectedActivationHeadV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authoritySignerKeyID:
+                fixture.expectedActivationHead.authoritySignerKeyID,
+            latestActivationSequence:
+                fixture.expectedActivationHead
+                .latestActivationSequence + 1,
+            latestActivationEnvelopeSHA256:
+                handoffBytes32(0xf8)
+        )
+        assertInvalidHandoff(
+            try OneShotAttestationConsumerV1().consume(
+                attestation,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                challenge: challenge,
+                receipt: receipt,
+                manifest: fixture.manifest,
+                runtimeLaunchPolicy:
+                    fixture.runtimeLaunchPolicy,
+                expectedActivationHead: newerHead,
+                enrollment: fixture.enrollment,
+                observation: fixture.observation,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                childProcessIdentity:
+                    fixture.childProcessIdentity,
+                childAnonymousFDChannelBindingSHA256:
+                    fixture.childProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 123,
+                nowMonotonicNanoseconds: 4_000_000_000
+            )
+        )
+
         let consumer = OneShotAttestationConsumerV1()
         try consumer.consume(
             attestation,
@@ -577,6 +619,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             receipt: receipt,
             manifest: fixture.manifest,
             runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+            expectedActivationHead:
+                fixture.expectedActivationHead,
             enrollment: fixture.enrollment,
             observation: fixture.observation,
             supervisorProcessIdentity:
@@ -601,6 +645,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 receipt: receipt,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: fixture.observation,
                 supervisorProcessIdentity:
@@ -622,6 +668,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 receipt: receipt,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: fixture.observation,
                 verifierProcessIdentity:
@@ -811,6 +859,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: substituted,
                 supervisorProcessIdentity:
@@ -1220,6 +1270,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 challenge: challenge,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: fixture.observation,
                 supervisorProcessIdentity:
@@ -1235,6 +1287,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 receipt: receipt,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
                 observation: fixture.observation,
                 supervisorProcessIdentity:
@@ -1295,6 +1349,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 receipt: receipt,
                 manifest: fixture.manifest,
                 runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
                 supervisorProcessIdentity:
                     fixture.supervisorProcessIdentity,
                 childProcessIdentity: substitutedChild,

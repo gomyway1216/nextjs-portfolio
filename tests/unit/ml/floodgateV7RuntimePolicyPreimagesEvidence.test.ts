@@ -19,6 +19,9 @@ const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md";
 const workflowRelative = ".github/workflows/ci.yml";
 const symbolGraphVerifierRelative = `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`;
+const serviceCoreBoundaryVerifierRelative = `${moduleRelative}/Tests/verify-remote-witness-service-core-boundary.py`;
+const protocolSymbolGraphPath = `${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`;
+const serviceCoreSymbolGraphPath = `${moduleRelative}/.build/**/symbolgraph/FloodgateV7RemoteWitnessServiceCore*.symbols.json`;
 const productionLauncherTestRelative =
   "tests/unit/ml/floodgateV7ProductionNativeLauncher.test.ts";
 const implementationEvidenceRevision =
@@ -113,31 +116,37 @@ function assertExactLineOnce(text: string, line: string): void {
   }
 }
 
+function assertSubstringCount(
+  text: string,
+  substring: string,
+  expectedCount: number,
+): void {
+  const count = text.split(substring).length - 1;
+  if (count !== expectedCount) {
+    throw new Error(
+      `expected substring ${expectedCount} time(s), found ${count}: ${substring}`,
+    );
+  }
+}
+
 function assertCalibrationArtifactStep(step: string): void {
-  for (const [indentation, key, expectedValue] of [
-    [8, "if", "always()"],
-    [8, "uses", "actions/upload-artifact@v7"],
-    [8, "with", ""],
-    [
-      10,
-      "name",
-      "floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
-    ],
-    [
-      10,
-      "path",
-      `${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
-    ],
-    [10, "if-no-files-found", "error"],
-    [10, "include-hidden-files", "true"],
-    [10, "retention-days", "14"],
-  ] as const) {
-    const actualValue = workflowScalar(step, indentation, key);
-    if (actualValue !== expectedValue) {
-      throw new Error(
-        `unsafe ${key} scalar: expected ${expectedValue}, received ${actualValue}`,
-      );
-    }
+  const expectedStep = [
+    "      - name: Preserve public symbol graphs for exact-diff calibration",
+    "        if: always()",
+    "        uses: actions/upload-artifact@v7",
+    "        with:",
+    "          name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
+    "          path: |",
+    `            ${protocolSymbolGraphPath}`,
+    `            ${serviceCoreSymbolGraphPath}`,
+    "          if-no-files-found: error",
+    "          include-hidden-files: true",
+    "          retention-days: 14",
+  ].join("\n");
+  if (step.trimEnd() !== expectedStep) {
+    throw new Error(
+      "public symbol-graph calibration artifact step is not the exact two-graph upload",
+    );
   }
 }
 
@@ -182,6 +191,8 @@ function assertSingleCalibrationArtifactUpload(
       `unexpected external trust-root job uses values: ${JSON.stringify(usesValues)}`,
     );
   }
+  assertSubstringCount(job, protocolSymbolGraphPath, 1);
+  assertSubstringCount(job, serviceCoreSymbolGraphPath, 1);
   assertCalibrationArtifactStep(
     workflowStep(
       job,
@@ -191,6 +202,136 @@ function assertSingleCalibrationArtifactUpload(
 }
 
 function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
+  const expectedJob = [
+    "  external_trust_root_protocol:",
+    "    name: External trust-root protocol (source only)",
+    "    runs-on: macos-latest",
+    "    timeout-minutes: 10",
+    "    permissions:",
+    "      contents: read",
+    "    steps:",
+    "      - uses: actions/checkout@v7",
+    "",
+    "      - name: Record Swift symbol-graph calibration context",
+    "        run: |",
+    "          xcodebuild -version",
+    "          xcrun swift --version",
+    "",
+    "      - name: Run dependency-free Swift protocol tests",
+    "        run: >-",
+    "          xcrun swift test",
+    `          --package-path ${moduleRelative}`,
+    "",
+    "      - name: Verify external trust-root public API surface",
+    "        run: |",
+    "          xcrun swift package \\",
+    `            --package-path ${moduleRelative} \\`,
+    "            dump-symbol-graph \\",
+    "            --minimum-access-level public \\",
+    "            --include-spi-symbols \\",
+    "            --skip-synthesized-members",
+    "          /usr/bin/python3 \\",
+    `            ${symbolGraphVerifierRelative}`,
+    "          /usr/bin/python3 \\",
+    `            ${serviceCoreBoundaryVerifierRelative}`,
+    "",
+    "      - name: Preserve public symbol graphs for exact-diff calibration",
+    "        if: always()",
+    "        uses: actions/upload-artifact@v7",
+    "        with:",
+    "          name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
+    "          path: |",
+    `            ${protocolSymbolGraphPath}`,
+    `            ${serviceCoreSymbolGraphPath}`,
+    "          if-no-files-found: error",
+    "          include-hidden-files: true",
+    "          retention-days: 14",
+  ].join("\n");
+  if (job.trimEnd() !== expectedJob) {
+    throw new Error("external trust-root job mapping is not exact");
+  }
+  if (workflow !== job) {
+    const jobsMarker = "\njobs:\n";
+    const jobsOffset = workflow.indexOf(jobsMarker);
+    if (jobsOffset < 0) {
+      throw new Error("workflow is missing the top-level jobs mapping");
+    }
+    const expectedPreamble = [
+      "name: CI",
+      "",
+      "on:",
+      "  pull_request:",
+      "    branches: [main]",
+      "  push:",
+      "    branches: [main]",
+      "",
+      "# Cancel in-progress runs when new commits are pushed to the same ref, so",
+      "# rapid pushes don't pile up redundant CI runs (only the latest matters).",
+      "concurrency:",
+      "  group: ${{ github.workflow }}-${{ github.ref }}",
+      "  cancel-in-progress: true",
+      "",
+      "jobs:",
+    ].join("\n");
+    if (
+      workflow.slice(0, jobsOffset + jobsMarker.length).trimEnd()
+      !== expectedPreamble
+    ) {
+      throw new Error("workflow-level mapping before jobs is not exact");
+    }
+    const unexpectedPostJobsTopLevelLine = workflow
+      .slice(jobsOffset + jobsMarker.length)
+      .split("\n")
+      .find(
+        (line) =>
+          line.trim() !== ""
+          && !line.startsWith(" ")
+          && !line.startsWith("#"),
+      );
+    if (unexpectedPostJobsTopLevelLine !== undefined) {
+      throw new Error(
+        "workflow contains a top-level mapping after jobs: "
+        + unexpectedPostJobsTopLevelLine,
+      );
+    }
+  }
+  const stepsMarker = "    steps:\n";
+  const stepsOffset = job.indexOf(stepsMarker);
+  if (stepsOffset < 0) {
+    throw new Error("external trust-root job is missing its steps boundary");
+  }
+  const expectedJobHeader = [
+    "  external_trust_root_protocol:",
+    "    name: External trust-root protocol (source only)",
+    "    runs-on: macos-latest",
+    "    timeout-minutes: 10",
+    "    permissions:",
+    "      contents: read",
+    "    steps:",
+  ].join("\n");
+  if (
+    job.slice(0, stepsOffset + stepsMarker.length).trimEnd()
+    !== expectedJobHeader
+  ) {
+    throw new Error("external trust-root job header is not exact");
+  }
+  if (/defaults\s*:/iu.test(workflow)) {
+    throw new Error("workflow or job run defaults are forbidden");
+  }
+  if (/continue-on-error\s*:/iu.test(job)) {
+    throw new Error("external trust-root job cannot ignore step failures");
+  }
+  const conditionLines = job
+    .split("\n")
+    .filter((line) => /^[ \t]+if[ \t]*:/iu.test(line));
+  if (
+    JSON.stringify(conditionLines)
+    !== JSON.stringify(["        if: always()"])
+  ) {
+    throw new Error(
+      `external trust-root job conditions drifted: ${JSON.stringify(conditionLines)}`,
+    );
+  }
   const calibrationContextStep = workflowStep(
     job,
     "Record Swift symbol-graph calibration context",
@@ -205,17 +346,28 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     job,
     "Verify external trust-root public API surface",
   );
-  for (const line of [
+  const expectedVerificationStep = [
+    "      - name: Verify external trust-root public API surface",
+    "        run: |",
     "          xcrun swift package \\",
+    `            --package-path ${moduleRelative} \\`,
     "            dump-symbol-graph \\",
     "            --minimum-access-level public \\",
     "            --include-spi-symbols \\",
     "            --skip-synthesized-members",
     "          /usr/bin/python3 \\",
     `            ${symbolGraphVerifierRelative}`,
-  ]) {
-    assertExactLineOnce(verificationStep, line);
+    "          /usr/bin/python3 \\",
+    `            ${serviceCoreBoundaryVerifierRelative}`,
+  ].join("\n");
+  if (verificationStep.trimEnd() !== expectedVerificationStep) {
+    throw new Error(
+      "external trust-root verification step is not the exact two-checker command",
+    );
   }
+  assertSubstringCount(job, "/usr/bin/python3", 2);
+  assertSubstringCount(job, symbolGraphVerifierRelative, 1);
+  assertSubstringCount(job, serviceCoreBoundaryVerifierRelative, 1);
   assertSingleCalibrationArtifactUpload(job, workflow);
 }
 
@@ -489,8 +641,16 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         "          name: unsafe # name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
       ],
       [
-        `          path: ${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
-        `          path: /etc/passwd # path: ${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`,
+        "          path: |",
+        "          path: /etc/passwd # path: |",
+      ],
+      [
+        `            ${protocolSymbolGraphPath}`,
+        `            /etc/passwd # ${protocolSymbolGraphPath}`,
+      ],
+      [
+        `            ${serviceCoreSymbolGraphPath}`,
+        `            /etc/passwd # ${serviceCoreSymbolGraphPath}`,
       ],
       [
         "          if-no-files-found: error",
@@ -510,6 +670,30 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       expect(mutation).not.toBe(artifactStep);
       expect(() => assertCalibrationArtifactStep(mutation)).toThrow();
     }
+    const duplicateProtocolGraphArtifactStep = artifactStep.replace(
+      `            ${serviceCoreSymbolGraphPath}\n`,
+      `            ${protocolSymbolGraphPath}\n            ${serviceCoreSymbolGraphPath}\n`,
+    );
+    expect(duplicateProtocolGraphArtifactStep).not.toBe(artifactStep);
+    expect(() =>
+      assertCalibrationArtifactStep(duplicateProtocolGraphArtifactStep),
+    ).toThrow();
+    const duplicateServiceCoreGraphArtifactStep = artifactStep.replace(
+      `            ${serviceCoreSymbolGraphPath}\n`,
+      `            ${serviceCoreSymbolGraphPath}\n            ${serviceCoreSymbolGraphPath}\n`,
+    );
+    expect(duplicateServiceCoreGraphArtifactStep).not.toBe(artifactStep);
+    expect(() =>
+      assertCalibrationArtifactStep(duplicateServiceCoreGraphArtifactStep),
+    ).toThrow();
+    const duplicateServiceCoreGraphDecoyJob = externalTrustRootJob.concat(
+      "      - name: Decoy service-core graph path\n",
+      "        run: |\n",
+      `          echo '${serviceCoreSymbolGraphPath}'\n`,
+    );
+    expect(() =>
+      assertSingleCalibrationArtifactUpload(duplicateServiceCoreGraphDecoyJob),
+    ).toThrow();
     const movedAlwaysToDecoyJob = externalTrustRootJob
       .replace(
         "        if: always()\n        uses: actions/upload-artifact@v7\n",
@@ -592,6 +776,154 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       );
     expect(() =>
       assertExternalTrustRootProtocolJob(movedSpiFlagToDecoyStepJob),
+    ).toThrow();
+    for (const [safePath, unsafePath] of [
+      [symbolGraphVerifierRelative, `/tmp/unsafe.py # ${symbolGraphVerifierRelative}`],
+      [
+        serviceCoreBoundaryVerifierRelative,
+        `/tmp/unsafe.py # ${serviceCoreBoundaryVerifierRelative}`,
+      ],
+    ] as const) {
+      const commentDecoyCheckerJob = externalTrustRootJob.replace(
+        `            ${safePath}`,
+        `            ${unsafePath}`,
+      );
+      expect(commentDecoyCheckerJob).not.toBe(externalTrustRootJob);
+      expect(() =>
+        assertExternalTrustRootProtocolJob(commentDecoyCheckerJob),
+      ).toThrow();
+    }
+    const duplicateServiceCoreCheckerJob = externalTrustRootJob.replace(
+      `            ${serviceCoreBoundaryVerifierRelative}\n`,
+      [
+        `            ${serviceCoreBoundaryVerifierRelative}`,
+        "          /usr/bin/python3 \\",
+        `            ${serviceCoreBoundaryVerifierRelative}`,
+        "",
+      ].join("\n"),
+    );
+    expect(duplicateServiceCoreCheckerJob).not.toBe(externalTrustRootJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(duplicateServiceCoreCheckerJob),
+    ).toThrow();
+    const duplicateServiceCoreCheckerDecoyJob = externalTrustRootJob.concat(
+      "      - name: Decoy service-core checker reference\n",
+      "        run: |\n",
+      `          echo '${serviceCoreBoundaryVerifierRelative}'\n`,
+    );
+    expect(() =>
+      assertExternalTrustRootProtocolJob(duplicateServiceCoreCheckerDecoyJob),
+    ).toThrow();
+    const movedServiceCoreCheckerToDecoyJob = externalTrustRootJob
+      .replace(
+        [
+          "          /usr/bin/python3 \\",
+          `            ${serviceCoreBoundaryVerifierRelative}`,
+          "",
+        ].join("\n"),
+        "",
+      )
+      .concat(
+        "      - name: Decoy service-core checker\n",
+        "        run: |\n",
+        "          /usr/bin/python3 \\\n",
+        `            ${serviceCoreBoundaryVerifierRelative}\n`,
+      );
+    expect(movedServiceCoreCheckerToDecoyJob).not.toBe(externalTrustRootJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(movedServiceCoreCheckerToDecoyJob),
+    ).toThrow();
+    const skippedExternalTrustRootJob = externalTrustRootJob.replace(
+      "    name: External trust-root protocol (source only)\n",
+      [
+        "    name: External trust-root protocol (source only)",
+        "    if: false",
+        "",
+      ].join("\n"),
+    );
+    expect(skippedExternalTrustRootJob).not.toBe(externalTrustRootJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(skippedExternalTrustRootJob),
+    ).toThrow();
+    const ignoredExternalTrustRootFailureJob = externalTrustRootJob.replace(
+      "    name: External trust-root protocol (source only)\n",
+      [
+        "    name: External trust-root protocol (source only)",
+        "    continue-on-error: true",
+        "",
+      ].join("\n"),
+    );
+    expect(ignoredExternalTrustRootFailureJob).not.toBe(externalTrustRootJob);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(ignoredExternalTrustRootFailureJob),
+    ).toThrow();
+    for (const quotedKey of ['"if"', '"continue-on-error"'] as const) {
+      const quotedJobControl = externalTrustRootJob.replace(
+        "    name: External trust-root protocol (source only)\n",
+        [
+          "    name: External trust-root protocol (source only)",
+          `    ${quotedKey}: ${quotedKey === '"if"' ? "false" : "true"}`,
+          "",
+        ].join("\n"),
+      );
+      expect(quotedJobControl).not.toBe(externalTrustRootJob);
+      expect(() =>
+        assertExternalTrustRootProtocolJob(quotedJobControl),
+      ).toThrow();
+    }
+    const unsafeDefaultShellWorkflow = workflow.replace(
+      "\njobs:\n",
+      [
+        "",
+        "defaults:",
+        "  run:",
+        "    shell: bash {0}",
+        "",
+        "jobs:",
+        "",
+      ].join("\n"),
+    );
+    expect(unsafeDefaultShellWorkflow).not.toBe(workflow);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(
+        externalTrustRootJob,
+        unsafeDefaultShellWorkflow,
+      ),
+    ).toThrow();
+    for (const defaultsKey of ['"defaults"', '"def\\u0061ults"'] as const) {
+      const quotedDefaultShellWorkflow = workflow.replace(
+        "\njobs:\n",
+        [
+          "",
+          `${defaultsKey}:`,
+          "  run:",
+          '    shell: "bash {0}"',
+          "",
+          "jobs:",
+          "",
+        ].join("\n"),
+      );
+      expect(quotedDefaultShellWorkflow).not.toBe(workflow);
+      expect(() =>
+        assertExternalTrustRootProtocolJob(
+          externalTrustRootJob,
+          quotedDefaultShellWorkflow,
+        ),
+      ).toThrow();
+    }
+    const appendedQuotedDefaultShellWorkflow = [
+      workflow.trimEnd(),
+      '"def\\u0061ults":',
+      "  run:",
+      '    shell: "true {0}"',
+      "",
+    ].join("\n");
+    expect(appendedQuotedDefaultShellWorkflow).not.toBe(workflow);
+    expect(() =>
+      assertExternalTrustRootProtocolJob(
+        externalTrustRootJob,
+        appendedQuotedDefaultShellWorkflow,
+      ),
     ).toThrow();
     const testAndBuildJob = workflowJob(workflow, "test_and_build");
     expect(workflowScalar(testAndBuildJob, 4, "timeout-minutes")).toBe("25");

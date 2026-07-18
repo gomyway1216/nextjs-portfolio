@@ -19,6 +19,8 @@ const englishArticleRelative =
 const packageRelative = `${moduleRelative}/Package.swift`;
 const supervisorMainRelative = `${moduleRelative}/Sources/FloodgateV7TrustRootSupervisor/main.swift`;
 const verifierMainRelative = `${moduleRelative}/Sources/FloodgateV7TrustRootVerifier/main.swift`;
+const latestPackageSnapshotRevision =
+  "9aacb89670f566ab3b5d219e815f490580713455";
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -380,15 +382,36 @@ describe("Floodgate v7 authority current-state evidence boundary", () => {
     });
   });
 
-  it("keeps Package.swift and both fixed STOP main files byte-identical to the pinned evidence base", () => {
+  it("keeps the historical Package.swift unchanged through the last snapshot and both current STOP mains fixed", () => {
     const evidence = JSON.parse(read(evidenceRelative));
     const evidenceBase = pinnedEvidenceBase(evidence.revision);
+    const implementationRevision = requireFullCommitRevision(
+      evidence.revision.implementation_revision,
+      "implementation_revision",
+    );
 
-    for (const relativePath of [
-      packageRelative,
-      supervisorMainRelative,
-      verifierMainRelative,
+    const basePackageBlob = gitOutput([
+      "--no-replace-objects",
+      "rev-parse",
+      `${evidenceBase}:${packageRelative}`,
+    ]);
+    expect(gitIsAncestor(latestPackageSnapshotRevision, "HEAD")).toBe(true);
+    for (const historicalRevision of [
+      implementationRevision,
+      latestPackageSnapshotRevision,
     ]) {
+      expect(gitIsAncestor(implementationRevision, historicalRevision)).toBe(
+        true,
+      );
+      const historicalPackageBlob = gitOutput([
+        "--no-replace-objects",
+        "rev-parse",
+        `${historicalRevision}:${packageRelative}`,
+      ]);
+      expect(historicalPackageBlob, packageRelative).toBe(basePackageBlob);
+    }
+
+    for (const relativePath of [supervisorMainRelative, verifierMainRelative]) {
       const currentBlob = gitOutput(["hash-object", relativePath]);
       const baseBlob = gitOutput([
         "--no-replace-objects",

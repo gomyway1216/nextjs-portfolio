@@ -1,11 +1,11 @@
 {
   "schema": "shogi-floodgate-fresh-qat-parent-accounting-v2-evidence-v1",
-  "status": "implementation-complete-local-validation-pass-review-and-ci-pending",
+  "status": "red-team-remediation-complete-local-validation-pass-rereview-and-ci-pending",
   "recorded_date": "2026-07-18",
   "base_revision": "ccfecdc1647f003e70d5d037a8da97120934fee7",
   "validated_implementation_anchor": {
-    "revision": "635d98f1083c0fdbbe8dbf4d2e922eb9d574a739",
-    "tree": "054f16b85d17697de7288a222d1814ec332fe555",
+    "revision": "085023ebae2a5d968b1d8fd7491319856858b056",
+    "tree": "c4ef0c4dcac2c6a21ba16a2b9362765c4228dc19",
     "review": "PENDING",
     "continuous_integration": "PENDING"
   },
@@ -13,30 +13,32 @@
     "core_implementation": "dd017f8c907b908fc3de1e77ed0b0c4ca67201e9",
     "restore_byte_pinned_package_manifest": "800e1c8e2fadab283c5da25c73fdda26074b314e",
     "strict_typed_authority_hardening": "635d98f1083c0fdbbe8dbf4d2e922eb9d574a739",
+    "authenticated_completion_red_team_remediation": "baab4a9a7a316d80bd0934e3878cf2b726fdf067",
+    "ascii_sfen_move_number_hardening": "085023ebae2a5d968b1d8fd7491319856858b056",
     "history_rewritten": false
   },
   "implementation_identities": {
     "module": {
       "path": "ml/fresh_qat_parent_accounting_v2.py",
-      "bytes": 43765,
-      "sha256": "d0e56db2f021d80fb6c966dc3f4c6e569d502c8de10f0b5ca57d98ce95900419"
+      "bytes": 61219,
+      "sha256": "7651025276284192f32df51877b1517a4a818f0a7ae0dbccd01aebd8c147314a"
     },
     "stdlib_tests": {
       "path": "ml/tests_stdlib/test_fresh_qat_parent_accounting_v2.py",
-      "bytes": 24835,
-      "sha256": "33d00f7a6eac0f78da14a744fd305b7866e1d1068de6f4c9de8a2eeba3a722e5"
+      "bytes": 34250,
+      "sha256": "dcde5c4c21eb1d6e1aeed42eecc4301687986778dc0aab4237d7a2008c243957"
     },
     "pre_result_amendment": {
       "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-v2-amendment.json",
       "schema": "shogi-floodgate-fresh-qat-parent-accounting-amendment-v2",
-      "bytes": 6469,
-      "sha256": "2a9c6ebb8b7c6d50d606bbdf0f1eb0cb5d971159e2cee836ff26a5d96c8c80d5"
+      "bytes": 7571,
+      "sha256": "983e89b8e611dbcd42c70c51a4109f879dfffe40fd8b560a99c798b826f86bef"
     },
     "closed_v2_registry": {
       "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json",
       "schema": "shogi-floodgate-fresh-qat-plan-registry-v2",
-      "bytes": 3046,
-      "sha256": "08f3ebecc880f2e3c97f4591d3a2e68cb186dde8772bcbaf534fe518fdd89130"
+      "bytes": 3501,
+      "sha256": "97bd6c1839288f505d31e62904ba095a0ccd11a5dc1f5a58d37f21bea11e214c"
     }
   },
   "immutable_upstream": {
@@ -76,8 +78,13 @@
     "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
     "input_parents": 24000,
     "model_training_parents_source": "emitted_parent_groups",
+    "input_raw_bytes_and_sha256_verified_before_parse": true,
+    "input_ordered_tuple_sequence_bound": true,
     "input_and_emitted_parent_digests_bound_separately": true,
     "forced_parent_digest_bound": true,
+    "forced_status_inferred_from_missing_group": false,
+    "explicit_per_parent_completion_required": true,
+    "completion_origin_must_be_finalizer_authenticated_and_registered": true,
     "replacement_allowed": false,
     "resampling_allowed": false,
     "emitted_order": "order-preserving-subsequence-of-input",
@@ -86,6 +93,19 @@
       "some_forced": "valid-E-24000-minus-F",
       "all_forced": "accountable-STOP-no-trainable-parent-groups"
     }
+  },
+  "parent_completion_binding": {
+    "format": "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2",
+    "exact_input_order_and_coverage_required": true,
+    "metadata_tuple_must_match_input": true,
+    "completed_parent_sha256_per_parent": true,
+    "forced_parent_skipped_explicit_per_parent": true,
+    "nonforced_group_records_and_sha256_bound": true,
+    "forced_group_records": 0,
+    "forced_group_sha256": null,
+    "caller_self_authenticated_flags_accepted_in_production": false,
+    "current_production_enrollment": null,
+    "current_production_result": "STOP-authenticated-per-parent-completion-evidence-is-not-enrolled"
   },
   "model_training_binding": {
     "fields": [
@@ -101,6 +121,16 @@
     ],
     "parents_equals_emitted_parent_groups": true,
     "minimum_sibling_rows_per_emitted_group": 2
+  },
+  "strict_sibling_validation": {
+    "canonical_sfen_and_position_ids": true,
+    "strict_integer_ply_cp_and_rank_fields": true,
+    "cp_alias_and_mate_band_checks": true,
+    "unique_canonical_sources": true,
+    "unique_moves": true,
+    "exactly_one_played_source_per_group": true,
+    "contiguous_teacher_ranks": true,
+    "rank_cp_monotonicity": true
   },
   "unchanged_contracts": {
     "training_canonical_sha256": "b0bf9dbd2342b8be325fae4d195e9bdd909a702361d229293f30849f1348d8ac",
@@ -118,7 +148,10 @@
   "materializer_boundary": {
     "stdlib_only": true,
     "strict_json_and_jsonl": true,
-    "reads_caller_supplied_bytes_only": true,
+    "synthetic_core_accepts_independently_bound_bytes_only": true,
+    "production_requires_registered_finalizer_completion_identity": true,
+    "production_currently_fails_closed": true,
+    "proposal_validator_recomputes_from_all_three_byte_streams": true,
     "writes_files": false,
     "mutates_registry": false,
     "imports_torch": false,
@@ -126,13 +159,13 @@
     "runs_training": false,
     "reads_selection": false,
     "reads_holdout": false,
-    "authenticates_teacher_origin": false,
+    "authenticates_teacher_or_completion_origin_by_itself": false,
     "enrolls_artifacts": false,
     "grants_authority": false
   },
   "closed_registry": {
-    "enrollments_null": 5,
-    "gates_false": 8,
+    "enrollments_null": 7,
+    "gates_false": 12,
     "authority_flags_false": 7,
     "training_dispatch_ready": false,
     "selection_preflight_ready": false,
@@ -141,16 +174,16 @@
   },
   "local_validation": {
     "focused_parent_accounting": {
-      "tests": 15,
-      "passed": 15,
+      "tests": 19,
+      "passed": 19,
       "failed": 0,
-      "wall_seconds": 0.07
+      "wall_seconds": 0.1
     },
     "fresh_qat_compatibility": {
-      "tests": 41,
-      "passed": 41,
+      "tests": 45,
+      "passed": 45,
       "failed": 0,
-      "wall_seconds": 1.57,
+      "wall_seconds": 1.92,
       "suites": [
         "test_fresh_qat_protocol",
         "test_fresh_qat_selection_preflight",
@@ -158,10 +191,10 @@
       ]
     },
     "full_stdlib_suite": {
-      "tests": 134,
-      "passed": 134,
+      "tests": 138,
+      "passed": 138,
       "failed": 0,
-      "wall_seconds": 10.73,
+      "wall_seconds": 11.07,
       "command": "npm run test:ml:stdlib"
     },
     "pinned_stable_wasm_deadline_diagnostic": {
@@ -175,12 +208,19 @@
       "tests": 5,
       "passed": 5,
       "failed": 0,
-      "wall_seconds": 0.35
+      "wall_seconds": 0.68
     },
     "adversarial_cases": [
       "zero-forced",
       "some-forced",
       "all-forced-accountable-stop",
+      "input-raw-reorder",
+      "cross-parent-tuple-permutation",
+      "completion-truncation-or-reorder",
+      "completion-flag-or-tuple-substitution",
+      "completion-group-count-or-hash-mismatch",
+      "missing-nonforced-group-never-reclassified-as-forced",
+      "forced-parent-group-injection",
       "replacement-parent",
       "reordered-parent",
       "reopened-parent-group",
@@ -189,7 +229,15 @@
       "duplicate-json-key",
       "nonfinite-json",
       "short-sibling-group",
+      "skeletal-sibling-row",
+      "cp-alias-mismatch",
+      "duplicate-sibling-move",
+      "missing-played-source",
+      "noncontiguous-rank",
+      "rank-cp-contradiction",
+      "unicode-sfen-move-number",
       "input-identity-drift",
+      "every-accounting-and-train-digest-tamper-with-contract-rebuild",
       "contract-tamper",
       "authority-tamper",
       "historical-evidence-drift"
@@ -199,6 +247,7 @@
     "real_teacher_parents_processed": 0,
     "real_forced_parents_observed": 0,
     "real_emitted_parent_groups_observed": 0,
+    "real_parent_completion_evidence_enrolled": 0,
     "real_training_artifacts_enrolled": 0,
     "fresh_qat_training_runs": 0,
     "fresh_qat_results": 0,
@@ -209,5 +258,5 @@
     "high_dan_calibrated": false,
     "live_weights_changed": false
   },
-  "next_required_action": "after-authenticated-teacher-artifact-completion-materialize-and-review-a-data-only-proposal-enrollment-pr"
+  "next_required_action": "keep-production-STOP-until-finalizer-result-manifest-work-and-derived-per-parent-completion-identities-are-authenticated-registered-and-independently-reviewed"
 }

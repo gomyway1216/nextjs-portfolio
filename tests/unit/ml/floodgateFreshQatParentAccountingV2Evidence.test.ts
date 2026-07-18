@@ -93,15 +93,26 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
       input_games: 1000,
       equation: "forced_parents_skipped+emitted_parent_groups=input_parents",
       model_training_parents_source: "emitted_parent_groups",
+      input_raw_bytes: 15369952,
+      input_raw_sha256:
+        "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62",
+      missing_group_policy: "STOP-never-infer-forced-from-absence",
+      completion_origin_policy:
+        "registered-finalizer-result-manifest-work-derived-projection-required-caller-supplied-flags-forbidden",
       replacement_or_resampling: "forbidden",
       all_forced_policy:
-        "account-for-all-inputs-then-STOP-no-trainable-parent-groups",
+        "valid-only-when-authenticated-finalizer-derived-completion-evidence-explicitly-marks-all-24000-parents-forced-then-STOP-no-trainable-parent-groups",
     });
     expect(evidence.fixed_parent_accounting).toMatchObject({
       input_parents: 24000,
       model_training_parents_source: "emitted_parent_groups",
+      input_raw_bytes_and_sha256_verified_before_parse: true,
+      input_ordered_tuple_sequence_bound: true,
       input_and_emitted_parent_digests_bound_separately: true,
       forced_parent_digest_bound: true,
+      forced_status_inferred_from_missing_group: false,
+      explicit_per_parent_completion_required: true,
+      completion_origin_must_be_finalizer_authenticated_and_registered: true,
       replacement_allowed: false,
       resampling_allowed: false,
       cases: {
@@ -124,6 +135,19 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
     expect(
       evidence.model_training_binding.parents_equals_emitted_parent_groups,
     ).toBe(true);
+    expect(evidence.parent_completion_binding).toMatchObject({
+      exact_input_order_and_coverage_required: true,
+      forced_parent_skipped_explicit_per_parent: true,
+      nonforced_group_records_and_sha256_bound: true,
+      caller_self_authenticated_flags_accepted_in_production: false,
+      current_production_enrollment: null,
+    });
+    expect(evidence.strict_sibling_validation).toMatchObject({
+      canonical_sfen_and_position_ids: true,
+      exactly_one_played_source_per_group: true,
+      contiguous_teacher_ranks: true,
+      rank_cp_monotonicity: true,
+    });
   });
 
   it("keeps model, seed, loss, epoch, selection, and holdout contracts fixed", () => {
@@ -166,8 +190,8 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
       Object.values(registry.authority).every((value) => value === false),
     ).toBe(true);
     expect(evidence.closed_registry).toMatchObject({
-      enrollments_null: 5,
-      gates_false: 8,
+      enrollments_null: 7,
+      gates_false: 12,
       authority_flags_false: 7,
       training_dispatch_ready: false,
       selection_preflight_ready: false,
@@ -178,6 +202,7 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
       real_teacher_parents_processed: 0,
       real_forced_parents_observed: 0,
       real_emitted_parent_groups_observed: 0,
+      real_parent_completion_evidence_enrolled: 0,
       real_training_artifacts_enrolled: 0,
       fresh_qat_training_runs: 0,
       fresh_qat_results: 0,
@@ -206,7 +231,7 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
         "no-trainable-parent-groups",
         evidence.implementation_identities.pre_result_amendment.sha256,
         evidence.implementation_identities.closed_v2_registry.sha256,
-        "134 / 134",
+        "138 / 138",
         "11 / 11",
       ]) {
         expect(article).toContain(marker);
@@ -222,6 +247,7 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
       "input_parents = forced_parents_skipped + emitted_parent_groups",
     );
     expect(readme).toContain("STOP-no-trainable-parent-groups");
+    expect(readme).toContain("per-parent completion evidence");
     expect(source).toContain(
       "materialize_fresh_qat_parent_accounting_proposal_v2",
     );
@@ -230,6 +256,9 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
     expect(source).not.toMatch(/^(?:from\s+torch|import\s+torch)\b/mu);
     expect(evidence.materializer_boundary).toMatchObject({
       stdlib_only: true,
+      production_requires_registered_finalizer_completion_identity: true,
+      production_currently_fails_closed: true,
+      proposal_validator_recomputes_from_all_three_byte_streams: true,
       writes_files: false,
       mutates_registry: false,
       imports_torch: false,

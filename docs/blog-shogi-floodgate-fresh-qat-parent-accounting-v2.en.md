@@ -33,8 +33,8 @@ The [pre-result amendment](../ml/protocols/floodgate-q1-2026-fresh-qat-parent-ac
 | Role-bundle result             | 14,735 | `56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf` |
 | V1 QAT plan registry           |    409 | `9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00` |
 | V1 selection registry          |  2,294 | `7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39` |
-| Parent-accounting v2 amendment |  6,469 | `2a9c6ebb8b7c6d50d606bbdf0f1eb0cb5d971159e2cee836ff26a5d96c8c80d5` |
-| Closed v2 registry             |  3,046 | `08f3ebecc880f2e3c97f4591d3a2e68cb186dde8772bcbaf534fe518fdd89130` |
+| Parent-accounting v2 amendment |  7,571 | `983e89b8e611dbcd42c70c51a4109f879dfffe40fd8b560a99c798b826f86bef` |
+| Closed v2 registry             |  3,501 | `97bd6c1839288f505d31e62904ba095a0ccd11a5dc1f5a58d37f21bea11e214c` |
 
 The amendment also pins the two existing plan-binding/selection-preflight machine records and four Japanese/English articles by bytes and SHA-256. The chain validator rejects a missing record or one-byte drift. V1 remains closed with null identities and false dispatch/selection gates.
 
@@ -52,11 +52,27 @@ The training input in the role-bundle result has this exact identity:
 | Game-ID SHA-256             | `97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7`          |
 | Position-ID count / SHA-256 | 24,000 / `a97788b608a6687c078b7fbe2172a5c4068c57a42ed322c3997692f697e73b5c` |
 
-The materializer verifies the caller-supplied 24,000 `game_id` / `parent_id` / `position_id` records against that identity. Emitted parents must be an order-preserving subsequence of the input. A parent outside the input, reordered output, or reopened group is rejected. Replacement and resampling therefore remain zero.
+The materializer core does not accept an ID set in place of the input. It first verifies the length and SHA-256 of all 15,369,952 raw bytes against the role-bundle identity. It then strict-parses those exact bytes as canonical JSONL to obtain each game / parent / position / SFEN / ply tuple and its order. Reordering the rows or permuting game/position tuples between parents therefore fails the raw SHA-256 check even if all unordered ID-set digests are unchanged.
+
+Emitted parents must be an order-preserving subsequence of that authenticated input order. A parent outside the input, reordered output, or reopened group is rejected. Replacement and resampling remain zero.
+
+## Forced status is never inferred from a missing group
+
+The absence of a parent group from `train.jsonl` does not prove a forced skip. A missing or truncated output and a genuinely completed forced parent are different states.
+
+V2 requires per-parent completion evidence that covers all 24,000 inputs in their exact order. Each record binds:
+
+- The game / parent / position tuple from the input
+- `completed_parent_sha256`
+- An explicit `forced_parent_skipped` value
+- For a non-forced parent, the exact LF-framed train-group record count and SHA-256
+- For a forced parent, zero group records and a `null` group SHA-256
+
+The completion stream's own bytes, SHA-256, record count, and forced/emitted ID digests must be enrolled as an independent identity. Its origin must be a projection of the authenticated production-finalizer result, manifest, and `work.jsonl`; a caller-supplied Boolean list is not acceptable. The current v2 registry leaves both finalizer work and completion evidence at `null`, so the production materializer and validator always stop with `authenticated per-parent completion evidence is not enrolled`. A small synthetic core exists only for adversarial tests and carries no production authority.
 
 ## What is bound from `train.jsonl`
 
-The stdlib-only materializer reads supplied exact bytes as strict JSONL. It rejects CR bytes, invalid final-LF framing, blank lines, duplicate JSON keys, `NaN`, noncanonical semantic IDs, game/position substitution, and groups with fewer than two siblings.
+The stdlib-only core reads supplied exact bytes as strict canonical JSONL. It rejects CR bytes, invalid final-LF framing, blank lines, duplicate JSON keys, `NaN`, noncanonical semantic IDs, game/position substitution, and groups with fewer than two siblings. It also mirrors the important training-consumer invariants: canonical SFEN and position IDs; strict integer ply, CP, and rank fields; parent/child CP aliases; mate bands; unique canonically ordered sources; unique moves; exactly one `played` source per group; ranks contiguous from 1 through N; and monotonic teacher CP by rank.
 
 The proposal binds all of the following:
 
@@ -70,17 +86,19 @@ The proposal binds all of the following:
 - Verification of `F + E = 24000`
 - `model_training_parents = E` for all three seeds
 
-The materializer does not claim to authenticate the teacher output's origin. A future data-only enrollment must supply only an artifact whose authentication and durability were established by the existing production finalizer, then register the proposal bytes/SHA-256 in a separate PR. This change neither seeks nor writes artifacts and never mutates a registry.
+The proposal validator does not merely check a proposal's self-consistency. It regenerates the entire proposal from the exact input, completion, and train byte streams and their independently supplied identities, then requires typed-exact equality. Tampering with a forced digest or train SHA and rebuilding the training contracts around that tamper is therefore rejected.
+
+The materializer does not claim to authenticate teacher or completion origin by itself. A future data-only enrollment must register only a finalizer-authenticated and durable result/manifest/work chain plus its derived completion artifact, then pin the proposal bytes/SHA-256 in a separate PR. This change generates no real artifact, writes no artifact, and opens no registry gate.
 
 ## The three cases
 
-| Case                             | Decision                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `F = 0`, `E = 24000`             | Valid; requires an empty forced digest and identical input/emitted digests                              |
-| `0 < F < 24000`, `E = 24000 - F` | Valid; accounts for every forced parent and passes `E` to training                                      |
-| `F = 24000`, `E = 0`             | Accounts for every input, returns a STOP receipt, and creates no proposal: `no-trainable-parent-groups` |
+| Case                             | Decision                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `F = 0`, `E = 24000`             | Valid only when authenticated completion marks every parent non-forced and every group matches |
+| `0 < F < 24000`, `E = 24000 - F` | Valid only when completion explicitly marks forced parents and every non-forced group matches  |
+| `F = 24000`, `E = 0`             | Returns a STOP receipt only when authenticated completion explicitly marks all 24,000 forced   |
 
-All-forced is not an ambiguous missing-data failure. The explicit stop receipt carries the input/forced/emitted digests, empty-train identity, and false authority.
+All-forced is never inferred from an empty train file. Only authenticated completion evidence explicitly marking all 24,000 parents forced can produce the receipt carrying input/forced/emitted digests, an empty-train identity, false authority, and `no-trainable-parent-groups`. If even one completion is non-forced, an empty or truncated train artifact fails closed instead of being promoted to an accountable STOP.
 
 ## The training experiment is unchanged
 
@@ -96,22 +114,22 @@ The seeds remain 42 / 43 / 44; architecture remains `2282-256-32-1-clipped-relu`
 
 ## The boundary remains closed
 
-The [v2 registry](../ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json) leaves all five enrollments—training result, manifest, `train.jsonl`, parent-accounting proposal, and execution plan v2—at `null`. Its eight gates and seven authority flags are all `false`.
+The [v2 registry](../ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json) leaves all seven enrollments—training result, manifest, work, per-parent completion evidence, `train.jsonl`, parent-accounting proposal, and execution plan v2—at `null`. Its 12 gates, including raw-input, finalizer-chain, completion-origin, and exact-coverage gates, and all seven authority flags are `false`.
 
 The new Python module does not import Torch and has no teacher, model, holdout, selection reader, network, artifact-enrollment, or training-launch function. Its explicit authorization function always stops with `not implemented; registry remains STOP`.
 
 ## Validation
 
-The validated revision is `635d98f1083c0fdbbe8dbf4d2e922eb9d574a739`; its tree is `054f16b85d17697de7288a222d1814ec332fe555`. The core implementation commit is `dd017f8c907b908fc3de1e77ed0b0c4ca67201e9`; the following `800e1c8e…` corrective commit restores the existing byte-pinned `package.json` exactly to the base, and `635d98f1…` hardens bool/int alias and authority/nonclaim field-removal rejection. History was not rewritten.
+The validated revision is `085023ebae2a5d968b1d8fd7491319856858b056`; its tree is `c4ef0c4dcac2c6a21ba16a2b9362765c4228dc19`. The core implementation commit is `dd017f8c907b908fc3de1e77ed0b0c4ca67201e9`; `800e1c8e…` restores the existing byte-pinned `package.json` exactly to the base, and `635d98f1…` hardens Boolean/integer aliases. Red-team review then found unverified raw input, missing-group-to-forced misclassification, proposal-only self-consistency, and acceptance of skeletal sibling rows. Append-only commit `baab4a9a…` fixes all four. Rereview found that Python's Unicode digit predicate accepted non-ASCII SFEN move numbers such as `٢٤`; append-only commit `085023eb…` restricts that field to ASCII `0` through `9` and adds the adversarial regression. History was not rewritten.
 
-- Parent-accounting adversarial stdlib tests: 15 / 15 PASS in 0.07 seconds wall time
-- V1 fresh QAT + v1 selection preflight + v2 accounting compatibility tests: 41 / 41 PASS in 1.57 seconds wall time
-- Full repository stdlib suite: 134 / 134 PASS in 10.73 seconds wall time
+- Parent-accounting adversarial stdlib tests: 19 / 19 PASS in 0.10 seconds wall time
+- V1 fresh QAT + v1 selection preflight + v2 accounting compatibility tests: 45 / 45 PASS in 1.92 seconds wall time
+- Full repository stdlib suite: 138 / 138 PASS in 11.07 seconds wall time
 - Pinned stable-WASM deadline diagnostic: 11 / 11 PASS in 2.99 seconds wall time; `package.json` exactly matches the base
 - Bilingual-article and machine-evidence publication tests: 5 / 5 PASS in 0.35 seconds wall time
-- Covered zero/some/all forced, replacement, reorder, reopen, metadata substitution, framing, duplicate JSON, nonfinite values, contract tamper, and authority tamper
+- Covered zero/some/all forced, raw reorder, cross-parent tuple permutation, completion truncation/flag/tuple/group-hash tamper, missing non-forced groups, forced-group injection, skeletal rows, CP/source/move/rank invariants, non-ASCII SFEN move numbers, every proposal digest, rebuilt contracts, and authority tamper
 - Actual teacher / Torch / artifact / selection / holdout / match / production-weight executions: zero
 
 The machine-readable record is [`floodgate-fresh-qat-parent-accounting-v2-2026-07-18.json`](./data/floodgate-fresh-qat-parent-accounting-v2-2026-07-18.json).
 
-After a production teacher artifact safely completes, the next step is to pass authenticated input metadata and exact `train.jsonl` bytes to the materializer, then review and enroll the resulting proposal in a data-only PR. Training still will not start automatically: STOP remains until exact v2 execution-plan and registry identities, CI, and independent review all pass.
+After a production teacher artifact safely completes, the next step is to independently verify and enroll the finalizer result/manifest/work chain and its exact derived per-parent completion stream. Until then, the production materializer itself remains STOP. Even after enrollment, the proposal must be regenerated from exact input/completion/train bytes and reviewed in a data-only PR. Training does not start until exact v2 execution-plan and registry identities, CI, and independent review all pass.

@@ -515,11 +515,16 @@ module internalsへ自由にアクセスする敵対的Python codeへの暗号�
 fresh teacherの固定入力24,000親と、forced skip後に実際の`train.jsonl`へ出る親group数を
 混同しないparent-accounting v2も、結果を見る前の追記専用amendmentとして閉じた。
 `input_parents = forced_parents_skipped + emitted_parent_groups`を要求し、3 seedの
-`model_training_parents`にはemitted数だけを渡す。forcedが0件または一部なら正確にaccountし、
-24,000件すべてforcedなら`STOP-no-trainable-parent-groups`で学習を開始しない。入力外parentの
-replacement、resampling、順序変更を拒否し、train bytes / SHA-256 / records / games /
-parent IDs / semantic position IDsを束縛する。v1 plan/selection registryと過去の日英記事・
-evidenceはbyte不変で、v2 registryも全enrollmentが`null`、全gate/authorityが`false`である。
+`model_training_parents`にはemitted数だけを渡す。15,369,952-byte raw入力をexact SHA-256で
+照合してからtupleと順序をparseし、forcedは欠落groupから推測しない。productionでは認証済み
+finalizer result / manifest / workから導出し登録したper-parent completion evidenceを必須とし、
+現在は未登録なのでmaterializer自体がSTOPする。test-only coreでも全入力のexplicit forced flagと
+non-forced groupのrecords / SHA-256を照合し、24,000件すべてが認証済みでforcedの場合だけ
+`STOP-no-trainable-parent-groups`を返す。入力外parent、replacement、resampling、順序変更を拒否し、
+strict sibling invariantとtrain bytes / SHA-256 / records / games / parent IDs /
+semantic position IDsを束縛する。proposal validatorはexact input / completion / train bytesから
+全digestとcontractを再生成する。v1 plan/selection registryと過去の日英記事・evidenceはbyte不変で、
+v2 registryも全enrollmentが`null`、全gate/authorityが`false`である。
 モデル、loss、seed 42/43/44、20 epoch、selection gate、holdout、ライブ重みは変更していない。
 詳細は[日本語parent-accounting記事](../docs/blog-shogi-floodgate-fresh-qat-parent-accounting-v2.md) /
 [English parent-accounting article](../docs/blog-shogi-floodgate-fresh-qat-parent-accounting-v2.en.md)を参照。

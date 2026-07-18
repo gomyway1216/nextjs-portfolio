@@ -255,11 +255,44 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
       .filter(Boolean)
       .sort();
     expect(publicationCommittedPaths).toEqual(publicationPaths);
+    const expectedArticlePaths = [
+      englishArticleRelative,
+      japaneseArticleRelative,
+    ].sort();
+    expect(
+      evidence.publication_surface.article_paths_unchanged_after_anchor,
+    ).toEqual(expectedArticlePaths);
+    const expectedSealPaths = [evidenceRelative, evidenceTestRelative].sort();
     expect(
       evidence.publication_surface.post_anchor_metadata_seal_paths,
-    ).toEqual([evidenceRelative, evidenceTestRelative].sort());
-    for (const relativePath of evidence.publication_surface
-      .article_paths_unchanged_after_anchor as string[]) {
+    ).toEqual(expectedSealPaths);
+    const publicationAncestry = gitOutput([
+      "--no-replace-objects",
+      "rev-list",
+      "--ancestry-path",
+      "--reverse",
+      `${evidence.revision.publication_revision}..HEAD`,
+    ])
+      .split("\n")
+      .filter(Boolean);
+    expect(publicationAncestry.length).toBeGreaterThan(0);
+    const directSealRevision = publicationAncestry[0];
+    if (!directSealRevision) {
+      throw new Error("publication metadata seal commit is missing");
+    }
+    const directSealPaths = gitOutput([
+      "--no-replace-objects",
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "-r",
+      directSealRevision,
+    ])
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+    expect(directSealPaths).toEqual(expectedSealPaths);
+    for (const relativePath of expectedArticlePaths) {
       const currentBlob = gitOutput(["hash-object", relativePath]);
       const anchoredBlob = gitOutput([
         "--no-replace-objects",

@@ -26,6 +26,14 @@ const implementationEvidenceRevision =
 const implementationEvidenceTree = "ef6a4f738393d1dfc59ce2c4752628633cf16f14";
 const finalLocalEvidenceRevision = "69e982e52966d24f21c994cf42494d4234e4420e";
 const finalLocalEvidenceTree = "192c847d4eb0396654b886acb7e930dea493fbdf";
+const remoteHeadRevision = "64ffac635ff826ae22368bbdc0404452623f4e14";
+const remoteHeadTree = "0d4d4d3e42076ccf7b70226d6ad9729acfcc5c56";
+const toolchainCalibrationRevision = "f5a264d4d062a4e30e6b8c6de3c104acf432996d";
+const toolchainCalibrationTree = "914b2bf91ca722c89b82714efdd22b835affefb9";
+const toolchainSelfCheckRemediationRevision =
+  "7d9281129e0d6447a70c1cbbbf20d3ec967d940b";
+const toolchainSelfCheckRemediationTree =
+  "1355122d15bb9284cbb79713c81a5287931879a8";
 const publicationValidationPaths = [
   japaneseArticleRelative,
   englishArticleRelative,
@@ -376,9 +384,20 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     expect(symbolGraphVerifier).toContain(
       "run_calibration_profile_self_checks",
     );
+    expect(symbolGraphVerifier).toContain("consistent_public_surface_profile");
     expect(symbolGraphVerifier).toContain(
       "unapproved symbol-graph calibration context",
     );
+    for (const context of ["generator", "format", "platform", "module"]) {
+      expect(symbolGraphVerifier).toContain(`"${context}"`);
+    }
+    expect(symbolGraphVerifier).toContain(
+      'f"unknown {context_label} calibration context "',
+    );
+    expect(symbolGraphVerifier).toContain(
+      "mixed base/shard calibration profiles unexpectedly passed",
+    );
+    expect(symbolGraphVerifier).toContain("base/shard files use different ");
     expect(symbolGraphVerifier).toContain("normalized_public_surface");
     expect(symbolGraphVerifier).toContain("access_level");
     expect(symbolGraphVerifier).toContain('symbol.get("spi", False)');
@@ -709,6 +728,13 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       publication_hardening_tree: "259dceb28f96b90194ef03808f88d6a59effd339",
       final_local_evidence_revision: finalLocalEvidenceRevision,
       final_local_evidence_tree: finalLocalEvidenceTree,
+      remote_head_revision: remoteHeadRevision,
+      remote_head_tree: remoteHeadTree,
+      toolchain_calibration_revision: toolchainCalibrationRevision,
+      toolchain_calibration_tree: toolchainCalibrationTree,
+      toolchain_self_check_remediation_revision:
+        toolchainSelfCheckRemediationRevision,
+      toolchain_self_check_remediation_tree: toolchainSelfCheckRemediationTree,
       base_pull_request: 499,
       base_integration_method: "regular-merge-commit",
     });
@@ -733,6 +759,12 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       ["publication_evidence_revision", "publication_evidence_tree"],
       ["publication_hardening_revision", "publication_hardening_tree"],
       ["final_local_evidence_revision", "final_local_evidence_tree"],
+      ["remote_head_revision", "remote_head_tree"],
+      ["toolchain_calibration_revision", "toolchain_calibration_tree"],
+      [
+        "toolchain_self_check_remediation_revision",
+        "toolchain_self_check_remediation_tree",
+      ],
     ] as const) {
       const revision = evidence.revision[revisionKey] as string;
       expect(gitOutput(["rev-parse", `${revision}^{tree}`])).toBe(
@@ -785,6 +817,16 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     );
     expect(Number.isNaN(remediationUpdatedAtMillis)).toBe(false);
     expect(recordedAtMillis).toBeGreaterThanOrEqual(remediationUpdatedAtMillis);
+    for (const createdAt of [
+      evidence.pull_request_validation.local_remediation
+        .toolchain_calibration_commit_created_at,
+      evidence.pull_request_validation.local_remediation
+        .toolchain_self_check_remediation_commit_created_at,
+    ]) {
+      const createdAtMillis = Date.parse(createdAt);
+      expect(Number.isNaN(createdAtMillis)).toBe(false);
+      expect(recordedAtMillis).toBeGreaterThanOrEqual(createdAtMillis);
+    }
     const reviewedRevisions = new Set<string>();
     for (const history of [
       evidence.validation.independent_security_review.review_history,
@@ -817,6 +859,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       status: "IN_PROGRESS",
       operational_decision: "STOP",
       initial_head_revision: "3b0b37a353d478cf235901d391848886574621be",
+      current_remote_head_revision: remoteHeadRevision,
       observed_at: "2026-07-18T03:23:44-07:00",
       initial_ci_observation: {
         ci_run_id: 29639949306,
@@ -874,14 +917,93 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             "pre-existing-runner-dependent-ci-portability-failure-not-unit-b-product-regression",
         },
       },
+      latest_remote_ci_observation: {
+        ci_run_id: 29645550110,
+        workflow_status: "COMPLETED",
+        workflow_conclusion: "FAILURE",
+        tested_remote_head_revision: remoteHeadRevision,
+        tested_temporary_merge_revision:
+          "6c871485b3d65726adad72fad77aafe94e976590",
+        temporary_merge_base_revision:
+          "0601268a57af32c910b785c3f79da647d3fbb428",
+        temporary_merge_is_github_pr_test_merge: true,
+        artifact_is_from_current_remote_head_not_stale: true,
+        blocking_failure_present: true,
+        sole_failed_job: true,
+        failed_job_id: 88083075424,
+        failed_job_name: "External trust-root protocol (source only)",
+        failed_step: "Verify external trust-root public API surface",
+        failed_step_cause:
+          "unapproved-swift-6.3.2-symbol-graph-calibration-context",
+        job_conclusions: {
+          test_and_build: "SUCCESS",
+          darwin_exclusive_directory_rename: "SUCCESS",
+          e2e_smoke_tests: "SUCCESS",
+          security_audit: "SUCCESS",
+          vercel: "SUCCESS",
+          external_trust_root_protocol: "FAILURE",
+        },
+        successful_test_and_build_steps: [
+          "lint",
+          "unit-tests",
+          "isolated-pinned-public-deadline-calibration",
+          "dependency-free-ml-contract-tests",
+          "production-build",
+        ],
+        symbol_graph_artifact: {
+          artifact_id: 8429932370,
+          name: "floodgate-v7-public-symbol-graphs-macOS-ARM64-6c871485b3d65726adad72fad77aafe94e976590-1",
+          digest:
+            "sha256:5fe40bb4cfcc5a5d967dbd001b0f30878dc23015b89d3a1b1635bae31e636baa",
+          source_revision_kind: "github-temporary-pull-request-merge",
+          source_head_revision: remoteHeadRevision,
+          source_base_revision: "0601268a57af32c910b785c3f79da647d3fbb428",
+          source_temporary_merge_revision:
+            "6c871485b3d65726adad72fad77aafe94e976590",
+          stale: false,
+        },
+        ci_symbol_graph_profile: {
+          xcode_version: "26.5",
+          swift_generator:
+            "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+          format_version: {
+            major: 0,
+            minor: 6,
+            patch: 0,
+          },
+          module_name: "FloodgateV7ExternalTrustRootProtocol",
+          platform_architecture: "arm64",
+          platform_operating_system: "macosx",
+          platform_minimum_version: {
+            major: 13,
+            minor: 0,
+          },
+          normalized_surface_symbol_count: 491,
+          normalized_surface_relationship_count: 579,
+          normalized_surface_sha256:
+            "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+        },
+        exact_surface_diff_from_local_xcode_15_3: {
+          symbols_added: 0,
+          symbols_removed: 0,
+          relationships_added: 37,
+          relationships_removed: 0,
+          all_added_relationships_kind: "conformsTo",
+          all_added_relationships_target: "Swift.SendableMetatype",
+          existing_precise_identifiers_with_rendered_declaration_changes: 5,
+          rendered_declaration_change: "already-source-annotated-@Sendable",
+          source_public_api_change_detected: false,
+        },
+      },
       review_feedback: {
         reviewed_head_revision: "3b0b37a353d478cf235901d391848886574621be",
         github_review_states: ["COMMENTED"],
         remediation_decision: "CHANGES_REQUESTED",
         actionable_p2_total: 3,
+        resolved_p2: 2,
         unresolved_p0: 0,
         unresolved_p1: 0,
-        unresolved_p2: 3,
+        unresolved_p2: 1,
         findings: [
           {
             thread_id: "PRRT_kwDOQbO82s6R-b_9",
@@ -891,16 +1013,17 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
               "symbol-graph-verifier-required-exactly-one-build-product",
             remote_status: "UNRESOLVED",
             local_status:
-              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
+              "LOCAL_TWO_PROFILE_REMEDIATION_VALIDATED_LATEST_HEAD_EXTERNAL_GREEN_PENDING",
           },
           {
             thread_id: "PRRT_kwDOQbO82s6R-cAA",
             author: "gemini-code-assist",
             path: "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
             finding_id: "evidence-test-hardcoded-usr-bin-git",
-            remote_status: "UNRESOLVED",
-            local_status:
-              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
+            remote_status: "RESOLVED",
+            remote_resolution_basis:
+              "outdated-thread-resolved-with-remediation-evidence",
+            local_status: "RESOLVED",
           },
           {
             thread_id: "PRRT_kwDOQbO82s6R-cuK",
@@ -908,15 +1031,17 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             path: "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
             finding_id:
               "evidence-test-counted-ci-settings-across-unrelated-jobs",
-            remote_status: "UNRESOLVED",
-            local_status:
-              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
+            remote_status: "RESOLVED",
+            remote_resolution_basis:
+              "outdated-thread-resolved-with-remediation-evidence",
+            local_status: "RESOLVED",
           },
         ],
       },
       local_remediation: {
-        status: "LOCAL_EVIDENCE_EXACT_REVIEW_PASS_REMOTE_CI_PENDING",
-        updated_at: "2026-07-18T06:02:00-07:00",
+        status:
+          "LOCAL_TWO_PROFILE_REMEDIATION_VALIDATED_REMOTE_CI_AND_EXTERNAL_REVIEW_PENDING",
+        updated_at: "2026-07-18T07:04:05-07:00",
         intermediate_remediation_revision:
           "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
         intermediate_remediation_tree:
@@ -932,6 +1057,16 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         final_local_evidence_revision: finalLocalEvidenceRevision,
         final_local_evidence_tree: finalLocalEvidenceTree,
         technical_commit_created_at: "2026-07-18T04:18:27-07:00",
+        remote_head_revision: remoteHeadRevision,
+        toolchain_calibration_revision: toolchainCalibrationRevision,
+        toolchain_calibration_tree: toolchainCalibrationTree,
+        toolchain_calibration_commit_created_at: "2026-07-18T06:33:30-07:00",
+        toolchain_self_check_remediation_revision:
+          toolchainSelfCheckRemediationRevision,
+        toolchain_self_check_remediation_tree:
+          toolchainSelfCheckRemediationTree,
+        toolchain_self_check_remediation_commit_created_at:
+          "2026-07-18T06:36:34-07:00",
         technical_exact_revision_review: {
           status: "PASS",
           reviewed_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
@@ -957,9 +1092,47 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           unresolved_p1: 0,
           unresolved_p2: 0,
         },
+        toolchain_calibration_review: {
+          status: "CHANGES_REQUESTED",
+          reviewed_revision: toolchainCalibrationRevision,
+          reviewed_tree: toolchainCalibrationTree,
+          unresolved_p0: 0,
+          unresolved_p1: 0,
+          unresolved_p2: 1,
+          finding_ids: [
+            "calibration-profile-self-check-omitted-unknown-format-platform-module-and-mixed-shards",
+          ],
+        },
+        toolchain_self_check_remediation: {
+          status: "EXACT_REVISION_REVIEW_PASS_REMOTE_CI_PENDING",
+          revision: toolchainSelfCheckRemediationRevision,
+          tree: toolchainSelfCheckRemediationTree,
+          behavioral_self_checks: [
+            "unknown-generator-rejected",
+            "unknown-format-rejected",
+            "unknown-platform-rejected",
+            "unknown-module-rejected",
+            "mixed-base-shard-profiles-rejected",
+          ],
+          validation_status: "PASS",
+          exact_revision_review: {
+            status: "PASS",
+            independent_reviewers: 2,
+            unresolved_p0: 0,
+            unresolved_p1: 0,
+            unresolved_p2: 0,
+          },
+        },
         pushed: false,
+        local_commits_after_remote_head_pushed: false,
+        local_commits_after_remote_head: [
+          toolchainCalibrationRevision,
+          toolchainSelfCheckRemediationRevision,
+        ],
         ci_rerun_status: "NOT_STARTED",
         review_threads_resolved: false,
+        review_threads_resolved_count: 2,
+        review_threads_unresolved_count: 1,
         technical_changed_paths: [
           workflowRelative,
           symbolGraphVerifierRelative,
@@ -976,6 +1149,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           "enforce-the-exact-four-composed-public-callables-and-zero-raw-policy-callable-consumers-including-global-initializer-operator-subscript-function-property-returned-function-and-typealias-surfaces",
           "pin-every-public-and-spi-symbol-access-kind-path-precise-identity-declaration-fragments-and-canonical-relationships-with-same-count-type-and-conformance-mutation-self-checks",
           "record-xcode-swift-symbol-graph-metadata-and-preserve-exact-base-and-shard-graphs-per-ci-run-attempt-for-fail-closed-calibration",
+          "approve-only-exact-xcode-15.3-swift-5.10-and-xcode-26.5-swift-6.3.2-public-surface-profiles",
+          "reject-unknown-generator-format-platform-module-and-mixed-base-shard-calibration-profiles",
           "resolve-git-without-a-shell-through-the-sanitized-system-path-usr-bin-and-bin-only",
           "scope-provenance-ci-counts-from-test-and-build-to-the-next-arbitrary-job-boundary",
           "retry-once-only-after-empty-stdout-sigabrt-or-sigkill-parent-exit-log-only-sanitized-outcome-shape-and-still-require-final-status-zero-or-six-with-null-signal",
@@ -986,9 +1161,32 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           local_normalized_surface_relationship_count: 542,
           local_normalized_surface_sha256:
             "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
-          pr_ci_toolchain:
-            "newer-than-local-exact-version-pending-rerun-observation",
-          status: "NOT_STARTED",
+          pr_ci_toolchain: "xcode-26.5-swift-6.3.2",
+          pr_ci_generator:
+            "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+          pr_ci_normalized_surface_symbol_count: 491,
+          pr_ci_normalized_surface_relationship_count: 579,
+          pr_ci_normalized_surface_sha256:
+            "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+          status: "LOCAL_TWO_PROFILE_REMEDIATION_VALIDATED",
+          latest_head_ci_rerun_status: "NOT_STARTED",
+          approved_profile_count: 2,
+          unknown_generator_policy: "FAIL_CLOSED",
+          unknown_format_policy: "FAIL_CLOSED",
+          unknown_platform_policy: "FAIL_CLOSED",
+          unknown_module_policy: "FAIL_CLOSED",
+          mixed_base_shard_profile_policy: "FAIL_CLOSED",
+          artifact_id: 8429932370,
+          artifact_digest:
+            "sha256:5fe40bb4cfcc5a5d967dbd001b0f30878dc23015b89d3a1b1635bae31e636baa",
+          exact_surface_diff: {
+            symbols_added: 0,
+            symbols_removed: 0,
+            relationships_added: 37,
+            relationships_removed: 0,
+            all_added_relationships: "conformsTo Swift.SendableMetatype",
+            existing_precise_identifiers_with_already_source_sendable_rendering: 5,
+          },
           mismatch_policy:
             "fail-closed-inspect-exact-surface-diff-before-any-expected-fingerprint-update",
           ci_calibration_evidence: [
@@ -1048,6 +1246,31 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
               "final-local-evidence-recorded-at-predated-sequence-twenty-one-artifact-freeze",
               "final-local-evidence-recorded-at-still-predated-sequence-twenty-two-artifact-freeze",
             ],
+          },
+          {
+            review_sequence: 2,
+            reviewed_revision: toolchainCalibrationRevision,
+            reviewed_tree: toolchainCalibrationTree,
+            status: "CHANGES_REQUESTED",
+            unresolved_p0: 0,
+            unresolved_p1: 0,
+            unresolved_p2: 1,
+            finding_ids: [
+              "calibration-profile-self-check-omitted-unknown-format-platform-module-and-mixed-shards",
+            ],
+            remediated_by_revision: toolchainSelfCheckRemediationRevision,
+            remediation_validation: "PASS",
+            remediated_revision_exact_review_status: "PASS",
+          },
+          {
+            review_sequence: 3,
+            reviewed_revision: toolchainSelfCheckRemediationRevision,
+            reviewed_tree: toolchainSelfCheckRemediationTree,
+            status: "PASS",
+            independent_reviewers: 2,
+            unresolved_p0: 0,
+            unresolved_p1: 0,
+            unresolved_p2: 0,
           },
         ],
         validation_status: "PASS",
@@ -1158,7 +1381,36 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         same_path_declaration_mutation_self_check: "PASS",
         relationship_only_conformance_mutation_self_check: "PASS",
         local_fingerprint_toolchain: "xcode-15.3-swift-5.10",
-        ci_toolchain_calibration_status: "NOT_STARTED",
+        ci_toolchain_calibration_status:
+          "COMPLETE_FROM_EXACT_FAILED_JOB_ARTIFACT",
+        latest_head_ci_rerun_status: "NOT_STARTED",
+        approved_exact_toolchain_profiles: [
+          {
+            profile: "xcode-15.3-swift-5.10-arm64-macos13",
+            generator:
+              "Apple Swift version 5.10 (swiftlang-5.10.0.12.7 clang-1500.3.9.3)",
+            format_version: "0.6.0",
+            platform: "arm64-apple-macos13",
+            normalized_surface_symbol_count: 491,
+            normalized_surface_relationship_count: 542,
+            normalized_surface_sha256:
+              "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+          },
+          {
+            profile: "xcode-26.5-swift-6.3.2-arm64-macos13",
+            generator:
+              "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+            format_version: "0.6.0",
+            platform: "arm64-apple-macos13",
+            normalized_surface_symbol_count: 491,
+            normalized_surface_relationship_count: 579,
+            normalized_surface_sha256:
+              "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+          },
+        ],
+        unknown_generator_format_platform_or_module_policy: "FAIL_CLOSED",
+        mixed_base_shard_profile_policy: "FAIL_CLOSED",
+        calibration_context_behavioral_self_check: "PASS",
         composed_entrypoints_present: 4,
         partial_entrypoints_absent: 6,
         raw_runtime_launch_policy_public_handoff_overloads: 0,
@@ -1344,7 +1596,25 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         same_path_declaration_mutation_self_check: "PASS",
         relationship_only_conformance_mutation_self_check: "PASS",
         fingerprint_toolchain: "xcode-15.3-swift-5.10",
-        ci_toolchain_calibration_status: "NOT_STARTED",
+        ci_toolchain_calibration_status:
+          "COMPLETE_FROM_EXACT_FAILED_JOB_ARTIFACT",
+        latest_head_ci_rerun_status: "NOT_STARTED",
+        approved_exact_profile_count: 2,
+        ci_profile: {
+          xcode_version: "26.5",
+          swift_version: "6.3.2",
+          normalized_surface_symbol_count: 491,
+          normalized_surface_relationship_count: 579,
+          normalized_surface_sha256:
+            "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+        },
+        unknown_context_self_checks: {
+          generator: "PASS",
+          format: "PASS",
+          platform: "PASS",
+          module: "PASS",
+          mixed_base_shard_profiles: "PASS",
+        },
         composed_entrypoints_present: 4,
         partial_entrypoints_absent: 6,
       },
@@ -1357,16 +1627,15 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         review_scope:
           "implementation-tree-only-docs-data-and-evidence-test-excluded",
         latest_completed_remediation_revision:
-          "735398093f7c839c8c2a97f33ef96607961bd829",
-        latest_completed_pass_revision:
-          "735398093f7c839c8c2a97f33ef96607961bd829",
-        current_remediation_revision:
-          "735398093f7c839c8c2a97f33ef96607961bd829",
+          toolchainSelfCheckRemediationRevision,
+        latest_completed_pass_revision: toolchainSelfCheckRemediationRevision,
+        current_remediation_revision: toolchainSelfCheckRemediationRevision,
         resolved_p1_total: 2,
-        resolved_p2_total: 23,
+        resolved_p2_total: 24,
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
+        current_content_exact_review_status: "PASS",
       },
       publication_evidence_review: {
         status: "IN_PROGRESS",
@@ -1378,12 +1647,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
         reviewed_integration_revision:
           "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
-        remediation_status:
-          "FINAL_LOCAL_EVIDENCE_EXACT_REVIEW_PASS_STATUS_SNAPSHOT_PENDING",
-        current_content_exact_review_status:
-          "PENDING_STATUS_SNAPSHOT_COMMIT_AND_EXTERNAL_EXACT_REVIEW",
+        remediation_status: "CURRENT_PUBLICATION_UPDATE_IN_PROGRESS",
+        current_content_exact_review_status: "NOT_REVIEWED_OR_CI_TESTED",
         resolved_p1_total: 4,
-        resolved_p2_total: 28,
+        resolved_p2_total: 29,
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
@@ -1712,6 +1979,20 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p1: 0,
         unresolved_p2: 0,
       },
+      {
+        review_sequence: 25,
+        status: "CHANGES_REQUESTED",
+        reviewed_content:
+          "toolchain-calibration-publication-working-diff-before-final-timestamp-refresh",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "toolchain-exact-review-snapshot-timestamp-predated-second-review",
+        ],
+        remediation: "snapshot-timestamp-refreshed-after-second-exact-review",
+        remediation_validation: "PASS",
+      },
     ]);
     expect(
       evidence.validation.independent_security_review.review_history,
@@ -1840,6 +2121,29 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         unresolved_p1: 0,
         unresolved_p2: 0,
       },
+      {
+        reviewed_revision: toolchainCalibrationRevision,
+        reviewed_tree: toolchainCalibrationTree,
+        status: "CHANGES_REQUESTED",
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 1,
+        finding_ids: [
+          "calibration-profile-self-check-omitted-unknown-format-platform-module-and-mixed-shards",
+        ],
+        remediated_by_revision: toolchainSelfCheckRemediationRevision,
+        remediation_validation: "PASS",
+        remediated_revision_exact_review_status: "PASS",
+      },
+      {
+        reviewed_revision: toolchainSelfCheckRemediationRevision,
+        reviewed_tree: toolchainSelfCheckRemediationTree,
+        status: "PASS",
+        independent_reviewers: 2,
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
     ]);
 
     const productionCounterKeys = [
@@ -1930,6 +2234,28 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       expect(article).toContain("20260707.563");
       expect(article).toContain("23 / 23 PASS");
       expect(article).toContain("IN_PROGRESS / STOP");
+      expect(article).toContain(remoteHeadRevision);
+      expect(article).toContain("29645550110");
+      expect(article).toContain("88083075424");
+      expect(article).toContain("8429932370");
+      expect(article).toContain(
+        "sha256:5fe40bb4cfcc5a5d967dbd001b0f30878dc23015b89d3a1b1635bae31e636baa",
+      );
+      expect(article).toContain(
+        "floodgate-v7-public-symbol-graphs-macOS-ARM64-6c871485b3d65726adad72fad77aafe94e976590-1",
+      );
+      expect(article).toContain("6c871485b3d65726adad72fad77aafe94e976590");
+      expect(article).toContain(
+        "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+      );
+      expect(article).toContain(
+        "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+      );
+      expect(article).toContain(toolchainCalibrationRevision);
+      expect(article).toContain(toolchainCalibrationTree);
+      expect(article).toContain(toolchainSelfCheckRemediationRevision);
+      expect(article).toContain(toolchainSelfCheckRemediationTree);
+      expect(article).toContain("`NOT_STARTED`");
     }
     expect(japanese).toContain(
       "blog-shogi-floodgate-v7-runtime-policy-preimages.en.md",
@@ -1961,9 +2287,23 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "production inspector / handoff: 0",
       "signalは初回logに記録されなかった",
       "既存のrunner依存CI portability failure",
-      "publication tracking 4 path",
-      "remote initial head以後のlocal commit",
-      "まだ未push",
+      "temporary PR merge commit",
+      "古いheadのartifactではない",
+      "symbol追加0 / 削除0",
+      "relationship追加37 / 削除0",
+      "conformsTo Swift.SendableMetatype",
+      "既存のprecise ID 5件",
+      "sourceに既にある`@Sendable`",
+      "unknown generator / format / platform / module",
+      "mixed base / shard",
+      "5 context",
+      "fail closed",
+      "local unpushed",
+      "latest-head CI rerun",
+      "reviewもCIも受けていない",
+      "outdatedになったevidence test 2件",
+      "symbol-graph thread 1件",
+      "latest-head External green",
       "exact review",
       "以前の実装security review PASS",
       "追加P1を5件、P2を36件",
@@ -1973,18 +2313,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "259dceb28f96b90194ef03808f88d6a59effd339",
       finalLocalEvidenceRevision,
       finalLocalEvidenceTree,
-      "status snapshot",
-      "自身のSHA / treeは記録しない",
-      "commit後の外部exact review",
-      "external-extension shard",
-      "SPI symbol込み",
       "raw child outputを含まない",
-      "symbol precise identifier",
       "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
       "542 relationship",
-      "protocol conformance relationship",
-      "run attempt別のartifact",
-      "校正はまだ`NOT_STARTED`",
+      "491 symbol、579 relationship",
       "4 worker",
       "181 / 181 files",
       "3232 PASS / 1 skip / 0 FAIL",
@@ -2032,7 +2364,24 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "0 production inspector or handoff runs",
       "signal was not logged",
       "pre-existing runner-dependent CI portability failure",
-      "local commits after the remote initial head were still unpushed",
+      "temporary PR merge commit",
+      "not an artifact from a stale head",
+      "zero symbol additions",
+      "zero symbol removals",
+      "37 relationship additions",
+      "zero relationship removals",
+      "conformsTo Swift.SendableMetatype",
+      "five existing precise identifiers",
+      "`@Sendable` annotation already present in source",
+      "unknown generator, format, platform, or module",
+      "mixed base/shard profiles",
+      "fail closed",
+      "local and unpushed",
+      "latest-head CI rerun",
+      "have not yet passed review or CI",
+      "Two outdated evidence-test review threads",
+      "symbol-graph thread remains unresolved",
+      "External is green on the latest head",
       "exact review",
       "previous implementation-security-review PASS",
       "five further P1 and thirty-six further P2",
@@ -2042,18 +2391,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "259dceb28f96b90194ef03808f88d6a59effd339",
       finalLocalEvidenceRevision,
       finalLocalEvidenceTree,
-      "status snapshot",
-      "does not record its own SHA or tree",
-      "External exact review after commit",
-      "external-extension shards",
-      "SPI symbols included",
       "no raw child output",
-      "symbol's precise identifier",
       "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
       "542 relationships",
-      "protocol-conformance relationship",
-      "run attempt",
-      "calibration is still `NOT_STARTED`",
+      "491 symbols, 579 relationships",
       "four workers",
       "181 / 181 files",
       "3,232 passes",

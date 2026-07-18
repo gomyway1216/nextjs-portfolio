@@ -1,0 +1,423 @@
+{
+  "schema": "shogi-floodgate-v7-runtime-policy-preimages-v1",
+  "recorded_at": "2026-07-18T02:38:02-07:00",
+  "scope": {
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "source_test_and_documentation_only": true,
+    "runtime_preimages_canonical": true,
+    "signed_handoff_requires_preimage_closure": true,
+    "external_trust_root_operational": false,
+    "production_entrypoint_available": false,
+    "production_authority_public_key_provisioned": false,
+    "production_activation_head_provisioned": false,
+    "production_private_key_added": false,
+    "root_runtime_installed": false,
+    "production_process_spawned": false,
+    "production_state_inspected": false,
+    "production_state_mutated": false,
+    "fixed_stop_executables_changed": false,
+    "live_evaluator_changed": false,
+    "live_weights_changed": false,
+    "live_configuration_changed": false
+  },
+  "revision": {
+    "base_revision": "e142d844fcf5e2b189bb29a1ee9880df74afaf1a",
+    "base_tree": "a62032c1e8f6f354f426c669a194aabcbb77290d",
+    "canonical_preimage_revision": "0d3e457303cd1b4ade068c6a0b58527dc4cacecc",
+    "canonical_preimage_tree": "e5a4cf722a85ad116cc119c93bb197335549f621",
+    "mandatory_closure_revision": "14f0a7f041a08258689f6cc2781ef9bd1e2576df",
+    "mandatory_closure_tree": "103eaa5995dca816382c7cd2f001c1daa01d8e9e",
+    "cross_parser_revision": "385f1c8bc9f31f784a491526c86125642cb9b622",
+    "cross_parser_tree": "64541bef2980db603856acb8907ef63399dd4914",
+    "golden_review_fix_revision": "6bab0f05fe24ef373317d92e56a0c7f42fa19f85",
+    "golden_review_fix_tree": "223947684b0edce1e80fb2543f95a19121ef9a20",
+    "public_api_enforcement_revision": "f75638e66f6903ba3ccac93de7b3f9bd484b405f",
+    "public_api_enforcement_tree": "f3688e8a9ddf261dadd12bfeb49140ca7750c66b",
+    "golden_domain_separation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+    "golden_domain_separation_tree": "ef6a4f738393d1dfc59ce2c4752628633cf16f14",
+    "implementation_evidence_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+    "implementation_evidence_tree": "ef6a4f738393d1dfc59ce2c4752628633cf16f14",
+    "base_integration_method": "regular-merge-commit",
+    "base_pull_request": 499
+  },
+  "canonical_records": {
+    "fixed_argv": {
+      "swift_type": "FixedArgvRecordV1",
+      "magic": "FGV7ARV1",
+      "encoded_bytes": 265,
+      "sha256": "bf7c65abbc101939ca4b3bccbd52c17891e12e6db50af141b6784d753b936b15",
+      "argument_count": 2,
+      "node_path_utf8_bytes": 101,
+      "diagnostic_bundle_path_utf8_bytes": 140,
+      "caller_arguments_allowed": false,
+      "shell_allowed": false,
+      "jxa_intermediary_allowed": false
+    },
+    "fixed_working_directory": {
+      "swift_type": "FixedWorkingDirectoryRecordV1",
+      "magic": "FGV7CWD1",
+      "encoded_bytes": 17,
+      "sha256": "01329f16e0b138c9583da158e6f533dfc8278d5102e0c2d0e9b2e30704d4c98e",
+      "path": "/"
+    },
+    "fixed_environment": {
+      "swift_type": "FixedEnvironmentRecordV1",
+      "magic": "FGV7ENV1",
+      "encoded_bytes": 16,
+      "sha256": "b4c85fb22072c92826ccfadce1555b3a25515aa45c27224498f0cad35c5a509d",
+      "entry_count": 0,
+      "caller_environment_allowed": false
+    },
+    "runtime_install_policy": {
+      "swift_type": "RuntimeInstallPolicyRecordV1",
+      "magic": "FGV7RIP1",
+      "encoded_bytes": 1307,
+      "format_fixed_digest_values_variable": true,
+      "variable_digest_field_count": 9,
+      "runtime_identity_digest_field_count": 6,
+      "canonical_digest_constraints": ["nonzero", "pairwise-distinct"],
+      "operational_identity_and_policy_observation": false,
+      "synthetic_mutation_fixture_sha256": "9582e2e987ece65e3d9dc4d6291ddeae055d97e06033d9e45590c0518e0c9803",
+      "synthetic_cross_parser_fixture_sha256": "ba68275543d70af3516d289cfd56b4067209861fcabc9ff0c7984c089888b0ca",
+      "path_count": 11,
+      "directory_mode_decimal": 493,
+      "node_mode_decimal": 365,
+      "diagnostic_bundle_mode_decimal": 292,
+      "application_support_gid": 80,
+      "require_no_follow": true,
+      "require_same_device": true,
+      "require_local_filesystem": true,
+      "allowed_writable_acl_entry_count": 0,
+      "regular_file_exact_link_count": 1,
+      "node_identity_fields": [
+        "whole-file-sha256",
+        "code-directory-sha256",
+        "designated-requirement-sha256",
+        "held-executable-identity-sha256"
+      ],
+      "diagnostic_bundle_identity_fields": [
+        "whole-file-sha256",
+        "held-file-identity-sha256"
+      ],
+      "other_variable_digest_fields": [
+        "record-id",
+        "filesystem-identity-policy-sha256",
+        "acl-policy-sha256"
+      ]
+    },
+    "runtime_launch_policy_golden": {
+      "swift_type": "RuntimeLaunchPolicyRecordV1",
+      "magic": "FGV7RLP1",
+      "encoded_bytes": 220,
+      "synthetic_cross_parser_fixture_sha256": "d659f5e8feaf5fcc7b3581888113c2ca7b9fd99f4fe6a8904e35dc7e13ebdbf2",
+      "binds": [
+        "fixed-argv-sha256",
+        "fixed-working-directory-sha256",
+        "fixed-environment-sha256",
+        "runtime-install-policy-sha256",
+        "diagnostic-entry-bundle-sha256"
+      ]
+    }
+  },
+  "runtime_launch_preimage_closure": {
+    "swift_type": "RuntimeLaunchPreimageClosureV1",
+    "required_by_all_challenge_receipt_attestation_entrypoints": true,
+    "raw_runtime_launch_policy_accepted_by_handoff_entrypoints": false,
+    "binding_chain": [
+      "signed-handoff-source-manifest-sha256",
+      "source-manifest-runtime-launch-policy-sha256",
+      "runtime-launch-policy-four-preimage-sha256-values",
+      "runtime-install-node-and-bundle-identities"
+    ],
+    "validates": [
+      "source-manifest-canonical-sha256",
+      "audience-and-purpose",
+      "fixed-argv-canonical-sha256",
+      "fixed-working-directory-canonical-sha256",
+      "fixed-environment-canonical-sha256",
+      "runtime-install-policy-canonical-sha256",
+      "diagnostic-bundle-whole-file-sha256",
+      "node-whole-file-sha256",
+      "node-code-directory-sha256",
+      "node-designated-requirement-sha256",
+      "node-held-executable-identity-sha256"
+    ],
+    "adversarial_composition_tests": {
+      "policy_digest_substitutions_rejected": 5,
+      "runtime_install_record_swap_rejected": true,
+      "manifest_node_identity_drifts_rejected": 4,
+      "manifest_canonical_identity_drift_rejected": true,
+      "all_public_handoff_entrypoints_reject_valid_closure_for_different_manifest": 4
+    },
+    "public_api_surface": {
+      "enforcement": "swift-public-symbol-graph",
+      "composed_entrypoints_present": 4,
+      "partial_entrypoints_absent": 6,
+      "raw_runtime_launch_policy_public_handoff_overloads": 0,
+      "ci_gate": true,
+      "local_result": "PASS"
+    }
+  },
+  "cross_parser_golden_fixture": {
+    "path": "tests/fixtures/floodgate-v7-external-trust-root-canonical-golden-v1.json",
+    "status": "synthetic-test-only-cross-parser-fixture-not-operational-evidence",
+    "scope": {
+      "wire_level": "synthetic-valid-canonical-records-and-Ed25519-signatures",
+      "authority_manifest_chain": "repository_source_manifest->enrollment->signed_enrollment->activation->signed_activation->expected_activation_head->supervisor_challenge->verifier_receipt->one_shot_attestation",
+      "excluded_evidence": "not-live-process-observation-and-not-full-operational-transcript",
+      "excluded_preimages": "FGV7ACL1 artifact-closure and FGV7INP1 release install-policy canonical preimages are not included in this 14-record fixture"
+    },
+    "byte_order": "big-endian",
+    "hex_encoding": "lowercase",
+    "signature_algorithm": "Ed25519",
+    "key_id_derivation": "SHA-256(raw-32-byte-Ed25519-public-key)",
+    "signature_generation": "node-deterministic-fixture",
+    "swift_cryptokit_observation": "verify-exact-bytes-but-local-resigning-produced-different-valid-signatures",
+    "keys": {
+      "authority": {
+        "public_key_hex": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+        "key_id_hex": "56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c"
+      },
+      "supervisor": {
+        "public_key_hex": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "key_id_hex": "24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28"
+      },
+      "verifier": {
+        "public_key_hex": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d",
+        "key_id_hex": "03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464"
+      }
+    },
+    "record_sha256": {
+      "fixed_argv": "bf7c65abbc101939ca4b3bccbd52c17891e12e6db50af141b6784d753b936b15",
+      "fixed_cwd": "01329f16e0b138c9583da158e6f533dfc8278d5102e0c2d0e9b2e30704d4c98e",
+      "fixed_env": "b4c85fb22072c92826ccfadce1555b3a25515aa45c27224498f0cad35c5a509d",
+      "runtime_install": "ba68275543d70af3516d289cfd56b4067209861fcabc9ff0c7984c089888b0ca",
+      "runtime_launch_policy": "d659f5e8feaf5fcc7b3581888113c2ca7b9fd99f4fe6a8904e35dc7e13ebdbf2",
+      "repository_source_manifest": "a6c6d40aac545cf8c57f3de004964352ffab9e8ed20bd4ba7ac001120907282d",
+      "enrollment": "b53bffa01c5ce47425f30ddbd037cda7571f762ee304bd03e61a53da5bf755e5",
+      "signed_enrollment": "6f81553aa45d3625a2f1e289c93c3f6d6d810356b72b184561f81210d64830cd",
+      "activation": "ce639e7be2869bedff7c9af0e4223f195b60c7c371e63ebc04f0756e22f86602",
+      "signed_activation": "c0a5cfa7f70c0100f80b16167e8a4b9792840849200d8f6ab8f6879e8bb030dc",
+      "expected_activation_head": "e3647886c8b6c30a04a698e3b8d27076d9bb6f432ec25b14072f3dab1dafe9c0",
+      "supervisor_challenge": "5eade391c648de45bb7e4200012621c1d43dd2fe536fc6b5e3e357e1a7f4677d",
+      "verifier_receipt": "fc63d5e077eae02ab2c0cbf3d3fc5f9d8fd03c2451514010e2a4bce47a65dbeb",
+      "one_shot_attestation": "40daaa2daa3c8a6473dfaa50297f2d69fa7aa3c90e99af3fddc18c1cf1a45733"
+    },
+    "canonical_byte_counts": {
+      "fixed_argv": 265,
+      "fixed_cwd": 17,
+      "fixed_env": 16,
+      "runtime_install": 1307,
+      "runtime_launch_policy": 220,
+      "repository_source_manifest": 788,
+      "enrollment": 232,
+      "signed_enrollment": 372,
+      "activation": 124,
+      "signed_activation": 264,
+      "expected_activation_head": 148,
+      "supervisor_challenge": 437,
+      "verifier_receipt": 461,
+      "one_shot_attestation": 461
+    },
+    "signature_payload_bytes": {
+      "signed_enrollment": 308,
+      "signed_activation": 200,
+      "supervisor_challenge": 373,
+      "verifier_receipt": 397,
+      "one_shot_attestation": 397
+    },
+    "signed_record_bytes": {
+      "signed_enrollment": 372,
+      "signed_activation": 264,
+      "supervisor_challenge": 437,
+      "verifier_receipt": 461,
+      "one_shot_attestation": 461
+    },
+    "node_parser_independent_of_swift_source": true,
+    "node_negative_cases": [
+      "signature-byte-mutation",
+      "domain-magic-resign",
+      "audience-purpose-algorithm-resign",
+      "role-key-and-key-id-resign",
+      "authority-manifest-binding-mutation",
+      "signed-enrollment-record-mutation",
+      "signed-activation-record-mutation",
+      "challenge-digest-chain-mutation",
+      "receipt-digest-chain-mutation"
+    ],
+    "swift_decodes_and_reencodes_exact_fixture_bytes": true,
+    "swift_cryptokit_verifies_fixture_signatures": true
+  },
+  "validation": {
+    "platform": "arm64-apple-macos",
+    "xcode_version": "15.3",
+    "swift_version": "5.10",
+    "node_version": "22.13.0",
+    "swift_tests": {
+      "status": "PASS",
+      "present": 58,
+      "passed": 58,
+      "failed": 0
+    },
+    "swift_cross_parser_tests": {
+      "status": "PASS",
+      "present": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "node_cross_parser_tests": {
+      "status": "PASS",
+      "present": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "public_api_symbol_graph": {
+      "status": "PASS",
+      "composed_entrypoints_present": 4,
+      "partial_entrypoints_absent": 6
+    },
+    "typescript_no_emit": "PASS",
+    "targeted_eslint": "PASS",
+    "prettier_check": "PASS",
+    "git_diff_check": "PASS",
+    "independent_security_review": {
+      "status": "PASS",
+      "review_scope": "implementation-tree-only-docs-data-and-evidence-test-excluded",
+      "review_history": [
+        {
+          "reviewed_revision": "385f1c8bc9f31f784a491526c86125642cb9b622",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 3
+        },
+        {
+          "reviewed_revision": "f75638e66f6903ba3ccac93de7b3f9bd484b405f",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 2
+        }
+      ],
+      "remediation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "reviewed_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "resolved_p2_total": 5,
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 0
+    },
+    "publication_evidence_review": {
+      "status": "IN_PROGRESS",
+      "review_scope": "publication-artifacts-and-provenance-ci-delta-working-tree-content",
+      "paths": [
+        "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md",
+        "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md",
+        "docs/data/floodgate-v7-runtime-policy-preimages-2026-07-18.json",
+        "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+        ".github/workflows/ci.yml"
+      ],
+      "reviewed_implementation_revision": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "review_history": [
+        {
+          "review_sequence": 1,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "initial-four-publication-artifacts-working-tree-content",
+          "unresolved_p0": 0,
+          "unresolved_p1": 3,
+          "unresolved_p2": 4,
+          "finding_ids": [
+            "final-evidence-recorded-at-predated-reviewed-implementation-commits",
+            "implementation-bounded-counters-and-review-broadened-to-publication-scope",
+            "machine-open-gates-omitted-fresh-load-anti-rollback-and-exactly-one-evidence",
+            "runtime-install-mutation-coverage-overstated-as-every-byte",
+            "japanese-role-key-negative-inaccurately-called-one-byte",
+            "english-open-gate-minimum-and-order-qualifiers-weakened",
+            "publication-evidence-test-could-false-pass-material-drift"
+          ]
+        },
+        {
+          "review_sequence": 2,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "five-path-remediated-working-tree-before-independent-provenance-audit",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 3,
+          "finding_ids": [
+            "runtime-install-nine-variable-fields-misclassified-as-nine-identity-digests",
+            "ordered-open-gates-diverged-between-articles-and-machine-record",
+            "external-invocation-zero-counters-lacked-independent-immutable-ledger"
+          ]
+        },
+        {
+          "review_sequence": 3,
+          "status": "CHANGES_REQUESTED",
+          "reviewed_content": "five-path-remediated-working-tree-before-green-snapshot",
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 3,
+          "finding_ids": [
+            "runtime-install-variability-schema-key-repeated-variable",
+            "in-progress-snapshot-recorded-at-predated-latest-remediation",
+            "in-progress-snapshot-evidence-test-intentionally-failed"
+          ]
+        }
+      ],
+      "remediation_status": "IN_PROGRESS",
+      "resolved_p1_total": 3,
+      "resolved_p2_total": 10,
+      "unresolved_p0": null,
+      "unresolved_p1": null,
+      "unresolved_p2": null
+    }
+  },
+  "production_counters": {
+    "scope": {
+      "kind": "implementation-revision-delta-only",
+      "from_revision_exclusive": "e142d844fcf5e2b189bb29a1ee9880df74afaf1a",
+      "through_revision_inclusive": "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12",
+      "evidence_basis": "git-diff-for-tracked-state-plus-task-observed-command-counters",
+      "immutable_command_ledger_present": false,
+      "independently_machine_verified_external_invocation_totals": false,
+      "post_implementation_publication_activity_included": false,
+      "not_claimed_as_program_lifetime_totals": true
+    },
+    "values": {
+      "production_inspector_invocations": 0,
+      "production_authority_head_loads": 0,
+      "production_handoff_issuances": 0,
+      "root_runtime_installs": 0,
+      "production_process_spawns": 0,
+      "private_clean_room_copies": 0,
+      "teacher_games_generated": 0,
+      "training_runs": 0,
+      "candidate_selection_runs": 0,
+      "formal_ab_runs": 0,
+      "external_calibration_runs": 0,
+      "live_weight_activations": 0,
+      "new_strength_measurements": 0
+    }
+  },
+  "strength_evidence": {
+    "live_weights_changed": false,
+    "live_configuration_changed": false,
+    "new_strength_measurements": 0,
+    "strength_claim": "NO_NEW_MEASUREMENT",
+    "strength_change": "UNKNOWN_NOT_MEASURED"
+  },
+  "open_gates": [
+    "root-owned-create-only-authority-public-key-and-activation-head-storage-fresh-load-and-anti-rollback",
+    "signed-notarized-release-artifact-and-canonical-root-runtime-install",
+    "production-manifest-signed-enrollment-activation-and-role-key-lifecycle",
+    "no-follow-held-runtime-and-bundle-filesystem-acl-code-signing-observation",
+    "actual-git-control-and-repository-source-observation",
+    "audit-token-and-held-process-identity-observation",
+    "exact-argv-cwd-empty-environment-and-uid-enforcement-at-exec",
+    "suspended-spawn-actual-image-revalidation",
+    "process-group-term-kill-reap-and-bounded-output",
+    "zero-argument-read-only-production-inspector-and-exactly-one-fresh-evidence-run",
+    "private-clean-room-teacher-generation",
+    "retraining-candidate-selection-sealed-holdout",
+    "formal-ab-and-external-calibration",
+    "reversible-canary-monitor-and-rollback",
+    "evidence-gated-live-activation"
+  ]
+}

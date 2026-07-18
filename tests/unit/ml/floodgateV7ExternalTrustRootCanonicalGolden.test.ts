@@ -50,8 +50,7 @@ interface GoldenFixture {
     readonly wire_level: string;
     readonly authority_manifest_chain: string;
     readonly excluded_evidence: string;
-    readonly authority_binding_domain_utf8: string;
-    readonly manifest_authority_binding: string;
+    readonly excluded_preimages: string;
   }>;
   readonly encoding: Readonly<{
     readonly byte_order: string;
@@ -1051,9 +1050,8 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
         wire_level: "synthetic-valid-canonical-records-and-Ed25519-signatures",
         excluded_evidence:
           "not-live-process-observation-and-not-full-operational-transcript",
-        authority_binding_domain_utf8: "FGV7GOLDENMANIFESTAUTHORITYV1",
-        manifest_authority_binding:
-          "manifest_id=SHA-256(authority_binding_domain_utf8||authority_key_id)",
+        excluded_preimages:
+          "FGV7ACL1 artifact-closure and FGV7INP1 release install-policy canonical preimages are not included in this 14-record fixture",
       },
       encoding: {
         byte_order: "big-endian",
@@ -1144,14 +1142,9 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
     const enrollmentFields = enrollment.fields;
     const installFields = records.runtime_install.fields;
     const launchFields = records.runtime_launch_policy.fields;
-    expect(
-      sha256(
-        Buffer.concat([
-          Buffer.from(fixture.scope.authority_binding_domain_utf8, "utf8"),
-          fromHex(fixture.keys.authority.key_id_hex),
-        ]),
-      ),
-    ).toBe(stringField(manifestFields, "manifest_id_hex"));
+    expect(stringField(manifestFields, "manifest_id_hex")).not.toBe(
+      "00".repeat(32),
+    );
     expect(
       stringField(manifestFields, "runtime_launch_policy_sha256_hex"),
     ).toBe(records.runtime_launch_policy.sha256);
@@ -1187,7 +1180,13 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
     }
     expect(
       stringField(manifestFields, "install_policy_record_sha256_hex"),
-    ).toBe(records.runtime_install.sha256);
+    ).not.toBe(records.runtime_install.sha256);
+    expect(
+      stringField(manifestFields, "install_policy_record_sha256_hex"),
+    ).not.toBe("00".repeat(32));
+    expect(
+      stringField(manifestFields, "artifact_closure_record_sha256_hex"),
+    ).not.toBe("00".repeat(32));
     expect(
       stringField(manifestFields, "supervisor_attestation_key_id_hex"),
     ).toBe(fixture.keys.supervisor.key_id_hex);
@@ -1220,10 +1219,14 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
         installFields,
         "diagnostic_entry_bundle_whole_file_sha256_hex",
       ),
-      manifest_authority_key_id: fixture.keys.authority.key_id_hex,
       manifest_supervisor_key_id: fixture.keys.supervisor.key_id_hex,
       manifest_verifier_key_id: fixture.keys.verifier.key_id_hex,
+      manifest_install_policy_record_sha256: stringField(
+        manifestFields,
+        "install_policy_record_sha256_hex",
+      ),
       enrollment_source_manifest_sha256: manifest.sha256,
+      signed_enrollment_source_manifest_sha256: manifest.sha256,
     });
   });
 
@@ -1343,6 +1346,25 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
         ),
       ).toBe(false);
     }
+
+    expect(
+      stringField(
+        fixture.records.signed_enrollment.fields,
+        "signer_key_id_hex",
+      ),
+    ).toBe(fixture.keys.authority.key_id_hex);
+    expect(fixture.records.signed_enrollment.signer_role).toBe("authority");
+    expect(
+      stringField(
+        fixture.records.enrollment.fields,
+        "source_manifest_sha256_hex",
+      ),
+    ).toBe(fixture.records.repository_source_manifest.sha256);
+    expect(fixture.links).toMatchObject({
+      signed_enrollment_authority_key_id: fixture.keys.authority.key_id_hex,
+      signed_enrollment_source_manifest_sha256:
+        fixture.records.repository_source_manifest.sha256,
+    });
 
     const activation = fixture.records.activation;
     const head = fixture.records.expected_activation_head;

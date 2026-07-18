@@ -187,6 +187,10 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
         (entry: { path: string }) => entry.path,
       ),
     ).toEqual(expectedImplementationPaths);
+    const historicallyPinnedButIntentionallyExtensible = new Set([
+      ".github/workflows/ci.yml",
+      boundaryRelative,
+    ]);
     for (const entry of record.implementation_surface
       .exact_committed_snapshot as {
       path: string;
@@ -196,10 +200,18 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       const bytes = rawAtRevision(reviewedAnchorRevision, entry.path);
       expect(bytes.byteLength, entry.path).toBe(entry.bytes);
       expect(sha256(bytes), entry.path).toBe(entry.sha256);
-      if (entry.path !== boundaryRelative) {
+      if (!historicallyPinnedButIntentionallyExtensible.has(entry.path)) {
         expect(raw(entry.path).equals(bytes), entry.path).toBe(true);
       }
     }
+
+    const currentWorkflow = read(".github/workflows/ci.yml");
+    expect(currentWorkflow).toContain(
+      "  external_trust_root_protocol:\n",
+    );
+    expect(currentWorkflow).toContain(
+      "          native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7RemoteWitnessServiceCore*.symbols.json",
+    );
 
     expect(record.post_anchor_ci_remediation).toMatchObject({
       status: "LOCAL-PASS-EXACT-REVIEW-PENDING-CI-PENDING",

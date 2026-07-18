@@ -170,10 +170,10 @@ function assertSingleCalibrationArtifactUpload(
       `expected exactly one calibration artifact step, found ${stepMarkers?.length ?? 0}`,
     );
   }
-  const uploadActionReferences = workflow.match(/actions\/upload-artifact@/giu);
+  const uploadActionReferences = job.match(/actions\/upload-artifact@/giu);
   if (uploadActionReferences?.length !== 1) {
     throw new Error(
-      `expected exactly one upload-artifact action reference in the workflow, found ${uploadActionReferences?.length ?? 0}`,
+      `expected exactly one upload-artifact action reference in the external trust-root job, found ${uploadActionReferences?.length ?? 0}`,
     );
   }
   const usesValues = job.split("\n").flatMap((line) => {

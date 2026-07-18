@@ -89,13 +89,17 @@ jobs:
             --skip-synthesized-members
           /usr/bin/python3 \
             native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py
+          /usr/bin/python3 \
+            native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py
 
       - name: Preserve public symbol graphs for exact-diff calibration
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json
+          path: |
+            native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json
+            native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7RemoteWitnessServiceCore*.symbols.json
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14

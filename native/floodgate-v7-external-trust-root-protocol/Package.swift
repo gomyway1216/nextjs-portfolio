@@ -27,6 +27,10 @@ let package = Package(
             name: "FloodgateV7ExternalTrustRootProtocol",
             dependencies: []
         ),
+        .target(
+            name: "FloodgateV7RemoteWitnessServiceCore",
+            dependencies: ["FloodgateV7ExternalTrustRootProtocol"]
+        ),
         .executableTarget(
             name: "FloodgateV7TrustRootSupervisor",
             dependencies: []
@@ -38,6 +42,13 @@ let package = Package(
         .testTarget(
             name: "FloodgateV7ExternalTrustRootProtocolTests",
             dependencies: ["FloodgateV7ExternalTrustRootProtocol"]
+        ),
+        .testTarget(
+            name: "FloodgateV7RemoteWitnessServiceCoreTests",
+            dependencies: [
+                "FloodgateV7ExternalTrustRootProtocol",
+                "FloodgateV7RemoteWitnessServiceCore",
+            ]
         ),
     ]
 )

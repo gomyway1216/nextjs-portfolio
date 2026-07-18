@@ -1,0 +1,285 @@
+{
+  "schema": "shogi-floodgate-v7-clean-room-teacher-runner-design-evidence-v1",
+  "evidence_date": "2026-07-17",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-clean-room-teacher-runner.md",
+    "english": "../blog-shogi-floodgate-v7-clean-room-teacher-runner.en.md"
+  },
+  "source_base": {
+    "branch_base": "origin/main",
+    "commit": "edf040fba0f18986ee4b1113394b33752a33a8ff",
+    "tree": "1a3fe35af4c2e6922984aa0ad7b9336ae620fc39",
+    "committed_at": "2026-07-17T07:40:41-07:00"
+  },
+  "runtime_exports": {
+    "contract": "shogi-floodgate-v7-clean-room-teacher-runner-v1",
+    "preparation_status": "prepared-verified-non-production-inputs-and-runtime-binding",
+    "test_preparation_status": "prepared-injected-test-inputs-not-operational-evidence",
+    "claim_boundary": "home-external-copy-by-value-pinned-verifier-and-test-core-runtime-binding-not-checkpoint-teacher-label-training-weight-live-activation-or-playing-strength-evidence",
+    "argumentless_read_only_contract_inspection": true,
+    "package_script_added": false,
+    "cli_added": false,
+    "checkpoint_gate_execution_implemented": false
+  },
+  "fixed_plan": {
+    "caller_supplied_path_or_revision": false,
+    "clean_room_outside_current_euid_home": true,
+    "clean_room_mode": "0700",
+    "accepted_verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "gate_sequence": [
+      "durable-prefix-100",
+      "durable-prefix-500",
+      "sealed-final-24000"
+    ],
+    "v3_stream_continuity_requirement": "single-authenticated-stage-work-stream",
+    "gate_authority_boundary": "three-ordered-single-use-authorities-within-one-future-runner-invocation",
+    "sealed_final_resumes_exact_prefix_500": true,
+    "durable_prefixes_published_or_finalized": false,
+    "namespace_mkdir_success_marks_may_exist_before_later_steps": true,
+    "namespace_absence_report_requires_definitive_enoent": true,
+    "namespace_unknown_probe_failure_requires_manual_reconciliation": true
+  },
+  "copy_by_value": {
+    "contract": "shogi-floodgate-v7-clean-room-copy-by-value-v1",
+    "trees": 4,
+    "standalone_files": 1,
+    "source_inventory_before_copy": true,
+    "source_revalidated_after_copy": true,
+    "destination_revalidated_after_copy": true,
+    "destination_single_link_required": true,
+    "source_destination_inode_aliases_allowed": 0,
+    "symlinks_allowed": 0,
+    "hard_linked_sources_allowed": 0,
+    "filesystem_clone_api_used": false,
+    "generic_copy_file_api_used": false,
+    "open_flags_include_no_follow_and_exclusive_create": true,
+    "maximum_file_bytes_exclusive": 1073741824,
+    "maximum_directory_depth": 32,
+    "maximum_entries": 250000,
+    "maximum_total_bytes": 2147483648,
+    "parallel_tree_materializations": 4,
+    "file_copy_concurrency_per_tree": 8,
+    "maximum_parallel_copy_core_file_workers": 32,
+    "inventory_hash_buffer_scope": "one-1mib-buffer-per-sequential-inventory-walk",
+    "copy_buffer_scope": "one-1mib-buffer-per-copy-worker",
+    "standalone_file_buffer_scope": "one-1mib-buffer-per-operation",
+    "reusable_buffer_shared_between_concurrent_workers": false,
+    "reusable_buffer_owner_finally_zeroization": true,
+    "per_file_one_mib_buffer_allocation": false,
+    "git_clone_internal_io_bounded_by_copy_worker_counter": false,
+    "all_filesystem_writes_bounded_by_copy_worker_counter": false,
+    "first_failure_stops_new_file_scheduling_within_failing_tree": true,
+    "first_failure_globally_cancels_other_trees_or_clone": false,
+    "started_operations_all_settled_before_failure_return": true,
+    "source_and_destination_close_all_settled": true,
+    "one_descriptor_close_failure_can_skip_other_close": false,
+    "partial_namespace_auto_deleted": false,
+    "per_file_fsync_used": false,
+    "crash_durable_copy_claimed": false,
+    "existing_namespace_reused_as_success": false,
+    "receipt_discloses_path_or_digest": false
+  },
+  "verifier_materialization": {
+    "source_revision_exact_and_clean_preflight": "PASS",
+    "git_no_local": true,
+    "git_object_alternates_allowed": false,
+    "tracked_files": 1431,
+    "tracked_file_count_exact": true,
+    "tracked_source_destination_inode_aliases_allowed": 0,
+    "source_revision_revalidated_after_clone": true,
+    "full_bundle_verifier_executed_by_this_change": false,
+    "independent_clone_smoke": {
+      "status": "PASS",
+      "elapsed_ms": 3852.636,
+      "temporary_clone_removed": true,
+      "private_dataset_read": false,
+      "accepted_revision_exact": true,
+      "source_clean": true,
+      "git_no_local": true,
+      "alternates_absent": true,
+      "tracked_inode_aliases": 0
+    }
+  },
+  "runtime_binding": {
+    "stable_factory": "real-stable-wasm-test-core",
+    "teacher_factory": "real-yaneuraou-usi-test-core",
+    "parent_coordinator_factory": "real-production-parent-coordinator-test-core",
+    "teacher_engines": 12,
+    "threads_per_engine": 1,
+    "proposal_depth": 16,
+    "prepared_capability_single_use": true,
+    "test_and_fixed_plan_registries_separate": true,
+    "test_and_fixed_capability_registries_separate": true,
+    "test_capability_fixed_claim_rejected": "PASS",
+    "wrong_registry_claim_consumes_matching_capability": false,
+    "asynchronous_factory_rejection_sanitized": "PASS",
+    "capability_consumed_on_factory_rejection": true,
+    "production_runtime_factory_used": false,
+    "production_lease_registry_or_control_connected": false
+  },
+  "read_only_input_preflight": {
+    "scope": "four-fixed-input-trees-metadata-only",
+    "files": 72717,
+    "nested_directories_excluding_four_roots": 519,
+    "four_tree_input_bytes": 1227490748,
+    "standalone_legacy_exclusion_bytes": 624816,
+    "copy_by_value_input_bytes": 1228115564,
+    "raw_lock_files": 72698,
+    "raw_lock_bytes": 592412617,
+    "unsafe_names": 0,
+    "unsafe_modes": 0,
+    "unsafe_links": 0,
+    "unsupported_node_types": 0,
+    "maximum_file_below_one_gib": true,
+    "private_file_contents_published": false,
+    "private_paths_published": false
+  },
+  "capacity_preflight": {
+    "status": "PASS",
+    "minimum_required_gib": 20,
+    "input_bytes": 1228115564,
+    "exact_free_space_published": false,
+    "utilization_published": false,
+    "home_or_volume_name_published": false,
+    "runtime_gate_implemented_by_this_change": false,
+    "runtime_gate_required_in_next_pr": true,
+    "future_receipt_discloses_only_pass_or_fail": true
+  },
+  "synthetic_small_file_benchmark": {
+    "schema": "synthetic-1000-small-file-copy-median-comparison-v1",
+    "files": 1000,
+    "bytes": 1000,
+    "repetitions_per_limit": 3,
+    "measurement_order": [1, 8, 1, 8, 1, 8],
+    "measurements": [
+      {
+        "concurrency": 1,
+        "elapsed_ms": 489.61
+      },
+      {
+        "concurrency": 8,
+        "elapsed_ms": 376.715
+      },
+      {
+        "concurrency": 1,
+        "elapsed_ms": 453.631
+      },
+      {
+        "concurrency": 8,
+        "elapsed_ms": 354.841
+      },
+      {
+        "concurrency": 1,
+        "elapsed_ms": 456.123
+      },
+      {
+        "concurrency": 8,
+        "elapsed_ms": 361.01
+      }
+    ],
+    "median_ms": {
+      "concurrency_1": 456.123,
+      "concurrency_8": 361.01
+    },
+    "median_speedup": 1.263,
+    "per_file_fsync_used": false,
+    "success": true,
+    "private_input_used": false,
+    "real_copy_time_prediction_claimed": false,
+    "general_storage_performance_claimed": false
+  },
+  "historical_timing_context": {
+    "accepted_verifier_seconds": 1045.52,
+    "accepted_verifier_confirmation_seconds": 1089.52,
+    "teacher_reference_parents": 3112,
+    "teacher_reference_seconds": 5354.31,
+    "simple_scaled_24000_parent_hours": 11.47,
+    "floodgate_distribution_equivalence_established": false,
+    "stable_tail_overhead_included": false,
+    "checkpoint_overhead_included": false
+  },
+  "verification": {
+    "targeted_test_files": 2,
+    "targeted_tests": 23,
+    "targeted_tests_result": "PASS",
+    "simultaneous_two_file_repeat_processes": 4,
+    "simultaneous_two_file_repeat_total_tests": 80,
+    "simultaneous_two_file_repeat_result": "PASS",
+    "independent_simultaneous_repeat_processes": 3,
+    "independent_simultaneous_repeat_total_tests": 60,
+    "independent_simultaneous_repeat_result": "PASS",
+    "related_test_files": 9,
+    "related_tests": 331,
+    "related_tests_result": "PASS",
+    "repository_test_files": 174,
+    "repository_tests": 3135,
+    "repository_tests_result": "PASS",
+    "repository_tests_duration_seconds": 301.91,
+    "typescript_no_emit": "PASS",
+    "targeted_eslint": "PASS",
+    "repository_eslint_errors": 0,
+    "repository_eslint_preexisting_warnings": 157,
+    "repository_eslint_result": "PASS",
+    "production_build": "PASS",
+    "ml_stdlib_tests": 101,
+    "ml_stdlib_result": "PASS",
+    "npm_audit_vulnerabilities": 0,
+    "npm_audit_result": "PASS",
+    "synthetic_failure_stops_new_schedule_and_drains_started_callbacks": "PASS",
+    "synthetic_eight_worker_owner_scoped_buffer_reuse": "PASS",
+    "synthetic_standalone_buffer_owner_finally_invariant": "PASS",
+    "synthetic_namespace_absent_vs_partial_creation_disposition": "PASS",
+    "synthetic_source_close_failure_still_closes_destination": "PASS",
+    "synthetic_pending_materialization_drained_after_later_synchronous_throw": "PASS",
+    "synthetic_pending_verifier_drained_after_later_synchronous_throw": "PASS",
+    "synthetic_accessor_proxy_and_forged_plan_rejection": "PASS",
+    "synthetic_single_use_capability_handoff": "PASS",
+    "synthetic_test_to_fixed_cross_claim_rejection": "PASS",
+    "synthetic_async_coordinator_rejection_sanitization_and_consumption": "PASS",
+    "synthetic_1000_file_copy": "PASS"
+  },
+  "two_pr_boundary": {
+    "this_pr": [
+      "copy-by-value-core",
+      "accepted-verifier-independent-materialization",
+      "fixed-read-only-contract-inspection",
+      "real-stable-and-teacher-test-core-binding",
+      "synthetic-tests-and-benchmark",
+      "japanese-and-english-articles"
+    ],
+    "next_pr_required": [
+      "argumentless-20-gib-runtime-capacity-gate",
+      "native-launcher-and-process-ownership",
+      "ordered-single-use-100-500-24000-authorities-over-one-authenticated-stream",
+      "signal-recovery-and-finalizer",
+      "sanitized-nonproduction-operational-receipts"
+    ]
+  },
+  "operational_state": {
+    "state": "STOP",
+    "real_private_copy_runs": 0,
+    "real_private_inputs_read_by_runner": 0,
+    "full_verifier_runs_by_runner": 0,
+    "teacher_processes_started": 0,
+    "teacher_rows_created": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false,
+    "production_activations": 0
+  },
+  "nonclaims": {
+    "clean_room_operational_run_completed": false,
+    "copy_crash_durability_established": false,
+    "real_copy_elapsed_time_established": false,
+    "teacher_generation_completed": false,
+    "teacher_generation_eta_established": false,
+    "training_completed": false,
+    "candidate_improves_evaluation": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "stable_high_dan_strength_established": false
+  }
+}

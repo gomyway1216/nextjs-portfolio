@@ -1,0 +1,215 @@
+{
+  "schema": "shogi-floodgate-v7-external-supervisor-verifier-source-v1",
+  "recorded_at": "2026-07-17T20:27:48-07:00",
+  "scope": {
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "source_and_test_boundary_only": true,
+    "external_trust_root_operational": false,
+    "production_entrypoint_available": false,
+    "production_authority_public_key_provisioned": false,
+    "production_activation_head_provisioned": false,
+    "production_private_key_added": false,
+    "root_install_performed": false,
+    "production_state_inspected": false,
+    "production_state_mutated": false,
+    "live_evaluator_changed": false
+  },
+  "revision": {
+    "base_revision": "163dc696e4e6453919547386294058285516c236",
+    "base_tree": "6a3705073282eaffbf20e8a863a3279f03e12047",
+    "implementation_revision": "e4ae076f1540d849707c1cf6e7be8bc253555f4a",
+    "implementation_tree": "82562863f529f5f1084ceac4403ef9f499456c11",
+    "base_integration_method": "regular-merge-commit",
+    "base_pull_request": 496
+  },
+  "architecture": {
+    "future_launch_chain": [
+      "external-supervisor",
+      "pinned-node-runtime",
+      "diagnostic-entry-bundle"
+    ],
+    "jxa_role": "authenticated-dormant-source-never-executed",
+    "intermediary_launcher_allowed": false,
+    "current_launch_implementation_present": false,
+    "current_user_owned_node_authenticated": false,
+    "existing_two_file_install_policy_installs_node": false
+  },
+  "canonical_records": {
+    "expected_activation_head": {
+      "magic": "FGV7EAH1",
+      "encoded_bytes": 84,
+      "fields": [
+        "authority-signer-key-id",
+        "latest-activation-sequence",
+        "latest-signed-activation-envelope-sha256"
+      ],
+      "truncated_signed_history_rejected": true
+    },
+    "signed_enrollment": {
+      "magic": "FGV7SEN1",
+      "encoded_bytes": 372,
+      "signature": "Ed25519"
+    },
+    "signed_activation": {
+      "magic": "FGV7SAC1",
+      "encoded_bytes": 264,
+      "signature": "Ed25519"
+    },
+    "repository_source_manifest": {
+      "magic": "FGV7RSM1",
+      "encoded_bytes": 788,
+      "supervisor_verifier_node_artifact_ids_pairwise_distinct": true,
+      "supervisor_verifier_attestation_key_ids_distinct": true
+    },
+    "runtime_launch_policy": {
+      "magic": "FGV7RLP1",
+      "encoded_bytes": 220,
+      "opaque_digest_preimages_still_missing": [
+        "fixed-argv",
+        "fixed-working-directory",
+        "fixed-environment",
+        "runtime-install-policy"
+      ]
+    },
+    "process_identity": {
+      "magic": "FGV7PID1",
+      "encoded_bytes": 264,
+      "binds": [
+        "pid",
+        "ppid",
+        "euid",
+        "process-unique-id",
+        "start-time",
+        "whole-file-sha256",
+        "code-directory-sha256",
+        "designated-requirement-sha256",
+        "audit-token-sha256",
+        "parent-process-identity-sha256",
+        "anonymous-fd-channel-binding-sha256",
+        "held-executable-identity-sha256"
+      ]
+    },
+    "supervisor_challenge": {
+      "magic": "FGV7SCH1",
+      "encoded_bytes": 437,
+      "binds_complete_expected_activation_head_sha256": true,
+      "maximum_wall_lifetime_seconds": 30,
+      "maximum_monotonic_lifetime_nanoseconds": 30000000000
+    },
+    "verifier_receipt": {
+      "magic": "FGV7VRC1",
+      "encoded_bytes": 461,
+      "repository_observation_revalidated": true,
+      "partial_verify_api_public": false
+    },
+    "one_shot_attestation": {
+      "magic": "FGV7OSA1",
+      "encoded_bytes": 461,
+      "partial_verify_api_public": false,
+      "atomic_replay_dimensions": [
+        "attestation-id",
+        "challenge-digest",
+        "receipt-digest",
+        "child-process-identity-digest"
+      ]
+    }
+  },
+  "role_separation": {
+    "authority_supervisor_verifier_key_ids_pairwise_distinct": true,
+    "supervisor_identity_independently_rechecked_by_verifier": [
+      "whole-file-sha256",
+      "code-directory-sha256",
+      "designated-requirement-sha256",
+      "held-executable-identity-sha256"
+    ],
+    "target_pid_equals_supervisor_pid": true,
+    "target_identity_equals_supervisor_identity": true,
+    "verifier_is_direct_supervisor_child": true,
+    "diagnostic_child_is_direct_supervisor_child": true
+  },
+  "revocation_semantics": {
+    "expected_head_required_at_supervisor_challenge_issuance": true,
+    "expected_head_required_at_verifier_receipt_issuance": true,
+    "expected_head_rechecked_at_receipt_verification": true,
+    "expected_head_rechecked_at_attestation_issuance": true,
+    "expected_head_rechecked_at_attestation_verification": true,
+    "expected_head_rechecked_at_final_consumption": true,
+    "post_receipt_head_advance_invalidates_transcript_immediately": true,
+    "same_envelope_different_authority_key_rejected": true,
+    "same_envelope_different_sequence_rejected": true,
+    "production_root_owned_head_source_available": false
+  },
+  "fixed_stop_targets": {
+    "targets": [
+      "floodgate-v7-trust-root-supervisor",
+      "floodgate-v7-trust-root-verifier"
+    ],
+    "swift_target_dependencies": [],
+    "main_source_sha256": "584c2bb95952dfb4af62bdff318e3da97317512187dd4ec3ea2abedcbb83ddb7",
+    "behavior": {
+      "exit_code": 78,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "arbitrary_argv_tested": true,
+      "arbitrary_environment_tested": true,
+      "stdin_tested": true,
+      "root_working_directory_tested": true
+    },
+    "observed_local_release_build": {
+      "counted_as_release_artifact_evidence": false,
+      "supervisor_bytes": 34320,
+      "verifier_bytes": 34320,
+      "supervisor_sha256": "feade538c3da5f24abe33ee55e553e5ae6d31761e1bbf1973ff70a939f8556b9",
+      "verifier_sha256": "7f256d4bc4551d3e2915a0db19e974d34f53845c354abf3364f50ca2f1c53aa9",
+      "dynamic_dependencies": ["libSystem", "weak-libswiftDarwin"],
+      "undefined_runtime_symbols": ["_exit", "_swift_FORCE_LOAD_$_swiftDarwin"],
+      "foundation_linked": false,
+      "cryptokit_linked": false,
+      "protocol_library_linked": false
+    }
+  },
+  "validation": {
+    "platform": "arm64-apple-macos",
+    "xcode_version": "15.3",
+    "xcode_build": "15E5188j",
+    "swift_version": "5.10",
+    "swift_tests": {
+      "status": "PASS",
+      "present": 37,
+      "passed": 37,
+      "failed": 0
+    },
+    "swift_release_build": "PASS",
+    "fixed_stop_integration": "PASS",
+    "git_diff_check": "PASS",
+    "independent_source_review": {
+      "status": "PASS",
+      "unresolved_p0": 0,
+      "unresolved_p1": 0
+    }
+  },
+  "production_counters": {
+    "production_inspector_invocations": 0,
+    "production_authority_head_loads": 0,
+    "production_handoff_issuances": 0,
+    "root_installs": 0,
+    "private_clean_room_copies": 0,
+    "teacher_games_generated": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_runs": 0,
+    "external_calibration_runs": 0,
+    "live_weight_activations": 0,
+    "new_strength_measurements": 0
+  },
+  "open_gates": [
+    "root-owned-create-only-authority-public-key-and-activation-head-storage",
+    "canonical-runtime-policy-preimage-records",
+    "fixed-key-cross-parser-golden-vectors",
+    "actual-filesystem-git-code-sign-and-audit-token-observation",
+    "held-runtime-suspended-spawn-process-group-term-kill-reap-bounded-output",
+    "signed-notarized-package-and-root-install",
+    "zero-argument-read-only-production-inspector"
+  ]
+}

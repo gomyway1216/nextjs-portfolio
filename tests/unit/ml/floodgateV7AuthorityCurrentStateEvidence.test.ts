@@ -68,7 +68,7 @@ function gitIsAncestor(ancestor: string, descendant: string): boolean {
     return false;
   }
   throw new Error(
-    `git merge-base --is-ancestor failed with status ${String(result.status)}: ${result.stderr.trim()}`,
+    `git merge-base --is-ancestor failed with status ${String(result.status)}: ${result.stderr?.trim() ?? ""}`,
   );
 }
 

@@ -139,17 +139,17 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
     }
 }
 
-public struct AuthenticatedProtocolStateSnapshotV1: Equatable, Sendable {
-    public let activeEnrollment: EnrollmentRecord
-    public let activeEnrollmentEnvelopeSHA256: CanonicalBytes32
-    public let lastActivationEnvelopeSHA256: CanonicalBytes32
-    public let authoritySignerKeyID: CanonicalBytes32
-    public let enrollmentCount: Int
-    public let activationCount: Int
+struct AuthenticatedProtocolStateSnapshotV1: Equatable, Sendable {
+    let activeEnrollment: EnrollmentRecord
+    let activeEnrollmentEnvelopeSHA256: CanonicalBytes32
+    let lastActivationEnvelopeSHA256: CanonicalBytes32
+    let authoritySignerKeyID: CanonicalBytes32
+    let enrollmentCount: Int
+    let activationCount: Int
 }
 
-public enum AuthenticatedProtocolStateV1 {
-    public static func replay(
+enum AuthenticatedProtocolStateV1 {
+    static func replay(
         enrollmentEnvelopes: [SignedEnrollmentRecordV1],
         activationEnvelopes: [SignedActivationRecordV1],
         authorityPublicKeyRawRepresentation: [UInt8],

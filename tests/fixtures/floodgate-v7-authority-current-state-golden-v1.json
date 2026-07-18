@@ -1,0 +1,130 @@
+{
+  "schema": "shogi-floodgate-v7-authority-current-state-golden-v1",
+  "status": "synthetic-test-only-cross-parser-fixture-not-operational-evidence",
+  "encoding": {
+    "byte_order": "big-endian",
+    "hex": "lowercase",
+    "hash": "SHA-256",
+    "key_id": "SHA-256(raw-32-byte-Ed25519-public-key)"
+  },
+  "state_root": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1/state",
+  "source_fixture": {
+    "path": "tests/fixtures/floodgate-v7-external-trust-root-canonical-golden-v1.json",
+    "authority_public_key_field": "keys.authority.public_key_hex",
+    "authority_key_id_field": "keys.authority.key_id_hex",
+    "expected_activation_head_field": "records.expected_activation_head.canonical_hex"
+  },
+  "journal_id_derivation": {
+    "algorithm": "SHA-256(UTF-8(domain))",
+    "domain": "shogi-floodgate-v7-authority-current-state-journal-v1",
+    "journal_id_hex": "354285a25860450f9ce6d14276c3d0159b75a58183a95347ad14dab84a2b83a0",
+    "operational_identifier": false
+  },
+  "records": {
+    "authority_public_key": {
+      "swift_type": "AuthorityPublicKeyRecordV1",
+      "canonical_byte_count": 76,
+      "fields": {
+        "magic": "FGV7APK1",
+        "schema_version": 1,
+        "reserved": 0,
+        "audience": 1,
+        "purpose": 1,
+        "authority_public_key_raw_hex": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+        "authority_signer_key_id_hex": "56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c"
+      },
+      "offsets": {
+        "magic": [0, 8],
+        "schema_version": [8, 1],
+        "reserved": [9, 1],
+        "audience": [10, 1],
+        "purpose": [11, 1],
+        "authority_public_key_raw_hex": [12, 32],
+        "authority_signer_key_id_hex": [44, 32]
+      },
+      "canonical_hex": "4647563741504b310100010103a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b856475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+      "sha256": "0e0a84937b2fc12e4d01020362cb60b9c0bd73f6e1bc372462f9b5e814c987f6"
+    },
+    "activation_head_journal_header": {
+      "swift_type": "ActivationHeadJournalHeaderV1",
+      "canonical_byte_count": 112,
+      "fields": {
+        "magic": "FGV7AJH1",
+        "schema_version": 1,
+        "reserved": 0,
+        "audience": 1,
+        "purpose": 1,
+        "entry_byte_count": 200,
+        "journal_id_hex": "354285a25860450f9ce6d14276c3d0159b75a58183a95347ad14dab84a2b83a0",
+        "authority_signer_key_id_hex": "56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "authority_public_key_record_sha256_hex": "0e0a84937b2fc12e4d01020362cb60b9c0bd73f6e1bc372462f9b5e814c987f6"
+      },
+      "offsets": {
+        "magic": [0, 8],
+        "schema_version": [8, 1],
+        "reserved": [9, 1],
+        "audience": [10, 1],
+        "purpose": [11, 1],
+        "entry_byte_count": [12, 4],
+        "journal_id_hex": [16, 32],
+        "authority_signer_key_id_hex": [48, 32],
+        "authority_public_key_record_sha256_hex": [80, 32]
+      },
+      "canonical_hex": "46475637414a483101000101000000c8354285a25860450f9ce6d14276c3d0159b75a58183a95347ad14dab84a2b83a056475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c0e0a84937b2fc12e4d01020362cb60b9c0bd73f6e1bc372462f9b5e814c987f6",
+      "sha256": "b6a00f52f26b71d77942e420799cbcde4cee1a2238a436a9c38acde77fa6c0ae"
+    },
+    "activation_head_journal_entry_1": {
+      "swift_type": "ActivationHeadJournalEntryV1",
+      "canonical_byte_count": 200,
+      "fields": {
+        "magic": "FGV7AJE1",
+        "schema_version": 1,
+        "reserved": 0,
+        "audience": 1,
+        "purpose": 1,
+        "journal_sequence": 1,
+        "previous_journal_record_sha256_hex": "b6a00f52f26b71d77942e420799cbcde4cee1a2238a436a9c38acde77fa6c0ae",
+        "expected_activation_head_hex": "46475637454148310100010156475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c0000000000000001c0a5cfa7f70c0100f80b16167e8a4b9792840849200d8f6ab8f6879e8bb030dc6f81553aa45d3625a2f1e289c93c3f6d6d810356b72b184561f81210d64830cdb53bffa01c5ce47425f30ddbd037cda7571f762ee304bd03e61a53da5bf755e5"
+      },
+      "offsets": {
+        "magic": [0, 8],
+        "schema_version": [8, 1],
+        "reserved": [9, 1],
+        "audience": [10, 1],
+        "purpose": [11, 1],
+        "journal_sequence": [12, 8],
+        "previous_journal_record_sha256_hex": [20, 32],
+        "expected_activation_head_hex": [52, 148]
+      },
+      "expected_activation_head_offsets": {
+        "magic": [52, 8],
+        "schema_version": [60, 1],
+        "reserved": [61, 1],
+        "audience": [62, 1],
+        "purpose": [63, 1],
+        "authority_signer_key_id_hex": [64, 32],
+        "latest_activation_sequence": [96, 8],
+        "latest_activation_envelope_sha256_hex": [104, 32],
+        "active_enrollment_envelope_sha256_hex": [136, 32],
+        "active_enrollment_record_sha256_hex": [168, 32]
+      },
+      "canonical_hex": "46475637414a4531010001010000000000000001b6a00f52f26b71d77942e420799cbcde4cee1a2238a436a9c38acde77fa6c0ae46475637454148310100010156475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c0000000000000001c0a5cfa7f70c0100f80b16167e8a4b9792840849200d8f6ab8f6879e8bb030dc6f81553aa45d3625a2f1e289c93c3f6d6d810356b72b184561f81210d64830cdb53bffa01c5ce47425f30ddbd037cda7571f762ee304bd03e61a53da5bf755e5",
+      "sha256": "5c85fd5150f0519e73a4dc253a9f47b769f94f63bbdaddb4dda6c61122400650"
+    }
+  },
+  "links": {
+    "authority_signer_key_id": "SHA-256(authority_public_key.authority_public_key_raw_hex)",
+    "header_authority_public_key_record": "SHA-256(authority_public_key.canonical_hex)",
+    "entry_1_previous_record": "SHA-256(activation_head_journal_header.canonical_hex)",
+    "entry_1_sequence": "activation_head_journal_entry_1.journal_sequence == ExpectedActivationHeadV1.latest_activation_sequence",
+    "entry_1_authority": "ExpectedActivationHeadV1.authority_signer_key_id == activation_head_journal_header.authority_signer_key_id"
+  },
+  "nonclaims": {
+    "real_root_state_read": false,
+    "real_key_provisioned": false,
+    "writer_implemented": false,
+    "production_inspector_run": false,
+    "production_execution": false,
+    "live_weights_changed": false
+  }
+}

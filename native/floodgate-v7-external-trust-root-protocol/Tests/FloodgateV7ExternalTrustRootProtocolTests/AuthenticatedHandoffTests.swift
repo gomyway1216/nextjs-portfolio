@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import XCTest
 
@@ -341,6 +342,216 @@ private struct HandoffFixture {
     }
 }
 
+private final class HandoffAuthorityStateFixture {
+    let root: URL
+    let entriesDirectory: URL
+    private var lastEntry: ActivationHeadJournalEntryV1?
+
+    init(_ fixture: HandoffFixture) throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "floodgate-v7-handoff-authority-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        let journal = root.appendingPathComponent(
+            "activation-head-journal-v1",
+            isDirectory: true
+        )
+        entriesDirectory = journal.appendingPathComponent(
+            "entries",
+            isDirectory: true
+        )
+        let pending = journal.appendingPathComponent(
+            "pending",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        try FileManager.default.createDirectory(
+            at: journal,
+            withIntermediateDirectories: false
+        )
+        try FileManager.default.createDirectory(
+            at: entriesDirectory,
+            withIntermediateDirectories: false
+        )
+        try FileManager.default.createDirectory(
+            at: pending,
+            withIntermediateDirectories: false
+        )
+        try setMode(root, 0o755)
+        try setMode(journal, 0o755)
+        try setMode(entriesDirectory, 0o755)
+        try setMode(pending, 0o700)
+
+        let keyRecord = try AuthorityPublicKeyRecordV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authorityPublicKeyRawRepresentation:
+                fixture.authorityPublicKey,
+            authoritySignerKeyID:
+                fixture.expectedActivationHead
+                .authoritySignerKeyID
+        )
+        let header = try ActivationHeadJournalHeaderV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            entryByteCount:
+                ActivationHeadJournalHeaderV1.requiredEntryByteCount,
+            journalID: handoffBytes32(0x47),
+            authoritySignerKeyID:
+                fixture.expectedActivationHead
+                .authoritySignerKeyID,
+            authorityPublicKeyRecordSHA256:
+                keyRecord.canonicalSHA256()
+        )
+        let entry = try ActivationHeadJournalEntryV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            journalSequence:
+                fixture.expectedActivationHead
+                .latestActivationSequence,
+            previousJournalRecordSHA256:
+                header.canonicalSHA256(),
+            expectedActivationHead:
+                fixture.expectedActivationHead
+        )
+        try write(
+            [],
+            to: root.appendingPathComponent(
+                "authority-state-v1.lock"
+            ),
+            mode: 0o644
+        )
+        try write(
+            keyRecord.canonicalBytes(),
+            to: root.appendingPathComponent(
+                "authority-public-key-v1.bin"
+            ),
+            mode: 0o444
+        )
+        try write(
+            header.canonicalBytes(),
+            to: journal.appendingPathComponent("header.bin"),
+            mode: 0o444
+        )
+        try write(
+            entry.canonicalBytes(),
+            to: entriesDirectory.appendingPathComponent(
+                "00000000000000000001.bin"
+            ),
+            mode: 0o444
+        )
+        lastEntry = entry
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    var store: TrustRootAuthorityStateStoreV1 {
+        TrustRootAuthorityStateStoreV1(
+            testStateRootPath: root.path,
+            expectedUID: getuid(),
+            expectedGID: getgid()
+        )
+    }
+
+    func appendHeadAdvance() throws {
+        guard let lastEntry else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        let sequence = lastEntry.journalSequence + 1
+        let head = try ExpectedActivationHeadV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            authoritySignerKeyID:
+                lastEntry.expectedActivationHead
+                .authoritySignerKeyID,
+            latestActivationSequence: sequence,
+            latestActivationEnvelopeSHA256:
+                handoffBytes32(0x71),
+            activeEnrollmentEnvelopeSHA256:
+                handoffBytes32(0x72),
+            activeEnrollmentRecordSHA256:
+                handoffBytes32(0x73)
+        )
+        let entry = try ActivationHeadJournalEntryV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            journalSequence: sequence,
+            previousJournalRecordSHA256:
+                lastEntry.canonicalSHA256(),
+            expectedActivationHead: head
+        )
+        try write(
+            entry.canonicalBytes(),
+            to: entriesDirectory.appendingPathComponent(
+                String(format: "%020llu.bin", sequence)
+            ),
+            mode: 0o444
+        )
+        self.lastEntry = entry
+    }
+
+    private func setMode(
+        _ url: URL,
+        _ mode: mode_t
+    ) throws {
+        guard url.path.withCString({ chmod($0, mode) }) == 0 else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+
+    private func write(
+        _ bytes: [UInt8],
+        to url: URL,
+        mode: mode_t
+    ) throws {
+        guard
+            FileManager.default.createFile(
+                atPath: url.path,
+                contents: Data(bytes),
+                attributes: nil
+            )
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        try setMode(url, mode)
+    }
+}
+
+private final class AuthorityStateAdvancingRandom:
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let stateFixture: HandoffAuthorityStateFixture
+    private let random = FixedRandomSequence(start: 0x51)
+    private var didAdvance = false
+
+    init(stateFixture: HandoffAuthorityStateFixture) {
+        self.stateFixture = stateFixture
+    }
+
+    func bytes(count: Int) throws -> [UInt8] {
+        lock.lock()
+        defer { lock.unlock() }
+        if !didAdvance {
+            try stateFixture.appendHeadAdvance()
+            didAdvance = true
+        }
+        return try random.bytes(count: count)
+    }
+
+    var provider: TrustRootRandomBytesProviderV1 {
+        { [self] count in
+            try bytes(count: count)
+        }
+    }
+}
+
 private func assertInvalidHandoff<T>(
     _ expression: @autoclosure () throws -> T,
     file: StaticString = #filePath,
@@ -379,6 +590,181 @@ private func manifestDriftedRuntimeLaunchPreimageClosure(
 }
 
 final class AuthenticatedHandoffTests: XCTestCase {
+    func testFourHandoffStagesUseFreshFixedAuthorityState()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        let stateFixture = try HandoffAuthorityStateFixture(fixture)
+        let store = stateFixture.store
+        let session = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity,
+            replayRetentionCapacity:
+                TrustRootSupervisorSessionV1
+                .maximumReplayRetentionCount,
+            authorityStateStore: store
+        )
+
+        let challenge = try session.issueChallenge(
+            enrollmentEnvelopes: [fixture.signedEnrollment],
+            activationEnvelopes: [fixture.signedActivation],
+            manifest: fixture.manifest,
+            runtimeLaunchPreimageClosure:
+                fixture.runtimeLaunchPreimageClosure,
+            verifierAnonymousFDChannelBindingSHA256:
+                fixture.verifierProcessIdentity
+                .anonymousFDChannelBindingSHA256,
+            nowUnixSeconds: 120,
+            nowMonotonicNanoseconds: 1_000_000_000,
+            supervisorPublicKeyRawRepresentation:
+                fixture.supervisorPublicKey,
+            randomBytes:
+                FixedRandomSequence(start: 0x11).provider,
+            sign: handoffSigner(fixture.supervisorKey)
+        )
+        // The public verifier wrapper is deliberately fixed to the
+        // production store and has no test-store injection seam. This
+        // internal overload exercises the same receipt stage with the
+        // fixture; repository evidence separately pins the wrapper's
+        // forwarding to `.production`.
+        let receipt = try TrustRootVerifierCoreV1.issueReceipt(
+            enrollmentEnvelopes: [fixture.signedEnrollment],
+            activationEnvelopes: [fixture.signedActivation],
+            challenge: challenge,
+            supervisorPublicKeyRawRepresentation:
+                fixture.supervisorPublicKey,
+            manifest: fixture.manifest,
+            runtimeLaunchPreimageClosure:
+                fixture.runtimeLaunchPreimageClosure,
+            observation: fixture.observation,
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity,
+            verifierProcessIdentity:
+                fixture.verifierProcessIdentity,
+            nowUnixSeconds: 121,
+            nowMonotonicNanoseconds: 2_000_000_000,
+            verifierPublicKeyRawRepresentation:
+                fixture.verifierPublicKey,
+            randomBytes:
+                FixedRandomSequence(start: 0x21).provider,
+            sign: handoffSigner(fixture.verifierKey),
+            authorityStateStore: store
+        )
+        let attestation = try session.issueAttestation(
+            enrollmentEnvelopes: [fixture.signedEnrollment],
+            activationEnvelopes: [fixture.signedActivation],
+            challenge: challenge,
+            receipt: receipt,
+            manifest: fixture.manifest,
+            runtimeLaunchPreimageClosure:
+                fixture.runtimeLaunchPreimageClosure,
+            observation: fixture.observation,
+            verifierProcessIdentity:
+                fixture.verifierProcessIdentity,
+            supervisorPublicKeyRawRepresentation:
+                fixture.supervisorPublicKey,
+            verifierPublicKeyRawRepresentation:
+                fixture.verifierPublicKey,
+            childProcessIdentity: fixture.childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                fixture.childProcessIdentity
+                .anonymousFDChannelBindingSHA256,
+            nowUnixSeconds: 122,
+            nowMonotonicNanoseconds: 3_000_000_000,
+            randomBytes:
+                FixedRandomSequence(start: 0x31).provider,
+            sign: handoffSigner(fixture.supervisorKey)
+        )
+        let consumer = try OneShotAttestationConsumerV1(
+            replayRetentionCapacity:
+                OneShotAttestationConsumerV1
+                .maximumReplayRetentionCount,
+            authorityStateStore: store
+        )
+        try consumer.consume(
+            attestation,
+            enrollmentEnvelopes: [fixture.signedEnrollment],
+            activationEnvelopes: [fixture.signedActivation],
+            supervisorPublicKeyRawRepresentation:
+                fixture.supervisorPublicKey,
+            verifierPublicKeyRawRepresentation:
+                fixture.verifierPublicKey,
+            challenge: challenge,
+            receipt: receipt,
+            manifest: fixture.manifest,
+            runtimeLaunchPreimageClosure:
+                fixture.runtimeLaunchPreimageClosure,
+            observation: fixture.observation,
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity,
+            verifierProcessIdentity:
+                fixture.verifierProcessIdentity,
+            childProcessIdentity: fixture.childProcessIdentity,
+            childAnonymousFDChannelBindingSHA256:
+                fixture.childProcessIdentity
+                .anonymousFDChannelBindingSHA256,
+            nowUnixSeconds: 123,
+            nowMonotonicNanoseconds: 4_000_000_000
+        )
+
+        XCTAssertEqual(
+            challenge.activationHeadSHA256,
+            fixture.expectedActivationHead.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            receipt.activationDigest,
+            fixture.signedActivation.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            consumer.replayRetentionCountSnapshot()
+                .consumedAttestationCount,
+            1
+        )
+    }
+
+    func testPublicHandoffRejectsAuthorityAdvanceDuringCallback()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        let stateFixture = try HandoffAuthorityStateFixture(fixture)
+        let store = stateFixture.store
+        let session = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity,
+            replayRetentionCapacity:
+                TrustRootSupervisorSessionV1
+                .maximumReplayRetentionCount,
+            authorityStateStore: store
+        )
+        let advancingRandom = AuthorityStateAdvancingRandom(
+            stateFixture: stateFixture
+        )
+
+        XCTAssertThrowsError(
+            try session.issueChallenge(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure:
+                    fixture.runtimeLaunchPreimageClosure,
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                    .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 120,
+                nowMonotonicNanoseconds: 1_000_000_000,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                randomBytes: advancingRandom.provider,
+                sign: handoffSigner(fixture.supervisorKey)
+            )
+        ) {
+            XCTAssertEqual(
+                $0 as? TrustRootAuthorityStateStoreError,
+                .invalidAuthorityState
+            )
+        }
+    }
+
     func testSignedAuthorityRecordsRoundTripAndReplayToOneActiveState()
         throws
     {

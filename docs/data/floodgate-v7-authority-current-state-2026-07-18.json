@@ -1,0 +1,308 @@
+{
+  "schema": "shogi-floodgate-v7-authority-current-state-evidence-v1",
+  "evidence_date": "2026-07-18",
+  "evidence_timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-authority-current-state.md",
+    "english": "../blog-shogi-floodgate-v7-authority-current-state.en.md"
+  },
+  "revision": {
+    "merge_base_revision": "985a09cf957af7b86fde6e8e0857dcd31f8b9d1b",
+    "implementation_revision": "5b7f0281811532ebb06d5c1c1f3bea2240e05b86",
+    "implementation_tree": "fbe47f96f06a946bc4ec44c04aadddded069c4d8",
+    "pull_request": null,
+    "implementation_exact_commit_review": "PASS",
+    "implementation_exact_commit_reviewers": 2,
+    "implementation_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "publication_revision": "59cca9876b7114d2a728166aa6850ef58e452786",
+    "publication_tree": "ce63b5fd023d4c5cf89dbeab9437fee25501172f",
+    "publication_exact_commit_review": "PASS",
+    "publication_exact_commit_reviewers": 2,
+    "publication_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "continuous_integration": "PENDING"
+  },
+  "scope": {
+    "status": "UNAVAILABLE",
+    "operational_decision": "STOP",
+    "source_and_test_boundary_only": true,
+    "read_only_authority_state_store_source_present": true,
+    "writer_source_present": false,
+    "provisioner_source_present": false,
+    "real_root_state_present": false,
+    "real_root_state_read": false,
+    "runnable_production_protocol_entrypoint_available": false,
+    "production_execution_performed": false,
+    "production_inspector_available": false,
+    "production_inspector_run": false,
+    "live_evaluator_changed": false
+  },
+  "canonical_state_root": {
+    "path": "/Library/Application Support/com.gomyway1216.shogi-floodgate-v7/ExternalTrustRoot/v1/state",
+    "fixed_in_production_source": true,
+    "production_owner_uid": 0,
+    "production_group_gid": 0,
+    "production_mode_octal": "0755",
+    "real_path_created_by_this_change": false,
+    "real_path_opened_by_validation": false
+  },
+  "canonical_records": {
+    "byte_order": "big-endian",
+    "fixed_schema_version": 1,
+    "fixed_reserved": 0,
+    "fixed_audience": 1,
+    "fixed_purpose": 1,
+    "authority_public_key": {
+      "swift_type": "AuthorityPublicKeyRecordV1",
+      "magic": "FGV7APK1",
+      "encoded_bytes": 76,
+      "layout": [
+        ["magic", 0, 8],
+        ["schema-version", 8, 1],
+        ["reserved", 9, 1],
+        ["audience", 10, 1],
+        ["purpose", 11, 1],
+        ["raw-ed25519-public-key", 12, 32],
+        ["key-id-sha256-of-raw-key", 44, 32]
+      ]
+    },
+    "activation_head_journal_header": {
+      "swift_type": "ActivationHeadJournalHeaderV1",
+      "magic": "FGV7AJH1",
+      "encoded_bytes": 112,
+      "entry_byte_count": 200,
+      "layout": [
+        ["magic", 0, 8],
+        ["schema-version", 8, 1],
+        ["reserved", 9, 1],
+        ["audience", 10, 1],
+        ["purpose", 11, 1],
+        ["entry-byte-count-u32be", 12, 4],
+        ["journal-id", 16, 32],
+        ["authority-key-id", 48, 32],
+        ["authority-public-key-record-sha256", 80, 32]
+      ]
+    },
+    "activation_head_journal_entry": {
+      "swift_type": "ActivationHeadJournalEntryV1",
+      "magic": "FGV7AJE1",
+      "encoded_bytes": 200,
+      "layout": [
+        ["magic", 0, 8],
+        ["schema-version", 8, 1],
+        ["reserved", 9, 1],
+        ["audience", 10, 1],
+        ["purpose", 11, 1],
+        ["journal-sequence-u64be", 12, 8],
+        ["previous-journal-record-sha256", 20, 32],
+        ["expected-activation-head-v1", 52, 148]
+      ],
+      "first_entry_previous_digest": "SHA-256(canonical-journal-header)",
+      "later_entry_previous_digest": "SHA-256(previous-canonical-journal-entry)",
+      "sequence_must_equal_expected_activation_head_sequence": true,
+      "authority_key_id_must_equal_header_key_id": true
+    }
+  },
+  "golden_fixture": {
+    "path": "../../tests/fixtures/floodgate-v7-authority-current-state-golden-v1.json",
+    "status": "synthetic-test-only-not-operational-evidence",
+    "source_fixture": "../../tests/fixtures/floodgate-v7-external-trust-root-canonical-golden-v1.json",
+    "reuses_authority_public_key_exactly": true,
+    "reuses_expected_activation_head_v1_exactly": true,
+    "journal_id_derivation": "SHA-256(UTF-8(shogi-floodgate-v7-authority-current-state-journal-v1))",
+    "journal_id_hex": "354285a25860450f9ce6d14276c3d0159b75a58183a95347ad14dab84a2b83a0",
+    "authority_public_key_record_sha256": "0e0a84937b2fc12e4d01020362cb60b9c0bd73f6e1bc372462f9b5e814c987f6",
+    "journal_header_sha256": "b6a00f52f26b71d77942e420799cbcde4cee1a2238a436a9c38acde77fa6c0ae",
+    "journal_entry_1_sha256": "5c85fd5150f0519e73a4dc253a9f47b769f94f63bbdaddb4dda6c61122400650",
+    "independent_node_parser_reconstructs_every_byte_hash_and_offset": true,
+    "independent_node_parser_checks_all_cross_links": true,
+    "every_one_bit_exact_transcript_drift_rejected": true
+  },
+  "implementation_surface": {
+    "source_files": [
+      "AuthorityStateCanonicalRecordsV1.swift",
+      "TrustRootAuthorityStateStoreV1.swift"
+    ],
+    "test_files": [
+      "AuthorityStateCanonicalRecordTests.swift",
+      "TrustRootAuthorityStateStoreTests.swift"
+    ],
+    "integration_test_files": ["AuthenticatedHandoffTests.swift"],
+    "integration_files": [
+      "AuthenticatedProtocolStateV1.swift",
+      "VerifierSupervisorCoreV1.swift"
+    ],
+    "golden_fixture": "tests/fixtures/floodgate-v7-authority-current-state-golden-v1.json",
+    "node_golden_test": "tests/unit/ml/floodgateV7AuthorityCurrentStateGolden.test.ts",
+    "compatibility_evidence_test": "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
+    "public_surface_gate": "Tests/verify-public-api-symbol-graph.py",
+    "package_manifest_changed": false,
+    "supervisor_main_changed": false,
+    "verifier_main_changed": false,
+    "fixed_stop_executables_preserved": true
+  },
+  "read_only_store_contract": {
+    "production_root_is_not_caller_redirectable": true,
+    "test_root_injection_is_internal_and_test_only": true,
+    "fresh_load_before_each_security_stage": true,
+    "unchanged_token_check_after_each_security_stage": true,
+    "caller_supplied_raw_authority_key_removed_from_public_stage_entrypoints": true,
+    "caller_supplied_expected_head_removed_from_public_stage_entrypoints": true,
+    "shared_nonblocking_flock": true,
+    "lock_contention_decision": "STOP",
+    "flock_scope": "advisory-inode-scoped-cooperating-process-coordination-only",
+    "flock_is_security_boundary_against_ignoring_privileged_writer": false,
+    "held_file_descriptors": true,
+    "no_follow_open": true,
+    "before_and_after_metadata_checks": true,
+    "double_exact_byte_read": true,
+    "same_device_below_state_root": true,
+    "local_filesystem_required": true,
+    "extended_acl_object_rejected_on_every_fd_opened_node": true,
+    "regular_file_exact_link_count": 1,
+    "exact_state_journal_and_committed_entry_namespaces_required": true,
+    "pending_directory_mode_octal": "0700",
+    "pending_directory_extended_acl_inspected_by_non_root_reader": false,
+    "pending_directory_contents_read_by_non_root_reader": false,
+    "pending_directory_contents_part_of_committed_snapshot": false,
+    "contiguous_twenty_digit_entry_names_required": true,
+    "maximum_journal_entries": 4096,
+    "process_lifetime_high_water_sequence": true,
+    "process_lifetime_same_sequence_digest_pin": true,
+    "restart_persistent_external_anchor": false,
+    "restart_persistent_root_or_offline_rollback_protection": false
+  },
+  "future_writer_contract": {
+    "status": "FROZEN-DESIGN-ONLY-NOT-IMPLEMENTED",
+    "per_entry_publication": true,
+    "same_lock_inode_exclusive_flock_required": true,
+    "full_state_revalidation_under_lock_required": true,
+    "next_contiguous_sequence_required": true,
+    "previous_record_digest_required": true,
+    "exclusive_pending_file_creation_required": true,
+    "exact_200_byte_write_required": true,
+    "file_and_directory_fsync_required": true,
+    "no_replace_atomic_publication_required": true,
+    "writer_tests_run": false,
+    "production_write_run": false
+  },
+  "validation": {
+    "node_runtime": "node-v22.13.0",
+    "golden_parser_vitest": {
+      "status": "PASS",
+      "files_passed": 1,
+      "tests_passed": 7,
+      "tests_failed": 0
+    },
+    "publication_evidence_vitest": {
+      "status": "PASS",
+      "files_passed": 1,
+      "tests_passed": 6,
+      "tests_failed": 0
+    },
+    "swift_tests": {
+      "status": "PASS",
+      "tests_passed": 82,
+      "tests_failed": 0,
+      "main_agent_duration_seconds": 2.61
+    },
+    "swift_release_build": "PASS",
+    "public_symbol_graph_checks": "LOCAL-PASS-REMOTE-PENDING",
+    "local_public_symbol_graph": {
+      "status": "PASS",
+      "toolchain": "Xcode-15.3-Apple-Swift-5.10",
+      "measurement_kind": "MEASURED",
+      "symbols": 516,
+      "relationships": 570,
+      "normalized_sha256": "879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a",
+      "semantic_gate": "PASS"
+    },
+    "ci_public_symbol_graph_projection": {
+      "status": "PENDING-REMOTE-CONFIRMATION",
+      "toolchain": "Xcode-26.5-Swift-6.3.2",
+      "measurement_kind": "DERIVED-NOT-REMOTELY-MEASURED",
+      "symbols": 516,
+      "relationships": 609,
+      "normalized_sha256": "1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce",
+      "derivation": "previously-observed-SendableMetatype-and-Sendable-fragment-toolchain-transform",
+      "counted_as_ci_evidence": false
+    },
+    "target_mac_compatibility_probe": "PENDING",
+    "prettier": "PASS",
+    "json_parse": "PASS",
+    "eslint_zero_errors": true,
+    "ml_standard_library_tests": {
+      "status": "PASS",
+      "tests_passed": 101,
+      "tests_failed": 0
+    },
+    "next_production_build": "PASS",
+    "full_repository_suite": {
+      "status": "PASS",
+      "files_passed": 183,
+      "tests_passed": 3245,
+      "tests_skipped": 1,
+      "tests_failed": 0,
+      "max_workers": 4,
+      "duration_seconds": 313.3
+    },
+    "continuous_integration": "PENDING",
+    "exact_commit_review": "IMPLEMENTATION-AND-PUBLICATION-PASS"
+  },
+  "production_counters": {
+    "real_authority_state_reads": 0,
+    "real_authority_state_writes": 0,
+    "root_provisioning_runs": 0,
+    "writer_runs": 0,
+    "production_supervisor_runs": 0,
+    "production_verifier_runs": 0,
+    "production_inspector_runs": 0,
+    "teacher_generation_runs": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_overwrites": 0,
+    "live_evaluation_activations": 0
+  },
+  "nonclaims": {
+    "root_owned_authority_state_provisioned": false,
+    "authority_public_key_provisioned": false,
+    "activation_head_journal_provisioned": false,
+    "durable_writer_implemented": false,
+    "restart_persistent_rollback_protection_established": false,
+    "malicious_root_writer_excluded": false,
+    "offline_rollback_excluded": false,
+    "signed_release_artifact_installed": false,
+    "production_inspector_implemented": false,
+    "production_state_reconciled": false,
+    "teacher_dataset_created": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_weight_changed": false,
+    "playing_strength_improved": false,
+    "stable_high_dan_established": false
+  },
+  "safe_next_order": [
+    "create-ready-pull-request-and-run-exact-head-ci",
+    "run-exact-commit-ci-and-address-review-comments",
+    "regular-merge-only-after-all-required-checks-pass",
+    "design-and-review-a-separate-root-provisioner-and-writer",
+    "establish-a-restart-persistent-rollback-anchor-or-keep-the-gate-stopped",
+    "build-sign-notarize-and-install-the-fixed-stop-artifacts-under-a-separate-gate",
+    "implement-and-review-the-separate-zero-argument-read-only-inspector",
+    "run-exactly-one-fresh-inspection-and-stop-on-any-mismatch-or-indeterminate-state",
+    "only-then-generate-complete-teacher-data-and-train-separate-candidates",
+    "select-candidates-and-run-formal-ab-and-external-calibration",
+    "consider-live-activation-only-after-strength-safety-and-rollback-evidence"
+  ]
+}

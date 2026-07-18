@@ -28,9 +28,9 @@ EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
         ARM64_MACOS_13_PLATFORM,
     ): (
         "xcode-15.3-swift-5.10-arm64-macos13",
-        491,
-        542,
-        "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160",
+        516,
+        570,
+        "879f1001337dafa13f078756220990a8cb5eb106153189468f2b9ab249e1a59a",
     ),
     (
         "Apple Swift version 6.3.2 "
@@ -39,9 +39,9 @@ EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
         ARM64_MACOS_13_PLATFORM,
     ): (
         "xcode-26.5-swift-6.3.2-arm64-macos13",
-        491,
-        579,
-        "539e6c39aabf364b464b05b00517c18da061e23987aceb54c8fcbf0825991123",
+        516,
+        609,
+        "1d2cc49fc73fb21b1b99dd8bc8d68288bebbae30c907df56436767eb0150f7ce",
     ),
 }
 CALLABLE_KINDS = {
@@ -86,7 +86,23 @@ FORBIDDEN_PARTIAL_ENTRYPOINTS = (
     ),
     ("TrustRootSupervisorCoreV1", "issueChallenge("),
     ("TrustRootSupervisorCoreV1", "issueAttestation("),
+    ("AuthenticatedProtocolStateV1", "replay("),
 )
+ALLOWED_EXPECTED_HEAD_CONSUMER = (
+    "swift.init",
+    "ActivationHeadJournalEntryV1",
+)
+ALLOWED_AUTHORITY_KEY_CONSUMER = (
+    "swift.init",
+    "AuthorityPublicKeyRecordV1",
+)
+FORBIDDEN_AUTHORITY_PARAMETER_MARKERS = (
+    "authorityPublicKeyRawRepresentation:",
+    "authorityStateStore:",
+    "authorityStatePath:",
+    "authorityStateProvider:",
+)
+AUTHORITY_STATE_STORE_TYPE = "TrustRootAuthorityStateStoreV1"
 
 
 class VerificationError(Exception):
@@ -575,6 +591,38 @@ def verify_public_api(
             f"found {len(composed_entrypoints)}: {names}"
         )
 
+    authority_injection_consumers = []
+    for kind, owner, symbol_name, declaration in declarations:
+        if kind not in CALLABLE_KINDS:
+            continue
+        parameters = parameter_clause(declaration)
+        has_forbidden_marker = (
+            (kind, owner) != ALLOWED_AUTHORITY_KEY_CONSUMER
+            and any(
+                marker in parameters
+                for marker in FORBIDDEN_AUTHORITY_PARAMETER_MARKERS
+            )
+        )
+        has_unapproved_head = (
+            "ExpectedActivationHeadV1" in parameters
+            and (kind, owner) != ALLOWED_EXPECTED_HEAD_CONSUMER
+        )
+        exposes_store = AUTHORITY_STATE_STORE_TYPE in declaration
+        if (
+            has_forbidden_marker
+            or has_unapproved_head
+            or exposes_store
+        ):
+            authority_injection_consumers.append(
+                f"{owner}.{symbol_name}"
+            )
+    if authority_injection_consumers:
+        raise VerificationError(
+            f"{graph_label}: public callable exposes caller-injected "
+            "authority state: "
+            + ", ".join(authority_injection_consumers)
+        )
+
     raw_policy_consumers = []
     for kind, owner, symbol_name, declaration in declarations:
         if kind not in CALLABLE_KINDS:
@@ -609,6 +657,8 @@ def verify_public_api(
         and (
             COMPOSED_CLOSURE_TYPE in declaration
             or "RuntimeLaunchPolicyRecordV1" in declaration
+            or "ExpectedActivationHeadV1" in declaration
+            or AUTHORITY_STATE_STORE_TYPE in declaration
         )
     ]
     if security_typealiases:
@@ -625,6 +675,8 @@ def verify_public_api(
         and (
             COMPOSED_CLOSURE_TYPE in declaration
             or "RuntimeLaunchPolicyRecordV1" in declaration
+            or "ExpectedActivationHeadV1" in declaration
+            or AUTHORITY_STATE_STORE_TYPE in declaration
         )
     ]
     if protected_function_properties:
@@ -963,6 +1015,48 @@ def run_synthetic_regression_checks(
         },
         "public callable accepts a raw launch policy",
     )
+    for symbol_name, declaration in (
+        (
+            "replay(authorityPublicKeyRawRepresentation:)",
+            (
+                "static func replay("
+                "authorityPublicKeyRawRepresentation: [UInt8])"
+            ),
+        ),
+        (
+            "bypass(expectedActivationHead:)",
+            (
+                "func bypass(expectedActivationHead: "
+                "ExpectedActivationHeadV1)"
+            ),
+        ),
+        (
+            "bypass(authorityStateStore:)",
+            (
+                "func bypass(authorityStateStore: "
+                "TrustRootAuthorityStateStoreV1)"
+            ),
+        ),
+        (
+            "bypass(authorityStatePath:)",
+            "func bypass(authorityStatePath: String)",
+        ),
+    ):
+        expect_synthetic_rejection(
+            graph_label,
+            symbols,
+            relationships,
+            {
+                **symbol_base,
+                "kind": {"identifier": "swift.func"},
+                "pathComponents": [
+                    "UnexpectedAuthorityConsumerV1",
+                    symbol_name,
+                ],
+                "declarationFragments": [{"spelling": declaration}],
+            },
+            "public callable exposes caller-injected authority state",
+        )
     for kind, owner, symbol_name, declaration, expected_fragment in (
         (
             "swift.type.method",
@@ -1000,6 +1094,8 @@ def run_synthetic_regression_checks(
     for alias_name, aliased_type in (
         ("Preimages", "RuntimeLaunchPreimageClosureV1"),
         ("RawPolicy", "RuntimeLaunchPolicyRecordV1"),
+        ("AuthorityHead", "ExpectedActivationHeadV1"),
+        ("AuthorityStore", "TrustRootAuthorityStateStoreV1"),
     ):
         expect_synthetic_rejection(
             graph_label,
@@ -1029,6 +1125,16 @@ def run_synthetic_regression_checks(
             "swift.type.property",
             "closureBypass",
             "(RuntimeLaunchPreimageClosureV1) -> Bool",
+        ),
+        (
+            "swift.property",
+            "authorityHeadBypass",
+            "(ExpectedActivationHeadV1) -> Bool",
+        ),
+        (
+            "swift.type.property",
+            "authorityStoreBypass",
+            "(TrustRootAuthorityStateStoreV1) -> Bool",
         ),
     ):
         expect_synthetic_rejection(

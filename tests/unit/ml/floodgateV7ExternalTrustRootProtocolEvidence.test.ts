@@ -19,7 +19,7 @@ function read(relativePath: string): string {
 }
 
 describe("Floodgate v7 external trust-root protocol boundary", () => {
-  it("ships one dependency-free library and no operational target", () => {
+  it("retains one dependency-free core library and no operational script", () => {
     const packageSource = read(packageRelative);
     const packageJson = JSON.parse(read("package.json")) as {
       scripts?: Record<string, string>;
@@ -27,7 +27,10 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
 
     expect(packageSource.match(/\.library\(/gu)).toHaveLength(1);
     expect(packageSource).toMatch(/dependencies\s*:\s*\[\s*\]/u);
-    expect(packageSource).not.toMatch(/\.executable(?:Target)?\(/u);
+    expect(packageSource).toContain(
+      'name: "floodgate-v7-trust-root-supervisor"',
+    );
+    expect(packageSource).toContain('name: "floodgate-v7-trust-root-verifier"');
     expect(packageSource).not.toContain(".plugin(");
     expect(packageSource).not.toContain(".binaryTarget(");
     expect(
@@ -44,7 +47,7 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
     ).toEqual([]);
   });
 
-  it("keeps the source surface standard-library-only and non-operational", () => {
+  it("keeps the original protocol core standard-library-only", () => {
     const expectedSources = [
       "ActivationRecord.swift",
       "ArtifactClosureRecordV1.swift",
@@ -56,9 +59,9 @@ describe("Floodgate v7 external trust-root protocol boundary", () => {
     ];
     const sourceDirectory = path.join(repositoryRoot, sourceRelative);
     const actualSources = fs.readdirSync(sourceDirectory).sort();
-    expect(actualSources).toEqual(expectedSources);
+    expect(actualSources).toEqual(expect.arrayContaining(expectedSources));
 
-    const source = actualSources
+    const source = expectedSources
       .map((name) => fs.readFileSync(path.join(sourceDirectory, name), "utf8"))
       .join("\n");
     for (const forbidden of [

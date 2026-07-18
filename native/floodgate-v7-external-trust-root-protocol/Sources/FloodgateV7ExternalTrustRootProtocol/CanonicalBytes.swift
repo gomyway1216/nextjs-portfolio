@@ -52,6 +52,26 @@ public struct CanonicalBytes32: Equatable, Hashable, Comparable, Sendable {
     }
 }
 
+public struct CanonicalBytes64: Equatable, Hashable, Sendable {
+    public let bytes: [UInt8]
+
+    public init(_ bytes: [UInt8]) throws {
+        guard bytes.count == 64 else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        self.bytes = Array(bytes)
+    }
+
+    static func unchecked(_ bytes: [UInt8]) -> Self {
+        precondition(bytes.count == 64)
+        return try! Self(bytes)
+    }
+
+    var isAllZero: Bool {
+        bytes.allSatisfy { $0 == 0 }
+    }
+}
+
 enum CanonicalSHA256 {
     private static let initialState: [UInt32] = [
         0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,

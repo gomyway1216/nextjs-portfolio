@@ -2,6 +2,8 @@
 
 > The [production recovery foundation](./blog-shogi-floodgate-v7-production-recovery-operator-foundation.en.md) found a circular bootstrap in which repository code under verification ran before its checks, then removed the former operator's launcher, preload, issuer, and CLI. This article covers the next boundary: the dependency-free Swift protocol library `FloodgateV7ExternalTrustRootProtocol`. It is not the external trust root itself. It creates no executable, installer, signing key, issuer, or production entrypoint, so the operational decision remains `UNAVAILABLE / STOP`. Japanese version: [blog-shogi-floodgate-v7-external-trust-root-protocol.md](./blog-shogi-floodgate-v7-external-trust-root-protocol.md)
 
+> **Historical note:** Surface and count claims below, including “no executable target,” describe this article's revision. The later [current source boundary](./blog-shogi-floodgate-v7-external-supervisor-verifier-source.en.md) adds only fixed STOP targets that do not link the protocol and exit 78; it still adds no production entrypoint.
+
 ## 1. Result
 
 This change isolates a **pure protocol boundary** for approved enrollments held by a future native verifier outside the repository and the ordered activate / revoke / rollback operations applied to them. Its purpose is to represent trust policy as fixed-length, versioned, strict canonical bytes instead of an ambiguous object or repository-local callback.

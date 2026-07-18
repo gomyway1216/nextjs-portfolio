@@ -24,6 +24,8 @@ const productionLauncherTestRelative =
 const implementationEvidenceRevision =
   "773f7eb88f943385ac89a6ec0e61d9e7a23e5e12";
 const implementationEvidenceTree = "ef6a4f738393d1dfc59ce2c4752628633cf16f14";
+const finalLocalEvidenceRevision = "69e982e52966d24f21c994cf42494d4234e4420e";
+const finalLocalEvidenceTree = "192c847d4eb0396654b886acb7e930dea493fbdf";
 const publicationValidationPaths = [
   japaneseArticleRelative,
   englishArticleRelative,
@@ -690,9 +692,13 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       publication_hardening_revision:
         "f231f30a3a354ce1895553a90a775b85691376e6",
       publication_hardening_tree: "259dceb28f96b90194ef03808f88d6a59effd339",
+      final_local_evidence_revision: finalLocalEvidenceRevision,
+      final_local_evidence_tree: finalLocalEvidenceTree,
       base_pull_request: 499,
       base_integration_method: "regular-merge-commit",
     });
+    expect(evidence.revision).not.toHaveProperty("status_snapshot_revision");
+    expect(evidence.revision).not.toHaveProperty("status_snapshot_tree");
     for (const [revisionKey, treeKey] of [
       ["base_revision", "base_tree"],
       ["canonical_preimage_revision", "canonical_preimage_tree"],
@@ -711,6 +717,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       ["pr_review_remediation_revision", "pr_review_remediation_tree"],
       ["publication_evidence_revision", "publication_evidence_tree"],
       ["publication_hardening_revision", "publication_hardening_tree"],
+      ["final_local_evidence_revision", "final_local_evidence_tree"],
     ] as const) {
       const revision = evidence.revision[revisionKey] as string;
       expect(gitOutput(["rev-parse", `${revision}^{tree}`])).toBe(
@@ -868,7 +875,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             finding_id:
               "symbol-graph-verifier-required-exactly-one-build-product",
             remote_status: "UNRESOLVED",
-            local_status: "PENDING_REREVIEW",
+            local_status:
+              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
           },
           {
             thread_id: "PRRT_kwDOQbO82s6R-cAA",
@@ -876,7 +884,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             path: "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
             finding_id: "evidence-test-hardcoded-usr-bin-git",
             remote_status: "UNRESOLVED",
-            local_status: "PENDING_REREVIEW",
+            local_status:
+              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
           },
           {
             thread_id: "PRRT_kwDOQbO82s6R-cuK",
@@ -885,13 +894,14 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
             finding_id:
               "evidence-test-counted-ci-settings-across-unrelated-jobs",
             remote_status: "UNRESOLVED",
-            local_status: "PENDING_REREVIEW",
+            local_status:
+              "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING",
           },
         ],
       },
       local_remediation: {
-        status: "LOCAL_VALIDATION_PASS_REMOTE_CI_PENDING",
-        updated_at: "2026-07-18T05:49:00-07:00",
+        status: "LOCAL_EVIDENCE_EXACT_REVIEW_PASS_REMOTE_CI_PENDING",
+        updated_at: "2026-07-18T06:02:00-07:00",
         intermediate_remediation_revision:
           "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
         intermediate_remediation_tree:
@@ -904,11 +914,30 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         publication_hardening_revision:
           "f231f30a3a354ce1895553a90a775b85691376e6",
         publication_hardening_tree: "259dceb28f96b90194ef03808f88d6a59effd339",
+        final_local_evidence_revision: finalLocalEvidenceRevision,
+        final_local_evidence_tree: finalLocalEvidenceTree,
         technical_commit_created_at: "2026-07-18T04:18:27-07:00",
         technical_exact_revision_review: {
           status: "PASS",
           reviewed_revision: "735398093f7c839c8c2a97f33ef96607961bd829",
           reviewed_tree: "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+          unresolved_p0: 0,
+          unresolved_p1: 0,
+          unresolved_p2: 0,
+        },
+        final_local_evidence_exact_revision_review: {
+          status: "PASS",
+          reviewed_revision: finalLocalEvidenceRevision,
+          reviewed_tree: finalLocalEvidenceTree,
+          reviewed_git_blobs: {
+            [japaneseArticleRelative]:
+              "14fa99fe33f8a5dab86ba0f0b41f2717f3dfbcb4",
+            [englishArticleRelative]:
+              "8568b2f704f645d07cbc7158f4e97c200c403b44",
+            [evidenceRelative]: "f2381a99344c789f76ce81fc2edefdd828af32ab",
+            "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts":
+              "d3fcbb1f8313d2ff38cee88ae5bff400123f6e2e",
+          },
           unresolved_p0: 0,
           unresolved_p1: 0,
           unresolved_p2: 0,
@@ -1335,9 +1364,9 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         reviewed_integration_revision:
           "3adfd0651e22ecb801b958eef8c9ca00f054a52e",
         remediation_status:
-          "FINAL_LOCAL_EVIDENCE_COMMIT_AND_EXACT_REVIEW_PENDING",
+          "FINAL_LOCAL_EVIDENCE_EXACT_REVIEW_PASS_STATUS_SNAPSHOT_PENDING",
         current_content_exact_review_status:
-          "PENDING_FINAL_LOCAL_EVIDENCE_COMMIT",
+          "PENDING_STATUS_SNAPSHOT_COMMIT_AND_EXTERNAL_EXACT_REVIEW",
         resolved_p1_total: 4,
         resolved_p2_total: 28,
         unresolved_p0: 0,
@@ -1651,6 +1680,23 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
           "final-local-evidence-recorded-at-still-predated-sequence-twenty-two-artifact-freeze",
         ],
       },
+      {
+        review_sequence: 24,
+        status: "PASS",
+        reviewed_content: "exact-final-local-evidence-commit",
+        reviewed_revision: finalLocalEvidenceRevision,
+        reviewed_tree: finalLocalEvidenceTree,
+        reviewed_git_blobs: {
+          [japaneseArticleRelative]: "14fa99fe33f8a5dab86ba0f0b41f2717f3dfbcb4",
+          [englishArticleRelative]: "8568b2f704f645d07cbc7158f4e97c200c403b44",
+          [evidenceRelative]: "f2381a99344c789f76ce81fc2edefdd828af32ab",
+          "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts":
+            "d3fcbb1f8313d2ff38cee88ae5bff400123f6e2e",
+        },
+        unresolved_p0: 0,
+        unresolved_p1: 0,
+        unresolved_p2: 0,
+      },
     ]);
     expect(
       evidence.validation.independent_security_review.review_history,
@@ -1910,6 +1956,11 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       "f231f30a3a354ce1895553a90a775b85691376e6",
       "259dceb28f96b90194ef03808f88d6a59effd339",
+      finalLocalEvidenceRevision,
+      finalLocalEvidenceTree,
+      "status snapshot",
+      "自身のSHA / treeは記録しない",
+      "commit後の外部exact review",
       "external-extension shard",
       "SPI symbol込み",
       "raw child outputを含まない",
@@ -1974,6 +2025,11 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
       "f231f30a3a354ce1895553a90a775b85691376e6",
       "259dceb28f96b90194ef03808f88d6a59effd339",
+      finalLocalEvidenceRevision,
+      finalLocalEvidenceTree,
+      "status snapshot",
+      "does not record its own SHA or tree",
+      "External exact review after commit",
       "external-extension shards",
       "SPI symbols included",
       "no raw child output",

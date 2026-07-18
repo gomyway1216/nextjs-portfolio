@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-runtime-policy-preimages-v1",
-  "recorded_at": "2026-07-18T05:49:00-07:00",
+  "recorded_at": "2026-07-18T06:02:00-07:00",
   "scope": {
     "status": "UNAVAILABLE",
     "operational_decision": "STOP",
@@ -50,6 +50,8 @@
     "publication_evidence_tree": "b438ad59b5387e39cd884ffba2d1721755b71996",
     "publication_hardening_revision": "f231f30a3a354ce1895553a90a775b85691376e6",
     "publication_hardening_tree": "259dceb28f96b90194ef03808f88d6a59effd339",
+    "final_local_evidence_revision": "69e982e52966d24f21c994cf42494d4234e4420e",
+    "final_local_evidence_tree": "192c847d4eb0396654b886acb7e930dea493fbdf",
     "base_integration_method": "regular-merge-commit",
     "base_pull_request": 499
   },
@@ -125,7 +127,7 @@
           "path": "native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py",
           "finding_id": "symbol-graph-verifier-required-exactly-one-build-product",
           "remote_status": "UNRESOLVED",
-          "local_status": "PENDING_REREVIEW"
+          "local_status": "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING"
         },
         {
           "thread_id": "PRRT_kwDOQbO82s6R-cAA",
@@ -133,7 +135,7 @@
           "path": "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
           "finding_id": "evidence-test-hardcoded-usr-bin-git",
           "remote_status": "UNRESOLVED",
-          "local_status": "PENDING_REREVIEW"
+          "local_status": "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING"
         },
         {
           "thread_id": "PRRT_kwDOQbO82s6R-cuK",
@@ -141,13 +143,13 @@
           "path": "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts",
           "finding_id": "evidence-test-counted-ci-settings-across-unrelated-jobs",
           "remote_status": "UNRESOLVED",
-          "local_status": "PENDING_REREVIEW"
+          "local_status": "LOCAL_REMEDIATION_REVIEW_PASS_REMOTE_RESOLUTION_PENDING"
         }
       ]
     },
     "local_remediation": {
-      "status": "LOCAL_VALIDATION_PASS_REMOTE_CI_PENDING",
-      "updated_at": "2026-07-18T05:49:00-07:00",
+      "status": "LOCAL_EVIDENCE_EXACT_REVIEW_PASS_REMOTE_CI_PENDING",
+      "updated_at": "2026-07-18T06:02:00-07:00",
       "intermediate_remediation_revision": "eba6e9ecbd271fa4d8354fe1552a8123ac326959",
       "intermediate_remediation_tree": "c770f08c6df12f6a2d0a602025571aa0406b85d2",
       "remediation_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
@@ -156,11 +158,27 @@
       "publication_evidence_tree": "b438ad59b5387e39cd884ffba2d1721755b71996",
       "publication_hardening_revision": "f231f30a3a354ce1895553a90a775b85691376e6",
       "publication_hardening_tree": "259dceb28f96b90194ef03808f88d6a59effd339",
+      "final_local_evidence_revision": "69e982e52966d24f21c994cf42494d4234e4420e",
+      "final_local_evidence_tree": "192c847d4eb0396654b886acb7e930dea493fbdf",
       "technical_commit_created_at": "2026-07-18T04:18:27-07:00",
       "technical_exact_revision_review": {
         "status": "PASS",
         "reviewed_revision": "735398093f7c839c8c2a97f33ef96607961bd829",
         "reviewed_tree": "5f8b873ffe1d15d5a9efc50e7e986478d826f3bc",
+        "unresolved_p0": 0,
+        "unresolved_p1": 0,
+        "unresolved_p2": 0
+      },
+      "final_local_evidence_exact_revision_review": {
+        "status": "PASS",
+        "reviewed_revision": "69e982e52966d24f21c994cf42494d4234e4420e",
+        "reviewed_tree": "192c847d4eb0396654b886acb7e930dea493fbdf",
+        "reviewed_git_blobs": {
+          "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md": "14fa99fe33f8a5dab86ba0f0b41f2717f3dfbcb4",
+          "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md": "8568b2f704f645d07cbc7158f4e97c200c403b44",
+          "docs/data/floodgate-v7-runtime-policy-preimages-2026-07-18.json": "f2381a99344c789f76ce81fc2edefdd828af32ab",
+          "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts": "d3fcbb1f8313d2ff38cee88ae5bff400123f6e2e"
+        },
         "unresolved_p0": 0,
         "unresolved_p1": 0,
         "unresolved_p2": 0
@@ -1067,10 +1085,26 @@
           "finding_ids": [
             "final-local-evidence-recorded-at-still-predated-sequence-twenty-two-artifact-freeze"
           ]
+        },
+        {
+          "review_sequence": 24,
+          "status": "PASS",
+          "reviewed_content": "exact-final-local-evidence-commit",
+          "reviewed_revision": "69e982e52966d24f21c994cf42494d4234e4420e",
+          "reviewed_tree": "192c847d4eb0396654b886acb7e930dea493fbdf",
+          "reviewed_git_blobs": {
+            "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md": "14fa99fe33f8a5dab86ba0f0b41f2717f3dfbcb4",
+            "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md": "8568b2f704f645d07cbc7158f4e97c200c403b44",
+            "docs/data/floodgate-v7-runtime-policy-preimages-2026-07-18.json": "f2381a99344c789f76ce81fc2edefdd828af32ab",
+            "tests/unit/ml/floodgateV7RuntimePolicyPreimagesEvidence.test.ts": "d3fcbb1f8313d2ff38cee88ae5bff400123f6e2e"
+          },
+          "unresolved_p0": 0,
+          "unresolved_p1": 0,
+          "unresolved_p2": 0
         }
       ],
-      "remediation_status": "FINAL_LOCAL_EVIDENCE_COMMIT_AND_EXACT_REVIEW_PENDING",
-      "current_content_exact_review_status": "PENDING_FINAL_LOCAL_EVIDENCE_COMMIT",
+      "remediation_status": "FINAL_LOCAL_EVIDENCE_EXACT_REVIEW_PASS_STATUS_SNAPSHOT_PENDING",
+      "current_content_exact_review_status": "PENDING_STATUS_SNAPSHOT_COMMIT_AND_EXTERNAL_EXACT_REVIEW",
       "resolved_p1_total": 4,
       "resolved_p2_total": 28,
       "unresolved_p0": 0,

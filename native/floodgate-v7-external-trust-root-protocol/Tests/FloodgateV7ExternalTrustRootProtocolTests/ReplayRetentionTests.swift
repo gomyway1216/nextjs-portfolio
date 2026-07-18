@@ -142,7 +142,10 @@ private struct RetentionFixture {
     let authorityKey = Curve25519.Signing.PrivateKey()
     let supervisorKey = Curve25519.Signing.PrivateKey()
     let verifierKey = Curve25519.Signing.PrivateKey()
+    let runtimeInstallPolicy: RuntimeInstallPolicyRecordV1
     let runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1
+    let runtimeLaunchPreimageClosure:
+        RuntimeLaunchPreimageClosureV1
     let manifest: RepositorySourceManifestV1
     let enrollment: EnrollmentRecord
     let signedEnrollment: SignedEnrollmentRecordV1
@@ -154,15 +157,43 @@ private struct RetentionFixture {
     let observation: RepositoryObservationV1
 
     init(childProcessUniqueID: UInt64 = 0x1003) throws {
+        let fixedArgv = FixedArgvRecordV1()
+        let fixedWorkingDirectory =
+            FixedWorkingDirectoryRecordV1()
+        let fixedEnvironment = FixedEnvironmentRecordV1()
+        runtimeInstallPolicy = try RuntimeInstallPolicyRecordV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            recordID: retentionBytes32(0x05),
+            nodeWholeFileSHA256: retentionBytes32(0x70),
+            nodeCodeDirectorySHA256:
+                retentionBytes32(0x97),
+            nodeDesignatedRequirementSHA256:
+                retentionBytes32(0x98),
+            nodeHeldExecutableIdentitySHA256:
+                retentionBytes32(0x99),
+            diagnosticEntryBundleWholeFileSHA256:
+                retentionBytes32(0x50),
+            diagnosticEntryBundleHeldFileIdentitySHA256:
+                retentionBytes32(0x51),
+            filesystemIdentityPolicySHA256:
+                retentionBytes32(0x52),
+            aclPolicySHA256: retentionBytes32(0x53)
+        )
         runtimeLaunchPolicy = try RuntimeLaunchPolicyRecordV1(
             audience: .productionRecovery,
             purpose: .inspectStalePrefix100,
             recordID: retentionBytes32(0x01),
-            fixedArgvSHA256: retentionBytes32(0x02),
-            fixedWorkingDirectorySHA256: retentionBytes32(0x03),
-            fixedEnvironmentSHA256: retentionBytes32(0x04),
-            runtimeInstallPolicySHA256: retentionBytes32(0x05),
-            diagnosticEntryBundleSHA256: retentionBytes32(0x50)
+            fixedArgvSHA256: fixedArgv.canonicalSHA256(),
+            fixedWorkingDirectorySHA256:
+                fixedWorkingDirectory.canonicalSHA256(),
+            fixedEnvironmentSHA256:
+                fixedEnvironment.canonicalSHA256(),
+            runtimeInstallPolicySHA256:
+                runtimeInstallPolicy.canonicalSHA256(),
+            diagnosticEntryBundleSHA256:
+                runtimeInstallPolicy
+                    .diagnosticEntryBundleWholeFileSHA256
         )
         manifest = try RepositorySourceManifestV1(
             audience: .productionRecovery,
@@ -211,6 +242,15 @@ private struct RetentionFixture {
             artifactClosureRecordSHA256: retentionBytes32(0xc0),
             installPolicyRecordSHA256: retentionBytes32(0xd0)
         )
+        runtimeLaunchPreimageClosure =
+            try RuntimeLaunchPreimageClosureV1(
+                fixedArgv: fixedArgv,
+                fixedWorkingDirectory: fixedWorkingDirectory,
+                fixedEnvironment: fixedEnvironment,
+                runtimeInstallPolicy: runtimeInstallPolicy,
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                sourceManifest: manifest
+            )
         enrollment = try EnrollmentRecord(
             audience: .productionRecovery,
             purpose: .inspectStalePrefix100,
@@ -407,7 +447,7 @@ private func issueRetentionChallenge(
             fixture.authorityPublicKey,
         expectedActivationHead: fixture.expectedActivationHead,
         manifest: fixture.manifest,
-        runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+        runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
         verifierAnonymousFDChannelBindingSHA256:
             fixture.verifierProcessIdentity
             .anonymousFDChannelBindingSHA256,
@@ -439,7 +479,7 @@ private func issueRetentionReceipt(
         supervisorPublicKeyRawRepresentation:
             fixture.supervisorPublicKey,
         manifest: fixture.manifest,
-        runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+        runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
         observation: fixture.observation,
         supervisorProcessIdentity:
             fixture.supervisorProcessIdentity,
@@ -483,7 +523,7 @@ private func makeRetentionHandoff(
         challenge: challenge,
         receipt: receipt,
         manifest: fixture.manifest,
-        runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+        runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
         expectedActivationHead: fixture.expectedActivationHead,
         enrollment: fixture.enrollment,
         observation: fixture.observation,
@@ -529,7 +569,7 @@ private func consumeRetentionHandoff(
         challenge: handoff.challenge,
         receipt: handoff.receipt,
         manifest: fixture.manifest,
-        runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+        runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
         expectedActivationHead: fixture.expectedActivationHead,
         enrollment: fixture.enrollment,
         observation: fixture.observation,
@@ -595,8 +635,7 @@ final class ReplayRetentionTests: XCTestCase {
                     expectedActivationHead:
                         fixture.expectedActivationHead,
                     manifest: fixture.manifest,
-                    runtimeLaunchPolicy:
-                        fixture.runtimeLaunchPolicy,
+                    runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                     verifierAnonymousFDChannelBindingSHA256:
                         fixture.verifierProcessIdentity
                         .anonymousFDChannelBindingSHA256,
@@ -718,8 +757,7 @@ final class ReplayRetentionTests: XCTestCase {
                 challenge: challenge,
                 receipt: invalidFutureReceipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy:
-                    fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -787,7 +825,7 @@ final class ReplayRetentionTests: XCTestCase {
                 challenge: handoff.challenge,
                 receipt: handoff.receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,
@@ -904,7 +942,7 @@ final class ReplayRetentionTests: XCTestCase {
                 challenge: handoff.challenge,
                 receipt: handoff.receipt,
                 manifest: fixture.manifest,
-                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                runtimeLaunchPreimageClosure: fixture.runtimeLaunchPreimageClosure,
                 expectedActivationHead:
                     fixture.expectedActivationHead,
                 enrollment: fixture.enrollment,

@@ -8,13 +8,21 @@ private func preimageBytes32(start: UInt8) -> CanonicalBytes32 {
     )
 }
 
-private func runtimeInstallPolicyFixture()
+private func preimageBytes20(start: UInt8) -> CanonicalBytes20 {
+    try! CanonicalBytes20(
+        (0..<20).map { start &+ UInt8($0) }
+    )
+}
+
+private func runtimeInstallPolicyFixture(
+    recordID: CanonicalBytes32 = preimageBytes32(start: 0x10)
+)
     throws -> RuntimeInstallPolicyRecordV1
 {
     try RuntimeInstallPolicyRecordV1(
         audience: .productionRecovery,
         purpose: .inspectStalePrefix100,
-        recordID: preimageBytes32(start: 0x10),
+        recordID: recordID,
         nodeWholeFileSHA256: preimageBytes32(start: 0x20),
         nodeCodeDirectorySHA256: preimageBytes32(start: 0x30),
         nodeDesignatedRequirementSHA256:
@@ -28,6 +36,105 @@ private func runtimeInstallPolicyFixture()
         filesystemIdentityPolicySHA256:
             preimageBytes32(start: 0x80),
         aclPolicySHA256: preimageBytes32(start: 0x90)
+    )
+}
+
+private func runtimeLaunchPolicyFixture(
+    installPolicy: RuntimeInstallPolicyRecordV1,
+    fixedArgvSHA256: CanonicalBytes32? = nil,
+    fixedWorkingDirectorySHA256: CanonicalBytes32? = nil,
+    fixedEnvironmentSHA256: CanonicalBytes32? = nil,
+    runtimeInstallPolicySHA256: CanonicalBytes32? = nil,
+    diagnosticEntryBundleSHA256: CanonicalBytes32? = nil
+) throws -> RuntimeLaunchPolicyRecordV1 {
+    try RuntimeLaunchPolicyRecordV1(
+        audience: .productionRecovery,
+        purpose: .inspectStalePrefix100,
+        recordID: preimageBytes32(start: 0xa0),
+        fixedArgvSHA256:
+            fixedArgvSHA256
+            ?? FixedArgvRecordV1().canonicalSHA256(),
+        fixedWorkingDirectorySHA256:
+            fixedWorkingDirectorySHA256
+            ?? FixedWorkingDirectoryRecordV1().canonicalSHA256(),
+        fixedEnvironmentSHA256:
+            fixedEnvironmentSHA256
+            ?? FixedEnvironmentRecordV1().canonicalSHA256(),
+        runtimeInstallPolicySHA256:
+            runtimeInstallPolicySHA256
+            ?? installPolicy.canonicalSHA256(),
+        diagnosticEntryBundleSHA256:
+            diagnosticEntryBundleSHA256
+            ?? installPolicy.diagnosticEntryBundleWholeFileSHA256
+    )
+}
+
+private func sourceManifestFixture(
+    runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+    installPolicy: RuntimeInstallPolicyRecordV1,
+    repositorySourceClosureSHA256: CanonicalBytes32 =
+        preimageBytes32(start: 0xb0),
+    diagnosticBundleSHA256: CanonicalBytes32? = nil,
+    pinnedNodeRuntimeSHA256: CanonicalBytes32? = nil,
+    pinnedNodeCodeDirectorySHA256: CanonicalBytes32? = nil,
+    pinnedNodeDesignatedRequirementSHA256: CanonicalBytes32? = nil,
+    pinnedNodeHeldExecutableIdentitySHA256: CanonicalBytes32? = nil
+) throws -> RepositorySourceManifestV1 {
+    try RepositorySourceManifestV1(
+        audience: .productionRecovery,
+        purpose: .inspectStalePrefix100,
+        manifestID: preimageBytes32(start: 0xc0),
+        approvedCommit: preimageBytes20(start: 0x10),
+        approvedTree: preimageBytes20(start: 0x30),
+        repositorySourceClosureSHA256:
+            repositorySourceClosureSHA256,
+        diagnosticBundleSHA256:
+            diagnosticBundleSHA256
+            ?? installPolicy.diagnosticEntryBundleWholeFileSHA256,
+        diagnosticLauncherJXASHA256:
+            preimageBytes32(start: 0xd0),
+        pinnedNodeRuntimeSHA256:
+            pinnedNodeRuntimeSHA256
+            ?? installPolicy.nodeWholeFileSHA256,
+        runtimeLaunchPolicySHA256:
+            runtimeLaunchPolicy.canonicalSHA256(),
+        supervisorArtifactSHA256:
+            preimageBytes32(start: 0xe0),
+        verifierArtifactSHA256:
+            preimageBytes32(start: 0xf0),
+        supervisorCodeDirectorySHA256:
+            preimageBytes32(start: 0x01),
+        supervisorDesignatedRequirementSHA256:
+            preimageBytes32(start: 0x02),
+        supervisorHeldExecutableIdentitySHA256:
+            preimageBytes32(start: 0x03),
+        verifierCodeDirectorySHA256:
+            preimageBytes32(start: 0x04),
+        verifierDesignatedRequirementSHA256:
+            preimageBytes32(start: 0x05),
+        verifierHeldExecutableIdentitySHA256:
+            preimageBytes32(start: 0x06),
+        pinnedNodeCodeDirectorySHA256:
+            pinnedNodeCodeDirectorySHA256
+            ?? installPolicy.nodeCodeDirectorySHA256,
+        pinnedNodeDesignatedRequirementSHA256:
+            pinnedNodeDesignatedRequirementSHA256
+            ?? installPolicy.nodeDesignatedRequirementSHA256,
+        pinnedNodeHeldExecutableIdentitySHA256:
+            pinnedNodeHeldExecutableIdentitySHA256
+            ?? installPolicy.nodeHeldExecutableIdentitySHA256,
+        supervisorAttestationKeyID:
+            preimageBytes32(start: 0x07),
+        verifierAttestationKeyID:
+            preimageBytes32(start: 0x08),
+        gitDirectoryPolicySHA256:
+            preimageBytes32(start: 0x09),
+        repositoryPathPolicySHA256:
+            preimageBytes32(start: 0x0a),
+        artifactClosureRecordSHA256:
+            preimageBytes32(start: 0x0b),
+        installPolicyRecordSHA256:
+            preimageBytes32(start: 0x0c)
     )
 }
 
@@ -373,6 +480,171 @@ final class RuntimeLaunchPreimageRecordTests: XCTestCase {
             try RuntimeInstallPolicyRecordV1.decodeCanonical(
                 changedIdentity
             )
+        )
+    }
+
+    func testPreimageClosureRejectsEveryPolicyDigestSubstitution()
+        throws
+    {
+        let fixedArgv = FixedArgvRecordV1()
+        let fixedWorkingDirectory =
+            FixedWorkingDirectoryRecordV1()
+        let fixedEnvironment = FixedEnvironmentRecordV1()
+        let installPolicy = try runtimeInstallPolicyFixture()
+        let validPolicy = try runtimeLaunchPolicyFixture(
+            installPolicy: installPolicy
+        )
+        let validManifest = try sourceManifestFixture(
+            runtimeLaunchPolicy: validPolicy,
+            installPolicy: installPolicy
+        )
+        let validClosure = try RuntimeLaunchPreimageClosureV1(
+            fixedArgv: fixedArgv,
+            fixedWorkingDirectory: fixedWorkingDirectory,
+            fixedEnvironment: fixedEnvironment,
+            runtimeInstallPolicy: installPolicy,
+            runtimeLaunchPolicy: validPolicy,
+            sourceManifest: validManifest
+        )
+        XCTAssertNoThrow(
+            try validClosure.validate(sourceManifest: validManifest)
+        )
+
+        let wrongArgv = preimageBytes32(start: 0xf1)
+        let wrongWorkingDirectory = preimageBytes32(start: 0xf2)
+        let wrongEnvironment = preimageBytes32(start: 0xf3)
+        let wrongInstallPolicy = preimageBytes32(start: 0xf4)
+        let wrongBundle = preimageBytes32(start: 0xf5)
+        let substitutedPolicies = try [
+            runtimeLaunchPolicyFixture(
+                installPolicy: installPolicy,
+                fixedArgvSHA256: wrongArgv
+            ),
+            runtimeLaunchPolicyFixture(
+                installPolicy: installPolicy,
+                fixedWorkingDirectorySHA256:
+                    wrongWorkingDirectory
+            ),
+            runtimeLaunchPolicyFixture(
+                installPolicy: installPolicy,
+                fixedEnvironmentSHA256: wrongEnvironment
+            ),
+            runtimeLaunchPolicyFixture(
+                installPolicy: installPolicy,
+                runtimeInstallPolicySHA256: wrongInstallPolicy
+            ),
+            runtimeLaunchPolicyFixture(
+                installPolicy: installPolicy,
+                diagnosticEntryBundleSHA256: wrongBundle
+            ),
+        ]
+
+        for substitutedPolicy in substitutedPolicies {
+            let manifest = try sourceManifestFixture(
+                runtimeLaunchPolicy: substitutedPolicy,
+                installPolicy: installPolicy,
+                diagnosticBundleSHA256:
+                    substitutedPolicy.diagnosticEntryBundleSHA256
+            )
+            assertInvalidPreimage(
+                try RuntimeLaunchPreimageClosureV1(
+                    fixedArgv: fixedArgv,
+                    fixedWorkingDirectory: fixedWorkingDirectory,
+                    fixedEnvironment: fixedEnvironment,
+                    runtimeInstallPolicy: installPolicy,
+                    runtimeLaunchPolicy: substitutedPolicy,
+                    sourceManifest: manifest
+                )
+            )
+        }
+    }
+
+    func testPreimageClosureRejectsInstallAndManifestDrift()
+        throws
+    {
+        let fixedArgv = FixedArgvRecordV1()
+        let fixedWorkingDirectory =
+            FixedWorkingDirectoryRecordV1()
+        let fixedEnvironment = FixedEnvironmentRecordV1()
+        let installPolicy = try runtimeInstallPolicyFixture()
+        let runtimeLaunchPolicy = try runtimeLaunchPolicyFixture(
+            installPolicy: installPolicy
+        )
+        let manifest = try sourceManifestFixture(
+            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            installPolicy: installPolicy
+        )
+        let closure = try RuntimeLaunchPreimageClosureV1(
+            fixedArgv: fixedArgv,
+            fixedWorkingDirectory: fixedWorkingDirectory,
+            fixedEnvironment: fixedEnvironment,
+            runtimeInstallPolicy: installPolicy,
+            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            sourceManifest: manifest
+        )
+
+        let substitutedInstallPolicy =
+            try runtimeInstallPolicyFixture(
+                recordID: preimageBytes32(start: 0x11)
+            )
+        assertInvalidPreimage(
+            try RuntimeLaunchPreimageClosureV1(
+                fixedArgv: fixedArgv,
+                fixedWorkingDirectory: fixedWorkingDirectory,
+                fixedEnvironment: fixedEnvironment,
+                runtimeInstallPolicy: substitutedInstallPolicy,
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                sourceManifest: manifest
+            )
+        )
+
+        let manifestIdentityDrifts = try [
+            sourceManifestFixture(
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                installPolicy: installPolicy,
+                pinnedNodeRuntimeSHA256:
+                    preimageBytes32(start: 0x71)
+            ),
+            sourceManifestFixture(
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                installPolicy: installPolicy,
+                pinnedNodeCodeDirectorySHA256:
+                    preimageBytes32(start: 0x72)
+            ),
+            sourceManifestFixture(
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                installPolicy: installPolicy,
+                pinnedNodeDesignatedRequirementSHA256:
+                    preimageBytes32(start: 0x73)
+            ),
+            sourceManifestFixture(
+                runtimeLaunchPolicy: runtimeLaunchPolicy,
+                installPolicy: installPolicy,
+                pinnedNodeHeldExecutableIdentitySHA256:
+                    preimageBytes32(start: 0x74)
+            ),
+        ]
+        for driftedManifest in manifestIdentityDrifts {
+            assertInvalidPreimage(
+                try RuntimeLaunchPreimageClosureV1(
+                    fixedArgv: fixedArgv,
+                    fixedWorkingDirectory: fixedWorkingDirectory,
+                    fixedEnvironment: fixedEnvironment,
+                    runtimeInstallPolicy: installPolicy,
+                    runtimeLaunchPolicy: runtimeLaunchPolicy,
+                    sourceManifest: driftedManifest
+                )
+            )
+        }
+
+        let differentManifest = try sourceManifestFixture(
+            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            installPolicy: installPolicy,
+            repositorySourceClosureSHA256:
+                preimageBytes32(start: 0xb1)
+        )
+        assertInvalidPreimage(
+            try closure.validate(sourceManifest: differentManifest)
         )
     }
 }

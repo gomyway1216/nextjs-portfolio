@@ -467,3 +467,99 @@ public struct RuntimeInstallPolicyRecordV1: Equatable, Sendable {
         }
     }
 }
+
+public struct RuntimeLaunchPreimageClosureV1: Equatable, Sendable {
+    public let fixedArgv: FixedArgvRecordV1
+    public let fixedWorkingDirectory: FixedWorkingDirectoryRecordV1
+    public let fixedEnvironment: FixedEnvironmentRecordV1
+    public let runtimeInstallPolicy: RuntimeInstallPolicyRecordV1
+    public let runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1
+    public let sourceManifestSHA256: CanonicalBytes32
+
+    public init(
+        fixedArgv: FixedArgvRecordV1,
+        fixedWorkingDirectory: FixedWorkingDirectoryRecordV1,
+        fixedEnvironment: FixedEnvironmentRecordV1,
+        runtimeInstallPolicy: RuntimeInstallPolicyRecordV1,
+        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        sourceManifest: RepositorySourceManifestV1
+    ) throws {
+        try Self.validate(
+            fixedArgv: fixedArgv,
+            fixedWorkingDirectory: fixedWorkingDirectory,
+            fixedEnvironment: fixedEnvironment,
+            runtimeInstallPolicy: runtimeInstallPolicy,
+            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            sourceManifest: sourceManifest
+        )
+        self.fixedArgv = fixedArgv
+        self.fixedWorkingDirectory = fixedWorkingDirectory
+        self.fixedEnvironment = fixedEnvironment
+        self.runtimeInstallPolicy = runtimeInstallPolicy
+        self.runtimeLaunchPolicy = runtimeLaunchPolicy
+        self.sourceManifestSHA256 = sourceManifest.canonicalSHA256()
+    }
+
+    public func validate(
+        sourceManifest: RepositorySourceManifestV1
+    ) throws {
+        guard
+            sourceManifestSHA256 == sourceManifest.canonicalSHA256()
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        try Self.validate(
+            fixedArgv: fixedArgv,
+            fixedWorkingDirectory: fixedWorkingDirectory,
+            fixedEnvironment: fixedEnvironment,
+            runtimeInstallPolicy: runtimeInstallPolicy,
+            runtimeLaunchPolicy: runtimeLaunchPolicy,
+            sourceManifest: sourceManifest
+        )
+    }
+
+    private static func validate(
+        fixedArgv: FixedArgvRecordV1,
+        fixedWorkingDirectory: FixedWorkingDirectoryRecordV1,
+        fixedEnvironment: FixedEnvironmentRecordV1,
+        runtimeInstallPolicy: RuntimeInstallPolicyRecordV1,
+        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        sourceManifest: RepositorySourceManifestV1
+    ) throws {
+        try sourceManifest.validateRuntimeLaunchPolicy(
+            runtimeLaunchPolicy
+        )
+        guard
+            runtimeLaunchPolicy.fixedArgvSHA256
+                == fixedArgv.canonicalSHA256(),
+            runtimeLaunchPolicy.fixedWorkingDirectorySHA256
+                == fixedWorkingDirectory.canonicalSHA256(),
+            runtimeLaunchPolicy.fixedEnvironmentSHA256
+                == fixedEnvironment.canonicalSHA256(),
+            runtimeLaunchPolicy.runtimeInstallPolicySHA256
+                == runtimeInstallPolicy.canonicalSHA256(),
+            runtimeLaunchPolicy.diagnosticEntryBundleSHA256
+                == runtimeInstallPolicy
+                    .diagnosticEntryBundleWholeFileSHA256,
+            runtimeInstallPolicy.audience
+                == sourceManifest.audience,
+            runtimeInstallPolicy.purpose
+                == sourceManifest.purpose,
+            runtimeInstallPolicy.nodeWholeFileSHA256
+                == sourceManifest.pinnedNodeRuntimeSHA256,
+            runtimeInstallPolicy.nodeCodeDirectorySHA256
+                == sourceManifest.pinnedNodeCodeDirectorySHA256,
+            runtimeInstallPolicy.nodeDesignatedRequirementSHA256
+                == sourceManifest
+                    .pinnedNodeDesignatedRequirementSHA256,
+            runtimeInstallPolicy.nodeHeldExecutableIdentitySHA256
+                == sourceManifest
+                    .pinnedNodeHeldExecutableIdentitySHA256,
+            runtimeInstallPolicy
+                .diagnosticEntryBundleWholeFileSHA256
+                == sourceManifest.diagnosticBundleSHA256
+        else {
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+    }
+}

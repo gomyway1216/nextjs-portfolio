@@ -574,7 +574,8 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         publicKeyRawRepresentation: [UInt8],
         challenge: SupervisorChallengeV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         expectedActivationHead: ExpectedActivationHeadV1,
         enrollment: EnrollmentRecord,
         observation: RepositoryObservationV1,
@@ -630,7 +631,9 @@ public struct VerifierReceiptV1: Equatable, Sendable {
             throw CanonicalRecordError.invalidCanonicalRecord
         }
         try manifest.validateEnrollment(enrollment)
-        try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try runtimeLaunchPreimageClosure.validate(
+            sourceManifest: manifest
+        )
         try expectedActivationHead.validateTranscriptEnrollment(
             enrollment
         )
@@ -949,7 +952,8 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         challenge: SupervisorChallengeV1,
         receipt: VerifierReceiptV1,
         manifest: RepositorySourceManifestV1,
-        runtimeLaunchPolicy: RuntimeLaunchPolicyRecordV1,
+        runtimeLaunchPreimageClosure:
+            RuntimeLaunchPreimageClosureV1,
         expectedActivationHead: ExpectedActivationHeadV1,
         supervisorProcessIdentity: ProcessIdentityV1,
         childProcessIdentity: ProcessIdentityV1,
@@ -1017,7 +1021,9 @@ public struct OneShotAttestationV1: Equatable, Sendable {
             expectedAnonymousFDChannelBindingSHA256:
                 expectedChildAnonymousFDChannelBindingSHA256
         )
-        try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
+        try runtimeLaunchPreimageClosure.validate(
+            sourceManifest: manifest
+        )
         try TrustRootSignatureV1.verify(
             signature: signature,
             payload: signaturePayload(),

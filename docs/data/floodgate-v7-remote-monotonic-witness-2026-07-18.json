@@ -118,8 +118,13 @@
   },
   "local_comparison_gate": {
     "status": "INTERNAL-TEST-ONLY-NOT-PRODUCTION-WIRED",
+    "request_start_clock_sampled_before_first_local_snapshot": true,
+    "internal_test_inputs_caller_supplied": true,
     "nonce_bound_query": true,
     "operation_id_bound_query": true,
+    "receipt_binding_to_supplied_nonce_operation_id_and_key": true,
+    "nonce_unpredictability_established": false,
+    "production_public_key_pinning_established": false,
     "receipt_signature_verified": true,
     "receipt_checked_at_receive_and_completion": true,
     "trusted_clock_samples": [

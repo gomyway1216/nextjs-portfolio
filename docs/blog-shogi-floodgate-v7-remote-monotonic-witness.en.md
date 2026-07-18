@@ -61,7 +61,9 @@ This is not a durable transaction design. A production provider must atomically 
 
 ## 4. Fresh signed comparison
 
-The internal gate first takes a fresh local authority snapshot. It creates a query with fixed audience and purpose plus fixed-bound witness ID, endpoint ID, unpredictable client nonce, and operation ID. After receiving the receipt, it verifies Ed25519, the signer-key ID derived from the pinned public key, the complete request digest, every query binding, and the signed checkpoint digest.
+The internal gate samples its request-start clock and then takes a fresh local authority snapshot. Its internal test harness supplies the witness ID, endpoint ID, expected public-key bytes, client nonce, operation ID, clock, and fetch callback. The gate creates a fixed-audience, fixed-purpose query and proves that the signed receipt is bound to those supplied values, the complete request digest, and the signed checkpoint digest.
+
+This establishes receipt binding, not nonce unpredictability or production public-key pinning. A production integration must provide and separately prove both properties.
 
 Receipt lifetime is at most 30 seconds, with `issuedAt <= now < expiresAt`. The gate samples its trusted Unix clock at request start, receipt arrival, and completion. It rejects clock rollback, verifies freshness immediately after the fetch, reloads the local authority state and requires the original token to be unchanged, then verifies freshness again at completion. A receipt that expires while the final local check runs therefore stops instead of being accepted.
 

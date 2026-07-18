@@ -278,6 +278,9 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
     );
     expect(gate.match(/try trustedUnixClock\(\)/gu)).toHaveLength(3);
     expect(gate.match(/receipt\.verifiedCheckpoint\(/gu)).toHaveLength(2);
+    expect(gate.indexOf("let requestStartedAtUnixSeconds")).toBeLessThan(
+      gate.indexOf("let before = try store.freshSnapshot()"),
+    );
     expect(gate).toContain("try store.requireUnchanged(before.token)");
     expect(
       gate.indexOf("try store.requireUnchanged(before.token)"),
@@ -307,6 +310,11 @@ describe("Floodgate v7 remote monotonic witness evidence boundary", () => {
     });
     expect(evidence.local_comparison_gate).toMatchObject({
       status: "INTERNAL-TEST-ONLY-NOT-PRODUCTION-WIRED",
+      request_start_clock_sampled_before_first_local_snapshot: true,
+      internal_test_inputs_caller_supplied: true,
+      receipt_binding_to_supplied_nonce_operation_id_and_key: true,
+      nonce_unpredictability_established: false,
+      production_public_key_pinning_established: false,
       receipt_checked_at_receive_and_completion: true,
       trusted_clock_samples: [
         "request-start",

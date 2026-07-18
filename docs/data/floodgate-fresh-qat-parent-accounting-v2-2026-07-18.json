@@ -1,0 +1,213 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-parent-accounting-v2-evidence-v1",
+  "status": "implementation-complete-local-validation-pass-review-and-ci-pending",
+  "recorded_date": "2026-07-18",
+  "base_revision": "ccfecdc1647f003e70d5d037a8da97120934fee7",
+  "validated_implementation_anchor": {
+    "revision": "635d98f1083c0fdbbe8dbf4d2e922eb9d574a739",
+    "tree": "054f16b85d17697de7288a222d1814ec332fe555",
+    "review": "PENDING",
+    "continuous_integration": "PENDING"
+  },
+  "logical_commits": {
+    "core_implementation": "dd017f8c907b908fc3de1e77ed0b0c4ca67201e9",
+    "restore_byte_pinned_package_manifest": "800e1c8e2fadab283c5da25c73fdda26074b314e",
+    "strict_typed_authority_hardening": "635d98f1083c0fdbbe8dbf4d2e922eb9d574a739",
+    "history_rewritten": false
+  },
+  "implementation_identities": {
+    "module": {
+      "path": "ml/fresh_qat_parent_accounting_v2.py",
+      "bytes": 43765,
+      "sha256": "d0e56db2f021d80fb6c966dc3f4c6e569d502c8de10f0b5ca57d98ce95900419"
+    },
+    "stdlib_tests": {
+      "path": "ml/tests_stdlib/test_fresh_qat_parent_accounting_v2.py",
+      "bytes": 24835,
+      "sha256": "33d00f7a6eac0f78da14a744fd305b7866e1d1068de6f4c9de8a2eeba3a722e5"
+    },
+    "pre_result_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-v2-amendment.json",
+      "schema": "shogi-floodgate-fresh-qat-parent-accounting-amendment-v2",
+      "bytes": 6469,
+      "sha256": "2a9c6ebb8b7c6d50d606bbdf0f1eb0cb5d971159e2cee836ff26a5d96c8c80d5"
+    },
+    "closed_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v2",
+      "bytes": 3046,
+      "sha256": "08f3ebecc880f2e3c97f4591d3a2e68cb186dde8772bcbaf534fe518fdd89130"
+    }
+  },
+  "immutable_upstream": {
+    "preregistered_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+    },
+    "role_bundle_result": {
+      "path": "ml/protocols/floodgate-q1-2026-role-bundle-result.json",
+      "bytes": 14735,
+      "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf"
+    },
+    "v1_plan_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "bytes": 409,
+      "sha256": "9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00"
+    },
+    "v1_selection_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "bytes": 2294,
+      "sha256": "7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39"
+    },
+    "historical_records_pinned_and_unchanged": 6
+  },
+  "input_training_binding": {
+    "parents": 24000,
+    "games": 1000,
+    "bytes": 15369952,
+    "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62",
+    "parent_ids_sha256": "6681bd08bb282be04f47bf3157ea07fbbe2bc6a6864a100ce65902dc9cc3f08f",
+    "game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+    "position_ids_count": 24000,
+    "position_ids_sha256": "a97788b608a6687c078b7fbe2172a5c4068c57a42ed322c3997692f697e73b5c"
+  },
+  "fixed_parent_accounting": {
+    "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+    "input_parents": 24000,
+    "model_training_parents_source": "emitted_parent_groups",
+    "input_and_emitted_parent_digests_bound_separately": true,
+    "forced_parent_digest_bound": true,
+    "replacement_allowed": false,
+    "resampling_allowed": false,
+    "emitted_order": "order-preserving-subsequence-of-input",
+    "cases": {
+      "zero_forced": "valid-E-24000",
+      "some_forced": "valid-E-24000-minus-F",
+      "all_forced": "accountable-STOP-no-trainable-parent-groups"
+    }
+  },
+  "model_training_binding": {
+    "fields": [
+      "bytes",
+      "sha256",
+      "records",
+      "parents",
+      "games",
+      "game_ids_sha256",
+      "parent_ids_sha256",
+      "semantic_position_ids_count",
+      "semantic_position_ids_sha256"
+    ],
+    "parents_equals_emitted_parent_groups": true,
+    "minimum_sibling_rows_per_emitted_group": 2
+  },
+  "unchanged_contracts": {
+    "training_canonical_sha256": "b0bf9dbd2342b8be325fae4d195e9bdd909a702361d229293f30849f1348d8ac",
+    "slots_canonical_sha256": "aab83502378adca6557e4ba0d9da4cf545061eed8d15b1aeae0b99b8a41ffeed",
+    "selection_canonical_sha256": "9aeade0c64556bd8c3b59bff7b1b1cedb386d2226a4ce60fc7b59677d305352c",
+    "seeds": [42, 43, 44],
+    "architecture": "2282-256-32-1-clipped-relu",
+    "loss": "sibling-ranking",
+    "optimizer": "AdamW",
+    "learning_rate": 0.0001,
+    "epochs": 20,
+    "selection_gates_changed": false,
+    "holdout_policy_changed": false
+  },
+  "materializer_boundary": {
+    "stdlib_only": true,
+    "strict_json_and_jsonl": true,
+    "reads_caller_supplied_bytes_only": true,
+    "writes_files": false,
+    "mutates_registry": false,
+    "imports_torch": false,
+    "runs_teacher": false,
+    "runs_training": false,
+    "reads_selection": false,
+    "reads_holdout": false,
+    "authenticates_teacher_origin": false,
+    "enrolls_artifacts": false,
+    "grants_authority": false
+  },
+  "closed_registry": {
+    "enrollments_null": 5,
+    "gates_false": 8,
+    "authority_flags_false": 7,
+    "training_dispatch_ready": false,
+    "selection_preflight_ready": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "local_validation": {
+    "focused_parent_accounting": {
+      "tests": 15,
+      "passed": 15,
+      "failed": 0,
+      "wall_seconds": 0.07
+    },
+    "fresh_qat_compatibility": {
+      "tests": 41,
+      "passed": 41,
+      "failed": 0,
+      "wall_seconds": 1.57,
+      "suites": [
+        "test_fresh_qat_protocol",
+        "test_fresh_qat_selection_preflight",
+        "test_fresh_qat_parent_accounting_v2"
+      ]
+    },
+    "full_stdlib_suite": {
+      "tests": 134,
+      "passed": 134,
+      "failed": 0,
+      "wall_seconds": 10.73,
+      "command": "npm run test:ml:stdlib"
+    },
+    "pinned_stable_wasm_deadline_diagnostic": {
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "wall_seconds": 2.99,
+      "package_json_exactly_matches_base": true
+    },
+    "publication_evidence": {
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "wall_seconds": 0.35
+    },
+    "adversarial_cases": [
+      "zero-forced",
+      "some-forced",
+      "all-forced-accountable-stop",
+      "replacement-parent",
+      "reordered-parent",
+      "reopened-parent-group",
+      "game-or-position-substitution",
+      "bad-lf-or-cr-framing",
+      "duplicate-json-key",
+      "nonfinite-json",
+      "short-sibling-group",
+      "input-identity-drift",
+      "contract-tamper",
+      "authority-tamper",
+      "historical-evidence-drift"
+    ]
+  },
+  "observations": {
+    "real_teacher_parents_processed": 0,
+    "real_forced_parents_observed": 0,
+    "real_emitted_parent_groups_observed": 0,
+    "real_training_artifacts_enrolled": 0,
+    "fresh_qat_training_runs": 0,
+    "fresh_qat_results": 0,
+    "selection_labels_read": false,
+    "final_holdout_labels_read": false,
+    "matches_executed": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  },
+  "next_required_action": "after-authenticated-teacher-artifact-completion-materialize-and-review-a-data-only-proposal-enrollment-pr"
+}

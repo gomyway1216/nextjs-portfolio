@@ -79,7 +79,9 @@ jobs:
           xcrun swift package \
             --package-path native/floodgate-v7-external-trust-root-protocol \
             dump-symbol-graph \
-            --minimum-access-level public
+            --minimum-access-level public \
+            --include-spi-symbols \
+            --skip-synthesized-members
           /usr/bin/python3 \
             native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py
 

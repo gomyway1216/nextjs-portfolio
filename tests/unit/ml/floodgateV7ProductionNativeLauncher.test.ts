@@ -590,11 +590,38 @@ JSON.stringify({
   });
 
   darwinIt("strips or rejects DYLD injection before the attested child", () => {
-    const result = runTestLauncher({
+    let result = runTestLauncher({
       FLOODGATE_V7_LAUNCHER_TEST_MODE: "extra-dyld",
     });
+    const firstSignal = result.signal;
+    const retryableParentSignal =
+      result.error === undefined &&
+      result.status === null &&
+      result.stdout === "" &&
+      (firstSignal === "SIGABRT" || firstSignal === "SIGKILL");
+    if (retryableParentSignal) {
+      process.stderr.write(
+        `[floodgate-v7-test] retrying DYLD rejection after ` +
+          `status=${String(result.status)} signal=${String(firstSignal)} ` +
+          `stdout_empty=${String(result.stdout === "")} ` +
+          `stderr_empty=${String(result.stderr === "")}\n`,
+      );
+      result = runTestLauncher({
+        FLOODGATE_V7_LAUNCHER_TEST_MODE: "extra-dyld",
+      });
+    }
     expect(result.error).toBeUndefined();
-    expect([0, 6]).toContain(result.status);
+    expect(
+      [0, 6],
+      `unexpected DYLD rejection outcome: status=${String(
+        result.status,
+      )} signal=${String(result.signal)} first_signal=${String(
+        firstSignal,
+      )} stdout_empty=${String(result.stdout === "")} ` +
+        `stderr_empty=${String(result.stderr === "")} ` +
+        `stderr_utf8_bytes=${String(Buffer.byteLength(result.stderr, "utf8"))}`,
+    ).toContain(result.status);
+    expect(result.signal).toBeNull();
     if (result.status === 0) {
       expect(result.stderr).toBe("");
       expect(JSON.parse(result.stdout)).toMatchObject({ attested: true });

@@ -469,6 +469,12 @@ class FreshQATParentAccountingV2Test(unittest.TestCase):
                 "contracts",
             ),
             (
+                lambda value: value["training_contracts"][0].__setitem__(
+                    "selection_evaluations", False
+                ),
+                "contracts",
+            ),
+            (
                 lambda value: value["unchanged_contracts"]["training"].__setitem__(
                     "epochs", 21
                 ),
@@ -485,6 +491,21 @@ class FreshQATParentAccountingV2Test(unittest.TestCase):
             mutation(tampered)
             with self.assertRaisesRegex(ValueError, message):
                 validate(tampered)
+
+        missing_authority = copy.deepcopy(proposal)
+        missing_authority["authority"].pop("promotion_authorized")
+        with self.assertRaisesRegex(ValueError, "authority fields"):
+            validate(missing_authority)
+
+        integer_false = copy.deepcopy(proposal)
+        integer_false["authority"]["promotion_authorized"] = 0
+        with self.assertRaisesRegex(ValueError, "authority"):
+            validate(integer_false)
+
+        nonclaim_integer = copy.deepcopy(proposal)
+        nonclaim_integer["nonclaims"]["strength_improved"] = 0
+        with self.assertRaisesRegex(ValueError, "nonclaims"):
+            validate(nonclaim_integer)
 
         extra = copy.deepcopy(proposal)
         extra["unexpected"] = True

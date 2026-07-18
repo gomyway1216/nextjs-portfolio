@@ -194,6 +194,28 @@ _TRAIN_ROW_REQUIRED_FIELDS = frozenset(
     }
 )
 _INPUT_PARENT_FIELDS = frozenset({"game_id", "parent_id", "position_id"})
+_AUTHORITY_FIELDS = frozenset(
+    {
+        "teacher_execution_authorized",
+        "artifact_enrollment_authorized",
+        "training_dispatch_authorized",
+        "selection_reader_authorized",
+        "holdout_reader_authorized",
+        "promotion_authorized",
+        "production_weight_write_authorized",
+    }
+)
+_NONCLAIM_FIELDS = frozenset(
+    {
+        "teacher_origin_authenticated_by_this_materializer",
+        "artifact_enrolled",
+        "training_executed",
+        "candidate_selected",
+        "strength_improved",
+        "high_dan_calibrated",
+        "live_weights_changed",
+    }
+)
 _PROPOSAL_FIELDS = frozenset(
     {
         "schema",
@@ -281,6 +303,21 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _typed_equal(value: Any, expected: Any) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        return set(value) == set(expected) and all(
+            _typed_equal(value[key], expected[key]) for key in expected
+        )
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _typed_equal(item, expected_item)
+            for item, expected_item in zip(value, expected)
+        )
+    return value == expected
 
 
 def _identifier_digest(values: set[str] | list[str] | tuple[str, ...]) -> str:
@@ -915,11 +952,14 @@ def _validate_fresh_qat_parent_accounting_proposal_v2(
         or value["execution_plan_schema"] != FRESH_QAT_EXECUTION_PLAN_SCHEMA_V2
     ):
         raise ValueError("fresh QAT parent-accounting proposal header differs")
-    if value["upstream"] != {
+    if not _typed_equal(
+        value["upstream"],
+        {
         "preregistered_plan": _PREREGISTERED_PLAN_IDENTITY,
         "role_bundle_result": _ROLE_BUNDLE_RESULT_IDENTITY,
         "input_training": dict(expected_input_binding),
-    }:
+        },
+    ):
         raise ValueError("fresh QAT parent-accounting proposal upstream differs")
 
     accounting = value["parent_accounting"]
@@ -1054,9 +1094,7 @@ def _validate_fresh_qat_parent_accounting_proposal_v2(
         build_fresh_qat_training_contract(plan_stub, slot)
         for slot in _fixed_slots()
     ]
-    if contracts != expected_contracts or any(
-        type(contract) is not dict for contract in contracts
-    ):
+    if not _typed_equal(contracts, expected_contracts):
         raise ValueError("fresh QAT proposal training contracts differ")
     if any(
         contract["model_training_parents"] != emitted_count
@@ -1065,26 +1103,39 @@ def _validate_fresh_qat_parent_accounting_proposal_v2(
         raise ValueError("fresh QAT proposal did not pass emitted parents")
 
     unchanged = value["unchanged_contracts"]
-    if unchanged != {
-        "training": FRESH_QAT_REQUIRED_TRAINING,
-        "slots": _fixed_slots(),
-        "selection": FRESH_QAT_REQUIRED_SELECTION,
-        "training_contract_canonical_sha256": (
-            FRESH_QAT_TRAINING_CONTRACT_CANONICAL_SHA256
-        ),
-        "slot_registry_canonical_sha256": (
-            FRESH_QAT_SLOT_REGISTRY_CANONICAL_SHA256
-        ),
-        "selection_contract_canonical_sha256": (
-            FRESH_QAT_SELECTION_CONTRACT_CANONICAL_SHA256
-        ),
-    }:
+    if not _typed_equal(
+        unchanged,
+        {
+            "training": FRESH_QAT_REQUIRED_TRAINING,
+            "slots": _fixed_slots(),
+            "selection": FRESH_QAT_REQUIRED_SELECTION,
+            "training_contract_canonical_sha256": (
+                FRESH_QAT_TRAINING_CONTRACT_CANONICAL_SHA256
+            ),
+            "slot_registry_canonical_sha256": (
+                FRESH_QAT_SLOT_REGISTRY_CANONICAL_SHA256
+            ),
+            "selection_contract_canonical_sha256": (
+                FRESH_QAT_SELECTION_CONTRACT_CANONICAL_SHA256
+            ),
+        },
+    ):
         raise ValueError("fresh QAT proposal changed a frozen contract")
     _verify_unchanged_contract_digests()
 
-    if any(value["authority"].values()):
+    authority = _exact_fields(
+        value["authority"],
+        _AUTHORITY_FIELDS,
+        "fresh QAT proposal authority",
+    )
+    if any(item is not False for item in authority.values()):
         raise ValueError("fresh QAT proposal contains authority")
-    if any(value["nonclaims"].values()):
+    nonclaims = _exact_fields(
+        value["nonclaims"],
+        _NONCLAIM_FIELDS,
+        "fresh QAT proposal nonclaims",
+    )
+    if any(item is not False for item in nonclaims.values()):
         raise ValueError("fresh QAT proposal contradicts its nonclaims")
     return value
 

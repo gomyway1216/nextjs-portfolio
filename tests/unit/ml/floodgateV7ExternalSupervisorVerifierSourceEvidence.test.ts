@@ -66,13 +66,19 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
     const tests = read(
       `${moduleRelative}/Tests/FloodgateV7ExternalTrustRootProtocolTests/AuthenticatedHandoffTests.swift`,
     );
+    const replayRetentionTests = read(
+      `${moduleRelative}/Tests/FloodgateV7ExternalTrustRootProtocolTests/ReplayRetentionTests.swift`,
+    );
 
     expect(stateSource).toContain("public struct ExpectedActivationHeadV1");
-    expect(stateSource).toContain("canonicalByteCount = 84");
+    expect(stateSource).toContain("canonicalByteCount = 148");
     expect(stateSource).toContain(
       "lastActivationSequence\n                    == expectedActivationHead.latestActivationSequence",
     );
     expect(stateSource).toContain("latestActivationEnvelopeSHA256");
+    expect(stateSource).toContain("activeEnrollmentEnvelopeSHA256");
+    expect(stateSource).toContain("activeEnrollmentRecordSHA256");
+    expect(stateSource).toContain("validateTranscriptEnrollment");
     expect(stateSource).toContain("expectedHeadSHA256 == canonicalSHA256()");
     expect(manifestSource).toContain("validateAuthorityKeySeparation");
     expect(manifestSource).toContain(
@@ -87,6 +93,8 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
     expect(coreSource).toContain(
       "challenge.targetProcessIdentitySHA256\n                == supervisorProcessIdentity.canonicalSHA256()",
     );
+    expect(coreSource).toContain("maximumReplayRetentionCount = 4_096");
+    expect(coreSource).toContain("evictExpiredReplayEntries");
     expect(handoffSource).toContain(
       "try observation.validate(\n            manifest: manifest,\n            enrollment: enrollment",
     );
@@ -97,11 +105,26 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
       "testExpectedHeadRejectsTruncatedActivationHistoryAndRoleKeyReuse",
     );
     expect(tests).toContain(
+      "testExpectedHeadSelectsTheExactActiveEnrollmentEnvelope",
+    );
+    expect(tests).toContain(
       "testVerifierIndependentlyRejectsEverySupervisorIdentityDrift",
     );
     expect(tests).toContain("testVerifierRejectsTargetThatIsNotTheSupervisor");
     expect(tests).toContain("assertFinalConsumerRejects");
     expect(tests).toContain("authoritySignerKeyID: handoffBytes32(0xf9)");
+    expect(replayRetentionTests).toContain(
+      "testFixedCapacityFailsClosedUntilExpiryFreesSpace",
+    );
+    expect(replayRetentionTests).toContain(
+      "testExpiryEvictsReplayStateWithoutAllowingClockRollback",
+    );
+    expect(replayRetentionTests).toContain(
+      "testInvalidReceiptCannotExtendReplayRetention",
+    );
+    expect(replayRetentionTests).toContain(
+      "testLaterConcurrentClockPreventsOlderChallengeCommit",
+    );
   });
 
   it("records exact source-only measurements and zero production work", () => {
@@ -119,10 +142,21 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
       live_evaluator_changed: false,
     });
     expect(evidence.revision).toMatchObject({
-      base_revision: "163dc696e4e6453919547386294058285516c236",
-      implementation_revision: "e4ae076f1540d849707c1cf6e7be8bc253555f4a",
+      base_revision: "87bfcae6e35e03ed37a91b860417b9b943180ee0",
+      implementation_revision: "0f5446b51908b419cb40372cc1a59e7dc25dbef0",
       base_integration_method: "regular-merge-commit",
-      base_pull_request: 496,
+      base_pull_request: 498,
+    });
+    expect(evidence.canonical_records.expected_activation_head).toMatchObject({
+      encoded_bytes: 148,
+      same_enrollment_id_different_envelope_rejected: true,
+      same_enrollment_id_different_record_rejected: true,
+    });
+    expect(evidence.canonical_records.one_shot_attestation).toMatchObject({
+      replay_retention_maximum_live_entries: 4096,
+      replay_retention_evicts_at_signed_expiry: true,
+      replay_retention_capacity_fails_closed: true,
+      consumer_clock_rollback_rejected: true,
     });
     expect(evidence.revocation_semantics).toMatchObject({
       expected_head_rechecked_at_receipt_verification: true,
@@ -132,6 +166,10 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
       post_receipt_head_advance_invalidates_transcript_immediately: true,
       same_envelope_different_authority_key_rejected: true,
       same_envelope_different_sequence_rejected: true,
+      active_enrollment_envelope_pinned: true,
+      active_enrollment_record_pinned: true,
+      receipt_rechecks_active_enrollment_record: true,
+      same_enrollment_id_different_signed_record_rejected: true,
       production_root_owned_head_source_available: false,
     });
     expect(evidence.fixed_stop_targets).toMatchObject({
@@ -155,10 +193,17 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
       swift_version: "5.10",
       swift_tests: {
         status: "PASS",
-        present: 37,
-        passed: 37,
+        present: 44,
+        passed: 44,
         failed: 0,
       },
+      replay_retention_thread_sanitizer: {
+        status: "PASS",
+        present: 6,
+        passed: 6,
+        failed: 0,
+      },
+      deterministic_concurrency_test_repetitions: 20,
       swift_release_build: "PASS",
       fixed_stop_integration: "PASS",
     });
@@ -180,12 +225,12 @@ describe("Floodgate v7 external supervisor/verifier source boundary", () => {
 
     for (const article of [japanese, english]) {
       expect(article).toContain("UNAVAILABLE / STOP");
-      expect(article).toContain("37 / 37 PASS");
+      expect(article).toContain("44 / 44 PASS");
       expect(article).toContain("ExpectedActivationHeadV1");
       expect(article).toContain("exit 78");
       expect(article).toContain("opaque");
       expect(article).toContain("golden");
-      expect(article).toContain("e4ae076f1540d849707c1cf6e7be8bc253555f4a");
+      expect(article).toContain("0f5446b51908b419cb40372cc1a59e7dc25dbef0");
     }
     expect(japanese).toContain(
       "blog-shogi-floodgate-v7-external-supervisor-verifier-source.en.md",

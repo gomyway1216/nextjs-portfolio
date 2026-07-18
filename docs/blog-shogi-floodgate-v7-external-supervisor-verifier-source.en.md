@@ -7,14 +7,14 @@
 | Boundary           | Fixed in source / tests                                                                                                                                          | Still absent                                                                    |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | authority records  | verify-only replay of Ed25519-signed enrollment and activation envelopes                                                                                         | root-owned selection of the production authority public key; any private key    |
-| anti-rollback head | exact 84-byte record for authority key ID, latest activation sequence, and latest signed-envelope digest                                                         | root-owned create-only storage and fresh loading                                |
+| anti-rollback head | exact 148-byte record for authority key ID, latest activation sequence/envelope, and the active enrollment envelope/record                                       | root-owned create-only storage and fresh loading                                |
 | source manifest    | approved commit/tree, repository closure, bundle/JXA/Node, three executable-role code identities, role keys, and policy digests                                  | independent filesystem observation                                              |
 | process identity   | PID/PPID/EUID, unique ID, start time, audit token, parent identity, whole-file, CodeDirectory, designated requirement, held executable, and anonymous-FD channel | audit-token acquisition, no-follow open, and code-sign inspection               |
 | handoff            | signed challenge → verifier receipt → one-shot attestation, at most 30 seconds, wall and monotonic clocks, single use                                            | system-clock, CSPRNG, and IPC wiring                                            |
 | runtime policy     | supervisor directly launches pinned Node while authenticated JXA stays dormant and is never executed                                                             | canonical preimages for argv/cwd/env/install policy and process-group lifecycle |
 | executable targets | named supervisor / verifier fixed STOPs                                                                                                                          | operational wiring, signing, notarization, packaging, and installation          |
 
-The implementation source revision is `e4ae076f1540d849707c1cf6e7be8bc253555f4a`, based on PR #496's regular merge `163dc696e4e6453919547386294058285516c236`.
+The implementation source revision is `0f5446b51908b419cb40372cc1a59e7dc25dbef0`, based on PR #498's regular merge `87bfcae6e35e03ed37a91b860417b9b943180ee0`.
 
 ## 2. Separating “signed” from “current”
 
@@ -24,9 +24,11 @@ A correctly signed chain is not necessarily current. An attacker could remove a 
 
 - the authority signer key ID;
 - the latest activation sequence; and
-- the latest signed activation-envelope SHA-256.
+- the latest signed activation-envelope SHA-256;
+- the active signed enrollment-envelope SHA-256; and
+- the active enrollment-record SHA-256.
 
-The supervisor and verifier independently replay the signed chain from the beginning and continue only when the final sequence and envelope digest exactly match the head. The adversarial test sets a signed sequence-2 revoke as the current head, truncates the input after the sequence-1 activation, and observes rejection.
+The supervisor and verifier independently replay the signed chain from the beginning and continue only when the final sequence, activation envelope, active enrollment envelope, and active enrollment record exactly match the head. The adversarial tests set a signed sequence-2 revoke as the current head and truncate the input after sequence 1, then separately present a different authority-signed enrollment record with the same enrollment ID. Both are rejected. Receipt verification also rechecks the exact enrollment-record digest, so changing only an enrollment lifetime after challenge issuance fails closed.
 
 The authority, supervisor-attestation, and verifier-attestation key IDs must also be pairwise distinct. This fails closed if provisioning accidentally collapses revocation authority and runtime-attestation authority into one key.
 
@@ -54,9 +56,9 @@ Adversarial tests create a different artifact holding the correct supervisor key
 
 ## 4. Rechecking the head through final consumption
 
-The challenge is valid for at most 30 seconds under both wall and monotonic clocks; receipts and attestations cannot outlive it. The session rejects clock rollback and cannot turn the same challenge or receipt into two attestations. The consumer atomically consumes the attestation ID, challenge, receipt, and child-process identity once.
+The challenge is valid for at most 30 seconds under both wall and monotonic clocks; receipts and attestations cannot outlive it. The session rejects clock rollback and cannot turn the same challenge or receipt into two attestations. The consumer atomically consumes the attestation ID, challenge, receipt, and child-process identity once. Replay digests are retained only through their signed expiry and are evicted before later operations; a fixed fail-closed capacity also bounds memory within the live window.
 
-The signed challenge includes the SHA-256 of the complete 84-byte head. Receipt verification, attestation issuance and verification, and final consumption then require an exact match to the current head's canonical digest. If a new revoke advances the head after receipt issuance—or only the authority key ID or sequence changes—the old transcript is rejected immediately instead of retaining the remainder of its 30-second lifetime.
+The signed challenge includes the SHA-256 of the complete 148-byte head. Receipt verification, attestation issuance and verification, and final consumption then require an exact match to the current head's canonical digest. If a new revoke advances the head after receipt issuance—or only the authority key ID, sequence, or selected enrollment changes—the old transcript is rejected immediately instead of retaining the remainder of its 30-second lifetime.
 
 ## 5. A runtime-launch policy is not an implementation
 
@@ -81,7 +83,7 @@ With arbitrary argv, environment, stdin, and cwd, both measured exit 78 with zer
 
 ## 7. Measurements and nonclaims
 
-Under Xcode 15.3 / Swift 5.10, Swift tests are **37 / 37 PASS**, the release build passes, and the fixed-STOP integration passes. Coverage includes canonical record round trips and counts, signature mutation, wrong role keys, history truncation, process/code/channel substitution, clock rollback, expiry, observation drift, and one-shot replay.
+Under Xcode 15.3 / Swift 5.10, Swift tests are **44 / 44 PASS**, the release build passes, and the fixed-STOP integration passes. The six replay-retention tests also pass with Thread Sanitizer, and the deterministic clock-race test passed 20 repeated runs. Coverage includes canonical record round trips and counts, signature mutation, wrong role keys, history truncation, same-ID enrollment substitution, process/code/channel substitution, clock rollback, invalid-receipt retention poisoning, expiry eviction, fixed replay capacity, concurrent clock ordering, observation drift, and one-shot replay.
 
 This revision performed:
 

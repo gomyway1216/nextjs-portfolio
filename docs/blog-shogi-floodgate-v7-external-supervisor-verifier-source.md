@@ -7,14 +7,14 @@
 | 境界               | source / testで固定したこと                                                                                                                             | まだ無いもの                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | authority record   | Ed25519で署名されたenrollment / activation envelopeをverify-onlyで再生                                                                                  | production authority public keyのroot-owned選択、private key             |
-| anti-rollback head | authority key ID、最新activation sequence、最新signed-envelope digestを84-byte canonical recordで一致必須化                                             | root-owned create-only storageとfresh load                               |
+| anti-rollback head | authority key ID、最新activation sequence/envelope、active enrollmentのenvelope/recordを148-byte canonical recordで一致必須化                           | root-owned create-only storageとfresh load                               |
 | source manifest    | approved commit/tree、repository closure、bundle/JXA/Node、3実行役のartifact/code identity、役割鍵、policy digest                                       | filesystemからこれらを独立観測する実装                                   |
 | process identity   | PID/PPID/EUID、unique ID、start time、audit token、親identity、whole-file、CodeDirectory、designated requirement、held executable、anonymous FD channel | audit token取得、no-follow open、code-sign検査の実装                     |
 | handoff            | signed challenge → verifier receipt → one-shot attestation、最大30秒、壁時計とmonotonic clock、single use                                               | system clock / CSPRNG / IPCへの接続                                      |
 | runtime policy     | supervisorがpinned Nodeを直接起動し、JXAは認証済みdormant sourceのまま実行しない、というpolicy                                                          | argv/cwd/env/install policyのcanonical preimageとprocess-group lifecycle |
 | executable targets | supervisor / verifierの名前とfixed STOP                                                                                                                 | operational wiring、sign、notarize、package、install                     |
 
-実装source revisionは`e4ae076f1540d849707c1cf6e7be8bc253555f4a`、baseはPR #496のregular merge `163dc696e4e6453919547386294058285516c236`である。
+実装source revisionは`0f5446b51908b419cb40372cc1a59e7dc25dbef0`、baseはPR #498のregular merge `87bfcae6e35e03ed37a91b860417b9b943180ee0`である。
 
 ## 2. authorityの「署名済み」と「現在」を分ける
 
@@ -25,8 +25,10 @@
 - authority signer key ID
 - latest activation sequence
 - latest signed activation envelope SHA-256
+- active signed enrollment envelope SHA-256
+- active enrollment record SHA-256
 
-supervisorとverifierはそれぞれ独立に、署名chainを最初から再生し、最後のsequenceとenvelope digestがheadへ一致する場合だけ続行する。testでは、sequence 2のsigned revokeをcurrent headとしながらsequence 1のactivateまでに切り詰めた入力を拒否した。
+supervisorとverifierはそれぞれ独立に署名chainを最初から再生し、最後のsequence、activation envelope、active enrollment envelope、active enrollment recordがすべてheadへ一致する場合だけ続行する。testでは、sequence 2のsigned revokeをcurrent headとしながらsequence 1までに切り詰めた入力に加え、同じenrollment IDを持つ別のauthority-signed enrollment recordも拒否した。receipt verificationでもenrollment record digestを再確認するため、challenge発行後に有効期間だけを差し替えてもfail closedになる。
 
 さらにauthority、supervisor attestation、verifier attestationの3 key IDはpairwise distinctでなければならない。revocation authorityとruntime attestation authorityを同じ鍵へ畳み込むprovisioning mistakeをfail closedにする。
 
@@ -54,9 +56,9 @@ reviewでは、正しいsupervisor keyを持つ別artifact、targetとsupervisor
 
 ## 4. 最大30秒でもheadを最後まで再確認する
 
-challengeはwall-clockとmonotonic-clockの両方で最大30秒であり、receiptとattestationはそのexpiryを超えられない。sessionは時計のrollbackを拒否し、同じchallenge / receiptを2回attestationへ変換しない。consumerはattestation ID、challenge、receipt、child process identityをatomicに一度だけ消費する。
+challengeはwall-clockとmonotonic-clockの両方で最大30秒であり、receiptとattestationはそのexpiryを超えられない。sessionは時計のrollbackを拒否し、同じchallenge / receiptを2回attestationへ変換しない。consumerはattestation ID、challenge、receipt、child process identityをatomicに一度だけ消費する。replay digestは署名済みexpiryまでだけ保持して後続操作前に削除し、有効時間内も固定上限を超えたらfail closedにしてmemoryを有界化する。
 
-challengeは84-byte head全体のSHA-256を署名対象へ含める。さらにcurrent expected headはreceipt verification、attestation issuance / verification、final consumptionでもcanonical digestを完全一致で再確認する。receipt発行後にheadが新しいrevokeへ進んだ場合だけでなく、authority key IDまたはsequenceだけが変わった場合も、30秒の残り時間を待たず古いtranscriptは拒否される。
+challengeは148-byte head全体のSHA-256を署名対象へ含める。さらにcurrent expected headはreceipt verification、attestation issuance / verification、final consumptionでもcanonical digestを完全一致で再確認する。receipt発行後にheadが新しいrevokeへ進んだ場合だけでなく、authority key ID、sequence、選択enrollmentのいずれかだけが変わった場合も、30秒の残り時間を待たず古いtranscriptは拒否される。
 
 ## 5. runtime launch policyは実装ではない
 
@@ -81,7 +83,7 @@ challengeは84-byte head全体のSHA-256を署名対象へ含める。さらにc
 
 ## 7. 実測とnonclaim
 
-Xcode 15.3 / Swift 5.10でSwift test **37 / 37 PASS**、release build PASS、fixed STOP integration PASSだった。canonical recordのround-trip/count、signature mutation、wrong role key、history truncation、process/code/channel substitution、clock rollback、expiry、observation drift、one-shot replayを含む。
+Xcode 15.3 / Swift 5.10でSwift test **44 / 44 PASS**、release build PASS、fixed STOP integration PASSだった。replay retention 6 testsはThread Sanitizer付きでもPASSし、決定的clock-race testは20回反復して全てPASSした。canonical recordのround-trip/count、signature mutation、wrong role key、history truncation、same-ID enrollment substitution、process/code/channel substitution、clock rollback、invalid receipt retention poisoning、expiry eviction、fixed replay capacity、concurrent clock ordering、observation drift、one-shot replayを含む。
 
 今回の実行回数は次のとおりである。
 

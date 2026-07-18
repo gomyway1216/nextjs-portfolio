@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-external-supervisor-verifier-source-v1",
-  "recorded_at": "2026-07-17T20:27:48-07:00",
+  "recorded_at": "2026-07-18T00:15:34-07:00",
   "scope": {
     "status": "UNAVAILABLE",
     "operational_decision": "STOP",
@@ -16,12 +16,12 @@
     "live_evaluator_changed": false
   },
   "revision": {
-    "base_revision": "163dc696e4e6453919547386294058285516c236",
-    "base_tree": "6a3705073282eaffbf20e8a863a3279f03e12047",
-    "implementation_revision": "e4ae076f1540d849707c1cf6e7be8bc253555f4a",
-    "implementation_tree": "82562863f529f5f1084ceac4403ef9f499456c11",
+    "base_revision": "87bfcae6e35e03ed37a91b860417b9b943180ee0",
+    "base_tree": "868968c8b809beeb140fae56c31d247eaed1c8b3",
+    "implementation_revision": "0f5446b51908b419cb40372cc1a59e7dc25dbef0",
+    "implementation_tree": "044b1c7455da8673972b28a01bdd1cba72351205",
     "base_integration_method": "regular-merge-commit",
-    "base_pull_request": 496
+    "base_pull_request": 498
   },
   "architecture": {
     "future_launch_chain": [
@@ -38,13 +38,17 @@
   "canonical_records": {
     "expected_activation_head": {
       "magic": "FGV7EAH1",
-      "encoded_bytes": 84,
+      "encoded_bytes": 148,
       "fields": [
         "authority-signer-key-id",
         "latest-activation-sequence",
-        "latest-signed-activation-envelope-sha256"
+        "latest-signed-activation-envelope-sha256",
+        "active-signed-enrollment-envelope-sha256",
+        "active-enrollment-record-sha256"
       ],
-      "truncated_signed_history_rejected": true
+      "truncated_signed_history_rejected": true,
+      "same_enrollment_id_different_envelope_rejected": true,
+      "same_enrollment_id_different_record_rejected": true
     },
     "signed_enrollment": {
       "magic": "FGV7SEN1",
@@ -112,7 +116,11 @@
         "challenge-digest",
         "receipt-digest",
         "child-process-identity-digest"
-      ]
+      ],
+      "replay_retention_maximum_live_entries": 4096,
+      "replay_retention_evicts_at_signed_expiry": true,
+      "replay_retention_capacity_fails_closed": true,
+      "consumer_clock_rollback_rejected": true
     }
   },
   "role_separation": {
@@ -138,6 +146,10 @@
     "post_receipt_head_advance_invalidates_transcript_immediately": true,
     "same_envelope_different_authority_key_rejected": true,
     "same_envelope_different_sequence_rejected": true,
+    "active_enrollment_envelope_pinned": true,
+    "active_enrollment_record_pinned": true,
+    "receipt_rechecks_active_enrollment_record": true,
+    "same_enrollment_id_different_signed_record_rejected": true,
     "production_root_owned_head_source_available": false
   },
   "fixed_stop_targets": {
@@ -176,15 +188,25 @@
     "swift_version": "5.10",
     "swift_tests": {
       "status": "PASS",
-      "present": 37,
-      "passed": 37,
+      "present": 44,
+      "passed": 44,
       "failed": 0
     },
+    "replay_retention_thread_sanitizer": {
+      "status": "PASS",
+      "present": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "deterministic_concurrency_test_repetitions": 20,
     "swift_release_build": "PASS",
     "fixed_stop_integration": "PASS",
     "git_diff_check": "PASS",
     "independent_source_review": {
       "status": "PASS",
+      "reviewed_revision": "0f5446b51908b419cb40372cc1a59e7dc25dbef0",
+      "discovered_p1": 1,
+      "resolved_p1": 1,
       "unresolved_p0": 0,
       "unresolved_p1": 0
     }

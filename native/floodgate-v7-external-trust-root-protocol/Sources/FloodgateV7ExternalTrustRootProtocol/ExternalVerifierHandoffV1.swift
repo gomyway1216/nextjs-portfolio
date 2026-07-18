@@ -269,7 +269,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
         CanonicalSHA256.digest(canonicalBytes())
     }
 
-    public func verify(
+    func verify(
         publicKeyRawRepresentation: [UInt8],
         nowUnixSeconds: UInt64,
         nowMonotonicNanoseconds: UInt64

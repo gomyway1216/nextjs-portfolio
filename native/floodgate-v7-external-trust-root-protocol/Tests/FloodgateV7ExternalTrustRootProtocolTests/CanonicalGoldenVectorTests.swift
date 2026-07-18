@@ -223,6 +223,77 @@ final class CanonicalGoldenVectorTests: XCTestCase {
                 .diagnosticEntryBundleWholeFileSHA256
         )
 
+        let manifestRecord =
+            try fixture.record("repository_source_manifest")
+        let manifest = try RepositorySourceManifestV1.decodeCanonical(
+            goldenHexBytes(manifestRecord["canonical_hex"])
+        )
+        try assertGoldenCanonical(
+            manifest.canonicalBytes(),
+            record: manifestRecord
+        )
+        let runtimeLaunchPreimageClosure =
+            try RuntimeLaunchPreimageClosureV1(
+                fixedArgv: fixedArgv,
+                fixedWorkingDirectory: fixedCWD,
+                fixedEnvironment: fixedEnvironment,
+                runtimeInstallPolicy: runtimeInstall,
+                runtimeLaunchPolicy: runtimeLaunch,
+                sourceManifest: manifest
+            )
+        XCTAssertNoThrow(
+            try runtimeLaunchPreimageClosure.validate(
+                sourceManifest: manifest
+            )
+        )
+
+        let enrollmentRecord = try fixture.record("enrollment")
+        let enrollment = try EnrollmentRecord.decodeCanonical(
+            goldenHexBytes(enrollmentRecord["canonical_hex"])
+        )
+        try assertGoldenCanonical(
+            enrollment.canonicalBytes(),
+            record: enrollmentRecord
+        )
+        XCTAssertNoThrow(try manifest.validateEnrollment(enrollment))
+
+        let authorityKeyFixture = try fixture.key("authority")
+        let authorityPublicKey = try goldenHexBytes(
+            authorityKeyFixture["public_key_hex"]
+        )
+        let authorityKeyID = try TrustRootSignatureV1.signerKeyID(
+            publicKeyRawRepresentation: authorityPublicKey
+        )
+        XCTAssertNoThrow(
+            try manifest.validateAuthorityKeySeparation(authorityKeyID)
+        )
+
+        let signedEnrollmentRecord =
+            try fixture.record("signed_enrollment")
+        let signedEnrollment =
+            try SignedEnrollmentRecordV1.decodeCanonical(
+                goldenHexBytes(
+                    signedEnrollmentRecord["canonical_hex"]
+                )
+            )
+        try assertGoldenCanonical(
+            signedEnrollment.canonicalBytes(),
+            record: signedEnrollmentRecord
+        )
+        XCTAssertEqual(
+            signedEnrollment.signaturePayload(),
+            try goldenHexBytes(
+                signedEnrollmentRecord["signature_payload_hex"]
+            )
+        )
+        XCTAssertEqual(signedEnrollment.signerKeyID, authorityKeyID)
+        XCTAssertEqual(
+            try signedEnrollment.verifiedRecord(
+                publicKeyRawRepresentation: authorityPublicKey
+            ),
+            enrollment
+        )
+
         let activationRecord = try fixture.record("activation")
         let activation = try ActivationRecord.decodeCanonical(
             goldenHexBytes(activationRecord["canonical_hex"])
@@ -230,6 +301,36 @@ final class CanonicalGoldenVectorTests: XCTestCase {
         try assertGoldenCanonical(
             activation.canonicalBytes(),
             record: activationRecord
+        )
+        XCTAssertEqual(
+            activation.targetEnrollmentID,
+            enrollment.enrollmentID
+        )
+
+        let signedActivationRecord =
+            try fixture.record("signed_activation")
+        let signedActivation =
+            try SignedActivationRecordV1.decodeCanonical(
+                goldenHexBytes(
+                    signedActivationRecord["canonical_hex"]
+                )
+            )
+        try assertGoldenCanonical(
+            signedActivation.canonicalBytes(),
+            record: signedActivationRecord
+        )
+        XCTAssertEqual(
+            signedActivation.signaturePayload(),
+            try goldenHexBytes(
+                signedActivationRecord["signature_payload_hex"]
+            )
+        )
+        XCTAssertEqual(signedActivation.signerKeyID, authorityKeyID)
+        XCTAssertEqual(
+            try signedActivation.verifiedRecord(
+                publicKeyRawRepresentation: authorityPublicKey
+            ),
+            activation
         )
 
         let headRecord =
@@ -243,7 +344,31 @@ final class CanonicalGoldenVectorTests: XCTestCase {
         )
         XCTAssertEqual(
             head.latestActivationEnvelopeSHA256,
-            activation.canonicalSHA256()
+            signedActivation.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            head.activeEnrollmentEnvelopeSHA256,
+            signedEnrollment.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            head.activeEnrollmentRecordSHA256,
+            enrollment.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            head.authoritySignerKeyID,
+            authorityKeyID
+        )
+        let replay = try AuthenticatedProtocolStateV1.replay(
+            enrollmentEnvelopes: [signedEnrollment],
+            activationEnvelopes: [signedActivation],
+            authorityPublicKeyRawRepresentation: authorityPublicKey,
+            expectedActivationHead: head,
+            nowUnixSeconds: activation.issuedAtUnixSeconds
+        )
+        XCTAssertEqual(replay.activeEnrollment, enrollment)
+        XCTAssertEqual(
+            replay.lastActivationEnvelopeSHA256,
+            signedActivation.canonicalSHA256()
         )
     }
 
@@ -304,6 +429,41 @@ final class CanonicalGoldenVectorTests: XCTestCase {
                 nowMonotonicNanoseconds:
                     challenge.monotonicIssuedAtNanoseconds
             )
+        )
+        let manifestRecord =
+            try fixture.record("repository_source_manifest")
+        let manifest = try RepositorySourceManifestV1.decodeCanonical(
+            goldenHexBytes(manifestRecord["canonical_hex"])
+        )
+        let enrollmentRecord = try fixture.record("enrollment")
+        let enrollment = try EnrollmentRecord.decodeCanonical(
+            goldenHexBytes(enrollmentRecord["canonical_hex"])
+        )
+        let signedActivationRecord =
+            try fixture.record("signed_activation")
+        let signedActivation =
+            try SignedActivationRecordV1.decodeCanonical(
+                goldenHexBytes(
+                    signedActivationRecord["canonical_hex"]
+                )
+            )
+        let headRecord =
+            try fixture.record("expected_activation_head")
+        let head = try ExpectedActivationHeadV1.decodeCanonical(
+            goldenHexBytes(headRecord["canonical_hex"])
+        )
+        XCTAssertEqual(challenge.enrollmentID, enrollment.enrollmentID)
+        XCTAssertEqual(
+            challenge.activationDigest,
+            signedActivation.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            challenge.activationHeadSHA256,
+            head.canonicalSHA256()
+        )
+        XCTAssertEqual(
+            challenge.sourceManifestSHA256,
+            manifest.canonicalSHA256()
         )
 
         let receiptRecord =

@@ -981,6 +981,53 @@ final class AuthenticatedHandoffTests: XCTestCase {
             randomBytes: FixedRandomSequence(start: 0x41).provider,
             sign: handoffSigner(fixture.supervisorKey)
         )
+        var driftedManifestBytes =
+            fixture.manifest.canonicalBytes()
+        // RepositorySourceManifestV1 places the repository-source
+        // closure digest after its 12-byte header, 32-byte ID, and
+        // two 20-byte Git identities.
+        driftedManifestBytes[84] ^= 1
+        let driftedManifest =
+            try RepositorySourceManifestV1.decodeCanonical(
+                driftedManifestBytes
+            )
+        let driftedRuntimeClosure =
+            try RuntimeLaunchPreimageClosureV1(
+                fixedArgv: FixedArgvRecordV1(),
+                fixedWorkingDirectory:
+                    FixedWorkingDirectoryRecordV1(),
+                fixedEnvironment: FixedEnvironmentRecordV1(),
+                runtimeInstallPolicy:
+                    fixture.runtimeInstallPolicy,
+                runtimeLaunchPolicy:
+                    fixture.runtimeLaunchPolicy,
+                sourceManifest: driftedManifest
+            )
+        assertInvalidHandoff(
+            try TrustRootSupervisorCoreV1.issueChallenge(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                manifest: fixture.manifest,
+                runtimeLaunchPreimageClosure:
+                    driftedRuntimeClosure,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierAnonymousFDChannelBindingSHA256:
+                    fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 120,
+                nowMonotonicNanoseconds: 1_000_000_000,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                randomBytes:
+                    FixedRandomSequence(start: 0x49).provider,
+                sign: handoffSigner(fixture.supervisorKey)
+            )
+        )
         assertInvalidHandoff(
             try challenge.verify(
                 publicKeyRawRepresentation:

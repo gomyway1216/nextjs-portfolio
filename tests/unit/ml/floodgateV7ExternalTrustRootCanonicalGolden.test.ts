@@ -46,6 +46,13 @@ interface GoldenRecord {
 interface GoldenFixture {
   readonly schema: string;
   readonly status: string;
+  readonly scope: Readonly<{
+    readonly wire_level: string;
+    readonly authority_manifest_chain: string;
+    readonly excluded_evidence: string;
+    readonly authority_binding_domain_utf8: string;
+    readonly manifest_authority_binding: string;
+  }>;
   readonly encoding: Readonly<{
     readonly byte_order: string;
     readonly hex: string;
@@ -61,7 +68,11 @@ interface GoldenFixture {
     readonly fixed_env: GoldenRecord;
     readonly runtime_install: GoldenRecord;
     readonly runtime_launch_policy: GoldenRecord;
+    readonly repository_source_manifest: GoldenRecord;
+    readonly enrollment: GoldenRecord;
+    readonly signed_enrollment: GoldenRecord;
     readonly activation: GoldenRecord;
+    readonly signed_activation: GoldenRecord;
     readonly expected_activation_head: GoldenRecord;
     readonly supervisor_challenge: GoldenRecord;
     readonly verifier_receipt: GoldenRecord;
@@ -90,6 +101,13 @@ interface SignedSpec {
   readonly uint64Fields: readonly string[];
 }
 
+interface AuthorityEnvelopeSpec {
+  readonly record: GoldenRecord;
+  readonly expectedMagic: "FGV7SEN1" | "FGV7SAC1";
+  readonly innerRecord: GoldenRecord;
+  readonly innerField: "enrollment_record_hex" | "activation_record_hex";
+}
+
 const repositoryRoot = path.resolve(__dirname, "../../..");
 const fixturePath = path.join(
   repositoryRoot,
@@ -109,8 +127,12 @@ const SPKI_ED25519_PUBLIC_KEY_PREFIX = Buffer.from(
 );
 const LOWER_HEX = /^(?:[0-9a-f]{2})+$/u;
 
+function digest(value: Buffer): Buffer {
+  return createHash("sha256").update(value).digest();
+}
+
 function sha256(value: Buffer): string {
-  return createHash("sha256").update(value).digest("hex");
+  return digest(value).toString("hex");
 }
 
 function fromHex(value: string): Buffer {
@@ -526,6 +548,227 @@ function parseRuntimeLaunch(record: GoldenRecord): void {
   cursor.assertAtEnd();
 }
 
+const MANIFEST_DIGEST_FIELDS = [
+  "repository_source_closure_sha256_hex",
+  "diagnostic_bundle_sha256_hex",
+  "diagnostic_launcher_jxa_sha256_hex",
+  "pinned_node_runtime_sha256_hex",
+  "runtime_launch_policy_sha256_hex",
+  "supervisor_artifact_sha256_hex",
+  "verifier_artifact_sha256_hex",
+  "supervisor_code_directory_sha256_hex",
+  "supervisor_designated_requirement_sha256_hex",
+  "supervisor_held_executable_identity_sha256_hex",
+  "verifier_code_directory_sha256_hex",
+  "verifier_designated_requirement_sha256_hex",
+  "verifier_held_executable_identity_sha256_hex",
+  "pinned_node_code_directory_sha256_hex",
+  "pinned_node_designated_requirement_sha256_hex",
+  "pinned_node_held_executable_identity_sha256_hex",
+  "supervisor_attestation_key_id_hex",
+  "verifier_attestation_key_id_hex",
+  "git_directory_policy_sha256_hex",
+  "repository_path_policy_sha256_hex",
+  "artifact_closure_record_sha256_hex",
+  "install_policy_record_sha256_hex",
+] as const;
+
+function encodeRepositorySourceManifest(record: GoldenRecord): Encoded {
+  const fields = record.fields;
+  const encoder = new CanonicalEncoder();
+  appendCommon(encoder, fields);
+  encoder
+    .append("manifest_id_hex", fromHex(stringField(fields, "manifest_id_hex")))
+    .append(
+      "approved_commit_hex",
+      fromHex(stringField(fields, "approved_commit_hex")),
+    )
+    .append(
+      "approved_tree_hex",
+      fromHex(stringField(fields, "approved_tree_hex")),
+    );
+  for (const field of MANIFEST_DIGEST_FIELDS) {
+    encoder.append(field, fromHex(stringField(fields, field)));
+  }
+  return encoder.finish();
+}
+
+function parseRepositorySourceManifest(record: GoldenRecord): void {
+  const fields = record.fields;
+  const cursor = new CanonicalCursor(fromHex(record.canonical_hex));
+  assertCommon(cursor, fields);
+  for (const [field, length] of [
+    ["manifest_id_hex", 32],
+    ["approved_commit_hex", 20],
+    ["approved_tree_hex", 20],
+  ] as const) {
+    expect(cursor.read(length).toString("hex")).toBe(
+      stringField(fields, field),
+    );
+  }
+  for (const field of MANIFEST_DIGEST_FIELDS) {
+    expect(cursor.read(32).toString("hex")).toBe(stringField(fields, field));
+  }
+  cursor.assertAtEnd();
+}
+
+function encodeEnrollment(record: GoldenRecord): Encoded {
+  const fields = record.fields;
+  const encoder = new CanonicalEncoder();
+  appendCommon(encoder, fields);
+  encoder
+    .append("expected_uid", unsigned32(numberField(fields, "expected_uid")))
+    .append(
+      "enrollment_id_hex",
+      fromHex(stringField(fields, "enrollment_id_hex")),
+    )
+    .append(
+      "approved_commit_hex",
+      fromHex(stringField(fields, "approved_commit_hex")),
+    )
+    .append(
+      "approved_tree_hex",
+      fromHex(stringField(fields, "approved_tree_hex")),
+    );
+  for (const field of [
+    "source_manifest_sha256_hex",
+    "supervisor_artifact_sha256_hex",
+    "child_artifact_sha256_hex",
+    "runtime_closure_sha256_hex",
+  ] as const) {
+    encoder.append(field, fromHex(stringField(fields, field)));
+  }
+  encoder
+    .append(
+      "not_before_unix_seconds",
+      unsigned64(numberField(fields, "not_before_unix_seconds")),
+    )
+    .append(
+      "expires_at_unix_seconds",
+      unsigned64(numberField(fields, "expires_at_unix_seconds")),
+    );
+  return encoder.finish();
+}
+
+function parseEnrollment(record: GoldenRecord): void {
+  const fields = record.fields;
+  const cursor = new CanonicalCursor(fromHex(record.canonical_hex));
+  assertCommon(cursor, fields);
+  expect(cursor.readUInt32()).toBe(numberField(fields, "expected_uid"));
+  for (const [field, length] of [
+    ["enrollment_id_hex", 32],
+    ["approved_commit_hex", 20],
+    ["approved_tree_hex", 20],
+    ["source_manifest_sha256_hex", 32],
+    ["supervisor_artifact_sha256_hex", 32],
+    ["child_artifact_sha256_hex", 32],
+    ["runtime_closure_sha256_hex", 32],
+  ] as const) {
+    expect(cursor.read(length).toString("hex")).toBe(
+      stringField(fields, field),
+    );
+  }
+  expect(cursor.readUInt64()).toBe(
+    numberField(fields, "not_before_unix_seconds"),
+  );
+  expect(cursor.readUInt64()).toBe(
+    numberField(fields, "expires_at_unix_seconds"),
+  );
+  cursor.assertAtEnd();
+}
+
+function authorityEnvelopeSpecs(): readonly AuthorityEnvelopeSpec[] {
+  return [
+    {
+      record: fixture.records.signed_enrollment,
+      expectedMagic: "FGV7SEN1",
+      innerRecord: fixture.records.enrollment,
+      innerField: "enrollment_record_hex",
+    },
+    {
+      record: fixture.records.signed_activation,
+      expectedMagic: "FGV7SAC1",
+      innerRecord: fixture.records.activation,
+      innerField: "activation_record_hex",
+    },
+  ];
+}
+
+function encodeAuthorityEnvelope(spec: AuthorityEnvelopeSpec): Encoded {
+  const fields = spec.record.fields;
+  const encoder = new CanonicalEncoder();
+  encoder
+    .append("magic", Buffer.from(stringField(fields, "magic"), "utf8"))
+    .append(
+      "schema_version",
+      unsignedByte(numberField(fields, "schema_version")),
+    )
+    .append("reserved", unsignedByte(numberField(fields, "reserved")))
+    .append("audience", unsignedByte(numberField(fields, "audience")))
+    .append(
+      "signature_algorithm",
+      unsignedByte(numberField(fields, "signature_algorithm")),
+    )
+    .append(
+      "signer_key_id_hex",
+      fromHex(stringField(fields, "signer_key_id_hex")),
+    )
+    .append(
+      "record_sha256_hex",
+      fromHex(stringField(fields, "record_sha256_hex")),
+    )
+    .append(spec.innerField, fromHex(stringField(fields, spec.innerField)))
+    .append("signature_hex", fromHex(spec.record.signature_hex ?? ""));
+  return encoder.finish();
+}
+
+function parseAuthorityEnvelope(spec: AuthorityEnvelopeSpec): void {
+  const fields = spec.record.fields;
+  const cursor = new CanonicalCursor(fromHex(spec.record.canonical_hex));
+  expect(cursor.read(8).toString("utf8")).toBe(spec.expectedMagic);
+  expect(cursor.readByte()).toBe(1);
+  expect(cursor.readByte()).toBe(0);
+  expect(cursor.readByte()).toBe(1);
+  expect(cursor.readByte()).toBe(1);
+  expect(cursor.read(32).toString("hex")).toBe(
+    fixture.keys.authority.key_id_hex,
+  );
+  expect(cursor.read(32).toString("hex")).toBe(spec.innerRecord.sha256);
+  expect(
+    cursor.read(spec.innerRecord.canonical_byte_count).toString("hex"),
+  ).toBe(spec.innerRecord.canonical_hex);
+  expect(cursor.read(64).toString("hex")).toBe(spec.record.signature_hex);
+  expect(stringField(fields, "record_sha256_hex")).toBe(
+    spec.innerRecord.sha256,
+  );
+  expect(stringField(fields, spec.innerField)).toBe(
+    spec.innerRecord.canonical_hex,
+  );
+  cursor.assertAtEnd();
+}
+
+function boundVerifyAuthorityEnvelope(
+  spec: AuthorityEnvelopeSpec,
+  payload: Buffer,
+  signature: Buffer,
+  publicKey: KeyObject,
+): boolean {
+  const recordBytes = payload.subarray(76);
+  return (
+    payload.subarray(0, 8).equals(Buffer.from(spec.expectedMagic, "utf8")) &&
+    payload[8] === 1 &&
+    payload[9] === 0 &&
+    payload[10] === 1 &&
+    payload[11] === 1 &&
+    payload
+      .subarray(12, 44)
+      .equals(fromHex(fixture.keys.authority.key_id_hex)) &&
+    payload.subarray(44, 76).equals(digest(recordBytes)) &&
+    recordBytes.equals(fromHex(spec.innerRecord.canonical_hex)) &&
+    verify(null, payload, publicKey, signature)
+  );
+}
+
 function encodeActivation(record: GoldenRecord): Encoded {
   const fields = record.fields;
   const encoder = new CanonicalEncoder();
@@ -804,6 +1047,14 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
       schema: "shogi-floodgate-v7-external-trust-root-canonical-golden-v1",
       status:
         "synthetic-test-only-cross-parser-fixture-not-operational-evidence",
+      scope: {
+        wire_level: "synthetic-valid-canonical-records-and-Ed25519-signatures",
+        excluded_evidence:
+          "not-live-process-observation-and-not-full-operational-transcript",
+        authority_binding_domain_utf8: "FGV7GOLDENMANIFESTAUTHORITYV1",
+        manifest_authority_binding:
+          "manifest_id=SHA-256(authority_binding_domain_utf8||authority_key_id)",
+      },
       encoding: {
         byte_order: "big-endian",
         hex: "lowercase",
@@ -880,7 +1131,219 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
     ).toBe(records.runtime_install.sha256);
   });
 
-  it("cross-checks activation and expected-head bytes before the signed digest chain", () => {
+  it("independently encodes and parses the manifest and enrollment with the real runtime closure", () => {
+    const records = fixture.records;
+    const manifest = records.repository_source_manifest;
+    const enrollment = records.enrollment;
+    assertGolden(manifest, encodeRepositorySourceManifest(manifest));
+    assertGolden(enrollment, encodeEnrollment(enrollment));
+    parseRepositorySourceManifest(manifest);
+    parseEnrollment(enrollment);
+
+    const manifestFields = manifest.fields;
+    const enrollmentFields = enrollment.fields;
+    const installFields = records.runtime_install.fields;
+    const launchFields = records.runtime_launch_policy.fields;
+    expect(
+      sha256(
+        Buffer.concat([
+          Buffer.from(fixture.scope.authority_binding_domain_utf8, "utf8"),
+          fromHex(fixture.keys.authority.key_id_hex),
+        ]),
+      ),
+    ).toBe(stringField(manifestFields, "manifest_id_hex"));
+    expect(
+      stringField(manifestFields, "runtime_launch_policy_sha256_hex"),
+    ).toBe(records.runtime_launch_policy.sha256);
+    expect(stringField(manifestFields, "pinned_node_runtime_sha256_hex")).toBe(
+      stringField(installFields, "node_whole_file_sha256_hex"),
+    );
+    expect(stringField(manifestFields, "diagnostic_bundle_sha256_hex")).toBe(
+      stringField(
+        installFields,
+        "diagnostic_entry_bundle_whole_file_sha256_hex",
+      ),
+    );
+    expect(stringField(manifestFields, "diagnostic_bundle_sha256_hex")).toBe(
+      stringField(launchFields, "diagnostic_entry_bundle_sha256_hex"),
+    );
+    for (const [manifestField, installField] of [
+      [
+        "pinned_node_code_directory_sha256_hex",
+        "node_code_directory_sha256_hex",
+      ],
+      [
+        "pinned_node_designated_requirement_sha256_hex",
+        "node_designated_requirement_sha256_hex",
+      ],
+      [
+        "pinned_node_held_executable_identity_sha256_hex",
+        "node_held_executable_identity_sha256_hex",
+      ],
+    ] as const) {
+      expect(stringField(manifestFields, manifestField)).toBe(
+        stringField(installFields, installField),
+      );
+    }
+    expect(
+      stringField(manifestFields, "install_policy_record_sha256_hex"),
+    ).toBe(records.runtime_install.sha256);
+    expect(
+      stringField(manifestFields, "supervisor_attestation_key_id_hex"),
+    ).toBe(fixture.keys.supervisor.key_id_hex);
+    expect(stringField(manifestFields, "verifier_attestation_key_id_hex")).toBe(
+      fixture.keys.verifier.key_id_hex,
+    );
+
+    expect(stringField(enrollmentFields, "source_manifest_sha256_hex")).toBe(
+      manifest.sha256,
+    );
+    for (const [enrollmentField, manifestField] of [
+      ["approved_commit_hex", "approved_commit_hex"],
+      ["approved_tree_hex", "approved_tree_hex"],
+      ["supervisor_artifact_sha256_hex", "supervisor_artifact_sha256_hex"],
+      ["child_artifact_sha256_hex", "diagnostic_bundle_sha256_hex"],
+      ["runtime_closure_sha256_hex", "pinned_node_runtime_sha256_hex"],
+    ] as const) {
+      expect(stringField(enrollmentFields, enrollmentField)).toBe(
+        stringField(manifestFields, manifestField),
+      );
+    }
+    expect(fixture.links).toMatchObject({
+      manifest_runtime_launch_policy_sha256:
+        records.runtime_launch_policy.sha256,
+      manifest_pinned_node_runtime_sha256: stringField(
+        installFields,
+        "node_whole_file_sha256_hex",
+      ),
+      manifest_diagnostic_bundle_sha256: stringField(
+        installFields,
+        "diagnostic_entry_bundle_whole_file_sha256_hex",
+      ),
+      manifest_authority_key_id: fixture.keys.authority.key_id_hex,
+      manifest_supervisor_key_id: fixture.keys.supervisor.key_id_hex,
+      manifest_verifier_key_id: fixture.keys.verifier.key_id_hex,
+      enrollment_source_manifest_sha256: manifest.sha256,
+    });
+  });
+
+  it("verifies authority envelopes and binds the authenticated activation head", () => {
+    const derived = Object.fromEntries(
+      (["authority", "supervisor", "verifier"] as const).map((role) => [
+        role,
+        deriveKey(fixture.keys[role]),
+      ]),
+    ) as Record<Role, DerivedKey>;
+    const specs = authorityEnvelopeSpecs();
+
+    for (const spec of specs) {
+      const encoded = encodeAuthorityEnvelope(spec);
+      assertGolden(spec.record, encoded);
+      parseAuthorityEnvelope(spec);
+      const payload = signaturePayload(spec.record);
+      const signature = fromHex(spec.record.signature_hex ?? "");
+      expect(sign(null, payload, derived.authority.privateKey)).toEqual(
+        signature,
+      );
+      expect(
+        boundVerifyAuthorityEnvelope(
+          spec,
+          payload,
+          signature,
+          derived.authority.publicKey,
+        ),
+      ).toBe(true);
+      for (const wrongRole of ["supervisor", "verifier"] as const) {
+        expect(
+          boundVerifyAuthorityEnvelope(
+            spec,
+            payload,
+            signature,
+            derived[wrongRole].publicKey,
+          ),
+        ).toBe(false);
+      }
+
+      const changedSignature = Buffer.from(signature);
+      changedSignature[changedSignature.length - 1] ^= 1;
+      expect(
+        boundVerifyAuthorityEnvelope(
+          spec,
+          payload,
+          changedSignature,
+          derived.authority.publicKey,
+        ),
+      ).toBe(false);
+
+      const changedRecord = Buffer.from(payload);
+      changedRecord[changedRecord.length - 1] ^= 1;
+      digest(changedRecord.subarray(76)).copy(changedRecord, 44);
+      const changedRecordSignature = sign(
+        null,
+        changedRecord,
+        derived.authority.privateKey,
+      );
+      expect(
+        verify(
+          null,
+          changedRecord,
+          derived.authority.publicKey,
+          changedRecordSignature,
+        ),
+      ).toBe(true);
+      expect(
+        boundVerifyAuthorityEnvelope(
+          spec,
+          changedRecord,
+          changedRecordSignature,
+          derived.authority.publicKey,
+        ),
+      ).toBe(false);
+
+      const wrongDomain = Buffer.from(payload);
+      Buffer.from(
+        spec.expectedMagic === "FGV7SEN1" ? "FGV7SAC1" : "FGV7SEN1",
+        "utf8",
+      ).copy(wrongDomain, 0);
+      const wrongDomainSignature = sign(
+        null,
+        wrongDomain,
+        derived.authority.privateKey,
+      );
+      expect(
+        boundVerifyAuthorityEnvelope(
+          spec,
+          wrongDomain,
+          wrongDomainSignature,
+          derived.authority.publicKey,
+        ),
+      ).toBe(false);
+
+      const roleSwapped = Buffer.from(payload);
+      fromHex(fixture.keys.supervisor.key_id_hex).copy(roleSwapped, 12);
+      const roleSwappedSignature = sign(
+        null,
+        roleSwapped,
+        derived.supervisor.privateKey,
+      );
+      expect(
+        verify(
+          null,
+          roleSwapped,
+          derived.supervisor.publicKey,
+          roleSwappedSignature,
+        ),
+      ).toBe(true);
+      expect(
+        boundVerifyAuthorityEnvelope(
+          spec,
+          roleSwapped,
+          roleSwappedSignature,
+          derived.supervisor.publicKey,
+        ),
+      ).toBe(false);
+    }
+
     const activation = fixture.records.activation;
     const head = fixture.records.expected_activation_head;
     assertGolden(activation, encodeActivation(activation));
@@ -892,19 +1355,48 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
     );
     expect(
       stringField(head.fields, "latest_activation_envelope_sha256_hex"),
-    ).toBe(activation.sha256);
+    ).toBe(fixture.records.signed_activation.sha256);
+    expect(
+      stringField(head.fields, "active_enrollment_envelope_sha256_hex"),
+    ).toBe(fixture.records.signed_enrollment.sha256);
+    expect(
+      stringField(head.fields, "active_enrollment_record_sha256_hex"),
+    ).toBe(fixture.records.enrollment.sha256);
+    expect(stringField(activation.fields, "target_enrollment_id_hex")).toBe(
+      stringField(fixture.records.enrollment.fields, "enrollment_id_hex"),
+    );
     expect(
       stringField(
         fixture.records.supervisor_challenge.fields,
         "activation_digest_hex",
       ),
-    ).toBe(activation.sha256);
+    ).toBe(fixture.records.signed_activation.sha256);
     expect(
       stringField(
         fixture.records.supervisor_challenge.fields,
         "activation_head_sha256_hex",
       ),
     ).toBe(head.sha256);
+    expect(
+      stringField(
+        fixture.records.supervisor_challenge.fields,
+        "source_manifest_sha256_hex",
+      ),
+    ).toBe(fixture.records.repository_source_manifest.sha256);
+    expect(fixture.links).toMatchObject({
+      signed_enrollment_record_sha256: fixture.records.enrollment.sha256,
+      signed_activation_record_sha256: activation.sha256,
+      expected_head_latest_activation_sha256:
+        fixture.records.signed_activation.sha256,
+      expected_head_active_enrollment_envelope_sha256:
+        fixture.records.signed_enrollment.sha256,
+      expected_head_active_enrollment_record_sha256:
+        fixture.records.enrollment.sha256,
+      challenge_activation_sha256: fixture.records.signed_activation.sha256,
+      challenge_activation_head_sha256: head.sha256,
+      challenge_source_manifest_sha256:
+        fixture.records.repository_source_manifest.sha256,
+    });
   });
 
   it("verifies exact Ed25519 payloads, canonical hashes, roles, and chained digests", () => {
@@ -957,10 +1449,45 @@ describe("Floodgate v7 external trust-root cross-parser golden fixture", () => {
     expect(stringField(attestation.fields, "receipt_sha256_hex")).toBe(
       receipt.sha256,
     );
+    for (const record of [challenge, receipt, attestation]) {
+      expect(stringField(record.fields, "enrollment_id_hex")).toBe(
+        stringField(fixture.records.enrollment.fields, "enrollment_id_hex"),
+      );
+      expect(stringField(record.fields, "activation_digest_hex")).toBe(
+        fixture.records.signed_activation.sha256,
+      );
+      expect(stringField(record.fields, "source_manifest_sha256_hex")).toBe(
+        fixture.records.repository_source_manifest.sha256,
+      );
+    }
+    expect(stringField(receipt.fields, "approved_commit_hex")).toBe(
+      stringField(
+        fixture.records.repository_source_manifest.fields,
+        "approved_commit_hex",
+      ),
+    );
+    expect(stringField(receipt.fields, "approved_tree_hex")).toBe(
+      stringField(
+        fixture.records.repository_source_manifest.fields,
+        "approved_tree_hex",
+      ),
+    );
+    expect(stringField(receipt.fields, "verifier_artifact_sha256_hex")).toBe(
+      stringField(
+        fixture.records.repository_source_manifest.fields,
+        "verifier_artifact_sha256_hex",
+      ),
+    );
     expect(fixture.links).toMatchObject({
       receipt_challenge_sha256: challenge.sha256,
+      receipt_activation_sha256: fixture.records.signed_activation.sha256,
+      receipt_source_manifest_sha256:
+        fixture.records.repository_source_manifest.sha256,
       attestation_challenge_sha256: challenge.sha256,
       attestation_receipt_sha256: receipt.sha256,
+      attestation_activation_sha256: fixture.records.signed_activation.sha256,
+      attestation_source_manifest_sha256:
+        fixture.records.repository_source_manifest.sha256,
     });
   });
 

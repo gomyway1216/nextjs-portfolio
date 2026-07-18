@@ -56,7 +56,7 @@ private func assertCurrentHandoffWindow(
 }
 
 public struct SupervisorChallengeV1: Equatable, Sendable {
-    public static let canonicalByteCount = 405
+    public static let canonicalByteCount = 437
     public static let maximumLifetimeSeconds =
         maximumHandoffLifetimeSeconds
     public static let maximumLifetimeNanoseconds =
@@ -73,6 +73,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
     public let nonce: CanonicalBytes32
     public let enrollmentID: CanonicalBytes32
     public let activationDigest: CanonicalBytes32
+    public let activationHeadSHA256: CanonicalBytes32
     public let sourceManifestSHA256: CanonicalBytes32
     public let targetProcessIdentitySHA256: CanonicalBytes32
     public let supervisorProcessIdentitySHA256: CanonicalBytes32
@@ -93,6 +94,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
         nonce: CanonicalBytes32,
         enrollmentID: CanonicalBytes32,
         activationDigest: CanonicalBytes32,
+        activationHeadSHA256: CanonicalBytes32,
         sourceManifestSHA256: CanonicalBytes32,
         targetProcessIdentitySHA256: CanonicalBytes32,
         supervisorProcessIdentitySHA256: CanonicalBytes32,
@@ -111,6 +113,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
             nonce,
             enrollmentID,
             activationDigest,
+            activationHeadSHA256,
             sourceManifestSHA256,
             targetProcessIdentitySHA256,
             supervisorProcessIdentitySHA256,
@@ -143,6 +146,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
         self.nonce = nonce
         self.enrollmentID = enrollmentID
         self.activationDigest = activationDigest
+        self.activationHeadSHA256 = activationHeadSHA256
         self.sourceManifestSHA256 = sourceManifestSHA256
         self.targetProcessIdentitySHA256 =
             targetProcessIdentitySHA256
@@ -169,6 +173,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
         nonce: CanonicalBytes32,
         enrollmentID: CanonicalBytes32,
         activationDigest: CanonicalBytes32,
+        activationHeadSHA256: CanonicalBytes32,
         sourceManifestSHA256: CanonicalBytes32,
         targetProcessIdentitySHA256: CanonicalBytes32,
         supervisorProcessIdentitySHA256: CanonicalBytes32,
@@ -209,6 +214,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
         encoder.append(nonce.bytes)
         encoder.append(enrollmentID.bytes)
         encoder.append(activationDigest.bytes)
+        encoder.append(activationHeadSHA256.bytes)
         encoder.append(sourceManifestSHA256.bytes)
         encoder.append(targetProcessIdentitySHA256.bytes)
         encoder.append(supervisorProcessIdentitySHA256.bytes)
@@ -235,6 +241,7 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
             nonce: nonce,
             enrollmentID: enrollmentID,
             activationDigest: activationDigest,
+            activationHeadSHA256: activationHeadSHA256,
             sourceManifestSHA256: sourceManifestSHA256,
             targetProcessIdentitySHA256:
                 targetProcessIdentitySHA256,
@@ -321,6 +328,9 @@ public struct SupervisorChallengeV1: Equatable, Sendable {
                     try decoder.readBytes(count: 32)
                 ),
                 activationDigest: CanonicalBytes32(
+                    try decoder.readBytes(count: 32)
+                ),
+                activationHeadSHA256: CanonicalBytes32(
                     try decoder.readBytes(count: 32)
                 ),
                 sourceManifestSHA256: CanonicalBytes32(
@@ -623,6 +633,7 @@ public struct VerifierReceiptV1: Equatable, Sendable {
         try manifest.validateRuntimeLaunchPolicy(runtimeLaunchPolicy)
         try expectedActivationHead.validateTranscriptActivation(
             challenge.activationDigest,
+            expectedHeadSHA256: challenge.activationHeadSHA256,
             manifest: manifest
         )
         try observation.validate(
@@ -986,6 +997,7 @@ public struct OneShotAttestationV1: Equatable, Sendable {
         )
         try expectedActivationHead.validateTranscriptActivation(
             activationDigest,
+            expectedHeadSHA256: challenge.activationHeadSHA256,
             manifest: manifest
         )
         try childProcessIdentity.validateChildOf(

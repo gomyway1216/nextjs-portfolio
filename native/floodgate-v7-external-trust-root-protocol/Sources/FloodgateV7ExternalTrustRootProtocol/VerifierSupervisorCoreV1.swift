@@ -294,6 +294,8 @@ public enum TrustRootSupervisorCoreV1 {
             enrollmentID: state.activeEnrollment.enrollmentID,
             activationDigest:
                 state.lastActivationEnvelopeSHA256,
+            activationHeadSHA256:
+                expectedActivationHead.canonicalSHA256(),
             sourceManifestSHA256: manifest.canonicalSHA256(),
             targetProcessIdentitySHA256:
                 supervisorProcessIdentity.canonicalSHA256(),
@@ -321,6 +323,8 @@ public enum TrustRootSupervisorCoreV1 {
             enrollmentID: state.activeEnrollment.enrollmentID,
             activationDigest:
                 state.lastActivationEnvelopeSHA256,
+            activationHeadSHA256:
+                expectedActivationHead.canonicalSHA256(),
             sourceManifestSHA256: manifest.canonicalSHA256(),
             targetProcessIdentitySHA256:
                 supervisorProcessIdentity.canonicalSHA256(),
@@ -716,6 +720,8 @@ public enum TrustRootVerifierCoreV1 {
                 == state.activeEnrollment.enrollmentID,
             challenge.activationDigest
                 == state.lastActivationEnvelopeSHA256,
+            challenge.activationHeadSHA256
+                == expectedActivationHead.canonicalSHA256(),
             challenge.sourceManifestSHA256
                 == manifest.canonicalSHA256(),
             challenge.targetProcessID

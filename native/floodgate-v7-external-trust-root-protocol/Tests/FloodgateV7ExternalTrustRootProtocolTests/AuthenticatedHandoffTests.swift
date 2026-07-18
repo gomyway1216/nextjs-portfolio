@@ -568,43 +568,78 @@ final class AuthenticatedHandoffTests: XCTestCase {
             attestation
         )
 
-        let newerHead = try ExpectedActivationHeadV1(
-            audience: .productionRecovery,
-            purpose: .inspectStalePrefix100,
-            authoritySignerKeyID:
-                fixture.expectedActivationHead.authoritySignerKeyID,
-            latestActivationSequence:
-                fixture.expectedActivationHead
-                .latestActivationSequence + 1,
-            latestActivationEnvelopeSHA256:
-                handoffBytes32(0xf8)
+        func assertFinalConsumerRejects(
+            _ head: ExpectedActivationHeadV1
+        ) {
+            assertInvalidHandoff(
+                try OneShotAttestationConsumerV1().consume(
+                    attestation,
+                    supervisorPublicKeyRawRepresentation:
+                        fixture.supervisorPublicKey,
+                    verifierPublicKeyRawRepresentation:
+                        fixture.verifierPublicKey,
+                    challenge: challenge,
+                    receipt: receipt,
+                    manifest: fixture.manifest,
+                    runtimeLaunchPolicy:
+                        fixture.runtimeLaunchPolicy,
+                    expectedActivationHead: head,
+                    enrollment: fixture.enrollment,
+                    observation: fixture.observation,
+                    supervisorProcessIdentity:
+                        fixture.supervisorProcessIdentity,
+                    verifierProcessIdentity:
+                        fixture.verifierProcessIdentity,
+                    childProcessIdentity:
+                        fixture.childProcessIdentity,
+                    childAnonymousFDChannelBindingSHA256:
+                        fixture.childProcessIdentity
+                            .anonymousFDChannelBindingSHA256,
+                    nowUnixSeconds: 123,
+                    nowMonotonicNanoseconds: 4_000_000_000
+                )
+            )
+        }
+        assertFinalConsumerRejects(
+            try ExpectedActivationHeadV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                authoritySignerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID,
+                latestActivationSequence:
+                    fixture.expectedActivationHead
+                    .latestActivationSequence + 1,
+                latestActivationEnvelopeSHA256:
+                    handoffBytes32(0xf8)
+            )
         )
-        assertInvalidHandoff(
-            try OneShotAttestationConsumerV1().consume(
-                attestation,
-                supervisorPublicKeyRawRepresentation:
-                    fixture.supervisorPublicKey,
-                verifierPublicKeyRawRepresentation:
-                    fixture.verifierPublicKey,
-                challenge: challenge,
-                receipt: receipt,
-                manifest: fixture.manifest,
-                runtimeLaunchPolicy:
-                    fixture.runtimeLaunchPolicy,
-                expectedActivationHead: newerHead,
-                enrollment: fixture.enrollment,
-                observation: fixture.observation,
-                supervisorProcessIdentity:
-                    fixture.supervisorProcessIdentity,
-                verifierProcessIdentity:
-                    fixture.verifierProcessIdentity,
-                childProcessIdentity:
-                    fixture.childProcessIdentity,
-                childAnonymousFDChannelBindingSHA256:
-                    fixture.childProcessIdentity
-                        .anonymousFDChannelBindingSHA256,
-                nowUnixSeconds: 123,
-                nowMonotonicNanoseconds: 4_000_000_000
+        assertFinalConsumerRejects(
+            try ExpectedActivationHeadV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                authoritySignerKeyID: handoffBytes32(0xf9),
+                latestActivationSequence:
+                    fixture.expectedActivationHead
+                    .latestActivationSequence,
+                latestActivationEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .latestActivationEnvelopeSHA256
+            )
+        )
+        assertFinalConsumerRejects(
+            try ExpectedActivationHeadV1(
+                audience: .productionRecovery,
+                purpose: .inspectStalePrefix100,
+                authoritySignerKeyID:
+                    fixture.expectedActivationHead
+                    .authoritySignerKeyID,
+                latestActivationSequence:
+                    fixture.expectedActivationHead
+                    .latestActivationSequence + 1,
+                latestActivationEnvelopeSHA256:
+                    fixture.expectedActivationHead
+                    .latestActivationEnvelopeSHA256
             )
         )
 
@@ -734,6 +769,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 enrollmentID: fixture.enrollment.enrollmentID,
                 activationDigest:
                     fixture.signedActivation.canonicalSHA256(),
+                activationHeadSHA256:
+                    fixture.expectedActivationHead.canonicalSHA256(),
                 sourceManifestSHA256:
                     fixture.manifest.canonicalSHA256(),
                 targetProcessIdentitySHA256:
@@ -1441,6 +1478,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 enrollmentID: fixture.enrollment.enrollmentID,
                 activationDigest:
                     fixture.signedActivation.canonicalSHA256(),
+                activationHeadSHA256:
+                    fixture.expectedActivationHead.canonicalSHA256(),
                 sourceManifestSHA256:
                     fixture.manifest.canonicalSHA256(),
                 targetProcessIdentitySHA256:
@@ -1468,6 +1507,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
                 enrollmentID: fixture.enrollment.enrollmentID,
                 activationDigest:
                     fixture.signedActivation.canonicalSHA256(),
+                activationHeadSHA256:
+                    fixture.expectedActivationHead.canonicalSHA256(),
                 sourceManifestSHA256:
                     fixture.manifest.canonicalSHA256(),
                 targetProcessIdentitySHA256:
@@ -1606,6 +1647,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             enrollmentID: fixture.enrollment.enrollmentID,
             activationDigest:
                 fixture.signedActivation.canonicalSHA256(),
+            activationHeadSHA256:
+                fixture.expectedActivationHead.canonicalSHA256(),
             sourceManifestSHA256:
                 fixture.manifest.canonicalSHA256(),
             targetProcessIdentitySHA256: unrelatedTargetIdentity,
@@ -1631,6 +1674,8 @@ final class AuthenticatedHandoffTests: XCTestCase {
             enrollmentID: fixture.enrollment.enrollmentID,
             activationDigest:
                 fixture.signedActivation.canonicalSHA256(),
+            activationHeadSHA256:
+                fixture.expectedActivationHead.canonicalSHA256(),
             sourceManifestSHA256:
                 fixture.manifest.canonicalSHA256(),
             targetProcessIdentitySHA256: unrelatedTargetIdentity,

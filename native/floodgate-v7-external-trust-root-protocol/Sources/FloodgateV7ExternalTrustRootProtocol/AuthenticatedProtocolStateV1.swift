@@ -55,6 +55,7 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
 
     func validateTranscriptActivation(
         _ activationEnvelopeSHA256: CanonicalBytes32,
+        expectedHeadSHA256: CanonicalBytes32,
         manifest: RepositorySourceManifestV1
     ) throws {
         try manifest.validateAuthorityKeySeparation(
@@ -62,7 +63,8 @@ public struct ExpectedActivationHeadV1: Equatable, Sendable {
         )
         guard
             activationEnvelopeSHA256
-                == latestActivationEnvelopeSHA256
+                == latestActivationEnvelopeSHA256,
+            expectedHeadSHA256 == canonicalSHA256()
         else {
             throw CanonicalRecordError.invalidCanonicalRecord
         }

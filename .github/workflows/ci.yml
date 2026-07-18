@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_and_build:
-    name: Test and build
+  core_quality_build:
+    name: Core quality and build
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -38,8 +38,15 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run core unit tests with all exact-24k files explicitly excluded
+        run: >-
+          npm test --
+          --exclude tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts
+          --exclude tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts
+          --exclude tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts
+          --exclude tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts
+          --exclude tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts
+          --exclude tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts
 
       - name: Run isolated pinned public deadline calibration
         run: npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration
@@ -59,6 +66,104 @@ jobs:
           NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
           NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:ci"
+
+  exact24k_scanner:
+    name: Exact-24k scanner (${{ matrix.id }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: authority
+            file: tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts
+          - id: mutation
+            file: tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts
+          - id: replay
+            file: tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts
+          - id: cleanup
+            file: tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts
+          - id: production
+            file: tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.13.0"
+          cache: "npm"
+
+      - name: Pin npm to 11.14.1 (matches package.json packageManager)
+        run: npm install -g npm@11.14.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the exact scanner file
+        run: >-
+          npm test --
+          "${{ matrix.file }}"
+          --reporter=json
+          --outputFile=".artifacts/exact24k-scanner-${{ matrix.id }}.json"
+
+      - name: Verify the exact scanner file and title
+        run: >-
+          node scripts/verify-exact24k-vitest-report.mjs
+          --target "${{ matrix.id }}"
+          --report ".artifacts/exact24k-scanner-${{ matrix.id }}.json"
+
+      - name: Preserve the exact scanner report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: exact24k-scanner-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: .artifacts/exact24k-scanner-${{ matrix.id }}.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  exact24k_teacher:
+    name: Exact-24k Teacher checkpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.13.0"
+          cache: "npm"
+
+      - name: Pin npm to 11.14.1 (matches package.json packageManager)
+        run: npm install -g npm@11.14.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the exact Teacher checkpoint file
+        run: >-
+          npm test --
+          tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts
+          --reporter=json
+          --outputFile=.artifacts/exact24k-teacher.json
+
+      - name: Verify the exact Teacher file and all forty-nine runtime titles
+        run: >-
+          node scripts/verify-exact24k-vitest-report.mjs
+          --target teacher
+          --report .artifacts/exact24k-teacher.json
+
+      - name: Preserve the exact Teacher report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: exact24k-teacher-${{ github.sha }}-${{ github.run_attempt }}
+          path: .artifacts/exact24k-teacher.json
+          if-no-files-found: warn
+          retention-days: 14
 
   external_trust_root_protocol:
     name: External trust-root protocol (source only)
@@ -192,3 +297,27 @@ jobs:
 
       - name: Run E2E smoke tests
         run: npm run test:e2e
+
+  test_and_build:
+    name: Test and build
+    if: ${{ always() }}
+    needs:
+      - core_quality_build
+      - exact24k_scanner
+      - exact24k_teacher
+      - external_trust_root_protocol
+      - darwin_exclusive_directory_rename
+      - e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Require every CI component to succeed
+        run: |
+          test "${{ needs.core_quality_build.result }}" = "success"
+          test "${{ needs.exact24k_scanner.result }}" = "success"
+          test "${{ needs.exact24k_teacher.result }}" = "success"
+          test "${{ needs.external_trust_root_protocol.result }}" = "success"
+          test "${{ needs.darwin_exclusive_directory_rename.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"

@@ -11,8 +11,9 @@ SYMBOL_GRAPH_NAME = (
     f"{SYMBOL_GRAPH_MODULE}.symbols.json"
 )
 EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT = 491
+EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT = 542
 EXPECTED_PUBLIC_SURFACE_SHA256 = (
-    "f60654db8c72cf330318d0236e91fca571e2dfec768255043dc333da328ef6b6"
+    "3e040bc6097a0d7ab1ea7c511b0e6fd32c8a2d7a5c5076ee00beba1a21ae8160"
 )
 CALLABLE_KINDS = {
     "swift.func",
@@ -137,7 +138,8 @@ def is_protocol_symbol_graph_filename(filename: str) -> bool:
 
 def normalized_public_surface(
     symbols: list[object],
-) -> tuple[int, str]:
+    relationships: list[object],
+) -> tuple[int, int, str]:
     normalized: set[
         tuple[
             str,
@@ -216,53 +218,105 @@ def normalized_public_surface(
                 tuple(normalized_fragments),
             )
         )
+    normalized_relationships: set[str] = set()
+    for relationship in relationships:
+        if not isinstance(relationship, dict):
+            raise VerificationError(
+                "symbol relationship is not an object"
+            )
+        if not all(
+            isinstance(relationship.get(field), str)
+            and relationship[field]
+            for field in ("kind", "source", "target")
+        ):
+            raise VerificationError(
+                "symbol relationship lacks a normalized kind, source, "
+                "or target"
+            )
+        normalized_relationships.add(
+            json.dumps(
+                relationship,
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
     payload = json.dumps(
-        [
-            [
-                access_level,
-                spi,
-                kind,
-                list(path_components),
-                precise_identifier,
-                [list(fragment) for fragment in declaration_fragments],
-            ]
-            for (
-                access_level,
-                spi,
-                kind,
-                path_components,
-                precise_identifier,
-                declaration_fragments,
-            ) in sorted(normalized)
-        ],
+        {
+            "relationships": [
+                json.loads(relationship)
+                for relationship in sorted(normalized_relationships)
+            ],
+            "symbols": [
+                [
+                    access_level,
+                    spi,
+                    kind,
+                    list(path_components),
+                    precise_identifier,
+                    [
+                        list(fragment)
+                        for fragment in declaration_fragments
+                    ],
+                ]
+                for (
+                    access_level,
+                    spi,
+                    kind,
+                    path_components,
+                    precise_identifier,
+                    declaration_fragments,
+                ) in sorted(normalized)
+            ],
+        },
         ensure_ascii=False,
         separators=(",", ":"),
+        sort_keys=True,
     ).encode("utf-8")
-    return len(normalized), hashlib.sha256(payload).hexdigest()
+    return (
+        len(normalized),
+        len(normalized_relationships),
+        hashlib.sha256(payload).hexdigest(),
+    )
 
 
 def verify_exact_public_surface(
     graph_label: str,
     symbols: list[object],
+    relationships: list[object],
 ) -> None:
-    symbol_count, surface_sha256 = normalized_public_surface(symbols)
+    (
+        symbol_count,
+        relationship_count,
+        surface_sha256,
+    ) = normalized_public_surface(symbols, relationships)
     if (
         symbol_count != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT
+        or relationship_count
+        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
         or surface_sha256 != EXPECTED_PUBLIC_SURFACE_SHA256
     ):
         raise VerificationError(
             f"{graph_label}: public/SPI symbol surface mismatch: "
-            f"count={symbol_count} sha256={surface_sha256}"
+            f"symbols={symbol_count} "
+            f"relationships={relationship_count} "
+            f"sha256={surface_sha256}"
         )
 
 
 def verify_public_api(
     graph_label: str,
     symbols: list[object],
+    relationships: list[object],
     enforce_exact_surface: bool = True,
 ) -> None:
     if enforce_exact_surface:
-        verify_exact_public_surface(graph_label, symbols)
+        verify_exact_public_surface(
+            graph_label,
+            symbols,
+            relationships,
+        )
     declarations = public_declarations(symbols)
     callable_declarations = [
         (owner, symbol_name, declaration)
@@ -379,6 +433,7 @@ def verify_public_api(
 def expect_synthetic_rejection(
     graph_label: str,
     symbols: list[object],
+    relationships: list[object],
     synthetic_symbol: dict[str, object],
     expected_fragment: str,
 ) -> None:
@@ -386,6 +441,7 @@ def expect_synthetic_rejection(
         verify_public_api(
             graph_label,
             [*symbols, synthetic_symbol],
+            relationships,
             enforce_exact_surface=False,
         )
     except VerificationError as error:
@@ -403,6 +459,7 @@ def expect_synthetic_rejection(
 def run_synthetic_regression_checks(
     graph_label: str,
     symbols: list[object],
+    relationships: list[object],
 ) -> None:
     symbol_base = {
         "accessLevel": "public",
@@ -428,6 +485,7 @@ def run_synthetic_regression_checks(
                     ],
                 },
             ],
+            relationships,
         )
     except VerificationError as error:
         if "public/SPI symbol surface mismatch" not in str(error):
@@ -487,13 +545,26 @@ def run_synthetic_regression_checks(
         **declaration_symbol,
         "declarationFragments": mutated_declaration_fragments,
     }
-    mutated_count, mutated_sha256 = normalized_public_surface(
-        mutated_symbols
+    (
+        mutated_count,
+        mutated_relationship_count,
+        mutated_sha256,
+    ) = normalized_public_surface(
+        mutated_symbols,
+        relationships,
     )
     if mutated_count != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT:
         raise VerificationError(
             f"{graph_label}: same-path declaration mutation changed "
             f"surface count to {mutated_count}"
+        )
+    if (
+        mutated_relationship_count
+        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
+    ):
+        raise VerificationError(
+            f"{graph_label}: same-path declaration mutation changed "
+            f"relationship count to {mutated_relationship_count}"
         )
     if mutated_sha256 == EXPECTED_PUBLIC_SURFACE_SHA256:
         raise VerificationError(
@@ -501,7 +572,11 @@ def run_synthetic_regression_checks(
             "change the public surface hash"
         )
     try:
-        verify_exact_public_surface(graph_label, mutated_symbols)
+        verify_exact_public_surface(
+            graph_label,
+            mutated_symbols,
+            relationships,
+        )
     except VerificationError as error:
         if "public/SPI symbol surface mismatch" not in str(error):
             raise
@@ -510,9 +585,74 @@ def run_synthetic_regression_checks(
             f"{graph_label}: same-path declaration mutation "
             "unexpectedly passed"
         )
+    conformance_relationship_index = next(
+        (
+            index
+            for index, relationship in enumerate(relationships)
+            if isinstance(relationship, dict)
+            and relationship.get("kind") == "conformsTo"
+            and isinstance(relationship.get("target"), str)
+        ),
+        None,
+    )
+    if conformance_relationship_index is None:
+        raise VerificationError(
+            f"{graph_label}: no conformance relationship for the "
+            "surface-hash self-check"
+        )
+    conformance_relationship = relationships[
+        conformance_relationship_index
+    ]
+    if not isinstance(conformance_relationship, dict):
+        raise VerificationError(
+            f"{graph_label}: conformance relationship is not an object"
+        )
+    mutated_relationships = list(relationships)
+    mutated_relationships[conformance_relationship_index] = {
+        **conformance_relationship,
+        "target": f"{conformance_relationship['target']}Mutated",
+        "targetFallback": (
+            f"{conformance_relationship.get('targetFallback', '')}Mutated"
+        ),
+    }
+    (
+        relationship_mutation_symbol_count,
+        relationship_mutation_count,
+        relationship_mutation_sha256,
+    ) = normalized_public_surface(symbols, mutated_relationships)
+    if (
+        relationship_mutation_symbol_count
+        != EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT
+        or relationship_mutation_count
+        != EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT
+    ):
+        raise VerificationError(
+            f"{graph_label}: relationship-only mutation changed "
+            "the normalized surface counts"
+        )
+    if relationship_mutation_sha256 == EXPECTED_PUBLIC_SURFACE_SHA256:
+        raise VerificationError(
+            f"{graph_label}: relationship-only mutation did not "
+            "change the public surface hash"
+        )
+    try:
+        verify_exact_public_surface(
+            graph_label,
+            symbols,
+            mutated_relationships,
+        )
+    except VerificationError as error:
+        if "public/SPI symbol surface mismatch" not in str(error):
+            raise
+    else:
+        raise VerificationError(
+            f"{graph_label}: relationship-only mutation "
+            "unexpectedly passed"
+        )
     expect_synthetic_rejection(
         graph_label,
         symbols,
+        relationships,
         {
             **symbol_base,
             "kind": {"identifier": "swift.func"},
@@ -534,6 +674,7 @@ def run_synthetic_regression_checks(
     expect_synthetic_rejection(
         graph_label,
         symbols,
+        relationships,
         {
             **symbol_base,
             "kind": {"identifier": "swift.init"},
@@ -554,6 +695,7 @@ def run_synthetic_regression_checks(
     expect_synthetic_rejection(
         graph_label,
         symbols,
+        relationships,
         {
             **symbol_base,
             "kind": {"identifier": "swift.method"},
@@ -575,6 +717,7 @@ def run_synthetic_regression_checks(
     expect_synthetic_rejection(
         graph_label,
         symbols,
+        relationships,
         {
             **symbol_base,
             "kind": {"identifier": "swift.func"},
@@ -617,6 +760,7 @@ def run_synthetic_regression_checks(
         expect_synthetic_rejection(
             graph_label,
             symbols,
+            relationships,
             {
                 **symbol_base,
                 "kind": {"identifier": kind},
@@ -632,6 +776,7 @@ def run_synthetic_regression_checks(
         expect_synthetic_rejection(
             graph_label,
             symbols,
+            relationships,
             {
                 **symbol_base,
                 "kind": {"identifier": "swift.typealias"},
@@ -661,6 +806,7 @@ def run_synthetic_regression_checks(
         expect_synthetic_rejection(
             graph_label,
             symbols,
+            relationships,
             {
                 **symbol_base,
                 "kind": {"identifier": kind},
@@ -709,6 +855,7 @@ def run_synthetic_regression_checks(
         expect_synthetic_rejection(
             graph_label,
             symbols,
+            relationships,
             {
                 **symbol_base,
                 "kind": {"identifier": kind},
@@ -751,20 +898,63 @@ def main() -> None:
             if is_protocol_symbol_graph_filename(path.name)
         )
         symbols: list[object] = []
+        relationships: list[object] = []
         for symbol_graph_file in symbol_graph_files:
             with symbol_graph_file.open(encoding="utf-8") as handle:
                 graph = json.load(handle)
+            if not isinstance(graph, dict):
+                fail(f"{symbol_graph_file}: graph is not an object")
             graph_symbols = graph.get("symbols")
+            graph_relationships = graph.get("relationships")
             if not isinstance(graph_symbols, list):
                 fail(f"{symbol_graph_file}: missing symbols array")
+            if not isinstance(graph_relationships, list):
+                fail(f"{symbol_graph_file}: missing relationships array")
+            metadata = graph.get("metadata")
+            module = graph.get("module")
+            if not isinstance(metadata, dict) or not isinstance(module, dict):
+                fail(
+                    f"{symbol_graph_file}: missing calibration metadata "
+                    "or module context"
+                )
+            format_version = metadata.get("formatVersion")
+            generator = metadata.get("generator")
+            module_platform = module.get("platform")
+            if (
+                not isinstance(format_version, dict)
+                or not all(
+                    type(format_version.get(component)) is int
+                    for component in ("major", "minor", "patch")
+                )
+                or not isinstance(generator, str)
+                or not generator
+                or module.get("name") != SYMBOL_GRAPH_MODULE
+                or not isinstance(module_platform, dict)
+                or not module_platform
+            ):
+                fail(
+                    f"{symbol_graph_file}: invalid symbol-graph "
+                    "generator, format version, module name, or platform"
+                )
+            print(
+                "public API symbol-graph calibration context: "
+                f"file={symbol_graph_file.name} "
+                f"metadata={json.dumps(metadata, sort_keys=True)} "
+                f"module={json.dumps(module, sort_keys=True)}"
+            )
             symbols.extend(graph_symbols)
+            relationships.extend(graph_relationships)
         verified_file_count += len(symbol_graph_files)
         graph_label = ", ".join(
             str(path) for path in symbol_graph_files
         )
         try:
-            verify_public_api(graph_label, symbols)
-            run_synthetic_regression_checks(graph_label, symbols)
+            verify_public_api(graph_label, symbols, relationships)
+            run_synthetic_regression_checks(
+                graph_label,
+                symbols,
+                relationships,
+            )
         except VerificationError as error:
             fail(str(error))
 
@@ -772,6 +962,8 @@ def main() -> None:
         "public API symbol-graph check passed: "
         f"{len(symbol_graph_directories)} build configurations, "
         f"{verified_file_count} base/shard files, "
+        f"{EXPECTED_PUBLIC_SURFACE_SYMBOL_COUNT} public/SPI symbols, "
+        f"{EXPECTED_PUBLIC_SURFACE_RELATIONSHIP_COUNT} relationships, "
         f"{len(REQUIRED_FULL_ENTRYPOINTS)} exact composed entrypoints, "
         f"{len(FORBIDDEN_PARTIAL_ENTRYPOINTS)} partial entrypoints absent, "
         "0 public callable raw-policy consumers"

@@ -69,6 +69,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Record Swift symbol-graph calibration context
+        run: |
+          xcodebuild -version
+          xcrun swift --version
+
       - name: Run dependency-free Swift protocol tests
         run: >-
           xcrun swift test
@@ -84,6 +89,16 @@ jobs:
             --skip-synthesized-members
           /usr/bin/python3 \
             native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py
+
+      - name: Preserve public symbol graphs for exact-diff calibration
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
 
   darwin_exclusive_directory_rename:
     name: Darwin exclusive directory rename

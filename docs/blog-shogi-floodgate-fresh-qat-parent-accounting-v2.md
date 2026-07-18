@@ -122,6 +122,8 @@ seedは42 / 43 / 44、architectureは`2282-256-32-1-clipped-relu`、lossは`sibl
 
 検証対象revisionは`085023ebae2a5d968b1d8fd7491319856858b056`、treeは`c4ef0c4dcac2c6a21ba16a2b9362765c4228dc19`である。core実装commitは`dd017f8c907b908fc3de1e77ed0b0c4ca67201e9`、`800e1c8e…`は既存のbyte-pinned `package.json`をbaseへexact復元し、`635d98f1…`はbool / int aliasをhardeningした。赤チームreviewで発見したraw input未照合、missing groupのforced誤分類、proposal自己整合だけの検証、skeletal sibling row受理を`baab4a9a…`で追記修正した。再reviewではPythonのUnicode digit判定が`٢٤`のような非ASCII SFEN手数を受理することを発見し、追記commit `085023eb…`でASCII `0`から`9`だけへ制限して敵対testを追加した。履歴は書き換えていない。
 
+publication revision `a739daa142f76b7364a4de9e9853245ad9a542ff`への独立exact rereviewは **P0 0 / P1 0 / P2 0**、actionable finding 0で完了した。PR CIは未実施なのでproduction gateは変更しない。
+
 - parent-accounting adversarial stdlib test: 19 / 19 PASS、wall 0.10秒
 - v1 fresh QAT + v1 selection preflight + v2 accounting互換test: 45 / 45 PASS、wall 1.92秒
 - repository全stdlib suite: 138 / 138 PASS、wall 11.07秒

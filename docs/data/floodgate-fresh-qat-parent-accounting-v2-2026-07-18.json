@@ -1,13 +1,21 @@
 {
   "schema": "shogi-floodgate-fresh-qat-parent-accounting-v2-evidence-v1",
-  "status": "red-team-remediation-complete-local-validation-pass-rereview-and-ci-pending",
+  "status": "independent-rereview-pass-local-validation-pass-ci-pending",
   "recorded_date": "2026-07-18",
   "base_revision": "ccfecdc1647f003e70d5d037a8da97120934fee7",
   "validated_implementation_anchor": {
     "revision": "085023ebae2a5d968b1d8fd7491319856858b056",
     "tree": "c4ef0c4dcac2c6a21ba16a2b9362765c4228dc19",
-    "review": "PENDING",
+    "review": "PASS-P0-0-P1-0-P2-0",
     "continuous_integration": "PENDING"
+  },
+  "independent_rereview": {
+    "reviewed_revision": "a739daa142f76b7364a4de9e9853245ad9a542ff",
+    "reviewed_tree": "ebb29168e70a2e26094141a72aa8cf05ba392b3a",
+    "p0": 0,
+    "p1": 0,
+    "p2": 0,
+    "actionable_findings": 0
   },
   "logical_commits": {
     "core_implementation": "dd017f8c907b908fc3de1e77ed0b0c4ca67201e9",

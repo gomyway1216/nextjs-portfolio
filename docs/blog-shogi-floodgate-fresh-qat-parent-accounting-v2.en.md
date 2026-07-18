@@ -122,6 +122,8 @@ The new Python module does not import Torch and has no teacher, model, holdout, 
 
 The validated revision is `085023ebae2a5d968b1d8fd7491319856858b056`; its tree is `c4ef0c4dcac2c6a21ba16a2b9362765c4228dc19`. The core implementation commit is `dd017f8c907b908fc3de1e77ed0b0c4ca67201e9`; `800e1c8e…` restores the existing byte-pinned `package.json` exactly to the base, and `635d98f1…` hardens Boolean/integer aliases. Red-team review then found unverified raw input, missing-group-to-forced misclassification, proposal-only self-consistency, and acceptance of skeletal sibling rows. Append-only commit `baab4a9a…` fixes all four. Rereview found that Python's Unicode digit predicate accepted non-ASCII SFEN move numbers such as `٢٤`; append-only commit `085023eb…` restricts that field to ASCII `0` through `9` and adds the adversarial regression. History was not rewritten.
 
+An independent exact rereview of publication revision `a739daa142f76b7364a4de9e9853245ad9a542ff` completed with **P0 0 / P1 0 / P2 0** and no actionable findings. PR CI remains pending, so no production gate changes.
+
 - Parent-accounting adversarial stdlib tests: 19 / 19 PASS in 0.10 seconds wall time
 - V1 fresh QAT + v1 selection preflight + v2 accounting compatibility tests: 45 / 45 PASS in 1.92 seconds wall time
 - Full repository stdlib suite: 138 / 138 PASS in 11.07 seconds wall time

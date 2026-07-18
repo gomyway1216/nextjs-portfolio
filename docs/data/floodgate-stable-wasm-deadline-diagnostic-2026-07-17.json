@@ -11,9 +11,10 @@
     "english": "../blog-shogi-floodgate-stable-wasm-deadline-run-binding.en.md",
     "package_commands_added_after_this_design_record": [
       "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle",
-      "shogi:floodgate-stable-wasm-deadline-diagnostic",
       "test:shogi-floodgate-stable-wasm-deadline-public-calibration"
     ],
+    "formal_package_run_present": false,
+    "direct_repository_launch_state": "STOP-external-supervisor-unavailable",
     "default_unit_public_calibration": "exact-synthetic-worker-lifecycle",
     "real_public_calibration": "explicit-isolated-command-required-by-ci",
     "private_diagnostic_runs": 0,
@@ -145,8 +146,8 @@
   "unchanged_production_identities": [
     {
       "path": "package.json",
-      "bytes": 8140,
-      "sha256": "f6113b6eb2720565adbddc1b46ada85d10d140278e8b4a90ee5edec16696d5c7"
+      "bytes": 7964,
+      "sha256": "770ceaf033d00245e84a439656b68141606c36f24eb9b7fe8322a97a426fd866"
     },
     {
       "path": "ml/floodgate-stable-wasm-worker.mjs",

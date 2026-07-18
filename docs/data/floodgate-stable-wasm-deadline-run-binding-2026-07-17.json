@@ -1,5 +1,5 @@
 {
-  "schema": "shogi-floodgate-stable-wasm-deadline-run-binding-evidence-v1",
+  "schema": "shogi-floodgate-stable-wasm-deadline-run-binding-evidence-v2",
   "evidence_date": "2026-07-17",
   "evidence_timezone": "America/Los_Angeles",
   "articles": {
@@ -8,71 +8,108 @@
   },
   "source_context": {
     "diagnostic_design_merge": "2a40bc97fc5cfdcc80e83599141449758c8f09f3",
-    "original_branch_base": "398b6d20dbe9b2de4648e77424c2a15820f15dec",
-    "required_origin_main_integration": "cae5de16f91f2eff04ca98a48ef0739f5b48a11f",
-    "required_origin_main_integrated": false,
-    "final_head_validation_complete": false
+    "latest_origin_main_observed": "edf040fba0f18986ee4b1113394b33752a33a8ff",
+    "latest_origin_main_integrated_by_regular_merge": true,
+    "final_head_validation_complete": false,
+    "identity_state": "provisional-until-all-prerequisites-merge-and-latest-origin-main-is-integrated"
   },
-  "runtime_contract": {
-    "schema": "shogi-floodgate-stable-wasm-deadline-run-binding-v1",
-    "status": "aggregate-only-read-only-diagnostic-complete",
-    "claim_boundary": "read-only-public-calibration-and-private-aggregate-deadline-observation-only-no-teacher-label-training-playing-strength-live-weight-or-production-gate-authority",
-    "platform": "darwin-arm64",
-    "node": "v22.13.0",
-    "requests": 12,
-    "maximum_parallel_children": 6,
-    "cooperative_deadline_ms": 600000,
-    "outer_watchdog_ms": 615000,
-    "shared_tt_enabled": false,
-    "tt_retry_or_resume": false
+  "artifact_classification": {
+    "state": "NON_OPERATIONAL_CHILD_ARTIFACT",
+    "direct_repository_launch_authorized": false,
+    "formal_package_command_present": false,
+    "user_owned_release_authority_present": false,
+    "exact_clean_provenance_is_approval": false,
+    "private_input_reachable_from_direct_entry": false,
+    "direct_entry_terminal_phase": "external-supervisor-unavailable",
+    "direct_entry_status": "STOP-fixed-phase-no-private-detail"
   },
-  "execution_order": [
+  "direct_entry_order": [
     "launcher-attestation",
-    "diagnostic-source-before-exact-clean",
-    "fixed-control-two-before-fingerprint",
-    "registry-locator-load-to-unclaimed-opaque-capability",
-    "tracked-worker-identity-check",
-    "fixed-runtime-two-before-fingerprint",
-    "read-only-asset-authority",
-    "public-calibration-child-close",
-    "single-registry-capability-claim",
-    "registry-application-source-before",
-    "fixed-role-nine-before-fingerprint",
-    "training-row-authentication",
-    "synchronous-single-input-claim",
-    "logical-rows-three-through-fourteen-selection",
-    "private-twelve-lane-aggregate-only-diagnostic",
-    "consumer-postflight",
-    "single-postflight-claim",
-    "asset-cleanup-and-zero-fill",
-    "fixed-thirteen-after-fingerprint",
-    "registry-application-source-after",
-    "diagnostic-source-after-exact-clean",
-    "single-canonical-sanitized-output-line"
+    "fixed-entrypoint-context",
+    "non-authorizing-diagnostic-source-exact-clean-capture",
+    "external-supervisor-unavailable",
+    "single-fixed-canonical-failure-line"
   ],
-  "launcher": {
+  "missing_external_authority": {
+    "root_owned_fixed_installed_supervisor_present": false,
+    "repository_bytes_authenticated_before_execution": false,
+    "authenticated_create_only_enrollment_present": false,
+    "rollback_resistant_trust_root_present": false,
+    "expected_merge_revision_authenticated": false,
+    "helper_and_bundle_bytes_authenticated_before_execution": false,
+    "private_process_group_descendant_containment_present": false,
+    "formal_private_run_authority": false,
+    "required_later_unit": "external-root-owned-supervisor-verifier-source-and-test-pr",
+    "admin_install_enrollment_and_release_activation_are_separate": true
+  },
+  "launcher_child_artifact": {
     "caller_arguments": 0,
-    "fixed_diagnostic_checkout_layout": "current-euid-home-stable-deadline-diagnostic-application",
-    "caffeinate_arguments": ["-dimsu", "fixed-node", "fixed-commonjs-entry"],
-    "preload_arguments": 0,
     "caller_supplied_path": false,
     "caller_supplied_revision": false,
-    "run_binding_initialized_before_attestation": false,
-    "direct_invocation_pre_gate_canary_rejected": "PASS"
-  },
-  "source_closure": {
-    "diagnostic_checkout_is_distinct_from_existing_production_application_checkout": true,
-    "existing_production_application_checkout_is_diagnostic_execution_authority": false,
-    "diagnostic_exact_clean_before_after_required": true,
-    "registry_application_revision_before_after_required": true,
-    "bundle_source_input_allowlist_count": 18,
-    "bundle_external_runtime_dependencies": "node-builtins-only",
-    "bundle_byte_determinism_gate": true,
-    "bundle": {
-      "bytes": 287451,
-      "sha256": "74a77a90a1ffcf6a3962b3af8a13d89b6ce429b85c07d5d9faaf878d3e3a0228"
+    "preload_arguments": 0,
+    "fixed_node": "v22.13.0",
+    "fixed_commonjs_entry": true,
+    "node_is_direct_nstask_child": true,
+    "sleep_prevention": "NSProcessInfo-native-process-activity",
+    "stdout_inherited": false,
+    "stderr_inherited": false,
+    "maximum_stdout_capture_bytes": 65536,
+    "first_stderr_byte_invalidates": true,
+    "accepted_output": "one-canonical-ascii-json-line-only",
+    "success_output_reconstructed_from_deep-exact-schema": true,
+    "failure_output_reconstructed_from-fixed-constants-and-phase-allowlist": true,
+    "original_child_object_forwarded": false,
+    "termination_sequence": {
+      "direct_child_term": true,
+      "grace_seconds": 5,
+      "direct_child_sigkill": true,
+      "waits_for_close_and_reap": true,
+      "waits_for_stdout_and_stderr_eof": true
     },
-    "bundle_forbidden_text_match_count": {
+    "post_launch_pipe_close_exceptions_fail_closed": true,
+    "arbitrary_grandchild_process_group_containment_claimed": false,
+    "macos_fixture_results": {
+      "canonical_fixed_failure_forwarded": "PASS",
+      "deep_valid_success_reconstructed": "PASS",
+      "nested_absolute_path_success_forgery_discarded": "PASS",
+      "early_throw_and_syntax_path_disclosure_discarded": "PASS",
+      "oversized_stdout_discarded": "PASS",
+      "oversized_stderr_discarded": "PASS",
+      "sigterm_ignoring_oversized_child_killed_and_reaped": "PASS",
+      "one_stderr_byte_then_hang_killed_and_reaped": "PASS",
+      "startup_hang_killed_and_reaped": "PASS",
+      "tests_passed": 21
+    }
+  },
+  "worker_cancellation": {
+    "production_should_stop_wired_to_public_calibration": true,
+    "production_should_stop_wired_to_every_diagnostic_lane": true,
+    "poll_milliseconds": 25,
+    "true_nonboolean_or_throw_fails_closed": true,
+    "kill_signal": "SIGKILL",
+    "promise_settles_only_after_child_close": true,
+    "six_active_lanes_killed_and_reaped": "PASS",
+    "remaining_six_lanes_not_spawned_after_stop": "PASS",
+    "calibration_child_killed_and_reaped": "PASS"
+  },
+  "bundle_source_closure": {
+    "source_input_allowlist_count": 18,
+    "external_runtime_dependencies": "node-builtins-only",
+    "byte_determinism_gate": true,
+    "dormant_run_binding_graph_retained": true,
+    "dormant_run_binding_graph_initialized_before_attestation": false,
+    "dormant_run_binding_graph_invoked_by_direct_entry": false,
+    "bundle": {
+      "bytes": 288004,
+      "sha256": "55171dad09a81185b70c9ce659a328db96031aa392eb35d1e73d99ecb88c636e",
+      "identity_final": false
+    },
+    "launcher": {
+      "bytes": 24471,
+      "sha256": "7e959583a1511d8a838de33017efab0761326ae8c64681884f9a6d0c7bbeab02",
+      "identity_final": false
+    },
+    "forbidden_text_match_count": {
       "absolute_user_path": 0,
       "node_modules": 0,
       "tsx_preload": 0,
@@ -100,6 +137,44 @@
       "src/components/game/ShogiImproved/types.ts"
     ]
   },
+  "dormant_read_only_contract": {
+    "schema": "shogi-floodgate-stable-wasm-deadline-run-binding-v1",
+    "status": "aggregate-only-read-only-diagnostic-complete",
+    "claim_boundary": "read-only-public-calibration-and-private-aggregate-deadline-observation-only-no-teacher-label-training-playing-strength-live-weight-or-production-gate-authority",
+    "requests": 12,
+    "maximum_parallel_children": 6,
+    "cooperative_deadline_ms": 600000,
+    "outer_watchdog_ms": 615000,
+    "shared_tt_enabled": false,
+    "tt_retry_or_resume": false,
+    "persistent_scope": {
+      "scope_type": "fixed-file-list-not-directory-tree",
+      "control_files": 2,
+      "runtime_files": 2,
+      "role_files": 9,
+      "scope_count": 13,
+      "required_unchanged_count": 13
+    },
+    "role_boundary": {
+      "claim": "manifest-authenticated-fixed-nine-paths-only",
+      "directory_entries_enumerated": false,
+      "exact_directory_tree_claimed": false,
+      "selected_logical_rows_inclusive": [3, 14],
+      "diagnostic_inputs": 12
+    },
+    "runtime_absences": {
+      "file_writer_present": false,
+      "directory_enumeration_present": false,
+      "deployment_root_key_read_present": false,
+      "checkpoint_present": false,
+      "retry_present": false,
+      "resume_present": false,
+      "teacher_generation_present": false,
+      "training_present": false,
+      "live_mutation_present": false
+    },
+    "executed_against_private_input_in_this_change": false
+  },
   "pinned_runtime_identities": {
     "wasm": {
       "bytes": 35597,
@@ -121,180 +196,36 @@
   "public_calibration": {
     "measurement_source": "public-repository-assets-only",
     "dedicated_aggregate_runs_recorded": 1,
+    "pairs": 5,
+    "fields_per_pair": 5,
+    "all_five_fields_matched_in_each_pair": true,
+    "parity_fields": ["move", "score", "depth", "nodes", "leaves"],
     "callback_overhead_ratio_definition": "round(sum(callback_duration)/sum(reference_duration)*1000000)",
     "callback_overhead_ratio_ppm": 1002562,
     "ratio_is_delta_ppm": false,
-    "exact_parity_count": 5,
-    "parity_fields": ["move", "score", "depth", "nodes", "leaves"],
     "raw_durations_returned_from_child": false,
-    "child_success_boundary": "close",
-    "default_unit_execution": "exact-synthetic-worker-spawn-fd3-canonical-parser-close-reap",
-    "real_measurement_execution": "explicit-isolated-command-after-default-unit-suite",
     "required_isolated_command": "npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration",
-    "required_separate_ci_step": true,
     "production_stability_limit_ppm": 250000,
     "production_watchdog_ms": 180000,
-    "production_thresholds_relaxed_for_tests": false,
-    "registry_capability_claimed": false,
-    "private_role_path_disclosed": false,
-    "private_training_rows_opened": 0,
     "claim_limit": "short-public-sentinel-callback-reference-ratio-not-long-tail-wall-time-equivalence"
   },
-  "registry_locator_boundary": {
-    "fixed_record_structure_checked": true,
-    "held_directory_and_file_revalidation": true,
-    "current_euid_owner_checked": true,
-    "mode_checked": true,
-    "single_link_record_checked": true,
-    "capability_is_opaque_before_claim": true,
-    "claim_count_on_success": 1,
-    "approved_key_record_reread": false,
-    "approved_key_record_reauthenticated": false,
-    "approved_production_key_authentication_claimed": false,
-    "purpose": "structurally-checked-read-only-locator-only"
-  },
-  "role_input_boundary": {
-    "claim": "manifest-authenticated-fixed-nine-paths-only",
-    "fixed_paths": [
-      "fresh-final-holdout.protected-position-ids.txt",
-      "fresh-final-holdout.raw.jsonl",
-      "fresh-selection.protected-position-ids.txt",
-      "fresh-selection.raw.jsonl",
-      "manifest.json",
-      "replay-excluded-position-ids.txt",
-      "replay-exclusion-receipt.json",
-      "training.protected-position-ids.txt",
-      "training.raw.jsonl"
-    ],
-    "manifest": {
-      "bytes": 7202,
-      "sha256": "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9"
-    },
-    "tracked_result_receipt": {
-      "bytes": 14735,
-      "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf"
-    },
-    "manifest_identity_to_held_file_mapping": "exact-one-to-one-nine-of-nine",
-    "nonmanifest_initial_one_byte_tamper_cases": 8,
-    "nonmanifest_initial_one_byte_tamper_rejected_before_callback": 8,
-    "directory_entries_enumerated": false,
-    "unrelated_directory_entries_in_claim_or_scope": false,
-    "absence_of_extra_pathnames_claimed": false,
-    "exact_directory_tree_claimed": false,
-    "verifier_repository_exact_clean_before_after": true,
-    "training_row_validation": [
-      "canonical-jsonl",
-      "floodgate-2026-q1-source-url",
-      "game-parent-position-identifiers",
-      "strict-parent-order",
-      "canonical-sfen",
-      "legal-played-move",
-      "aggregate-identifier-digests"
-    ],
-    "selected_logical_rows_inclusive": [3, 14],
-    "diagnostic_inputs": 12,
-    "synchronous_input_claims_on_success": 1,
-    "postflight_claims_on_success": 1
-  },
-  "persistent_state_boundary": {
-    "scope_type": "fixed-file-list-not-directory-tree",
-    "scope_count": 13,
-    "control_files": 2,
-    "runtime_asset_files": 2,
-    "role_files": 9,
-    "required_unchanged_count": 13,
-    "compared_fields": [
-      "canonical-path",
-      "regular-file",
-      "single-link",
-      "current-euid-owner",
-      "bytes",
-      "sha256",
-      "device",
-      "inode",
-      "mode",
-      "link-count",
-      "uid",
-      "gid",
-      "size",
-      "mtime",
-      "ctime"
-    ],
-    "approved_key_enrollment_use": "unchanged-fingerprint-only-not-authentication",
-    "deployment_root_key_read": false
-  },
-  "aggregate_output_boundary": {
-    "stdout_lines": 1,
-    "canonical_ascii_json": true,
-    "stderr_bytes": 0,
-    "individual_lane_records": 0,
-    "partial_iteration_results_adopted": 0,
-    "success_requires_all_children_reaped": true,
-    "success_requires_diagnostic_lanes_settled": 12,
-    "success_requires_calibration_child_reaped": 1,
-    "success_requires_persistent_files_unchanged": 13,
-    "private_fields_disclosed": {
-      "sfen_or_board": false,
-      "game_parent_or_position_id": false,
-      "input_index": false,
-      "path_or_sha256": false,
-      "pid": false,
-      "stderr_error_or_stack": false,
-      "move_or_score": false,
-      "exact_per_lane_nodes_leaves_or_elapsed": false
-    },
-    "adversarial_rejections": [
-      "top-level-extra-key",
-      "nested-extra-key",
-      "accessor",
-      "proxy",
-      "histogram-total-mismatch",
-      "unreaped-aggregate-header"
-    ],
-    "failure_output": "fixed-phase-schema-and-stop-status-only"
-  },
-  "runtime_absences": {
-    "file_writer_present": false,
-    "directory_enumeration_present": false,
-    "deployment_root_key_read_present": false,
-    "checkpoint_present": false,
-    "quarantine_present": false,
-    "lease_present": false,
-    "retry_present": false,
-    "resume_present": false,
-    "teacher_generation_present": false,
-    "training_present": false,
-    "live_mutation_present": false
-  },
   "validation": {
-    "pre_main_integration": {
-      "focused_suite": {
-        "files": 3,
-        "default_tests_passed": 52,
-        "real_public_calibration_tests_skipped": 1,
-        "wall_seconds": 1.16,
+    "current_head_partial": {
+      "launcher_and_output_boundary": {
+        "tests_passed": 21,
         "status": "PASS"
       },
-      "isolated_real_public_calibration": {
-        "command": "npm run test:shogi-floodgate-stable-wasm-deadline-public-calibration",
-        "tests_passed": 1,
-        "other_tests_filtered_or_skipped": 21,
-        "wall_seconds": 19.58,
-        "status": "PASS"
-      },
-      "shared_parser_production_consumer_sfen_regression": {
-        "files": 3,
-        "tests": 68,
-        "status": "PASS"
-      },
-      "typescript": "PASS",
-      "targeted_eslint_errors": 0,
+      "diagnostic_stop_and_reap": "PASS",
+      "calibration_stop_and_reap": "PASS",
+      "typescript": "PENDING_RERUN",
+      "targeted_eslint": "PENDING",
       "bundle_determinism": "PASS",
       "bundle_privacy_hard_gate": "PASS"
     },
     "final_integrated_head": {
-      "status": "PENDING",
+      "status": "PENDING_LATEST_MAIN",
       "focused_suite": null,
+      "isolated_real_public_calibration": null,
       "affected_regression": null,
       "full_unit_suite": null,
       "production_build": null
@@ -319,9 +250,9 @@
     "long_tail_cause_known": false,
     "long_tail_speed_improved": false,
     "callback_ratio_establishes_long_tail_wall_equivalence": false,
-    "registry_locator_reauthenticates_approved_key": false,
-    "role_root_has_no_unrelated_directory_entries": false,
-    "exact_role_directory_tree_verified": false,
+    "repository_launcher_is_execution_authority": false,
+    "exact_clean_source_is_approved_source": false,
+    "arbitrary_descendant_containment_complete": false,
     "teacher_data_created": false,
     "retraining_completed": false,
     "candidate_selected": false,
@@ -332,17 +263,18 @@
   },
   "next_safe_gate": {
     "state": "STOP",
-    "required_before_formal_private_run": [
-      "integrate-latest-origin-main-with-regular-merge",
-      "regenerate-byte-identical-bundle",
-      "final-head-focused-affected-and-full-validation",
-      "final-head-ci",
-      "independent-review",
-      "regular-pr-merge",
-      "align-dedicated-diagnostic-checkout-to-merge-commit",
-      "exact-clean-source-and-bundle-identity-check"
+    "current_pr_must_not_install_or_build_external_supervisor": true,
+    "required_sequence": [
+      "merge-all-prerequisites-and-regular-merge-latest-origin-main",
+      "regenerate-and-freeze-child-artifact-identities",
+      "final-head-focused-isolated-affected-full-and-build-validation",
+      "independent-review-and-regular-pr-merge",
+      "separate-external-root-owned-supervisor-verifier-source-and-test-pr",
+      "separate-admin-install-and-authenticated-create-only-enrollment",
+      "non-private-commissioning",
+      "one-formal-aggregate-only-private-diagnostic",
+      "aggregate-review-before-any-long-tail-fix"
     ],
-    "formal_run_count_after_gate": 1,
     "retry_or_resume_on_failure": false,
     "teacher_training_ab_or_live_authority": false,
     "live_weights_remain_unchanged": true

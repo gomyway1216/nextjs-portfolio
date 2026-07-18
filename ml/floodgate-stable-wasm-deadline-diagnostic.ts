@@ -73,6 +73,8 @@ const WORKER_BOOTSTRAP_SOURCE =
   'const encoded=Buffer.from(source).toString("base64");' +
   'await import("data:text/javascript;base64,"+encoded);';
 const MAX_WORKER_STDOUT_BYTES = 1_024;
+const STOP_POLL_MILLISECONDS = 25;
+const NEVER_STOP = () => false;
 const SENTE = 16;
 const GOTE = 32;
 const FIRST_HAND_KOMA = 17;
@@ -104,6 +106,7 @@ export interface FloodgateStableWasmDeadlineDiagnosticAssets {
 export interface FloodgateStableWasmDeadlineDiagnosticTestOptions {
   readonly cooperativeDeadlineMilliseconds?: number;
   readonly outerWatchdogMilliseconds?: number;
+  readonly shouldStop?: () => boolean;
   readonly testOnlyChildExecutablePath?: string;
 }
 
@@ -155,6 +158,7 @@ interface CapturedOptions {
   readonly cooperativeDeadlineMilliseconds: number;
   readonly outerWatchdogMilliseconds: number;
   readonly childExecutablePath: string;
+  readonly shouldStop: () => boolean;
 }
 
 interface SafeLaneTelemetry {
@@ -378,11 +382,13 @@ function captureOptions(
   );
   const childExecutablePath =
     options.testOnlyChildExecutablePath ?? process.execPath;
+  const shouldStop = options.shouldStop ?? NEVER_STOP;
   if (
     typeof childExecutablePath !== "string" ||
     !isAbsolute(childExecutablePath) ||
     childExecutablePath.length > 4_096 ||
-    /[\u0000-\u001f\u007f]/u.test(childExecutablePath)
+    /[\u0000-\u001f\u007f]/u.test(childExecutablePath) ||
+    typeof shouldStop !== "function"
   ) {
     fail("diagnostic test child executable path is invalid");
   }
@@ -390,7 +396,17 @@ function captureOptions(
     cooperativeDeadlineMilliseconds,
     outerWatchdogMilliseconds,
     childExecutablePath,
+    shouldStop,
   });
+}
+
+function stopRequested(shouldStop: () => boolean): boolean {
+  try {
+    const result = shouldStop();
+    return typeof result !== "boolean" || result;
+  } catch {
+    return true;
+  }
 }
 
 function canonicalJson(value: unknown): string {
@@ -577,6 +593,9 @@ function runOneChild(
   mode: "diagnostic" | "parity",
   lifecycle?: ChildLifecycleObserver,
 ): Promise<SafeLaneTelemetry | ParityWorkerMessage | null> {
+  if (stopRequested(options.shouldStop)) {
+    return Promise.resolve(mode === "diagnostic" ? safeFailure() : null);
+  }
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
@@ -603,6 +622,7 @@ function runOneChild(
     const stdoutPieces: Buffer[] = [];
     let stdoutBytes = 0;
     let invalid = false;
+    let stopped = false;
     let watchdog = false;
     let settled = false;
 
@@ -617,6 +637,11 @@ function runOneChild(
       invalid = true;
       killOnlyThisChild();
     };
+    const stopPoll = setInterval(() => {
+      if (!stopRequested(options.shouldStop)) return;
+      stopped = true;
+      killOnlyThisChild();
+    }, STOP_POLL_MILLISECONDS);
     const timer = setTimeout(() => {
       watchdog = true;
       killOnlyThisChild();
@@ -664,6 +689,7 @@ function runOneChild(
         if (settled) return;
         settled = true;
         if (lifecycleSpawned) lifecycle?.onReap();
+        clearInterval(stopPoll);
         clearTimeout(timer);
         if (watchdog) {
           resolve(
@@ -679,7 +705,7 @@ function runOneChild(
           );
           return;
         }
-        if (invalid || code !== 0 || signal !== null) {
+        if (stopped || invalid || code !== 0 || signal !== null) {
           resolve(mode === "diagnostic" ? safeFailure() : null);
           return;
         }

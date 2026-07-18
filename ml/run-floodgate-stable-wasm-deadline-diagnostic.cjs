@@ -764,14 +764,24 @@ function captureOptions(options) {
     "outer watchdog"
   );
   const childExecutablePath = options.testOnlyChildExecutablePath ?? process.execPath;
-  if (typeof childExecutablePath !== "string" || !(0, import_node_path.isAbsolute)(childExecutablePath) || childExecutablePath.length > 4096 || /[\u0000-\u001f\u007f]/u.test(childExecutablePath)) {
+  const shouldStop = options.shouldStop ?? NEVER_STOP;
+  if (typeof childExecutablePath !== "string" || !(0, import_node_path.isAbsolute)(childExecutablePath) || childExecutablePath.length > 4096 || /[\u0000-\u001f\u007f]/u.test(childExecutablePath) || typeof shouldStop !== "function") {
     fail3("diagnostic test child executable path is invalid");
   }
   return Object.freeze({
     cooperativeDeadlineMilliseconds,
     outerWatchdogMilliseconds,
-    childExecutablePath
+    childExecutablePath,
+    shouldStop
   });
+}
+function stopRequested(shouldStop) {
+  try {
+    const result = shouldStop();
+    return typeof result !== "boolean" || result;
+  } catch {
+    return true;
+  }
 }
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -892,6 +902,9 @@ function safeFailure() {
   });
 }
 function runOneChild(input, assets, options, mode, lifecycle) {
+  if (stopRequested(options.shouldStop)) {
+    return Promise.resolve(mode === "diagnostic" ? safeFailure() : null);
+  }
   return new Promise((resolve8) => {
     let child;
     try {
@@ -917,6 +930,7 @@ function runOneChild(input, assets, options, mode, lifecycle) {
     const stdoutPieces = [];
     let stdoutBytes = 0;
     let invalid = false;
+    let stopped = false;
     let watchdog = false;
     let settled = false;
     const killOnlyThisChild = () => {
@@ -929,6 +943,11 @@ function runOneChild(input, assets, options, mode, lifecycle) {
       invalid = true;
       killOnlyThisChild();
     };
+    const stopPoll = setInterval(() => {
+      if (!stopRequested(options.shouldStop)) return;
+      stopped = true;
+      killOnlyThisChild();
+    }, STOP_POLL_MILLISECONDS);
     const timer = setTimeout(() => {
       watchdog = true;
       killOnlyThisChild();
@@ -971,6 +990,7 @@ function runOneChild(input, assets, options, mode, lifecycle) {
         if (settled) return;
         settled = true;
         if (lifecycleSpawned) lifecycle?.onReap();
+        clearInterval(stopPoll);
         clearTimeout(timer);
         if (watchdog) {
           resolve8(
@@ -984,7 +1004,7 @@ function runOneChild(input, assets, options, mode, lifecycle) {
           );
           return;
         }
-        if (invalid || code !== 0 || signal !== null) {
+        if (stopped || invalid || code !== 0 || signal !== null) {
           resolve8(mode === "diagnostic" ? safeFailure() : null);
           return;
         }
@@ -1154,7 +1174,7 @@ function runFloodgateStableWasmDeadlineDiagnosticCoreForTests(inputs, assets, op
   const capturedOptions = captureOptions(options);
   return runCapturedDiagnostic(capturedInputs, capturedAssets, capturedOptions);
 }
-var import_node_child_process3, import_node_crypto2, import_node_path, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_WORKER_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_STATUS, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_CLAIM_BOUNDARY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_COOPERATIVE_DEADLINE_MS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_OUTER_WATCHDOG_MS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_REQUESTED_DEPTH, FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_REQUESTS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_CONCURRENT_CHILDREN, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WASM_IDENTITY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WEIGHTS_IDENTITY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY, COUNTER_BUCKETS, PHASES, WORKER_BOOTSTRAP_SOURCE, MAX_WORKER_STDOUT_BYTES, SENTE, GOTE, FIRST_HAND_KOMA, VALID_BOARD_PIECES, MATERIAL_LIMIT_BY_KIND;
+var import_node_child_process3, import_node_crypto2, import_node_path, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_WORKER_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_STATUS, FLOODGATE_STABLE_WASM_DEADLINE_DIAGNOSTIC_CLAIM_BOUNDARY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_COOPERATIVE_DEADLINE_MS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_OUTER_WATCHDOG_MS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_REQUESTED_DEPTH, FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_REQUESTS, FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_CONCURRENT_CHILDREN, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WASM_IDENTITY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WEIGHTS_IDENTITY, FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY, COUNTER_BUCKETS, PHASES, WORKER_BOOTSTRAP_SOURCE, MAX_WORKER_STDOUT_BYTES, STOP_POLL_MILLISECONDS, NEVER_STOP, SENTE, GOTE, FIRST_HAND_KOMA, VALID_BOARD_PIECES, MATERIAL_LIMIT_BY_KIND;
 var init_floodgate_stable_wasm_deadline_diagnostic = __esm({
   "ml/floodgate-stable-wasm-deadline-diagnostic.ts"() {
     "use strict";
@@ -1209,6 +1229,8 @@ var init_floodgate_stable_wasm_deadline_diagnostic = __esm({
     ]);
     WORKER_BOOTSTRAP_SOURCE = 'import { readFileSync } from "node:fs";const source=readFileSync(3);const encoded=Buffer.from(source).toString("base64");await import("data:text/javascript;base64,"+encoded);';
     MAX_WORKER_STDOUT_BYTES = 1024;
+    STOP_POLL_MILLISECONDS = 25;
+    NEVER_STOP = () => false;
     SENTE = 16;
     GOTE = 32;
     FIRST_HAND_KOMA = 17;
@@ -1378,9 +1400,21 @@ function workerInputLine(assets) {
 }
 function runCapturedCalibration(assets, options) {
   const childExecutablePath = options.childExecutablePath ?? process.execPath;
+  const shouldStop = options.shouldStop ?? NEVER_STOP2;
   const watchdogMilliseconds = options.watchdogMilliseconds ?? FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS;
-  if (typeof childExecutablePath !== "string" || childExecutablePath.length === 0 || !Number.isSafeInteger(watchdogMilliseconds) || watchdogMilliseconds < 1 || watchdogMilliseconds > FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS) {
+  if (typeof childExecutablePath !== "string" || childExecutablePath.length === 0 || typeof shouldStop !== "function" || !Number.isSafeInteger(watchdogMilliseconds) || watchdogMilliseconds < 1 || watchdogMilliseconds > FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS) {
     return Promise.reject(new Error("invalid calibration child options"));
+  }
+  const stopRequested2 = () => {
+    try {
+      const result = shouldStop();
+      return typeof result !== "boolean" || result;
+    } catch {
+      return true;
+    }
+  };
+  if (stopRequested2()) {
+    return Promise.reject(new Error("public calibration stopped before spawn"));
   }
   return new Promise((resolve8, reject) => {
     let child;
@@ -1402,6 +1436,7 @@ function runCapturedCalibration(assets, options) {
     const stdoutPieces = [];
     let stdoutBytes = 0;
     let invalid = false;
+    let stopped = false;
     let watchdog = false;
     let settled = false;
     const killChild = () => {
@@ -1414,6 +1449,11 @@ function runCapturedCalibration(assets, options) {
       invalid = true;
       killChild();
     };
+    const stopPoll = setInterval(() => {
+      if (!stopRequested2()) return;
+      stopped = true;
+      killChild();
+    }, STOP_POLL_MILLISECONDS2);
     const timer = setTimeout(() => {
       watchdog = true;
       killChild();
@@ -1423,8 +1463,9 @@ function runCapturedCalibration(assets, options) {
       (code, signal) => {
         if (settled) return;
         settled = true;
+        clearInterval(stopPoll);
         clearTimeout(timer);
-        if (watchdog || invalid || code !== 0 || signal !== null) {
+        if (stopped || watchdog || invalid || code !== 0 || signal !== null) {
           reject(new Error("public calibration child failed closed"));
           return;
         }
@@ -1485,16 +1526,16 @@ function runCapturedCalibration(assets, options) {
     }
   });
 }
-function runFloodgateStableWasmDeadlinePublicCalibration(assets) {
+function runFloodgateStableWasmDeadlinePublicCalibration(assets, shouldStop = NEVER_STOP2) {
   return runCapturedCalibration(
     captureAssets2(
       assets,
       FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY
     ),
-    {}
+    { shouldStop }
   );
 }
-var import_node_child_process4, import_node_crypto3, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY, WORKER_BOOTSTRAP_SOURCE2, MAX_WORKER_STDOUT_BYTES2;
+var import_node_child_process4, import_node_crypto3, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_SCHEMA, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS, FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY, WORKER_BOOTSTRAP_SOURCE2, MAX_WORKER_STDOUT_BYTES2, STOP_POLL_MILLISECONDS2, NEVER_STOP2;
 var init_floodgate_stable_wasm_deadline_public_calibration = __esm({
   "ml/floodgate-stable-wasm-deadline-public-calibration.ts"() {
     "use strict";
@@ -1510,6 +1551,8 @@ var init_floodgate_stable_wasm_deadline_public_calibration = __esm({
     });
     WORKER_BOOTSTRAP_SOURCE2 = 'import { readFileSync } from "node:fs";const source=readFileSync(3);const encoded=Buffer.from(source).toString("base64");await import("data:text/javascript;base64,"+encoded);';
     MAX_WORKER_STDOUT_BYTES2 = 256;
+    STOP_POLL_MILLISECONDS2 = 25;
+    NEVER_STOP2 = () => false;
   }
 });
 
@@ -7751,7 +7794,7 @@ function runFloodgateStableWasmDeadlineRunBinding(expectedDiagnosticSourceBindin
     captureDiagnosticSource: captureFloodgateStableWasmDeadlineDiagnosticSourceProvenance,
     captureRegistryApplicationSource: captureFloodgateStableWasmDeadlineRegistryApplicationSource,
     withAssets: async (callback) => withFloodgateStableWasmDeadlineReadOnlyAssets(callback),
-    calibrate: runFloodgateStableWasmDeadlinePublicCalibration,
+    calibrate: (assets) => runFloodgateStableWasmDeadlinePublicCalibration(assets, shouldStop),
     consumeRows: (options, callback) => withFloodgateStableWasmDeadlineReadOnlyRows(
       options,
       callback,
@@ -7761,7 +7804,9 @@ function runFloodgateStableWasmDeadlineRunBinding(expectedDiagnosticSourceBindin
     claimPostflight: (receipt) => claimFloodgateStableWasmDeadlineConsumerPostflight(
       receipt
     ),
-    diagnose: (inputs, assets) => runFloodgateStableWasmDeadlineDiagnosticCoreForTests(inputs, assets)
+    diagnose: (inputs, assets) => runFloodgateStableWasmDeadlineDiagnosticCoreForTests(inputs, assets, {
+      shouldStop
+    })
   });
 }
 function floodgateStableWasmDeadlineRunBindingFailure(error) {
@@ -8165,31 +8210,14 @@ init_floodgate_stable_wasm_deadline_diagnostic_source_provenance();
 var ENTRYPOINT = "ml/run-floodgate-stable-wasm-deadline-diagnostic.cjs";
 var FAILURE_SCHEMA = "shogi-floodgate-stable-wasm-deadline-run-binding-failure-v1";
 var FAILURE_STATUS = "STOP-fixed-phase-no-private-detail";
-var BINDING_PHASES = /* @__PURE__ */ new Set([
+var ENTRY_ONLY_FAILURE_PHASES = /* @__PURE__ */ new Set([
+  "binding-load",
+  "diagnostic-source-before",
+  "entrypoint-context",
+  "external-supervisor-unavailable",
+  "internal",
   "invocation",
-  "platform",
-  "persistent-before-control",
-  "registry-load",
-  "worker-source",
-  "persistent-before-assets",
-  "asset-authority",
-  "public-calibration",
-  "registry-claim",
-  "registry-application-source-before",
-  "persistent-before-role",
-  "consumer-authentication",
-  "consumer-claim",
-  "row-selection",
-  "private-diagnostic",
-  "consumer-postflight",
-  "postflight-claim",
-  "asset-cleanup",
-  "persistent-after",
-  "registry-application-source-after",
-  "diagnostic-source-after",
-  "signal",
-  "output",
-  "internal"
+  "launcher-attestation"
 ]);
 function canonicalJson5(value) {
   if (value === null) return "null";
@@ -8269,17 +8297,8 @@ async function lazyBindingModule() {
     runFloodgateStableWasmDeadlineRunBinding: run.value
   });
 }
-function safeBindingPhase(binding, error, fallback) {
-  if (binding === null) return fallback;
-  try {
-    const result = binding.floodgateStableWasmDeadlineRunBindingFailure(error);
-    const descriptor = Object.getOwnPropertyDescriptor(result, "phase");
-    if (descriptor !== void 0 && "value" in descriptor && typeof descriptor.value === "string" && BINDING_PHASES.has(descriptor.value)) {
-      return descriptor.value;
-    }
-  } catch {
-  }
-  return fallback;
+function safeEntryPhase(fallback) {
+  return ENTRY_ONLY_FAILURE_PHASES.has(fallback) ? fallback : "internal";
 }
 async function main() {
   let interrupted = false;
@@ -8291,29 +8310,20 @@ async function main() {
   let output;
   let exitCode = 0;
   let phase = "invocation";
-  let binding = null;
   try {
     if (process.argv.length !== 2) throw new Error("invalid invocation");
     phase = "launcher-attestation";
     claimFloodgateStableWasmDeadlineDiagnosticLauncherAttestation();
+    Object.freeze(lazyBindingModule);
     phase = "entrypoint-context";
     assertFloodgateStableWasmDeadlineDiagnosticEntrypointContext(ENTRYPOINT);
     phase = "diagnostic-source-before";
-    const sourceBefore = await captureFloodgateStableWasmDeadlineDiagnosticSourceProvenance();
-    if (interrupted) throw new Error("interrupted before binding load");
-    phase = "binding-load";
-    binding = await lazyBindingModule();
-    phase = "internal";
-    output = await binding.runFloodgateStableWasmDeadlineRunBinding(
-      sourceBefore,
-      () => interrupted
-    );
-    if (interrupted) {
-      phase = "signal";
-      throw new Error("interrupted after binding completion");
-    }
-  } catch (error) {
-    phase = safeBindingPhase(binding, error, phase);
+    await captureFloodgateStableWasmDeadlineDiagnosticSourceProvenance();
+    if (interrupted) throw new Error("interrupted before external gate");
+    phase = "external-supervisor-unavailable";
+    throw new Error("external supervisor is not installed");
+  } catch {
+    phase = safeEntryPhase(phase);
     output = Object.freeze({
       phase,
       schema: FAILURE_SCHEMA,

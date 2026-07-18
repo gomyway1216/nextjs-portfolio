@@ -1304,7 +1304,8 @@ export function runFloodgateStableWasmDeadlineRunBinding(
     withAssets: async <TResult>(
       callback: (assets: Readonly<StableRuntimeAssets>) => Promise<TResult>,
     ) => withFloodgateStableWasmDeadlineReadOnlyAssets(callback),
-    calibrate: runFloodgateStableWasmDeadlinePublicCalibration,
+    calibrate: (assets) =>
+      runFloodgateStableWasmDeadlinePublicCalibration(assets, shouldStop),
     consumeRows: (options, callback) =>
       withFloodgateStableWasmDeadlineReadOnlyRows(
         options,
@@ -1317,7 +1318,9 @@ export function runFloodgateStableWasmDeadlineRunBinding(
         receipt as Readonly<FloodgateStableWasmDeadlineConsumerPostflightCapability>,
       ),
     diagnose: (inputs, assets) =>
-      runFloodgateStableWasmDeadlineDiagnosticCoreForTests(inputs, assets),
+      runFloodgateStableWasmDeadlineDiagnosticCoreForTests(inputs, assets, {
+        shouldStop,
+      }),
   });
 }
 

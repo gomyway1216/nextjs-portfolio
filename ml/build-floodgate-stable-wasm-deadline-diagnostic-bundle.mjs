@@ -7,8 +7,7 @@ import { build } from "esbuild";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const entrypoint = "ml/run-floodgate-stable-wasm-deadline-diagnostic.ts";
-const outputRelative =
-  "ml/run-floodgate-stable-wasm-deadline-diagnostic.cjs";
+const outputRelative = "ml/run-floodgate-stable-wasm-deadline-diagnostic.cjs";
 const outputPath = join(repositoryRoot, outputRelative);
 const allowedExternals = new Set([
   ...builtinModules,
@@ -51,7 +50,9 @@ if (
   process.argv.length > 3 ||
   (process.argv.length === 3 && process.argv[2] !== "--write")
 ) {
-  fail("usage: node build-floodgate-stable-wasm-deadline-diagnostic-bundle.mjs [--write]");
+  fail(
+    "usage: node build-floodgate-stable-wasm-deadline-diagnostic-bundle.mjs [--write]",
+  );
 }
 
 const result = await build({
@@ -88,7 +89,9 @@ if (
 const inputPaths = Object.keys(result.metafile.inputs).sort();
 if (
   inputPaths.length !== exactInputAllowlist.length ||
-  inputPaths.some((inputPath, index) => inputPath !== exactInputAllowlist[index])
+  inputPaths.some(
+    (inputPath, index) => inputPath !== exactInputAllowlist[index],
+  )
 ) {
   fail("bundle source closure differs from the exact diagnostic allowlist");
 }

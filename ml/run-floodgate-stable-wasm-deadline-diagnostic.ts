@@ -9,31 +9,14 @@ const ENTRYPOINT =
 const FAILURE_SCHEMA =
   "shogi-floodgate-stable-wasm-deadline-run-binding-failure-v1" as const;
 const FAILURE_STATUS = "STOP-fixed-phase-no-private-detail" as const;
-const BINDING_PHASES = new Set([
-  "invocation",
-  "platform",
-  "persistent-before-control",
-  "registry-load",
-  "worker-source",
-  "persistent-before-assets",
-  "asset-authority",
-  "public-calibration",
-  "registry-claim",
-  "registry-application-source-before",
-  "persistent-before-role",
-  "consumer-authentication",
-  "consumer-claim",
-  "row-selection",
-  "private-diagnostic",
-  "consumer-postflight",
-  "postflight-claim",
-  "asset-cleanup",
-  "persistent-after",
-  "registry-application-source-after",
-  "diagnostic-source-after",
-  "signal",
-  "output",
+const ENTRY_ONLY_FAILURE_PHASES = new Set([
+  "binding-load",
+  "diagnostic-source-before",
+  "entrypoint-context",
+  "external-supervisor-unavailable",
   "internal",
+  "invocation",
+  "launcher-attestation",
 ]);
 
 interface LazyBindingModule {
@@ -153,27 +136,8 @@ async function lazyBindingModule(): Promise<LazyBindingModule> {
   });
 }
 
-function safeBindingPhase(
-  binding: LazyBindingModule | null,
-  error: unknown,
-  fallback: string,
-): string {
-  if (binding === null) return fallback;
-  try {
-    const result = binding.floodgateStableWasmDeadlineRunBindingFailure(error);
-    const descriptor = Object.getOwnPropertyDescriptor(result, "phase");
-    if (
-      descriptor !== undefined &&
-      "value" in descriptor &&
-      typeof descriptor.value === "string" &&
-      BINDING_PHASES.has(descriptor.value)
-    ) {
-      return descriptor.value;
-    }
-  } catch {
-    // The fixed fallback remains the only disclosed failure classification.
-  }
-  return fallback;
+function safeEntryPhase(fallback: string): string {
+  return ENTRY_ONLY_FAILURE_PHASES.has(fallback) ? fallback : "internal";
 }
 
 async function main(): Promise<void> {
@@ -187,31 +151,22 @@ async function main(): Promise<void> {
   let output: unknown;
   let exitCode = 0;
   let phase = "invocation";
-  let binding: LazyBindingModule | null = null;
   try {
     if (process.argv.length !== 2) throw new Error("invalid invocation");
     phase = "launcher-attestation";
     claimFloodgateStableWasmDeadlineDiagnosticLauncherAttestation();
+    // Retain the separately initialized child graph in the single reviewable
+    // bundle without loading or invoking it from this non-operational entry.
+    Object.freeze(lazyBindingModule);
     phase = "entrypoint-context";
     assertFloodgateStableWasmDeadlineDiagnosticEntrypointContext(ENTRYPOINT);
     phase = "diagnostic-source-before";
-    const sourceBefore =
-      await captureFloodgateStableWasmDeadlineDiagnosticSourceProvenance();
-    if (interrupted) throw new Error("interrupted before binding load");
-
-    phase = "binding-load";
-    binding = await lazyBindingModule();
-    phase = "internal";
-    output = await binding.runFloodgateStableWasmDeadlineRunBinding(
-      sourceBefore,
-      () => interrupted,
-    );
-    if (interrupted) {
-      phase = "signal";
-      throw new Error("interrupted after binding completion");
-    }
-  } catch (error) {
-    phase = safeBindingPhase(binding, error, phase);
+    await captureFloodgateStableWasmDeadlineDiagnosticSourceProvenance();
+    if (interrupted) throw new Error("interrupted before external gate");
+    phase = "external-supervisor-unavailable";
+    throw new Error("external supervisor is not installed");
+  } catch {
+    phase = safeEntryPhase(phase);
     output = Object.freeze({
       phase,
       schema: FAILURE_SCHEMA,

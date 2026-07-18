@@ -491,6 +491,26 @@ describe("stable-WASM PUBLIC deadline calibration", () => {
     },
   );
 
+  it("kills and reaps the calibration child when the production stop predicate flips", async () => {
+    const source = syntheticCalibrationWorker("hang");
+    let stopped = false;
+    const started = Date.now();
+    setTimeout(() => {
+      stopped = true;
+    }, 50);
+    await expect(
+      runFloodgateStableWasmDeadlinePublicCalibrationWithSourceCoreForTests(
+        calibrationAssets(source),
+        { bytes: source.byteLength, sha256: sha256(source) },
+        {
+          shouldStop: () => stopped,
+          watchdogMilliseconds: 2_000,
+        },
+      ),
+    ).rejects.toThrow("failed closed");
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
   it("rejects the wrong worker and either wrong runtime asset before launch", () => {
     const source = syntheticCalibrationWorker("instant");
     const validAssets = calibrationAssets(source);
@@ -861,7 +881,7 @@ describe("stable-WASM deadline production run binding", () => {
     expect(source).not.toContain("root-key.json");
     expect(source).not.toContain("checkpoint");
     expect(source).not.toContain("quarantine");
-    expect(source).not.toContain("lease");
+    expect(source).not.toMatch(/\blease\b/u);
     expect(source).not.toContain("retry(");
     expect(source).not.toContain("resume(");
   });

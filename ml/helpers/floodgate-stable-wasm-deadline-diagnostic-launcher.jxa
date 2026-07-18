@@ -4,14 +4,16 @@
  * Darwin-native, preload-free launch boundary for one fixed read-only
  * stable-WASM deadline diagnostic. /usr/bin/osascript evaluates this tracked
  * source before the child Node process exists. NSTask starts the exact pinned
- * Node through /usr/bin/caffeinate with a minimal environment and a private
- * one-shot stdin attestation frame. No caller-selected purpose, path, loader,
- * preload, or child argument is accepted.
+ * Node directly with a minimal environment and a private one-shot stdin
+ * attestation frame. A native process activity keeps the direct child awake
+ * without an intermediate utility process. No caller-selected purpose, path,
+ * loader, preload, or child argument is accepted.
  */
 
 ObjC.import("Foundation");
 ObjC.import("Security");
 ObjC.bindFunction("exit", ["void", ["int"]]);
+ObjC.bindFunction("kill", ["int", ["int", "int"]]);
 
 const ATTESTATION_CONTRACT =
   "shogi-floodgate-stable-wasm-deadline-diagnostic-launcher-attestation-v1";
@@ -21,6 +23,86 @@ const NODE_SUFFIX = ".nvm/versions/node/v22.13.0/bin/node";
 const HELPER_SUFFIX =
   "ml/helpers/floodgate-stable-wasm-deadline-diagnostic-launcher.jxa";
 const ENTRY_SUFFIX = "ml/run-floodgate-stable-wasm-deadline-diagnostic.cjs";
+const SUCCESS_SCHEMA = "shogi-floodgate-stable-wasm-deadline-run-binding-v1";
+const SUCCESS_STATUS = "aggregate-only-read-only-diagnostic-complete";
+const SUCCESS_CLAIM_BOUNDARY =
+  "read-only-public-calibration-and-private-aggregate-deadline-observation-only-no-teacher-label-training-playing-strength-live-weight-or-production-gate-authority";
+const FAILURE_SCHEMA =
+  "shogi-floodgate-stable-wasm-deadline-run-binding-failure-v1";
+const FAILURE_STATUS = "STOP-fixed-phase-no-private-detail";
+const MAX_CAPTURE_BYTES = 64 * 1024;
+// 180s public calibration + two 615s diagnostic waves + 30s fixed closure.
+const OVERALL_WATCHDOG_SECONDS = 180 + 2 * 615 + 30;
+const TERMINATION_GRACE_SECONDS = 5;
+const SIGKILL = 9;
+const SUCCESS_KEYS = [
+  "calibration",
+  "claim_boundary",
+  "diagnostic",
+  "lifecycle",
+  "nonclaims",
+  "persistent_state",
+  "schema",
+  "source_closure",
+  "status",
+];
+const FAILURE_KEYS = ["phase", "schema", "status"];
+const COUNTER_BUCKETS = [
+  "0",
+  "1-1023",
+  "1024-32767",
+  "32768-1048575",
+  "1048576-33554431",
+  "33554432-2147483647",
+];
+const DIAGNOSTIC_PHASES = [
+  "requested-depth-complete",
+  "winning-mate-early",
+  "cooperative-deadline-after-completed-depth-0",
+  "cooperative-deadline-after-completed-depth-1",
+  "cooperative-deadline-after-completed-depth-2",
+  "cooperative-deadline-after-completed-depth-3",
+  "cooperative-deadline-after-completed-depth-4",
+  "cooperative-deadline-after-completed-depth-5",
+  "cooperative-deadline-after-completed-depth-6",
+  "cooperative-deadline-after-completed-depth-7",
+  "cooperative-deadline-after-completed-depth-8",
+  "cooperative-deadline-after-completed-depth-9",
+  "cooperative-deadline-after-completed-depth-10",
+  "outer-watchdog",
+  "failure",
+];
+const FAILURE_PHASES = new Set([
+  "asset-authority",
+  "asset-cleanup",
+  "binding-load",
+  "consumer-authentication",
+  "consumer-claim",
+  "consumer-postflight",
+  "diagnostic-source-after",
+  "diagnostic-source-before",
+  "entrypoint-context",
+  "external-supervisor-unavailable",
+  "internal",
+  "invocation",
+  "launcher-attestation",
+  "output",
+  "persistent-after",
+  "persistent-before-assets",
+  "persistent-before-control",
+  "persistent-before-role",
+  "platform",
+  "postflight-claim",
+  "private-diagnostic",
+  "public-calibration",
+  "registry-application-source-after",
+  "registry-application-source-before",
+  "registry-claim",
+  "registry-load",
+  "row-selection",
+  "signal",
+  "worker-source",
+]);
 
 const fileManager = $.NSFileManager.defaultManager;
 
@@ -110,6 +192,515 @@ function randomNonce() {
   return nonce;
 }
 
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || Object.is(value, -0)) fail();
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    const keys = Object.keys(value).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  fail();
+}
+
+function exactKeys(value, expected) {
+  const keys = Object.keys(value);
+  return (
+    keys.length === expected.length &&
+    keys.every((key, index) => key === expected[index])
+  );
+}
+
+function exactRecord(value, expectedKeys) {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype ||
+    !exactKeys(value, expectedKeys)
+  ) {
+    fail();
+  }
+  return value;
+}
+
+function safeCount(value, maximum) {
+  if (!Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    fail();
+  }
+  return value;
+}
+
+function sanitizeHistogram(value, labels, labelKey) {
+  if (!Array.isArray(value) || value.length !== labels.length) fail();
+  const entryKeys = ["count", labelKey].sort();
+  return value.map((entry, index) => {
+    const record = exactRecord(entry, entryKeys);
+    if (record[labelKey] !== labels[index]) fail();
+    return {
+      [labelKey]: labels[index],
+      count: safeCount(record.count, 12),
+    };
+  });
+}
+
+function sumCounts(entries) {
+  return entries.reduce((sum, entry) => sum + entry.count, 0);
+}
+
+function sanitizeSuccess(value) {
+  const record = exactRecord(value, SUCCESS_KEYS);
+  if (
+    record.schema !== SUCCESS_SCHEMA ||
+    record.status !== SUCCESS_STATUS ||
+    record.claim_boundary !== SUCCESS_CLAIM_BOUNDARY
+  ) {
+    fail();
+  }
+
+  const calibration = exactRecord(record.calibration, [
+    "callback_overhead_ratio_ppm",
+    "exact_parity_count",
+  ]);
+  if (
+    !Number.isSafeInteger(calibration.callback_overhead_ratio_ppm) ||
+    calibration.callback_overhead_ratio_ppm <= 0 ||
+    calibration.exact_parity_count !== 5
+  ) {
+    fail();
+  }
+
+  const diagnostic = exactRecord(record.diagnostic, [
+    "all_children_reaped",
+    "completed_depth_histogram",
+    "configured_maximum_parallel_children",
+    "cooperative_deadline_ms",
+    "individual_lane_records_returned",
+    "leaves_bucket_histogram",
+    "nodes_bucket_histogram",
+    "observed_peak_parallel_children",
+    "outcome_counts",
+    "outer_watchdog_ms",
+    "partial_iteration_results_adopted",
+    "phase_histogram",
+    "requests",
+  ]);
+  if (
+    diagnostic.all_children_reaped !== true ||
+    diagnostic.configured_maximum_parallel_children !== 6 ||
+    diagnostic.cooperative_deadline_ms !== 600000 ||
+    diagnostic.individual_lane_records_returned !== 0 ||
+    diagnostic.outer_watchdog_ms !== 615000 ||
+    diagnostic.partial_iteration_results_adopted !== 0 ||
+    diagnostic.requests !== 12
+  ) {
+    fail();
+  }
+  const observedPeak = safeCount(diagnostic.observed_peak_parallel_children, 6);
+  const outcomes = exactRecord(diagnostic.outcome_counts, [
+    "complete",
+    "deadline",
+    "failure",
+    "watchdog",
+  ]);
+  const capturedOutcomes = {
+    complete: safeCount(outcomes.complete, 12),
+    deadline: safeCount(outcomes.deadline, 12),
+    failure: safeCount(outcomes.failure, 12),
+    watchdog: safeCount(outcomes.watchdog, 12),
+  };
+  if (
+    Object.values(capturedOutcomes).reduce((sum, count) => sum + count, 0) !==
+    12
+  ) {
+    fail();
+  }
+  const phases = sanitizeHistogram(
+    diagnostic.phase_histogram,
+    DIAGNOSTIC_PHASES,
+    "phase",
+  );
+  if (
+    !Array.isArray(diagnostic.completed_depth_histogram) ||
+    diagnostic.completed_depth_histogram.length !== 12
+  ) {
+    fail();
+  }
+  const depths = diagnostic.completed_depth_histogram.map((entry, depth) => {
+    const captured = exactRecord(entry, ["count", "depth"]);
+    if (captured.depth !== depth) fail();
+    return { count: safeCount(captured.count, 12), depth };
+  });
+  const nodes = sanitizeHistogram(
+    diagnostic.nodes_bucket_histogram,
+    COUNTER_BUCKETS,
+    "bucket",
+  );
+  const leaves = sanitizeHistogram(
+    diagnostic.leaves_bucket_histogram,
+    COUNTER_BUCKETS,
+    "bucket",
+  );
+  const completedOrDeadline =
+    capturedOutcomes.complete + capturedOutcomes.deadline;
+  if (
+    sumCounts(phases) !== 12 ||
+    sumCounts(depths) !== completedOrDeadline ||
+    sumCounts(nodes) !== completedOrDeadline ||
+    sumCounts(leaves) !== completedOrDeadline ||
+    phases[0].count + phases[1].count !== capturedOutcomes.complete ||
+    phases.slice(2, 13).reduce((sum, entry) => sum + entry.count, 0) !==
+      capturedOutcomes.deadline ||
+    phases[13].count !== capturedOutcomes.watchdog ||
+    phases[14].count !== capturedOutcomes.failure
+  ) {
+    fail();
+  }
+
+  const lifecycle = exactRecord(record.lifecycle, [
+    "all_spawned_children_reaped",
+    "authenticated_callbacks",
+    "calibration_child_reaped",
+    "diagnostic_lanes_settled",
+    "exact_input_claims",
+    "postflight_claims",
+    "registry_claims",
+  ]);
+  if (
+    lifecycle.all_spawned_children_reaped !== true ||
+    lifecycle.authenticated_callbacks !== 1 ||
+    lifecycle.calibration_child_reaped !== 1 ||
+    lifecycle.diagnostic_lanes_settled !== 12 ||
+    lifecycle.exact_input_claims !== 1 ||
+    lifecycle.postflight_claims !== 1 ||
+    lifecycle.registry_claims !== 1
+  ) {
+    fail();
+  }
+  const nonclaims = exactRecord(record.nonclaims, [
+    "live_mutation",
+    "playing_strength",
+    "teacher_generation",
+    "training",
+    "tt_retry_or_resume",
+  ]);
+  if (Object.values(nonclaims).some((value) => value !== false)) {
+    fail();
+  }
+  const persistentState = exactRecord(record.persistent_state, [
+    "all_unchanged",
+    "scope_count",
+    "unchanged_count",
+  ]);
+  if (
+    persistentState.all_unchanged !== true ||
+    persistentState.scope_count !== 13 ||
+    persistentState.unchanged_count !== 13
+  ) {
+    fail();
+  }
+  const sourceClosure = exactRecord(record.source_closure, [
+    "diagnostic_before_after_exact_clean",
+    "registry_application_binding_before_after_exact",
+  ]);
+  if (
+    sourceClosure.diagnostic_before_after_exact_clean !== true ||
+    sourceClosure.registry_application_binding_before_after_exact !== true
+  ) {
+    fail();
+  }
+
+  return {
+    calibration: {
+      callback_overhead_ratio_ppm: calibration.callback_overhead_ratio_ppm,
+      exact_parity_count: 5,
+    },
+    claim_boundary: SUCCESS_CLAIM_BOUNDARY,
+    diagnostic: {
+      all_children_reaped: true,
+      completed_depth_histogram: depths,
+      configured_maximum_parallel_children: 6,
+      cooperative_deadline_ms: 600000,
+      individual_lane_records_returned: 0,
+      leaves_bucket_histogram: leaves,
+      nodes_bucket_histogram: nodes,
+      observed_peak_parallel_children: observedPeak,
+      outcome_counts: capturedOutcomes,
+      outer_watchdog_ms: 615000,
+      partial_iteration_results_adopted: 0,
+      phase_histogram: phases,
+      requests: 12,
+    },
+    lifecycle: {
+      all_spawned_children_reaped: true,
+      authenticated_callbacks: 1,
+      calibration_child_reaped: 1,
+      diagnostic_lanes_settled: 12,
+      exact_input_claims: 1,
+      postflight_claims: 1,
+      registry_claims: 1,
+    },
+    nonclaims: {
+      live_mutation: false,
+      playing_strength: false,
+      teacher_generation: false,
+      training: false,
+      tt_retry_or_resume: false,
+    },
+    persistent_state: {
+      all_unchanged: true,
+      scope_count: 13,
+      unchanged_count: 13,
+    },
+    schema: SUCCESS_SCHEMA,
+    source_closure: {
+      diagnostic_before_after_exact_clean: true,
+      registry_application_binding_before_after_exact: true,
+    },
+    status: SUCCESS_STATUS,
+  };
+}
+
+function decodeCapturedOutput(data) {
+  const decoded = $.NSString.alloc.initWithDataEncoding(
+    data,
+    $.NSUTF8StringEncoding,
+  );
+  if (!decoded) fail();
+  return stringValue(decoded);
+}
+
+function dataLength(data) {
+  const length = Number(data.length);
+  if (!Number.isSafeInteger(length) || length < 0) fail();
+  return length;
+}
+
+function validateCapturedOutput(stdoutData, stderrData, status, invalid) {
+  const stdoutBytes = dataLength(stdoutData);
+  const stderrBytes = dataLength(stderrData);
+  if (
+    invalid ||
+    stderrBytes !== 0 ||
+    stdoutBytes < 2 ||
+    stdoutBytes > MAX_CAPTURE_BYTES ||
+    (status !== 0 && status !== 1)
+  ) {
+    fail();
+  }
+  const text = decodeCapturedOutput(stdoutData);
+  if (
+    text.charAt(text.length - 1) !== "\n" ||
+    text.indexOf("\n") !== text.length - 1 ||
+    text.indexOf("\r") !== -1 ||
+    [...text].some((character) => {
+      const code = character.charCodeAt(0);
+      return code !== 0x0a && (code < 0x20 || code > 0x7e);
+    })
+  ) {
+    fail();
+  }
+  const line = text.slice(0, -1);
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch (_error) {
+    fail();
+  }
+  if (
+    parsed === null ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    Object.getPrototypeOf(parsed) !== Object.prototype ||
+    canonicalJson(parsed) !== line
+  ) {
+    fail();
+  }
+  if (status === 0) {
+    return `${canonicalJson(sanitizeSuccess(parsed))}\n`;
+  } else if (
+    !exactKeys(parsed, FAILURE_KEYS) ||
+    parsed.schema !== FAILURE_SCHEMA ||
+    parsed.status !== FAILURE_STATUS ||
+    typeof parsed.phase !== "string" ||
+    !FAILURE_PHASES.has(parsed.phase)
+  ) {
+    fail();
+  }
+  return `${canonicalJson({
+    phase: parsed.phase,
+    schema: FAILURE_SCHEMA,
+    status: FAILURE_STATUS,
+  })}\n`;
+}
+
+function appendCapturedChunk(accumulated, state, chunk) {
+  const chunkLength = dataLength(chunk);
+  if (chunkLength === 0) return;
+  if (state.rejectAny) {
+    state.invalid = true;
+    return;
+  }
+  const currentLength = dataLength(accumulated);
+  if (
+    currentLength > MAX_CAPTURE_BYTES ||
+    chunkLength > MAX_CAPTURE_BYTES - currentLength
+  ) {
+    state.invalid = true;
+    return;
+  }
+  accumulated.appendData(chunk);
+}
+
+function beginCapturedRead(state) {
+  if (state.closed || state.readPending) return;
+  state.readPending = true;
+  try {
+    state.handle.readInBackgroundAndNotify;
+  } catch (_error) {
+    state.invalid = true;
+    state.closed = true;
+    state.readPending = false;
+  }
+}
+
+function capturedPipeState(handle, rejectAny) {
+  const state = {
+    closed: false,
+    data: $.NSMutableData.data,
+    handle,
+    invalid: false,
+    observer: null,
+    readPending: false,
+    rejectAny,
+  };
+  const center = $.NSNotificationCenter.defaultCenter;
+  state.observer = center.addObserverForNameObjectQueueUsingBlock(
+    $.NSFileHandleReadCompletionNotification,
+    handle,
+    $.NSOperationQueue.mainQueue,
+    (notification) => {
+      state.readPending = false;
+      try {
+        const chunk = notification.userInfo.objectForKey(
+          $.NSFileHandleNotificationDataItem,
+        );
+        if (!chunk) {
+          state.invalid = true;
+          state.closed = true;
+          return;
+        }
+        if (dataLength(chunk) === 0) {
+          state.closed = true;
+          return;
+        }
+        appendCapturedChunk(state.data, state, chunk);
+        beginCapturedRead(state);
+      } catch (_error) {
+        state.invalid = true;
+        state.closed = true;
+      }
+    },
+  );
+  if (!state.observer) fail();
+  beginCapturedRead(state);
+  return state;
+}
+
+function removeCapturedObserver(state) {
+  if (state.observer) {
+    $.NSNotificationCenter.defaultCenter.removeObserver(state.observer);
+    state.observer = null;
+  }
+}
+
+function taskIsRunning(task) {
+  return Boolean(ObjC.unwrap(task.running));
+}
+
+function waitForTaskAndCapture(
+  task,
+  timeoutSeconds,
+  stdoutState,
+  stderrState,
+  stopOnInvalid,
+) {
+  const deadline = $.NSDate.dateWithTimeIntervalSinceNow(timeoutSeconds);
+  while (taskIsRunning(task)) {
+    if (stopOnInvalid && (stdoutState.invalid || stderrState.invalid)) {
+      return false;
+    }
+    if (Number(deadline.timeIntervalSinceNow) <= 0) return false;
+    $.NSRunLoop.currentRunLoop.runUntilDate(
+      $.NSDate.dateWithTimeIntervalSinceNow(0.005),
+    );
+  }
+  task.waitUntilExit;
+  while (!stdoutState.closed || !stderrState.closed) {
+    if (Number(deadline.timeIntervalSinceNow) <= 0) return false;
+    $.NSRunLoop.currentRunLoop.runUntilDate(
+      $.NSDate.dateWithTimeIntervalSinceNow(0.005),
+    );
+  }
+  return true;
+}
+
+function terminateKillAndReap(task, stdoutState, stderrState) {
+  if (!taskIsRunning(task)) {
+    if (
+      !waitForTaskAndCapture(
+        task,
+        TERMINATION_GRACE_SECONDS,
+        stdoutState,
+        stderrState,
+        false,
+      )
+    ) {
+      fail();
+    }
+    return;
+  }
+  task.terminate;
+  if (
+    !waitForTaskAndCapture(
+      task,
+      TERMINATION_GRACE_SECONDS,
+      stdoutState,
+      stderrState,
+      false,
+    )
+  ) {
+    const childPid = integerValue(task.processIdentifier);
+    if (childPid <= 1) fail();
+    $.kill(childPid, SIGKILL);
+    if (
+      !waitForTaskAndCapture(
+        task,
+        TERMINATION_GRACE_SECONDS,
+        stdoutState,
+        stderrState,
+        false,
+      )
+    ) {
+      fail();
+    }
+  }
+  task.waitUntilExit;
+}
+
 function launcherConfiguration(arguments_) {
   if (arguments_.length !== 0) fail();
   const processArguments = exactProcessArguments();
@@ -149,14 +740,7 @@ function launcherConfiguration(arguments_) {
   );
   if (nodeOwner !== userName && nodeOwner !== "root") fail();
   assertOwnedNonWritablePath(nodePath, $.NSFileTypeRegular, nodeOwner, true);
-  assertOwnedNonWritablePath(
-    "/usr/bin/caffeinate",
-    $.NSFileTypeRegular,
-    "root",
-    true,
-  );
   if (!fileManager.isExecutableFileAtPath($(nodePath))) fail();
-  if (!fileManager.isExecutableFileAtPath("/usr/bin/caffeinate")) fail();
 
   return Object.freeze({
     entryPath,
@@ -171,7 +755,9 @@ function execute(configuration) {
   const parentPid = integerValue($.NSProcessInfo.processInfo.processIdentifier);
   if (parentPid <= 1) fail();
   const nonce = randomNonce();
-  const pipe = $.NSPipe.pipe;
+  const inputPipe = $.NSPipe.pipe;
+  const stdoutPipe = $.NSPipe.pipe;
+  const stderrPipe = $.NSPipe.pipe;
   const task = $.NSTask.alloc.init;
   const nodeDirectory = stringValue(
     $(configuration.nodePath).stringByDeletingLastPathComponent,
@@ -192,28 +778,80 @@ function execute(configuration) {
   };
   const frame = `${ATTESTATION_CONTRACT}\n${parentPid}\n${nonce}\n${configuration.helperPath}\n`;
 
-  task.executableURL = $.NSURL.fileURLWithPath("/usr/bin/caffeinate");
-  task.arguments = $([
-    "-dimsu",
-    configuration.nodePath,
-    configuration.entryPath,
-  ]);
+  task.executableURL = $.NSURL.fileURLWithPath(configuration.nodePath);
+  task.arguments = $([configuration.entryPath]);
   task.environment = $(environment);
   task.currentDirectoryURL = $.NSURL.fileURLWithPath(
     $(configuration.repositoryRoot),
   );
-  task.standardInput = pipe;
-  task.standardOutput = $.NSFileHandle.fileHandleWithStandardOutput;
-  task.standardError = $.NSFileHandle.fileHandleWithStandardError;
+  task.standardInput = inputPipe;
+  task.standardOutput = stdoutPipe;
+  task.standardError = stderrPipe;
+  const stdoutHandle = stdoutPipe.fileHandleForReading;
+  const stderrHandle = stderrPipe.fileHandleForReading;
+  const stdoutState = capturedPipeState(stdoutHandle, false);
+  const stderrState = capturedPipeState(stderrHandle, true);
 
   const launchError = Ref();
-  if (!task.launchAndReturnError(launchError)) fail();
+  const activity = $.NSProcessInfo.processInfo.beginActivityWithOptionsReason(
+    $.NSActivityIdleSystemSleepDisabled | $.NSActivityUserInitiated,
+    $("stable WASM deadline child artifact"),
+  );
+  if (!task.launchAndReturnError(launchError)) {
+    removeCapturedObserver(stdoutState);
+    removeCapturedObserver(stderrState);
+    $.NSProcessInfo.processInfo.endActivity(activity);
+    fail();
+  }
+  try {
+    stdoutPipe.fileHandleForWriting.closeFile;
+  } catch (_error) {
+    stdoutState.invalid = true;
+  }
+  try {
+    stderrPipe.fileHandleForWriting.closeFile;
+  } catch (_error) {
+    stderrState.invalid = true;
+  }
   const frameData = $(frame).dataUsingEncoding($.NSUTF8StringEncoding);
-  pipe.fileHandleForWriting.writeData(frameData);
-  pipe.fileHandleForWriting.closeFile;
-  task.waitUntilExit;
+  try {
+    inputPipe.fileHandleForWriting.writeData(frameData);
+  } catch (_error) {
+    stdoutState.invalid = true;
+  }
+  try {
+    inputPipe.fileHandleForWriting.closeFile;
+  } catch (_error) {
+    stdoutState.invalid = true;
+  }
+  const completedOrInvalid = waitForTaskAndCapture(
+    task,
+    OVERALL_WATCHDOG_SECONDS,
+    stdoutState,
+    stderrState,
+    true,
+  );
+  if (!completedOrInvalid) {
+    stdoutState.invalid = true;
+  }
+  if (stdoutState.invalid || stderrState.invalid) {
+    terminateKillAndReap(task, stdoutState, stderrState);
+  }
+  $.NSProcessInfo.processInfo.endActivity(activity);
+  removeCapturedObserver(stdoutState);
+  removeCapturedObserver(stderrState);
   const status = integerValue(task.terminationStatus);
-  if (status < 0 || status > 255) fail();
+  const output = validateCapturedOutput(
+    stdoutState.data,
+    stderrState.data,
+    status,
+    !stdoutState.closed ||
+      !stderrState.closed ||
+      stdoutState.invalid ||
+      stderrState.invalid,
+  );
+  const outputData = $(output).dataUsingEncoding($.NSUTF8StringEncoding);
+  $.NSFileHandle.fileHandleWithStandardOutput.writeData(outputData);
   $.exit(status);
 }
 

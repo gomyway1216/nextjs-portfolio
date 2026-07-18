@@ -36,6 +36,8 @@ const WORKER_BOOTSTRAP_SOURCE =
   'await import("data:text/javascript;base64,"+encoded);';
 const MAX_WORKER_STDOUT_BYTES = 256;
 const STABILITY_LIMIT_PPM = 250_000;
+const STOP_POLL_MILLISECONDS = 25;
+const NEVER_STOP = () => false;
 
 export interface FloodgateStableWasmDeadlinePublicCalibrationAssets {
   readonly wasmBytes: Uint8Array;
@@ -50,6 +52,7 @@ export interface FloodgateStableWasmDeadlinePublicCalibrationResult {
 
 export interface FloodgateStableWasmDeadlinePublicCalibrationTestOptions {
   readonly childExecutablePath?: string;
+  readonly shouldStop?: () => boolean;
   readonly watchdogMilliseconds?: number;
 }
 
@@ -300,18 +303,31 @@ function runCapturedCalibration(
   options: Readonly<FloodgateStableWasmDeadlinePublicCalibrationTestOptions>,
 ): Promise<FloodgateStableWasmDeadlinePublicCalibrationResult> {
   const childExecutablePath = options.childExecutablePath ?? process.execPath;
+  const shouldStop = options.shouldStop ?? NEVER_STOP;
   const watchdogMilliseconds =
     options.watchdogMilliseconds ??
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS;
   if (
     typeof childExecutablePath !== "string" ||
     childExecutablePath.length === 0 ||
+    typeof shouldStop !== "function" ||
     !Number.isSafeInteger(watchdogMilliseconds) ||
     watchdogMilliseconds < 1 ||
     watchdogMilliseconds >
       FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS
   ) {
     return Promise.reject(new Error("invalid calibration child options"));
+  }
+  const stopRequested = () => {
+    try {
+      const result = shouldStop();
+      return typeof result !== "boolean" || result;
+    } catch {
+      return true;
+    }
+  };
+  if (stopRequested()) {
+    return Promise.reject(new Error("public calibration stopped before spawn"));
   }
 
   return new Promise((resolve, reject) => {
@@ -335,6 +351,7 @@ function runCapturedCalibration(
     const stdoutPieces: Buffer[] = [];
     let stdoutBytes = 0;
     let invalid = false;
+    let stopped = false;
     let watchdog = false;
     let settled = false;
 
@@ -349,6 +366,11 @@ function runCapturedCalibration(
       invalid = true;
       killChild();
     };
+    const stopPoll = setInterval(() => {
+      if (!stopRequested()) return;
+      stopped = true;
+      killChild();
+    }, STOP_POLL_MILLISECONDS);
     const timer = setTimeout(() => {
       watchdog = true;
       killChild();
@@ -359,8 +381,9 @@ function runCapturedCalibration(
       (code: number | null, signal: NodeJS.Signals | null) => {
         if (settled) return;
         settled = true;
+        clearInterval(stopPoll);
         clearTimeout(timer);
-        if (watchdog || invalid || code !== 0 || signal !== null) {
+        if (stopped || watchdog || invalid || code !== 0 || signal !== null) {
           reject(new Error("public calibration child failed closed"));
           return;
         }
@@ -443,12 +466,13 @@ export function runFloodgateStableWasmDeadlinePublicCalibrationWithSourceCoreFor
 
 export function runFloodgateStableWasmDeadlinePublicCalibration(
   assets: Readonly<FloodgateStableWasmDeadlinePublicCalibrationAssets>,
+  shouldStop: () => boolean = NEVER_STOP,
 ): Promise<FloodgateStableWasmDeadlinePublicCalibrationResult> {
   return runCapturedCalibration(
     captureAssets(
       assets,
       FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY,
     ),
-    {},
+    { shouldStop },
   );
 }

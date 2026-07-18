@@ -20,11 +20,15 @@
       "p2": 0
     },
     "publication_base_revision": "92f3f5850c2896fb4194a1d4b885ec9e378a75b6",
-    "publication_revision": null,
-    "publication_tree": null,
-    "publication_exact_commit_review": "PENDING",
-    "publication_exact_commit_reviewers": 0,
-    "publication_exact_commit_findings": null,
+    "publication_revision": "320722870b67190c42b48838b8d17feb99d1faa3",
+    "publication_tree": "c4a9ba9facfd818db76a02a2ef6e14f2adb6316d",
+    "publication_exact_commit_review": "PASS",
+    "publication_exact_commit_reviewers": 2,
+    "publication_exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
     "pull_request": 504,
     "continuous_integration": "PENDING"
   },
@@ -190,7 +194,7 @@
     "fixed_stop_executables_preserved": true
   },
   "publication_surface": {
-    "status": "PENDING-EXACT-REVIEW-AND-METADATA-SEAL",
+    "status": "SEALED-EXACT-REVIEW-PASS",
     "exact_changed_paths_since_base": [
       "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.en.md",
       "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.md",
@@ -198,8 +202,14 @@
       "tests/fixtures/floodgate-v7-remote-monotonic-witness-ci-symbol-graph-manifest-v1.json",
       "tests/unit/ml/floodgateV7RemoteMonotonicWitnessEvidence.test.ts"
     ],
-    "article_paths_unchanged_after_anchor": [],
-    "post_anchor_metadata_seal_paths": []
+    "article_paths_unchanged_after_anchor": [
+      "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.en.md",
+      "docs/blog-shogi-floodgate-v7-remote-monotonic-witness.md"
+    ],
+    "post_anchor_metadata_seal_paths": [
+      "docs/data/floodgate-v7-remote-monotonic-witness-2026-07-18.json",
+      "tests/unit/ml/floodgateV7RemoteMonotonicWitnessEvidence.test.ts"
+    ]
   },
   "validation": {
     "node_runtime": "node-v22.13.0",

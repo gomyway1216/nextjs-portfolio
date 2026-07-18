@@ -588,6 +588,9 @@ public struct VerifierReceiptV1: Equatable, Sendable {
             targetProcessIdentitySHA256
                 == challenge.targetProcessIdentitySHA256,
             targetProcessID == challenge.targetProcessID,
+            targetProcessID == supervisorProcessIdentity.processID,
+            targetProcessIdentitySHA256
+                == supervisorProcessIdentity.canonicalSHA256(),
             expectedUID == challenge.expectedUID,
             challenge.signerKeyID
                 == manifest.supervisorAttestationKeyID,

@@ -2,6 +2,51 @@ import Foundation
 import XCTest
 
 final class FixedStopExecutableTests: XCTestCase {
+    func testFixedStopSourcesHaveNoProtocolDependencyOrInputPath()
+        throws
+    {
+        let packageRoot =
+            URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let packageSource = try String(
+            contentsOf:
+                packageRoot.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let compactPackageSource =
+            packageSource.filter { !$0.isWhitespace }
+        for targetName in [
+            "FloodgateV7TrustRootSupervisor",
+            "FloodgateV7TrustRootVerifier",
+        ] {
+            XCTAssertTrue(
+                compactPackageSource.contains(
+                    ".executableTarget(name:\"\(targetName)\",dependencies:[])"
+                )
+            )
+            let mainSource = try String(
+                contentsOf:
+                    packageRoot.appendingPathComponent(
+                        "Sources/\(targetName)/main.swift"
+                    ),
+                encoding: .utf8
+            )
+            XCTAssertEqual(
+                mainSource,
+                """
+                import Darwin
+
+                private let unavailableExitCode: Int32 = 78
+
+                _exit(unavailableExitCode)
+
+                """
+            )
+        }
+    }
+
     func testSupervisorAndVerifierAreArgumentIndependentFixedStops()
         throws
     {

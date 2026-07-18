@@ -703,8 +703,12 @@ public enum TrustRootVerifierCoreV1 {
                 == manifest.canonicalSHA256(),
             challenge.targetProcessID
                 == observation.targetProcessID,
+            challenge.targetProcessID
+                == supervisorProcessIdentity.processID,
             challenge.targetProcessIdentitySHA256
                 == observation.targetProcessIdentitySHA256,
+            challenge.targetProcessIdentitySHA256
+                == supervisorProcessIdentity.canonicalSHA256(),
             challenge.expectedUID == observation.effectiveUID,
             challenge.signerKeyID
                 == manifest.supervisorAttestationKeyID,

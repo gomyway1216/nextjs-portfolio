@@ -1332,4 +1332,126 @@ final class AuthenticatedHandoffTests: XCTestCase {
             )
         }
     }
+
+    func testVerifierRejectsTargetThatIsNotTheSupervisor()
+        throws
+    {
+        let fixture = try HandoffFixture()
+        let unrelatedTargetIdentity = handoffBytes32(0xf7)
+        let unrelatedTargetProcessID: UInt32 = 9_999
+        let challengeID = handoffBytes32(0x21)
+        let nonce = handoffBytes32(0x22)
+        let payload = try SupervisorChallengeV1.signaturePayload(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            challengeID: challengeID,
+            nonce: nonce,
+            enrollmentID: fixture.enrollment.enrollmentID,
+            activationDigest:
+                fixture.signedActivation.canonicalSHA256(),
+            sourceManifestSHA256:
+                fixture.manifest.canonicalSHA256(),
+            targetProcessIdentitySHA256: unrelatedTargetIdentity,
+            supervisorProcessIdentitySHA256:
+                fixture.supervisorProcessIdentity.canonicalSHA256(),
+            verifierAnonymousFDChannelBindingSHA256:
+                fixture.verifierProcessIdentity
+                    .anonymousFDChannelBindingSHA256,
+            signerKeyID:
+                fixture.manifest.supervisorAttestationKeyID,
+            targetProcessID: unrelatedTargetProcessID,
+            expectedUID: fixture.enrollment.expectedUID,
+            issuedAtUnixSeconds: 120,
+            expiresAtUnixSeconds: 150,
+            monotonicIssuedAtNanoseconds: 1_000_000_000,
+            monotonicExpiresAtNanoseconds: 31_000_000_000
+        )
+        let challenge = try SupervisorChallengeV1(
+            audience: .productionRecovery,
+            purpose: .inspectStalePrefix100,
+            challengeID: challengeID,
+            nonce: nonce,
+            enrollmentID: fixture.enrollment.enrollmentID,
+            activationDigest:
+                fixture.signedActivation.canonicalSHA256(),
+            sourceManifestSHA256:
+                fixture.manifest.canonicalSHA256(),
+            targetProcessIdentitySHA256: unrelatedTargetIdentity,
+            supervisorProcessIdentitySHA256:
+                fixture.supervisorProcessIdentity.canonicalSHA256(),
+            verifierAnonymousFDChannelBindingSHA256:
+                fixture.verifierProcessIdentity
+                    .anonymousFDChannelBindingSHA256,
+            signerKeyID:
+                fixture.manifest.supervisorAttestationKeyID,
+            targetProcessID: unrelatedTargetProcessID,
+            expectedUID: fixture.enrollment.expectedUID,
+            issuedAtUnixSeconds: 120,
+            expiresAtUnixSeconds: 150,
+            monotonicIssuedAtNanoseconds: 1_000_000_000,
+            monotonicExpiresAtNanoseconds: 31_000_000_000,
+            signature: try handoffSignature(
+                fixture.supervisorKey,
+                payload: payload
+            )
+        )
+        let observation = try RepositoryObservationV1(
+            approvedCommit: fixture.manifest.approvedCommit,
+            approvedTree: fixture.manifest.approvedTree,
+            repositorySourceClosureSHA256:
+                fixture.manifest.repositorySourceClosureSHA256,
+            diagnosticBundleSHA256:
+                fixture.manifest.diagnosticBundleSHA256,
+            diagnosticLauncherJXASHA256:
+                fixture.manifest.diagnosticLauncherJXASHA256,
+            pinnedNodeRuntimeSHA256:
+                fixture.manifest.pinnedNodeRuntimeSHA256,
+            supervisorArtifactSHA256:
+                fixture.manifest.supervisorArtifactSHA256,
+            verifierArtifactSHA256:
+                fixture.manifest.verifierArtifactSHA256,
+            gitDirectoryPolicySHA256:
+                fixture.manifest.gitDirectoryPolicySHA256,
+            repositoryPathPolicySHA256:
+                fixture.manifest.repositoryPathPolicySHA256,
+            artifactClosureRecordSHA256:
+                fixture.manifest.artifactClosureRecordSHA256,
+            installPolicyRecordSHA256:
+                fixture.manifest.installPolicyRecordSHA256,
+            targetProcessIdentitySHA256: unrelatedTargetIdentity,
+            targetProcessID: unrelatedTargetProcessID,
+            effectiveUID: fixture.enrollment.expectedUID,
+            exactCleanRepository: true,
+            heldNoFollowIdentities: true,
+            gitDirectoryCommonDirectoryAndObjectDirectoryVerified: true,
+            gitAlternatesAbsent: true,
+            gitReplacementObjectsAbsent: true,
+            callerSuppliedPathAccepted: false
+        )
+        assertInvalidHandoff(
+            try TrustRootVerifierCoreV1.issueReceipt(
+                enrollmentEnvelopes: [fixture.signedEnrollment],
+                activationEnvelopes: [fixture.signedActivation],
+                authorityPublicKeyRawRepresentation:
+                    fixture.authorityPublicKey,
+                challenge: challenge,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                manifest: fixture.manifest,
+                runtimeLaunchPolicy: fixture.runtimeLaunchPolicy,
+                observation: observation,
+                supervisorProcessIdentity:
+                    fixture.supervisorProcessIdentity,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                nowUnixSeconds: 121,
+                nowMonotonicNanoseconds: 2_000_000_000,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                randomBytes:
+                    FixedRandomSequence(start: 0x23).provider,
+                sign: handoffSigner(fixture.verifierKey)
+            )
+        )
+    }
 }

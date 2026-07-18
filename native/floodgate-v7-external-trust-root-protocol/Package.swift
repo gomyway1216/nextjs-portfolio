@@ -29,11 +29,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "FloodgateV7TrustRootSupervisor",
-            dependencies: ["FloodgateV7ExternalTrustRootProtocol"]
+            dependencies: []
         ),
         .executableTarget(
             name: "FloodgateV7TrustRootVerifier",
-            dependencies: ["FloodgateV7ExternalTrustRootProtocol"]
+            dependencies: []
         ),
         .testTarget(
             name: "FloodgateV7ExternalTrustRootProtocolTests",

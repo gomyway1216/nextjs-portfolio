@@ -1,0 +1,154 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-parent-accounting-amendment-v2",
+  "status": "preregistered-blocked-before-training-result",
+  "recorded_date": "2026-07-18",
+  "immutable_upstream": {
+    "preregistered_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "role_bundle_result": {
+      "path": "ml/protocols/floodgate-q1-2026-role-bundle-result.json",
+      "bytes": 14735,
+      "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf",
+      "schema": "shogi-floodgate-role-bundle-result-v1"
+    },
+    "v1_plan_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "bytes": 409,
+      "sha256": "9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v1"
+    },
+    "v1_selection_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "bytes": 2294,
+      "sha256": "7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39",
+      "schema": "shogi-floodgate-fresh-qat-selection-preflight-registry-v1"
+    }
+  },
+  "immutable_historical_evidence": {
+    "plan_binding_evidence": {
+      "path": "docs/data/floodgate-fresh-qat-plan-binding-2026-07-17.json",
+      "bytes": 2248,
+      "sha256": "5586e46d8a12ee759a2658ca41eb9178a96f313625a72bba57f7ff74b5f1589b"
+    },
+    "selection_preflight_evidence": {
+      "path": "docs/data/floodgate-fresh-qat-selection-preflight-2026-07-17.json",
+      "bytes": 5062,
+      "sha256": "a8be7cf0f43c816960265263ec7a570fe7c4ad8924593e1379d07b8c8f345cef"
+    },
+    "plan_binding_article_ja": {
+      "path": "docs/blog-shogi-floodgate-fresh-qat-plan-binding.md",
+      "bytes": 6089,
+      "sha256": "b55d56164c3f2635bf7ee3d69c7d1f4b9103d83e142f79b9ac6b0ef7ff79eec8"
+    },
+    "plan_binding_article_en": {
+      "path": "docs/blog-shogi-floodgate-fresh-qat-plan-binding.en.md",
+      "bytes": 5660,
+      "sha256": "3efab2074163a9cf99bd3595af956e1b439de7ea9578fc3a929df6bedc0266e8"
+    },
+    "selection_preflight_article_ja": {
+      "path": "docs/blog-shogi-floodgate-fresh-qat-selection-preflight.md",
+      "bytes": 10184,
+      "sha256": "5fd8ccc806e2a5946062536196efda3bc80b0af7a198ae3bafe23bbfefb28c71"
+    },
+    "selection_preflight_article_en": {
+      "path": "docs/blog-shogi-floodgate-fresh-qat-selection-preflight.en.md",
+      "bytes": 9720,
+      "sha256": "862b5e3b2ff6c5661fb73e7b9389c58673c0195fc67cf256fcf150074033d22e"
+    }
+  },
+  "amendment": {
+    "scope": "fresh-qat-parent-accounting-only",
+    "reason": "forced-parent-skips-produce-no-training-group-and-must-not-be-counted-as-model-training-parents",
+    "v1_disposition": "preserved-byte-for-byte-and-remains-closed",
+    "replacement_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v2"
+    },
+    "proposal_schema": "shogi-floodgate-fresh-qat-parent-accounting-proposal-v2",
+    "execution_plan_schema": "shogi-floodgate-fresh-qat-execution-plan-v2",
+    "fixed_parent_accounting": {
+      "input_parents": 24000,
+      "input_games": 1000,
+      "input_parent_ids_sha256": "6681bd08bb282be04f47bf3157ea07fbbe2bc6a6864a100ce65902dc9cc3f08f",
+      "input_game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+      "input_position_ids_count": 24000,
+      "input_position_ids_sha256": "a97788b608a6687c078b7fbe2172a5c4068c57a42ed322c3997692f697e73b5c",
+      "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+      "model_training_parents_source": "emitted_parent_groups",
+      "zero_forced_policy": "valid-when-emitted-parent-groups-equals-24000",
+      "some_forced_policy": "valid-when-every-skipped-parent-is-accounted-and-at-least-one-group-is-emitted",
+      "all_forced_policy": "account-for-all-inputs-then-STOP-no-trainable-parent-groups",
+      "replacement_or_resampling": "forbidden",
+      "emitted_parent_order": "order-preserving-subsequence-of-input-parent-order"
+    },
+    "required_train_binding": [
+      "bytes",
+      "sha256",
+      "records",
+      "parents",
+      "games",
+      "game_ids_sha256",
+      "parent_ids_sha256",
+      "semantic_position_ids_count",
+      "semantic_position_ids_sha256"
+    ],
+    "unchanged_contracts": {
+      "training_contract_canonical_sha256": "b0bf9dbd2342b8be325fae4d195e9bdd909a702361d229293f30849f1348d8ac",
+      "slot_registry_canonical_sha256": "aab83502378adca6557e4ba0d9da4cf545061eed8d15b1aeae0b99b8a41ffeed",
+      "selection_contract_canonical_sha256": "9aeade0c64556bd8c3b59bff7b1b1cedb386d2226a4ce60fc7b59677d305352c",
+      "seeds": [42, 43, 44],
+      "architecture": "2282-256-32-1-clipped-relu",
+      "loss": "sibling-ranking",
+      "optimizer": "AdamW",
+      "learning_rate": 0.0001,
+      "epochs": 20,
+      "selection_gates_changed": false,
+      "holdout_policy_changed": false
+    },
+    "non_changes": {
+      "source_replacement": false,
+      "parent_replacement": false,
+      "parent_resampling": false,
+      "seed_change": false,
+      "model_change": false,
+      "loss_change": false,
+      "optimizer_change": false,
+      "learning_rate_change": false,
+      "epoch_change": false,
+      "selection_gate_change": false,
+      "holdout_change": false
+    }
+  },
+  "pre_result_state": {
+    "training_teacher_parents_processed": 0,
+    "forced_parents_observed": 0,
+    "emitted_parent_groups_observed": 0,
+    "training_artifacts_enrolled": 0,
+    "fresh_qat_training_runs_started": 0,
+    "fresh_qat_results_observed": 0,
+    "selection_labels_read": false,
+    "final_holdout_labels_read": false,
+    "live_weights_changed": false
+  },
+  "authority": {
+    "teacher_execution_authorized": false,
+    "artifact_enrollment_authorized": false,
+    "training_dispatch_authorized": false,
+    "selection_reader_authorized": false,
+    "holdout_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "teacher_labels_generated": false,
+    "training_executed": false,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

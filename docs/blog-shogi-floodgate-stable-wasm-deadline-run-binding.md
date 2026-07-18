@@ -33,7 +33,7 @@ bundleは18個のsource inputを明示allowlistし、runtime externalをNode bui
 
 ## 3. dormant JXAの出力境界
 
-JXA helper自体は実行権限ではなく、将来のroot-owned supervisorが認証してから使う子成果物です。caller引数、caller path、caller revision、preloadは受けません。固定Node `v22.13.0`を直接 `NSTask` childとして起動し、native process activityでsleepを防ぎます。
+JXA helper自体は実行権限ではなく、将来のroot-owned supervisorが認証してから使う子成果物です。caller引数、caller path、caller revision、preloadは受けません。固定pathのNodeを直接 `NSTask` childとして起動し、child側でversion `v22.13.0`を確認し、native process activityでsleepを防ぎます。ただし、これはpathとreported versionの固定であって、Node runtime bytesを実行前に認証するものではありません。その認証も後続のexternal supervisorに必要です。
 
 child stdout / stderrは外へ直結しません。
 
@@ -42,10 +42,11 @@ child stdout / stderrは外へ直結しません。
 - canonical ASCII JSON 1行以外を拒否する。
 - successは全nested key、固定label、count合計、13 / 13不変、reap値を検証し、新しいsanitized objectへ再構成する。
 - failureもallowlist済みphaseと固定constantから新しく組み立てる。
-- timeoutまたはinvalid時はdirect childへTERM、5秒後にSIGKILLし、`close` / reapと両pipe EOFを待つ。
+- timeoutまたはinvalid時はdirect childへTERMを送り、5秒後も同じdirect childが稼働中だとPID取得の前後で再確認できた場合だけSIGKILLし、`close` / reapと両pipe EOFを待つ。
+- direct childが終了済みなのにdescendantがpipeを保持してEOFにならない場合は、古いPIDへsignalせず固定STOPにする。
 - stdin / stdout / stderr pipeのpost-launch close例外もfail closedにする。
 
-実機fixtureでは、70 KiBを出してSIGTERMを無視するchild、stderrを1 byteだけ出して停止するchild、起動後に何も出さないchildをboundedに強制終了・回収しました。nested fieldへ `/Users/...` canaryを埋めたcanonical successも、元objectを転送せず空出力で拒否しました。
+実機fixtureでは、70 KiBを出してSIGTERMを無視するchild、stderrを1 byteだけ出して停止するchild、起動後に何も出さないchildをboundedに強制終了・回収しました。さらに、direct childはTERMで終了する一方、finite descendantがcapture pipeを保持するcaseで、stale PIDへSIGKILLせず固定STOPになることを確認しました。このfixtureはdescendantの回収をclaimしません。nested fieldへ `/Users/...` canaryを埋めたcanonical successも、元objectを転送せず空出力で拒否しました。
 
 このJXA単体は、任意のmalicious grandchildをprivate process groupとして回収するとはclaimしません。その境界は後続のexternal supervisorに必要です。
 
@@ -89,16 +90,19 @@ bundle内のlatent graphには、後続supervisorが認証した後にだけ使�
 | 対象                                                         | 結果                                       |
 | ------------------------------------------------------------ | ------------------------------------------ |
 | 公開asset校正                                                | 1回、5組すべてで5項目一致、`1,002,562 ppm` |
-| JXA capture / deep sanitize / direct-child lifecycle fixture | 21 / 21 PASS                               |
+| JXA capture / deep sanitize / direct-child lifecycle fixture | 22 / 22 PASS                               |
 | 6 active diagnostic laneのstop / reap                        | PASS                                       |
 | calibration childのstop / reap                               | PASS                                       |
 | deterministic 18-source bundle / privacy hard gate           | PASS                                       |
+| latest `origin/main`の通常merge                              | `163dc696e4e6453919547386294058285516c236` |
+| full unit suite                                              | 177 files、3,202 PASS / 1 SKIP             |
+| production build                                             | PASS                                       |
 | private registry claim / private row open / private lane     | **0 / 0 / 0**                              |
 | teacher生成 / training / candidate selection                 | **0 / 0 / 0**                              |
 | formal A/B / external calibration                            | **0 / 0**                                  |
 | live weight変更 / production activation                      | **false / 0**                              |
 
-final integrated headのfull validationとbundle identityは、先行PRを通常mergeして最新`origin/main`を取り込んだ後に確定します。machine-readable evidenceは[こちら](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json)です。
+先行PRを通常mergeした最新`origin/main`を取り込んだheadで、focused / isolated public calibration / affected regression / full unit / production buildを完了しました。bundleは288,004 bytes、launcherは24,915 bytesで、exact SHA-256を[machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json)へ固定しています。
 
 ## 8. 不足している外部authority
 

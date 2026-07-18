@@ -149,7 +149,10 @@ function read(relative: string): string {
 
 async function runCapturedLauncherFixture(
   entrySource: string,
-  options: Readonly<{ readonly overallWatchdogSeconds?: number }> = {},
+  options: Readonly<{
+    readonly failIfSigkillAttempted?: boolean;
+    readonly overallWatchdogSeconds?: number;
+  }> = {},
 ): Promise<ReturnType<typeof spawnSync>> {
   const home = await fs.promises.realpath(os.homedir());
   const root = await fs.promises.realpath(
@@ -185,6 +188,14 @@ async function runCapturedLauncherFixture(
         "const OVERALL_WATCHDOG_SECONDS = 180 + 2 * 615 + 30;",
         `const OVERALL_WATCHDOG_SECONDS = ${options.overallWatchdogSeconds};`,
       );
+    }
+    if (options.failIfSigkillAttempted) {
+      const killStatement = "if ($.kill(childPid, SIGKILL) !== 0) fail();";
+      const instrumented = helper.replace(killStatement, "$.exit(71);");
+      if (instrumented === helper) {
+        throw new Error("SIGKILL attempt test seam was not installed");
+      }
+      helper = instrumented;
     }
     await fs.promises.writeFile(fixtureHelper, helper, { mode: 0o600 });
     await fs.promises.writeFile(fixtureEntry, entrySource, { mode: 0o600 });
@@ -246,7 +257,32 @@ describe("stable-WASM deadline diagnostic native launcher", () => {
       "const OVERALL_WATCHDOG_SECONDS = 180 + 2 * 615 + 30;",
     );
     expect(source).toContain("function terminateKillAndReap(");
-    expect(source).toContain("$.kill(childPid, SIGKILL);");
+    const taskTimeout = source.indexOf(
+      'if (terminationResult === "task-timeout")',
+    );
+    const runningRecheck = source.indexOf(
+      "if (!taskIsRunning(task)) fail();",
+      taskTimeout,
+    );
+    const processIdentifier = source.indexOf(
+      "task.processIdentifier",
+      runningRecheck,
+    );
+    const secondRunningRecheck = source.indexOf(
+      "if (!taskIsRunning(task)) fail();",
+      processIdentifier,
+    );
+    const sigkill = source.indexOf(
+      "if ($.kill(childPid, SIGKILL) !== 0) fail();",
+      secondRunningRecheck,
+    );
+    expect(taskTimeout).toBeGreaterThan(0);
+    expect(runningRecheck).toBeGreaterThan(taskTimeout);
+    expect(processIdentifier).toBeGreaterThan(runningRecheck);
+    expect(secondRunningRecheck).toBeGreaterThan(processIdentifier);
+    expect(sigkill).toBeGreaterThan(secondRunningRecheck);
+    expect(source).toContain('return "task-timeout";');
+    expect(source).toContain('return "pipe-timeout";');
     expect(source).toContain(
       "return `${canonicalJson(sanitizeSuccess(parsed))}\\n`;",
     );
@@ -621,6 +657,29 @@ describe("stable-WASM deadline diagnostic native launcher", () => {
       const child = await runCapturedLauncherFixture(
         'process.on("SIGTERM",()=>{});setInterval(()=>{},1000);\n',
         { overallWatchdogSeconds: 0.25 },
+      );
+      expect(Date.now() - started).toBeLessThan(15_000);
+      expect(child.error).toBeUndefined();
+      expect(child.status).toBe(70);
+      expect(child.stdout).toBe("");
+      expect(child.stderr).toBe("");
+    },
+    15_000,
+  );
+
+  darwinIt(
+    "fails closed without signaling a stale PID when a finite descendant holds the pipes",
+    async () => {
+      const started = Date.now();
+      const child = await runCapturedLauncherFixture(
+        [
+          'const { spawn } = require("node:child_process");',
+          'spawn(process.execPath,["-e","setTimeout(()=>{},6500)"],{stdio:["ignore","inherit","inherit"]});',
+          'process.on("SIGTERM",()=>process.exit(0));',
+          "process.stdin.resume();",
+          'process.stdin.on("end",()=>{process.stderr.write("x");setInterval(()=>{},1000);});',
+        ].join(""),
+        { failIfSigkillAttempted: true },
       );
       expect(Date.now() - started).toBeLessThan(15_000);
       expect(child.error).toBeUndefined();

@@ -33,7 +33,7 @@ The bundle has an exact allowlist of eighteen source inputs and permits only Nod
 
 ## 3. Output containment in the dormant JXA helper
 
-The JXA helper is not execution authority. It is a child artifact for use only after a future root-owned supervisor authenticates it. It accepts no caller argument, path, revision, or preload. It starts fixed Node `v22.13.0` as the direct `NSTask` child and uses a native process activity to prevent sleep.
+The JXA helper is not execution authority. It is a child artifact for use only after a future root-owned supervisor authenticates it. It accepts no caller argument, path, revision, or preload. It starts Node from a fixed path as the direct `NSTask` child, checks the child-reported version `v22.13.0`, and uses a native process activity to prevent sleep. This fixes the path and reported version; it does not authenticate the Node runtime bytes before execution. That authentication also belongs in the later external supervisor.
 
 Child stdout and stderr are never inherited:
 
@@ -42,10 +42,11 @@ Child stdout and stderr are never inherited:
 - anything other than one canonical ASCII JSON line is rejected;
 - success is deep-validated for every nested key, fixed label, count total, 13-of-13 invariance value, and reap value, then reconstructed as a new sanitized object;
 - failure is also reconstructed from an allowlisted phase and fixed constants;
-- timeout or invalid output sends TERM to the direct child, then SIGKILL after five seconds, and waits for `close`/reap plus EOF on both pipes; and
+- timeout or invalid output sends TERM to the direct child, sends SIGKILL after five seconds only if the same direct child is re-confirmed as running both before and after reading its PID, and waits for `close`/reap plus EOF on both pipes;
+- if the direct child has exited but a descendant keeps a pipe from reaching EOF, the launcher returns fixed STOP without signaling the stale PID; and
 - post-launch close exceptions on stdin, stdout, or stderr fail closed.
 
-macOS fixtures bounded and reaped a child that emitted 70 KiB and ignored SIGTERM, a child that emitted one stderr byte and hung, and a startup child that emitted nothing. A canonical success object with a nested `/Users/...` canary was rejected with empty output rather than forwarding the original object.
+macOS fixtures bounded and reaped a child that emitted 70 KiB and ignored SIGTERM, a child that emitted one stderr byte and hung, and a startup child that emitted nothing. A further fixture confirms fixed STOP without SIGKILL to a stale PID when the direct child exits on TERM while a finite descendant keeps a capture pipe open; this fixture does not claim descendant reap. A canonical success object with a nested `/Users/...` canary was rejected with empty output rather than forwarding the original object.
 
 This JXA helper does not claim private-process-group containment for an arbitrary malicious grandchild. That boundary belongs in the later external supervisor.
 
@@ -89,16 +90,19 @@ These are code-and-test properties of a child artifact. They are not evidence th
 | Subject                                                           | Result                                                            |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
 | public-asset calibration                                          | 1 run; all five fields matched in all five pairs; `1,002,562 ppm` |
-| JXA capture / deep sanitization / direct-child lifecycle fixtures | 21 / 21 PASS                                                      |
+| JXA capture / deep sanitization / direct-child lifecycle fixtures | 22 / 22 PASS                                                      |
 | stop and reap of six active diagnostic lanes                      | PASS                                                              |
 | stop and reap of the calibration child                            | PASS                                                              |
 | deterministic eighteen-source bundle / privacy hard gate          | PASS                                                              |
+| regular merge of latest `origin/main`                             | `163dc696e4e6453919547386294058285516c236`                        |
+| full unit suite                                                   | 177 files; 3,202 PASS / 1 SKIP                                    |
+| production build                                                  | PASS                                                              |
 | private registry claim / private row open / private lane          | **0 / 0 / 0**                                                     |
 | teacher generation / training / candidate selection               | **0 / 0 / 0**                                                     |
 | formal A/B / external calibration                                 | **0 / 0**                                                         |
 | live-weight change / production activation                        | **false / 0**                                                     |
 
-Full validation and exact bundle identity for the integrated head will be frozen only after the prerequisite PR is regularly merged and the latest `origin/main` is merged here. The [machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json) records the same boundary.
+Focused, isolated public-calibration, affected-regression, full-unit, and production-build validation are complete on the head that regularly merged the prerequisite and latest `origin/main`. The bundle is 288,004 bytes and the launcher is 24,915 bytes; their exact SHA-256 identities are frozen in the [machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json).
 
 ## 8. Missing external authority
 

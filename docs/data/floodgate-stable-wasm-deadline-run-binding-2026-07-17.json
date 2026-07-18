@@ -8,10 +8,11 @@
   },
   "source_context": {
     "diagnostic_design_merge": "2a40bc97fc5cfdcc80e83599141449758c8f09f3",
-    "latest_origin_main_observed": "edf040fba0f18986ee4b1113394b33752a33a8ff",
+    "latest_origin_main_observed": "163dc696e4e6453919547386294058285516c236",
     "latest_origin_main_integrated_by_regular_merge": true,
-    "final_head_validation_complete": false,
-    "identity_state": "provisional-until-all-prerequisites-merge-and-latest-origin-main-is-integrated"
+    "latest_origin_main_integration_merge": "ac18b119f1943b051875bd5bf74ad2166e5f248b",
+    "final_head_validation_complete": true,
+    "identity_state": "frozen-for-immutable-independent-review"
   },
   "artifact_classification": {
     "state": "NON_OPERATIONAL_CHILD_ARTIFACT",
@@ -37,6 +38,8 @@
     "rollback_resistant_trust_root_present": false,
     "expected_merge_revision_authenticated": false,
     "helper_and_bundle_bytes_authenticated_before_execution": false,
+    "node_runtime_bytes_authenticated_before_execution": false,
+    "fixed_node_means_path_and_reported_version_only": true,
     "private_process_group_descendant_containment_present": false,
     "formal_private_run_authority": false,
     "required_later_unit": "external-root-owned-supervisor-verifier-source-and-test-pr",
@@ -63,6 +66,8 @@
       "direct_child_term": true,
       "grace_seconds": 5,
       "direct_child_sigkill": true,
+      "sigkill_requires_direct_child_running_recheck_before_and_after_pid_read": true,
+      "exited_direct_child_with_descendant_held_pipe": "STOP-without-stale-pid-signal",
       "waits_for_close_and_reap": true,
       "waits_for_stdout_and_stderr_eof": true
     },
@@ -78,7 +83,9 @@
       "sigterm_ignoring_oversized_child_killed_and_reaped": "PASS",
       "one_stderr_byte_then_hang_killed_and_reaped": "PASS",
       "startup_hang_killed_and_reaped": "PASS",
-      "tests_passed": 21
+      "finite_descendant_pipe_holder_stale_pid_signal_avoided": "PASS",
+      "finite_descendant_reap_claimed": false,
+      "tests_passed": 22
     }
   },
   "worker_cancellation": {
@@ -102,12 +109,12 @@
     "bundle": {
       "bytes": 288004,
       "sha256": "55171dad09a81185b70c9ce659a328db96031aa392eb35d1e73d99ecb88c636e",
-      "identity_final": false
+      "identity_final": true
     },
     "launcher": {
-      "bytes": 24471,
-      "sha256": "7e959583a1511d8a838de33017efab0761326ae8c64681884f9a6d0c7bbeab02",
-      "identity_final": false
+      "bytes": 24915,
+      "sha256": "5851310caba367ca373dc3e3fde2cefac15b8e9a33acd13b5cf2523f967f4963",
+      "identity_final": true
     },
     "forbidden_text_match_count": {
       "absolute_user_path": 0,
@@ -210,25 +217,52 @@
     "claim_limit": "short-public-sentinel-callback-reference-ratio-not-long-tail-wall-time-equivalence"
   },
   "validation": {
-    "current_head_partial": {
+    "final_head_component_checks": {
       "launcher_and_output_boundary": {
-        "tests_passed": 21,
+        "tests_passed": 22,
         "status": "PASS"
       },
       "diagnostic_stop_and_reap": "PASS",
       "calibration_stop_and_reap": "PASS",
-      "typescript": "PENDING_RERUN",
-      "targeted_eslint": "PENDING",
+      "typescript": "PASS",
+      "targeted_eslint": "PASS",
       "bundle_determinism": "PASS",
-      "bundle_privacy_hard_gate": "PASS"
+      "bundle_privacy_hard_gate": "PASS",
+      "json_parse_and_diff_check": "PASS"
     },
     "final_integrated_head": {
-      "status": "PENDING_LATEST_MAIN",
-      "focused_suite": null,
-      "isolated_real_public_calibration": null,
-      "affected_regression": null,
-      "full_unit_suite": null,
-      "production_build": null
+      "status": "PASS",
+      "latest_origin_main": "163dc696e4e6453919547386294058285516c236",
+      "integration_merge": "ac18b119f1943b051875bd5bf74ad2166e5f248b",
+      "focused_suite": {
+        "files_passed": 3,
+        "tests_passed": 55,
+        "tests_skipped": 1,
+        "status": "PASS"
+      },
+      "isolated_real_public_calibration": {
+        "files_passed": 1,
+        "tests_passed": 1,
+        "tests_skipped": 22,
+        "measured_test_duration_ms": 19841,
+        "status": "PASS"
+      },
+      "affected_regression": {
+        "files_passed": 4,
+        "tests_passed": 90,
+        "tests_skipped": 0,
+        "status": "PASS"
+      },
+      "full_unit_suite": {
+        "files_passed": 177,
+        "tests_passed": 3202,
+        "tests_skipped": 1,
+        "duration_seconds": 314.21,
+        "status": "PASS"
+      },
+      "production_build": {
+        "status": "PASS"
+      }
     }
   },
   "operational_state": {

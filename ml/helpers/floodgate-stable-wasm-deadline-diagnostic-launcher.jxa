@@ -628,7 +628,11 @@ function removeCapturedObserver(state) {
 }
 
 function taskIsRunning(task) {
-  return Boolean(ObjC.unwrap(task.running));
+  try {
+    return Boolean(ObjC.unwrap(task.running));
+  } catch (_error) {
+    fail();
+  }
 }
 
 function waitForTaskAndCapture(
@@ -641,62 +645,66 @@ function waitForTaskAndCapture(
   const deadline = $.NSDate.dateWithTimeIntervalSinceNow(timeoutSeconds);
   while (taskIsRunning(task)) {
     if (stopOnInvalid && (stdoutState.invalid || stderrState.invalid)) {
-      return false;
+      return "invalid";
     }
-    if (Number(deadline.timeIntervalSinceNow) <= 0) return false;
+    if (Number(deadline.timeIntervalSinceNow) <= 0) return "task-timeout";
     $.NSRunLoop.currentRunLoop.runUntilDate(
       $.NSDate.dateWithTimeIntervalSinceNow(0.005),
     );
   }
   task.waitUntilExit;
   while (!stdoutState.closed || !stderrState.closed) {
-    if (Number(deadline.timeIntervalSinceNow) <= 0) return false;
+    if (stopOnInvalid && (stdoutState.invalid || stderrState.invalid)) {
+      return "invalid";
+    }
+    if (Number(deadline.timeIntervalSinceNow) <= 0) return "pipe-timeout";
     $.NSRunLoop.currentRunLoop.runUntilDate(
       $.NSDate.dateWithTimeIntervalSinceNow(0.005),
     );
   }
-  return true;
+  return "complete";
 }
 
 function terminateKillAndReap(task, stdoutState, stderrState) {
   if (!taskIsRunning(task)) {
-    if (
-      !waitForTaskAndCapture(
-        task,
-        TERMINATION_GRACE_SECONDS,
-        stdoutState,
-        stderrState,
-        false,
-      )
-    ) {
-      fail();
-    }
-    return;
-  }
-  task.terminate;
-  if (
-    !waitForTaskAndCapture(
+    const alreadyExitedResult = waitForTaskAndCapture(
       task,
       TERMINATION_GRACE_SECONDS,
       stdoutState,
       stderrState,
       false,
-    )
-  ) {
-    const childPid = integerValue(task.processIdentifier);
-    if (childPid <= 1) fail();
-    $.kill(childPid, SIGKILL);
-    if (
-      !waitForTaskAndCapture(
-        task,
-        TERMINATION_GRACE_SECONDS,
-        stdoutState,
-        stderrState,
-        false,
-      )
-    ) {
+    );
+    if (alreadyExitedResult !== "complete") {
       fail();
     }
+    return;
+  }
+  task.terminate;
+  const terminationResult = waitForTaskAndCapture(
+    task,
+    TERMINATION_GRACE_SECONDS,
+    stdoutState,
+    stderrState,
+    false,
+  );
+  if (terminationResult === "task-timeout") {
+    if (!taskIsRunning(task)) fail();
+    const childPid = integerValue(task.processIdentifier);
+    if (childPid <= 1) fail();
+    if (!taskIsRunning(task)) fail();
+    if ($.kill(childPid, SIGKILL) !== 0) fail();
+    const killResult = waitForTaskAndCapture(
+      task,
+      TERMINATION_GRACE_SECONDS,
+      stdoutState,
+      stderrState,
+      false,
+    );
+    if (killResult !== "complete") {
+      fail();
+    }
+  } else if (terminationResult !== "complete") {
+    fail();
   }
   task.waitUntilExit;
 }
@@ -824,14 +832,14 @@ function execute(configuration) {
   } catch (_error) {
     stdoutState.invalid = true;
   }
-  const completedOrInvalid = waitForTaskAndCapture(
+  const waitResult = waitForTaskAndCapture(
     task,
     OVERALL_WATCHDOG_SECONDS,
     stdoutState,
     stderrState,
     true,
   );
-  if (!completedOrInvalid) {
+  if (waitResult !== "complete") {
     stdoutState.invalid = true;
   }
   if (stdoutState.invalid || stderrState.invalid) {

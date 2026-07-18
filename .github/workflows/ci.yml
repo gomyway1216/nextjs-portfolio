@@ -72,6 +72,15 @@ jobs:
           xcrun swift test
           --package-path native/floodgate-v7-external-trust-root-protocol
 
+      - name: Verify external trust-root public API surface
+        run: |
+          xcrun swift package \
+            --package-path native/floodgate-v7-external-trust-root-protocol \
+            dump-symbol-graph \
+            --minimum-access-level public
+          /usr/bin/python3 \
+            native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py
+
   darwin_exclusive_directory_rename:
     name: Darwin exclusive directory rename
     runs-on: macos-latest

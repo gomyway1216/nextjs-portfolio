@@ -116,6 +116,25 @@ describe("formal paired A/B v2 publication evidence", () => {
   it("keeps every real observation and live authority at zero", () => {
     const evidence = JSON.parse(read(evidenceRelative));
 
+    expect(evidence).toMatchObject({
+      review_state: "pr-anchor-exact-review-pass-ci-pending",
+      publication_anchor: {
+        revision: "70d5675dd41de8c37d0b3fb75dd97472b54f880c",
+        tree: "2a7be373809f4842641e0728fe1bb926eccee5b7",
+        pull_request: 505,
+        exact_commit_review: "PASS",
+        exact_commit_reviewers: 1,
+        exact_commit_findings: {
+          p0: 0,
+          p1: 0,
+          p2: 0,
+        },
+        continuous_integration: "PENDING",
+      },
+      independent_review: {
+        exact_commit_review_pending: false,
+      },
+    });
     expect(evidence.observations).toMatchObject({
       real_matches_executed: false,
       formal_experiments_observed: 0,

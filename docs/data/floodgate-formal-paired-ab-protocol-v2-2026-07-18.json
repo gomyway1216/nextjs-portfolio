@@ -2,7 +2,20 @@
   "schema": "shogi-floodgate-formal-paired-ab-protocol-v2-evidence-v1",
   "recorded_date": "2026-07-18",
   "base_revision": "9aacb89670f566ab3b5d219e815f490580713455",
-  "review_state": "local-independent-rereview-clean-exact-commit-pending",
+  "review_state": "pr-anchor-exact-review-pass-ci-pending",
+  "publication_anchor": {
+    "revision": "70d5675dd41de8c37d0b3fb75dd97472b54f880c",
+    "tree": "2a7be373809f4842641e0728fe1bb926eccee5b7",
+    "pull_request": 505,
+    "exact_commit_review": "PASS",
+    "exact_commit_reviewers": 1,
+    "exact_commit_findings": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "continuous_integration": "PENDING"
+  },
   "supersession_chain": {
     "original_plan": {
       "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
@@ -129,7 +142,7 @@
     "prior_exact_json_type_p1_resolved": true,
     "prior_cross_run_optional_stopping_p1_resolved": true,
     "review_mutated_files": false,
-    "exact_commit_review_pending": true
+    "exact_commit_review_pending": false
   },
   "registry_state": {
     "status": "blocked",

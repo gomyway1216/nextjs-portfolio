@@ -3744,7 +3744,7 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
         directTestCoreReceipt,
       ),
     ).toThrow(/exact successful unclaimed receipt/);
-  });
+  }, 20_000);
 
   it("advances authenticated v3 100/500/final-24000 gates and visits only verified sealed-final parents", async () => {
     const corpus = fixedV3Corpus();

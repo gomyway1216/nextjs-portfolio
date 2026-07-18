@@ -1,0 +1,92 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2",
+  "status": "preregistered-blocked",
+  "recorded_date": "2026-07-18",
+  "original_plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+    "bytes": 10890,
+    "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+    "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+  },
+  "original_v1_registry": {
+    "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-registry.json",
+    "bytes": 1642,
+    "sha256": "79e5b559c7d58bc5facec207bcc26813c2e797ff27f95068eea8b4110e10de50",
+    "schema": "shogi-floodgate-formal-paired-ab-registry-v1"
+  },
+  "amendment": {
+    "scope": "formal-paired-ab-sample-size-completion-and-technical-fault-gate-only",
+    "reason": "the-original-192-pair-design-has-about-7.07-percentage-points-worst-case-normal-approximation-half-width-and-is-too-coarse-for-the-intended-five-point-planning-scale",
+    "v1_disposition": "retired-before-execution-and-preserved-byte-for-byte",
+    "replacement_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v2"
+    },
+    "fixed_decision_rule": {
+      "pairs": 384,
+      "games": 768,
+      "games_per_pair": 2,
+      "colors_per_pair": ["candidate-sente", "candidate-gote"],
+      "bootstrap_seed": 20260710,
+      "bootstrap_replicates": 100000,
+      "resampling_unit": "two-game-color-swapped-opening-pair",
+      "one_sided_95_lower_rank": 5000,
+      "two_sided_95_lower_rank": 2500,
+      "safety_gate": "one-sided-95-lower-strictly-above-0.45",
+      "stronger_claim_gate": "two-sided-95-lower-strictly-above-0.50",
+      "partial_pair_policy": "no-statistical-or-adoption-decision-from-valid-partial-pairs",
+      "analyzable_result_gate": "exactly-384-pairs-and-768-games-with-zero-technical-faults",
+      "technical_fault_policy": "immediately-invalidate-and-stop-without-a-strength-conclusion",
+      "same_run_fault_retry_policy": "cannot-be-erased-or-retried",
+      "maximum_attempts_per_experiment": 2,
+      "attempt_ledger_policy": "append-only-ledger-retains-every-attempt-fault-and-partial-result-identity",
+      "rerun_authorization_policy": "at-most-one-new-run-authorized-from-technical-evidence-before-any-result-unblinding",
+      "faulted_attempt_result_policy": "sealed-and-unread-until-rerun-decision-is-immutably-recorded",
+      "second_fault_policy": "experiment-stops-without-strength-conclusion-and-candidate-cannot-rerun",
+      "precision_statement": "normal-approximation-planning-half-width-about-0.05001-not-a-guarantee",
+      "acceptance_statistic": "full-run-pair-bootstrap-only"
+    },
+    "replacement_pairs": 384,
+    "replacement_games": 768,
+    "completion_policy": "no-statistical-or-adoption-decision-from-valid-partial-pairs",
+    "analyzable_result_policy": "exactly-384-pairs-and-768-games-with-zero-technical-faults",
+    "technical_fault_policy": "any-technical-fault-immediately-invalidates-and-stops-the-run-without-a-strength-conclusion",
+    "fault_retry_policy": "same-run-retry-forbidden-and-at-most-one-new-run-requires-blinded-prior-authorization-and-an-append-only-attempt-ledger",
+    "precision_basis": {
+      "method": "bounded-pair-score-normal-approximation-for-planning-only",
+      "pair_score_variance_upper_bound": "0.25",
+      "normal_approximation_z": "1.96",
+      "original_192_pair_half_width": "0.07073",
+      "replacement_384_pair_half_width": "0.05001",
+      "bootstrap_width_is_data_dependent": true,
+      "guaranteed_maximum_half_width": false,
+      "power_guarantee": false,
+      "acceptance_uses_this_approximation": false
+    }
+  },
+  "pre_result_state": {
+    "fresh_candidate_selected": false,
+    "candidate_weights_enrolled": 0,
+    "upstream_receipts_enrolled": 0,
+    "v1_execution_authorized": false,
+    "v1_pairs_observed": 0,
+    "v1_games_observed": 0,
+    "v2_attempts_observed": 0,
+    "v2_pairs_observed": 0,
+    "v2_games_observed": 0,
+    "external_calibration_games_observed": 0,
+    "live_weights_changed": false
+  },
+  "authority": {
+    "execution_authorized": false,
+    "result_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "matches_executed": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

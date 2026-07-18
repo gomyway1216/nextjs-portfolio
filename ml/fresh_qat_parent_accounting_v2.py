@@ -8,10 +8,13 @@ quantities:
     input_parents = forced_parents_skipped + emitted_parent_groups
 
 Only ``emitted_parent_groups`` is projected into ``model_training_parents``.
-This module is deliberately stdlib-only.  It can validate checked-in closed
-records and materialize an in-memory proposal from already supplied input
-metadata and train bytes.  It cannot run a teacher, read a holdout, dispatch
-Torch, enroll an artifact, mutate a registry, or grant authority.
+This module is deliberately stdlib-only.  Its synthetic test core can
+materialize an in-memory proposal only from exact input, per-parent completion,
+and train byte streams whose identities are supplied separately.  The
+production wrapper stays fail-closed until a finalizer-authenticated
+per-parent completion identity is enrolled.  It cannot run a teacher, read a
+holdout, dispatch Torch, enroll an artifact, mutate a registry, or grant
+authority.
 """
 
 from __future__ import annotations
@@ -40,6 +43,12 @@ FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_SCHEMA = (
 FRESH_QAT_PARENT_ACCOUNTING_PROPOSAL_SCHEMA = (
     "shogi-floodgate-fresh-qat-parent-accounting-proposal-v2"
 )
+FRESH_QAT_PARENT_COMPLETION_RECORD_SCHEMA = (
+    "shogi-floodgate-fresh-qat-parent-completion-v2"
+)
+FRESH_QAT_PARENT_COMPLETION_FORMAT = (
+    "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2"
+)
 FRESH_QAT_EXECUTION_PLAN_SCHEMA_V2 = (
     "shogi-floodgate-fresh-qat-execution-plan-v2"
 )
@@ -50,22 +59,22 @@ FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_PATH = (
     "ml/protocols/"
     "floodgate-q1-2026-fresh-qat-parent-accounting-v2-amendment.json"
 )
-FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_BYTES = 6_469
+FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_BYTES = 7_571
 FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_SHA256 = (
-    "2a9c6ebb8b7c6d50d606bbdf0f1eb0cb5d971159e2cee836ff26a5d96c8c80d5"
+    "983e89b8e611dbcd42c70c51a4109f879dfffe40fd8b560a99c798b826f86bef"
 )
 FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_CANONICAL_SHA256 = (
-    "6d63d71aa76e4b7c8084b07219ace2540447f9d1aed811f8fa4da894f229eda3"
+    "7150887dcde98eaf0b83f9eb5155df10b119277143fbb6ea853a05bd15e51834"
 )
 FRESH_QAT_PLAN_REGISTRY_PATH_V2 = (
     "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json"
 )
-FRESH_QAT_PLAN_REGISTRY_BYTES_V2 = 3_046
+FRESH_QAT_PLAN_REGISTRY_BYTES_V2 = 3_501
 FRESH_QAT_PLAN_REGISTRY_SHA256_V2 = (
-    "08f3ebecc880f2e3c97f4591d3a2e68cb186dde8772bcbaf534fe518fdd89130"
+    "97bd6c1839288f505d31e62904ba095a0ccd11a5dc1f5a58d37f21bea11e214c"
 )
 FRESH_QAT_PLAN_REGISTRY_CANONICAL_SHA256_V2 = (
-    "85c9bce0a0cc545b9c5831911443cf6e0192d18c4697f16390251360a71df748"
+    "8e5a1ffb039da21484d51502afb31f5dd3dfd4a95083a4c36fed49078d4384c9"
 )
 
 FRESH_QAT_INPUT_PARENTS = 24_000
@@ -182,18 +191,60 @@ PRODUCTION_INPUT_TRAINING_BINDING = {
     ),
 }
 
-_TRAIN_ROW_REQUIRED_FIELDS = frozenset(
+_RAW_INPUT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "source",
+        "source_url",
+        "game_sha256",
+        "game_id",
+        "parent_id",
+        "position_id",
+        "parent_sfen",
+        "ply",
+        "played_move",
+    }
+)
+_COMPLETION_FIELDS = frozenset(
+    {
+        "schema",
+        "game_id",
+        "parent_id",
+        "position_id",
+        "completed_parent_sha256",
+        "forced_parent_skipped",
+        "train_group_records",
+        "train_group_sha256",
+    }
+)
+_TRAIN_ROW_FIELDS = frozenset(
     {
         "schema",
         "schema_version",
         "game_id",
         "parent_id",
         "position_id",
+        "parent_sfen",
+        "parent_ply",
+        "ply",
+        "move",
+        "sources",
+        "sfen",
         "child_position_id",
+        "cp",
+        "child_sfen",
+        "teacher_child_cp",
+        "teacher_parent_cp",
+        "teacher_rank",
+        "teacher_score_kind",
         "split",
     }
 )
-_INPUT_PARENT_FIELDS = frozenset({"game_id", "parent_id", "position_id"})
+_TRAIN_MATE_FIELDS = frozenset({"teacher_mate", "teacher_mate_sign"})
+_SIBLING_SOURCE_PRIORITY = {"played": 0, "teacher": 1}
+_MAX_NON_MATE_CP = 900_000
+_MATE_SCORE_CP = 1_000_000
+_MAX_MATE_DISTANCE = _MATE_SCORE_CP - _MAX_NON_MATE_CP - 1
 _AUTHORITY_FIELDS = frozenset(
     {
         "teacher_execution_authorized",
@@ -208,6 +259,7 @@ _AUTHORITY_FIELDS = frozenset(
 _NONCLAIM_FIELDS = frozenset(
     {
         "teacher_origin_authenticated_by_this_materializer",
+        "completion_origin_authenticated_by_this_materializer",
         "artifact_enrolled",
         "training_executed",
         "candidate_selected",
@@ -585,139 +637,708 @@ def _normalize_input_binding(
     return copy.deepcopy(binding)
 
 
-def _scan_input_parents(
-    input_parents: Any,
+def _normalize_completion_binding(
+    expected_completion_binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_fields = frozenset(
+        {
+            "path",
+            "format",
+            "bytes",
+            "sha256",
+            "records",
+            "forced_parents_skipped",
+            "emitted_parent_groups",
+            "parent_ids_sha256",
+            "forced_parent_ids_sha256",
+            "emitted_parent_ids_sha256",
+        }
+    )
+    binding = _exact_fields(
+        expected_completion_binding,
+        expected_fields,
+        "fresh QAT expected completion binding",
+    )
+    if type(binding["path"]) is not str or not binding["path"]:
+        raise ValueError("fresh QAT completion binding path is invalid")
+    if binding["format"] != FRESH_QAT_PARENT_COMPLETION_FORMAT:
+        raise ValueError("fresh QAT completion binding format is invalid")
+    for field in (
+        "bytes",
+        "records",
+        "forced_parents_skipped",
+        "emitted_parent_groups",
+    ):
+        if type(binding[field]) is not int or binding[field] < 0:
+            raise ValueError(
+                f"fresh QAT completion binding {field} is invalid"
+            )
+    if binding["bytes"] < 1 or binding["records"] < 1:
+        raise ValueError("fresh QAT completion binding is empty")
+    if (
+        binding["forced_parents_skipped"]
+        + binding["emitted_parent_groups"]
+        != binding["records"]
+    ):
+        raise ValueError("fresh QAT completion binding equation is invalid")
+    for field in (
+        "sha256",
+        "parent_ids_sha256",
+        "forced_parent_ids_sha256",
+        "emitted_parent_ids_sha256",
+    ):
+        _require_sha256(
+            binding[field], f"fresh QAT completion binding {field}"
+        )
+    return copy.deepcopy(binding)
+
+
+def _required_text(value: Any, label: str) -> str:
+    if (
+        type(value) is not str
+        or not value
+        or value != value.strip()
+        or "\0" in value
+    ):
+        raise ValueError(f"{label} must be non-empty canonical text")
+    return value
+
+
+def _validate_sfen_syntax(parts: list[str], label: str) -> None:
+    board, turn, hand, _move_number = parts
+    if turn not in ("b", "w"):
+        raise ValueError(f"{label} turn is invalid")
+    ranks = board.split("/")
+    if len(ranks) != 9:
+        raise ValueError(f"{label} board must contain nine ranks")
+    pieces = set("PLNSGBRKplnsgbrk")
+    promotable = set("PLNSBRplnsbr")
+    for rank_number, rank in enumerate(ranks, 1):
+        squares = 0
+        offset = 0
+        while offset < len(rank):
+            token = rank[offset]
+            if token in "123456789":
+                if (
+                    offset + 1 < len(rank)
+                    and rank[offset + 1] in "0123456789"
+                ):
+                    raise ValueError(
+                        f"{label} rank {rank_number} has adjacent empty runs"
+                    )
+                squares += int(token)
+                offset += 1
+                continue
+            if token == "+":
+                offset += 1
+                if offset >= len(rank) or rank[offset] not in promotable:
+                    raise ValueError(
+                        f"{label} rank {rank_number} promotion is invalid"
+                    )
+                squares += 1
+                offset += 1
+                continue
+            if token not in pieces:
+                raise ValueError(
+                    f"{label} rank {rank_number} contains an invalid piece"
+                )
+            squares += 1
+            offset += 1
+        if squares != 9:
+            raise ValueError(
+                f"{label} rank {rank_number} expands to {squares} squares"
+            )
+    if hand == "-":
+        return
+    hand_order = {
+        piece: index for index, piece in enumerate("RBGSNLPrbgsnlp")
+    }
+    seen: set[str] = set()
+    previous = -1
+    offset = 0
+    while offset < len(hand):
+        count_start = offset
+        while offset < len(hand) and hand[offset] in "0123456789":
+            offset += 1
+        count_text = hand[count_start:offset]
+        if count_text and (
+            count_text.startswith("0") or int(count_text) < 2
+        ):
+            raise ValueError(f"{label} hand count is not canonical")
+        if offset >= len(hand) or hand[offset] not in hand_order:
+            raise ValueError(f"{label} hand grammar is invalid")
+        piece = hand[offset]
+        if piece in seen or hand_order[piece] <= previous:
+            raise ValueError(f"{label} hand order is not canonical")
+        seen.add(piece)
+        previous = hand_order[piece]
+        offset += 1
+
+
+def _normalized_sfen(value: Any, label: str) -> str:
+    text = _required_text(value, label)
+    parts = text.split()
+    if (
+        len(parts) != 4
+        or " ".join(parts) != text
+        or not parts[3].isdigit()
+        or int(parts[3]) <= 0
+    ):
+        raise ValueError(f"{label} is not a canonical four-field SFEN")
+    _validate_sfen_syntax(parts, label)
+    return text
+
+
+def _position_id_from_sfen(sfen: str) -> str:
+    canonical = " ".join(sfen.split()[:3])
+    return "sha256:" + hashlib.sha256(
+        f"sfen-v1\0{canonical}".encode("utf-8")
+    ).hexdigest()
+
+
+def _parent_id_for_game_ply(game_id: str, ply: int) -> str:
+    return "sha256:" + hashlib.sha256(
+        f"parent-occurrence-v1\0{game_id}\0{ply}".encode("utf-8")
+    ).hexdigest()
+
+
+def _game_id_for_source_url(source_url: str) -> str:
+    return "sha256:" + hashlib.sha256(
+        f"floodgate-q1-2026-game-id-v1\0{source_url}".encode("utf-8")
+    ).hexdigest()
+
+
+def _tuple_sequence_digest(
+    order: list[str],
+    metadata: Mapping[str, Mapping[str, Any]],
+) -> str:
+    digest = hashlib.sha256()
+    for parent_id in order:
+        parent = metadata[parent_id]
+        digest.update(parent["game_id"].encode("ascii"))
+        digest.update(b"\0")
+        digest.update(parent_id.encode("ascii"))
+        digest.update(b"\0")
+        digest.update(parent["position_id"].encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _strict_jsonl_lines(
+    raw: Any,
+    label: str,
+    *,
+    allow_empty: bool,
+) -> list[tuple[bytes, str]]:
+    if type(raw) is not bytes:
+        raise ValueError(f"{label} must be exact bytes")
+    if not raw:
+        if allow_empty:
+            return []
+        raise ValueError(f"{label} may not be empty")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise ValueError(f"{label} contains a UTF-8 BOM")
+    if b"\0" in raw or b"\r" in raw:
+        raise ValueError(f"{label} contains forbidden NUL or CR bytes")
+    if not raw.endswith(b"\n") or raw.endswith(b"\n\n"):
+        raise ValueError(f"{label} requires exactly one final LF")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{label} is not fatal-valid UTF-8") from error
+    raw_lines = raw[:-1].split(b"\n")
+    text_lines = text[:-1].split("\n")
+    if len(raw_lines) != len(text_lines) or any(
+        not line for line in raw_lines
+    ):
+        raise ValueError(f"{label} contains a blank line")
+    return list(zip(raw_lines, text_lines))
+
+
+def _scan_input_bytes(
+    input_raw: Any,
     expected_input_binding: Mapping[str, Any],
-) -> tuple[list[str], dict[str, tuple[str, str]], dict[str, Any]]:
-    if type(input_parents) is not list:
-        raise ValueError("fresh QAT input parents must be an exact list")
-    if len(input_parents) != expected_input_binding["parents"]:
+) -> tuple[list[str], dict[str, dict[str, Any]], dict[str, Any]]:
+    if type(input_raw) is not bytes:
+        raise ValueError("fresh QAT input content must be exact bytes")
+    if (
+        len(input_raw) != expected_input_binding["bytes"]
+        or hashlib.sha256(input_raw).hexdigest()
+        != expected_input_binding["sha256"]
+    ):
+        raise ValueError(
+            "fresh QAT input raw bytes do not match the role binding"
+        )
+    lines = _strict_jsonl_lines(
+        input_raw, "fresh QAT input content", allow_empty=False
+    )
+    if len(lines) != expected_input_binding["parents"]:
         raise ValueError("fresh QAT input parent count differs from its binding")
 
     order: list[str] = []
-    metadata: dict[str, tuple[str, str]] = {}
+    metadata: dict[str, dict[str, Any]] = {}
     games: set[str] = set()
     positions: set[str] = set()
-    for index, item in enumerate(input_parents):
-        parent = _exact_fields(
-            item,
-            _INPUT_PARENT_FIELDS,
-            f"fresh QAT input parent {index}",
+    game_sources: dict[str, tuple[str, str]] = {}
+    previous_parent: str | None = None
+    for index, (raw_line, text) in enumerate(lines, 1):
+        row = _strict_json_loads(text, f"fresh QAT input line {index}")
+        row = _exact_fields(
+            row, _RAW_INPUT_FIELDS, f"fresh QAT input line {index}"
+        )
+        if _canonical_bytes(row) != raw_line:
+            raise ValueError(
+                f"fresh QAT input line {index} is not canonical JSON"
+            )
+        if row["schema_version"] != 1 or type(row["schema_version"]) is not int:
+            raise ValueError(
+                f"fresh QAT input line {index} schema version is invalid"
+            )
+        if row["source"] != "floodgate" or type(row["source"]) is not str:
+            raise ValueError(
+                f"fresh QAT input line {index} source is invalid"
+            )
+        source_url = _required_text(
+            row["source_url"], f"fresh QAT input line {index}.source_url"
+        )
+        game_sha256 = _require_sha256(
+            row["game_sha256"],
+            f"fresh QAT input line {index}.game_sha256",
         )
         game_id = _require_semantic_id(
-            parent["game_id"], f"fresh QAT input parent {index}.game_id"
+            row["game_id"], f"fresh QAT input line {index}.game_id"
         )
         parent_id = _require_semantic_id(
-            parent["parent_id"], f"fresh QAT input parent {index}.parent_id"
+            row["parent_id"], f"fresh QAT input line {index}.parent_id"
         )
         position_id = _require_semantic_id(
-            parent["position_id"],
-            f"fresh QAT input parent {index}.position_id",
+            row["position_id"], f"fresh QAT input line {index}.position_id"
         )
+        parent_sfen = _normalized_sfen(
+            row["parent_sfen"],
+            f"fresh QAT input line {index}.parent_sfen",
+        )
+        ply = row["ply"]
+        if type(ply) is not int or ply < 0:
+            raise ValueError(f"fresh QAT input line {index}.ply is invalid")
+        _required_text(
+            row["played_move"],
+            f"fresh QAT input line {index}.played_move",
+        )
+        if (
+            game_id != _game_id_for_source_url(source_url)
+            or parent_id != _parent_id_for_game_ply(game_id, ply)
+            or position_id != _position_id_from_sfen(parent_sfen)
+            or int(parent_sfen.split()[3]) != ply + 1
+        ):
+            raise ValueError(
+                f"fresh QAT input line {index} semantic tuple is invalid"
+            )
+        if previous_parent is not None and previous_parent >= parent_id:
+            raise ValueError(
+                "fresh QAT input parent order is not strict byte order"
+            )
+        previous_parent = parent_id
         if parent_id in metadata:
             raise ValueError("fresh QAT input contains a duplicate parent ID")
-        metadata[parent_id] = (game_id, position_id)
+        if position_id in positions:
+            raise ValueError(
+                "fresh QAT input contains a duplicate semantic position"
+            )
+        source_identity = (source_url, game_sha256)
+        if (
+            game_id in game_sources
+            and game_sources[game_id] != source_identity
+        ):
+            raise ValueError(
+                "fresh QAT input game source identity is inconsistent"
+            )
+        game_sources[game_id] = source_identity
+        metadata[parent_id] = {
+            "game_id": game_id,
+            "position_id": position_id,
+            "parent_sfen": parent_sfen,
+            "ply": ply,
+        }
         order.append(parent_id)
         games.add(game_id)
         positions.add(position_id)
 
-    if len(games) != expected_input_binding["games"]:
-        raise ValueError("fresh QAT input game count differs from its binding")
-    if len(positions) != expected_input_binding["position_ids_count"]:
-        raise ValueError("fresh QAT input position count differs from its binding")
-    if (
-        _identifier_digest(order)
-        != expected_input_binding["parent_ids_sha256"]
-        or _identifier_digest(games)
-        != expected_input_binding["game_ids_sha256"]
-        or _identifier_digest(positions)
-        != expected_input_binding["position_ids_sha256"]
-    ):
-        raise ValueError("fresh QAT input identifiers differ from the role binding")
-    return order, metadata, {
+    summary = {
         "parents": len(order),
         "games": len(games),
         "game_ids_sha256": _identifier_digest(games),
         "parent_ids_sha256": _identifier_digest(order),
         "position_ids_count": len(positions),
         "position_ids_sha256": _identifier_digest(positions),
+        "parent_tuple_sequence_sha256": _tuple_sequence_digest(
+            order, metadata
+        ),
     }
+    for field in (
+        "parents",
+        "games",
+        "game_ids_sha256",
+        "parent_ids_sha256",
+        "position_ids_count",
+        "position_ids_sha256",
+    ):
+        if summary[field] != expected_input_binding[field]:
+            raise ValueError(
+                "fresh QAT input aggregates differ from the role binding"
+            )
+    return order, metadata, summary
+
+
+def _scan_completion_bytes(
+    completion_raw: Any,
+    expected_completion_binding: Mapping[str, Any],
+    input_order: list[str],
+    input_metadata: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, Any], list[str], list[str], dict[str, dict[str, Any]]]:
+    if type(completion_raw) is not bytes:
+        raise ValueError("fresh QAT completion evidence must be exact bytes")
+    if (
+        len(completion_raw) != expected_completion_binding["bytes"]
+        or hashlib.sha256(completion_raw).hexdigest()
+        != expected_completion_binding["sha256"]
+    ):
+        raise ValueError(
+            "fresh QAT completion bytes do not match the authenticated identity"
+        )
+    lines = _strict_jsonl_lines(
+        completion_raw,
+        "fresh QAT completion evidence",
+        allow_empty=False,
+    )
+    if len(lines) != len(input_order):
+        raise ValueError(
+            "fresh QAT completion evidence does not cover every input parent"
+        )
+    forced_order: list[str] = []
+    emitted_order: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    for index, ((raw_line, text), expected_parent_id) in enumerate(
+        zip(lines, input_order), 1
+    ):
+        row = _strict_json_loads(
+            text, f"fresh QAT completion line {index}"
+        )
+        row = _exact_fields(
+            row, _COMPLETION_FIELDS, f"fresh QAT completion line {index}"
+        )
+        if _canonical_bytes(row) != raw_line:
+            raise ValueError(
+                f"fresh QAT completion line {index} is not canonical JSON"
+            )
+        if row["schema"] != FRESH_QAT_PARENT_COMPLETION_RECORD_SCHEMA:
+            raise ValueError(
+                f"fresh QAT completion line {index} schema is invalid"
+            )
+        game_id = _require_semantic_id(
+            row["game_id"], f"fresh QAT completion line {index}.game_id"
+        )
+        parent_id = _require_semantic_id(
+            row["parent_id"],
+            f"fresh QAT completion line {index}.parent_id",
+        )
+        position_id = _require_semantic_id(
+            row["position_id"],
+            f"fresh QAT completion line {index}.position_id",
+        )
+        completed_parent_sha256 = _require_sha256(
+            row["completed_parent_sha256"],
+            (
+                f"fresh QAT completion line {index}"
+                ".completed_parent_sha256"
+            ),
+            allow_empty_digest=False,
+        )
+        if parent_id != expected_parent_id:
+            raise ValueError(
+                "fresh QAT completion parent sequence differs from exact input"
+            )
+        input_parent = input_metadata[parent_id]
+        if (
+            game_id != input_parent["game_id"]
+            or position_id != input_parent["position_id"]
+        ):
+            raise ValueError(
+                "fresh QAT completion metadata differs from exact input"
+            )
+        forced = row["forced_parent_skipped"]
+        group_records = row["train_group_records"]
+        group_sha256 = row["train_group_sha256"]
+        if type(forced) is not bool or type(group_records) is not int:
+            raise ValueError(
+                f"fresh QAT completion line {index} disposition is invalid"
+            )
+        if forced:
+            if group_records != 0 or group_sha256 is not None:
+                raise ValueError(
+                    "fresh QAT forced completion cannot claim a train group"
+                )
+            forced_order.append(parent_id)
+        else:
+            if group_records < 2:
+                raise ValueError(
+                    "fresh QAT emitted completion has fewer than two rows"
+                )
+            _require_sha256(
+                group_sha256,
+                f"fresh QAT completion line {index}.train_group_sha256",
+                allow_empty_digest=False,
+            )
+            emitted_order.append(parent_id)
+        records[parent_id] = {
+            "completed_parent_sha256": completed_parent_sha256,
+            "forced_parent_skipped": forced,
+            "train_group_records": group_records,
+            "train_group_sha256": group_sha256,
+        }
+
+    summary = {
+        "path": expected_completion_binding["path"],
+        "format": FRESH_QAT_PARENT_COMPLETION_FORMAT,
+        "bytes": len(completion_raw),
+        "sha256": hashlib.sha256(completion_raw).hexdigest(),
+        "records": len(lines),
+        "forced_parents_skipped": len(forced_order),
+        "emitted_parent_groups": len(emitted_order),
+        "parent_ids_sha256": _identifier_digest(input_order),
+        "forced_parent_ids_sha256": _identifier_digest(forced_order),
+        "emitted_parent_ids_sha256": _identifier_digest(emitted_order),
+    }
+    if not _typed_equal(summary, dict(expected_completion_binding)):
+        raise ValueError(
+            "fresh QAT completion aggregates differ from authenticated identity"
+        )
+    return summary, forced_order, emitted_order, records
+
+
+def _mate_to_cp(mate: int, mate_sign: int) -> int:
+    return mate_sign * (
+        _MATE_SCORE_CP - min(abs(mate), _MAX_MATE_DISTANCE)
+    )
+
+
+def _validate_train_row(row: Any, line_number: int) -> dict[str, Any]:
+    label = f"fresh QAT train line {line_number}"
+    if type(row) is not dict:
+        raise ValueError(f"{label} must be an object")
+    score_kind = row.get("teacher_score_kind")
+    expected_fields = (
+        _TRAIN_ROW_FIELDS | _TRAIN_MATE_FIELDS
+        if score_kind == "mate"
+        else _TRAIN_ROW_FIELDS
+    )
+    row = _exact_fields(row, expected_fields, label)
+    if (
+        row["schema"] != "shogi-sibling-v1"
+        or type(row["schema"]) is not str
+        or row["schema_version"] != 1
+        or type(row["schema_version"]) is not int
+        or row["split"] != "train"
+        or type(row["split"]) is not str
+    ):
+        raise ValueError(f"{label} has an invalid sibling row contract")
+    for field in (
+        "game_id",
+        "parent_id",
+        "position_id",
+        "child_position_id",
+    ):
+        _require_semantic_id(row[field], f"{label}.{field}")
+    _required_text(row["move"], f"{label}.move")
+    parent_sfen = _normalized_sfen(row["parent_sfen"], f"{label}.parent_sfen")
+    child_sfen = _normalized_sfen(row["sfen"], f"{label}.sfen")
+    child_alias = _normalized_sfen(
+        row["child_sfen"], f"{label}.child_sfen"
+    )
+    if (
+        row["position_id"] != _position_id_from_sfen(parent_sfen)
+        or child_sfen != child_alias
+        or row["child_position_id"] != _position_id_from_sfen(child_sfen)
+    ):
+        raise ValueError(f"{label} SFEN semantic identifiers are invalid")
+    for field in (
+        "parent_ply",
+        "ply",
+        "cp",
+        "teacher_child_cp",
+        "teacher_parent_cp",
+        "teacher_rank",
+    ):
+        if type(row[field]) is not int:
+            raise ValueError(f"{label}.{field} must be an integer")
+    if (
+        row["parent_ply"] < 0
+        or row["ply"] != row["parent_ply"] + 1
+        or int(parent_sfen.split()[3]) != row["parent_ply"] + 1
+        or int(child_sfen.split()[3]) != row["ply"] + 1
+        or row["teacher_rank"] <= 0
+    ):
+        raise ValueError(f"{label} ply or rank is inconsistent")
+    expected_child_cp = -row["teacher_parent_cp"]
+    if (
+        row["cp"] != expected_child_cp
+        or row["teacher_child_cp"] != expected_child_cp
+    ):
+        raise ValueError(f"{label} child/parent CP aliases are inconsistent")
+    sources = row["sources"]
+    if type(sources) is not list or not sources:
+        raise ValueError(f"{label}.sources must be a non-empty list")
+    for source in sources:
+        _required_text(source, f"{label}.sources")
+    canonical_sources = sorted(
+        set(sources),
+        key=lambda source: (
+            _SIBLING_SOURCE_PRIORITY.get(source, 100),
+            source,
+        ),
+    )
+    if sources != canonical_sources:
+        raise ValueError(f"{label}.sources are not unique and canonical")
+    if score_kind == "mate":
+        mate = row["teacher_mate"]
+        mate_sign = row["teacher_mate_sign"]
+        if (
+            type(mate) is not int
+            or type(mate_sign) is not int
+            or mate_sign not in (-1, 1)
+            or (mate > 0 and mate_sign != 1)
+            or (mate < 0 and mate_sign != -1)
+            or row["teacher_parent_cp"] != _mate_to_cp(mate, mate_sign)
+        ):
+            raise ValueError(f"{label} mate metadata is inconsistent")
+    elif score_kind == "cp":
+        if abs(row["teacher_parent_cp"]) > _MAX_NON_MATE_CP:
+            raise ValueError(f"{label} CP is in the reserved mate band")
+    else:
+        raise ValueError(f"{label} teacher score kind is invalid")
+    return row
+
+
+def _validate_train_group(parent_id: str, rows: list[dict[str, Any]]) -> None:
+    if len(rows) < 2:
+        raise ValueError(
+            "fresh QAT emitted parent group has fewer than two sibling rows"
+        )
+    first = rows[0]
+    provenance = (
+        first["game_id"],
+        first["position_id"],
+        first["parent_sfen"],
+        first["parent_ply"],
+        first["ply"],
+        first["split"],
+    )
+    moves: set[str] = set()
+    ranks: list[int] = []
+    played = 0
+    for row in rows:
+        if (
+            row["parent_id"] != parent_id
+            or (
+                row["game_id"],
+                row["position_id"],
+                row["parent_sfen"],
+                row["parent_ply"],
+                row["ply"],
+                row["split"],
+            )
+            != provenance
+        ):
+            raise ValueError(
+                "fresh QAT train parent group metadata is inconsistent"
+            )
+        if row["move"] in moves:
+            raise ValueError(
+                "fresh QAT train parent group repeats a sibling move"
+            )
+        moves.add(row["move"])
+        ranks.append(row["teacher_rank"])
+        if "played" in row["sources"]:
+            played += 1
+    if played != 1:
+        raise ValueError(
+            "fresh QAT train parent group must have exactly one played source"
+        )
+    if sorted(ranks) != list(range(1, len(rows) + 1)):
+        raise ValueError(
+            "fresh QAT train parent group teacher ranks are not contiguous"
+        )
+    ranked = sorted(rows, key=lambda row: row["teacher_rank"])
+    if any(
+        ranked[index - 1]["teacher_parent_cp"]
+        < ranked[index]["teacher_parent_cp"]
+        for index in range(1, len(ranked))
+    ):
+        raise ValueError(
+            "fresh QAT train parent group rank/CP order is contradictory"
+        )
 
 
 def _scan_train_bytes(
     train_raw: Any,
     input_order: list[str],
-    input_metadata: Mapping[str, tuple[str, str]],
-) -> tuple[dict[str, Any], list[str]]:
-    if type(train_raw) is not bytes:
-        raise ValueError("fresh QAT train content must be exact bytes")
-    if b"\r" in train_raw:
-        raise ValueError("fresh QAT train content may not contain CR bytes")
-    if train_raw and (
-        not train_raw.endswith(b"\n") or train_raw.endswith(b"\n\n")
-    ):
-        raise ValueError("fresh QAT train content requires one final LF")
-
-    lines = [] if not train_raw else train_raw[:-1].split(b"\n")
-    input_index = {parent_id: index for index, parent_id in enumerate(input_order)}
+    input_metadata: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, Any], list[str], dict[str, dict[str, Any]]]:
+    lines = _strict_jsonl_lines(
+        train_raw, "fresh QAT train content", allow_empty=True
+    )
+    input_index = {
+        parent_id: index for index, parent_id in enumerate(input_order)
+    }
     emitted_order: list[str] = []
     emitted_set: set[str] = set()
-    group_records: dict[str, int] = {}
+    group_summaries: dict[str, dict[str, Any]] = {}
     games: set[str] = set()
     positions: set[str] = set()
     children: set[str] = set()
     previous_parent: str | None = None
     previous_input_index = -1
+    current_rows: list[dict[str, Any]] = []
+    current_digest = hashlib.sha256()
 
-    for line_number, raw_line in enumerate(lines, 1):
-        if not raw_line:
-            raise ValueError("fresh QAT train content contains a blank line")
-        try:
-            text = raw_line.decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise ValueError(
-                f"fresh QAT train line {line_number} is not UTF-8"
-            ) from error
+    def finish_group() -> None:
+        nonlocal current_rows, current_digest
+        if previous_parent is None:
+            return
+        _validate_train_group(previous_parent, current_rows)
+        group_summaries[previous_parent] = {
+            "records": len(current_rows),
+            "sha256": current_digest.hexdigest(),
+        }
+        current_rows = []
+        current_digest = hashlib.sha256()
+
+    for line_number, (raw_line, text) in enumerate(lines, 1):
         row = _strict_json_loads(text, f"fresh QAT train line {line_number}")
-        if type(row) is not dict or not _TRAIN_ROW_REQUIRED_FIELDS.issubset(row):
+        if _canonical_bytes(row) != raw_line:
             raise ValueError(
-                f"fresh QAT train line {line_number} lacks required fields"
+                f"fresh QAT train line {line_number} is not canonical JSON"
             )
-        if (
-            row["schema"] != "shogi-sibling-v1"
-            or type(row["schema"]) is not str
-            or row["schema_version"] != 1
-            or type(row["schema_version"]) is not int
-            or row["split"] != "train"
-            or type(row["split"]) is not str
-        ):
-            raise ValueError(
-                f"fresh QAT train line {line_number} has an invalid row contract"
-            )
-        game_id = _require_semantic_id(
-            row["game_id"], f"fresh QAT train line {line_number}.game_id"
-        )
-        parent_id = _require_semantic_id(
-            row["parent_id"], f"fresh QAT train line {line_number}.parent_id"
-        )
-        position_id = _require_semantic_id(
-            row["position_id"], f"fresh QAT train line {line_number}.position_id"
-        )
-        child_position_id = _require_semantic_id(
-            row["child_position_id"],
-            f"fresh QAT train line {line_number}.child_position_id",
-        )
-        expected_metadata = input_metadata.get(parent_id)
-        if expected_metadata is None:
+        row = _validate_train_row(row, line_number)
+        game_id = row["game_id"]
+        parent_id = row["parent_id"]
+        position_id = row["position_id"]
+        expected_parent = input_metadata.get(parent_id)
+        if expected_parent is None:
             raise ValueError(
                 "fresh QAT train contains a replacement parent outside the input"
             )
-        if expected_metadata != (game_id, position_id):
+        if (
+            game_id != expected_parent["game_id"]
+            or position_id != expected_parent["position_id"]
+            or row["parent_sfen"] != expected_parent["parent_sfen"]
+            or row["parent_ply"] != expected_parent["ply"]
+        ):
             raise ValueError(
-                "fresh QAT train parent metadata differs from the input binding"
+                "fresh QAT train parent metadata differs from exact input"
             )
-
         if parent_id != previous_parent:
+            finish_group()
             if parent_id in emitted_set:
                 raise ValueError(
                     "fresh QAT train reopens a non-contiguous parent group"
@@ -732,16 +1353,14 @@ def _scan_train_bytes(
             previous_parent = parent_id
             emitted_order.append(parent_id)
             emitted_set.add(parent_id)
-            group_records[parent_id] = 0
-        group_records[parent_id] += 1
+        current_rows.append(row)
+        current_digest.update(raw_line)
+        current_digest.update(b"\n")
         games.add(game_id)
         positions.add(position_id)
-        children.add(child_position_id)
+        children.add(row["child_position_id"])
+    finish_group()
 
-    if any(records < 2 for records in group_records.values()):
-        raise ValueError(
-            "fresh QAT emitted parent group has fewer than two sibling rows"
-        )
     semantic_positions = positions | children
     return {
         "bytes": len(train_raw),
@@ -752,48 +1371,86 @@ def _scan_train_bytes(
         "game_ids_sha256": _identifier_digest(games),
         "parent_ids_sha256": _identifier_digest(emitted_order),
         "semantic_position_ids_count": len(semantic_positions),
-        "semantic_position_ids_sha256": _identifier_digest(semantic_positions),
-    }, emitted_order
+        "semantic_position_ids_sha256": _identifier_digest(
+            semantic_positions
+        ),
+    }, emitted_order, group_summaries
 
 
 def _materialize_fresh_qat_parent_accounting_proposal_v2(
-    input_parents: Any,
+    input_raw: Any,
+    completion_raw: Any,
     train_raw: Any,
     *,
     expected_input_binding: Mapping[str, Any],
+    expected_completion_binding: Mapping[str, Any],
     materialization_boundary: str,
 ) -> dict[str, Any]:
     _verify_unchanged_contract_digests()
     binding = _normalize_input_binding(expected_input_binding)
-    input_order, input_metadata, input_summary = _scan_input_parents(
-        input_parents,
-        binding,
+    completion_binding = _normalize_completion_binding(
+        expected_completion_binding
     )
-    train, emitted_order = _scan_train_bytes(
-        train_raw,
+    input_order, input_metadata, input_summary = _scan_input_bytes(
+        input_raw, binding
+    )
+    (
+        completion,
+        forced_order,
+        completion_emitted_order,
+        completion_records,
+    ) = _scan_completion_bytes(
+        completion_raw,
+        completion_binding,
         input_order,
         input_metadata,
     )
+    train, emitted_order, train_groups = _scan_train_bytes(
+        train_raw, input_order, input_metadata
+    )
+    if emitted_order != completion_emitted_order:
+        raise ValueError(
+            "fresh QAT train groups differ from explicit completion dispositions"
+        )
+    for parent_id in input_order:
+        completion_record = completion_records[parent_id]
+        train_group = train_groups.get(parent_id)
+        if completion_record["forced_parent_skipped"]:
+            if train_group is not None:
+                raise ValueError(
+                    "fresh QAT forced completion unexpectedly emitted a group"
+                )
+            continue
+        if train_group is None:
+            raise ValueError(
+                "fresh QAT non-forced completion is missing its train group"
+            )
+        if (
+            train_group["records"]
+            != completion_record["train_group_records"]
+            or train_group["sha256"]
+            != completion_record["train_group_sha256"]
+        ):
+            raise ValueError(
+                "fresh QAT train group differs from completion evidence"
+            )
 
-    emitted_set = set(emitted_order)
-    forced_order = [
-        parent_id for parent_id in input_order if parent_id not in emitted_set
+    emitted_positions = [
+        input_metadata[parent_id]["position_id"] for parent_id in emitted_order
     ]
-    emitted_positions = {
-        input_metadata[parent_id][1] for parent_id in emitted_order
-    }
-    forced_positions = {
-        input_metadata[parent_id][1] for parent_id in forced_order
-    }
+    forced_positions = [
+        input_metadata[parent_id]["position_id"] for parent_id in forced_order
+    ]
     input_count = len(input_order)
     forced_count = len(forced_order)
     emitted_count = len(emitted_order)
-    if forced_count + emitted_count != input_count:
+    if (
+        forced_count + emitted_count != input_count
+        or completion["records"] != input_count
+        or train["parents"] != emitted_count
+        or train["parent_ids_sha256"] != _identifier_digest(emitted_order)
+    ):
         raise ValueError("fresh QAT parent accounting equation failed")
-    if train["parents"] != emitted_count:
-        raise ValueError("fresh QAT train parent scan differs from emitted groups")
-    if train["parent_ids_sha256"] != _identifier_digest(emitted_order):
-        raise ValueError("fresh QAT train parent digest differs from emitted groups")
 
     parent_accounting = {
         "input_parents": input_count,
@@ -809,6 +1466,15 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
         "input_position_ids_sha256": input_summary["position_ids_sha256"],
         "forced_position_ids_sha256": _identifier_digest(forced_positions),
         "emitted_position_ids_sha256": _identifier_digest(emitted_positions),
+        "input_parent_tuple_sequence_sha256": input_summary[
+            "parent_tuple_sequence_sha256"
+        ],
+        "forced_parent_tuple_sequence_sha256": _tuple_sequence_digest(
+            forced_order, input_metadata
+        ),
+        "emitted_parent_tuple_sequence_sha256": _tuple_sequence_digest(
+            emitted_order, input_metadata
+        ),
         "replacement_parents": 0,
         "resampled_parents": 0,
         "emitted_order_preserved": True,
@@ -820,6 +1486,10 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
                 "shogi-floodgate-fresh-qat-parent-accounting-stop-receipt-v2"
             ),
             "status": "STOP-no-trainable-parent-groups",
+            "upstream": {
+                "input_training": binding,
+                "parent_completion": completion,
+            },
             "parent_accounting": parent_accounting,
             "train": train,
             "authority": {
@@ -841,7 +1511,7 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
             )
         contracts.append(contract)
 
-    proposal = {
+    return {
         "schema": FRESH_QAT_PARENT_ACCOUNTING_PROPOSAL_SCHEMA,
         "status": "materialized-proposal-only-not-enrolled-or-authorized",
         "materialization_boundary": materialization_boundary,
@@ -853,6 +1523,7 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
             "preregistered_plan": copy.deepcopy(_PREREGISTERED_PLAN_IDENTITY),
             "role_bundle_result": copy.deepcopy(_ROLE_BUNDLE_RESULT_IDENTITY),
             "input_training": binding,
+            "parent_completion": completion,
         },
         "parent_accounting": parent_accounting,
         "model_training": model_training,
@@ -882,6 +1553,7 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
         },
         "nonclaims": {
             "teacher_origin_authenticated_by_this_materializer": False,
+            "completion_origin_authenticated_by_this_materializer": False,
             "artifact_enrolled": False,
             "training_executed": False,
             "candidate_selected": False,
@@ -890,266 +1562,124 @@ def _materialize_fresh_qat_parent_accounting_proposal_v2(
             "live_weights_changed": False,
         },
     }
-    _validate_fresh_qat_parent_accounting_proposal_v2(
-        proposal,
-        expected_input_binding=binding,
-        expected_boundary=materialization_boundary,
+
+
+def _require_registered_production_completion_evidence() -> None:
+    registry_path = (
+        Path(__file__).resolve().parent
+        / "protocols"
+        / "floodgate-q1-2026-fresh-qat-plan-registry-v2.json"
     )
-    return proposal
+    registry = validate_closed_fresh_qat_plan_registry_v2(registry_path)
+    if registry["enrollments"]["parent_completion_evidence"] is None:
+        raise ValueError(
+            "fresh QAT production STOP: authenticated per-parent completion "
+            "evidence is not enrolled"
+        )
+    raise ValueError(
+        "fresh QAT production STOP: the closed v2 registry cannot enroll "
+        "completion evidence"
+    )
 
 
 def materialize_fresh_qat_parent_accounting_proposal_v2(
-    input_parents: Any,
+    input_raw: Any,
+    completion_raw: Any,
     train_raw: Any,
 ) -> dict[str, Any]:
-    """Materialize a production-bound proposal without writing or authorizing it."""
+    """Fail closed while the production completion enrollment is null."""
 
-    return _materialize_fresh_qat_parent_accounting_proposal_v2(
-        input_parents,
-        train_raw,
-        expected_input_binding=PRODUCTION_INPUT_TRAINING_BINDING,
-        materialization_boundary=(
-            "fixed-production-role-bundle-input-proposal-only"
-        ),
-    )
+    del input_raw, completion_raw, train_raw
+    _require_registered_production_completion_evidence()
+    raise AssertionError("unreachable")
 
 
 def materialize_fresh_qat_parent_accounting_proposal_v2_core_for_tests(
-    input_parents: Any,
+    input_raw: Any,
+    completion_raw: Any,
     train_raw: Any,
     *,
     expected_input_binding: Mapping[str, Any],
+    expected_completion_binding: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Exercise the exact production core with a small synthetic input binding."""
+    """Exercise the byte-bound proposal core with synthetic identities only."""
 
     return _materialize_fresh_qat_parent_accounting_proposal_v2(
-        input_parents,
+        input_raw,
+        completion_raw,
         train_raw,
         expected_input_binding=expected_input_binding,
+        expected_completion_binding=expected_completion_binding,
         materialization_boundary="synthetic-test-core-proposal-only",
     )
 
 
 def _validate_fresh_qat_parent_accounting_proposal_v2(
     proposal: Mapping[str, Any],
+    input_raw: Any,
+    completion_raw: Any,
+    train_raw: Any,
     *,
     expected_input_binding: Mapping[str, Any],
+    expected_completion_binding: Mapping[str, Any],
     expected_boundary: str,
 ) -> Mapping[str, Any]:
-    value = _exact_fields(
+    """Regenerate every digest and contract from the exact source bytes."""
+
+    _exact_fields(
         proposal,
         _PROPOSAL_FIELDS,
         "fresh QAT parent-accounting proposal",
     )
-    _require_plain_json(value, "fresh QAT parent-accounting proposal")
-    if (
-        value["schema"] != FRESH_QAT_PARENT_ACCOUNTING_PROPOSAL_SCHEMA
-        or value["status"]
-        != "materialized-proposal-only-not-enrolled-or-authorized"
-        or value["materialization_boundary"] != expected_boundary
-        or value["protocol_amendment_sha256"]
-        != FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_SHA256
-        or value["execution_plan_schema"] != FRESH_QAT_EXECUTION_PLAN_SCHEMA_V2
-    ):
-        raise ValueError("fresh QAT parent-accounting proposal header differs")
-    if not _typed_equal(
-        value["upstream"],
-        {
-        "preregistered_plan": _PREREGISTERED_PLAN_IDENTITY,
-        "role_bundle_result": _ROLE_BUNDLE_RESULT_IDENTITY,
-        "input_training": dict(expected_input_binding),
-        },
-    ):
-        raise ValueError("fresh QAT parent-accounting proposal upstream differs")
-
-    accounting = value["parent_accounting"]
-    expected_accounting_fields = frozenset(
-        {
-            "input_parents",
-            "forced_parents_skipped",
-            "emitted_parent_groups",
-            "equation",
-            "equation_verified",
-            "input_parent_ids_sha256",
-            "forced_parent_ids_sha256",
-            "emitted_parent_ids_sha256",
-            "input_position_ids_sha256",
-            "forced_position_ids_sha256",
-            "emitted_position_ids_sha256",
-            "replacement_parents",
-            "resampled_parents",
-            "emitted_order_preserved",
-            "model_training_parents",
-        }
+    _require_plain_json(proposal, "fresh QAT parent-accounting proposal")
+    expected = _materialize_fresh_qat_parent_accounting_proposal_v2(
+        input_raw,
+        completion_raw,
+        train_raw,
+        expected_input_binding=expected_input_binding,
+        expected_completion_binding=expected_completion_binding,
+        materialization_boundary=expected_boundary,
     )
-    accounting = _exact_fields(
-        accounting,
-        expected_accounting_fields,
-        "fresh QAT proposal parent accounting",
-    )
-    input_count = accounting["input_parents"]
-    forced_count = accounting["forced_parents_skipped"]
-    emitted_count = accounting["emitted_parent_groups"]
-    if (
-        type(input_count) is not int
-        or input_count != expected_input_binding["parents"]
-        or type(forced_count) is not int
-        or forced_count < 0
-        or type(emitted_count) is not int
-        or emitted_count < 1
-        or forced_count + emitted_count != input_count
-        or accounting["equation"]
-        != "forced_parents_skipped+emitted_parent_groups=input_parents"
-        or accounting["equation_verified"] is not True
-        or accounting["replacement_parents"] != 0
-        or type(accounting["replacement_parents"]) is not int
-        or accounting["resampled_parents"] != 0
-        or type(accounting["resampled_parents"]) is not int
-        or accounting["emitted_order_preserved"] is not True
-        or accounting["model_training_parents"] != emitted_count
-    ):
-        raise ValueError("fresh QAT proposal parent accounting is invalid")
-    for field in (
-        "input_parent_ids_sha256",
-        "forced_parent_ids_sha256",
-        "emitted_parent_ids_sha256",
-        "input_position_ids_sha256",
-        "forced_position_ids_sha256",
-        "emitted_position_ids_sha256",
-    ):
-        _require_sha256(accounting[field], f"fresh QAT proposal {field}")
-    if (
-        accounting["input_parent_ids_sha256"]
-        != expected_input_binding["parent_ids_sha256"]
-        or accounting["input_position_ids_sha256"]
-        != expected_input_binding["position_ids_sha256"]
-    ):
-        raise ValueError("fresh QAT proposal input digests differ")
-    if forced_count == 0 and (
-        accounting["forced_parent_ids_sha256"] != EMPTY_IDENTIFIER_SET_SHA256
-        or accounting["forced_position_ids_sha256"]
-        != EMPTY_IDENTIFIER_SET_SHA256
-        or accounting["emitted_parent_ids_sha256"]
-        != accounting["input_parent_ids_sha256"]
-        or accounting["emitted_position_ids_sha256"]
-        != accounting["input_position_ids_sha256"]
-    ):
-        raise ValueError("fresh QAT zero-forced partition digests are invalid")
-
-    model_training = value["model_training"]
-    expected_model_fields = frozenset(
-        {
-            "bytes",
-            "sha256",
-            "records",
-            "parents",
-            "games",
-            "game_ids_sha256",
-            "parent_ids_sha256",
-            "semantic_position_ids_count",
-            "semantic_position_ids_sha256",
-        }
-    )
-    model_training = _exact_fields(
-        model_training,
-        expected_model_fields,
-        "fresh QAT proposal model training",
-    )
-    for field in (
-        "bytes",
-        "records",
-        "parents",
-        "games",
-        "semantic_position_ids_count",
-    ):
-        if type(model_training[field]) is not int:
-            raise ValueError(f"fresh QAT model training {field} is not an integer")
-    if (
-        model_training["bytes"] < 1
-        or model_training["records"] < emitted_count * 2
-        or model_training["parents"] != emitted_count
-        or not 1 <= model_training["games"] <= expected_input_binding["games"]
-        or model_training["semantic_position_ids_count"] < emitted_count
-        or model_training["parent_ids_sha256"]
-        != accounting["emitted_parent_ids_sha256"]
-    ):
-        raise ValueError("fresh QAT proposal model training accounting is invalid")
-    for field in (
-        "sha256",
-        "game_ids_sha256",
-        "parent_ids_sha256",
-        "semantic_position_ids_sha256",
-    ):
-        _require_sha256(
-            model_training[field],
-            f"fresh QAT proposal model training {field}",
-            allow_empty_digest=False,
+    if not _typed_equal(proposal, expected):
+        raise ValueError(
+            "fresh QAT proposal differs from exact source-artifact recomputation"
         )
+    return proposal
 
-    contracts = value["training_contracts"]
-    if type(contracts) is not list or len(contracts) != len(FRESH_QAT_SLOT_ORDER):
-        raise ValueError("fresh QAT proposal must contain all three contracts")
-    plan_stub = {"inputs": {"model_training": model_training}}
-    expected_contracts = [
-        build_fresh_qat_training_contract(plan_stub, slot)
-        for slot in _fixed_slots()
-    ]
-    if not _typed_equal(contracts, expected_contracts):
-        raise ValueError("fresh QAT proposal training contracts differ")
-    if any(
-        contract["model_training_parents"] != emitted_count
-        for contract in contracts
-    ):
-        raise ValueError("fresh QAT proposal did not pass emitted parents")
 
-    unchanged = value["unchanged_contracts"]
-    if not _typed_equal(
-        unchanged,
-        {
-            "training": FRESH_QAT_REQUIRED_TRAINING,
-            "slots": _fixed_slots(),
-            "selection": FRESH_QAT_REQUIRED_SELECTION,
-            "training_contract_canonical_sha256": (
-                FRESH_QAT_TRAINING_CONTRACT_CANONICAL_SHA256
-            ),
-            "slot_registry_canonical_sha256": (
-                FRESH_QAT_SLOT_REGISTRY_CANONICAL_SHA256
-            ),
-            "selection_contract_canonical_sha256": (
-                FRESH_QAT_SELECTION_CONTRACT_CANONICAL_SHA256
-            ),
-        },
-    ):
-        raise ValueError("fresh QAT proposal changed a frozen contract")
-    _verify_unchanged_contract_digests()
+def validate_fresh_qat_parent_accounting_proposal_v2_core_for_tests(
+    proposal: Mapping[str, Any],
+    input_raw: Any,
+    completion_raw: Any,
+    train_raw: Any,
+    *,
+    expected_input_binding: Mapping[str, Any],
+    expected_completion_binding: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Recompute a synthetic proposal without granting production authority."""
 
-    authority = _exact_fields(
-        value["authority"],
-        _AUTHORITY_FIELDS,
-        "fresh QAT proposal authority",
+    return _validate_fresh_qat_parent_accounting_proposal_v2(
+        proposal,
+        input_raw,
+        completion_raw,
+        train_raw,
+        expected_input_binding=expected_input_binding,
+        expected_completion_binding=expected_completion_binding,
+        expected_boundary="synthetic-test-core-proposal-only",
     )
-    if any(item is not False for item in authority.values()):
-        raise ValueError("fresh QAT proposal contains authority")
-    nonclaims = _exact_fields(
-        value["nonclaims"],
-        _NONCLAIM_FIELDS,
-        "fresh QAT proposal nonclaims",
-    )
-    if any(item is not False for item in nonclaims.values()):
-        raise ValueError("fresh QAT proposal contradicts its nonclaims")
-    return value
 
 
 def validate_fresh_qat_parent_accounting_proposal_v2(
     proposal: Mapping[str, Any],
+    input_raw: Any,
+    completion_raw: Any,
+    train_raw: Any,
 ) -> Mapping[str, Any]:
-    """Validate a production-bound in-memory proposal; never enroll it."""
+    """Fail closed while completion-origin authentication is unenrolled."""
 
-    return _validate_fresh_qat_parent_accounting_proposal_v2(
-        proposal,
-        expected_input_binding=PRODUCTION_INPUT_TRAINING_BINDING,
-        expected_boundary="fixed-production-role-bundle-input-proposal-only",
-    )
+    del proposal, input_raw, completion_raw, train_raw
+    _require_registered_production_completion_evidence()
+    raise AssertionError("unreachable")
 
 
 def authorize_fresh_qat_training_v2(_proposal: Mapping[str, Any]) -> None:
@@ -1170,6 +1700,8 @@ __all__ = [
     "FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_SCHEMA",
     "FRESH_QAT_PARENT_ACCOUNTING_AMENDMENT_SHA256",
     "FRESH_QAT_PARENT_ACCOUNTING_PROPOSAL_SCHEMA",
+    "FRESH_QAT_PARENT_COMPLETION_FORMAT",
+    "FRESH_QAT_PARENT_COMPLETION_RECORD_SCHEMA",
     "FRESH_QAT_PLAN_REGISTRY_BYTES_V2",
     "FRESH_QAT_PLAN_REGISTRY_PATH_V2",
     "FRESH_QAT_PLAN_REGISTRY_SCHEMA_V2",
@@ -1184,4 +1716,5 @@ __all__ = [
     "validate_fresh_qat_parent_accounting_amendment_chain",
     "validate_fresh_qat_parent_accounting_amendment_data",
     "validate_fresh_qat_parent_accounting_proposal_v2",
+    "validate_fresh_qat_parent_accounting_proposal_v2_core_for_tests",
 ]

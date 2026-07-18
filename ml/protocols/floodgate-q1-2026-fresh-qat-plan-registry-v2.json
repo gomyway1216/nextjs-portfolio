@@ -1,11 +1,11 @@
 {
   "schema": "shogi-floodgate-fresh-qat-plan-registry-v2",
-  "status": "blocked-awaiting-exact-parent-accounting-and-artifact-identities",
+  "status": "blocked-awaiting-authenticated-per-parent-completion-and-exact-artifact-identities",
   "supersession": {
     "amendment": {
       "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-v2-amendment.json",
-      "bytes": 6469,
-      "sha256": "2a9c6ebb8b7c6d50d606bbdf0f1eb0cb5d971159e2cee836ff26a5d96c8c80d5",
+      "bytes": 7571,
+      "sha256": "983e89b8e611dbcd42c70c51a4109f879dfffe40fd8b560a99c798b826f86bef",
       "schema": "shogi-floodgate-fresh-qat-parent-accounting-amendment-v2"
     },
     "v1_plan_registry": {
@@ -40,18 +40,26 @@
     "input_games": 1000,
     "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
     "model_training_parents_source": "emitted_parent_groups",
+    "completion_origin": "registered-finalizer-result-manifest-work-derived-projection-only",
+    "missing_group_policy": "STOP-never-infer-forced-from-absence",
     "replacement_or_resampling": "forbidden",
     "all_forced_policy": "STOP-no-trainable-parent-groups"
   },
   "enrollments": {
     "training_label_result": null,
     "training_label_manifest": null,
+    "training_label_work": null,
+    "parent_completion_evidence": null,
     "train_jsonl": null,
     "parent_accounting_proposal": null,
     "execution_plan_v2": null
   },
   "gates": {
     "input_parent_identity_verified": false,
+    "input_raw_bytes_verified": false,
+    "finalizer_result_manifest_work_verified": false,
+    "parent_completion_origin_authenticated": false,
+    "parent_completion_exact_coverage_verified": false,
     "emitted_parent_identity_verified": false,
     "forced_parent_partition_verified": false,
     "accounting_equation_verified": false,

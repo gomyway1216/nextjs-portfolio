@@ -107,13 +107,13 @@
     "dormant_run_binding_graph_initialized_before_attestation": false,
     "dormant_run_binding_graph_invoked_by_direct_entry": false,
     "bundle": {
-      "bytes": 288004,
-      "sha256": "55171dad09a81185b70c9ce659a328db96031aa392eb35d1e73d99ecb88c636e",
+      "bytes": 287891,
+      "sha256": "d05d28a7ec2db09e77e9d3d57e435faea728b3722505cf77bcf289602c052556",
       "identity_final": true
     },
     "launcher": {
-      "bytes": 24915,
-      "sha256": "5851310caba367ca373dc3e3fde2cefac15b8e9a33acd13b5cf2523f967f4963",
+      "bytes": 24803,
+      "sha256": "f50e341e2b3a98b28efd99e74d50ac0ef453e903a1a2faa7b9d7efdde5b13dae",
       "identity_final": true
     },
     "forbidden_text_match_count": {
@@ -196,8 +196,8 @@
       "sha256": "7d085ddfce1c55e8ad792be13e44e48cd34344fe8a876c67fe89389271db16ca"
     },
     "public_calibration_worker": {
-      "bytes": 13153,
-      "sha256": "a9d7112920eabbb12de29732eeb4540e2884d94cd6677b6ac43a8352f4648caf"
+      "bytes": 13014,
+      "sha256": "899c9eaea9dcc5478ad833a840232cc6aadf584f6bc2682ca5869832d12acbb6"
     }
   },
   "public_calibration": {
@@ -236,28 +236,28 @@
       "integration_merge": "ac18b119f1943b051875bd5bf74ad2166e5f248b",
       "focused_suite": {
         "files_passed": 3,
-        "tests_passed": 55,
+        "tests_passed": 56,
         "tests_skipped": 1,
         "status": "PASS"
       },
       "isolated_real_public_calibration": {
         "files_passed": 1,
         "tests_passed": 1,
-        "tests_skipped": 22,
-        "measured_test_duration_ms": 19841,
+        "tests_skipped": 23,
+        "measured_test_duration_ms": 19578,
         "status": "PASS"
       },
       "affected_regression": {
         "files_passed": 4,
-        "tests_passed": 90,
+        "tests_passed": 91,
         "tests_skipped": 0,
         "status": "PASS"
       },
       "full_unit_suite": {
         "files_passed": 177,
-        "tests_passed": 3202,
+        "tests_passed": 3204,
         "tests_skipped": 1,
-        "duration_seconds": 314.21,
+        "duration_seconds": 330.37,
         "status": "PASS"
       },
       "production_build": {

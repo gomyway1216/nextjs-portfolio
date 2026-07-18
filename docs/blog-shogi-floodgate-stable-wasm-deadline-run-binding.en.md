@@ -95,14 +95,16 @@ These are code-and-test properties of a child artifact. They are not evidence th
 | stop and reap of the calibration child                            | PASS                                                              |
 | deterministic eighteen-source bundle / privacy hard gate          | PASS                                                              |
 | regular merge of latest `origin/main`                             | `163dc696e4e6453919547386294058285516c236`                        |
-| full unit suite                                                   | 177 files; 3,202 PASS / 1 SKIP                                    |
+| full unit suite                                                   | 177 files; 3,204 PASS / 1 SKIP                                    |
 | production build                                                  | PASS                                                              |
 | private registry claim / private row open / private lane          | **0 / 0 / 0**                                                     |
 | teacher generation / training / candidate selection               | **0 / 0 / 0**                                                     |
 | formal A/B / external calibration                                 | **0 / 0**                                                         |
 | live-weight change / production activation                        | **false / 0**                                                     |
 
-Focused, isolated public-calibration, affected-regression, full-unit, and production-build validation are complete on the head that regularly merged the prerequisite and latest `origin/main`. The bundle is 288,004 bytes and the launcher is 24,915 bytes; their exact SHA-256 identities are frozen in the [machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json).
+Linux CI also exposed a test-only portability defect: a fixture helper tried to change the shared system temporary root itself. The helper now changes permissions only on strict descendants of the realpath-resolved temporary root, and a regression test rejects any attempt to touch that shared root. This does not change the runtime closure or operational state.
+
+Focused, isolated public-calibration, affected-regression, full-unit, and production-build validation are complete on the head that regularly merged the prerequisite and latest `origin/main`. The bundle is 287,891 bytes and the launcher is 24,803 bytes; their exact SHA-256 identities are frozen in the [machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json).
 
 ## 8. Missing external authority
 

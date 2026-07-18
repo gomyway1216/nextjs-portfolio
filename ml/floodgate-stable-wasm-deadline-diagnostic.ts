@@ -657,9 +657,7 @@ function runOneChild(
         if (invalid || watchdog) return;
         if (
           chunk.byteLength > MAX_WORKER_STDOUT_BYTES - stdoutBytes ||
-          [...chunk].some(
-            (byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e),
-          )
+          chunk.some((byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e))
         ) {
           markInvalid();
           return;
@@ -670,7 +668,10 @@ function runOneChild(
       stderr.on("data", () => markInvalid());
       stdin.on("error", () => markInvalid());
     }
-    child.on("error", () => markInvalid());
+    child.on("error", () => {
+      markInvalid();
+      // Settlement stays on close, after the failed child has closed stdio.
+    });
     const sourcePipe = child.stdio[3] as Writable | null | undefined;
     if (sourcePipe === null || sourcePipe === undefined) {
       markInvalid();

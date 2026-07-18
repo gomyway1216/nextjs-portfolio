@@ -25,10 +25,10 @@ const STABILITY_LIMIT_PPM = 250_000;
  * worker nor its parent accepts a position, identifier, or row selector.
  */
 const PUBLIC_BOARD = Object.freeze([
-  34, 0, 33, 0, 0, 0, 17, 0, 18, 35, 38, 33, 0, 0, 20, 0, 23, 19, 36, 37, 0,
-  33, 0, 0, 17, 0, 0, 0, 0, 33, 0, 0, 0, 17, 0, 21, 40, 0, 33, 0, 0, 0, 17,
-  0, 0, 37, 0, 33, 0, 0, 0, 17, 24, 0, 36, 0, 33, 0, 0, 0, 17, 21, 20, 35,
-  0, 0, 0, 39, 0, 17, 22, 19, 34, 0, 33, 0, 0, 0, 17, 0, 18,
+  34, 0, 33, 0, 0, 0, 17, 0, 18, 35, 38, 33, 0, 0, 20, 0, 23, 19, 36, 37, 0, 33,
+  0, 0, 17, 0, 0, 0, 0, 33, 0, 0, 0, 17, 0, 21, 40, 0, 33, 0, 0, 0, 17, 0, 0,
+  37, 0, 33, 0, 0, 0, 17, 24, 0, 36, 0, 33, 0, 0, 0, 17, 21, 20, 35, 0, 0, 0,
+  39, 0, 17, 22, 19, 34, 0, 33, 0, 0, 0, 17, 0, 18,
 ]);
 const PUBLIC_HANDS = Object.freeze([
   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
@@ -411,11 +411,7 @@ async function readSingleCanonicalLine() {
     const chunk = Buffer.isBuffer(inputChunk)
       ? inputChunk
       : Buffer.from(inputChunk);
-    if (
-      [...chunk].some(
-        (byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e),
-      )
-    ) {
+    if (chunk.some((byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e))) {
       fail("protocol input is not printable ASCII");
     }
     pieces.push(chunk);
@@ -435,12 +431,7 @@ async function readSingleCanonicalLine() {
 
 async function writeResult(result) {
   const output = canonicalJson(result);
-  if (
-    [...output].some((character) => {
-      const code = character.charCodeAt(0);
-      return code < 0x20 || code > 0x7e;
-    })
-  ) {
+  if (/[^\x20-\x7e]/u.test(output)) {
     fail("protocol output is not printable ASCII");
   }
   await new Promise((resolve, reject) => {

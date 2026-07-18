@@ -95,12 +95,7 @@ function canonicalJson(value: unknown): string {
 
 function writeOneLine(value: unknown): Promise<void> {
   const line = `${canonicalJson(value)}\n`;
-  if (
-    [...line].some((character) => {
-      const code = character.charCodeAt(0);
-      return code !== 0x0a && (code < 0x20 || code > 0x7e);
-    })
-  ) {
+  if (/[^\x20-\x7e\x0a]/u.test(line)) {
     return Promise.reject(new Error("output is not printable ASCII"));
   }
   return new Promise((resolve, reject) => {

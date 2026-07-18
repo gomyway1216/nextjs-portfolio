@@ -25,8 +25,8 @@ export const FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT = 5;
 export const FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS = 180_000;
 export const FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY =
   Object.freeze({
-    bytes: 13_153,
-    sha256: "a9d7112920eabbb12de29732eeb4540e2884d94cd6677b6ac43a8352f4648caf",
+    bytes: 13_014,
+    sha256: "899c9eaea9dcc5478ad833a840232cc6aadf584f6bc2682ca5869832d12acbb6",
   });
 
 const WORKER_BOOTSTRAP_SOURCE =
@@ -414,9 +414,7 @@ function runCapturedCalibration(
           invalid ||
           watchdog ||
           chunk.byteLength > MAX_WORKER_STDOUT_BYTES - stdoutBytes ||
-          [...chunk].some(
-            (byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e),
-          )
+          chunk.some((byte) => byte !== 0x0a && (byte < 0x20 || byte > 0x7e))
         ) {
           invalidate();
           return;
@@ -427,7 +425,10 @@ function runCapturedCalibration(
       stderr.on("data", invalidate);
       stdin.on("error", invalidate);
     }
-    child.on("error", invalidate);
+    child.on("error", () => {
+      invalidate();
+      // Settlement stays on close, after the failed child has closed stdio.
+    });
 
     const sourcePipe = child.stdio[3] as Writable | null | undefined;
     if (sourcePipe === null || sourcePipe === undefined) {

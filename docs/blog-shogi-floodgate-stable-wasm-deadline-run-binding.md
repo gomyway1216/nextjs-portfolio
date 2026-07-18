@@ -95,14 +95,16 @@ bundle内のlatent graphには、後続supervisorが認証した後にだけ使�
 | calibration childのstop / reap                               | PASS                                       |
 | deterministic 18-source bundle / privacy hard gate           | PASS                                       |
 | latest `origin/main`の通常merge                              | `163dc696e4e6453919547386294058285516c236` |
-| full unit suite                                              | 177 files、3,202 PASS / 1 SKIP             |
+| full unit suite                                              | 177 files、3,204 PASS / 1 SKIP             |
 | production build                                             | PASS                                       |
 | private registry claim / private row open / private lane     | **0 / 0 / 0**                              |
 | teacher生成 / training / candidate selection                 | **0 / 0 / 0**                              |
 | formal A/B / external calibration                            | **0 / 0**                                  |
 | live weight変更 / production activation                      | **false / 0**                              |
 
-先行PRを通常mergeした最新`origin/main`を取り込んだheadで、focused / isolated public calibration / affected regression / full unit / production buildを完了しました。bundleは288,004 bytes、launcherは24,915 bytesで、exact SHA-256を[machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json)へ固定しています。
+Linux CIでは、test fixture helperが共有system temporary root自体のpermissionを変更しようとするtest-onlyの移植性不具合も検出しました。helperはrealpath済みtemporary rootのstrict descendantだけを変更するよう修正し、共有rootへ触れる試みを拒否する回帰testを追加しています。runtime closureとoperational stateは変わりません。
+
+先行PRを通常mergeした最新`origin/main`を取り込んだheadで、focused / isolated public calibration / affected regression / full unit / production buildを完了しました。bundleは287,891 bytes、launcherは24,803 bytesで、exact SHA-256を[machine-readable evidence](./data/floodgate-stable-wasm-deadline-run-binding-2026-07-17.json)へ固定しています。
 
 ## 8. 不足している外部authority
 

@@ -506,10 +506,7 @@ function validateCapturedOutput(stdoutData, stderrData, status, invalid) {
     text.charAt(text.length - 1) !== "\n" ||
     text.indexOf("\n") !== text.length - 1 ||
     text.indexOf("\r") !== -1 ||
-    [...text].some((character) => {
-      const code = character.charCodeAt(0);
-      return code !== 0x0a && (code < 0x20 || code > 0x7e);
-    })
+    /[^\x20-\x7e\x0a]/u.test(text)
   ) {
     fail();
   }

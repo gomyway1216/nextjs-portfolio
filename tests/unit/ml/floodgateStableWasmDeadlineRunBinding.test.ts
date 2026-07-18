@@ -511,6 +511,23 @@ describe("stable-WASM PUBLIC deadline calibration", () => {
     expect(Date.now() - started).toBeLessThan(1_000);
   });
 
+  it("fails closed after an asynchronous spawn error reaches the close boundary", async () => {
+    const source = syntheticCalibrationWorker("instant");
+    await expect(
+      runFloodgateStableWasmDeadlinePublicCalibrationWithSourceCoreForTests(
+        calibrationAssets(source),
+        { bytes: source.byteLength, sha256: sha256(source) },
+        {
+          childExecutablePath: join(
+            tmpdir(),
+            "missing-stable-wasm-calibration-node",
+          ),
+          watchdogMilliseconds: 1_000,
+        },
+      ),
+    ).rejects.toThrow("failed closed");
+  });
+
   it("rejects the wrong worker and either wrong runtime asset before launch", () => {
     const source = syntheticCalibrationWorker("instant");
     const validAssets = calibrationAssets(source);

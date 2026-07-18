@@ -158,15 +158,24 @@ async function temporaryRoot(prefix: string): Promise<string> {
 }
 
 async function mkdirPrivate(directory: string): Promise<void> {
+  const temporaryDirectory = await fs.promises.realpath(os.tmpdir());
+  const relativeDirectory = path.relative(temporaryDirectory, directory);
+  if (
+    relativeDirectory.length === 0 ||
+    relativeDirectory === ".." ||
+    relativeDirectory.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeDirectory)
+  ) {
+    throw new Error(
+      "private fixture directory must be below the system temp root",
+    );
+  }
   await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
-  const root = path.parse(directory).root;
-  let current = root;
-  for (const component of directory.slice(root.length).split(path.sep)) {
+  let current = temporaryDirectory;
+  for (const component of relativeDirectory.split(path.sep)) {
     if (component.length === 0) continue;
     current = path.join(current, component);
-    if (current.startsWith(os.tmpdir())) {
-      await fs.promises.chmod(current, 0o700);
-    }
+    await fs.promises.chmod(current, 0o700);
   }
 }
 
@@ -342,6 +351,34 @@ afterEach(async () => {
       .splice(0)
       .map((root) => fs.promises.rm(root, { recursive: true, force: true })),
   );
+});
+
+describe("private stable-WASM deadline fixtures", () => {
+  it("never changes the shared system temp-root permissions", async () => {
+    const root = await temporaryRoot("deadline-private-fixture-");
+    const sharedTemporaryRoot = await fs.promises.realpath(os.tmpdir());
+    const chmod = fs.promises.chmod.bind(fs.promises);
+    const chmodSpy = vi
+      .spyOn(fs.promises, "chmod")
+      .mockImplementation(async (target, mode) => {
+        if (path.resolve(String(target)) === sharedTemporaryRoot) {
+          throw new Error("shared temp root must not be chmodded");
+        }
+        await chmod(target, mode);
+      });
+    const nested = path.join(root, "one");
+    const leaf = path.join(nested, "two");
+
+    await expect(mkdirPrivate(leaf)).resolves.toBeUndefined();
+    expect(
+      chmodSpy.mock.calls.some(
+        ([target]) => path.resolve(String(target)) === sharedTemporaryRoot,
+      ),
+    ).toBe(false);
+    for (const directory of [root, nested, leaf]) {
+      expect((await fs.promises.stat(directory)).mode & 0o777).toBe(0o700);
+    }
+  });
 });
 
 describe("stable-WASM deadline pure training-row validation", () => {

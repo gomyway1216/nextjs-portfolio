@@ -960,9 +960,7 @@ function runOneChild(input, assets, options, mode, lifecycle) {
     } else {
       stdout.on("data", (chunk) => {
         if (invalid || watchdog) return;
-        if (chunk.byteLength > MAX_WORKER_STDOUT_BYTES - stdoutBytes || [...chunk].some(
-          (byte) => byte !== 10 && (byte < 32 || byte > 126)
-        )) {
+        if (chunk.byteLength > MAX_WORKER_STDOUT_BYTES - stdoutBytes || chunk.some((byte) => byte !== 10 && (byte < 32 || byte > 126))) {
           markInvalid();
           return;
         }
@@ -972,7 +970,9 @@ function runOneChild(input, assets, options, mode, lifecycle) {
       stderr.on("data", () => markInvalid());
       stdin.on("error", () => markInvalid());
     }
-    child.on("error", () => markInvalid());
+    child.on("error", () => {
+      markInvalid();
+    });
     const sourcePipe = child.stdio[3];
     if (sourcePipe === null || sourcePipe === void 0) {
       markInvalid();
@@ -1491,9 +1491,7 @@ function runCapturedCalibration(assets, options) {
       invalidate();
     } else {
       stdout.on("data", (chunk) => {
-        if (invalid || watchdog || chunk.byteLength > MAX_WORKER_STDOUT_BYTES2 - stdoutBytes || [...chunk].some(
-          (byte) => byte !== 10 && (byte < 32 || byte > 126)
-        )) {
+        if (invalid || watchdog || chunk.byteLength > MAX_WORKER_STDOUT_BYTES2 - stdoutBytes || chunk.some((byte) => byte !== 10 && (byte < 32 || byte > 126))) {
           invalidate();
           return;
         }
@@ -1503,7 +1501,9 @@ function runCapturedCalibration(assets, options) {
       stderr.on("data", invalidate);
       stdin.on("error", invalidate);
     }
-    child.on("error", invalidate);
+    child.on("error", () => {
+      invalidate();
+    });
     const sourcePipe = child.stdio[3];
     if (sourcePipe === null || sourcePipe === void 0) {
       invalidate();
@@ -1546,8 +1546,8 @@ var init_floodgate_stable_wasm_deadline_public_calibration = __esm({
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_SAMPLE_COUNT = 5;
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS = 18e4;
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY = Object.freeze({
-      bytes: 13153,
-      sha256: "a9d7112920eabbb12de29732eeb4540e2884d94cd6677b6ac43a8352f4648caf"
+      bytes: 13014,
+      sha256: "899c9eaea9dcc5478ad833a840232cc6aadf584f6bc2682ca5869832d12acbb6"
     });
     WORKER_BOOTSTRAP_SOURCE2 = 'import { readFileSync } from "node:fs";const source=readFileSync(3);const encoded=Buffer.from(source).toString("base64");await import("data:text/javascript;base64,"+encoded);';
     MAX_WORKER_STDOUT_BYTES2 = 256;
@@ -8268,10 +8268,7 @@ function canonicalJson5(value) {
 function writeOneLine(value) {
   const line = `${canonicalJson5(value)}
 `;
-  if ([...line].some((character) => {
-    const code = character.charCodeAt(0);
-    return code !== 10 && (code < 32 || code > 126);
-  })) {
+  if (/[^\x20-\x7e\x0a]/u.test(line)) {
     return Promise.reject(new Error("output is not printable ASCII"));
   }
   return new Promise((resolve8, reject) => {

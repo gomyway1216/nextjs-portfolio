@@ -681,19 +681,21 @@ public final class TrustRootSupervisorSessionV1:
         evictExpiredReplayEntries(
             nowUnixSeconds: lastWallClockSeconds
         )
+        let issuedChallengeExpiry =
+            issuedChallenges[challengeDigest]
         let accepted =
             nowUnixSeconds == lastWallClockSeconds
             && nowMonotonicNanoseconds == lastMonotonicNanoseconds
-            && issuedChallenges[challengeDigest] != nil
+            && issuedChallengeExpiry != nil
             && consumedChallenges[challengeDigest] == nil
             && consumedReceipts[receiptDigest] == nil
             && consumedReceipts.count < replayRetentionCapacity
-        if accepted {
+        if accepted, let issuedChallengeExpiry {
             issuedChallenges.removeValue(forKey: challengeDigest)
             consumedChallenges[challengeDigest] =
-                challenge.expiresAtUnixSeconds
+                issuedChallengeExpiry
             consumedReceipts[receiptDigest] =
-                receipt.expiresAtUnixSeconds
+                issuedChallengeExpiry
         }
         lock.unlock()
         guard accepted else {

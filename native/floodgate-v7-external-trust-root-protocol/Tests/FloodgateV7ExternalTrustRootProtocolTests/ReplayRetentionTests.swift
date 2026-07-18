@@ -54,6 +54,90 @@ private final class RetentionRandomSequence: @unchecked Sendable {
     }
 }
 
+private final class RetentionBlockingRandomSequence:
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let reachedBarrier: DispatchSemaphore
+    private let releaseBarrier: DispatchSemaphore
+    private var next: UInt8
+    private var hasBlocked = false
+
+    init(
+        start: UInt8,
+        reachedBarrier: DispatchSemaphore,
+        releaseBarrier: DispatchSemaphore
+    ) {
+        next = start
+        self.reachedBarrier = reachedBarrier
+        self.releaseBarrier = releaseBarrier
+    }
+
+    func bytes(count: Int) throws -> [UInt8] {
+        lock.lock()
+        guard
+            count == 32,
+            next > 0,
+            next < UInt8.max
+        else {
+            lock.unlock()
+            throw CanonicalRecordError.invalidCanonicalRecord
+        }
+        let value = next
+        next &+= 1
+        let shouldBlock = !hasBlocked
+        hasBlocked = true
+        lock.unlock()
+
+        if shouldBlock {
+            reachedBarrier.signal()
+            guard
+                releaseBarrier.wait(
+                    timeout: .now() + 5
+                ) == .success
+            else {
+                throw CanonicalRecordError.invalidCanonicalRecord
+            }
+        }
+        return Array(repeating: value, count: count)
+    }
+
+    var provider: TrustRootRandomBytesProviderV1 {
+        { [self] count in
+            try bytes(count: count)
+        }
+    }
+}
+
+private final class RetentionConcurrentOutcome:
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var storedSucceeded = false
+    private var storedError: CanonicalRecordError?
+
+    func recordSuccess() {
+        lock.lock()
+        storedSucceeded = true
+        lock.unlock()
+    }
+
+    func recordFailure(_ error: Error) {
+        lock.lock()
+        storedError = error as? CanonicalRecordError
+        lock.unlock()
+    }
+
+    func snapshot() -> (
+        succeeded: Bool,
+        error: CanonicalRecordError?
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (storedSucceeded, storedError)
+    }
+}
+
 private struct RetentionFixture {
     let authorityKey = Curve25519.Signing.PrivateKey()
     let supervisorKey = Curve25519.Signing.PrivateKey()
@@ -338,22 +422,14 @@ private func issueRetentionChallenge(
     )
 }
 
-private func makeRetentionHandoff(
+private func issueRetentionReceipt(
     fixture: RetentionFixture,
-    session: TrustRootSupervisorSessionV1,
+    challenge: SupervisorChallengeV1,
     issuedAtUnixSeconds: UInt64,
     issuedAtMonotonicNanoseconds: UInt64,
     randomStart: UInt8
-) throws -> RetentionHandoff {
-    let challenge = try issueRetentionChallenge(
-        fixture: fixture,
-        session: session,
-        issuedAtUnixSeconds: issuedAtUnixSeconds,
-        issuedAtMonotonicNanoseconds:
-            issuedAtMonotonicNanoseconds,
-        randomStart: randomStart
-    )
-    let receipt = try TrustRootVerifierCoreV1.issueReceipt(
+) throws -> VerifierReceiptV1 {
+    try TrustRootVerifierCoreV1.issueReceipt(
         enrollmentEnvelopes: [fixture.signedEnrollment],
         activationEnvelopes: [fixture.signedActivation],
         authorityPublicKeyRawRepresentation:
@@ -369,16 +445,39 @@ private func makeRetentionHandoff(
             fixture.supervisorProcessIdentity,
         verifierProcessIdentity:
             fixture.verifierProcessIdentity,
-        nowUnixSeconds: issuedAtUnixSeconds + 1,
+        nowUnixSeconds: issuedAtUnixSeconds,
         nowMonotonicNanoseconds:
-            issuedAtMonotonicNanoseconds + 1_000_000_000,
+            issuedAtMonotonicNanoseconds,
         verifierPublicKeyRawRepresentation:
             fixture.verifierPublicKey,
         randomBytes:
-            RetentionRandomSequence(
-                start: randomStart &+ 2
-            ).provider,
+            RetentionRandomSequence(start: randomStart).provider,
         sign: retentionSigner(fixture.verifierKey)
+    )
+}
+
+private func makeRetentionHandoff(
+    fixture: RetentionFixture,
+    session: TrustRootSupervisorSessionV1,
+    issuedAtUnixSeconds: UInt64,
+    issuedAtMonotonicNanoseconds: UInt64,
+    randomStart: UInt8
+) throws -> RetentionHandoff {
+    let challenge = try issueRetentionChallenge(
+        fixture: fixture,
+        session: session,
+        issuedAtUnixSeconds: issuedAtUnixSeconds,
+        issuedAtMonotonicNanoseconds:
+            issuedAtMonotonicNanoseconds,
+        randomStart: randomStart
+    )
+    let receipt = try issueRetentionReceipt(
+        fixture: fixture,
+        challenge: challenge,
+        issuedAtUnixSeconds: issuedAtUnixSeconds + 1,
+        issuedAtMonotonicNanoseconds:
+            issuedAtMonotonicNanoseconds + 1_000_000_000,
+        randomStart: randomStart &+ 2
     )
     let attestation = try session.issueAttestation(
         challenge: challenge,
@@ -463,6 +562,212 @@ private func assertInvalidRetention<T>(
 }
 
 final class ReplayRetentionTests: XCTestCase {
+    func testLaterConcurrentClockPreventsOlderChallengeCommit()
+        throws
+    {
+        let fixture = try RetentionFixture()
+        let session = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity
+        )
+        let oldCallReachedCore = DispatchSemaphore(value: 0)
+        let releaseOldCall = DispatchSemaphore(value: 0)
+        let oldCallCompleted = DispatchSemaphore(value: 0)
+        let oldOutcome = RetentionConcurrentOutcome()
+        let oldRandom = RetentionBlockingRandomSequence(
+            start: 0x31,
+            reachedBarrier: oldCallReachedCore,
+            releaseBarrier: releaseOldCall
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { oldCallCompleted.signal() }
+            do {
+                _ = try session.issueChallenge(
+                    enrollmentEnvelopes: [
+                        fixture.signedEnrollment
+                    ],
+                    activationEnvelopes: [
+                        fixture.signedActivation
+                    ],
+                    authorityPublicKeyRawRepresentation:
+                        fixture.authorityPublicKey,
+                    expectedActivationHead:
+                        fixture.expectedActivationHead,
+                    manifest: fixture.manifest,
+                    runtimeLaunchPolicy:
+                        fixture.runtimeLaunchPolicy,
+                    verifierAnonymousFDChannelBindingSHA256:
+                        fixture.verifierProcessIdentity
+                        .anonymousFDChannelBindingSHA256,
+                    nowUnixSeconds: 120,
+                    nowMonotonicNanoseconds:
+                        1_000_000_000,
+                    supervisorPublicKeyRawRepresentation:
+                        fixture.supervisorPublicKey,
+                    randomBytes: oldRandom.provider,
+                    sign:
+                        retentionSigner(
+                            fixture.supervisorKey
+                        )
+                )
+                oldOutcome.recordSuccess()
+            } catch {
+                oldOutcome.recordFailure(error)
+            }
+        }
+
+        guard
+            oldCallReachedCore.wait(
+                timeout: .now() + 5
+            ) == .success
+        else {
+            releaseOldCall.signal()
+            _ = oldCallCompleted.wait(
+                timeout: .now() + 5
+            )
+            XCTFail("older call did not reach the barrier")
+            return
+        }
+
+        var laterChallenge: SupervisorChallengeV1?
+        do {
+            laterChallenge = try issueRetentionChallenge(
+                fixture: fixture,
+                session: session,
+                issuedAtUnixSeconds: 121,
+                issuedAtMonotonicNanoseconds:
+                    2_000_000_000,
+                randomStart: 0x41
+            )
+        } catch {
+            XCTFail("later call failed: \(error)")
+        }
+        releaseOldCall.signal()
+        XCTAssertEqual(
+            oldCallCompleted.wait(timeout: .now() + 5),
+            .success
+        )
+
+        XCTAssertNotNil(laterChallenge)
+        let outcome = oldOutcome.snapshot()
+        XCTAssertFalse(outcome.succeeded)
+        XCTAssertEqual(
+            outcome.error,
+            .invalidCanonicalRecord
+        )
+        XCTAssertEqual(
+            session.replayRetentionCountSnapshot(),
+            TrustRootSupervisorReplayRetentionCountSnapshotV1(
+                issuedChallengeCount: 1,
+                consumedChallengeCount: 0,
+                consumedReceiptCount: 0
+            )
+        )
+    }
+
+    func testInvalidReceiptCannotExtendReplayRetention()
+        throws
+    {
+        let fixture = try RetentionFixture()
+        let session = try TrustRootSupervisorSessionV1(
+            supervisorProcessIdentity:
+                fixture.supervisorProcessIdentity
+        )
+        let challenge = try issueRetentionChallenge(
+            fixture: fixture,
+            session: session,
+            issuedAtUnixSeconds: 120,
+            issuedAtMonotonicNanoseconds: 1_000_000_000,
+            randomStart: 0x09
+        )
+        let receipt = try issueRetentionReceipt(
+            fixture: fixture,
+            challenge: challenge,
+            issuedAtUnixSeconds: 121,
+            issuedAtMonotonicNanoseconds: 2_000_000_000,
+            randomStart: 0x0b
+        )
+        var futureReceiptBytes = receipt.canonicalBytes()
+        let payloadByteCount =
+            VerifierReceiptV1.canonicalByteCount
+            - TrustRootSignatureV1.signatureByteCount
+        func bigEndianBytes(_ value: UInt64) -> [UInt8] {
+            (0..<8).map { shift in
+                UInt8(
+                    truncatingIfNeeded:
+                        value >> UInt64((7 - shift) * 8)
+                )
+            }
+        }
+        futureReceiptBytes.replaceSubrange(
+            (payloadByteCount - 16)..<(payloadByteCount - 8),
+            with: bigEndianBytes(900)
+        )
+        futureReceiptBytes.replaceSubrange(
+            (payloadByteCount - 8)..<payloadByteCount,
+            with: bigEndianBytes(930)
+        )
+        let invalidFutureReceipt =
+            try VerifierReceiptV1.decodeCanonical(
+                futureReceiptBytes
+            )
+
+        assertInvalidRetention(
+            try session.issueAttestation(
+                challenge: challenge,
+                receipt: invalidFutureReceipt,
+                manifest: fixture.manifest,
+                runtimeLaunchPolicy:
+                    fixture.runtimeLaunchPolicy,
+                expectedActivationHead:
+                    fixture.expectedActivationHead,
+                enrollment: fixture.enrollment,
+                observation: fixture.observation,
+                verifierProcessIdentity:
+                    fixture.verifierProcessIdentity,
+                supervisorPublicKeyRawRepresentation:
+                    fixture.supervisorPublicKey,
+                verifierPublicKeyRawRepresentation:
+                    fixture.verifierPublicKey,
+                childProcessIdentity:
+                    fixture.childProcessIdentity,
+                childAnonymousFDChannelBindingSHA256:
+                    fixture.childProcessIdentity
+                    .anonymousFDChannelBindingSHA256,
+                nowUnixSeconds: 122,
+                nowMonotonicNanoseconds: 3_000_000_000,
+                randomBytes:
+                    RetentionRandomSequence(start: 0x0d).provider,
+                sign: retentionSigner(fixture.supervisorKey)
+            )
+        )
+        XCTAssertEqual(
+            session.replayRetentionCountSnapshot(),
+            TrustRootSupervisorReplayRetentionCountSnapshotV1(
+                issuedChallengeCount: 0,
+                consumedChallengeCount: 1,
+                consumedReceiptCount: 1
+            )
+        )
+
+        _ = try issueRetentionChallenge(
+            fixture: fixture,
+            session: session,
+            issuedAtUnixSeconds: 150,
+            issuedAtMonotonicNanoseconds: 31_000_000_000,
+            randomStart: 0x0f
+        )
+        XCTAssertEqual(
+            session.replayRetentionCountSnapshot(),
+            TrustRootSupervisorReplayRetentionCountSnapshotV1(
+                issuedChallengeCount: 1,
+                consumedChallengeCount: 0,
+                consumedReceiptCount: 0
+            )
+        )
+    }
+
     func testReplayRemainsRejectedWithinCredentialLifetime() throws {
         let fixture = try RetentionFixture()
         let session = try TrustRootSupervisorSessionV1(

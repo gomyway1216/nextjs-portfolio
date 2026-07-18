@@ -1,0 +1,88 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-plan-registry-v2",
+  "status": "blocked-awaiting-authenticated-per-parent-completion-and-exact-artifact-identities",
+  "supersession": {
+    "amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-v2-amendment.json",
+      "bytes": 7571,
+      "sha256": "983e89b8e611dbcd42c70c51a4109f879dfffe40fd8b560a99c798b826f86bef",
+      "schema": "shogi-floodgate-fresh-qat-parent-accounting-amendment-v2"
+    },
+    "v1_plan_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "bytes": 409,
+      "sha256": "9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v1"
+    },
+    "v1_selection_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "bytes": 2294,
+      "sha256": "7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39",
+      "schema": "shogi-floodgate-fresh-qat-selection-preflight-registry-v1"
+    }
+  },
+  "upstream": {
+    "preregistered_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "role_bundle_result": {
+      "path": "ml/protocols/floodgate-q1-2026-role-bundle-result.json",
+      "bytes": 14735,
+      "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf",
+      "schema": "shogi-floodgate-role-bundle-result-v1"
+    }
+  },
+  "fixed_parent_accounting": {
+    "input_parents": 24000,
+    "input_games": 1000,
+    "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+    "model_training_parents_source": "emitted_parent_groups",
+    "completion_origin": "registered-finalizer-result-manifest-work-derived-projection-only",
+    "missing_group_policy": "STOP-never-infer-forced-from-absence",
+    "replacement_or_resampling": "forbidden",
+    "all_forced_policy": "STOP-no-trainable-parent-groups"
+  },
+  "enrollments": {
+    "training_label_result": null,
+    "training_label_manifest": null,
+    "training_label_work": null,
+    "parent_completion_evidence": null,
+    "train_jsonl": null,
+    "parent_accounting_proposal": null,
+    "execution_plan_v2": null
+  },
+  "gates": {
+    "input_parent_identity_verified": false,
+    "input_raw_bytes_verified": false,
+    "finalizer_result_manifest_work_verified": false,
+    "parent_completion_origin_authenticated": false,
+    "parent_completion_exact_coverage_verified": false,
+    "emitted_parent_identity_verified": false,
+    "forced_parent_partition_verified": false,
+    "accounting_equation_verified": false,
+    "train_content_identity_verified": false,
+    "artifact_identities_registered": false,
+    "training_dispatch_ready": false,
+    "selection_preflight_ready": false
+  },
+  "authority": {
+    "teacher_execution_authorized": false,
+    "artifact_enrollment_authorized": false,
+    "training_dispatch_authorized": false,
+    "selection_reader_authorized": false,
+    "holdout_reader_authorized": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "teacher_labels_generated": false,
+    "training_executed": false,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

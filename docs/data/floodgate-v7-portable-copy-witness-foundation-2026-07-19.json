@@ -2,7 +2,7 @@
   "schema": "shogi-floodgate-v7-portable-copy-witness-foundation-evidence-v1",
   "status": "dormant-filesystem-foundation-local-validation-pass-ci-and-final-review-pending",
   "recorded_date": "2026-07-19",
-  "claim_boundary": "filesystem-copy-transition-foundation-only-not-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
+  "claim_boundary": "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
   "source_base": {
     "initial_origin_main": "00f255a62e01ea5a980ada987682c994e76dd1f9",
     "latest_origin_main_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
@@ -20,7 +20,8 @@
     "foundation_commit": "9e5b42b7d755d27c9678fd1349afc88365b604dd",
     "callback_and_parent_bound_hardening_commit": "c0ec0b8093fd08e2741ed8647e983740e37c0a24",
     "parent_bound_wording_commit": "da311b3541588745d836624a07aa62ec3b0497f6",
-    "validated_source_revision": "a687a8709bde76f449f38e97de94d86f9f638625",
+    "callback_namespace_nonclaim_commit": "5eeb0164d07afe29a0eeaf071ddbe71a3cd49bdc",
+    "validated_source_revision": "5eeb0164d07afe29a0eeaf071ddbe71a3cd49bdc",
     "existing_public_copy_receipt_changed": false,
     "existing_public_copy_acceptance_changed": false,
     "existing_public_copy_error_shape_changed": false,
@@ -33,9 +34,9 @@
     "files": {
       "implementation": {
         "path": "ml/floodgate-v7-clean-room-copy.ts",
-        "bytes": 68478,
-        "sha256": "7e03c4c3504e6aa5f61a1c777dc28aea3b4d94793bc1a2935a4e650f35ce696c",
-        "git_blob": "2ce8a56d6cf10e8c8f711707c8d41c8baf450a92"
+        "bytes": 68554,
+        "sha256": "f850ea7f41e405dbef3fcb77ff3ed3f01a15d13f3b4756844f509a4f2d8832fb",
+        "git_blob": "ec402a0bf0678a5ffe4c9688b3feac39482aac43"
       },
       "existing_copy_regression": {
         "path": "tests/unit/ml/floodgateV7CleanRoomCopy.test.ts",
@@ -45,9 +46,9 @@
       },
       "portable_witness_tests": {
         "path": "tests/unit/ml/floodgateV7PortableCopyWitness.test.ts",
-        "bytes": 24228,
-        "sha256": "f18736b20a489a6d500432c048143b2ba30b252f9f7582fc67512c29ad1cf607",
-        "git_blob": "8cd4593d8cfd6de803b8292421197d4cd2a51a8d"
+        "bytes": 24441,
+        "sha256": "a49375af60f8abf9fb39c247fffac069d2e29dcf6be1fd50684ca86d9cdebab4",
+        "git_blob": "93cc5658298f25b7ae9c62594271129a9e0a6b37"
       }
     }
   },
@@ -116,6 +117,9 @@
       "in_use_set_before_first_await": true,
       "pre_revalidation": true,
       "callback_thenable_assimilation_inside_boundary": true,
+      "revalidation_scope": "before-and-after-callback-only",
+      "callback_time_namespace_exclusivity_claimed": false,
+      "semantic_input_authenticity_claimed": false,
       "post_revalidation": true,
       "callback_length_getter_invoked": false,
       "callback_or_revalidation_failure_permanently_invalidates": true,
@@ -181,6 +185,16 @@
     },
     "diagnosis": "the historical verifier correctly binds original inode identities while the clean-room copy correctly requires fresh inode identities; foundation A records a filesystem transition but does not authorize semantic acceptance"
   },
+  "documented_nonclaim_confirmation": {
+    "fixture": "synthetic-private-temp-tree-only",
+    "real_private_data_read": false,
+    "operation": "rename-destination-common-ancestor-create-different-byte-replacement-read-by-absolute-path-remove-replacement-restore-original",
+    "different_bytes_observed_inside_callback": true,
+    "original_destination_passed_post_revalidation_after_restore": true,
+    "borrow_result_under_current_pre_post_contract": "PASS",
+    "interpretation": "expected-nonclaim-not-a-semantic-authenticity-proof",
+    "future_composition_requirement": "read-destination-through-held-directory-and-file-descriptors-and-bind-those-exact-bytes-to-the-source-verifier-sha256-and-record-identity"
+  },
   "local_validation": {
     "node": "v22.13.0",
     "portable_witness_tests": {
@@ -194,7 +208,7 @@
     "combined": {
       "passed": 29,
       "failed": 0,
-      "wall_seconds": 1.21
+      "wall_seconds": 1.42
     },
     "evidence_tests": {
       "passed": 4,
@@ -203,7 +217,7 @@
     "related_total": {
       "passed": 33,
       "failed": 0,
-      "wall_seconds": 1.12
+      "wall_seconds": 1.19
     },
     "scoped_eslint": "PASS",
     "prettier": "PASS",
@@ -259,7 +273,7 @@
   },
   "next_safe_step": {
     "separate_pull_request_required": true,
-    "description": "compose the dormant filesystem transition around the unchanged generic source semantic verifier, create a bounded three-gate session, and keep the generic role-lock, role-bundle, and result verifiers unchanged",
+    "description": "compose the dormant filesystem transition around the unchanged generic source semantic verifier, read destination inputs through held directory and file descriptors, bind those exact bytes to the source-verifier sha256 and record identity, create a bounded three-gate session, and keep the generic role-lock, role-bundle, and result verifiers unchanged",
     "live_weight_change_authorized": false
   }
 }

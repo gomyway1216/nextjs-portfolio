@@ -189,6 +189,9 @@ inventoryにbindしたcopy witness、全witness後のcomposite destination/share
 pre/callback/post revalidation、idempotent revokeだけを追加するdormant filesystem基盤である。
 production/test registryは分離し、fake / clone / replay / cross-kind / wrong-overlap destinationを拒否する。
 parent scanは`opendir`で`maxEntries + 1`までprobeし、保持は`maxEntries`以下に制限する。
+保証するのはcallback前後のexact revalidationであり、callback中のabsolute-path namespace exclusivityや
+読まれたbyteのsemantic authenticityではない。後続compositionはdestinationをheld directory / file
+descriptorから読み、そのexact bytesをsource verifierのSHA-256 / record identityへbindする。
 
 historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
 copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは

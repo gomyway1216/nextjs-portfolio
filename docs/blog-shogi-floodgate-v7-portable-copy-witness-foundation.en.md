@@ -73,7 +73,7 @@ Each copy therefore returns only an individual witness. A composite seal is crea
 
 The parent scan does not allocate an unbounded `readdir` array. It uses `opendir.read()` with an at-most-`maxEntries + 1` probe and retains at most `maxEntries` entries. It does not claim that the filesystem never returns the one extra probed entry.
 
-## Callback code also stays inside the boundary
+## The callback has pre/post checks, not callback-time namespace exclusivity
 
 A later PR will place meaningful work inside one API:
 
@@ -85,15 +85,19 @@ Before its first `await`, the API marks the seal in use. It then serializes dest
 
 Independent review found that a configurable `length` getter on an ordinary function could execute before pre-revalidation. The fix no longer reads `length` normally. It inspects the own property descriptor and accepts only a data descriptor, without invoking a getter. Regression tests prove zero getter calls for both fake and valid composites.
 
+A synthetic private temporary fixture also confirmed the boundary. Inside the callback, it temporarily renamed the destinations’ common ancestor, created and read different bytes at the same absolute path, and restored the original before returning. Post-revalidation then saw the restored original identity and passed. No real private data was read.
+
+A therefore claims exact revalidation **before and after** the callback. It does not claim absolute-path namespace exclusivity during the callback or semantic authenticity of bytes read by the callback. A future B composition must read destination inputs through held directory and file descriptors and bind those exact bytes to the SHA-256 and record identity authenticated by the source verifier.
+
 ## Local validation
 
 On Node v22.13.0:
 
 - portable-witness tests: 16 / 16 PASS;
 - existing copy regression: 13 / 13 PASS;
-- combined: 29 / 29 PASS in 1.21 seconds;
+- combined: 29 / 29 PASS in 1.42 seconds;
 - evidence-pin tests: 4 / 4 PASS;
-- all three related test files: 33 / 33 PASS in 1.12 seconds;
+- all three related test files: 33 / 33 PASS in 1.19 seconds;
 - scoped ESLint: PASS;
 - Prettier: PASS;
 - `git diff --check`: PASS;
@@ -130,6 +134,6 @@ Machine-readable evidence is in [`floodgate-v7-portable-copy-witness-foundation-
 
 ## Next safe step
 
-A separate PR must place the unchanged generic source semantic verifier between source preseal and filesystem seal, then compose its success with the copy witness. The local teacher session must allow exactly three serialized borrows and revoke the composite seal from `finally` on both success and failure.
+A separate PR must place the unchanged generic source semantic verifier between source preseal and filesystem seal, then compose its success with the copy witness. It must read destination inputs through held directory and file descriptors and bind those exact bytes to the source verifier’s SHA-256 and record identity. The local teacher session must allow exactly three serialized borrows and revoke the composite seal from `finally` on both success and failure.
 
 That integration must not weaken generic inode verification. Only after review and CI should the retained clean room be safely audited and local teacher preparation retried through the new route. Until semantic verification passes, the pipeline must not advance to teacher generation, training, selection, A/B, or live weights.

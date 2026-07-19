@@ -97,7 +97,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       status:
         "dormant-filesystem-foundation-local-validation-pass-ci-and-final-review-pending",
       claim_boundary:
-        "filesystem-copy-transition-foundation-only-not-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
+        "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
       implementation: {
         existing_public_copy_receipt_changed: false,
         existing_public_copy_acceptance_changed: false,
@@ -137,6 +137,9 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
           concurrent_use_rejected_fail_closed: true,
           in_use_set_before_first_await: true,
           callback_thenable_assimilation_inside_boundary: true,
+          revalidation_scope: "before-and-after-callback-only",
+          callback_time_namespace_exclusivity_claimed: false,
+          semantic_input_authenticity_claimed: false,
           callback_length_getter_invoked: false,
           callback_or_revalidation_failure_permanently_invalidates: true,
           active_revocation_fails_current_borrow: true,
@@ -173,14 +176,12 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       foundation_commit: string;
       callback_and_parent_bound_hardening_commit: string;
       parent_bound_wording_commit: string;
+      callback_namespace_nonclaim_commit: string;
       validated_source_revision: string;
       files: Record<string, PinnedFile>;
     };
 
     expect(sourceBase.history_rewritten).toBe(false);
-    expect(sourceBase.integration_commit).toBe(
-      implementation.validated_source_revision,
-    );
     expect(
       git(["show", "-s", "--format=%T", sourceBase.integration_commit]),
     ).toBe(sourceBase.integration_tree);
@@ -197,11 +198,18 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       implementation.foundation_commit,
       implementation.callback_and_parent_bound_hardening_commit,
       implementation.parent_bound_wording_commit,
+      implementation.callback_namespace_nonclaim_commit,
       sourceBase.latest_origin_main_integrated,
       sourceBase.integration_commit,
     ]) {
       expect(gitIsAncestor(revision, "HEAD"), revision).toBe(true);
     }
+    expect(
+      gitIsAncestor(
+        sourceBase.integration_commit,
+        implementation.validated_source_revision,
+      ),
+    ).toBe(true);
 
     for (const pinned of Object.values(implementation.files)) {
       const bytes = raw(pinned.path);
@@ -303,6 +311,18 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       byte_mismatches: 0,
       source_destination_inode_aliases: 0,
     });
+    expect(record.documented_nonclaim_confirmation).toEqual({
+      fixture: "synthetic-private-temp-tree-only",
+      real_private_data_read: false,
+      operation:
+        "rename-destination-common-ancestor-create-different-byte-replacement-read-by-absolute-path-remove-replacement-restore-original",
+      different_bytes_observed_inside_callback: true,
+      original_destination_passed_post_revalidation_after_restore: true,
+      borrow_result_under_current_pre_post_contract: "PASS",
+      interpretation: "expected-nonclaim-not-a-semantic-authenticity-proof",
+      future_composition_requirement:
+        "read-destination-through-held-directory-and-file-descriptors-and-bind-those-exact-bytes-to-the-source-verifier-sha256-and-record-identity",
+    });
   });
 
   it("records local-only validation, zero runtime execution, and bilingual disclosure", () => {
@@ -311,9 +331,9 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       node: "v22.13.0",
       portable_witness_tests: { passed: 16, failed: 0 },
       existing_copy_regression_tests: { passed: 13, failed: 0 },
-      combined: { passed: 29, failed: 0, wall_seconds: 1.21 },
+      combined: { passed: 29, failed: 0, wall_seconds: 1.42 },
       evidence_tests: { passed: 4, failed: 0 },
-      related_total: { passed: 33, failed: 0, wall_seconds: 1.12 },
+      related_total: { passed: 33, failed: 0, wall_seconds: 1.19 },
       scoped_eslint: "PASS",
       prettier: "PASS",
       git_diff_check: "PASS",
@@ -379,6 +399,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       "29 / 29",
       "AWS",
       "dormant",
+      "namespace exclusivity",
+      "held",
     ]) {
       expect(japanese, marker).toContain(marker);
       expect(english, marker).toContain(marker);

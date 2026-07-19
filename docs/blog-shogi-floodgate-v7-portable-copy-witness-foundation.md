@@ -73,7 +73,7 @@ filesystem sealはpresealを1回だけ消費し、source全体を再取得して
 
 parent scanは`readdir`で全entryを先に配列化しない。`opendir.read()`で最大`maxEntries + 1`件目をprobeし、保持するentryは`maxEntries`以下に制限する。「余分な1件をfilesystemから読まない」とは主張しない。
 
-## callbackも検証区間の外で動かさない
+## callback前後を検証するが、実行中のnamespace排他性は主張しない
 
 後続PRは意味を持つ処理を次の単一APIへ渡す。
 
@@ -85,15 +85,19 @@ APIは最初の`await`より前に`inUse`を立て、destination / parentのpre-
 
 独立reviewでは、通常functionのconfigurableな`length` getterがpre-revalidation前に実行できる問題を検出した。修正後は`length`を通常readせず、own property descriptorがdata descriptorかだけをgetter非実行で確認する。fake compositeとvalid compositeの両方でgetter call count 0を回帰テストした。
 
+さらにsynthetic private temp fixtureで境界を確認した。callback内でdestinationの共通ancestorを一時的にrenameし、同じabsolute pathへ異なるbyteのreplacementを作って読み、callback終了前に元を戻すと、post-revalidationは元のidentityを再確認してPASSする。実private dataは読んでいない。
+
+したがってAが主張するのはcallback**前後**のexact revalidationであり、callback実行中のabsolute-path namespace exclusivityや、callbackが読んだbyteのsemantic authenticityではない。これは隠れた安全保証として扱わない。後続Bはdestinationをheld directory / file descriptorから読み、そのexact bytesをsource verifierが認証したSHA-256とrecord identityへ一致させなければならない。
+
 ## ローカル検証
 
 Node v22.13.0で次を確認した。
 
 - portable witness専用test: 16 / 16 PASS
 - 既存copy regression: 13 / 13 PASS
-- 合計: 29 / 29 PASS、1.21秒
+- 合計: 29 / 29 PASS、1.42秒
 - evidence pin test: 4 / 4 PASS
-- 関連3 file合計: 33 / 33 PASS、1.12秒
+- 関連3 file合計: 33 / 33 PASS、1.19秒
 - scoped ESLint: PASS
 - Prettier: PASS
 - `git diff --check`: PASS
@@ -130,6 +134,6 @@ machine-readable evidenceは[`floodgate-v7-portable-copy-witness-foundation-2026
 
 ## 次に必要なこと
 
-次の別PRでは、source presealとfilesystem sealの間に変更していないgeneric source semantic verifierを置き、その成功結果とcopy witnessを合成する。さらにlocal teacher sessionがexact 3 gateだけを直列borrowし、成功・失敗のどちらでも`finally`からcomposite sealをrevokeする。
+次の別PRでは、source presealとfilesystem sealの間に変更していないgeneric source semantic verifierを置き、その成功結果とcopy witnessを合成する。destination inputはheld directory / file descriptorから読み、そのexact bytesをsource verifierのSHA-256 / record identityへbindする。さらにlocal teacher sessionがexact 3 gateだけを直列borrowし、成功・失敗のどちらでも`finally`からcomposite sealをrevokeする。
 
 その統合PRでもgeneric verifierのinode検査は弱めない。reviewとCIが通った後にだけ残存clean-roomを安全監査し、新しい入口でローカルteacher準備を再開する。意味検証が通るまではteacher、学習、選抜、A/B、ライブ重みへ進まない。

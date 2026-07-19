@@ -1,0 +1,427 @@
+{
+  "schema": "shogi-floodgate-v7-local-clean-room-teacher-runner-evidence-v1",
+  "evidence_date": "2026-07-19",
+  "evidence_timezone": "UTC",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-local-clean-room-teacher-runner.md",
+    "english": "../blog-shogi-floodgate-v7-local-clean-room-teacher-runner.en.md"
+  },
+  "revision": {
+    "initial_implementation_revision": "629f2a689ad0ce6b79f7f287fa27512eab67572d",
+    "initial_implementation_tree": "66333d4b1db8d4f49bd1e3fa04bd5ac60693a5d2",
+    "test_revision": "75e84919b01e587dd0fc5fdfe6698f94410ce413",
+    "test_tree": "f437dd3984c17a9adde4f94dd2afb986f9607ce2",
+    "reviewed_remediation_revision": "5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49",
+    "reviewed_remediation_tree": "6b882b8cea5a3a9322b4649e824ccd524090cfc8",
+    "latest_main_revision_integrated": "1e7025b827797b856e7fa4cd72008acc7dc813ed",
+    "integration_revision": "d4e13ce36cb4371ceaa836ba93339138a80e83fb",
+    "integration_tree": "19426ff805a8d4079654787475c91f0bff9a34a0",
+    "integration_parents": [
+      "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "1e7025b827797b856e7fa4cd72008acc7dc813ed"
+    ],
+    "reviewed_paths_unchanged_by_integration_merge": false,
+    "reviewed_implementation_paths_unchanged_by_integration_merge": true,
+    "package_identity_refreshed_after_integration": true,
+    "deployment_key_compatibility_revision": "b9d8a96fd9620ba4646aeab346f259e0383a511d",
+    "deployment_key_compatibility_tree": "26c9cd548abbcba8265dbad158a3c96ffbee4281",
+    "deployment_key_compatibility_test_revision": "e2c88f718e936586b2ab7e898aeaef3d43f32985",
+    "deployment_key_compatibility_test_tree": "2930f48ed869c2e90f16f071b12764ccd1f0fa55",
+    "deployment_key_compatibility_remediation_revision": "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+    "deployment_key_compatibility_remediation_tree": "db86a90b5af516c543d792962d010909c788b344",
+    "pull_request": 511,
+    "ci_source_revision": "bdac5a46ec9152731237302e2c94c3ed0e9217a1",
+    "ci_source_tree": "089908e7d4bcfcecd2f66104ac0d4622dc860daf",
+    "continuous_integration": "PASS",
+    "continuous_integration_run": 29677392531,
+    "source_review_and_ci_ready_for_explicit_local_invocation": true
+  },
+  "command_boundary": {
+    "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
+    "package_script_value": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
+    "entrypoint": "ml/run-floodgate-v7-local-clean-room-teacher.ts",
+    "argumentless": true,
+    "direct_invocation_guarded": true,
+    "import_has_no_execution_side_effect": true,
+    "test_injected_receipt_is_operational_evidence": false,
+    "real_completion_capability": "module-private-weakmap-exact-object-one-shot",
+    "extra_argument_disposition": "STOP-before-teacher"
+  },
+  "local_only_contract": {
+    "runner_contract": "shogi-floodgate-v7-local-clean-room-teacher-runner-v1",
+    "runner_status": "explicit-local-clean-room-three-gate-stream-sealed-finalizer-handoff-ready",
+    "runner_status_is_source_declared_not_operational_readiness": true,
+    "operational_readiness_established": false,
+    "execution_boundary": "explicit-local-only-argumentless-package-command",
+    "aws_required": false,
+    "aws_used": false,
+    "network_used": false,
+    "cloud_credentials_used": false,
+    "local_deployment_key_authority_used": true,
+    "cloud_deployment_key_used": false,
+    "firebase_gcp_used": false,
+    "vercel_used": false,
+    "production_worktree_used": false,
+    "minimum_free_gib": 20,
+    "capacity_checked_before_private_copy": true,
+    "capacity_checked_again_before_teacher_process": true,
+    "exact_available_bytes_published": false
+  },
+  "checkpoint_and_handoff_key_contract": {
+    "checkpoint_key_authority": "existing-fixed-current-user-mac-local-deployment-key-authority",
+    "checkpoint_key_authority_used_for_checkpoint_work": true,
+    "checkpoint_key_authority_is_cloud_credential": false,
+    "separate_local_integrity_key": "fresh-random-private-per-run",
+    "local_integrity_key_used_for_checkpoint_work": false,
+    "local_integrity_key_macs_private_control_receipts_and_handoff_only": true,
+    "checkpoint_and_integrity_key_roles_are_distinct": true,
+    "key_material_published": false,
+    "private_key_path_published": false
+  },
+  "run_binding_contract": {
+    "canonical_exact_run_binding_captured_at_first_gate": true,
+    "run_binding_sha256_captured_at_first_gate": true,
+    "same_run_binding_and_digest_required_at_100_500_and_24000": true,
+    "completion_receipts_bind_exact_run_binding_and_digest": true,
+    "finalizer_handoff_binds_exact_run_binding_and_digest": true,
+    "changed_run_binding_between_gates_disposition": "STOP",
+    "run_binding_values_published_in_public_receipt_or_evidence": false
+  },
+  "same_stream_gate_contract": {
+    "one_authenticated_stage_work_stream": true,
+    "same_run_key_and_stage_identity": true,
+    "same_exact_run_binding_and_digest": true,
+    "separate_single_use_authority_per_gate": true,
+    "sequence": [
+      {
+        "order": 1,
+        "gate": "durable-prefix-100",
+        "target_parents": 100,
+        "resumed_parents": 0,
+        "new_parents": 100,
+        "sealed": false
+      },
+      {
+        "order": 2,
+        "gate": "durable-prefix-500",
+        "target_parents": 500,
+        "resumed_parents": 100,
+        "new_parents": 400,
+        "sealed": false
+      },
+      {
+        "order": 3,
+        "gate": "sealed-final-24000",
+        "target_parents": 24000,
+        "resumed_parents": 500,
+        "new_parents": 23500,
+        "sealed": true
+      }
+    ],
+    "total_unique_target_parents": 24000,
+    "incorrect_sum_100_plus_500_plus_24000": false,
+    "milestone_100_chain_continuity_required": true,
+    "milestone_500_chain_continuity_required": true,
+    "work_bytes_strictly_increase": true,
+    "work_digest_changes_at_each_advance": true
+  },
+  "finalizer_handoff_contract": {
+    "receipt_chain_validated_before_owner_close": true,
+    "owner_close_before_handoff_publication": true,
+    "handoff_published_when_owner_close_fails": false,
+    "handoff_created_only_for_sealed_final_24000": true,
+    "prefix_100_or_500_finalization_forbidden": true,
+    "separate_explicit_finalizer_command_required": true,
+    "label_finalizer_invoked_by_runner": false,
+    "labels_published_by_runner": false,
+    "handoff_is_training_or_deployment_authority": false
+  },
+  "hardening": {
+    "private_file_mode": "0600",
+    "private_directory_mode": "0700",
+    "private_file_owner_must_equal_effective_uid": true,
+    "private_file_single_link_required": true,
+    "held_parent_and_file_descriptors": true,
+    "device_inode_path_and_parent_identity_revalidated": true,
+    "no_follow_and_exclusive_create": true,
+    "git_environment_exact_allowlist": true,
+    "engine_environment_exact_allowlist": true,
+    "aws_firebase_vercel_proxy_and_ssh_environment_inherited": false,
+    "git_promisor_or_lazy_objects_allowed": false,
+    "git_hooks_or_credential_helpers_allowed": false
+  },
+  "source_pins": [
+    {
+      "path": "ml/floodgate-git.ts",
+      "bytes": 15837,
+      "sha256": "96732a79076ea0d298a98e52274711841a09599bff497ac8ef86e3169c9e6209",
+      "git_blob": "c05b783d620ece46bb5379ba57e146e0b141b18b",
+      "required_markers": [
+        "export const FLOODGATE_GIT_FIXED_ENVIRONMENT",
+        "NODE_ENV: \"production\"",
+        "return { ...FLOODGATE_GIT_FIXED_ENVIRONMENT };"
+      ]
+    },
+    {
+      "path": "ml/floodgate-v7-clean-room-run-gates.ts",
+      "bytes": 51200,
+      "sha256": "6df67aa13e9b40fcfa7211d11929e9b49a35561a33731c8be6382ff046176c9e",
+      "git_blob": "407c6662e805d254d4beeba5e786f9ae8f98cc73",
+      "required_markers": [
+        "validateReceiptChain(chain);",
+        "await handoff.close();",
+        "const handoffPromise = finalizeSealedChainHandoff();"
+      ]
+    },
+    {
+      "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
+      "bytes": 59064,
+      "sha256": "c604ddbe7d76c89843e5db40331c81edae18643ac262edf9ffd28990ffc682e4",
+      "git_blob": "1a7c67a285f1e39459265b14912179580ac48f16",
+      "required_markers": [
+        "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
+        "GIT_ALLOW_PROTOCOL: \"file\"",
+        "GIT_NO_LAZY_FETCH: \"1\"",
+        "\"core.hooksPath=/dev/null\"",
+        "\"credential.helper=\""
+      ]
+    },
+    {
+      "path": "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
+      "bytes": 11371,
+      "sha256": "307d6807a152246aee7f2006b5888c868e5990eb1adff636731c71bd0f8a03d6",
+      "git_blob": "602335c11922b91508bf1a4004111778993d0bdd",
+      "required_markers": [
+        "claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(completion)",
+        "\"fixed-operational-cli-one-shot-brand-claim\"",
+        "\"canonical JSON value differs\""
+      ]
+    },
+    {
+      "path": "ml/floodgate-v7-deployment-key-authority.ts",
+      "bytes": 113652,
+      "sha256": "3635920a05ce668db21a2bec66206f25c1921b1b0f33b5e9a8465e2162253e36",
+      "git_blob": "e84b96d758a36303afc70e06b804c68e9cd3477e",
+      "required_markers": [
+        "export const FLOODGATE_V7_DEPLOYMENT_KEY_ID",
+        "export function prepareFloodgateV7DeploymentTeacherCheckpointV3Key("
+      ]
+    },
+    {
+      "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
+      "bytes": 59020,
+      "sha256": "94321bbd437cc4a09e2fd95f549d2f82d093924af4041d9e82bbe2635dcaf241",
+      "git_blob": "e6eec87b89836e3d0d33f36289d28cdb31ab71e2",
+      "required_markers": [
+        "const operationalCompletionReceipts = new WeakMap<",
+        "final.work.completed_parents !== 24_000",
+        "separate_explicit_finalizer_command_required: true",
+        "FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID",
+        "FLOODGATE_V7_DEPLOYMENT_KEY_ID",
+        "prepareFloodgateV7DeploymentTeacherCheckpointV3Key",
+        "run_binding_sha256: runBindingSha256",
+        "canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests",
+        "local_deployment_key_authority_used: true as const",
+        "aws_required: false as const"
+      ]
+    },
+    {
+      "path": "ml/run-floodgate-v7-local-clean-room-teacher.ts",
+      "bytes": 340,
+      "sha256": "85806f424a5725bf3c51effbdc25f2f41e31d4a6ad5f6f04abd08346399d8e1f",
+      "git_blob": "f2ebfd0ac5b385adcc6c4ae5e2ab183565e6bdd7",
+      "required_markers": [
+        "if (require.main === module)",
+        "void runFloodgateV7LocalCleanRoomTeacherCli();"
+      ]
+    },
+    {
+      "path": "package.json",
+      "bytes": 8236,
+      "sha256": "c289e6ec449a4fe4293541aca4425f73ec07aa79909ad1eb974f6accb5a3d1b0",
+      "git_blob": "5d7c62555a41095603f12b9127c8433897868e43",
+      "required_markers": [
+        "\"shogi:floodgate-v7-local-clean-room-teacher\"",
+        "ml/run-floodgate-v7-local-clean-room-teacher.ts"
+      ]
+    }
+  ],
+  "focused_test_pins": [
+    {
+      "path": "tests/unit/ml/floodgateGit.test.ts",
+      "bytes": 13538,
+      "sha256": "57a5dcbc90e3cab8b3fc6301ce9333e618544a065dff31a7c0d8c2911b4f79d7",
+      "git_blob": "e17f03d4c8831e0adf3cbcb9f65035a0595c4cbd"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
+      "bytes": 27022,
+      "sha256": "f816c881144746e215543eb8ed1b37746293e76a88c746573596f54a33cde17d",
+      "git_blob": "3bbfb599c0c00c4ef35ab6c1e55cd1cc2100825d"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
+      "bytes": 46519,
+      "sha256": "c8e442eb66022dae7084fe2cd38beb6be2adf797d943a49f6d75bd40d219d6a1",
+      "git_blob": "a04283d695fdcc20900aab1f0383df24c9f86145"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+      "bytes": 30727,
+      "sha256": "9169b66b4b074d26d584901fbf3172bfc448e0216696ee5c1e1053ee572abe7d",
+      "git_blob": "a9f652cc7b85ebf7bc0f6645e74ba9f0e411866c"
+    }
+  ],
+  "validation": {
+    "focused_vitest": {
+      "files": 4,
+      "tests_passed": 47,
+      "tests_failed": 0,
+      "result": "PASS"
+    },
+    "publication_evidence_vitest": {
+      "files": 1,
+      "tests_passed": 6,
+      "tests_failed": 0,
+      "result": "PASS"
+    },
+    "changed_file_lint": {
+      "files": 8,
+      "files_passed": 8,
+      "result": "PASS",
+      "paths": [
+        "ml/floodgate-git.ts",
+        "ml/floodgate-v7-clean-room-run-gates.ts",
+        "ml/floodgate-v7-clean-room-teacher-runner.ts",
+        "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
+        "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
+        "tests/unit/ml/floodgateGit.test.ts",
+        "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts"
+      ]
+    },
+    "publication_evidence_lint": {
+      "files": 1,
+      "files_passed": 1,
+      "result": "PASS"
+    },
+    "publication_artifact_prettier": {
+      "files": 4,
+      "files_passed": 4,
+      "result": "PASS"
+    },
+    "custom_adversarial": {
+      "cases": 15,
+      "passed": 15,
+      "failed": 0,
+      "result": "PASS",
+      "case_ids": [
+        "injected-test-receipt-cannot-become-operational",
+        "forged-cli-operational-receipt-rejected",
+        "forged-operational-completion-shape-rejected",
+        "operational-completion-replay-rejected",
+        "operational-completion-shape-clone-rejected",
+        "private-parent-rename-replacement-rejected",
+        "private-output-hardlink-rejected",
+        "git-remote-promisor-rejected",
+        "git-hooks-path-rejected",
+        "git-credential-helper-rejected",
+        "git-filter-clean-rejected",
+        "git-http-proxy-rejected",
+        "git-missing-object-rejected",
+        "engine-extra-aws-environment-rejected",
+        "cli-extra-argument-rejected"
+      ]
+    },
+    "unit_race_cases": {
+      "file_rename_rejected": "PASS",
+      "symlink_swap_rejected": "PASS",
+      "same_content_replacement_rejected": "PASS"
+    },
+    "import_side_effect_probe": {
+      "events_observed": 0,
+      "result": "PASS"
+    },
+    "module_closure_scan": {
+      "local_modules": 51,
+      "external_imports": "NODE-BUILTINS-ONLY",
+      "textual_fetch_definitions": 2,
+      "fetch_definitions_reachable_from_local_runner_execution": 0,
+      "result": "PASS"
+    },
+    "diff_check": "PASS",
+    "independent_review": {
+      "scope_revision": "5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49",
+      "result": "PASS",
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 0
+    },
+    "deployment_key_compatibility_review": {
+      "original_scope_revision": "e2c88f718e936586b2ab7e898aeaef3d43f32985",
+      "original_result": "CHANGES-REQUIRED",
+      "original_unresolved_p0": 0,
+      "original_unresolved_p1": 2,
+      "original_unresolved_p2": 1,
+      "scope_revision": "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "scope_tree": "db86a90b5af516c543d792962d010909c788b344",
+      "result": "PASS",
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 0,
+      "remediation_and_rereview_pending": false,
+      "operational_readiness_established": false
+    }
+  },
+  "operational_state": {
+    "state": "STOP-NOT-YET-RUN",
+    "operational_readiness_established": false,
+    "package_command_added": true,
+    "successful_operational_command_runs": 0,
+    "capture_only_negative_cli_runs": 1,
+    "real_private_copy_runs": 0,
+    "real_teacher_runs": 0,
+    "teacher_processes_started": 0,
+    "teacher_parents_completed": 0,
+    "teacher_rows_created": 0,
+    "network_requests": 0,
+    "local_deployment_key_authority_operational_uses": 0,
+    "aws_calls": 0,
+    "aws_credentials_used": 0,
+    "firebase_gcp_calls": 0,
+    "vercel_calls": 0,
+    "label_finalizer_runs": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0,
+    "live_weights_changed": false,
+    "production_activations": 0
+  },
+  "nonclaims": {
+    "operational_teacher_run_completed": false,
+    "one_hundred_parent_gate_completed": false,
+    "five_hundred_parent_gate_completed": false,
+    "twenty_four_thousand_parent_gate_completed": false,
+    "labels_finalized": false,
+    "training_completed": false,
+    "candidate_selected": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_deployment_completed": false,
+    "playing_strength_improved": false,
+    "stable_high_dan_established": false
+  },
+  "required_next_stages": [
+    "review-and-ci-for-this-source-and-evidence",
+    "explicit-local-clean-room-teacher-run-100-then-500-then-24000",
+    "separate-finalizer-verification-and-label-publication",
+    "retraining-without-overwriting-live-weights",
+    "candidate-selection",
+    "formal-ab",
+    "external-calibration",
+    "rollback-rehearsal",
+    "separate-live-activation-decision"
+  ]
+}

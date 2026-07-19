@@ -712,7 +712,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(factoryCalls).toBe(1);
   });
 
-  it("pins the independent clone and real test-core factories without adding an operator command", () => {
+  it("pins the independent clone and real test-core factories while isolating the explicit local operator command", () => {
     const source = fs.readFileSync(
       path.join(
         process.cwd(),
@@ -814,9 +814,9 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
       "ordered-single-use-100-500-24000-authorities-over-one-authenticated-stream",
     );
     expect(
-      Object.keys(packageJson.scripts ?? {}).some((key) =>
-        key.includes("clean-room"),
-      ),
-    ).toBe(false);
+      packageJson.scripts?.["shogi:floodgate-v7-local-clean-room-teacher"],
+    ).toBe(
+      "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
+    );
   });
 });

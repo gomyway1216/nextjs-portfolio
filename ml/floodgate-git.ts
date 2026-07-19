@@ -10,6 +10,11 @@ export const FLOODGATE_GIT_EXECUTABLE = "/usr/bin/git" as const;
 
 /** Fixed environment for Git commands that form Floodgate provenance claims. */
 export const FLOODGATE_GIT_FIXED_ENVIRONMENT = Object.freeze({
+  NODE_ENV: "production",
+  PATH: "/usr/bin:/bin",
+  TMPDIR: "/tmp",
+  HOME: "/var/empty",
+  TZ: "UTC",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_SYSTEM: "/dev/null",
@@ -39,37 +44,14 @@ export const FLOODGATE_GIT_COMMAND_PREFIX = Object.freeze([
 ] as const);
 
 /**
- * Remove inherited Git/locale controls before checking repository identity or
- * ancestry. In particular, `--no-replace-objects` does not disable grafts.
+ * Use an exact allowlist before checking repository identity or ancestry.
+ * Cloud credentials, proxy controls, SSH configuration, dynamic-loader
+ * controls, and arbitrary inherited variables never reach Git.
  */
 export function floodgateGitEnvironment(
-  inherited: Readonly<Record<string, string | undefined>> = process.env,
+  _inherited: Readonly<Record<string, string | undefined>> = process.env,
 ): NodeJS.ProcessEnv {
-  const nodeEnvironment = inherited.NODE_ENV;
-  const environment: NodeJS.ProcessEnv = {
-    NODE_ENV:
-      nodeEnvironment === "development" ||
-      nodeEnvironment === "test" ||
-      nodeEnvironment === "production"
-        ? nodeEnvironment
-        : "production",
-  };
-  for (const [key, value] of Object.entries(inherited)) {
-    const upper = key.toUpperCase();
-    if (
-      value !== undefined &&
-      !upper.startsWith("GIT_") &&
-      !upper.startsWith("DYLD_") &&
-      !upper.startsWith("LD_") &&
-      upper !== "NODE_ENV" &&
-      upper !== "LC_ALL" &&
-      upper !== "LANG" &&
-      upper !== "LANGUAGE"
-    ) {
-      environment[key] = value;
-    }
-  }
-  return Object.assign(environment, FLOODGATE_GIT_FIXED_ENVIRONMENT);
+  return { ...FLOODGATE_GIT_FIXED_ENVIRONMENT };
 }
 
 /** Reject assume-unchanged, skip-worktree, unmerged, or other special flags. */

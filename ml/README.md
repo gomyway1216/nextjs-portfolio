@@ -217,6 +217,8 @@ copy先isolated stop 522.211秒は別run・別範囲であり、速度比較で�
 portable 19 + existing copy 13 = 32 / 32 PASS。意味検証、teacher、学習、選抜、A/B、weight、
 live activation、AWS、Firebase / GCP、Vercel、基盤runtime networkの実行は0で、棋力向上の証拠ではない。
 GitHub PR / CIのnetworkはsource control / 検証だけで、評価関数の計算基盤ではない。
+共通CIの`AWS witness adapter contract (source only)`は将来用adapterのsource contract検査で、
+AWS service実行ではない。Vercel checkもWeb previewで、将棋teacher / 学習computeではない。
 failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は、通常merge
 `5fa4e179…`で統合済みで、その統合自体はportable implementation / testのbytesを変えていない。
 review hardening後の拡張回帰は7 files / 107 / 107 PASSである。

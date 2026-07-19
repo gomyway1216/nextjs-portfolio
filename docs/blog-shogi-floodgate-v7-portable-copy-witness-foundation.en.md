@@ -155,6 +155,8 @@ No. The foundation and unit validation use only the local filesystem and CPU.
 
 Firebase Functions running on GCP and Vercel serving web deployments are separate concerns. There is no reason to introduce AWS for this evaluator-preparation step. GitHub push and CI naturally use the network, but they are source-control and validation transport, not evaluator, teacher, or training compute.
 
+Repository-wide CI has a check named `AWS witness adapter contract (source only)`. It does not start an AWS service; it verifies only the source contract of a future adapter. The Vercel check is the PR’s web-preview deployment, not shogi-teacher or training compute. This foundation invoked AWS services zero times.
+
 ## This is not strength evidence
 
 This PR is a dormant foundation. Importing or merging it performs no filesystem I/O. It neither imports nor changes the generic role-lock, role-bundle, or result verifiers, the training consumer, the teacher runner, or the local runner.

@@ -147,6 +147,8 @@ failure-kindのintrinsic hardeningを含むPR #516の最新`main` `0dd5469cefd88
 
 Firebase FunctionsがGCP、VercelがWeb deploymentを担当することとは別系統であり、今回の評価関数学習準備にAWSを導入する理由はない。GitHubへのpushとCIは当然networkを使うが、評価関数の計算、teacher、学習の実行基盤ではない。
 
+リポジトリ共通CIには`AWS witness adapter contract (source only)`という名前のcheckがある。これはAWS serviceを起動するcheckではなく、将来用adapterのsource contractだけを検証する。Vercel checkもPRのWeb preview deploymentであり、将棋teacherや学習を実行しない。今回の基盤からAWS serviceを呼んだ回数は0である。
+
 ## まだ強くなった証拠ではない
 
 このPRはdormant foundationであり、import / mergeだけではfilesystem I/Oを開始しない。generic role-lock / role-bundle / result verifier、training consumer、teacher runner、local runnerをimportも変更もしていない。

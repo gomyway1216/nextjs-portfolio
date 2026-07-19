@@ -437,6 +437,9 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       network_used: false,
       github_source_control_and_ci_network_used_outside_foundation_scope: true,
       source_control_and_ci_are_not_evaluator_compute: true,
+      repository_ci_aws_witness_adapter_source_only_check_present: true,
+      aws_service_invocation_by_foundation: false,
+      vercel_preview_is_web_deployment_not_evaluator_compute: true,
     });
 
     const source = read("ml/floodgate-v7-clean-room-copy.ts");

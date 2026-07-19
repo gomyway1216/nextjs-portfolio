@@ -768,6 +768,35 @@ AWS、Firebase / GCP、Vercel、network、実teacher、実Torch学習を使っ�
 [日本語execution-dispatch記事](../docs/blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.md) /
 [English execution-dispatch article](../docs/blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md)を参照。
 
+strength-first teacher完了後のtraining-only `train.jsonl`を、固定warm initializerから
+seed 42 / 43 / 44で並列学習するbridgeとargumentless Python launcherも準備した。
+teacher flat rootは
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`に固定し、`work.jsonl` /
+`result.json` / `manifest.json` / `train.jsonl` / `parent-completion.jsonl`のbytes /
+SHA-256をfuture exact planで束縛する。resultのstaged outputとmanifestのtraining-only
+outputを相互照合し、raw training / completion / trainをneutral scannerで再scanして
+`forced + emitted = 24000`、group digest、game / parent / semantic-position accountingを
+再生成する。
+
+future plan
+`ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json`は、実24,000 teacher
+hashがまだないため意図的に作っていない。現在の
+`python3 ml/run_strength_first_three_seed_training.py`はexit 1のexpected STOPとなり、
+Git revision reader、artifact scan、subprocess、`train.py`、Torchへ到達しない。
+`package.json`は変更せずnpm scriptも追加していない。
+
+plan追加後は3 processをpoll前にすべてspawnし、各CPU / Torch 2 threads、
+interop 1、warm model-only initializer、lr `1e-4`、20 epochs、batch 256で同時実行する。
+1 seedが失敗すれば残りを停止する。bridgeはselection / holdout label reader、
+candidate selection、production / live weight writeの権限を持たない。実teacher、
+training、candidate、live変更はすべて0で、時間・棋力の推定もしない。pipeline revisionは
+固定`/usr/bin/git`とallowlist環境で読み、親processのGit設定・path・loader変数を継承しない。
+focused stdlib 26 / 26、full stdlib 193 / 193（12.094秒）、diffはPASS、独立rereviewは
+P0 / P1 / P2 = 0 / 0 / 0だった。詳細は
+[日本語bridge記事](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.md) /
+[English bridge article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-three-seed-training-bridge-2026-07-19.json)を参照。
+
 取得先はGit worktreeと交差しないcanonical absolute pathに限定する。PR #417以降の
 status確認と単一process取得は次のCLIを使う。
 

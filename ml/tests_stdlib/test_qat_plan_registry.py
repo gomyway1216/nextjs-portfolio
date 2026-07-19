@@ -62,6 +62,95 @@ class QatPlanRegistryTests(unittest.TestCase):
         fresh.assert_not_called()
         wcsc36.assert_not_called()
 
+    def test_exact_strength_first_path_has_its_own_dispatch_and_schema_pair(self):
+        exact = (
+            REPO_ROOT
+            / REGISTRY.STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
+        )
+        args = SimpleNamespace(experiment_plan=str(exact))
+        with mock.patch.object(
+            REGISTRY,
+            "verify_strength_first_qat_training_plan",
+            return_value={"route": "strength-first"},
+        ) as strength, mock.patch.object(
+            REGISTRY,
+            "verify_fresh_qat_experiment_plan",
+        ) as fresh, mock.patch.object(
+            REGISTRY,
+            "verify_fresh_qat_v2_execution_plan",
+        ) as fresh_v2, mock.patch.object(
+            REGISTRY,
+            "verify_wcsc36_qat_experiment_plan",
+        ) as wcsc36:
+            result = REGISTRY.verify_qat_experiment_plan(
+                args,
+                {},
+                tracking_verifier=mock.Mock(),
+            )
+        self.assertEqual(result, {"route": "strength-first"})
+        strength.assert_called_once()
+        fresh.assert_not_called()
+        fresh_v2.assert_not_called()
+        wcsc36.assert_not_called()
+
+        schemas = REGISTRY.resolve_qat_artifact_schemas(
+            {
+                "provenance": {
+                    "schema": (
+                        REGISTRY.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
+                    )
+                },
+                "contract": {
+                    "schema": FRESH.FRESH_QAT_TRAINING_CONTRACT_SCHEMA
+                },
+            }
+        )
+        self.assertEqual(
+            schemas,
+            {
+                "result": (
+                    REGISTRY.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA
+                ),
+                "checkpoint": (
+                    REGISTRY.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
+                ),
+            },
+        )
+
+    def test_strength_first_near_paths_symlinks_and_non_strings_fail_closed(self):
+        exact = (
+            REPO_ROOT
+            / REGISTRY.STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
+        )
+        near = (
+            Path(str(exact) + ".copy"),
+            exact.with_name(exact.name + "-near"),
+            REPO_ROOT / "ml/protocols/strength-first-qat-wrong.json",
+        )
+        for candidate in near:
+            with self.subTest(candidate=candidate):
+                with self.assertRaisesRegex(ValueError, "non-exact"):
+                    self.dispatch(candidate)
+
+        with tempfile.TemporaryDirectory() as directory:
+            symlink = Path(directory) / exact.name
+            symlink.symlink_to(exact)
+            with self.assertRaisesRegex(ValueError, "symlinked"):
+                self.dispatch(symlink)
+
+        for candidate in (exact, str(exact).encode("utf-8")):
+            with self.subTest(candidate_type=type(candidate).__name__):
+                args = SimpleNamespace(experiment_plan=candidate)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "exact built-in string",
+                ):
+                    REGISTRY.verify_qat_experiment_plan(
+                        args,
+                        {},
+                        tracking_verifier=mock.Mock(),
+                    )
+
     def test_old_path_and_old_invalid_fallback_are_unchanged(self):
         old_path = REPO_ROOT / WCSC36.QAT_PLAN_RELATIVE_PATH
         result, fresh, fresh_v2, wcsc36 = self.dispatch(old_path)

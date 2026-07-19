@@ -14,7 +14,7 @@ const caseIds = exact24kScannerCaseIds("replay");
 
 posixDescribe("Floodgate v7 exact-24k sealed scanner replay shard", () => {
   let execution: ReturnType<typeof runExact24kScannerReplayShard> | undefined;
-  afterAll(cleanupExact24kScannerFixtures);
+  afterAll(() => cleanupExact24kScannerFixtures("replay"));
 
   for (const [index, caseId] of caseIds.entries()) {
     it(

@@ -15,7 +15,7 @@ const caseIds = exact24kScannerCaseIds("authority");
 posixDescribe("Floodgate v7 exact-24k sealed scanner authority shard", () => {
   let execution:
     ReturnType<typeof runExact24kScannerAuthorityShard> | undefined;
-  afterAll(cleanupExact24kScannerFixtures);
+  afterAll(() => cleanupExact24kScannerFixtures("authority"));
 
   for (const [index, caseId] of caseIds.entries()) {
     it(

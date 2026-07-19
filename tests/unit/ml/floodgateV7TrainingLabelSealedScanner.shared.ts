@@ -5,7 +5,10 @@ import * as path from "node:path";
 
 import { expect, vi } from "vitest";
 
-import { createExact24kScannerRuntimeReceiptRecorder } from "../../../scripts/exact24k-scanner-runtime-receipt.mjs";
+import {
+  EXACT24K_SCANNER_CASE_IDS,
+  createExact24kScannerRuntimeReceiptRecorder,
+} from "../../../scripts/exact24k-scanner-runtime-receipt.mjs";
 import {
   FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
   FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_TRUST_BOUNDARY,
@@ -111,7 +114,26 @@ const VERIFIER_REVISION = "b".repeat(40);
 const RUN_ID = "12".repeat(32);
 const ROOT_KEY_BYTE = 0x4b;
 const FORCED_MOVE = "5a4a";
-const temporaryRoots: string[] = [];
+
+export type Exact24kScannerShardId =
+  "authority" | "mutation" | "replay" | "cleanup" | "production";
+
+const temporaryRootsByShard = new Map<Exact24kScannerShardId, string[]>();
+
+function trackTemporaryRoot(
+  shardId: Exact24kScannerShardId,
+  root: string,
+): void {
+  if (!Object.hasOwn(EXACT24K_SCANNER_CASE_IDS, shardId)) {
+    throw new Error(`unknown exact-24k scanner shard ${String(shardId)}`);
+  }
+  const roots = temporaryRootsByShard.get(shardId);
+  if (roots === undefined) {
+    temporaryRootsByShard.set(shardId, [root]);
+  } else {
+    roots.push(root);
+  }
+}
 
 interface TrainingFixture {
   readonly outputRoot: string;
@@ -289,12 +311,14 @@ async function makeTrainingFixture(
   };
 }
 
-async function fixture(): Promise<ScannerFixture> {
+async function fixture(
+  shardId: Exact24kScannerShardId,
+): Promise<ScannerFixture> {
   const created = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "floodgate-v7-sealed-scanner-test-"),
   );
   const root = await fs.promises.realpath(created);
-  temporaryRoots.push(root);
+  trackTemporaryRoot(shardId, root);
   await fs.promises.chmod(root, 0o700);
   const training = await makeTrainingFixture(root, fixedForcedRows());
   const publicationParent = path.join(root, "publication");
@@ -660,12 +684,14 @@ async function sealWork(value: ScannerFixture): Promise<void> {
   }
 }
 
-async function deploymentKeyFixture(): Promise<DeploymentKeyFixture> {
+async function deploymentKeyFixture(
+  shardId: Exact24kScannerShardId,
+): Promise<DeploymentKeyFixture> {
   const created = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "floodgate-v7-sealed-scan-key-test-"),
   );
   const home = await fs.promises.realpath(created);
-  temporaryRoots.push(home);
+  trackTemporaryRoot(shardId, home);
   await fs.promises.chmod(home, 0o700);
   const keyPath = path.join(
     home,
@@ -799,7 +825,9 @@ async function createOutputEntry(
   }
 }
 
-async function prepareExact24kScannerShard(): Promise<
+async function prepareExact24kScannerShard(
+  shardId: Exact24kScannerShardId,
+): Promise<
   Readonly<{
     value: ScannerFixture;
     deployment: DeploymentKeyFixture;
@@ -807,8 +835,8 @@ async function prepareExact24kScannerShard(): Promise<
     publication: Readonly<FloodgateTeacherStagePublicationDependencies>;
   }>
 > {
-  const value = await fixture();
-  const deployment = await deploymentKeyFixture();
+  const value = await fixture(shardId);
+  const deployment = await deploymentKeyFixture(shardId);
   expect(value.training.identity.records).toBe(
     FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
   );
@@ -821,20 +849,37 @@ async function prepareExact24kScannerShard(): Promise<
   return Object.freeze({ value, deployment, work, publication });
 }
 
-export async function cleanupExact24kScannerFixtures(): Promise<void> {
-  vi.restoreAllMocks();
-  while (temporaryRoots.length > 0) {
-    const root = temporaryRoots.pop();
+export async function cleanupExact24kScannerFixtures(
+  shardId: Exact24kScannerShardId,
+): Promise<void> {
+  if (!Object.hasOwn(EXACT24K_SCANNER_CASE_IDS, shardId)) {
+    throw new Error(`unknown exact-24k scanner shard ${String(shardId)}`);
+  }
+  const roots = temporaryRootsByShard.get(shardId) ?? [];
+  temporaryRootsByShard.delete(shardId);
+  while (roots.length > 0) {
+    const root = roots.pop();
     if (root !== undefined) {
       await fs.promises.rm(root, { recursive: true, force: true });
     }
   }
 }
 
+export async function createTrackedExact24kScannerTemporaryRootForTests(
+  shardId: Exact24kScannerShardId,
+): Promise<string> {
+  const created = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), `floodgate-v7-scanner-${shardId}-isolation-test-`),
+  );
+  const root = await fs.promises.realpath(created);
+  trackTemporaryRoot(shardId, root);
+  return root;
+}
+
 export async function runExact24kScannerAuthorityShard() {
   const cases = createExact24kScannerRuntimeReceiptRecorder("authority");
   const { value, deployment, work, publication } =
-    await prepareExact24kScannerShard();
+    await prepareExact24kScannerShard("authority");
 
   // A lease-independent capture failure prepares no key, claims no bogus
   // rows, and leaves the exact active lease untouched for later use.
@@ -963,7 +1008,7 @@ export async function runExact24kScannerAuthorityShard() {
 export async function runExact24kScannerMutationShard() {
   const cases = createExact24kScannerRuntimeReceiptRecorder("mutation");
   const { value, deployment, work, publication } =
-    await prepareExact24kScannerShard();
+    await prepareExact24kScannerShard("mutation");
 
   // Pass one never calls the sink. A pass-two sink failure after a few
   // parents mints no scanner, aborts the internal publication transaction,
@@ -1112,7 +1157,7 @@ export async function runExact24kScannerMutationShard() {
 export async function runExact24kScannerReplayShard() {
   const cases = createExact24kScannerRuntimeReceiptRecorder("replay");
   const { value, deployment, work, publication } =
-    await prepareExact24kScannerShard();
+    await prepareExact24kScannerShard("replay");
 
   let passTwoCalls = 0;
   let activeSinks = 0;
@@ -1266,7 +1311,7 @@ export async function runExact24kScannerReplayShard() {
 export async function runExact24kScannerCleanupShard() {
   const cases = createExact24kScannerRuntimeReceiptRecorder("cleanup");
   const { value, deployment, work, publication } =
-    await prepareExact24kScannerShard();
+    await prepareExact24kScannerShard("cleanup");
 
   let cleanupPassTwoCalls = 0;
   let observedKey: Uint8Array | undefined;
@@ -1451,7 +1496,7 @@ export async function runExact24kScannerCleanupShard() {
 export async function runExact24kScannerProductionShard() {
   const cases = createExact24kScannerRuntimeReceiptRecorder("production");
   const { value, deployment, work, publication } =
-    await prepareExact24kScannerShard();
+    await prepareExact24kScannerShard("production");
 
   expect(
     (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),

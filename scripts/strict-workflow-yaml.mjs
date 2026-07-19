@@ -166,23 +166,19 @@ export function parseStrictWorkflowYaml(source) {
   function blockScalar(index, parentIndent, style, lineNumber) {
     let end = index;
     while (end < lines.length) {
-      const raw = physicalLines[end];
-      if (raw.trim() !== "" && indentation(raw, end + 1) <= parentIndent) break;
+      const line = lines[end];
+      if (line.raw.trim() !== "" && line.indent <= parentIndent) break;
       end += 1;
     }
-    const contentLines = physicalLines.slice(index, end);
-    const nonempty = contentLines.filter((line) => line.trim() !== "");
+    const contentLines = lines.slice(index, end);
+    const nonempty = contentLines.filter((line) => line.raw.trim() !== "");
     if (nonempty.length === 0) return ["", end];
-    const contentIndent = Math.min(
-      ...nonempty.map((line, offset) =>
-        indentation(line, lineNumber + offset + 1),
-      ),
-    );
+    const contentIndent = Math.min(...nonempty.map((line) => line.indent));
     if (contentIndent <= parentIndent) {
       fail("block scalar content is not indented", lineNumber);
     }
     const stripped = contentLines.map((line) =>
-      line.trim() === "" ? "" : line.slice(contentIndent),
+      line.raw.trim() === "" ? "" : line.raw.slice(contentIndent),
     );
     const value =
       style[0] === ">"

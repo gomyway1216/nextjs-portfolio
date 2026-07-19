@@ -240,6 +240,16 @@ describe("exact-24k Vitest inventory and report verifier", () => {
     }
   });
 
+  it("reports the exact physical line after blank block-scalar lines", () => {
+    expect(() =>
+      parseStrictWorkflowYaml(
+        "job:\n  run: |\n\n    first command\n\n  \tsecond command\n",
+      ),
+    ).toThrow(
+      "strict workflow YAML parse failed at line 6: tabs are forbidden in indentation",
+    );
+  });
+
   it("parses aggregate wiring structurally and rejects comments, decoys, duplicates, and disabled checks", () => {
     const validated = validateExact24kInventory(inventory, { repoRoot });
     const teacherNeed = "      - exact24k_teacher\n";

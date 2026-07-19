@@ -14,7 +14,7 @@ const caseIds = exact24kScannerCaseIds("mutation");
 
 posixDescribe("Floodgate v7 exact-24k sealed scanner mutation shard", () => {
   let execution: ReturnType<typeof runExact24kScannerMutationShard> | undefined;
-  afterAll(cleanupExact24kScannerFixtures);
+  afterAll(() => cleanupExact24kScannerFixtures("mutation"));
 
   for (const [index, caseId] of caseIds.entries()) {
     it(

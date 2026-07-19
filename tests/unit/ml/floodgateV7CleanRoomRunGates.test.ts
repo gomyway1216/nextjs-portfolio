@@ -531,10 +531,7 @@ function localRunDependencies(
   }
   return Object.freeze({
     statfs,
-    runtimeOwnerDependencies: runtimeOwnerDependencies(
-      calls,
-      failStableClose,
-    ),
+    runtimeOwnerDependencies: runtimeOwnerDependencies(calls, failStableClose),
     executeAuthenticatedCheckpointGate,
     observeFailureForTests: undefined,
     expectedCheckpointKeyId: checkpointKeyId,
@@ -1314,9 +1311,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     expect(preparationSource).toContain(
       "runFloodgateV7CleanRoomTeacherGatesCoreForTests",
     );
-    expect(preparationSource).toContain(
-      "runFloodgateV7CleanRoomTeacherGates(",
-    );
+    expect(preparationSource).toContain("runFloodgateV7CleanRoomTeacherGates(");
     expect(japanese).toContain("100件 → 500件 → 24,000件");
     expect(japanese).toContain("definitely-absent-fresh-retry-allowed");
     expect(english).toContain("100 → 500 → 24,000");
@@ -1376,8 +1371,6 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     });
     expect(
       packageJson.scripts?.["shogi:floodgate-v7-local-clean-room-teacher"],
-    ).toBe(
-      "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
-    );
+    ).toBe("node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts");
   });
 });

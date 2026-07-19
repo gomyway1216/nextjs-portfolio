@@ -367,7 +367,9 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
 
   it("closes the stage lease when deployment-key preparation fails before checkpoint ownership transfer", async () => {
     const events: string[] = [];
-    const keyFailure = new Error("synthetic deployment-key preparation failure");
+    const keyFailure = new Error(
+      "synthetic deployment-key preparation failure",
+    );
     async function closeUntransferredLease(): Promise<void> {
       events.push("lease-closed");
     }
@@ -415,10 +417,9 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
 
   it("accepts only the exact 100 -> 500 -> 24000 same-stream receipt and keeps strength unproven", async () => {
     const events: string[] = [];
-    const receipt =
-      await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
-        operations(events),
-      );
+    const receipt = await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
+      operations(events),
+    );
     expect(events).toEqual([
       "capacity",
       "prepare",
@@ -496,9 +497,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     const failure = await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
       operations(events, { runGates: wrongRunGates }),
     ).catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(
-      FloodgateV7LocalCleanRoomTeacherRunnerError,
-    );
+    expect(failure).toBeInstanceOf(FloodgateV7LocalCleanRoomTeacherRunnerError);
     expect(failure).toMatchObject({
       phase: "receipt",
       clean_room_may_exist: true,
@@ -509,8 +508,9 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
   });
 
   it("keeps injected runner/CLI results test-only and rejects forged operational completion brands", async () => {
-    const receipt =
-      await runFloodgateV7LocalCleanRoomTeacherCoreForTests(operations([]));
+    const receipt = await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
+      operations([]),
+    );
     const output = { stdout: "", stderr: "" };
     await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
       Object.freeze([]),
@@ -519,16 +519,14 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     );
     const envelope = JSON.parse(output.stdout) as Record<string, unknown>;
     expect(envelope).toMatchObject({
-      contract:
-        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT,
+      contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT,
       status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_STATUS,
       claim_boundary:
         FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY,
       execution_boundary: "test-only-injected-cli-seam",
       operational_evidence: false,
       receipt: {
-        contract:
-          FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+        contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
         operational_evidence: false,
       },
     });
@@ -627,9 +625,9 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(git.options.env).toEqual(
       FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT,
     );
-    expect(git.arguments.slice(0, FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX.length)).toEqual(
-      FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX,
-    );
+    expect(
+      git.arguments.slice(0, FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX.length),
+    ).toEqual(FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX);
     expect(git.arguments).toContain("core.hooksPath=/dev/null");
     expect(git.arguments).toContain("credential.helper=");
     expect(git.arguments).toContain("protocol.allow=never");
@@ -655,10 +653,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
 
     const snapshotParent =
       "/private/tmp/shogi-floodgate-v7-clean-room-teacher-v1/runtime/snapshots";
-    const snapshot = path.join(
-      snapshotParent,
-      "shogi-teacher-runtime-focused",
-    );
+    const snapshot = path.join(snapshotParent, "shogi-teacher-runtime-focused");
     const worker = path.join(snapshot, "workers", "worker-00");
     const engine = captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
       path.join(snapshot, "engine", "yaneuraou"),
@@ -716,11 +711,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
       "utf8",
     );
     const gateSource = fs.readFileSync(
-      path.join(
-        process.cwd(),
-        "ml",
-        "floodgate-v7-clean-room-run-gates.ts",
-      ),
+      path.join(process.cwd(), "ml", "floodgate-v7-clean-room-run-gates.ts"),
       "utf8",
     );
     const entrySource = fs.readFileSync(
@@ -741,7 +732,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID).toBe(
       FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
     );
-    expect(localSource).toContain('const LOCAL_KEY_BYTES = 32');
+    expect(localSource).toContain("const LOCAL_KEY_BYTES = 32");
     expect(localSource).toContain('"local-integrity-key.bin"');
     expect(localSource).toContain("external_credential: false");
     expect(localSource).toContain("randomBytes(LOCAL_KEY_BYTES)");
@@ -765,29 +756,23 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     );
     expect(localSource).toContain("receipts.length !== 3");
     expect(localSource).toContain("final.sealed !== true");
-    expect(localSource).toContain(
-      "final.work.completed_parents !== 24_000",
-    );
+    expect(localSource).toContain("final.work.completed_parents !== 24_000");
     expect(localSource).toContain("final.work.resumed_parents !== 500");
     expect(gateSource.indexOf("validateReceiptChain(chain)")).toBeGreaterThan(
       -1,
     );
-    expect(
-      gateSource.indexOf("validateReceiptChain(chain)"),
-    ).toBeLessThan(
+    expect(gateSource.indexOf("validateReceiptChain(chain)")).toBeLessThan(
       gateSource.indexOf("await handoff.close()"),
     );
-    expect(
-      gateSource.indexOf("await handoff.close()"),
-    ).toBeLessThan(
+    expect(gateSource.indexOf("await handoff.close()")).toBeLessThan(
       gateSource.indexOf("finalizeSealedChainHandoff()"),
     );
     expect(entrySource).toContain("if (require.main === module)");
-    expect(packageJson.scripts?.[
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT
-    ]).toBe(
-      "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
-    );
+    expect(
+      packageJson.scripts?.[
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT
+      ],
+    ).toBe("node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts");
     expect(localSource).not.toContain(
       'from "./floodgate-v7-production-connector',
     );

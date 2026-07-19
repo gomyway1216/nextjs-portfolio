@@ -687,7 +687,15 @@ async function assertCompleteLocalRepository(
 ): Promise<void> {
   const configurationNames = parseDenseNulList(
     await fixedGit(
-      ["-C", repository, "config", "--local", "--name-only", "--null", "--list"],
+      [
+        "-C",
+        repository,
+        "config",
+        "--local",
+        "--name-only",
+        "--null",
+        "--list",
+      ],
       "/",
     ),
   );
@@ -1319,10 +1327,7 @@ export function claimFloodgateV7CleanRoomPreparedLocalRunGrant(
     throw new FloodgateV7CleanRoomTeacherPreparationError("capability", true);
   }
   const plan = fixedPreparedLocalRunGrantPlans.get(grant);
-  if (
-    plan === undefined ||
-    !fixedPreparedLocalRunGrantPlans.delete(grant)
-  ) {
+  if (plan === undefined || !fixedPreparedLocalRunGrantPlans.delete(grant)) {
     throw new FloodgateV7CleanRoomTeacherPreparationError("capability", true);
   }
   return plan;
@@ -1364,14 +1369,9 @@ export function captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
     argumentsValue.length !== 0 ||
     Reflect.ownKeys(argumentsValue).length !== 1 ||
     optionKeys.length !== 6 ||
-    ![
-      "cwd",
-      "env",
-      "stdio",
-      "shell",
-      "windowsHide",
-      "detached",
-    ].every((key) => optionKeys.includes(key)) ||
+    !["cwd", "env", "stdio", "shell", "windowsHide", "detached"].every((key) =>
+      optionKeys.includes(key),
+    ) ||
     environment === null ||
     typeof environment !== "object" ||
     environmentKeys.length !== 6 ||
@@ -1482,13 +1482,12 @@ async function createRealTestCoreCoordinator(
             },
           ),
         spawnEngine: (file, args, options) => {
-          const contract =
-            captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
-              file,
-              args,
-              options,
-              plan.targets.snapshotParent,
-            );
+          const contract = captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+            file,
+            args,
+            options,
+            plan.targets.snapshotParent,
+          );
           return spawn(contract.file, [...contract.arguments], {
             ...contract.options,
             env: { ...contract.options.env } as unknown as NodeJS.ProcessEnv,

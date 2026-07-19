@@ -1,0 +1,105 @@
+{
+  "schema": "shogi-floodgate-strength-first-selection-preflight-bridge-evidence-v1",
+  "status": "bridge-validated-registry-closed-no-selection-or-promotion-authority",
+  "recorded_date": "2026-07-19",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-selection-preflight-bridge.md",
+    "english": "../blog-shogi-floodgate-strength-first-selection-preflight-bridge.en.md"
+  },
+  "implementation": {
+    "shared_candidate_validation_extended": true,
+    "fresh_public_api_changed": false,
+    "strength_first_fixed_public_api_added": true,
+    "strength_first_public_api_parameters": ["audit_revision"],
+    "strength_first_result_schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+    "strength_first_checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+    "strength_first_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
+    "run_root": "ml/runs/floodgate-q1-2026-strength-first-int16-aware",
+    "seeds": [42, 43, 44],
+    "package_json_changed": false,
+    "npm_script_added": false
+  },
+  "checked_in_registry": {
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
+    "schema": "shogi-floodgate-strength-first-qat-selection-preflight-registry-v1",
+    "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
+    "training_plan_bytes": null,
+    "training_plan_sha256": null,
+    "training_pipeline_revision": null,
+    "run_result_and_checkpoint_identities": null,
+    "artifact_identities_registered": false,
+    "selection_preflight_ready": false
+  },
+  "verification_order": [
+    "strict-parse-and-validate-tracked-selection-registry",
+    "stop-immediately-while-registry-is-closed",
+    "snapshot-and-validate-exact-tracked-strength-first-training-plan",
+    "capture-all-three-result-and-all-three-checkpoint-byte-strings",
+    "strict-parse-and-validate-all-three-results",
+    "require-one-shared-training-pipeline-and-runtime",
+    "strict-load-and-model-validate-all-three-captured-checkpoints",
+    "reread-tracked-inputs-results-and-checkpoint-identities",
+    "mint-one-shot-public-api-receipt"
+  ],
+  "strength_first_bindings": {
+    "exact_slot_ids_outputs_and_paths": true,
+    "exact_result_and_checkpoint_schemas": true,
+    "plan_bytes_and_sha256": true,
+    "teacher_manifest_sha256": true,
+    "teacher_result_sha256": true,
+    "teacher_work_sha256": true,
+    "parent_completion_sha256": true,
+    "parent_accounting_equation": true,
+    "training_contract": true,
+    "candidate_checkpoint_bytes_and_sha256": true,
+    "one_pipeline_and_runtime_across_seeds": true,
+    "captured_bytes_used_for_parse_and_checkpoint_load": true
+  },
+  "authority": {
+    "selection_registry_opened": false,
+    "selection_labels_read_by_preflight": false,
+    "selection_reader_invocations_on_real_data": 0,
+    "final_holdout_read_authorized": false,
+    "final_holdout_read": false,
+    "candidate_selected": false,
+    "production_promotion_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_weights_changed": false
+  },
+  "validation": {
+    "python_compile": "PASS",
+    "focused_strength_first_stdlib": {
+      "status": "PASS",
+      "tests": 6,
+      "elapsed_seconds": 0.021
+    },
+    "existing_fresh_preflight_stdlib_regression": {
+      "status": "PASS",
+      "tests": 17,
+      "elapsed_seconds": 1.376
+    },
+    "ruff": "PASS",
+    "black": "PASS",
+    "diff_check": "PASS",
+    "broad_suite": {
+      "status": "NOT_RUN",
+      "reason": "focused-only-to-avoid-competing-with-strength-first-teacher-recovery"
+    }
+  },
+  "runtime_isolation": {
+    "active_teacher_worktree_or_output_read": false,
+    "active_teacher_worktree_or_output_written": false,
+    "teacher_process_control_attempted": false,
+    "tests_used_synthetic_temporary_artifacts_only": true,
+    "cpu_heavy_commands_run": false
+  },
+  "infrastructure": {
+    "future_execution": "local-mac-only",
+    "cloud_compute_required": false,
+    "aws_required": false,
+    "gcp_required": false,
+    "vercel_required": false
+  },
+  "claim_boundary": "validated-closed-strength-first-three-candidate-preflight-bridge-not-real-training-completion-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "after-the-real-teacher-and-three-training-runs-complete-register-only-observed-plan-result-and-checkpoint-identities-in-a-reviewed-data-only-opening"
+}

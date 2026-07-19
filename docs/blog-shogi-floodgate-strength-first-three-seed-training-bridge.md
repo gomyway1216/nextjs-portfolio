@@ -18,7 +18,7 @@
 | Torch load / 実training                   | 0 / 0                    |
 | 実24,000 teacher / completed training run | 0 / 0                    |
 | candidate selection / live weight変更     | 0 / 0                    |
-| focused / full stdlib                     | 23 / 23、190 / 190 PASS  |
+| focused / full stdlib                     | 26 / 26、193 / 193 PASS  |
 | independent rereview                      | P0 / P1 / P2 = 0 / 0 / 0 |
 
 `ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json`は、実teacher完了後に
@@ -93,11 +93,17 @@ protected ID listはデータ混入を拒否するために使えるが、ラベ
 
 ## validation
 
-bridge、launcher、exact plan dispatchのfocused stdlibは23 / 23、ML stdlib全体は
-190 / 190を12.04秒でPASSした。direct commandのexpected STOP、plan absent時にrevision /
+plan追加後のpipeline revision読取は絶対pathの`/usr/bin/git`、固定allowlist環境、
+replace object無効化、固定Git設定を使う。親processの`PATH`、`GIT_DIR`、
+`GIT_WORK_TREE`、config注入、dynamic-loader変数は渡さず、40桁小文字hashとLFの
+exact 41 bytesだけを受け入れる。
+
+bridge、launcher、exact plan dispatchのfocused stdlibは26 / 26、ML stdlib全体は
+193 / 193を12.094秒でPASSした。direct commandのexpected STOP、plan absent時にrevision /
 processへ進まないこと、3 seedをpoll前にすべてspawnすること、固定training command、
 source cross-binding、byte drift、near path / symlink拒否、1 seed failure時の残process停止を
-含む。diff checkはPASSし、`package.json`はcleanである。独立rereviewの結果は
+含む。壊れたnested result / role manifestの明示STOP、親Git環境を継承しないrevision読取も
+回帰対象に追加した。diff checkはPASSし、`package.json`はcleanである。独立rereviewの結果は
 P0 / P1 / P2 = 0 / 0 / 0だった。
 
 次の変更はteacher実行を待ち、その実bytes / SHA-256だけをexact data-only planへ登録する。

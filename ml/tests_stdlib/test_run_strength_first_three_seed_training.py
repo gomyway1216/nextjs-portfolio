@@ -1,7 +1,10 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -92,6 +95,127 @@ class PendingProcess(FakeProcess):
 
 
 class StrengthFirstThreeSeedRunnerTests(unittest.TestCase):
+    def test_revision_reader_uses_fixed_git_configuration_and_environment(self):
+        completed = SimpleNamespace(stdout=b"a" * 40 + b"\n")
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "PATH": "/attacker",
+                    "GIT_DIR": "/attacker",
+                    "GIT_WORK_TREE": "/attacker/worktree",
+                    "GIT_CONFIG_COUNT": "1",
+                    "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                    "GIT_CONFIG_VALUE_0": "/attacker/helper",
+                    "DYLD_INSERT_LIBRARIES": "/attacker/library",
+                    "LD_PRELOAD": "/attacker/library",
+                },
+            ),
+            mock.patch.object(
+                RUNNER.subprocess,
+                "run",
+                return_value=completed,
+            ) as invoked,
+        ):
+            self.assertEqual(
+                RUNNER._read_pipeline_revision("/fixed/repository"),
+                "a" * 40,
+            )
+
+        command = invoked.call_args.args[0]
+        options = invoked.call_args.kwargs
+        self.assertEqual(command[0], "/usr/bin/git")
+        self.assertEqual(
+            command[1:],
+            [
+                *RUNNER.FIXED_GIT_COMMAND_PREFIX,
+                "rev-parse",
+                "--verify",
+                "HEAD^{commit}",
+            ],
+        )
+        self.assertEqual(options["cwd"], "/fixed/repository")
+        self.assertEqual(options["env"], RUNNER.FIXED_GIT_ENVIRONMENT)
+        self.assertNotIn("GIT_DIR", options["env"])
+        self.assertNotIn("GIT_WORK_TREE", options["env"])
+        self.assertNotIn("GIT_CONFIG_COUNT", options["env"])
+        self.assertNotIn("DYLD_INSERT_LIBRARIES", options["env"])
+        self.assertNotIn("LD_PRELOAD", options["env"])
+        self.assertTrue(options["check"])
+        self.assertTrue(options["capture_output"])
+        self.assertFalse(options["text"])
+
+        for malformed in (
+            b"a" * 40,
+            b"a" * 40 + b"\n\n",
+            b"a" * 40 + b"\r\n",
+            b"A" * 40 + b"\n",
+            b"a" * 39 + b"\n",
+            b"a" * 39 + b"\0\n",
+            "a" * 40 + "\n",
+        ):
+            with self.subTest(malformed=malformed):
+                with mock.patch.object(
+                    RUNNER.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(stdout=malformed),
+                ):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "revision is invalid",
+                    ):
+                        RUNNER._read_pipeline_revision(
+                            "/fixed/repository",
+                        )
+
+        for failure in (
+            OSError("unavailable"),
+            subprocess.CalledProcessError(1, ["/usr/bin/git"]),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                with mock.patch.object(
+                    RUNNER.subprocess,
+                    "run",
+                    side_effect=failure,
+                ):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "cannot read",
+                    ):
+                        RUNNER._read_pipeline_revision(
+                            "/fixed/repository",
+                        )
+
+    def test_completed_result_rejects_non_object_nested_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            result_path = output / "result.json"
+            malformed = (
+                [],
+                {
+                    **synthetic_result(42),
+                    "experiment_contract": None,
+                },
+                {
+                    **synthetic_result(42),
+                    "experiment_contract": [],
+                },
+            )
+            for payload in malformed:
+                with self.subTest(payload=payload):
+                    result_path.write_text(
+                        json.dumps(payload),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "did not close training-only",
+                    ):
+                        RUNNER._validate_completed_result(
+                            str(output),
+                            42,
+                        )
+
     def test_absent_exact_plan_stops_before_revision_or_process_dispatch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

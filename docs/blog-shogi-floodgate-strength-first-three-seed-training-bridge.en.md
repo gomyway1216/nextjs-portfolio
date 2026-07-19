@@ -19,7 +19,7 @@
 | Torch loads / real training                  | 0 / 0                     |
 | real 24,000 teacher / completed training run | 0 / 0                     |
 | candidate selections / live-weight changes   | 0 / 0                     |
-| focused / full stdlib                        | 23/23 and 190/190 PASS    |
+| focused / full stdlib                        | 26/26 and 193/193 PASS    |
 | independent rereview                         | P0 / P1 / P2 = 0 / 0 / 0  |
 
 `ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json` is a future
@@ -99,12 +99,18 @@ training-duration or strength estimate.
 
 ## Validation
 
-The focused stdlib suite for the bridge, launcher, and exact-plan dispatch passed 23/23. The
-full ML stdlib suite passed 190/190 in 12.04 seconds. Coverage includes the expected direct
+After plan enrollment, the pipeline revision read uses absolute `/usr/bin/git`, a fixed
+allowlisted environment, disabled replace objects, and fixed Git configuration. It does not
+forward the parent's `PATH`, `GIT_DIR`, `GIT_WORK_TREE`, injected configuration, or dynamic
+loader variables, and accepts only exactly 40 lowercase hash bytes followed by LF.
+
+The focused stdlib suite for the bridge, launcher, and exact-plan dispatch passed 26/26. The
+full ML stdlib suite passed 193/193 in 12.094 seconds. Coverage includes the expected direct
 STOP, no revision/process dispatch without a plan, spawning all three seeds before polling,
 the frozen training command, source cross-binding, byte drift, rejection of near/symlinked
-paths, and stopping remaining processes after one seed fails. The diff check passed and
-`package.json` is clean. Independent rereview found P0 / P1 / P2 = 0 / 0 / 0.
+paths, and stopping remaining processes after one seed fails. Malformed nested result/role
+documents and the non-inherited Git environment are also regression-tested. The diff check
+passed and `package.json` is clean. Independent rereview found P0 / P1 / P2 = 0 / 0 / 0.
 
 The next change waits for the real teacher run and enrolls only its observed byte lengths and
 SHA-256 values in the exact data-only plan. The STOP remains in place until then.

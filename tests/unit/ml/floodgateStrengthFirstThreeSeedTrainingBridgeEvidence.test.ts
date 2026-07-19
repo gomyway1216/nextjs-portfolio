@@ -139,12 +139,12 @@ describe("Floodgate strength-first three-seed training bridge evidence", () => {
       validation: {
         focused_stdlib: {
           status: "PASS",
-          tests: 23,
+          tests: 26,
         },
         full_ml_stdlib: {
           status: "PASS",
-          tests: 190,
-          elapsed_seconds: 12.04,
+          tests: 193,
+          elapsed_seconds: 12.094,
         },
         direct_argumentless_stop: "PASS",
         diff_check: "PASS",
@@ -170,24 +170,39 @@ describe("Floodgate strength-first three-seed training bridge evidence", () => {
     const packageJson = JSON.parse(packageBytes.toString("utf8")) as {
       scripts: Record<string, string>;
     };
-    expect(packageBytes.byteLength).toBe(8463);
+    const record = evidence() as {
+      package_json_identity: {
+        bytes: number;
+        sha256: string;
+      };
+    };
+    const packageIdentity = record.package_json_identity;
+    expect(Number.isSafeInteger(packageIdentity.bytes)).toBe(true);
+    expect(packageIdentity.sha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(packageBytes.byteLength).toBe(packageIdentity.bytes);
     expect(createHash("sha256").update(packageBytes).digest("hex")).toBe(
-      "788771f7a99a615159ebbd8b174dd85bad1f3a7fb80ab8cd7cf652a680467647",
+      packageIdentity.sha256,
     );
     expect(
       packageJson.scripts["shogi:floodgate-strength-first-training"],
     ).toBeUndefined();
     expect(evidence()).toMatchObject({
       implementation: {
+        pipeline_revision_git: {
+          executable: "/usr/bin/git",
+          fixed_allowlist_environment: true,
+          inherited_environment_forwarded: false,
+          replace_objects_disabled: true,
+          optional_locks_disabled: true,
+          configuration_fixed: true,
+          accepted_stdout: "exactly-40-lowercase-hex-bytes-plus-lf",
+        },
         package_json_changed: false,
         npm_script_added: false,
         direct_python_command_required: true,
       },
       package_json_identity: {
         path: "package.json",
-        bytes: 8463,
-        sha256:
-          "788771f7a99a615159ebbd8b174dd85bad1f3a7fb80ab8cd7cf652a680467647",
         changed_by_bridge: false,
         strength_first_training_script_present: false,
       },
@@ -202,8 +217,8 @@ describe("Floodgate strength-first three-seed training bridge evidence", () => {
     const english = fs.readFileSync(englishPath, "utf8");
     for (const article of [japanese, english]) {
       expect(article).toContain("24,000");
-      expect(article).toContain("23");
-      expect(article).toContain("190");
+      expect(article).toContain("26");
+      expect(article).toContain("193");
       expect(article).toContain("42");
       expect(article).toContain("43");
       expect(article).toContain("44");

@@ -174,6 +174,53 @@ def teacher_documents(plan):
 
 
 class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
+    def test_role_manifest_rejects_non_object_nested_bindings(self):
+        plan = complete_plan()
+        artifacts = plan["artifacts"]
+        expected_input = copy.deepcopy(artifacts["input_training"])
+        expected_input["records"] = expected_input.pop("parents")
+        manifest = {
+            "schema": BRIDGE.STRENGTH_FIRST_ROLE_BUNDLE_SCHEMA,
+            "status": BRIDGE.STRENGTH_FIRST_ROLE_BUNDLE_STATUS,
+            "provenance": {
+                "labeled_final_holdout_read": False,
+                "labeled_selection_read": False,
+                "teacher_or_candidate_scores_read": False,
+            },
+            "roles": {
+                "training": {
+                    "raw_parents": expected_input,
+                }
+            },
+            "replay_exclusion": {
+                "identifiers": copy.deepcopy(
+                    artifacts["replay_exclusion"]
+                )
+            },
+        }
+        BRIDGE._validate_role_manifest(manifest, artifacts)
+
+        mutations = {
+            "roles null": lambda item: item.__setitem__("roles", None),
+            "training list": lambda item: item["roles"].__setitem__(
+                "training",
+                [],
+            ),
+            "replay exclusion null": lambda item: item.__setitem__(
+                "replay_exclusion",
+                None,
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(manifest)
+                mutate(changed)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "role-bundle .* differs",
+                ):
+                    BRIDGE._validate_role_manifest(changed, artifacts)
+
     def test_neutral_scanner_binds_exact_source_completion_and_train(self):
         artifacts = make_artifacts([0, 2])
         scanned = BRIDGE.scan_strength_first_training_artifacts_exact(

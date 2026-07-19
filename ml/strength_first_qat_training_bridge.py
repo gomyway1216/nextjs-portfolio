@@ -616,15 +616,26 @@ def _validate_role_manifest(
         raise ValueError("strength-first role bundle is not label-free")
     expected_input = dict(artifacts["input_training"])
     expected_input["records"] = expected_input.pop("parents")
+    roles = manifest.get("roles")
+    training = roles.get("training") if type(roles) is dict else None
+    raw_parents = (
+        training.get("raw_parents")
+        if type(training) is dict
+        else None
+    )
     if not _typed_equal(
-        manifest.get("roles", {})
-        .get("training", {})
-        .get("raw_parents"),
+        raw_parents,
         expected_input,
     ):
         raise ValueError("strength-first role-bundle input differs")
+    replay_exclusion = manifest.get("replay_exclusion")
+    identifiers = (
+        replay_exclusion.get("identifiers")
+        if type(replay_exclusion) is dict
+        else None
+    )
     if not _typed_equal(
-        manifest.get("replay_exclusion", {}).get("identifiers"),
+        identifiers,
         artifacts["replay_exclusion"],
     ):
         raise ValueError("strength-first role-bundle replay exclusion differs")

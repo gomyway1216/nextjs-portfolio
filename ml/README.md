@@ -789,8 +789,9 @@ plan追加後は3 processをpoll前にすべてspawnし、各CPU / Torch 2 threa
 interop 1、warm model-only initializer、lr `1e-4`、20 epochs、batch 256で同時実行する。
 1 seedが失敗すれば残りを停止する。bridgeはselection / holdout label reader、
 candidate selection、production / live weight writeの権限を持たない。実teacher、
-training、candidate、live変更はすべて0で、時間・棋力の推定もしない。focused stdlib
-23 / 23、full stdlib 190 / 190（12.04秒）、diffはPASS、独立rereviewは
+training、candidate、live変更はすべて0で、時間・棋力の推定もしない。pipeline revisionは
+固定`/usr/bin/git`とallowlist環境で読み、親processのGit設定・path・loader変数を継承しない。
+focused stdlib 26 / 26、full stdlib 193 / 193（12.094秒）、diffはPASS、独立rereviewは
 P0 / P1 / P2 = 0 / 0 / 0だった。詳細は
 [日本語bridge記事](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.md) /
 [English bridge article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md) /

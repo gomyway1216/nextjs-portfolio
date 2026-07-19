@@ -15,6 +15,37 @@ import fresh_qat_protocol as FRESH
 import strength_first_qat_training_bridge as BRIDGE
 
 
+FIXED_GIT_EXECUTABLE = "/usr/bin/git"
+FIXED_GIT_ENVIRONMENT = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/var/empty",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_GRAFT_FILE": "/dev/null",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "LC_ALL": "C",
+    "LANG": "C",
+}
+FIXED_GIT_COMMAND_PREFIX = (
+    "--no-replace-objects",
+    "--no-optional-locks",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.untrackedCache=false",
+    "-c",
+    "core.preloadIndex=false",
+    "-c",
+    "core.ignoreStat=false",
+    "-c",
+    "core.trustctime=true",
+    "-c",
+    "core.checkStat=default",
+)
+
+
 class StrengthFirstTrainingProcessFailed(RuntimeError):
     """One seed failed after all three local processes had been launched."""
 
@@ -29,20 +60,33 @@ class StrengthFirstTrainingProcessFailed(RuntimeError):
 def _read_pipeline_revision(repo_root: str) -> str:
     try:
         completed = subprocess.run(
-            ["git", "-C", repo_root, "rev-parse", "HEAD"],
+            [
+                FIXED_GIT_EXECUTABLE,
+                *FIXED_GIT_COMMAND_PREFIX,
+                "rev-parse",
+                "--verify",
+                "HEAD^{commit}",
+            ],
+            cwd=repo_root,
+            env=dict(FIXED_GIT_ENVIRONMENT),
             check=True,
             capture_output=True,
-            text=True,
+            text=False,
         )
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError("cannot read the strength-first pipeline revision") from error
-    revision = completed.stdout.strip()
+    raw_revision = completed.stdout
     if (
-        len(revision) != 40
-        or any(character not in "0123456789abcdef" for character in revision)
+        type(raw_revision) is not bytes
+        or len(raw_revision) != 41
+        or raw_revision[-1:] != b"\n"
+        or any(
+            byte not in b"0123456789abcdef"
+            for byte in raw_revision[:40]
+        )
     ):
         raise ValueError("strength-first pipeline revision is invalid")
-    return revision
+    return raw_revision[:40].decode("ascii")
 
 
 def build_strength_first_training_command(
@@ -177,6 +221,11 @@ def _validate_completed_result(output: str, seed: int) -> dict[str, Any]:
         raise ValueError(
             f"strength-first seed {seed} result is absent or invalid"
         ) from error
+    contract = (
+        payload.get("experiment_contract")
+        if type(payload) is dict
+        else None
+    )
     if (
         type(payload) is not dict
         or payload.get("schema")
@@ -184,7 +233,8 @@ def _validate_completed_result(output: str, seed: int) -> dict[str, Any]:
         or payload.get("status") != "complete"
         or payload.get("selection_labels_read") is not False
         or payload.get("selection_evaluations") != 0
-        or payload.get("experiment_contract", {}).get("seed") != seed
+        or type(contract) is not dict
+        or contract.get("seed") != seed
     ):
         raise ValueError(
             f"strength-first seed {seed} result did not close training-only"

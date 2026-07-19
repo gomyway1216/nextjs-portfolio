@@ -10,6 +10,15 @@
     "training_bridge_prepared": true,
     "argumentless_local_launcher_prepared": true,
     "launcher": "ml/run_strength_first_three_seed_training.py",
+    "pipeline_revision_git": {
+      "executable": "/usr/bin/git",
+      "fixed_allowlist_environment": true,
+      "inherited_environment_forwarded": false,
+      "replace_objects_disabled": true,
+      "optional_locks_disabled": true,
+      "configuration_fixed": true,
+      "accepted_stdout": "exactly-40-lowercase-hex-bytes-plus-lf"
+    },
     "package_json_changed": false,
     "npm_script_added": false,
     "direct_python_command_required": true
@@ -100,12 +109,12 @@
   "validation": {
     "focused_stdlib": {
       "status": "PASS",
-      "tests": 23
+      "tests": 26
     },
     "full_ml_stdlib": {
       "status": "PASS",
-      "tests": 190,
-      "elapsed_seconds": 12.04
+      "tests": 193,
+      "elapsed_seconds": 12.094
     },
     "direct_argumentless_stop": "PASS",
     "diff_check": "PASS",

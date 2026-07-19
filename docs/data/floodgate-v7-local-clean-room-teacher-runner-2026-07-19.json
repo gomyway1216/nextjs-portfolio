@@ -89,7 +89,10 @@
     "failure_kind_string_type_required_before_allowlist": true,
     "array_includes_and_reflect_apply_captured_at_module_initialization": true,
     "prototype_poisoning_regressions_added_for_both_error_boundaries": true,
-    "real_teacher_invocation_during_intrinsic_hardening": false
+    "real_teacher_invocation_during_intrinsic_hardening": false,
+    "runtime_claim_ordering_implementation_revision": "e86cbb5f0673f87121a9d789da6e990fc97a4170",
+    "source_pins_refreshed_after_runtime_claim_ordering": true,
+    "real_teacher_invocation_during_runtime_claim_ordering": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -272,9 +275,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 59866,
-      "sha256": "532faa9f3494e4508ff7d83419ef4bba628530996a111e073c42ba626c11a0b3",
-      "git_blob": "f48616462af3bbd1f5bea6f312a7e8d24e77578b",
+      "bytes": 62710,
+      "sha256": "9e4d1c40efb6e8a668a5abaa68185d6e768cba191d9a7482bbbc4652d8a92b5d",
+      "git_blob": "58ca216209a98a9dff96bbdfb0fb923956a7502d",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -289,7 +292,10 @@
         "const arrayIncludes = Array.prototype.includes",
         "const reflectApply = Reflect.apply",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
-        "failureKind = error.failure_kind"
+        "failureKind = error.failure_kind",
+        "withLocalCheckpointAuthorization",
+        "storeLocalCheckpointReceipt",
+        "discardFloodgateV7DeploymentTeacherCheckpointV3Key"
       ]
     },
     {
@@ -334,9 +340,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 35949,
-      "sha256": "a9d77e74c8291d74dd888c622eca479edf3354e58825056bc489ee1baa4b58ff",
-      "git_blob": "400f755a35191d89862b0a2d09ec699b305e074c"
+      "bytes": 45307,
+      "sha256": "8f9d1d983204d723928cbd504b6d08b7405fc081b2573e39247f2c71fd5152e5",
+      "git_blob": "6968e30d34c0112ad89c21b9c366aeb270075ba2"
     }
   ],
   "validation": {

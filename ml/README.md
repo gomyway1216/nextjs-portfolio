@@ -186,6 +186,22 @@ timeoutではなく、historical inode / ctime固定とfresh copy-by-value closu
 [English article](../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md) /
 [machine evidence](../docs/data/floodgate-v7-local-clean-room-teacher-second-run-verification-stop-2026-07-19.json)を参照。
 
+#### Floodgate v7 ローカルcheckpoint runtime-claim順序修正（2026-07-19）
+
+実教師run前の再監査で、training-row runtime claimがconsumer callbackの同期呼び出し中だけ有効なのに、
+従来runnerはcallback内でcheckpoint key準備を`await`してからcheckpointを呼んでいたことを確認した。
+keyをconsumer前に準備し、callbackの同期区間でcheckpoint関数を直接呼んでからPromiseを待つ順序へ修正した。
+未使用keyは常にdiscardし、stage claim前後の成否にかかわらず同じidempotent lease-close Promiseへjoinする。
+operation / discard / closeの複数失敗もnested `AggregateError`で保持する。変更対象68 / 68、
+checkpointを含む独立再実行117 / 117、Node v22.13.0の最終関連実行121 / 121 PASS、
+PR前の実装review P0–P3は0件だった。最初のPR CIは旧evidence pin 2件で停止し、readiness reviewで
+P1 1件・P2 2件として検出した。pin、hermetic Git環境、review履歴を修正後、Node v22.13.0 focused
+runは82 / 82 PASSし、最終再reviewのP0–P3は0件になった。
+教師、label、学習、対局、AWS / GCP / Vercel call、live weight変更はすべて0である。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.md) /
+[English article](../docs/blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.en.md) /
+[machine evidence](../docs/data/floodgate-v7-local-checkpoint-runtime-claim-order-2026-07-19.json)を参照。
+
 #### Floodgate v7 sealed 24,000件のMacローカルfinalizer（2026-07-19）
 
 clean-room教師runnerが同じ認証済みstreamを100 → 500 → 24,000へ進めてsealした後だけ使う、

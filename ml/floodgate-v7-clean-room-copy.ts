@@ -21,7 +21,7 @@ export const FLOODGATE_V7_CLEAN_ROOM_COPY_CLAIM_BOUNDARY =
 export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT =
   "shogi-floodgate-v7-portable-copy-filesystem-witness-v1" as const;
 export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY =
-  "filesystem-only-source-preseal-post-verification-seal-copy-by-value-witness-composite-destination-closure-and-borrow-revalidation-not-source-semantic-verification-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
+  "filesystem-only-source-preseal-post-verification-seal-copy-by-value-witness-composite-destination-closure-and-borrow-pre-post-revalidation-not-callback-time-namespace-exclusivity-or-semantic-input-authenticity-source-semantic-verification-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
 
 const DIRECTORY_MODE = BigInt(0o700);
 const PRIVATE_FILE_MODE = 0o600;

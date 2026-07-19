@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FLOODGATE_V7_CLEAN_ROOM_COPY_CONTRACT,
+  FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY,
   FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT,
   copyFloodgateV7PortableSourceByValueCoreForTests,
   presealFloodgateV7PortableCopySource,
@@ -172,6 +173,9 @@ afterEach(async () => {
 
 describe("Floodgate v7 portable copy filesystem witness foundation", () => {
   it("seals four exact new-inode copies and revalidates three serialized borrows", async () => {
+    expect(FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY).toContain(
+      "not-callback-time-namespace-exclusivity-or-semantic-input-authenticity",
+    );
     const value = await fixture();
     const rawSource = await fs.promises.lstat(
       path.join(value.sources["raw-lock-tree"], "raw-lock-tree.txt"),

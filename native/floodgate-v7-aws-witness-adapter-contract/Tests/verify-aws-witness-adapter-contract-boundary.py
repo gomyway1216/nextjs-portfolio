@@ -254,6 +254,37 @@ def by_name_dependency(value: object) -> str:
     return value["byName"][0]
 
 
+def is_supported_filesystem_dependency(
+    value: object,
+) -> bool:
+    if not isinstance(value, dict):
+        return False
+    keys = set(value)
+    legacy_keys = {
+        "identity",
+        "path",
+        "productFilter",
+    }
+    swift_6_3_keys = legacy_keys | {"traits"}
+    if keys == legacy_keys:
+        pass
+    elif keys == swift_6_3_keys:
+        if value.get("traits") != [
+            {"name": "default"}
+        ]:
+            return False
+    else:
+        return False
+    return (
+        value.get("identity")
+        == PROTOCOL_PACKAGE_IDENTITY
+        and value.get("productFilter") is None
+        and isinstance(value.get("path"), str)
+        and Path(value["path"]).resolve()
+        == PROTOCOL_ROOT.resolve()
+    )
+
+
 def verify_package_graph(payload: dict) -> None:
     if payload.get("name") != TARGET:
         fail("package name drifted")
@@ -274,15 +305,8 @@ def verify_package_graph(payload: dict) -> None:
     ):
         fail("dependency is not the one local filesystem package")
     filesystem = dependency["fileSystem"][0]
-    if (
-        not isinstance(filesystem, dict)
-        or set(filesystem)
-        != {"identity", "path", "productFilter"}
-        or filesystem.get("identity")
-        != PROTOCOL_PACKAGE_IDENTITY
-        or filesystem.get("productFilter") is not None
-        or Path(str(filesystem.get("path"))).resolve()
-        != PROTOCOL_ROOT.resolve()
+    if not is_supported_filesystem_dependency(
+        filesystem
     ):
         fail("local protocol dependency identity or path drifted")
 
@@ -482,6 +506,82 @@ def synthetic_source_regressions() -> None:
     ):
         if not any(value in marker for value in FORBIDDEN_SOURCE_MARKERS):
             fail(f"forbidden-marker gate missed synthetic escape: {marker}")
+    legacy_dependency = {
+        "identity": PROTOCOL_PACKAGE_IDENTITY,
+        "path": str(PROTOCOL_ROOT),
+        "productFilter": None,
+    }
+    swift_6_3_dependency = {
+        **legacy_dependency,
+        "traits": [{"name": "default"}],
+    }
+    if (
+        not is_supported_filesystem_dependency(
+            legacy_dependency
+        )
+        or not is_supported_filesystem_dependency(
+            swift_6_3_dependency
+        )
+    ):
+        fail("supported SwiftPM dependency schema was rejected")
+    for mutation in (
+        {
+            **swift_6_3_dependency,
+            "nameForTargetDependencyResolutionOnly": None,
+        },
+        {
+            **swift_6_3_dependency,
+            "traits": [],
+        },
+        {
+            **swift_6_3_dependency,
+            "traits": None,
+        },
+        {
+            **swift_6_3_dependency,
+            "traits": [
+                {
+                    "name": "default",
+                    "condition": None,
+                }
+            ],
+        },
+        {
+            **swift_6_3_dependency,
+            "traits": [{"name": "other"}],
+        },
+        {
+            **swift_6_3_dependency,
+            "traits": [
+                {"name": "default"},
+                {"name": "other"},
+            ],
+        },
+        {
+            **legacy_dependency,
+            "productFilter": [],
+        },
+        {
+            **legacy_dependency,
+            "identity": "other-protocol",
+        },
+        {
+            **legacy_dependency,
+            "path": str(PROTOCOL_ROOT.parent),
+        },
+        {
+            **legacy_dependency,
+            "path": 7,
+        },
+        {
+            **legacy_dependency,
+            "unexpected": None,
+        },
+    ):
+        if is_supported_filesystem_dependency(
+            mutation
+        ):
+            fail("unsupported SwiftPM dependency schema was accepted")
 
 
 def main() -> None:

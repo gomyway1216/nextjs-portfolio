@@ -37,7 +37,16 @@
     "source_review_and_ci_ready_for_explicit_local_invocation": true,
     "postmerge_first_attempt_application_revision": "acdc3de9c3691d5719260b2d032586a13f5b56be",
     "postmerge_first_attempt_remediation_revision": "9cdaee882e80d7be8667b733505dd86bf3db5923",
-    "postmerge_first_attempt_remediation_tree": "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa"
+    "postmerge_first_attempt_remediation_tree": "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa",
+    "finalizer_branch_latest_main_revision_integrated": "88afd052c00865b4e7fce4ed25d81a94febb1637",
+    "finalizer_branch_integration_revision": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+    "finalizer_branch_integration_tree": "581bc6510e4f8c7728eaee5128fb887d85707969",
+    "finalizer_branch_integration_parents": [
+      "2d7f391824c0f520d168a64005361566a8edb73d",
+      "88afd052c00865b4e7fce4ed25d81a94febb1637"
+    ],
+    "finalizer_package_identity_refreshed_after_integration": true,
+    "real_teacher_invocation_during_finalizer_integration": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -242,9 +251,9 @@
     },
     {
       "path": "package.json",
-      "bytes": 8311,
-      "sha256": "603d38ca13a27b3de274b89893b11198902d37b5f608f9b496553b80a58f6f8f",
-      "git_blob": "be1df0004bcb9443c700b6bacf41c4dc4bb6e9c0",
+      "bytes": 8463,
+      "sha256": "788771f7a99a615159ebbd8b174dd85bad1f3a7fb80ab8cd7cf652a680467647",
+      "git_blob": "1814f3820a9e44da7df504a9b53c970a14004bd7",
       "required_markers": [
         "\"shogi:floodgate-v7-local-clean-room-teacher\"",
         "ml/run-floodgate-v7-local-clean-room-teacher.ts"
@@ -278,6 +287,14 @@
     }
   ],
   "validation": {
+    "finalizer_branch_integration_vitest": {
+      "files": 21,
+      "tests_passed": 199,
+      "tests_failed": 0,
+      "wall_duration_seconds": 141.35,
+      "parallel_aggregate_test_seconds": 573.43,
+      "result": "PASS"
+    },
     "focused_vitest": {
       "files": 4,
       "tests_passed": 47,

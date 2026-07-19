@@ -3,11 +3,13 @@
   "evidence_date": "2026-07-18",
   "evidence_timezone": "America/Los_Angeles",
   "publication_state": {
-    "status": "LOCAL-PASS-AWS-SYNC-REVIEW-GITHUB-CI-PENDING",
+    "status": "LOCAL-PASS-AWS-MERGED-POST-MERGE-MAIN-CI-PASS-CURRENT-BRANCH-GITHUB-CI-PENDING",
     "claims_final": false,
     "local_validation_final": true,
     "github_ci_measured": false,
-    "required_next_action": "merge-aws-adapter-contract-sync-main-add-aggregate-edge-review-and-run-github-ci"
+    "post_merge_main_ci_measured": true,
+    "current_branch_github_ci_measured": false,
+    "required_next_action": "final-review-open-ready-pr-and-run-current-branch-github-ci"
   },
   "revision": {
     "base_revision": "ec64549e429803d406383376162eaeb9456df9ef",
@@ -16,8 +18,17 @@
     "ci_wiring_tree": "51e294f7b0fd84b3c8816e56d9dc9f3aaf12bd0c",
     "audit_hardening_revision": "9d7abcb4aa1fe4a096220431009fa83237624d7e",
     "audit_hardening_tree": "9e17570ad02e77ab4278d1c7267c1688a83da0c2",
+    "aws_merge_pull_request": 508,
+    "aws_merge_revision": "42d8757dde054f969942b9995f6b254c845839c5",
+    "aws_merge_tree": "4a0ff5a8185119601321a9037347c3116f227f06",
+    "main_sync_revision": "2a9031513b190382f2fcfd5717fb8c87f4e92bdd",
+    "main_sync_tree": "01668c07863bdd593b6001d1c8a0de931d5066e5",
+    "first_rereview_revision": "4c923ccba48019b663b7df2c933d278a350d0de2",
+    "first_rereview_tree": "e6178ba92fac3e64caca78a900b2ae591d3ef8fa",
+    "second_rereview_revision": "a34b76fe3f3090c6b5a065632fb4423f9845ff41",
+    "second_rereview_tree": "0c3146232c8c82f1a30b597850039cca8eeaf3c4",
     "branch": "codex/ci-exact24k-parallel-shards",
-    "continuous_integration": "PENDING",
+    "continuous_integration": "POST-MERGE-MAIN-PASS-CURRENT-BRANCH-PENDING",
     "pull_request": null
   },
   "scope": {
@@ -167,8 +178,25 @@
     "inventory_and_adversarial_verifier_tests": {
       "status": "PASS",
       "files": 1,
-      "tests_passed": 8,
+      "tests_passed": 13,
       "tests_failed": 0
+    },
+    "first_rereview_focused_validation": {
+      "status": "PASS",
+      "runtime_not_separately_recorded": true,
+      "files": 5,
+      "tests_passed": 37,
+      "tests_failed": 0,
+      "vitest_duration_seconds": 2.89,
+      "process_wall_seconds": 3.17
+    },
+    "second_rereview_focused_validation": {
+      "status": "PASS",
+      "runtime": "node-22.13.0",
+      "files": 5,
+      "tests_passed": 37,
+      "tests_failed": 0,
+      "vitest_duration_seconds": 2.83
     },
     "historical_evidence_compatibility_focus": {
       "status": "PASS",
@@ -234,6 +262,55 @@
       "configuration_verified_structurally": true
     }
   },
+  "rereview_history": [
+    {
+      "round": 1,
+      "revision": "4c923ccba48019b663b7df2c933d278a350d0de2",
+      "finding_counts": {
+        "P1": 1,
+        "P2": 2
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "finding": "required component jobs did not all have exact allowed keys that reject job-level if and continue-on-error",
+          "resolution": "exact-key validate every required component job and add disabling mutations for all seven jobs"
+        },
+        {
+          "severity": "P2",
+          "finding": "scanner and Teacher ordered steps and upload action inputs were not fully exact",
+          "resolution": "require exact ordered steps, commands, action version, artifact name and path, missing-file mode, hidden-file inclusion, and retention"
+        },
+        {
+          "severity": "P2",
+          "finding": "scanner shard lookup and strict YAML mappings were not fully own-property and prototype safe",
+          "resolution": "use Object.hasOwn for shard IDs and null-prototype mappings with safe property definition and duplicate rejection"
+        }
+      ],
+      "validation": "5-files-37-tests-pass-runtime-not-separately-recorded"
+    },
+    {
+      "round": 2,
+      "revision": "a34b76fe3f3090c6b5a065632fb4423f9845ff41",
+      "finding_counts": {
+        "P1": 1,
+        "P2": 1
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "finding": "after AWS PR 508 merged, deleting the AWS job and both aggregate edges could shrink the dynamically constructed required set",
+          "resolution": "make aws_witness_adapter_contract an unconditional fixed required job and reject the complete deletion mutation"
+        },
+        {
+          "severity": "P2",
+          "finding": "the bilingual articles and evidence still described AWS merge, main sync, and remote main CI as pending",
+          "resolution": "record the exact merge and sync revisions, successful main CI and security run IDs, and the still-pending current-branch CI without claiming production connection"
+        }
+      ],
+      "validation": "5-files-37-tests-pass-node-22"
+    }
+  ],
   "audit_findings": [
     {
       "severity": "P1",
@@ -285,11 +362,36 @@
     "workflow_verification_is_structural": true,
     "scanner_and_teacher_hidden_artifacts_required": true,
     "missing_scanner_or_teacher_artifact_is_error": true,
-    "aws_witness_adapter_contract_present_in_base": false,
-    "aws_aggregate_edge_status": "PENDING-AFTER-AWS-PR-MERGE-AND-MAIN-SYNC",
-    "verifier_requires_aws_edge_when_aws_job_is_present": true,
+    "aws_witness_adapter_contract_present_in_initial_base": false,
+    "aws_witness_adapter_contract_present_after_main_sync": true,
+    "aws_aggregate_edge_status": "REQUIRED-AND-WIRED",
+    "verifier_requires_aws_job_unconditionally": true,
+    "verifier_rejects_aws_job_and_aggregate_edge_deletion": true,
+    "aws_contract_scope": "SOURCE-ONLY",
+    "aws_production_connected": false,
     "github_ci_critical_path_seconds": null,
-    "github_ci_critical_path_status": "UNMEASURED"
+    "github_ci_critical_path_status": "CURRENT-BRANCH-UNMEASURED"
+  },
+  "remote_ci": {
+    "post_merge_main_ci": {
+      "run_id": 29672131794,
+      "revision": "42d8757dde054f969942b9995f6b254c845839c5",
+      "status": "PASS",
+      "checks_passed": 5,
+      "checks_total": 5
+    },
+    "post_merge_main_security": {
+      "run_id": 29672131782,
+      "revision": "42d8757dde054f969942b9995f6b254c845839c5",
+      "status": "PASS",
+      "checks_passed": 1,
+      "checks_total": 1
+    },
+    "current_exact24k_branch": {
+      "status": "PENDING-NOT-YET-RUN",
+      "pull_request": null,
+      "production_authorization": false
+    }
   },
   "committed_candidate_snapshots": [
     {
@@ -400,19 +502,28 @@
       "sha256": "a6beca0b5cea87999cd62df93ca5ddf291d5a840e08ba8d35425c7abafb6071e"
     }
   ],
+  "rereview_hardening_snapshots": [
+    {
+      "path": "scripts/verify-exact24k-vitest-report.mjs",
+      "bytes": 26999,
+      "sha256": "0b05464050dbe13d5a938bfc9d29ee919855b5b35ed661a1f45f9134d5b97219"
+    },
+    {
+      "path": "tests/unit/ml/exact24kVitestInventory.test.ts",
+      "bytes": 20668,
+      "sha256": "ccb40b2c3af086c38c7ee0ce981e643c797ce2155f72dbe1fc607d36eceb08fb"
+    }
+  ],
   "local_test_only_critical_path": {
     "seconds": 138.589,
     "source": "five concurrent scanner shard processes",
     "github_ci_inference_allowed": false
   },
   "next_gates": [
+    "complete-final-local-validation",
     "exact-review-local-commits",
-    "merge-aws-witness-adapter-contract-first",
-    "sync-latest-main",
-    "add-aws-witness-adapter-contract-to-required-aggregate-needs-and-result-check",
-    "rerun-local-validation",
     "open-ready-for-review-pr",
-    "measure-and-pass-github-ci",
+    "measure-and-pass-current-branch-github-ci",
     "address-review-comments",
     "normal-merge"
   ]

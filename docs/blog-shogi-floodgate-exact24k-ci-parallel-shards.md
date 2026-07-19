@@ -2,7 +2,7 @@
 
 > これは評価関数を変更する作業ではなく、変更候補をより早く、同じ厳しさで検証するためのCI改善である。`ml/`、教師生成ロジック、学習データ、候補重み、ライブ重み、本番環境は変更していない。English version: [blog-shogi-floodgate-exact24k-ci-parallel-shards.en.md](./blog-shogi-floodgate-exact24k-ci-parallel-shards.en.md)
 
-> **Publication status: LOCAL VALIDATION PASS; AWS SYNC / REVIEW / GITHUB CI PENDING.** 5本のscanner shard、Teacher、6本を除外した通常unit、JSON reportのexact file / runtime case照合はローカルでPASSした。最新`main`とのAWS aggregate edge同期、PR review、GitHub CIは完了前である。したがって、この記録をremote CI PASSや本番変更の根拠へ読み替えない。
+> **Publication status: LOCAL VALIDATION PASS; AWS PR #508 MERGED; POST-MERGE MAIN CI PASS; CURRENT-BRANCH GITHUB CI PENDING.** AWS source-only contractは通常merge commit `42d8757dde054f969942b9995f6b254c845839c5`で`main`へ入り、このbranchもmerge commit `2a9031513b190382f2fcfd5717fb8c87f4e92bdd`で同期した。post-merge main CI run `29672131794`は5 / 5、security run `29672131782`は1 / 1で成功した。一方、このexact-24k branch自身のGitHub CIとPR reviewはまだ実行していない。AWS jobはsource-only / unconnectedのままで、production credential、network、service、ライブ重みには接続していない。
 
 ## 1. 結論
 
@@ -51,42 +51,48 @@ inventory自身もschema、24,000 parent、`[100, 500, 24000]` gate、5 shard、
 
 ## 4. required checkをfail closedに保つ
 
-既存branch protectionが見る名前を変えないため、最終aggregateは引き続き正確に`Test and build`である。ただし実作業はcore、scanner 5-way matrix、Teacher、external trust-root、Darwin、E2Eへ分け、aggregateは`if: always()`で全jobの`result == success`を明示的に要求する。途中jobがfail、cancel、skipになってもaggregateだけが緑になる経路を作らない。
+既存branch protectionが見る名前を変えないため、最終aggregateは引き続き正確に`Test and build`である。ただし実作業はcore、scanner 5-way matrix、Teacher、external trust-root、AWS source-only contract、Darwin、E2Eへ分け、aggregateは`if: always()`で全jobの`result == success`を明示的に要求する。途中jobがfail、cancel、skipになってもaggregateだけが緑になる経路を作らない。
 
-このbranchのbase revision `ec64549e429803d406383376162eaeb9456df9ef`には、並行開発中の`aws_witness_adapter_contract` jobがまだ存在しない。存在しないjobを`needs`へ書くとworkflow自体が無効になるため、AWS PRが通常mergeされた後に最新`main`へ同期し、そのjobをaggregateの`needs`とresult checkへ追加する。verifierはworkflow内にAWS jobを検出した時点で、このedgeがなければ必ず失敗する。
+初期base revision `ec64549e429803d406383376162eaeb9456df9ef`にはAWS jobがなかったが、[PR #508](https://github.com/gomyway1216/nextjs-portfolio/pull/508)は`42d8757d`として通常mergeされ、このbranchは`2a903151`でその`main`をmergeした。現在のworkflowでは`aws_witness_adapter_contract`を7本の固定required jobの一つとして無条件に要求する。AWS jobだけでなく、そのaggregate `need`とresult checkまで一緒に削除してrequired集合を縮める改ざんもrejectする。
+
+このrequired化はAWSを本番へ接続する操作ではない。job名どおりSDK-freeなsource contractとpublic surface / isolationを検証するだけで、AWS SDK client、credential、endpoint、network call、production connectorはいずれも接続していない。
 
 ## 5. ローカル検証と限界
 
 測定環境はmacOS arm64、14 physical / logical CPU、48 GiB RAM、Node 22.13.0、npm 11.14.1である。
 
-| 検証                                                | 結果                                      |
-| --------------------------------------------------- | ----------------------------------------- |
-| scanner shard                                       | **5 files / 19 tests / 10 suites PASS**   |
-| scanner JSON exact file / runtime-case verification | **5 / 5 PASS**                            |
-| inventory / adversarial verifier unit tests         | **8 / 8 PASS**                            |
-| Teacher exact file / 49-runtime-title verification  | **49 / 49 PASS、101.16秒**                |
-| core unit with six explicit exclusions              | **187 files、3,229 PASS、1 skip、0 fail** |
-| core unit wall                                      | **81.54秒**                               |
-| lint / workflow / evidence validation               | **PASS**                                  |
-| dependency-free ML contract                         | **119 / 119 PASS、11.59秒**               |
-| production build                                    | **PASS、28.87秒**                         |
-| local test-only critical path                       | **138.589秒（5 shard同時起動）**          |
-| GitHub Actions                                      | **PENDING — not yet run**                 |
-| production `ml/` source changes                     | **0**                                     |
-| teacher / training / A/B / external calibration     | **0 / 0 / 0 / 0**                         |
-| live weights / production execution                 | **0 / 0**                                 |
+| 検証                                                | 結果                                            |
+| --------------------------------------------------- | ----------------------------------------------- |
+| scanner shard                                       | **5 files / 19 tests / 10 suites PASS**         |
+| scanner JSON exact file / runtime-case verification | **5 / 5 PASS**                                  |
+| inventory / adversarial verifier unit tests         | **13 / 13 PASS（Node 22）**                     |
+| Teacher exact file / 49-runtime-title verification  | **49 / 49 PASS、101.16秒**                      |
+| core unit with six explicit exclusions              | **187 files、3,229 PASS、1 skip、0 fail**       |
+| core unit wall                                      | **81.54秒**                                     |
+| lint / workflow / evidence validation               | **PASS**                                        |
+| dependency-free ML contract                         | **119 / 119 PASS、11.59秒**                     |
+| production build                                    | **PASS、28.87秒**                               |
+| local test-only critical path                       | **138.589秒（5 shard同時起動）**                |
+| first rereview focused validation                   | **5 files / 37 tests PASS**                     |
+| final integrated rereview validation                | **5 files / 37 tests PASS（Node 22）**          |
+| post-merge `main` CI / security                     | **29672131794: 5 / 5、29672131782: 1 / 1 PASS** |
+| current exact-24k branch GitHub Actions             | **PENDING — not yet run**                       |
+| production `ml/` source changes                     | **0**                                           |
+| teacher / training / A/B / external calibration     | **0 / 0 / 0 / 0**                               |
+| live weights / production execution                 | **0 / 0**                                       |
 
 途中検証では三つの誤った前提も見つかった。第一に、Teacherはsource上の直接`it(...)`が40個でもparameterized case展開後は49 assertionsであり、最初の40-title inventoryはverifierが意図どおり拒否した。第二に、既存evidence testの一部が、歴史的workflow snapshotをpinすることと現在のworkflow全体を永久に同一byteへ固定することを混同し、またrepository全体に`upload-artifact`が1個しかないと仮定していた。歴史的revision / hashは変更せず、live external-trust-root job自身のexact stepを検証する境界へ修正した。第三に、汎用YAML packageを直接追加する案はproduction identity回帰testが拒否したため撤回した。依存追加なしのstrict structural parserへ置き換え、`package.json`とlockfileを元のexact byteへ戻した。
 
-実測できたlocal test-only critical pathは138.589秒である。GitHub上のqueue、checkout、`npm ci`、lint、buildを含むcritical pathはまだ測っていないため、分単位の予測値は証拠として掲載しない。remote CI、review、AWS edge同期が揃うまではこの候補をmerge-readyとしない。
+独立再レビューは二段階で行った。第一再レビューは**P1 1件 / P2 2件**だった。P1は全required jobのexact keyとjob-level `if` / `continue-on-error`拒否、P2はscanner / Teacherのexact ordered step・upload contract、およびown-property shard ID / prototype-safe YAML mappingの不足である。`4c923ccb`で修正し、改ざんnegative testを追加した。第二再レビューは**P1 1件 / P2 1件**だった。P1はAWS merge後もrequired集合をjob存在に応じて縮められたこと、P2は日英記事とevidenceがpre-merge pending表現のままだったことである。P1は`a34b76fe`でAWSを無条件requiredにして削除mutationを拒否し、P2は本節とmachine-readable evidenceで現在事実へ更新した。
+
+実測できたlocal test-only critical pathは138.589秒である。post-merge `main`のCI / securityは成功したが、現在のexact-24k branch headについてGitHub上のqueue、checkout、`npm ci`、lint、buildを含むcritical pathはまだ測っていない。AWS source contractもproductionへ未接続である。現branchのremote CIとreviewが揃うまではこの候補をmerge-readyとしない。
 
 ## 6. 次のgate
 
-1. 論理commitを分けてexact review
-2. AWS adapter contract PRを先に通常merge
-3. 最新`main`へ同期し、`aws_witness_adapter_contract`を`Test and build` aggregateへ追加
-4. inventory / workflow / evidence / unitを再検証
-5. ready-for-review PRでGitHub CIを測定し、失敗コメントを修正
-6. 全required checkがPASSしてから通常merge
+1. 分離したcode / evidence commitをfinal exact review
+2. inventory / workflow / evidence / unitをNode 22で再検証
+3. ready-for-review PRで現branchのGitHub CIを測定
+4. actionable review commentとCI failureだけを修正
+5. 全required checkがPASSしてから通常merge
 
 この変更は評価関数を強くしない。教師生成・再学習・候補選抜・formal A/B・外部校正を安全に反復する待ち時間を短くする基盤である。安定した高段、候補の優位、本番投入可否はいずれも未証明で、ライブ重みは変えない。

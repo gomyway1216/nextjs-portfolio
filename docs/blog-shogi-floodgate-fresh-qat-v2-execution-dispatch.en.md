@@ -141,10 +141,10 @@ A later decision could move large-scale teacher generation to different compute 
 
 The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the original remediation tests are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. The stateful-`PathLike` single-snapshot remediation is the separate commit `33d9b3139068fac69c44d368869006f5d5d919db`. History was not rewritten.
 
-The latest `main` revision `00f255a62e01ea5a980ada987682c994e76dd1f9`, including PR #513, was integrated by regular merge commit `038f6d7bc251c91547949a717daa056f363089cc`. That integration left the Fresh-QAT implementation paths unchanged and retained both the teacher-finalizer and Fresh-QAT command entries. Four PR-review findings covering path aliases, symlinks, and a malformed `PathLike` were fixed in `ade5554bdcc222183cd12183cbbfdb5301675c65`; the blocking/unbounded default-reader finding was fixed in `6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`. The result was revalidated as follows.
+The latest `main` revision `00f255a62e01ea5a980ada987682c994e76dd1f9`, including PR #513, was integrated by regular merge commit `038f6d7bc251c91547949a717daa056f363089cc`. That integration left the Fresh-QAT implementation paths unchanged and retained both the teacher-finalizer and Fresh-QAT command entries. Four PR-review findings covering path aliases, symlinks, and a malformed `PathLike` were fixed in `ade5554bdcc222183cd12183cbbfdb5301675c65`; the blocking/unbounded default-reader finding was fixed in `6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`. A subsequent self-review found an intermediate-directory replacement TOCTOU between the preliminary `lstat` and absolute `open`. Commit `91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7` now walks every directory component from the canonical repository root with held directory descriptors and `O_DIRECTORY | O_NOFOLLOW`, then opens the final file from the held parent with `O_NOFOLLOW | O_NONBLOCK`. Raw OS failures are normalized to label-only `ValueError` messages without absolute paths.
 
-- New v2 dispatch and routing tests: 24/24 PASS in 0.058 seconds
-- Full repository stdlib suite: 176/176 PASS in 12.029 seconds
+- New v2 dispatch and routing tests: 25/25 PASS in 0.050 seconds
+- Full repository stdlib suite: 177/177 PASS in 11.978 seconds
 - Python compilation: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS
@@ -153,7 +153,7 @@ The latest `main` revision `00f255a62e01ea5a980ada987682c994e76dd1f9`, including
 - Initial independent review: P0/P1/P2 = 0/1/2
 - Source-authentication remediation rereview: P0/P1/P2 = 0/0/1; the remaining stateful-`PathLike` finding is implemented and locally validated in `33d9b313`; final independent rereview is pending
 
-Adversarial coverage includes missing successors; near and symlink paths; v2-targeting `Path`, `bytes`, and `str` subclasses; stateful `PathLike` values that switch between a fallback and v2; wrong schemas; v1/v2/WCSC36 hybrids; Boolean-as-integer aliases; broken F+E accounting; partial, full, and all-forced declarations; proposal/train identity drift; exact-byte drift in input, completion, or train; unenrolled synthetic input/completion sources; self-asserted upstream values; replacement; slot drift; contract drift; authority escalation; duplicate keys; `NaN`; and predecessor-registry drift.
+Adversarial coverage includes missing successors; near and symlink paths; v2-targeting `Path`, `bytes`, and `str` subclasses; stateful `PathLike` values that switch between a fallback and v2; intermediate-directory rename-to-symlink replacement; final-file symlink replacement; redaction of private absolute paths from raw OS failures; wrong schemas; v1/v2/WCSC36 hybrids; Boolean-as-integer aliases; broken F+E accounting; partial, full, and all-forced declarations; proposal/train identity drift; exact-byte drift in input, completion, or train; unenrolled synthetic input/completion sources; self-asserted upstream values; replacement; slot drift; contract drift; authority escalation; duplicate keys; `NaN`; and predecessor-registry drift.
 
 The machine-readable record is [`floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json`](./data/floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json).
 

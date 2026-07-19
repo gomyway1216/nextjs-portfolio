@@ -21,14 +21,15 @@
     "path_snapshot_remediation_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
     "pull_request_path_remediation_commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
     "pull_request_regular_file_read_remediation_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
-    "test_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
-    "test_commit_tree": "95871599d7ab2abe54ce2e1bf5e7057dc5d9b753",
+    "pull_request_root_bound_openat_remediation_commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+    "test_commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+    "test_commit_tree": "d7d742b50f9fdcf13153d92b88afa65a53c24274",
     "history_rewritten": false,
     "files": {
       "dispatcher": {
         "path": "ml/fresh_qat_v2_execution_dispatch.py",
-        "bytes": 53145,
-        "sha256": "45e1b1086a9f3483d9e8ca845ca412895fea6f6d64d31a30b7ba39f7583ddf09"
+        "bytes": 59026,
+        "sha256": "b8a0ef66efa5965d2cf429fdc960863ea953fe46fde29828389a16d8e5017f0d"
       },
       "route_registry": {
         "path": "ml/qat_plan_registry.py",
@@ -44,8 +45,8 @@
       },
       "stdlib_tests": {
         "path": "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
-        "bytes": 36132,
-        "sha256": "f552584ccfdbb0ee474d37652fb4d6eb470f26dd79290e849a1ac884ada73a05"
+        "bytes": 41070,
+        "sha256": "d0792fea4320bc6991f010224e3c6464ed7664d05ab0a6900daac5003b149023"
       },
       "route_stdlib_tests": {
         "path": "ml/tests_stdlib/test_qat_plan_registry.py",
@@ -166,18 +167,18 @@
   },
   "local_validation": {
     "focused_v2_dispatch_and_registry": {
-      "tests": 24,
-      "passed": 24,
+      "tests": 25,
+      "passed": 25,
       "failed": 0,
-      "runner_seconds": 0.058,
-      "wall_seconds": 0.15
+      "runner_seconds": 0.05,
+      "wall_seconds": 0.1
     },
     "full_stdlib_suite": {
-      "tests": 176,
-      "passed": 176,
+      "tests": 177,
+      "passed": 177,
       "failed": 0,
-      "runner_seconds": 12.029,
-      "wall_seconds": 12.47,
+      "runner_seconds": 11.978,
+      "wall_seconds": 12.46,
       "command": "npm run test:ml:stdlib"
     },
     "python_compile": "PASS",
@@ -196,6 +197,9 @@
       "default-reader-fifo-device-and-symlink-preopen-rejection",
       "default-reader-exact-size-and-unbound-size-cap",
       "default-reader-lstat-open-fstat-identity-and-mutation-check",
+      "root-bound-held-directory-fd-intermediate-rename-to-symlink-rejection",
+      "root-bound-final-file-swap-to-symlink-rejection",
+      "root-bound-os-error-absolute-path-redaction",
       "wrong-successor-schema",
       "v1-plan-v2-route-hybrid",
       "v2-plan-wcsc36-contract-hybrid",
@@ -256,7 +260,8 @@
       "f9fee197def90681c1444dc68a646b7f5f06a936",
       "33d9b3139068fac69c44d368869006f5d5d919db",
       "ade5554bdcc222183cd12183cbbfdb5301675c65",
-      "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb"
+      "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+      "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7"
     ],
     "post_source_authentication_remediation_rereview": {
       "result": "CHANGES_REQUIRED",
@@ -294,6 +299,22 @@
       "unbound_successor_read_has_fixed_maximum_bytes": 1048576,
       "focused_tests": "24/24-PASS",
       "full_stdlib_tests": "176/176-PASS"
+    },
+    "pull_request_root_bound_openat_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+      "canonical_repository_root_held_by_directory_fd_chain": true,
+      "every_intermediate_component_uses_directory_and_no_follow": true,
+      "final_component_uses_no_follow_and_nonblocking": true,
+      "preopen_and_opened_file_device_inode_and_size_bound": true,
+      "bounded_read_and_postread_metadata_bound": true,
+      "raw_os_errors_redacted_to_label_only_value_error": true,
+      "external_input_ancestor_alias_semantics_preserved": true,
+      "intermediate_rename_to_symlink_test": "PASS",
+      "final_file_swap_to_symlink_test": "PASS",
+      "focused_tests": "25/25-PASS",
+      "full_stdlib_tests": "177/177-PASS",
+      "unrelated_ci_cleanup_flake_local_repetitions": "10/10-PASS-200/200-tests"
     },
     "final_independent_rereview": "PENDING"
   },

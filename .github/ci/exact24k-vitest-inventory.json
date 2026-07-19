@@ -1,0 +1,131 @@
+{
+  "schema": "floodgate-exact24k-vitest-inventory-v1",
+  "exact_parent_count": 24000,
+  "gates": [100, 500, 24000],
+  "core_exclusions": [
+    "tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts",
+    "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+    "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+    "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
+    "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+    "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts"
+  ],
+  "scanner_shards": [
+    {
+      "id": "authority",
+      "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+      "title": "runs exact 100/500/24000 gates and rejects invalid lease and key authorities",
+      "workflow_job": "exact24k_scanner",
+      "case_ids": [
+        "lease-capture-failure-preserves-active-lease",
+        "premature-terminal-reverify-aborts-zeroizes-releases",
+        "key-authority-rejection-after-unkeyed-preflight"
+      ]
+    },
+    {
+      "id": "mutation",
+      "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+      "title": "runs exact 100/500/24000 gates and rejects sink, path, and seal mutations",
+      "workflow_job": "exact24k_scanner",
+      "case_ids": [
+        "pass-two-sink-failure-aborts-zeroizes",
+        "named-path-replacement-rejected-after-held-scan",
+        "seal-mac-mutation-rejected-after-parent-stream"
+      ]
+    },
+    {
+      "id": "replay",
+      "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
+      "title": "runs exact 100/500/24000 gates and replays exact W/WT/WTR/WTRM parents",
+      "workflow_job": "exact24k_scanner",
+      "case_ids": [
+        "exact-two-pass-receipt-and-facade",
+        "production-replay-entrypoint-rejects-test-facade",
+        "cloned-facade-rejected",
+        "decorated-promise-rejected",
+        "replay-single-flight-and-terminal-exclusion",
+        "w-wt-wtr-wtrm-exact-replay"
+      ]
+    },
+    {
+      "id": "cleanup",
+      "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+      "title": "runs exact 100/500/24000 gates and preserves sticky aggregate cleanup failures",
+      "workflow_job": "exact24k_scanner",
+      "case_ids": [
+        "terminal-close-failure-zeroizes-and-retries",
+        "post-close-cleanup-failure-is-sticky",
+        "plan-discard-aggregate-cleanup-failure-is-sticky"
+      ]
+    },
+    {
+      "id": "production",
+      "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
+      "title": "runs exact 100/500/24000 gates and finalizes exact parent accounting",
+      "workflow_job": "exact24k_scanner",
+      "case_ids": [
+        "production-plan-invalid-input-rejected",
+        "exact24k-plan-finalizer-publication-success",
+        "result-manifest-forced-accounting",
+        "owned-keys-zeroized-and-stage-moved"
+      ]
+    }
+  ],
+  "teacher": {
+    "id": "teacher",
+    "file": "tests/unit/ml/floodgateV7TeacherCheckpoint.test.ts",
+    "workflow_job": "exact24k_teacher",
+    "direct_it_titles": 40,
+    "titles": [
+      "normalizes parser-valid signed zero at integer capture",
+      "captures producer-control timers only across Node's exact supported millisecond range",
+      "writes a private canonical parent chain in exact authenticated input order without touching a holdout sentinel",
+      "fsyncs an already sealed checkpoint before directory sync without calling the producer or rewriting bytes",
+      "fails a sealed retry closed when the authenticated work-file fsync fails",
+      "repeats search after a produced parent was not appended, but never repeats a durable parent",
+      "rejects the wrong root key, run, key ID, run binding, stage, or authenticated input before producing another parent",
+      "authenticates producer_control and rejects a resume with a changed parent deadline before production",
+      "rejects a historical v1 work.jsonl byte-for-byte without invoking either producer capability",
+      "rejects duplicate, reordered, post-seal, and fully re-signed wrong-parent records without changing them",
+      "rejects an oversized complete line during the byte scan without decoding, producing, or rewriting it",
+      "admits the exact total-byte ceiling to bounded framing but rejects one byte beyond it before reading",
+      "rejects a complete-record overflow before decoding or allocating excess-record storage",
+      "scans sealed work through bounded partial reads and returns the exact whole-stream digest",
+      "rejects a read hook that skips, repeats, or misreports the native positional read",
+      "rejects raw BOM bytes, invalid UTF-8, and CRLF without rewriting the stream",
+      "detects a size mutation between the incremental read snapshot stats",
+      "reconfirms that the final pathname still names the scanned inode",
+      "records a forced parent with a stable runtime binding and zero proposal rescores or labels",
+      "rejects a producer result for the wrong requested parent and preserves the exact parent cursor",
+      "pins valid and rejected producer observation against a poisoned Promise Symbol.species substitute",
+      "best-effort observes a decorated rejecting native Promise returned by produce without trusting its species result",
+      "best-effort observes a decorated rejecting native Promise returned by abortAndDrain without trusting its species result",
+      "isolates its copied key from caller mutation and never zeroizes or serializes the caller view",
+      "runs a bounded 12-parent window concurrently while committing reverse-completed work in exact input order",
+      "makes a fulfilled parent deadline timer permanently inert",
+      "surfaces abortAndDrain synchronous throw as aggregate cleanup failure without replacing the first producer cause",
+      "surfaces abortAndDrain synchronous throw undefined as aggregate cleanup failure without replacing the first producer cause",
+      "surfaces abortAndDrain non-Promise return as aggregate cleanup failure without replacing the first producer cause",
+      "surfaces abortAndDrain Promise rejection as aggregate cleanup failure without replacing the first producer cause",
+      "surfaces abortAndDrain Promise rejection undefined as aggregate cleanup failure without replacing the first producer cause",
+      "preserves the exact first producer cause when abortAndDrain and every raw producer drain cleanly",
+      "surfaces abort-drain timer setup failure with the first producer cause intact",
+      "surfaces abort-drain timer cancellation failure while a reentrant fire remains inert",
+      "keeps synchronous abort-drain timer fire authoritative across hook return",
+      "keeps synchronous abort-drain timer fire authoritative across hook throw",
+      "reports an unsettled abortAndDrain controller at the authenticated bound with zero raw producers pending",
+      "times out a never-settling producer, aborts once, bounds drain, and closes held resources",
+      "preserves the first middle rejection while quarantining never and late settlements without unhandled rejection",
+      "drains every launched producer after failure without scheduling or appending later parents",
+      "keeps a durable prefix resumable under the same binding after producer and raw-drain timeout",
+      "resumes from the exact durable cursor and schedules only the missing rolling window",
+      "recovers only an unsealed incomplete tail and preserves complete or post-seal corruption byte-for-byte",
+      "keeps a representative 14-candidate entry comfortably inside both per-line and 24k-parent capacity bounds",
+      "publishes only the exact fixed v3 gate contract and rejects non-exact options before persistence",
+      "keeps deployment-key arity and production/test registries fail closed before discarding an unclaimed capability",
+      "rejects short authenticated input at every v3 gate before creating work or producing",
+      "brands only successful deployment-key v3 receipt objects for one-shot test claims",
+      "advances authenticated v3 100/500/final-24000 gates and visits only verified sealed-final parents"
+    ]
+  }
+}

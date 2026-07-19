@@ -459,6 +459,36 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 )
             self.assertEqual(replay_calls, 0)
 
+    def test_operator_abort_is_not_rewritten_as_a_technical_fault(self):
+        for abort_type in (KeyboardInterrupt, SystemExit):
+            with self.subTest(abort=abort_type.__name__):
+                with tempfile.TemporaryDirectory() as temporary:
+                    fixture = ReadyFixture(temporary)
+
+                    def abort_first_game(request):
+                        if (
+                            request["pair_index"] == 0
+                            and request["game_index"] == 0
+                        ):
+                            raise abort_type("operator abort")
+                        return fixture.passing_receipt(request)
+
+                    with self.assertRaises(abort_type):
+                        launcher.run_ready_local_formal_ab_v2_core_for_tests(
+                            fixture.root,
+                            fixture.registry_path,
+                            fixture.receipts,
+                            abort_first_game,
+                        )
+                    journal = (
+                        fixture.receipts / launcher._pair_file_name(0)
+                    ).read_text(encoding="utf-8")
+                    events = [
+                        json.loads(line)["event"]
+                        for line in journal.splitlines()
+                    ]
+                    self.assertEqual(events, ["pair-started"])
+
     def test_wrong_receipt_identity_result_or_weight_is_a_technical_fault(self):
         mutations = (
             ("game_id", semantic_id(999)),

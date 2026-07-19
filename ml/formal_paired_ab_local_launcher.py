@@ -422,7 +422,7 @@ def _read_repo_relative_regular(
         require_read_only=require_read_only,
     )
     try:
-        with os.fdopen(os.dup(descriptor), "rb") as stream:
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
             if maximum_bytes is None:
                 return stream.read()
             return stream.read(maximum_bytes + 1)
@@ -753,7 +753,10 @@ def _validate_attempt_artifacts(
         "match_binding_sha256": match_binding_identity["sha256"],
     }
     for key, expected_value in expected_ledger_binding.items():
-        if type(ledger[key]) is not type(expected_value) or ledger[key] != expected_value:
+        if (
+            type(ledger[key]) is not type(expected_value)
+            or ledger[key] != expected_value
+        ):
             raise FormalAbLocalLauncherError(
                 f"local attempt ledger {key} differs from enrolled experiment"
             )
@@ -1204,7 +1207,7 @@ def _parse_pair_journal(
         ) from error
     try:
         _validate_pair_journal_descriptor(descriptor)
-        with os.fdopen(os.dup(descriptor), "rb") as stream:
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
             raw = stream.read()
     finally:
         os.close(descriptor)
@@ -1362,7 +1365,7 @@ def _run_one_pair(
                 pair,
                 game,
             )
-        except BaseException as error:
+        except Exception as error:
             fault_event = _technical_fault_event(
                 captured, pair, game, previous_sha256
             )
@@ -1432,7 +1435,7 @@ def run_ready_local_formal_ab_v2_core_for_tests(
             starts.append((pair, start_sha256))
 
         batch_results: dict[int, dict] = {}
-        first_error: BaseException | None = None
+        first_error: Exception | None = None
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
                 executor.submit(
@@ -1449,7 +1452,7 @@ def run_ready_local_formal_ab_v2_core_for_tests(
                 pair_index = futures[future]
                 try:
                     batch_results[pair_index] = future.result()
-                except BaseException as error:
+                except Exception as error:
                     if first_error is None:
                         first_error = error
         if first_error is not None:

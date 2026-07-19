@@ -80,6 +80,13 @@ export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_PACKAGE_SCRI
 const LOCAL_STATE_BASENAME = "local-run-v1";
 const LOCAL_INTEGRITY_KEY_FILENAME = "local-integrity-key.bin";
 const LOCAL_HANDOFF_FILENAME = "finalizer-handoff.json";
+const LOCAL_HANDOFF_CLAIM_FILENAME = "finalizer-handoff.claimed.json";
+const LOCAL_HANDOFF_CLAIM_SCHEMA =
+  "shogi-floodgate-v7-local-clean-room-finalizer-handoff-one-shot-claim-v1";
+const LOCAL_HANDOFF_CLAIM_STATUS =
+  "durably-consumed-before-stage-authorization";
+const LOCAL_FINALIZER_ENTRYPOINT_FILENAME =
+  "run-floodgate-v7-local-clean-room-training-label-finalizer.ts";
 const LOCAL_KEY_BYTES = 32;
 const MAX_HANDOFF_BYTES = 1024 * 1024;
 const PRIVATE_DIRECTORY_MODE = 0o700;
@@ -91,7 +98,6 @@ const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
 const objectPrototype = Object.prototype;
-const operationalHandoffMacs = new Set<string>();
 
 const HANDOFF_KEYS = Object.freeze([
   "schema",
@@ -266,6 +272,7 @@ export interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerReceipt {
     readonly fixed_deployment_key_revalidated: true;
     readonly fixed_stage_identity_revalidated: true;
     readonly exact_sealed_work_revalidated: true;
+    readonly durable_one_shot_replay_claimed: boolean;
     readonly sealed_scanner_and_finalizer_composed: true;
     readonly destination_content_reverified: true;
   }>;
@@ -738,6 +745,162 @@ async function readPrivateFile(
   }
 }
 
+function replayClaimBytes(
+  handoffMac: string,
+  runBindingSha256: string,
+  workSha256: string,
+): Buffer {
+  const payload = Object.freeze({
+    schema: LOCAL_HANDOFF_CLAIM_SCHEMA,
+    status: LOCAL_HANDOFF_CLAIM_STATUS,
+    handoff_mac_sha256: createHash("sha256")
+      .update(handoffMac, "utf8")
+      .digest("hex"),
+    run_binding_sha256: runBindingSha256,
+    work_sha256: workSha256,
+  });
+  return Buffer.from(`${canonicalJson(payload)}\n`, "utf8");
+}
+
+async function claimDurableHandoffOnce(
+  localStateRoot: string,
+  handoffMac: string,
+  runBindingSha256: string,
+  workSha256: string,
+): Promise<void> {
+  const uid = typeof process.geteuid === "function" ? process.geteuid() : -1;
+  if (
+    uid < 1 ||
+    !path.isAbsolute(localStateRoot) ||
+    path.normalize(localStateRoot) !== localStateRoot
+  ) {
+    throw new Error("private replay-claim directory differs");
+  }
+  const claimPath = path.join(localStateRoot, LOCAL_HANDOFF_CLAIM_FILENAME);
+  const claimBytes = replayClaimBytes(
+    digest(handoffMac, "handoff MAC"),
+    digest(runBindingSha256, "run binding digest"),
+    digest(workSha256, "work digest"),
+  );
+  try {
+    const directoryHandle = await fs.promises.open(
+      localStateRoot,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    try {
+      const directoryBefore = await directoryHandle.stat({ bigint: true });
+      const namedDirectoryBefore = await fs.promises.lstat(localStateRoot, {
+        bigint: true,
+      });
+      if (
+        (await fs.promises.realpath(localStateRoot)) !== localStateRoot ||
+        !directoryBefore.isDirectory() ||
+        directoryBefore.uid !== BigInt(uid) ||
+        Number(directoryBefore.mode & BigInt(MODE_MASK)) !==
+          PRIVATE_DIRECTORY_MODE ||
+        directoryBefore.dev !== namedDirectoryBefore.dev ||
+        directoryBefore.ino !== namedDirectoryBefore.ino
+      ) {
+        throw new Error("private replay-claim directory differs");
+      }
+
+      const claimHandle = await fs.promises.open(
+        claimPath,
+        fs.constants.O_WRONLY |
+          fs.constants.O_CREAT |
+          fs.constants.O_EXCL |
+          fs.constants.O_NOFOLLOW,
+        PRIVATE_FILE_MODE,
+      );
+      try {
+        const empty = await claimHandle.stat({ bigint: true });
+        if (
+          !empty.isFile() ||
+          empty.uid !== BigInt(uid) ||
+          empty.nlink !== BigInt(1) ||
+          Number(empty.mode & BigInt(MODE_MASK)) !== PRIVATE_FILE_MODE ||
+          empty.size !== BigInt(0)
+        ) {
+          throw new Error("private replay claim differs");
+        }
+        await claimHandle.writeFile(claimBytes);
+        await claimHandle.sync();
+        const written = await claimHandle.stat({ bigint: true });
+        const namedClaim = await fs.promises.lstat(claimPath, {
+          bigint: true,
+        });
+        const namedDirectoryAfter = await fs.promises.lstat(localStateRoot, {
+          bigint: true,
+        });
+        if (
+          (await fs.promises.realpath(claimPath)) !== claimPath ||
+          written.dev !== empty.dev ||
+          written.ino !== empty.ino ||
+          written.uid !== BigInt(uid) ||
+          written.nlink !== BigInt(1) ||
+          Number(written.mode & BigInt(MODE_MASK)) !== PRIVATE_FILE_MODE ||
+          written.size !== BigInt(claimBytes.byteLength) ||
+          written.dev !== namedClaim.dev ||
+          written.ino !== namedClaim.ino ||
+          directoryBefore.dev !== namedDirectoryAfter.dev ||
+          directoryBefore.ino !== namedDirectoryAfter.ino
+        ) {
+          throw new Error("private replay claim changed");
+        }
+      } finally {
+        await claimHandle.close();
+      }
+      await directoryHandle.sync();
+    } finally {
+      await directoryHandle.close();
+    }
+
+    const verified = await readPrivateFile(
+      claimPath,
+      claimBytes.byteLength,
+      claimBytes.byteLength,
+    );
+    try {
+      if (!timingSafeEqual(verified, claimBytes)) {
+        throw new Error("private replay claim content differs");
+      }
+    } finally {
+      verified.fill(0);
+    }
+  } finally {
+    claimBytes.fill(0);
+  }
+}
+
+/**
+ * Test-only filesystem seam for proving the durable one-shot primitive across
+ * independent processes. It cannot authorize a stage or finalize labels.
+ */
+export async function claimFloodgateV7LocalCleanRoomTrainingLabelHandoffOnceCoreForTests(
+  localStateRootValue: string,
+  handoffMacValue: string,
+  runBindingSha256Value: string,
+  workSha256Value: string,
+): Promise<void> {
+  if (
+    arguments.length !== 4 ||
+    typeof localStateRootValue !== "string" ||
+    typeof handoffMacValue !== "string" ||
+    typeof runBindingSha256Value !== "string" ||
+    typeof workSha256Value !== "string"
+  ) {
+    throw new Error("test replay-claim input differs");
+  }
+  await claimDurableHandoffOnce(
+    localStateRootValue,
+    handoffMacValue,
+    runBindingSha256Value,
+    workSha256Value,
+  );
+}
+
 async function loadFixedHandoff(): Promise<Readonly<LocalFinalizerHandoff>> {
   const root = fixedTargets().localStateRoot;
   const key = await readPrivateFile(
@@ -797,20 +960,13 @@ function assertStageBinding(
   }
 }
 
-function fileEvidence(
-  value: unknown,
-  expectedFilename: string,
-  label: string,
-) {
+function fileEvidence(value: unknown, expectedFilename: string, label: string) {
   const record = exactRecord(
     value,
     ["filename", "dev", "ino", "mode", "bytes", "sha256"],
     label,
   );
-  if (
-    record.filename !== expectedFilename ||
-    record.mode !== "0600"
-  ) {
+  if (record.filename !== expectedFilename || record.mode !== "0600") {
     throw new Error(`${label} differs`);
   }
   decimal(record.dev, `${label} device`);
@@ -882,6 +1038,7 @@ function buildReceipt(
       fixed_deployment_key_revalidated: true as const,
       fixed_stage_identity_revalidated: true as const,
       exact_sealed_work_revalidated: true as const,
+      durable_one_shot_replay_claimed: operational,
       sealed_scanner_and_finalizer_composed: true as const,
       destination_content_reverified: true as const,
     }),
@@ -1031,6 +1188,32 @@ export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForT
   );
 }
 
+function assertOperationalCommandContext(): void {
+  if (
+    process.platform !== "darwin" ||
+    typeof process.geteuid !== "function" ||
+    process.geteuid() < 1
+  ) {
+    throw new Error("Mac-local command context differs");
+  }
+  const repositoryRoot = path.resolve(__dirname, "..");
+  const entrypoint = path.join(__dirname, LOCAL_FINALIZER_ENTRYPOINT_FILENAME);
+  const entrypointStat = fs.lstatSync(entrypoint);
+  if (
+    fs.realpathSync(repositoryRoot) !== repositoryRoot ||
+    fs.realpathSync(process.cwd()) !== repositoryRoot ||
+    fs.realpathSync(entrypoint) !== entrypoint ||
+    !entrypointStat.isFile() ||
+    entrypointStat.isSymbolicLink() ||
+    (require.main?.filename ?? null) !== entrypoint ||
+    process.argv.length !== 2 ||
+    process.argv[0] !== process.execPath ||
+    path.resolve(process.argv[1] ?? "") !== entrypoint
+  ) {
+    throw new Error("dedicated local command context differs");
+  }
+}
+
 /** The sole operational entry point. Importing this module performs no I/O. */
 export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizer(): Promise<
   Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerReceipt>
@@ -1042,13 +1225,24 @@ export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizer(): Prom
       false,
     );
   }
+  try {
+    assertOperationalCommandContext();
+  } catch {
+    throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
+      "capture",
+      false,
+      false,
+    );
+  }
   let handoff: Readonly<LocalFinalizerHandoff>;
   try {
     handoff = await loadFixedHandoff();
-    if (operationalHandoffMacs.has(handoff.handoffMac)) {
-      throw new Error("private handoff was replayed");
-    }
-    operationalHandoffMacs.add(handoff.handoffMac);
+    await claimDurableHandoffOnce(
+      fixedTargets().localStateRoot,
+      handoff.handoffMac,
+      handoff.runBindingSha256,
+      handoff.work.sha256,
+    );
   } catch {
     throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
       "handoff",

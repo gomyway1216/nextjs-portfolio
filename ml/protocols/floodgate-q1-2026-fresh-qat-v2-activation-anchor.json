@@ -1,0 +1,83 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-v2-activation-anchor-v1",
+  "status": "permanently-closed-anchor-awaiting-additive-ready-successor",
+  "recorded_date": "2026-07-18",
+  "immutable_predecessors": {
+    "v1_plan_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "bytes": 409,
+      "sha256": "9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v1"
+    },
+    "v1_selection_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "bytes": 2294,
+      "sha256": "7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39",
+      "schema": "shogi-floodgate-fresh-qat-selection-preflight-registry-v1"
+    },
+    "closed_parent_accounting_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json",
+      "bytes": 3501,
+      "sha256": "97bd6c1839288f505d31e62904ba095a0ccd11a5dc1f5a58d37f21bea11e214c",
+      "schema": "shogi-floodgate-fresh-qat-plan-registry-v2"
+    }
+  },
+  "v2_route": {
+    "execution_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-execution-plan-v2"
+    },
+    "parent_accounting_proposal": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-proposal-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-parent-accounting-proposal-v2"
+    },
+    "train_jsonl": {
+      "path": "ml/data/floodgate-q1-2026-fresh-qat-v2/train.jsonl",
+      "format": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+    },
+    "allowed_schema_pair": {
+      "execution_plan": "shogi-floodgate-fresh-qat-execution-plan-v2",
+      "training_contract": "shogi-floodgate-fresh-qat-training-experiment-v1"
+    }
+  },
+  "ready_successor": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-ready-successor.json",
+    "schema": "shogi-floodgate-fresh-qat-v2-ready-successor-v1",
+    "publication": "additive-new-file-only-never-edit-this-anchor",
+    "present_at_anchor_publication": false
+  },
+  "fixed_parent_accounting": {
+    "input_parents": 24000,
+    "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+    "model_training_parents_source": "emitted_parent_groups",
+    "partial_emission_policy": "allow-only-when-exact-proposal-and-train-identities-agree",
+    "all_forced_policy": "STOP-without-training-contract"
+  },
+  "gates": {
+    "ready_successor_present": false,
+    "ready_successor_tracked": false,
+    "execution_plan_identity_verified": false,
+    "parent_accounting_proposal_identity_verified": false,
+    "train_identity_verified": false,
+    "parent_accounting_equation_verified": false,
+    "training_dispatch_ready": false
+  },
+  "authority": {
+    "artifact_read_authorized": false,
+    "torch_read_authorized": false,
+    "training_contract_issue_authorized": false,
+    "training_dispatch_authorized": false,
+    "selection_reader_authorized": false,
+    "holdout_reader_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "nonclaims": {
+    "teacher_labels_generated": false,
+    "artifacts_enrolled": false,
+    "training_executed": false,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

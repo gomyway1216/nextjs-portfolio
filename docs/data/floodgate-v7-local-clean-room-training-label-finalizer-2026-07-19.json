@@ -90,6 +90,28 @@
       "argumentless": true
     }
   },
+  "downstream_fresh_qat_integration": {
+    "latest_main_revision_integrated": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "integration_revision": "038f6d7bc251c91547949a717daa056f363089cc",
+    "integration_tree": "030f3c6b8787082d9d679f1ca96f422705ce5806",
+    "integration_parents": [
+      "586e4b810a6f13b6d49bd12823078456e01042c5",
+      "00f255a62e01ea5a980ada987682c994e76dd1f9"
+    ],
+    "finalizer_implementation_paths_unchanged": true,
+    "package_identity_refreshed": true,
+    "current_package_manifest": {
+      "path": "package.json",
+      "bytes": 8463,
+      "sha256": "788771f7a99a615159ebbd8b174dd85bad1f3a7fb80ab8cd7cf652a680467647",
+      "git_blob": "1814f3820a9e44da7df504a9b53c970a14004bd7",
+      "required_markers": [
+        "\"shogi:floodgate-v7-local-clean-room-teacher\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts\"",
+        "\"shogi:floodgate-v7-local-clean-room-training-label-finalizer\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts\"",
+        "\"test:ml:stdlib\""
+      ]
+    }
+  },
   "execution_boundary": {
     "contract": "shogi-floodgate-v7-local-clean-room-training-label-finalizer-v1",
     "operational_status": "authenticated-sealed-24000-local-training-label-artifacts-published",

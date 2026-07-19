@@ -179,12 +179,31 @@ class ReadyFixture:
                 },
             },
         )
+        self.experiment_id = semantic_id(10)
+        self.run_id = semantic_id(11)
+        self.openings_identity = identity_for(
+            self.root,
+            openings_path,
+            launcher.LOCAL_OPENINGS_MANIFEST_SCHEMA,
+        )
+        self.match_binding_identity = identity_for(
+            self.root,
+            binding_path,
+            launcher.LOCAL_MATCH_BINDING_SCHEMA,
+        )
 
         attempt_ledger_path = "local/formal-ab-v2-attempt-ledger.json"
         write_json(
             self.root / attempt_ledger_path,
             {
                 "schema": launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
+                "experiment_id": self.experiment_id,
+                "candidate_weights_sha256": binding_assets["candidate_weights"][
+                    "sha256"
+                ],
+                "stable_weights_sha256": binding_assets["stable_weights"]["sha256"],
+                "openings_manifest_sha256": self.openings_identity["sha256"],
+                "match_binding_sha256": self.match_binding_identity["sha256"],
                 "attempts": [],
             },
         )
@@ -197,8 +216,8 @@ class ReadyFixture:
             "source_registry": launcher._SOURCE_REGISTRY_IDENTITY,
             "plan": launcher._PLAN_IDENTITY,
             "protocol_amendment_sha256": launcher.FORMAL_AB_V2_AMENDMENT_SHA256,
-            "experiment_id": semantic_id(10),
-            "run_id": semantic_id(11),
+            "experiment_id": self.experiment_id,
+            "run_id": self.run_id,
             "attempt_index": 0,
             "attempt_ledger": identity_for(
                 self.root,
@@ -206,16 +225,8 @@ class ReadyFixture:
                 launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
             ),
             "rerun_authorization": None,
-            "openings_manifest": identity_for(
-                self.root,
-                openings_path,
-                launcher.LOCAL_OPENINGS_MANIFEST_SCHEMA,
-            ),
-            "match_binding": identity_for(
-                self.root,
-                binding_path,
-                launcher.LOCAL_MATCH_BINDING_SCHEMA,
-            ),
+            "openings_manifest": self.openings_identity,
+            "match_binding": self.match_binding_identity,
             "pair_workers": launcher.MAX_PAIR_WORKERS,
             "execution_boundary": (
                 "argumentless-local-only-reviewed-enrollment-no-network-aws-"
@@ -227,6 +238,57 @@ class ReadyFixture:
 
     def write_registry(self):
         write_json(self.registry_path, self.registry)
+
+    def enable_valid_rerun(self):
+        prior_run_id = semantic_id(9)
+        technical_fault_evidence_sha256 = digest(90)
+        ledger_path = self.root / self.registry["attempt_ledger"]["path"]
+        ledger_path.chmod(0o600)
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        ledger["attempts"] = [
+            {
+                "attempt_index": 0,
+                "run_id": prior_run_id,
+                "disposition": "technical-fault",
+                "technical_fault_evidence_sha256": technical_fault_evidence_sha256,
+                "result_unblinded": False,
+            }
+        ]
+        write_json(ledger_path, ledger)
+        ledger_path.chmod(0o400)
+        self.registry["attempt_ledger"] = identity_for(
+            self.root,
+            self.registry["attempt_ledger"]["path"],
+            launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
+        )
+
+        rerun_relative = "local/formal-ab-v2-rerun.json"
+        rerun_path = self.root / rerun_relative
+        write_json(
+            rerun_path,
+            {
+                "schema": launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+                "experiment_id": self.experiment_id,
+                "authorized_attempt_index": 1,
+                "authorized_run_id": self.run_id,
+                "prior_attempt_index": 0,
+                "prior_run_id": prior_run_id,
+                "attempt_ledger_sha256": self.registry["attempt_ledger"]["sha256"],
+                "technical_fault_evidence_sha256": technical_fault_evidence_sha256,
+                "authorization_basis": (
+                    "technical-fault-before-result-unblinding"
+                ),
+                "prior_result_unblinded": False,
+            },
+        )
+        rerun_path.chmod(0o400)
+        self.registry["attempt_index"] = 1
+        self.registry["rerun_authorization"] = identity_for(
+            self.root,
+            rerun_relative,
+            launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+        )
+        self.write_registry()
 
     @staticmethod
     def passing_receipt(request, result="draw"):
@@ -588,6 +650,95 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                     fixture.passing_receipt,
                 )
 
+    def test_short_journal_writes_are_completed_and_zero_write_stops_before_games(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            real_write = os.write
+            calls = 0
+
+            def execute(request):
+                nonlocal calls
+                calls += 1
+                return fixture.passing_receipt(request)
+
+            def short_write(descriptor, raw):
+                return real_write(
+                    descriptor,
+                    raw[: max(1, len(raw) // 2)],
+                )
+
+            with mock.patch.object(
+                launcher.os,
+                "write",
+                side_effect=short_write,
+            ):
+                result = launcher.run_ready_local_formal_ab_v2_core_for_tests(
+                    fixture.root,
+                    fixture.registry_path,
+                    fixture.receipts,
+                    execute,
+                )
+            self.assertEqual(calls, launcher.GAME_COUNT)
+
+            resumed_calls = 0
+
+            def must_not_replay(_request):
+                nonlocal resumed_calls
+                resumed_calls += 1
+                return {}
+
+            resumed = launcher.run_ready_local_formal_ab_v2_core_for_tests(
+                fixture.root,
+                fixture.registry_path,
+                fixture.receipts,
+                must_not_replay,
+            )
+            self.assertEqual(resumed_calls, 0)
+            self.assertEqual(resumed, result)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            calls = 0
+
+            def must_not_start(_request):
+                nonlocal calls
+                calls += 1
+                return {}
+
+            with mock.patch.object(launcher.os, "write", return_value=0):
+                with self.assertRaisesRegex(ValueError, "write was incomplete"):
+                    launcher.run_ready_local_formal_ab_v2_core_for_tests(
+                        fixture.root,
+                        fixture.registry_path,
+                        fixture.receipts,
+                        must_not_start,
+                    )
+            self.assertEqual(calls, 0)
+
+    def test_restrictive_umask_rejects_journal_before_any_game_callback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            fixture.receipts.mkdir(mode=0o700)
+            calls = 0
+
+            def must_not_start(_request):
+                nonlocal calls
+                calls += 1
+                return {}
+
+            previous_umask = os.umask(0o777)
+            try:
+                with self.assertRaisesRegex(ValueError, "0600 regular inode"):
+                    launcher.run_ready_local_formal_ab_v2_core_for_tests(
+                        fixture.root,
+                        fixture.registry_path,
+                        fixture.receipts,
+                        must_not_start,
+                    )
+            finally:
+                os.umask(previous_umask)
+            self.assertEqual(calls, 0)
+
     def test_match_binding_rejects_network_aws_live_or_nonexact_options(self):
         mutations = (
             ("network", True),
@@ -641,6 +792,38 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
         ):
             launcher.validate_pinned_ready_local_run_registry(REPO_ROOT)
 
+    def test_pinned_registry_accepts_normal_checkout_mode_and_keeps_exact_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            fixture.registry_path.chmod(0o644)
+            pinned_identity = identity_for(
+                fixture.root,
+                fixture.registry_path.relative_to(fixture.root).as_posix(),
+                launcher.LOCAL_RUN_REGISTRY_SCHEMA,
+            )
+            with mock.patch.object(
+                launcher,
+                "_PINNED_READY_RUN_REGISTRY_IDENTITY",
+                pinned_identity,
+            ):
+                captured = launcher.validate_pinned_ready_local_run_registry(
+                    fixture.root
+                )
+                self.assertEqual(
+                    captured["registry_sha256"],
+                    pinned_identity["sha256"],
+                )
+                fixture.registry_path.write_bytes(
+                    fixture.registry_path.read_bytes() + b" "
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "byte length differs|SHA-256 differs",
+                ):
+                    launcher.validate_pinned_ready_local_run_registry(
+                        fixture.root
+                    )
+
     def test_attempt_ledger_and_rerun_authorization_require_read_only_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
@@ -672,22 +855,8 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
-            rerun_path = fixture.root / "local/formal-ab-v2-rerun.json"
-            write_json(
-                rerun_path,
-                {
-                    "schema": launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
-                    "authorized_attempt": 1,
-                },
-            )
-            rerun_path.chmod(0o400)
-            fixture.registry["attempt_index"] = 1
-            fixture.registry["rerun_authorization"] = identity_for(
-                fixture.root,
-                "local/formal-ab-v2-rerun.json",
-                launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
-            )
-            fixture.write_registry()
+            fixture.enable_valid_rerun()
+            rerun_path = fixture.root / fixture.registry["rerun_authorization"]["path"]
             captured = (
                 launcher.validate_ready_local_run_registry_core_for_tests(
                     fixture.root, fixture.registry_path
@@ -702,6 +871,58 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "immutable read-only"):
                 launcher.validate_ready_local_run_registry_core_for_tests(
                     fixture.root, fixture.registry_path
+                )
+
+    def test_attempt_ledger_and_rerun_authorization_bind_exact_semantics(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            ledger_path = (
+                fixture.root / fixture.registry["attempt_ledger"]["path"]
+            )
+            ledger_path.chmod(0o600)
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            ledger["experiment_id"] = semantic_id(999)
+            write_json(ledger_path, ledger)
+            ledger_path.chmod(0o400)
+            fixture.registry["attempt_ledger"] = identity_for(
+                fixture.root,
+                fixture.registry["attempt_ledger"]["path"],
+                launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
+            )
+            fixture.write_registry()
+            with self.assertRaisesRegex(
+                ValueError,
+                "differs from enrolled experiment",
+            ):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root,
+                    fixture.registry_path,
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            fixture.enable_valid_rerun()
+            rerun_path = (
+                fixture.root / fixture.registry["rerun_authorization"]["path"]
+            )
+            rerun_path.chmod(0o600)
+            rerun = json.loads(rerun_path.read_text(encoding="utf-8"))
+            rerun["authorized_attempt_index"] = 0
+            write_json(rerun_path, rerun)
+            rerun_path.chmod(0o400)
+            fixture.registry["rerun_authorization"] = identity_for(
+                fixture.root,
+                fixture.registry["rerun_authorization"]["path"],
+                launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+            )
+            fixture.write_registry()
+            with self.assertRaisesRegex(
+                ValueError,
+                "local rerun authorization",
+            ):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root,
+                    fixture.registry_path,
                 )
 
     def test_every_repository_path_component_rejects_intermediate_symlinks(self):

@@ -207,6 +207,40 @@ _GAME_RECEIPT_FIELDS = frozenset(
         "technical_fault",
     }
 )
+_ATTEMPT_LEDGER_FIELDS = frozenset(
+    {
+        "schema",
+        "experiment_id",
+        "candidate_weights_sha256",
+        "stable_weights_sha256",
+        "openings_manifest_sha256",
+        "match_binding_sha256",
+        "attempts",
+    }
+)
+_ATTEMPT_RECORD_FIELDS = frozenset(
+    {
+        "attempt_index",
+        "run_id",
+        "disposition",
+        "technical_fault_evidence_sha256",
+        "result_unblinded",
+    }
+)
+_RERUN_AUTHORIZATION_FIELDS = frozenset(
+    {
+        "schema",
+        "experiment_id",
+        "authorized_attempt_index",
+        "authorized_run_id",
+        "prior_attempt_index",
+        "prior_run_id",
+        "attempt_ledger_sha256",
+        "technical_fault_evidence_sha256",
+        "authorization_basis",
+        "prior_result_unblinded",
+    }
+)
 _USI_MOVE_RE = re.compile(
     r"^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$"
 )
@@ -693,6 +727,104 @@ def _validate_match_binding(
     return dict(binding), captured_assets
 
 
+def _validate_attempt_artifacts(
+    *,
+    registry: Mapping,
+    attempt_ledger: Any,
+    attempt_ledger_identity: Mapping,
+    rerun_authorization: Any,
+    openings_manifest_identity: Mapping,
+    match_binding_identity: Mapping,
+    assets: Mapping[str, Mapping],
+) -> None:
+    """Bind the pre-run attempt state to this exact enrolled experiment."""
+
+    ledger = _exact_dict(
+        attempt_ledger,
+        _ATTEMPT_LEDGER_FIELDS,
+        "local attempt ledger",
+    )
+    expected_ledger_binding = {
+        "schema": LOCAL_ATTEMPT_LEDGER_SCHEMA,
+        "experiment_id": registry["experiment_id"],
+        "candidate_weights_sha256": assets["candidate_weights"]["sha256"],
+        "stable_weights_sha256": assets["stable_weights"]["sha256"],
+        "openings_manifest_sha256": openings_manifest_identity["sha256"],
+        "match_binding_sha256": match_binding_identity["sha256"],
+    }
+    for key, expected_value in expected_ledger_binding.items():
+        if type(ledger[key]) is not type(expected_value) or ledger[key] != expected_value:
+            raise FormalAbLocalLauncherError(
+                f"local attempt ledger {key} differs from enrolled experiment"
+            )
+
+    attempt_index = registry["attempt_index"]
+    attempts = ledger["attempts"]
+    if type(attempts) is not list or len(attempts) != attempt_index:
+        raise FormalAbLocalLauncherError(
+            "local attempt ledger must contain exactly the prior attempts"
+        )
+    if attempt_index == 0:
+        if rerun_authorization is not None:
+            raise FormalAbLocalLauncherError(
+                "first attempt cannot carry rerun authorization"
+            )
+        return
+
+    prior = _exact_dict(
+        attempts[0],
+        _ATTEMPT_RECORD_FIELDS,
+        "local attempt ledger.attempts[0]",
+    )
+    prior_run_id = _require_exact_semantic_id(
+        prior["run_id"],
+        "local attempt ledger.attempts[0].run_id",
+    )
+    if prior_run_id in (registry["experiment_id"], registry["run_id"]):
+        raise FormalAbLocalLauncherError(
+            "prior attempt run identity must differ from experiment and rerun"
+        )
+    evidence_sha256 = _require_exact_sha256(
+        prior["technical_fault_evidence_sha256"],
+        "local attempt ledger.attempts[0].technical_fault_evidence_sha256",
+    )
+    expected_prior = {
+        "attempt_index": 0,
+        "run_id": prior_run_id,
+        "disposition": "technical-fault",
+        "technical_fault_evidence_sha256": evidence_sha256,
+        "result_unblinded": False,
+    }
+    _require_exact_json(
+        prior,
+        expected_prior,
+        "local attempt ledger.attempts[0]",
+    )
+
+    authorization = _exact_dict(
+        rerun_authorization,
+        _RERUN_AUTHORIZATION_FIELDS,
+        "local rerun authorization",
+    )
+    expected_authorization = {
+        "schema": LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+        "experiment_id": registry["experiment_id"],
+        "authorized_attempt_index": 1,
+        "authorized_run_id": registry["run_id"],
+        "prior_attempt_index": 0,
+        "prior_run_id": prior_run_id,
+        "attempt_ledger_sha256": attempt_ledger_identity["sha256"],
+        "technical_fault_evidence_sha256": evidence_sha256,
+        "authorization_basis": "technical-fault-before-result-unblinding",
+        "prior_result_unblinded": False,
+    }
+    _require_exact_json(
+        authorization,
+        expected_authorization,
+        "local rerun authorization",
+    )
+
+
 def _validate_ready_local_run_registry_core_for_tests(
     repo_root: str | Path,
     registry_path: str | Path,
@@ -739,7 +871,11 @@ def _validate_ready_local_run_registry_core_for_tests(
             if expected_identity is not None
             else 8 * 1024 * 1024
         ),
-        require_read_only=expected_identity is not None,
+        # Git records only regular/executable modes and normally checks a
+        # tracked data file out as 0644.  Exact code-pinned path/bytes/hash/
+        # schema, no-follow opening, ownership, and single-link checks provide
+        # the production identity boundary without an impossible Git mode.
+        require_read_only=False,
     )
     if expected_identity is not None:
         if len(raw) != expected_identity["bytes"]:
@@ -790,7 +926,7 @@ def _validate_ready_local_run_registry_core_for_tests(
     attempt_index = registry["attempt_index"]
     if type(attempt_index) is not int or attempt_index not in (0, 1):
         raise FormalAbLocalLauncherError("attempt_index must be integer 0 or 1")
-    _attempt_ledger, attempt_ledger_identity, _ = _parse_identity_json(
+    attempt_ledger, attempt_ledger_identity, _ = _parse_identity_json(
         root,
         registry["attempt_ledger"],
         "local attempt ledger",
@@ -799,6 +935,7 @@ def _validate_ready_local_run_registry_core_for_tests(
     if attempt_ledger_identity["schema"] != LOCAL_ATTEMPT_LEDGER_SCHEMA:
         raise FormalAbLocalLauncherError("local attempt ledger schema differs")
     rerun = registry["rerun_authorization"]
+    rerun_authorization: dict | None = None
     rerun_identity: dict | None = None
     if attempt_index == 0:
         if rerun is not None:
@@ -806,7 +943,7 @@ def _validate_ready_local_run_registry_core_for_tests(
                 "first attempt cannot carry rerun authorization"
             )
     else:
-        _rerun_authorization, rerun_identity, _ = _parse_identity_json(
+        rerun_authorization, rerun_identity, _ = _parse_identity_json(
             root,
             rerun,
             "local rerun authorization",
@@ -832,6 +969,15 @@ def _validate_ready_local_run_registry_core_for_tests(
     )
     captured_pairs = _validate_openings_manifest(openings)
     captured_binding, captured_assets = _validate_match_binding(root, match_binding)
+    _validate_attempt_artifacts(
+        registry=registry,
+        attempt_ledger=attempt_ledger,
+        attempt_ledger_identity=attempt_ledger_identity,
+        rerun_authorization=rerun_authorization,
+        openings_manifest_identity=openings_identity,
+        match_binding_identity=match_identity,
+        assets=captured_assets,
+    )
     return {
         "registry_sha256": registry_sha256,
         "registry": dict(registry),
@@ -922,14 +1068,40 @@ def _event_bytes(event: Mapping) -> bytes:
     return f"{_canonical_json(event)}\n".encode("utf-8")
 
 
+def _write_all(descriptor: int, raw: bytes, label: str) -> None:
+    remaining = memoryview(raw)
+    while remaining:
+        try:
+            written = os.write(descriptor, remaining)
+        except OSError as error:
+            raise FormalAbLocalLauncherError(f"{label} write failed") from error
+        if type(written) is not int or written <= 0 or written > len(remaining):
+            raise FormalAbLocalLauncherError(f"{label} write was incomplete")
+        remaining = remaining[written:]
+
+
+def _validate_pair_journal_descriptor(descriptor: int) -> None:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        raise FormalAbLocalLauncherError(
+            "pair journal must be one current-user-owned 0600 regular inode"
+        )
+
+
 def _create_pair_journal(path_value: Path, start_event: Mapping) -> str:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     descriptor = os.open(path_value, flags, 0o600)
     try:
+        _validate_pair_journal_descriptor(descriptor)
         raw = _event_bytes(start_event)
-        os.write(descriptor, raw)
+        _write_all(descriptor, raw, "pair journal")
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
@@ -942,18 +1114,9 @@ def _append_pair_event(path_value: Path, event: Mapping) -> str:
         flags |= os.O_NOFOLLOW
     descriptor = os.open(path_value, flags)
     try:
-        metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_nlink != 1
-            or stat.S_IMODE(metadata.st_mode) != 0o600
-        ):
-            raise FormalAbLocalLauncherError(
-                "pair journal must be one current-user-owned 0600 regular inode"
-            )
+        _validate_pair_journal_descriptor(descriptor)
         raw = _event_bytes(event)
-        os.write(descriptor, raw)
+        _write_all(descriptor, raw, "pair journal")
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
@@ -1040,16 +1203,7 @@ def _parse_pair_journal(
             "pair journal must be one current-user-owned 0600 regular inode"
         ) from error
     try:
-        metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_nlink != 1
-            or stat.S_IMODE(metadata.st_mode) != 0o600
-        ):
-            raise FormalAbLocalLauncherError(
-                "pair journal must be one current-user-owned 0600 regular inode"
-            )
+        _validate_pair_journal_descriptor(descriptor)
         with os.fdopen(os.dup(descriptor), "rb") as stream:
             raw = stream.read()
     finally:
@@ -1308,6 +1462,12 @@ def run_ready_local_formal_ab_v2_core_for_tests(
             completed.append(batch_results[pair["pair_index"]])
         next_pair += len(batch)
 
+    journal_results = _load_completed_prefix(receipt_dir, captured)
+    _require_exact_json(
+        journal_results,
+        completed,
+        "completed pair journals",
+    )
     result = {
         "schema": FORMAL_AB_V2_RESULT_SCHEMA,
         "plan": _PLAN_IDENTITY,
@@ -1328,7 +1488,7 @@ def run_ready_local_formal_ab_v2_core_for_tests(
         "match_binding_sha256": captured["match_binding_identity"]["sha256"],
         "run_status": "complete",
         "technical_fault_count": 0,
-        "pairs": completed,
+        "pairs": journal_results,
     }
     recaptured = validate_ready_local_run_registry_core_for_tests(
         repo_root, registry_path

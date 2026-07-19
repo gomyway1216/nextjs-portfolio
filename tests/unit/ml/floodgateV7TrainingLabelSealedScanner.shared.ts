@@ -5,6 +5,7 @@ import * as path from "node:path";
 
 import { expect, vi } from "vitest";
 
+import { createExact24kScannerRuntimeReceiptRecorder } from "../../../scripts/exact24k-scanner-runtime-receipt.mjs";
 import {
   FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
   FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_TRUST_BOUNDARY,
@@ -830,7 +831,8 @@ export async function cleanupExact24kScannerFixtures(): Promise<void> {
   }
 }
 
-export async function runExact24kScannerAuthorityShard(): Promise<void> {
+export async function runExact24kScannerAuthorityShard() {
+  const cases = createExact24kScannerRuntimeReceiptRecorder("authority");
   const { value, deployment, work, publication } =
     await prepareExact24kScannerShard();
 
@@ -853,6 +855,7 @@ export async function runExact24kScannerAuthorityShard(): Promise<void> {
       { exclusiveRename: async () => undefined },
     ),
   ).rejects.toThrow(/sink must be a non-Proxy function/);
+  cases.pass("lease-capture-failure-preserves-active-lease");
 
   // A valid scanner in W state cannot consume terminal authority. The
   // failed terminal check aborts, zeroizes, and a later fresh open proves
@@ -919,6 +922,7 @@ export async function runExact24kScannerAuthorityShard(): Promise<void> {
   await expect(
     discardFloodgateV7TrainingLabelSealedScannerCoreForTests(premature.scanner),
   ).resolves.toBeUndefined();
+  cases.pass("premature-terminal-reverify-aborts-zeroizes-releases");
 
   // Internal key preparation happens only after a complete same-held-FD
   // unkeyed preflight. A rejected key authority aborts the transaction and
@@ -952,9 +956,12 @@ export async function runExact24kScannerAuthorityShard(): Promise<void> {
   ).rejects.toThrow(/home identity check failed/);
   expect(unkeyedPreflightReads).toBeGreaterThan(0);
   expect(escapedKeyPrepareScanner).toBeUndefined();
+  cases.pass("key-authority-rejection-after-unkeyed-preflight");
+  return cases.seal();
 }
 
-export async function runExact24kScannerMutationShard(): Promise<void> {
+export async function runExact24kScannerMutationShard() {
+  const cases = createExact24kScannerRuntimeReceiptRecorder("mutation");
   const { value, deployment, work, publication } =
     await prepareExact24kScannerShard();
 
@@ -996,6 +1003,7 @@ export async function runExact24kScannerMutationShard(): Promise<void> {
   expect(
     (await fs.promises.readdir(value.stageRoot)).sort(compareBytewise),
   ).toEqual([FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME]);
+  cases.pass("pass-two-sink-failure-aborts-zeroizes");
 
   // Replacing only the named path while pass two is backpressured cannot
   // redirect the held descriptor and is rejected at the enclosing path
@@ -1043,6 +1051,7 @@ export async function runExact24kScannerMutationShard(): Promise<void> {
     FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
   );
   expect(replacementKey?.every((byte) => byte === 0)).toBe(true);
+  cases.pass("named-path-replacement-rejected-after-held-scan");
 
   // A pass-two stream can authenticate every parent provisionally and still
   // fail its enclosing seal. No scanner escapes and the owned key is erased.
@@ -1096,9 +1105,12 @@ export async function runExact24kScannerMutationShard(): Promise<void> {
     FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
   );
   expect(badSealKey?.every((byte) => byte === 0)).toBe(true);
+  cases.pass("seal-mac-mutation-rejected-after-parent-stream");
+  return cases.seal();
 }
 
-export async function runExact24kScannerReplayShard(): Promise<void> {
+export async function runExact24kScannerReplayShard() {
+  const cases = createExact24kScannerRuntimeReceiptRecorder("replay");
   const { value, deployment, work, publication } =
     await prepareExact24kScannerShard();
 
@@ -1154,16 +1166,19 @@ export async function runExact24kScannerReplayShard(): Promise<void> {
   );
   expect(observedKey).toBeDefined();
   expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
+  cases.pass("exact-two-pass-receipt-and-facade");
 
   await expect(
     replayFloodgateV7TrainingLabelSealedScanner(scanner, async () => {}),
   ).rejects.toThrow(/other execution boundary/);
+  cases.pass("production-replay-entrypoint-rejects-test-facade");
   await expect(
     replayFloodgateV7TrainingLabelSealedScannerCoreForTests(
       { ...scanner },
       async () => {},
     ),
   ).rejects.toThrow(/cloned or foreign/);
+  cases.pass("cloned-facade-rejected");
 
   const decoratedPromise = Promise.resolve();
   Object.defineProperty(decoratedPromise, "scanner_test_marker", {
@@ -1176,6 +1191,7 @@ export async function runExact24kScannerReplayShard(): Promise<void> {
     ),
   ).rejects.toThrow(/must return an exact native Promise/);
   expect(observedKey?.some((byte) => byte !== 0)).toBe(true);
+  cases.pass("decorated-promise-rejected");
 
   const context =
     getFloodgateV7TrainingLabelSealedScannerPublicationContextCoreForTests(
@@ -1224,6 +1240,7 @@ export async function runExact24kScannerReplayShard(): Promise<void> {
   expect(concurrentReplayCalls).toBe(
     FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
   );
+  cases.pass("replay-single-flight-and-terminal-exclusion");
 
   for (const filename of ["result.json", "manifest.json"] as const) {
     await createOutputEntry(context.stageRoot, filename);
@@ -1242,9 +1259,12 @@ export async function runExact24kScannerReplayShard(): Promise<void> {
     discardFloodgateV7TrainingLabelSealedScannerCoreForTests(scanner),
   ).resolves.toBeUndefined();
   expect(observedKey?.every((byte) => byte === 0)).toBe(true);
+  cases.pass("w-wt-wtr-wtrm-exact-replay");
+  return cases.seal();
 }
 
-export async function runExact24kScannerCleanupShard(): Promise<void> {
+export async function runExact24kScannerCleanupShard() {
+  const cases = createExact24kScannerRuntimeReceiptRecorder("cleanup");
   const { value, deployment, work, publication } =
     await prepareExact24kScannerShard();
 
@@ -1303,6 +1323,7 @@ export async function runExact24kScannerCleanupShard(): Promise<void> {
   await expect(
     discardFloodgateV7TrainingLabelSealedScannerCoreForTests(scanner),
   ).resolves.toBeUndefined();
+  cases.pass("terminal-close-failure-zeroizes-and-retries");
 
   // A fresh scanner reuses the exact bound WTRM stage. Work close reports a
   // failure after the real close, while publication abort succeeds and
@@ -1359,6 +1380,7 @@ export async function runExact24kScannerCleanupShard(): Promise<void> {
     rememberedContextFailure = error;
   }
   expect(rememberedContextFailure).toBe(rememberedCleanupFailure);
+  cases.pass("post-close-cleanup-failure-is-sticky");
 
   // Plan-level cleanup combines a scanner post-close failure with a
   // publication abort failure and preserves the exact aggregate rejection.
@@ -1422,9 +1444,12 @@ export async function runExact24kScannerCleanupShard(): Promise<void> {
   await expect(
     discardFloodgateV7TrainingLabelProductionPlanCoreForTests(cleanupPlan),
   ).rejects.toBe(rememberedPlanCleanupFailure);
+  cases.pass("plan-discard-aggregate-cleanup-failure-is-sticky");
+  return cases.seal();
 }
 
-export async function runExact24kScannerProductionShard(): Promise<void> {
+export async function runExact24kScannerProductionShard() {
+  const cases = createExact24kScannerRuntimeReceiptRecorder("production");
   const { value, deployment, work, publication } =
     await prepareExact24kScannerShard();
 
@@ -1473,6 +1498,7 @@ export async function runExact24kScannerProductionShard(): Promise<void> {
       publication,
     ),
   ).rejects.toThrow();
+  cases.pass("production-plan-invalid-input-rejected");
   let productionPlan:
     Readonly<FloodgateV7TrainingLabelProductionPlanForTests> | undefined;
   const postflight =
@@ -1530,6 +1556,7 @@ export async function runExact24kScannerProductionShard(): Promise<void> {
     exact_entries: FLOODGATE_V7_TRAINING_LABEL_FINAL_ENTRIES,
     content_reverified: true,
   });
+  cases.pass("exact24k-plan-finalizer-publication-success");
   expect(e2eScannerCloseCalls).toBe(2);
   expect(e2eScannerKey?.every((byte) => byte === 0)).toBe(true);
   expect(preparedOutputKeys).toHaveLength(2);
@@ -1582,4 +1609,7 @@ export async function runExact24kScannerProductionShard(): Promise<void> {
     status:
       "durable-complete-training-label-artifact-set-ready-for-exclusive-publication",
   });
+  cases.pass("result-manifest-forced-accounting");
+  cases.pass("owned-keys-zeroized-and-stage-moved");
+  return cases.seal();
 }

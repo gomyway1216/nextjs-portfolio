@@ -3,6 +3,9 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { EXACT24K_SCANNER_CASE_IDS } from "./exact24k-scanner-runtime-receipt.mjs";
+import { parseStrictWorkflowYaml } from "./strict-workflow-yaml.mjs";
+
 export const EXACT24K_INVENTORY_SCHEMA =
   "floodgate-exact24k-vitest-inventory-v1";
 
@@ -127,6 +130,10 @@ export function validateExact24kInventory(inventory, options = {}) {
       `${shard.id}.workflow_job must be exact24k_scanner`,
     );
     assertUniqueStrings(shard.case_ids, `${shard.id}.case_ids`);
+    assert(
+      sameStringSet(shard.case_ids, EXACT24K_SCANNER_CASE_IDS[shard.id] ?? []),
+      `${shard.id}.case_ids must match its immutable runtime receipt cases`,
+    );
     scannerIds.push(shard.id);
     scannerFiles.push(shard.file);
     scannerTitles.push(shard.title);
@@ -169,13 +176,29 @@ export function validateExact24kInventory(inventory, options = {}) {
     "teacher.titles must contain exactly 49 runtime assertions",
   );
 
+  const scannerRuntimeSource = fs.readFileSync(
+    path.resolve(
+      repoRoot,
+      "tests/unit/ml/floodgateV7TrainingLabelSealedScanner.shared.ts",
+    ),
+    "utf8",
+  );
+  const runtimeCaseIds = [
+    ...scannerRuntimeSource.matchAll(/\bcases\.pass\(\s*"([^"]+)"\s*\)/g),
+  ].map((match) => match[1]);
+  assertUniqueStrings(runtimeCaseIds, "scanner runtime receipt case markers");
+  assert(
+    sameStringSet(runtimeCaseIds, allCaseIds),
+    "scanner runtime receipt markers must match all nineteen immutable case IDs",
+  );
+
   for (const shard of inventory.scanner_shards) {
     const sourcePath = path.resolve(repoRoot, shard.file);
     assert(fs.existsSync(sourcePath), `missing scanner file ${shard.file}`);
     const source = fs.readFileSync(sourcePath, "utf8");
     assert(
-      source.includes(shard.title),
-      `${shard.file} does not contain its exact inventory title`,
+      source.includes(`exact24kScannerCaseIds("${shard.id}")`),
+      `${shard.file} does not register its immutable runtime receipt cases`,
     );
   }
   const teacherSourcePath = path.resolve(repoRoot, inventory.teacher.file);
@@ -201,52 +224,150 @@ export function validateExact24kInventory(inventory, options = {}) {
   return inventory;
 }
 
-function occurrences(haystack, needle) {
-  return haystack.split(needle).length - 1;
+function workflowRecord(value, label) {
+  assert(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+    `${label} must be an object`,
+  );
+  return value;
 }
 
-function workflowSection(workflow, jobId, nextJobId) {
-  const startMarker = `\n  ${jobId}:\n`;
-  const start = workflow.indexOf(startMarker);
-  assert(start >= 0, `workflow is missing job ${jobId}`);
-  if (nextJobId === undefined) return workflow.slice(start);
-  const end = workflow.indexOf(
-    `\n  ${nextJobId}:\n`,
-    start + startMarker.length,
+function parseWorkflow(workflowSource) {
+  let workflow;
+  try {
+    workflow = parseStrictWorkflowYaml(workflowSource);
+  } catch (error) {
+    fail(
+      `workflow YAML is invalid: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  return workflowRecord(workflow, "workflow");
+}
+
+function workflowJob(jobs, jobId) {
+  assert(
+    Object.hasOwn(jobs, jobId),
+    `workflow is missing executable job ${jobId}`,
   );
-  assert(end > start, `workflow job ${jobId} has no ${nextJobId} boundary`);
-  return workflow.slice(start, end);
+  return workflowRecord(jobs[jobId], `workflow job ${jobId}`);
+}
+
+function workflowSteps(job, jobId) {
+  assert(Array.isArray(job.steps), `${jobId}.steps must be an array`);
+  return job.steps.map((step, index) =>
+    workflowRecord(step, `${jobId}.steps[${index}]`),
+  );
+}
+
+function namedStep(job, jobId, name) {
+  const matches = workflowSteps(job, jobId).filter(
+    (step) => step.name === name,
+  );
+  assert(
+    matches.length === 1,
+    `${jobId} must contain exactly one executable ${name} step`,
+  );
+  return matches[0];
+}
+
+function normalizedCommand(value, label) {
+  assert(typeof value === "string" && value.trim() !== "", `${label} is empty`);
+  const lines = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  assert(
+    lines.every((line) => !line.startsWith("#")),
+    `${label} must not use shell comments as wiring`,
+  );
+  return lines.join(" ").replaceAll(/\s+/g, " ");
+}
+
+function validateUploadStep(job, jobId, options) {
+  const step = namedStep(job, jobId, options.stepName);
+  assertExactKeys(step, ["name", "if", "uses", "with"], `${jobId} upload step`);
+  assert(
+    step.if === "always()",
+    `${jobId} upload step must execute with if: always()`,
+  );
+  assert(
+    step.uses === "actions/upload-artifact@v7",
+    `${jobId} upload step must use actions/upload-artifact@v7`,
+  );
+  assertExactKeys(
+    step.with,
+    [
+      "name",
+      "path",
+      "if-no-files-found",
+      "include-hidden-files",
+      "retention-days",
+    ],
+    `${jobId} upload inputs`,
+  );
+  assert(step.with.path === options.path, `${jobId} upload path drifted`);
+  assert(
+    step.with["if-no-files-found"] === "error",
+    `${jobId} missing report artifact must be an error`,
+  );
+  assert(
+    step.with["include-hidden-files"] === true,
+    `${jobId} must include hidden .artifacts files`,
+  );
+  assert(
+    step.with["retention-days"] === 14,
+    `${jobId} artifact retention must be 14 days`,
+  );
 }
 
 export function validateExact24kCiWiring(inventory, options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
-  const workflow = fs.readFileSync(
-    path.join(repoRoot, ".github/workflows/ci.yml"),
-    "utf8",
-  );
+  const workflowSource =
+    options.workflowSource ??
+    fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+  const workflow = parseWorkflow(workflowSource);
+  const jobs = workflowRecord(workflow.jobs, "workflow.jobs");
 
-  const coreSection = workflowSection(
-    workflow,
+  const coreJob = workflowJob(jobs, "core_quality_build");
+  const coreStep = namedStep(
+    coreJob,
     "core_quality_build",
-    "exact24k_scanner",
+    "Run core unit tests with all exact-24k files explicitly excluded",
   );
-  const actualExclusions = [
-    ...coreSection.matchAll(/(?:^|\s)--exclude\s+(\S+)/g),
-  ].map((match) => match[1]);
-  assertUniqueStrings(actualExclusions, "core workflow exclusions");
+  assertExactKeys(coreStep, ["name", "run"], "core exact-24k exclusion step");
+  const expectedCoreCommand = normalizedCommand(
+    `npm test -- ${inventory.core_exclusions
+      .map((file) => `--exclude ${file}`)
+      .join(" ")}`,
+    "expected core command",
+  );
   assert(
-    sameStringSet(actualExclusions, inventory.core_exclusions),
+    normalizedCommand(coreStep.run, "core exclusion command") ===
+      expectedCoreCommand,
     "core workflow exclusions must exactly match core_exclusions",
   );
 
-  const scannerSection = workflowSection(
-    workflow,
-    "exact24k_scanner",
-    "exact24k_teacher",
+  const scannerJob = workflowJob(jobs, "exact24k_scanner");
+  const scannerStrategy = workflowRecord(
+    scannerJob.strategy,
+    "exact24k_scanner.strategy",
   );
-  const matrixEntries = [
-    ...scannerSection.matchAll(/^\s+- id:\s+(\S+)\s*\n\s+file:\s+(\S+)\s*$/gm),
-  ].map((match) => ({ id: match[1], file: match[2] }));
+  const scannerMatrix = workflowRecord(
+    scannerStrategy.matrix,
+    "exact24k_scanner.strategy.matrix",
+  );
+  assert(
+    Array.isArray(scannerMatrix.include),
+    "scanner matrix.include must be an array",
+  );
+  const matrixEntries = scannerMatrix.include.map((entry, index) => {
+    assertExactKeys(entry, ["id", "file"], `scanner matrix.include[${index}]`);
+    assertUniqueStrings([entry.id], `scanner matrix.include[${index}].id`);
+    assertUniqueStrings([entry.file], `scanner matrix.include[${index}].file`);
+    return { id: entry.id, file: entry.file };
+  });
   assert(
     matrixEntries.length === inventory.scanner_shards.length,
     "scanner workflow matrix must contain exactly five ID/file entries",
@@ -255,76 +376,145 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     ({ id, file }) => `${id}\0${file}`,
   );
   const actualPairs = matrixEntries.map(({ id, file }) => `${id}\0${file}`);
+  assertUniqueStrings(actualPairs, "scanner workflow matrix pairs");
   assert(
     sameStringSet(actualPairs, expectedPairs),
     "scanner workflow ID/file pairs must exactly match the inventory",
   );
+  const scannerRunStep = namedStep(
+    scannerJob,
+    "exact24k_scanner",
+    "Run the exact scanner file",
+  );
+  assertExactKeys(scannerRunStep, ["name", "run"], "exact24k_scanner run step");
   assert(
-    scannerSection.includes('"${{ matrix.file }}"'),
-    "scanner workflow must pass matrix.file as the exact test path",
+    normalizedCommand(scannerRunStep.run, "scanner run command") ===
+      'npm test -- "${{ matrix.file }}" --reporter=json --outputFile=".artifacts/exact24k-scanner-${{ matrix.id }}.json"',
+    "scanner workflow must execute exactly matrix.file without title or generic sharding filters",
+  );
+  const scannerVerifyStep = namedStep(
+    scannerJob,
+    "exact24k_scanner",
+    "Verify the exact scanner file and title",
+  );
+  assertExactKeys(
+    scannerVerifyStep,
+    ["name", "run"],
+    "exact24k_scanner verifier step",
   );
   assert(
-    !/(?:^|\s)-t(?:\s|$)|--shard(?:\s|=|$)/m.test(scannerSection),
-    "scanner workflow must not select tests with -t or --shard",
+    normalizedCommand(scannerVerifyStep.run, "scanner verifier command") ===
+      'node scripts/verify-exact24k-vitest-report.mjs --target "${{ matrix.id }}" --report ".artifacts/exact24k-scanner-${{ matrix.id }}.json"',
+    "scanner workflow verifier command drifted",
   );
-  for (const shard of inventory.scanner_shards) {
-    assert(
-      occurrences(scannerSection, shard.file) === 1,
-      `scanner workflow must contain ${shard.file} exactly once`,
-    );
-  }
+  validateUploadStep(scannerJob, "exact24k_scanner", {
+    stepName: "Preserve the exact scanner report",
+    path: ".artifacts/exact24k-scanner-${{ matrix.id }}.json",
+  });
 
-  const teacherSection = workflowSection(
-    workflow,
+  const teacherJob = workflowJob(jobs, "exact24k_teacher");
+  const teacherRunStep = namedStep(
+    teacherJob,
     "exact24k_teacher",
-    "external_trust_root_protocol",
+    "Run the exact Teacher checkpoint file",
+  );
+  assertExactKeys(teacherRunStep, ["name", "run"], "exact24k_teacher run step");
+  assert(
+    normalizedCommand(teacherRunStep.run, "Teacher run command") ===
+      `npm test -- ${inventory.teacher.file} --reporter=json --outputFile=.artifacts/exact24k-teacher.json`,
+    "Teacher workflow must execute exactly its fixed file without title or generic sharding filters",
+  );
+  const teacherVerifyStep = namedStep(
+    teacherJob,
+    "exact24k_teacher",
+    "Verify the exact Teacher file and all forty-nine runtime titles",
+  );
+  assertExactKeys(
+    teacherVerifyStep,
+    ["name", "run"],
+    "exact24k_teacher verifier step",
   );
   assert(
-    occurrences(teacherSection, inventory.teacher.file) === 1,
-    "Teacher workflow must directly contain its exact file exactly once",
+    normalizedCommand(teacherVerifyStep.run, "Teacher verifier command") ===
+      "node scripts/verify-exact24k-vitest-report.mjs --target teacher --report .artifacts/exact24k-teacher.json",
+    "Teacher workflow verifier command drifted",
   );
-  assert(
-    teacherSection.includes("--target teacher"),
-    "Teacher workflow must verify the teacher inventory target",
-  );
-  assert(
-    !/(?:^|\s)-t(?:\s|$)|--shard(?:\s|=|$)/m.test(teacherSection),
-    "Teacher workflow must not select tests with -t or --shard",
-  );
+  validateUploadStep(teacherJob, "exact24k_teacher", {
+    stepName: "Preserve the exact Teacher report",
+    path: ".artifacts/exact24k-teacher.json",
+  });
 
-  const aggregateSection = workflowSection(workflow, "test_and_build");
+  const aggregateJob = workflowJob(jobs, "test_and_build");
+  assertExactKeys(
+    aggregateJob,
+    [
+      "name",
+      "if",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ],
+    "required aggregate job",
+  );
   assert(
-    /^\s+name:\s+Test and build\s*$/m.test(aggregateSection),
+    aggregateJob.name === "Test and build",
     "required aggregate name must be exactly Test and build",
   );
   assert(
-    /^\s+if:\s+\$\{\{\s*always\(\)\s*\}\}\s*$/m.test(aggregateSection),
+    aggregateJob.if === "${{ always() }}",
     "required aggregate must use if: always()",
   );
-  for (const requiredJob of [
+  const requiredJobs = [
     "core_quality_build",
     "exact24k_scanner",
     "exact24k_teacher",
     "external_trust_root_protocol",
     "darwin_exclusive_directory_rename",
     "e2e",
-  ]) {
-    assert(
-      aggregateSection.includes(`- ${requiredJob}`) &&
-        aggregateSection.includes(`needs.${requiredJob}.result`),
-      `required aggregate must fail closed on ${requiredJob}`,
-    );
+  ];
+  if (Object.hasOwn(jobs, "aws_witness_adapter_contract")) {
+    requiredJobs.push("aws_witness_adapter_contract");
   }
-  if (workflow.includes("\n  aws_witness_adapter_contract:\n")) {
-    assert(
-      aggregateSection.includes("- aws_witness_adapter_contract") &&
-        aggregateSection.includes("needs.aws_witness_adapter_contract.result"),
-      "required aggregate must fail closed on aws_witness_adapter_contract",
-    );
-  }
+  assertUniqueStrings(aggregateJob.needs, "required aggregate needs");
+  assert(
+    sameStringSet(aggregateJob.needs, requiredJobs),
+    "required aggregate needs must exactly cover every required CI component",
+  );
+  for (const requiredJob of requiredJobs) workflowJob(jobs, requiredJob);
+
+  const aggregateSteps = workflowSteps(aggregateJob, "test_and_build");
+  assert(
+    aggregateSteps.length === 1,
+    "required aggregate must contain exactly one fail-closed step",
+  );
+  const [aggregateStep] = aggregateSteps;
+  assertExactKeys(
+    aggregateStep,
+    ["name", "run"],
+    "required aggregate result step",
+  );
+  assert(
+    aggregateStep.name === "Require every CI component to succeed",
+    "required aggregate result step name drifted",
+  );
+  const actualResultCommands = aggregateStep.run
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const expectedResultCommands = requiredJobs.map(
+    (requiredJob) => `test "\${{ needs.${requiredJob}.result }}" = "success"`,
+  );
+  assert(
+    JSON.stringify(actualResultCommands) ===
+      JSON.stringify(expectedResultCommands),
+    "required aggregate must contain exactly one executable success check for every dependency",
+  );
+
   return Object.freeze({
     scanner_shards: matrixEntries.length,
-    core_exclusions: actualExclusions.length,
+    core_exclusions: inventory.core_exclusions.length,
     teacher_tests: inventory.teacher.titles.length,
     aggregate: "Test and build",
   });
@@ -334,7 +524,7 @@ export function expectedExact24kTarget(inventory, targetId) {
   if (targetId === inventory.teacher.id) return inventory.teacher;
   const shard = inventory.scanner_shards.find(({ id }) => id === targetId);
   assert(shard !== undefined, `unknown target ${targetId}`);
-  return Object.freeze({ ...shard, titles: [shard.title] });
+  return Object.freeze({ ...shard, titles: [...shard.case_ids] });
 }
 
 export function verifyExact24kVitestReport(report, expected, options = {}) {
@@ -358,9 +548,41 @@ export function verifyExact24kVitestReport(report, expected, options = {}) {
     ],
     "Vitest report",
   );
+  const counterNames = [
+    "numTotalTestSuites",
+    "numPassedTestSuites",
+    "numFailedTestSuites",
+    "numPendingTestSuites",
+    "numTotalTests",
+    "numPassedTests",
+    "numFailedTests",
+    "numPendingTests",
+    "numTodoTests",
+  ];
+  for (const counterName of counterNames) {
+    assert(
+      Number.isSafeInteger(report[counterName]) && report[counterName] >= 0,
+      `${counterName} must be a nonnegative safe integer`,
+    );
+  }
   assert(report.success === true, "Vitest report success must be true");
+  assert(
+    report.numTotalTestSuites === 2,
+    `expected exactly 2 Vitest suites, received ${report.numTotalTestSuites}`,
+  );
+  assert(
+    report.numPassedTestSuites === 2,
+    "both exact Vitest suites must pass",
+  );
   assert(report.numFailedTestSuites === 0, "failed suites must be zero");
   assert(report.numPendingTestSuites === 0, "pending suites must be zero");
+  assert(
+    report.numTotalTestSuites ===
+      report.numPassedTestSuites +
+        report.numFailedTestSuites +
+        report.numPendingTestSuites,
+    "suite counters must sum exactly",
+  );
   assert(report.numFailedTests === 0, "failed tests must be zero");
   assert(report.numPendingTests === 0, "pending tests must be zero");
   assert(report.numTodoTests === 0, "todo tests must be zero");
@@ -373,11 +595,20 @@ export function verifyExact24kVitestReport(report, expected, options = {}) {
     `expected ${expected.titles.length} passed tests`,
   );
   assert(
+    report.numTotalTests ===
+      report.numPassedTests +
+        report.numFailedTests +
+        report.numPendingTests +
+        report.numTodoTests,
+    "test counters must sum exactly",
+  );
+  assert(
     Array.isArray(report.testResults) && report.testResults.length === 1,
     "report must contain exactly one test file result",
   );
 
   const [fileResult] = report.testResults;
+  workflowRecord(fileResult, "Vitest file result");
   assert(
     path.resolve(fileResult.name) === path.resolve(repoRoot, expected.file),
     `report file must be exactly ${expected.file}`,
@@ -387,6 +618,13 @@ export function verifyExact24kVitestReport(report, expected, options = {}) {
     Array.isArray(fileResult.assertionResults),
     "assertionResults must be an array",
   );
+  assert(
+    fileResult.assertionResults.length === report.numTotalTests,
+    "assertionResults length must equal numTotalTests",
+  );
+  for (const [index, assertion] of fileResult.assertionResults.entries()) {
+    workflowRecord(assertion, `assertionResults[${index}]`);
+  }
   const actualTitles = fileResult.assertionResults.map(({ title }) => title);
   assertUniqueStrings(actualTitles, "reported test titles");
   assert(

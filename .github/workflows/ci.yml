@@ -120,7 +120,8 @@ jobs:
         with:
           name: exact24k-scanner-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}
           path: .artifacts/exact24k-scanner-${{ matrix.id }}.json
-          if-no-files-found: warn
+          if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
 
   exact24k_teacher:
@@ -162,7 +163,8 @@ jobs:
         with:
           name: exact24k-teacher-${{ github.sha }}-${{ github.run_attempt }}
           path: .artifacts/exact24k-teacher.json
-          if-no-files-found: warn
+          if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
 
   external_trust_root_protocol:

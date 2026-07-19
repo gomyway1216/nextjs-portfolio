@@ -280,8 +280,8 @@ def is_supported_filesystem_dependency(
         == PROTOCOL_PACKAGE_IDENTITY
         and value.get("productFilter") is None
         and isinstance(value.get("path"), str)
-        and Path(value["path"]).resolve()
-        == PROTOCOL_ROOT.resolve()
+        and value["path"]
+        == str(PROTOCOL_ROOT.resolve())
     )
 
 
@@ -508,7 +508,7 @@ def synthetic_source_regressions() -> None:
             fail(f"forbidden-marker gate missed synthetic escape: {marker}")
     legacy_dependency = {
         "identity": PROTOCOL_PACKAGE_IDENTITY,
-        "path": str(PROTOCOL_ROOT),
+        "path": str(PROTOCOL_ROOT.resolve()),
         "productFilter": None,
     }
     swift_6_3_dependency = {
@@ -568,6 +568,42 @@ def synthetic_source_regressions() -> None:
         {
             **legacy_dependency,
             "path": str(PROTOCOL_ROOT.parent),
+        },
+        {
+            **legacy_dependency,
+            "path": f"{PROTOCOL_ROOT.resolve()}/",
+        },
+        {
+            **legacy_dependency,
+            "path": str(
+                PROTOCOL_ROOT.parent
+                / ".."
+                / PROTOCOL_ROOT.parent.name
+                / PROTOCOL_ROOT.name
+            ),
+        },
+        {
+            **legacy_dependency,
+            "path": str(
+                PROTOCOL_ROOT.resolve()
+            ).replace("/native/", "//native/", 1),
+        },
+        {
+            **legacy_dependency,
+            "path": (
+                f"native/{PROTOCOL_PACKAGE_IDENTITY}"
+            ),
+        },
+        {
+            **legacy_dependency,
+            "path": (
+                f"{PROTOCOL_ROOT.resolve()}"
+                "/missing/.."
+            ),
+        },
+        {
+            **legacy_dependency,
+            "path": f"{PROTOCOL_ROOT.resolve()}\0",
         },
         {
             **legacy_dependency,

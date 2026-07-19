@@ -1070,18 +1070,50 @@ def _verify_artifact_identity(
     return raw
 
 
+def _exact_repository_path(
+    value: Any,
+    root: str,
+    relative_path: str,
+    mismatch_message: str,
+) -> str:
+    if type(value) is not str or not value:
+        raise ValueError(mismatch_message)
+    parts = tuple(part for part in relative_path.split("/") if part)
+    if not parts or any(part in (".", "..") for part in parts):
+        raise ValueError("fresh QAT v2 internal repository path mismatch")
+
+    expected = os.path.join(root, *parts)
+    absolute = os.path.abspath(value)
+    lexical_root = absolute
+    for _ in parts:
+        lexical_root = os.path.dirname(lexical_root)
+
+    if (
+        os.path.realpath(lexical_root) != root
+        or absolute != os.path.join(lexical_root, *parts)
+        or os.path.realpath(absolute) != expected
+    ):
+        raise ValueError(mismatch_message)
+
+    # A symlink may exist above the repository (for example /tmp on macOS),
+    # but no component selected inside the repository may be a symlink.
+    current = lexical_root
+    for part in parts:
+        current = os.path.join(current, part)
+        if os.path.islink(current):
+            raise ValueError(mismatch_message)
+    return expected
+
+
 def _exact_requested_plan_path(args: Any, root: str) -> str:
     value = getattr(args, "experiment_plan", None)
-    if type(value) is not str or not value:
-        raise ValueError("fresh QAT v2 requires an exact string plan path")
-    expected = os.path.join(root, FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH)
-    absolute = os.path.abspath(value)
-    if absolute != expected or os.path.realpath(value) != expected:
-        raise ValueError(
-            "fresh QAT v2 plan must be the exact non-symlink "
-            f"{FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH}"
-        )
-    return expected
+    return _exact_repository_path(
+        value,
+        root,
+        FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH,
+        "fresh QAT v2 plan must be the exact non-symlink "
+        f"{FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH}",
+    )
 
 
 def _validate_args_and_runtime(
@@ -1104,13 +1136,12 @@ def _validate_args_and_runtime(
     )
     if selected is None:
         raise ValueError("fresh QAT v2 seed is not preregistered")
-    expected_output = os.path.join(root, selected["output"])
-    if (
-        type(getattr(args, "out", None)) is not str
-        or os.path.abspath(args.out) != expected_output
-        or os.path.realpath(args.out) != expected_output
-    ):
-        raise ValueError("fresh QAT v2 output path mismatch")
+    _exact_repository_path(
+        getattr(args, "out", None),
+        root,
+        selected["output"],
+        "fresh QAT v2 output path mismatch",
+    )
     for field, expected in plan["runtime"].items():
         actual = training_runtime.get(field)
         if type(actual) is not type(expected) or actual != expected:
@@ -1149,6 +1180,12 @@ def _validate_args_and_runtime(
             args, "replay_excluded_position_ids", None
         ),
     }
+    _exact_repository_path(
+        input_paths["model_training"],
+        root,
+        FRESH_QAT_V2_TRAIN_RELATIVE_PATH,
+        "fresh QAT v2 model-training path mismatch",
+    )
     verified: dict[str, dict[str, Any]] = {}
     for field, path_value in input_paths.items():
         if type(path_value) is not str or not path_value:
@@ -1169,10 +1206,6 @@ def _validate_args_and_runtime(
             "bytes": len(raw),
             "sha256": hashlib.sha256(raw).hexdigest(),
         }
-    if os.path.abspath(input_paths["model_training"]) != os.path.join(
-        root, FRESH_QAT_V2_TRAIN_RELATIVE_PATH
-    ):
-        raise ValueError("fresh QAT v2 model-training path mismatch")
     return selected, verified
 
 

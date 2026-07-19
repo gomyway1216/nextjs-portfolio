@@ -32,7 +32,7 @@ def _plain_path_text(value: Any) -> str | None:
         return None
     try:
         return os.fsdecode(os.fspath(value))
-    except (TypeError, ValueError, UnicodeError, OSError):
+    except (TypeError, ValueError, UnicodeError, OSError, AttributeError):
         return None
 
 

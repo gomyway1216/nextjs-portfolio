@@ -418,6 +418,72 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             runtime_reader.assert_not_called()
             tracker.assert_called_once_with(anchor_path, "a" * 40)
 
+    def test_repository_alias_allows_only_external_ancestor_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            root = base / "repository"
+            root.mkdir()
+            relatives = (
+                DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH,
+                DISPATCH.FRESH_QAT_V2_TRAIN_RELATIVE_PATH,
+                "ml/data/floodgate-q1-2026-fresh-qat-v2/"
+                "seed42/model.pt",
+            )
+            for relative in relatives:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.touch()
+
+            alias = base / "repository-alias"
+            alias.symlink_to(root, target_is_directory=True)
+            for relative in relatives:
+                with self.subTest(relative=relative):
+                    expected = str(root / relative)
+                    self.assertEqual(
+                        DISPATCH._exact_repository_path(
+                            str(alias / relative),
+                            str(root),
+                            relative,
+                            "path mismatch",
+                        ),
+                        expected,
+                    )
+
+            inner_alias = root / "ml-alias"
+            inner_alias.symlink_to(root / "ml", target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "path mismatch"):
+                DISPATCH._exact_repository_path(
+                    str(
+                        inner_alias
+                        / "protocols"
+                        / Path(
+                            DISPATCH
+                            .FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
+                        ).name
+                    ),
+                    str(root),
+                    DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH,
+                    "path mismatch",
+                )
+
+            plan_path = (
+                root / DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
+            )
+            plan_target = plan_path.with_name("exact-plan-target.json")
+            plan_path.replace(plan_target)
+            plan_path.symlink_to(plan_target)
+            with self.assertRaisesRegex(ValueError, "path mismatch"):
+                DISPATCH._exact_repository_path(
+                    str(
+                        alias
+                        / DISPATCH
+                        .FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
+                    ),
+                    str(root),
+                    DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH,
+                    "path mismatch",
+                )
+
     def test_partial_and_full_emission_ready_shapes_are_valid(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = ready_fixture(Path(directory).resolve(), emitted=12_000)

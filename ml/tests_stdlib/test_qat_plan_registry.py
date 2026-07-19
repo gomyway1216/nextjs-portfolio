@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+import os
 import sys
 import tempfile
 import unittest
@@ -202,6 +203,19 @@ class QatPlanRegistryTests(unittest.TestCase):
         fresh.assert_not_called()
         fresh_v2.assert_not_called()
         wcsc36.assert_not_called()
+
+    def test_malformed_pathlike_attribute_error_is_captured_once(self):
+        class BrokenPath(os.PathLike):
+            def __init__(self):
+                self.calls = 0
+
+            def __fspath__(self):
+                self.calls += 1
+                raise AttributeError("malformed dynamic path")
+
+        broken = BrokenPath()
+        self.assertIsNone(REGISTRY._plain_path_text(broken))
+        self.assertEqual(broken.calls, 1)
 
     def test_artifact_schema_dispatch_preserves_legacy_and_separates_fresh(self):
         legacy = REGISTRY.resolve_qat_artifact_schemas(

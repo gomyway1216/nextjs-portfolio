@@ -180,6 +180,16 @@ class ReadyFixture:
             },
         )
 
+        attempt_ledger_path = "local/formal-ab-v2-attempt-ledger.json"
+        write_json(
+            self.root / attempt_ledger_path,
+            {
+                "schema": launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
+                "attempts": [],
+            },
+        )
+        (self.root / attempt_ledger_path).chmod(0o400)
+
         self.registry_path = self.root / "local/formal-ab-v2-run-registry.json"
         self.registry = {
             "schema": launcher.LOCAL_RUN_REGISTRY_SCHEMA,
@@ -190,8 +200,12 @@ class ReadyFixture:
             "experiment_id": semantic_id(10),
             "run_id": semantic_id(11),
             "attempt_index": 0,
-            "attempt_ledger_sha256": digest(12),
-            "rerun_authorization_sha256": None,
+            "attempt_ledger": identity_for(
+                self.root,
+                attempt_ledger_path,
+                launcher.LOCAL_ATTEMPT_LEDGER_SCHEMA,
+            ),
+            "rerun_authorization": None,
             "openings_manifest": identity_for(
                 self.root,
                 openings_path,
@@ -267,7 +281,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                     request, "win" if request["game_index"] == 0 else "loss"
                 )
 
-            result = launcher.run_ready_local_formal_ab_v2(
+            result = launcher.run_ready_local_formal_ab_v2_core_for_tests(
                 fixture.root,
                 fixture.registry_path,
                 fixture.receipts,
@@ -309,7 +323,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 resumed_calls += 1
                 raise AssertionError("complete pair was replayed")
 
-            resumed = launcher.run_ready_local_formal_ab_v2(
+            resumed = launcher.run_ready_local_formal_ab_v2_core_for_tests(
                 fixture.root,
                 fixture.registry_path,
                 fixture.receipts,
@@ -339,7 +353,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                     active -= 1
                 return fixture.passing_receipt(request)
 
-            launcher.run_ready_local_formal_ab_v2(
+            launcher.run_ready_local_formal_ab_v2_core_for_tests(
                 fixture.root,
                 fixture.registry_path,
                 fixture.receipts,
@@ -359,7 +373,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 launcher.FormalAbLocalTechnicalFault, "technical fault"
             ):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -375,7 +389,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 launcher.FormalAbLocalTechnicalFault, "terminal technical fault"
             ):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -403,7 +417,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                     return receipt
 
                 with self.assertRaises(launcher.FormalAbLocalTechnicalFault):
-                    launcher.run_ready_local_formal_ab_v2(
+                    launcher.run_ready_local_formal_ab_v2_core_for_tests(
                         fixture.root,
                         fixture.registry_path,
                         fixture.receipts,
@@ -430,7 +444,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                     return {}
 
                 with self.assertRaises(ValueError):
-                    launcher.run_ready_local_formal_ab_v2(
+                    launcher.run_ready_local_formal_ab_v2_core_for_tests(
                         fixture.root,
                         fixture.registry_path,
                         fixture.receipts,
@@ -445,7 +459,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 b"drifted"
             )
             with self.assertRaisesRegex(ValueError, "byte length differs|SHA-256 differs"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -490,7 +504,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 )
                 fixture.write_registry()
                 with self.assertRaises(ValueError):
-                    launcher.run_ready_local_formal_ab_v2(
+                    launcher.run_ready_local_formal_ab_v2_core_for_tests(
                         fixture.root,
                         fixture.registry_path,
                         fixture.receipts,
@@ -501,7 +515,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
     def test_receipt_tamper_unknown_entry_and_noncanonical_jsonl_fail_before_resume(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
-            launcher.run_ready_local_formal_ab_v2(
+            launcher.run_ready_local_formal_ab_v2_core_for_tests(
                 fixture.root,
                 fixture.registry_path,
                 fixture.receipts,
@@ -519,7 +533,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 return {}
 
             with self.assertRaisesRegex(ValueError, "binding differs|digest differs"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -529,7 +543,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
 
             pair_zero.write_bytes(original.replace(b",", b", ", 1))
             with self.assertRaisesRegex(ValueError, "canonical JSONL"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -540,7 +554,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             pair_zero.write_bytes(original)
             (fixture.receipts / "unexpected").write_text("x", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "unknown entry"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -553,7 +567,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             fixture = ReadyFixture(temporary)
             fixture.receipts.mkdir(mode=0o755)
             with self.assertRaisesRegex(ValueError, "0700"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
@@ -567,14 +581,14 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             target.write_text("{}\n", encoding="utf-8")
             os.symlink(target, fixture.receipts / "pair-000.jsonl")
             with self.assertRaisesRegex(ValueError, "0600 regular inode"):
-                launcher.run_ready_local_formal_ab_v2(
+                launcher.run_ready_local_formal_ab_v2_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
                     fixture.receipts,
                     fixture.passing_receipt,
                 )
 
-    def test_match_binding_rejects_network_aws_live_or_empty_options(self):
+    def test_match_binding_rejects_network_aws_live_or_nonexact_options(self):
         mutations = (
             ("network", True),
             ("aws", True),
@@ -596,7 +610,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 )
                 fixture.write_registry()
                 with self.assertRaises(ValueError):
-                    launcher.validate_ready_local_run_registry(
+                    launcher.validate_ready_local_run_registry_core_for_tests(
                         fixture.root, fixture.registry_path
                     )
 
@@ -612,8 +626,169 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
                 launcher.LOCAL_MATCH_BINDING_SCHEMA,
             )
             fixture.write_registry()
-            with self.assertRaisesRegex(ValueError, "nonempty"):
-                launcher.validate_ready_local_run_registry(
+            with self.assertRaisesRegex(ValueError, "deterministic options"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+    def test_production_ready_registry_route_stays_code_pinned_and_closed(self):
+        self.assertIsNone(launcher._PINNED_READY_RUN_REGISTRY_IDENTITY)
+        self.assertFalse(hasattr(launcher, "run_ready_local_formal_ab_v2"))
+        self.assertFalse(hasattr(launcher, "validate_ready_local_run_registry"))
+        with self.assertRaisesRegex(
+            launcher.FormalAbLocalLauncherBlocked,
+            "no code-pinned checked-in ready registry",
+        ):
+            launcher.validate_pinned_ready_local_run_registry(REPO_ROOT)
+
+    def test_attempt_ledger_and_rerun_authorization_require_read_only_artifacts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            fixture.registry["attempt_ledger"] = digest(901)
+            fixture.write_registry()
+            with self.assertRaisesRegex(ValueError, "fields are not exact"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            fixture.registry["attempt_index"] = 1
+            fixture.registry["rerun_authorization"] = digest(902)
+            fixture.write_registry()
+            with self.assertRaisesRegex(ValueError, "fields are not exact"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            ledger_path = fixture.root / fixture.registry["attempt_ledger"]["path"]
+            ledger_path.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, "immutable read-only"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            rerun_path = fixture.root / "local/formal-ab-v2-rerun.json"
+            write_json(
+                rerun_path,
+                {
+                    "schema": launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+                    "authorized_attempt": 1,
+                },
+            )
+            rerun_path.chmod(0o400)
+            fixture.registry["attempt_index"] = 1
+            fixture.registry["rerun_authorization"] = identity_for(
+                fixture.root,
+                "local/formal-ab-v2-rerun.json",
+                launcher.LOCAL_RERUN_AUTHORIZATION_SCHEMA,
+            )
+            fixture.write_registry()
+            captured = (
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+            )
+            self.assertEqual(
+                captured["rerun_authorization_identity"]["sha256"],
+                fixture.registry["rerun_authorization"]["sha256"],
+            )
+
+            rerun_path.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, "immutable read-only"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+    def test_every_repository_path_component_rejects_intermediate_symlinks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            outside = Path(temporary, "outside-assets")
+            outside.mkdir()
+            (outside / "candidate.bin").write_bytes(b"outside-candidate")
+            os.symlink(outside, fixture.root / "alias-assets")
+            binding_path = (
+                fixture.root / fixture.registry["match_binding"]["path"]
+            )
+            binding = json.loads(binding_path.read_text(encoding="utf-8"))
+            binding["assets"]["candidate_weights"] = identity_for(
+                fixture.root, "alias-assets/candidate.bin"
+            )
+            write_json(binding_path, binding)
+            fixture.registry["match_binding"] = identity_for(
+                fixture.root,
+                fixture.registry["match_binding"]["path"],
+                launcher.LOCAL_MATCH_BINDING_SCHEMA,
+            )
+            fixture.write_registry()
+            with self.assertRaisesRegex(ValueError, "cannot be opened safely"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            outside = Path(temporary, "outside-registry")
+            outside.mkdir()
+            shutil.copyfile(fixture.registry_path, outside / "ready.json")
+            os.symlink(outside, fixture.root / "alias-registry")
+            with self.assertRaisesRegex(ValueError, "cannot be opened safely"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, "alias-registry/ready.json"
+                )
+
+    def test_invalid_sfen_and_arbitrary_deterministic_options_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            manifest_path = (
+                fixture.root / fixture.registry["openings_manifest"]["path"]
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            opening = {"sfen": "not-a-valid-sfen", "usi_moves": []}
+            opening_id = launcher._expected_opening_id(opening)
+            manifest["pairs"][0]["opening"] = opening
+            manifest["pairs"][0]["opening_id"] = opening_id
+            for game_index, color in enumerate(("sente", "gote")):
+                manifest["pairs"][0]["games"][game_index]["game_id"] = (
+                    launcher._expected_game_id(
+                        opening_id, 0, game_index, color
+                    )
+                )
+            write_json(manifest_path, manifest)
+            fixture.registry["openings_manifest"] = identity_for(
+                fixture.root,
+                fixture.registry["openings_manifest"]["path"],
+                launcher.LOCAL_OPENINGS_MANIFEST_SCHEMA,
+            )
+            fixture.write_registry()
+            with self.assertRaisesRegex(ValueError, "not canonical SFEN"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root, fixture.registry_path
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReadyFixture(temporary)
+            binding_path = (
+                fixture.root / fixture.registry["match_binding"]["path"]
+            )
+            binding = json.loads(binding_path.read_text(encoding="utf-8"))
+            binding["deterministic_options"] = {
+                "time_ms": -1,
+                "network_endpoint": "https://example.invalid",
+            }
+            write_json(binding_path, binding)
+            fixture.registry["match_binding"] = identity_for(
+                fixture.root,
+                fixture.registry["match_binding"]["path"],
+                launcher.LOCAL_MATCH_BINDING_SCHEMA,
+            )
+            fixture.write_registry()
+            with self.assertRaisesRegex(ValueError, "deterministic options"):
+                launcher.validate_ready_local_run_registry_core_for_tests(
                     fixture.root, fixture.registry_path
                 )
 

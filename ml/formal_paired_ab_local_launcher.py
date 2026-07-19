@@ -2,8 +2,9 @@
 
 The checked-in v2 registry is intentionally closed, so the argumentless CLI
 always stops before creating a receipt directory or invoking a match adapter.
-The dependency-injected core defines the future data-only execution boundary
-and is exercised only with stub games in unit tests.
+The dependency-injected executable core is explicitly test-only.  A future
+production activation must add one code-pinned checked-in ready-registry
+identity; no production function accepts a caller-selected registry.
 """
 
 from __future__ import annotations
@@ -25,8 +26,12 @@ from formal_paired_ab_protocol import (
     FRESH_SIBLING_PLAN_PATH,
     FRESH_SIBLING_PLAN_SCHEMA,
     FRESH_SIBLING_PLAN_SHA256,
+    validate_closed_formal_ab_registry_data,
 )
 from formal_paired_ab_protocol_v2 import (
+    FORMAL_AB_V2_AMENDMENT_BYTES,
+    FORMAL_AB_V2_AMENDMENT_PATH,
+    FORMAL_AB_V2_AMENDMENT_SCHEMA,
     FORMAL_AB_V2_AMENDMENT_SHA256,
     FORMAL_AB_V2_REGISTRY_BYTES,
     FORMAL_AB_V2_REGISTRY_PATH,
@@ -34,14 +39,20 @@ from formal_paired_ab_protocol_v2 import (
     FORMAL_AB_V2_REGISTRY_SHA256,
     FORMAL_AB_V2_RESULT_SCHEMA,
     GAME_COUNT,
+    ORIGINAL_V1_REGISTRY_BYTES,
+    ORIGINAL_V1_REGISTRY_PATH,
+    ORIGINAL_V1_REGISTRY_SCHEMA,
+    ORIGINAL_V1_REGISTRY_SHA256,
     PAIR_COUNT,
     _require_exact_json,
     _require_exact_semantic_id,
     _require_exact_sha256,
     _strict_json_loads,
     decode_pair_score_units,
-    validate_closed_formal_ab_v2_registry,
+    validate_closed_formal_ab_v2_registry_data,
+    validate_formal_ab_v2_amendment_data,
 )
+from fresh_qat_parent_accounting_v2 import _normalized_sfen
 
 
 LOCAL_RUN_REGISTRY_SCHEMA = "shogi-floodgate-formal-paired-ab-local-run-registry-v1"
@@ -59,11 +70,27 @@ LOCAL_GAME_RECEIPT_SCHEMA = (
     "shogi-floodgate-formal-paired-ab-local-game-receipt-v1"
 )
 LOCAL_CLI_RECEIPT_SCHEMA = "shogi-floodgate-formal-paired-ab-local-cli-receipt-v1"
+LOCAL_ATTEMPT_LEDGER_SCHEMA = (
+    "shogi-floodgate-formal-paired-ab-local-attempt-ledger-v1"
+)
+LOCAL_RERUN_AUTHORIZATION_SCHEMA = (
+    "shogi-floodgate-formal-paired-ab-local-rerun-authorization-v1"
+)
 
 MAX_PAIR_WORKERS = 6
 ZERO_SHA256 = "0" * 64
 PAIR_FILE_PREFIX = "pair-"
 PAIR_FILE_SUFFIX = ".jsonl"
+
+# Production remains closed.  A future reviewed code change must replace this
+# with an exact path/bytes/SHA-256/schema identity for one checked-in ready
+# registry.  The executable injected core below remains CoreForTests.
+_PINNED_READY_RUN_REGISTRY_IDENTITY: dict[str, Any] | None = None
+
+_CORE_FOR_TESTS_DETERMINISTIC_OPTIONS = {
+    "fixture_only": True,
+    "options_are_pinned_not_interpreted_by_launcher": True,
+}
 
 _PLAN_IDENTITY = {
     "path": FRESH_SIBLING_PLAN_PATH,
@@ -76,6 +103,18 @@ _SOURCE_REGISTRY_IDENTITY = {
     "bytes": FORMAL_AB_V2_REGISTRY_BYTES,
     "sha256": FORMAL_AB_V2_REGISTRY_SHA256,
     "schema": FORMAL_AB_V2_REGISTRY_SCHEMA,
+}
+_AMENDMENT_IDENTITY = {
+    "path": FORMAL_AB_V2_AMENDMENT_PATH,
+    "bytes": FORMAL_AB_V2_AMENDMENT_BYTES,
+    "sha256": FORMAL_AB_V2_AMENDMENT_SHA256,
+    "schema": FORMAL_AB_V2_AMENDMENT_SCHEMA,
+}
+_ORIGINAL_V1_REGISTRY_IDENTITY = {
+    "path": ORIGINAL_V1_REGISTRY_PATH,
+    "bytes": ORIGINAL_V1_REGISTRY_BYTES,
+    "sha256": ORIGINAL_V1_REGISTRY_SHA256,
+    "schema": ORIGINAL_V1_REGISTRY_SCHEMA,
 }
 
 _IDENTITY_FIELDS = frozenset({"path", "bytes", "sha256"})
@@ -90,8 +129,8 @@ _RUN_REGISTRY_FIELDS = frozenset(
         "experiment_id",
         "run_id",
         "attempt_index",
-        "attempt_ledger_sha256",
-        "rerun_authorization_sha256",
+        "attempt_ledger",
+        "rerun_authorization",
         "openings_manifest",
         "match_binding",
         "pair_workers",
@@ -220,10 +259,7 @@ def _semantic_id(domain: str, payload: Mapping) -> str:
     return f"sha256:{_sha256_text(domain + chr(0) + _canonical_json(payload))}"
 
 
-def _validate_identity(value: Any, label: str, *, schema: bool = False) -> dict:
-    fields = _SCHEMA_IDENTITY_FIELDS if schema else _IDENTITY_FIELDS
-    identity = _exact_dict(value, fields, label)
-    path_value = identity["path"]
+def _safe_relative_parts(path_value: Any, label: str) -> tuple[str, ...]:
     if (
         type(path_value) is not str
         or path_value == ""
@@ -232,9 +268,17 @@ def _validate_identity(value: Any, label: str, *, schema: bool = False) -> dict:
         or "\\" in path_value
     ):
         raise FormalAbLocalLauncherError(f"{label}.path is invalid")
-    path_parts = Path(path_value).parts
-    if Path(path_value).is_absolute() or any(part in ("", ".", "..") for part in path_parts):
+    path = Path(path_value)
+    parts = path.parts
+    if path.is_absolute() or not parts or any(part in ("", ".", "..") for part in parts):
         raise FormalAbLocalLauncherError(f"{label}.path must be a safe relative path")
+    return tuple(parts)
+
+
+def _validate_identity(value: Any, label: str, *, schema: bool = False) -> dict:
+    fields = _SCHEMA_IDENTITY_FIELDS if schema else _IDENTITY_FIELDS
+    identity = _exact_dict(value, fields, label)
+    _safe_relative_parts(identity["path"], label)
     byte_count = identity["bytes"]
     if type(byte_count) is not int or byte_count <= 0:
         raise FormalAbLocalLauncherError(f"{label}.bytes is invalid")
@@ -248,29 +292,60 @@ def _validate_identity(value: Any, label: str, *, schema: bool = False) -> dict:
     return identity
 
 
-def _read_exact_artifact(
+def _open_repo_relative_regular(
     repo_root: Path,
-    identity_value: Any,
+    relative_path: str,
     label: str,
     *,
-    schema: bool = False,
-) -> tuple[bytes, dict]:
-    identity = _validate_identity(identity_value, label, schema=schema)
-    root = repo_root.resolve(strict=True)
-    artifact_path = root.joinpath(*Path(identity["path"]).parts)
-    try:
-        artifact_path.relative_to(root)
-    except ValueError as error:
-        raise FormalAbLocalLauncherError(f"{label}.path escapes repository") from error
+    require_read_only: bool = False,
+) -> int:
+    """Open one repository file without following any relative path component."""
 
-    flags = os.O_RDONLY
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    parts = _safe_relative_parts(relative_path, label)
+    if (
+        not hasattr(os, "O_NOFOLLOW")
+        or not hasattr(os, "O_DIRECTORY")
+        or os.open not in os.supports_dir_fd
+    ):
+        raise FormalAbLocalLauncherError(
+            f"{label} requires no-follow directory-descriptor support"
+        )
+    root = repo_root.resolve(strict=True)
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    directories: list[int] = []
+    descriptor: int | None = None
     try:
-        descriptor = os.open(artifact_path, flags)
-    except OSError as error:
-        raise FormalAbLocalLauncherError(f"{label} cannot be opened safely") from error
-    try:
+        root_descriptor = os.open(root, directory_flags)
+        directories.append(root_descriptor)
+        root_metadata = os.fstat(root_descriptor)
+        if (
+            not stat.S_ISDIR(root_metadata.st_mode)
+            or root_metadata.st_uid != os.geteuid()
+        ):
+            raise FormalAbLocalLauncherError(
+                f"{label} repository root is not a current-user-owned directory"
+            )
+        current = root_descriptor
+        for component in parts[:-1]:
+            current = os.open(
+                component,
+                directory_flags,
+                dir_fd=current,
+            )
+            directories.append(current)
+            metadata = os.fstat(current)
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+            ):
+                raise FormalAbLocalLauncherError(
+                    f"{label} path component is not a current-user-owned directory"
+                )
+        descriptor = os.open(
+            parts[-1],
+            os.O_RDONLY | os.O_NOFOLLOW,
+            dir_fd=current,
+        )
         metadata = os.fstat(descriptor)
         if (
             not stat.S_ISREG(metadata.st_mode)
@@ -280,14 +355,67 @@ def _read_exact_artifact(
             raise FormalAbLocalLauncherError(
                 f"{label} must be one current-user-owned regular inode"
             )
+        if require_read_only and stat.S_IMODE(metadata.st_mode) & 0o222:
+            raise FormalAbLocalLauncherError(
+                f"{label} must be an immutable read-only regular inode"
+            )
+        return descriptor
+    except OSError as error:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise FormalAbLocalLauncherError(f"{label} cannot be opened safely") from error
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    finally:
+        for directory in reversed(directories):
+            os.close(directory)
+
+
+def _read_repo_relative_regular(
+    repo_root: Path,
+    relative_path: str,
+    label: str,
+    *,
+    maximum_bytes: int | None = None,
+    require_read_only: bool = False,
+) -> bytes:
+    descriptor = _open_repo_relative_regular(
+        repo_root,
+        relative_path,
+        label,
+        require_read_only=require_read_only,
+    )
+    try:
         with os.fdopen(os.dup(descriptor), "rb") as stream:
-            raw = stream.read(identity["bytes"] + 1)
-        if len(raw) != identity["bytes"]:
-            raise FormalAbLocalLauncherError(f"{label} byte length differs")
-        if _sha256_bytes(raw) != identity["sha256"]:
-            raise FormalAbLocalLauncherError(f"{label} SHA-256 differs")
+            if maximum_bytes is None:
+                return stream.read()
+            return stream.read(maximum_bytes + 1)
     finally:
         os.close(descriptor)
+
+
+def _read_exact_artifact(
+    repo_root: Path,
+    identity_value: Any,
+    label: str,
+    *,
+    schema: bool = False,
+    require_read_only: bool = False,
+) -> tuple[bytes, dict]:
+    identity = _validate_identity(identity_value, label, schema=schema)
+    raw = _read_repo_relative_regular(
+        repo_root,
+        identity["path"],
+        label,
+        maximum_bytes=identity["bytes"],
+        require_read_only=require_read_only,
+    )
+    if len(raw) != identity["bytes"]:
+        raise FormalAbLocalLauncherError(f"{label} byte length differs")
+    if _sha256_bytes(raw) != identity["sha256"]:
+        raise FormalAbLocalLauncherError(f"{label} SHA-256 differs")
 
     if schema:
         try:
@@ -304,13 +432,50 @@ def _read_exact_artifact(
 
 
 def _parse_identity_json(
-    repo_root: Path, identity_value: Any, label: str
+    repo_root: Path,
+    identity_value: Any,
+    label: str,
+    *,
+    require_read_only: bool = False,
 ) -> tuple[dict, dict, bytes]:
     raw, identity = _read_exact_artifact(
-        repo_root, identity_value, label, schema=True
+        repo_root,
+        identity_value,
+        label,
+        schema=True,
+        require_read_only=require_read_only,
     )
     payload = _strict_json_loads(raw.decode("utf-8"))
     return payload, identity, raw
+
+
+def _validate_closed_protocol_chain_no_follow(repo_root: Path) -> None:
+    """Validate the complete closed preregistration through no-follow opens."""
+
+    registry, _, _ = _parse_identity_json(
+        repo_root,
+        _SOURCE_REGISTRY_IDENTITY,
+        "formal A/B v2 source registry",
+    )
+    validate_closed_formal_ab_v2_registry_data(registry)
+    amendment, _, _ = _parse_identity_json(
+        repo_root,
+        _AMENDMENT_IDENTITY,
+        "formal A/B v2 amendment",
+    )
+    validate_formal_ab_v2_amendment_data(amendment)
+    _read_exact_artifact(
+        repo_root,
+        _PLAN_IDENTITY,
+        "fresh sibling plan",
+        schema=True,
+    )
+    original_registry, _, _ = _parse_identity_json(
+        repo_root,
+        _ORIGINAL_V1_REGISTRY_IDENTITY,
+        "formal A/B v1 registry",
+    )
+    validate_closed_formal_ab_registry_data(original_registry)
 
 
 def _expected_opening_id(opening: Mapping) -> str:
@@ -358,14 +523,17 @@ def _validate_openings_manifest(payload: Any) -> list[dict]:
         opening = _exact_dict(
             pair["opening"], _OPENING_FIELDS, f"opening pair {pair_index}.opening"
         )
-        sfen = opening["sfen"]
+        try:
+            sfen = _normalized_sfen(
+                opening["sfen"], f"opening pair {pair_index}.sfen"
+            )
+        except ValueError as error:
+            raise FormalAbLocalLauncherError(
+                f"opening pair {pair_index} is not canonical SFEN"
+            ) from error
         moves = opening["usi_moves"]
         if (
-            type(sfen) is not str
-            or sfen == ""
-            or sfen.strip() != sfen
-            or "\0" in sfen
-            or type(moves) is not list
+            type(moves) is not list
             or any(
                 type(move) is not str
                 or move == ""
@@ -505,11 +673,11 @@ def _validate_match_binding(
             "candidate and stable weight identities must differ"
         )
     options = binding["deterministic_options"]
-    if type(options) is not dict or not options:
-        raise FormalAbLocalLauncherError(
-            "local match deterministic options must be a nonempty exact JSON object"
-        )
-    _canonical_json(options)
+    _require_exact_json(
+        options,
+        _CORE_FOR_TESTS_DETERMINISTIC_OPTIONS,
+        "CoreForTests deterministic options",
+    )
     safety = _exact_dict(
         binding["safety"], _SAFETY_FIELDS, "local match binding.safety"
     )
@@ -525,44 +693,63 @@ def _validate_match_binding(
     return dict(binding), captured_assets
 
 
-def validate_ready_local_run_registry(
-    repo_root: str | Path, registry_path: str | Path
+def _validate_ready_local_run_registry_core_for_tests(
+    repo_root: str | Path,
+    registry_path: str | Path,
+    *,
+    expected_registry_identity: Mapping | None = None,
 ) -> dict:
-    """Capture a reviewed ready registry and every enrolled local artifact."""
+    """Test-only reader for a synthetic ready registry and its local artifacts."""
 
-    root = Path(repo_root).resolve(strict=True)
+    supplied_root = Path(repo_root).absolute()
+    root = supplied_root.resolve(strict=True)
     registry_file = Path(registry_path)
-    if not registry_file.is_absolute():
-        registry_file = root / registry_file
-    try:
-        registry_file.resolve(strict=True).relative_to(root)
-    except (FileNotFoundError, ValueError) as error:
-        raise FormalAbLocalLauncherError(
-            "local run registry must be a repository-contained regular file"
-        ) from error
-    flags = os.O_RDONLY
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    try:
-        descriptor = os.open(registry_file, flags)
-    except OSError as error:
-        raise FormalAbLocalLauncherError(
-            "local run registry cannot be opened safely"
-        ) from error
-    try:
-        metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_nlink != 1
-        ):
+    if registry_file.is_absolute():
+        try:
+            registry_file = registry_file.relative_to(supplied_root)
+        except ValueError as error:
+            try:
+                registry_file = registry_file.relative_to(root)
+            except ValueError:
+                raise FormalAbLocalLauncherError(
+                    "CoreForTests registry must be repository relative"
+                ) from error
+    registry_relative = registry_file.as_posix()
+    _safe_relative_parts(registry_relative, "CoreForTests local run registry")
+    expected_identity = (
+        None
+        if expected_registry_identity is None
+        else _validate_identity(
+            expected_registry_identity,
+            "pinned local run registry",
+            schema=True,
+        )
+    )
+    if (
+        expected_identity is not None
+        and expected_identity["path"] != registry_relative
+    ):
+        raise FormalAbLocalLauncherError("pinned local run registry path differs")
+    raw = _read_repo_relative_regular(
+        root,
+        registry_relative,
+        "CoreForTests local run registry",
+        maximum_bytes=(
+            expected_identity["bytes"]
+            if expected_identity is not None
+            else 8 * 1024 * 1024
+        ),
+        require_read_only=expected_identity is not None,
+    )
+    if expected_identity is not None:
+        if len(raw) != expected_identity["bytes"]:
             raise FormalAbLocalLauncherError(
-                "local run registry must be one current-user-owned regular inode"
+                "pinned local run registry byte length differs"
             )
-        with os.fdopen(os.dup(descriptor), "rb") as stream:
-            raw = stream.read()
-    finally:
-        os.close(descriptor)
+        if _sha256_bytes(raw) != expected_identity["sha256"]:
+            raise FormalAbLocalLauncherError(
+                "pinned local run registry SHA-256 differs"
+            )
     registry_sha256 = _sha256_bytes(raw)
     try:
         registry = _strict_json_loads(raw.decode("utf-8"))
@@ -571,6 +758,11 @@ def validate_ready_local_run_registry(
     registry = _exact_dict(registry, _RUN_REGISTRY_FIELDS, "local run registry")
     if registry["schema"] != LOCAL_RUN_REGISTRY_SCHEMA:
         raise FormalAbLocalLauncherError("local run registry schema differs")
+    if (
+        expected_identity is not None
+        and registry["schema"] != expected_identity["schema"]
+    ):
+        raise FormalAbLocalLauncherError("pinned local run registry schema differs")
     if registry["status"] != "ready-local-only":
         raise FormalAbLocalLauncherBlocked(
             "local formal A/B candidate identities are not enrolled"
@@ -583,11 +775,7 @@ def validate_ready_local_run_registry(
     _require_exact_json(
         registry["plan"], _PLAN_IDENTITY, "local run registry.plan"
     )
-    _read_exact_artifact(
-        root, registry["source_registry"], "formal A/B v2 source registry", schema=True
-    )
-    validate_closed_formal_ab_v2_registry(root / FORMAL_AB_V2_REGISTRY_PATH)
-    _read_exact_artifact(root, registry["plan"], "fresh sibling plan", schema=True)
+    _validate_closed_protocol_chain_no_follow(root)
     if registry["protocol_amendment_sha256"] != FORMAL_AB_V2_AMENDMENT_SHA256:
         raise FormalAbLocalLauncherError("protocol amendment identity differs")
 
@@ -602,17 +790,32 @@ def validate_ready_local_run_registry(
     attempt_index = registry["attempt_index"]
     if type(attempt_index) is not int or attempt_index not in (0, 1):
         raise FormalAbLocalLauncherError("attempt_index must be integer 0 or 1")
-    _require_exact_sha256(
-        registry["attempt_ledger_sha256"], "attempt_ledger_sha256"
+    _attempt_ledger, attempt_ledger_identity, _ = _parse_identity_json(
+        root,
+        registry["attempt_ledger"],
+        "local attempt ledger",
+        require_read_only=True,
     )
-    rerun = registry["rerun_authorization_sha256"]
+    if attempt_ledger_identity["schema"] != LOCAL_ATTEMPT_LEDGER_SCHEMA:
+        raise FormalAbLocalLauncherError("local attempt ledger schema differs")
+    rerun = registry["rerun_authorization"]
+    rerun_identity: dict | None = None
     if attempt_index == 0:
         if rerun is not None:
             raise FormalAbLocalLauncherError(
                 "first attempt cannot carry rerun authorization"
             )
     else:
-        _require_exact_sha256(rerun, "rerun_authorization_sha256")
+        _rerun_authorization, rerun_identity, _ = _parse_identity_json(
+            root,
+            rerun,
+            "local rerun authorization",
+            require_read_only=True,
+        )
+        if rerun_identity["schema"] != LOCAL_RERUN_AUTHORIZATION_SCHEMA:
+            raise FormalAbLocalLauncherError(
+                "local rerun authorization schema differs"
+            )
     workers = registry["pair_workers"]
     if type(workers) is not int or workers < 1 or workers > MAX_PAIR_WORKERS:
         raise FormalAbLocalLauncherError("pair_workers must be an integer from 1 to 6")
@@ -633,11 +836,40 @@ def validate_ready_local_run_registry(
         "registry_sha256": registry_sha256,
         "registry": dict(registry),
         "pairs": captured_pairs,
+        "attempt_ledger_identity": dict(attempt_ledger_identity),
+        "rerun_authorization_identity": (
+            None if rerun_identity is None else dict(rerun_identity)
+        ),
         "openings_manifest_identity": dict(openings_identity),
         "match_binding_identity": dict(match_identity),
         "match_binding": captured_binding,
         "assets": captured_assets,
     }
+
+
+def validate_ready_local_run_registry_core_for_tests(
+    repo_root: str | Path, registry_path: str | Path
+) -> dict:
+    """Explicit CoreForTests boundary; never a production activation API."""
+
+    return _validate_ready_local_run_registry_core_for_tests(
+        repo_root,
+        registry_path,
+    )
+
+
+def validate_pinned_ready_local_run_registry(repo_root: str | Path) -> dict:
+    """Validate the one future code-pinned registry; currently always STOP."""
+
+    if _PINNED_READY_RUN_REGISTRY_IDENTITY is None:
+        raise FormalAbLocalLauncherBlocked(
+            "no code-pinned checked-in ready registry is enrolled"
+        )
+    return _validate_ready_local_run_registry_core_for_tests(
+        repo_root,
+        _PINNED_READY_RUN_REGISTRY_IDENTITY["path"],
+        expected_registry_identity=_PINNED_READY_RUN_REGISTRY_IDENTITY,
+    )
 
 
 def _pair_file_name(pair_index: int) -> str:
@@ -1014,15 +1246,17 @@ def _run_one_pair(
     }
 
 
-def run_ready_local_formal_ab_v2(
+def run_ready_local_formal_ab_v2_core_for_tests(
     repo_root: str | Path,
     registry_path: str | Path,
     receipt_directory: str | Path,
     execute_game: Callable[[Mapping], Mapping],
 ) -> dict:
-    """Run or resume exact pairs through an injected, already-enrolled adapter."""
+    """CoreForTests: run exact pairs only through an injected stub adapter."""
 
-    captured = validate_ready_local_run_registry(repo_root, registry_path)
+    captured = validate_ready_local_run_registry_core_for_tests(
+        repo_root, registry_path
+    )
     if not callable(execute_game):
         raise FormalAbLocalLauncherError("local match adapter is not callable")
     receipt_dir = _safe_receipt_directory(receipt_directory, create=True)
@@ -1081,10 +1315,12 @@ def run_ready_local_formal_ab_v2(
         "experiment_id": captured["registry"]["experiment_id"],
         "run_id": captured["registry"]["run_id"],
         "attempt_index": captured["registry"]["attempt_index"],
-        "attempt_ledger_sha256": captured["registry"]["attempt_ledger_sha256"],
-        "rerun_authorization_sha256": captured["registry"][
-            "rerun_authorization_sha256"
-        ],
+        "attempt_ledger_sha256": captured["attempt_ledger_identity"]["sha256"],
+        "rerun_authorization_sha256": (
+            None
+            if captured["rerun_authorization_identity"] is None
+            else captured["rerun_authorization_identity"]["sha256"]
+        ),
         "candidate_weights_sha256": captured["assets"]["candidate_weights"][
             "sha256"
         ],
@@ -1094,9 +1330,13 @@ def run_ready_local_formal_ab_v2(
         "technical_fault_count": 0,
         "pairs": completed,
     }
-    recaptured = validate_ready_local_run_registry(repo_root, registry_path)
+    recaptured = validate_ready_local_run_registry_core_for_tests(
+        repo_root, registry_path
+    )
     for key in (
         "registry_sha256",
+        "attempt_ledger_identity",
+        "rerun_authorization_identity",
         "openings_manifest_identity",
         "match_binding_identity",
         "assets",
@@ -1112,7 +1352,8 @@ def argumentless_closed_preflight(repo_root: str | Path) -> None:
     """Validate today's exact closed registry and stop without side effects."""
 
     root = Path(repo_root).resolve(strict=True)
-    validate_closed_formal_ab_v2_registry(root / FORMAL_AB_V2_REGISTRY_PATH)
+    _validate_closed_protocol_chain_no_follow(root)
+    validate_pinned_ready_local_run_registry(root)
     raise FormalAbLocalLauncherBlocked(
         "local formal A/B candidate identities are not enrolled; zero games started"
     )

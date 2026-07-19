@@ -311,6 +311,38 @@ TypeScript changed-file error、ESLint、
 Prettier、diff errorは0、最終security reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
 unresolved 0だった。
 
+#### Floodgate v7 portable copy held role-bundle（2026-07-19）
+
+portable copy先の`role-bundle-tree`を、held root descriptorとexact 9 file descriptorから
+`O_NOFOLLOW`で読み、private inventoryへの`fstat`、全byte SHA-256、明示的EOF、
+callback settlement後のpost-`fstat`まで確認する最後の安全基盤を追加した。公開snapshotは
+`files` / `manifestBytes` / `trainingRawBytes`だけで、path / FD / dev / inoを出さない。
+claimは同期one-shotで、replay / late / clone / Proxy / registry混同を拒否する。retained viewは
+callbackのPromise settlementまで読め、その後zeroizeする。9 file handlesとroot handleは
+partial openやclose failureを含む全exitでdrainし、最後にcomposite postflightを行う。
+owner経路は同じclaimをexact owner / bound bridgeへ束縛し、generic borrowとの直列化を共有する。
+
+これはsource semantic verifierのSHA-256 / record identity binding、manifest / training rowの
+意味検証、callback中のabsolute-path namespace排他性をまだ証明しない。このPR / current
+held-role-bundle gate executionによる評価関数の棋力への直接効果は0で、real teacher /
+sealed-final label / training / selection / holdout / formal A/B / external calibration /
+weight change / live activation / matchはすべて0。この値はproject全履歴の累計ではない。
+既知の履歴では2026-07-16にprefix-100を1回開始し、1,597秒後に安全停止した。認証済み親
+レコード3件、header込み4行を保存したが、100件完成、sealed / final labels、training、
+formal A/B、live activationは0だった。AWS、Firebase / GCP、Vercel evaluator compute、
+runtime / unit test networkも今回のPRでは0である。
+
+validated revision `4aac34df6b65beeade12722fd116f6ce39a2105a`のhistorical 5 filesを
+bytes / SHA-256 / Git blobで固定した。Node v22.13.0のevidence追加前回帰は
+6 files / 94 / 94 PASS（3.21秒）、ownerは37 / 37（1.66秒）、held専用は11 / 11、
+evidence込みは7 files / 99 / 99、reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0。
+これは100実ラベル前の最後の安全基盤であり、
+次の別gateはgeneric source verifier identityをheld snapshotへ結んだ最初の100実ラベルである。
+この変更自身はteacherやtrainingを実行せず、live weight変更も許可しない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-held-role-bundle.md) /
+[English article](../docs/blog-shogi-floodgate-v7-portable-copy-held-role-bundle.en.md) /
+[machine evidence](../docs/data/floodgate-v7-portable-copy-held-role-bundle-2026-07-19.json)を参照。
+
 #### Floodgate v7 ローカルcheckpoint runtime-claim順序修正（2026-07-19）
 
 実教師run前の再監査で、training-row runtime claimがconsumer callbackの同期呼び出し中だけ有効なのに、

@@ -2128,18 +2128,28 @@ async function readHeldRoleBundleFile(
   try {
     while (offset < opened.identity.bytes) {
       const wanted = Math.min(chunk.byteLength, opened.identity.bytes - offset);
-      const { bytesRead } = await opened.read(chunk, 0, wanted, offset);
-      if (bytesRead !== wanted) {
-        throw new Error("held role-bundle read shortened");
+      let readOffset = 0;
+      while (readOffset < wanted) {
+        const remaining = wanted - readOffset;
+        const { bytesRead } = await opened.read(
+          chunk,
+          readOffset,
+          remaining,
+          offset + readOffset,
+        );
+        if (bytesRead <= 0 || bytesRead > remaining) {
+          throw new Error("held role-bundle read shortened");
+        }
+        readOffset += bytesRead;
       }
-      digest.update(chunk.subarray(0, bytesRead));
+      digest.update(chunk.subarray(0, wanted));
       if (retained !== undefined) {
         reflectApply(uint8ArraySet, retained, [
-          chunk.subarray(0, bytesRead),
+          chunk.subarray(0, wanted),
           offset,
         ]);
       }
-      offset += bytesRead;
+      offset += wanted;
     }
     const { bytesRead: extraBytes } = await opened.read(
       extra,

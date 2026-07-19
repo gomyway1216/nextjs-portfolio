@@ -363,6 +363,70 @@ describe("Floodgate v7 portable held role-bundle", () => {
     );
   });
 
+  it("continues positional reads until each requested chunk is complete", async () => {
+    const value = await exactNineFixture();
+    const composite = await compositeFor(value, "test");
+    const target = path.join(
+      value.destinations["role-bundle-tree"],
+      "manifest.json",
+    );
+    const originalOpen = fs.promises.open.bind(fs.promises);
+    let shortReadActive = false;
+    let shortReads = 0;
+    const openSpy = vi
+      .spyOn(fs.promises, "open")
+      .mockImplementation(
+        async (...arguments_: Parameters<typeof fs.promises.open>) => {
+          const handle = await originalOpen(...arguments_);
+          if (!shortReadActive || arguments_[0] !== target) return handle;
+          const originalRead = handle.read.bind(handle);
+          vi.spyOn(handle, "read").mockImplementation(
+            async (
+              buffer: Uint8Array,
+              offset: number,
+              length: number,
+              position: number,
+            ) => {
+              if (length > 1) shortReads += 1;
+              return originalRead(
+                buffer,
+                offset,
+                length > 1 ? Math.max(1, Math.floor(length / 2)) : length,
+                position,
+              );
+            },
+          );
+          return handle;
+        },
+      );
+
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        composite,
+        (claim) => {
+          const snapshot =
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            );
+          expect(snapshot.manifestBytes).toEqual(
+            exactNineBytes("manifest.json"),
+          );
+          openSpy.mockRestore();
+          return "short-reads-complete";
+        },
+        {
+          afterCompositePrecheck() {
+            shortReadActive = true;
+          },
+        },
+      ),
+    ).resolves.toBe("short-reads-complete");
+    expect(shortReads).toBeGreaterThan(1);
+    revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests(
+      composite,
+    );
+  });
+
   it("makes the snapshot claim synchronous and one-shot, then poisons the composite when replay escapes", async () => {
     const value = await exactNineFixture();
     const composite = await compositeFor(value, "test");

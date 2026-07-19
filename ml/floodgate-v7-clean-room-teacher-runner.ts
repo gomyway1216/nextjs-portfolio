@@ -134,7 +134,7 @@ const LEGACY_EXCLUSION_RELATIVE_COMPONENTS = Object.freeze([
   "int16-aware-replay-excluded-position-ids.txt",
 ] as const);
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
-const GIT_OUTPUT_CAP_BYTES = 1024 * 1024;
+const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024;
 const MODE_MASK = BigInt(0o7777);
 const PRIVATE_DIRECTORY_MODE = BigInt(0o700);
 const SAFE_WORKER_BASENAME = /^worker-[0-9]{2}$/;
@@ -664,6 +664,49 @@ function parseDenseNulList(value: string): readonly string[] {
   return Object.freeze(entries);
 }
 
+function localRepositoryConfigurationIsForbidden(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower === "extensions.partialclone" ||
+    /^remote\..+\.(?:promisor|partialclonefilter)$/u.test(lower) ||
+    /^remote\..+\.proxy$/u.test(lower) ||
+    lower === "core.hookspath" ||
+    lower === "core.sshcommand" ||
+    lower === "ssh.variant" ||
+    lower.startsWith("credential.") ||
+    lower.startsWith("filter.") ||
+    lower.startsWith("include.") ||
+    lower.startsWith("includeif.") ||
+    (lower.startsWith("http.") && lower !== "http.postbuffer") ||
+    lower.startsWith("https.") ||
+    lower.startsWith("proxy.") ||
+    lower.startsWith("url.")
+  );
+}
+
+/**
+ * Exercise the fixed file-protocol source-repository configuration policy.
+ * `http.postBuffer` only sizes HTTP request buffers and cannot affect the
+ * fixed local `file` clone; every other HTTP control remains forbidden.
+ */
+export function inspectFloodgateV7CleanRoomGitConfigurationCoreForTests(
+  nameValue: string,
+): "ALLOWED" | "FORBIDDEN" {
+  if (
+    arguments.length !== 1 ||
+    typeof nameValue !== "string" ||
+    nameValue.length === 0 ||
+    nameValue.includes("\0") ||
+    nameValue.includes("\n") ||
+    nameValue.includes("\r")
+  ) {
+    throw new Error("local repository configuration name differs");
+  }
+  return localRepositoryConfigurationIsForbidden(nameValue)
+    ? "FORBIDDEN"
+    : "ALLOWED";
+}
+
 async function assertCompleteLocalRepository(
   repository: string,
 ): Promise<void> {
@@ -678,25 +721,9 @@ async function assertCompleteLocalRepository(
       "--list",
     ]),
   );
-  const forbiddenConfiguration = configurationNames.find((name) => {
-    const lower = name.toLowerCase();
-    return (
-      lower === "extensions.partialclone" ||
-      /^remote\..+\.(?:promisor|partialclonefilter)$/u.test(lower) ||
-      /^remote\..+\.proxy$/u.test(lower) ||
-      lower === "core.hookspath" ||
-      lower === "core.sshcommand" ||
-      lower === "ssh.variant" ||
-      lower.startsWith("credential.") ||
-      lower.startsWith("filter.") ||
-      lower.startsWith("include.") ||
-      lower.startsWith("includeif.") ||
-      lower.startsWith("http.") ||
-      lower.startsWith("https.") ||
-      lower.startsWith("proxy.") ||
-      lower.startsWith("url.")
-    );
-  });
+  const forbiddenConfiguration = configurationNames.find(
+    localRepositoryConfigurationIsForbidden,
+  );
   if (forbiddenConfiguration !== undefined) {
     throw new Error("local repository configuration is not self-contained");
   }

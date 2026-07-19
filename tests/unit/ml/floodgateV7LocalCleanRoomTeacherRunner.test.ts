@@ -49,6 +49,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   captureFloodgateV7CleanRoomGitCommandCoreForTests,
+  inspectFloodgateV7CleanRoomGitConfigurationCoreForTests,
   type FloodgateV7CleanRoomTeacherPreparedCapability,
 } from "../../../ml/floodgate-v7-clean-room-teacher-runner";
 import {
@@ -668,6 +669,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     );
     expect(git.file).toBe("/usr/bin/git");
     expect(git.options.cwd).toBe("/");
+    expect(git.options.maxBuffer).toBe(64 * 1024 * 1024);
     expect(git.options.env).toEqual(
       FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT,
     );
@@ -694,6 +696,29 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(preparationSource).toContain('"--no-dangling"');
     expect(preparationSource).toContain('"--missing=print"');
     expect(preparationSource).toContain("partialclonefilter");
+    expect(
+      inspectFloodgateV7CleanRoomGitConfigurationCoreForTests(
+        "http.postBuffer",
+      ),
+    ).toBe("ALLOWED");
+    for (const configuration of [
+      "http.extraHeader",
+      "http.proxy",
+      "http.sslCert",
+      "https.proxy",
+      "remote.origin.proxy",
+      "credential.helper",
+      "url.https://example.invalid/.insteadOf",
+    ]) {
+      expect(
+        inspectFloodgateV7CleanRoomGitConfigurationCoreForTests(configuration),
+      ).toBe("FORBIDDEN");
+    }
+    expect(() =>
+      inspectFloodgateV7CleanRoomGitConfigurationCoreForTests(
+        "http.postBuffer\nhttp.extraHeader",
+      ),
+    ).toThrow();
 
     const snapshotParent =
       "/private/tmp/shogi-floodgate-v7-clean-room-teacher-v1/runtime/snapshots";

@@ -12,11 +12,16 @@ const japaneseRelative =
 const englishRelative =
   "docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md";
 const readmeRelative = "ml/README.md";
-const gitEnvironment = Object.freeze({
+const gitEnvironment: NodeJS.ProcessEnv = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  HOME: "/var/empty",
   LANG: "C",
   LC_ALL: "C",
   NODE_ENV: "test",
-  PATH: "/usr/bin:/bin",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_OPTIONAL_LOCKS: "0",
 });
 
 function read(relative: string): string {

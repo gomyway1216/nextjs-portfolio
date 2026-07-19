@@ -102,6 +102,43 @@ class QatPlanRegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlinked"):
                 self.dispatch(symlink)
 
+    def test_non_plain_v2_path_types_fail_instead_of_cross_routing(self):
+        exact = REPO_ROOT / REGISTRY.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
+
+        class StringSubclass(str):
+            pass
+
+        candidates = (
+            exact,
+            str(exact).encode("utf-8"),
+            StringSubclass(str(exact)),
+        )
+        for candidate in candidates:
+            with self.subTest(candidate_type=type(candidate).__name__):
+                args = SimpleNamespace(experiment_plan=candidate)
+                with mock.patch.object(
+                    REGISTRY,
+                    "verify_fresh_qat_experiment_plan",
+                ) as fresh, mock.patch.object(
+                    REGISTRY,
+                    "verify_fresh_qat_v2_execution_plan",
+                ) as fresh_v2, mock.patch.object(
+                    REGISTRY,
+                    "verify_wcsc36_qat_experiment_plan",
+                ) as wcsc36:
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "exact built-in string",
+                    ):
+                        REGISTRY.verify_qat_experiment_plan(
+                            args,
+                            {},
+                            tracking_verifier=mock.Mock(),
+                        )
+                fresh.assert_not_called()
+                fresh_v2.assert_not_called()
+                wcsc36.assert_not_called()
+
     def test_artifact_schema_dispatch_preserves_legacy_and_separates_fresh(self):
         legacy = REGISTRY.resolve_qat_artifact_schemas(
             {

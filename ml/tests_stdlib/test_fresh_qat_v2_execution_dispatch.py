@@ -97,6 +97,8 @@ def parent_accounting(emitted):
 
 def ready_fixture(root, emitted=12_000):
     base = synthetic_fixture(root)
+    input_raw = b'{"schema":"synthetic-enrolled-input-source"}\n'
+    completion_raw = b'{"schema":"synthetic-enrolled-completion-source"}\n'
     train_raw = b'{"schema":"synthetic-ready-train-row"}\n'
     train = {
         **file_identity(
@@ -113,6 +115,38 @@ def ready_fixture(root, emitted=12_000):
         "semantic_position_ids_sha256": "c" * 64,
     }
     accounting = parent_accounting(emitted)
+    input_training = {
+        **file_identity(
+            DISPATCH.FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH,
+            input_raw,
+            format_name=(
+                ACCOUNTING.PRODUCTION_INPUT_TRAINING_BINDING["format"]
+            ),
+        ),
+        "parents": DISPATCH.FRESH_QAT_V2_INPUT_PARENTS,
+        "games": 1_000,
+        "game_ids_sha256": "d" * 64,
+        "parent_ids_sha256": accounting["input_parent_ids_sha256"],
+        "position_ids_count": DISPATCH.FRESH_QAT_V2_INPUT_PARENTS,
+        "position_ids_sha256": accounting["input_position_ids_sha256"],
+    }
+    parent_completion = {
+        **file_identity(
+            DISPATCH.FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH,
+            completion_raw,
+            format_name=ACCOUNTING.FRESH_QAT_PARENT_COMPLETION_FORMAT,
+        ),
+        "records": DISPATCH.FRESH_QAT_V2_INPUT_PARENTS,
+        "forced_parents_skipped": accounting["forced_parents_skipped"],
+        "emitted_parent_groups": accounting["emitted_parent_groups"],
+        "parent_ids_sha256": accounting["input_parent_ids_sha256"],
+        "forced_parent_ids_sha256": accounting[
+            "forced_parent_ids_sha256"
+        ],
+        "emitted_parent_ids_sha256": accounting[
+            "emitted_parent_ids_sha256"
+        ],
+    }
     plan_stub = {"inputs": {"model_training": train}}
     slots = fixed_slots()
     proposal = {
@@ -125,7 +159,16 @@ def ready_fixture(root, emitted=12_000):
         "execution_plan_schema": (
             DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA
         ),
-        "upstream": {"synthetic_only": True},
+        "upstream": {
+            "preregistered_plan": copy.deepcopy(
+                DISPATCH._PREREGISTERED_PLAN_IDENTITY
+            ),
+            "role_bundle_result": copy.deepcopy(
+                DISPATCH._ROLE_BUNDLE_RESULT_IDENTITY
+            ),
+            "input_training": copy.deepcopy(input_training),
+            "parent_completion": copy.deepcopy(parent_completion),
+        },
         "parent_accounting": copy.deepcopy(accounting),
         "model_training": copy.deepcopy(train),
         "training_contracts": [
@@ -205,6 +248,8 @@ def ready_fixture(root, emitted=12_000):
         ),
         "execution_plan": plan_identity,
         "parent_accounting_proposal": proposal_identity,
+        "input_training": copy.deepcopy(input_training),
+        "parent_completion": copy.deepcopy(parent_completion),
         "train_jsonl": copy.deepcopy(train),
         "parent_accounting": {
             field: accounting[field]
@@ -252,6 +297,12 @@ def ready_fixture(root, emitted=12_000):
         str(
             root / DISPATCH.FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
         ): plan_raw,
+        str(
+            root / DISPATCH.FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH
+        ): input_raw,
+        str(
+            root / DISPATCH.FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH
+        ): completion_raw,
         str(root / DISPATCH.FRESH_QAT_V2_TRAIN_RELATIVE_PATH): train_raw,
     }
     args = copy.deepcopy(base["args"])
@@ -267,6 +318,8 @@ def ready_fixture(root, emitted=12_000):
         "plan_raw": plan_raw,
         "proposal": proposal,
         "proposal_raw": proposal_raw,
+        "input_raw": input_raw,
+        "completion_raw": completion_raw,
         "successor": successor,
         "successor_raw": successor_raw,
         "train": train,
@@ -390,7 +443,7 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                 0,
             )
 
-    def test_all_forced_stops_before_any_training_contract(self):
+    def test_all_forced_declaration_fails_before_source_authentication(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = ready_fixture(Path(directory).resolve(), emitted=1)
             successor = copy.deepcopy(fixture["successor"])
@@ -404,11 +457,16 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             ) as contract_builder:
                 with self.assertRaises(
                     DISPATCH.FreshQATV2NoTrainableParentGroups
-                ):
+                ) as raised:
                     DISPATCH.validate_fresh_qat_v2_ready_successor_data(
                         successor
                     )
             contract_builder.assert_not_called()
+            self.assertEqual(raised.exception.phase, "parent-accounting")
+            self.assertIn(
+                "source authentication was not reached",
+                str(raised.exception),
+            )
 
     def test_ready_shape_rejects_near_paths_schemas_hybrids_and_authority(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -490,6 +548,9 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                 "authority field omitted": lambda item: item["authority"].pop(
                     "teacher_execution_authorized"
                 ),
+                "synthetic upstream": lambda item: item[
+                    "upstream"
+                ].__setitem__("input_training", {"synthetic_only": True}),
             }
             for label, mutate in mutations.items():
                 with self.subTest(label=label):
@@ -500,6 +561,35 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                             changed,
                             fixture["successor"],
                         )
+
+    def test_synthetic_sources_cannot_issue_a_contract_without_enrollment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = ready_fixture(Path(directory).resolve())
+            protocol_reader = mock.Mock(
+                side_effect=mapping_reader(fixture["protocol"])
+            )
+            artifact_reader = mock.Mock(
+                side_effect=mapping_reader(fixture["artifacts"])
+            )
+            runtime_reader = mock.Mock()
+            tracker = mock.Mock()
+            with mock.patch.object(
+                FRESH, "build_fresh_qat_training_contract"
+            ) as contract_builder:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "authenticated per-parent completion evidence is not enrolled",
+                ):
+                    DISPATCH.dispatch_fresh_qat_v2_execution_plan_core_for_tests(
+                        fixture["args"],
+                        tracking_verifier=tracker,
+                        repo_root=str(fixture["root"]),
+                        protocol_reader=protocol_reader,
+                        artifact_reader=artifact_reader,
+                        training_runtime_reader=runtime_reader,
+                    )
+            contract_builder.assert_not_called()
+            runtime_reader.assert_not_called()
 
     def test_future_ready_core_cross_binds_plan_proposal_train_and_contract(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -522,7 +612,11 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                 DISPATCH,
                 "_validate_args_and_runtime",
                 return_value=(selected, verified),
-            ) as args_verifier:
+            ) as args_verifier, mock.patch.object(
+                ACCOUNTING,
+                "validate_fresh_qat_parent_accounting_proposal_v2",
+                return_value=fixture["proposal"],
+            ) as source_validator:
                 binding = (
                     DISPATCH
                     .dispatch_fresh_qat_v2_execution_plan_core_for_tests(
@@ -557,7 +651,18 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             )
             runtime_reader.assert_called_once_with()
             args_verifier.assert_called_once()
-            self.assertGreaterEqual(artifact_reader.call_count, 6)
+            source_validator.assert_called_once_with(
+                fixture["proposal"],
+                fixture["input_raw"],
+                fixture["completion_raw"],
+                fixture["artifacts"][
+                    str(
+                        fixture["root"]
+                        / DISPATCH.FRESH_QAT_V2_TRAIN_RELATIVE_PATH
+                    )
+                ],
+            )
+            self.assertGreaterEqual(artifact_reader.call_count, 10)
             tracked = [call.args[0] for call in tracker.call_args_list]
             self.assertIn(
                 str(

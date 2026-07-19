@@ -125,7 +125,7 @@ Firebase Cloud Functions running on GCP and Vercel handling web deployment are s
 
 | Infrastructure | Use in this change                  |
 | -------------- | ----------------------------------- |
-| Local Mac CPU  | Verifier and 154 stdlib tests       |
+| Local Mac CPU  | Verifier and 173 stdlib tests       |
 | AWS            | Not used                            |
 | Firebase / GCP | Not used                            |
 | Vercel         | Not used                            |
@@ -137,8 +137,10 @@ A later decision could move large-scale teacher generation to different compute 
 
 The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the original remediation tests are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. The stateful-`PathLike` single-snapshot remediation is the separate commit `33d9b3139068fac69c44d368869006f5d5d919db`. History was not rewritten.
 
-- New v2 dispatch and routing tests: 21/21 PASS in 0.050 seconds
-- Full repository stdlib suite: 154/154 PASS in 11.118 seconds
+The latest `main` revision `88afd052c00865b4e7fce4ed25d81a94febb1637` was integrated by regular merge commit `8014138153212b41c0721af346068fbccd947392`. That integration did not change the Fresh-QAT implementation paths, and the integrated tree was revalidated as follows.
+
+- New v2 dispatch and routing tests: 21/21 PASS in 0.043 seconds
+- Full repository stdlib suite: 173/173 PASS in 11.684 seconds
 - Python compilation: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

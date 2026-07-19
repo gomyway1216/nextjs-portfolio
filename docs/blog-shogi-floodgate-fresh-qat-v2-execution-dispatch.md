@@ -125,7 +125,7 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 | infrastructure  | 今回の用途                  |
 | --------------- | --------------------------- |
-| ローカルMac CPU | verifierと154 stdlib tests  |
+| ローカルMac CPU | verifierと173 stdlib tests  |
 | AWS             | 使用なし                    |
 | Firebase / GCP  | 使用なし                    |
 | Vercel          | 使用なし                    |
@@ -137,8 +137,10 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、当初のremediation test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`である。stateful `PathLike`をsingle snapshotにするremediationは別commit `33d9b3139068fac69c44d368869006f5d5d919db`に固定した。履歴は書き換えていない。
 
-- 新v2 dispatch + route test: 21 / 21 PASS、0.050秒
-- repository全stdlib suite: 154 / 154 PASS、11.118秒
+最新`main` `88afd052c00865b4e7fce4ed25d81a94febb1637`は通常merge commit `8014138153212b41c0721af346068fbccd947392`で統合した。Fresh-QAT実装pathはその統合で変わっておらず、統合後に次を再検証した。
+
+- 新v2 dispatch + route test: 21 / 21 PASS、0.043秒
+- repository全stdlib suite: 173 / 173 PASS、11.684秒
 - Python compile: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

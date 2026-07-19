@@ -77,9 +77,9 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
       });
     }
     expect(identity("package.json")).toEqual({
-      bytes: 8236,
+      bytes: 8311,
       sha256:
-        "c289e6ec449a4fe4293541aca4425f73ec07aa79909ad1eb974f6accb5a3d1b0",
+        "603d38ca13a27b3de274b89893b11198902d37b5f608f9b496553b80a58f6f8f",
     });
   });
 

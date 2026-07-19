@@ -1,0 +1,208 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+const evidenceRelative =
+  "docs/data/floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json";
+const japaneseArticleRelative =
+  "docs/blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md";
+const englishArticleRelative =
+  "docs/blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md";
+
+interface PinnedFile {
+  readonly path: string;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly git_blob: string;
+  readonly required_markers: readonly string[];
+}
+
+function read(relative: string): string {
+  return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
+}
+
+function raw(relative: string): Buffer {
+  return fs.readFileSync(path.join(process.cwd(), relative));
+}
+
+function git(arguments_: readonly string[]): string {
+  return execFileSync("/usr/bin/git", arguments_, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: {
+      PATH: "/usr/bin:/bin",
+      HOME: "/var/empty",
+      LANG: "C",
+      LC_ALL: "C",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_SYSTEM: "/dev/null",
+      GIT_OPTIONAL_LOCKS: "0",
+    },
+  }).trim();
+}
+
+function evidence(): Record<string, unknown> {
+  return JSON.parse(read(evidenceRelative)) as Record<string, unknown>;
+}
+
+describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
+  it("pins the stopped attempt and its no-cloud, no-teacher boundary", () => {
+    const record = evidence();
+    expect(record).toMatchObject({
+      schema:
+        "shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-evidence-v1",
+      evidence_date: "2026-07-19",
+      evidence_timezone: "UTC",
+      first_operational_attempt: {
+        package_script: "shogi:floodgate-v7-local-clean-room-teacher",
+        argumentless: true,
+        exit_code: 1,
+        status: "STOP",
+        phase: "preparation",
+        retry_disposition: "manual-clean-room-reconciliation-required",
+        clean_room_may_exist: true,
+        checkpoint_may_exist: false,
+        aws_used: false,
+        network_used: false,
+        live_weight_touched: false,
+      },
+      diagnosis: {
+        aws_or_cloud_related: false,
+        source_repository_local_configuration_names: 800,
+        previously_forbidden_configuration_names_relevant_to_failure: [
+          "http.postBuffer",
+        ],
+        other_forbidden_configuration_names_observed: 0,
+        object_closure_listing_bytes: 1188132,
+        previous_git_stdout_cap_bytes: 1048576,
+        object_closure_exceeded_previous_cap_bytes: 139556,
+      },
+      nonactions: {
+        teacher_processes_started: 0,
+        teacher_parents_completed: 0,
+        teacher_rows_created: 0,
+        checkpoint_work_created: 0,
+        labels_finalized: 0,
+        training_runs: 0,
+        aws_calls: 0,
+        firebase_gcp_calls: 0,
+        vercel_runner_calls: 0,
+        network_requests: 0,
+        live_weight_changes: 0,
+        production_activations: 0,
+      },
+    });
+  });
+
+  it("pins the exact remediation commit, tree, source bytes, and blobs", () => {
+    const record = evidence();
+    const revision = record.revision as {
+      remediation_base_revision: string;
+      remediation_revision: string;
+      remediation_tree: string;
+    };
+    expect(revision).toEqual(
+      expect.objectContaining({
+        remediation_base_revision: "acdc3de9c3691d5719260b2d032586a13f5b56be",
+        remediation_revision: "9cdaee882e80d7be8667b733505dd86bf3db5923",
+        remediation_tree: "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa",
+      }),
+    );
+    execFileSync(
+      "/usr/bin/git",
+      ["merge-base", "--is-ancestor", revision.remediation_revision, "HEAD"],
+      { cwd: process.cwd(), stdio: "ignore" },
+    );
+    expect(
+      git(["show", "-s", "--format=%T", revision.remediation_revision]),
+    ).toBe(revision.remediation_tree);
+
+    const pins = record.source_pins as PinnedFile[];
+    expect(pins.map((entry) => entry.path)).toEqual([
+      "ml/floodgate-v7-clean-room-teacher-runner.ts",
+      "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+    ]);
+    for (const entry of pins) {
+      const bytes = raw(entry.path);
+      expect(bytes.byteLength, entry.path).toBe(entry.bytes);
+      expect(createHash("sha256").update(bytes).digest("hex"), entry.path).toBe(
+        entry.sha256,
+      );
+      expect(git(["hash-object", entry.path]), entry.path).toBe(entry.git_blob);
+      const text = bytes.toString("utf8");
+      for (const marker of entry.required_markers) {
+        expect(text, `${entry.path}: ${marker}`).toContain(marker);
+      }
+    }
+  });
+
+  it("keeps the remediation narrow and the real-source validation bounded", () => {
+    const record = evidence();
+    expect(record.remediation).toMatchObject({
+      only_http_postbuffer_newly_allowed: true,
+      other_http_and_https_controls_still_forbidden: true,
+      credential_proxy_filter_include_and_url_rewrite_still_forbidden: true,
+      fixed_protocol_allowlist: ["file"],
+      git_stdout_cap_bytes: 67108864,
+      git_stdout_cap_bounded: true,
+      disposable_real_source_materialization: {
+        result: "PASS",
+        tracked_files_revalidated: 1431,
+        source_destination_inode_aliases_allowed: false,
+        temporary_copy_removed_after_validation: true,
+      },
+      focused_vitest: {
+        files: 2,
+        tests: 21,
+        passed: 21,
+        failed: 0,
+        result: "PASS",
+      },
+      eslint: "PASS",
+      prettier: "PASS",
+      diff_check: "PASS",
+    });
+  });
+
+  it("keeps the bilingual articles aligned on cause, safety, and next gate", () => {
+    const record = evidence();
+    expect(record.articles).toEqual({
+      japanese:
+        "../blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md",
+      english:
+        "../blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md",
+    });
+    const japanese = read(japaneseArticleRelative);
+    const english = read(englishArticleRelative);
+    for (const marker of [
+      "原因はAWSではなく",
+      "`http.postBuffer`",
+      "1,188,132-byte",
+      "1,048,576-byte",
+      "67,108,864 bytes",
+      "1,431 tracked files",
+      "teacher process / parents / rows",
+      "live weightは引き続き変更しない",
+      path.basename(evidenceRelative),
+    ]) {
+      expect(japanese, marker).toContain(marker);
+    }
+    for (const marker of [
+      "The cause was not AWS",
+      "`http.postBuffer`",
+      "1,188,132-byte",
+      "1,048,576-byte",
+      "67,108,864 bytes",
+      "1,431 tracked files",
+      "Teacher processes / parents / rows",
+      "Live weights remain unchanged",
+      path.basename(evidenceRelative),
+    ]) {
+      expect(english, marker).toContain(marker);
+    }
+  });
+});

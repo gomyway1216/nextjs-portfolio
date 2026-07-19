@@ -1,0 +1,144 @@
+{
+  "schema": "shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-evidence-v1",
+  "evidence_date": "2026-07-19",
+  "evidence_timezone": "UTC",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md",
+    "english": "../blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md"
+  },
+  "revision": {
+    "merged_runner_pull_request": 511,
+    "merged_runner_revision": "acdc3de9c3691d5719260b2d032586a13f5b56be",
+    "remediation_base_revision": "acdc3de9c3691d5719260b2d032586a13f5b56be",
+    "remediation_revision": "9cdaee882e80d7be8667b733505dd86bf3db5923",
+    "remediation_tree": "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa",
+    "pull_request": "PENDING",
+    "continuous_integration": "PENDING",
+    "independent_review": "PENDING"
+  },
+  "first_operational_attempt": {
+    "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
+    "argumentless": true,
+    "exit_code": 1,
+    "status": "STOP",
+    "phase": "preparation",
+    "retry_disposition": "manual-clean-room-reconciliation-required",
+    "clean_room_may_exist": true,
+    "checkpoint_may_exist": false,
+    "sensitive_values_disclosed": false,
+    "aws_used": false,
+    "network_used": false,
+    "live_weight_touched": false
+  },
+  "residual_clean_room_observation": {
+    "fixed_root_present": true,
+    "fixed_root_private_mode": "0700",
+    "fixed_root_owned_by_current_effective_user": true,
+    "copied_input_directories_present": [
+      "raw-lock",
+      "role-lock",
+      "role-bundle",
+      "teacher-assets"
+    ],
+    "verifier_destination_entries": 0,
+    "publication_entries": 0,
+    "runtime_snapshot_entries": 0,
+    "state_entries": 0,
+    "symlinks_observed": 0,
+    "multi_link_regular_files_observed": 0,
+    "entries_owned_by_other_users_observed": 0,
+    "automatic_cleanup_performed": false,
+    "manual_reconciliation_required": true,
+    "private_paths_or_file_contents_published": false
+  },
+  "diagnosis": {
+    "aws_or_cloud_related": false,
+    "source_repository_local_configuration_names": 800,
+    "previously_forbidden_configuration_names_relevant_to_failure": [
+      "http.postBuffer"
+    ],
+    "other_forbidden_configuration_names_observed": 0,
+    "http_postbuffer_can_affect_fixed_file_protocol_clone": false,
+    "object_closure_listing_bytes": 1188132,
+    "previous_git_stdout_cap_bytes": 1048576,
+    "object_closure_exceeded_previous_cap_bytes": 139556,
+    "root_causes": [
+      "file-protocol-inert-http-postbuffer-was-overbroadly-rejected",
+      "complete-object-list-exceeded-one-mibibyte-git-stdout-cap"
+    ]
+  },
+  "remediation": {
+    "only_http_postbuffer_newly_allowed": true,
+    "other_http_and_https_controls_still_forbidden": true,
+    "credential_proxy_filter_include_and_url_rewrite_still_forbidden": true,
+    "fixed_protocol_allowlist": ["file"],
+    "git_stdout_cap_bytes": 67108864,
+    "git_stdout_cap_bounded": true,
+    "disposable_real_source_materialization": {
+      "result": "PASS",
+      "accepted_verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+      "tracked_files_revalidated": 1431,
+      "source_destination_inode_aliases_allowed": false,
+      "temporary_copy_removed_after_validation": true
+    },
+    "focused_vitest": {
+      "files": 2,
+      "tests": 21,
+      "passed": 21,
+      "failed": 0,
+      "result": "PASS"
+    },
+    "eslint": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS"
+  },
+  "source_pins": [
+    {
+      "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
+      "bytes": 59906,
+      "sha256": "773edeee39af60dd269c2f0b0371e55c30ea71a46abd092b20dd79e301d0bbe6",
+      "git_blob": "ff628435335149d7bc9bd65f2e87777939a90490",
+      "required_markers": [
+        "lower !== \"http.postbuffer\"",
+        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
+        "protocol.file.allow=always",
+        "GIT_ALLOW_PROTOCOL: \"file\""
+      ]
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+      "bytes": 31492,
+      "sha256": "4bcbfa22aaa42c921cb472f9d733e5c0b4f6775548421e38eb3bd33c2f7662e0",
+      "git_blob": "3e06b3f1f8b94dfad70ed4a345378dc39c536943",
+      "required_markers": [
+        "\"http.postBuffer\"",
+        "\"http.extraHeader\"",
+        "64 * 1024 * 1024"
+      ]
+    }
+  ],
+  "nonactions": {
+    "teacher_processes_started": 0,
+    "teacher_parents_completed": 0,
+    "teacher_rows_created": 0,
+    "checkpoint_work_created": 0,
+    "labels_finalized": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "aws_calls": 0,
+    "aws_credentials_used": 0,
+    "firebase_gcp_calls": 0,
+    "vercel_runner_calls": 0,
+    "network_requests": 0,
+    "live_weight_changes": 0,
+    "production_activations": 0
+  },
+  "next_gate": {
+    "merge_remediation_after_review_and_ci": true,
+    "reconcile_and_remove_only_the_verified_residual_clean_room": true,
+    "rerun_same_argumentless_local_command": true,
+    "live_weight_must_remain_unchanged": true
+  }
+}

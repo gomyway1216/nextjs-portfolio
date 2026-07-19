@@ -1574,32 +1574,31 @@ function captureWitnessList(
   }
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const keys = reflectOwnKeys(descriptors);
+  const lengthDescriptor = descriptors.length;
   if (
     keys.length !== 5 ||
-    !keys.includes("length") ||
-    ![0, 1, 2, 3].every((index) => {
-      const descriptor = descriptors[index.toString()];
-      return descriptor !== undefined && "value" in descriptor;
-    })
+    lengthDescriptor === undefined ||
+    !("value" in lengthDescriptor) ||
+    lengthDescriptor.value !== 4
   ) {
     throw new Error("portable witness list shape differs");
   }
-  return Object.freeze(
-    [0, 1, 2, 3].map((index) => {
-      const descriptor = descriptors[index.toString()];
-      const item =
-        descriptor !== undefined && "value" in descriptor
-          ? descriptor.value
-          : undefined;
-      if (
-        (typeof item !== "object" && typeof item !== "function") ||
-        item === null
-      ) {
-        throw new Error("portable witness differs");
-      }
-      return item;
-    }),
-  );
+  const objects: object[] = [];
+  for (let index = 0; index < 4; index += 1) {
+    const descriptor = descriptors[index.toString()];
+    const item =
+      descriptor !== undefined && "value" in descriptor
+        ? descriptor.value
+        : undefined;
+    if (
+      (typeof item !== "object" && typeof item !== "function") ||
+      item === null
+    ) {
+      throw new Error("portable witness differs");
+    }
+    objects[index] = item;
+  }
+  return Object.freeze(objects);
 }
 
 function createPortableRegistry(): PortableRegistry {

@@ -327,6 +327,41 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
     ).rejects.toMatchObject({ operation: "seal" });
   });
 
+  it("captures the exact witness list without consulting mutable Array.prototype.includes", async () => {
+    const witnesses = await witnessesFor(await fixture());
+    const includesDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "includes",
+    );
+    if (includesDescriptor === undefined) {
+      throw new Error("Array.prototype.includes descriptor is required");
+    }
+    let includesCalls = 0;
+    let composite: FloodgateV7PortableCopyCompositeDestinationSeal | undefined;
+    try {
+      Object.defineProperty(Array.prototype, "includes", {
+        ...includesDescriptor,
+        value: () => {
+          includesCalls += 1;
+          throw new Error("poisoned Array.prototype.includes was invoked");
+        },
+      });
+      composite =
+        await sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
+          witnesses,
+        );
+    } finally {
+      Object.defineProperty(Array.prototype, "includes", includesDescriptor);
+    }
+    expect(includesCalls).toBe(0);
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
+        composite!,
+        () => "prototype-safe",
+      ),
+    ).resolves.toBe("prototype-safe");
+  });
+
   it("keeps production and test capability registries disjoint", async () => {
     const value = await fixture();
     const testPreseal = await presealFloodgateV7PortableCopySourceCoreForTests(

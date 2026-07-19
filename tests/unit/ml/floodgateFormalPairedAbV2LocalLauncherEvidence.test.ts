@@ -100,7 +100,10 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
         "directory-descriptor-no-follow-every-component",
       intermediate_symlink: "reject",
       previous_event_sha256_chain: true,
+      full_write_loop_required: true,
+      created_journal_mode_checked_before_game: true,
       file_fsync_before_next_event: true,
+      complete_journals_reparsed_before_result: true,
       directory_entry_power_loss_durability_claimed: false,
       same_uid_malicious_tamper_proof_claimed: false,
     });
@@ -115,6 +118,10 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       rerun_authorization_identity_required_for_attempt_one: true,
       attempt_artifacts_must_be_read_only_regular_inodes: true,
       bare_attempt_or_rerun_digest_accepted: false,
+      attempt_ledger_semantics_bind_enrolled_experiment: true,
+      attempt_one_requires_exact_prior_fault_and_blinded_authorization: true,
+      pinned_registry_normal_checkout_mode_supported: true,
+      pinned_registry_exact_identity_still_required: true,
       canonical_sfen_validator:
         "fresh_qat_parent_accounting_v2._normalized_sfen",
       core_for_tests_deterministic_options_exact: true,
@@ -150,7 +157,7 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     });
     expect(evidence.implementation_anchor).toMatchObject({
       review_state:
-        "local-remediation-validation-pass-final-independent-rereview-pending",
+        "local-second-remediation-validation-pass-independent-rereview-pass",
       pull_request: null,
       continuous_integration: "NOT_RUN",
     });
@@ -158,9 +165,8 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       initial_state: "changes-required",
       accepted_adversarial_probe_classes_before_remediation: 6,
       rejected_adversarial_probe_classes_before_remediation: 4,
-      remediation_state:
-        "local-validation-pass-final-independent-rereview-pending",
-      final_independent_rereview: "PENDING",
+      remediation_state: "local-second-remediation-validation-pass",
+      final_independent_rereview: "PASS-P0-0-P1-0-P2-0",
     });
   });
 
@@ -182,9 +188,9 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     expect(launcher).toContain('"games_started": 0');
     expect(evidence.validation).toMatchObject({
       python_compile_status: "PASS",
-      focused_tests_passed: 14,
+      focused_tests_passed: 18,
       focused_tests_failed: 0,
-      full_tests_passed: 152,
+      full_tests_passed: 156,
       full_tests_failed: 0,
       evidence_tests_passed: 5,
       evidence_tests_failed: 0,
@@ -210,9 +216,9 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       expect(article).toContain("AWS");
       expect(article).toContain("CoreForTests");
       expect(article).toMatch(/no-?follow/);
-      expect(article).toContain("1.12");
-      expect(article).toContain("152");
-      expect(article).toContain("12.05");
+      expect(article).toContain("1.85");
+      expect(article).toContain("156");
+      expect(article).toContain("13.26");
       expect(article).toContain("STOP");
     }
     expect(japanese).toContain("追記専用");

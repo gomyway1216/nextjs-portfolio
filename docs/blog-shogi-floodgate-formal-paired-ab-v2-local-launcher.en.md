@@ -12,7 +12,7 @@ The implemented scope is:
 - an explicitly test-only `CoreForTests` accepting synthetic fixtures;
 - a closed future production route that requires a code-pinned checked-in ready-registry exact path, bytes, SHA-256, and schema;
 - byte and SHA-256 validation of candidate/stable weights, the YaneuraOu binary/receipt/eval, and the existing local match adapter;
-- attempt-ledger and rerun-authorization binding to read-only regular artifacts that are actually read by exact path, bytes, SHA-256, and schema;
+- attempt-ledger and rerun-authorization binding to read-only regular artifacts that are actually read by exact path, bytes, SHA-256, and schema, with their experiment/run/fault semantics recomputed;
 - validation of canonical four-field SFEN, exactly 384 openings, 768 game IDs, pair order, candidate-sente then candidate-gote, and unique seeds;
 - one exact deterministic-options object for test fixtures;
 - at most six pair workers;
@@ -77,11 +77,11 @@ Each pair appends four events to a current-user-owned `0600` regular file:
 
 Every event binds the SHA-256 of the preceding canonical JSONL bytes and the registry, plan, amendment, opening manifest, match binding, both weights, pair/opening, and seed identities. The receipt directory must be current-user-owned `0700`; unknown entries, symlinks, hardlinks, and noncanonical JSONL are rejected. Registry, protocol, manifest, binding, asset, attempt-ledger, and rerun-authorization reads open every repository-relative directory component through directory descriptors with no-follow semantics, so intermediate symlinks are rejected too.
 
-The attempt ledger and an attempt-one rerun authorization are not accepted as bare digest strings. Their current-user-owned, single-link, non-writable regular artifacts are actually read and matched against the declared byte count, SHA-256, and schema.
+The attempt ledger and an attempt-one rerun authorization are not accepted as bare digest strings. Their current-user-owned, single-link, non-writable regular artifacts are actually read and matched against the declared byte count, SHA-256, and schema. The ledger must also bind the exact experiment, candidate/stable weights, opening manifest, and match binding. Attempt zero requires no prior records. Attempt one requires exactly one prior run disposed as a technical fault, its evidence SHA-256, and `result_unblinded: false`; the authorization must name that same prior run/evidence/ledger and the exact new run.
 
 Resume accepts only complete journals forming a contiguous prefix from pair zero. A partial pair, fault event, missing lower pair, game 1 before game 0, duplicate game, wrong color, or digest drift stops before any new game starts. Complete pairs are never replayed, and partial pairs are never silently replayed.
 
-The implementation fsyncs each file before the next event. It does not claim power-loss durability for directory entries or tamper-proof storage against a malicious process with the same UID. This is a trusted local-operator boundary, not a remote witness.
+The implementation validates the newly created journal's exact `0600` mode before invoking a game adapter, writes every event through a full-write loop, fsyncs the file before the next event, and reparses all 384 journals before returning a complete result. A restrictive `umask` or a zero-progress write therefore stops before a first callback; an ordinary short write is completed rather than silently truncating the event. It does not claim power-loss durability for directory entries or tamper-proof storage against a malicious process with the same UID. This is a trusted local-operator boundary, not a remote witness.
 
 ## Technical faults
 
@@ -111,11 +111,15 @@ Any argument produces `arguments-forbidden`. With no argument, today's exact clo
 
 There is not yet a route from this command to the test-only core or a real local adapter. Opening it later requires a reviewed checked-in ready registry whose exact identity is pinned in code, plus a separate production-adapter composition review. It will not be opened by accepting a caller path.
 
+Git does not preserve an owner-read-only bit for ordinary tracked data files, so a checked-in pinned registry is expected to appear as `0644` in a normal checkout. The launcher does not treat that mode as authority: it still requires the code-pinned repository-relative path, byte count, SHA-256, and schema, plus current-user ownership, one regular inode, and no-follow traversal. Attempt-ledger and rerun-authorization artifacts remain non-writable.
+
 ## Findings from independent review and remediation
 
 The first independent review found that a synthetic caller could create its own `ready-local-only` registry, arbitrary weights, attempt/rerun digests without a read artifact, invalid SFEN, arbitrary options, and an intermediate-directory symlink. The test seam and a possible future production boundary were not separated strongly enough, so that state could not be treated as production-ready.
 
-The remediation renamed the executable API to `CoreForTests`, kept the production route at `STOP` while its code-pinned identity is unset, and added read-only attempt artifacts, no-follow opening of every path component, the existing SFEN validator, and exact test-only options. Adversarial regressions cover each finding. Final independent rereview, PR, and CI are still `PENDING`.
+The first remediation renamed the executable API to `CoreForTests`, kept the production route at `STOP` while its code-pinned identity is unset, and added read-only attempt artifacts, no-follow opening of every path component, the existing SFEN validator, and exact test-only options.
+
+The exact-head rereview then found four ordinary-correctness gaps: a short `os.write` could let the in-memory 384-pair result return while its journals were truncated; a schema-only attempt/rerun JSON could carry unrelated or contradictory semantics; a restrictive `umask` could start one six-pair batch before journal mode failure; and requiring the pinned registry itself to be non-writable was incompatible with a normal Git checkout. The second remediation added full writes plus final journal reparse, strict attempt/rerun semantic binding, pre-callback journal mode validation, and normal-checkout pinned-registry handling without relaxing its exact identity or no-follow checks. Focused adversarial rereview after those changes found `P0=0`, `P1=0`, and `P2=0`. PR and CI are still `PENDING`.
 
 ## Validation
 
@@ -124,12 +128,12 @@ Measured results are recorded in the [machine-readable evidence](./data/floodgat
 | Validation                 |                           Result | Wall time |
 | -------------------------- | -------------------------------: | --------: |
 | Python compile             |                             PASS |         — |
-| focused Python             |                     14 / 14 PASS |    1.12 s |
-| full ML stdlib             |                   152 / 152 PASS |   12.05 s |
-| publication evidence       |                       5 / 5 PASS |    0.29 s |
+| focused Python             |                     18 / 18 PASS |    1.85 s |
+| full ML stdlib             |                   156 / 156 PASS |   13.26 s |
+| publication evidence       |                       5 / 5 PASS |    0.54 s |
 | argumentless npm preflight | expected STOP, 0 pairs / 0 games |    0.32 s |
 
-Stub tests cover an exact 384-pair / 768-callback completion, zero callbacks on complete resume, six concurrent pairs, fault/partial state, wrong plan/registry/weight/binding/color/ID, receipt tamper, unknown entries, aliases, and network/AWS/live flags. They also reject a caller-selected production registry, bare attempt/rerun digests, writable attempt artifacts, invalid SFEN, arbitrary options, and intermediate symlinks. These are orchestration tests, not playing-strength data.
+Stub tests cover an exact 384-pair / 768-callback completion, zero callbacks on complete resume, six concurrent pairs, fault/partial state, wrong plan/registry/weight/binding/color/ID, receipt tamper, unknown entries, aliases, and network/AWS/live flags. They also reject a caller-selected production registry, bare or semantically contradictory attempt/rerun artifacts, writable attempt artifacts, invalid SFEN, arbitrary options, intermediate symlinks, a zero-progress journal write, and a restrictive-`umask` journal before any callback. A forced ordinary short-write run completes valid journals and resumes with zero callbacks, while a code-pinned registry validates at normal checkout mode and still rejects byte drift. These are orchestration tests, not playing-strength data.
 
 ## Current state and the next data-only gate
 

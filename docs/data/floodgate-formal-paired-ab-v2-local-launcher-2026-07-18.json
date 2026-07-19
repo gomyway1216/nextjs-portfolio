@@ -2,9 +2,9 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-local-launcher-evidence-v1",
   "recorded_date": "2026-07-18",
   "implementation_anchor": {
-    "revision": "8512a7fef524a71341f79cdcc10087294e34cfa6",
-    "tree": "b7727601cb6d67057ff7e8aa796d4fc6d5368a66",
-    "review_state": "local-remediation-validation-pass-final-independent-rereview-pending",
+    "revision": "1b78dccb0e7c29613f8f207091eda5d49d1cc6c7",
+    "tree": "30934630fef33b3aec6064a41fc270aab1e728d8",
+    "review_state": "local-second-remediation-validation-pass-independent-rereview-pass",
     "pull_request": null,
     "continuous_integration": "NOT_RUN"
   },
@@ -26,13 +26,13 @@
   "implementation_artifacts": {
     "launcher": {
       "path": "ml/formal_paired_ab_local_launcher.py",
-      "bytes": 49038,
-      "sha256": "896ed088307895a627041ad7acd1b3a47c24b39ec8c93d17c4db8373d3ffa9ec"
+      "bytes": 54488,
+      "sha256": "d50e4c0eee96580026d6e9d8add57192b0c29efe34d8e55c3fe7939aa2ff38f3"
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
-      "bytes": 32242,
-      "sha256": "a377acb967361081946a75ad88687d5caa4806a07367cc94297cce3da4b08013"
+      "bytes": 40951,
+      "sha256": "66b0eb4f82759cff2780d7f6233bca39e230f49c4a0ec47db275d48b099c8170"
     }
   },
   "protocol_binding": {
@@ -73,7 +73,10 @@
     "intermediate_symlink": "reject",
     "canonical_jsonl_required": true,
     "previous_event_sha256_chain": true,
+    "full_write_loop_required": true,
+    "created_journal_mode_checked_before_game": true,
     "file_fsync_before_next_event": true,
+    "complete_journals_reparsed_before_result": true,
     "directory_entry_power_loss_durability_claimed": false,
     "same_uid_malicious_tamper_proof_claimed": false
   },
@@ -91,6 +94,10 @@
     "rerun_authorization_identity_required_for_attempt_one": true,
     "attempt_artifacts_must_be_read_only_regular_inodes": true,
     "bare_attempt_or_rerun_digest_accepted": false,
+    "attempt_ledger_semantics_bind_enrolled_experiment": true,
+    "attempt_one_requires_exact_prior_fault_and_blinded_authorization": true,
+    "pinned_registry_normal_checkout_mode_supported": true,
+    "pinned_registry_exact_identity_still_required": true,
     "canonical_sfen_validator": "fresh_qat_parent_accounting_v2._normalized_sfen",
     "core_for_tests_deterministic_options_exact": true,
     "caller_supplied_arbitrary_options_accepted": false
@@ -103,34 +110,42 @@
       "caller-authored-ready-registry-could-look-production-ready",
       "attempt-and-rerun-digests-did-not-identify-read-artifacts",
       "intermediate-repository-symlink-could-be-followed",
-      "invalid-sfen-and-arbitrary-options-could-pass"
+      "invalid-sfen-and-arbitrary-options-could-pass",
+      "short-write-could-return-complete-result-with-truncated-journals",
+      "attempt-and-rerun-payload-semantics-were-not-bound",
+      "restrictive-umask-could-reach-game-callback-before-mode-stop",
+      "pinned-registry-read-only-mode-was-incompatible-with-normal-git-checkout"
     ],
-    "remediation_state": "local-validation-pass-final-independent-rereview-pending",
+    "remediation_state": "local-second-remediation-validation-pass",
     "remediated_probe_classes": [
       "caller-selected-production-registry-route",
       "arbitrary-candidate-weight-through-production-route",
       "bare-attempt-or-rerun-digest",
       "intermediate-symlink",
       "invalid-sfen",
-      "arbitrary-deterministic-options"
+      "arbitrary-deterministic-options",
+      "short-and-zero-progress-journal-write",
+      "attempt-and-rerun-semantic-contradiction",
+      "restrictive-umask-pre-callback-stop",
+      "normal-checkout-pinned-registry-with-exact-identity"
     ],
-    "final_independent_rereview": "PENDING"
+    "final_independent_rereview": "PASS-P0-0-P1-0-P2-0"
   },
   "validation": {
     "python_compile_command": "python3 -m py_compile ml/formal_paired_ab_local_launcher.py ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
     "python_compile_status": "PASS",
     "focused_command": "python3 -m unittest ml.tests_stdlib.test_formal_paired_ab_local_launcher -v",
-    "focused_tests_passed": 14,
+    "focused_tests_passed": 18,
     "focused_tests_failed": 0,
-    "focused_wall_seconds": 1.12,
+    "focused_wall_seconds": 1.85,
     "full_command": "npm run test:ml:stdlib",
-    "full_tests_passed": 152,
+    "full_tests_passed": 156,
     "full_tests_failed": 0,
-    "full_wall_seconds": 12.05,
+    "full_wall_seconds": 13.26,
     "evidence_command": "npm test -- tests/unit/ml/floodgateFormalPairedAbV2LocalLauncherEvidence.test.ts",
     "evidence_tests_passed": 5,
     "evidence_tests_failed": 0,
-    "evidence_wall_seconds": 0.29,
+    "evidence_wall_seconds": 0.54,
     "argumentless_wall_seconds": 0.32,
     "argumentless_command_exit": 2,
     "argumentless_command_status": "STOP",
@@ -141,7 +156,13 @@
     "synthetic_six_concurrent_pair_workers_tested": true,
     "caller_selected_production_registry_rejection_tested": true,
     "bare_attempt_and_rerun_digest_rejection_tested": true,
+    "contradictory_attempt_and_rerun_semantics_rejection_tested": true,
     "writable_attempt_artifact_rejection_tested": true,
+    "normal_checkout_pinned_registry_tested": true,
+    "short_journal_write_completion_tested": true,
+    "zero_progress_journal_write_pre_callback_rejection_tested": true,
+    "restrictive_umask_pre_callback_rejection_tested": true,
+    "complete_journal_reparse_tested": true,
     "intermediate_symlink_rejection_tested": true,
     "invalid_sfen_rejection_tested": true,
     "arbitrary_deterministic_options_rejection_tested": true,

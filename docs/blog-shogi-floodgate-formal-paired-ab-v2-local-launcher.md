@@ -12,7 +12,7 @@
 - synthetic fixtureを受け取る明示的なtest-only `CoreForTests`
 - 将来の本番activationを、codeに固定したchecked-in ready-registryのexact path / bytes / SHA-256 / schemaがなければ拒否するclosed route
 - candidate / stable weight、YaneuraOu binary / receipt / eval、既存local match adapterのbytes / SHA-256検証
-- attempt ledgerと再試行認可を、実際に読み込むread-only regular artifactのpath / bytes / SHA-256 / schemaへ束縛
+- attempt ledgerと再試行認可を、実際に読み込むread-only regular artifactのpath / bytes / SHA-256 / schemaへ束縛し、experiment / run / faultの意味も再計算
 - canonical four-field SFEN、exact 384 opening、768 game ID、pair順、candidate先手→後手、unique seedの検証
 - test fixtureで許すdeterministic optionsを1つのexact JSONへ固定
 - 最大6 pair worker
@@ -77,11 +77,11 @@ worker数はready registryに固定するが、許容範囲は1〜6だけであ�
 
 各eventは直前のcanonical JSONL bytesのSHA-256、registry、plan、amendment、opening manifest、match binding、両weight、pair / opening / seed identityを束縛する。receipt directoryはcurrent-user-owned `0700`だけを許し、unknown entry、symlink、hardlink、非canonical JSONLを拒否する。registry、protocol、manifest、binding、asset、attempt ledger、rerun authorizationを読むときは、final fileだけでなくrepository-relative pathの各directory componentもdirectory descriptorと`nofollow`で開くため、中間symlinkも拒否する。
 
-attempt ledgerとattempt 1のrerun authorizationは、digest文字列だけでは受理しない。current user所有、hardlinkなし、write bitなしのregular artifactを実際に読み、申告したbytes / SHA-256 / schemaと一致させる。
+attempt ledgerとattempt 1のrerun authorizationは、digest文字列だけでは受理しない。current user所有、hardlinkなし、write bitなしのregular artifactを実際に読み、申告したbytes / SHA-256 / schemaと一致させる。さらにledgerはexactなexperiment、candidate / stable weight、opening manifest、match bindingを束縛する。attempt 0ではprior recordが0件でなければならない。attempt 1ではtechnical faultとして終了したprior runがexactに1件あり、そのevidence SHA-256と`result_unblinded: false`を要求する。authorizationも同じprior run / evidence / ledgerと、今回のexactなnew runを指さなければならない。
 
 再開時はcomplete journalが作る0からの連続prefixだけを読んでskipする。途中pair、fault event、missing lower pair、game 1先行、duplicate game、wrong color、digest driftが1件でもあれば、complete pairを含めて新しいgameを開始しない。したがってcomplete pairは再対局せず、partial pairも勝手に再対局しない。
 
-fileを`fsync`してから次eventへ進むが、directory entryのpower-loss durabilityや、同じUIDを持つmalicious processに対するtamper-proof storageは主張しない。これはlocal trusted-operator boundaryであり、remote witnessではない。
+新規journalはgame adapterを呼ぶ前にexact `0600` modeを検証し、各eventをfull-write loopで最後まで書き、`fsync`してから次eventへ進む。complete resultを返す前には384 journalをすべて再parseする。したがってrestrictive `umask`やzero-progress writeは最初のcallback前にSTOPし、通常のshort writeはeventを黙って切り詰めず残りを書き切る。directory entryのpower-loss durabilityや、同じUIDを持つmalicious processに対するtamper-proof storageは主張しない。これはlocal trusted-operator boundaryであり、remote witnessではない。
 
 ## technical fault
 
@@ -111,11 +111,15 @@ argumentを1つでも渡すと`arguments-forbidden`で停止する。argumentな
 
 このcommandからtest-only coreやlocal adapterへ到達する経路はまだない。将来これを開くには、review済みのchecked-in ready registryのexact identityをcodeへ固定し、本番用adapter compositionを別途reviewする必要がある。callerがpathを渡して開く設計にはしない。
 
+Gitは通常のtracked data fileについてowner-read-only bitを保持しないため、checked-in pinned registryは通常のcheckoutでは`0644`になる。launcherはそのmodeをauthorityとしては扱わず、code-pinned repository-relative path / bytes / SHA-256 / schema、current-user ownership、単一regular inode、no-follow traversalを引き続きすべて要求する。attempt ledgerとrerun authorization artifactは従来どおりnon-writableでなければならない。
+
 ## 独立reviewで見つかった穴と修正
 
 最初の独立reviewでは、synthetic callerが自己作成した`ready-local-only` registry、任意weight、実artifactを読まないattempt / rerun digest、invalid SFEN、任意options、中間directory symlinkを通せることが分かった。これはtest seamと将来のproduction境界の区別が弱かったためであり、その状態を本番readyとは扱えない。
 
-remediationでは、実行可能APIを`CoreForTests`へ改名し、production routeをcode-pinned identity未設定の`STOP`へ閉じた。さらにread-only attempt artifacts、全path componentの`nofollow`、既存SFEN validator、exact test-only optionsを追加し、上記のadversarial caseを回帰testへ固定した。最終独立再review、PR、CIはまだ`PENDING`である。
+最初のremediationでは、実行可能APIを`CoreForTests`へ改名し、production routeをcode-pinned identity未設定の`STOP`へ閉じた。さらにread-only attempt artifacts、全path componentの`nofollow`、既存SFEN validator、exact test-only optionsを追加した。
+
+そのexact headの再reviewでは、通常のcorrectnessに関する4点が見つかった。`os.write`がshort writeした場合、journalが切れたままin-memoryの384-pair complete resultを返せたこと、schemaだけ正しいattempt / rerun JSONが無関係または矛盾した意味を持てたこと、restrictive `umask`ではjournal mode failureより先に6-pair batchを開始できたこと、pinned registry自身をnon-writable必須にすると通常のGit checkoutと両立しないことである。2回目のremediationでは、full writeとfinal journal reparse、strictなattempt / rerun semantic binding、callback前のjournal mode validation、identity / nofollowを弱めない通常checkout対応を追加した。修正後のfocused adversarial再reviewは`P0=0`、`P1=0`、`P2=0`である。PRとCIはまだ`PENDING`である。
 
 ## 検証結果
 
@@ -124,12 +128,12 @@ remediationでは、実行可能APIを`CoreForTests`へ改名し、production ro
 | 検証                       |                           結果 | wall time |
 | -------------------------- | -----------------------------: | --------: |
 | Python compile             |                           PASS |         — |
-| focused Python             |                   14 / 14 PASS |    1.12秒 |
-| ML stdlib全体              |                 152 / 152 PASS |   12.05秒 |
-| publication evidence       |                     5 / 5 PASS |    0.29秒 |
+| focused Python             |                   18 / 18 PASS |    1.85秒 |
+| ML stdlib全体              |                 156 / 156 PASS |   13.26秒 |
+| publication evidence       |                     5 / 5 PASS |    0.54秒 |
 | argumentless npm preflight | expected STOP、0 pair / 0 game |    0.32秒 |
 
-stub testではexact 384 pair / 768 callbackの完走、complete resume時の0 callback、6 concurrent pair、fault / partial、wrong plan / registry / weight / binding / color / ID、receipt tamper、unknown entry、alias、network / AWS / live flagに加え、caller-selected production registry不在、bare attempt / rerun digest、writable attempt artifact、invalid SFEN、任意options、中間symlinkの拒否を検証した。これはorchestrationのtestであり、棋力データではない。
+stub testではexact 384 pair / 768 callback完走、complete resume時callbackゼロ、6 pair同時実行、fault / partial、wrong plan / registry / weight / binding / color / ID、receipt tamper、unknown entry、alias、network / AWS / live flagを検査した。さらにcaller-selected production registry、bareまたは意味が矛盾するattempt / rerun artifact、writable attempt artifact、invalid SFEN、任意options、中間symlink、zero-progress journal write、restrictive `umask`をcallback前に拒否した。通常short-writeを強制したrunはvalid journalを完成させ、resume callbackはゼロだった。code-pinned registryは通常checkout modeで検証でき、byte driftは引き続き拒否した。これはorchestration testであり、棋力データではない。
 
 ## 現在値と次のdata-only gate
 

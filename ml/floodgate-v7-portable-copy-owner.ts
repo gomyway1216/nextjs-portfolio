@@ -2,15 +2,19 @@
  * Keep the portable-copy source preseal, filesystem seal, copy witnesses, and
  * composite destination seal inside one opaque owner lifecycle.
  *
- * This is a dormant filesystem-authority primitive. It does not perform source
- * semantic verification, read through held descriptors, run a teacher, train a
- * model, or activate a weight.
+ * This is a dormant filesystem-authority primitive. Its specialized
+ * held-role-bundle borrow delegates one pathless, exact-nine-file snapshot to
+ * a synchronous owner claim while the underlying descriptors remain held. It
+ * does not perform source semantic verification, run a teacher, train a model,
+ * or activate a weight.
  */
 
 import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  claimFloodgateV7PortableCopyHeldRoleBundleSnapshot,
+  claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests,
   copyFloodgateV7PortableSourceByValue,
   copyFloodgateV7PortableSourceByValueCoreForTests,
   presealFloodgateV7PortableCopySource,
@@ -21,10 +25,14 @@ import {
   sealFloodgateV7PortableCopyCompositeDestinationCoreForTests,
   sealFloodgateV7PortableCopySourceFilesystem,
   sealFloodgateV7PortableCopySourceFilesystemCoreForTests,
+  withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundle,
+  withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests,
   withFloodgateV7PortableCopyCompositeDestinationRevalidation,
   withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests,
   type FloodgateV7CleanRoomCopyDependencies,
   type FloodgateV7PortableCopyCompositeDestinationSeal,
+  type FloodgateV7PortableCopyHeldRoleBundleClaim,
+  type FloodgateV7PortableCopyHeldRoleBundleSnapshot,
   type FloodgateV7PortableCopyKind,
   type FloodgateV7PortableCopySourceFilesystemSeal,
   type FloodgateV7PortableCopySourcePreseal,
@@ -36,6 +44,10 @@ export const FLOODGATE_V7_PORTABLE_COPY_OWNER_CONTRACT =
   "shogi-floodgate-v7-portable-copy-owner-v1" as const;
 export const FLOODGATE_V7_PORTABLE_COPY_OWNER_CLAIM_BOUNDARY =
   "owner-private-exact-four-kind-source-preseal-filesystem-seal-copy-witness-composite-and-serialized-borrow-lifecycle-not-source-semantic-authenticity-held-descriptor-reads-exact-three-gate-teacher-training-live-weight-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CONTRACT =
+  "shogi-floodgate-v7-portable-copy-owner-held-role-bundle-v1" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY =
+  "owner-and-bound-bridge-private-ephemeral-single-use-claim-over-one-composite-held-role-bundle-exact-nine-file-pathless-snapshot-callback-settlement-postflight-and-close-not-source-semantic-authenticity-exact-three-gate-teacher-training-live-weight-or-playing-strength-evidence" as const;
 
 const FIXED_KINDS = Object.freeze([
   "raw-lock-tree",
@@ -69,6 +81,7 @@ const pathSeparator = path.sep;
 declare const portableCopyOwnerBrand: unique symbol;
 declare const portableCopyOwnerPauseBrand: unique symbol;
 declare const portableCopyOwnerBridgeBrand: unique symbol;
+declare const portableCopyOwnerHeldRoleBundleClaimBrand: unique symbol;
 
 export interface FloodgateV7PortableCopyOwner {
   readonly [portableCopyOwnerBrand]: true;
@@ -81,6 +94,13 @@ export interface FloodgateV7PortableCopyOwnerVerificationPause {
 export interface FloodgateV7PortableCopyOwnerBoundBridge {
   readonly [portableCopyOwnerBridgeBrand]: true;
 }
+
+export interface FloodgateV7PortableCopyOwnerHeldRoleBundleClaim {
+  readonly [portableCopyOwnerHeldRoleBundleClaimBrand]: true;
+}
+
+export type FloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot =
+  FloodgateV7PortableCopyHeldRoleBundleSnapshot;
 
 export interface FloodgateV7PortableCopyOwnerDependencies {
   readonly effectiveUserId: number;
@@ -168,8 +188,16 @@ interface OwnerState {
   readonly pause: object;
   composite?: FloodgateV7PortableCopyCompositeDestinationSeal;
   bridge?: object;
+  activeHeldRoleBundleClaim?: object;
   inUse: boolean;
   invalidated: boolean;
+}
+
+interface OwnerHeldRoleBundleClaimState {
+  readonly owner: object;
+  readonly bridge: object;
+  readonly underlyingClaim: FloodgateV7PortableCopyHeldRoleBundleClaim;
+  consumed: boolean;
 }
 
 interface OwnerRegistry {
@@ -182,6 +210,9 @@ interface OwnerRegistry {
   readonly revokedPauses: WeakSet<object>;
   readonly issuedBridges: WeakSet<object>;
   readonly revokedBridges: WeakSet<object>;
+  readonly heldRoleBundleClaims: WeakMap<object, OwnerHeldRoleBundleClaimState>;
+  readonly issuedHeldRoleBundleClaims: WeakSet<object>;
+  readonly revokedHeldRoleBundleClaims: WeakSet<object>;
 }
 
 interface UnderlyingPortableCopyApi {
@@ -207,6 +238,15 @@ interface UnderlyingPortableCopyApi {
     composite: FloodgateV7PortableCopyCompositeDestinationSeal,
     operation: () => Result | Promise<Result>,
   ) => Promise<Result>;
+  readonly withHeldRoleBundle: <Result>(
+    composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+    operation: (
+      claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+    ) => Result | Promise<Result>,
+  ) => Promise<Result>;
+  readonly claimHeldRoleBundleSnapshot: (
+    claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+  ) => FloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot;
   readonly revoke: (
     composite: FloodgateV7PortableCopyCompositeDestinationSeal,
   ) => void;
@@ -595,7 +635,7 @@ async function settleFour<Value>(
   return objectFreeze([first.value, second.value, third.value, fourth.value]);
 }
 
-function operationIsPlainZeroArity(value: unknown): value is () => unknown {
+function operationIsPlainArity(value: unknown, expected: number): boolean {
   if (
     typeof value !== "function" ||
     applyFunction(isProxy, nodeUtilTypes, [value])
@@ -603,7 +643,19 @@ function operationIsPlainZeroArity(value: unknown): value is () => unknown {
     return false;
   }
   const length = objectGetOwnPropertyDescriptors(value).length;
-  return length !== undefined && "value" in length && length.value === 0;
+  return length !== undefined && "value" in length && length.value === expected;
+}
+
+function operationIsPlainZeroArity(value: unknown): value is () => unknown {
+  return operationIsPlainArity(value, 0);
+}
+
+function operationIsPlainUnary(
+  value: unknown,
+): value is (
+  claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+) => unknown {
+  return operationIsPlainArity(value, 1);
 }
 
 function createRegistry(): OwnerRegistry {
@@ -617,6 +669,9 @@ function createRegistry(): OwnerRegistry {
     revokedPauses: new WeakSet<object>(),
     issuedBridges: new WeakSet<object>(),
     revokedBridges: new WeakSet<object>(),
+    heldRoleBundleClaims: new WeakMap<object, OwnerHeldRoleBundleClaimState>(),
+    issuedHeldRoleBundleClaims: new WeakSet<object>(),
+    revokedHeldRoleBundleClaims: new WeakSet<object>(),
   });
 }
 
@@ -640,6 +695,23 @@ function createOwnerApi(
       deleteWeakMapValue(registry.bridges, state.bridge);
       if (weakSetContains(registry.issuedBridges, state.bridge)) {
         addWeakSetValue(registry.revokedBridges, state.bridge);
+      }
+    }
+
+    const heldRoleBundleClaim = state.activeHeldRoleBundleClaim;
+    state.activeHeldRoleBundleClaim = undefined;
+    if (heldRoleBundleClaim !== undefined) {
+      deleteWeakMapValue(registry.heldRoleBundleClaims, heldRoleBundleClaim);
+      if (
+        weakSetContains(
+          registry.issuedHeldRoleBundleClaims,
+          heldRoleBundleClaim,
+        )
+      ) {
+        addWeakSetValue(
+          registry.revokedHeldRoleBundleClaims,
+          heldRoleBundleClaim,
+        );
       }
     }
 
@@ -855,6 +927,154 @@ function createOwnerApi(
     }
   };
 
+  const withHeldRoleBundle = async <Result>(
+    argumentCount: number,
+    ownerValue: FloodgateV7PortableCopyOwner,
+    bridgeValue: FloodgateV7PortableCopyOwnerBoundBridge,
+    operationValue: (
+      claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+    ) => Result | Promise<Result>,
+  ): Promise<Result> => {
+    let owner: object | undefined;
+    let state: OwnerState | undefined;
+    try {
+      if (argumentCount !== 3) throw new Error("argument count differs");
+      owner = tokenObject(ownerValue);
+      const bridge = tokenObject(bridgeValue);
+      if (owner === undefined || bridge === undefined) {
+        throw new Error("owner held-role-bundle token differs");
+      }
+      state = getWeakMapValue(registry.owners, owner);
+      if (
+        state === undefined ||
+        state.phase !== "bound" ||
+        state.invalidated ||
+        state.composite === undefined ||
+        state.bridge !== bridge ||
+        getWeakMapValue(registry.bridges, bridge) !== owner ||
+        !operationIsPlainUnary(operationValue)
+      ) {
+        throw new Error("owner held-role-bundle borrow differs");
+      }
+      if (state.inUse || state.activeHeldRoleBundleClaim !== undefined) {
+        throw new Error("owner held-role-bundle borrow already active");
+      }
+      const activeOwner = owner;
+      const activeBridge = bridge;
+      const activeState = state;
+      const composite = state.composite;
+      activeState.inUse = true;
+      let callbackEntered = false;
+      let callbackClaimState: OwnerHeldRoleBundleClaimState | undefined;
+      const result = await underlying.withHeldRoleBundle<Result>(
+        composite,
+        (
+          underlyingClaim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+        ): Result | Promise<Result> => {
+          if (
+            callbackEntered ||
+            activeState.invalidated ||
+            activeState.phase !== "bound" ||
+            activeState.bridge !== activeBridge ||
+            !activeState.inUse ||
+            activeState.activeHeldRoleBundleClaim !== undefined
+          ) {
+            throw new Error("owner held-role-bundle callback differs");
+          }
+          callbackEntered = true;
+          const claim =
+            opaqueCapability<FloodgateV7PortableCopyOwnerHeldRoleBundleClaim>();
+          const claimObject = claim as object;
+          activeState.activeHeldRoleBundleClaim = claimObject;
+          callbackClaimState = {
+            owner: activeOwner,
+            bridge: activeBridge,
+            underlyingClaim,
+            consumed: false,
+          };
+          setWeakMapValue(
+            registry.heldRoleBundleClaims,
+            claimObject,
+            callbackClaimState,
+          );
+          addWeakSetValue(registry.issuedHeldRoleBundleClaims, claimObject);
+          try {
+            return applyFunction(operationValue, undefined, [claim]);
+          } finally {
+            if (activeState.activeHeldRoleBundleClaim === claimObject) {
+              activeState.activeHeldRoleBundleClaim = undefined;
+            }
+            deleteWeakMapValue(registry.heldRoleBundleClaims, claimObject);
+            addWeakSetValue(registry.revokedHeldRoleBundleClaims, claimObject);
+          }
+        },
+      );
+      if (
+        !callbackEntered ||
+        callbackClaimState === undefined ||
+        !callbackClaimState.consumed ||
+        activeState.invalidated
+      ) {
+        throw new Error("owner held-role-bundle settlement differs");
+      }
+      activeState.inUse = false;
+      return result;
+    } catch {
+      if (owner !== undefined && state !== undefined) {
+        invalidate(owner, state);
+      }
+      throw new FloodgateV7PortableCopyOwnerError("borrow");
+    }
+  };
+
+  const claimHeldRoleBundleSnapshot = (
+    argumentCount: number,
+    ownerValue: FloodgateV7PortableCopyOwner,
+    bridgeValue: FloodgateV7PortableCopyOwnerBoundBridge,
+    claimValue: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+  ): FloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot => {
+    let owner: object | undefined;
+    let state: OwnerState | undefined;
+    try {
+      if (argumentCount !== 3) throw new Error("argument count differs");
+      owner = tokenObject(ownerValue);
+      const bridge = tokenObject(bridgeValue);
+      const claim = tokenObject(claimValue);
+      if (owner === undefined || bridge === undefined || claim === undefined) {
+        throw new Error("owner held-role-bundle claim token differs");
+      }
+      state = getWeakMapValue(registry.owners, owner);
+      const claimState = getWeakMapValue(registry.heldRoleBundleClaims, claim);
+      if (
+        state === undefined ||
+        state.phase !== "bound" ||
+        state.invalidated ||
+        state.bridge !== bridge ||
+        getWeakMapValue(registry.bridges, bridge) !== owner ||
+        !state.inUse ||
+        state.activeHeldRoleBundleClaim !== claim ||
+        claimState === undefined ||
+        claimState.owner !== owner ||
+        claimState.bridge !== bridge
+      ) {
+        throw new Error("owner held-role-bundle claim differs");
+      }
+      deleteWeakMapValue(registry.heldRoleBundleClaims, claim);
+      state.activeHeldRoleBundleClaim = undefined;
+      addWeakSetValue(registry.revokedHeldRoleBundleClaims, claim);
+      const snapshot = underlying.claimHeldRoleBundleSnapshot(
+        claimState.underlyingClaim,
+      );
+      claimState.consumed = true;
+      return snapshot;
+    } catch {
+      if (owner !== undefined && state !== undefined) {
+        invalidate(owner, state);
+      }
+      throw new FloodgateV7PortableCopyOwnerError("borrow");
+    }
+  };
+
   const revoke = (
     argumentCount: number,
     ownerValue: FloodgateV7PortableCopyOwner,
@@ -879,7 +1099,14 @@ function createOwnerApi(
     }
   };
 
-  return objectFreeze({ preseal, bind, withRevalidation, revoke });
+  return objectFreeze({
+    preseal,
+    bind,
+    withRevalidation,
+    withHeldRoleBundle,
+    claimHeldRoleBundleSnapshot,
+    revoke,
+  });
 }
 
 const productionApi = createOwnerApi(
@@ -891,6 +1118,10 @@ const productionApi = createOwnerApi(
     composite: sealFloodgateV7PortableCopyCompositeDestination,
     withRevalidation:
       withFloodgateV7PortableCopyCompositeDestinationRevalidation,
+    withHeldRoleBundle:
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundle,
+    claimHeldRoleBundleSnapshot:
+      claimFloodgateV7PortableCopyHeldRoleBundleSnapshot,
     revoke: revokeFloodgateV7PortableCopyCompositeDestinationSeal,
   },
   false,
@@ -905,6 +1136,10 @@ const testApi = createOwnerApi(
     composite: sealFloodgateV7PortableCopyCompositeDestinationCoreForTests,
     withRevalidation:
       withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests,
+    withHeldRoleBundle:
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests,
+    claimHeldRoleBundleSnapshot:
+      claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests,
     revoke: revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests,
   },
   true,
@@ -942,6 +1177,36 @@ export async function withFloodgateV7PortableCopyOwnerRevalidation<Result>(
   );
 }
 
+export function withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidation<
+  Result,
+>(
+  owner: FloodgateV7PortableCopyOwner,
+  bridge: FloodgateV7PortableCopyOwnerBoundBridge,
+  operation: (
+    claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+  ) => Result | Promise<Result>,
+): Promise<Result> {
+  return productionApi.withHeldRoleBundle<Result>(
+    arguments.length,
+    owner,
+    bridge,
+    operation,
+  );
+}
+
+export function claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot(
+  owner: FloodgateV7PortableCopyOwner,
+  bridge: FloodgateV7PortableCopyOwnerBoundBridge,
+  claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+): FloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot {
+  return productionApi.claimHeldRoleBundleSnapshot(
+    arguments.length,
+    owner,
+    bridge,
+    claim,
+  );
+}
+
 export function revokeFloodgateV7PortableCopyOwner(
   owner: FloodgateV7PortableCopyOwner,
 ): void {
@@ -975,6 +1240,36 @@ export async function withFloodgateV7PortableCopyOwnerRevalidationCoreForTests<
   operation: () => Result | Promise<Result>,
 ): Promise<Result> {
   return testApi.withRevalidation(arguments.length, owner, bridge, operation);
+}
+
+export function withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests<
+  Result,
+>(
+  owner: FloodgateV7PortableCopyOwner,
+  bridge: FloodgateV7PortableCopyOwnerBoundBridge,
+  operation: (
+    claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+  ) => Result | Promise<Result>,
+): Promise<Result> {
+  return testApi.withHeldRoleBundle<Result>(
+    arguments.length,
+    owner,
+    bridge,
+    operation,
+  );
+}
+
+export function claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+  owner: FloodgateV7PortableCopyOwner,
+  bridge: FloodgateV7PortableCopyOwnerBoundBridge,
+  claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+): FloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot {
+  return testApi.claimHeldRoleBundleSnapshot(
+    arguments.length,
+    owner,
+    bridge,
+    claim,
+  );
 }
 
 export function revokeFloodgateV7PortableCopyOwnerCoreForTests(

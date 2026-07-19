@@ -8,23 +8,33 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_PORTABLE_COPY_OWNER_CLAIM_BOUNDARY,
   FLOODGATE_V7_PORTABLE_COPY_OWNER_CONTRACT,
+  FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CONTRACT,
   FloodgateV7PortableCopyOwnerError,
   bindFloodgateV7PortableCopyOwnerBridge,
   bindFloodgateV7PortableCopyOwnerBridgeCoreForTests,
+  claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot,
+  claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests,
   presealFloodgateV7PortableCopyOwner,
   presealFloodgateV7PortableCopyOwnerCoreForTests,
   revokeFloodgateV7PortableCopyOwner,
   revokeFloodgateV7PortableCopyOwnerCoreForTests,
   withFloodgateV7PortableCopyOwnerRevalidation,
   withFloodgateV7PortableCopyOwnerRevalidationCoreForTests,
+  withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidation,
+  withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests,
   type FloodgateV7PortableCopyOwner,
   type FloodgateV7PortableCopyOwnerBinding,
   type FloodgateV7PortableCopyOwnerBoundBridge,
   type FloodgateV7PortableCopyOwnerExactBinding,
+  type FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
   type FloodgateV7PortableCopyOwnerPresealResult,
   type FloodgateV7PortableCopyOwnerVerificationPause,
 } from "../../../ml/floodgate-v7-portable-copy-owner";
-import type { FloodgateV7PortableCopyKind } from "../../../ml/floodgate-v7-clean-room-copy";
+import {
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES,
+  type FloodgateV7PortableCopyKind,
+} from "../../../ml/floodgate-v7-clean-room-copy";
 
 const roots: string[] = [];
 const effectiveUserId = process.geteuid?.() ?? 501;
@@ -92,9 +102,11 @@ async function fixture(): Promise<Readonly<OwnerFixture>> {
       path.join(sources["role-lock-tree"], "role.txt"),
       "role-lock-tree\n",
     ),
-    privateFile(
-      path.join(sources["role-bundle-tree"], "bundle.txt"),
-      "role-bundle-tree\n",
+    ...FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.map((filename) =>
+      privateFile(
+        path.join(sources["role-bundle-tree"], filename),
+        `${filename}\n`,
+      ),
     ),
     privateFile(sources["legacy-file"], "legacy-file\n"),
   ]);
@@ -149,6 +161,27 @@ async function boundOwnerFor(
     exactBindingsFor(value),
   );
   return Object.freeze({ ...presealed, bridge });
+}
+
+async function boundProductionOwnerFor(
+  value: Readonly<OwnerFixture>,
+): Promise<Readonly<BoundOwner>> {
+  const presealed = await presealFloodgateV7PortableCopyOwner(
+    bindingsFor(value),
+  );
+  const bridge = await bindFloodgateV7PortableCopyOwnerBridge(
+    presealed.owner,
+    presealed.verificationPause,
+    exactBindingsFor(value),
+  );
+  return Object.freeze({ ...presealed, bridge });
+}
+
+function everyByteIsZero(bytes: Uint8Array): boolean {
+  for (const byte of bytes) {
+    if (byte !== 0) return false;
+  }
+  return true;
 }
 
 async function rejectionOf(run: Promise<unknown>): Promise<unknown> {
@@ -247,6 +280,12 @@ describe("Floodgate v7 portable copy owner", () => {
     expect(FLOODGATE_V7_PORTABLE_COPY_OWNER_CLAIM_BOUNDARY).toContain(
       "not-source-semantic-authenticity-held-descriptor-reads-exact-three-gate",
     );
+    expect(FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CONTRACT).toBe(
+      "shogi-floodgate-v7-portable-copy-owner-held-role-bundle-v1",
+    );
+    expect(
+      FLOODGATE_V7_PORTABLE_COPY_OWNER_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY,
+    ).toContain("owner-and-bound-bridge-private-ephemeral-single-use-claim");
     const value = await fixture();
     const presealed = await presealFloodgateV7PortableCopyOwnerCoreForTests(
       bindingsFor(value),
@@ -879,6 +918,475 @@ describe("Floodgate v7 portable copy owner", () => {
         presealed.owner,
         bridge,
         () => true,
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+  });
+
+  it("binds one pathless held-role-bundle snapshot claim to the exact owner and bridge and returns the exact callback result", async () => {
+    const value = await fixture();
+    const bound = await boundOwnerFor(value);
+    const exactResult = Object.freeze({ status: "held-bundle-consumed" });
+    let retainedManifest: Uint8Array | undefined;
+    let retainedTraining: Uint8Array | undefined;
+
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          expect(Object.isFrozen(claim)).toBe(true);
+          expect(Object.getPrototypeOf(claim)).toBeNull();
+          expect(Reflect.ownKeys(claim)).toEqual([]);
+          const snapshot =
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+              bound.owner,
+              bound.bridge,
+              claim,
+            );
+          expect(snapshot.files.map((file) => file.filename)).toEqual(
+            FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES,
+          );
+          for (const file of snapshot.files) {
+            expect(file.bytes).toBeGreaterThan(0);
+            expect(file.sha256).toMatch(/^[0-9a-f]{64}$/u);
+            expect(Reflect.ownKeys(file).sort()).toEqual([
+              "bytes",
+              "filename",
+              "sha256",
+            ]);
+          }
+          expect(Buffer.from(snapshot.manifestBytes).toString("utf8")).toBe(
+            "manifest.json\n",
+          );
+          expect(Buffer.from(snapshot.trainingRawBytes).toString("utf8")).toBe(
+            "training.raw.jsonl\n",
+          );
+          retainedManifest = snapshot.manifestBytes;
+          retainedTraining = snapshot.trainingRawBytes;
+          return exactResult;
+        },
+      ),
+    ).resolves.toBe(exactResult);
+    expect(retainedManifest).toBeDefined();
+    expect(retainedTraining).toBeDefined();
+    expect(everyByteIsZero(retainedManifest!)).toBe(true);
+    expect(everyByteIsZero(retainedTraining!)).toBe(true);
+
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            bound.owner,
+            bound.bridge,
+            claim,
+          );
+          return Promise.resolve("second-borrow");
+        },
+      ),
+    ).resolves.toBe("second-borrow");
+    revokeFloodgateV7PortableCopyOwnerCoreForTests(bound.owner);
+  });
+
+  it("expires the owner claim as soon as the callback returns its Promise while retaining bytes only until settlement", async () => {
+    const value = await fixture();
+    const bound = await boundOwnerFor(value);
+    let entered!: () => void;
+    let release!: (result: string) => void;
+    const callbackEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const callbackSettlement = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    let retainedClaim:
+      FloodgateV7PortableCopyOwnerHeldRoleBundleClaim | undefined;
+    let retainedManifest: Uint8Array | undefined;
+    let retainedTraining: Uint8Array | undefined;
+    const run =
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          retainedClaim = claim;
+          const snapshot =
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+              bound.owner,
+              bound.bridge,
+              claim,
+            );
+          retainedManifest = snapshot.manifestBytes;
+          retainedTraining = snapshot.trainingRawBytes;
+          entered();
+          return callbackSettlement;
+        },
+      );
+
+    await callbackEntered;
+    expect(everyByteIsZero(retainedManifest!)).toBe(false);
+    expect(everyByteIsZero(retainedTraining!)).toBe(false);
+    const staleError = synchronousFailureOf(() =>
+      claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+        bound.owner,
+        bound.bridge,
+        retainedClaim!,
+      ),
+    );
+    expect(staleError).toMatchObject({
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+    expect(everyByteIsZero(retainedManifest!)).toBe(false);
+    expect(everyByteIsZero(retainedTraining!)).toBe(false);
+
+    release("settled-after-expiry");
+    await expect(run).rejects.toMatchObject({ operation: "borrow" });
+    expect(everyByteIsZero(retainedManifest!)).toBe(true);
+    expect(everyByteIsZero(retainedTraining!)).toBe(true);
+  });
+
+  it("denies a microtask-late held-role-bundle claim and invalidates the enclosing borrow", async () => {
+    const value = await fixture();
+    const bound = await boundOwnerFor(value);
+    let release!: () => void;
+    const settlement = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let lateError: unknown;
+    let lateAttempt: Promise<void> | undefined;
+    const run =
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          lateAttempt = Promise.resolve().then(() => {
+            try {
+              claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+                bound.owner,
+                bound.bridge,
+                claim,
+              );
+            } catch (error) {
+              lateError = error;
+            } finally {
+              release();
+            }
+          });
+          return settlement;
+        },
+      );
+    await expect(run).rejects.toMatchObject({ operation: "borrow" });
+    await lateAttempt;
+    expect(lateError).toMatchObject({
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+  });
+
+  it.each(["clone", "proxy", "replay"] as const)(
+    "rejects a %s owner held-role-bundle claim and permanently invalidates only that owner",
+    async (mode) => {
+      const value = await fixture();
+      const bound = await boundOwnerFor(value);
+      let capturedError: unknown;
+      const run =
+        withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+          bound.owner,
+          bound.bridge,
+          (claim) => {
+            try {
+              if (mode === "replay") {
+                claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+                  bound.owner,
+                  bound.bridge,
+                  claim,
+                );
+              }
+              const candidate =
+                mode === "clone"
+                  ? (structuredClone(
+                      claim,
+                    ) as FloodgateV7PortableCopyOwnerHeldRoleBundleClaim)
+                  : mode === "proxy"
+                    ? new Proxy(claim, {})
+                    : claim;
+              claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+                bound.owner,
+                bound.bridge,
+                candidate,
+              );
+            } catch (error) {
+              capturedError = error;
+            }
+            return Promise.resolve();
+          },
+        );
+      await expect(run).rejects.toMatchObject({ operation: "borrow" });
+      expect(capturedError).toMatchObject({
+        name: "FloodgateV7PortableCopyOwnerError",
+        operation: "borrow",
+        sensitive_values_disclosed: false,
+      });
+      await expect(
+        withFloodgateV7PortableCopyOwnerRevalidationCoreForTests(
+          bound.owner,
+          bound.bridge,
+          () => undefined,
+        ),
+      ).rejects.toMatchObject({ operation: "borrow" });
+    },
+  );
+
+  it("invalidates only owner A when owner A is paired with owner B's active claim", async () => {
+    const leftValue = await fixture();
+    const rightValue = await fixture();
+    const left = await boundOwnerFor(leftValue);
+    const right = await boundOwnerFor(rightValue);
+    let mixedError: unknown;
+
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        right.owner,
+        right.bridge,
+        (claim) => {
+          try {
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+              left.owner,
+              left.bridge,
+              claim,
+            );
+          } catch (error) {
+            mixedError = error;
+          }
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            right.owner,
+            right.bridge,
+            claim,
+          );
+          return Promise.resolve("right-claim");
+        },
+      ),
+    ).resolves.toBe("right-claim");
+    expect(mixedError).toMatchObject({
+      name: "FloodgateV7PortableCopyOwnerError",
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+
+    await expect(
+      withFloodgateV7PortableCopyOwnerRevalidationCoreForTests(
+        left.owner,
+        left.bridge,
+        () => undefined,
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        right.owner,
+        right.bridge,
+        (claim) => {
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            right.owner,
+            right.bridge,
+            claim,
+          );
+          return Promise.resolve("right-still-usable");
+        },
+      ),
+    ).resolves.toBe("right-still-usable");
+    revokeFloodgateV7PortableCopyOwnerCoreForTests(right.owner);
+  });
+
+  it("keeps production and test held-role-bundle claim registries disjoint without consuming the genuine claim", async () => {
+    const value = await fixture();
+    const bound = await boundProductionOwnerFor(value);
+    let crossRegistryError: unknown;
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidation(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          try {
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+              bound.owner,
+              bound.bridge,
+              claim,
+            );
+          } catch (error) {
+            crossRegistryError = error;
+          }
+          const snapshot =
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshot(
+              bound.owner,
+              bound.bridge,
+              claim,
+            );
+          expect(snapshot.files).toHaveLength(9);
+          return Promise.resolve("production-claim");
+        },
+      ),
+    ).resolves.toBe("production-claim");
+    expect(crossRegistryError).toMatchObject({
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+    revokeFloodgateV7PortableCopyOwner(bound.owner);
+  });
+
+  it("shares serialization between generic and held-role-bundle borrows and invalidates both on concurrency", async () => {
+    const value = await fixture();
+    const bound = await boundOwnerFor(value);
+    let entered!: () => void;
+    let release!: () => void;
+    const callbackEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const releaseCallback = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let retainedTraining: Uint8Array | undefined;
+    const held =
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          retainedTraining =
+            claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+              bound.owner,
+              bound.bridge,
+              claim,
+            ).trainingRawBytes;
+          entered();
+          return releaseCallback;
+        },
+      );
+    await callbackEntered;
+    const generic = withFloodgateV7PortableCopyOwnerRevalidationCoreForTests(
+      bound.owner,
+      bound.bridge,
+      () => "must-not-run",
+    );
+    await expect(generic).rejects.toMatchObject({ operation: "borrow" });
+    release();
+    await expect(held).rejects.toMatchObject({ operation: "borrow" });
+    expect(everyByteIsZero(retainedTraining!)).toBe(true);
+  });
+
+  it("invalidates synchronous held-role-bundle reentry and active revocation under one owner", async () => {
+    const reentryValue = await fixture();
+    const reentryBound = await boundOwnerFor(reentryValue);
+    let inner: Promise<unknown> | undefined;
+    const outer =
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        reentryBound.owner,
+        reentryBound.bridge,
+        (claim) => {
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            reentryBound.owner,
+            reentryBound.bridge,
+            claim,
+          );
+          inner =
+            withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+              reentryBound.owner,
+              reentryBound.bridge,
+              (_innerClaim) => Promise.resolve("inner"),
+            );
+          void inner.catch(() => undefined);
+          return Promise.resolve("outer");
+        },
+      );
+    await expect(outer).rejects.toMatchObject({ operation: "borrow" });
+    expect(inner).toBeDefined();
+    await expect(inner).rejects.toMatchObject({ operation: "borrow" });
+
+    const revokeValue = await fixture();
+    const revokeBound = await boundOwnerFor(revokeValue);
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        revokeBound.owner,
+        revokeBound.bridge,
+        (claim) => {
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            revokeBound.owner,
+            revokeBound.bridge,
+            claim,
+          );
+          revokeFloodgateV7PortableCopyOwnerCoreForTests(revokeBound.owner);
+          revokeFloodgateV7PortableCopyOwnerCoreForTests(revokeBound.owner);
+          return Promise.resolve("revoked-result");
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+  });
+
+  it("sanitizes held-role-bundle callback failures without retaining private paths or callback text", async () => {
+    const value = await fixture();
+    const bound = await boundOwnerFor(value);
+    const secret = `held-secret:${value.root}`;
+    const error = await rejectionOf(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        bound.owner,
+        bound.bridge,
+        (claim) => {
+          claimFloodgateV7PortableCopyOwnerHeldRoleBundleSnapshotCoreForTests(
+            bound.owner,
+            bound.bridge,
+            claim,
+          );
+          return Promise.reject(new Error(secret));
+        },
+      ),
+    );
+    expect(error).toMatchObject({
+      name: "FloodgateV7PortableCopyOwnerError",
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+    expect(String(error)).not.toContain(secret);
+    expect(String(error)).not.toContain(value.root);
+  });
+
+  it("rejects malformed held-role-bundle callbacks without invoking a length getter", async () => {
+    const getterValue = await fixture();
+    const getterBound = await boundOwnerFor(getterValue);
+    let getterCalls = 0;
+    const getterCallback = ((
+      _claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+    ) => Promise.resolve()) as (
+      claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+    ) => Promise<void>;
+    Object.defineProperty(getterCallback, "length", {
+      configurable: true,
+      get(): number {
+        getterCalls += 1;
+        return 1;
+      },
+    });
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        getterBound.owner,
+        getterBound.bridge,
+        getterCallback,
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(getterCalls).toBe(0);
+
+    const proxyValue = await fixture();
+    const proxyBound = await boundOwnerFor(proxyValue);
+    const proxyCallback = new Proxy(
+      (
+        _claim: FloodgateV7PortableCopyOwnerHeldRoleBundleClaim,
+      ): Promise<void> => Promise.resolve(),
+      {},
+    );
+    await expect(
+      withFloodgateV7PortableCopyOwnerHeldRoleBundleRevalidationCoreForTests(
+        proxyBound.owner,
+        proxyBound.bridge,
+        proxyCallback,
       ),
     ).rejects.toMatchObject({ operation: "borrow" });
   });

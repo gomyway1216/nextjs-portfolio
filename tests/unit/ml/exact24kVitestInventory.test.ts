@@ -623,26 +623,26 @@ describe("exact-24k Vitest inventory and report verifier", () => {
 
     for (const mutation of [
       (value: ReportFixture) => {
-        value.numTotalTestSuites = "2";
+        value["numTotalTestSuites"] = "2";
       },
       (value: ReportFixture) => {
-        value.numTotalTestSuites = -1;
+        value["numTotalTestSuites"] = -1;
       },
       (value: ReportFixture) => {
-        value.numTotalTestSuites = 2.5;
+        value["numTotalTestSuites"] = 2.5;
       },
       (value: ReportFixture) => {
-        value.numTotalTestSuites = 999;
-        value.numPassedTestSuites = 0;
+        value["numTotalTestSuites"] = 999;
+        value["numPassedTestSuites"] = 0;
       },
       (value: ReportFixture) => {
-        value.numPassedTestSuites = 1;
+        value["numPassedTestSuites"] = 1;
       },
       (value: ReportFixture) => {
-        value.numTotalTests = expected.titles.length + 1;
+        value["numTotalTests"] = expected.titles.length + 1;
       },
       (value: ReportFixture) => {
-        value.numPassedTests = expected.titles.length - 1;
+        value["numPassedTests"] = expected.titles.length - 1;
       },
       (value: ReportFixture) => {
         value.testResults[0].assertionResults.pop();

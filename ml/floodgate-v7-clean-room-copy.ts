@@ -37,7 +37,111 @@ const SAFE_BASENAME_RE = /^[A-Za-z0-9._-]+$/u;
 const objectPrototype = Object.prototype;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
+const arrayIsArray = Array.isArray;
+const arrayEvery = Array.prototype.every;
+const arrayMap = Array.prototype.map;
+const arrayPush = Array.prototype.push;
+const arrayReverse = Array.prototype.reverse;
+const arraySome = Array.prototype.some;
+const arraySort = Array.prototype.sort;
+const stringIncludes = String.prototype.includes;
+const stringSplit = String.prototype.split;
+const stringStartsWith = String.prototype.startsWith;
+const weakMapDelete = WeakMap.prototype.delete;
+const weakMapGet = WeakMap.prototype.get;
+const weakMapSet = WeakMap.prototype.set;
+const weakSetAdd = WeakSet.prototype.add;
+const weakSetHas = WeakSet.prototype.has;
+const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
+
+function isArray(value: unknown): value is unknown[] {
+  return reflectApply(arrayIsArray, undefined, [value]) as boolean;
+}
+
+function everyArrayItem<Value>(
+  values: readonly Value[],
+  predicate: (value: Value, index: number) => boolean,
+): boolean {
+  return reflectApply(arrayEvery, values, [predicate]) as boolean;
+}
+
+function mapArrayItems<Value, Result>(
+  values: readonly Value[],
+  callback: (value: Value, index: number) => Result,
+): Result[] {
+  return reflectApply(arrayMap, values, [callback]) as Result[];
+}
+
+function pushArrayItem<Value>(values: Value[], value: Value): number {
+  return reflectApply(arrayPush, values, [value]) as number;
+}
+
+function reverseArrayItems<Value>(values: Value[]): Value[] {
+  return reflectApply(arrayReverse, values, []) as Value[];
+}
+
+function someArrayItem<Value>(
+  values: readonly Value[],
+  predicate: (value: Value, index: number) => boolean,
+): boolean {
+  return reflectApply(arraySome, values, [predicate]) as boolean;
+}
+
+function sortArrayItems<Value>(
+  values: Value[],
+  compare: (left: Value, right: Value) => number,
+): Value[] {
+  return reflectApply(arraySort, values, [compare]) as Value[];
+}
+
+function stringContains(value: string, search: string): boolean {
+  return reflectApply(stringIncludes, value, [search]) as boolean;
+}
+
+function splitString(value: string, separator: string): string[] {
+  return reflectApply(stringSplit, value, [separator]) as string[];
+}
+
+function stringBeginsWith(value: string, search: string): boolean {
+  return reflectApply(stringStartsWith, value, [search]) as boolean;
+}
+
+function getWeakMapValue<Key extends object, Value>(
+  map: WeakMap<Key, Value>,
+  key: Key,
+): Value | undefined {
+  return reflectApply(weakMapGet, map, [key]) as Value | undefined;
+}
+
+function setWeakMapValue<Key extends object, Value>(
+  map: WeakMap<Key, Value>,
+  key: Key,
+  value: Value,
+): void {
+  reflectApply(weakMapSet, map, [key, value]);
+}
+
+function deleteWeakMapValue<Key extends object, Value>(
+  map: WeakMap<Key, Value>,
+  key: Key,
+): boolean {
+  return reflectApply(weakMapDelete, map, [key]) as boolean;
+}
+
+function weakSetContains<Value extends object>(
+  set: WeakSet<Value>,
+  value: Value,
+): boolean {
+  return reflectApply(weakSetHas, set, [value]) as boolean;
+}
+
+function addWeakSetValue<Value extends object>(
+  set: WeakSet<Value>,
+  value: Value,
+): void {
+  reflectApply(weakSetAdd, set, [value]);
+}
 
 type CopyPhase =
   | "capture"
@@ -283,8 +387,8 @@ function canonicalAbsolutePath(value: unknown): string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
-    value.includes("\0") ||
-    value.includes("\n") ||
+    stringContains(value, "\0") ||
+    stringContains(value, "\n") ||
     !path.isAbsolute(value) ||
     path.resolve(value) !== value
   ) {
@@ -309,13 +413,26 @@ function boundedInteger(
   return value;
 }
 
+function allowedDependencyKey(value: string): boolean {
+  return (
+    value === "effectiveUserId" ||
+    value === "maxEntries" ||
+    value === "maxTotalBytes" ||
+    value === "maxConcurrencyForTests" ||
+    value === "afterSourceInventoryForTests" ||
+    value === "afterFileCopiedForTests" ||
+    value === "beforeFinalRevalidationForTests" ||
+    value === "closeCopiedFileHandleForTests"
+  );
+}
+
 function captureDependencies(
   value: FloodgateV7CleanRoomCopyDependencies,
 ): Readonly<CapturedDependencies> {
   if (
     value === null ||
     typeof value !== "object" ||
-    Array.isArray(value) ||
+    isArray(value) ||
     nodeUtilTypes.isProxy(value) ||
     (objectGetPrototypeOf(value) !== objectPrototype &&
       objectGetPrototypeOf(value) !== null)
@@ -323,23 +440,14 @@ function captureDependencies(
     throw new Error("dependencies differ");
   }
   const descriptors = objectGetOwnPropertyDescriptors(value);
-  const allowedKeys = new Set([
-    "effectiveUserId",
-    "maxEntries",
-    "maxTotalBytes",
-    "maxConcurrencyForTests",
-    "afterSourceInventoryForTests",
-    "afterFileCopiedForTests",
-    "beforeFinalRevalidationForTests",
-    "closeCopiedFileHandleForTests",
-  ]);
   const keys = reflectOwnKeys(descriptors);
   if (
     keys.length < 1 ||
-    keys.some(
+    someArrayItem(
+      keys,
       (key) =>
         typeof key !== "string" ||
-        !allowedKeys.has(key) ||
+        !allowedDependencyKey(key) ||
         !("value" in descriptors[key]),
     ) ||
     !("effectiveUserId" in descriptors) ||
@@ -601,7 +709,9 @@ async function inventoryTree(
     const entries = await fs.promises.readdir(absolute, {
       withFileTypes: true,
     });
-    entries.sort((left, right) => compareUtf8(left.name, right.name));
+    sortArrayItems(entries, (left, right) =>
+      compareUtf8(left.name, right.name),
+    );
     for (const entry of entries) {
       validateBasename(entry.name);
       const childAbsolute = path.join(absolute, entry.name);
@@ -614,13 +724,14 @@ async function inventoryTree(
         if ((await fs.promises.realpath(childAbsolute)) !== childAbsolute) {
           throw new Error("directory alias differs");
         }
-        directoryIdentities.push(
+        pushArrayItem(
+          directoryIdentities,
           await assertPrivateRealDirectory(
             childAbsolute,
             dependencies.effectiveUserId,
           ),
         );
-        directories.push(childRelative);
+        pushArrayItem(directories, childRelative);
         await walk(childAbsolute, childRelative, depth + 1);
         continue;
       }
@@ -639,7 +750,8 @@ async function inventoryTree(
       if (bytes > dependencies.maxTotalBytes) {
         throw new Error("byte limit exceeded");
       }
-      files.push(
+      pushArrayItem(
+        files,
         Object.freeze({
           relativePath: childRelative,
           bytes: Number(hashed.identity.size),
@@ -778,7 +890,7 @@ async function copyInventoryFile(
   if (primaryFailed) {
     throw primary;
   }
-  if (closeResults.some((result) => result.status === "rejected")) {
+  if (someArrayItem(closeResults, (result) => result.status === "rejected")) {
     throw new Error("copy descriptor cleanup failed");
   }
 }
@@ -813,8 +925,8 @@ async function copyInventoryFilesBounded(
         const file = files[index];
         try {
           await copyInventoryFile(
-            path.join(sourceRoot, ...file.relativePath.split("/")),
-            path.join(destinationRoot, ...file.relativePath.split("/")),
+            path.join(sourceRoot, ...splitString(file.relativePath, "/")),
+            path.join(destinationRoot, ...splitString(file.relativePath, "/")),
             file,
             dependencies,
             workerChunk,
@@ -841,11 +953,14 @@ async function copyInventoryFilesBounded(
     }
   };
   const workerCount = Math.min(dependencies.maxConcurrency, files.length);
-  const workers = Array.from({ length: workerCount }, () => worker());
+  const workers: Promise<void>[] = [];
+  for (let index = 0; index < workerCount; index += 1) {
+    pushArrayItem(workers, worker());
+  }
   const workerResults = await Promise.allSettled(workers);
   if (
     !failureObserved &&
-    workerResults.some((result) => result.status === "rejected")
+    someArrayItem(workerResults, (result) => result.status === "rejected")
   ) {
     failureObserved = true;
     firstFailure = new BoundedCopyFailure("copy");
@@ -866,7 +981,8 @@ function sameInventory(
     before.files.length === after.files.length &&
     before.bytes === after.bytes &&
     before.sourceTreeSha256 === after.sourceTreeSha256 &&
-    before.directories.every(
+    everyArrayItem(
+      before.directories,
       (directory, index) =>
         directory === after.directories[index] &&
         sameIdentity(
@@ -874,7 +990,8 @@ function sameInventory(
           after.directoryIdentities[index],
         ),
     ) &&
-    before.files.every(
+    everyArrayItem(
+      before.files,
       (file, index) =>
         file.relativePath === after.files[index]?.relativePath &&
         sameIdentity(file.identity, after.files[index]?.identity),
@@ -907,7 +1024,7 @@ function pathsOverlap(left: string, right: string): boolean {
   const contained = (relative: string): boolean =>
     relative === "" ||
     (relative !== ".." &&
-      !relative.startsWith(`..${path.sep}`) &&
+      !stringBeginsWith(relative, `..${path.sep}`) &&
       !path.isAbsolute(relative));
   return contained(leftToRight) || contained(rightToLeft);
 }
@@ -955,7 +1072,7 @@ async function copyFloodgateV7CleanRoomTreeByValueInternal(
     for (const relativeDirectory of before.directories) {
       const directory = path.join(
         destinationRoot,
-        ...relativeDirectory.split("/"),
+        ...splitString(relativeDirectory, "/"),
       );
       await fs.promises.mkdir(directory, { mode: PRIVATE_EXECUTABLE_MODE });
       await fs.promises.chmod(directory, PRIVATE_EXECUTABLE_MODE);
@@ -974,9 +1091,11 @@ async function copyFloodgateV7CleanRoomTreeByValueInternal(
       }
       throw error;
     }
-    for (const relativeDirectory of [...before.directories].reverse()) {
+    for (const relativeDirectory of reverseArrayItems([
+      ...before.directories,
+    ])) {
       await syncDirectory(
-        path.join(destinationRoot, ...relativeDirectory.split("/")),
+        path.join(destinationRoot, ...splitString(relativeDirectory, "/")),
       );
     }
     await syncDirectory(destinationRoot);
@@ -1388,7 +1507,8 @@ function sameParentSnapshot(
     before.path === after.path &&
     sameIdentity(before.identity, after.identity) &&
     before.entries.length === after.entries.length &&
-    before.entries.every(
+    everyArrayItem(
+      before.entries,
       (entry, index) =>
         entry.name === after.entries[index]?.name &&
         entry.type === after.entries[index]?.type &&
@@ -1412,12 +1532,12 @@ async function captureParentDirectory(
       if (dirents.length >= maxEntries) {
         throw new Error("parent entry limit exceeded");
       }
-      dirents.push(dirent);
+      pushArrayItem(dirents, dirent);
     }
   } finally {
     await directory.close();
   }
-  dirents.sort((left, right) => compareUtf8(left.name, right.name));
+  sortArrayItems(dirents, (left, right) => compareUtf8(left.name, right.name));
   const entries: ParentEntrySnapshot[] = [];
   for (const dirent of dirents) {
     validateBasename(dirent.name);
@@ -1434,7 +1554,8 @@ async function captureParentDirectory(
     ) {
       throw new Error("parent entry identity differs");
     }
-    entries.push(
+    pushArrayItem(
+      entries,
       Object.freeze({
         name: dirent.name,
         type: dirent.isDirectory() ? ("directory" as const) : ("file" as const),
@@ -1459,38 +1580,60 @@ async function captureParentDirectory(
 async function captureParents(
   witnesses: readonly Readonly<PortableCopyWitnessState>[],
 ): Promise<readonly Readonly<ParentDirectorySnapshot>[]> {
-  const parentBounds = new Map<
-    string,
-    Readonly<{ effectiveUserId: number; maxEntries: number }>
-  >();
+  const parentBounds: Array<
+    Readonly<{
+      parent: string;
+      effectiveUserId: number;
+      maxEntries: number;
+    }>
+  > = [];
   for (const witness of witnesses) {
     const parent = path.dirname(witness.destination);
-    const prior = parentBounds.get(parent);
+    let priorIndex = -1;
+    for (let index = 0; index < parentBounds.length; index += 1) {
+      if (parentBounds[index]?.parent === parent) {
+        priorIndex = index;
+        break;
+      }
+    }
+    const prior =
+      priorIndex === -1
+        ? undefined
+        : (parentBounds[priorIndex] as
+            | Readonly<{
+                parent: string;
+                effectiveUserId: number;
+                maxEntries: number;
+              }>
+            | undefined);
     if (
       prior !== undefined &&
       prior.effectiveUserId !== witness.dependencies.effectiveUserId
     ) {
       throw new Error("shared parent owner differs");
     }
-    parentBounds.set(
+    const captured = Object.freeze({
       parent,
-      Object.freeze({
-        effectiveUserId: witness.dependencies.effectiveUserId,
-        maxEntries:
-          prior === undefined
-            ? witness.dependencies.maxEntries
-            : Math.min(prior.maxEntries, witness.dependencies.maxEntries),
-      }),
-    );
+      effectiveUserId: witness.dependencies.effectiveUserId,
+      maxEntries:
+        prior === undefined
+          ? witness.dependencies.maxEntries
+          : Math.min(prior.maxEntries, witness.dependencies.maxEntries),
+    });
+    if (priorIndex === -1) {
+      pushArrayItem(parentBounds, captured);
+    } else {
+      parentBounds[priorIndex] = captured;
+    }
   }
-  const sorted = [...parentBounds.entries()].sort(([left], [right]) =>
-    compareUtf8(left, right),
+  sortArrayItems(parentBounds, (left, right) =>
+    compareUtf8(left.parent, right.parent),
   );
   return Object.freeze(
     await Promise.all(
-      sorted.map(([parent, bounds]) =>
+      mapArrayItems(parentBounds, (bounds) =>
         captureParentDirectory(
-          parent,
+          bounds.parent,
           bounds.effectiveUserId,
           bounds.maxEntries,
         ),
@@ -1504,7 +1647,7 @@ async function captureWitnessDestinations(
 ): Promise<readonly PortableInventory[]> {
   return Object.freeze(
     await Promise.all(
-      witnesses.map((witness) =>
+      mapArrayItems(witnesses, (witness) =>
         capturePortableInventory(
           witness.kind,
           witness.destination,
@@ -1522,7 +1665,7 @@ function sameWitnessDestinations(
 ): boolean {
   return (
     witnesses.length === inventories.length &&
-    witnesses.every((witness, index) =>
+    everyArrayItem(witnesses, (witness, index) =>
       samePortableInventory(
         witness.destinationInventory,
         inventories[index] as PortableInventory,
@@ -1537,7 +1680,8 @@ function sameParents(
 ): boolean {
   return (
     before.length === after.length &&
-    before.every(
+    everyArrayItem(
+      before,
       (parent, index) =>
         after[index] !== undefined &&
         sameParentSnapshot(parent, after[index] as ParentDirectorySnapshot),
@@ -1565,16 +1709,16 @@ async function revalidateCompositeDestinationState(
 function captureWitnessList(
   value: readonly FloodgateV7PortableCopyWitness[],
 ): readonly object[] {
-  if (
-    !Array.isArray(value) ||
-    nodeUtilTypes.isProxy(value) ||
-    value.length !== 4
-  ) {
+  if (!isArray(value) || nodeUtilTypes.isProxy(value) || value.length !== 4) {
     throw new Error("portable witness list differs");
   }
   const descriptors = objectGetOwnPropertyDescriptors(value);
+  const descriptorRecord = descriptors as unknown as Record<
+    PropertyKey,
+    PropertyDescriptor
+  >;
   const keys = reflectOwnKeys(descriptors);
-  const lengthDescriptor = descriptors.length;
+  const lengthDescriptor = descriptorRecord.length;
   if (
     keys.length !== 5 ||
     lengthDescriptor === undefined ||
@@ -1585,7 +1729,7 @@ function captureWitnessList(
   }
   const objects: object[] = [];
   for (let index = 0; index < 4; index += 1) {
-    const descriptor = descriptors[index.toString()];
+    const descriptor = descriptorRecord[`${index}`];
     const item =
       descriptor !== undefined && "value" in descriptor
         ? descriptor.value
@@ -1643,7 +1787,7 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       );
       const capability =
         opaqueCapability<FloodgateV7PortableCopySourcePreseal>();
-      registry.presealedSources.set(capability as object, {
+      setWeakMapValue(registry.presealedSources, capability as object, {
         kind,
         source,
         destination,
@@ -1671,9 +1815,12 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       ) {
         throw new Error("portable preseal differs");
       }
-      const state = registry.presealedSources.get(presealValue as object);
+      const state = getWeakMapValue(
+        registry.presealedSources,
+        presealValue as object,
+      );
       if (state === undefined) throw new Error("portable preseal absent");
-      registry.presealedSources.delete(presealValue as object);
+      deleteWeakMapValue(registry.presealedSources, presealValue as object);
       if (state.kind !== kind) throw new Error("portable preseal kind differs");
       const after = await capturePortableInventory(
         state.kind,
@@ -1686,7 +1833,7 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       }
       const capability =
         opaqueCapability<FloodgateV7PortableCopySourceFilesystemSeal>();
-      registry.sealedSources.set(capability as object, state);
+      setWeakMapValue(registry.sealedSources, capability as object, state);
       return capability;
     } catch {
       throw new FloodgateV7PortableCopyWitnessError("seal");
@@ -1709,9 +1856,12 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       ) {
         throw new Error("portable seal differs");
       }
-      const state = registry.sealedSources.get(sealValue as object);
+      const state = getWeakMapValue(
+        registry.sealedSources,
+        sealValue as object,
+      );
       if (state === undefined) throw new Error("portable seal absent");
-      registry.sealedSources.delete(sealValue as object);
+      deleteWeakMapValue(registry.sealedSources, sealValue as object);
       if (state.kind !== kind || state.destination !== destination) {
         throw new Error("portable copy binding differs");
       }
@@ -1756,7 +1906,7 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
               value: (internal as FileCopyInternalResult).destinationAfter,
             });
       const witness = opaqueCapability<FloodgateV7PortableCopyWitness>();
-      registry.witnesses.set(witness as object, {
+      setWeakMapValue(registry.witnesses, witness as object, {
         kind,
         destination,
         dependencies: filesystemOnlyDependencies(state.dependencies),
@@ -1778,28 +1928,57 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
     try {
       if (argumentCount !== 1) throw new Error("argument count differs");
       const objects = captureWitnessList(witnessValues);
-      if (new Set(objects).size !== objects.length) {
-        throw new Error("portable witness replay differs");
+      for (let left = 0; left < objects.length; left += 1) {
+        for (let right = left + 1; right < objects.length; right += 1) {
+          if (objects[left] === objects[right]) {
+            throw new Error("portable witness replay differs");
+          }
+        }
       }
-      const states = objects.map((item) => registry.witnesses.get(item));
-      if (states.some((state) => state === undefined)) {
-        throw new Error("portable witness absent");
+      const typedStates: PortableCopyWitnessState[] = [];
+      for (const item of objects) {
+        const state = getWeakMapValue(registry.witnesses, item);
+        if (state === undefined) {
+          throw new Error("portable witness absent");
+        }
+        pushArrayItem(typedStates, state);
       }
-      const typedStates = states as PortableCopyWitnessState[];
-      const expectedKinds = new Set<FloodgateV7PortableCopyKind>([
-        "raw-lock-tree",
-        "role-lock-tree",
-        "role-bundle-tree",
-        "legacy-file",
-      ]);
-      if (
-        typedStates.some(
-          (state) =>
-            !expectedKinds.delete(state.kind) ||
-            kindInventoryType(state.kind) !== state.destinationInventory.type,
-        ) ||
-        expectedKinds.size !== 0
-      ) {
+      let rawSeen = false;
+      let roleSeen = false;
+      let bundleSeen = false;
+      let legacySeen = false;
+      for (const state of typedStates) {
+        if (kindInventoryType(state.kind) !== state.destinationInventory.type) {
+          throw new Error("portable witness kind composition differs");
+        }
+        switch (state.kind) {
+          case "raw-lock-tree":
+            if (rawSeen) {
+              throw new Error("portable witness kind composition differs");
+            }
+            rawSeen = true;
+            break;
+          case "role-lock-tree":
+            if (roleSeen) {
+              throw new Error("portable witness kind composition differs");
+            }
+            roleSeen = true;
+            break;
+          case "role-bundle-tree":
+            if (bundleSeen) {
+              throw new Error("portable witness kind composition differs");
+            }
+            bundleSeen = true;
+            break;
+          case "legacy-file":
+            if (legacySeen) {
+              throw new Error("portable witness kind composition differs");
+            }
+            legacySeen = true;
+            break;
+        }
+      }
+      if (!rawSeen || !roleSeen || !bundleSeen || !legacySeen) {
         throw new Error("portable witness kind composition differs");
       }
       for (let left = 0; left < typedStates.length; left += 1) {
@@ -1815,8 +1994,12 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
           }
         }
       }
-      for (const item of objects) registry.witnesses.delete(item);
-      typedStates.sort((left, right) => compareUtf8(left.kind, right.kind));
+      for (const item of objects) {
+        deleteWeakMapValue(registry.witnesses, item);
+      }
+      sortArrayItems(typedStates, (left, right) =>
+        compareUtf8(left.kind, right.kind),
+      );
       const destinationsBefore = await captureWitnessDestinations(typedStates);
       if (!sameWitnessDestinations(typedStates, destinationsBefore)) {
         throw new Error("portable destination differs");
@@ -1832,13 +2015,13 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       }
       const capability =
         opaqueCapability<FloodgateV7PortableCopyCompositeDestinationSeal>();
-      registry.compositeSeals.set(capability as object, {
+      setWeakMapValue(registry.compositeSeals, capability as object, {
         witnesses: Object.freeze(typedStates),
         parents: parentsAfter,
         inUse: false,
         invalidated: false,
       });
-      registry.issuedCompositeSeals.add(capability as object);
+      addWeakSetValue(registry.issuedCompositeSeals, capability as object);
       return capability;
     } catch {
       throw new FloodgateV7PortableCopyWitnessError("composite");
@@ -1873,7 +2056,7 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
         throw new Error("portable borrow differs");
       }
       compositeObject = compositeValue as object;
-      state = registry.compositeSeals.get(compositeObject);
+      state = getWeakMapValue(registry.compositeSeals, compositeObject);
       if (state === undefined || state.invalidated || state.inUse) {
         throw new Error("portable borrow unavailable");
       }
@@ -1898,9 +2081,9 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
         state.inUse = false;
       }
       if (compositeObject !== undefined) {
-        registry.compositeSeals.delete(compositeObject);
-        if (registry.issuedCompositeSeals.has(compositeObject)) {
-          registry.revokedCompositeSeals.add(compositeObject);
+        deleteWeakMapValue(registry.compositeSeals, compositeObject);
+        if (weakSetContains(registry.issuedCompositeSeals, compositeObject)) {
+          addWeakSetValue(registry.revokedCompositeSeals, compositeObject);
         }
       }
       throw new FloodgateV7PortableCopyWitnessError("borrow");
@@ -1921,16 +2104,18 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
         throw new Error("portable revocation differs");
       }
       const compositeObject = compositeValue as object;
-      if (registry.revokedCompositeSeals.has(compositeObject)) return;
-      if (!registry.issuedCompositeSeals.has(compositeObject)) {
+      if (weakSetContains(registry.revokedCompositeSeals, compositeObject)) {
+        return;
+      }
+      if (!weakSetContains(registry.issuedCompositeSeals, compositeObject)) {
         throw new Error("portable revocation provenance differs");
       }
-      const state = registry.compositeSeals.get(compositeObject);
+      const state = getWeakMapValue(registry.compositeSeals, compositeObject);
       if (state !== undefined) {
         state.invalidated = true;
-        registry.compositeSeals.delete(compositeObject);
+        deleteWeakMapValue(registry.compositeSeals, compositeObject);
       }
-      registry.revokedCompositeSeals.add(compositeObject);
+      addWeakSetValue(registry.revokedCompositeSeals, compositeObject);
     } catch {
       throw new FloodgateV7PortableCopyWitnessError("revoke");
     }

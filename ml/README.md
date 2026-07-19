@@ -175,6 +175,31 @@ rowsのruntime authenticity、engine/eval/stage pathとsealed rootのdisjointnes
 consumer postflight後のfinal publication、result receiptはB2 runnerで実装する。したがってB1のstage
 manifestや非鍵checkpoint checksumを公開済みteacher evidenceとして扱わない。
 
+#### Floodgate v7 sealed 24,000件のMacローカルfinalizer（2026-07-19）
+
+clean-room教師runnerが同じ認証済みstreamを100 → 500 → 24,000へ進めてsealした後だけ使う、
+別のargumentless commandを追加した。
+
+```sh
+npm run shogi:floodgate-v7-local-clean-room-training-label-finalizer
+```
+
+operational entryはDarwinと専用entry / exact argvをprivate I/O前に検査し、固定private handoffの
+HMAC、deployment key ID、run binding digest、stage identity、work bytes / SHA-256、resume 500、
+sealed 24,000、ordered completion chainを再検証する。prefix 100 / 500はfinalizeしない。
+stage authorization前に`O_EXCL`、file `fsync`、directory `fsync`でdurable one-shot claimを作るため、
+CLI再起動後の同じhandoffも拒否する。既存stage authorization、pinned training consumer、
+sealed scanner、production finalizerだけを合成し、AWS、Firebase / GCP、Vercel、networkへ接続しない。
+
+実装fileのexact bytes / SHA-256 / Git blob、validated commit / tree、focused / 関連test件数は
+更新のたびに変わるため、[machine evidence](../docs/data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)を
+唯一のauthoritative recordとする。evidence pin testがその値を実fileとGit historyから再計算する。
+real teacher、real label finalization、optimizer training、weight、対局、live activationはすべて0である。
+独立再reviewと通常merge前には実commandを動かさない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.md) /
+[English article](../docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.en.md) /
+[machine evidence](../docs/data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)を参照。
+
 train/validationは対局単位で分け、親局面と実際のmodel入力である子局面のtranspositionも
 validation優先でtrainから親単位に除く。depth 14/16の100親v6診断は完走しているが、
 clean-pipeline manifest導入前なので学習には使わない。実測値とjoint探索の順序依存例は

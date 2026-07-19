@@ -102,12 +102,14 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 ## 8. ローカル検証結果
 
+前提だったteacher preparationのPR #512は`origin/main`の`88afd052`へ通常merge済みで、このbranchにも通常merge commit `4855f099`として統合した。競合解消ではPR #512の固定Git実行と`http.postBuffer`だけを許容するlocal configuration規則を保持し、finalizer package commandも残した。この統合中にもreal teacher / finalizer / training / live操作は実行していない。
+
 | 検証                                 |           結果 |
 | ------------------------------------ | -------------: |
 | 専用adversarial / lifecycle tests    |   27 / 27 PASS |
 | 証拠pin整合test                      |     4 / 4 PASS |
-| 関連18 test files                    | 178 / 178 PASS |
-| 関連suite wall time                  |       143.41秒 |
+| 関連21 test files                    | 199 / 199 PASS |
+| 関連suite wall time                  |       141.35秒 |
 | targeted ESLint                      |           PASS |
 | Prettier check                       |           PASS |
 | 新規source / testのTypeScript error  |              0 |
@@ -115,7 +117,7 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 攻撃caseにはwrong MAC、wrong key、wrong binding digest、binding内容変更、wrong stage、prefix 100 / 500、unsealed work、wrong resume、wrong input role、completion reorder、cloud claim、extra / duplicate key、noncanonical JSON、途中mutation、別process replay、simulated Linux、実行可能dependency injection、consumer / plan / finalizer failureを含む。
 
-証拠JSONは説明だけではなく、authority-isolation commitとtree、そのancestor関係、4つの実装fileのbytes / SHA-256 / Git blob、必須source marker、日英記事の境界説明、実operationが0であることをhermetic testで再計算する。これにより、実装を変更したのに古いhashや記事だけが残る状態はtest failureになる。証拠だけを追加するcommit自身は自己参照hashにできないため、pin対象は直前の最終実装commitに固定している。
+証拠JSONは説明だけではなく、PR #512を含むintegrated implementation commitとtree、両parentとancestor関係、4つの実装fileのbytes / SHA-256 / Git blob、必須source marker、日英記事の境界説明、実operationが0であることをhermetic testで再計算する。これにより、実装を変更したのに古いhashや記事だけが残る状態はtest failureになる。証拠だけを追加するcommit自身は自己参照hashにできないため、pin対象は直前の最終実装commitに固定している。
 
 通常のTurbopack buildは、このworktreeの`node_modules`がworktree外を指すsymlinkであるため開始時に停止した。webpack buildはcompileを28.6秒で完了し、その後、既存の無関係な`src/app/api/settli/groups/route.ts`の`verifyPasscode` exportでtype-check停止した。したがってrepository production buildのPASSは主張しない。
 
@@ -123,6 +125,6 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 この変更で評価関数の強さは変わっていない。実教師process、24,000件work、final label publication、optimizer training、候補選抜、formal A/B、外部校正、live weight activationはすべて未実行である。
 
-次はこのexact HEADを独立再reviewし、CI後に通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
+次はPR #512を統合したこのbranchを独立再reviewし、CI後に通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

@@ -102,13 +102,15 @@ Before the composer's begin point, the caller owns the lease; after begin, the s
 
 ## 8. Local validation
 
+The prerequisite teacher-preparation PR #512 was regularly merged into `origin/main` at `88afd052` and then integrated into this branch through regular merge commit `4855f099`. Conflict resolution preserved PR #512's fixed Git execution and local-configuration rule that permits only `http.postBuffer`, while retaining the finalizer package command. No real teacher, finalizer, training, or live operation ran during this integration.
+
 | Validation                                |         Result |
 | ----------------------------------------- | -------------: |
 | Dedicated adversarial and lifecycle tests |   27 / 27 PASS |
 | Evidence-pin consistency tests            |     4 / 4 PASS |
-| Related test files                        |             18 |
-| Related tests                             | 178 / 178 PASS |
-| Related-suite wall time                   | 143.41 seconds |
+| Related test files                        |             21 |
+| Related tests                             | 199 / 199 PASS |
+| Related-suite wall time                   | 141.35 seconds |
 | Targeted ESLint                           |           PASS |
 | Prettier check                            |           PASS |
 | New source/test TypeScript errors         |              0 |
@@ -116,7 +118,7 @@ Before the composer's begin point, the caller owns the lease; after begin, the s
 
 The adversarial cases include a wrong MAC, key, binding digest, binding content, stage, prefix 100 / 500, unsealed work, wrong resume point or input role, reordered completion, cloud claim, extra or duplicate keys, noncanonical JSON, mid-flight mutation, cross-process replay, simulated Linux, executable-dependency injection, and consumer / plan / finalizer failures.
 
-The evidence JSON is now executable evidence rather than prose alone. A hermetic test recomputes the authority-isolation commit and tree, ancestry, bytes, SHA-256, and Git blobs for four implementation files, required source markers, the aligned Japanese and English boundary statements, and the zero operational state. A stale hash or article therefore fails the test when implementation changes. Because an evidence-only commit cannot pin its own hash without circularity, the pins deliberately identify the immediately preceding final implementation commit.
+The evidence JSON is now executable evidence rather than prose alone. A hermetic test recomputes the integrated implementation commit and tree including PR #512, both merge parents and ancestry, bytes, SHA-256, and Git blobs for four implementation files, required source markers, the aligned Japanese and English boundary statements, and the zero operational state. A stale hash or article therefore fails the test when implementation changes. Because an evidence-only commit cannot pin its own hash without circularity, the pins deliberately identify the immediately preceding final implementation commit.
 
 The default Turbopack build stopped before compilation because this worktree's `node_modules` symlink points outside the worktree root. A webpack build compiled successfully in 28.6 seconds, then stopped during type-checking on the pre-existing unrelated `verifyPasscode` export in `src/app/api/settli/groups/route.ts`. A full repository production-build pass is therefore not claimed.
 
@@ -124,6 +126,6 @@ The default Turbopack build stopped before compilation because this worktree's `
 
 This change has not altered playing strength. Real teacher processes, the 24,000-parent work, final label publication, optimizer training, candidate selection, formal A/B, external calibration, and live-weight activation all remain unexecuted.
 
-The next step is an independent re-review of this exact HEAD, CI, and regular merge. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
+The next step is an independent re-review, CI, and regular merge of this branch with PR #512 integrated. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

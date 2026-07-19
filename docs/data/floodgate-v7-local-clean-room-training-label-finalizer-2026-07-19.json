@@ -8,8 +8,11 @@
     "english": "../blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.en.md"
   },
   "source_base": {
-    "merge_base_with_origin_main": "1f98c3661361254bbc0854fa52888ed4b65bc689",
-    "origin_main_observed_at_recording": "1e7025b827797b856e7fa4cd72008acc7dc813ed",
+    "merge_base_with_origin_main": "88afd052c00865b4e7fce4ed25d81a94febb1637",
+    "origin_main_observed_at_recording": "88afd052c00865b4e7fce4ed25d81a94febb1637",
+    "pull_request_512": "https://github.com/gomyway1216/nextjs-portfolio/pull/512",
+    "pull_request_512_state": "MERGED",
+    "integrated_via_regular_merge_commit": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
     "history_rewritten": false
   },
   "required_teacher_runner_compatibility": {
@@ -17,7 +20,10 @@
     "key_boundary_fix_commit": "c8bacfb1e69787f13dcdcafc2feac82bc03c4548",
     "key_and_lease_test_commit": "980e0a6246da925b9d5d704fd9f07f17a39f8d75",
     "format_commit": "dcd2a56da1109fc85fc712bb45dc008877e98411",
-    "cherry_picks_clean": true
+    "pull_request_512_merge_commit": "88afd052c00865b4e7fce4ed25d81a94febb1637",
+    "pull_request_512_verifier_materialization_commit": "9cdaee882e80d7be8667b733505dd86bf3db5923",
+    "cherry_picks_clean": true,
+    "origin_main_merge_preserved": true
   },
   "implementation": {
     "initial_source_commit": "815298a6d852cc73946468506ab2eb39f9385c60",
@@ -25,9 +31,12 @@
     "durable_replay_and_mac_gate_commit": "d23b9ccc448869b16b2e99672c861ac57488f115",
     "test_commit": "dca9adaf94c74ab16934c46562c959662670270e",
     "authority_isolation_commit": "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
-    "validated_head": "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
-    "validated_tree": "18e1a45ab1d0bce2aeb2bd0aec57a03e6c7baf59",
-    "validation_scope": "implementation-authority-isolation-head-before-evidence-only-commit",
+    "evidence_verification_commit": "2d7f391824c0f520d168a64005361566a8edb73d",
+    "integrated_origin_main_commit": "88afd052c00865b4e7fce4ed25d81a94febb1637",
+    "integration_merge_commit": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+    "validated_head": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+    "validated_tree": "581bc6510e4f8c7728eaee5128fb887d85707969",
+    "validation_scope": "authority-isolated-finalizer-integrated-with-pull-request-512-main-head-before-evidence-only-commit",
     "files": {
       "finalizer": {
         "path": "ml/floodgate-v7-local-clean-room-training-label-finalizer.ts",
@@ -63,9 +72,9 @@
       },
       "package_manifest": {
         "path": "package.json",
-        "bytes": 8234,
-        "sha256": "38d050299072fd3eaf0f3835f360297fd0b72fe5c3a9cc79797f3ab99612a31d",
-        "git_blob": "def0198062a89f9ff322752f4d84e76504cb4ebc",
+        "bytes": 8388,
+        "sha256": "2d280d35b52cac13e3e18e1a87a4ff7b943c408d5c6afe7b61854f3b426acd78",
+        "git_blob": "c1713d6553dc6ac37751488215c6a2b9bc84ed2e",
         "required_markers": [
           "\"shogi:floodgate-v7-local-clean-room-training-label-finalizer\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts\""
         ]
@@ -216,19 +225,22 @@
       "tests": 27,
       "passed": 27,
       "failed": 0,
-      "duration_seconds": 1.06,
+      "duration_seconds": 1.33,
       "result": "PASS"
     },
     "related_suite": {
-      "test_files": 18,
-      "tests": 178,
-      "passed": 178,
+      "test_files": 21,
+      "tests": 199,
+      "passed": 199,
       "failed": 0,
-      "wall_duration_seconds": 143.41,
-      "parallel_aggregate_test_seconds": 583.08,
+      "wall_duration_seconds": 141.35,
+      "parallel_aggregate_test_seconds": 573.43,
       "result": "PASS",
       "files": [
+        "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
         "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTeacherPreparationStopEvidence.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunnerEvidence.test.ts",
         "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
         "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
         "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizerEvidence.test.ts",
@@ -247,6 +259,14 @@
         "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
         "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts"
       ]
+    },
+    "pull_request_512_integration_focus": {
+      "test_files": 6,
+      "tests": 62,
+      "passed": 62,
+      "failed": 0,
+      "duration_seconds": 1.04,
+      "result": "PASS"
     },
     "evidence_pin_test": {
       "test_files": 1,
@@ -299,6 +319,7 @@
       "production_authority_test_seam_isolation": "IMPLEMENTED",
       "executable_dependency_injection_test": "PASS",
       "evidence_pin_ci_verification": "IMPLEMENTED",
+      "pull_request_512_regular_merge_integration": "IMPLEMENTED",
       "prettier": "PASS"
     },
     "create_plan_throw_lease_disposition": "REVIEWED-CONSERVATIVE-MANUAL-RECONCILIATION-CORRECT",
@@ -338,5 +359,5 @@
     "stable_high_dan_strength_established": false,
     "repository_production_build_passed": false
   },
-  "next_required_action": "independently-rereview-the-exact-validated-head-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
+  "next_required_action": "independently-rereview-the-pull-request-512-integrated-branch-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
 }

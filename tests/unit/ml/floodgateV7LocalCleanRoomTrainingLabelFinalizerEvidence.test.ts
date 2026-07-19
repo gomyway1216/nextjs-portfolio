@@ -77,17 +77,31 @@ function gitIsAncestor(ancestor: string, descendant: string): boolean {
 }
 
 describe("Floodgate v7 local training-label finalizer evidence", () => {
-  it("pins the exact authority-isolated implementation commit and ancestry", () => {
+  it("pins the exact integrated implementation commit, tree, parents, and ancestry", () => {
     const record = evidence();
     expect(record).toMatchObject({
       schema:
         "shogi-floodgate-v7-local-clean-room-training-label-finalizer-evidence-v1",
       status:
         "implementation-and-local-validation-pass-independent-rereview-pending-operational-stop",
+      source_base: {
+        merge_base_with_origin_main: "88afd052c00865b4e7fce4ed25d81a94febb1637",
+        origin_main_observed_at_recording:
+          "88afd052c00865b4e7fce4ed25d81a94febb1637",
+        pull_request_512_state: "MERGED",
+        integrated_via_regular_merge_commit:
+          "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+        history_rewritten: false,
+      },
       implementation: {
         authority_isolation_commit: "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
-        validated_head: "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
-        validated_tree: "18e1a45ab1d0bce2aeb2bd0aec57a03e6c7baf59",
+        evidence_verification_commit:
+          "2d7f391824c0f520d168a64005361566a8edb73d",
+        integrated_origin_main_commit:
+          "88afd052c00865b4e7fce4ed25d81a94febb1637",
+        integration_merge_commit: "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+        validated_head: "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+        validated_tree: "581bc6510e4f8c7728eaee5128fb887d85707969",
       },
     });
     const implementation = record.implementation as {
@@ -96,6 +110,9 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       durable_replay_and_mac_gate_commit: string;
       test_commit: string;
       authority_isolation_commit: string;
+      evidence_verification_commit: string;
+      integrated_origin_main_commit: string;
+      integration_merge_commit: string;
       validated_head: string;
       validated_tree: string;
     };
@@ -105,12 +122,33 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       implementation.durable_replay_and_mac_gate_commit,
       implementation.test_commit,
       implementation.authority_isolation_commit,
+      implementation.evidence_verification_commit,
+      implementation.integrated_origin_main_commit,
+      implementation.integration_merge_commit,
     ]) {
       expect(gitIsAncestor(revision, "HEAD"), revision).toBe(true);
     }
+    expect(implementation.validated_head).toBe(
+      implementation.integration_merge_commit,
+    );
     expect(
       git(["show", "-s", "--format=%T", implementation.validated_head]),
     ).toBe(implementation.validated_tree);
+    expect(
+      git(["show", "-s", "--format=%P", implementation.validated_head]).split(
+        " ",
+      ),
+    ).toEqual([
+      implementation.evidence_verification_commit,
+      implementation.integrated_origin_main_commit,
+    ]);
+    expect(
+      git([
+        "merge-base",
+        implementation.validated_head,
+        implementation.integrated_origin_main_commit,
+      ]),
+    ).toBe(implementation.integrated_origin_main_commit);
 
     const compatibility =
       record.required_teacher_runner_compatibility as Record<
@@ -122,6 +160,8 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "key_boundary_fix_commit",
       "key_and_lease_test_commit",
       "format_commit",
+      "pull_request_512_merge_commit",
+      "pull_request_512_verifier_materialization_commit",
     ]) {
       const revision = compatibility[key];
       expect(typeof revision).toBe("string");
@@ -181,8 +221,27 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
         production_authority_test_seam_isolation: "IMPLEMENTED",
         executable_dependency_injection_test: "PASS",
         evidence_pin_ci_verification: "IMPLEMENTED",
+        pull_request_512_regular_merge_integration: "IMPLEMENTED",
       },
       exact_post_remediation_independent_rereview: "PENDING",
+    });
+    expect(record.local_validation).toMatchObject({
+      related_suite: {
+        test_files: 21,
+        tests: 199,
+        passed: 199,
+        failed: 0,
+        wall_duration_seconds: 141.35,
+        parallel_aggregate_test_seconds: 573.43,
+        result: "PASS",
+      },
+      pull_request_512_integration_focus: {
+        test_files: 6,
+        tests: 62,
+        passed: 62,
+        failed: 0,
+        result: "PASS",
+      },
     });
     expect(record.external_services).toEqual({
       aws_api_or_sdk_used: false,
@@ -248,6 +307,9 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "module-private one-shot grant",
       "durable claim",
       "27 / 27 PASS",
+      "199 / 199 PASS",
+      "PR #512",
+      "4855f099",
       path.basename(evidenceRelative),
     ]) {
       expect(japanese, marker).toContain(marker);
@@ -257,6 +319,9 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "module-private one-shot grant",
       "durable claim",
       "27 / 27 PASS",
+      "199 / 199 PASS",
+      "PR #512",
+      "4855f099",
       path.basename(evidenceRelative),
     ]) {
       expect(english, marker).toContain(marker);

@@ -54,12 +54,34 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     expect(
       Object.values(registry.gates).every((value) => value === false),
     ).toBe(true);
+    expect(
+      bytesAndSha256(evidence.implementation_artifacts.launcher.path),
+    ).toEqual({
+      bytes: evidence.implementation_artifacts.launcher.bytes,
+      sha256: evidence.implementation_artifacts.launcher.sha256,
+    });
+    expect(
+      bytesAndSha256(evidence.implementation_artifacts.tests.path),
+    ).toEqual({
+      bytes: evidence.implementation_artifacts.tests.bytes,
+      sha256: evidence.implementation_artifacts.tests.sha256,
+    });
   });
 
   it("records exact local-only and append-only boundaries", () => {
     const evidence = JSON.parse(read(evidenceRelative));
 
-    expect(evidence.implementation.maximum_pair_workers).toBe(6);
+    expect(evidence.implementation).toMatchObject({
+      execution_boundary: "local-only-core-for-tests-no-production-runner",
+      test_only_validation_core:
+        "validate_ready_local_run_registry_core_for_tests",
+      test_only_execution_core: "run_ready_local_formal_ab_v2_core_for_tests",
+      production_ready_registry_identity: null,
+      caller_selected_registry_production_api: false,
+      production_match_execution_api: false,
+      maximum_pair_workers: 6,
+      automatic_run: false,
+    });
     expect(evidence.protocol_binding).toMatchObject({
       required_pairs: 384,
       required_games: 768,
@@ -74,6 +96,9 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       partial_pair_replay: "forbidden-stop",
       technical_fault: "terminal-for-run",
       accepted_resume_state: "complete-contiguous-prefix-from-pair-zero",
+      repository_path_component_policy:
+        "directory-descriptor-no-follow-every-component",
+      intermediate_symlink: "reject",
       previous_event_sha256_chain: true,
       file_fsync_before_next_event: true,
       directory_entry_power_loss_durability_claimed: false,
@@ -86,6 +111,14 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       external_calibration: false,
       live_weight_write: false,
       automatic_run: false,
+      attempt_ledger_identity_required: true,
+      rerun_authorization_identity_required_for_attempt_one: true,
+      attempt_artifacts_must_be_read_only_regular_inodes: true,
+      bare_attempt_or_rerun_digest_accepted: false,
+      canonical_sfen_validator:
+        "fresh_qat_parent_accounting_v2._normalized_sfen",
+      core_for_tests_deterministic_options_exact: true,
+      caller_supplied_arbitrary_options_accepted: false,
     });
   });
 
@@ -102,6 +135,8 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       real_match_bindings_enrolled: 0,
       real_local_match_adapters_enrolled: 0,
       ready_registry_checked_in: false,
+      production_ready_registry_identity_pinned: false,
+      production_runner_implemented: false,
       argumentless_ready_core_route_implemented: false,
     });
     expect(evidence.nonclaims).toEqual({
@@ -114,9 +149,18 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       live_weights_changed: false,
     });
     expect(evidence.implementation_anchor).toMatchObject({
-      review_state: "local-validation-pass-independent-review-pending",
+      review_state:
+        "local-remediation-validation-pass-final-independent-rereview-pending",
       pull_request: null,
       continuous_integration: "NOT_RUN",
+    });
+    expect(evidence.independent_review).toMatchObject({
+      initial_state: "changes-required",
+      accepted_adversarial_probe_classes_before_remediation: 6,
+      rejected_adversarial_probe_classes_before_remediation: 4,
+      remediation_state:
+        "local-validation-pass-final-independent-rereview-pending",
+      final_independent_rereview: "PENDING",
     });
   });
 
@@ -129,14 +173,21 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       "python3 ml/formal_paired_ab_local_launcher.py",
     );
     expect(launcher).toContain("argumentless_closed_preflight");
+    expect(launcher).toContain("run_ready_local_formal_ab_v2_core_for_tests");
+    expect(launcher).toContain(
+      "_PINNED_READY_RUN_REGISTRY_IDENTITY: dict[str, Any] | None = None",
+    );
     expect(launcher).toContain("candidate-identities-not-enrolled");
     expect(launcher).toContain('"pairs_started": 0');
     expect(launcher).toContain('"games_started": 0');
     expect(evidence.validation).toMatchObject({
-      focused_tests_passed: 10,
+      python_compile_status: "PASS",
+      focused_tests_passed: 14,
       focused_tests_failed: 0,
-      full_tests_passed: 148,
+      full_tests_passed: 152,
       full_tests_failed: 0,
+      evidence_tests_passed: 5,
+      evidence_tests_failed: 0,
       argumentless_command_exit: 2,
       argumentless_command_status: "STOP",
       argumentless_pairs_started: 0,
@@ -157,9 +208,11 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       expect(article).toContain("USI");
       expect(article).toContain("SFEN+USI");
       expect(article).toContain("AWS");
-      expect(article).toContain("0.87");
-      expect(article).toContain("148");
-      expect(article).toContain("11.75");
+      expect(article).toContain("CoreForTests");
+      expect(article).toMatch(/no-?follow/);
+      expect(article).toContain("1.12");
+      expect(article).toContain("152");
+      expect(article).toContain("12.05");
       expect(article).toContain("STOP");
     }
     expect(japanese).toContain("追記専用");

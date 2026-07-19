@@ -2,9 +2,9 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-local-launcher-evidence-v1",
   "recorded_date": "2026-07-18",
   "implementation_anchor": {
-    "revision": "eed88cdf28f3bf07cd10557fdc449f65f018aea2",
-    "tree": "17786547f57d5585f47863af9aff372d24129634",
-    "review_state": "local-validation-pass-independent-review-pending",
+    "revision": "8512a7fef524a71341f79cdcc10087294e34cfa6",
+    "tree": "b7727601cb6d67057ff7e8aa796d4fc6d5368a66",
+    "review_state": "local-remediation-validation-pass-final-independent-rereview-pending",
     "pull_request": null,
     "continuous_integration": "NOT_RUN"
   },
@@ -14,9 +14,26 @@
     "argumentless_command": "npm run shogi:formal-ab-v2-local",
     "japanese_article": "docs/blog-shogi-floodgate-formal-paired-ab-v2-local-launcher.md",
     "english_article": "docs/blog-shogi-floodgate-formal-paired-ab-v2-local-launcher.en.md",
-    "execution_boundary": "local-only-dependency-injected-existing-match-adapter",
+    "execution_boundary": "local-only-core-for-tests-no-production-runner",
+    "test_only_validation_core": "validate_ready_local_run_registry_core_for_tests",
+    "test_only_execution_core": "run_ready_local_formal_ab_v2_core_for_tests",
+    "production_ready_registry_identity": null,
+    "caller_selected_registry_production_api": false,
+    "production_match_execution_api": false,
     "maximum_pair_workers": 6,
     "automatic_run": false
+  },
+  "implementation_artifacts": {
+    "launcher": {
+      "path": "ml/formal_paired_ab_local_launcher.py",
+      "bytes": 49038,
+      "sha256": "896ed088307895a627041ad7acd1b3a47c24b39ec8c93d17c4db8373d3ffa9ec"
+    },
+    "tests": {
+      "path": "ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
+      "bytes": 32242,
+      "sha256": "a377acb967361081946a75ad88687d5caa4806a07367cc94297cce3da4b08013"
+    }
   },
   "protocol_binding": {
     "source_plan": {
@@ -52,6 +69,8 @@
     "accepted_resume_state": "complete-contiguous-prefix-from-pair-zero",
     "unknown_entries": "reject",
     "symlink_or_hardlink": "reject",
+    "repository_path_component_policy": "directory-descriptor-no-follow-every-component",
+    "intermediate_symlink": "reject",
     "canonical_jsonl_required": true,
     "previous_event_sha256_chain": true,
     "file_fsync_before_next_event": true,
@@ -67,17 +86,52 @@
     "automatic_run": false,
     "candidate_and_stable_must_differ": true,
     "yaneuraou_receipt_must_bind_binary": true,
-    "post_run_enrollment_revalidation": true
+    "post_run_enrollment_revalidation": true,
+    "attempt_ledger_identity_required": true,
+    "rerun_authorization_identity_required_for_attempt_one": true,
+    "attempt_artifacts_must_be_read_only_regular_inodes": true,
+    "bare_attempt_or_rerun_digest_accepted": false,
+    "canonical_sfen_validator": "fresh_qat_parent_accounting_v2._normalized_sfen",
+    "core_for_tests_deterministic_options_exact": true,
+    "caller_supplied_arbitrary_options_accepted": false
+  },
+  "independent_review": {
+    "initial_state": "changes-required",
+    "accepted_adversarial_probe_classes_before_remediation": 6,
+    "rejected_adversarial_probe_classes_before_remediation": 4,
+    "findings": [
+      "caller-authored-ready-registry-could-look-production-ready",
+      "attempt-and-rerun-digests-did-not-identify-read-artifacts",
+      "intermediate-repository-symlink-could-be-followed",
+      "invalid-sfen-and-arbitrary-options-could-pass"
+    ],
+    "remediation_state": "local-validation-pass-final-independent-rereview-pending",
+    "remediated_probe_classes": [
+      "caller-selected-production-registry-route",
+      "arbitrary-candidate-weight-through-production-route",
+      "bare-attempt-or-rerun-digest",
+      "intermediate-symlink",
+      "invalid-sfen",
+      "arbitrary-deterministic-options"
+    ],
+    "final_independent_rereview": "PENDING"
   },
   "validation": {
+    "python_compile_command": "python3 -m py_compile ml/formal_paired_ab_local_launcher.py ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
+    "python_compile_status": "PASS",
     "focused_command": "python3 -m unittest ml.tests_stdlib.test_formal_paired_ab_local_launcher -v",
-    "focused_tests_passed": 10,
+    "focused_tests_passed": 14,
     "focused_tests_failed": 0,
-    "focused_wall_seconds": 0.87,
+    "focused_wall_seconds": 1.12,
     "full_command": "npm run test:ml:stdlib",
-    "full_tests_passed": 148,
+    "full_tests_passed": 152,
     "full_tests_failed": 0,
-    "full_wall_seconds": 11.75,
+    "full_wall_seconds": 12.05,
+    "evidence_command": "npm test -- tests/unit/ml/floodgateFormalPairedAbV2LocalLauncherEvidence.test.ts",
+    "evidence_tests_passed": 5,
+    "evidence_tests_failed": 0,
+    "evidence_wall_seconds": 0.29,
+    "argumentless_wall_seconds": 0.32,
     "argumentless_command_exit": 2,
     "argumentless_command_status": "STOP",
     "argumentless_pairs_started": 0,
@@ -85,6 +139,12 @@
     "synthetic_complete_384_pair_768_game_stub_run_tested": true,
     "synthetic_complete_resume_zero_callback_tested": true,
     "synthetic_six_concurrent_pair_workers_tested": true,
+    "caller_selected_production_registry_rejection_tested": true,
+    "bare_attempt_and_rerun_digest_rejection_tested": true,
+    "writable_attempt_artifact_rejection_tested": true,
+    "intermediate_symlink_rejection_tested": true,
+    "invalid_sfen_rejection_tested": true,
+    "arbitrary_deterministic_options_rejection_tested": true,
     "real_game_process_used_by_tests": false,
     "real_yaneuraou_used_by_tests": false,
     "real_weight_used_by_tests": false
@@ -96,6 +156,8 @@
     "real_match_bindings_enrolled": 0,
     "real_local_match_adapters_enrolled": 0,
     "ready_registry_checked_in": false,
+    "production_ready_registry_identity_pinned": false,
+    "production_runner_implemented": false,
     "argumentless_ready_core_route_implemented": false
   },
   "execution_counters": {

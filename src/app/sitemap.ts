@@ -6,12 +6,11 @@ import { getProjectPath } from '@/lib/projectRoutes';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
 import { SITE_URL } from '@/lib/siteConfig';
 
-// Regenerate at most once per hour; new posts appear without a deploy.
-export const revalidate = 3600;
-
-// firebase-admin refuses to initialize during `next build`; skip the
-// fetch instead of logging a noisy (but otherwise handled) error.
-const isBuildPhase = () => process.env.NEXT_PHASE === 'phase-production-build';
+// Render per request. With ISR (`revalidate`) this route was emitted as a
+// fully static snapshot at build time — when firebase-admin cannot initialize —
+// so the deployed sitemap was permanently frozen without posts/projects.
+// Sitemap traffic is rare enough that on-demand rendering is effectively free.
+export const dynamic = 'force-dynamic';
 
 interface BlogEntry {
   id: string;
@@ -20,7 +19,6 @@ interface BlogEntry {
 }
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
-  if (isBuildPhase()) return [];
   try {
     const snapshot = await getFirestore()
       .collection(POSTS_COLLECTION)
@@ -43,7 +41,6 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 }
 
 async function getPublicProjects() {
-  if (isBuildPhase()) return [];
   try {
     return await getProjectsServer();
   } catch (error) {

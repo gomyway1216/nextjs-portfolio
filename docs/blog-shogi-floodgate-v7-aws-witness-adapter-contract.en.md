@@ -2,7 +2,7 @@
 
 > This change candidate freezes the DynamoDB and KMS requests, responses, and failure rules needed to connect the durable remote witness to AWS. It is an isolated Swift package containing pure data contracts. There is no AWS SDK, credential access, network transport, Lambda, IaC, real resource, or production entrypoint. The operational decision remains **UNAVAILABLE / STOP**; teacher execution, training, and live weights remain unchanged. Japanese version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.md)
 
-> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR CI PENDING.** Local Swift tests are 21 / 21, repository compatibility is 9 / 9, the boundary checker passes, and independent rereview of the pinned implementation and publication snapshot found zero P0, P1, or P2 issues. This has no production authority until the exact PR head passes every check.
+> **Publication status: LOCAL PASS; REVIEW REMEDIATION APPLIED; PR #508 REREVIEW / CI RERUN PENDING.** Local debug and release Swift tests are 22 / 22, repository compatibility is 9 / 9, and the boundary checker passes. Independent rereview of the original pinned implementation and publication snapshot found zero P0, P1, or P2 issues. Two later findings from PR review and Swift 6.3.2 CI have now been remediated, so the new exact head has no production authority until rereview and every check pass.
 
 ## 1. Conclusion
 
@@ -37,6 +37,8 @@ The boundary checker fail-closes the package graph, source and test inventories,
 
 An earlier evidence test overreached by requiring exactly one upload-artifact action in the entire CI workflow while attempting to protect the external trust-root job. That rejected the legitimate artifact upload in this independent job. The gate now counts within the protected job. That job still requires exactly one upload, the exact action version and paths, `if: always()`, and `if-no-files-found: error`.
 
+In PR #508's first CI run, `29670280886`, the Swift tests themselves passed, but a boundary checker calibrated only to Swift 5.10 `dump-package` metadata misclassified Swift 6.3.2's valid default trait `[{ "name": "default" }]` as identity or path drift. We differentially checked real output from the official Swift 6.3.2 toolchain against local 5.10 output. The checker now accepts only the known exact three-key and four-key forms; aliases, empty or unknown traits, unknown keys, and identity or path drift still stop. The symbol-graph upload failure was cascading: the early package-graph exit occurred before graph generation, rather than exposing a separate source failure.
+
 ## 3. Binding restore generation to `TableARN` and `TableId`
 
 A DynamoDB restore creates another table. Persisting a generation ID only inside a data item is insufficient because the old value returns with the backup.
@@ -61,7 +63,7 @@ The transactional read has exactly two ordered entries:
 1. `STATE`;
 2. the requested `OP#<operation-id>`.
 
-A missing STATE, third response, reordered response, unknown field, or projection drift stops. A missing OP alone is allowed for a new operation. STATE must name the exact KMS-bound signer, and an existing OP's endpoint must match STATE. Decoders require the exact attribute set and reject unknown attributes, wrong types, leading-zero numbers, and checkpoint/request/receipt digest drift. The stored receipt signature is reverified with the KMS-bound public key.
+A missing STATE, third response, reordered response, unknown field, or projection drift stops. A missing OP alone is allowed for a new operation. The suffix after `OP#` is read bytewise as exactly 64 lowercase ASCII hex digits. PR review found that a multibyte string could have 67 UTF-8 bytes while containing too few characters for the old Character indexing, which could trap. Character indexing is gone, and a regression test requires the same input to return `stop`. STATE must name the exact KMS-bound signer, and an existing OP's endpoint must match STATE. Decoders require the exact attribute set and reject unknown attributes, wrong types, leading-zero numbers, and checkpoint/request/receipt digest drift. The stored receipt signature is reverified with the KMS-bound public key.
 
 The write has exactly three ordered actions:
 
@@ -99,14 +101,15 @@ A returning SDK call is not automatically success. Existing service-core logic r
 
 ## 7. Validation and measurements
 
-Local validation used Xcode 15.3 / Swift 5.10 on arm64 macOS.
+Local validation used Xcode 15.3 / Swift 5.10 on arm64 macOS. The SwiftPM schema differential also ran the same `Package.swift` through the official Swift 6.3.2 toolchain and inspected its real output.
 
-The pinned implementation revision is `ed3932f6ec9818340144abf7949545ed292b1261`; its tree is `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`. Independent exact rereview of that snapshot passes; PR CI remains pending.
+The original Ed25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`, with tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`, has passed independent exact rereview. The post-review implementation revision is `2fcc0d29fb756db50d5042dacf7f64562d091173`, with tree `29de147b75318768c611dbbc84939c0f8154be81`; it includes safe multibyte operation-key rejection and the exact Swift 5.10 / 6.3.2 dual-schema boundary. Independent rereview and the PR CI rerun for this new snapshot remain pending.
 
 Independent rereview covered publication revision `f332bdc8774593323ec91d567e01ca86a72ef097` (tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`) and found **0 / 0 / 0** P0, P1, and P2 issues. The remaining publication-only follow-up records that verdict and the differential measurements above; it does not change the implementation.
 
-- new package tests: **21 / 21 PASS**
+- new package tests: **debug 22 / 22 and release 22 / 22 PASS** (4.75 / 4.10 seconds wall time)
 - independent Ed25519 differential review: **4,810 unique encodings / 0 mismatches / 0 crashes / zero P0, P1, or P2 findings** (debug 43.816 seconds; release 1.727 seconds)
+- real SwiftPM payload differential: **PASS on Swift 5.10 and 6.3.2**; unknown schema mutations stop
 - repository compatibility: **2 files / 9 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
@@ -114,6 +117,7 @@ Independent rereview covered publication revision `f332bdc8774593323ec91d567e01c
 - public / SPI symbols: **0 / 0**
 - preserved service-core fingerprints: **4 / 4 exact**
 - main `b8625cee` post-merge CI run `29666132754` and security run `29666132781`: **5 / 5 jobs and 59 / 59 reported steps PASS**
+- PR #508 first run `29670280886`: AWS job **failed on schema calibration**, now remediated locally and awaiting rerun
 - AWS resources / network calls / credential reads: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live changes: **0 / 0 / 0 / 0 / 0**
 
@@ -121,9 +125,9 @@ These numbers validate a source contract, not real AWS durability or playing str
 
 ## 8. Next gate
 
-The next action is a ready PR followed by PR CI on an exact head containing the reviewed implementation. Later work remains separated:
+Ready PR #508 is open. The next action is independent rereview of the remediated exact head, followed by a PR CI rerun in which every check passes. Later work remains separated:
 
-1. open a ready PR and require every check, including the isolated AWS job, on the exact head containing the reviewed implementation;
+1. rereview PR #508's fixes, require every check including the isolated AWS job on that exact head, and merge normally;
 2. merge the planned fail-closed aggregate CI edge so `Test and build` cannot pass when the AWS job fails;
 3. implement and independently review an async service-core successor, or a strict nonblocking continuation design, preserving dynamic read → sign → reread/commit/retry ordering;
 4. implement the SDK-backed adapter and enforce the exact DescribeTable preflight → operation → postflight sequence without semaphores or blocking bridges;

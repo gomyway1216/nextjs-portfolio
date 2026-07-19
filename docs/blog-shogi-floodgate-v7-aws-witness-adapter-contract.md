@@ -2,7 +2,7 @@
 
 > この変更候補は、durable remote witnessをAWSへ接続するときに必要なDynamoDB / KMSの要求・応答・失敗条件を、別Swift packageの純粋データ契約として固定した。AWS SDK、認証情報、network、Lambda、IaC、実resource、production entrypointは一切ない。本番判断は引き続き **UNAVAILABLE / STOP**、teacher・training・live weightsも不変である。English version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md)
 
-> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR CI PENDING.** localではSwift 21 / 21、repository互換9 / 9、boundary checkerがPASSし、固定implementation / publication snapshotの独立再reviewはP0 / P1 / P2すべて0だった。全PR checkがまだないため、本番authorityはない。
+> **Publication status: LOCAL PASS; REVIEW REMEDIATION APPLIED; PR #508 REREVIEW / CI RERUN PENDING.** localのdebug / releaseはSwift 22 / 22、repository互換9 / 9、boundary checkerがPASSした。元の固定implementation / publication snapshotの独立再reviewはP0 / P1 / P2すべて0だったが、その後のPR reviewとSwift 6.3.2 CIで2件を修正したため、新しいexact headの再reviewと全checkが終わるまで本番authorityはない。
 
 ## 1. 結論
 
@@ -37,6 +37,8 @@ boundary checkerは、package graph、source / test inventory、import allowlist
 
 過去のevidence testには、external trust-root jobを守るために「workflow全体のupload-artifactは1個だけ」と数える過剰な制約があった。新しい独立jobを追加すると正当なartifact uploadまで拒否したため、厳密性の単位をworkflow全体から対象jobへ修正した。対象job内は今もexact 1件、exact action version、exact path、`if: always()`、`if-no-files-found: error`を要求する。
 
+PR #508の初回CI run `29670280886`ではSwift tests自体は通ったが、Swift 5.10の`dump-package`だけを許していたboundary checkerが、Swift 6.3.2の正当な既定trait `[{ "name": "default" }]`をidentity / path driftと誤判定した。公式Swift 6.3.2 toolchainの実出力とlocal 5.10実出力を差分確認し、現在は既知のexact 3-key / 4-key形式だけを許す。alias、空・未知trait、未知key、identity / path driftは引き続きSTOPする。symbol graph upload失敗は、最初のpackage graph検査で終了してgraph生成へ到達しなかった連鎖失敗であり、独立したsource failureではなかった。
+
 ## 3. `TableARN`と`TableId`でrestore generationを分ける
 
 DynamoDB restoreは別tableとして作られる。data item内にgeneration IDを書くだけでは、古いbackupに含まれた値も一緒に戻るため、物理世代を独立観測したことにならない。
@@ -61,7 +63,7 @@ transactional readは順序を含めてexact 2件である。
 1. `STATE`
 2. requested `OP#<operation-id>`
 
-STATE欠落、3件目、response順序drift、未知field、projection driftはSTOPする。OP欠落だけはnew operationとして許可する。STATEのsignerはKMS bindと一致し、既存OPのendpointはSTATEと一致しなければならない。item decodeはattribute setを完全一致させ、未知attribute、型違い、leading zero付きnumber、checkpoint / request / receipt digest driftを拒否する。保存receiptはKMSから固定したpublic keyで署名を再検証する。
+STATE欠落、3件目、response順序drift、未知field、projection driftはSTOPする。OP欠落だけはnew operationとして許可する。`OP#`の後ろは64桁のlowercase ASCII hexだけをbyte単位で読む。PR reviewで、UTF-8上は67 byteでも文字数が足りないmultibyte入力が文字indexをtrapさせ得ると分かったため、Character indexを廃止し、同じ入力が必ず`STOP`になる回帰testを追加した。STATEのsignerはKMS bindと一致し、既存OPのendpointはSTATEと一致しなければならない。item decodeはattribute setを完全一致させ、未知attribute、型違い、leading zero付きnumber、checkpoint / request / receipt digest driftを拒否する。保存receiptはKMSから固定したpublic keyで署名を再検証する。
 
 writeはexact 3 actionである。
 
@@ -99,14 +101,15 @@ provider結果は次へ保守的に写像する。
 
 ## 7. 検証結果と実測
 
-local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
+local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。SwiftPM schema差分だけは、公式Swift 6.3.2 toolchainで同じ`Package.swift`を実行して実出力を照合した。
 
-固定したimplementation revisionは`ed3932f6ec9818340144abf7949545ed292b1261`、treeは`e127fd5c21c6b611cd9c021257fe9c6d19a6f441`である。このsnapshotの独立exact rereviewはPASSし、PR CIは未完了である。
+元のEd25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`（tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`）は独立exact rereview済みである。PR review後の新しいimplementation revisionは`2fcc0d29fb756db50d5042dacf7f64562d091173`（tree `29de147b75318768c611dbbc84939c0f8154be81`）で、multibyte operation keyの安全停止とSwift 5.10 / 6.3.2 dual-schema boundaryを含む。この新snapshotの独立再reviewとPR CI rerunは未完了である。
 
 独立再reviewはpublication revision `f332bdc8774593323ec91d567e01ca86a72ef097`（tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`）まで確認し、P0 / P1 / P2は**0 / 0 / 0**だった。残るpublication follow-upは上のreview結果とdifferential実測を記録するだけで、実装差分はない。
 
-- 新package tests: **21 / 21 PASS**
+- 新package tests: **debug 22 / 22、release 22 / 22 PASS**（wall 4.75秒 / 4.10秒）
 - Ed25519独立differential review: **4,810 unique encoding / mismatch 0 / crash 0 / P0・P1・P2すべて0**（debug 43.816秒、release 1.727秒）
+- SwiftPM実payload差分: **Swift 5.10 / 6.3.2ともPASS**、未知schema mutationはSTOP
 - repository compatibility: **2 files / 9 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
@@ -114,6 +117,7 @@ local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
 - public / SPI symbols: **0 / 0**
 - 既存service core fingerprint: **4 / 4 exact**
 - main `b8625cee` post-merge CI run `29666132754`とsecurity run `29666132781`: **5 / 5 job、59 / 59工程PASS**
+- PR #508初回run `29670280886`: AWS jobは**schema calibrationでFAIL**、修正済み・rerun待ち
 - AWS resource / network call / credential read: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live change: **0 / 0 / 0 / 0 / 0**
 
@@ -121,9 +125,9 @@ local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
 
 ## 8. 次のgate
 
-次はreview済み実装を含むexact headでready PRを作り、PR CIを通す。その後も順序を分ける。
+ready PR #508は作成済みである。次はreview修正を含むexact headを独立再reviewし、PR CIを再実行して全checkを通す。その後も順序を分ける。
 
-1. ready PRを作り、review済み実装を含むexact headでisolated AWS jobを含む全PR checkを要求する
+1. PR #508のreview修正を再reviewし、isolated AWS jobを含むexact headの全PR checkを要求して通常mergeする
 2. AWS job失敗時に`Test and build`も失敗する予定中のfail-closed aggregate CI edgeをmergeする
 3. dynamicなread → sign → reread/commit/retry順序を保つasync service-core successorかstrict nonblocking continuation設計を実装・独立reviewする
 4. SDK-backed adapterを実装し、semaphoreやblocking bridgeなしでexact DescribeTable preflight → operation → postflight順序を強制する

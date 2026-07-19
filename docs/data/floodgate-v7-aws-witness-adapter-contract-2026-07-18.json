@@ -3,20 +3,21 @@
   "evidence_date": "2026-07-18",
   "evidence_timezone": "America/Los_Angeles",
   "publication_state": {
-    "status": "LOCAL-PASS-EXACT-REREVIEW-PASS-CI-PENDING",
+    "status": "LOCAL-PASS-REVIEW-REMEDIATED-REREVIEW-AND-CI-RERUN-PENDING",
     "claims_final": false,
-    "implementation_snapshot_final": true,
-    "required_next_action": "ready-pr-then-pr-ci"
+    "implementation_snapshot_final": false,
+    "required_next_action": "exact-rereview-and-pr-ci-rerun"
   },
   "revision": {
     "base_revision": "ec64549e429803d406383376162eaeb9456df9ef",
-    "implementation_revision": "ed3932f6ec9818340144abf7949545ed292b1261",
-    "implementation_tree": "e127fd5c21c6b611cd9c021257fe9c6d19a6f441",
-    "pull_request": null,
-    "exact_commit_review": "PASS-P0-0-P1-0-P2-0",
+    "latest_main_revision_integrated": "b8625ceeb8ee8ec536e9b11b9f57176161fc0b45",
+    "implementation_revision": "2fcc0d29fb756db50d5042dacf7f64562d091173",
+    "implementation_tree": "29de147b75318768c611dbbc84939c0f8154be81",
+    "pull_request": 508,
+    "exact_commit_review": "PENDING-AFTER-REVIEW-REMEDIATION",
     "reviewed_publication_revision": "f332bdc8774593323ec91d567e01ca86a72ef097",
     "reviewed_publication_tree": "8b7b5b57b6fea30dd538b725c1e1320709da7e5b",
-    "continuous_integration": "PENDING"
+    "continuous_integration": "FIRST-RUN-FAILED-REMEDIATION-PENDING-RERUN"
   },
   "scope": {
     "status": "UNAVAILABLE",
@@ -164,6 +165,8 @@
       "missing_operation": "ALLOWED-FOR-NEW-OPERATION",
       "extra_response": "STOP",
       "unknown_fields": "STOP",
+      "operation_key_encoding": "OP#-PLUS-64-LOWERCASE-ASCII-HEX",
+      "multibyte_operation_key": "STOP-WITHOUT-TRAP",
       "state_signer_must_match_bound_kms_key": true,
       "operation_endpoint_must_match_state": true
     },
@@ -212,8 +215,10 @@
     },
     "swift_package_tests": {
       "status": "PASS",
-      "tests_passed": 21,
-      "tests_failed": 0
+      "tests_passed": 22,
+      "tests_failed": 0,
+      "debug_duration_seconds": 4.75,
+      "release_duration_seconds": 4.1
     },
     "boundary_checker": {
       "status": "PASS",
@@ -221,7 +226,20 @@
       "external_dependencies": 0,
       "production_consumers": 0,
       "public_or_spi_symbols": 0,
-      "preserved_service_core": "EXACT"
+      "preserved_service_core": "EXACT",
+      "swiftpm_5_10_dependency_shape": ["identity", "path", "productFilter"],
+      "swiftpm_6_3_2_dependency_shape": [
+        "identity",
+        "path",
+        "productFilter",
+        "traits"
+      ],
+      "swiftpm_6_3_2_traits_exact": [
+        {
+          "name": "default"
+        }
+      ],
+      "real_payload_differential": "PASS-5.10-AND-6.3.2"
     },
     "repository_compatibility_tests": {
       "status": "PASS",
@@ -281,8 +299,34 @@
       "security_run_id": 29666132781,
       "security_url": "https://github.com/gomyway1216/nextjs-portfolio/actions/runs/29666132781"
     },
+    "review_remediation": {
+      "status": "LOCAL-PASS-EXACT-REREVIEW-PENDING",
+      "pull_request": 508,
+      "unicode_operation_key": {
+        "review_source": "GEMINI-INLINE-REVIEW",
+        "finding": "UTF8-BYTE-LENGTH-COULD-PASS-WITH-TOO-FEW-CHARACTERS-AND-TRAP",
+        "resolution": "BYTE-INDEXED-LOWERCASE-ASCII-HEX-FAIL-CLOSED",
+        "regression_test": "testReadRejectsMultibyteOperationKeyWithoutTrap",
+        "debug_and_release": "PASS-22-OF-22"
+      },
+      "swiftpm_6_3_ci": {
+        "run_id": 29670280886,
+        "job_id": 88147888708,
+        "swift_version": "6.3.2",
+        "cause": "DUMP-PACKAGE-ADDED-EXACT-DEFAULT-TRAIT-METADATA",
+        "resolution": "ALLOW-ONLY-EXACT-SWIFT-5.10-OR-6.3.2-SCHEMA",
+        "official_6_3_2_real_payload": "PASS",
+        "local_5_10_real_payload": "PASS",
+        "negative_schema_mutations": "REJECTED",
+        "symbol_graph_upload_failure": "CASCADING-AFTER-EARLY-BOUNDARY-EXIT"
+      }
+    },
     "pull_request_ci": {
-      "status": "PENDING"
+      "status": "FIRST-RUN-FAILED-REMEDIATION-PENDING-RERUN",
+      "pull_request": 508,
+      "run_id": 29670280886,
+      "failed_job_id": 88147888708,
+      "failure_scope": "SWIFTPM-6.3.2-DUMP-PACKAGE-SCHEMA-CALIBRATION"
     }
   },
   "production_counters": {

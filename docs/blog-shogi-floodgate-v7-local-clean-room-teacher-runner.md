@@ -71,7 +71,7 @@ deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba46
 
 | validation                              | 結果                    |
 | --------------------------------------- | ----------------------- |
-| focused Vitest                          | 4 files / 46 tests PASS |
+| focused Vitest                          | 4 files / 47 tests PASS |
 | publication evidence Vitest             | 1 file / 6 tests PASS   |
 | changed source/test lint                | 8 / 8 PASS              |
 | publication artifacts Prettier          | 4 / 4 PASS              |

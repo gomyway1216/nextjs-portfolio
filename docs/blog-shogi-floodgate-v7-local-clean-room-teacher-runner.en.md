@@ -71,7 +71,7 @@ The deployment-key / `runBinding` compatibility implementation is commit `b9d8a9
 
 | Validation                                  | Result                  |
 | ------------------------------------------- | ----------------------- |
-| Focused Vitest                              | 4 files / 46 tests PASS |
+| Focused Vitest                              | 4 files / 47 tests PASS |
 | Publication evidence Vitest                 | 1 file / 6 tests PASS   |
 | Changed source/test lint                    | 8 / 8 PASS              |
 | Publication artifacts Prettier              | 4 / 4 PASS              |

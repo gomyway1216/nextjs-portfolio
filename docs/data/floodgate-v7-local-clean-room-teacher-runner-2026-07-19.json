@@ -149,11 +149,12 @@
   "source_pins": [
     {
       "path": "ml/floodgate-git.ts",
-      "bytes": 15811,
-      "sha256": "5fa0341a28bfee01d063b8a228946d9bc537807f5a6f2e43643477d519c48b29",
-      "git_blob": "f9c6c5702143afcaa63bacd932c38fae1cf2b410",
+      "bytes": 15837,
+      "sha256": "96732a79076ea0d298a98e52274711841a09599bff497ac8ef86e3169c9e6209",
+      "git_blob": "c05b783d620ece46bb5379ba57e146e0b141b18b",
       "required_markers": [
         "export const FLOODGATE_GIT_FIXED_ENVIRONMENT",
+        "NODE_ENV: \"production\"",
         "return { ...FLOODGATE_GIT_FIXED_ENVIRONMENT };"
       ]
     },
@@ -170,10 +171,11 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59409,
-      "sha256": "692351e69abb4ad83d56a7e736d9d4503268c2102b4be1f8e1c60722015a6b6c",
-      "git_blob": "e25fc1b62b52749a72d0f716dff97748143cfca8",
+      "bytes": 59064,
+      "sha256": "c604ddbe7d76c89843e5db40331c81edae18643ac262edf9ffd28990ffc682e4",
+      "git_blob": "1a7c67a285f1e39459265b14912179580ac48f16",
       "required_markers": [
+        "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
         "GIT_ALLOW_PROTOCOL: \"file\"",
         "GIT_NO_LAZY_FETCH: \"1\"",
         "\"core.hooksPath=/dev/null\"",
@@ -182,12 +184,13 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
-      "bytes": 9320,
-      "sha256": "ea069ca763d39ea05447b880d63437caf8e28ba3aa86c6f1c5f204f60746ce43",
-      "git_blob": "54cb4e87688955bc52ca9e70be630d757a2b930f",
+      "bytes": 11371,
+      "sha256": "307d6807a152246aee7f2006b5888c868e5990eb1adff636731c71bd0f8a03d6",
+      "git_blob": "602335c11922b91508bf1a4004111778993d0bdd",
       "required_markers": [
         "claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(completion)",
-        "\"fixed-operational-cli-one-shot-brand-claim\""
+        "\"fixed-operational-cli-one-shot-brand-claim\"",
+        "\"canonical JSON value differs\""
       ]
     },
     {
@@ -202,9 +205,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 56633,
-      "sha256": "a3d0bb0c593b5d5f09a832065668b99edb24e7b89e7a6134088a40d8b6fb353b",
-      "git_blob": "2a479ee1e6c7609a02633cf89500acedd2f3a887",
+      "bytes": 59020,
+      "sha256": "94321bbd437cc4a09e2fd95f549d2f82d093924af4041d9e82bbe2635dcaf241",
+      "git_blob": "e6eec87b89836e3d0d33f36289d28cdb31ab71e2",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -213,6 +216,7 @@
         "FLOODGATE_V7_DEPLOYMENT_KEY_ID",
         "prepareFloodgateV7DeploymentTeacherCheckpointV3Key",
         "run_binding_sha256: runBindingSha256",
+        "canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests",
         "local_deployment_key_authority_used: true as const",
         "aws_required: false as const"
       ]
@@ -241,9 +245,9 @@
   "focused_test_pins": [
     {
       "path": "tests/unit/ml/floodgateGit.test.ts",
-      "bytes": 13461,
-      "sha256": "45c3b1718dc79ba4165545d179c0519ae7b767df7eff459ac065f58ed523f88f",
-      "git_blob": "0f7bddf36f9b46a8594739f272e28beec85088f4"
+      "bytes": 13538,
+      "sha256": "57a5dcbc90e3cab8b3fc6301ce9333e618544a065dff31a7c0d8c2911b4f79d7",
+      "git_blob": "e17f03d4c8831e0adf3cbcb9f65035a0595c4cbd"
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
@@ -259,15 +263,15 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 29338,
-      "sha256": "1e147adae4a73716d4c4ecd8e790bf84552387e6d64bacb3fcc3dc8c97c0124b",
-      "git_blob": "0c7f5fd2ac83e8dde6cd8d7624ed6ae3e059ad16"
+      "bytes": 30727,
+      "sha256": "9169b66b4b074d26d584901fbf3172bfc448e0216696ee5c1e1053ee572abe7d",
+      "git_blob": "a9f652cc7b85ebf7bc0f6645e74ba9f0e411866c"
     }
   ],
   "validation": {
     "focused_vitest": {
       "files": 4,
-      "tests_passed": 46,
+      "tests_passed": 47,
       "tests_failed": 0,
       "result": "PASS"
     },

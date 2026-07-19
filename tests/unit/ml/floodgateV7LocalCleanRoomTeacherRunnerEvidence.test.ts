@@ -370,7 +370,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     expect(record.validation).toMatchObject({
       focused_vitest: {
         files: 4,
-        tests_passed: 46,
+        tests_passed: 47,
         tests_failed: 0,
         result: "PASS",
       },
@@ -496,7 +496,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       "Macユーザー単位local deployment-key authority",
       "exact canonical `runBinding`",
       "100 → 500 → 24,000",
-      "4 files / 46 tests PASS",
+      "4 files / 47 tests PASS",
       "1 file / 6 tests PASS",
       "15 / 15 PASS",
       "0 / 0 / 0",
@@ -514,7 +514,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       "per-user Mac-local deployment-key authority",
       "exact canonical `runBinding`",
       "100 → 500 → 24,000",
-      "4 files / 46 tests PASS",
+      "4 files / 47 tests PASS",
       "1 file / 6 tests PASS",
       "15 / 15 PASS",
       "0 / 0 / 0",

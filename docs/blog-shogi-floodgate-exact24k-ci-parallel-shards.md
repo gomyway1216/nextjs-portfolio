@@ -2,7 +2,7 @@
 
 > これは評価関数を変更する作業ではなく、変更候補をより早く、同じ厳しさで検証するためのCI改善である。`ml/`、教師生成ロジック、学習データ、候補重み、ライブ重み、本番環境は変更していない。English version: [blog-shogi-floodgate-exact24k-ci-parallel-shards.en.md](./blog-shogi-floodgate-exact24k-ci-parallel-shards.en.md)
 
-> **Publication status: LOCAL VALIDATION PASS; AWS SYNC / REVIEW / GITHUB CI PENDING.** 5本のscanner shard、Teacher、6本を除外した通常unit、JSON reportのexact file / title照合はローカルでPASSした。最新`main`とのAWS aggregate edge同期、PR review、GitHub CIは完了前である。したがって、この記録をremote CI PASSや本番変更の根拠へ読み替えない。
+> **Publication status: LOCAL VALIDATION PASS; AWS SYNC / REVIEW / GITHUB CI PENDING.** 5本のscanner shard、Teacher、6本を除外した通常unit、JSON reportのexact file / runtime case照合はローカルでPASSした。最新`main`とのAWS aggregate edge同期、PR review、GitHub CIは完了前である。したがって、この記録をremote CI PASSや本番変更の根拠へ読み替えない。
 
 ## 1. 結論
 
@@ -12,13 +12,13 @@
 
 | shard      | 固定した検証範囲                                                                   | local wall |
 | ---------- | ---------------------------------------------------------------------------------- | ---------: |
-| authority  | lease capture、premature terminal、key authority拒否                               |    73.98秒 |
-| mutation   | pass-two sink失敗、pathname置換、seal MAC破損                                      |   109.28秒 |
-| replay     | exact two-pass、opaque facade、single-flight、W / WT / WTR / WTRM replay           |   106.27秒 |
-| cleanup    | descriptor close失敗、sticky cleanup failure、plan-level aggregate cleanup失敗     |   135.12秒 |
-| production | production plan入力拒否、finalize / publish、result / manifest accounting、zeroize |   105.42秒 |
+| authority  | lease capture、premature terminal、key authority拒否                               |    75.74秒 |
+| mutation   | pass-two sink失敗、pathname置換、seal MAC破損                                      |   112.35秒 |
+| replay     | exact two-pass、opaque facade、single-flight、W / WT / WTR / WTRM replay           |   108.69秒 |
+| cleanup    | descriptor close失敗、sticky cleanup failure、plan-level aggregate cleanup失敗     |   138.54秒 |
+| production | production plan入力拒否、finalize / publish、result / manifest accounting、zeroize |   107.60秒 |
 
-14-core / 48 GiBのlocal Macで5本を同時起動したとき、scanner群のcritical pathは最長のcleanupと同じ**135.12秒**だった。各processのwall time合計は530.07秒なので、この測定では直列実行に対して約3.92倍のwall-time短縮に相当する。ただしGitHub-hosted runnerのqueue、checkout、`npm ci`を含むremote値ではない。
+14-core / 48 GiBのlocal Macで5本を同時起動したとき、scanner群のcritical pathは**138.589秒**だった。各processのwall time合計は542.92秒なので、この測定では直列実行に対して約3.917倍のwall-time短縮に相当する。ただしGitHub-hosted runnerのqueue、checkout、`npm ci`を含むremote値ではない。
 
 ## 2. 厳しさを落とさずに分けた
 
@@ -30,7 +30,7 @@
 4. shard固有のadversarial scenarioを実行
 5. test終了時に一時rootを削除し、mockを復元
 
-旧1本にあったconceptual scenarioを19個の安定IDへ分類した。IDはinventory内で全shardを通じてuniqueでなければならず、重複や不足はunit testとverifierでfail closedになる。
+旧1本にあったconceptual scenarioを19個の安定IDへ分類した。独立監査後は、これらをinventory上の説明だけにはしていない。各scenarioの検証が終わった位置でordered runtime receiptへIDを追加し、全件が正しい順序で揃わなければreceiptをsealできない。5本のVitest reportにはauthority 3、mutation 3、replay 6、cleanup 3、production 4、合計19件が実際のruntime testとして現れる。架空ID、順序違反、重複、不足はfail closedになる。
 
 Teacher checkpoint fileはscannerとは別の6本目のheavy fileとして、exact pathで単独jobにした。通常unit jobはこのTeacher 1本とscanner 5本、合計6本を明示的に除外する。除外集合、matrixの5つのID / file pair、Teacherの40個の直接`it(...)` titleと49個のexact runtime titleは一つのmachine-readable inventoryへ固定した。
 
@@ -39,14 +39,15 @@ Teacher checkpoint fileはscannerとは別の6本目のheavy fileとして、exa
 CIはVitestの終了codeだけを信用しない。各heavy jobはJSON reportを書き、独立verifierが次を要求する。
 
 - reportに含まれるtest fileがinventoryのexact pathと一致
-- scannerはinventoryのexact title 1件、Teacherはexact runtime title 49件と一致
+- scannerはimmutable runtime case集合（3 / 3 / 6 / 3 / 4件）、Teacherはexact runtime title 49件と一致
 - duplicate titleなし
 - failed / pending / todo testが0
-- failed / pending suiteが0
+- 各targetのsuiteがexact 2 / 2 PASSで、suite / test counterが非負整数かつ内部整合
+- `assertionResults`件数、title集合、statusがcounterと一致
 - file resultと全assertion resultが`passed`
 - report全体の`success`がtrue
 
-inventory自身もschema、24,000 parent、`[100, 500, 24000]` gate、5 shard、19 conceptual case ID、40 direct / 49 runtime Teacher title、6 core exclusionを検証する。workflowの配線も読み、fileの抜け・重複、`-t`、`--shard`、required aggregateの欠落を拒否する。test commandはworkflowへ直接固定し、既存のproduction identity evidenceがpinする`package.json`は変更しなかった。
+inventory自身もschema、24,000 parent、`[100, 500, 24000]` gate、5 shard、19 runtime case ID、40 direct / 49 runtime Teacher title、6 core exclusionを検証する。workflowは文字列検索ではなく、checked-inのstrict parserでjob、matrix、step、`run`、`needs`を構造として読む。コメント内の偽配線、decoy文字列、duplicate、disabled step、欠落したresult checkは成功扱いにならない。scanner / Teacher reportは隠しdirectory `.artifacts`から必ずuploadし、`include-hidden-files: true`かつ`if-no-files-found: error`を要求する。test commandはworkflowへ直接固定し、既存のproduction identity evidenceがpinする`package.json`と`package-lock.json`は変更しなかった。
 
 ## 4. required checkをfail closedに保つ
 
@@ -58,26 +59,26 @@ inventory自身もschema、24,000 parent、`[100, 500, 24000]` gate、5 shard、
 
 測定環境はmacOS arm64、14 physical / logical CPU、48 GiB RAM、Node 22.13.0、npm 11.14.1である。
 
-| 検証                                               | 結果                                      |
-| -------------------------------------------------- | ----------------------------------------- |
-| scanner shard                                      | **5 files / 5 tests PASS**                |
-| scanner JSON exact file / title verification       | **5 / 5 PASS**                            |
-| inventory / adversarial verifier unit tests        | **4 / 4 PASS**                            |
-| Teacher exact file / 49-runtime-title verification | **49 / 49 PASS、101.16秒**                |
-| core unit with six explicit exclusions             | **186 files、3,221 PASS、1 skip、0 fail** |
-| core unit wall                                     | **80.86秒**                               |
-| lint / workflow / evidence validation              | **PASS**                                  |
-| dependency-free ML contract                        | **119 / 119 PASS、11.59秒**               |
-| production build                                   | **PASS、28.87秒**                         |
-| local test-only critical path                      | **135.12秒（cleanup shard）**             |
-| GitHub Actions                                     | **PENDING — not yet run**                 |
-| production `ml/` source changes                    | **0**                                     |
-| teacher / training / A/B / external calibration    | **0 / 0 / 0 / 0**                         |
-| live weights / production execution                | **0 / 0**                                 |
+| 検証                                                | 結果                                      |
+| --------------------------------------------------- | ----------------------------------------- |
+| scanner shard                                       | **5 files / 19 tests / 10 suites PASS**   |
+| scanner JSON exact file / runtime-case verification | **5 / 5 PASS**                            |
+| inventory / adversarial verifier unit tests         | **8 / 8 PASS**                            |
+| Teacher exact file / 49-runtime-title verification  | **49 / 49 PASS、101.16秒**                |
+| core unit with six explicit exclusions              | **187 files、3,229 PASS、1 skip、0 fail** |
+| core unit wall                                      | **81.54秒**                               |
+| lint / workflow / evidence validation               | **PASS**                                  |
+| dependency-free ML contract                         | **119 / 119 PASS、11.59秒**               |
+| production build                                    | **PASS、28.87秒**                         |
+| local test-only critical path                       | **138.589秒（5 shard同時起動）**          |
+| GitHub Actions                                      | **PENDING — not yet run**                 |
+| production `ml/` source changes                     | **0**                                     |
+| teacher / training / A/B / external calibration     | **0 / 0 / 0 / 0**                         |
+| live weights / production execution                 | **0 / 0**                                 |
 
-途中検証では二つの誤った前提も見つかった。第一に、Teacherはsource上の直接`it(...)`が40個でもparameterized case展開後は49 assertionsであり、最初の40-title inventoryはverifierが意図どおり拒否した。第二に、既存evidence testの一部が、歴史的workflow snapshotをpinすることと現在のworkflow全体を永久に同一byteへ固定することを混同し、またrepository全体に`upload-artifact`が1個しかないと仮定していた。歴史的revision / hashは変更せず、live external-trust-root job自身のexact stepを検証する境界へ修正し、関連24 testsと通常unit全体を再PASSさせた。
+途中検証では三つの誤った前提も見つかった。第一に、Teacherはsource上の直接`it(...)`が40個でもparameterized case展開後は49 assertionsであり、最初の40-title inventoryはverifierが意図どおり拒否した。第二に、既存evidence testの一部が、歴史的workflow snapshotをpinすることと現在のworkflow全体を永久に同一byteへ固定することを混同し、またrepository全体に`upload-artifact`が1個しかないと仮定していた。歴史的revision / hashは変更せず、live external-trust-root job自身のexact stepを検証する境界へ修正した。第三に、汎用YAML packageを直接追加する案はproduction identity回帰testが拒否したため撤回した。依存追加なしのstrict structural parserへ置き換え、`package.json`とlockfileを元のexact byteへ戻した。
 
-実測できたlocal test-only critical pathは135.12秒である。GitHub上のqueue、checkout、`npm ci`、lint、buildを含むcritical pathはまだ測っていないため、分単位の予測値は証拠として掲載しない。remote CI、review、AWS edge同期が揃うまではこの候補をmerge-readyとしない。
+実測できたlocal test-only critical pathは138.589秒である。GitHub上のqueue、checkout、`npm ci`、lint、buildを含むcritical pathはまだ測っていないため、分単位の予測値は証拠として掲載しない。remote CI、review、AWS edge同期が揃うまではこの候補をmerge-readyとしない。
 
 ## 6. 次のgate
 

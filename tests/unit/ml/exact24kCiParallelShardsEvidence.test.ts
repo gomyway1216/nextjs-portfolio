@@ -88,16 +88,26 @@ describe("exact-24k CI parallel-shard evidence", () => {
       base_revision: base,
       test_split_revision: split,
       ci_wiring_revision: ci,
+      audit_hardening_revision: audit,
     } = record.revision;
 
     expect(git("merge-base", "--is-ancestor", base, split)).toHaveLength(0);
     expect(git("merge-base", "--is-ancestor", split, ci)).toHaveLength(0);
+    expect(git("merge-base", "--is-ancestor", ci, audit)).toHaveLength(0);
     expect(git("show", "-s", "--format=%T", ci).toString().trim()).toBe(
       record.revision.ci_wiring_tree,
+    );
+    expect(git("show", "-s", "--format=%T", audit).toString().trim()).toBe(
+      record.revision.audit_hardening_tree,
     );
 
     for (const snapshot of record.committed_candidate_snapshots as CandidateSnapshot[]) {
       const bytes = git("show", `${ci}:${snapshot.path}`);
+      expect(bytes.byteLength, snapshot.path).toBe(snapshot.bytes);
+      expect(sha256(bytes), snapshot.path).toBe(snapshot.sha256);
+    }
+    for (const snapshot of record.audit_hardening_snapshots as CandidateSnapshot[]) {
+      const bytes = git("show", `${audit}:${snapshot.path}`);
       expect(bytes.byteLength, snapshot.path).toBe(snapshot.bytes);
       expect(sha256(bytes), snapshot.path).toBe(snapshot.sha256);
     }
@@ -126,7 +136,7 @@ describe("exact-24k CI parallel-shard evidence", () => {
       exact_parent_count: 24_000,
       gates: [100, 500, 24_000],
       scanner_shards: 5,
-      scanner_runtime_tests: 5,
+      scanner_runtime_tests: 19,
       conceptual_case_ids: 19,
       conceptual_case_duplicate_ids: 0,
       conceptual_case_missing_ids: 0,
@@ -140,12 +150,13 @@ describe("exact-24k CI parallel-shard evidence", () => {
     });
     expect(record.scanner_parallel_validation).toMatchObject({
       status: "PASS",
-      parallel_process_wall_seconds: 135.12,
-      sum_individual_process_wall_seconds: 530.07,
+      parallel_process_wall_seconds: 138.589,
+      sum_individual_process_wall_seconds: 542.92,
       files_passed: 5,
-      tests_passed: 5,
+      test_suites_passed: 10,
+      tests_passed: 19,
       tests_failed: 0,
-      reports_exact_file_and_title_verified: 5,
+      reports_exact_file_and_runtime_case_set_verified: 5,
     });
     expect(record.teacher_validation).toMatchObject({
       status: "PASS",
@@ -158,15 +169,15 @@ describe("exact-24k CI parallel-shard evidence", () => {
     });
     expect(record.core_validation).toMatchObject({
       status: "PASS",
-      process_wall_seconds: 80.86,
-      test_files: 186,
-      tests_total: 3222,
-      tests_passed: 3221,
+      process_wall_seconds: 81.54,
+      test_files: 187,
+      tests_total: 3230,
+      tests_passed: 3229,
       tests_failed: 0,
       tests_pending: 1,
     });
     expect(record.local_test_only_critical_path).toEqual({
-      seconds: 135.12,
+      seconds: 138.589,
       source: "five concurrent scanner shard processes",
       github_ci_inference_allowed: false,
     });
@@ -190,10 +201,11 @@ describe("exact-24k CI parallel-shard evidence", () => {
     const english = read(englishArticleRelative);
 
     for (const marker of [
-      "135.12",
+      "138.589",
       "101.16",
-      "80.86",
-      "3.92",
+      "81.54",
+      "3.917",
+      "19",
       "49",
       "AWS",
       "PENDING",
@@ -202,6 +214,12 @@ describe("exact-24k CI parallel-shard evidence", () => {
       expect(english).toContain(marker);
     }
     expect(record.intermediate_findings).toHaveLength(3);
+    expect(record.audit_findings).toHaveLength(4);
+    expect(
+      record.audit_findings.map(
+        ({ severity }: { severity: string }) => severity,
+      ),
+    ).toEqual(["P1", "P1", "P2", "P2"]);
     expect(record.next_gates).toEqual([
       "exact-review-local-commits",
       "merge-aws-witness-adapter-contract-first",

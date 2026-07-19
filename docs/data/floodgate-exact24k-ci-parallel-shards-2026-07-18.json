@@ -14,6 +14,8 @@
     "test_split_revision": "fb9f3c25c7def9f0007ca4d6b3dc351754fe0682",
     "ci_wiring_revision": "2210569cd6a26530afd72ce5bd9407b6385f702f",
     "ci_wiring_tree": "51e294f7b0fd84b3c8816e56d9dc9f3aaf12bd0c",
+    "audit_hardening_revision": "9d7abcb4aa1fe4a096220431009fa83237624d7e",
+    "audit_hardening_tree": "9e17570ad02e77ab4278d1c7267c1688a83da0c2",
     "branch": "codex/ci-exact24k-parallel-shards",
     "continuous_integration": "PENDING",
     "pull_request": null
@@ -48,7 +50,7 @@
     "old_scanner_test_files": 1,
     "old_scanner_runtime_tests": 1,
     "scanner_shards": 5,
-    "scanner_runtime_tests": 5,
+    "scanner_runtime_tests": 19,
     "conceptual_case_ids": 19,
     "conceptual_case_duplicate_ids": 0,
     "conceptual_case_missing_ids": 0,
@@ -62,57 +64,68 @@
   },
   "scanner_parallel_validation": {
     "status": "PASS",
-    "started_utc": "2026-07-18T23:36:36.097Z",
-    "last_report_end_utc": "2026-07-18T23:38:50.809Z",
-    "parallel_process_wall_seconds": 135.12,
-    "sum_individual_process_wall_seconds": 530.07,
-    "observed_wall_speedup_over_serial_sum": 3.922,
+    "started_utc": "2026-07-19T03:45:29.611Z",
+    "last_report_end_utc": "2026-07-19T03:47:48.129Z",
+    "parallel_process_wall_seconds": 138.589,
+    "sum_individual_process_wall_seconds": 542.92,
+    "observed_wall_speedup_over_serial_sum": 3.917,
     "files_passed": 5,
-    "tests_passed": 5,
+    "test_suites_passed": 10,
+    "tests_passed": 19,
     "tests_failed": 0,
     "tests_pending": 0,
     "tests_todo": 0,
-    "reports_exact_file_and_title_verified": 5,
+    "reports_exact_file_and_runtime_case_set_verified": 5,
     "shards": [
       {
         "id": "authority",
         "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
-        "process_wall_seconds": 73.98,
-        "vitest_report_duration_ms": 73587.8095703125,
-        "report_bytes": 1130,
-        "report_sha256": "dd33bbcc14270772f3907e48626692ad30122c2c29d68977218161a54fb5de33"
+        "process_wall_seconds": 75.74,
+        "vitest_report_duration_ms": 74819.10034179688,
+        "test_suites_passed": 2,
+        "runtime_cases_passed": 3,
+        "report_bytes": 1755,
+        "report_sha256": "11beaaaa90d3a1b487d229d0478ea071dfb51276a72566667442e7e5900441a5"
       },
       {
         "id": "mutation",
         "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
-        "process_wall_seconds": 109.28,
-        "vitest_report_duration_ms": 108906.919921875,
-        "report_bytes": 1116,
-        "report_sha256": "f15ed42a1fec95bf93bf0bf123f099fe208e02a4c7102be28c8187c03fd7dae6"
+        "process_wall_seconds": 112.35,
+        "vitest_report_duration_ms": 111428.08544921875,
+        "test_suites_passed": 2,
+        "runtime_cases_passed": 3,
+        "report_bytes": 1723,
+        "report_sha256": "d9cbb456eb86d27d660db1415d2b7e1260fa1539247510bde3d091152c3bd4d4"
       },
       {
         "id": "replay",
         "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
-        "process_wall_seconds": 106.27,
-        "vitest_report_duration_ms": 105908.21801757812,
-        "report_bytes": 1114,
-        "report_sha256": "10dcdfaac7c48ce666ffd6c7c4afb79aa005594b6dd2c1e8d602f79f5af14458"
+        "process_wall_seconds": 108.69,
+        "vitest_report_duration_ms": 107772.16284179688,
+        "test_suites_passed": 2,
+        "runtime_cases_passed": 6,
+        "report_bytes": 2565,
+        "report_sha256": "8c76d44ce8bf1df6c9a5b4d922377565f522759cf940ad6cff28f1ce31b9e101"
       },
       {
         "id": "cleanup",
         "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
-        "process_wall_seconds": 135.12,
-        "vitest_report_duration_ms": 134712.1103515625,
-        "report_bytes": 1134,
-        "report_sha256": "2fcc936ae6c3e5676544c1bdbadf2703a978feebffc430e93afb42a3f86d0491"
+        "process_wall_seconds": 138.54,
+        "vitest_report_duration_ms": 137627.08447265625,
+        "test_suites_passed": 2,
+        "runtime_cases_passed": 3,
+        "report_bytes": 1715,
+        "report_sha256": "a424cc9891d3e05c69285c901b69cfd0a9b5465db6fd81d016b5774a879b8d04"
       },
       {
         "id": "production",
         "file": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
-        "process_wall_seconds": 105.42,
-        "vitest_report_duration_ms": 105069.35034179688,
-        "report_bytes": 1118,
-        "report_sha256": "6e0b29dd1aa13f95a1877a7ee6a69737d92c47f22588f28726bea30d9254e95d"
+        "process_wall_seconds": 107.6,
+        "vitest_report_duration_ms": 106680.13159179688,
+        "test_suites_passed": 2,
+        "runtime_cases_passed": 4,
+        "report_bytes": 2021,
+        "report_sha256": "93cf1e8c8d69b65e3012b0b46d77fd5ded8d234d821d68a1b3383d72c8e2d8e9"
       }
     ]
   },
@@ -135,26 +148,26 @@
   },
   "core_validation": {
     "status": "PASS",
-    "started_utc": "2026-07-18T23:46:01.967Z",
-    "ended_utc": "2026-07-18T23:47:22.534Z",
-    "process_wall_seconds": 80.86,
-    "vitest_report_duration_ms": 80567.84350585938,
-    "test_files": 186,
-    "test_suites": 619,
-    "tests_total": 3222,
-    "tests_passed": 3221,
+    "started_utc": "2026-07-19T03:59:59.668Z",
+    "ended_utc": "2026-07-19T04:01:20.876Z",
+    "process_wall_seconds": 81.54,
+    "vitest_report_duration_ms": 81208.52026367188,
+    "test_files": 187,
+    "test_suites": 621,
+    "tests_total": 3230,
+    "tests_passed": 3229,
     "tests_failed": 0,
     "tests_pending": 1,
     "tests_todo": 0,
     "six_heavy_files_explicitly_excluded": true,
-    "report_bytes": 1137389,
-    "report_sha256": "d8cd2d3a60cd08629807a52ad7179f633d0e947b9a49e7f554b9de0858b96847"
+    "report_bytes": 1140526,
+    "report_sha256": "1dcffa6c17158923f8890e771be6542f1ba720c390ce0abf8ee21b500a604afc"
   },
   "supporting_validation": {
     "inventory_and_adversarial_verifier_tests": {
       "status": "PASS",
       "files": 1,
-      "tests_passed": 4,
+      "tests_passed": 8,
       "tests_failed": 0
     },
     "historical_evidence_compatibility_focus": {
@@ -178,8 +191,8 @@
       "status": "PASS",
       "process_wall_seconds": 28.87
     },
-    "workflow_yaml_parse": "PASS",
-    "workflow_inventory_wiring": "PASS",
+    "workflow_yaml_parse": "PASS-STRICT-STRUCTURAL-NO-UNDECLARED-DEPENDENCY",
+    "workflow_inventory_wiring": "PASS-COMMENTS-DECOYS-DISABLED-DUPLICATES-REJECTED",
     "prettier_selected_files": "PASS",
     "typescript_non_gating_check": {
       "status": "BASELINE-FAIL",
@@ -187,6 +200,62 @@
       "baseline_error_kind": "BigInt literals in preexisting golden tests with repository target below ES2020"
     }
   },
+  "audit_hardening_validation": {
+    "status": "PASS",
+    "audit_findings_fixed": 4,
+    "runtime_case_receipts": {
+      "schema": "floodgate-exact24k-scanner-runtime-receipt-v1",
+      "immutable_case_ids": 19,
+      "ordered_case_markers": 19,
+      "runtime_tests_passed": 19,
+      "exact_reports_verified": 5,
+      "invented_out_of_order_incomplete_and_duplicate_receipts_rejected": true
+    },
+    "structural_ci": {
+      "parser": "checked-in-strict-workflow-yaml-subset",
+      "package_json_changed": false,
+      "package_lock_changed": false,
+      "comment_decoys_rejected": true,
+      "duplicate_keys_and_needs_rejected": true,
+      "disabled_or_missing_result_checks_rejected": true,
+      "exact_dependency_and_result_sets_required": true
+    },
+    "vitest_report_counters": {
+      "exact_suites_per_target": 2,
+      "nonnegative_safe_integer_counters_required": true,
+      "suite_and_test_sums_required": true,
+      "assertion_count_and_status_consistency_required": true,
+      "string_negative_fractional_999_over_0_extra_and_missing_cases_rejected": true
+    },
+    "report_artifacts": {
+      "hidden_directory": ".artifacts",
+      "include_hidden_files": true,
+      "if_no_files_found": "error",
+      "configuration_verified_structurally": true
+    }
+  },
+  "audit_findings": [
+    {
+      "severity": "P1",
+      "finding": "conceptual case IDs were metadata and were not bound to executable runtime receipts",
+      "resolution": "seal an ordered immutable receipt only after each scenario succeeds and expose all 19 IDs as exact Vitest runtime results"
+    },
+    {
+      "severity": "P1",
+      "finding": "aggregate dependency and result checks could be impersonated by comments or unrelated substrings",
+      "resolution": "parse workflow structure and require exact executable needs plus one exact result command per dependency"
+    },
+    {
+      "severity": "P2",
+      "finding": "suite counters and assertion-result counts were not internally cross-checked",
+      "resolution": "require exact integer suite/test totals, exact sums, assertion length, title set, and passed statuses"
+    },
+    {
+      "severity": "P2",
+      "finding": "hidden report paths could be omitted and missing artifacts only warned",
+      "resolution": "set include-hidden-files true and if-no-files-found error for scanner and Teacher reports, then verify both structurally"
+    }
+  ],
   "intermediate_findings": [
     {
       "finding": "Teacher has 40 direct it declarations but 49 runtime assertions after three parameterized declarations expand",
@@ -213,6 +282,9 @@
     "required_aggregate_name": "Test and build",
     "required_aggregate_if_always": true,
     "required_aggregate_checks_every_current_dependency_result": true,
+    "workflow_verification_is_structural": true,
+    "scanner_and_teacher_hidden_artifacts_required": true,
+    "missing_scanner_or_teacher_artifact_is_error": true,
     "aws_witness_adapter_contract_present_in_base": false,
     "aws_aggregate_edge_status": "PENDING-AFTER-AWS-PR-MERGE-AND-MAIN-SYNC",
     "verifier_requires_aws_edge_when_aws_job_is_present": true,
@@ -271,8 +343,65 @@
       "sha256": "92597df676f92d66c47cac2ed5736d3056f4ebec415e73b83b362956370614b7"
     }
   ],
+  "audit_hardening_snapshots": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 11482,
+      "sha256": "7e4f91206aac2ef222b07138085c374b3573f145488fe836d1b6d4c9f1bae8ca"
+    },
+    {
+      "path": "scripts/exact24k-scanner-runtime-receipt.mjs",
+      "bytes": 2660,
+      "sha256": "091eb5d2d5f0c8a22c70666f28911cd57918dd7ff88ed6fb2ae3dd112378b94c"
+    },
+    {
+      "path": "scripts/strict-workflow-yaml.mjs",
+      "bytes": 9308,
+      "sha256": "5a2629d502cf790c2d0187ca11b34c11d5e88fd9fecb3bf4db15bf0fa3aef7a2"
+    },
+    {
+      "path": "scripts/verify-exact24k-vitest-report.mjs",
+      "bytes": 23510,
+      "sha256": "91f4d82bdbe4d99857bebbd185edd6e499c9f004cdb914885c5c15e839f2887b"
+    },
+    {
+      "path": "tests/unit/ml/exact24kVitestInventory.test.ts",
+      "bytes": 12186,
+      "sha256": "fa6d7613317e7a0495f017e6fd07acb17a56ced3754651e7e6e265f2f8bb56f9"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScanner.shared.ts",
+      "bytes": 54813,
+      "sha256": "97e4f49281e725d1be788ed7966194198e02cf0d00e634333f6f7f3f6214e58e"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+      "bytes": 1184,
+      "sha256": "85423d090e3345d28838843c2e6e48c0541b6a778115d7ac0f21ee049c23d8a2"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+      "bytes": 1174,
+      "sha256": "2054d548d545fd51e164c10b90cc88434d0232921086d8d33a8f451d3faab848"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts",
+      "bytes": 1162,
+      "sha256": "60d55eefa11b638f8583283a037e904da2698688f31a7890a140b0d69e4493d0"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+      "bytes": 1168,
+      "sha256": "1698fbe809f96df150b00bf810fdd39d9389447a3e7911a3e8c1f2abd3c605b2"
+    },
+    {
+      "path": "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
+      "bytes": 1190,
+      "sha256": "a6beca0b5cea87999cd62df93ca5ddf291d5a840e08ba8d35425c7abafb6071e"
+    }
+  ],
   "local_test_only_critical_path": {
-    "seconds": 135.12,
+    "seconds": 138.589,
     "source": "five concurrent scanner shard processes",
     "github_ci_inference_allowed": false
   },

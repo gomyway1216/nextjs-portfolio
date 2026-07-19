@@ -2,7 +2,7 @@
 
 > This is not an evaluator change. It improves how quickly candidates can be checked at the same strictness. It changes no `ml/` implementation, teacher-generation logic, training data, candidate weights, live weights, or production environment. Japanese version: [blog-shogi-floodgate-exact24k-ci-parallel-shards.md](./blog-shogi-floodgate-exact24k-ci-parallel-shards.md)
 
-> **Publication status: LOCAL VALIDATION PASS; AWS SYNC / REVIEW / GITHUB CI PENDING.** All five scanner shards, Teacher, core unit with six heavy files excluded, and exact JSON file/title checks pass locally. The post-merge AWS aggregate edge, PR review, and GitHub CI are not yet complete. This record must not be reported as remote-CI evidence or production authorization.
+> **Publication status: LOCAL VALIDATION PASS; AWS SYNC / REVIEW / GITHUB CI PENDING.** All five scanner shards, Teacher, core unit with six heavy files excluded, and exact JSON file/runtime-case checks pass locally. The post-merge AWS aggregate edge, PR review, and GitHub CI are not yet complete. This record must not be reported as remote-CI evidence or production authorization.
 
 ## 1. Conclusion
 
@@ -12,13 +12,13 @@ The same coverage now has five explicit test files. Every file creates its own t
 
 | Shard      | Fixed scope                                                                      | Local wall |
 | ---------- | -------------------------------------------------------------------------------- | ---------: |
-| authority  | lease capture, premature terminal handling, key-authority rejection              |    73.98 s |
-| mutation   | pass-two sink failure, pathname replacement, seal-MAC corruption                 |   109.28 s |
-| replay     | exact two-pass, opaque facade, single-flight, W / WT / WTR / WTRM replay         |   106.27 s |
-| cleanup    | descriptor-close failure, sticky cleanup, plan-level aggregate cleanup failure   |   135.12 s |
-| production | production-plan rejection, finalize/publish, result/manifest accounting, zeroize |   105.42 s |
+| authority  | lease capture, premature terminal handling, key-authority rejection              |    75.74 s |
+| mutation   | pass-two sink failure, pathname replacement, seal-MAC corruption                 |   112.35 s |
+| replay     | exact two-pass, opaque facade, single-flight, W / WT / WTR / WTRM replay         |   108.69 s |
+| cleanup    | descriptor-close failure, sticky cleanup, plan-level aggregate cleanup failure   |   138.54 s |
+| production | production-plan rejection, finalize/publish, result/manifest accounting, zeroize |   107.60 s |
 
-With all five launched together on a 14-core, 48-GiB local Mac, the scanner critical path was the cleanup shard's **135.12 seconds**. Individual wall times sum to 530.07 seconds, so this run represents about a 3.92× wall-time reduction versus serial execution. It is not a GitHub-hosted measurement and excludes remote queueing, checkout, and `npm ci`.
+With all five launched together on a 14-core, 48-GiB local Mac, the scanner critical path was **138.589 seconds**. Individual wall times sum to 542.92 seconds, so this run represents about a 3.917× wall-time reduction versus serial execution. It is not a GitHub-hosted measurement and excludes remote queueing, checkout, and `npm ci`.
 
 ## 2. The split preserves exactness
 
@@ -30,7 +30,7 @@ The parent count was not reduced for speed. Fixture construction and cleanup mov
 4. runs its shard-specific adversarial scenarios
 5. removes its temporary root and restores mocks after the test
 
-The conceptual scenarios from the old test are classified under 19 stable IDs. Those IDs must be globally unique across all shards; a duplicate or omission fails closed through inventory validation and unit tests.
+The conceptual scenarios from the old test are classified under 19 stable IDs. After independent audit, those IDs are no longer inventory-only descriptions. Each scenario appends its ID to an ordered runtime receipt only after its checks finish, and the receipt cannot seal unless the exact ordered set is complete. The five Vitest reports now expose authority 3, mutation 3, replay 6, cleanup 3, and production 4 as 19 actual runtime tests. Invented IDs, wrong order, duplicates, and omissions fail closed.
 
 The Teacher checkpoint file is isolated as a sixth heavy file and runs as its own exact-path job. The core unit job explicitly excludes that one Teacher file and the five scanner files. A machine-readable inventory fixes the exclusion set, five matrix ID/file pairs, 40 direct `it(...)` Teacher titles, and all 49 exact runtime titles.
 
@@ -39,14 +39,15 @@ The Teacher checkpoint file is isolated as a sixth heavy file and runs as its ow
 CI does not trust only Vitest's exit status. Each heavy job writes a JSON report, and a separate verifier requires:
 
 - exactly the inventory's test-file path
-- the scanner's one exact inventory title or all 49 exact Teacher runtime titles
+- each scanner's immutable runtime-case set (3 / 3 / 6 / 3 / 4) or all 49 exact Teacher runtime titles
 - no duplicate titles
 - zero failed, pending, or todo tests
-- zero failed or pending suites
+- exactly two passing suites per target, with nonnegative integer and internally consistent suite/test counters
+- an `assertionResults` count, title set, and statuses consistent with those counters
 - a passed file result and passed status for every assertion
 - report-level `success: true`
 
-The inventory validator also fixes its schema, the 24,000-parent count, `[100, 500, 24000]` gates, five shards, 19 conceptual case IDs, 40 direct / 49 runtime Teacher titles, and six core exclusions. It reads workflow wiring to reject a missing or duplicate file, `-t`, `--shard`, or an incomplete required aggregate. Test commands are fixed directly in the workflow, leaving the `package.json` pinned by existing production-identity evidence unchanged.
+The inventory validator also fixes its schema, the 24,000-parent count, `[100, 500, 24000]` gates, five shards, 19 runtime case IDs, 40 direct / 49 runtime Teacher titles, and six core exclusions. A checked-in strict parser reads the workflow as jobs, matrices, steps, `run` blocks, and `needs`, rather than searching raw strings. Commented-out wiring, decoy text, duplicates, disabled steps, and missing result checks cannot impersonate success. Scanner and Teacher reports must upload from hidden `.artifacts` paths with `include-hidden-files: true` and `if-no-files-found: error`. Commands remain fixed directly in the workflow, while `package.json` and `package-lock.json` retain the exact bytes pinned by production-identity evidence.
 
 ## 4. The required check remains fail closed
 
@@ -58,26 +59,26 @@ This branch is based on `ec64549e429803d406383376162eaeb9456df9ef`, which does n
 
 The measurement host is macOS arm64 with 14 physical/logical CPUs, 48 GiB RAM, Node 22.13.0, and npm 11.14.1.
 
-| Validation                                         | Result                                    |
-| -------------------------------------------------- | ----------------------------------------- |
-| Scanner shards                                     | **5 files / 5 tests PASS**                |
-| Scanner JSON exact file/title verification         | **5 / 5 PASS**                            |
-| Inventory/adversarial verifier unit tests          | **4 / 4 PASS**                            |
-| Teacher exact file / 49-runtime-title verification | **49 / 49 PASS, 101.16 seconds**          |
-| Core unit with six explicit exclusions             | **186 files, 3,221 pass, 1 skip, 0 fail** |
-| Core unit wall                                     | **80.86 seconds**                         |
-| Lint / workflow / evidence validation              | **PASS**                                  |
-| Dependency-free ML contracts                       | **119 / 119 PASS, 11.59 seconds**         |
-| Production build                                   | **PASS, 28.87 seconds**                   |
-| Local test-only critical path                      | **135.12 seconds (cleanup shard)**        |
-| GitHub Actions                                     | **PENDING — not yet run**                 |
-| Production `ml/` source changes                    | **0**                                     |
-| Teacher / training / A/B / external calibration    | **0 / 0 / 0 / 0**                         |
-| Live-weight changes / production execution         | **0 / 0**                                 |
+| Validation                                         | Result                                       |
+| -------------------------------------------------- | -------------------------------------------- |
+| Scanner shards                                     | **5 files / 19 tests / 10 suites PASS**      |
+| Scanner JSON exact file/runtime-case verification  | **5 / 5 PASS**                               |
+| Inventory/adversarial verifier unit tests          | **8 / 8 PASS**                               |
+| Teacher exact file / 49-runtime-title verification | **49 / 49 PASS, 101.16 seconds**             |
+| Core unit with six explicit exclusions             | **187 files, 3,229 pass, 1 skip, 0 fail**    |
+| Core unit wall                                     | **81.54 seconds**                            |
+| Lint / workflow / evidence validation              | **PASS**                                     |
+| Dependency-free ML contracts                       | **119 / 119 PASS, 11.59 seconds**            |
+| Production build                                   | **PASS, 28.87 seconds**                      |
+| Local test-only critical path                      | **138.589 seconds (five concurrent shards)** |
+| GitHub Actions                                     | **PENDING — not yet run**                    |
+| Production `ml/` source changes                    | **0**                                        |
+| Teacher / training / A/B / external calibration    | **0 / 0 / 0 / 0**                            |
+| Live-weight changes / production execution         | **0 / 0**                                    |
 
-Intermediate validation exposed two incorrect assumptions. First, the Teacher source has 40 direct `it(...)` declarations but parameter expansion produces 49 runtime assertions; the verifier correctly rejected the initial 40-title inventory. Second, earlier evidence tests conflated pinning historical workflow bytes with requiring the live workflow to remain byte-identical forever, and assumed the entire repository workflow could contain only one `upload-artifact` action. Historical revisions and hashes remain unchanged; the tests now validate the exact live external-trust-root job boundary. The focused 24 tests and the complete core suite pass after that correction.
+Intermediate validation exposed three incorrect assumptions. First, the Teacher source has 40 direct `it(...)` declarations but parameter expansion produces 49 runtime assertions; the verifier correctly rejected the initial 40-title inventory. Second, earlier evidence tests conflated pinning historical workflow bytes with requiring the live workflow to remain byte-identical forever, and assumed the entire repository workflow could contain only one `upload-artifact` action. Historical revisions and hashes remain unchanged while tests validate the exact live external-trust-root job boundary. Third, the first plan to add a general YAML package directly was rejected by the production-identity regression test. It was replaced with a dependency-free strict structural parser, restoring `package.json` and the lockfile to their exact original bytes.
 
-The measured local test-only critical path is 135.12 seconds. GitHub queueing, checkout, `npm ci`, lint, and build have not yet been measured, so this publication makes no minute-level remote forecast. This candidate is not merge-ready until remote CI, review, and the AWS aggregate edge are complete.
+The measured local test-only critical path is 138.589 seconds. GitHub queueing, checkout, `npm ci`, lint, and build have not yet been measured, so this publication makes no minute-level remote forecast. This candidate is not merge-ready until remote CI, review, and the AWS aggregate edge are complete.
 
 ## 6. Next gate
 

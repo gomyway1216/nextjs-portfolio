@@ -186,6 +186,61 @@ timeoutではなく、historical inode / ctime固定とfresh copy-by-value closu
 [English article](../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md) /
 [machine evidence](../docs/data/floodgate-v7-local-clean-room-teacher-second-run-verification-stop-2026-07-19.json)を参照。
 
+#### Floodgate v7 portable copy witness filesystem基盤（2026-07-19）
+
+clean-roomの2回目のlocal準備はcopyを完了した後、copy先のrole-bundle検証で
+`role-lock-full-replay-watched-directory-closure-binding`に停止した。copy監査のreported 4 treeは
+72,717 files / 1,227,490,748 bytes / byte mismatch 0 / source-destination inode alias 0だった。
+停止原因は、historical receiptが元inodeを正しく固定し、copy-by-valueが新inodeを正しく要求するという
+安全契約の衝突である。generic verifierのinode検査は弱めていない。
+
+このPRは`raw-lock-tree` / `role-lock-tree` / `role-bundle-tree` / `legacy-file`について、
+module-private WeakMapのsource preseal、one-shot filesystem seal、existing copy coreのhidden final
+inventoryにbindしたcopy witness、全witness後のcomposite destination/shared-parent seal、直列
+pre/callback/post revalidation、idempotent revokeだけを追加するdormant filesystem基盤である。
+production/test registryは分離し、fake / clone / replay / cross-kind / wrong-overlap destinationを拒否する。
+parent scanは`opendir`で`maxEntries + 1`までprobeし、保持は`maxEntries`以下に制限する。
+保証するのはcallback前後のexact revalidationであり、callback中のabsolute-path namespace exclusivityや
+読まれたbyteのsemantic authenticityではない。後続compositionはdestinationをheld directory / file
+descriptorから読み、そのexact bytesをsource verifierのSHA-256 / record identityへbindする。
+
+PR #517 reviewでwitness一覧が変更可能な`Array.prototype.includes`へ依存していた点が見つかり、
+広い監査ではmodule読み込み後の`WeakMap` / `WeakSet` poisoningがprivate stateの偽capabilityへの
+代入やone-shot replayを許し得ることも確認した。commit `89de568e`は必要な`Array` / `String` /
+`WeakMap` / `WeakSet` / `Reflect` intrinsicをmodule初期化時に取得し、保護pathの実行時`Map` /
+`Set` instance-method依存を除去した。対象intrinsicの**module初期化後**の変更には回帰testを置いたが、
+初期化前から侵害されたrealmや任意のNode builtin prototype変更までは保証しない。commit
+`11b7c9e6`では本物のraw stateを観測後に偽witnessへ返す攻撃順序まで固定した。
+最初にpushしたPR head `bfcf9773`のCore CIはgreenだった。follow-up head `b818f9a4`は、
+intrinsic hardening後にtest-isolation failureを初めてtriggerし、testが
+`Array.prototype.includes`を壊したまま`await`してVitest自身を汚染したため1件失敗した。
+raw 3,344 testsに対する表示分類は3,340件だけだったため、残り4件はunreported /
+unclassifiedとして保持する。実装failureではない。`67353985`は3 poisoning modeを
+plain Node childへ隔離し、`57cb3142`はchild環境をallowlistして`NODE_OPTIONS` / `NODE_PATH`を
+継承しない。外側のVitest realmはprototypeを変更せず、child modeは3 / 3 PASSである。
+隔離後の`70a7dd89`ではportable testはPASSし、変更外の既存stale-authorization-marker testが
+1件だけ失敗した。同targetはNode v22.13.0で10 / 10 PASSし、同時刻のPR #518 CoreもPASSした。
+
+historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
+copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは
+portable 19 + existing copy 13 = 32 / 32 PASS。意味検証、teacher、学習、選抜、A/B、weight、
+live activation、AWS、Firebase / GCP、Vercel、基盤runtime networkの実行は0で、棋力向上の証拠ではない。
+GitHub PR / CIのnetworkはsource control / 検証だけで、評価関数の計算基盤ではない。
+共通CIの`AWS witness adapter contract (source only)`は将来用adapterのsource contract検査で、
+AWS service実行ではない。Vercel checkもWeb previewで、将棋teacher / 学習computeではない。
+failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は通常merge
+`5fa4e179…`で統合し、checkpoint runtime-claim修正を含むPR #518の`main` `3bdf6d11…`も通常merge
+`df7118cd…`で統合した。どちらの統合もportable implementation / testのbytesを変えていない。
+PR #518統合前の拡張回帰は7 files / 107 / 107 PASS、統合後は同じ7 files / 113 / 113 PASSである。
+固定head `ce6f576c`の独立最終reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
+review thread unresolved 0。validation CI run `29686674413`はCoreとaggregateを含む
+PR check rollup 15 / 15 PASS、failure / pending 0、CLEAN / MERGEABLEだった。この事実を記録する
+最終evidence commit自身は自己SHAをpinせず、PR #517 metadata上のfinal-head CIが全required check
+成功、unresolved 0、mergeableになることをmerge前の最後の外部gateとする。
+詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
+[English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
+[machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。
+
 #### Floodgate v7 ローカルcheckpoint runtime-claim順序修正（2026-07-19）
 
 実教師run前の再監査で、training-row runtime claimがconsumer callbackの同期呼び出し中だけ有効なのに、

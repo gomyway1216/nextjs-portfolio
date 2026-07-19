@@ -524,7 +524,7 @@ describe("Floodgate v7 clean-room copy-by-value", () => {
       );
       expect(
         implementation.match(/Buffer\.alloc\(READ_CHUNK_BYTES\)/gu),
-      ).toHaveLength(3);
+      ).toHaveLength(4);
       expect(implementation).toContain(
         "const workerChunk = Buffer.alloc(READ_CHUNK_BYTES)",
       );

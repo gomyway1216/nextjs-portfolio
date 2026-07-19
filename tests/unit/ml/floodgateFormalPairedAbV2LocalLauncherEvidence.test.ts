@@ -92,6 +92,12 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     expect(evidence.resume_contract).toMatchObject({
       receipt_directory_mode: "0700",
       pair_journal_mode: "0600",
+      pair_events: [
+        "pair-started",
+        "game-completed",
+        "game-completed",
+        "pair-completed",
+      ],
       complete_pair_replay: "forbidden",
       partial_pair_replay: "forbidden-stop",
       technical_fault: "terminal-for-run",
@@ -157,16 +163,17 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     });
     expect(evidence.implementation_anchor).toMatchObject({
       review_state:
-        "local-second-remediation-validation-pass-independent-rereview-pass",
-      pull_request: null,
-      continuous_integration: "NOT_RUN",
+        "pr-review-remediation-validation-pass-rereview-pending",
+      pull_request: 510,
+      continuous_integration: "IN_PROGRESS",
     });
     expect(evidence.independent_review).toMatchObject({
       initial_state: "changes-required",
       accepted_adversarial_probe_classes_before_remediation: 6,
       rejected_adversarial_probe_classes_before_remediation: 4,
       remediation_state: "local-second-remediation-validation-pass",
-      final_independent_rereview: "PASS-P0-0-P1-0-P2-0",
+      final_independent_rereview:
+        "PENDING-AFTER-PR-REVIEW-REMEDIATION",
     });
   });
 
@@ -188,9 +195,9 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
     expect(launcher).toContain('"games_started": 0');
     expect(evidence.validation).toMatchObject({
       python_compile_status: "PASS",
-      focused_tests_passed: 18,
+      focused_tests_passed: 19,
       focused_tests_failed: 0,
-      full_tests_passed: 156,
+      full_tests_passed: 157,
       full_tests_failed: 0,
       evidence_tests_passed: 5,
       evidence_tests_failed: 0,
@@ -201,6 +208,8 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       real_game_process_used_by_tests: false,
       real_yaneuraou_used_by_tests: false,
       real_weight_used_by_tests: false,
+      operator_abort_propagation_without_synthetic_fault_tested: true,
+      journal_event_names_match_implementation: true,
     });
   });
 
@@ -216,9 +225,9 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       expect(article).toContain("AWS");
       expect(article).toContain("CoreForTests");
       expect(article).toMatch(/no-?follow/);
-      expect(article).toContain("1.85");
-      expect(article).toContain("156");
-      expect(article).toContain("13.26");
+      expect(article).toContain("2.10");
+      expect(article).toContain("157");
+      expect(article).toContain("13.68");
       expect(article).toContain("STOP");
     }
     expect(japanese).toContain("追記専用");

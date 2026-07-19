@@ -121,6 +121,8 @@ Gitは通常のtracked data fileについてowner-read-only bitを保持しな�
 
 そのexact headの再reviewでは、通常のcorrectnessに関する4点が見つかった。`os.write`がshort writeした場合、journalが切れたままin-memoryの384-pair complete resultを返せたこと、schemaだけ正しいattempt / rerun JSONが無関係または矛盾した意味を持てたこと、restrictive `umask`ではjournal mode failureより先に6-pair batchを開始できたこと、pinned registry自身をnon-writable必須にすると通常のGit checkoutと両立しないことである。2回目のremediationでは、full writeとfinal journal reparse、strictなattempt / rerun semantic binding、callback前のjournal mode validation、identity / nofollowを弱めない通常checkout対応を追加した。修正後のfocused adversarial再reviewは`P0=0`、`P1=0`、`P2=0`である。PRとCIはまだ`PENDING`である。
 
+PR #510のreviewでは、`KeyboardInterrupt` / `SystemExit`までsynthetic technical faultへ変換し得る点と、machine evidenceのgame event名が実装の`game-completed`と一致していない点も見つかった。operator abortはそのまま伝播し、technical-fault eventへ書き換えないよう修正して敵対testを追加した。2箇所のdescriptor readも`closefd=false`で元descriptorの所有権を保つ形へ単純化し、長い条件式を整形した。これらPR review後の独立再reviewは現在`PENDING`である。
+
 ## 検証結果
 
 実測値は[機械可読evidence](./data/floodgate-formal-paired-ab-v2-local-launcher-2026-07-18.json)に記録した。
@@ -128,8 +130,8 @@ Gitは通常のtracked data fileについてowner-read-only bitを保持しな�
 | 検証                       |                           結果 | wall time |
 | -------------------------- | -----------------------------: | --------: |
 | Python compile             |                           PASS |         — |
-| focused Python             |                   18 / 18 PASS |    1.85秒 |
-| ML stdlib全体              |                 156 / 156 PASS |   13.26秒 |
+| focused Python             |                   19 / 19 PASS |    2.10秒 |
+| ML stdlib全体              |                 157 / 157 PASS |   13.68秒 |
 | publication evidence       |                     5 / 5 PASS |    0.54秒 |
 | argumentless npm preflight | expected STOP、0 pair / 0 game |    0.32秒 |
 

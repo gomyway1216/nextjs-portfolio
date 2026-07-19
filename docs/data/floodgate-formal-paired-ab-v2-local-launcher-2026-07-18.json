@@ -2,11 +2,11 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-local-launcher-evidence-v1",
   "recorded_date": "2026-07-18",
   "implementation_anchor": {
-    "revision": "1b78dccb0e7c29613f8f207091eda5d49d1cc6c7",
-    "tree": "30934630fef33b3aec6064a41fc270aab1e728d8",
-    "review_state": "local-second-remediation-validation-pass-independent-rereview-pass",
-    "pull_request": null,
-    "continuous_integration": "NOT_RUN"
+    "revision": null,
+    "tree": null,
+    "review_state": "pr-review-remediation-validation-pass-rereview-pending",
+    "pull_request": 510,
+    "continuous_integration": "IN_PROGRESS"
   },
   "implementation": {
     "launcher": "ml/formal_paired_ab_local_launcher.py",
@@ -26,13 +26,13 @@
   "implementation_artifacts": {
     "launcher": {
       "path": "ml/formal_paired_ab_local_launcher.py",
-      "bytes": 54488,
-      "sha256": "d50e4c0eee96580026d6e9d8add57192b0c29efe34d8e55c3fe7939aa2ff38f3"
+      "bytes": 54526,
+      "sha256": "d47b193c79ee64d6a7f43c05f68d33269d626c50662303101384489cd2f94266"
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
-      "bytes": 40951,
-      "sha256": "66b0eb4f82759cff2780d7f6233bca39e230f49c4a0ec47db275d48b099c8170"
+      "bytes": 42332,
+      "sha256": "b3f8d0e46b761c59d3eb153d5a003e334cf9d06f6057a71b627869ede4bb1bb2"
     }
   },
   "protocol_binding": {
@@ -59,8 +59,8 @@
     "pair_journal_mode": "0600",
     "pair_events": [
       "pair-started",
-      "game-completed-candidate-sente",
-      "game-completed-candidate-gote",
+      "game-completed",
+      "game-completed",
       "pair-completed"
     ],
     "complete_pair_replay": "forbidden",
@@ -129,19 +129,19 @@
       "restrictive-umask-pre-callback-stop",
       "normal-checkout-pinned-registry-with-exact-identity"
     ],
-    "final_independent_rereview": "PASS-P0-0-P1-0-P2-0"
+    "final_independent_rereview": "PENDING-AFTER-PR-REVIEW-REMEDIATION"
   },
   "validation": {
     "python_compile_command": "python3 -m py_compile ml/formal_paired_ab_local_launcher.py ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
     "python_compile_status": "PASS",
     "focused_command": "python3 -m unittest ml.tests_stdlib.test_formal_paired_ab_local_launcher -v",
-    "focused_tests_passed": 18,
+    "focused_tests_passed": 19,
     "focused_tests_failed": 0,
-    "focused_wall_seconds": 1.85,
+    "focused_wall_seconds": 2.1,
     "full_command": "npm run test:ml:stdlib",
-    "full_tests_passed": 156,
+    "full_tests_passed": 157,
     "full_tests_failed": 0,
-    "full_wall_seconds": 13.26,
+    "full_wall_seconds": 13.68,
     "evidence_command": "npm test -- tests/unit/ml/floodgateFormalPairedAbV2LocalLauncherEvidence.test.ts",
     "evidence_tests_passed": 5,
     "evidence_tests_failed": 0,
@@ -162,6 +162,8 @@
     "short_journal_write_completion_tested": true,
     "zero_progress_journal_write_pre_callback_rejection_tested": true,
     "restrictive_umask_pre_callback_rejection_tested": true,
+    "operator_abort_propagation_without_synthetic_fault_tested": true,
+    "journal_event_names_match_implementation": true,
     "complete_journal_reparse_tested": true,
     "intermediate_symlink_rejection_tested": true,
     "invalid_sfen_rejection_tested": true,

@@ -121,6 +121,8 @@ The first remediation renamed the executable API to `CoreForTests`, kept the pro
 
 The exact-head rereview then found four ordinary-correctness gaps: a short `os.write` could let the in-memory 384-pair result return while its journals were truncated; a schema-only attempt/rerun JSON could carry unrelated or contradictory semantics; a restrictive `umask` could start one six-pair batch before journal mode failure; and requiring the pinned registry itself to be non-writable was incompatible with a normal Git checkout. The second remediation added full writes plus final journal reparse, strict attempt/rerun semantic binding, pre-callback journal mode validation, and normal-checkout pinned-registry handling without relaxing its exact identity or no-follow checks. Focused adversarial rereview after those changes found `P0=0`, `P1=0`, and `P2=0`. PR and CI are still `PENDING`.
 
+Review on PR #510 then found that `KeyboardInterrupt` / `SystemExit` could be rewritten as a synthetic technical fault and that the machine evidence's game-event names did not match the implementation's `game-completed` event. Operator aborts now propagate unchanged and never append a technical-fault event, with an adversarial test covering both exception types. Two descriptor reads were also simplified to retain ownership with `closefd=false`, and the long ledger condition was wrapped. Independent rereview of these PR-review changes is currently `PENDING`.
+
 ## Validation
 
 Measured results are recorded in the [machine-readable evidence](./data/floodgate-formal-paired-ab-v2-local-launcher-2026-07-18.json).
@@ -128,8 +130,8 @@ Measured results are recorded in the [machine-readable evidence](./data/floodgat
 | Validation                 |                           Result | Wall time |
 | -------------------------- | -------------------------------: | --------: |
 | Python compile             |                             PASS |         — |
-| focused Python             |                     18 / 18 PASS |    1.85 s |
-| full ML stdlib             |                   156 / 156 PASS |   13.26 s |
+| focused Python             |                     19 / 19 PASS |    2.10 s |
+| full ML stdlib             |                   157 / 157 PASS |   13.68 s |
 | publication evidence       |                       5 / 5 PASS |    0.54 s |
 | argumentless npm preflight | expected STOP, 0 pairs / 0 games |    0.32 s |
 

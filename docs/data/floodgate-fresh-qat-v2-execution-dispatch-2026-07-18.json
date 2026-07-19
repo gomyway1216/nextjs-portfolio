@@ -19,19 +19,21 @@
   "implementation": {
     "code_commit": "7af69a1fe518ff3f2c64a7238d695d173f642e87",
     "path_snapshot_remediation_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
-    "test_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
-    "test_commit_tree": "8ad0122363f8ecd0ac83dbf4a5973f9f20523996",
+    "pull_request_path_remediation_commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
+    "pull_request_regular_file_read_remediation_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+    "test_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+    "test_commit_tree": "95871599d7ab2abe54ce2e1bf5e7057dc5d9b753",
     "history_rewritten": false,
     "files": {
       "dispatcher": {
         "path": "ml/fresh_qat_v2_execution_dispatch.py",
-        "bytes": 49233,
-        "sha256": "a60dfc91a1ddc2b60240b9b392d7985527b3b52c4b8371ff1bd62c4204060876"
+        "bytes": 53145,
+        "sha256": "45e1b1086a9f3483d9e8ca845ca412895fea6f6d64d31a30b7ba39f7583ddf09"
       },
       "route_registry": {
         "path": "ml/qat_plan_registry.py",
-        "bytes": 5482,
-        "sha256": "de9df69518dc508a36913e7110127c95fad2121cdb57151c77176877ea7324c3"
+        "bytes": 5498,
+        "sha256": "7c45ee9785f253296a37fe37d352ef09128928a487728a65d45e43e994538a4d"
       },
       "activation_anchor": {
         "path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-activation-anchor.json",
@@ -42,13 +44,13 @@
       },
       "stdlib_tests": {
         "path": "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
-        "bytes": 30992,
-        "sha256": "1085229917d6491976f714c30b365f462862267a9b948992b1019c1f67cc7208"
+        "bytes": 36132,
+        "sha256": "f552584ccfdbb0ee474d37652fb4d6eb470f26dd79290e849a1ac884ada73a05"
       },
       "route_stdlib_tests": {
         "path": "ml/tests_stdlib/test_qat_plan_registry.py",
-        "bytes": 10998,
-        "sha256": "a25333e79f85d8d35b740c940c02399ccd85cec6fbd481d7c7f903dd62989ceb"
+        "bytes": 11447,
+        "sha256": "cfd4f67c3fefd10bd8e64b5dccd00e9dbc9f081dc017541cb73f1ddfda5182de"
       }
     }
   },
@@ -164,18 +166,18 @@
   },
   "local_validation": {
     "focused_v2_dispatch_and_registry": {
-      "tests": 21,
-      "passed": 21,
+      "tests": 24,
+      "passed": 24,
       "failed": 0,
-      "runner_seconds": 0.043,
-      "wall_seconds": 0.051
+      "runner_seconds": 0.133,
+      "wall_seconds": 0.37
     },
     "full_stdlib_suite": {
-      "tests": 173,
-      "passed": 173,
+      "tests": 176,
+      "passed": 176,
       "failed": 0,
-      "runner_seconds": 11.684,
-      "wall_seconds": 12.14,
+      "runner_seconds": 13.17,
+      "wall_seconds": 14.38,
       "command": "npm run test:ml:stdlib"
     },
     "python_compile": "PASS",
@@ -188,6 +190,12 @@
       "symlinked-v2-plan-path",
       "path-bytes-and-string-subclass-v2-cross-route",
       "stateful-pathlike-fspath-single-snapshot-cross-route",
+      "malformed-pathlike-attribute-error-single-capture",
+      "external-repository-ancestor-symlink-alias",
+      "in-repository-component-and-final-symlink-rejection",
+      "default-reader-fifo-device-and-symlink-preopen-rejection",
+      "default-reader-exact-size-and-unbound-size-cap",
+      "default-reader-lstat-open-fstat-identity-and-mutation-check",
       "wrong-successor-schema",
       "v1-plan-v2-route-hybrid",
       "v2-plan-wcsc36-contract-hybrid",
@@ -246,7 +254,9 @@
       "7af69a1fe518ff3f2c64a7238d695d173f642e87",
       "0aaa09aae018f90648edccd9763e55c06103f031",
       "f9fee197def90681c1444dc68a646b7f5f06a936",
-      "33d9b3139068fac69c44d368869006f5d5d919db"
+      "33d9b3139068fac69c44d368869006f5d5d919db",
+      "ade5554bdcc222183cd12183cbbfdb5301675c65",
+      "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb"
     ],
     "post_source_authentication_remediation_rereview": {
       "result": "CHANGES_REQUIRED",
@@ -262,6 +272,28 @@
       "commit": "33d9b3139068fac69c44d368869006f5d5d919db",
       "focused_tests": "21/21-PASS",
       "full_stdlib_tests": "154/154-PASS"
+    },
+    "pull_request_path_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
+      "review_findings_addressed": 4,
+      "external_repository_ancestor_alias_allowed": true,
+      "in_repository_symlink_components_rejected": true,
+      "malformed_pathlike_attribute_error_captured_once": true,
+      "focused_tests": "23/23-PASS",
+      "full_stdlib_tests": "175/175-PASS"
+    },
+    "pull_request_regular_file_read_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+      "review_findings_addressed": 1,
+      "fifo_device_and_symlink_rejected_before_open": true,
+      "regular_file_open_uses_no_follow_and_nonblocking_flags": true,
+      "lstat_and_fstat_identity_bound": true,
+      "exact_identity_reads_are_byte_bounded": true,
+      "unbound_successor_read_has_fixed_maximum_bytes": 1048576,
+      "focused_tests": "24/24-PASS",
+      "full_stdlib_tests": "176/176-PASS"
     },
     "final_independent_rereview": "PENDING"
   },

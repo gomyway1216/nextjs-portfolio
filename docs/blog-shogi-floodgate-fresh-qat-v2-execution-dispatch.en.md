@@ -73,6 +73,10 @@ A `.copy` near path, a symlink to the same name, or a similar name elsewhere is 
 
 Path conversion is also a single immutable boundary: the dispatcher calls `os.fspath` exactly once and uses only that captured text for every subsequent absolute-path and real-path decision. A stateful `PathLike` that first returns an old fallback path and would return v2 on a second call is never queried twice. If its single captured value is v2, it is rejected because it is not a plain `str`. The regression test covers both switching directions and asserts an exact call count of one.
 
+An ancestor symlink alias outside the repository, such as `/tmp` to `/private/tmp`, is allowed only when it resolves to the same canonical repository root. Below that root, every component of the plan, output, and model-training paths is checked, and an intermediate or final symlink is rejected. A malformed custom `PathLike` that raises `AttributeError` is also closed after its single capture attempt.
+
+Before reading, the production default reader uses `lstat` to require a regular non-symlink file. It opens with `O_NOFOLLOW` / `O_NONBLOCK`, binds the opened device, inode, and size with `fstat`, and reads at most one byte beyond the registered exact length. The not-yet-identified successor also has a fixed 1 MiB limit, so a FIFO, device, symlink, or oversized file cannot cause a blocking or unbounded read.
+
 The artifact-schema resolver adds exactly one pair:
 
 | Execution plan                                | Training contract                                  | Result   |
@@ -125,7 +129,7 @@ Firebase Cloud Functions running on GCP and Vercel handling web deployment are s
 
 | Infrastructure | Use in this change                  |
 | -------------- | ----------------------------------- |
-| Local Mac CPU  | Verifier and 173 stdlib tests       |
+| Local Mac CPU  | Verifier and 176 stdlib tests       |
 | AWS            | Not used                            |
 | Firebase / GCP | Not used                            |
 | Vercel         | Not used                            |
@@ -137,10 +141,10 @@ A later decision could move large-scale teacher generation to different compute 
 
 The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the original remediation tests are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. The stateful-`PathLike` single-snapshot remediation is the separate commit `33d9b3139068fac69c44d368869006f5d5d919db`. History was not rewritten.
 
-The latest `main` revision `88afd052c00865b4e7fce4ed25d81a94febb1637` was integrated by regular merge commit `8014138153212b41c0721af346068fbccd947392`. That integration did not change the Fresh-QAT implementation paths, and the integrated tree was revalidated as follows.
+The latest `main` revision `88afd052c00865b4e7fce4ed25d81a94febb1637` was integrated by regular merge commit `8014138153212b41c0721af346068fbccd947392`. That integration did not change the Fresh-QAT implementation paths. Four PR-review findings covering path aliases, symlinks, and a malformed `PathLike` were fixed in `ade5554bdcc222183cd12183cbbfdb5301675c65`; the blocking/unbounded default-reader finding was fixed in `6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`. The result was revalidated as follows.
 
-- New v2 dispatch and routing tests: 21/21 PASS in 0.043 seconds
-- Full repository stdlib suite: 173/173 PASS in 11.684 seconds
+- New v2 dispatch and routing tests: 24/24 PASS in 0.133 seconds
+- Full repository stdlib suite: 176/176 PASS in 13.170 seconds
 - Python compilation: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

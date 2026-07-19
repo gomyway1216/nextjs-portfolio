@@ -73,6 +73,10 @@ ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan-v2.json
 
 path変換も一度だけの不変境界にした。dispatcherは`os.fspath`をexact 1回だけ呼び、その後のabsolute path / real path判定にはcaptureした文字列だけを使う。最初は旧fallbackを返し、2回目ならv2へ変わるstatefulな`PathLike`も2回目を評価しない。1回のcapture値がv2なら、plain `str`ではないため拒否する。回帰テストは両方の切替方向を覆い、call countがexact 1であることを確認する。
 
+`/tmp`から`/private/tmp`のようなrepository外のancestor symlink aliasは、同じcanonical repository rootを指す場合に限って許す。一方、repository rootより下はplan、output、model-training pathの全componentを検査し、中間componentまたは最終targetがsymlinkなら拒否する。壊れたcustom `PathLike`が`AttributeError`を出す場合も1回のcaptureで閉じる。
+
+productionのdefault readerはread前に`lstat`でregular non-symlink fileを要求する。`O_NOFOLLOW` / `O_NONBLOCK`でopenした後に`fstat`のdevice / inode / sizeを照合し、exact identityのbyte数に1 byteを加えた上限までしか読まない。identityがまだないsuccessorにも1 MiBの固定上限を置くため、FIFO、device、symlink、巨大fileでblockまたは無制限readへ進まない。
+
 artifact schema resolverに追加した組み合わせも1つだけである。
 
 | execution plan                                | training contract                                  | result   |
@@ -125,7 +129,7 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 | infrastructure  | 今回の用途                  |
 | --------------- | --------------------------- |
-| ローカルMac CPU | verifierと173 stdlib tests  |
+| ローカルMac CPU | verifierと176 stdlib tests  |
 | AWS             | 使用なし                    |
 | Firebase / GCP  | 使用なし                    |
 | Vercel          | 使用なし                    |
@@ -137,10 +141,10 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、当初のremediation test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`である。stateful `PathLike`をsingle snapshotにするremediationは別commit `33d9b3139068fac69c44d368869006f5d5d919db`に固定した。履歴は書き換えていない。
 
-最新`main` `88afd052c00865b4e7fce4ed25d81a94febb1637`は通常merge commit `8014138153212b41c0721af346068fbccd947392`で統合した。Fresh-QAT実装pathはその統合で変わっておらず、統合後に次を再検証した。
+最新`main` `88afd052c00865b4e7fce4ed25d81a94febb1637`は通常merge commit `8014138153212b41c0721af346068fbccd947392`で統合した。Fresh-QAT実装pathはその統合で変わっていない。PR reviewのpath alias / symlink / malformed `PathLike`所見4件は`ade5554bdcc222183cd12183cbbfdb5301675c65`、blocking / unbounded default-reader所見1件は`6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`で修正し、次を再検証した。
 
-- 新v2 dispatch + route test: 21 / 21 PASS、0.043秒
-- repository全stdlib suite: 173 / 173 PASS、11.684秒
+- 新v2 dispatch + route test: 24 / 24 PASS、0.133秒
+- repository全stdlib suite: 176 / 176 PASS、13.170秒
 - Python compile: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

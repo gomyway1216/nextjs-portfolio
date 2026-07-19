@@ -71,6 +71,7 @@ import {
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   prepareFloodgateV7CleanRoomTeacherRun,
   runFloodgateV7CleanRoomTeacherGates,
+  type FloodgateV7CleanRoomTeacherPreparationFailureKind,
   type FloodgateV7CleanRoomTeacherPreparationReceipt,
   type FloodgateV7CleanRoomTeacherPreparedCapability,
 } from "./floodgate-v7-clean-room-teacher-runner";
@@ -158,6 +159,7 @@ export type FloodgateV7LocalCleanRoomTeacherRunnerPhase =
 
 export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
   readonly phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase;
+  readonly failure_kind: FloodgateV7CleanRoomTeacherPreparationFailureKind;
   readonly clean_room_may_exist: boolean;
   readonly checkpoint_may_exist: boolean;
   readonly retry_disposition:
@@ -169,10 +171,23 @@ export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
     phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase,
     cleanRoomMayExist: boolean,
     checkpointMayExist: boolean,
+    failureKindValue: unknown = "phase-level",
   ) {
     super("Floodgate v7 local clean-room teacher runner failed");
     this.name = "FloodgateV7LocalCleanRoomTeacherRunnerError";
     this.phase = phase;
+    this.failure_kind =
+      failureKindValue === "raw-lock-copy" ||
+      failureKindValue === "role-lock-copy" ||
+      failureKindValue === "role-bundle-copy" ||
+      failureKindValue === "teacher-assets-copy" ||
+      failureKindValue === "verifier-repository-materialization" ||
+      failureKindValue === "multiple-materialization-operations" ||
+      failureKindValue === "role-bundle-verification" ||
+      failureKindValue === "teacher-assets-verification" ||
+      failureKindValue === "multiple-verification-operations"
+        ? failureKindValue
+        : "phase-level";
     this.clean_room_may_exist = cleanRoomMayExist;
     this.checkpoint_may_exist = checkpointMayExist;
     this.retry_disposition =
@@ -289,7 +304,8 @@ interface FixedTargets {
 interface LocalGateSession {
   readonly dependencies: Readonly<FloodgateV7CleanRoomLocalRunGateDependencies>;
   readonly finalizerHandoffEvidence: () =>
-    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
+    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
+    | undefined;
   readonly close: () => void;
 }
 
@@ -1050,7 +1066,8 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
   let runBindingCanonical: string | undefined;
   let runBindingSha256: string | undefined;
   let handoff:
-    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
+    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
+    | undefined;
   const receipts: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
   const receiptFiles: Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>[] =
     [];
@@ -1541,6 +1558,8 @@ async function executeWithOperations(
   operationsValue: FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
 ): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>> {
   let phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase = "capture";
+  let failureKind: FloodgateV7CleanRoomTeacherPreparationFailureKind =
+    "phase-level";
   let cleanRoomMayExist = false;
   let checkpointMayExist = false;
   try {
@@ -1571,6 +1590,7 @@ async function executeWithOperations(
     }
     if (error instanceof FloodgateV7CleanRoomTeacherPreparationError) {
       cleanRoomMayExist = cleanRoomMayExist || error.clean_room_may_exist;
+      failureKind = error.failure_kind;
     }
     if (error instanceof FloodgateV7CleanRoomRunGateError) {
       checkpointMayExist = checkpointMayExist || error.work_state_may_exist;
@@ -1587,6 +1607,7 @@ async function executeWithOperations(
       phase,
       cleanRoomMayExist,
       checkpointMayExist,
+      failureKind,
     );
   }
 }

@@ -446,6 +446,7 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(failure).toBeInstanceOf(FloodgateV7CleanRoomTeacherPreparationError);
     expect(failure).toMatchObject({
       phase: "materialization",
+      failure_kind: "role-lock-copy",
       clean_room_may_exist: true,
       retry_disposition: "manual-clean-room-reconciliation-required",
       sensitive_values_disclosed: false,
@@ -453,6 +454,84 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(String(failure)).not.toContain(secret);
     expect(JSON.stringify(failure)).not.toContain(secret);
     expect((await fs.promises.lstat(value.cleanRoot)).isDirectory()).toBe(true);
+  });
+
+  it("classifies every materialization rejection without retaining its private error", async () => {
+    const cases = [
+      { rejected: [0], failureKind: "raw-lock-copy" },
+      { rejected: [1], failureKind: "role-lock-copy" },
+      { rejected: [2], failureKind: "role-bundle-copy" },
+      { rejected: [3], failureKind: "teacher-assets-copy" },
+      {
+        rejected: [4],
+        failureKind: "verifier-repository-materialization",
+      },
+      {
+        rejected: [0, 4],
+        failureKind: "multiple-materialization-operations",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const value = await fixture();
+      const base = successfulDependencies([]);
+      const rejected = new Set<number>(testCase.rejected);
+      const secret = `private-${testCase.failureKind}-detail`;
+      let treeIndex = 0;
+      async function copyTree(
+        sourceRoot: string,
+        destinationRoot: string,
+        userId: number,
+      ): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
+        const operationIndex = treeIndex;
+        treeIndex += 1;
+        if (rejected.has(operationIndex)) throw new Error(secret);
+        return base.copyTree(sourceRoot, destinationRoot, userId);
+      }
+      async function materializeVerifierRepository(
+        sourceRepository: string,
+        destinationRepository: string,
+        revision: string,
+        userId: number,
+      ): Promise<void> {
+        if (rejected.has(4)) throw new Error(secret);
+        return base.materializeVerifierRepository(
+          sourceRepository,
+          destinationRepository,
+          revision,
+          userId,
+        );
+      }
+
+      const failure = await rejectionOf(
+        prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+          value.plan,
+          Object.freeze({
+            ...base,
+            copyTree,
+            materializeVerifierRepository,
+          }),
+        ),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "materialization",
+        failure_kind: testCase.failureKind,
+        clean_room_may_exist: true,
+        sensitive_values_disclosed: false,
+      });
+      expect(String(failure)).not.toContain(secret);
+      expect(JSON.stringify(failure)).not.toContain(secret);
+    }
+
+    const secret = "private-forged-failure-kind";
+    const normalized = new FloodgateV7CleanRoomTeacherPreparationError(
+      "materialization",
+      true,
+      secret,
+    );
+    expect(normalized.failure_kind).toBe("phase-level");
+    expect(JSON.stringify(normalized)).not.toContain(secret);
   });
 
   it("drains a pending verifier when the second verifier throws synchronously", async () => {
@@ -509,10 +588,70 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     expect(settled).toBe(2);
     expect(failure).toMatchObject({
       phase: "verification",
+      failure_kind: "teacher-assets-verification",
       clean_room_may_exist: true,
       sensitive_values_disclosed: false,
     });
     expect(String(failure)).not.toContain(secret);
+  });
+
+  it("classifies single and multiple verifier failures without disclosing their reasons", async () => {
+    const cases = [
+      {
+        rejectBundle: true,
+        rejectAssets: false,
+        failureKind: "role-bundle-verification",
+      },
+      {
+        rejectBundle: false,
+        rejectAssets: true,
+        failureKind: "teacher-assets-verification",
+      },
+      {
+        rejectBundle: true,
+        rejectAssets: true,
+        failureKind: "multiple-verification-operations",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const value = await fixture();
+      const base = successfulDependencies([]);
+      const secret = `private-${testCase.failureKind}-reason`;
+      async function verifyBundle(
+        options: Readonly<FloodgateTrainingRowConsumerOptions>,
+      ): Promise<void> {
+        if (testCase.rejectBundle) throw new Error(secret);
+        return base.verifyBundle(options);
+      }
+      async function verifyAssets(
+        assetRoot: string,
+        userId: number,
+      ): Promise<void> {
+        if (testCase.rejectAssets) throw new Error(secret);
+        return base.verifyAssets(assetRoot, userId);
+      }
+
+      const failure = await rejectionOf(
+        prepareFloodgateV7CleanRoomTeacherRunCoreForTests(
+          value.plan,
+          Object.freeze({
+            ...base,
+            verifyBundle,
+            verifyAssets,
+          }),
+        ),
+      );
+
+      expect(failure).toMatchObject({
+        phase: "verification",
+        failure_kind: testCase.failureKind,
+        clean_room_may_exist: true,
+        sensitive_values_disclosed: false,
+      });
+      expect(String(failure)).not.toContain(secret);
+      expect(JSON.stringify(failure)).not.toContain(secret);
+    }
   });
 
   it("rejects accessor dependencies and forged plans before creating a namespace", async () => {
@@ -815,8 +954,6 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     );
     expect(
       packageJson.scripts?.["shogi:floodgate-v7-local-clean-room-teacher"],
-    ).toBe(
-      "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
-    );
+    ).toBe("node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts");
   });
 });

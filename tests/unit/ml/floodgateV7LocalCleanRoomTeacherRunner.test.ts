@@ -47,6 +47,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   captureFloodgateV7CleanRoomGitCommandCoreForTests,
   inspectFloodgateV7CleanRoomGitConfigurationCoreForTests,
@@ -324,7 +325,10 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     const runner = vi.fn(async () => {
       throw new Error("must not run");
     });
-    const output = { stdout: "", stderr: "" };
+    const output: { stdout: string; stderr: string; exitCode?: number } = {
+      stdout: "",
+      stderr: "",
+    };
     await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
       Object.freeze(["forbidden"]),
       runner,
@@ -410,6 +414,67 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     });
     expect(events).toEqual(["capacity"]);
     expect(JSON.stringify(failure)).not.toContain("available bytes");
+    expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
+  it("propagates only the allowlisted preparation failure kind through the runner and CLI", async () => {
+    const events: string[] = [];
+    const secret = "private-role-bundle-verification-detail";
+    async function failPreparation(): Promise<
+      Readonly<FloodgateV7CleanRoomTeacherPreparedCapability>
+    > {
+      events.push("prepare");
+      throw new FloodgateV7CleanRoomTeacherPreparationError(
+        "verification",
+        true,
+        "role-bundle-verification",
+      );
+    }
+    const failure = await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
+      operations(events, { prepare: failPreparation }),
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FloodgateV7LocalCleanRoomTeacherRunnerError);
+    expect(failure).toMatchObject({
+      phase: "preparation",
+      failure_kind: "role-bundle-verification",
+      clean_room_may_exist: true,
+      checkpoint_may_exist: false,
+      sensitive_values_disclosed: false,
+    });
+    expect(events).toEqual(["capacity", "prepare"]);
+
+    const output: { stdout: string; stderr: string; exitCode?: number } = {
+      stdout: "",
+      stderr: "",
+    };
+    await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
+      Object.freeze([]),
+      async () => {
+        throw failure;
+      },
+      cliIo(output),
+    );
+    expect(output.stdout).toBe("");
+    expect(JSON.parse(output.stderr)).toMatchObject({
+      status: "STOP",
+      phase: "preparation",
+      failure_kind: "role-bundle-verification",
+      clean_room_may_exist: true,
+      checkpoint_may_exist: false,
+      sensitive_values_disclosed: false,
+    });
+    expect(output.stderr).not.toContain(secret);
+    expect(output.exitCode).toBe(1);
+
+    const normalized = new FloodgateV7LocalCleanRoomTeacherRunnerError(
+      "preparation",
+      true,
+      false,
+      secret,
+    );
+    expect(normalized.failure_kind).toBe("phase-level");
+    expect(JSON.stringify(normalized)).not.toContain(secret);
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
 

@@ -151,18 +151,56 @@ type PreparationPhase =
   | "verification"
   | "capability";
 
+export type FloodgateV7CleanRoomTeacherPreparationFailureKind =
+  | "phase-level"
+  | "raw-lock-copy"
+  | "role-lock-copy"
+  | "role-bundle-copy"
+  | "teacher-assets-copy"
+  | "verifier-repository-materialization"
+  | "multiple-materialization-operations"
+  | "role-bundle-verification"
+  | "teacher-assets-verification"
+  | "multiple-verification-operations";
+
+function safePreparationFailureKind(
+  value: unknown,
+): FloodgateV7CleanRoomTeacherPreparationFailureKind {
+  switch (value) {
+    case "phase-level":
+    case "raw-lock-copy":
+    case "role-lock-copy":
+    case "role-bundle-copy":
+    case "teacher-assets-copy":
+    case "verifier-repository-materialization":
+    case "multiple-materialization-operations":
+    case "role-bundle-verification":
+    case "teacher-assets-verification":
+    case "multiple-verification-operations":
+      return value;
+    default:
+      return "phase-level";
+  }
+}
+
 export class FloodgateV7CleanRoomTeacherPreparationError extends Error {
   readonly phase: PreparationPhase;
+  readonly failure_kind: FloodgateV7CleanRoomTeacherPreparationFailureKind;
   readonly clean_room_may_exist: boolean;
   readonly retry_disposition:
     | "fresh-absent-clean-room-required"
     | "manual-clean-room-reconciliation-required";
   readonly sensitive_values_disclosed = false;
 
-  constructor(phase: PreparationPhase, cleanRoomMayExist: boolean) {
+  constructor(
+    phase: PreparationPhase,
+    cleanRoomMayExist: boolean,
+    failureKindValue: unknown = "phase-level",
+  ) {
     super("Floodgate v7 clean-room teacher preparation failed");
     this.name = "FloodgateV7CleanRoomTeacherPreparationError";
     this.phase = phase;
+    this.failure_kind = safePreparationFailureKind(failureKindValue);
     this.clean_room_may_exist = cleanRoomMayExist;
     this.retry_disposition = cleanRoomMayExist
       ? "manual-clean-room-reconciliation-required"
@@ -1069,6 +1107,42 @@ function deferredOperation<TResult>(
   return Promise.resolve().then(operation);
 }
 
+const MATERIALIZATION_FAILURE_KINDS = Object.freeze([
+  "raw-lock-copy",
+  "role-lock-copy",
+  "role-bundle-copy",
+  "teacher-assets-copy",
+  "verifier-repository-materialization",
+] as const);
+const VERIFICATION_FAILURE_KINDS = Object.freeze([
+  "role-bundle-verification",
+  "teacher-assets-verification",
+] as const);
+
+function classifyMaterializationFailure(
+  operations: readonly PromiseSettledResult<unknown>[],
+): FloodgateV7CleanRoomTeacherPreparationFailureKind {
+  const rejected = operations.flatMap((operation, index) =>
+    operation.status === "rejected" ? [index] : [],
+  );
+  if (rejected.length !== 1) {
+    return "multiple-materialization-operations";
+  }
+  return MATERIALIZATION_FAILURE_KINDS[rejected[0]] ?? "phase-level";
+}
+
+function classifyVerificationFailure(
+  operations: readonly PromiseSettledResult<unknown>[],
+): FloodgateV7CleanRoomTeacherPreparationFailureKind {
+  const rejected = operations.flatMap((operation, index) =>
+    operation.status === "rejected" ? [index] : [],
+  );
+  if (rejected.length !== 1) {
+    return "multiple-verification-operations";
+  }
+  return VERIFICATION_FAILURE_KINDS[rejected[0]] ?? "phase-level";
+}
+
 async function prepareFloodgateV7CleanRoomTeacherRunInternal(
   plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
   dependenciesValue: FloodgateV7CleanRoomTeacherPreparationDependencies,
@@ -1077,6 +1151,8 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
   executionBoundary: FloodgateV7CleanRoomTeacherPreparationReceipt["execution_boundary"],
 ): Promise<Readonly<FloodgateV7CleanRoomTeacherPreparedCapability>> {
   let phase: PreparationPhase = "capture";
+  let failureKind: FloodgateV7CleanRoomTeacherPreparationFailureKind =
+    "phase-level";
   let cleanRoomMayExist = false;
   try {
     const dependencies = capturePreparationDependencies(dependenciesValue);
@@ -1164,6 +1240,7 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
       assetCopyResult.status !== "fulfilled" ||
       materializationResult.status !== "fulfilled"
     ) {
+      failureKind = classifyMaterializationFailure(operations);
       throw new Error("materialization operation failed");
     }
     const rawCopy = rawCopyResult.value;
@@ -1195,6 +1272,7 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
       ),
     ]);
     if (verifications.some((result) => result.status !== "fulfilled")) {
+      failureKind = classifyVerificationFailure(verifications);
       throw new Error("verification failed");
     }
     phase = "capability";
@@ -1218,6 +1296,7 @@ async function prepareFloodgateV7CleanRoomTeacherRunInternal(
     throw new FloodgateV7CleanRoomTeacherPreparationError(
       phase,
       cleanRoomMayExist,
+      failureKind,
     );
   }
 }

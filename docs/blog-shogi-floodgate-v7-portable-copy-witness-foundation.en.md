@@ -98,7 +98,7 @@ On Node v22.13.0:
 - combined: 29 / 29 PASS in 1.42 seconds;
 - evidence-pin tests: 4 / 4 PASS;
 - all three related test files: 33 / 33 PASS in 1.19 seconds;
-- expanded copy-consumer runner/gate/finalizer regression: 7 files, 102 / 102 PASS in 1.53 seconds;
+- expanded copy-consumer runner/gate/finalizer regression: 7 files, 104 / 104 PASS in 1.53 seconds;
 - scoped ESLint: PASS;
 - Prettier: PASS;
 - `git diff --check`: PASS;
@@ -108,7 +108,7 @@ Adversarial coverage includes source-byte mutation, same-byte delete/recreate of
 
 Existing copy regression continues to cover symlinks, hard links, modes, single-link destinations, source/destination inode aliases, and copy-descriptor close failures.
 
-Latest `main` `5f2569dcf730e709ab36346c559d210fa6a63bf1`, including PR #515, was integrated through regular merge commit `9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29`. The portable implementation and test paths and bytes did not change. The README conflict was resolved by retaining both the observed second-run verification STOP and the dormant foundation that addresses its cause. History was not rewritten.
+Latest `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening in PR #516, was integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. The portable implementation and test paths and bytes did not change. The README retains both the observed second-run verification STOP and the dormant foundation that addresses its cause. History was not rewritten.
 
 ## Were AWS, GCP, or Vercel used?
 

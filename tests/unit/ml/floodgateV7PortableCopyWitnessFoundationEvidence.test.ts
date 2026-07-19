@@ -99,16 +99,19 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       claim_boundary:
         "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
       source_base: {
+        previous_origin_main_integrated:
+          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
         latest_origin_main_integrated:
-          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
-        latest_main_pull_request: 515,
+          "0dd5469cefd88823b9b50c97c0e3531b4323eace",
+        latest_main_pull_request: 516,
         integration_method: "regular-merge-commit",
-        integration_commit: "9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29",
-        integration_tree: "74effa061e3573f20a50f288ddfe238d137151e1",
+        integration_commit: "5fa4e179a86a5873c08be4b2863ae4075f6a059b",
+        integration_tree: "036b40a551da78080d3513f03b824daa33409ea7",
         integration_parents: [
-          "5b0960912a6d5ec0589d6a85708437149bccd40d",
-          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+          "aa71e7920b996f1d30a00d5a3f4d489f17cd11be",
+          "0dd5469cefd88823b9b50c97c0e3531b4323eace",
         ],
+        latest_main_contains_failure_kind_intrinsic_hardening: true,
       },
       implementation: {
         existing_public_copy_receipt_changed: false,
@@ -356,7 +359,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       related_total: { passed: 33, failed: 0, wall_seconds: 1.19 },
       expanded_runner_regression: {
         test_files: 7,
-        passed: 102,
+        passed: 104,
         failed: 0,
         wall_seconds: 1.53,
       },
@@ -423,6 +426,10 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       "522.211",
       "maxEntries + 1",
       "29 / 29",
+      "104 / 104",
+      "#516",
+      "0dd5469c",
+      "5fa4e179",
       "AWS",
       "dormant",
       "namespace exclusivity",

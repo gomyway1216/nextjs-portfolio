@@ -98,7 +98,7 @@ Node v22.13.0で次を確認した。
 - 合計: 29 / 29 PASS、1.42秒
 - evidence pin test: 4 / 4 PASS
 - 関連3 file合計: 33 / 33 PASS、1.19秒
-- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、102 / 102 PASS、1.53秒
+- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、104 / 104 PASS、1.53秒
 - scoped ESLint: PASS
 - Prettier: PASS
 - `git diff --check`: PASS
@@ -108,7 +108,7 @@ Node v22.13.0で次を確認した。
 
 symlink、hardlink、mode、single-link、source / destination inode alias、copy descriptor close failureは既存copy regressionでも引き続き検証している。
 
-PR #515を含む最新`main` `5f2569dcf730e709ab36346c559d210fa6a63bf1`は、通常merge commit `9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29`で統合した。portable implementation / testのpathとbytesは変わっていない。README conflictは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持して解決した。履歴は書き換えていない。
+failure-kindのintrinsic hardeningを含むPR #516の最新`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。portable implementation / testのpathとbytesは変わっていない。READMEは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持している。履歴は書き換えていない。
 
 ## AWS、GCP、Vercelは使ったか
 

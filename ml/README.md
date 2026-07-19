@@ -208,6 +208,9 @@ historical full replay 14,059.521秒、current source full-bundle confirmation 1
 copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは
 portable 16 + existing copy 13 = 29 / 29 PASS。意味検証、teacher、学習、選抜、A/B、weight、
 live activation、AWS、Firebase / GCP、Vercel、networkの実行は0で、棋力向上の証拠ではない。
+failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は、通常merge
+`5fa4e179…`で統合済みで、portable implementation / testのbytesは不変、拡張回帰は
+7 files / 104 / 104 PASSである。
 詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
 [English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
 [machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。

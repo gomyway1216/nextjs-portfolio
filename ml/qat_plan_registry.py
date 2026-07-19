@@ -27,6 +27,15 @@ from qat_protocol import (
 )
 
 
+def _plain_path_text(value: Any) -> str | None:
+    if not isinstance(value, (str, bytes, os.PathLike)):
+        return None
+    try:
+        return os.fsdecode(os.fspath(value))
+    except (TypeError, ValueError, UnicodeError, OSError):
+        return None
+
+
 def verify_qat_experiment_plan(
     args: Any,
     training_runtime: Mapping[str, Any],
@@ -42,6 +51,26 @@ def verify_qat_experiment_plan(
         repo_root, FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
     )
     plan_argument = getattr(args, "experiment_plan", "")
+    candidate_text = _plain_path_text(plan_argument)
+    if candidate_text is not None and type(plan_argument) is not str:
+        candidate_absolute = os.path.abspath(candidate_text)
+        candidate_requested = os.path.realpath(candidate_text)
+        candidate_basename = os.path.basename(candidate_absolute)
+        if (
+            candidate_absolute == fresh_v2_path
+            or candidate_requested == fresh_v2_path
+            or candidate_basename.startswith(
+                os.path.basename(FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH)
+            )
+            or (
+                "fresh-qat" in candidate_basename
+                and candidate_absolute != fresh_v1_path
+            )
+        ):
+            raise ValueError(
+                "fresh QAT v2 dispatch requires an exact built-in string "
+                "plan path"
+            )
     requested = (
         os.path.realpath(plan_argument)
         if isinstance(plan_argument, (str, bytes, os.PathLike))

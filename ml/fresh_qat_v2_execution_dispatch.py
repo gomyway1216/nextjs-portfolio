@@ -59,6 +59,10 @@ FRESH_QAT_V2_PARENT_ACCOUNTING_PROPOSAL_RELATIVE_PATH = (
 FRESH_QAT_V2_TRAIN_RELATIVE_PATH = (
     "ml/data/floodgate-q1-2026-fresh-qat-v2/train.jsonl"
 )
+FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH = "training.raw.jsonl"
+FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH = (
+    "parent-completion.jsonl"
+)
 FRESH_QAT_V2_TRAIN_FORMAT = (
     "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
 )
@@ -117,6 +121,12 @@ _PREREGISTERED_PLAN_IDENTITY = {
     "sha256": FRESH.FRESH_QAT_PREREGISTERED_PLAN_SHA256,
     "schema": FRESH.FRESH_QAT_PREREGISTERED_PLAN_SCHEMA,
 }
+_ROLE_BUNDLE_RESULT_IDENTITY = {
+    "path": "ml/protocols/floodgate-q1-2026-role-bundle-result.json",
+    "bytes": 14_735,
+    "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf",
+    "schema": "shogi-floodgate-role-bundle-result-v1",
+}
 
 _READY_FIELDS = frozenset(
     {
@@ -126,12 +136,50 @@ _READY_FIELDS = frozenset(
         "closed_parent_accounting_registry",
         "execution_plan",
         "parent_accounting_proposal",
+        "input_training",
+        "parent_completion",
         "train_jsonl",
         "parent_accounting",
         "allowed_schema_pair",
         "gates",
         "authority",
         "nonclaims",
+    }
+)
+_INPUT_TRAINING_IDENTITY_FIELDS = frozenset(
+    {
+        "path",
+        "format",
+        "bytes",
+        "sha256",
+        "parents",
+        "games",
+        "game_ids_sha256",
+        "parent_ids_sha256",
+        "position_ids_count",
+        "position_ids_sha256",
+    }
+)
+_PARENT_COMPLETION_IDENTITY_FIELDS = frozenset(
+    {
+        "path",
+        "format",
+        "bytes",
+        "sha256",
+        "records",
+        "forced_parents_skipped",
+        "emitted_parent_groups",
+        "parent_ids_sha256",
+        "forced_parent_ids_sha256",
+        "emitted_parent_ids_sha256",
+    }
+)
+_PROPOSAL_UPSTREAM_FIELDS = frozenset(
+    {
+        "preregistered_plan",
+        "role_bundle_result",
+        "input_training",
+        "parent_completion",
     }
 )
 _PLAN_FIELDS = frozenset(
@@ -255,8 +303,11 @@ _READY_GATE_FIELDS = frozenset(
         "immutable_predecessors_verified",
         "execution_plan_identity_registered",
         "parent_accounting_proposal_identity_registered",
+        "input_training_identity_registered",
+        "parent_completion_evidence_enrolled",
         "train_identity_registered",
         "parent_accounting_equation_verified",
+        "source_accounting_recomputation_required",
         "schema_pair_whitelisted",
         "training_dispatch_ready",
     }
@@ -297,12 +348,13 @@ class FreshQATV2ActivationStop(ValueError):
 
 
 class FreshQATV2NoTrainableParentGroups(FreshQATV2ActivationStop):
-    """All 24,000 inputs were forced, so no training contract may exist."""
+    """The successor declares E=0, so fail before source authentication."""
 
     def __init__(self):
         super().__init__(
             "parent-accounting",
-            "all 24000 parents are forced; no training contract",
+            "successor declares all 24000 parents forced; "
+            "source authentication was not reached",
         )
 
 
@@ -531,6 +583,95 @@ def _validate_accounting_counts(value: Any) -> dict[str, Any]:
     return accounting
 
 
+def _validate_input_training_identity(value: Any) -> dict[str, Any]:
+    identity = _exact_fields(
+        value,
+        _INPUT_TRAINING_IDENTITY_FIELDS,
+        "fresh QAT v2 input-training identity",
+    )
+    if (
+        identity["path"] != FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH
+        or identity["format"]
+        != ACCOUNTING.PRODUCTION_INPUT_TRAINING_BINDING["format"]
+    ):
+        raise ValueError("fresh QAT v2 input-training path/format mismatch")
+    for field in (
+        "bytes",
+        "parents",
+        "games",
+        "position_ids_count",
+    ):
+        if type(identity[field]) is not int:
+            raise ValueError(
+                f"fresh QAT v2 input-training {field} must be an integer"
+            )
+    if (
+        identity["bytes"] < 1
+        or identity["parents"] != FRESH_QAT_V2_INPUT_PARENTS
+        or identity["games"] < 1
+        or identity["games"] > 1_000
+        or identity["position_ids_count"] != FRESH_QAT_V2_INPUT_PARENTS
+    ):
+        raise ValueError("fresh QAT v2 input-training accounting mismatch")
+    for field in (
+        "sha256",
+        "game_ids_sha256",
+        "parent_ids_sha256",
+        "position_ids_sha256",
+    ):
+        _require_sha256(
+            identity[field],
+            f"fresh QAT v2 input-training {field}",
+        )
+    return identity
+
+
+def _validate_parent_completion_identity(
+    value: Any,
+    accounting: Mapping[str, Any],
+) -> dict[str, Any]:
+    identity = _exact_fields(
+        value,
+        _PARENT_COMPLETION_IDENTITY_FIELDS,
+        "fresh QAT v2 parent-completion identity",
+    )
+    if (
+        identity["path"] != FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH
+        or identity["format"] != ACCOUNTING.FRESH_QAT_PARENT_COMPLETION_FORMAT
+    ):
+        raise ValueError("fresh QAT v2 parent-completion path/format mismatch")
+    for field in (
+        "bytes",
+        "records",
+        "forced_parents_skipped",
+        "emitted_parent_groups",
+    ):
+        if type(identity[field]) is not int:
+            raise ValueError(
+                f"fresh QAT v2 parent-completion {field} must be an integer"
+            )
+    if (
+        identity["bytes"] < 1
+        or identity["records"] != FRESH_QAT_V2_INPUT_PARENTS
+        or identity["forced_parents_skipped"]
+        != accounting["forced_parents_skipped"]
+        or identity["emitted_parent_groups"]
+        != accounting["emitted_parent_groups"]
+    ):
+        raise ValueError("fresh QAT v2 parent-completion accounting mismatch")
+    for field in (
+        "sha256",
+        "parent_ids_sha256",
+        "forced_parent_ids_sha256",
+        "emitted_parent_ids_sha256",
+    ):
+        _require_sha256(
+            identity[field],
+            f"fresh QAT v2 parent-completion {field}",
+        )
+    return identity
+
+
 def _validate_train_identity(
     value: Any,
     accounting: Mapping[str, Any],
@@ -609,6 +750,11 @@ def validate_fresh_qat_v2_ready_successor_data(
         expected_schema=ACCOUNTING.FRESH_QAT_PARENT_ACCOUNTING_PROPOSAL_SCHEMA,
     )
     accounting = _validate_accounting_counts(successor["parent_accounting"])
+    _validate_input_training_identity(successor["input_training"])
+    _validate_parent_completion_identity(
+        successor["parent_completion"],
+        accounting,
+    )
     _validate_train_identity(successor["train_jsonl"], accounting)
     if not _typed_equal(
         successor["allowed_schema_pair"],
@@ -741,6 +887,21 @@ def _validate_proposal(
         != FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA
     ):
         raise ValueError("fresh QAT v2 proposal contract mismatch")
+    upstream = _exact_fields(
+        proposal["upstream"],
+        _PROPOSAL_UPSTREAM_FIELDS,
+        "fresh QAT v2 proposal upstream",
+    )
+    expected_upstream = {
+        "preregistered_plan": _PREREGISTERED_PLAN_IDENTITY,
+        "role_bundle_result": _ROLE_BUNDLE_RESULT_IDENTITY,
+        "input_training": successor["input_training"],
+        "parent_completion": successor["parent_completion"],
+    }
+    if not _typed_equal(upstream, expected_upstream):
+        raise ValueError(
+            "fresh QAT v2 proposal upstream differs from enrolled sources"
+        )
     proposal_accounting = _exact_fields(
         proposal["parent_accounting"],
         _PROPOSAL_ACCOUNTING_FIELDS,
@@ -758,6 +919,21 @@ def _validate_proposal(
         or proposal_accounting["emitted_order_preserved"] is not True
     ):
         raise ValueError("fresh QAT v2 proposal changed parent membership")
+    if (
+        proposal_accounting["input_parent_ids_sha256"]
+        != upstream["input_training"]["parent_ids_sha256"]
+        or proposal_accounting["input_position_ids_sha256"]
+        != upstream["input_training"]["position_ids_sha256"]
+        or proposal_accounting["input_parent_ids_sha256"]
+        != upstream["parent_completion"]["parent_ids_sha256"]
+        or proposal_accounting["forced_parent_ids_sha256"]
+        != upstream["parent_completion"]["forced_parent_ids_sha256"]
+        or proposal_accounting["emitted_parent_ids_sha256"]
+        != upstream["parent_completion"]["emitted_parent_ids_sha256"]
+    ):
+        raise ValueError(
+            "fresh QAT v2 proposal accounting differs from enrolled sources"
+        )
     for field in _PROPOSAL_ACCOUNTING_FIELDS - _ACCOUNTING_COUNT_FIELDS - {
         "replacement_parents",
         "resampled_parents",
@@ -1071,6 +1247,8 @@ def _dispatch_fresh_qat_v2_execution_plan(
 
     proposal_identity = successor["parent_accounting_proposal"]
     plan_identity = successor["execution_plan"]
+    input_identity = successor["input_training"]
+    completion_identity = successor["parent_completion"]
     train_identity = successor["train_jsonl"]
     proposal_raw = _verify_artifact_identity(
         root,
@@ -1084,20 +1262,49 @@ def _dispatch_fresh_qat_v2_execution_plan(
         "fresh QAT v2 execution plan",
         artifact_reader,
     )
+    input_raw = _verify_artifact_identity(
+        root,
+        input_identity,
+        "fresh QAT v2 exact input training",
+        artifact_reader,
+    )
+    completion_raw = _verify_artifact_identity(
+        root,
+        completion_identity,
+        "fresh QAT v2 enrolled parent completion",
+        artifact_reader,
+    )
     train_raw = _verify_artifact_identity(
         root,
         train_identity,
         "fresh QAT v2 train JSONL",
         artifact_reader,
     )
-    del train_raw
-    for identity in (proposal_identity, plan_identity, train_identity):
+    for identity in (
+        proposal_identity,
+        plan_identity,
+        input_identity,
+        completion_identity,
+        train_identity,
+    ):
         tracking_verifier(os.path.join(root, identity["path"]), revision)
 
     proposal = _strict_json(
         proposal_raw,
         "fresh QAT v2 parent-accounting proposal",
     )
+    source_validated_proposal = (
+        ACCOUNTING.validate_fresh_qat_parent_accounting_proposal_v2(
+            proposal,
+            input_raw,
+            completion_raw,
+            train_raw,
+        )
+    )
+    if not _typed_equal(source_validated_proposal, proposal):
+        raise ValueError(
+            "fresh QAT v2 source-accounting validator returned another proposal"
+        )
     _validate_proposal(proposal, successor)
     plan = _strict_json(plan_raw, "fresh QAT v2 execution plan")
     _validate_plan(plan, proposal, successor)
@@ -1202,6 +1409,8 @@ __all__ = [
     "FRESH_QAT_V2_ACTIVATION_ANCHOR_SHA256",
     "FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH",
     "FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA",
+    "FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH",
+    "FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH",
     "FRESH_QAT_V2_READY_SUCCESSOR_RELATIVE_PATH",
     "FRESH_QAT_V2_READY_SUCCESSOR_SCHEMA",
     "FRESH_QAT_V2_SCHEMA_PAIR",

@@ -146,8 +146,8 @@
   "unchanged_production_identities": [
     {
       "path": "package.json",
-      "bytes": 7964,
-      "sha256": "770ceaf033d00245e84a439656b68141606c36f24eb9b7fe8322a97a426fd866"
+      "bytes": 8082,
+      "sha256": "ad4a98aec49f61eb7391efbce950bfddb74488cb8b9dd2bb378b107f57b936b6"
     },
     {
       "path": "ml/floodgate-stable-wasm-worker.mjs",

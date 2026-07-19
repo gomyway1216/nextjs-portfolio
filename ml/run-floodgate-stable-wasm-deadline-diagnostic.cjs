@@ -35,18 +35,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // ml/floodgate-git.ts
-function floodgateGitEnvironment(inherited = process.env) {
-  const nodeEnvironment = inherited.NODE_ENV;
-  const environment = {
-    NODE_ENV: nodeEnvironment === "development" || nodeEnvironment === "test" || nodeEnvironment === "production" ? nodeEnvironment : "production"
-  };
-  for (const [key, value] of Object.entries(inherited)) {
-    const upper = key.toUpperCase();
-    if (value !== void 0 && !upper.startsWith("GIT_") && !upper.startsWith("DYLD_") && !upper.startsWith("LD_") && upper !== "NODE_ENV" && upper !== "LC_ALL" && upper !== "LANG" && upper !== "LANGUAGE") {
-      environment[key] = value;
-    }
-  }
-  return Object.assign(environment, FLOODGATE_GIT_FIXED_ENVIRONMENT);
+function floodgateGitEnvironment(_inherited = process.env) {
+  return { ...FLOODGATE_GIT_FIXED_ENVIRONMENT };
 }
 function floodgateGitTrackedEntriesAreOrdinary(output) {
   if (typeof output !== "string") return false;
@@ -359,6 +349,10 @@ var init_floodgate_git = __esm({
     execFile = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
     FLOODGATE_GIT_EXECUTABLE = "/usr/bin/git";
     FLOODGATE_GIT_FIXED_ENVIRONMENT = Object.freeze({
+      PATH: "/usr/bin:/bin",
+      TMPDIR: "/tmp",
+      HOME: "/var/empty",
+      TZ: "UTC",
       GIT_CONFIG_NOSYSTEM: "1",
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_SYSTEM: "/dev/null",

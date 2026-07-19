@@ -50,6 +50,8 @@ The related six test files pass 60/60 tests. This proves the diagnostic boundary
 
 The branch then integrated main `9dc5755a…`, including Fresh-QAT safety PR #514, through regular merge `74d825c1…`. The failure-kind implementation paths remained unchanged, the Fresh-QAT implementation paths still match merged main, and the package/evidence pins remain valid. Teacher starts, training runs, and live-weight changes during integration were all zero.
 
+After PR review, commit `5c00ea32…` consolidated the `failure_kind` values into one runtime-frozen array and derived the TypeScript type from that same source. Commit `c3a47e52…` made the evidence test's Git environment hermetic with fixed PATH, HOME, and locale, disabled system/global configuration, and disabled optional locks. The focused runs passed 26/26 and 6/6 tests respectively; teacher starts, training runs, and live-weight changes during these review remediations were all zero.
+
 ## 7. The next safe remediation
 
 Simply deleting the historical inode check would weaken the evidence. The next change will add a portable transition:

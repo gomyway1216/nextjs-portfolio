@@ -50,6 +50,8 @@ CIにある `AWS witness adapter contract (source only)` は未使用の接続�
 
 その後、Fresh-QAT安全境界のPR #514を含むmain `9dc5755a…`を、この診断branchへ通常merge `74d825c1…`で統合した。failure-kind実装pathは不変で、Fresh-QAT実装pathもmerged mainと一致し、package / evidence pinを保持した。統合中の教師起動、学習、live weight変更は0である。
 
+PRレビュー後のcommit `5c00ea32…`では、`failure_kind`の許可値を1つのruntime凍結配列へ集約し、TypeScriptの型も同じ配列から導出した。commit `c3a47e52…`では証拠テストのGit環境を固定PATH / HOME / locale、system / global config無効、optional lock無効へ揃えた。対象テストはそれぞれ26/26と6/6 PASSし、このレビュー修正でも教師起動、学習、live weight変更は0である。
+
 ## 7. 次の安全な修正
 
 historical inode検査を単純に削るのは安全ではない。次のportable transitionを追加する。

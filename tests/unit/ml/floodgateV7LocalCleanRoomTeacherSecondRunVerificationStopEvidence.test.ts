@@ -59,6 +59,21 @@ function gitIsAncestor(ancestor: string): boolean {
 }
 
 describe("Floodgate v7 second local teacher verification-stop evidence", () => {
+  it("runs every Git evidence command in the fixed hermetic environment", () => {
+    expect(Object.isFrozen(gitEnvironment)).toBe(true);
+    expect(gitEnvironment).toEqual({
+      PATH: "/usr/bin:/bin",
+      HOME: "/var/empty",
+      LANG: "C",
+      LC_ALL: "C",
+      NODE_ENV: "test",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_SYSTEM: "/dev/null",
+      GIT_OPTIONAL_LOCKS: "0",
+    });
+  });
+
   it("pins the exact diagnostic implementation revision and tree", () => {
     const record = evidence();
     expect(record).toMatchObject({
@@ -72,6 +87,34 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
           files: 6,
           tests_passed: 60,
           tests_failed: 0,
+        },
+        review_remediation: {
+          failure_kind_revision: "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+          failure_kind_tree: "b817b3922595b5ef794c72757e6bba7452f11dc5",
+          failure_kind_parent: "e12d862c2c076db3f24c867cb455922bc83c544c",
+          evidence_git_environment_revision:
+            "c3a47e52c25972561f17860926d1dfc45229ff0d",
+          evidence_git_environment_tree:
+            "eab2ab875f1c75fb884adcca5e4cdfaa652e1bca",
+          evidence_git_environment_parent:
+            "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+          single_frozen_allowlist_source: true,
+          type_derived_from_allowlist: true,
+          unknown_value_disposition: "phase-level",
+          fixed_git_path_home_locale_and_config: true,
+          failure_kind_focused_tests: {
+            files: 2,
+            tests_passed: 26,
+            tests_failed: 0,
+          },
+          hermetic_evidence_focused_tests: {
+            files: 1,
+            tests_passed: 6,
+            tests_failed: 0,
+          },
+          real_teacher_invocations: 0,
+          training_runs: 0,
+          live_weight_changes: 0,
         },
       },
     });
@@ -89,6 +132,54 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
         diagnostic.implementation_revision,
       ]),
     ).toBe(diagnostic.implementation_tree);
+    const review = (
+      record.diagnostic_remediation as {
+        review_remediation: {
+          failure_kind_revision: string;
+          failure_kind_tree: string;
+          failure_kind_parent: string;
+          evidence_git_environment_revision: string;
+          evidence_git_environment_tree: string;
+          evidence_git_environment_parent: string;
+        };
+      }
+    ).review_remediation;
+    for (const [commit, tree] of [
+      [review.failure_kind_revision, review.failure_kind_tree],
+      [
+        review.evidence_git_environment_revision,
+        review.evidence_git_environment_tree,
+      ],
+    ]) {
+      expect(gitIsAncestor(commit)).toBe(true);
+      expect(
+        gitOutput([
+          "--no-replace-objects",
+          "show",
+          "-s",
+          "--format=%T",
+          commit,
+        ]),
+      ).toBe(tree);
+    }
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        review.failure_kind_revision,
+      ]),
+    ).toBe(review.failure_kind_parent);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        review.evidence_git_environment_revision,
+      ]),
+    ).toBe(review.evidence_git_environment_parent);
   });
 
   it("pins the regular Fresh-QAT main integration without claiming execution", () => {
@@ -296,6 +387,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "live weightは引き続き変更しない",
       "9dc5755a…",
       "74d825c1…",
+      "5c00ea32…",
+      "c3a47e52…",
     ]) {
       expect(japanese).toContain(marker);
     }
@@ -310,6 +403,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "Live weights remain unchanged",
       "9dc5755a…",
       "74d825c1…",
+      "5c00ea32…",
+      "c3a47e52…",
     ]) {
       expect(english).toContain(marker);
     }

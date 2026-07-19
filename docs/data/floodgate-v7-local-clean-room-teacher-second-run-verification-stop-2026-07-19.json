@@ -133,6 +133,31 @@
       "files": 6,
       "tests_passed": 60,
       "tests_failed": 0
+    },
+    "review_remediation": {
+      "failure_kind_revision": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+      "failure_kind_tree": "b817b3922595b5ef794c72757e6bba7452f11dc5",
+      "failure_kind_parent": "e12d862c2c076db3f24c867cb455922bc83c544c",
+      "evidence_git_environment_revision": "c3a47e52c25972561f17860926d1dfc45229ff0d",
+      "evidence_git_environment_tree": "eab2ab875f1c75fb884adcca5e4cdfaa652e1bca",
+      "evidence_git_environment_parent": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+      "single_frozen_allowlist_source": true,
+      "type_derived_from_allowlist": true,
+      "unknown_value_disposition": "phase-level",
+      "fixed_git_path_home_locale_and_config": true,
+      "failure_kind_focused_tests": {
+        "files": 2,
+        "tests_passed": 26,
+        "tests_failed": 0
+      },
+      "hermetic_evidence_focused_tests": {
+        "files": 1,
+        "tests_passed": 6,
+        "tests_failed": 0
+      },
+      "real_teacher_invocations": 0,
+      "training_runs": 0,
+      "live_weight_changes": 0
     }
   },
   "latest_main_integration": {

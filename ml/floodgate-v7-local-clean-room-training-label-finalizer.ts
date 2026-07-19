@@ -20,7 +20,9 @@ import {
 } from "./floodgate-stable-wasm-proposer";
 import {
   authorizeFloodgateTeacherStage,
+  FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
+  FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
   type FloodgateTeacherStageAuthorizationOptions,
   type FloodgateTeacherStageLease,
@@ -73,7 +75,7 @@ export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_STATUS =
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_CLAIM_BOUNDARY =
   "argumentless-fixed-mac-local-private-handoff-mac-run-binding-stage-work-and-production-sealed-scanner-finalizer-without-cloud-training-weight-live-or-strength-authority" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_STATUS =
-  "test-only-injected-composition-complete-not-operational-evidence" as const;
+  "test-only-fixed-in-memory-orchestration-complete-not-operational-evidence" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_PACKAGE_SCRIPT =
   "shogi:floodgate-v7-local-clean-room-training-label-finalizer" as const;
 
@@ -244,7 +246,7 @@ export interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerReceipt {
   readonly claim_boundary: typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_CLAIM_BOUNDARY;
   readonly execution_boundary:
     | "fixed-mac-local-argumentless-command"
-    | "test-only-injected-production-api-composition";
+    | "test-only-fixed-in-memory-orchestration";
   readonly operational_evidence: boolean;
   readonly output: Readonly<{
     readonly parents: 24_000;
@@ -312,7 +314,7 @@ interface LocalFinalizerHandoff {
   }>;
 }
 
-export interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<
+interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<
   TPlan = Readonly<FloodgateV7TrainingLabelFinalizationPlan>,
 > {
   readonly authorizeStage: (
@@ -336,6 +338,47 @@ export interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<
     postflight: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
   ) => Promise<Readonly<FloodgateV7TrainingLabelFinalizationReceipt>>;
 }
+
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_SCENARIOS =
+  Object.freeze([
+    "success",
+    "authorize-failure",
+    "handoff-revalidation-after-authorize",
+    "consume-failure",
+    "consume-and-close-failure",
+    "handoff-revalidation-before-plan",
+    "create-plan-failure",
+    "postflight-failure",
+    "postflight-and-discard-failure",
+    "finalize-failure",
+    "receipt-work-mismatch",
+  ] as const);
+
+export type FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestScenario =
+  (typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_SCENARIOS)[number];
+
+interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestFailure {
+  readonly name: typeof FloodgateV7LocalCleanRoomTrainingLabelFinalizerError.name;
+  readonly phase: FloodgateV7LocalCleanRoomTrainingLabelFinalizerPhase;
+  readonly publication_may_have_occurred: boolean;
+  readonly stage_or_lease_may_remain: boolean;
+  readonly retry_disposition:
+    | "fresh-authenticated-handoff-required"
+    | "manual-local-publication-reconciliation-required";
+  readonly sensitive_values_disclosed: false;
+}
+
+export type FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestOutcome =
+  | Readonly<{
+      readonly status: "PASS";
+      readonly events: readonly string[];
+      readonly receipt: Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerReceipt>;
+    }>
+  | Readonly<{
+      readonly status: "STOP";
+      readonly events: readonly string[];
+      readonly failure: Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestFailure>;
+    }>;
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -1003,7 +1046,7 @@ function buildReceipt(
       FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_CLAIM_BOUNDARY,
     execution_boundary: operational
       ? "fixed-mac-local-argumentless-command"
-      : "test-only-injected-production-api-composition",
+      : "test-only-fixed-in-memory-orchestration",
     operational_evidence: operational,
     output: Object.freeze({
       parents: 24_000 as const,
@@ -1053,6 +1096,262 @@ function buildReceipt(
       weight_or_live_activation: false as const,
       match_or_playing_strength: false as const,
     }),
+  });
+}
+
+function captureTestScenario(
+  value: unknown,
+): FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestScenario {
+  switch (value) {
+    case "success":
+    case "authorize-failure":
+    case "handoff-revalidation-after-authorize":
+    case "consume-failure":
+    case "consume-and-close-failure":
+    case "handoff-revalidation-before-plan":
+    case "create-plan-failure":
+    case "postflight-failure":
+    case "postflight-and-discard-failure":
+    case "finalize-failure":
+    case "receipt-work-mismatch":
+      return value;
+    default:
+      throw new Error("test scenario differs");
+  }
+}
+
+function testFileEvidence(
+  filename: string,
+  bytes: number,
+  sha256: string,
+): Readonly<{
+  readonly filename: string;
+  readonly dev: string;
+  readonly ino: string;
+  readonly mode: "0600";
+  readonly bytes: number;
+  readonly sha256: string;
+}> {
+  return Object.freeze({
+    filename,
+    dev: "101",
+    ino: "102",
+    mode: "0600" as const,
+    bytes,
+    sha256,
+  });
+}
+
+function testFinalizationReceipt(
+  handoff: Readonly<LocalFinalizerHandoff>,
+  mismatchWork: boolean,
+): Readonly<FloodgateV7TrainingLabelFinalizationReceipt> {
+  return Object.freeze({
+    contract:
+      "shogi-floodgate-v7-training-label-finalization-publication-core-v1",
+    status:
+      "test-only-authenticated-sealed-scan-plan-exact-prefix-content-finalized-and-injected-publication-reverified",
+    claim_boundary:
+      "fixed-in-memory-local-finalizer-test-scenario-not-production-authority",
+    execution_boundary:
+      "test-only-injected-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication",
+    content: Object.freeze({
+      work: testFileEvidence(
+        handoff.work.filename,
+        handoff.work.bytes,
+        mismatchWork ? "9".repeat(64) : handoff.work.sha256,
+      ),
+      train: testFileEvidence(
+        FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
+        1,
+        "2".repeat(64),
+      ),
+      result: testFileEvidence(
+        FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
+        1,
+        "3".repeat(64),
+      ),
+      manifest: testFileEvidence(
+        FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
+        1,
+        "4".repeat(64),
+      ),
+      parents: 24_000,
+      training_records: handoff.work.records,
+      consumer_postflight_sha256: "5".repeat(64),
+    }),
+    publication: Object.freeze({
+      stage_basename: handoff.stage.basename,
+      destination_basename:
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
+    }),
+    postpublication: Object.freeze({
+      destination_reopened: true,
+      exact_entries: Object.freeze([
+        FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
+        FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
+        FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+      ]),
+      content_reverified: true,
+    }),
+  }) as unknown as Readonly<FloodgateV7TrainingLabelFinalizationReceipt>;
+}
+
+interface SafeTestExecution {
+  readonly dependencies: Readonly<
+    FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<
+      Readonly<{ readonly safe_test_plan: true }>
+    >
+  >;
+  readonly events: string[];
+}
+
+function safeTestExecution(
+  handoff: Readonly<LocalFinalizerHandoff>,
+  scenario: FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestScenario,
+): Readonly<SafeTestExecution> {
+  const events: string[] = [];
+  const safePlan = Object.freeze({ safe_test_plan: true as const });
+  const close = async (): Promise<void> => {
+    events.push("close");
+    if (scenario === "consume-and-close-failure") {
+      throw new Error("fixed test close failure");
+    }
+  };
+  const lease = Object.freeze({
+    receipt: Object.freeze({
+      contract: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
+      trust_boundary: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+      status: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
+      parent_identity: Object.freeze({
+        dev: BigInt(handoff.stage.parentDev),
+        ino: BigInt(handoff.stage.parentIno),
+      }),
+      stage_identity: Object.freeze({
+        dev: BigInt(handoff.stage.dev),
+        ino: BigInt(handoff.stage.ino),
+      }),
+      lease_identity: Object.freeze({ dev: BigInt(103), ino: BigInt(104) }),
+      stage_basename: handoff.stage.basename,
+      destination_basename:
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
+      allowed_entries: FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
+    }),
+    stageRoot: path.join(
+      fixedTargets().publicationParent,
+      handoff.stage.basename,
+    ),
+    destinationRoot: path.join(
+      fixedTargets().publicationParent,
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
+    ),
+    close,
+  }) as Readonly<FloodgateTeacherStageLease>;
+  return Object.freeze({
+    events,
+    dependencies: Object.freeze({
+      authorizeStage: async () => {
+        events.push("authorize");
+        if (scenario === "authorize-failure") {
+          throw new Error("fixed test authorization failure");
+        }
+        return lease;
+      },
+      consumeRowsAndPostflight: async (
+        _options: Readonly<FloodgateTrainingRowConsumerOptions>,
+        consume: (
+          input: Readonly<AuthenticatedFloodgateTrainingRows>,
+        ) => Promise<void>,
+      ) => {
+        events.push("consume");
+        if (
+          scenario === "consume-failure" ||
+          scenario === "consume-and-close-failure"
+        ) {
+          throw new Error("fixed test consumer failure");
+        }
+        await consume(
+          Object.freeze({}) as Readonly<AuthenticatedFloodgateTrainingRows>,
+        );
+        if (
+          scenario === "postflight-failure" ||
+          scenario === "postflight-and-discard-failure"
+        ) {
+          throw new Error("fixed test postflight failure");
+        }
+        return Object.freeze(
+          {},
+        ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+      },
+      createPlan: async () => {
+        events.push("create-plan");
+        if (scenario === "create-plan-failure") {
+          throw new Error("fixed test plan-composition failure");
+        }
+        return safePlan;
+      },
+      discardPlan: async () => {
+        events.push("discard");
+        if (scenario === "postflight-and-discard-failure") {
+          throw new Error("fixed test discard failure");
+        }
+      },
+      finalize: async () => {
+        events.push("finalize");
+        if (scenario === "finalize-failure") {
+          throw new Error("fixed test finalization failure");
+        }
+        return testFinalizationReceipt(
+          handoff,
+          scenario === "receipt-work-mismatch",
+        );
+      },
+    }),
+  });
+}
+
+function testFailure(
+  phase: FloodgateV7LocalCleanRoomTrainingLabelFinalizerPhase,
+  publicationMayHaveOccurred: boolean,
+  stageOrLeaseMayRemain: boolean,
+): Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestFailure> {
+  const error = new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
+    phase,
+    publicationMayHaveOccurred,
+    stageOrLeaseMayRemain,
+  );
+  return Object.freeze({
+    name: "FloodgateV7LocalCleanRoomTrainingLabelFinalizerError",
+    phase: error.phase,
+    publication_may_have_occurred: error.publication_may_have_occurred,
+    stage_or_lease_may_remain: error.stage_or_lease_may_remain,
+    retry_disposition: error.retry_disposition,
+    sensitive_values_disclosed: false as const,
+  });
+}
+
+function testFailureFromError(
+  error: unknown,
+): Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestFailure> {
+  if (error instanceof FloodgateV7LocalCleanRoomTrainingLabelFinalizerError) {
+    return testFailure(
+      error.phase,
+      error.publication_may_have_occurred,
+      error.stage_or_lease_may_remain,
+    );
+  }
+  return testFailure("capture", false, false);
+}
+
+function testStop(
+  events: readonly string[],
+  failure: Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestFailure>,
+): Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestOutcome> {
+  return Object.freeze({
+    status: "STOP" as const,
+    events: Object.freeze([...events]),
+    failure,
   });
 }
 
@@ -1150,42 +1449,101 @@ const PRODUCTION_DEPENDENCIES: Readonly<FloodgateV7LocalCleanRoomTrainingLabelFi
     finalize: finalizeAndPublishFloodgateV7TrainingLabels,
   });
 
-/**
- * Dynamic test seam. The supplied bytes still pass the real strict handoff
- * verifier; injected operations have no production authority by themselves.
- */
-export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests<
-  TPlan,
->(
-  keyValue: Uint8Array,
-  handoffValue: Uint8Array,
-  dependencies: Readonly<
-    FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<TPlan>
-  >,
+interface OperationalFinalizerGrant {
+  readonly contract: "shogi-floodgate-v7-local-clean-room-training-label-finalizer-operational-grant-v1";
+}
+
+const operationalFinalizerGrants = new WeakSet<
+  Readonly<OperationalFinalizerGrant>
+>();
+
+function mintOperationalFinalizerGrant(): Readonly<OperationalFinalizerGrant> {
+  const grant = Object.freeze({
+    contract:
+      "shogi-floodgate-v7-local-clean-room-training-label-finalizer-operational-grant-v1" as const,
+  });
+  operationalFinalizerGrants.add(grant);
+  return grant;
+}
+
+async function executeOperationalFinalizer(
+  grant: Readonly<OperationalFinalizerGrant>,
+  handoff: Readonly<LocalFinalizerHandoff>,
 ): Promise<Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerReceipt>> {
-  if (arguments.length !== 3) {
+  if (
+    grant.contract !==
+      "shogi-floodgate-v7-local-clean-room-training-label-finalizer-operational-grant-v1" ||
+    !operationalFinalizerGrants.delete(grant)
+  ) {
     throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
       "capture",
       false,
       false,
     );
   }
+  return executeFinalizer(
+    handoff,
+    PRODUCTION_DEPENDENCIES,
+    loadFixedHandoff,
+    true,
+  );
+}
+
+/**
+ * Fixed in-memory test seam. It accepts no callbacks, executable dependencies,
+ * paths, or production capabilities. The same strict handoff verifier and
+ * orchestration lifecycle run only against module-owned inert operations.
+ */
+export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+  keyValue: Uint8Array,
+  handoffValue: Uint8Array,
+  scenarioValue: FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestScenario,
+): Promise<
+  Readonly<FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestOutcome>
+> {
+  let scenario: FloodgateV7LocalCleanRoomTrainingLabelFinalizerTestScenario;
+  if (arguments.length !== 3) {
+    return testStop([], testFailure("capture", false, false));
+  }
+  try {
+    scenario = captureTestScenario(scenarioValue);
+  } catch {
+    return testStop([], testFailure("capture", false, false));
+  }
   let handoff: Readonly<LocalFinalizerHandoff>;
   try {
     handoff = captureHandoff(keyValue, handoffValue);
   } catch {
-    throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
-      "handoff",
-      false,
+    return testStop([], testFailure("handoff", false, false));
+  }
+  const test = safeTestExecution(handoff, scenario);
+  let revalidations = 0;
+  try {
+    const receipt = await executeFinalizer(
+      handoff,
+      test.dependencies,
+      async () => {
+        revalidations += 1;
+        if (
+          (scenario === "handoff-revalidation-after-authorize" &&
+            revalidations === 1) ||
+          (scenario === "handoff-revalidation-before-plan" &&
+            revalidations === 2)
+        ) {
+          throw new Error("fixed test handoff revalidation failure");
+        }
+        return captureHandoff(keyValue, handoffValue);
+      },
       false,
     );
+    return Object.freeze({
+      status: "PASS" as const,
+      events: Object.freeze([...test.events]),
+      receipt,
+    });
+  } catch (error) {
+    return testStop(test.events, testFailureFromError(error));
   }
-  return executeFinalizer(
-    handoff,
-    dependencies,
-    async () => captureHandoff(keyValue, handoffValue),
-    false,
-  );
 }
 
 function assertOperationalCommandContext(): void {
@@ -1250,12 +1608,7 @@ export async function runFloodgateV7LocalCleanRoomTrainingLabelFinalizer(): Prom
       false,
     );
   }
-  return executeFinalizer(
-    handoff,
-    PRODUCTION_DEPENDENCIES,
-    loadFixedHandoff,
-    true,
-  );
+  return executeOperationalFinalizer(mintOperationalFinalizerGrant(), handoff);
 }
 
 function canonicalFailure(error: unknown): Readonly<Record<string, unknown>> {

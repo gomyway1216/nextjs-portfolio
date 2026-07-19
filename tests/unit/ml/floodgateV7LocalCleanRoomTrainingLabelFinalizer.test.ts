@@ -12,28 +12,18 @@ import {
   FLOODGATE_FRESH_SIBLING_PLAN_SHA256,
 } from "../../../ml/floodgate-stable-wasm-proposer";
 import {
-  FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
-  FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
-  FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
-  FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
-  type FloodgateTeacherStageLease,
-} from "../../../ml/floodgate-teacher-stage-authorization";
-import {
   FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
 } from "../../../ml/floodgate-v7-clean-room-teacher-runner";
 import { FLOODGATE_V7_DEPLOYMENT_KEY_ID } from "../../../ml/floodgate-v7-deployment-key-authority";
 import {
-  FloodgateV7LocalCleanRoomTrainingLabelFinalizerError,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_CONTRACT,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_PACKAGE_SCRIPT,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_STATUS,
   runFloodgateV7LocalCleanRoomTrainingLabelFinalizer,
   runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests,
-  type FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies,
 } from "../../../ml/floodgate-v7-local-clean-room-training-label-finalizer";
 import {
-  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_STAGE_BASENAME,
 } from "../../../ml/floodgate-v7-local-clean-room-teacher-runner";
@@ -55,10 +45,6 @@ const HMAC_DOMAIN =
 const KEY = Buffer.alloc(32, 0x4a);
 const RUN_ID = "1".repeat(64);
 const WORK_SHA256 = "c".repeat(64);
-const PUBLICATION_PARENT = path.join(
-  FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
-  "publication",
-);
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -207,166 +193,30 @@ function signedHandoff(
   );
 }
 
-function lease(
-  close: () => Promise<void> = vi.fn(async (): Promise<void> => undefined),
-) {
-  return Object.freeze({
-    receipt: Object.freeze({
-      contract: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
-      trust_boundary: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
-      status: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
-      parent_identity: Object.freeze({ dev: BigInt(10), ino: BigInt(11) }),
-      stage_identity: Object.freeze({ dev: BigInt(12), ino: BigInt(13) }),
-      lease_identity: Object.freeze({ dev: BigInt(14), ino: BigInt(15) }),
-      stage_basename: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_STAGE_BASENAME,
-      destination_basename:
-        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
-      allowed_entries: FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
-    }),
-    stageRoot: path.join(
-      PUBLICATION_PARENT,
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_STAGE_BASENAME,
-    ),
-    destinationRoot: path.join(
-      PUBLICATION_PARENT,
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
-    ),
-    close,
-  }) as Readonly<FloodgateTeacherStageLease>;
-}
-
-function finalization(workSha256 = WORK_SHA256) {
-  const file = (filename: string, bytes: number, sha256: string) =>
-    Object.freeze({
-      filename,
-      dev: "20",
-      ino: "21",
-      mode: "0600",
-      bytes,
-      sha256,
-    });
-  return Object.freeze({
-    contract:
-      "shogi-floodgate-v7-training-label-finalization-publication-core-v1",
-    status:
-      "production-authenticated-sealed-scan-plan-exact-prefix-content-finalized-exclusively-published-and-destination-reverified",
-    claim_boundary: "synthetic-test-receipt",
-    execution_boundary:
-      "production-fixed-authenticated-sealed-scan-plan-finalizer-and-exclusive-private-directory-publication",
-    content: Object.freeze({
-      work: file(
-        FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
-        12_345,
-        workSha256,
-      ),
-      train: file("train.jsonl", 40_000, "2".repeat(64)),
-      result: file("result.json", 2_000, "3".repeat(64)),
-      manifest: file("manifest.json", 1_000, "4".repeat(64)),
-      parents: 24_000,
-      training_records: 47_500,
-      consumer_postflight_sha256: "5".repeat(64),
-    }),
-    publication: Object.freeze({
-      stage_basename: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_STAGE_BASENAME,
-      destination_basename:
-        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_DESTINATION_BASENAME,
-    }),
-    postpublication: Object.freeze({
-      destination_reopened: true,
-      exact_entries: Object.freeze([
-        "manifest.json",
-        "result.json",
-        "train.jsonl",
-        FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
-      ]),
-      content_reverified: true,
-    }),
-  });
-}
-
-function operations(settings?: {
-  readonly onAuthorize?: () => void | Promise<void>;
-  readonly consumeFailure?: boolean;
-  readonly postflightFailure?: boolean;
-  readonly createFailure?: boolean;
-  readonly resultWorkSha256?: string;
-}) {
-  const events: string[] = [];
-  const close = vi.fn(async () => {
-    events.push("close");
-  });
-  const authorizeStage = vi.fn(async () => {
-    events.push("authorize");
-    await settings?.onAuthorize?.();
-    return lease(close);
-  });
-  const consumeRowsAndPostflight = vi.fn(
-    async (_options: unknown, consume: (value: never) => Promise<void>) => {
-      events.push("consume");
-      if (settings?.consumeFailure)
-        throw new Error("synthetic consume failure");
-      await consume(Object.freeze({}) as never);
-      if (settings?.postflightFailure)
-        throw new Error("synthetic postflight failure");
-      return Object.freeze({});
-    },
-  );
-  const createPlan = vi.fn(async (..._arguments: readonly unknown[]) => {
-    events.push("create-plan");
-    if (settings?.createFailure) throw new Error("synthetic create failure");
-    return Object.freeze({ plan: true });
-  });
-  const discardPlan = vi.fn(async () => {
-    events.push("discard");
-  });
-  const finalize = vi.fn(async () => {
-    events.push("finalize");
-    return finalization(settings?.resultWorkSha256);
-  });
-  return {
-    events,
-    close,
-    authorizeStage,
-    consumeRowsAndPostflight,
-    createPlan,
-    discardPlan,
-    finalize,
-    dependencies: Object.freeze({
-      authorizeStage,
-      consumeRowsAndPostflight,
-      createPlan,
-      discardPlan,
-      finalize,
-    }) as unknown as Readonly<
-      FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies<
-        Readonly<{ plan: true }>
-      >
-    >,
-  };
-}
-
 describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
   it("composes exact stage, sealed scan plan, postflight, and finalizer without private disclosure", async () => {
-    const fixture = operations();
     const bytes = signedHandoff();
-    const receipt =
+    const outcome =
       await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         KEY,
         bytes,
-        fixture.dependencies,
+        "success",
       );
 
-    expect(fixture.events).toEqual([
+    expect(outcome.status).toBe("PASS");
+    if (outcome.status !== "PASS") throw new Error("test outcome differs");
+    expect(outcome.events).toEqual([
       "authorize",
       "consume",
       "create-plan",
       "finalize",
     ]);
+    const receipt = outcome.receipt;
     expect(receipt).toMatchObject({
       contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_CONTRACT,
       status:
         FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_STATUS,
-      execution_boundary: "test-only-injected-production-api-composition",
+      execution_boundary: "test-only-fixed-in-memory-orchestration",
       operational_evidence: false,
       output: {
         parents: 24_000,
@@ -396,16 +246,6 @@ describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
     expect(output).not.toContain(FLOODGATE_V7_DEPLOYMENT_KEY_ID);
     expect(output).not.toContain("finalizer-handoff.json");
     expect(output).not.toContain(FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT);
-
-    const createArguments = fixture.createPlan.mock.calls[0]!;
-    expect(createArguments[2]).toEqual(runBinding());
-    expect(createArguments[3]).toEqual({
-      runId: RUN_ID,
-      keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-      work: { bytes: 12_345, sha256: WORK_SHA256 },
-    });
-    expect(fixture.close).not.toHaveBeenCalled();
-    expect(fixture.discardPlan).not.toHaveBeenCalled();
     bytes.fill(0);
   });
 
@@ -508,21 +348,24 @@ describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
   ])(
     "rejects authenticated-shape adversary: %s",
     async (_label, mutate, corrupt) => {
-      const fixture = operations();
-      await expect(
-        runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+      const outcome =
+        await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
           KEY,
           signedHandoff(mutate, corrupt),
-          fixture.dependencies,
-        ),
-      ).rejects.toMatchObject({
-        name: "FloodgateV7LocalCleanRoomTrainingLabelFinalizerError",
-        phase: "handoff",
-        publication_may_have_occurred: false,
-        stage_or_lease_may_remain: false,
-        sensitive_values_disclosed: false,
+          "success",
+        );
+      expect(outcome).toEqual({
+        status: "STOP",
+        events: [],
+        failure: {
+          name: "FloodgateV7LocalCleanRoomTrainingLabelFinalizerError",
+          phase: "handoff",
+          publication_may_have_occurred: false,
+          stage_or_lease_may_remain: false,
+          retry_disposition: "fresh-authenticated-handoff-required",
+          sensitive_values_disclosed: false,
+        },
       });
-      expect(fixture.authorizeStage).not.toHaveBeenCalled();
     },
   );
 
@@ -541,115 +384,206 @@ describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
       ),
     ];
     for (const bytes of cases) {
-      const fixture = operations();
-      await expect(
-        runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+      const outcome =
+        await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
           KEY,
           bytes,
-          fixture.dependencies,
-        ),
-      ).rejects.toBeInstanceOf(
-        FloodgateV7LocalCleanRoomTrainingLabelFinalizerError,
-      );
-      expect(fixture.authorizeStage).not.toHaveBeenCalled();
+          "success",
+        );
+      expect(outcome).toMatchObject({
+        status: "STOP",
+        events: [],
+        failure: { phase: "handoff" },
+      });
     }
-    const fixture = operations();
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+    const wrongKey =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         Buffer.alloc(32, 0x22),
         signedHandoff(),
-        fixture.dependencies,
-      ),
-    ).rejects.toMatchObject({ phase: "handoff" });
-    expect(fixture.authorizeStage).not.toHaveBeenCalled();
+        "success",
+      );
+    expect(wrongKey).toMatchObject({
+      status: "STOP",
+      events: [],
+      failure: { phase: "handoff" },
+    });
   });
 
   it("detects a handoff mutation between initial validation and stage-bound revalidation", async () => {
-    const bytes = signedHandoff();
-    const fixture = operations({
-      onAuthorize: () => {
-        bytes[20] = bytes[20]! ^ 1;
+    const outcome =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+        KEY,
+        signedHandoff(),
+        "handoff-revalidation-after-authorize",
+      );
+    expect(outcome).toMatchObject({
+      status: "STOP",
+      events: ["authorize", "close"],
+      failure: {
+        phase: "stage-binding",
+        publication_may_have_occurred: false,
+        stage_or_lease_may_remain: false,
       },
     });
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
-        KEY,
-        bytes,
-        fixture.dependencies,
-      ),
-    ).rejects.toMatchObject({
-      phase: "stage-binding",
-      publication_may_have_occurred: false,
-      stage_or_lease_may_remain: false,
-    });
-    expect(fixture.close).toHaveBeenCalledOnce();
-    expect(fixture.createPlan).not.toHaveBeenCalled();
   });
 
   it("closes before composition failure, discards a minted plan, and treats post-finalizer mismatch as publication-sensitive", async () => {
-    const consumeFailure = operations({ consumeFailure: true });
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+    const consumeFailure =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         KEY,
         signedHandoff(),
-        consumeFailure.dependencies,
-      ),
-    ).rejects.toMatchObject({
-      phase: "training-consumer",
-      publication_may_have_occurred: false,
-      stage_or_lease_may_remain: false,
+        "consume-failure",
+      );
+    expect(consumeFailure).toMatchObject({
+      status: "STOP",
+      events: ["authorize", "consume", "close"],
+      failure: {
+        phase: "training-consumer",
+        publication_may_have_occurred: false,
+        stage_or_lease_may_remain: false,
+      },
     });
-    expect(consumeFailure.close).toHaveBeenCalledOnce();
 
-    const createFailure = operations({ createFailure: true });
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+    const createFailure =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         KEY,
         signedHandoff(),
-        createFailure.dependencies,
-      ),
-    ).rejects.toMatchObject({
-      phase: "plan-composition",
-      publication_may_have_occurred: false,
-      stage_or_lease_may_remain: true,
+        "create-plan-failure",
+      );
+    expect(createFailure).toMatchObject({
+      status: "STOP",
+      events: ["authorize", "consume", "create-plan"],
+      failure: {
+        phase: "plan-composition",
+        publication_may_have_occurred: false,
+        stage_or_lease_may_remain: true,
+      },
     });
-    expect(createFailure.close).not.toHaveBeenCalled();
-    expect(createFailure.discardPlan).not.toHaveBeenCalled();
 
-    const postflightFailure = operations({ postflightFailure: true });
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+    const postflightFailure =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         KEY,
         signedHandoff(),
-        postflightFailure.dependencies,
-      ),
-    ).rejects.toMatchObject({
-      phase: "training-consumer",
-      publication_may_have_occurred: false,
-      stage_or_lease_may_remain: false,
+        "postflight-failure",
+      );
+    expect(postflightFailure).toMatchObject({
+      status: "STOP",
+      events: ["authorize", "consume", "create-plan", "discard"],
+      failure: {
+        phase: "training-consumer",
+        publication_may_have_occurred: false,
+        stage_or_lease_may_remain: false,
+      },
     });
-    expect(postflightFailure.events).toEqual([
-      "authorize",
-      "consume",
-      "create-plan",
-      "discard",
-    ]);
-    expect(postflightFailure.discardPlan).toHaveBeenCalledOnce();
-    expect(postflightFailure.close).not.toHaveBeenCalled();
 
-    const badResult = operations({ resultWorkSha256: "9".repeat(64) });
-    await expect(
-      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+    const badResult =
+      await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
         KEY,
         signedHandoff(),
-        badResult.dependencies,
-      ),
-    ).rejects.toMatchObject({
-      phase: "receipt",
-      publication_may_have_occurred: true,
+        "receipt-work-mismatch",
+      );
+    expect(badResult).toMatchObject({
+      status: "STOP",
+      events: ["authorize", "consume", "create-plan", "finalize"],
+      failure: {
+        phase: "receipt",
+        publication_may_have_occurred: true,
+      },
     });
-    expect(badResult.discardPlan).not.toHaveBeenCalled();
-    expect(badResult.close).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["authorize-failure", ["authorize"], "stage-authorization", false, false],
+    [
+      "handoff-revalidation-before-plan",
+      ["authorize", "consume", "close"],
+      "plan-composition",
+      false,
+      false,
+    ],
+    [
+      "consume-and-close-failure",
+      ["authorize", "consume", "close"],
+      "cleanup",
+      false,
+      true,
+    ],
+    [
+      "postflight-and-discard-failure",
+      ["authorize", "consume", "create-plan", "discard"],
+      "cleanup",
+      false,
+      true,
+    ],
+    [
+      "finalize-failure",
+      ["authorize", "consume", "create-plan", "finalize"],
+      "finalization",
+      true,
+      true,
+    ],
+  ] as const)(
+    "keeps fixed in-memory failure scenario %s conservative",
+    async (
+      scenario,
+      events,
+      phase,
+      publicationMayHaveOccurred,
+      stageOrLeaseMayRemain,
+    ) => {
+      const outcome =
+        await runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests(
+          KEY,
+          signedHandoff(),
+          scenario,
+        );
+      expect(outcome).toMatchObject({
+        status: "STOP",
+        events,
+        failure: {
+          phase,
+          publication_may_have_occurred: publicationMayHaveOccurred,
+          stage_or_lease_may_remain: stageOrLeaseMayRemain,
+        },
+      });
+    },
+  );
+
+  it("rejects executable dependency injection before any production-shaped callback can run", async () => {
+    const forbiddenDependencies = Object.freeze({
+      authorizeStage: vi.fn(() => {
+        throw new Error("must not authorize");
+      }),
+      consumeRowsAndPostflight: vi.fn(() => {
+        throw new Error("must not consume");
+      }),
+      createPlan: vi.fn(() => {
+        throw new Error("must not create a plan");
+      }),
+      discardPlan: vi.fn(() => {
+        throw new Error("must not discard a plan");
+      }),
+      finalize: vi.fn(() => {
+        throw new Error("must not finalize");
+      }),
+    });
+    const outcome = await Reflect.apply(
+      runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCoreForTests,
+      null,
+      [KEY, signedHandoff(), forbiddenDependencies],
+    );
+    expect(outcome).toMatchObject({
+      status: "STOP",
+      events: [],
+      failure: {
+        phase: "capture",
+        publication_may_have_occurred: false,
+        stage_or_lease_may_remain: false,
+      },
+    });
+    for (const operation of Object.values(forbiddenDependencies)) {
+      expect(operation).not.toHaveBeenCalled();
+    }
   });
 
   it("durably rejects the same authenticated handoff in a fresh process", async () => {
@@ -791,6 +725,11 @@ describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
     expect(source).toContain("finalizeAndPublishFloodgateV7TrainingLabels");
     expect(source).toContain("fs.constants.O_EXCL");
     expect(source).toContain('process.platform !== "darwin"');
+    expect(source).toContain("mintOperationalFinalizerGrant()");
+    expect(source).toContain("fixed-in-memory-local-finalizer-test-scenario");
+    expect(source).not.toContain(
+      "export interface FloodgateV7LocalCleanRoomTrainingLabelFinalizerDependencies",
+    );
     expect(source).not.toContain("operationalHandoffMacs");
     expect(source).not.toMatch(
       /from ["'][^"']*(?:aws|firebase|vercel|network|train\.py)/i,

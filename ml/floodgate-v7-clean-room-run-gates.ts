@@ -485,8 +485,13 @@ function captureDependencies(
   });
 }
 
+type FloodgateV7CleanRoomLocalCheckpointKeyBoundary =
+  | "test-only-nondeployment-key"
+  | "fixed-local-deployment-key";
+
 function captureLocalDependencies(
   value: FloodgateV7CleanRoomLocalRunGateDependencies,
+  checkpointKeyBoundary: FloodgateV7CleanRoomLocalCheckpointKeyBoundary,
 ): Readonly<CapturedLocalDependencies> {
   if (!isPlainNonProxyObject(value) || !objectIsFrozen(value)) {
     throw new Error("local dependencies differ");
@@ -545,9 +550,14 @@ function captureLocalDependencies(
     value,
     "finalizeSealedChainHandoff",
   );
+  if (!regexMatches(SAFE_KEY_ID, expectedCheckpointKeyId)) {
+    throw new Error("local checkpoint key id differs");
+  }
   if (
-    !regexMatches(SAFE_KEY_ID, expectedCheckpointKeyId) ||
-    expectedCheckpointKeyId === FLOODGATE_V7_DEPLOYMENT_KEY_ID
+    (checkpointKeyBoundary === "test-only-nondeployment-key" &&
+      expectedCheckpointKeyId === FLOODGATE_V7_DEPLOYMENT_KEY_ID) ||
+    (checkpointKeyBoundary === "fixed-local-deployment-key" &&
+      expectedCheckpointKeyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID)
   ) {
     throw new Error("local checkpoint key id differs");
   }
@@ -588,7 +598,21 @@ export function assertFloodgateV7CleanRoomLocalRunGateDependencies(
     throw new FloodgateV7CleanRoomRunGateError("capture", false);
   }
   try {
-    captureLocalDependencies(value);
+    captureLocalDependencies(value, "fixed-local-deployment-key");
+  } catch {
+    throw new FloodgateV7CleanRoomRunGateError("capture", false);
+  }
+}
+
+/** Validate the nondeployment local composition used only by test grants. */
+export function assertFloodgateV7CleanRoomLocalRunGateDependenciesCoreForTests(
+  value: FloodgateV7CleanRoomLocalRunGateDependencies,
+): void {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7CleanRoomRunGateError("capture", false);
+  }
+  try {
+    captureLocalDependencies(value, "test-only-nondeployment-key");
   } catch {
     throw new FloodgateV7CleanRoomRunGateError("capture", false);
   }
@@ -1304,7 +1328,10 @@ export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTest
   let dependencies: Readonly<CapturedLocalDependencies>;
   let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
   try {
-    dependencies = captureLocalDependencies(dependenciesValue);
+    dependencies = captureLocalDependencies(
+      dependenciesValue,
+      "test-only-nondeployment-key",
+    );
     plan = claimFloodgateV7CleanRoomPreparedRunGrantCoreForTests(grant);
   } catch {
     return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
@@ -1324,9 +1351,9 @@ export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTest
 
 /**
  * Consume the exact fixed-preparation local grant. Unlike the source/test
- * route above, this accepts only a non-production key id and an exact local
- * receipt brand. It still has no production authority or external service
- * dependency.
+ * route above, this accepts only the fixed current-user deployment key id and
+ * its exact local receipt brand. The key remains a Mac-local filesystem
+ * authority; this route has no external service or cloud dependency.
  */
 export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrant(
   grant: Readonly<FloodgateV7CleanRoomPreparedLocalRunGrant>,
@@ -1338,7 +1365,10 @@ export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrant(
   let dependencies: Readonly<CapturedLocalDependencies>;
   let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
   try {
-    dependencies = captureLocalDependencies(dependenciesValue);
+    dependencies = captureLocalDependencies(
+      dependenciesValue,
+      "fixed-local-deployment-key",
+    );
     plan = claimFloodgateV7CleanRoomPreparedLocalRunGrant(grant);
     if (
       !isPlainNonProxyObject(plan) ||

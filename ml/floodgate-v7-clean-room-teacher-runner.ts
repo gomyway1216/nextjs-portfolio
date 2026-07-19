@@ -46,6 +46,7 @@ import {
 import {
   FloodgateV7CleanRoomRunGateError,
   assertFloodgateV7CleanRoomLocalRunGateDependencies,
+  assertFloodgateV7CleanRoomLocalRunGateDependenciesCoreForTests,
   assertFloodgateV7CleanRoomRunGateDependenciesCoreForTests,
   runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrant,
   runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTests,
@@ -1645,7 +1646,9 @@ export function runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
   }
   let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
   try {
-    assertFloodgateV7CleanRoomLocalRunGateDependencies(dependenciesValue);
+    assertFloodgateV7CleanRoomLocalRunGateDependenciesCoreForTests(
+      dependenciesValue,
+    );
     plan = lookupPreparedPlan(capability, testPreparedPlans);
     consumePreparedPlan(capability, testPreparedPlans);
   } catch {

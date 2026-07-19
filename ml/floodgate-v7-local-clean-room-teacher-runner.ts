@@ -902,6 +902,71 @@ function completionPayload(
   });
 }
 
+async function withLocalCheckpointLeaseOwnership<T>(
+  closeUntransferredLease: () => Promise<void>,
+  operation: (
+    transferOwnershipToCheckpoint: () => void,
+  ) => Promise<T>,
+): Promise<T> {
+  let checkpointOwnsLease = false;
+  const transferOwnershipToCheckpoint = (): void => {
+    if (checkpointOwnsLease) {
+      throw new Error("local checkpoint lease ownership transferred twice");
+    }
+    checkpointOwnsLease = true;
+  };
+  try {
+    return await operation(transferOwnershipToCheckpoint);
+  } catch (error) {
+    if (!checkpointOwnsLease) {
+      try {
+        await closeUntransferredLease();
+      } catch (closeError) {
+        throw new AggregateError(
+          [error, closeError],
+          "local checkpoint preparation and stage cleanup failed",
+        );
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Dynamic test seam for the exact lease-transfer helper used by the real
+ * local runner. It exposes no stage, row, key, checkpoint, or path authority.
+ */
+export function runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+  closeUntransferredLease: () => Promise<void>,
+  prepareCheckpointKey: () => Promise<void>,
+  invokeCheckpoint: () => Promise<void>,
+): Promise<void> {
+  if (
+    arguments.length !== 3 ||
+    typeof closeUntransferredLease !== "function" ||
+    typeof prepareCheckpointKey !== "function" ||
+    typeof invokeCheckpoint !== "function" ||
+    nodeUtilTypes.isProxy(closeUntransferredLease) ||
+    nodeUtilTypes.isProxy(prepareCheckpointKey) ||
+    nodeUtilTypes.isProxy(invokeCheckpoint) ||
+    closeUntransferredLease.length !== 0 ||
+    prepareCheckpointKey.length !== 0 ||
+    invokeCheckpoint.length !== 0
+  ) {
+    return Promise.reject(
+      new Error("local checkpoint lease test operations differ"),
+    );
+  }
+  return withLocalCheckpointLeaseOwnership(
+    closeUntransferredLease,
+    async (transferOwnershipToCheckpoint): Promise<void> => {
+      await prepareCheckpointKey();
+      transferOwnershipToCheckpoint();
+      await invokeCheckpoint();
+    },
+  );
+}
+
 function createLocalGateSession(): Readonly<LocalGateSession> {
   if (typeof process.geteuid !== "function") {
     throw new FloodgateV7LocalCleanRoomTeacherRunnerError(
@@ -1026,51 +1091,41 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     const lease = await authorizeFloodgateTeacherStage(
       stageAuthorization(fixed),
     );
-    let checkpointInvoked = false;
     let receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
-    try {
-      await withVerifiedPinnedFloodgateTrainingRows(
-        consumerOptions(fixed),
-        async (
-          input: Readonly<AuthenticatedFloodgateTrainingRows>,
-        ): Promise<void> => {
-          checkpointInvoked = true;
-          const checkpointOptions = Object.freeze({
-            gate: claim.gate,
-            runId: claim.runId,
-            keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-          });
-          const authorization =
-            await prepareFloodgateV7DeploymentTeacherCheckpointV3Key(
-              Object.freeze({
-                ...checkpointOptions,
-                runBinding: exactRunBinding,
-                stageAuthorizationReceipt: lease.receipt,
-              }),
+    await withLocalCheckpointLeaseOwnership(
+      () => lease.close(),
+      async (transferOwnershipToCheckpoint): Promise<void> => {
+        await withVerifiedPinnedFloodgateTrainingRows(
+          consumerOptions(fixed),
+          async (
+            input: Readonly<AuthenticatedFloodgateTrainingRows>,
+          ): Promise<void> => {
+            const checkpointOptions = Object.freeze({
+              gate: claim.gate,
+              runId: claim.runId,
+              keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+            });
+            const authorization =
+              await prepareFloodgateV7DeploymentTeacherCheckpointV3Key(
+                Object.freeze({
+                  ...checkpointOptions,
+                  runBinding: exactRunBinding,
+                  stageAuthorizationReceipt: lease.receipt,
+                }),
+              );
+            transferOwnershipToCheckpoint();
+            receipt = await checkpointFloodgateV7TeacherParentsV3(
+              lease,
+              input,
+              exactRunBinding,
+              claim.producerController,
+              checkpointOptions,
+              authorization,
             );
-          receipt = await checkpointFloodgateV7TeacherParentsV3(
-            lease,
-            input,
-            exactRunBinding,
-            claim.producerController,
-            checkpointOptions,
-            authorization,
-          );
-        },
-      );
-    } catch (error) {
-      if (!checkpointInvoked) {
-        try {
-          await lease.close();
-        } catch {
-          throw new AggregateError(
-            [error],
-            "local input verification and stage cleanup failed",
-          );
-        }
-      }
-      throw error;
-    }
+          },
+        );
+      },
+    );
     if (receipt === undefined) {
       throw new Error("local checkpoint completed without a receipt");
     }

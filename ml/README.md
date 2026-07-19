@@ -232,6 +232,11 @@ failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は通�
 `5fa4e179…`で統合し、checkpoint runtime-claim修正を含むPR #518の`main` `3bdf6d11…`も通常merge
 `df7118cd…`で統合した。どちらの統合もportable implementation / testのbytesを変えていない。
 PR #518統合前の拡張回帰は7 files / 107 / 107 PASS、統合後は同じ7 files / 113 / 113 PASSである。
+固定head `ce6f576c`の独立最終reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
+review thread unresolved 0。validation CI run `29686674413`はCoreとaggregateを含む
+PR check rollup 15 / 15 PASS、failure / pending 0、CLEAN / MERGEABLEだった。この事実を記録する
+最終evidence commit自身は自己SHAをpinせず、PR #517 metadata上のfinal-head CIが全required check
+成功、unresolved 0、mergeableになることをmerge前の最後の外部gateとする。
 詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
 [English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
 [machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。

@@ -179,6 +179,23 @@ Existing copy regression continues to cover symlinks, hard links, modes, single-
 
 PR #516 `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening, was first integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. Latest `main` `3bdf6d1127b86401ef08854737c700629a2d2ea7`, including PR #518’s checkpoint runtime-claim ordering fix, was then integrated through regular merge commit `df7118cd81aefa932f033399a96475ae6069d11b`. The latter integration also left the portable implementation and test paths and bytes unchanged. The README retains the observed second-run verification STOP, the dormant portable foundation, and the checkpoint runtime-claim fix sections. History was not rewritten.
 
+## Final review and validation CI
+
+The independent final rereview of fixed head `ce6f576c` found P0 / P1 / P2 /
+P3 = 0 / 0 / 0 / 0. GitHub review threads were one resolved and zero
+unresolved. CI validation run `29686674413` passed Core quality job
+`88192022566` in 325 seconds and passed aggregate job `88192494226`. Including
+security run `29686674457`, E2E, every scanner, the source-only contracts, and
+the Vercel web preview, the PR check rollup was 15 / 15 PASS with zero failures
+and zero pending checks. The PR was CLEAN and MERGEABLE.
+
+The machine evidence pins that successful run as `ci.validation_run`. The last
+commit now records only that fact in evidence, the bilingual articles, and the
+README, so it does not embed its own SHA recursively. Instead,
+`ci.final_head_ci` is verified from PR #517’s status-check rollup. The PR must
+not merge until the **final-head CI** also has every required check successful,
+zero unresolved threads, and a mergeable state.
+
 ## Were AWS, GCP, or Vercel used?
 
 No. The foundation and unit validation use only the local filesystem and CPU.

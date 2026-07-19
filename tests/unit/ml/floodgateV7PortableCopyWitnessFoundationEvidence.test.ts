@@ -95,7 +95,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     expect(record).toMatchObject({
       schema: "shogi-floodgate-v7-portable-copy-witness-foundation-evidence-v1",
       status:
-        "dormant-filesystem-foundation-local-validation-pass-ci-and-final-review-pending",
+        "dormant-filesystem-foundation-validation-run-and-final-review-pass-live-gates-closed",
       claim_boundary:
         "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
       source_base: {
@@ -282,6 +282,69 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
           idle_revocation_idempotent: true,
         },
       },
+      review: {
+        validated_head: "ce6f576c3345fc7176a9a50592737ceea64643e1",
+        independent_final_rereview: {
+          P0: 0,
+          P1: 0,
+          P2: 0,
+          P3: 0,
+          result: "PASS",
+          fixed_diff_seven_files: {
+            passed: 113,
+            failed: 0,
+          },
+          hostile_node_options_and_node_path_portable_tests: {
+            passed: 19,
+            failed: 0,
+          },
+        },
+        github_review_threads: {
+          total: 1,
+          resolved: 1,
+          unresolved: 0,
+        },
+        merge_blocking_findings: 0,
+      },
+      ci: {
+        validation_run: {
+          validated_head: "ce6f576c3345fc7176a9a50592737ceea64643e1",
+          workflow_run_id: 29686674413,
+          result: "PASS",
+          core_quality_and_build: {
+            job_id: 88192022566,
+            result: "PASS",
+            wall_seconds: 325,
+          },
+          aggregate_test_and_build: {
+            job_id: 88192494226,
+            result: "PASS",
+          },
+          security_audit: {
+            workflow_run_id: 29686674457,
+            job_id: 88192022674,
+            result: "PASS",
+          },
+          pull_request_check_rollup: {
+            passed: 15,
+            failed: 0,
+            pending: 0,
+            total: 15,
+          },
+          vercel_web_preview: "PASS",
+          github_review_threads_unresolved: 0,
+          pull_request_merge_state: "CLEAN",
+          pull_request_mergeable: "MERGEABLE",
+        },
+        final_head_ci: {
+          required_after_final_evidence_commit: true,
+          self_sha_pin_required: false,
+          verification_source:
+            "pull-request-517-status-check-rollup-after-the-final-evidence-only-head",
+          required_result_before_merge:
+            "all-required-checks-success-zero-unresolved-threads-and-mergeable",
+        },
+      },
     });
 
     const protocol = record.filesystem_protocol as {
@@ -344,6 +407,36 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     expect(
       git(["diff", "--name-only", previousMain, subsequent.head]).split("\n"),
     ).not.toContain(subsequent.failed_file);
+
+    const review = record.review as { validated_head: string };
+    const ci = record.ci as {
+      validation_run: {
+        validated_head: string;
+        pull_request_check_rollup: {
+          passed: number;
+          failed: number;
+          pending: number;
+          total: number;
+        };
+      };
+      final_head_ci: {
+        required_after_final_evidence_commit: boolean;
+        self_sha_pin_required: boolean;
+      };
+    };
+    expect(review.validated_head).toBe(ci.validation_run.validated_head);
+    expect(gitIsAncestor(ci.validation_run.validated_head, "HEAD")).toBe(true);
+    expect(
+      ci.validation_run.pull_request_check_rollup.passed +
+        ci.validation_run.pull_request_check_rollup.failed +
+        ci.validation_run.pull_request_check_rollup.pending,
+    ).toBe(ci.validation_run.pull_request_check_rollup.total);
+    expect(ci.final_head_ci).toEqual(
+      expect.objectContaining({
+        required_after_final_evidence_commit: true,
+        self_sha_pin_required: false,
+      }),
+    );
   });
 
   it("binds implementation commits, the regular main merge, and exact file identities", () => {
@@ -660,6 +753,11 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       "df7118cd",
       "bfcf9773",
       "unclassified",
+      "ce6f576c",
+      "29686674413",
+      "15 / 15",
+      "0 / 0 / 0 / 0",
+      "final-head CI",
       "89de568e",
       "57cb3142",
       "AWS",

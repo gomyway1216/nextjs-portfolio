@@ -160,6 +160,20 @@ symlink、hardlink、mode、single-link、source / destination inode alias、cop
 
 failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、先に通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。その後、checkpoint runtime-claim順序修正を含むPR #518の最新`main` `3bdf6d1127b86401ef08854737c700629a2d2ea7`を通常merge commit `df7118cd81aefa932f033399a96475ae6069d11b`で統合した。後者もportable implementation / testのpathとbytesを変えていない。READMEは、2回目のverification STOP、dormant portable foundation、checkpoint runtime-claim修正の各sectionをすべて保持している。履歴は書き換えていない。
 
+## 最終reviewとvalidation CI
+
+固定head `ce6f576c`の独立最終再reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
+GitHub review threadはresolved 1 / unresolved 0だった。同headのCI validation run
+`29686674413`はCore quality job `88192022566`を325秒でPASSし、aggregate job
+`88192494226`もPASSした。security run `29686674457`、E2E、全scanner、source-only
+contract、Vercel Web previewを含むPR check rollupは15 / 15 PASS、failure 0、pending 0で、
+PRはCLEAN / MERGEABLEだった。
+
+この成功runをmachine evidenceの`ci.validation_run`へ固定した。いま加えるのはその事実を記録する
+evidence / 日英記事 / READMEだけの最終commitであるため、そのcommit自身のSHAを同じcommitへ
+自己参照で埋め込まない。代わりに`ci.final_head_ci`はPR #517のstatus check rollupで確認し、
+**final-head CIも全required check成功、未解決thread 0、mergeableになるまでmergeしない**。
+
 ## AWS、GCP、Vercelは使ったか
 
 使っていない。この基盤とunit validationはローカルfilesystem / CPUだけで完結した。

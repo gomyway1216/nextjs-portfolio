@@ -477,7 +477,7 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
     ).rejects.toMatchObject({ operation: "composite" });
   });
 
-  it("bounds each shared-parent scan before reading an extra entry", async () => {
+  it("bounds each shared-parent scan before retaining an extra entry", async () => {
     const witnesses = await witnessesFor(await fixture(), 1);
     await expect(
       sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(witnesses),

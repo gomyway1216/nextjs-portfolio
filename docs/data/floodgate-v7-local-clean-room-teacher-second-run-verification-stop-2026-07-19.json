@@ -158,6 +158,31 @@
       "real_teacher_invocations": 0,
       "training_runs": 0,
       "live_weight_changes": 0
+    },
+    "postmerge_intrinsic_hardening": {
+      "merged_pull_request": 515,
+      "merged_revision": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+      "independent_review_finding": "P2-mutable-array-prototype-includes-could-bypass-failure-kind-redaction",
+      "finding_counts_before_remediation": {
+        "p0": 0,
+        "p1": 0,
+        "p2": 1,
+        "p3": 0
+      },
+      "hardening_revision": "52145c9f4b7f3ef434db3cfc7d52755e32f11ca5",
+      "hardening_tree": "3a8893491eff145849d50752be76cebeefc8cea2",
+      "hardening_parent": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+      "string_type_gate_before_allowlist": true,
+      "captured_intrinsics": ["Array.prototype.includes", "Reflect.apply"],
+      "prototype_poisoning_regressions": {
+        "error_boundaries": 2,
+        "focused_test_files": 2,
+        "focused_tests_passed": 28,
+        "private_value_disclosed": false
+      },
+      "real_teacher_invocations": 0,
+      "training_runs": 0,
+      "live_weight_changes": 0
     }
   },
   "latest_main_integration": {

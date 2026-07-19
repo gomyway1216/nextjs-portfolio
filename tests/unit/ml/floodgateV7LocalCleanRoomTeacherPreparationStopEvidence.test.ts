@@ -122,6 +122,10 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
       followup_failure_kind_review_revision: string;
       followup_failure_kind_review_tree: string;
       followup_failure_kind_review_parent: string;
+      failure_kind_pull_request_merge_revision: string;
+      postmerge_intrinsic_hardening_revision: string;
+      postmerge_intrinsic_hardening_tree: string;
+      postmerge_intrinsic_hardening_parent: string;
     };
     expect(revision).toEqual(
       expect.objectContaining({
@@ -163,6 +167,16 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
           "e12d862c2c076db3f24c867cb455922bc83c544c",
         source_pins_refreshed_after_followup_review: true,
         real_teacher_invocation_during_followup_review: false,
+        failure_kind_pull_request_merge_revision:
+          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+        postmerge_intrinsic_hardening_revision:
+          "52145c9f4b7f3ef434db3cfc7d52755e32f11ca5",
+        postmerge_intrinsic_hardening_tree:
+          "3a8893491eff145849d50752be76cebeefc8cea2",
+        postmerge_intrinsic_hardening_parent:
+          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+        source_pins_refreshed_after_intrinsic_hardening: true,
+        real_teacher_invocation_during_intrinsic_hardening: false,
       }),
     );
     expect(
@@ -200,6 +214,38 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
         revision.followup_failure_kind_review_revision,
       ]),
     ).toBe(revision.followup_failure_kind_review_parent);
+    expect(
+      git([
+        "merge-base",
+        "--is-ancestor",
+        revision.failure_kind_pull_request_merge_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
+    expect(
+      git([
+        "merge-base",
+        "--is-ancestor",
+        revision.postmerge_intrinsic_hardening_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
+    expect(
+      git([
+        "show",
+        "-s",
+        "--format=%T",
+        revision.postmerge_intrinsic_hardening_revision,
+      ]),
+    ).toBe(revision.postmerge_intrinsic_hardening_tree);
+    expect(
+      git([
+        "show",
+        "-s",
+        "--format=%P",
+        revision.postmerge_intrinsic_hardening_revision,
+      ]),
+    ).toBe(revision.postmerge_intrinsic_hardening_parent);
 
     const pins = record.source_pins as PinnedFile[];
     expect(pins.map((entry) => entry.path)).toEqual([

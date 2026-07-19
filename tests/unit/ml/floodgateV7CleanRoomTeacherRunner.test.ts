@@ -559,6 +559,49 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     }
   });
 
+  it("keeps private failure values redacted after intrinsic prototype poisoning", () => {
+    const arrayIncludesDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "includes",
+    );
+    const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(
+      Reflect,
+      "apply",
+    );
+    if (
+      arrayIncludesDescriptor === undefined ||
+      reflectApplyDescriptor === undefined
+    ) {
+      throw new Error("intrinsic descriptors are required");
+    }
+    const secret = "/private/teacher/secret-key";
+    let failure!: FloodgateV7CleanRoomTeacherPreparationError;
+    try {
+      Object.defineProperty(Array.prototype, "includes", {
+        ...arrayIncludesDescriptor,
+        value: () => true,
+      });
+      Object.defineProperty(Reflect, "apply", {
+        ...reflectApplyDescriptor,
+        value: () => true,
+      });
+      failure = new FloodgateV7CleanRoomTeacherPreparationError(
+        "verification",
+        true,
+        secret,
+      );
+    } finally {
+      Object.defineProperty(
+        Array.prototype,
+        "includes",
+        arrayIncludesDescriptor,
+      );
+      Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+    }
+    expect(failure.failure_kind).toBe("phase-level");
+    expect(JSON.stringify(failure)).not.toContain(secret);
+  });
+
   it("drains a pending verifier when the second verifier throws synchronously", async () => {
     const value = await fixture();
     const base = successfulDependencies([]);

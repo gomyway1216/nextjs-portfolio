@@ -98,6 +98,18 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
         "dormant-filesystem-foundation-local-validation-pass-ci-and-final-review-pending",
       claim_boundary:
         "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
+      source_base: {
+        latest_origin_main_integrated:
+          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+        latest_main_pull_request: 515,
+        integration_method: "regular-merge-commit",
+        integration_commit: "9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29",
+        integration_tree: "74effa061e3573f20a50f288ddfe238d137151e1",
+        integration_parents: [
+          "5b0960912a6d5ec0589d6a85708437149bccd40d",
+          "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+        ],
+      },
       implementation: {
         existing_public_copy_receipt_changed: false,
         existing_public_copy_acceptance_changed: false,
@@ -170,6 +182,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       integration_commit: string;
       integration_tree: string;
       integration_parents: string[];
+      portable_implementation_and_test_paths_unchanged_by_latest_integration: boolean;
+      readme_preserves_second_run_stop_and_portable_foundation_sections: boolean;
       history_rewritten: boolean;
     };
     const implementation = record.implementation as {
@@ -182,6 +196,12 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     };
 
     expect(sourceBase.history_rewritten).toBe(false);
+    expect(
+      sourceBase.portable_implementation_and_test_paths_unchanged_by_latest_integration,
+    ).toBe(true);
+    expect(
+      sourceBase.readme_preserves_second_run_stop_and_portable_foundation_sections,
+    ).toBe(true);
     expect(
       git(["show", "-s", "--format=%T", sourceBase.integration_commit]),
     ).toBe(sourceBase.integration_tree);
@@ -206,8 +226,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     }
     expect(
       gitIsAncestor(
-        sourceBase.integration_commit,
         implementation.validated_source_revision,
+        sourceBase.integration_commit,
       ),
     ).toBe(true);
 
@@ -334,6 +354,12 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       combined: { passed: 29, failed: 0, wall_seconds: 1.42 },
       evidence_tests: { passed: 4, failed: 0 },
       related_total: { passed: 33, failed: 0, wall_seconds: 1.19 },
+      expanded_runner_regression: {
+        test_files: 7,
+        passed: 102,
+        failed: 0,
+        wall_seconds: 1.53,
+      },
       scoped_eslint: "PASS",
       prettier: "PASS",
       git_diff_check: "PASS",

@@ -98,6 +98,7 @@ Node v22.13.0で次を確認した。
 - 合計: 29 / 29 PASS、1.42秒
 - evidence pin test: 4 / 4 PASS
 - 関連3 file合計: 33 / 33 PASS、1.19秒
+- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、102 / 102 PASS、1.53秒
 - scoped ESLint: PASS
 - Prettier: PASS
 - `git diff --check`: PASS
@@ -106,6 +107,8 @@ Node v22.13.0で次を確認した。
 敵対ケースには、sourceのbyte変更、tree root / standalone fileのdelete-recreate同一byte、destinationのbyte変更、root inode swap同一byte、extra / missing entry、shared-parent sibling追加、fake / clone / replay、cross-kind、wrong / overlap destination、kind欠落 / 重複、production / test cross-token、callback `length` getter、thenable getter内のdestination変更、同期 / 非同期callback失敗、同時borrow、idle / active revokeを含めた。
 
 symlink、hardlink、mode、single-link、source / destination inode alias、copy descriptor close failureは既存copy regressionでも引き続き検証している。
+
+PR #515を含む最新`main` `5f2569dcf730e709ab36346c559d210fa6a63bf1`は、通常merge commit `9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29`で統合した。portable implementation / testのpathとbytesは変わっていない。README conflictは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持して解決した。履歴は書き換えていない。
 
 ## AWS、GCP、Vercelは使ったか
 

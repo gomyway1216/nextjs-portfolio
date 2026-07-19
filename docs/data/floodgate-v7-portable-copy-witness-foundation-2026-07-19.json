@@ -5,15 +5,18 @@
   "claim_boundary": "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
   "source_base": {
     "initial_origin_main": "00f255a62e01ea5a980ada987682c994e76dd1f9",
-    "latest_origin_main_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
-    "latest_main_pull_request": 514,
+    "previous_origin_main_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+    "latest_origin_main_integrated": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "latest_main_pull_request": 515,
     "integration_method": "regular-merge-commit",
-    "integration_commit": "a687a8709bde76f449f38e97de94d86f9f638625",
-    "integration_tree": "b6a2be82409de9453b9c1310971a0e72168ba766",
+    "integration_commit": "9bff1cf69f7edc1c7ae6977f40e6252d9caa6d29",
+    "integration_tree": "74effa061e3573f20a50f288ddfe238d137151e1",
     "integration_parents": [
-      "da311b3541588745d836624a07aa62ec3b0497f6",
-      "9dc5755a70382af544c0f89230e33b0aaae35f2f"
+      "5b0960912a6d5ec0589d6a85708437149bccd40d",
+      "5f2569dcf730e709ab36346c559d210fa6a63bf1"
     ],
+    "portable_implementation_and_test_paths_unchanged_by_latest_integration": true,
+    "readme_preserves_second_run_stop_and_portable_foundation_sections": true,
     "history_rewritten": false
   },
   "implementation": {
@@ -218,6 +221,12 @@
       "passed": 33,
       "failed": 0,
       "wall_seconds": 1.19
+    },
+    "expanded_runner_regression": {
+      "test_files": 7,
+      "passed": 102,
+      "failed": 0,
+      "wall_seconds": 1.53
     },
     "scoped_eslint": "PASS",
     "prettier": "PASS",

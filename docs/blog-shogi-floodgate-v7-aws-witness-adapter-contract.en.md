@@ -2,7 +2,7 @@
 
 > This change candidate freezes the DynamoDB and KMS requests, responses, and failure rules needed to connect the durable remote witness to AWS. It is an isolated Swift package containing pure data contracts. There is no AWS SDK, credential access, network transport, Lambda, IaC, real resource, or production entrypoint. The operational decision remains **UNAVAILABLE / STOP**; teacher execution, training, and live weights remain unchanged. Japanese version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.md)
 
-> **Publication status: LOCAL PASS; REVIEW REMEDIATION APPLIED; PR #508 REREVIEW / CI RERUN PENDING.** Local debug and release Swift tests are 22 / 22, repository compatibility is 9 / 9, and the boundary checker passes. Independent rereview of the original pinned implementation and publication snapshot found zero P0, P1, or P2 issues. Two later findings from PR review and Swift 6.3.2 CI have now been remediated, so the new exact head has no production authority until rereview and every check pass.
+> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR #508 CI RERUN PENDING.** Local debug and release Swift tests are 22 / 22, repository / publication compatibility is 15 / 15, and the boundary checker passes. Independent rereview exercised the remediated exact implementation with more than 3.35 million inputs and real Swift 5.10 / 6.3.2 payloads; final P0 / P1 / P2 counts are 0 / 0 / 0. The new exact PR head still has no production authority until every check passes.
 
 ## 1. Conclusion
 
@@ -37,7 +37,7 @@ The boundary checker fail-closes the package graph, source and test inventories,
 
 An earlier evidence test overreached by requiring exactly one upload-artifact action in the entire CI workflow while attempting to protect the external trust-root job. That rejected the legitimate artifact upload in this independent job. The gate now counts within the protected job. That job still requires exactly one upload, the exact action version and paths, `if: always()`, and `if-no-files-found: error`.
 
-In PR #508's first CI run, `29670280886`, the Swift tests themselves passed, but a boundary checker calibrated only to Swift 5.10 `dump-package` metadata misclassified Swift 6.3.2's valid default trait `[{ "name": "default" }]` as identity or path drift. We differentially checked real output from the official Swift 6.3.2 toolchain against local 5.10 output. The checker now accepts only the known exact three-key and four-key forms; aliases, empty or unknown traits, unknown keys, and identity or path drift still stop. The symbol-graph upload failure was cascading: the early package-graph exit occurred before graph generation, rather than exposing a separate source failure.
+In PR #508's first CI run, `29670280886`, the Swift tests themselves passed, but a boundary checker calibrated only to Swift 5.10 `dump-package` metadata misclassified Swift 6.3.2's valid default trait `[{ "name": "default" }]` as identity or path drift. We differentially checked real output from the official Swift 6.3.2 toolchain against local 5.10 output. The checker now accepts only the known exact three-key and four-key forms. Independent rereview also closed a P2 path-alias allowance: trailing slash, `..`, duplicate slash, relative path, symlink, NUL, and every string other than the exact canonical absolute path now stop. All 86 malformed schema and path cases rejected with zero raises. The symbol-graph upload failure was cascading: the early package-graph exit occurred before graph generation, rather than exposing a separate source failure.
 
 ## 3. Binding restore generation to `TableARN` and `TableId`
 
@@ -103,14 +103,15 @@ A returning SDK call is not automatically success. Existing service-core logic r
 
 Local validation used Xcode 15.3 / Swift 5.10 on arm64 macOS. The SwiftPM schema differential also ran the same `Package.swift` through the official Swift 6.3.2 toolchain and inspected its real output.
 
-The original Ed25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`, with tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`, has passed independent exact rereview. The post-review implementation revision is `2fcc0d29fb756db50d5042dacf7f64562d091173`, with tree `29de147b75318768c611dbbc84939c0f8154be81`; it includes safe multibyte operation-key rejection and the exact Swift 5.10 / 6.3.2 dual-schema boundary. Independent rereview and the PR CI rerun for this new snapshot remain pending.
+The original Ed25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`, with tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`, has passed independent exact rereview. The post-review implementation revision is `8dbdb680988241c1902d3bcd21a36b062aa3f890`, with tree `db112752e1a91c779a4492a4fcac724b50ca4c20`; it includes safe multibyte operation-key rejection, the exact Swift 5.10 / 6.3.2 dual-schema boundary, and path-alias rejection. Independent exact rereview of this snapshot passes with **0 / 0 / 0** P0, P1, and P2 findings. Only the PR CI rerun remains.
 
 Independent rereview covered publication revision `f332bdc8774593323ec91d567e01ca86a72ef097` (tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`) and found **0 / 0 / 0** P0, P1, and P2 issues. The remaining publication-only follow-up records that verdict and the differential measurements above; it does not change the implementation.
 
 - new package tests: **debug 22 / 22 and release 22 / 22 PASS** (4.75 / 4.10 seconds wall time)
 - independent Ed25519 differential review: **4,810 unique encodings / 0 mismatches / 0 crashes / zero P0, P1, or P2 findings** (debug 43.816 seconds; release 1.727 seconds)
-- real SwiftPM payload differential: **PASS on Swift 5.10 and 6.3.2**; unknown schema mutations stop
-- repository compatibility: **2 files / 9 tests PASS**
+- operation-key adversarial review: **3,353,124 cases / zero failures or crashes**
+- real SwiftPM payload differential: **PASS on Swift 5.10 and 6.3.2**; all 86 malformed schema and path cases reject
+- repository / publication compatibility: **3 files / 15 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
 - package products / external dependencies / production consumers: **0 / 0 / 0**
@@ -118,6 +119,8 @@ Independent rereview covered publication revision `f332bdc8774593323ec91d567e01c
 - preserved service-core fingerprints: **4 / 4 exact**
 - main `b8625cee` post-merge CI run `29666132754` and security run `29666132781`: **5 / 5 jobs and 59 / 59 reported steps PASS**
 - PR #508 first run `29670280886`: AWS job **failed on schema calibration**, now remediated locally and awaiting rerun
+- full Vitest: **189 files / 3,277 PASS / 1 skipped / 0 failures**
+- ML stdlib: **138 / 138 PASS**, production build PASS, lint errors 0 (157 pre-existing warnings)
 - AWS resources / network calls / credential reads: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live changes: **0 / 0 / 0 / 0 / 0**
 

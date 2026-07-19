@@ -2,7 +2,7 @@
 
 > この変更候補は、durable remote witnessをAWSへ接続するときに必要なDynamoDB / KMSの要求・応答・失敗条件を、別Swift packageの純粋データ契約として固定した。AWS SDK、認証情報、network、Lambda、IaC、実resource、production entrypointは一切ない。本番判断は引き続き **UNAVAILABLE / STOP**、teacher・training・live weightsも不変である。English version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md)
 
-> **Publication status: LOCAL PASS; REVIEW REMEDIATION APPLIED; PR #508 REREVIEW / CI RERUN PENDING.** localのdebug / releaseはSwift 22 / 22、repository互換9 / 9、boundary checkerがPASSした。元の固定implementation / publication snapshotの独立再reviewはP0 / P1 / P2すべて0だったが、その後のPR reviewとSwift 6.3.2 CIで2件を修正したため、新しいexact headの再reviewと全checkが終わるまで本番authorityはない。
+> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR #508 CI RERUN PENDING.** localのdebug / releaseはSwift 22 / 22、repository / publication互換15 / 15、boundary checkerがPASSした。review修正後のexact implementationを335万件超の入力とSwift 5.10 / 6.3.2実payloadで独立再reviewし、最終P0 / P1 / P2は0 / 0 / 0だった。ただし新しいPR headの全checkが終わるまで本番authorityはない。
 
 ## 1. 結論
 
@@ -37,7 +37,7 @@ boundary checkerは、package graph、source / test inventory、import allowlist
 
 過去のevidence testには、external trust-root jobを守るために「workflow全体のupload-artifactは1個だけ」と数える過剰な制約があった。新しい独立jobを追加すると正当なartifact uploadまで拒否したため、厳密性の単位をworkflow全体から対象jobへ修正した。対象job内は今もexact 1件、exact action version、exact path、`if: always()`、`if-no-files-found: error`を要求する。
 
-PR #508の初回CI run `29670280886`ではSwift tests自体は通ったが、Swift 5.10の`dump-package`だけを許していたboundary checkerが、Swift 6.3.2の正当な既定trait `[{ "name": "default" }]`をidentity / path driftと誤判定した。公式Swift 6.3.2 toolchainの実出力とlocal 5.10実出力を差分確認し、現在は既知のexact 3-key / 4-key形式だけを許す。alias、空・未知trait、未知key、identity / path driftは引き続きSTOPする。symbol graph upload失敗は、最初のpackage graph検査で終了してgraph生成へ到達しなかった連鎖失敗であり、独立したsource failureではなかった。
+PR #508の初回CI run `29670280886`ではSwift tests自体は通ったが、Swift 5.10の`dump-package`だけを許していたboundary checkerが、Swift 6.3.2の正当な既定trait `[{ "name": "default" }]`をidentity / path driftと誤判定した。公式Swift 6.3.2 toolchainの実出力とlocal 5.10実出力を差分確認し、現在は既知のexact 3-key / 4-key形式だけを許す。独立再reviewで見つかったP2のpath alias許容も閉じ、trailing slash、`..`、二重slash、relative path、symlink、NULを含めて、canonical absolute pathの文字列完全一致以外はSTOPする。86個のmalformed schema / pathは全拒否、例外0だった。symbol graph upload失敗は、最初のpackage graph検査で終了してgraph生成へ到達しなかった連鎖失敗であり、独立したsource failureではなかった。
 
 ## 3. `TableARN`と`TableId`でrestore generationを分ける
 
@@ -103,14 +103,15 @@ provider結果は次へ保守的に写像する。
 
 local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。SwiftPM schema差分だけは、公式Swift 6.3.2 toolchainで同じ`Package.swift`を実行して実出力を照合した。
 
-元のEd25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`（tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`）は独立exact rereview済みである。PR review後の新しいimplementation revisionは`2fcc0d29fb756db50d5042dacf7f64562d091173`（tree `29de147b75318768c611dbbc84939c0f8154be81`）で、multibyte operation keyの安全停止とSwift 5.10 / 6.3.2 dual-schema boundaryを含む。この新snapshotの独立再reviewとPR CI rerunは未完了である。
+元のEd25519 implementation revision `ed3932f6ec9818340144abf7949545ed292b1261`（tree `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`）は独立exact rereview済みである。PR review後の新しいimplementation revisionは`8dbdb680988241c1902d3bcd21a36b062aa3f890`（tree `db112752e1a91c779a4492a4fcac724b50ca4c20`）で、multibyte operation keyの安全停止、Swift 5.10 / 6.3.2 dual-schema boundary、path alias拒否を含む。このexact snapshotの独立再reviewはP0 / P1 / P2 **0 / 0 / 0**でPASSし、残りはPR CI rerunである。
 
 独立再reviewはpublication revision `f332bdc8774593323ec91d567e01ca86a72ef097`（tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`）まで確認し、P0 / P1 / P2は**0 / 0 / 0**だった。残るpublication follow-upは上のreview結果とdifferential実測を記録するだけで、実装差分はない。
 
 - 新package tests: **debug 22 / 22、release 22 / 22 PASS**（wall 4.75秒 / 4.10秒）
 - Ed25519独立differential review: **4,810 unique encoding / mismatch 0 / crash 0 / P0・P1・P2すべて0**（debug 43.816秒、release 1.727秒）
-- SwiftPM実payload差分: **Swift 5.10 / 6.3.2ともPASS**、未知schema mutationはSTOP
-- repository compatibility: **2 files / 9 tests PASS**
+- operation key adversarial: **3,353,124 case / failure・crash 0**
+- SwiftPM実payload差分: **Swift 5.10 / 6.3.2ともPASS**、86 malformed schema / pathを全拒否
+- repository / publication compatibility: **3 files / 15 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
 - package products / external dependencies / production consumers: **0 / 0 / 0**
@@ -118,6 +119,8 @@ local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。SwiftPM schema差�
 - 既存service core fingerprint: **4 / 4 exact**
 - main `b8625cee` post-merge CI run `29666132754`とsecurity run `29666132781`: **5 / 5 job、59 / 59工程PASS**
 - PR #508初回run `29670280886`: AWS jobは**schema calibrationでFAIL**、修正済み・rerun待ち
+- 全Vitest: **189 files / 3,277 PASS / 1 skip / 0 failure**
+- ML stdlib: **138 / 138 PASS**、production build PASS、lint error 0（既存warning 157）
 - AWS resource / network call / credential read: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live change: **0 / 0 / 0 / 0 / 0**
 

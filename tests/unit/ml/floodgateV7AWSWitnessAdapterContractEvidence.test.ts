@@ -45,19 +45,22 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
       evidence_date: "2026-07-18",
       evidence_timezone: "America/Los_Angeles",
       publication_state: {
-        status: "LOCAL-PASS-REVIEW-REMEDIATED-REREVIEW-AND-CI-RERUN-PENDING",
+        status: "LOCAL-PASS-EXACT-REREVIEW-PASS-CI-RERUN-PENDING",
         claims_final: false,
-        implementation_snapshot_final: false,
-        required_next_action: "exact-rereview-and-pr-ci-rerun",
+        implementation_snapshot_final: true,
+        required_next_action: "pr-ci-rerun",
       },
       revision: {
         base_revision: "ec64549e429803d406383376162eaeb9456df9ef",
         latest_main_revision_integrated:
           "b8625ceeb8ee8ec536e9b11b9f57176161fc0b45",
-        implementation_revision: "2fcc0d29fb756db50d5042dacf7f64562d091173",
-        implementation_tree: "29de147b75318768c611dbbc84939c0f8154be81",
+        implementation_revision: "8dbdb680988241c1902d3bcd21a36b062aa3f890",
+        implementation_tree: "db112752e1a91c779a4492a4fcac724b50ca4c20",
         pull_request: 508,
-        exact_commit_review: "PENDING-AFTER-REVIEW-REMEDIATION",
+        exact_commit_review: "PASS-P0-0-P1-0-P2-0",
+        reviewed_remediation_revision:
+          "8dbdb680988241c1902d3bcd21a36b062aa3f890",
+        reviewed_remediation_tree: "db112752e1a91c779a4492a4fcac724b50ca4c20",
         reviewed_publication_revision:
           "f332bdc8774593323ec91d567e01ca86a72ef097",
         reviewed_publication_tree: "8b7b5b57b6fea30dd538b725c1e1320709da7e5b",
@@ -357,11 +360,24 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
         ],
         swiftpm_6_3_2_traits_exact: [{ name: "default" }],
         real_payload_differential: "PASS-5.10-AND-6.3.2",
+        swiftpm_5_10_payload: {
+          bytes: 1946,
+          sha256:
+            "2dc78693d4f2643f15eb493db4270fe35bee5c2fd62bd177526440fd61246ee7",
+        },
+        swiftpm_6_3_2_payload: {
+          bytes: 2096,
+          sha256:
+            "daf27c3f93a40dbdc4e694ace7304981f79a79bdfa8117202f940264bc73a293",
+        },
+        malformed_schema_and_path_cases_rejected: 86,
+        path_aliases_accepted: 0,
+        schema_validation_raises: 0,
       },
       repository_compatibility_tests: {
         status: "PASS",
         files_passed: 2,
-        tests_passed: 9,
+        tests_passed: 10,
         tests_failed: 0,
       },
       publication_boundary_tests: {
@@ -386,13 +402,20 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
         failure_scope: "SWIFTPM-6.3.2-DUMP-PACKAGE-SCHEMA-CALIBRATION",
       },
       review_remediation: {
-        status: "LOCAL-PASS-EXACT-REREVIEW-PENDING",
+        status: "PASS-P0-0-P1-0-P2-0",
         pull_request: 508,
         unicode_operation_key: {
           review_source: "GEMINI-INLINE-REVIEW",
           resolution: "BYTE-INDEXED-LOWERCASE-ASCII-HEX-FAIL-CLOSED",
           regression_test: "testReadRejectsMultibyteOperationKeyWithoutTrap",
           debug_and_release: "PASS-22-OF-22",
+          adversarial_cases: 3353124,
+          non_ascii_scalar_placements_stopped_without_trap: 3335808,
+          malformed_ascii_cases_rejected: 7549,
+          canonical_ascii_variants_accepted: 1027,
+          canonical_round_trips: 8192,
+          length_and_prefix_cases: 548,
+          failures_or_crashes: 0,
         },
         swiftpm_6_3_ci: {
           run_id: 29670280886,
@@ -403,6 +426,34 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
           local_5_10_real_payload: "PASS",
           negative_schema_mutations: "REJECTED",
           symbol_graph_upload_failure: "CASCADING-AFTER-EARLY-BOUNDARY-EXIT",
+          path_alias_finding: "P2-RESOLVED",
+          path_rule: "EXACT-CANONICAL-ABSOLUTE-STRING",
+        },
+      },
+      full_repository_validation: {
+        vitest: {
+          status: "PASS",
+          files_passed: 189,
+          tests_passed: 3277,
+          tests_skipped: 1,
+          tests_failed: 0,
+          duration_seconds: 329.41,
+        },
+        ml_stdlib: {
+          status: "PASS",
+          tests_passed: 138,
+          tests_failed: 0,
+          duration_seconds: 17.001,
+        },
+        production_build: {
+          status: "PASS",
+          duration_seconds: 48.71,
+        },
+        lint: {
+          status: "PASS",
+          errors: 0,
+          existing_warnings: 157,
+          duration_seconds: 29.7,
         },
       },
     });
@@ -420,10 +471,13 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
     for (const article of [japanese, english]) {
       expect(article).toContain("UNAVAILABLE / STOP");
       expect(article).toContain("22 / 22");
-      expect(article).toContain("9 / 9");
+      expect(article).toContain("15 / 15");
       expect(article).toContain("29666132754");
       expect(article).toContain("29670280886");
       expect(article).toContain("6.3.2");
+      expect(article).toContain("3,353,124");
+      expect(article).toContain("3,277");
+      expect(article).toContain("138 / 138");
       expect(article).toContain("STATE");
       expect(article).toContain("OP");
       expect(article).toContain("ATTEMPT");

@@ -178,9 +178,9 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59906,
-      "sha256": "773edeee39af60dd269c2f0b0371e55c30ea71a46abd092b20dd79e301d0bbe6",
-      "git_blob": "ff628435335149d7bc9bd65f2e87777939a90490",
+      "bytes": 62431,
+      "sha256": "0c6b40f7f6b58d257551a26234ec606815382e0f3b25f10e2b2f1d9d6b969e4c",
+      "git_blob": "fbc5aecefed117b6aed5814e87fd32f793eca933",
       "required_markers": [
         "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
         "GIT_ALLOW_PROTOCOL: \"file\"",
@@ -188,18 +188,21 @@
         "\"core.hooksPath=/dev/null\"",
         "\"credential.helper=\"",
         "lower !== \"http.postbuffer\"",
-        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024"
+        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
+        "classifyVerificationFailure",
+        "\"role-bundle-verification\""
       ]
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
-      "bytes": 11371,
-      "sha256": "307d6807a152246aee7f2006b5888c868e5990eb1adff636731c71bd0f8a03d6",
-      "git_blob": "602335c11922b91508bf1a4004111778993d0bdd",
+      "bytes": 11427,
+      "sha256": "0d3b70897ec2799cddda8fc47ff891a52aebe86d19f4fe22478b26ac38b1949e",
+      "git_blob": "f09eeefdf7b028266334e45c128be36d431710c3",
       "required_markers": [
         "claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(completion)",
         "\"fixed-operational-cli-one-shot-brand-claim\"",
-        "\"canonical JSON value differs\""
+        "\"canonical JSON value differs\"",
+        "failure_kind: typed?.failure_kind ?? \"phase-level\""
       ]
     },
     {
@@ -214,9 +217,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 59020,
-      "sha256": "94321bbd437cc4a09e2fd95f549d2f82d093924af4041d9e82bbe2635dcaf241",
-      "git_blob": "e6eec87b89836e3d0d33f36289d28cdb31ab71e2",
+      "bytes": 59947,
+      "sha256": "228eafe2cb260c70c741cca9fd149083e617254d0b0dd4ab385f281158dd4481",
+      "git_blob": "ad0e20cbf4446b932ce2d32dac5af7e9d15f1818",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -227,7 +230,8 @@
         "run_binding_sha256: runBindingSha256",
         "canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests",
         "local_deployment_key_authority_used: true as const",
-        "aws_required: false as const"
+        "aws_required: false as const",
+        "failureKind = error.failure_kind"
       ]
     },
     {
@@ -260,9 +264,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
-      "bytes": 27022,
-      "sha256": "f816c881144746e215543eb8ed1b37746293e76a88c746573596f54a33cde17d",
-      "git_blob": "3bbfb599c0c00c4ef35ab6c1e55cd1cc2100825d"
+      "bytes": 31403,
+      "sha256": "35a022d3a70fecf918cbdc4093b26262ab2d2875e93febe15400f1057a45b85a",
+      "git_blob": "c4dd008b16f4311e4831a8cd730deb1f4bdc3d41"
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
@@ -272,9 +276,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 31492,
-      "sha256": "4bcbfa22aaa42c921cb472f9d733e5c0b4f6775548421e38eb3bd33c2f7662e0",
-      "git_blob": "3e06b3f1f8b94dfad70ed4a345378dc39c536943"
+      "bytes": 33645,
+      "sha256": "6ca3825fe93a71f55a65ab2554e38e957b83c9386b12bec4b16ee8f0cd4cc48d",
+      "git_blob": "99efa2a87a012439c7f77d2bedf3c28f18629ef1"
     }
   ],
   "validation": {

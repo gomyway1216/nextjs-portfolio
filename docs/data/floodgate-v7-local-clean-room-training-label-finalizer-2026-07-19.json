@@ -24,28 +24,51 @@
     "receipt_and_cleanup_hardening_commit": "57fe99e0e93c5d4ec54477d796441067e1b70dff",
     "durable_replay_and_mac_gate_commit": "d23b9ccc448869b16b2e99672c861ac57488f115",
     "test_commit": "dca9adaf94c74ab16934c46562c959662670270e",
-    "validated_head": "dca9adaf94c74ab16934c46562c959662670270e",
-    "validated_tree": "513c46d32b157c356950521b4e4a39baf4b11aa1",
+    "authority_isolation_commit": "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
+    "validated_head": "5686f9ab5b31aa4383792778ac75ec1a90818e9b",
+    "validated_tree": "18e1a45ab1d0bce2aeb2bd0aec57a03e6c7baf59",
+    "validation_scope": "implementation-authority-isolation-head-before-evidence-only-commit",
     "files": {
       "finalizer": {
         "path": "ml/floodgate-v7-local-clean-room-training-label-finalizer.ts",
-        "bytes": 43838,
-        "sha256": "831b00abfa406073b2139266395c18a9d1b3936df1c3c1b156b2548f000fd994"
+        "bytes": 55596,
+        "sha256": "ed51d2a946fd1aa20f7d235b2e831a9e4728e9ddc815d9fb67664e04217c5889",
+        "git_blob": "ab80caf2634c95ddd6a6b05635da498763891a9d",
+        "required_markers": [
+          "FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_SCENARIOS",
+          "fixed-in-memory-local-finalizer-test-scenario-not-production-authority",
+          "mintOperationalFinalizerGrant()",
+          "return executeOperationalFinalizer(mintOperationalFinalizerGrant(), handoff);"
+        ]
       },
       "argumentless_entrypoint": {
         "path": "ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
         "bytes": 346,
-        "sha256": "1ffafe005259834bf3beafea99cf5333b09858ee0309518818872a8371b7353e"
+        "sha256": "1ffafe005259834bf3beafea99cf5333b09858ee0309518818872a8371b7353e",
+        "git_blob": "1bf6b93f040a401957bd7c4fe323d17b20aaf1db",
+        "required_markers": [
+          "if (require.main === module)",
+          "runFloodgateV7LocalCleanRoomTrainingLabelFinalizerCli"
+        ]
       },
       "dynamic_tests": {
         "path": "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
-        "bytes": 26194,
-        "sha256": "30aec3d49d6f4347ed63ace317457810bd0d543def4e74de491e52313e454e39"
+        "bytes": 23118,
+        "sha256": "915f4730302d120e64007af3cf419405c61500ab71dd8d5a1a722c09e0059bda",
+        "git_blob": "f548f4f48e41b0fb70b332d4d487ff368dbe1a9e",
+        "required_markers": [
+          "rejects executable dependency injection before any production-shaped callback can run",
+          "durably rejects the same authenticated handoff in a fresh process"
+        ]
       },
       "package_manifest": {
         "path": "package.json",
         "bytes": 8234,
-        "sha256": "38d050299072fd3eaf0f3835f360297fd0b72fe5c3a9cc79797f3ab99612a31d"
+        "sha256": "38d050299072fd3eaf0f3835f360297fd0b72fe5c3a9cc79797f3ab99612a31d",
+        "git_blob": "def0198062a89f9ff322752f4d84e76504cb4ebc",
+        "required_markers": [
+          "\"shogi:floodgate-v7-local-clean-room-training-label-finalizer\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts\""
+        ]
       }
     },
     "package_command": {
@@ -57,7 +80,7 @@
   "execution_boundary": {
     "contract": "shogi-floodgate-v7-local-clean-room-training-label-finalizer-v1",
     "operational_status": "authenticated-sealed-24000-local-training-label-artifacts-published",
-    "test_status": "test-only-injected-composition-complete-not-operational-evidence",
+    "test_status": "test-only-fixed-in-memory-orchestration-complete-not-operational-evidence",
     "claim_boundary": "argumentless-fixed-mac-local-private-handoff-mac-run-binding-stage-work-and-production-sealed-scanner-finalizer-without-cloud-training-weight-live-or-strength-authority",
     "platform": "darwin-only",
     "non_root_current_euid_required": true,
@@ -69,7 +92,11 @@
     "caller_supplied_path": false,
     "caller_supplied_key": false,
     "caller_supplied_stage": false,
-    "caller_supplied_work": false
+    "caller_supplied_work": false,
+    "test_seam_accepts_executable_dependencies": false,
+    "test_seam_can_reach_production_authority": false,
+    "production_authority_requires_module_private_one_shot_grant": true,
+    "production_authority_grant_minted_after_durable_claim": true
   },
   "private_handoff": {
     "fixed_state_basename": "local-run-v1",
@@ -176,6 +203,7 @@
     "midflight_handoff_mutation": "PASS-rejected",
     "fresh_process_replay": "PASS-rejected",
     "simulated_linux_operational_entry": "PASS-rejected",
+    "executable_dependency_injection": "PASS-rejected",
     "consumer_plan_and_finalizer_failure_lifecycle": "PASS"
   },
   "local_validation": {
@@ -185,24 +213,25 @@
     },
     "focused_finalizer": {
       "test_files": 1,
-      "tests": 21,
-      "passed": 21,
+      "tests": 27,
+      "passed": 27,
       "failed": 0,
-      "duration_seconds": 1.03,
+      "duration_seconds": 1.06,
       "result": "PASS"
     },
     "related_suite": {
-      "test_files": 17,
-      "tests": 168,
-      "passed": 168,
+      "test_files": 18,
+      "tests": 178,
+      "passed": 178,
       "failed": 0,
-      "wall_duration_seconds": 143.07,
-      "parallel_aggregate_test_seconds": 580.9,
+      "wall_duration_seconds": 143.41,
+      "parallel_aggregate_test_seconds": 583.08,
       "result": "PASS",
       "files": [
         "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
         "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
         "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizerEvidence.test.ts",
         "tests/unit/ml/floodgateV7TrainingLabelFinalizerCore.test.ts",
         "tests/unit/ml/floodgateV7TrainingLabelFinalizerCoreEvidence.test.ts",
         "tests/unit/ml/floodgateV7TrainingLabelFinalizerKeyAuthority.test.ts",
@@ -218,6 +247,13 @@
         "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
         "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts"
       ]
+    },
+    "evidence_pin_test": {
+      "test_files": 1,
+      "tests": 4,
+      "passed": 4,
+      "failed": 0,
+      "result": "PASS"
     },
     "targeted_eslint": "PASS",
     "prettier_version": "3.9.5",
@@ -248,9 +284,21 @@
         "prettier-check-failed"
       ]
     },
+    "authority_isolation_and_evidence_findings": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 1,
+      "issues": [
+        "exported-test-seam-accepted-executable-production-shaped-dependencies",
+        "evidence-pins-were-not-hermetically-verified"
+      ]
+    },
     "remediation": {
       "durable_replay_claim": "IMPLEMENTED",
       "darwin_and_dedicated_entry_gate": "IMPLEMENTED",
+      "production_authority_test_seam_isolation": "IMPLEMENTED",
+      "executable_dependency_injection_test": "PASS",
+      "evidence_pin_ci_verification": "IMPLEMENTED",
       "prettier": "PASS"
     },
     "create_plan_throw_lease_disposition": "REVIEWED-CONSERVATIVE-MANUAL-RECONCILIATION-CORRECT",

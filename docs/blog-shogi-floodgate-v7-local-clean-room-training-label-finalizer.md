@@ -32,6 +32,8 @@ npm run shogi:floodgate-v7-local-clean-room-training-label-finalizer
 
 operational entryはprivate fileを開く前に、Darwin、非root current EUID、repository root、専用entry file、`require.main`、引数なしのexact `argv`を検査する。Linux、別scriptからのimport呼び出し、追加引数は`capture` phaseでSTOPする。
 
+独立reviewでは、以前のexport済みtest seamが実行可能callbackをdependencyとして受け取れたため、production-shaped callbackを渡すとこのoperational contextと後述のclaimを迂回できる問題も見つかった。修正後のtest seamは**実行可能dependencyを受け取らない**。module内で固定したin-memory scenario名だけを受け取り、production authorityへ到達できない。実stage authorization、scanner、publicationへ進む経路はmodule-private one-shot grantを必須とし、そのgrantはoperational command contextの検証とdurable claimの確定後にだけ発行する。任意callbackを渡す回帰testでは、production-shaped functionが1回も呼ばれずSTOPすることを確認した。
+
 その後に読むのは固定private state内の次の2 fileだけである。
 
 - 32-byte local integrity key
@@ -102,15 +104,18 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 | 検証                                 |           結果 |
 | ------------------------------------ | -------------: |
-| 専用adversarial / lifecycle tests    |   21 / 21 PASS |
-| 関連17 test files                    | 168 / 168 PASS |
-| 関連suite wall time                  |       143.07秒 |
+| 専用adversarial / lifecycle tests    |   27 / 27 PASS |
+| 証拠pin整合test                      |     4 / 4 PASS |
+| 関連18 test files                    | 178 / 178 PASS |
+| 関連suite wall time                  |       143.41秒 |
 | targeted ESLint                      |           PASS |
 | Prettier check                       |           PASS |
 | 新規source / testのTypeScript error  |              0 |
 | real fixed-path finalizer invocation |              0 |
 
-攻撃caseにはwrong MAC、wrong key、wrong binding digest、binding内容変更、wrong stage、prefix 100 / 500、unsealed work、wrong resume、wrong input role、completion reorder、cloud claim、extra / duplicate key、noncanonical JSON、途中mutation、別process replay、simulated Linux、consumer / plan / finalizer failureを含む。
+攻撃caseにはwrong MAC、wrong key、wrong binding digest、binding内容変更、wrong stage、prefix 100 / 500、unsealed work、wrong resume、wrong input role、completion reorder、cloud claim、extra / duplicate key、noncanonical JSON、途中mutation、別process replay、simulated Linux、実行可能dependency injection、consumer / plan / finalizer failureを含む。
+
+証拠JSONは説明だけではなく、authority-isolation commitとtree、そのancestor関係、4つの実装fileのbytes / SHA-256 / Git blob、必須source marker、日英記事の境界説明、実operationが0であることをhermetic testで再計算する。これにより、実装を変更したのに古いhashや記事だけが残る状態はtest failureになる。証拠だけを追加するcommit自身は自己参照hashにできないため、pin対象は直前の最終実装commitに固定している。
 
 通常のTurbopack buildは、このworktreeの`node_modules`がworktree外を指すsymlinkであるため開始時に停止した。webpack buildはcompileを28.6秒で完了し、その後、既存の無関係な`src/app/api/settli/groups/route.ts`の`verifyPasscode` exportでtype-check停止した。したがってrepository production buildのPASSは主張しない。
 

@@ -32,6 +32,8 @@ The real handoff command has not been invoked by this change. This is not an ins
 
 Before opening any private file, the operational entry checks Darwin, a non-root current EUID, the repository root, the dedicated entry file, `require.main`, and the exact no-argument `argv`. Linux, imported calls from another script, and extra arguments stop in the `capture` phase.
 
+Independent review also found that the former exported test seam accepted executable callbacks as dependencies. A caller could supply production-shaped callbacks and bypass both this operational context and the claim described below. The remediated test seam **accepts no executable dependencies**. It accepts only module-defined, fixed in-memory scenario names and cannot reach production authority. The only path to real stage authorization, scanning, and publication now requires a module-private one-shot grant, which is minted only after the operational command context passes and the durable claim is committed. A regression test passes production-shaped functions and confirms that none is called before the safe seam stops.
+
 It then reads exactly two files from fixed private state:
 
 - the 32-byte local integrity key;
@@ -102,16 +104,19 @@ Before the composer's begin point, the caller owns the lease; after begin, the s
 
 | Validation                                |         Result |
 | ----------------------------------------- | -------------: |
-| Dedicated adversarial and lifecycle tests |   21 / 21 PASS |
-| Related test files                        |             17 |
-| Related tests                             | 168 / 168 PASS |
-| Related-suite wall time                   | 143.07 seconds |
+| Dedicated adversarial and lifecycle tests |   27 / 27 PASS |
+| Evidence-pin consistency tests            |     4 / 4 PASS |
+| Related test files                        |             18 |
+| Related tests                             | 178 / 178 PASS |
+| Related-suite wall time                   | 143.41 seconds |
 | Targeted ESLint                           |           PASS |
 | Prettier check                            |           PASS |
 | New source/test TypeScript errors         |              0 |
 | Real fixed-path finalizer invocations     |              0 |
 
-The adversarial cases include a wrong MAC, key, binding digest, binding content, stage, prefix 100 / 500, unsealed work, wrong resume point or input role, reordered completion, cloud claim, extra or duplicate keys, noncanonical JSON, mid-flight mutation, cross-process replay, simulated Linux, and consumer / plan / finalizer failures.
+The adversarial cases include a wrong MAC, key, binding digest, binding content, stage, prefix 100 / 500, unsealed work, wrong resume point or input role, reordered completion, cloud claim, extra or duplicate keys, noncanonical JSON, mid-flight mutation, cross-process replay, simulated Linux, executable-dependency injection, and consumer / plan / finalizer failures.
+
+The evidence JSON is now executable evidence rather than prose alone. A hermetic test recomputes the authority-isolation commit and tree, ancestry, bytes, SHA-256, and Git blobs for four implementation files, required source markers, the aligned Japanese and English boundary statements, and the zero operational state. A stale hash or article therefore fails the test when implementation changes. Because an evidence-only commit cannot pin its own hash without circularity, the pins deliberately identify the immediately preceding final implementation commit.
 
 The default Turbopack build stopped before compilation because this worktree's `node_modules` symlink points outside the worktree root. A webpack build compiled successfully in 28.6 seconds, then stopped during type-checking on the pre-existing unrelated `verifyPasscode` export in `src/app/api/settli/groups/route.ts`. A full repository production-build pass is therefore not claimed.
 

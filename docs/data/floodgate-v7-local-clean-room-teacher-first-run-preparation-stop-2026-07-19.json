@@ -86,7 +86,9 @@
     "object_closure_listing_bytes": 1188132,
     "previous_git_stdout_cap_bytes": 1048576,
     "object_closure_exceeded_previous_cap_bytes": 139556,
-    "root_causes": [
+    "first_actual_stop_cause": "file-protocol-inert-http-postbuffer-was-overbroadly-rejected",
+    "next_deterministic_blocker_discovered_after_isolating_first": "complete-object-list-exceeded-one-mibibyte-git-stdout-cap",
+    "blockers_required_to_clear_before_retry": [
       "file-protocol-inert-http-postbuffer-was-overbroadly-rejected",
       "complete-object-list-exceeded-one-mibibyte-git-stdout-cap"
     ]

@@ -81,6 +81,14 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
         object_closure_listing_bytes: 1188132,
         previous_git_stdout_cap_bytes: 1048576,
         object_closure_exceeded_previous_cap_bytes: 139556,
+        first_actual_stop_cause:
+          "file-protocol-inert-http-postbuffer-was-overbroadly-rejected",
+        next_deterministic_blocker_discovered_after_isolating_first:
+          "complete-object-list-exceeded-one-mibibyte-git-stdout-cap",
+        blockers_required_to_clear_before_retry: [
+          "file-protocol-inert-http-postbuffer-was-overbroadly-rejected",
+          "complete-object-list-exceeded-one-mibibyte-git-stdout-cap",
+        ],
       },
       nonactions: {
         teacher_processes_started: 0,
@@ -97,6 +105,7 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
         production_activations: 0,
       },
     });
+    expect(record.diagnosis).not.toHaveProperty("root_causes");
   });
 
   it("pins the exact remediation commit, tree, source bytes, and blobs", () => {
@@ -215,7 +224,9 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
     const japanese = read(japaneseArticleRelative);
     const english = read(englishArticleRelative);
     for (const marker of [
-      "原因はAWSではなく",
+      "原因はAWSではない",
+      "最初の実停止の直接原因",
+      "次の必然的blocker",
       "`http.postBuffer`",
       "1,188,132-byte",
       "1,048,576-byte",
@@ -232,6 +243,8 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
     }
     for (const marker of [
       "The cause was not AWS",
+      "direct cause of the first actual stop",
+      "next deterministic blocker",
       "`http.postBuffer`",
       "1,188,132-byte",
       "1,048,576-byte",

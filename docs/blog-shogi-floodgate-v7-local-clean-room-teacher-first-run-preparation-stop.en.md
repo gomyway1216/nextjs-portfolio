@@ -1,6 +1,6 @@
 # Shogi evaluator: why the first local teacher run stopped during preparation
 
-> After PR #511 merged normally, the Mac-local teacher command was invoked for the first time. It returned `STOP`, but it never reached AWS, GCP, Vercel, the network, a teacher engine, a checkpoint, training, or live weights. It stopped while preparing inputs in a home-external clean room because the Git configuration policy was overbroad and its stdout cap was too small. Japanese version: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md)
+> After PR #511 merged normally, the Mac-local teacher command was invoked for the first time. It returned `STOP`, but it never reached AWS, GCP, Vercel, the network, a teacher engine, a checkpoint, training, or live weights. The direct cause was an overbroad Git-configuration policy while preparing the home-external clean room. An isolated continuation after removing that one rejection exposed the stdout cap as the next blocker. Japanese version: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md)
 
 ## 1. What happened
 
@@ -17,13 +17,13 @@ The argumentless command copied four input trees by value into the private clean
 
 This was neither a playing-strength regression nor a cloud failure. Local input preparation failed closed before the teacher could start.
 
-## 2. Two root causes
+## 2. One direct cause and one subsequent blocker
 
-The cause was not AWS. It was two boundaries in the local Git checks.
+The cause was not AWS. The direct cause of the first actual stop was solely the local Git check's overbroad rejection of `http.postBuffer`.
 
 The shared Git repository had 800 local configuration names. The existing policy classified exactly one as forbidden: `http.postBuffer`. That setting only sizes HTTP request buffers. The runner fixes `protocol.allow=never` and `protocol.file.allow=always`, so its clone cannot use anything except `file`; the setting cannot inject credentials, proxies, headers, URLs, or network access into this run.
 
-The policy nevertheless rejected every `http.*` key, so it stopped before cloning. A disposable check after correcting that rule found a second problem: the 1,188,132-byte output of `git rev-list --objects --all --missing=print` exceeded the 1,048,576-byte cap by 139,556 bytes.
+The policy nevertheless rejected every `http.*` key, so the first actual run stopped before cloning. A disposable continuation after removing only that rejection exposed the next deterministic blocker: the 1,188,132-byte output of `git rev-list --objects --all --missing=print` exceeded the 1,048,576-byte cap by 139,556 bytes. Two blockers therefore had to be cleared before a retry, but only the first caused the original failure receipt.
 
 ## 3. Minimal remediation
 

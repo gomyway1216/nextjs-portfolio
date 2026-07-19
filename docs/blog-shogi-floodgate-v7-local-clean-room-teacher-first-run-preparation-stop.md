@@ -1,6 +1,6 @@
 # 将棋評価関数: 最初のローカル教師runがpreparationで止まった理由
 
-> PR #511を通常mergeした後、Macローカルの教師生成commandを初めて実行した。結果は`STOP`だったが、AWS、GCP、Vercel、network、教師engine、checkpoint、学習、live weightには到達していない。止まったのはhome外clean roomへ入力をコピーするpreparationで、原因はGit設定policyの過剰拒否とstdout上限だった。English version: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md)
+> PR #511を通常mergeした後、Macローカルの教師生成commandを初めて実行した。結果は`STOP`だったが、AWS、GCP、Vercel、network、教師engine、checkpoint、学習、live weightには到達していない。直接原因はhome外clean roomを準備するときのGit設定policyの過剰拒否だった。その1点を外した隔離検証で、次のblockerとしてstdout上限も判明した。English version: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md)
 
 ## 1. 何が起きたか
 
@@ -17,13 +17,13 @@
 
 これは棋力低下でもcloud障害でもない。教師を起動する前のローカル入力準備がfail-closedした。
 
-## 2. 根本原因は2つ
+## 2. 直接原因1つと、直後のblocker1つ
 
-原因はAWSではなく、ローカルGit検査の2つの境界だった。
+原因はAWSではない。最初の実停止の直接原因は、ローカルGit検査が`http.postBuffer`を過剰拒否したことだけだった。
 
 共有Git repositoryには800個のlocal configuration nameがあり、既存policyが危険と分類したものは`http.postBuffer`の1つだけだった。この設定はHTTP request bufferの大きさを調整するが、runnerのcloneは`protocol.allow=never`と`protocol.file.allow=always`で固定され、`file`以外を使えない。従ってこのrunにcredential、proxy、header、URL、networkを注入できない。
 
-policyはそれでも`http.*`を一括拒否していたため、clone前に停止した。さらに、その拒否だけを直した一時検証では、`git rev-list --objects --all --missing=print`の1,188,132-byte出力が1,048,576-byte上限を139,556 bytes超え、もう一度停止した。
+policyはそれでも`http.*`を一括拒否していたため、最初の実行はclone前に停止した。その拒否だけを外して先へ進めた一時検証では、次の必然的blockerが判明した。`git rev-list --objects --all --missing=print`の1,188,132-byte出力が1,048,576-byte上限を139,556 bytes超えた。従って再実行前に除くblockerは2つだが、最初の失敗receiptの直接原因は前者だけである。
 
 ## 3. 最小修正
 

@@ -28,7 +28,9 @@ consumer検証失敗、同期checkpoint throw、非同期checkpoint reject、key
 
 ## 3. 検証結果
 
-実装commitは`e86cbb5f0673f87121a9d789da6e990fc97a4170`である。変更対象のlocal runnerとtraining-row consumerは68 / 68 PASSした。teacher checkpoint本体を加えた独立再実行は117 / 117 PASSし、Node v22.13.0でevidence testまで加えた最終関連実行は121 / 121 PASSした。独立reviewのfinding数はP0 / P1 / P2 / P3すべて0だった。
+実装commitは`e86cbb5f0673f87121a9d789da6e990fc97a4170`である。変更対象のlocal runnerとtraining-row consumerは68 / 68 PASSした。teacher checkpoint本体を加えた独立再実行は117 / 117 PASSし、Node v22.13.0でevidence testまで加えた実装時関連実行は121 / 121 PASSした。PR前の実装correctness reviewはP0 / P1 / P2 / P3すべて0だった。
+
+最初のPR CI（run `29685458867`）ではCoreが唯一の根本失敗となり、集約jobの`Test and build`も連鎖してFAILした。Coreの失敗2件はいずれも、今回変更したrunnerとtestを過去記事の機械データが旧byte数・hashで固定していたためで、実装testの失敗は0だった。PR readiness reviewはこのCI blockをP1、証拠の再現性・review記録をP2 2件として検出した。過去の実行事実は変えず、現在sourceのpinと今回の後続revisionだけを更新した。また、system/global Git configとoptional lockを明示的に無効化し、review履歴を「検出→修正→再review」として記録した。修正後のNode v22.13.0 focused runは82 / 82 PASSし、最終再reviewはP0 / P1 / P2 / P3すべて0になった。実教師の再実行で通過させるのではなく、証拠の再現性を直して再CIする。
 
 この検証はorderingとcleanupの証拠であり、教師行、学習候補、棋力の証拠ではない。実教師process、checkpoint work、label finalization、optimizer training、A/B、外部校正、live weight変更はすべて0のままである。
 

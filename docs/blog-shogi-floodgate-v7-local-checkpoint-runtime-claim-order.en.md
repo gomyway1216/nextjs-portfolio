@@ -28,7 +28,9 @@ Consumer verification failure, synchronous checkpoint throw, asynchronous checkp
 
 ## 3. Validation
 
-The implementation commit is `e86cbb5f0673f87121a9d789da6e990fc97a4170`. The changed local-runner and training-row-consumer suites pass 68 / 68 tests. An independent rerun including the teacher checkpoint passes 117 / 117 tests, and the final Node v22.13.0 run including the evidence suite passes 121 / 121 tests. Independent review found P0 / P1 / P2 / P3 counts of zero.
+The implementation commit is `e86cbb5f0673f87121a9d789da6e990fc97a4170`. The changed local-runner and training-row-consumer suites pass 68 / 68 tests. An independent rerun including the teacher checkpoint passes 117 / 117 tests, and the implementation-time Node v22.13.0 run including the evidence suite passes 121 / 121 tests. The pre-PR implementation-correctness review found P0 / P1 / P2 / P3 counts of zero.
+
+In the first pull-request CI run (`29685458867`), Core was the sole substantive root failure and the aggregate `Test and build` job consequently failed too. Both Core failures were stale byte and hash pins in historical machine records for the runner and test changed here; implementation-test failures were zero. PR-readiness review classified that CI block as P1 and found two P2 evidence-reproducibility and review-record issues. The historical execution facts were left intact while only the current-source pins and this follow-up revision were added. System/global Git configuration and optional locking are now explicitly disabled, and the review history records detection, remediation, and rereview. The post-fix Node v22.13.0 focused run passes 82 / 82, and final rereview has zero P0 / P1 / P2 / P3 findings. The response is to repair evidence reproducibility and rerun CI, not to force a real teacher run through the gate.
 
 This proves ordering and cleanup only. Real teacher processes, checkpoint work, label finalization, optimizer training, A/B, external calibration, and live-weight changes all remain zero.
 

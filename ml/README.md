@@ -194,7 +194,9 @@ keyをconsumer前に準備し、callbackの同期区間でcheckpoint関数を直
 未使用keyは常にdiscardし、stage claim前後の成否にかかわらず同じidempotent lease-close Promiseへjoinする。
 operation / discard / closeの複数失敗もnested `AggregateError`で保持する。変更対象68 / 68、
 checkpointを含む独立再実行117 / 117、Node v22.13.0の最終関連実行121 / 121 PASS、
-独立review P0–P3は0件だった。
+PR前の実装review P0–P3は0件だった。最初のPR CIは旧evidence pin 2件で停止し、readiness reviewで
+P1 1件・P2 2件として検出した。pin、hermetic Git環境、review履歴を修正後、Node v22.13.0 focused
+runは82 / 82 PASSし、最終再reviewのP0–P3は0件になった。
 教師、label、学習、対局、AWS / GCP / Vercel call、live weight変更はすべて0である。詳細は
 [日本語記事](../docs/blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.md) /
 [English article](../docs/blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.en.md) /

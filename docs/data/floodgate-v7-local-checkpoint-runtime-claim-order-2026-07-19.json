@@ -79,14 +79,59 @@
       "tests_passed": 4,
       "tests_failed": 0
     },
+    "initial_pull_request_ci": {
+      "run": 29685458867,
+      "core_result": "FAIL",
+      "aggregate_test_and_build_result": "FAIL",
+      "implementation_failures": 0,
+      "stale_historical_evidence_pin_failures": 2,
+      "other_completed_checks_passed_before_remediation": 13,
+      "pull_request_checks_failed": 2
+    },
+    "ci_remediation": {
+      "historical_evidence_source_pins_refreshed": 2,
+      "historical_execution_claims_changed": false,
+      "reviewed_git_environment_made_hermetic": true,
+      "real_teacher_invocation": false,
+      "focused_node_v22_13_0": {
+        "test_files": 5,
+        "tests_passed": 82,
+        "tests_failed": 0,
+        "result": "PASS"
+      }
+    },
     "eslint_changed_files": "PASS",
     "git_diff_check": "PASS",
     "independent_review": {
+      "scope": "pre-pull-request-implementation-correctness",
       "p0": 0,
       "p1": 0,
       "p2": 0,
       "p3": 0,
       "blocking_findings": 0
+    },
+    "pull_request_readiness_review": {
+      "before_remediation": {
+        "p0": 0,
+        "p1": 1,
+        "p2": 2,
+        "p3": 0,
+        "implementation_findings": 0,
+        "ci_and_evidence_findings": 3
+      },
+      "remediation": {
+        "stale_historical_pins_fixed": true,
+        "hermetic_git_environment_fixed": true,
+        "review_claim_history_corrected": true
+      },
+      "final_rereview": {
+        "p0": 0,
+        "p1": 0,
+        "p2": 0,
+        "p3": 0,
+        "remaining_findings": 0,
+        "result": "PASS"
+      }
     }
   },
   "stack_boundary": {

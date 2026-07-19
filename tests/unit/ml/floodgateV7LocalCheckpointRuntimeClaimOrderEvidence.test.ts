@@ -18,6 +18,10 @@ const gitEnvironment = Object.freeze({
   LC_ALL: "C",
   NODE_ENV: "test",
   PATH: "/usr/bin:/bin",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_OPTIONAL_LOCKS: "0",
 });
 
 interface PinnedFile {
@@ -178,11 +182,35 @@ describe("Floodgate v7 local checkpoint runtime-claim ordering evidence", () => 
           tests_failed: 0,
         },
         independent_review: {
+          scope: "pre-pull-request-implementation-correctness",
           p0: 0,
           p1: 0,
           p2: 0,
           p3: 0,
           blocking_findings: 0,
+        },
+        pull_request_readiness_review: {
+          before_remediation: {
+            p0: 0,
+            p1: 1,
+            p2: 2,
+            p3: 0,
+            implementation_findings: 0,
+            ci_and_evidence_findings: 3,
+          },
+          remediation: {
+            stale_historical_pins_fixed: true,
+            hermetic_git_environment_fixed: true,
+            review_claim_history_corrected: true,
+          },
+          final_rereview: {
+            p0: 0,
+            p1: 0,
+            p2: 0,
+            p3: 0,
+            remaining_findings: 0,
+            result: "PASS",
+          },
         },
       },
     });
@@ -233,6 +261,7 @@ describe("Floodgate v7 local checkpoint runtime-claim ordering evidence", () => 
       "68 / 68",
       "117 / 117",
       "121 / 121",
+      "82 / 82",
       "synchronous",
       "idempotent",
       "AggregateError",

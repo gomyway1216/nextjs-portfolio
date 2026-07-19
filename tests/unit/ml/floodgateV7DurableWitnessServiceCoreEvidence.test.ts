@@ -181,6 +181,10 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
         (entry: { path: string }) => entry.path,
       ),
     ).toEqual(expectedImplementationPaths);
+    const historicallyPinnedButIntentionallyExtensible = new Set([
+      ".github/workflows/ci.yml",
+      boundaryRelative,
+    ]);
     for (const entry of record.implementation_surface
       .exact_committed_snapshot as {
       path: string;
@@ -193,14 +197,19 @@ describe("Floodgate v7 durable witness service-core publication boundary", () =>
       // The reviewed workflow bytes remain pinned above at the anchor. Current
       // CI orchestration may add independent fail-closed jobs without
       // rewriting that historical snapshot; the focused workflow contract
-      // tests validate the live external-trust-root job itself.
-      if (
-        entry.path !== boundaryRelative &&
-        entry.path !== ".github/workflows/ci.yml"
-      ) {
+      // tests validate the live extensible paths themselves.
+      if (!historicallyPinnedButIntentionallyExtensible.has(entry.path)) {
         expect(raw(entry.path).equals(bytes), entry.path).toBe(true);
       }
     }
+
+    const currentWorkflow = read(".github/workflows/ci.yml");
+    expect(currentWorkflow).toContain(
+      "  external_trust_root_protocol:\n",
+    );
+    expect(currentWorkflow).toContain(
+      "          native/floodgate-v7-external-trust-root-protocol/.build/**/symbolgraph/FloodgateV7RemoteWitnessServiceCore*.symbols.json",
+    );
 
     expect(record.post_anchor_ci_remediation).toMatchObject({
       status: "LOCAL-PASS-EXACT-REVIEW-PENDING-CI-PENDING",

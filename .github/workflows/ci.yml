@@ -211,6 +211,42 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  aws_witness_adapter_contract:
+    name: AWS witness adapter contract (source only)
+    runs-on: macos-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Record Swift contract calibration context
+        run: |
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Run SDK-free AWS adapter contract tests
+        run: >-
+          xcrun swift test
+          --package-path
+          native/floodgate-v7-aws-witness-adapter-contract
+
+      - name: Verify AWS adapter contract isolation and public surface
+        run: >-
+          /usr/bin/python3
+          native/floodgate-v7-aws-witness-adapter-contract/Tests/verify-aws-witness-adapter-contract-boundary.py
+
+      - name: Preserve AWS adapter contract symbol graphs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: floodgate-v7-aws-adapter-contract-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            native/floodgate-v7-aws-witness-adapter-contract/.build/**/symbolgraph/FloodgateV7AWSWitnessAdapterContract*.symbols.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
   darwin_exclusive_directory_rename:
     name: Darwin exclusive directory rename
     runs-on: macos-latest
@@ -310,6 +346,7 @@ jobs:
       - external_trust_root_protocol
       - darwin_exclusive_directory_rename
       - e2e
+      - aws_witness_adapter_contract
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -323,3 +360,4 @@ jobs:
           test "${{ needs.external_trust_root_protocol.result }}" = "success"
           test "${{ needs.darwin_exclusive_directory_rename.result }}" = "success"
           test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.aws_witness_adapter_contract.result }}" = "success"

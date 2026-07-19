@@ -415,10 +415,8 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     "external_trust_root_protocol",
     "darwin_exclusive_directory_rename",
     "e2e",
+    "aws_witness_adapter_contract",
   ];
-  if (Object.hasOwn(jobs, "aws_witness_adapter_contract")) {
-    requiredJobs.push("aws_witness_adapter_contract");
-  }
   const requiredJobRecords = Object.fromEntries(
     requiredJobs.map((jobId) => [jobId, validateRequiredJobKeys(jobs, jobId)]),
   );

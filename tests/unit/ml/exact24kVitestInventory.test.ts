@@ -96,6 +96,20 @@ function replaceOnceInJob(
   );
 }
 
+function removeJobSection(
+  source: string,
+  jobId: string,
+  nextJobId: string,
+): string {
+  const startMarker = `\n  ${jobId}:\n`;
+  const endMarker = `\n  ${nextJobId}:\n`;
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(0, start) + source.slice(end);
+}
+
 function passingReport(expected: ExpectedTarget): ReportFixture {
   return {
     numTotalTestSuites: 2,
@@ -287,6 +301,30 @@ describe("exact-24k Vitest inventory and report verifier", () => {
         workflowSource: duplicateJob,
       }),
     ).toThrow(/workflow YAML is invalid/);
+
+    const withoutAwsJob = removeJobSection(
+      workflowSource,
+      "aws_witness_adapter_contract",
+      "darwin_exclusive_directory_rename",
+    );
+    const withoutAwsNeed = replaceOnce(
+      withoutAwsJob,
+      "      - aws_witness_adapter_contract\n",
+      "",
+    );
+    const withoutAwsNeedOrResult = replaceOnce(
+      withoutAwsNeed,
+      '          test "${{ needs.aws_witness_adapter_contract.result }}" = "success"\n',
+      "",
+    );
+    expect(() =>
+      validateExact24kCiWiring(validated, {
+        repoRoot,
+        workflowSource: withoutAwsNeedOrResult,
+      }),
+    ).toThrow(
+      /workflow is missing executable job aws_witness_adapter_contract/,
+    );
   });
 
   it("rejects disabling and continue-on-error on every required component job", () => {

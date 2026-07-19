@@ -11,6 +11,7 @@ import {
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
   INDEPENDENT_EXACT_RESCORE_MODE,
   REMOVED_SIBLING_TEACHER_CLI_MESSAGE,
+  SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
   SIBLING_TEACHER_MANIFEST_SCHEMA,
   SIBLING_TEACHER_LABEL_POLICY,
   SIBLING_TEACHER_WORK_SCHEMA,
@@ -351,6 +352,24 @@ describe('deterministic sibling teacher generator', () => {
     const raw = path.join(root, 'training.raw.jsonl');
     const stageRoot = path.join(root, 'stage');
     const stage = siblingTeacherStagePaths(stageRoot);
+    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    const engineEnvironmentEntries: Array<{
+      environment: Record<string, string>;
+      cwd: string;
+    }> = [];
+    const captureEngineEnvironment = async (): Promise<void> => {
+      let trace: string;
+      try {
+        trace = await fs.promises.readFile(environmentTrace, 'utf8');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw error;
+      }
+      engineEnvironmentEntries.push(
+        ...parseJsonl<{ environment: Record<string, string>; cwd: string }>(trace)
+      );
+      await fs.promises.unlink(environmentTrace);
+    };
     const forcedParent = {
       ...rawParent('parent-a'),
       position_id: positionKeyFromSfen(ONE_LEGAL),
@@ -374,7 +393,7 @@ describe('deterministic sibling teacher generator', () => {
       stageRoot,
       runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE],
+      engineArgs: [FAKE_ENGINE, '--environment-trace', environmentTrace],
       engineReceipt: await writeEngineReceipt(root),
       multipv: 2,
       depth: 8,
@@ -387,6 +406,7 @@ describe('deterministic sibling teacher generator', () => {
       { ...baseOptions, targetParents: 1, finalize: false },
       dependencies
     );
+    await captureEngineEnvironment();
     if (prefix.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
       throw new Error('expected strength-first prefix');
     }
@@ -420,6 +440,7 @@ describe('deterministic sibling teacher generator', () => {
       { ...baseOptions, targetParents: 2, finalize: true },
       dependencies
     );
+    await captureEngineEnvironment();
     expect(finalized.status).toBe('complete-training-only');
     if (finalized.status !== 'complete-training-only') {
       throw new Error('expected strength-first finalization');
@@ -440,6 +461,9 @@ describe('deterministic sibling teacher generator', () => {
         raw_records: 2,
         selected_parents: 2,
       },
+      teacher: {
+        engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+      },
       search: {
         parallel_engines: 2,
       },
@@ -457,6 +481,27 @@ describe('deterministic sibling teacher generator', () => {
         consumer_postflight_bound: false,
       },
     });
+    expect(engineEnvironmentEntries).toHaveLength(1);
+    for (const entry of engineEnvironmentEntries) {
+      const expectedEnvironment = Object.fromEntries(
+        Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(
+          ([name, value]) => [name, value === '<private-worker-cwd>' ? entry.cwd : value]
+        )
+      );
+      expect(entry.environment).toMatchObject(expectedEnvironment);
+      expect(
+        Object.keys(entry.environment).filter(
+          (name) => !Object.hasOwn(expectedEnvironment, name)
+        )
+      ).toEqual(
+        process.platform === 'darwin'
+          ? [...SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.darwin_spawn_injected_variables]
+          : []
+      );
+      expect(entry.environment).not.toHaveProperty('USER');
+      expect(entry.environment.HOME).toBe(entry.cwd);
+      expect(entry.environment.TMPDIR).toBe(entry.cwd);
+    }
     expect(finalized.staged_result).toMatchObject({
       schema: STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
       status: 'complete-training-only',

@@ -4,6 +4,18 @@ import readline from 'node:readline';
 let multipv = 1;
 const traceIndex = process.argv.indexOf('--trace');
 const tracePath = traceIndex >= 0 ? process.argv[traceIndex + 1] : null;
+const environmentTraceIndex = process.argv.indexOf('--environment-trace');
+const environmentTracePath =
+  environmentTraceIndex >= 0 ? process.argv[environmentTraceIndex + 1] : null;
+if (environmentTracePath) {
+  fs.appendFileSync(
+    environmentTracePath,
+    `${JSON.stringify({
+      environment: process.env,
+      cwd: process.cwd(),
+    })}\n`
+  );
+}
 const stderrBytesIndex = process.argv.indexOf('--stderr-bytes');
 if (stderrBytesIndex >= 0) {
   const stderrBytes = Number.parseInt(process.argv[stderrBytesIndex + 1] ?? '0', 10);

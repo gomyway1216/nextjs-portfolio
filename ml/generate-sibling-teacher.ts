@@ -60,6 +60,26 @@ export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const SIBLING_TEACHER_LABEL_POLICY =
   'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v6' as const;
 export const INDEPENDENT_EXACT_RESCORE_MODE = 'independent-single-move' as const;
+const PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN = '<private-worker-cwd>' as const;
+export const SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT = Object.freeze({
+  inherited_environment: false,
+  darwin_spawn_injected_variables: Object.freeze(['__CF_USER_TEXT_ENCODING'] as const),
+  variables: Object.freeze({
+    HOME: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
+    TMPDIR: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
+    PATH: '/usr/bin:/bin',
+    LANG: 'C',
+    LC_ALL: 'C',
+    TZ: 'UTC',
+    OMP_NUM_THREADS: '1',
+    OMP_THREAD_LIMIT: '1',
+    OPENBLAS_NUM_THREADS: '1',
+    MKL_NUM_THREADS: '1',
+    VECLIB_MAXIMUM_THREADS: '1',
+    NUMEXPR_NUM_THREADS: '1',
+    BLIS_NUM_THREADS: '1',
+  }),
+} as const);
 export const SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT = {
   engine_binary: true,
   engine_argument_files: 'snapshotted-and-substituted',
@@ -327,7 +347,10 @@ export interface StrengthFirstSiblingTeacherManifest {
     readonly selected_parents: number;
     readonly selected_parent_ids_sha256: string;
   }>;
-  readonly teacher: SiblingTeacherManifest['teacher'];
+  readonly teacher: SiblingTeacherManifest['teacher'] &
+    Readonly<{
+      readonly engine_environment: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
+    }>;
   readonly search: SiblingTeacherManifest['search'];
   readonly candidate_sets: SiblingTeacherManifest['candidate_sets'];
   readonly progress_checkpoint: SiblingTeacherManifest['progress_checkpoint'] & {
@@ -444,6 +467,21 @@ function canonicalJson(value: unknown): string {
       .join(',')}}`;
   }
   throw new Error(`cannot canonicalize ${typeof value}`);
+}
+
+function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
+  const privateWorkerCwd = fs.realpathSync.native(workerCwd);
+  const environment = Object.freeze(
+    Object.fromEntries(
+      Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(([name, value]) => [
+        name,
+        value === PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN ? privateWorkerCwd : value,
+      ])
+    )
+  );
+  // The web app augments ProcessEnv with required deployment keys. This
+  // deliberately hermetic engine environment omits all of them.
+  return environment as unknown as NodeJS.ProcessEnv;
 }
 
 function workEntryPayloadSha256(entry: WorkEntry): string {
@@ -1646,6 +1684,11 @@ async function runSiblingTeacherDatasetCore(
       synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
       search_state_reset: 'isready',
       runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
+      ...(execution.finalization === 'legacy-split'
+        ? {}
+        : {
+            engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+          }),
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
@@ -1734,6 +1777,9 @@ async function runSiblingTeacherDatasetCore(
         engineArgs: runtimeSnapshot.engineArgs,
         evalDir: runtimeSnapshot.evalDir,
         cwd: workerCwd,
+        ...(execution.finalization === 'legacy-split'
+          ? {}
+          : { env: siblingTeacherEngineEnvironment(workerCwd) }),
         fvScale: options.fvScale,
         hashMb: options.hashMb,
         timeoutMs: options.timeoutMs,
@@ -1950,6 +1996,7 @@ async function runSiblingTeacherDatasetCore(
           engine_argument_file_count: engineArgFiles.length,
           eval_tree_present: options.evalDir !== undefined,
         },
+        engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
       },
       search: {
         multipv: options.multipv,

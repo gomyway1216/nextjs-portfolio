@@ -31,7 +31,9 @@ import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
+  claimFloodgateV7CleanRoomPreparedLocalRunGrant,
   claimFloodgateV7CleanRoomPreparedRunGrantCoreForTests,
+  type FloodgateV7CleanRoomPreparedLocalRunGrant,
   type FloodgateV7CleanRoomPreparedRunGrantForTests,
   type FloodgateV7CleanRoomTeacherPlanForTests,
 } from "./floodgate-v7-clean-room-teacher-runner";
@@ -91,6 +93,7 @@ export type FloodgateV7CleanRoomRunGatePhase =
   | "durable-prefix-100"
   | "durable-prefix-500"
   | "sealed-final-24000"
+  | "finalizer-handoff"
   | "cleanup"
   | "receipt";
 
@@ -172,6 +175,21 @@ export interface FloodgateV7CleanRoomRunGateDependenciesForTests {
         evidence: Readonly<FloodgateV7CleanRoomRunGateFailureEvidenceForTests>,
       ) => void)
     | undefined;
+}
+
+/**
+ * Fixed local-only extension. The exact checkpoint receipt is branded by the
+ * local runner after the raw-key test core has closed its stage lease. The
+ * handoff callback is invoked only after all three branded receipts pass the
+ * same-stream continuity checks and the runtime owner closes successfully.
+ */
+export interface FloodgateV7CleanRoomLocalRunGateDependencies
+  extends FloodgateV7CleanRoomRunGateDependenciesForTests {
+  readonly expectedCheckpointKeyId: string;
+  readonly claimAuthenticatedCheckpointReceipt: (
+    receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+  ) => Readonly<FloodgateV7TeacherCheckpointV3Receipt>;
+  readonly finalizeSealedChainHandoff: () => Promise<void>;
 }
 
 export interface FloodgateV7CleanRoomRunGatesReceipt {
@@ -258,6 +276,19 @@ interface CapturedDependencies {
   readonly observeFailureForTests: FloodgateV7CleanRoomRunGateDependenciesForTests["observeFailureForTests"];
 }
 
+interface CapturedLocalDependencies extends CapturedDependencies {
+  readonly expectedCheckpointKeyId: string;
+  readonly claimAuthenticatedCheckpointReceipt: FloodgateV7CleanRoomLocalRunGateDependencies["claimAuthenticatedCheckpointReceipt"];
+  readonly finalizeSealedChainHandoff: FloodgateV7CleanRoomLocalRunGateDependencies["finalizeSealedChainHandoff"];
+}
+
+interface CheckpointReceiptAuthority {
+  readonly expectedKeyId: string;
+  readonly claim: (
+    receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+  ) => Readonly<FloodgateV7TeacherCheckpointV3Receipt>;
+}
+
 interface PrivateDirectoryIdentity {
   readonly dev: bigint;
   readonly ino: bigint;
@@ -311,6 +342,7 @@ const PRIVATE_DIRECTORY_MODE = BigInt(0o700);
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/;
 const CANONICAL_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
 const SAFE_STAGE_BASENAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const SAFE_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const objectPrototype = Object.prototype;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
@@ -453,6 +485,84 @@ function captureDependencies(
   });
 }
 
+function captureLocalDependencies(
+  value: FloodgateV7CleanRoomLocalRunGateDependencies,
+): Readonly<CapturedLocalDependencies> {
+  if (!isPlainNonProxyObject(value) || !objectIsFrozen(value)) {
+    throw new Error("local dependencies differ");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  const expected = new Set([
+    "statfs",
+    "runtimeOwnerDependencies",
+    "executeAuthenticatedCheckpointGate",
+    "observeFailureForTests",
+    "expectedCheckpointKeyId",
+    "claimAuthenticatedCheckpointReceipt",
+    "finalizeSealedChainHandoff",
+  ]);
+  if (
+    keys.length !== expected.size ||
+    keys.some((key) => typeof key !== "string" || !expected.has(key))
+  ) {
+    throw new Error("local dependency keys differ");
+  }
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined ||
+      !("value" in descriptor) ||
+      descriptor.writable ||
+      descriptor.configurable
+    ) {
+      throw new Error("local dependency descriptors differ");
+    }
+  }
+  const common = captureDependencies(
+    Object.freeze({
+      statfs: dataProperty(value, "statfs"),
+      runtimeOwnerDependencies: dataProperty(
+        value,
+        "runtimeOwnerDependencies",
+      ),
+      executeAuthenticatedCheckpointGate: dataProperty(
+        value,
+        "executeAuthenticatedCheckpointGate",
+      ),
+      observeFailureForTests: dataProperty(value, "observeFailureForTests"),
+    }) as FloodgateV7CleanRoomRunGateDependenciesForTests,
+  );
+  const expectedCheckpointKeyId = dataProperty(
+    value,
+    "expectedCheckpointKeyId",
+  );
+  const claimAuthenticatedCheckpointReceipt = dataProperty(
+    value,
+    "claimAuthenticatedCheckpointReceipt",
+  );
+  const finalizeSealedChainHandoff = dataProperty(
+    value,
+    "finalizeSealedChainHandoff",
+  );
+  if (
+    !regexMatches(SAFE_KEY_ID, expectedCheckpointKeyId) ||
+    expectedCheckpointKeyId === FLOODGATE_V7_DEPLOYMENT_KEY_ID
+  ) {
+    throw new Error("local checkpoint key id differs");
+  }
+  assertFunction(claimAuthenticatedCheckpointReceipt, 1);
+  assertFunction(finalizeSealedChainHandoff, 0);
+  return Object.freeze({
+    ...common,
+    expectedCheckpointKeyId,
+    claimAuthenticatedCheckpointReceipt:
+      claimAuthenticatedCheckpointReceipt as FloodgateV7CleanRoomLocalRunGateDependencies["claimAuthenticatedCheckpointReceipt"],
+    finalizeSealedChainHandoff:
+      finalizeSealedChainHandoff as FloodgateV7CleanRoomLocalRunGateDependencies["finalizeSealedChainHandoff"],
+  });
+}
+
 /**
  * Validate the immutable dependency seam before a preparation owner consumes
  * its one-shot capability.
@@ -465,6 +575,20 @@ export function assertFloodgateV7CleanRoomRunGateDependenciesCoreForTests(
   }
   try {
     captureDependencies(value);
+  } catch {
+    throw new FloodgateV7CleanRoomRunGateError("capture", false);
+  }
+}
+
+/** Validate the fixed local-only dependency composition before grant use. */
+export function assertFloodgateV7CleanRoomLocalRunGateDependencies(
+  value: FloodgateV7CleanRoomLocalRunGateDependencies,
+): void {
+  if (arguments.length !== 1) {
+    throw new FloodgateV7CleanRoomRunGateError("capture", false);
+  }
+  try {
+    captureLocalDependencies(value);
   } catch {
     throw new FloodgateV7CleanRoomRunGateError("capture", false);
   }
@@ -709,6 +833,7 @@ function captureGateReceipt(
   receiptValue: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
   expectedGate: FloodgateV7TeacherCheckpointV3Gate,
   expectedRunId: string,
+  expectedKeyId: string,
 ): Readonly<CapturedGateReceipt> {
   const receipt = receiptRecord(receiptValue);
   const stage = receiptRecord(receipt.stage);
@@ -748,7 +873,7 @@ function captureGateReceipt(
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY ||
     receipt.algorithm !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM ||
     receipt.run_id !== expectedRunId ||
-    receipt.key_id !== FLOODGATE_V7_DEPLOYMENT_KEY_ID ||
+    receipt.key_id !== expectedKeyId ||
     receipt.gate !== expectedGate ||
     receipt.sealed !== expected.sealed ||
     gateContract.schema !==
@@ -784,7 +909,7 @@ function captureGateReceipt(
     receipt: receiptValue,
     gate: expectedGate,
     runId: expectedRunId,
-    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    keyId: expectedKeyId,
     stage: Object.freeze({
       basename: stage.basename as string,
       parentDev: stage.parent_dev as string,
@@ -939,6 +1064,8 @@ function failureEvidence(
 async function runCaptured(
   plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
   dependencies: Readonly<CapturedDependencies>,
+  receiptAuthority: Readonly<CheckpointReceiptAuthority>,
+  finalizeSealedChainHandoff?: () => Promise<void>,
 ): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
   let phase: FloodgateV7CleanRoomRunGatePhase = "capacity";
   let workStateMayExist = false;
@@ -1020,11 +1147,13 @@ async function runCaptured(
         gateAuthorities.delete(activeAuthority);
         throw new Error("checkpoint authority was not claimed");
       }
-      const authenticatedReceipt =
-        claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests(
-          gateReceipt,
-        );
-      const captured = captureGateReceipt(authenticatedReceipt, gate, runId);
+      const authenticatedReceipt = receiptAuthority.claim(gateReceipt);
+      const captured = captureGateReceipt(
+        authenticatedReceipt,
+        gate,
+        runId,
+        receiptAuthority.expectedKeyId,
+      );
       capturedReceipts.push(captured);
       session.activeOrdinal = ordinal + 1;
       activeAuthority = undefined;
@@ -1043,6 +1172,17 @@ async function runCaptured(
     closeAttempted = true;
     await handoff.close();
     session.closed = true;
+    if (finalizeSealedChainHandoff !== undefined) {
+      phase = "finalizer-handoff";
+      const handoffPromise = finalizeSealedChainHandoff();
+      if (
+        !nodeUtilTypes.isPromise(handoffPromise) ||
+        nodeUtilTypes.isProxy(handoffPromise)
+      ) {
+        throw new Error("finalizer handoff promise differs");
+      }
+      await handoffPromise;
+    }
     phase = "receipt";
     return buildReceipt();
   } catch (primary) {
@@ -1136,5 +1276,96 @@ export function runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests(
   } catch {
     return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
   }
-  return nativePromiseResolve().then(() => runCaptured(plan, dependencies));
+  return nativePromiseResolve().then(() =>
+    runCaptured(
+      plan,
+      dependencies,
+      Object.freeze({
+        expectedKeyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        claim:
+          claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests,
+      }),
+    ),
+  );
+}
+
+/**
+ * Test-only local composition seam. It consumes the existing opaque test
+ * grant, but exercises the exact local receipt-brand and post-close handoff
+ * ordering used by the fixed route.
+ */
+export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTests(
+  grant: Readonly<FloodgateV7CleanRoomPreparedRunGrantForTests>,
+  dependenciesValue: FloodgateV7CleanRoomLocalRunGateDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
+  if (arguments.length !== 2) {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  let dependencies: Readonly<CapturedLocalDependencies>;
+  let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
+  try {
+    dependencies = captureLocalDependencies(dependenciesValue);
+    plan = claimFloodgateV7CleanRoomPreparedRunGrantCoreForTests(grant);
+  } catch {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  return nativePromiseResolve().then(() =>
+    runCaptured(
+      plan,
+      dependencies,
+      Object.freeze({
+        expectedKeyId: dependencies.expectedCheckpointKeyId,
+        claim: dependencies.claimAuthenticatedCheckpointReceipt,
+      }),
+      dependencies.finalizeSealedChainHandoff,
+    ),
+  );
+}
+
+/**
+ * Consume the exact fixed-preparation local grant. Unlike the source/test
+ * route above, this accepts only a non-production key id and an exact local
+ * receipt brand. It still has no production authority or external service
+ * dependency.
+ */
+export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrant(
+  grant: Readonly<FloodgateV7CleanRoomPreparedLocalRunGrant>,
+  dependenciesValue: FloodgateV7CleanRoomLocalRunGateDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
+  if (arguments.length !== 2) {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  let dependencies: Readonly<CapturedLocalDependencies>;
+  let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
+  try {
+    dependencies = captureLocalDependencies(dependenciesValue);
+    plan = claimFloodgateV7CleanRoomPreparedLocalRunGrant(grant);
+    if (
+      !isPlainNonProxyObject(plan) ||
+      !objectIsFrozen(plan) ||
+      !path.isAbsolute(plan.cleanRoomRoot) ||
+      path.resolve(plan.cleanRoomRoot) !== plan.cleanRoomRoot ||
+      plan.gateSequence.length !==
+        FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_SEQUENCE.length ||
+      plan.gateSequence.some(
+        (gate, index) =>
+          gate !== FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_SEQUENCE[index],
+      )
+    ) {
+      throw new Error("local prepared plan differs");
+    }
+  } catch {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  return nativePromiseResolve().then(() =>
+    runCaptured(
+      plan,
+      dependencies,
+      Object.freeze({
+        expectedKeyId: dependencies.expectedCheckpointKeyId,
+        claim: dependencies.claimAuthenticatedCheckpointReceipt,
+      }),
+      dependencies.finalizeSealedChainHandoff,
+    ),
+  );
 }

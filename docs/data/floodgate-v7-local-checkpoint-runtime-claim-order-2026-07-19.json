@@ -1,0 +1,173 @@
+{
+  "schema": "shogi-floodgate-v7-local-checkpoint-runtime-claim-order-evidence-v1",
+  "evidence_date": "2026-07-19",
+  "evidence_timezone": "America/Los_Angeles",
+  "status": "DORMANT-FIX-VALIDATED-NOT-EXECUTED",
+  "claim_boundary": "local-checkpoint-runtime-claim-order-key-cleanup-and-idempotent-stage-close-only-not-teacher-label-training-candidate-formal-ab-external-calibration-live-activation-or-playing-strength-evidence",
+  "root_cause": {
+    "training_row_runtime_claim_lifetime": "synchronous-consumer-callback-invocation-only",
+    "old_key_preparation_awaited_inside_callback_before_checkpoint_invocation": true,
+    "old_checkpoint_would_observe_expired_training_row_claim": true,
+    "stage_claim_failure_before_checkpoint_ownership_could_leave_caller_lease_unclosed": true,
+    "portable_copy_failure": false,
+    "data_corruption": false,
+    "aws": false,
+    "network": false
+  },
+  "remediation": {
+    "checkpoint_key_prepared_before_consumer_entry": true,
+    "checkpoint_invoked_synchronously_inside_consumer_callback": true,
+    "checkpoint_promise_awaited_only_after_direct_invocation": true,
+    "production_training_row_claim_consumed_exactly_once": true,
+    "test_and_production_claim_registries_remain_separate": true,
+    "authorization_discarded_in_finally": true,
+    "stage_close_joined_after_every_operation_outcome": true,
+    "checkpoint_started_close_and_outer_join_share_memoized_promise": true,
+    "physical_close_count_for_two_join_calls": 1,
+    "operation_discard_and_close_failures_all_preserved": true,
+    "cleanup_failure_container": "nested-AggregateError"
+  },
+  "revision": {
+    "base_main_revision": "0dd5469cefd88823b9b50c97c0e3531b4323eace",
+    "implementation_revision": "e86cbb5f0673f87121a9d789da6e990fc97a4170",
+    "implementation_tree": "5f771978e9514b0c92e2b2a076a4d2e2e6223c49",
+    "implementation_parent": "0dd5469cefd88823b9b50c97c0e3531b4323eace",
+    "files": {
+      "runner": {
+        "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
+        "bytes": 62710,
+        "sha256": "9e4d1c40efb6e8a668a5abaa68185d6e768cba191d9a7482bbbc4652d8a92b5d",
+        "git_blob": "58ca216209a98a9dff96bbdfb0fb923956a7502d"
+      },
+      "runtime_claim_integration_test": {
+        "path": "tests/unit/ml/floodgateTrainingRowConsumer.test.ts",
+        "bytes": 61698,
+        "sha256": "d5c32f41cb8ab56f056c8dd2af9ead9828d928ac3157217caecaece6b6dbc172",
+        "git_blob": "57b0b3f8f39aa6b51f20c44af7a0f968d3c90467"
+      },
+      "runner_order_and_cleanup_test": {
+        "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+        "bytes": 45307,
+        "sha256": "8f9d1d983204d723928cbd504b6d08b7405fc081b2573e39247f2c71fd5152e5",
+        "git_blob": "6968e30d34c0112ad89c21b9c366aeb270075ba2"
+      }
+    }
+  },
+  "validation": {
+    "root_independent_runtime": "node-v20.14.0",
+    "package_supported_runtime": "node-v22.13.0",
+    "supported_runtime_related": {
+      "test_files": 4,
+      "tests_passed": 121,
+      "tests_failed": 0,
+      "wall_seconds": 90.41
+    },
+    "changed_suites": {
+      "test_files": 2,
+      "tests_passed": 68,
+      "tests_failed": 0,
+      "wall_seconds": 0.899
+    },
+    "expanded_checkpoint_regression": {
+      "test_files": 3,
+      "tests_passed": 117,
+      "tests_failed": 0,
+      "wall_seconds": 112.58
+    },
+    "evidence_tests": {
+      "test_files": 1,
+      "tests_passed": 4,
+      "tests_failed": 0
+    },
+    "initial_pull_request_ci": {
+      "run": 29685458867,
+      "core_result": "FAIL",
+      "aggregate_test_and_build_result": "FAIL",
+      "implementation_failures": 0,
+      "stale_historical_evidence_pin_failures": 2,
+      "other_completed_checks_passed_before_remediation": 13,
+      "pull_request_checks_failed": 2
+    },
+    "ci_remediation": {
+      "historical_evidence_source_pins_refreshed": 2,
+      "historical_execution_claims_changed": false,
+      "reviewed_git_environment_made_hermetic": true,
+      "real_teacher_invocation": false,
+      "focused_node_v22_13_0": {
+        "test_files": 5,
+        "tests_passed": 82,
+        "tests_failed": 0,
+        "result": "PASS"
+      }
+    },
+    "eslint_changed_files": "PASS",
+    "git_diff_check": "PASS",
+    "independent_review": {
+      "scope": "pre-pull-request-implementation-correctness",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "p3": 0,
+      "blocking_findings": 0
+    },
+    "pull_request_readiness_review": {
+      "before_remediation": {
+        "p0": 0,
+        "p1": 1,
+        "p2": 2,
+        "p3": 0,
+        "implementation_findings": 0,
+        "ci_and_evidence_findings": 3
+      },
+      "remediation": {
+        "stale_historical_pins_fixed": true,
+        "hermetic_git_environment_fixed": true,
+        "review_claim_history_corrected": true
+      },
+      "final_rereview": {
+        "p0": 0,
+        "p1": 0,
+        "p2": 0,
+        "p3": 0,
+        "remaining_findings": 0,
+        "result": "PASS"
+      }
+    }
+  },
+  "stack_boundary": {
+    "teacher_generation_training_and_ab": "local-Mac",
+    "aws_required": false,
+    "aws_used": false,
+    "aws_api_calls": 0,
+    "aws_credentials_used": 0,
+    "firebase_gcp_calls": 0,
+    "vercel_runner_calls": 0,
+    "network_requests": 0
+  },
+  "nonactions": {
+    "private_source_reads": 0,
+    "clean_room_mutations": 0,
+    "teacher_processes_started": 0,
+    "checkpoint_work_created": 0,
+    "teacher_parents_completed": 0,
+    "teacher_rows_created": 0,
+    "labels_finalized": 0,
+    "training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0,
+    "production_activations": 0
+  },
+  "next_gate": {
+    "portable_copy_witness_foundation_review_ci_regular_merge_required": true,
+    "portable_source_semantic_authority_bridge_required": true,
+    "three_ordered_gates": [100, 500, 24000],
+    "real_teacher_allowed_by_this_change_alone": false,
+    "live_weight_must_remain_unchanged": true
+  },
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.md",
+    "english": "../blog-shogi-floodgate-v7-local-checkpoint-runtime-claim-order.en.md"
+  }
+}

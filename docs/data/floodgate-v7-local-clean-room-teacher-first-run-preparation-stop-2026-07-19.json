@@ -49,7 +49,10 @@
     "postmerge_intrinsic_hardening_tree": "3a8893491eff145849d50752be76cebeefc8cea2",
     "postmerge_intrinsic_hardening_parent": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
     "source_pins_refreshed_after_intrinsic_hardening": true,
-    "real_teacher_invocation_during_intrinsic_hardening": false
+    "real_teacher_invocation_during_intrinsic_hardening": false,
+    "runtime_claim_ordering_implementation_revision": "e86cbb5f0673f87121a9d789da6e990fc97a4170",
+    "source_pins_refreshed_after_runtime_claim_ordering": true,
+    "real_teacher_invocation_during_runtime_claim_ordering": false
   },
   "first_operational_attempt": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -149,16 +152,18 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 35949,
-      "sha256": "a9d77e74c8291d74dd888c622eca479edf3354e58825056bc489ee1baa4b58ff",
-      "git_blob": "400f755a35191d89862b0a2d09ec699b305e074c",
+      "bytes": 45307,
+      "sha256": "8f9d1d983204d723928cbd504b6d08b7405fc081b2573e39247f2c71fd5152e5",
+      "git_blob": "6968e30d34c0112ad89c21b9c366aeb270075ba2",
       "required_markers": [
         "\"http.postBuffer\"",
         "\"http.extraHeader\"",
         "64 * 1024 * 1024",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
         "intrinsic prototype poisoning",
-        "\"role-bundle-verification\""
+        "\"role-bundle-verification\"",
+        "checkpoint-synchronous",
+        "local checkpoint operation and key cleanup failed"
       ]
     }
   ],

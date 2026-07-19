@@ -1,0 +1,328 @@
+{
+  "schema": "shogi-floodgate-fresh-qat-v2-execution-dispatch-evidence-v1",
+  "status": "local-validation-pass-ci-pending-production-stop",
+  "recorded_date": "2026-07-18",
+  "last_updated_date": "2026-07-19",
+  "base_revision": "1f98c3661361254bbc0854fa52888ed4b65bc689",
+  "latest_main_integration": {
+    "method": "regular-merge-commit",
+    "latest_main_revision_integrated": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "integration_revision": "038f6d7bc251c91547949a717daa056f363089cc",
+    "integration_tree": "030f3c6b8787082d9d679f1ca96f422705ce5806",
+    "integration_parents": [
+      "586e4b810a6f13b6d49bd12823078456e01042c5",
+      "00f255a62e01ea5a980ada987682c994e76dd1f9"
+    ],
+    "fresh_qat_implementation_paths_unchanged_by_integration": true,
+    "package_identity_refreshed_after_integration": true
+  },
+  "implementation": {
+    "code_commit": "7af69a1fe518ff3f2c64a7238d695d173f642e87",
+    "path_snapshot_remediation_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
+    "pull_request_path_remediation_commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
+    "pull_request_regular_file_read_remediation_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+    "pull_request_root_bound_openat_remediation_commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+    "pull_request_os_error_context_redaction_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
+    "test_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
+    "test_commit_tree": "f751505d3836eb561fd53f894d2cf1f1f3902191",
+    "history_rewritten": false,
+    "files": {
+      "dispatcher": {
+        "path": "ml/fresh_qat_v2_execution_dispatch.py",
+        "bytes": 59290,
+        "sha256": "b6a49dcab28612ec6425bd8cc8c7f2daabb03e860d5c524a58d0982e379f6fb1"
+      },
+      "route_registry": {
+        "path": "ml/qat_plan_registry.py",
+        "bytes": 5498,
+        "sha256": "7c45ee9785f253296a37fe37d352ef09128928a487728a65d45e43e994538a4d"
+      },
+      "activation_anchor": {
+        "path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-activation-anchor.json",
+        "schema": "shogi-floodgate-fresh-qat-v2-activation-anchor-v1",
+        "bytes": 3387,
+        "sha256": "c6b22c202087f0142cc73c37fc033a8e322cb12867a59d9ed027be9eb89eaca7",
+        "canonical_sha256": "2721d7e8df559ea7262518664a5cc3bb8232bea70bf5fce96781c1a7ab81ee8c"
+      },
+      "stdlib_tests": {
+        "path": "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
+        "bytes": 41250,
+        "sha256": "0f4ff4a587bfeb999fb7cab26388cf807179fedafc5460fab8cd9a2a3a69327d"
+      },
+      "route_stdlib_tests": {
+        "path": "ml/tests_stdlib/test_qat_plan_registry.py",
+        "bytes": 11447,
+        "sha256": "cfd4f67c3fefd10bd8e64b5dccd00e9dbc9f081dc017541cb73f1ddfda5182de"
+      }
+    }
+  },
+  "immutable_predecessors": {
+    "v1_plan_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry.json",
+      "bytes": 409,
+      "sha256": "9a1af8144cda4a222e300676c1475d69314c5ac32fe6a11a58adf7acfe5d9a00",
+      "byte_for_byte_unchanged": true
+    },
+    "v1_selection_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-selection-preflight-registry.json",
+      "bytes": 2294,
+      "sha256": "7593d5675884431e5fbcc71c7925b7f094c3ab48f6de9f74850b195f57aedd39",
+      "byte_for_byte_unchanged": true
+    },
+    "closed_parent_accounting_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-plan-registry-v2.json",
+      "bytes": 3501,
+      "sha256": "97bd6c1839288f505d31e62904ba095a0ccd11a5dc1f5a58d37f21bea11e214c",
+      "byte_for_byte_unchanged": true
+    }
+  },
+  "current_activation": {
+    "anchor_status": "permanently-closed-anchor-awaiting-additive-ready-successor",
+    "ready_successor_path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-ready-successor.json",
+    "ready_successor_present": false,
+    "production_result": "STOP-before-plan-proposal-train-artifact-or-torch-read",
+    "artifact_reads_authorized": false,
+    "torch_reads_authorized": false,
+    "training_contract_issue_authorized": false,
+    "training_dispatch_authorized": false,
+    "selection_reader_authorized": false,
+    "holdout_reader_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "dispatch_order": [
+    "snapshot-plan-pathlike-exactly-once-before-route-decision",
+    "require-exact-nonsymlink-v2-plan-path",
+    "verify-permanent-closed-anchor-exact-bytes-and-canonical-value",
+    "attempt-exact-additive-ready-successor",
+    "stop-if-successor-absent-before-any-artifact-or-runtime-reader",
+    "verify-frozen-v1-plan-v1-selection-and-closed-v2-registry-bytes",
+    "verify-exact-input-completion-proposal-plan-and-train-identities-with-rereads",
+    "invoke-production-source-accounting-validator-with-exact-input-completion-and-train-bytes",
+    "cross-bind-parent-accounting-plan-proposal-train-and-training-contracts",
+    "verify-runtime-and-other-input-identities",
+    "issue-one-existing-v1-training-contract-for-the-selected-fixed-slot"
+  ],
+  "future_ready_successor_contract": {
+    "present_now": false,
+    "publication_rule": "additive-new-file-only-never-edit-the-permanent-anchor",
+    "exact_execution_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-execution-plan-v2"
+    },
+    "exact_parent_accounting_proposal": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-proposal-v2.json",
+      "schema": "shogi-floodgate-fresh-qat-parent-accounting-proposal-v2"
+    },
+    "exact_input_training": {
+      "path": "training.raw.jsonl",
+      "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1"
+    },
+    "enrolled_parent_completion": {
+      "path": "parent-completion.jsonl",
+      "format": "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2"
+    },
+    "exact_train": {
+      "path": "ml/data/floodgate-q1-2026-fresh-qat-v2/train.jsonl",
+      "format": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+    },
+    "allowed_schema_pair": {
+      "execution_plan": "shogi-floodgate-fresh-qat-execution-plan-v2",
+      "training_contract": "shogi-floodgate-fresh-qat-training-experiment-v1"
+    },
+    "near_paths_rejected": true,
+    "symlinked_v2_plan_rejected": true,
+    "non_plain_string_v2_candidates_rejected": true,
+    "pathlike_fspath_snapshotted_exactly_once": true,
+    "stateful_pathlike_v2_cross_route_rejected": true,
+    "wrong_schemas_rejected": true,
+    "v1_v2_or_wcsc36_hybrids_rejected": true,
+    "selection_and_holdout_remain_unauthorized": true,
+    "production_weight_write_remains_unauthorized": true
+  },
+  "parent_accounting": {
+    "input_parents": 24000,
+    "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+    "model_training_parents_source": "emitted_parent_groups",
+    "input_completion_proposal_plan_train_and_contract_cross_bound": true,
+    "production_source_validator_recomputation_required": true,
+    "successor_completion_enrollment_declaration_is_not_sufficient": true,
+    "partial_emission_allowed_only_after_source_recomputation_and_exact_identity_agreement": true,
+    "replacement_allowed": false,
+    "resampling_allowed": false,
+    "emitted_order_must_be_preserved": true,
+    "all_forced_declaration_result": "early-fail-closed-exception-before-source-authentication",
+    "all_forced_parents_authenticated_by_early_exception": false,
+    "all_forced_literal_parent_accounting_stop_receipt_returned": false,
+    "all_forced_training_contracts_issued": 0
+  },
+  "unchanged_training_contract": {
+    "schema": "shogi-floodgate-fresh-qat-training-experiment-v1",
+    "training_canonical_sha256": "b0bf9dbd2342b8be325fae4d195e9bdd909a702361d229293f30849f1348d8ac",
+    "slots_canonical_sha256": "aab83502378adca6557e4ba0d9da4cf545061eed8d15b1aeae0b99b8a41ffeed",
+    "selection_canonical_sha256": "9aeade0c64556bd8c3b59bff7b1b1cedb386d2226a4ce60fc7b59677d305352c",
+    "seeds": [42, 43, 44],
+    "model_or_loss_changed": false,
+    "optimizer_or_schedule_changed": false,
+    "selection_gate_changed": false,
+    "holdout_policy_changed": false
+  },
+  "local_validation": {
+    "focused_v2_dispatch_and_registry": {
+      "tests": 25,
+      "passed": 25,
+      "failed": 0,
+      "runner_seconds": 0.05,
+      "wall_seconds": 0.1
+    },
+    "full_stdlib_suite": {
+      "tests": 177,
+      "passed": 177,
+      "failed": 0,
+      "runner_seconds": 11.978,
+      "wall_seconds": 12.46,
+      "command": "npm run test:ml:stdlib"
+    },
+    "python_compile": "PASS",
+    "json_validation": "PASS",
+    "git_diff_check": "PASS",
+    "adversarial_cases": [
+      "missing-ready-successor-zero-artifact-and-runtime-reads",
+      "exact-v2-plan-path-only",
+      "near-v2-plan-path",
+      "symlinked-v2-plan-path",
+      "path-bytes-and-string-subclass-v2-cross-route",
+      "stateful-pathlike-fspath-single-snapshot-cross-route",
+      "malformed-pathlike-attribute-error-single-capture",
+      "external-repository-ancestor-symlink-alias",
+      "in-repository-component-and-final-symlink-rejection",
+      "default-reader-fifo-device-and-symlink-preopen-rejection",
+      "default-reader-exact-size-and-unbound-size-cap",
+      "default-reader-held-parent-nofollow-stat-open-fstat-identity-and-mutation-check",
+      "root-bound-held-directory-fd-intermediate-rename-to-symlink-rejection",
+      "root-bound-final-file-swap-to-symlink-rejection",
+      "root-bound-os-error-absolute-path-redaction",
+      "root-bound-os-error-context-chain-redaction",
+      "wrong-successor-schema",
+      "v1-plan-v2-route-hybrid",
+      "v2-plan-wcsc36-contract-hybrid",
+      "unknown-v2-contract-schema",
+      "broken-forced-plus-emitted-equation",
+      "boolean-count-alias",
+      "partial-emission",
+      "full-emission",
+      "all-forced-declaration-early-exception-zero-contract",
+      "unenrolled-synthetic-input-completion-zero-contract",
+      "self-asserted-proposal-upstream",
+      "proposal-train-parent-identity-drift",
+      "proposal-plan-accounting-drift",
+      "input-completion-or-train-exact-byte-drift",
+      "replacement-parent",
+      "frozen-slot-drift",
+      "training-contract-schema-drift",
+      "authority-field-omission-or-escalation",
+      "invented-strength-claim",
+      "duplicate-json-key",
+      "nonfinite-json",
+      "frozen-predecessor-byte-drift"
+    ]
+  },
+  "infrastructure": {
+    "local_cpu_used_for_validation": true,
+    "aws_required": false,
+    "aws_used": false,
+    "gcp_cloud_function_used": false,
+    "firebase_used": false,
+    "vercel_used": false,
+    "network_used": false,
+    "teacher_used": false,
+    "torch_used": false,
+    "real_training_data_read": false
+  },
+  "observations": {
+    "real_teacher_labels_generated": 0,
+    "real_training_artifacts_enrolled": 0,
+    "fresh_qat_training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  },
+  "continuous_integration": "PENDING",
+  "independent_review": {
+    "initial_result": "CHANGES_REQUIRED",
+    "initial_findings": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 2
+    },
+    "remediation_commits": [
+      "7af69a1fe518ff3f2c64a7238d695d173f642e87",
+      "0aaa09aae018f90648edccd9763e55c06103f031",
+      "f9fee197def90681c1444dc68a646b7f5f06a936",
+      "33d9b3139068fac69c44d368869006f5d5d919db",
+      "ade5554bdcc222183cd12183cbbfdb5301675c65",
+      "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+      "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+      "0b10dff9a405778773e6dd3483ac6be6baf54475"
+    ],
+    "post_source_authentication_remediation_rereview": {
+      "result": "CHANGES_REQUIRED",
+      "findings": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1
+      },
+      "remaining_finding": "stateful-os-pathlike-could-change-between-two-fspath-evaluations-and-cross-route-v2-to-wcsc36"
+    },
+    "latest_path_snapshot_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS",
+      "commit": "33d9b3139068fac69c44d368869006f5d5d919db",
+      "focused_tests": "21/21-PASS",
+      "full_stdlib_tests": "154/154-PASS"
+    },
+    "pull_request_path_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
+      "review_findings_addressed": 4,
+      "external_repository_ancestor_alias_allowed": true,
+      "in_repository_symlink_components_rejected": true,
+      "malformed_pathlike_attribute_error_captured_once": true,
+      "focused_tests": "23/23-PASS",
+      "full_stdlib_tests": "175/175-PASS"
+    },
+    "pull_request_regular_file_read_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
+      "review_findings_addressed": 1,
+      "fifo_device_and_symlink_rejected_before_open": true,
+      "regular_file_open_uses_no_follow_and_nonblocking_flags": true,
+      "preopen_nofollow_stat_and_fstat_identity_bound": true,
+      "original_lstat_implementation_superseded_by": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+      "exact_identity_reads_are_byte_bounded": true,
+      "unbound_successor_read_has_fixed_maximum_bytes": 1048576,
+      "focused_tests": "24/24-PASS",
+      "full_stdlib_tests": "176/176-PASS"
+    },
+    "pull_request_root_bound_openat_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS-CI-PENDING",
+      "commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+      "canonical_repository_root_held_by_directory_fd_chain": true,
+      "every_intermediate_component_uses_directory_and_no_follow": true,
+      "final_component_uses_no_follow_and_nonblocking": true,
+      "preopen_and_opened_file_device_inode_and_size_bound": true,
+      "bounded_read_and_postread_metadata_bound": true,
+      "raw_os_errors_redacted_to_label_only_value_error": true,
+      "raw_os_error_context_chain_removed": true,
+      "os_error_context_redaction_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
+      "external_input_ancestor_alias_semantics_preserved": true,
+      "intermediate_rename_to_symlink_test": "PASS",
+      "final_file_swap_to_symlink_test": "PASS",
+      "focused_tests": "25/25-PASS",
+      "full_stdlib_tests": "177/177-PASS",
+      "unrelated_ci_cleanup_flake_local_repetitions": "10/10-PASS-200/200-tests"
+    },
+    "final_independent_rereview": "PENDING"
+  },
+  "next_required_action": "keep-production-stop-until-the-production-source-accounting-validator-accepts-finalizer-authenticated-completion-enrollment-and-recomputes-the-proposal-from-exact-input-completion-and-train-bytes-before-a-separately-reviewed-ready-successor-is-added"
+}

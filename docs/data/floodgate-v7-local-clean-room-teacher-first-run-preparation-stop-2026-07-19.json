@@ -43,7 +43,13 @@
     "followup_failure_kind_review_tree": "b817b3922595b5ef794c72757e6bba7452f11dc5",
     "followup_failure_kind_review_parent": "e12d862c2c076db3f24c867cb455922bc83c544c",
     "source_pins_refreshed_after_followup_review": true,
-    "real_teacher_invocation_during_followup_review": false
+    "real_teacher_invocation_during_followup_review": false,
+    "failure_kind_pull_request_merge_revision": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "postmerge_intrinsic_hardening_revision": "52145c9f4b7f3ef434db3cfc7d52755e32f11ca5",
+    "postmerge_intrinsic_hardening_tree": "3a8893491eff145849d50752be76cebeefc8cea2",
+    "postmerge_intrinsic_hardening_parent": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "source_pins_refreshed_after_intrinsic_hardening": true,
+    "real_teacher_invocation_during_intrinsic_hardening": false
   },
   "first_operational_attempt": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -126,14 +132,16 @@
   "source_pins": [
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 62307,
-      "sha256": "48e3fefca9597e57553e178fe30e81127eeda842c1b3122d757af69b4dc0ada2",
-      "git_blob": "e6d39fb439469cbd9424a184ad2ffc810452928d",
+      "bytes": 62414,
+      "sha256": "0390ff58e01853e517d316c23c4422603ad8a0720e00ab4a74f8b6d1fc875b9b",
+      "git_blob": "41429008659c5acf4ebc2e4733a5e14954b48cd7",
       "required_markers": [
         "lower !== \"http.postbuffer\"",
         "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
         "protocol.file.allow=always",
         "GIT_ALLOW_PROTOCOL: \"file\"",
+        "const arrayIncludes = Array.prototype.includes",
+        "const reflectApply = Reflect.apply",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
         "classifyVerificationFailure",
         "\"role-bundle-verification\""
@@ -141,14 +149,15 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 34555,
-      "sha256": "69a2819c3adc613272d9495a3a88ffe9dbc46bb2cc096b1b32f170e2a847194c",
-      "git_blob": "df3042e4c2928845e4ac1b3d2decf0e43bc3c7c4",
+      "bytes": 35949,
+      "sha256": "a9d77e74c8291d74dd888c622eca479edf3354e58825056bc489ee1baa4b58ff",
+      "git_blob": "400f755a35191d89862b0a2d09ec699b305e074c",
       "required_markers": [
         "\"http.postBuffer\"",
         "\"http.extraHeader\"",
         "64 * 1024 * 1024",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
+        "intrinsic prototype poisoning",
         "\"role-bundle-verification\""
       ]
     }

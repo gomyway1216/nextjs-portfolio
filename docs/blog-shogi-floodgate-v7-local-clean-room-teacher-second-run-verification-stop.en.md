@@ -52,6 +52,8 @@ The branch then integrated main `9dc5755a…`, including Fresh-QAT safety PR #51
 
 After PR review, commit `5c00ea32…` consolidated the `failure_kind` values into one runtime-frozen array and derived the TypeScript type from that same source. Commit `c3a47e52…` made the evidence test's Git environment hermetic with fixed PATH, HOME, and locale, disabled system/global configuration, and disabled optional locks. The focused runs passed 26/26 and 6/6 tests respectively; teacher starts, training runs, and live-weight changes during these review remediations were all zero.
 
+Immediately after the regular merge of PR #515 at `5f2569dc…`, an independent review found a P2: the frozen array still dynamically referenced mutable `Array.prototype.includes`, so prototype poisoning could pass a private value through `failure_kind`. Commit `52145c9f…` first requires a string and validates only through `Array.prototype.includes` and `Reflect.apply` captured at module initialization. Prototype-poisoning regressions now cover both error boundaries; the focused run passed 28/28 tests with zero private-value disclosure, teacher starts, training runs, or live-weight changes.
+
 ## 7. The next safe remediation
 
 Simply deleting the historical inode check would weaken the evidence. The next change will add a portable transition:

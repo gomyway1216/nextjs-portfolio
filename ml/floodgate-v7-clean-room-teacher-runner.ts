@@ -141,6 +141,8 @@ const SAFE_WORKER_BASENAME = /^worker-[0-9]{2}$/;
 const objectPrototype = Object.prototype;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
+const arrayIncludes = Array.prototype.includes;
+const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
 
 type PreparationPhase =
@@ -170,9 +172,8 @@ export type FloodgateV7CleanRoomTeacherPreparationFailureKind =
 function safePreparationFailureKind(
   value: unknown,
 ): FloodgateV7CleanRoomTeacherPreparationFailureKind {
-  return (
-    FLOODGATE_V7_PREPARATION_FAILURE_KINDS as readonly unknown[]
-  ).includes(value)
+  return typeof value === "string" &&
+    reflectApply(arrayIncludes, FLOODGATE_V7_PREPARATION_FAILURE_KINDS, [value])
     ? (value as FloodgateV7CleanRoomTeacherPreparationFailureKind)
     : "phase-level";
 }

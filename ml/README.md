@@ -311,6 +311,24 @@ TypeScript changed-file error、ESLint、
 Prettier、diff errorは0、最終security reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
 unresolved 0だった。
 
+#### Floodgate 24,000 training input実認証（2026-07-19）
+
+固定verifier revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`で元のtraining
+role-bundleを実際に読み取り専用認証し、24,000親・1,000対局、callback 1,088.742秒、
+callback後のfilesystem再検査とdescriptor close込み1,088.743秒、exit 0を確認した。
+これは実教師入力readinessであり、新しい完了済みteacher dataset、training、
+candidate weight、formal A/B、live変更はすべて0である。過去の停止試行に残る3 parent
+recordは完了済みdatasetではない。
+
+速度監査ではfull verifierが平均約1.07コア、peak RSS約5.63GB、swap / block I/O 0で、
+RAM・SSD・追加coreではなく順序付き意味再検証が律速だった。100 / 500 / 24,000を別processで
+3回認証すると約54.44分だが、次のv6 strength-first runnerは同じauthenticated callback内で
+3 milestoneを連続実行し、認証を1回18.15分へ減らして約36.29分を節約する。その内側では
+YaneuraOu 12 processを並列使用する。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-training-input-real-authentication.md) /
+[English article](../docs/blog-shogi-floodgate-training-input-real-authentication.en.md) /
+[machine evidence](../docs/data/floodgate-training-input-real-authentication-2026-07-19.json)を参照。
+
 #### Floodgate v7 portable copy held role-bundle（2026-07-19）
 
 portable copy先の`role-bundle-tree`を、held root descriptorとexact 9 file descriptorから

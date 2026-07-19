@@ -1,7 +1,21 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import CategoryPostPage from '@/page/blog/CategoryPostPage';
 import { getInitialPostsCached, type PostsPage } from '@/lib/blog/getPostsServer';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
+
+export const metadata: Metadata = {
+  title: 'Blog',
+  description:
+    'Writing by Yudai Yaguchi on product engineering, fintech systems, system design, applied algorithms, and the decisions behind the work.',
+  alternates: { canonical: '/blog' },
+  openGraph: {
+    title: 'Blog | Yudai Yaguchi',
+    description:
+      'Writing on product engineering, fintech systems, system design, applied algorithms, and the decisions behind the work.',
+    url: '/blog',
+  },
+};
 
 export const revalidate = 60;
 

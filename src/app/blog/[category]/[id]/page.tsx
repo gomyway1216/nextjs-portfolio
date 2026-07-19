@@ -4,16 +4,31 @@ import { htmlToText } from 'html-to-text';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
+import { SITE_URL } from '@/lib/siteConfig';
 
 interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
 }
 
-function excerpt(html: string): string {
-  return htmlToText(html, { wordwrap: false })
+function excerpt(body: string): string {
+  // Bodies are markdown; htmlToText only handles HTML, so markdown
+  // syntax (blockquote ">", headings, emphasis) leaked into meta
+  // descriptions verbatim. Strip the common markers before truncating.
+  return htmlToText(body, { wordwrap: false })
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^[>#\s*-]+/gm, ' ')
+    .replace(/[`*_~]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160);
+}
+
+function categoryLabel(category: string): string {
+  return category
+    .split('-')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ');
 }
 
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
@@ -75,7 +90,55 @@ export default async function BlogPost({ params }: BlogPostParams) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
 
+  // BlogPosting + BreadcrumbList structured data for public posts, with
+  // the author pointing at the site-wide Person node from the root layout.
+  let jsonLd: object | null = null;
+  if (initialPost) {
+    const cookieStore = await cookies();
+    const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
+    const picked = pickTranslation(initialPost.translations, language);
+    if (picked) {
+      const categoryUrl = `${SITE_URL}/blog/${encodeURIComponent(initialPost.category)}`;
+      const postUrl = `${categoryUrl}/${encodeURIComponent(initialPost.id)}`;
+      jsonLd = {
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'BlogPosting',
+            headline: picked.translation.title,
+            description: excerpt(picked.translation.body),
+            url: postUrl,
+            mainEntityOfPage: postUrl,
+            datePublished: initialPost.created,
+            dateModified: initialPost.lastUpdated || initialPost.created,
+            inLanguage: picked.language,
+            ...(initialPost.image ? { image: initialPost.image } : {}),
+            author: { '@id': `${SITE_URL}/#person` },
+          },
+          {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Blog', item: `${SITE_URL}/blog` },
+              { '@type': 'ListItem', position: 2, name: categoryLabel(initialPost.category), item: categoryUrl },
+              { '@type': 'ListItem', position: 3, name: picked.translation.title, item: postUrl },
+            ],
+          },
+        ],
+      };
+    }
+  }
+
   // Key by id: client-side navigation between posts reuses the component
   // instance, and PostPage seeds its state from initialPost on mount.
-  return <PostPage key={id} initialPost={initialPost} />;
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+        />
+      )}
+      <PostPage key={id} initialPost={initialPost} />
+    </>
+  );
 }

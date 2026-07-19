@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import CategoryPostPage from '@/page/blog/CategoryPostPage';
@@ -6,6 +7,29 @@ import { normalizeLanguage } from '@/lib/blog/postTranslations';
 
 // Revalidate the route every 60s in addition to the in-process cache.
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ category: string }>;
+}): Promise<Metadata> {
+  const { category } = await params;
+  const label = category
+    .split('-')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ');
+  const description = `${label} articles by Yudai Yaguchi.`;
+  return {
+    title: `${label} — Blog`,
+    description,
+    alternates: { canonical: `/blog/${encodeURIComponent(category)}` },
+    openGraph: {
+      title: `${label} — Blog | Yudai Yaguchi`,
+      description,
+      url: `/blog/${encodeURIComponent(category)}`,
+    },
+  };
+}
 
 const INITIAL_PAGE_SIZE = 5;
 

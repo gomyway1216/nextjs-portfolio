@@ -70,4 +70,13 @@ i18n
     },
   });
 
+// Keep <html lang> in sync after client-side language switches; the server
+// only sets it for the initial document, so without this a JA session keeps
+// lang="en" (wrong signal for screen readers, translators, and crawlers).
+if (typeof document !== 'undefined') {
+  i18n.on('languageChanged', (lng) => {
+    document.documentElement.lang = lng;
+  });
+}
+
 export default i18n;

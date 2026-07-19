@@ -10,13 +10,13 @@ The preceding `DurableRemoteWitnessServiceCoreV1` fixed the abstract ordering: r
 
 This candidate closes that gap as five contracts.
 
-| Contract | Frozen behavior |
-| --- | --- |
-| provider DTOs | SDK-independent async request, response, and failure envelopes |
-| Dynamo record codec | exact `STATE`, `OP`, and `ATTEMPT` items and canonical decoding |
-| Dynamo transaction | two-item read, three-action write, and a token no longer than 36 bytes |
-| KMS | exact Ed25519 capability set, while Sign uses only `RAW` + `ED25519_SHA_512` |
-| store generation | exact `TableARN` and `TableId` across preflight and postflight |
+| Contract            | Frozen behavior                                                              |
+| ------------------- | ---------------------------------------------------------------------------- |
+| provider DTOs       | SDK-independent async request, response, and failure envelopes               |
+| Dynamo record codec | exact `STATE`, `OP`, and `ATTEMPT` items and canonical decoding              |
+| Dynamo transaction  | two-item read, three-action write, and a token no longer than 36 bytes       |
+| KMS                 | exact Ed25519 capability set, while Sign uses only `RAW` + `ED25519_SHA_512` |
+| store generation    | exact `TableARN` and `TableId` across preflight and postflight               |
 
 The provider shapes a future AWS adapter must obey are now testable. However, the preserved service core calls **SYNCHRONOUS** provider closures while every AWS DTO provider is async. A nonblocking AWS adapter cannot be plugged into that byte-exact core. An async service-core successor, or an equally strict nonblocking continuation design, is a prerequisite. No SDK call was made, so this does not claim that real DynamoDB durability or KMS signing has been established.
 
@@ -26,14 +26,14 @@ The new `FloodgateV7AWSWitnessAdapterContract` package has one local dependency 
 
 The boundary checker fail-closes the package graph, source and test inventories, import allowlist, forbidden capabilities, public/SPI symbol graphs, and its exact CI job. It forbids semaphore and sleep-based blocking bridges. It also pins the existing service core's package manifest, source, tests, and boundary checker by byte count and SHA-256.
 
-| Boundary | Current value |
-| --- | ---: |
-| package products | 0 |
-| external dependencies | 0 |
-| production consumers | 0 |
-| public / SPI symbols | 0 / 0 |
-| AWS SDK / network / credential APIs | 0 / 0 / 0 |
-| existing service-core fingerprint drift | 0 |
+| Boundary                                | Current value |
+| --------------------------------------- | ------------: |
+| package products                        |             0 |
+| external dependencies                   |             0 |
+| production consumers                    |             0 |
+| public / SPI symbols                    |         0 / 0 |
+| AWS SDK / network / credential APIs     |     0 / 0 / 0 |
+| existing service-core fingerprint drift |             0 |
 
 An earlier evidence test overreached by requiring exactly one upload-artifact action in the entire CI workflow while attempting to protect the external trust-root job. That rejected the legitimate artifact upload in this independent job. The gate now counts within the protected job. That job still requires exactly one upload, the exact action version and paths, `if: always()`, and `if-no-files-found: error`.
 
@@ -73,7 +73,7 @@ The client request token is exactly 36 characters: `FGV1` plus Base32 of the fir
 
 ## 5. KMS accepts one Ed25519 shape
 
-`GetPublicKey` must return the pinned key ARN, `ECC_NIST_EDWARDS25519`, `SIGN_VERIFY`, and the exact order-insensitive capability set `[ED25519_SHA_512, ED25519_PH_SHA_512]`. AWS does not let a key remove one of those two capabilities. The SPKI must be the exact 44-byte RFC 8410 Ed25519 form. The 32-byte compressed point must encode a canonical field element and must not be one of the eight small-order points before the signer key ID is derived.
+`GetPublicKey` must return the pinned key ARN, `ECC_NIST_EDWARDS25519`, `SIGN_VERIFY`, and the exact order-insensitive capability set `[ED25519_SHA_512, ED25519_PH_SHA_512]`. AWS does not let a key remove one of those two capabilities. The SPKI must be the exact 44-byte RFC 8410 Ed25519 form. The 32-byte compressed point must do more than encode a canonical y: it fully recovers x under RFC 8032 §5.1.3 and stops a value with no curve point, x = 0 with sign bit 1, or any of the eight small-order points before deriving the signer key ID. Acceptance by the CryptoKit initializer alone is not treated as point validation.
 
 Although the key advertises both capabilities, this contract's `Sign` request is fixed to message type `RAW`, algorithm `ED25519_SHA_512`, and no grant tokens. A response is accepted only after its 64-byte signature verifies under the bound Ed25519 public key over the exact originating RAW request bytes. A signature for another message, an invalid signature, DIGEST mode, prehash signing, ECDSA, another key ARN, an all-zero signature, or unknown fields stops.
 
@@ -83,23 +83,25 @@ This does not call KMS. No key, IAM policy, key policy, rotation, multi-Region c
 
 Provider outcomes map conservatively.
 
-| Provider outcome | Meaning returned to the core |
-| --- | --- |
-| matching token, HTTP 200, nonempty request ID, no unknown fields | `committed` |
-| conditional-check failure | `definitiveCASLoss` |
-| transaction conflict or throttling | `transientConflict` |
-| timeout, unavailable network, or internal server error | `ambiguous` |
-| transaction still in progress for the same token | `ambiguous` |
-| access denied, missing resource, validation, or token-parameter mismatch | `stop` |
-| unknown provider failure | `stop` |
-| untyped thrown error | `ambiguous` |
-| non-200, token drift, empty request ID, or unknown success fields | `stop` |
+| Provider outcome                                                         | Meaning returned to the core |
+| ------------------------------------------------------------------------ | ---------------------------- |
+| matching token, HTTP 200, nonempty request ID, no unknown fields         | `committed`                  |
+| conditional-check failure                                                | `definitiveCASLoss`          |
+| transaction conflict or throttling                                       | `transientConflict`          |
+| timeout, unavailable network, or internal server error                   | `ambiguous`                  |
+| transaction still in progress for the same token                         | `ambiguous`                  |
+| access denied, missing resource, validation, or token-parameter mismatch | `stop`                       |
+| unknown provider failure                                                 | `stop`                       |
+| untyped thrown error                                                     | `ambiguous`                  |
+| non-200, token drift, empty request ID, or unknown success fields        | `stop`                       |
 
 A returning SDK call is not automatically success. Existing service-core logic resends only the identical plan up to three times after ambiguity and reconciles a winner through another transactional read.
 
 ## 7. Validation and measurements
 
 Local validation used Xcode 15.3 / Swift 5.10 on arm64 macOS.
+
+The pinned implementation revision is `ed3932f6ec9818340144abf7949545ed292b1261`; its tree is `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`. Independent exact rereview and PR CI of that snapshot remain pending.
 
 - new package tests: **21 / 21 PASS**
 - repository compatibility: **2 files / 9 tests PASS**

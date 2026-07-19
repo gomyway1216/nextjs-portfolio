@@ -10,13 +10,13 @@
 
 今回、その空白を次の5つへ分けて閉じた。
 
-| 契約 | 固定した内容 |
-| --- | --- |
-| provider DTO | SDKに依存しないasync request / response / failure envelope |
-| Dynamo record codec | exactな`STATE` / `OP` / `ATTEMPT` itemとcanonical decode |
-| Dynamo transaction | 2-item read、3-action write、36-byte以下のclient token |
-| KMS | Ed25519 capability setをexact化し、実Signは`RAW` + `ED25519_SHA_512`だけ |
-| store generation | `TableARN`と`TableId`をpreflight / postflightで一致させる |
+| 契約                | 固定した内容                                                             |
+| ------------------- | ------------------------------------------------------------------------ |
+| provider DTO        | SDKに依存しないasync request / response / failure envelope               |
+| Dynamo record codec | exactな`STATE` / `OP` / `ATTEMPT` itemとcanonical decode                 |
+| Dynamo transaction  | 2-item read、3-action write、36-byte以下のclient token                   |
+| KMS                 | Ed25519 capability setをexact化し、実Signは`RAW` + `ED25519_SHA_512`だけ |
+| store generation    | `TableARN`と`TableId`をpreflight / postflightで一致させる                |
 
 これで「AWS adapterが将来守るべきprovider shape」はテストできるようになった。ただし既存service coreのprovider closureは **SYNCHRONOUS** で、新しいAWS provider DTOはasyncである。byte-exactな既存coreへnonblocking AWS adapterを接続することはできないため、async core successorか同等に厳密なnonblocking continuation設計が先に必要である。実SDK callは0であり、DynamoDBのdurabilityやKMS signingが実際に成立したとは主張しない。
 
@@ -26,14 +26,14 @@
 
 boundary checkerは、package graph、source / test inventory、import allowlist、禁止capability、public / SPI symbol graph、CI jobをfail closedで検査し、semaphoreやsleepによるblocking bridgeも禁止する。さらに既存service coreのpackage manifest、source、tests、boundary checkerの4ファイルをbyte countとSHA-256で固定した。
 
-| 検査 | 現在値 |
-| --- | ---: |
-| package product | 0 |
-| external dependency | 0 |
-| production consumer | 0 |
-| public / SPI symbol | 0 / 0 |
+| 検査                               |    現在値 |
+| ---------------------------------- | --------: |
+| package product                    |         0 |
+| external dependency                |         0 |
+| production consumer                |         0 |
+| public / SPI symbol                |     0 / 0 |
 | AWS SDK / network / credential API | 0 / 0 / 0 |
-| 既存service-core fingerprint drift | 0 |
+| 既存service-core fingerprint drift |         0 |
 
 過去のevidence testには、external trust-root jobを守るために「workflow全体のupload-artifactは1個だけ」と数える過剰な制約があった。新しい独立jobを追加すると正当なartifact uploadまで拒否したため、厳密性の単位をworkflow全体から対象jobへ修正した。対象job内は今もexact 1件、exact action version、exact path、`if: always()`、`if-no-files-found: error`を要求する。
 
@@ -73,7 +73,7 @@ writeはexact 3 actionである。
 
 ## 5. KMSはEd25519の一形だけを許可した
 
-`GetPublicKey` responseは、pinned key ARN、`ECC_NIST_EDWARDS25519`、`SIGN_VERIFY`、signing capabilityが順序非依存でexactに`[ED25519_SHA_512, ED25519_PH_SHA_512]`であることを要求する。AWSでは鍵ごとに片方だけを無効化できない。SPKIはRFC 8410のEd25519 prefixを含む44 byteだけを受け付け、32-byte compressed pointがcanonical field encodingで、8つのsmall-order pointのいずれでもないことを確認してからsigner key IDを導出する。
+`GetPublicKey` responseは、pinned key ARN、`ECC_NIST_EDWARDS25519`、`SIGN_VERIFY`、signing capabilityが順序非依存でexactに`[ED25519_SHA_512, ED25519_PH_SHA_512]`であることを要求する。AWSでは鍵ごとに片方だけを無効化できない。SPKIはRFC 8410のEd25519 prefixを含む44 byteだけを受け付ける。32-byte compressed pointは、canonicalなyを要求するだけでなくRFC 8032 §5.1.3どおりxを完全復元し、曲線上に点が存在しない値、x=0なのにsign bit=1の値、8つのsmall-order pointをすべてSTOPしてからsigner key IDを導出する。CryptoKitのinitializerが受理することだけはpoint validationの根拠にしない。
 
 鍵のcapabilityは2方式でも、このcontractの`Sign` requestはmessage type `RAW`、algorithm `ED25519_SHA_512`、grant tokenなしに固定する。responseの64-byte signatureは、bind済みEd25519 public keyを使い、元のexact RAW request bytesに対して暗号学的に検証できた場合だけ受理する。別messageのsignature、不正signature、`DIGEST`、prehash signing、ECDSA、別key ARN、0 signature、未知fieldはSTOPする。
 
@@ -83,23 +83,25 @@ writeはexact 3 actionである。
 
 provider結果は次へ保守的に写像する。
 
-| provider結果 | coreへ返す意味 |
-| --- | --- |
-| token一致、HTTP 200、request IDあり、未知fieldなし | `committed` |
-| conditional check failure | `definitiveCASLoss` |
-| transaction conflict / throttle | `transientConflict` |
-| timeout / network unavailable / internal server error | `ambiguous` |
-| 同じtokenのtransaction in progress | `ambiguous` |
-| access denied / resource missing / validation / token parameter mismatch | `stop` |
-| 未知error | `stop` |
-| 型付けされていないthrow | `ambiguous` |
-| 200以外、token drift、空request ID、未知success field | `stop` |
+| provider結果                                                             | coreへ返す意味      |
+| ------------------------------------------------------------------------ | ------------------- |
+| token一致、HTTP 200、request IDあり、未知fieldなし                       | `committed`         |
+| conditional check failure                                                | `definitiveCASLoss` |
+| transaction conflict / throttle                                          | `transientConflict` |
+| timeout / network unavailable / internal server error                    | `ambiguous`         |
+| 同じtokenのtransaction in progress                                       | `ambiguous`         |
+| access denied / resource missing / validation / token parameter mismatch | `stop`              |
+| 未知error                                                                | `stop`              |
+| 型付けされていないthrow                                                  | `ambiguous`         |
+| 200以外、token drift、空request ID、未知success field                    | `stop`              |
 
 「SDK callがreturnしたら成功」とは扱わない。曖昧結果は既存service coreが同一planだけを最大3回再送し、その後もwinnerをtransactional rereadで照合する。
 
 ## 7. 検証結果と実測
 
 local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
+
+固定したimplementation revisionは`ed3932f6ec9818340144abf7949545ed292b1261`、treeは`e127fd5c21c6b611cd9c021257fe9c6d19a6f441`である。このsnapshotの独立exact rereviewとPR CIは未完了である。
 
 - 新package tests: **21 / 21 PASS**
 - repository compatibility: **2 files / 9 tests PASS**

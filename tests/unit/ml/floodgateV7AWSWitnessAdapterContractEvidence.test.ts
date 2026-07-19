@@ -5,8 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repositoryRoot = path.resolve(__dirname, "../../..");
-const packageRelative =
-  "native/floodgate-v7-aws-witness-adapter-contract";
+const packageRelative = "native/floodgate-v7-aws-witness-adapter-contract";
 const sourceRelative = `${packageRelative}/Sources/FloodgateV7AWSWitnessAdapterContract`;
 const testsRelative = `${packageRelative}/Tests`;
 const evidenceRelative =
@@ -42,20 +41,19 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
   it("keeps production closed and every operational counter at zero", () => {
     const record = evidence();
     expect(record).toMatchObject({
-      schema:
-        "shogi-floodgate-v7-aws-witness-adapter-contract-evidence-v1",
+      schema: "shogi-floodgate-v7-aws-witness-adapter-contract-evidence-v1",
       evidence_date: "2026-07-18",
       evidence_timezone: "America/Los_Angeles",
       publication_state: {
-        status: "LOCAL-PASS-EXACT-REVIEW-CI-PENDING",
+        status: "LOCAL-PASS-EXACT-REREVIEW-CI-PENDING",
         claims_final: false,
-        implementation_snapshot_final: false,
-        required_next_action: "independent-exact-review-then-pr-ci",
+        implementation_snapshot_final: true,
+        required_next_action: "independent-exact-rereview-then-pr-ci",
       },
       revision: {
         base_revision: "ec64549e429803d406383376162eaeb9456df9ef",
-        implementation_revision: null,
-        implementation_tree: null,
+        implementation_revision: "ed3932f6ec9818340144abf7949545ed292b1261",
+        implementation_tree: "e127fd5c21c6b611cd9c021257fe9c6d19a6f441",
         pull_request: null,
         exact_commit_review: "PENDING",
         continuous_integration: "PENDING",
@@ -114,8 +112,9 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
     ) as [string, string[]][]) {
       const source = read(`${sourceRelative}/${name}`);
       expect(
-        Array.from(source.matchAll(/^import ([A-Za-z0-9_]+)$/gmu), (match) =>
-          match[1],
+        Array.from(
+          source.matchAll(/^import ([A-Za-z0-9_]+)$/gmu),
+          (match) => match[1],
         ),
         name,
       ).toEqual(imports);
@@ -161,10 +160,7 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
       key_id: "PINNED-KEY-ARN",
       key_spec: "ECC_NIST_EDWARDS25519",
       key_usage: "SIGN_VERIFY",
-      signing_algorithms_exact: [
-        "ED25519_SHA_512",
-        "ED25519_PH_SHA_512",
-      ],
+      signing_algorithms_exact: ["ED25519_SHA_512", "ED25519_PH_SHA_512"],
       capability_order_significant: false,
       sign_request_algorithm: "ED25519_SHA_512",
       message_type: "RAW",
@@ -172,6 +168,9 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
       spki_encoding: "RFC8410-ED25519-EXACT-44-BYTES",
       raw_public_key_bytes: 32,
       canonical_compressed_y_required: true,
+      rfc8032_point_decompression_required: true,
+      non_curve_public_key: "STOP",
+      zero_x_with_sign_bit: "STOP",
       small_order_public_key: "STOP",
       signature_bytes: 64,
       response_signature_verified_over_exact_originating_raw_request: true,
@@ -274,9 +273,9 @@ describe("Floodgate v7 AWS witness adapter-contract publication boundary", () =>
       "verify_preserved_service_core",
       "verify_ci_job",
       "verify_symbol_graph",
-      '--include-spi-symbols',
-      "payload.get(\"symbols\") != []",
-      "payload.get(\"relationships\") != []",
+      "--include-spi-symbols",
+      'payload.get("symbols") != []',
+      'payload.get("relationships") != []',
     ]) {
       expect(boundary, marker).toContain(marker);
     }

@@ -3,15 +3,15 @@
   "evidence_date": "2026-07-18",
   "evidence_timezone": "America/Los_Angeles",
   "publication_state": {
-    "status": "LOCAL-PASS-EXACT-REVIEW-CI-PENDING",
+    "status": "LOCAL-PASS-EXACT-REREVIEW-CI-PENDING",
     "claims_final": false,
-    "implementation_snapshot_final": false,
-    "required_next_action": "independent-exact-review-then-pr-ci"
+    "implementation_snapshot_final": true,
+    "required_next_action": "independent-exact-rereview-then-pr-ci"
   },
   "revision": {
     "base_revision": "ec64549e429803d406383376162eaeb9456df9ef",
-    "implementation_revision": null,
-    "implementation_tree": null,
+    "implementation_revision": "ed3932f6ec9818340144abf7949545ed292b1261",
+    "implementation_tree": "e127fd5c21c6b611cd9c021257fe9c6d19a6f441",
     "pull_request": null,
     "exact_commit_review": "PENDING",
     "continuous_integration": "PENDING"
@@ -45,9 +45,7 @@
     "target": "FloodgateV7AWSWitnessAdapterContract",
     "package_products": 0,
     "external_dependencies": 0,
-    "local_dependencies": [
-      "FloodgateV7ExternalTrustRootProtocol"
-    ],
+    "local_dependencies": ["FloodgateV7ExternalTrustRootProtocol"],
     "source_files": 5,
     "test_files": 1,
     "production_consumers": 0,
@@ -55,9 +53,7 @@
     "spi_symbols": 0,
     "public_relationships": 0,
     "source_import_allowlist": {
-      "AWSWitnessProviderDTOsV1.swift": [
-        "Foundation"
-      ],
+      "AWSWitnessProviderDTOsV1.swift": ["Foundation"],
       "AWSWitnessStoreGenerationV1.swift": [
         "CryptoKit",
         "Foundation",
@@ -122,10 +118,7 @@
   },
   "store_generation_contract": {
     "provider_metadata": "DynamoDB-DescribeTable",
-    "required_observations": [
-      "preflight",
-      "postflight"
-    ],
+    "required_observations": ["preflight", "postflight"],
     "validates_two_supplied_observations": true,
     "operation_sequence_orchestration_present": false,
     "table_arn_pinned_and_exact": true,
@@ -142,10 +135,7 @@
     "key_id": "PINNED-KEY-ARN",
     "key_spec": "ECC_NIST_EDWARDS25519",
     "key_usage": "SIGN_VERIFY",
-    "signing_algorithms_exact": [
-      "ED25519_SHA_512",
-      "ED25519_PH_SHA_512"
-    ],
+    "signing_algorithms_exact": ["ED25519_SHA_512", "ED25519_PH_SHA_512"],
     "capability_order_significant": false,
     "sign_request_algorithm": "ED25519_SHA_512",
     "message_type": "RAW",
@@ -153,6 +143,9 @@
     "spki_encoding": "RFC8410-ED25519-EXACT-44-BYTES",
     "raw_public_key_bytes": 32,
     "canonical_compressed_y_required": true,
+    "rfc8032_point_decompression_required": true,
+    "non_curve_public_key": "STOP",
+    "zero_x_with_sign_bit": "STOP",
     "small_order_public_key": "STOP",
     "signature_bytes": 64,
     "response_signature_verified_over_exact_originating_raw_request": true,
@@ -163,10 +156,7 @@
   "dynamodb_contract": {
     "transact_get": {
       "item_count": 2,
-      "order": [
-        "STATE",
-        "OP"
-      ],
+      "order": ["STATE", "OP"],
       "projection_names_exact": true,
       "missing_state": "STOP",
       "missing_operation": "ALLOWED-FOR-NEW-OPERATION",
@@ -175,11 +165,7 @@
       "state_signer_must_match_bound_kms_key": true,
       "operation_endpoint_must_match_state": true
     },
-    "record_families": [
-      "STATE",
-      "OP",
-      "ATTEMPT"
-    ],
+    "record_families": ["STATE", "OP", "ATTEMPT"],
     "record_attribute_sets_exact": true,
     "unknown_attribute": "STOP",
     "canonical_number_format": "ASCII-UNSIGNED-DECIMAL-NO-LEADING-ZERO",
@@ -202,10 +188,7 @@
       "client_request_token_formula": "FGV1 || BASE32(first-20-bytes(SHA256(exact-commit-plan)))",
       "client_request_token_is_durable_ledger": false,
       "submit_builds_and_revalidates_exact_request_internally": true,
-      "permanent_idempotency_records": [
-        "OP",
-        "ATTEMPT"
-      ]
+      "permanent_idempotency_records": ["OP", "ATTEMPT"]
     }
   },
   "provider_outcome_mapping": {

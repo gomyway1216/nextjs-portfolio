@@ -120,7 +120,11 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
           "89de568e56ca605e74e403b266ac26c254632464",
         state_forgery_regression_hardening_commit:
           "11b7c9e6831dd7607b08b80ee90373995ae337ac",
-        validated_source_revision: "11b7c9e6831dd7607b08b80ee90373995ae337ac",
+        same_realm_test_isolation_hardening_commit:
+          "67353985b19083445cd2927fc3d2f6d8b7c7e73a",
+        poisoning_child_environment_hardening_commit:
+          "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
+        validated_source_revision: "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
         existing_public_copy_receipt_changed: false,
         existing_public_copy_acceptance_changed: false,
         existing_public_copy_error_shape_changed: false,
@@ -156,6 +160,35 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
             "post-module-initialization-mutation-of-the-captured-Array-String-WeakMap-WeakSet-and-Reflect-intrinsics",
           compromised_realm_before_module_initialization_claimed: false,
           arbitrary_node_builtin_prototype_mutation_claimed: false,
+        },
+        ci_failure_and_test_isolation_hardening: {
+          triggering_head: "b818f9a47e64c64fb26711c7226b4aa2b92d2b88",
+          failed_check: "Core quality and build",
+          implementation_failure: false,
+          root_cause:
+            "same-realm-test-kept-Array.prototype.includes-poisoned-across-await-and-Vitest-task-update-called-it",
+          triggering_ci_test_files: {
+            passed: 195,
+            failed: 1,
+            skipped: 3,
+            total: 199,
+          },
+          triggering_ci_tests: {
+            passed: 3189,
+            failed: 1,
+            skipped: 150,
+            total: 3344,
+          },
+          triggering_ci_unhandled_errors: 1,
+          plain_node_child_modes: [
+            "array-includes",
+            "weak-collections",
+            "collections",
+          ],
+          outer_vitest_realm_prototype_mutation: false,
+          child_environment_allowlisted: true,
+          node_options_inherited: false,
+          node_path_inherited: false,
         },
       },
       filesystem_protocol: {
@@ -231,6 +264,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       witness_list_review_hardening_commit: string;
       collection_intrinsic_hardening_commit: string;
       state_forgery_regression_hardening_commit: string;
+      same_realm_test_isolation_hardening_commit: string;
+      poisoning_child_environment_hardening_commit: string;
       validated_source_revision: string;
       files: Record<string, PinnedFile>;
     };
@@ -262,6 +297,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       implementation.witness_list_review_hardening_commit,
       implementation.collection_intrinsic_hardening_commit,
       implementation.state_forgery_regression_hardening_commit,
+      implementation.same_realm_test_isolation_hardening_commit,
+      implementation.poisoning_child_environment_hardening_commit,
       sourceBase.latest_origin_main_integrated,
       sourceBase.integration_commit,
     ]) {
@@ -394,14 +431,28 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       node: "v22.13.0",
       portable_witness_tests: { passed: 19, failed: 0 },
       existing_copy_regression_tests: { passed: 13, failed: 0 },
-      combined: { passed: 32, failed: 0, wall_seconds: 1.51 },
+      combined: { passed: 32, failed: 0, wall_seconds: 1.42 },
       evidence_tests: { passed: 4, failed: 0 },
-      related_total: { passed: 36, failed: 0, wall_seconds: 1.59 },
+      prototype_poisoning_child_modes: { passed: 3, failed: 0 },
+      ci_equivalent_core_after_isolation: {
+        status: "WORKTREE_LINKED_NODE_MODULES_PATH_FAILURE_ONLY",
+        test_files: { passed: 198, failed: 1, total: 199 },
+        tests: { passed: 3342, failed: 1, skipped: 1, total: 3344 },
+        wall_seconds: 76.55,
+        failed_file:
+          "tests/unit/ml/floodgateV7OfflineConnectorGateRunner.test.ts",
+        failure_reason:
+          "tsx-loader-resolved-through-a-sibling-worktree-node_modules-path",
+        portable_poisoning_test_file_failed: false,
+        stable_wasm_startup_timeout_recurred: false,
+        authoritative_github_ci_gate: false,
+      },
+      related_total: { passed: 36, failed: 0, wall_seconds: 1.5 },
       expanded_runner_regression: {
         test_files: 7,
         passed: 107,
         failed: 0,
-        wall_seconds: 1.81,
+        wall_seconds: 1.73,
       },
       scoped_eslint: "PASS",
       prettier: "PASS",
@@ -484,6 +535,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       "0dd5469c",
       "5fa4e179",
       "89de568e",
+      "57cb3142",
       "AWS",
       "dormant",
       "namespace exclusivity",

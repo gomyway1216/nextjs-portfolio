@@ -104,6 +104,17 @@ stateを観測できたと仮定した後、そのstateを偽witnessへ返す順
 変更された場合である。module初期化前からrealmが侵害されている場合や、Node builtinを含む
 任意のprototype変更すべてに耐えるとは主張しない。
 
+最初にpushしたhead `b818f9a4`のCore quality CIでは、199 test files中195 PASS / 1 FAIL /
+3 skip、3,344 tests中3,189 PASS / 1 FAIL / 150 skip、unhandled error 1を記録した。
+失敗したのは実装ではなく、この敵対testが`Array.prototype.includes`を壊したまま`await`し、
+同じrealmのVitest task update自身が`includes`を呼んだためだった。
+
+commit `67353985`は`array-includes`、`weak-collections`、`collections`の3 adversarial modeを
+plain Node child processへ隔離し、外側のVitest realmではprototypeを変更しない。commit
+`57cb3142`はchildへ渡す環境をPATH / HOME / TMPDIRと言語・test設定に限定し、`NODE_OPTIONS` /
+`NODE_PATH`を継承しないこともchild内で確認する。3 modeは3 / 3 PASSである。最初のCI failureを
+実装failureへ書き換えず、test harness isolationの発見として残した。
+
 さらにsynthetic private temp fixtureで境界を確認した。callback内でdestinationの共通ancestorを一時的にrenameし、同じabsolute pathへ異なるbyteのreplacementを作って読み、callback終了前に元を戻すと、post-revalidationは元のidentityを再確認してPASSする。実private dataは読んでいない。
 
 したがってAが主張するのはcallback**前後**のexact revalidationであり、callback実行中のabsolute-path namespace exclusivityや、callbackが読んだbyteのsemantic authenticityではない。これは隠れた安全保証として扱わない。後続Bはdestinationをheld directory / file descriptorから読み、そのexact bytesをsource verifierが認証したSHA-256とrecord identityへ一致させなければならない。
@@ -114,14 +125,21 @@ Node v22.13.0で次を確認した。
 
 - portable witness専用test: 19 / 19 PASS
 - 既存copy regression: 13 / 13 PASS
-- 合計: 32 / 32 PASS、1.51秒
+- 合計: 32 / 32 PASS、1.42秒
 - evidence pin test: 4 / 4 PASS
-- 関連3 file合計: 36 / 36 PASS、1.59秒
-- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、107 / 107 PASS、1.81秒
+- prototype poisoning plain-Node child mode: 3 / 3 PASS
+- 関連3 file合計: 36 / 36 PASS、1.50秒
+- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、107 / 107 PASS、1.73秒
+- CI同等core再実行: 198 / 199 files、3,342 PASS / 1 FAIL / 1 skip、76.55秒
 - scoped ESLint: PASS
 - Prettier: PASS
 - `git diff --check`: PASS
 - repository全体TypeScript: 既存baseline errorのみ、今回変更fileのerrorは0
+
+CI同等core再実行の唯一のfailureは、shared `node_modules`の`tsx` loaderがこのworktreeではなく
+sibling worktreeのabsolute pathから読まれ、既存offline loader-path境界が拒否したものだった。
+portable poisoning fileはPASSし、1回目に見えたstable-WASM startup timeoutも再発していない。
+このlocal worktree固有runをauthoritative GitHub CIのgreenとは扱わない。
 
 敵対ケースには、sourceのbyte変更、tree root / standalone fileのdelete-recreate同一byte、destinationのbyte変更、root inode swap同一byte、extra / missing entry、shared-parent sibling追加、fake / clone / replay、cross-kind、wrong / overlap destination、kind欠落 / 重複、production / test cross-token、callback `length` getter、`Array` / `Map` / `Set` / `String` / `WeakMap` / `WeakSet` / `Reflect`の読み込み後poisoning、thenable getter内のdestination変更、同期 / 非同期callback失敗、同時borrow、idle / active revokeを含めた。
 

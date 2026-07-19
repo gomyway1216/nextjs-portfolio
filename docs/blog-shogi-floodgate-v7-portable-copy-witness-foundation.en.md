@@ -112,6 +112,21 @@ module initialization**. It does not claim safety in a realm compromised
 before module initialization or against arbitrary prototype mutation,
 including every Node built-in prototype.
 
+The first pushed head, `b818f9a4`, recorded a Core quality CI failure: 195
+passed, one failed, and three skipped out of 199 test files; 3,189 passed, one
+failed, and 150 skipped out of 3,344 tests; and one unhandled error. The
+implementation was not the failing component. The adversarial test kept
+`Array.prototype.includes` poisoned across an `await`, and Vitest’s own
+same-realm task update called `includes`.
+
+Commit `67353985` moves all three adversarial modes—`array-includes`,
+`weak-collections`, and `collections`—into plain Node child processes. The
+outer Vitest realm never mutates a prototype. Commit `57cb3142` restricts each
+child environment to PATH, HOME, TMPDIR, locale, and test settings; the child
+also verifies that it did not inherit `NODE_OPTIONS` or `NODE_PATH`. The three
+modes pass 3 / 3. The original CI failure remains recorded as a test-harness
+isolation finding rather than being rewritten as an implementation failure.
+
 A synthetic private temporary fixture also confirmed the boundary. Inside the callback, it temporarily renamed the destinations’ common ancestor, created and read different bytes at the same absolute path, and restored the original before returning. Post-revalidation then saw the restored original identity and passed. No real private data was read.
 
 A therefore claims exact revalidation **before and after** the callback. It does not claim absolute-path namespace exclusivity during the callback or semantic authenticity of bytes read by the callback. A future B composition must read destination inputs through held directory and file descriptors and bind those exact bytes to the SHA-256 and record identity authenticated by the source verifier.
@@ -122,14 +137,23 @@ On Node v22.13.0:
 
 - portable-witness tests: 19 / 19 PASS;
 - existing copy regression: 13 / 13 PASS;
-- combined: 32 / 32 PASS in 1.51 seconds;
+- combined: 32 / 32 PASS in 1.42 seconds;
 - evidence-pin tests: 4 / 4 PASS;
-- all three related test files: 36 / 36 PASS in 1.59 seconds;
-- expanded copy-consumer runner/gate/finalizer regression: 7 files, 107 / 107 PASS in 1.81 seconds;
+- prototype-poisoning plain-Node child modes: 3 / 3 PASS;
+- all three related test files: 36 / 36 PASS in 1.50 seconds;
+- expanded copy-consumer runner/gate/finalizer regression: 7 files, 107 / 107 PASS in 1.73 seconds;
+- CI-equivalent core rerun: 198 / 199 files, 3,342 PASS / 1 FAIL / 1 skip in 76.55 seconds;
 - scoped ESLint: PASS;
 - Prettier: PASS;
 - `git diff --check`: PASS;
 - repository-wide TypeScript: pre-existing baseline failures only, with zero errors in changed files.
+
+The sole CI-equivalent core rerun failure was the existing offline loader-path
+boundary rejecting `tsx` loaded through a sibling worktree’s shared
+`node_modules` absolute path. The portable-poisoning file passed, and the
+stable-WASM startup timeout seen in the first local attempt did not recur.
+This local worktree-specific run is not treated as an authoritative green
+GitHub CI gate.
 
 Adversarial coverage includes source-byte mutation, same-byte delete/recreate of a tree root and standalone file, destination-byte mutation, same-byte destination-root inode swap, extra and missing entries, shared-parent sibling addition, fake/clone/replay, cross-kind misuse, wrong and overlapping destinations, missing and duplicate kinds, production/test cross-token misuse, callback `length` getters, post-load poisoning of `Array`, `Map`, `Set`, `String`, `WeakMap`, `WeakSet`, and `Reflect`, destination mutation from a thenable getter, synchronous and asynchronous callback failure, concurrent borrow, and idle/active revocation.
 

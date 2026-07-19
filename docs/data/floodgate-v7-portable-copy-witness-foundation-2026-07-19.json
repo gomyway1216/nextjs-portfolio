@@ -28,7 +28,9 @@
     "witness_list_review_hardening_commit": "b7a3acb4f8fdbe04de77f0abb45ebb70c4800509",
     "collection_intrinsic_hardening_commit": "89de568e56ca605e74e403b266ac26c254632464",
     "state_forgery_regression_hardening_commit": "11b7c9e6831dd7607b08b80ee90373995ae337ac",
-    "validated_source_revision": "11b7c9e6831dd7607b08b80ee90373995ae337ac",
+    "same_realm_test_isolation_hardening_commit": "67353985b19083445cd2927fc3d2f6d8b7c7e73a",
+    "poisoning_child_environment_hardening_commit": "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
+    "validated_source_revision": "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
     "existing_public_copy_receipt_changed": false,
     "existing_public_copy_acceptance_changed": false,
     "existing_public_copy_error_shape_changed": false,
@@ -53,9 +55,15 @@
       },
       "portable_witness_tests": {
         "path": "tests/unit/ml/floodgateV7PortableCopyWitness.test.ts",
-        "bytes": 38937,
-        "sha256": "b38a8829c22f7b8e4973df108eef9b1cd85ac131156f800daad02c8cfb2f4f0a",
-        "git_blob": "1b54a88c7a81ee96c97a8c498b3fa947aa3089c0"
+        "bytes": 25860,
+        "sha256": "7e4e5b0b255cca36ef5baebd5546df19d5c041949ea14563550f0447dab41eb7",
+        "git_blob": "a2a56d7cc3999ce22da3fa1c3ff249e7c54e2360"
+      },
+      "prototype_poisoning_child": {
+        "path": "tests/unit/ml/floodgateV7PortableCopyWitnessPoisoning.child.ts",
+        "bytes": 19985,
+        "sha256": "3628ed68c632dcf0e6d3a01b01e79cebf8ddd629a1f6e215337349a8685cc703",
+        "git_blob": "dad54b9752a04183f8ca2ee995d4092d71e0ec1a"
       }
     },
     "post_module_initialization_intrinsic_hardening": {
@@ -80,6 +88,35 @@
       "claim_scope": "post-module-initialization-mutation-of-the-captured-Array-String-WeakMap-WeakSet-and-Reflect-intrinsics",
       "compromised_realm_before_module_initialization_claimed": false,
       "arbitrary_node_builtin_prototype_mutation_claimed": false
+    },
+    "ci_failure_and_test_isolation_hardening": {
+      "triggering_head": "b818f9a47e64c64fb26711c7226b4aa2b92d2b88",
+      "failed_check": "Core quality and build",
+      "failed_test": "captures-the-exact-witness-list-without-consulting-mutable-Array.prototype.includes",
+      "implementation_failure": false,
+      "root_cause": "same-realm-test-kept-Array.prototype.includes-poisoned-across-await-and-Vitest-task-update-called-it",
+      "triggering_ci_test_files": {
+        "passed": 195,
+        "failed": 1,
+        "skipped": 3,
+        "total": 199
+      },
+      "triggering_ci_tests": {
+        "passed": 3189,
+        "failed": 1,
+        "skipped": 150,
+        "total": 3344
+      },
+      "triggering_ci_unhandled_errors": 1,
+      "plain_node_child_modes": [
+        "array-includes",
+        "weak-collections",
+        "collections"
+      ],
+      "outer_vitest_realm_prototype_mutation": false,
+      "child_environment_allowlisted": true,
+      "node_options_inherited": false,
+      "node_path_inherited": false
     }
   },
   "filesystem_protocol": {
@@ -238,22 +275,46 @@
     "combined": {
       "passed": 32,
       "failed": 0,
-      "wall_seconds": 1.51
+      "wall_seconds": 1.42
     },
     "evidence_tests": {
       "passed": 4,
       "failed": 0
     },
+    "prototype_poisoning_child_modes": {
+      "passed": 3,
+      "failed": 0
+    },
+    "ci_equivalent_core_after_isolation": {
+      "status": "WORKTREE_LINKED_NODE_MODULES_PATH_FAILURE_ONLY",
+      "test_files": {
+        "passed": 198,
+        "failed": 1,
+        "total": 199
+      },
+      "tests": {
+        "passed": 3342,
+        "failed": 1,
+        "skipped": 1,
+        "total": 3344
+      },
+      "wall_seconds": 76.55,
+      "failed_file": "tests/unit/ml/floodgateV7OfflineConnectorGateRunner.test.ts",
+      "failure_reason": "tsx-loader-resolved-through-a-sibling-worktree-node_modules-path",
+      "portable_poisoning_test_file_failed": false,
+      "stable_wasm_startup_timeout_recurred": false,
+      "authoritative_github_ci_gate": false
+    },
     "related_total": {
       "passed": 36,
       "failed": 0,
-      "wall_seconds": 1.59
+      "wall_seconds": 1.5
     },
     "expanded_runner_regression": {
       "test_files": 7,
       "passed": 107,
       "failed": 0,
-      "wall_seconds": 1.81
+      "wall_seconds": 1.73
     },
     "scoped_eslint": "PASS",
     "prettier": "PASS",

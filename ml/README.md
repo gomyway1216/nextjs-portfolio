@@ -211,6 +211,10 @@ PR #517 reviewでwitness一覧が変更可能な`Array.prototype.includes`へ依
 `Set` instance-method依存を除去した。対象intrinsicの**module初期化後**の変更には回帰testを置いたが、
 初期化前から侵害されたrealmや任意のNode builtin prototype変更までは保証しない。commit
 `11b7c9e6`では本物のraw stateを観測後に偽witnessへ返す攻撃順序まで固定した。
+最初のhead `b818f9a4`のCIは、testが`Array.prototype.includes`を壊したまま`await`し、
+Vitest自身を汚染したため1件失敗した。実装failureではない。`67353985`は3 poisoning modeを
+plain Node childへ隔離し、`57cb3142`はchild環境をallowlistして`NODE_OPTIONS` / `NODE_PATH`を
+継承しない。外側のVitest realmはprototypeを変更せず、child modeは3 / 3 PASSである。
 
 historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
 copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは

@@ -1,0 +1,121 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-v2-local-launcher-evidence-v1",
+  "recorded_date": "2026-07-18",
+  "implementation_anchor": {
+    "revision": "eed88cdf28f3bf07cd10557fdc449f65f018aea2",
+    "tree": "17786547f57d5585f47863af9aff372d24129634",
+    "review_state": "local-validation-pass-independent-review-pending",
+    "pull_request": null,
+    "continuous_integration": "NOT_RUN"
+  },
+  "implementation": {
+    "launcher": "ml/formal_paired_ab_local_launcher.py",
+    "tests": "ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
+    "argumentless_command": "npm run shogi:formal-ab-v2-local",
+    "japanese_article": "docs/blog-shogi-floodgate-formal-paired-ab-v2-local-launcher.md",
+    "english_article": "docs/blog-shogi-floodgate-formal-paired-ab-v2-local-launcher.en.md",
+    "execution_boundary": "local-only-dependency-injected-existing-match-adapter",
+    "maximum_pair_workers": 6,
+    "automatic_run": false
+  },
+  "protocol_binding": {
+    "source_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+    },
+    "source_closed_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+      "bytes": 3480,
+      "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9"
+    },
+    "protocol_amendment_sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+    "required_pairs": 384,
+    "required_games": 768,
+    "candidate_colors_per_pair": ["sente", "gote"],
+    "existing_engine_protocol": "USI",
+    "existing_opening_protocol": "SFEN+USI",
+    "result_decoder": "ml/formal_paired_ab_protocol_v2.py"
+  },
+  "resume_contract": {
+    "receipt_directory_mode": "0700",
+    "pair_journal_mode": "0600",
+    "pair_events": [
+      "pair-started",
+      "game-completed-candidate-sente",
+      "game-completed-candidate-gote",
+      "pair-completed"
+    ],
+    "complete_pair_replay": "forbidden",
+    "partial_pair_replay": "forbidden-stop",
+    "technical_fault": "terminal-for-run",
+    "accepted_resume_state": "complete-contiguous-prefix-from-pair-zero",
+    "unknown_entries": "reject",
+    "symlink_or_hardlink": "reject",
+    "canonical_jsonl_required": true,
+    "previous_event_sha256_chain": true,
+    "file_fsync_before_next_event": true,
+    "directory_entry_power_loss_durability_claimed": false,
+    "same_uid_malicious_tamper_proof_claimed": false
+  },
+  "safety": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "external_calibration": false,
+    "live_weight_write": false,
+    "automatic_run": false,
+    "candidate_and_stable_must_differ": true,
+    "yaneuraou_receipt_must_bind_binary": true,
+    "post_run_enrollment_revalidation": true
+  },
+  "validation": {
+    "focused_command": "python3 -m unittest ml.tests_stdlib.test_formal_paired_ab_local_launcher -v",
+    "focused_tests_passed": 10,
+    "focused_tests_failed": 0,
+    "focused_wall_seconds": 0.87,
+    "full_command": "npm run test:ml:stdlib",
+    "full_tests_passed": 148,
+    "full_tests_failed": 0,
+    "full_wall_seconds": 11.75,
+    "argumentless_command_exit": 2,
+    "argumentless_command_status": "STOP",
+    "argumentless_pairs_started": 0,
+    "argumentless_games_started": 0,
+    "synthetic_complete_384_pair_768_game_stub_run_tested": true,
+    "synthetic_complete_resume_zero_callback_tested": true,
+    "synthetic_six_concurrent_pair_workers_tested": true,
+    "real_game_process_used_by_tests": false,
+    "real_yaneuraou_used_by_tests": false,
+    "real_weight_used_by_tests": false
+  },
+  "enrollment_state": {
+    "candidate_weights_enrolled": 0,
+    "stable_weights_enrolled": 0,
+    "real_opening_manifests_enrolled": 0,
+    "real_match_bindings_enrolled": 0,
+    "real_local_match_adapters_enrolled": 0,
+    "ready_registry_checked_in": false,
+    "argumentless_ready_core_route_implemented": false
+  },
+  "execution_counters": {
+    "real_formal_attempts_started": 0,
+    "real_pairs_started": 0,
+    "real_pairs_completed": 0,
+    "real_games_started": 0,
+    "real_games_completed": 0,
+    "real_yaneuraou_processes_started": 0,
+    "real_match_processes_started": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "formal_ab_executed": false,
+    "candidate_selected": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_weights_changed": false
+  }
+}

@@ -1,0 +1,265 @@
+{
+  "schema": "shogi-floodgate-v7-portable-copy-witness-foundation-evidence-v1",
+  "status": "dormant-filesystem-foundation-local-validation-pass-ci-and-final-review-pending",
+  "recorded_date": "2026-07-19",
+  "claim_boundary": "filesystem-copy-transition-foundation-only-not-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
+  "source_base": {
+    "initial_origin_main": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "latest_origin_main_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+    "latest_main_pull_request": 514,
+    "integration_method": "regular-merge-commit",
+    "integration_commit": "a687a8709bde76f449f38e97de94d86f9f638625",
+    "integration_tree": "b6a2be82409de9453b9c1310971a0e72168ba766",
+    "integration_parents": [
+      "da311b3541588745d836624a07aa62ec3b0497f6",
+      "9dc5755a70382af544c0f89230e33b0aaae35f2f"
+    ],
+    "history_rewritten": false
+  },
+  "implementation": {
+    "foundation_commit": "9e5b42b7d755d27c9678fd1349afc88365b604dd",
+    "callback_and_parent_bound_hardening_commit": "c0ec0b8093fd08e2741ed8647e983740e37c0a24",
+    "parent_bound_wording_commit": "da311b3541588745d836624a07aa62ec3b0497f6",
+    "validated_source_revision": "a687a8709bde76f449f38e97de94d86f9f638625",
+    "existing_public_copy_receipt_changed": false,
+    "existing_public_copy_acceptance_changed": false,
+    "existing_public_copy_error_shape_changed": false,
+    "generic_role_lock_verifier_changed": false,
+    "generic_role_bundle_verifier_changed": false,
+    "role_bundle_result_verifier_changed": false,
+    "training_consumer_changed": false,
+    "teacher_runner_changed": false,
+    "local_runner_changed": false,
+    "files": {
+      "implementation": {
+        "path": "ml/floodgate-v7-clean-room-copy.ts",
+        "bytes": 68478,
+        "sha256": "7e03c4c3504e6aa5f61a1c777dc28aea3b4d94793bc1a2935a4e650f35ce696c",
+        "git_blob": "2ce8a56d6cf10e8c8f711707c8d41c8baf450a92"
+      },
+      "existing_copy_regression": {
+        "path": "tests/unit/ml/floodgateV7CleanRoomCopy.test.ts",
+        "bytes": 20476,
+        "sha256": "7367b1dad96b450ffb15ff26f82fced5b488904c189e4d18366f2cae5919576b",
+        "git_blob": "0da07dd0f4caf773b5045417ef463eda41c0413a"
+      },
+      "portable_witness_tests": {
+        "path": "tests/unit/ml/floodgateV7PortableCopyWitness.test.ts",
+        "bytes": 24228,
+        "sha256": "f18736b20a489a6d500432c048143b2ba30b252f9f7582fc67512c29ad1cf607",
+        "git_blob": "8cd4593d8cfd6de803b8292421197d4cd2a51a8d"
+      }
+    }
+  },
+  "filesystem_protocol": {
+    "fixed_kinds": [
+      "raw-lock-tree",
+      "role-lock-tree",
+      "role-bundle-tree",
+      "legacy-file"
+    ],
+    "state_transition": [
+      "source-preseal",
+      "external-semantic-verification-gap",
+      "one-shot-source-filesystem-seal",
+      "existing-copy-core-by-value-copy-and-hidden-final-inventory",
+      "one-shot-copy-witness",
+      "four-kind-composite-destination-and-shared-parent-seal",
+      "serialized-pre-callback-post-destination-revalidation",
+      "explicit-idempotent-revocation"
+    ],
+    "production_and_test_registries_separate": true,
+    "module_private_weakmap_provenance": true,
+    "nominal_empty_frozen_capabilities": true,
+    "structural_fake_rejected": true,
+    "clone_rejected": true,
+    "replay_rejected": true,
+    "cross_kind_rejected": true,
+    "wrong_destination_rejected": true,
+    "destination_duplicate_or_ancestor_overlap_rejected_before_capture": true,
+    "source_seal_required_before_destination_creation": true,
+    "source_inventory_fields": [
+      "canonical-path",
+      "entry-path-and-type",
+      "mode",
+      "uid",
+      "nlink",
+      "dev",
+      "ino",
+      "ctime",
+      "mtime",
+      "birthtime",
+      "size",
+      "sha256"
+    ],
+    "copy_by_value": {
+      "fresh_destination_required": true,
+      "source_destination_inode_aliases": 0,
+      "destination_files_single_link": true,
+      "filesystem_clone_api_used": false,
+      "copy_witness_bound_to_existing_core_hidden_final_inventory": true
+    },
+    "composite": {
+      "all_four_kinds_required": true,
+      "created_only_after_all_witnesses_exist": true,
+      "destination_roots_recaptured_before_and_after_parent_capture": true,
+      "distinct_immediate_parents_deduplicated": true,
+      "parent_identity_and_exact_immediate_entries_captured": true,
+      "parent_scan_probe_limit": "maxEntries+1",
+      "parent_entries_retained_maximum": "maxEntries",
+      "unbounded_readdir_array_used": false
+    },
+    "borrow": {
+      "foundation_success_limit": null,
+      "three_gate_limit_owned_by_future_session_composition": true,
+      "concurrent_use_rejected_fail_closed": true,
+      "in_use_set_before_first_await": true,
+      "pre_revalidation": true,
+      "callback_thenable_assimilation_inside_boundary": true,
+      "post_revalidation": true,
+      "callback_length_getter_invoked": false,
+      "callback_or_revalidation_failure_permanently_invalidates": true,
+      "active_revocation_fails_current_borrow": true,
+      "idle_revocation_idempotent": true
+    }
+  },
+  "diagnostic_context": {
+    "measurements_are_distinct_runs_and_not_interchangeable": true,
+    "historical_role_lock_full_replay": {
+      "elapsed_ms": 14059521,
+      "elapsed_seconds": 14059.521,
+      "tracked_source": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json",
+      "scope": "historical-source-role-lock-full-replay",
+      "result": "PASS"
+    },
+    "current_source_full_role_bundle_confirmation": {
+      "wall_seconds": 1089.52,
+      "tracked_source": "docs/data/floodgate-role-bundle-verify-e8a9197-confirmation-time.txt",
+      "scope": "original-source-full-role-bundle-verification",
+      "result": "PASS"
+    },
+    "copied_destination_isolated_verification": {
+      "wall_seconds": 522.211,
+      "scope": "copy-destination-role-bundle-verification-only",
+      "result": "FAIL",
+      "safe_failure_substage": "role-lock-full-replay-watched-directory-closure-binding",
+      "safe_failure_reason": "historical-full-replay-watched-directories-do-not-bind-the-new-by-value-role-lock-closure",
+      "timeout": false,
+      "data_corruption_observed": false
+    },
+    "copy_audit": {
+      "raw_lock": {
+        "files": 72698,
+        "bytes": 592412617,
+        "byte_mismatches": 0
+      },
+      "role_lock": {
+        "files": 3,
+        "bytes": 273287877,
+        "byte_mismatches": 0
+      },
+      "role_bundle": {
+        "files": 9,
+        "bytes": 295620795,
+        "byte_mismatches": 0
+      },
+      "teacher_assets": {
+        "files": 7,
+        "bytes": 66169459,
+        "byte_mismatches": 0
+      },
+      "legacy_protected_position_ids": {
+        "copy_completed": true,
+        "reported_tree_total_includes_this_standalone_copy": false
+      },
+      "total": {
+        "files": 72717,
+        "bytes": 1227490748,
+        "byte_mismatches": 0,
+        "source_destination_inode_aliases": 0
+      }
+    },
+    "diagnosis": "the historical verifier correctly binds original inode identities while the clean-room copy correctly requires fresh inode identities; foundation A records a filesystem transition but does not authorize semantic acceptance"
+  },
+  "local_validation": {
+    "node": "v22.13.0",
+    "portable_witness_tests": {
+      "passed": 16,
+      "failed": 0
+    },
+    "existing_copy_regression_tests": {
+      "passed": 13,
+      "failed": 0
+    },
+    "combined": {
+      "passed": 29,
+      "failed": 0,
+      "wall_seconds": 1.21
+    },
+    "evidence_tests": {
+      "passed": 4,
+      "failed": 0
+    },
+    "related_total": {
+      "passed": 33,
+      "failed": 0,
+      "wall_seconds": 1.12
+    },
+    "scoped_eslint": "PASS",
+    "prettier": "PASS",
+    "git_diff_check": "PASS",
+    "full_typescript": {
+      "status": "BASELINE_FAILURES_ONLY",
+      "changed_file_errors": 0
+    },
+    "covered_mutations_and_misuse": [
+      "source-byte-after-filesystem-seal",
+      "source-tree-root-delete-recreate-same-bytes",
+      "source-standalone-file-delete-recreate-same-bytes",
+      "destination-byte",
+      "destination-root-inode-swap-same-bytes",
+      "destination-extra-entry",
+      "destination-missing-entry",
+      "shared-parent-extra-sibling",
+      "structural-fake-and-clone",
+      "preseal-seal-copy-and-witness-replay",
+      "cross-kind",
+      "wrong-and-overlapping-destination",
+      "missing-or-duplicate-kind",
+      "production-test-cross-registry",
+      "callback-length-getter",
+      "thenable-getter-destination-mutation",
+      "synchronous-and-asynchronous-callback-failure",
+      "concurrent-borrow",
+      "idle-and-active-revocation"
+    ]
+  },
+  "execution_counts": {
+    "real_source_semantic_verification_by_foundation": 0,
+    "real_copy_by_foundation": 0,
+    "teacher_process": 0,
+    "teacher_label": 0,
+    "optimizer_training": 0,
+    "candidate_selection": 0,
+    "holdout_open": 0,
+    "formal_ab": 0,
+    "external_calibration": 0,
+    "weight_changed": 0,
+    "live_activation": 0,
+    "match": 0
+  },
+  "infrastructure": {
+    "local_cpu_used_for_unit_validation": true,
+    "aws_required": false,
+    "aws_used": false,
+    "gcp_cloud_function_used": false,
+    "firebase_used": false,
+    "vercel_used": false,
+    "network_used": false
+  },
+  "next_safe_step": {
+    "separate_pull_request_required": true,
+    "description": "compose the dormant filesystem transition around the unchanged generic source semantic verifier, create a bounded three-gate session, and keep the generic role-lock, role-bundle, and result verifiers unchanged",
+    "live_weight_change_authorized": false
+  }
+}

@@ -175,6 +175,29 @@ rowsのruntime authenticity、engine/eval/stage pathとsealed rootのdisjointnes
 consumer postflight後のfinal publication、result receiptはB2 runnerで実装する。したがってB1のstage
 manifestや非鍵checkpoint checksumを公開済みteacher evidenceとして扱わない。
 
+#### Floodgate v7 portable copy witness filesystem基盤（2026-07-19）
+
+clean-roomの2回目のlocal準備はcopyを完了した後、copy先のrole-bundle検証で
+`role-lock-full-replay-watched-directory-closure-binding`に停止した。copy監査のreported 4 treeは
+72,717 files / 1,227,490,748 bytes / byte mismatch 0 / source-destination inode alias 0だった。
+停止原因は、historical receiptが元inodeを正しく固定し、copy-by-valueが新inodeを正しく要求するという
+安全契約の衝突である。generic verifierのinode検査は弱めていない。
+
+このPRは`raw-lock-tree` / `role-lock-tree` / `role-bundle-tree` / `legacy-file`について、
+module-private WeakMapのsource preseal、one-shot filesystem seal、existing copy coreのhidden final
+inventoryにbindしたcopy witness、全witness後のcomposite destination/shared-parent seal、直列
+pre/callback/post revalidation、idempotent revokeだけを追加するdormant filesystem基盤である。
+production/test registryは分離し、fake / clone / replay / cross-kind / wrong-overlap destinationを拒否する。
+parent scanは`opendir`で`maxEntries + 1`までprobeし、保持は`maxEntries`以下に制限する。
+
+historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
+copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは
+portable 16 + existing copy 13 = 29 / 29 PASS。意味検証、teacher、学習、選抜、A/B、weight、
+live activation、AWS、Firebase / GCP、Vercel、networkの実行は0で、棋力向上の証拠ではない。
+詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
+[English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
+[machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。
+
 #### Floodgate v7 sealed 24,000件のMacローカルfinalizer（2026-07-19）
 
 clean-room教師runnerが同じ認証済みstreamを100 → 500 → 24,000へ進めてsealした後だけ使う、

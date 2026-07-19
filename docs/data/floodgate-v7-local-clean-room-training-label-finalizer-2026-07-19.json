@@ -1,0 +1,294 @@
+{
+  "schema": "shogi-floodgate-v7-local-clean-room-training-label-finalizer-evidence-v1",
+  "status": "implementation-and-local-validation-pass-independent-rereview-pending-operational-stop",
+  "recorded_date": "2026-07-19",
+  "timezone": "America/Los_Angeles",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.md",
+    "english": "../blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.en.md"
+  },
+  "source_base": {
+    "merge_base_with_origin_main": "1f98c3661361254bbc0854fa52888ed4b65bc689",
+    "origin_main_observed_at_recording": "1e7025b827797b856e7fa4cd72008acc7dc813ed",
+    "history_rewritten": false
+  },
+  "required_teacher_runner_compatibility": {
+    "preserved_commit": "b87e87fbe7fa5ce7926492f9cc10c6f16429f5be",
+    "key_boundary_fix_commit": "c8bacfb1e69787f13dcdcafc2feac82bc03c4548",
+    "key_and_lease_test_commit": "980e0a6246da925b9d5d704fd9f07f17a39f8d75",
+    "format_commit": "dcd2a56da1109fc85fc712bb45dc008877e98411",
+    "cherry_picks_clean": true
+  },
+  "implementation": {
+    "initial_source_commit": "815298a6d852cc73946468506ab2eb39f9385c60",
+    "receipt_and_cleanup_hardening_commit": "57fe99e0e93c5d4ec54477d796441067e1b70dff",
+    "durable_replay_and_mac_gate_commit": "d23b9ccc448869b16b2e99672c861ac57488f115",
+    "test_commit": "dca9adaf94c74ab16934c46562c959662670270e",
+    "validated_head": "dca9adaf94c74ab16934c46562c959662670270e",
+    "validated_tree": "513c46d32b157c356950521b4e4a39baf4b11aa1",
+    "files": {
+      "finalizer": {
+        "path": "ml/floodgate-v7-local-clean-room-training-label-finalizer.ts",
+        "bytes": 43838,
+        "sha256": "831b00abfa406073b2139266395c18a9d1b3936df1c3c1b156b2548f000fd994"
+      },
+      "argumentless_entrypoint": {
+        "path": "ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
+        "bytes": 346,
+        "sha256": "1ffafe005259834bf3beafea99cf5333b09858ee0309518818872a8371b7353e"
+      },
+      "dynamic_tests": {
+        "path": "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
+        "bytes": 26194,
+        "sha256": "30aec3d49d6f4347ed63ace317457810bd0d543def4e74de491e52313e454e39"
+      },
+      "package_manifest": {
+        "path": "package.json",
+        "bytes": 8234,
+        "sha256": "38d050299072fd3eaf0f3835f360297fd0b72fe5c3a9cc79797f3ab99612a31d"
+      }
+    },
+    "package_command": {
+      "name": "shogi:floodgate-v7-local-clean-room-training-label-finalizer",
+      "value": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
+      "argumentless": true
+    }
+  },
+  "execution_boundary": {
+    "contract": "shogi-floodgate-v7-local-clean-room-training-label-finalizer-v1",
+    "operational_status": "authenticated-sealed-24000-local-training-label-artifacts-published",
+    "test_status": "test-only-injected-composition-complete-not-operational-evidence",
+    "claim_boundary": "argumentless-fixed-mac-local-private-handoff-mac-run-binding-stage-work-and-production-sealed-scanner-finalizer-without-cloud-training-weight-live-or-strength-authority",
+    "platform": "darwin-only",
+    "non_root_current_euid_required": true,
+    "repository_root_fixed": true,
+    "dedicated_entrypoint_required": true,
+    "require_main_matches_entrypoint": true,
+    "exact_no_argument_argv_required": true,
+    "private_io_before_context_validation": false,
+    "caller_supplied_path": false,
+    "caller_supplied_key": false,
+    "caller_supplied_stage": false,
+    "caller_supplied_work": false
+  },
+  "private_handoff": {
+    "fixed_state_basename": "local-run-v1",
+    "integrity_key_filename": "local-integrity-key.bin",
+    "handoff_filename": "finalizer-handoff.json",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "single_link_required": true,
+    "no_follow_open": true,
+    "held_named_identity_revalidated": true,
+    "canonical_single_line_utf8_json_required": true,
+    "extra_fields_allowed": false,
+    "duplicate_keys_allowed": false,
+    "hmac": {
+      "algorithm": "HMAC-SHA256",
+      "key_bytes": 32,
+      "domain": "shogi-floodgate-v7-local-clean-room-finalizer-handoff-v1\\u0000",
+      "timing_safe_comparison": true
+    },
+    "deployment_key_id_exact": true,
+    "run_binding_and_digest_exact": true,
+    "stage_parent_and_work_identity_exact": true,
+    "work_parents": 24000,
+    "work_resumed_parents": 500,
+    "work_sealed": true,
+    "prefix_100_or_500_finalization_allowed": false,
+    "ordered_completion_chain": [
+      "durable-prefix-100",
+      "durable-prefix-500",
+      "sealed-final-24000"
+    ],
+    "revalidated_after_stage_authorization": true,
+    "revalidated_inside_training_consumer_before_plan": true
+  },
+  "durable_one_shot_claim": {
+    "filename": "finalizer-handoff.claimed.json",
+    "created_before_stage_authorization": true,
+    "open_flags": ["O_NOFOLLOW", "O_CREAT", "O_EXCL", "O_WRONLY"],
+    "mode": "0600",
+    "raw_handoff_mac_persisted": false,
+    "handoff_mac_sha256_persisted": true,
+    "run_binding_sha256_persisted": true,
+    "work_sha256_persisted": true,
+    "file_fsync": true,
+    "directory_fsync": true,
+    "held_named_identity_revalidated": true,
+    "canonical_content_reopened_and_revalidated": true,
+    "claim_removed_after_failure": false,
+    "process_local_set_used": false,
+    "fresh_process_replay_test": "PASS",
+    "concurrent_or_restart_replay_disposition": "STOP-fresh-authenticated-handoff-or-manual-reconciliation-required"
+  },
+  "production_api_composition": {
+    "stage_authorization": "authorizeFloodgateTeacherStage",
+    "training_consumer_postflight": "withVerifiedPinnedFloodgateTrainingRowsAndPostflight",
+    "sealed_plan": "createFloodgateV7TrainingLabelFinalizationPlan",
+    "plan_discard": "discardFloodgateV7TrainingLabelFinalizationPlan",
+    "finalization": "finalizeAndPublishFloodgateV7TrainingLabels",
+    "production_logic_reimplemented": false,
+    "exact_handoff_run_id_key_binding_and_work_passed_to_plan": true,
+    "destination_reopened": true,
+    "destination_content_reverified": true,
+    "published_file_internal_fields_required": [
+      "filename",
+      "dev",
+      "ino",
+      "mode",
+      "bytes",
+      "sha256"
+    ],
+    "published_file_mode_required": "0600",
+    "public_receipt_discloses_device_or_inode": false,
+    "public_receipt_discloses_run_id_binding_key_or_mac": false,
+    "public_receipt_discloses_rows_or_positions": false
+  },
+  "failure_ownership": {
+    "before_plan_composer": "close-caller-owned-lease",
+    "plan_minted_then_consumer_postflight_failure": "discard-production-plan",
+    "composer_throw_without_returned_plan": "manual-reconciliation-because-ownership-transition-is-not-observable",
+    "unsafe_outer_close_after_composer_throw": false,
+    "after_finalizer_invocation": "publication-may-have-occurred-manual-reconciliation",
+    "receipt_mismatch": "publication-sensitive-stop",
+    "cleanup_failure": "manual-reconciliation"
+  },
+  "adversarial_validation": {
+    "wrong_mac": "PASS-rejected",
+    "wrong_deployment_key": "PASS-rejected",
+    "wrong_run_binding_digest": "PASS-rejected",
+    "wrong_run_binding_content_with_recomputed_digest_and_mac": "PASS-rejected",
+    "wrong_stage": "PASS-rejected",
+    "prefix_100": "PASS-rejected",
+    "prefix_500": "PASS-rejected",
+    "unsealed_work": "PASS-rejected",
+    "wrong_resume_point": "PASS-rejected",
+    "wrong_input_role": "PASS-rejected",
+    "reordered_completion": "PASS-rejected",
+    "cloud_claim": "PASS-rejected",
+    "relaxed_requirement": "PASS-rejected",
+    "invented_training_claim": "PASS-rejected",
+    "noncanonical_json": "PASS-rejected",
+    "duplicate_key": "PASS-rejected",
+    "extra_field": "PASS-rejected",
+    "wrong_integrity_key": "PASS-rejected",
+    "midflight_handoff_mutation": "PASS-rejected",
+    "fresh_process_replay": "PASS-rejected",
+    "simulated_linux_operational_entry": "PASS-rejected",
+    "consumer_plan_and_finalizer_failure_lifecycle": "PASS"
+  },
+  "local_validation": {
+    "node": {
+      "path": "/Users/yudaiyaguchi/.nvm/versions/node/v22.13.0/bin/node",
+      "version": "v22.13.0"
+    },
+    "focused_finalizer": {
+      "test_files": 1,
+      "tests": 21,
+      "passed": 21,
+      "failed": 0,
+      "duration_seconds": 1.03,
+      "result": "PASS"
+    },
+    "related_suite": {
+      "test_files": 17,
+      "tests": 168,
+      "passed": 168,
+      "failed": 0,
+      "wall_duration_seconds": 143.07,
+      "parallel_aggregate_test_seconds": 580.9,
+      "result": "PASS",
+      "files": [
+        "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+        "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelFinalizerCore.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelFinalizerCoreEvidence.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelFinalizerKeyAuthority.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProductionCli.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProductionComposition.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProductionOwner.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProductionRunner.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProjection.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelProjectionEvidence.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelSealedScannerAuthority.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelSealedScannerCleanup.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelSealedScannerMutation.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelSealedScannerProduction.test.ts",
+        "tests/unit/ml/floodgateV7TrainingLabelSealedScannerReplay.test.ts"
+      ]
+    },
+    "targeted_eslint": "PASS",
+    "prettier_version": "3.9.5",
+    "prettier_check": "PASS",
+    "git_diff_check": "PASS",
+    "typescript_new_file_filtered_diagnostics": 0,
+    "repository_typescript_no_emit": "FAIL-PREEXISTING-UNRELATED-DIAGNOSTICS",
+    "default_next_build": {
+      "result": "BLOCKED-BEFORE-COMPILE",
+      "reason": "turbopack-rejects-worktree-node_modules-symlink-outside-filesystem-root"
+    },
+    "webpack_next_build": {
+      "webpack_compile": "PASS",
+      "compile_seconds": 28.6,
+      "repository_typecheck": "FAIL-PREEXISTING-UNRELATED",
+      "blocking_file": "src/app/api/settli/groups/route.ts",
+      "blocking_export": "verifyPasscode"
+    }
+  },
+  "review": {
+    "initial_independent_findings": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 2,
+      "issues": [
+        "process-local-replay-set-did-not-survive-cli-restart",
+        "darwin-boundary-was-not-enforced",
+        "prettier-check-failed"
+      ]
+    },
+    "remediation": {
+      "durable_replay_claim": "IMPLEMENTED",
+      "darwin_and_dedicated_entry_gate": "IMPLEMENTED",
+      "prettier": "PASS"
+    },
+    "create_plan_throw_lease_disposition": "REVIEWED-CONSERVATIVE-MANUAL-RECONCILIATION-CORRECT",
+    "exact_post_remediation_independent_rereview": "PENDING"
+  },
+  "external_services": {
+    "aws_api_or_sdk_used": false,
+    "firebase_or_gcp_used": false,
+    "vercel_used": false,
+    "http_or_network_used": false,
+    "host_not_on_aws_universally_proven": false
+  },
+  "operational_state": {
+    "state": "STOP",
+    "real_fixed_path_finalizer_invocations": 0,
+    "real_fixed_path_durable_claims_created_by_this_change": 0,
+    "real_teacher_processes_started_by_this_change": 0,
+    "real_teacher_rows_created_by_this_change": 0,
+    "real_training_label_publications": 0,
+    "optimizer_training_runs": 0,
+    "candidate_selection_runs": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false,
+    "production_activations": 0,
+    "pull_request_created_by_this_worktree": false,
+    "branch_pushed_by_this_worktree": false
+  },
+  "nonclaims": {
+    "teacher_generation_completed": false,
+    "training_labels_finalized": false,
+    "optimizer_training_completed": false,
+    "candidate_improves_evaluation": false,
+    "formal_ab_completed": false,
+    "external_calibration_completed": false,
+    "live_playing_strength_changed": false,
+    "stable_high_dan_strength_established": false,
+    "repository_production_build_passed": false
+  },
+  "next_required_action": "independently-rereview-the-exact-validated-head-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
+}

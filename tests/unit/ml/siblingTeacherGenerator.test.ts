@@ -7,15 +7,22 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  advanceStrengthFirstSiblingTeacherDataset,
+  advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
   INDEPENDENT_EXACT_RESCORE_MODE,
   REMOVED_SIBLING_TEACHER_CLI_MESSAGE,
   SIBLING_TEACHER_MANIFEST_SCHEMA,
   SIBLING_TEACHER_LABEL_POLICY,
   SIBLING_TEACHER_WORK_SCHEMA,
+  STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
+  STRENGTH_FIRST_PRODUCTION_ENGINES,
+  STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
+  STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
   siblingTeacherStagePaths,
   stageSiblingTeacherDatasetCoreForTests,
   type GenerateSiblingTeacherDependencies,
   type StageSiblingTeacherCoreForTestsOptions,
+  type StrengthFirstSiblingTeacherOptions,
 } from '../../../ml/generate-sibling-teacher';
 import {
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
@@ -37,7 +44,7 @@ const PIPELINE_REVISION = '0123456789abcdef0123456789abcdef01234567';
 
 interface GenerateSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'stageRoot'
+  'stageRoot' | 'runnerRevision'
 > {
   raw: string;
   pipelineRevision: string;
@@ -114,7 +121,7 @@ async function generateSiblingTeacherDataset(
   }
   return stageSiblingTeacherDatasetCoreForTests(
     await authenticatedInputFromRaw(raw, pipelineRevision),
-    { ...stageOptions, stageRoot },
+    { ...stageOptions, stageRoot, runnerRevision: pipelineRevision },
     dependencies
   );
 }
@@ -270,6 +277,7 @@ describe('deterministic sibling teacher generator', () => {
     );
     const options: StageSiblingTeacherCoreForTestsOptions = {
       stageRoot,
+      runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
       engineArgs: [FAKE_ENGINE],
       engineReceipt: await writeEngineReceipt(root),
@@ -331,6 +339,352 @@ describe('deterministic sibling teacher generator', () => {
     await expect(
       stageSiblingTeacherDatasetCoreForTests(input, { ...options, engines: 2 }, dependencies)
     ).rejects.toThrow(/checkpoint header does not match/);
+  });
+
+  it('advances one target-independent run, keeps prefixes work-only, and binds final training completion', async () => {
+    type ProductionEngineOption = Extract<keyof StrengthFirstSiblingTeacherOptions, 'engines'>;
+    const productionEngineIsFixed: ProductionEngineOption extends never ? true : false = true;
+    expect(productionEngineIsFixed).toBe(true);
+    expect(STRENGTH_FIRST_PRODUCTION_ENGINES).toBe(12);
+
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-strength-first-'));
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    const forcedParent = {
+      ...rawParent('parent-a'),
+      position_id: positionKeyFromSfen(ONE_LEGAL),
+      parent_sfen: ONE_LEGAL,
+      ply: 106,
+      played_move: '8h5h',
+    };
+    const rawText = `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(forcedParent)}\n`;
+    await fs.promises.writeFile(raw, rawText);
+    const bundleVerifierRevision = '89abcdef'.repeat(5);
+    const input = await authenticatedInputFromRaw(raw, bundleVerifierRevision);
+    const verifyRevision = vi.fn(async (revision: string) => ({
+      source_revision: revision,
+      tracked_tree_clean: true as const,
+    }));
+    const verifyOutputPaths = vi.fn(
+      async (_outputs: readonly string[], _inputs: readonly string[]) => undefined
+    );
+    const dependencies = { verifyRevision, verifyOutputPaths };
+    const baseOptions = {
+      stageRoot,
+      runnerRevision: PIPELINE_REVISION,
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE],
+      engineReceipt: await writeEngineReceipt(root),
+      multipv: 2,
+      depth: 8,
+      engines: 2,
+      timeoutMs: 5_000,
+    };
+
+    const prefix = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      { ...baseOptions, targetParents: 1, finalize: false },
+      dependencies
+    );
+    if (prefix.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
+      throw new Error('expected strength-first prefix');
+    }
+    expect(prefix).toMatchObject({
+      status: 'local-work-prefix-complete-not-an-authentication-receipt',
+      authentication_receipt: false,
+      target_parents: 1,
+      completed_parents: 1,
+      work: {
+        path: 'work.jsonl',
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        records: 2,
+        binding_scope: 'canonical-target-prefix-projection',
+      },
+      current_work: {
+        path: 'work.jsonl',
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        records: 2,
+      },
+    });
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+    expect(verifyRevision).toHaveBeenLastCalledWith(PIPELINE_REVISION);
+    expect(verifyRevision).not.toHaveBeenCalledWith(bundleVerifierRevision);
+    expect(verifyOutputPaths.mock.calls.map(([outputs]) => outputs)).toEqual([
+      [stage.work],
+      [stage.work],
+    ]);
+
+    const finalized = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      { ...baseOptions, targetParents: 2, finalize: true },
+      dependencies
+    );
+    expect(finalized.status).toBe('complete-training-only');
+    if (finalized.status !== 'complete-training-only') {
+      throw new Error('expected strength-first finalization');
+    }
+    expect(finalized.run_fingerprint).toBe(prefix.run_fingerprint);
+    expect(finalized.manifest).toMatchObject({
+      schema: STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
+      status: 'complete-training-only',
+      run_fingerprint: prefix.run_fingerprint,
+      pipeline: {
+        source_revision: PIPELINE_REVISION,
+        tracked_tree_clean: true,
+      },
+      authenticated_input: {
+        bundle_verifier_revision: bundleVerifierRevision,
+      },
+      source: {
+        raw_records: 2,
+        selected_parents: 2,
+      },
+      search: {
+        parallel_engines: 2,
+      },
+      progress_checkpoint: {
+        entries: 2,
+      },
+      parent_completion: {
+        path: 'parent-completion.jsonl',
+        records: 2,
+        forced_parents_skipped: 1,
+        emitted_parent_groups: 1,
+      },
+      publication: {
+        staged_inside_authenticated_callback: true,
+        consumer_postflight_bound: false,
+      },
+    });
+    expect(finalized.staged_result).toMatchObject({
+      schema: STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
+      status: 'complete-training-only',
+      runner_revision: PIPELINE_REVISION,
+      bundle_verifier_revision: bundleVerifierRevision,
+      input_parents: 2,
+      completed_parents: 2,
+      forced_parents_skipped: 1,
+      emitted_parent_groups: 1,
+      work: {
+        path: 'work.jsonl',
+        records: 3,
+      },
+      publication: {
+        staged_inside_authenticated_callback: true,
+        consumer_postflight_bound: false,
+      },
+    });
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
+      'manifest.json',
+      'parent-completion.jsonl',
+      'staged-result.json',
+      'train.jsonl',
+      'work.jsonl',
+    ]);
+    await expect(fs.promises.access(stage.val)).rejects.toThrow();
+
+    const trainText = await fs.promises.readFile(stage.train, 'utf8');
+    const trainLines = trainText.trim().split('\n');
+    const trainRows = parseJsonl<SiblingRecord>(trainText);
+    expect(trainRows).toHaveLength(3);
+    expect(trainRows.every((row) => row.split === 'train')).toBe(true);
+    expect(trainRows.map((row) => row.parent_id)).toEqual(['parent-b', 'parent-b', 'parent-b']);
+    expect(trainLines.every((line) => line === canonicalJson(JSON.parse(line)))).toBe(true);
+    const semanticPositionIds = new Set(
+      trainRows.flatMap((row) => [row.position_id, row.child_position_id])
+    );
+    expect(finalized.staged_result.train.semantic_position_ids_count).toBe(
+      semanticPositionIds.size
+    );
+    expect(finalized.staged_result.train.semantic_position_ids_sha256).toBe(
+      floodgateIdentifierDigest(semanticPositionIds)
+    );
+
+    const completionText = await fs.promises.readFile(stage.parentCompletion, 'utf8');
+    const completionLines = completionText.trim().split('\n');
+    const completionRows = parseJsonl<{
+      schema: string;
+      parent_id: string;
+      completed_parent_sha256: string;
+      forced_parent_skipped: boolean;
+      train_group_records: number;
+      train_group_sha256: string | null;
+    }>(completionText);
+    expect(completionLines.every((line) => line === canonicalJson(JSON.parse(line)))).toBe(true);
+    expect(completionRows.map((row) => row.schema)).toEqual([
+      STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
+      STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
+    ]);
+    for (const row of completionLines.map((line) => JSON.parse(line) as object)) {
+      expectExactKeys(row, [
+        'schema',
+        'game_id',
+        'parent_id',
+        'position_id',
+        'completed_parent_sha256',
+        'forced_parent_skipped',
+        'train_group_records',
+        'train_group_sha256',
+      ]);
+    }
+    for (const row of completionRows) {
+      const groupLines = trainLines.filter(
+        (line) => (JSON.parse(line) as SiblingRecord).parent_id === row.parent_id
+      );
+      expect(row.completed_parent_sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(row.train_group_records).toBe(groupLines.length);
+      if (row.forced_parent_skipped) {
+        expect(row.parent_id).toBe('parent-a');
+        expect(row.train_group_records).toBe(0);
+        expect(row.train_group_sha256).toBeNull();
+      } else {
+        expect(row.parent_id).toBe('parent-b');
+        expect(row.train_group_sha256).toBe(sha256(`${groupLines.join('\n')}\n`));
+      }
+    }
+    expect(finalized.staged_result.train).toEqual(finalized.manifest.outputs.train);
+    expect(finalized.staged_result.parent_completion).toEqual(finalized.manifest.parent_completion);
+    expect(finalized.staged_result.train.sha256).toBe(sha256(trainText));
+    expect(finalized.staged_result.parent_completion.sha256).toBe(sha256(completionText));
+    const manifestText = await fs.promises.readFile(stage.manifest, 'utf8');
+    expect(finalized.staged_result.manifest).toMatchObject({
+      bytes: Buffer.byteLength(manifestText),
+      sha256: sha256(manifestText),
+    });
+    expect(JSON.parse(await fs.promises.readFile(stage.stagedResult, 'utf8'))).toEqual(
+      finalized.staged_result
+    );
+
+    const stagedFinalArtifactsBeforeReplay = await Promise.all(
+      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
+        fs.promises.readFile(file)
+      )
+    );
+    const replayedPrefix = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      { ...baseOptions, targetParents: 1, finalize: false },
+      dependencies
+    );
+    expect(replayedPrefix.status).toBe('local-work-prefix-complete-not-an-authentication-receipt');
+    if (replayedPrefix.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
+      throw new Error('expected replayed prefix');
+    }
+    expect(replayedPrefix.run_fingerprint).toBe(prefix.run_fingerprint);
+    expect(replayedPrefix.work).toEqual(prefix.work);
+    expect(replayedPrefix.current_work.records).toBe(3);
+    const stagedFinalArtifactsAfterReplay = await Promise.all(
+      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
+        fs.promises.readFile(file)
+      )
+    );
+    expect(stagedFinalArtifactsAfterReplay).toEqual(stagedFinalArtifactsBeforeReplay);
+
+    const completedWorkRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    const preservedLaterParent = completedWorkRows.find(
+      (row) => row.kind === 'parent' && row.parent_id === 'parent-b'
+    );
+    if (!preservedLaterParent) throw new Error('missing later completed parent');
+    await fs.promises.writeFile(
+      stage.work,
+      `${JSON.stringify(completedWorkRows[0])}\n${JSON.stringify(preservedLaterParent)}\n`
+    );
+    const repairedHole = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      { ...baseOptions, targetParents: 2, finalize: false },
+      dependencies
+    );
+    if (repairedHole.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
+      throw new Error('expected repaired target prefix');
+    }
+    const repairedRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    expect(repairedRows.map((row) => row.parent_id).filter(Boolean)).toEqual([
+      'parent-a',
+      'parent-b',
+    ]);
+    expect(
+      repairedRows.find((row) => row.kind === 'parent' && row.parent_id === 'parent-b')
+    ).toEqual(preservedLaterParent);
+    expect(repairedHole.work.sha256).toBe(finalized.staged_result.work.sha256);
+    const stagedFinalArtifactsAfterHoleRepair = await Promise.all(
+      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
+        fs.promises.readFile(file)
+      )
+    );
+    expect(stagedFinalArtifactsAfterHoleRepair).toEqual(stagedFinalArtifactsBeforeReplay);
+
+    const allForcedRaw = path.join(root, 'all-forced.raw.jsonl');
+    const allForcedStageRoot = path.join(root, 'all-forced-stage');
+    await fs.promises.writeFile(allForcedRaw, `${JSON.stringify(forcedParent)}\n`);
+    const allForced = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      await authenticatedInputFromRaw(allForcedRaw, bundleVerifierRevision),
+      {
+        ...baseOptions,
+        stageRoot: allForcedStageRoot,
+        targetParents: 1,
+        finalize: true,
+      },
+      dependencies
+    );
+    if (allForced.status !== 'complete-training-only') {
+      throw new Error('expected accountable all-forced completion');
+    }
+    expect(allForced).toMatchObject({
+      completed_parents: 1,
+      manifest: {
+        candidate_sets: {
+          parents: 0,
+          candidates: 0,
+          min_candidates: 0,
+          max_candidates: 0,
+          skipped_parents: 1,
+        },
+        parent_completion: {
+          records: 1,
+          forced_parents_skipped: 1,
+          emitted_parent_groups: 0,
+        },
+        outputs: {
+          train: {
+            bytes: 0,
+            records: 0,
+            parents: 0,
+            games: 0,
+            semantic_position_ids_count: 0,
+          },
+        },
+      },
+    });
+    const allForcedStage = siblingTeacherStagePaths(allForcedStageRoot);
+    expect(await fs.promises.readFile(allForcedStage.train, 'utf8')).toBe('');
+    expect(parseJsonl<{ forced_parent_skipped: boolean }>(
+      await fs.promises.readFile(allForcedStage.parentCompletion, 'utf8')
+    )).toEqual([
+      expect.objectContaining({
+        forced_parent_skipped: true,
+      }),
+    ]);
+
+    await expect(
+      advanceStrengthFirstSiblingTeacherDataset(
+        input,
+        {
+          stageRoot: path.join(root, 'production-stage'),
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [FAKE_ENGINE],
+          engineReceipt: baseOptions.engineReceipt,
+          multipv: 2,
+          depth: 8,
+          targetParents: 100,
+        },
+        dependencies
+      )
+    ).rejects.toThrow(/exactly 24000 parents/);
   });
 
   it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {

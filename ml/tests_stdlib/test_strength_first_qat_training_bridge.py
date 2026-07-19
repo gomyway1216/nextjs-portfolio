@@ -176,7 +176,7 @@ def teacher_documents(plan):
 class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
     def test_neutral_scanner_binds_exact_source_completion_and_train(self):
         artifacts = make_artifacts([0, 2])
-        scanned = ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+        scanned = BRIDGE.scan_strength_first_training_artifacts_exact(
             artifacts["input_raw"],
             artifacts["completion_raw"],
             artifacts["train_raw"],
@@ -214,7 +214,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "role binding"):
-            ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+            BRIDGE.scan_strength_first_training_artifacts_exact(
                 artifacts["input_raw"] + b"x",
                 artifacts["completion_raw"],
                 artifacts["train_raw"],
@@ -222,7 +222,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
                 expected_completion_binding=artifacts["completion_binding"],
             )
         with self.assertRaisesRegex(ValueError, "authenticated identity"):
-            ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+            BRIDGE.scan_strength_first_training_artifacts_exact(
                 artifacts["input_raw"],
                 artifacts["completion_raw"] + b"x",
                 artifacts["train_raw"],
@@ -233,7 +233,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             ValueError,
             "groups differ|missing its train group",
         ):
-            ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+            BRIDGE.scan_strength_first_training_artifacts_exact(
                 artifacts["input_raw"],
                 artifacts["completion_raw"],
                 b"",
@@ -371,7 +371,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             **source["completion_binding"],
             "path": "parent-completion.jsonl",
         }
-        scan = ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+        scan = BRIDGE.scan_strength_first_training_artifacts_exact(
             source["input_raw"],
             source["completion_raw"],
             source["train_raw"],

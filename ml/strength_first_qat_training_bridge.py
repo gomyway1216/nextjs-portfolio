@@ -192,6 +192,91 @@ def _typed_equal(value: Any, expected: Any) -> bool:
     return value == expected
 
 
+def scan_strength_first_training_artifacts_exact(
+    input_raw: Any,
+    completion_raw: Any,
+    train_raw: Any,
+    *,
+    expected_input_binding: Mapping[str, Any],
+    expected_completion_binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recompute the frozen v2 row accounting without changing that module."""
+
+    binding = ACCOUNTING._normalize_input_binding(expected_input_binding)
+    completion_binding = ACCOUNTING._normalize_completion_binding(
+        expected_completion_binding
+    )
+    input_order, input_metadata, input_summary = (
+        ACCOUNTING._scan_input_bytes(input_raw, binding)
+    )
+    (
+        completion,
+        forced_order,
+        completion_emitted_order,
+        completion_records,
+    ) = ACCOUNTING._scan_completion_bytes(
+        completion_raw,
+        completion_binding,
+        input_order,
+        input_metadata,
+    )
+    train, emitted_order, train_groups = ACCOUNTING._scan_train_bytes(
+        train_raw, input_order, input_metadata
+    )
+    if emitted_order != completion_emitted_order:
+        raise ValueError(
+            "fresh QAT train groups differ from explicit completion dispositions"
+        )
+    for parent_id in input_order:
+        completion_record = completion_records[parent_id]
+        train_group = train_groups.get(parent_id)
+        if completion_record["forced_parent_skipped"]:
+            if train_group is not None:
+                raise ValueError(
+                    "fresh QAT forced completion unexpectedly emitted a group"
+                )
+            continue
+        if train_group is None:
+            raise ValueError(
+                "fresh QAT non-forced completion is missing its train group"
+            )
+        if (
+            train_group["records"]
+            != completion_record["train_group_records"]
+            or train_group["sha256"]
+            != completion_record["train_group_sha256"]
+        ):
+            raise ValueError(
+                "fresh QAT train group differs from completion evidence"
+            )
+
+    input_count = len(input_order)
+    forced_count = len(forced_order)
+    emitted_count = len(emitted_order)
+    if (
+        forced_count + emitted_count != input_count
+        or completion["records"] != input_count
+        or train["parents"] != emitted_count
+    ):
+        raise ValueError("fresh QAT parent accounting equation failed")
+    return {
+        "input_training": binding,
+        "input_summary": input_summary,
+        "parent_completion": completion,
+        "model_training": train,
+        "parent_accounting": {
+            "input_parents": input_count,
+            "forced_parents_skipped": forced_count,
+            "emitted_parent_groups": emitted_count,
+            "model_training_parents": emitted_count,
+            "equation_verified": True,
+            "replacement_parents": 0,
+            "resampled_parents": 0,
+            "emitted_order_preserved": True,
+        },
+    }
+
+
 def _file_identity(
     value: Any,
     *,
@@ -783,7 +868,7 @@ def _verify_strength_first_qat_training_plan(
         artifacts,
     )
 
-    accounting = ACCOUNTING.scan_fresh_qat_training_artifacts_exact(
+    accounting = scan_strength_first_training_artifacts_exact(
         input_raw,
         completion_raw,
         train_raw,

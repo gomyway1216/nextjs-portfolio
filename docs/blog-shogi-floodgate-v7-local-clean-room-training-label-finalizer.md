@@ -125,6 +125,6 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 この変更で評価関数の強さは変わっていない。実教師process、24,000件work、final label publication、optimizer training、候補選抜、formal A/B、外部校正、live weight activationはすべて未実行である。
 
-次はPR #512を統合したこのbranchを独立再reviewし、CI後に通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
+PR #512を統合したこのbranchはready-for-reviewの[PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513)として公開済みだが、まだmergeしていない。次はPR #513の独立再reviewとCIを完了し、通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

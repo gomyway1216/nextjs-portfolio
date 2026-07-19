@@ -126,6 +126,6 @@ The default Turbopack build stopped before compilation because this worktree's `
 
 This change has not altered playing strength. Real teacher processes, the 24,000-parent work, final label publication, optimizer training, candidate selection, formal A/B, external calibration, and live-weight activation all remain unexecuted.
 
-The next step is an independent re-review, CI, and regular merge of this branch with PR #512 integrated. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
+This branch, with PR #512 integrated, is now published as ready-for-review [PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513), but it has not been merged. The next step is independent review, CI, and a regular merge of PR #513. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

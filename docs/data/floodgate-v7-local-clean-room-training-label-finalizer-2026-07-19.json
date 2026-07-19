@@ -332,6 +332,17 @@
     "http_or_network_used": false,
     "host_not_on_aws_universally_proven": false
   },
+  "publication": {
+    "branch": "codex/local-clean-room-training-label-finalizer",
+    "branch_pushed": true,
+    "pull_request": 513,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/513",
+    "pull_request_state_observed": "OPEN",
+    "pull_request_draft": false,
+    "base_branch": "main",
+    "head_at_pull_request_creation": "0aba60d3bd36610fe01bd6446c125a2a855f16ee",
+    "merged": false
+  },
   "operational_state": {
     "state": "STOP",
     "real_fixed_path_finalizer_invocations": 0,
@@ -345,8 +356,8 @@
     "external_calibration_games": 0,
     "live_weights_changed": false,
     "production_activations": 0,
-    "pull_request_created_by_this_worktree": false,
-    "branch_pushed_by_this_worktree": false
+    "pull_request_created_by_this_worktree": true,
+    "branch_pushed_by_this_worktree": true
   },
   "nonclaims": {
     "teacher_generation_completed": false,
@@ -359,5 +370,5 @@
     "stable_high_dan_strength_established": false,
     "repository_production_build_passed": false
   },
-  "next_required_action": "independently-rereview-the-pull-request-512-integrated-branch-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
+  "next_required_action": "independently-rereview-pull-request-513-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
 }

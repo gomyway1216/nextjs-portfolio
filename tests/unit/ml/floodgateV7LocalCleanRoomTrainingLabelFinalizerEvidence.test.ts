@@ -250,6 +250,18 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       http_or_network_used: false,
       host_not_on_aws_universally_proven: false,
     });
+    expect(record.publication).toEqual({
+      branch: "codex/local-clean-room-training-label-finalizer",
+      branch_pushed: true,
+      pull_request: 513,
+      pull_request_url:
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/513",
+      pull_request_state_observed: "OPEN",
+      pull_request_draft: false,
+      base_branch: "main",
+      head_at_pull_request_creation: "0aba60d3bd36610fe01bd6446c125a2a855f16ee",
+      merged: false,
+    });
     const operational = record.operational_state as Record<string, unknown>;
     for (const key of [
       "real_fixed_path_finalizer_invocations",
@@ -266,6 +278,8 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       expect(operational[key], key).toBe(0);
     }
     expect(operational.live_weights_changed).toBe(false);
+    expect(operational.pull_request_created_by_this_worktree).toBe(true);
+    expect(operational.branch_pushed_by_this_worktree).toBe(true);
 
     const source = read(
       "ml/floodgate-v7-local-clean-room-training-label-finalizer.ts",
@@ -309,6 +323,7 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "27 / 27 PASS",
       "199 / 199 PASS",
       "PR #512",
+      "PR #513",
       "4855f099",
       path.basename(evidenceRelative),
     ]) {
@@ -321,6 +336,7 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "27 / 27 PASS",
       "199 / 199 PASS",
       "PR #512",
+      "PR #513",
       "4855f099",
       path.basename(evidenceRelative),
     ]) {

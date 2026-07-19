@@ -18,6 +18,10 @@ export const FLOODGATE_V7_CLEAN_ROOM_COPY_STATUS =
   "complete-private-tree-copy-by-value" as const;
 export const FLOODGATE_V7_CLEAN_ROOM_COPY_CLAIM_BOUNDARY =
   "source-and-destination-byte-identity-private-metadata-and-no-symlink-hardlink-or-inode-alias-not-source-semantic-validity-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT =
+  "shogi-floodgate-v7-portable-copy-filesystem-witness-v1" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY =
+  "filesystem-only-source-preseal-post-verification-seal-copy-by-value-witness-composite-destination-closure-and-borrow-revalidation-not-source-semantic-verification-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
 
 const DIRECTORY_MODE = BigInt(0o700);
 const PRIVATE_FILE_MODE = 0o600;
@@ -42,6 +46,51 @@ type CopyPhase =
   | "copy"
   | "revalidation"
   | "callback";
+
+export type FloodgateV7PortableCopyKind =
+  "raw-lock-tree" | "role-lock-tree" | "role-bundle-tree" | "legacy-file";
+
+declare const portableSourcePresealBrand: unique symbol;
+declare const portableSourceSealBrand: unique symbol;
+declare const portableCopyWitnessBrand: unique symbol;
+declare const portableCompositeSealBrand: unique symbol;
+
+export interface FloodgateV7PortableCopySourcePreseal {
+  readonly [portableSourcePresealBrand]: true;
+}
+
+export interface FloodgateV7PortableCopySourceFilesystemSeal {
+  readonly [portableSourceSealBrand]: true;
+}
+
+export interface FloodgateV7PortableCopyWitness {
+  readonly [portableCopyWitnessBrand]: true;
+}
+
+export interface FloodgateV7PortableCopyCompositeDestinationSeal {
+  readonly [portableCompositeSealBrand]: true;
+}
+
+export interface FloodgateV7PortableCopyWitnessResult {
+  readonly receipt: Readonly<FloodgateV7CleanRoomCopyReceipt>;
+  readonly witness: FloodgateV7PortableCopyWitness;
+}
+
+type PortableCopyOperation =
+  "preseal" | "seal" | "copy" | "composite" | "borrow" | "revoke";
+
+export class FloodgateV7PortableCopyWitnessError extends Error {
+  readonly contract = FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT;
+  readonly operation: PortableCopyOperation;
+  readonly sensitive_values_disclosed = false;
+
+  constructor(operation: PortableCopyOperation) {
+    super("Floodgate v7 portable copy filesystem witness failed");
+    this.name = "FloodgateV7PortableCopyWitnessError";
+    this.operation = operation;
+    Object.freeze(this);
+  }
+}
 
 export class FloodgateV7CleanRoomCopyError extends Error {
   readonly phase: CopyPhase;
@@ -144,6 +193,45 @@ interface TreeInventory {
   readonly destinationTreeSha256: string;
 }
 
+interface FileInventory {
+  readonly identity: Readonly<StatIdentity>;
+  readonly sha256: string;
+  readonly sourceMode: 0o400 | 0o500 | 0o600 | 0o700;
+  readonly destinationMode: 0o600 | 0o700;
+  readonly bytes: number;
+}
+
+type PortableInventory =
+  | Readonly<{ readonly type: "tree"; readonly value: Readonly<TreeInventory> }>
+  | Readonly<{
+      readonly type: "file";
+      readonly value: Readonly<FileInventory>;
+    }>;
+
+interface TreeCopyInternalResult {
+  readonly receipt: Readonly<FloodgateV7CleanRoomCopyReceipt>;
+  readonly sourceBefore: Readonly<TreeInventory>;
+  readonly destinationAfter: Readonly<TreeInventory>;
+}
+
+interface FileCopyInternalResult {
+  readonly receipt: Readonly<FloodgateV7CleanRoomCopyReceipt>;
+  readonly sourceBefore: Readonly<FileInventory>;
+  readonly destinationAfter: Readonly<FileInventory>;
+}
+
+interface ParentEntrySnapshot {
+  readonly name: string;
+  readonly type: "directory" | "file";
+  readonly identity: Readonly<StatIdentity>;
+}
+
+interface ParentDirectorySnapshot {
+  readonly path: string;
+  readonly identity: Readonly<StatIdentity>;
+  readonly entries: readonly Readonly<ParentEntrySnapshot>[];
+}
+
 interface CapturedDependencies {
   readonly effectiveUserId: number;
   readonly maxEntries: number;
@@ -156,6 +244,39 @@ interface CapturedDependencies {
     handle: fs.promises.FileHandle,
     kind: "source" | "destination",
   ) => void | Promise<void>;
+}
+
+interface PortableSourcePresealState {
+  readonly kind: FloodgateV7PortableCopyKind;
+  readonly source: string;
+  readonly destination: string;
+  readonly dependencies: Readonly<CapturedDependencies>;
+  readonly inventory: PortableInventory;
+}
+
+type PortableSourceSealState = PortableSourcePresealState;
+
+interface PortableCopyWitnessState {
+  readonly kind: FloodgateV7PortableCopyKind;
+  readonly destination: string;
+  readonly dependencies: Readonly<CapturedDependencies>;
+  readonly destinationInventory: PortableInventory;
+}
+
+interface PortableCompositeSealState {
+  readonly witnesses: readonly Readonly<PortableCopyWitnessState>[];
+  readonly parents: readonly Readonly<ParentDirectorySnapshot>[];
+  inUse: boolean;
+  invalidated: boolean;
+}
+
+interface PortableRegistry {
+  readonly presealedSources: WeakMap<object, PortableSourcePresealState>;
+  readonly sealedSources: WeakMap<object, PortableSourceSealState>;
+  readonly witnesses: WeakMap<object, PortableCopyWitnessState>;
+  readonly compositeSeals: WeakMap<object, PortableCompositeSealState>;
+  readonly issuedCompositeSeals: WeakSet<object>;
+  readonly revokedCompositeSeals: WeakSet<object>;
 }
 
 function canonicalAbsolutePath(value: unknown): string {
@@ -791,19 +912,16 @@ function pathsOverlap(left: string, right: string): boolean {
   return contained(leftToRight) || contained(rightToLeft);
 }
 
-/**
- * Testable generic core. The eventual operator entry point supplies only fixed
- * paths and bounds; no operator-controlled path reaches this function.
- */
-export async function copyFloodgateV7CleanRoomTreeByValueCoreForTests(
+async function copyFloodgateV7CleanRoomTreeByValueInternal(
+  argumentCount: number,
   sourceRootValue: string,
   destinationRootValue: string,
   dependenciesValue: FloodgateV7CleanRoomCopyDependencies,
-): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
+): Promise<Readonly<TreeCopyInternalResult>> {
   let phase: CopyPhase = "capture";
   let destinationCreated = false;
   try {
-    if (arguments.length !== 3) throw new Error("argument count differs");
+    if (argumentCount !== 3) throw new Error("argument count differs");
     const sourceRoot = canonicalAbsolutePath(sourceRootValue);
     const destinationRoot = canonicalAbsolutePath(destinationRootValue);
     const dependencies = captureDependencies(dependenciesValue);
@@ -881,7 +999,7 @@ export async function copyFloodgateV7CleanRoomTreeByValueCoreForTests(
     ) {
       throw new Error("final tree identity differs");
     }
-    return Object.freeze({
+    const receipt = Object.freeze({
       contract: FLOODGATE_V7_CLEAN_ROOM_COPY_CONTRACT,
       status: FLOODGATE_V7_CLEAN_ROOM_COPY_STATUS,
       claim_boundary: FLOODGATE_V7_CLEAN_ROOM_COPY_CLAIM_BOUNDARY,
@@ -914,25 +1032,50 @@ export async function copyFloodgateV7CleanRoomTreeByValueCoreForTests(
         playing_strength: false as const,
       }),
     });
+    return Object.freeze({
+      receipt,
+      sourceBefore: before,
+      destinationAfter,
+    });
   } catch {
     throw new FloodgateV7CleanRoomCopyError(phase, destinationCreated);
   }
 }
 
 /**
+ * Testable generic core. The eventual operator entry point supplies only fixed
+ * paths and bounds; no operator-controlled path reaches this function.
+ */
+export async function copyFloodgateV7CleanRoomTreeByValueCoreForTests(
+  sourceRootValue: string,
+  destinationRootValue: string,
+  dependenciesValue: FloodgateV7CleanRoomCopyDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
+  return (
+    await copyFloodgateV7CleanRoomTreeByValueInternal(
+      arguments.length,
+      sourceRootValue,
+      destinationRootValue,
+      dependenciesValue,
+    )
+  ).receipt;
+}
+
+/**
  * Single-file companion used for the separately stored legacy exclusion input.
  * The destination parent must already be an exact private directory.
  */
-export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
+async function copyFloodgateV7CleanRoomFileByValueInternal(
+  argumentCount: number,
   sourceFileValue: string,
   destinationFileValue: string,
   dependenciesValue: FloodgateV7CleanRoomCopyDependencies,
-): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
+): Promise<Readonly<FileCopyInternalResult>> {
   let phase: CopyPhase = "capture";
   let destinationCreated = false;
   let operationChunk: Buffer | undefined;
   try {
-    if (arguments.length !== 3) throw new Error("argument count differs");
+    if (argumentCount !== 3) throw new Error("argument count differs");
     const sourceFile = canonicalAbsolutePath(sourceFileValue);
     const destinationFile = canonicalAbsolutePath(destinationFileValue);
     const dependencies = captureDependencies(dependenciesValue);
@@ -1009,7 +1152,7 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
       throw new Error("final file identity differs");
     }
     await syncDirectory(destinationParent);
-    return Object.freeze({
+    const receipt = Object.freeze({
       contract: FLOODGATE_V7_CLEAN_ROOM_COPY_CONTRACT,
       status: FLOODGATE_V7_CLEAN_ROOM_COPY_STATUS,
       claim_boundary: FLOODGATE_V7_CLEAN_ROOM_COPY_CLAIM_BOUNDARY,
@@ -1042,9 +1185,876 @@ export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
         playing_strength: false as const,
       }),
     });
+    return Object.freeze({
+      receipt,
+      sourceBefore: Object.freeze({
+        identity: before.identity,
+        sha256: before.sha256,
+        sourceMode,
+        destinationMode,
+        bytes: file.bytes,
+      }),
+      destinationAfter: Object.freeze({
+        identity: destinationAfter.identity,
+        sha256: destinationAfter.sha256,
+        sourceMode: destinationMode,
+        destinationMode,
+        bytes: file.bytes,
+      }),
+    });
   } catch {
     throw new FloodgateV7CleanRoomCopyError(phase, destinationCreated);
   } finally {
     operationChunk?.fill(0);
   }
+}
+
+export async function copyFloodgateV7CleanRoomFileByValueCoreForTests(
+  sourceFileValue: string,
+  destinationFileValue: string,
+  dependenciesValue: FloodgateV7CleanRoomCopyDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomCopyReceipt>> {
+  return (
+    await copyFloodgateV7CleanRoomFileByValueInternal(
+      arguments.length,
+      sourceFileValue,
+      destinationFileValue,
+      dependenciesValue,
+    )
+  ).receipt;
+}
+
+function portableKind(value: unknown): FloodgateV7PortableCopyKind {
+  if (
+    value !== "raw-lock-tree" &&
+    value !== "role-lock-tree" &&
+    value !== "role-bundle-tree" &&
+    value !== "legacy-file"
+  ) {
+    throw new Error("portable copy kind differs");
+  }
+  return value;
+}
+
+function kindInventoryType(
+  kind: FloodgateV7PortableCopyKind,
+): PortableInventory["type"] {
+  return kind === "legacy-file" ? "file" : "tree";
+}
+
+function filesystemOnlyDependencies(
+  dependencies: Readonly<CapturedDependencies>,
+): Readonly<CapturedDependencies> {
+  return Object.freeze({
+    effectiveUserId: dependencies.effectiveUserId,
+    maxEntries: dependencies.maxEntries,
+    maxTotalBytes: dependencies.maxTotalBytes,
+    maxConcurrency: dependencies.maxConcurrency,
+  });
+}
+
+function publicCopyDependencies(
+  dependencies: Readonly<CapturedDependencies>,
+): Readonly<FloodgateV7CleanRoomCopyDependencies> {
+  return Object.freeze({
+    effectiveUserId: dependencies.effectiveUserId,
+    maxEntries: dependencies.maxEntries,
+    maxTotalBytes: dependencies.maxTotalBytes,
+    maxConcurrencyForTests: dependencies.maxConcurrency,
+    ...(dependencies.afterSourceInventory === undefined
+      ? {}
+      : {
+          afterSourceInventoryForTests: dependencies.afterSourceInventory,
+        }),
+    ...(dependencies.afterFileCopied === undefined
+      ? {}
+      : {
+          afterFileCopiedForTests: dependencies.afterFileCopied,
+        }),
+    ...(dependencies.beforeFinalRevalidation === undefined
+      ? {}
+      : {
+          beforeFinalRevalidationForTests: dependencies.beforeFinalRevalidation,
+        }),
+    ...(dependencies.closeCopiedFileHandle === undefined
+      ? {}
+      : {
+          closeCopiedFileHandleForTests: dependencies.closeCopiedFileHandle,
+        }),
+  });
+}
+
+function sameFileInventory(
+  before: Readonly<FileInventory> | undefined,
+  after: Readonly<FileInventory> | undefined,
+): boolean {
+  return (
+    before !== undefined &&
+    after !== undefined &&
+    sameIdentity(before.identity, after.identity) &&
+    before.sha256 === after.sha256 &&
+    before.sourceMode === after.sourceMode &&
+    before.destinationMode === after.destinationMode &&
+    before.bytes === after.bytes
+  );
+}
+
+function samePortableInventory(
+  before: PortableInventory,
+  after: PortableInventory,
+): boolean {
+  if (before.type !== after.type) return false;
+  return before.type === "tree" && after.type === "tree"
+    ? sameInventory(before.value, after.value)
+    : before.type === "file" && after.type === "file"
+      ? sameFileInventory(before.value, after.value)
+      : false;
+}
+
+async function inventoryStandaloneFile(
+  file: string,
+  dependencies: Readonly<CapturedDependencies>,
+  expectedDestinationMode: boolean,
+): Promise<Readonly<FileInventory>> {
+  const chunk = Buffer.alloc(READ_CHUNK_BYTES);
+  try {
+    const hashed = await hashHeldRegularFile(
+      file,
+      dependencies.effectiveUserId,
+      chunk,
+    );
+    const named = await fs.promises.lstat(file, { bigint: true });
+    if (!sameStat(hashed.identity, named)) {
+      throw new Error("standalone file identity differs");
+    }
+    const capturedSourceMode = sourceFileMode(named);
+    const destinationMode =
+      (capturedSourceMode & 0o100) === 0
+        ? PRIVATE_FILE_MODE
+        : PRIVATE_EXECUTABLE_MODE;
+    const sourceMode = expectedDestinationMode
+      ? destinationMode
+      : capturedSourceMode;
+    const bytes = Number(hashed.identity.size);
+    if (bytes > dependencies.maxTotalBytes) {
+      throw new Error("byte limit exceeded");
+    }
+    return Object.freeze({
+      identity: hashed.identity,
+      sha256: hashed.sha256,
+      sourceMode,
+      destinationMode,
+      bytes,
+    });
+  } finally {
+    chunk.fill(0);
+  }
+}
+
+async function capturePortableInventory(
+  kind: FloodgateV7PortableCopyKind,
+  location: string,
+  dependencies: Readonly<CapturedDependencies>,
+  expectedDestinationModes: boolean,
+): Promise<PortableInventory> {
+  return kindInventoryType(kind) === "tree"
+    ? Object.freeze({
+        type: "tree" as const,
+        value: await inventoryTree(
+          location,
+          filesystemOnlyDependencies(dependencies),
+          expectedDestinationModes,
+        ),
+      })
+    : Object.freeze({
+        type: "file" as const,
+        value: await inventoryStandaloneFile(
+          location,
+          filesystemOnlyDependencies(dependencies),
+          expectedDestinationModes,
+        ),
+      });
+}
+
+function opaqueCapability<T>(): T {
+  return Object.freeze(Object.create(null)) as T;
+}
+
+function sameParentSnapshot(
+  before: Readonly<ParentDirectorySnapshot>,
+  after: Readonly<ParentDirectorySnapshot>,
+): boolean {
+  return (
+    before.path === after.path &&
+    sameIdentity(before.identity, after.identity) &&
+    before.entries.length === after.entries.length &&
+    before.entries.every(
+      (entry, index) =>
+        entry.name === after.entries[index]?.name &&
+        entry.type === after.entries[index]?.type &&
+        sameIdentity(entry.identity, after.entries[index]?.identity),
+    )
+  );
+}
+
+async function captureParentDirectory(
+  parent: string,
+  effectiveUserId: number,
+  maxEntries: number,
+): Promise<Readonly<ParentDirectorySnapshot>> {
+  const identity = await assertPrivateRealDirectory(parent, effectiveUserId);
+  const dirents = await fs.promises.readdir(parent, { withFileTypes: true });
+  if (dirents.length > maxEntries) {
+    throw new Error("parent entry limit exceeded");
+  }
+  dirents.sort((left, right) => compareUtf8(left.name, right.name));
+  const entries: ParentEntrySnapshot[] = [];
+  for (const dirent of dirents) {
+    validateBasename(dirent.name);
+    if (!dirent.isDirectory() && !dirent.isFile()) {
+      throw new Error("parent entry type differs");
+    }
+    const entryPath = path.join(parent, dirent.name);
+    const stat = await fs.promises.lstat(entryPath, { bigint: true });
+    if (
+      stat.uid !== BigInt(effectiveUserId) ||
+      (dirent.isFile() && stat.nlink !== BigInt(1)) ||
+      (await fs.promises.realpath(entryPath)) !== entryPath ||
+      (dirent.isDirectory() ? !stat.isDirectory() : !stat.isFile())
+    ) {
+      throw new Error("parent entry identity differs");
+    }
+    entries.push(
+      Object.freeze({
+        name: dirent.name,
+        type: dirent.isDirectory() ? ("directory" as const) : ("file" as const),
+        identity: snapshot(stat),
+      }),
+    );
+  }
+  const after = await fs.promises.lstat(parent, { bigint: true });
+  if (
+    !sameStat(identity, after) ||
+    (await fs.promises.realpath(parent)) !== parent
+  ) {
+    throw new Error("parent directory changed");
+  }
+  return Object.freeze({
+    path: parent,
+    identity,
+    entries: Object.freeze(entries),
+  });
+}
+
+async function captureParents(
+  witnesses: readonly Readonly<PortableCopyWitnessState>[],
+): Promise<readonly Readonly<ParentDirectorySnapshot>[]> {
+  const parentBounds = new Map<
+    string,
+    Readonly<{ effectiveUserId: number; maxEntries: number }>
+  >();
+  for (const witness of witnesses) {
+    const parent = path.dirname(witness.destination);
+    const prior = parentBounds.get(parent);
+    if (
+      prior !== undefined &&
+      prior.effectiveUserId !== witness.dependencies.effectiveUserId
+    ) {
+      throw new Error("shared parent owner differs");
+    }
+    parentBounds.set(
+      parent,
+      Object.freeze({
+        effectiveUserId: witness.dependencies.effectiveUserId,
+        maxEntries:
+          prior === undefined
+            ? witness.dependencies.maxEntries
+            : Math.min(prior.maxEntries, witness.dependencies.maxEntries),
+      }),
+    );
+  }
+  const sorted = [...parentBounds.entries()].sort(([left], [right]) =>
+    compareUtf8(left, right),
+  );
+  return Object.freeze(
+    await Promise.all(
+      sorted.map(([parent, bounds]) =>
+        captureParentDirectory(
+          parent,
+          bounds.effectiveUserId,
+          bounds.maxEntries,
+        ),
+      ),
+    ),
+  );
+}
+
+async function captureWitnessDestinations(
+  witnesses: readonly Readonly<PortableCopyWitnessState>[],
+): Promise<readonly PortableInventory[]> {
+  return Object.freeze(
+    await Promise.all(
+      witnesses.map((witness) =>
+        capturePortableInventory(
+          witness.kind,
+          witness.destination,
+          witness.dependencies,
+          true,
+        ),
+      ),
+    ),
+  );
+}
+
+function sameWitnessDestinations(
+  witnesses: readonly Readonly<PortableCopyWitnessState>[],
+  inventories: readonly PortableInventory[],
+): boolean {
+  return (
+    witnesses.length === inventories.length &&
+    witnesses.every((witness, index) =>
+      samePortableInventory(
+        witness.destinationInventory,
+        inventories[index] as PortableInventory,
+      ),
+    )
+  );
+}
+
+function sameParents(
+  before: readonly Readonly<ParentDirectorySnapshot>[],
+  after: readonly Readonly<ParentDirectorySnapshot>[],
+): boolean {
+  return (
+    before.length === after.length &&
+    before.every(
+      (parent, index) =>
+        after[index] !== undefined &&
+        sameParentSnapshot(parent, after[index] as ParentDirectorySnapshot),
+    )
+  );
+}
+
+async function revalidateCompositeDestinationState(
+  state: Readonly<PortableCompositeSealState>,
+): Promise<void> {
+  const parentsBefore = await captureParents(state.witnesses);
+  if (!sameParents(state.parents, parentsBefore)) {
+    throw new Error("portable parent closure differs");
+  }
+  const destinations = await captureWitnessDestinations(state.witnesses);
+  if (!sameWitnessDestinations(state.witnesses, destinations)) {
+    throw new Error("portable destination closure differs");
+  }
+  const parentsAfter = await captureParents(state.witnesses);
+  if (!sameParents(state.parents, parentsAfter)) {
+    throw new Error("portable parent closure changed");
+  }
+}
+
+function captureWitnessList(
+  value: readonly FloodgateV7PortableCopyWitness[],
+): readonly object[] {
+  if (
+    !Array.isArray(value) ||
+    nodeUtilTypes.isProxy(value) ||
+    value.length !== 4
+  ) {
+    throw new Error("portable witness list differs");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  if (
+    keys.length !== 5 ||
+    !keys.includes("length") ||
+    ![0, 1, 2, 3].every((index) => {
+      const descriptor = descriptors[index.toString()];
+      return descriptor !== undefined && "value" in descriptor;
+    })
+  ) {
+    throw new Error("portable witness list shape differs");
+  }
+  return Object.freeze(
+    [0, 1, 2, 3].map((index) => {
+      const descriptor = descriptors[index.toString()];
+      const item =
+        descriptor !== undefined && "value" in descriptor
+          ? descriptor.value
+          : undefined;
+      if (
+        (typeof item !== "object" && typeof item !== "function") ||
+        item === null
+      ) {
+        throw new Error("portable witness differs");
+      }
+      return item;
+    }),
+  );
+}
+
+function createPortableRegistry(): PortableRegistry {
+  return Object.freeze({
+    presealedSources: new WeakMap<object, PortableSourcePresealState>(),
+    sealedSources: new WeakMap<object, PortableSourceSealState>(),
+    witnesses: new WeakMap<object, PortableCopyWitnessState>(),
+    compositeSeals: new WeakMap<object, PortableCompositeSealState>(),
+    issuedCompositeSeals: new WeakSet<object>(),
+    revokedCompositeSeals: new WeakSet<object>(),
+  });
+}
+
+function createPortableCopyWitnessApi(registry: PortableRegistry) {
+  const preseal = async (
+    argumentCount: number,
+    kindValue: FloodgateV7PortableCopyKind,
+    sourceValue: string,
+    destinationValue: string,
+    dependenciesValue: FloodgateV7CleanRoomCopyDependencies,
+  ): Promise<FloodgateV7PortableCopySourcePreseal> => {
+    try {
+      if (argumentCount !== 4) throw new Error("argument count differs");
+      const kind = portableKind(kindValue);
+      const source = canonicalAbsolutePath(sourceValue);
+      const destination = canonicalAbsolutePath(destinationValue);
+      const dependencies = captureDependencies(dependenciesValue);
+      if (pathsOverlap(source, destination)) {
+        throw new Error("portable namespaces overlap");
+      }
+      if (
+        kind === "legacy-file" &&
+        path.basename(source) !== path.basename(destination)
+      ) {
+        throw new Error("portable file binding differs");
+      }
+      const inventory = await capturePortableInventory(
+        kind,
+        source,
+        dependencies,
+        false,
+      );
+      const capability =
+        opaqueCapability<FloodgateV7PortableCopySourcePreseal>();
+      registry.presealedSources.set(capability as object, {
+        kind,
+        source,
+        destination,
+        dependencies,
+        inventory,
+      });
+      return capability;
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("preseal");
+    }
+  };
+
+  const seal = async (
+    argumentCount: number,
+    kindValue: FloodgateV7PortableCopyKind,
+    presealValue: FloodgateV7PortableCopySourcePreseal,
+  ): Promise<FloodgateV7PortableCopySourceFilesystemSeal> => {
+    try {
+      if (argumentCount !== 2) throw new Error("argument count differs");
+      const kind = portableKind(kindValue);
+      if (
+        (typeof presealValue !== "object" &&
+          typeof presealValue !== "function") ||
+        presealValue === null
+      ) {
+        throw new Error("portable preseal differs");
+      }
+      const state = registry.presealedSources.get(presealValue as object);
+      if (state === undefined) throw new Error("portable preseal absent");
+      registry.presealedSources.delete(presealValue as object);
+      if (state.kind !== kind) throw new Error("portable preseal kind differs");
+      const after = await capturePortableInventory(
+        state.kind,
+        state.source,
+        state.dependencies,
+        false,
+      );
+      if (!samePortableInventory(state.inventory, after)) {
+        throw new Error("portable source changed after verification");
+      }
+      const capability =
+        opaqueCapability<FloodgateV7PortableCopySourceFilesystemSeal>();
+      registry.sealedSources.set(capability as object, state);
+      return capability;
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("seal");
+    }
+  };
+
+  const copy = async (
+    argumentCount: number,
+    kindValue: FloodgateV7PortableCopyKind,
+    sealValue: FloodgateV7PortableCopySourceFilesystemSeal,
+    destinationValue: string,
+  ): Promise<Readonly<FloodgateV7PortableCopyWitnessResult>> => {
+    try {
+      if (argumentCount !== 3) throw new Error("argument count differs");
+      const kind = portableKind(kindValue);
+      const destination = canonicalAbsolutePath(destinationValue);
+      if (
+        (typeof sealValue !== "object" && typeof sealValue !== "function") ||
+        sealValue === null
+      ) {
+        throw new Error("portable seal differs");
+      }
+      const state = registry.sealedSources.get(sealValue as object);
+      if (state === undefined) throw new Error("portable seal absent");
+      registry.sealedSources.delete(sealValue as object);
+      if (state.kind !== kind || state.destination !== destination) {
+        throw new Error("portable copy binding differs");
+      }
+      const dependencies = publicCopyDependencies(state.dependencies);
+      let internal: TreeCopyInternalResult | FileCopyInternalResult;
+      if (kindInventoryType(kind) === "tree") {
+        internal = await copyFloodgateV7CleanRoomTreeByValueInternal(
+          3,
+          state.source,
+          destination,
+          dependencies,
+        );
+      } else {
+        internal = await copyFloodgateV7CleanRoomFileByValueInternal(
+          3,
+          state.source,
+          destination,
+          dependencies,
+        );
+      }
+      const sourceBefore: PortableInventory =
+        kindInventoryType(kind) === "tree"
+          ? Object.freeze({
+              type: "tree" as const,
+              value: (internal as TreeCopyInternalResult).sourceBefore,
+            })
+          : Object.freeze({
+              type: "file" as const,
+              value: (internal as FileCopyInternalResult).sourceBefore,
+            });
+      if (!samePortableInventory(state.inventory, sourceBefore)) {
+        throw new Error("portable copy source seal differs");
+      }
+      const destinationInventory: PortableInventory =
+        kindInventoryType(kind) === "tree"
+          ? Object.freeze({
+              type: "tree" as const,
+              value: (internal as TreeCopyInternalResult).destinationAfter,
+            })
+          : Object.freeze({
+              type: "file" as const,
+              value: (internal as FileCopyInternalResult).destinationAfter,
+            });
+      const witness = opaqueCapability<FloodgateV7PortableCopyWitness>();
+      registry.witnesses.set(witness as object, {
+        kind,
+        destination,
+        dependencies: filesystemOnlyDependencies(state.dependencies),
+        destinationInventory,
+      });
+      return Object.freeze({
+        receipt: internal.receipt,
+        witness,
+      });
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("copy");
+    }
+  };
+
+  const composite = async (
+    argumentCount: number,
+    witnessValues: readonly FloodgateV7PortableCopyWitness[],
+  ): Promise<FloodgateV7PortableCopyCompositeDestinationSeal> => {
+    try {
+      if (argumentCount !== 1) throw new Error("argument count differs");
+      const objects = captureWitnessList(witnessValues);
+      if (new Set(objects).size !== objects.length) {
+        throw new Error("portable witness replay differs");
+      }
+      const states = objects.map((item) => registry.witnesses.get(item));
+      if (states.some((state) => state === undefined)) {
+        throw new Error("portable witness absent");
+      }
+      const typedStates = states as PortableCopyWitnessState[];
+      const expectedKinds = new Set<FloodgateV7PortableCopyKind>([
+        "raw-lock-tree",
+        "role-lock-tree",
+        "role-bundle-tree",
+        "legacy-file",
+      ]);
+      if (
+        typedStates.some(
+          (state) =>
+            !expectedKinds.delete(state.kind) ||
+            kindInventoryType(state.kind) !== state.destinationInventory.type,
+        ) ||
+        expectedKinds.size !== 0
+      ) {
+        throw new Error("portable witness kind composition differs");
+      }
+      for (let left = 0; left < typedStates.length; left += 1) {
+        for (let right = left + 1; right < typedStates.length; right += 1) {
+          const leftDestination = typedStates[left]?.destination;
+          const rightDestination = typedStates[right]?.destination;
+          if (
+            leftDestination === undefined ||
+            rightDestination === undefined ||
+            pathsOverlap(leftDestination, rightDestination)
+          ) {
+            throw new Error("portable witness destinations overlap");
+          }
+        }
+      }
+      for (const item of objects) registry.witnesses.delete(item);
+      typedStates.sort((left, right) => compareUtf8(left.kind, right.kind));
+      const destinationsBefore = await captureWitnessDestinations(typedStates);
+      if (!sameWitnessDestinations(typedStates, destinationsBefore)) {
+        throw new Error("portable destination differs");
+      }
+      const parents = await captureParents(typedStates);
+      const destinationsAfter = await captureWitnessDestinations(typedStates);
+      if (!sameWitnessDestinations(typedStates, destinationsAfter)) {
+        throw new Error("portable destination changed");
+      }
+      const parentsAfter = await captureParents(typedStates);
+      if (!sameParents(parents, parentsAfter)) {
+        throw new Error("portable parents changed");
+      }
+      const capability =
+        opaqueCapability<FloodgateV7PortableCopyCompositeDestinationSeal>();
+      registry.compositeSeals.set(capability as object, {
+        witnesses: Object.freeze(typedStates),
+        parents: parentsAfter,
+        inUse: false,
+        invalidated: false,
+      });
+      registry.issuedCompositeSeals.add(capability as object);
+      return capability;
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("composite");
+    }
+  };
+
+  const withRevalidation = async <Result>(
+    argumentCount: number,
+    compositeValue: FloodgateV7PortableCopyCompositeDestinationSeal,
+    operationValue: () => Result | Promise<Result>,
+  ): Promise<Result> => {
+    let state: PortableCompositeSealState | undefined;
+    let compositeObject: object | undefined;
+    try {
+      if (
+        argumentCount !== 2 ||
+        (typeof compositeValue !== "object" &&
+          typeof compositeValue !== "function") ||
+        compositeValue === null ||
+        typeof operationValue !== "function" ||
+        nodeUtilTypes.isProxy(operationValue) ||
+        operationValue.length !== 0
+      ) {
+        throw new Error("portable borrow differs");
+      }
+      compositeObject = compositeValue as object;
+      state = registry.compositeSeals.get(compositeObject);
+      if (state === undefined || state.invalidated || state.inUse) {
+        throw new Error("portable borrow unavailable");
+      }
+      state.inUse = true;
+      await revalidateCompositeDestinationState(state);
+      if (state.invalidated) {
+        throw new Error("portable borrow revoked before operation");
+      }
+      const result = await operationValue();
+      if (state.invalidated) {
+        throw new Error("portable borrow revoked during operation");
+      }
+      await revalidateCompositeDestinationState(state);
+      if (state.invalidated) {
+        throw new Error("portable borrow revoked after operation");
+      }
+      state.inUse = false;
+      return result;
+    } catch {
+      if (state !== undefined) {
+        state.invalidated = true;
+        state.inUse = false;
+      }
+      if (compositeObject !== undefined) {
+        registry.compositeSeals.delete(compositeObject);
+        if (registry.issuedCompositeSeals.has(compositeObject)) {
+          registry.revokedCompositeSeals.add(compositeObject);
+        }
+      }
+      throw new FloodgateV7PortableCopyWitnessError("borrow");
+    }
+  };
+
+  const revoke = (
+    argumentCount: number,
+    compositeValue: FloodgateV7PortableCopyCompositeDestinationSeal,
+  ): void => {
+    try {
+      if (
+        argumentCount !== 1 ||
+        (typeof compositeValue !== "object" &&
+          typeof compositeValue !== "function") ||
+        compositeValue === null
+      ) {
+        throw new Error("portable revocation differs");
+      }
+      const compositeObject = compositeValue as object;
+      if (registry.revokedCompositeSeals.has(compositeObject)) return;
+      if (!registry.issuedCompositeSeals.has(compositeObject)) {
+        throw new Error("portable revocation provenance differs");
+      }
+      const state = registry.compositeSeals.get(compositeObject);
+      if (state !== undefined) {
+        state.invalidated = true;
+        registry.compositeSeals.delete(compositeObject);
+      }
+      registry.revokedCompositeSeals.add(compositeObject);
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("revoke");
+    }
+  };
+
+  return Object.freeze({
+    preseal,
+    seal,
+    copy,
+    composite,
+    withRevalidation,
+    revoke,
+  });
+}
+
+const productionPortableCopyWitnessApi = createPortableCopyWitnessApi(
+  createPortableRegistry(),
+);
+const testPortableCopyWitnessApi = createPortableCopyWitnessApi(
+  createPortableRegistry(),
+);
+
+export async function presealFloodgateV7PortableCopySource(
+  kind: FloodgateV7PortableCopyKind,
+  source: string,
+  destination: string,
+  dependencies: FloodgateV7CleanRoomCopyDependencies,
+): Promise<FloodgateV7PortableCopySourcePreseal> {
+  return productionPortableCopyWitnessApi.preseal(
+    arguments.length,
+    kind,
+    source,
+    destination,
+    dependencies,
+  );
+}
+
+export async function sealFloodgateV7PortableCopySourceFilesystem(
+  kind: FloodgateV7PortableCopyKind,
+  preseal: FloodgateV7PortableCopySourcePreseal,
+): Promise<FloodgateV7PortableCopySourceFilesystemSeal> {
+  return productionPortableCopyWitnessApi.seal(arguments.length, kind, preseal);
+}
+
+export async function copyFloodgateV7PortableSourceByValue(
+  kind: FloodgateV7PortableCopyKind,
+  seal: FloodgateV7PortableCopySourceFilesystemSeal,
+  destination: string,
+): Promise<Readonly<FloodgateV7PortableCopyWitnessResult>> {
+  return productionPortableCopyWitnessApi.copy(
+    arguments.length,
+    kind,
+    seal,
+    destination,
+  );
+}
+
+export async function sealFloodgateV7PortableCopyCompositeDestination(
+  witnesses: readonly FloodgateV7PortableCopyWitness[],
+): Promise<FloodgateV7PortableCopyCompositeDestinationSeal> {
+  return productionPortableCopyWitnessApi.composite(
+    arguments.length,
+    witnesses,
+  );
+}
+
+export async function withFloodgateV7PortableCopyCompositeDestinationRevalidation<
+  Result,
+>(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+  operation: () => Result | Promise<Result>,
+): Promise<Result> {
+  return productionPortableCopyWitnessApi.withRevalidation(
+    arguments.length,
+    composite,
+    operation,
+  );
+}
+
+export function revokeFloodgateV7PortableCopyCompositeDestinationSeal(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+): void {
+  productionPortableCopyWitnessApi.revoke(arguments.length, composite);
+}
+
+export async function presealFloodgateV7PortableCopySourceCoreForTests(
+  kind: FloodgateV7PortableCopyKind,
+  source: string,
+  destination: string,
+  dependencies: FloodgateV7CleanRoomCopyDependencies,
+): Promise<FloodgateV7PortableCopySourcePreseal> {
+  return testPortableCopyWitnessApi.preseal(
+    arguments.length,
+    kind,
+    source,
+    destination,
+    dependencies,
+  );
+}
+
+export async function sealFloodgateV7PortableCopySourceFilesystemCoreForTests(
+  kind: FloodgateV7PortableCopyKind,
+  preseal: FloodgateV7PortableCopySourcePreseal,
+): Promise<FloodgateV7PortableCopySourceFilesystemSeal> {
+  return testPortableCopyWitnessApi.seal(arguments.length, kind, preseal);
+}
+
+export async function copyFloodgateV7PortableSourceByValueCoreForTests(
+  kind: FloodgateV7PortableCopyKind,
+  seal: FloodgateV7PortableCopySourceFilesystemSeal,
+  destination: string,
+): Promise<Readonly<FloodgateV7PortableCopyWitnessResult>> {
+  return testPortableCopyWitnessApi.copy(
+    arguments.length,
+    kind,
+    seal,
+    destination,
+  );
+}
+
+export async function sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
+  witnesses: readonly FloodgateV7PortableCopyWitness[],
+): Promise<FloodgateV7PortableCopyCompositeDestinationSeal> {
+  return testPortableCopyWitnessApi.composite(arguments.length, witnesses);
+}
+
+export async function withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests<
+  Result,
+>(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+  operation: () => Result | Promise<Result>,
+): Promise<Result> {
+  return testPortableCopyWitnessApi.withRevalidation(
+    arguments.length,
+    composite,
+    operation,
+  );
+}
+
+export function revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+): void {
+  testPortableCopyWitnessApi.revoke(arguments.length, composite);
 }

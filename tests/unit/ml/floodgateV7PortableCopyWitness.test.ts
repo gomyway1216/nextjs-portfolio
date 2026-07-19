@@ -521,7 +521,7 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
       },
     ]);
     let duplicateFailure: unknown;
-    let fakeFailure: unknown;
+    let forgedReplacementFailure: unknown;
     let replayFailure: unknown;
     let fakeRevocationFailure: unknown;
     let borrowResult: unknown;
@@ -534,18 +534,18 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
           witnesses[3]!,
         ]),
       );
-      fakeFailure = await rejectionOf(
-        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests([
-          witnesses[1]!,
-          witnesses[2]!,
-          witnesses[3]!,
-          fakeWitness,
-        ]),
-      );
       const composite =
         await sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
           witnesses,
         );
+      forgedReplacementFailure = await rejectionOf(
+        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests([
+          fakeWitness,
+          witnesses[1]!,
+          witnesses[2]!,
+          witnesses[3]!,
+        ]),
+      );
       replayFailure = await rejectionOf(
         sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(witnesses),
       );
@@ -569,7 +569,9 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
       restore();
     }
     expect(duplicateFailure).toMatchObject({ operation: "composite" });
-    expect(fakeFailure).toMatchObject({ operation: "composite" });
+    expect(forgedReplacementFailure).toMatchObject({
+      operation: "composite",
+    });
     expect(replayFailure).toMatchObject({ operation: "composite" });
     expect(fakeRevocationFailure).toMatchObject({ operation: "revoke" });
     expect(borrowResult).toBe("captured-weak-collections");

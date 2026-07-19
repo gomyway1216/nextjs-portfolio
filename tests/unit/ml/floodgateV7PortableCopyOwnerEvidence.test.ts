@@ -5,12 +5,6 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  FLOODGATE_V7_PORTABLE_COPY_OWNER_CLAIM_BOUNDARY,
-  FLOODGATE_V7_PORTABLE_COPY_OWNER_CONTRACT,
-  FloodgateV7PortableCopyOwnerError,
-} from "../../../ml/floodgate-v7-portable-copy-owner";
-
 const repositoryRoot = path.resolve(__dirname, "../../..");
 const evidenceRelative =
   "docs/data/floodgate-v7-portable-copy-owner-2026-07-19.json";
@@ -21,6 +15,32 @@ const englishArticleRelative =
 const readmeRelative = "ml/README.md";
 const implementationRevision = "dff9ee445686693e852afafb9ac0f593027bca27";
 const implementationRevisionParent = "ab9ac4d8363682776fc0e8518ec3f8b539f3566b";
+const historicalOwnerContract =
+  "shogi-floodgate-v7-portable-copy-owner-v1" as const;
+const historicalOwnerClaimBoundary =
+  "owner-private-exact-four-kind-source-preseal-filesystem-seal-copy-witness-composite-and-serialized-borrow-lifecycle-not-source-semantic-authenticity-held-descriptor-reads-exact-three-gate-teacher-training-live-weight-or-playing-strength-evidence" as const;
+const historicalOwnerFailureTable = {
+  preseal: {
+    destination_write_may_have_started: false,
+    consumer_callback_may_have_started: false,
+    retry_disposition: "fresh-preseal-allowed",
+  },
+  bind: {
+    destination_write_may_have_started: true,
+    consumer_callback_may_have_started: false,
+    retry_disposition: "manual-clean-room-reconciliation-required",
+  },
+  borrow: {
+    destination_write_may_have_started: true,
+    consumer_callback_may_have_started: true,
+    retry_disposition: "manual-consumer-and-clean-room-reconciliation-required",
+  },
+  revoke: {
+    destination_write_may_have_started: true,
+    consumer_callback_may_have_started: true,
+    retry_disposition: "manual-owner-reconciliation-required",
+  },
+} as const;
 const implementationFiles = [
   {
     path: "ml/floodgate-v7-portable-copy-owner.ts",
@@ -79,6 +99,12 @@ function gitRaw(arguments_: readonly string[]): Buffer {
 
 function sha256(value: Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function historicalImplementation(relative: string): string {
+  return gitRaw(["show", `${implementationRevision}:${relative}`]).toString(
+    "utf8",
+  );
 }
 
 function gitIsAncestor(ancestor: string, descendant: string): boolean {
@@ -276,11 +302,13 @@ describe("Floodgate v7 portable copy owner evidence", () => {
         },
       },
     });
-    const ownerSource = read("ml/floodgate-v7-portable-copy-owner.ts");
-    const functionalTest = read(
+    const ownerSource = historicalImplementation(
+      "ml/floodgate-v7-portable-copy-owner.ts",
+    );
+    const functionalTest = historicalImplementation(
       "tests/unit/ml/floodgateV7PortableCopyOwner.test.ts",
     );
-    const poisoningChild = read(
+    const poisoningChild = historicalImplementation(
       "tests/unit/ml/floodgateV7PortableCopyOwnerPoisoning.child.ts",
     );
     expect(ownerSource).not.toContain(
@@ -342,8 +370,8 @@ describe("Floodgate v7 portable copy owner evidence", () => {
       validated_revision_subject: "Harden owner promise settlement",
       validated_revision_parent: implementationRevisionParent,
       files: implementationFiles,
-      contract: FLOODGATE_V7_PORTABLE_COPY_OWNER_CONTRACT,
-      claim_boundary: FLOODGATE_V7_PORTABLE_COPY_OWNER_CLAIM_BOUNDARY,
+      contract: historicalOwnerContract,
+      claim_boundary: historicalOwnerClaimBoundary,
       production_apis: [
         "presealFloodgateV7PortableCopyOwner",
         "bindFloodgateV7PortableCopyOwnerBridge",
@@ -362,47 +390,10 @@ describe("Floodgate v7 portable copy owner evidence", () => {
       owner_error_message: "Floodgate v7 portable copy owner failed",
       owner_error_operations: ["preseal", "bind", "borrow", "revoke"],
       owner_error_sensitive_values_disclosed: false,
-      owner_error_failure_table: {
-        preseal: {
-          destination_write_may_have_started: false,
-          consumer_callback_may_have_started: false,
-          retry_disposition: "fresh-preseal-allowed",
-        },
-        bind: {
-          destination_write_may_have_started: true,
-          consumer_callback_may_have_started: false,
-          retry_disposition: "manual-clean-room-reconciliation-required",
-        },
-        borrow: {
-          destination_write_may_have_started: true,
-          consumer_callback_may_have_started: true,
-          retry_disposition:
-            "manual-consumer-and-clean-room-reconciliation-required",
-        },
-        revoke: {
-          destination_write_may_have_started: true,
-          consumer_callback_may_have_started: true,
-          retry_disposition: "manual-owner-reconciliation-required",
-        },
-      },
+      owner_error_failure_table: historicalOwnerFailureTable,
     });
-    const runtimeFailureTable = Object.fromEntries(
-      (["preseal", "bind", "borrow", "revoke"] as const).map((operation) => {
-        const error = new FloodgateV7PortableCopyOwnerError(operation);
-        return [
-          operation,
-          {
-            destination_write_may_have_started:
-              error.destination_write_may_have_started,
-            consumer_callback_may_have_started:
-              error.consumer_callback_may_have_started,
-            retry_disposition: error.retry_disposition,
-          },
-        ];
-      }),
-    );
     expect(implementation.owner_error_failure_table).toEqual(
-      runtimeFailureTable,
+      historicalOwnerFailureTable,
     );
     expect(git(["show", "-s", "--format=%s", implementationRevision])).toBe(
       "Harden owner promise settlement",
@@ -433,11 +424,9 @@ describe("Floodgate v7 portable copy owner evidence", () => {
         git(["rev-parse", `${implementationRevision}:${file.path}`]),
         file.path,
       ).toBe(file.git_blob);
-      expect(
-        fs.readFileSync(path.join(repositoryRoot, file.path)),
-        file.path,
-      ).toEqual(committed);
-      expect(git(["hash-object", file.path]), file.path).toBe(file.git_blob);
+      expect(gitRaw(["cat-file", "blob", file.git_blob]), file.path).toEqual(
+        committed,
+      );
     }
     expect(implementation.claim_boundary).toBe(
       (evidence() as { claim_boundary: string }).claim_boundary,

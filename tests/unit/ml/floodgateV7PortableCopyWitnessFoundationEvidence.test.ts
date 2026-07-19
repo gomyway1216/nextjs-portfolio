@@ -439,7 +439,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     );
   });
 
-  it("binds implementation commits, the regular main merge, and exact file identities", () => {
+  it("binds implementation commits, the regular main merge, and historical exact file identities", () => {
     const record = evidence();
     const sourceBase = record.source_base as {
       latest_origin_main_integrated: string;
@@ -510,17 +510,21 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     ).toBe(true);
 
     for (const pinned of Object.values(implementation.files)) {
-      const bytes = raw(pinned.path);
+      const bytes = gitRaw([
+        "show",
+        `${implementation.validated_source_revision}:${pinned.path}`,
+      ]);
       expect(bytes.byteLength, pinned.path).toBe(pinned.bytes);
       expect(sha256(bytes), pinned.path).toBe(pinned.sha256);
-      expect(git(["hash-object", "--", pinned.path]), pinned.path).toBe(
-        pinned.git_blob,
-      );
       expect(
-        gitRaw([
-          "show",
+        git([
+          "rev-parse",
           `${implementation.validated_source_revision}:${pinned.path}`,
         ]),
+        pinned.path,
+      ).toBe(pinned.git_blob);
+      expect(
+        gitRaw(["cat-file", "blob", pinned.git_blob]),
         pinned.path,
       ).toEqual(bytes);
     }
@@ -706,7 +710,13 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       vercel_preview_is_web_deployment_not_evaluator_compute: true,
     });
 
-    const source = read("ml/floodgate-v7-clean-room-copy.ts");
+    const implementation = record.implementation as {
+      validated_source_revision: string;
+    };
+    const source = gitRaw([
+      "show",
+      `${implementation.validated_source_revision}:ml/floodgate-v7-clean-room-copy.ts`,
+    ]).toString("utf8");
     const selectedDynamicInstanceCalls =
       source.match(
         /\.(?:includes|some|every|map|sort|push|reverse|split|startsWith|get|set|has|delete|add|entries)\s*\(/gmu,

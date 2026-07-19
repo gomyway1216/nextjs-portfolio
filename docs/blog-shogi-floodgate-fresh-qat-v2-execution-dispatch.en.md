@@ -141,10 +141,10 @@ A later decision could move large-scale teacher generation to different compute 
 
 The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the original remediation tests are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. The stateful-`PathLike` single-snapshot remediation is the separate commit `33d9b3139068fac69c44d368869006f5d5d919db`. History was not rewritten.
 
-The latest `main` revision `88afd052c00865b4e7fce4ed25d81a94febb1637` was integrated by regular merge commit `8014138153212b41c0721af346068fbccd947392`. That integration did not change the Fresh-QAT implementation paths. Four PR-review findings covering path aliases, symlinks, and a malformed `PathLike` were fixed in `ade5554bdcc222183cd12183cbbfdb5301675c65`; the blocking/unbounded default-reader finding was fixed in `6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`. The result was revalidated as follows.
+The latest `main` revision `00f255a62e01ea5a980ada987682c994e76dd1f9`, including PR #513, was integrated by regular merge commit `038f6d7bc251c91547949a717daa056f363089cc`. That integration left the Fresh-QAT implementation paths unchanged and retained both the teacher-finalizer and Fresh-QAT command entries. Four PR-review findings covering path aliases, symlinks, and a malformed `PathLike` were fixed in `ade5554bdcc222183cd12183cbbfdb5301675c65`; the blocking/unbounded default-reader finding was fixed in `6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`. The result was revalidated as follows.
 
-- New v2 dispatch and routing tests: 24/24 PASS in 0.133 seconds
-- Full repository stdlib suite: 176/176 PASS in 13.170 seconds
+- New v2 dispatch and routing tests: 24/24 PASS in 0.058 seconds
+- Full repository stdlib suite: 176/176 PASS in 12.029 seconds
 - Python compilation: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

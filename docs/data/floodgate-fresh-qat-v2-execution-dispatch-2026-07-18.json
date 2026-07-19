@@ -6,12 +6,12 @@
   "base_revision": "1f98c3661361254bbc0854fa52888ed4b65bc689",
   "latest_main_integration": {
     "method": "regular-merge-commit",
-    "latest_main_revision_integrated": "88afd052c00865b4e7fce4ed25d81a94febb1637",
-    "integration_revision": "8014138153212b41c0721af346068fbccd947392",
-    "integration_tree": "f13657e49188056e6d2c551d7443995e81d89c18",
+    "latest_main_revision_integrated": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "integration_revision": "038f6d7bc251c91547949a717daa056f363089cc",
+    "integration_tree": "030f3c6b8787082d9d679f1ca96f422705ce5806",
     "integration_parents": [
-      "6ed72aa35360c9712e8b7a6095414a3edc2581a0",
-      "88afd052c00865b4e7fce4ed25d81a94febb1637"
+      "586e4b810a6f13b6d49bd12823078456e01042c5",
+      "00f255a62e01ea5a980ada987682c994e76dd1f9"
     ],
     "fresh_qat_implementation_paths_unchanged_by_integration": true,
     "package_identity_refreshed_after_integration": true
@@ -169,15 +169,15 @@
       "tests": 24,
       "passed": 24,
       "failed": 0,
-      "runner_seconds": 0.133,
-      "wall_seconds": 0.37
+      "runner_seconds": 0.058,
+      "wall_seconds": 0.15
     },
     "full_stdlib_suite": {
       "tests": 176,
       "passed": 176,
       "failed": 0,
-      "runner_seconds": 13.17,
-      "wall_seconds": 14.38,
+      "runner_seconds": 12.029,
+      "wall_seconds": 12.47,
       "command": "npm run test:ml:stdlib"
     },
     "python_compile": "PASS",

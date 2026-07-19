@@ -141,10 +141,10 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、当初のremediation test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`である。stateful `PathLike`をsingle snapshotにするremediationは別commit `33d9b3139068fac69c44d368869006f5d5d919db`に固定した。履歴は書き換えていない。
 
-最新`main` `88afd052c00865b4e7fce4ed25d81a94febb1637`は通常merge commit `8014138153212b41c0721af346068fbccd947392`で統合した。Fresh-QAT実装pathはその統合で変わっていない。PR reviewのpath alias / symlink / malformed `PathLike`所見4件は`ade5554bdcc222183cd12183cbbfdb5301675c65`、blocking / unbounded default-reader所見1件は`6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`で修正し、次を再検証した。
+PR #513を含む最新`main` `00f255a62e01ea5a980ada987682c994e76dd1f9`は通常merge commit `038f6d7bc251c91547949a717daa056f363089cc`で統合した。Fresh-QAT実装pathはその統合で変わらず、teacher finalizerとFresh-QATの両方の実行入口を保持した。PR reviewのpath alias / symlink / malformed `PathLike`所見4件は`ade5554bdcc222183cd12183cbbfdb5301675c65`、blocking / unbounded default-reader所見1件は`6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`で修正し、次を再検証した。
 
-- 新v2 dispatch + route test: 24 / 24 PASS、0.133秒
-- repository全stdlib suite: 176 / 176 PASS、13.170秒
+- 新v2 dispatch + route test: 24 / 24 PASS、0.058秒
+- repository全stdlib suite: 176 / 176 PASS、12.029秒
 - Python compile: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS

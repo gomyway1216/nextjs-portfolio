@@ -52,6 +52,8 @@ def verify_qat_experiment_plan(
     )
     plan_argument = getattr(args, "experiment_plan", "")
     candidate_text = _plain_path_text(plan_argument)
+    # Snapshot an os.PathLike exactly once. Routing must never re-evaluate a
+    # caller-controlled __fspath__ after the non-plain-string boundary check.
     if candidate_text is not None and type(plan_argument) is not str:
         candidate_absolute = os.path.abspath(candidate_text)
         candidate_requested = os.path.realpath(candidate_text)
@@ -72,12 +74,10 @@ def verify_qat_experiment_plan(
                 "plan path"
             )
     requested = (
-        os.path.realpath(plan_argument)
-        if isinstance(plan_argument, (str, bytes, os.PathLike))
-        else None
+        os.path.realpath(candidate_text) if candidate_text is not None else None
     )
     if type(plan_argument) is str:
-        requested_absolute = os.path.abspath(plan_argument)
+        requested_absolute = os.path.abspath(candidate_text)
         if (
             requested_absolute == fresh_v2_path
             and requested == fresh_v2_path

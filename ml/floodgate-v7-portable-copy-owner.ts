@@ -51,8 +51,6 @@ const objectCreate = Object.create;
 const objectFreeze = Object.freeze;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
-const promiseAllSettled = Promise.allSettled;
-const nativePromise = Promise;
 const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
 const stringIncludes = String.prototype.includes;
@@ -563,18 +561,34 @@ async function settleFour<Value>(
     Promise<Value>,
   ],
 ): Promise<readonly [Value, Value, Value, Value]> {
-  const settled = (await applyFunction(promiseAllSettled, nativePromise, [
-    promises,
-  ])) as PromiseSettledResult<Value>[];
-  const first = settled[0];
-  const second = settled[1];
-  const third = settled[2];
-  const fourth = settled[3];
+  const settleOne = async (
+    promise: Promise<Value>,
+  ): Promise<
+    | Readonly<{ readonly fulfilled: true; readonly value: Value }>
+    | Readonly<{ readonly fulfilled: false }>
+  > => {
+    try {
+      return objectFreeze({ fulfilled: true as const, value: await promise });
+    } catch {
+      return objectFreeze({ fulfilled: false as const });
+    }
+  };
+  // Attach a native async-await rejection handler to every already-started
+  // operation before awaiting any one of them. This both drains all four and
+  // avoids Promise.allSettled consulting a mutable Promise.resolve property.
+  const firstSettlement = settleOne(promises[0]);
+  const secondSettlement = settleOne(promises[1]);
+  const thirdSettlement = settleOne(promises[2]);
+  const fourthSettlement = settleOne(promises[3]);
+  const first = await firstSettlement;
+  const second = await secondSettlement;
+  const third = await thirdSettlement;
+  const fourth = await fourthSettlement;
   if (
-    first?.status !== "fulfilled" ||
-    second?.status !== "fulfilled" ||
-    third?.status !== "fulfilled" ||
-    fourth?.status !== "fulfilled"
+    !first.fulfilled ||
+    !second.fulfilled ||
+    !third.fulfilled ||
+    !fourth.fulfilled
   ) {
     throw new Error("owner stage failed");
   }

@@ -170,7 +170,8 @@ function synchronousFailureOf(operation: () => void): unknown {
 }
 
 function runPoisoningChild(
-  mode: "array-string" | "weak-collections" | "reflect",
+  mode:
+    "array-string" | "weak-collections" | "reflect" | "promise-resolve-preseal",
 ): void {
   const child = spawnSync(
     process.execPath,
@@ -670,6 +671,60 @@ describe("Floodgate v7 portable copy owner", () => {
     );
   });
 
+  it("attaches rejection handlers to all four started copies before awaiting the first", async () => {
+    const value = await fixture();
+    let releaseFirst!: () => void;
+    let laterCopiesEntered!: () => void;
+    let laterCopyCount = 0;
+    const firstRelease = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const allLaterCopiesEntered = new Promise<void>((resolve) => {
+      laterCopiesEntered = resolve;
+    });
+    const unhandled: unknown[] = [];
+    const recordUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", recordUnhandled);
+
+    const bindings = bindingsFor(value).map((binding, index) => ({
+      ...binding,
+      dependencies: {
+        effectiveUserId,
+        afterFileCopiedForTests: async (
+          _relativePath: string,
+        ): Promise<void> => {
+          if (index === 0) {
+            await firstRelease;
+            return;
+          }
+          laterCopyCount += 1;
+          if (laterCopyCount === 3) laterCopiesEntered();
+          throw new Error("later copy rejected before first settled");
+        },
+      },
+    }));
+    const presealed =
+      await presealFloodgateV7PortableCopyOwnerCoreForTests(bindings);
+    const binding = bindFloodgateV7PortableCopyOwnerBridgeCoreForTests(
+      presealed.owner,
+      presealed.verificationPause,
+      exactBindingsFor(value),
+    );
+
+    try {
+      await allLaterCopiesEntered;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      releaseFirst();
+      await expect(binding).rejects.toMatchObject({ operation: "bind" });
+      process.off("unhandledRejection", recordUnhandled);
+    }
+  });
+
   it("invalidates synchronous reentry even when the outer callback catches it", async () => {
     const value = await fixture();
     const bound = await boundOwnerFor(value);
@@ -840,7 +895,12 @@ describe("Floodgate v7 portable copy owner", () => {
     revokeFloodgateV7PortableCopyOwnerCoreForTests(result.owner);
   });
 
-  it.each(["array-string", "weak-collections", "reflect"] as const)(
+  it.each([
+    "array-string",
+    "weak-collections",
+    "reflect",
+    "promise-resolve-preseal",
+  ] as const)(
     "uses captured post-module-initialization intrinsics in a plain Node child: %s",
     (mode) => {
       runPoisoningChild(mode);

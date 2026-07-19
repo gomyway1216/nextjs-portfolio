@@ -13,7 +13,8 @@ import {
 } from "../../../ml/floodgate-v7-portable-copy-owner";
 import type { FloodgateV7PortableCopyKind } from "../../../ml/floodgate-v7-clean-room-copy";
 
-type Mode = "array-string" | "weak-collections" | "reflect";
+type Mode =
+  "array-string" | "weak-collections" | "reflect" | "promise-resolve-preseal";
 
 const kinds = [
   "raw-lock-tree",
@@ -37,6 +38,7 @@ function modeFromArgument(value: string | undefined): Mode {
     case "array-string":
     case "weak-collections":
     case "reflect":
+    case "promise-resolve-preseal":
       return value;
     default:
       throw new Error("exact poisoning mode is required");
@@ -117,6 +119,7 @@ async function main(): Promise<void> {
     weakSetAdd: WeakSet.prototype.add,
     reflectApply: Reflect.apply,
     reflectOwnKeys: Reflect.ownKeys,
+    promiseResolve: Promise.resolve,
   };
   const poison = (): never => {
     throw new Error("poisoned intrinsic consulted");
@@ -136,26 +139,32 @@ async function main(): Promise<void> {
       WeakMap.prototype.delete = poison;
       WeakSet.prototype.has = poison;
       WeakSet.prototype.add = poison;
-    } else {
+    } else if (mode === "reflect") {
       Reflect.apply = poison;
       Reflect.ownKeys = poison;
+    } else {
+      Promise.resolve = poison as unknown as typeof Promise.resolve;
     }
 
     const presealed =
       await presealFloodgateV7PortableCopyOwnerCoreForTests(bindings);
-    const bridge = await bindFloodgateV7PortableCopyOwnerBridgeCoreForTests(
-      presealed.owner,
-      presealed.verificationPause,
-      exactBindings,
-    );
-    const result =
-      await withFloodgateV7PortableCopyOwnerRevalidationCoreForTests(
+    if (mode === "promise-resolve-preseal") {
+      revokeFloodgateV7PortableCopyOwnerCoreForTests(presealed.owner);
+    } else {
+      const bridge = await bindFloodgateV7PortableCopyOwnerBridgeCoreForTests(
         presealed.owner,
-        bridge,
-        () => "captured",
+        presealed.verificationPause,
+        exactBindings,
       );
-    assert.equal(result, "captured");
-    revokeFloodgateV7PortableCopyOwnerCoreForTests(presealed.owner);
+      const result =
+        await withFloodgateV7PortableCopyOwnerRevalidationCoreForTests(
+          presealed.owner,
+          bridge,
+          () => "captured",
+        );
+      assert.equal(result, "captured");
+      revokeFloodgateV7PortableCopyOwnerCoreForTests(presealed.owner);
+    }
   } finally {
     Array.isArray = originals.arrayIsArray;
     Array.prototype.map = originals.arrayMap;
@@ -170,6 +179,7 @@ async function main(): Promise<void> {
     WeakSet.prototype.add = originals.weakSetAdd;
     Reflect.apply = originals.reflectApply;
     Reflect.ownKeys = originals.reflectOwnKeys;
+    Promise.resolve = originals.promiseResolve;
     await fs.promises.rm(root, { recursive: true, force: true });
   }
   process.stdout.write(`PASS ${mode}\n`);

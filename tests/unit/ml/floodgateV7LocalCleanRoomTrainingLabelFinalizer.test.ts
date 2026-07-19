@@ -375,6 +375,7 @@ describe("Floodgate v7 Mac-local clean-room training-label finalizer", () => {
         `${JSON.stringify({ ...handoffPayload(), handoff_mac: "0".repeat(64) })}\n`,
       ),
       Buffer.from('{"schema":"one","schema":"two"}\n'),
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), signedHandoff()]),
       Buffer.from(
         `${canonicalJson({
           ...handoffPayload(),

@@ -507,7 +507,12 @@ function captureHandoff(
   ) {
     throw new Error("private handoff input differs");
   }
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytesValue);
+  const text = new TextDecoder("utf-8", {
+    fatal: true,
+    // Keep a leading BOM visible so the exact canonical-byte comparison below
+    // rejects it instead of TextDecoder silently stripping alternate framing.
+    ignoreBOM: true,
+  }).decode(bytesValue);
   if (!text.endsWith("\n") || text.slice(0, -1).includes("\n")) {
     throw new Error("private handoff framing differs");
   }

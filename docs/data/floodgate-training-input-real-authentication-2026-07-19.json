@@ -1,0 +1,88 @@
+{
+  "schema": "shogi-floodgate-training-input-real-authentication-evidence-v1",
+  "status": "real-source-authentication-complete-v6-strength-first-runner-implementation-in-progress-no-teacher-run-live-unchanged",
+  "recorded_date": "2026-07-19",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-training-input-real-authentication.md",
+    "english": "../blog-shogi-floodgate-training-input-real-authentication.en.md"
+  },
+  "execution": {
+    "runtime": "node-v22.13.0",
+    "verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "consumer_api": "withVerifiedPinnedFloodgateTrainingRows",
+    "runtime_claim_api": "claimActiveVerifiedPinnedFloodgateTrainingRows",
+    "read_only": true,
+    "exit_code": 0,
+    "callback_elapsed_ms": 1088742,
+    "consumer_completion_elapsed_ms": 1088743,
+    "post_callback_filesystem_recheck_and_descriptor_close_complete": true,
+    "formal_postflight_receipt_minted": false,
+    "public_output_exact_rows": [
+      {
+        "phase": "callback",
+        "records": 24000,
+        "games": 1000,
+        "rows": 24000,
+        "elapsed_ms": 1088742
+      },
+      {
+        "phase": "complete",
+        "elapsed_ms": 1088743
+      }
+    ]
+  },
+  "authenticated_input": {
+    "role": "training",
+    "parents": 24000,
+    "games": 1000,
+    "all_rows_exposed_only_inside_callback": true,
+    "private_paths_or_identifiers_published": false
+  },
+  "parallelization_audit": {
+    "machine_logical_cpus": 14,
+    "machine_memory_bytes": 51539607552,
+    "equivalent_verified_run_average_cpu_cores": 1.067,
+    "equivalent_verified_run_peak_rss_bytes": 5629476864,
+    "equivalent_verified_run_peak_rss_gb_approx": 5.63,
+    "equivalent_verified_run_peak_rss_gib_approx": 5.24,
+    "equivalent_verified_run_swaps": 0,
+    "equivalent_verified_run_block_input_operations": 0,
+    "equivalent_verified_run_block_output_operations": 0,
+    "raw_receipts_per_ordered_pass": 36349,
+    "csa_receipts_per_ordered_pass": 36168,
+    "ordered_raw_verifier_passes": 4,
+    "raw_receipt_validation_operations": 145396,
+    "bottleneck": "ordered-full-role-bundle-semantic-reverification-not-memory-storage-or-training-row-parse",
+    "duplicate_parallel_verifiers_accelerate_one_completion": false,
+    "three_authentications_minutes_approx": 54.44,
+    "one_authentication_minutes": 18.145716666666666,
+    "saved_by_one_callback_minutes_approx": 36.29
+  },
+  "strength_first_decision": {
+    "teacher_policy": "yaneuraou-multipv12-plus-strong-played-move-independent-depth16-rescore-v6",
+    "stable_wasm_candidate_removed_from_critical_path": true,
+    "teacher_processes_planned": 12,
+    "milestones_in_one_authenticated_callback": [100, 500, 24000],
+    "durable_resume_required": true
+  },
+  "current_counts_after_this_execution": {
+    "successful_full_24000_training_input_consumer_runs": 1,
+    "authenticated_training_parents": 24000,
+    "new_finalized_or_published_teacher_datasets": 0,
+    "historical_partial_authenticated_parent_records_preserved": 3,
+    "new_teacher_labels_generated_by_this_authentication_run": 0,
+    "optimizer_runs": 0,
+    "candidate_weights": 0,
+    "formal_ab_games": 0,
+    "live_weight_changes": 0
+  },
+  "infrastructure": {
+    "local_mac": true,
+    "aws_required": false,
+    "aws_used": false,
+    "firebase_or_gcp_used": false,
+    "vercel_evaluator_compute_used": false,
+    "runtime_network_used": false
+  },
+  "next_step": "merge-and-run-one-authentication-v6-teacher-session-with-100-500-24000-durable-milestones"
+}

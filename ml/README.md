@@ -311,6 +311,63 @@ TypeScript changed-file error、ESLint、
 Prettier、diff errorは0、最終security reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
 unresolved 0だった。
 
+#### Floodgate 24,000 training input実認証（2026-07-19）
+
+固定verifier revision `e8a9197608cb48b1160b6707d97b0c4f78f90a1d`で元のtraining
+role-bundleを実際に読み取り専用認証し、24,000親・1,000対局、callback 1,088.742秒、
+callback後のfilesystem再検査とdescriptor close込み1,088.743秒、exit 0を確認した。
+これは実教師入力readinessであり、新しい完了済みteacher dataset、training、
+candidate weight、formal A/B、live変更はすべて0である。過去の停止試行に残る3 parent
+recordは完了済みdatasetではない。
+
+速度監査ではfull verifierが平均約1.07コア、peak RSS約5.63GB、swap / block I/O 0で、
+RAM・SSD・追加coreではなく順序付き意味再検証が律速だった。100 / 500 / 24,000を別processで
+3回認証すると約54.44分だが、次のv6 strength-first runnerは同じauthenticated callback内で
+3 milestoneを連続実行し、認証を1回18.15分へ減らして約36.29分を節約する。その内側では
+YaneuraOu 12 processを並列使用する。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-training-input-real-authentication.md) /
+[English article](../docs/blog-shogi-floodgate-training-input-real-authentication.en.md) /
+[machine evidence](../docs/data/floodgate-training-input-real-authentication-2026-07-19.json)を参照。
+
+#### Floodgate v6 strength-first teacher runner（2026-07-19）
+
+認証済み24,000親を1回のformal postflight consumer callbackで開き、同期claimを1回だけ行って
+同じflat stageを100 → 500 → 24,000へ自動継続するMacローカルrunnerを実装した。
+YaneuraOu 12 processでdepth 16 / MultiPV 12と強豪棋譜の実戦手を候補にし、全unique候補を
+MultiPV 1 / exactly-one `searchmoves` depth 16で独立再評価する。各processは1 thread、
+Hash 64 MB、timeout 600秒で、stable assetはpreflight verificationだけ行い実行しない。
+runtime network / AWS / Firebase・GCP / Vercelは使わない。
+USI childは親`process.env`を継承せず、`HOME` / `TMPDIR=<private-worker-cwd>`、
+`PATH=/usr/bin:/bin`、`LANG` / `LC_ALL=C`、`TZ=UTC`、OMP / BLAS系thread変数を`1`へ
+固定する。macOS spawnが追加し得る`__CF_USER_TEXT_ENCODING`だけを許容し、このcontractを
+run fingerprint、manifest、staged / final resultへ束縛する。
+
+private flat root
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`の`work.jsonl`をdata syncして
+resumeし、100 / 500 milestone、24,000完了時のcanonical training-only `train.jsonl`、
+`parent-completion.jsonl`、manifest、staged resultを同じrun fingerprintへ束縛する。
+exact consumer postflightをclaimした後だけfile sync / same-directory rename / directory syncで
+`result.json`をcommitする。完了後のretryは全bound fileを再検証し、再認証・engine実行なしで
+idempotentに返る。runnerのexact clean revisionは固定bundle verifier revision
+`e8a9197608cb48b1160b6707d97b0c4f78f90a1d`と別identityである。
+二重起動は親runnerが保持するdescriptor-backedなmacOS `/usr/bin/lockf` lockで排他する。
+親はprivate lock fileを1回だけ開き、取得helperへ同じopen-file-descriptionのFDを継承する。
+helperはlock取得後、acquisitionが返る前に終了するが、親のretained descriptorがlockを
+維持する。親FDの明示closeまたは親の終了・死亡に伴うOS closeで解放される。unlink /
+reopen、PID / token、keeper processは使わない。固定Node v22.13.0のdirect argumentless
+commandを使い、既存のimmutable package証跡を連鎖更新しないため`package.json`は変更しない。
+
+review修正後のfocused 5 files / 46 tests（runner 23 / 23）がPASSした。asset / USI /
+postflightを含む最終関連validationは8 files / 120 testsがPASSした。publication evidenceは
+5 / 5、scoped ESLint / Prettier / diff、新規TypeScript file checkもPASSした。coreとrunnerの
+独立reviewはいずれもP0 / P1 / P2 = 0 / 0 / 0で完了した。**実teacher runはまだ0回**で、
+完了dataset、training、candidate selection、formal A/B、live変更もすべて0。過去のpartial
+3 recordも完了には数えない。real 100は開始から約22〜35分、full teacherは認証に加えて
+約11.5〜12時間という推定で、実測完了時間ではない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-teacher-runner.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-teacher-runner.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-teacher-runner-2026-07-19.json)を参照。
+
 #### Floodgate v7 portable copy held role-bundle（2026-07-19）
 
 portable copy先の`role-bundle-tree`を、held root descriptorとexact 9 file descriptorから

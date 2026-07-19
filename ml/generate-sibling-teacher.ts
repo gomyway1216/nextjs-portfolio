@@ -45,9 +45,41 @@ import {
 export const SIBLING_TEACHER_MANIFEST_SCHEMA = 'shogi-sibling-teacher-manifest-v2' as const;
 export const SIBLING_TEACHER_WORK_SCHEMA = 'shogi-sibling-teacher-work-v2' as const;
 export const TEACHER_ENGINE_RECEIPT_SCHEMA = 'shogi-teacher-engine-receipt-v1' as const;
+export const STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA =
+  'shogi-strength-first-sibling-teacher-manifest-v1' as const;
+export const STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA =
+  'shogi-strength-first-sibling-teacher-result-v1' as const;
+export const STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA =
+  'shogi-floodgate-fresh-qat-parent-completion-v2' as const;
+export const STRENGTH_FIRST_PARENT_COMPLETION_FORMAT =
+  'shogi-floodgate-fresh-qat-parent-completion-jsonl-v2' as const;
+export const STRENGTH_FIRST_TRAIN_FORMAT =
+  'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
+export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const SIBLING_TEACHER_LABEL_POLICY =
   'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v6' as const;
 export const INDEPENDENT_EXACT_RESCORE_MODE = 'independent-single-move' as const;
+const PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN = '<private-worker-cwd>' as const;
+export const SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT = Object.freeze({
+  inherited_environment: false,
+  darwin_spawn_injected_variables: Object.freeze(['__CF_USER_TEXT_ENCODING'] as const),
+  variables: Object.freeze({
+    HOME: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
+    TMPDIR: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
+    PATH: '/usr/bin:/bin',
+    LANG: 'C',
+    LC_ALL: 'C',
+    TZ: 'UTC',
+    OMP_NUM_THREADS: '1',
+    OMP_THREAD_LIMIT: '1',
+    OPENBLAS_NUM_THREADS: '1',
+    MKL_NUM_THREADS: '1',
+    VECLIB_MAXIMUM_THREADS: '1',
+    NUMEXPR_NUM_THREADS: '1',
+    BLIS_NUM_THREADS: '1',
+  }),
+} as const);
 export const SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT = {
   engine_binary: true,
   engine_argument_files: 'snapshotted-and-substituted',
@@ -63,6 +95,8 @@ export const SIBLING_TEACHER_STAGE_FILENAMES = Object.freeze({
   val: 'val.jsonl',
   manifest: 'manifest.json',
   work: 'work.jsonl',
+  parentCompletion: 'parent-completion.jsonl',
+  stagedResult: 'staged-result.json',
 } as const);
 
 export interface SiblingTeacherStagePaths {
@@ -71,6 +105,8 @@ export interface SiblingTeacherStagePaths {
   readonly val: string;
   readonly manifest: string;
   readonly work: string;
+  readonly parentCompletion: string;
+  readonly stagedResult: string;
 }
 
 export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTeacherStagePaths> {
@@ -81,11 +117,14 @@ export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTea
     val: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.val),
     manifest: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.manifest),
     work: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.work),
+    parentCompletion: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.parentCompletion),
+    stagedResult: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.stagedResult),
   });
 }
 
 export interface StageSiblingTeacherCoreForTestsOptions {
   stageRoot: string;
+  runnerRevision: string;
   engineBin: string;
   engineArgs?: readonly string[];
   engineReceipt: string;
@@ -104,7 +143,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
 interface NormalizedOptions {
   stageRoot: string;
   engineBin: string;
-  pipelineRevision: string;
+  runnerRevision: string;
   engineArgs: readonly string[];
   engineReceipt: string;
   evalDir?: string;
@@ -117,6 +156,8 @@ interface NormalizedOptions {
   outVal: string;
   manifest: string;
   work: string;
+  parentCompletion: string;
+  stagedResult: string;
   fvScale: number;
   hashMb: number;
   timeoutMs: number;
@@ -261,6 +302,131 @@ export interface SiblingTeacherManifest {
   };
 }
 
+export type StrengthFirstProductionParentTarget =
+  (typeof STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS)[number];
+
+interface StrengthFirstFileBinding {
+  readonly path: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+export interface StrengthFirstParentCompletionBinding extends StrengthFirstFileBinding {
+  readonly format: typeof STRENGTH_FIRST_PARENT_COMPLETION_FORMAT;
+  readonly records: number;
+  readonly forced_parents_skipped: number;
+  readonly emitted_parent_groups: number;
+  readonly parent_ids_sha256: string;
+  readonly forced_parent_ids_sha256: string;
+  readonly emitted_parent_ids_sha256: string;
+}
+
+export interface StrengthFirstTrainBinding extends StrengthFirstFileBinding {
+  readonly format: typeof STRENGTH_FIRST_TRAIN_FORMAT;
+  readonly records: number;
+  readonly parents: number;
+  readonly games: number;
+  readonly game_ids_sha256: string;
+  readonly parent_ids_sha256: string;
+  readonly semantic_position_ids_count: number;
+  readonly semantic_position_ids_sha256: string;
+}
+
+export interface StrengthFirstSiblingTeacherManifest {
+  readonly schema: typeof STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA;
+  readonly status: 'complete-training-only';
+  readonly run_fingerprint: string;
+  readonly pipeline: PipelineProvenance;
+  readonly authenticated_input: Readonly<{
+    readonly bundle_verifier_revision: string;
+    readonly binding: Readonly<FloodgateTrainingInputBinding>;
+  }>;
+  readonly source: Readonly<{
+    readonly raw_sha256: string;
+    readonly raw_records: number;
+    readonly selected_parents: number;
+    readonly selected_parent_ids_sha256: string;
+  }>;
+  readonly teacher: SiblingTeacherManifest['teacher'] &
+    Readonly<{
+      readonly engine_environment: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
+    }>;
+  readonly search: SiblingTeacherManifest['search'];
+  readonly candidate_sets: SiblingTeacherManifest['candidate_sets'];
+  readonly progress_checkpoint: SiblingTeacherManifest['progress_checkpoint'] & {
+    readonly entries: number;
+  };
+  readonly parent_completion: StrengthFirstParentCompletionBinding;
+  readonly outputs: Readonly<{
+    readonly train: StrengthFirstTrainBinding;
+  }>;
+  readonly publication: Readonly<{
+    readonly staged_inside_authenticated_callback: true;
+    readonly consumer_postflight_bound: false;
+  }>;
+}
+
+export interface StrengthFirstSiblingTeacherResult {
+  readonly schema: typeof STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA;
+  readonly status: 'complete-training-only';
+  readonly run_fingerprint: string;
+  readonly runner_revision: string;
+  readonly bundle_verifier_revision: string;
+  readonly input_parents: number;
+  readonly completed_parents: number;
+  readonly forced_parents_skipped: number;
+  readonly emitted_parent_groups: number;
+  readonly work: StrengthFirstFileBinding & {
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: number;
+  };
+  readonly train: StrengthFirstTrainBinding;
+  readonly parent_completion: StrengthFirstParentCompletionBinding;
+  readonly manifest: StrengthFirstFileBinding & {
+    readonly schema: typeof STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA;
+  };
+  readonly publication: Readonly<{
+    readonly staged_inside_authenticated_callback: true;
+    readonly consumer_postflight_bound: false;
+  }>;
+}
+
+export interface StrengthFirstSiblingTeacherPrefixProgress {
+  readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
+  readonly authentication_receipt: false;
+  readonly target_parents: 100 | 500;
+  readonly completed_parents: 100 | 500;
+  readonly run_fingerprint: string;
+  readonly work: StrengthFirstFileBinding & {
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: number;
+    readonly binding_scope: 'canonical-target-prefix-projection';
+  };
+  readonly current_work: StrengthFirstFileBinding & {
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: number;
+  };
+}
+
+export type StrengthFirstSiblingTeacherAdvance =
+  | StrengthFirstSiblingTeacherPrefixProgress
+  | Readonly<{
+      readonly status: 'complete-training-only';
+      readonly authentication_receipt: false;
+      readonly target_parents: 24_000;
+      readonly completed_parents: 24_000;
+      readonly run_fingerprint: string;
+      readonly manifest: StrengthFirstSiblingTeacherManifest;
+      readonly staged_result: StrengthFirstSiblingTeacherResult;
+    }>;
+
+export interface StrengthFirstSiblingTeacherOptions extends Omit<
+  StageSiblingTeacherCoreForTestsOptions,
+  'engines' | 'seed' | 'valRatio'
+> {
+  readonly targetParents: StrengthFirstProductionParentTarget;
+}
+
 export interface GenerateSiblingTeacherDependencies {
   verifyRevision?: (revision: string) => Promise<PipelineProvenance>;
   verifyOutputPaths?: (
@@ -301,6 +467,21 @@ function canonicalJson(value: unknown): string {
       .join(',')}}`;
   }
   throw new Error(`cannot canonicalize ${typeof value}`);
+}
+
+function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
+  const privateWorkerCwd = fs.realpathSync.native(workerCwd);
+  const environment = Object.freeze(
+    Object.fromEntries(
+      Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(([name, value]) => [
+        name,
+        value === PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN ? privateWorkerCwd : value,
+      ])
+    )
+  );
+  // The web app augments ProcessEnv with required deployment keys. This
+  // deliberately hermetic engine environment omits all of them.
+  return environment as unknown as NodeJS.ProcessEnv;
 }
 
 function workEntryPayloadSha256(entry: WorkEntry): string {
@@ -412,10 +593,7 @@ function positiveInteger(value: number, name: string): number {
   return value;
 }
 
-function normalizeOptions(
-  options: StageSiblingTeacherCoreForTestsOptions,
-  pipelineRevision: string
-): NormalizedOptions {
+function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): NormalizedOptions {
   const hasNodes = options.nodes !== undefined;
   const hasDepth = options.depth !== undefined;
   if (hasNodes === hasDepth) throw new Error('exactly one of nodes or depth must be specified');
@@ -427,7 +605,7 @@ function normalizeOptions(
   const normalized: NormalizedOptions = {
     stageRoot: stage.root,
     engineBin: path.resolve(requiredText(options.engineBin, 'engineBin')),
-    pipelineRevision: requiredText(pipelineRevision, 'pipelineRevision'),
+    runnerRevision: requiredText(options.runnerRevision, 'runnerRevision'),
     engineArgs: [...(options.engineArgs ?? [])],
     engineReceipt: path.resolve(requiredText(options.engineReceipt, 'engineReceipt')),
     multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
@@ -441,13 +619,15 @@ function normalizeOptions(
     outVal: stage.val,
     manifest: stage.manifest,
     work: stage.work,
+    parentCompletion: stage.parentCompletion,
+    stagedResult: stage.stagedResult,
     fvScale: positiveInteger(options.fvScale ?? 20, 'fvScale'),
     hashMb: positiveInteger(options.hashMb ?? 128, 'hashMb'),
     timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
-  if (!/^[0-9a-f]{40}$/.test(normalized.pipelineRevision)) {
-    throw new Error('pipelineRevision must be a lowercase 40-digit Git commit');
+  if (!/^[0-9a-f]{40}$/.test(normalized.runnerRevision)) {
+    throw new Error('runnerRevision must be a lowercase 40-digit Git commit');
   }
 
   const outputPaths = [
@@ -455,9 +635,13 @@ function normalizeOptions(
     normalized.outVal,
     normalized.manifest,
     normalized.work,
+    normalized.parentCompletion,
+    normalized.stagedResult,
   ];
   if (new Set(outputPaths).size !== outputPaths.length) {
-    throw new Error('train, val, manifest, and work output paths must all be different');
+    throw new Error(
+      'train, val, manifest, work, parent-completion, and result output paths must all be different'
+    );
   }
   const inputPaths = [normalized.engineBin, normalized.engineReceipt];
   if (outputPaths.some((output) => inputPaths.includes(output))) {
@@ -714,6 +898,19 @@ function serializeJsonl(records: readonly SiblingRecord[]): string {
     : `${records.map((record) => JSON.stringify(record)).join('\n')}\n`;
 }
 
+function serializeCanonicalJsonl(records: readonly unknown[]): string {
+  return records.length === 0 ? '' : `${records.map(canonicalJson).join('\n')}\n`;
+}
+
+async function fileBinding(filePath: string): Promise<StrengthFirstFileBinding> {
+  const identity = await sha256File(filePath);
+  return {
+    path: path.basename(filePath),
+    bytes: identity.bytes,
+    sha256: identity.sha256,
+  };
+}
+
 async function atomicWrite(filePath: string, contents: string): Promise<void> {
   const directory = path.dirname(filePath);
   await fs.promises.mkdir(directory, { recursive: true });
@@ -721,10 +918,26 @@ async function atomicWrite(filePath: string, contents: string): Promise<void> {
     directory,
     `.${path.basename(filePath)}.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`
   );
+  let temporaryHandle: fs.promises.FileHandle | undefined;
   try {
-    await fs.promises.writeFile(temporary, contents, { flag: 'wx' });
+    temporaryHandle = await fs.promises.open(temporary, 'wx', 0o600);
+    await temporaryHandle.writeFile(contents, 'utf8');
+    await temporaryHandle.sync();
+    await temporaryHandle.close();
+    temporaryHandle = undefined;
     await fs.promises.rename(temporary, filePath);
+    if (process.platform !== 'win32') {
+      const directoryHandle = await fs.promises.open(directory, 'r');
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    }
   } finally {
+    if (temporaryHandle) {
+      await temporaryHandle.close().catch(() => undefined);
+    }
     await fs.promises.rm(temporary, { force: true });
   }
 }
@@ -1313,6 +1526,38 @@ function firstError(error: unknown, parentId: string): Error {
   return new Error(`teacher labeling failed for parent ${parentId}: ${message}`);
 }
 
+interface SiblingTeacherExecution {
+  readonly targetParents: number;
+  readonly finalization: 'legacy-split' | 'none' | 'strength-first-training-only';
+}
+
+interface StrengthFirstCorePrefixProgress {
+  readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
+  readonly authentication_receipt: false;
+  readonly target_parents: number;
+  readonly completed_parents: number;
+  readonly run_fingerprint: string;
+  readonly work: StrengthFirstFileBinding & {
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: number;
+    readonly binding_scope: 'canonical-target-prefix-projection';
+  };
+  readonly current_work: StrengthFirstFileBinding & {
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: number;
+  };
+}
+
+interface StrengthFirstCoreFinal {
+  readonly status: 'complete-training-only';
+  readonly authentication_receipt: false;
+  readonly target_parents: number;
+  readonly completed_parents: number;
+  readonly run_fingerprint: string;
+  readonly manifest: StrengthFirstSiblingTeacherManifest;
+  readonly staged_result: StrengthFirstSiblingTeacherResult;
+}
+
 /**
  * Non-production seam for tests and runner development.
  *
@@ -1320,13 +1565,14 @@ function firstError(error: unknown, parentId: string): Error {
  * authorized against sealed roots. Only the forthcoming consumer-owned runner may expose a
  * production entry point.
  */
-export async function stageSiblingTeacherDatasetCoreForTests(
+async function runSiblingTeacherDatasetCore(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
+  execution: Readonly<SiblingTeacherExecution>,
   dependencies: GenerateSiblingTeacherDependencies = {}
-): Promise<SiblingTeacherManifest> {
+): Promise<SiblingTeacherManifest | StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal> {
   const capturedInput = captureAuthenticatedTeacherInput(input);
-  const options = normalizeOptions(rawOptions, capturedInput.binding.verifier_revision);
+  const options = normalizeOptions(rawOptions);
   const repositoryDirectory = path.resolve(__dirname, '..');
   const revisionVerifier =
     dependencies.verifyRevision ??
@@ -1338,11 +1584,26 @@ export async function stageSiblingTeacherDatasetCoreForTests(
         repositoryDirectory,
         inputPaths: inputs,
       }));
-  const pipeline = await revisionVerifier(options.pipelineRevision);
+  const pipeline = await revisionVerifier(options.runnerRevision);
   const allParents = [...capturedInput.parents];
-  const selected = allParents;
-  const selectedParentIdsSha256 = sha256(selected.map((parent) => parent.parent_id).join('\n'));
-  const parentMap = new Map(selected.map((parent) => [parent.parent_id, parent]));
+  if (
+    !Number.isSafeInteger(execution.targetParents) ||
+    execution.targetParents <= 0 ||
+    execution.targetParents > allParents.length
+  ) {
+    throw new Error(
+      `targetParents must be between 1 and the ${allParents.length} authenticated parents`
+    );
+  }
+  if (
+    execution.finalization === 'strength-first-training-only' &&
+    execution.targetParents !== allParents.length
+  ) {
+    throw new Error('strength-first finalization requires every authenticated parent');
+  }
+  const selected = allParents.slice(0, execution.targetParents);
+  const selectedParentIdsSha256 = sha256(allParents.map((parent) => parent.parent_id).join('\n'));
+  const parentMap = new Map(allParents.map((parent) => [parent.parent_id, parent]));
 
   const engineStat = await fs.promises.stat(options.engineBin);
   if (!engineStat.isFile())
@@ -1389,7 +1650,18 @@ export async function stageSiblingTeacherDatasetCoreForTests(
       ? evalFiles.map((file) => path.join(options.evalDir as string, file.path))
       : []),
   ];
-  const outputPaths = [options.outTrain, options.outVal, options.manifest, options.work];
+  const outputPaths =
+    execution.finalization === 'legacy-split'
+      ? [options.outTrain, options.outVal, options.manifest, options.work]
+      : execution.finalization === 'strength-first-training-only'
+        ? [
+            options.work,
+            options.outTrain,
+            options.parentCompletion,
+            options.manifest,
+            options.stagedResult,
+          ]
+        : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint = sha256(
     canonicalJson({
@@ -1412,6 +1684,11 @@ export async function stageSiblingTeacherDatasetCoreForTests(
       synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
       search_state_reset: 'isready',
       runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
+      ...(execution.finalization === 'legacy-split'
+        ? {}
+        : {
+            engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+          }),
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
@@ -1500,6 +1777,9 @@ export async function stageSiblingTeacherDatasetCoreForTests(
         engineArgs: runtimeSnapshot.engineArgs,
         evalDir: runtimeSnapshot.evalDir,
         cwd: workerCwd,
+        ...(execution.finalization === 'legacy-split'
+          ? {}
+          : { env: siblingTeacherEngineEnvironment(workerCwd) }),
         fvScale: options.fvScale,
         hashMb: options.hashMb,
         timeoutMs: options.timeoutMs,
@@ -1562,15 +1842,257 @@ export async function stageSiblingTeacherDatasetCoreForTests(
     .filter((entry): entry is CompletedWorkEntry => entry.kind === 'parent')
     .sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
   const skipped = [...workEntries.values()].filter((entry) => entry.kind === 'skip');
-  if (completed.length === 0) throw new Error('no parent produced a sibling group');
-  if (workEntries.size !== selected.length) {
+  const missingTargetParent = selected.find((parent) => !workEntries.has(parent.parent_id));
+  if (missingTargetParent !== undefined) {
     throw new Error(
-      `work checkpoint is incomplete (${workEntries.size}/${selected.length} parents)`
+      `work checkpoint is incomplete for target ${selected.length}: ${missingTargetParent.parent_id}`
     );
   }
-
+  if (execution.finalization === 'none') {
+    const finalPipeline = await revisionVerifier(options.runnerRevision);
+    if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
+      throw new Error('pipeline provenance changed during teacher generation');
+    }
+    await outputVerifier(outputPaths, protectedInputPaths);
+    const targetEntries = selected.map((parent) => {
+      const entry = workEntries.get(parent.parent_id);
+      if (!entry) throw new Error(`missing target prefix entry for ${parent.parent_id}`);
+      return entry;
+    });
+    const canonicalTargetWork = serializeWork(header, targetEntries);
+    const currentWork = await fileBinding(options.work);
+    return {
+      status: 'local-work-prefix-complete-not-an-authentication-receipt',
+      authentication_receipt: false,
+      target_parents: selected.length,
+      completed_parents: selected.length,
+      run_fingerprint: runFingerprint,
+      work: {
+        path: path.basename(options.work),
+        bytes: Buffer.byteLength(canonicalTargetWork),
+        sha256: sha256(canonicalTargetWork),
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        records: selected.length + 1,
+        binding_scope: 'canonical-target-prefix-projection',
+      },
+      current_work: {
+        ...currentWork,
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        records: workEntries.size + 1,
+      },
+    };
+  }
   const records = completed.flatMap((entry) => entry.records);
   validateParentGroups(records);
+  if (execution.finalization === 'strength-first-training-only') {
+    const entryByParent = new Map(
+      [...workEntries.values()].map((entry) => [entry.parent_id, entry] as const)
+    );
+    const trainingGroups = new Map<string, readonly SiblingRecord[]>();
+    const trainingRecords: SiblingRecord[] = [];
+    for (const parent of selected) {
+      const entry = entryByParent.get(parent.parent_id);
+      if (!entry) {
+        throw new Error(`missing completed work entry for ${parent.parent_id}`);
+      }
+      if (entry.kind === 'skip') continue;
+      const group = entry.records.map((record) => ({
+        ...record,
+        split: 'train' as const,
+      }));
+      validateParentGroups(group);
+      trainingGroups.set(parent.parent_id, group);
+      trainingRecords.push(...group);
+    }
+    validateParentGroups(trainingRecords);
+    const trainJsonl = serializeCanonicalJsonl(trainingRecords);
+    const completionRows = selected.map((parent) => {
+      const entry = entryByParent.get(parent.parent_id);
+      if (!entry) {
+        throw new Error(`missing completion evidence for ${parent.parent_id}`);
+      }
+      const group = trainingGroups.get(parent.parent_id);
+      const groupJsonl = group ? serializeCanonicalJsonl(group) : '';
+      return {
+        schema: STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
+        game_id: parent.game_id,
+        parent_id: parent.parent_id,
+        position_id: parent.position_id,
+        completed_parent_sha256: entry.payload_sha256,
+        forced_parent_skipped: entry.kind === 'skip',
+        train_group_records: group?.length ?? 0,
+        train_group_sha256: group ? sha256(groupJsonl) : null,
+      };
+    });
+    const completionJsonl = serializeCanonicalJsonl(completionRows);
+    const forcedParentIds = completionRows
+      .filter((row) => row.forced_parent_skipped)
+      .map((row) => row.parent_id);
+    const emittedParentIds = completionRows
+      .filter((row) => !row.forced_parent_skipped)
+      .map((row) => row.parent_id);
+    const trainGameIds = new Set(trainingRecords.map((record) => record.game_id));
+    const trainParentIds = new Set(trainingRecords.map((record) => record.parent_id));
+    const trainPositionIds = new Set(
+      trainingRecords.flatMap((record) => [record.position_id, record.child_position_id])
+    );
+    const train: StrengthFirstTrainBinding = {
+      path: path.basename(options.outTrain),
+      format: STRENGTH_FIRST_TRAIN_FORMAT,
+      bytes: Buffer.byteLength(trainJsonl),
+      sha256: sha256(trainJsonl),
+      records: trainingRecords.length,
+      parents: trainParentIds.size,
+      games: trainGameIds.size,
+      game_ids_sha256: floodgateIdentifierDigest(trainGameIds),
+      parent_ids_sha256: floodgateIdentifierDigest(trainParentIds),
+      semantic_position_ids_count: trainPositionIds.size,
+      semantic_position_ids_sha256: floodgateIdentifierDigest(trainPositionIds),
+    };
+    const parentCompletion: StrengthFirstParentCompletionBinding = {
+      path: path.basename(options.parentCompletion),
+      format: STRENGTH_FIRST_PARENT_COMPLETION_FORMAT,
+      bytes: Buffer.byteLength(completionJsonl),
+      sha256: sha256(completionJsonl),
+      records: completionRows.length,
+      forced_parents_skipped: forcedParentIds.length,
+      emitted_parent_groups: emittedParentIds.length,
+      parent_ids_sha256: floodgateIdentifierDigest(selected.map((parent) => parent.parent_id)),
+      forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
+      emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
+    };
+    const candidateCounts = completed.map((entry) => entry.candidate_moves.length);
+    const candidateLock = completed
+      .map(
+        (entry) =>
+          `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`
+      )
+      .join('\n');
+    const manifest: StrengthFirstSiblingTeacherManifest = {
+      schema: STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
+      status: 'complete-training-only',
+      run_fingerprint: runFingerprint,
+      pipeline,
+      authenticated_input: {
+        bundle_verifier_revision: capturedInput.binding.verifier_revision,
+        binding: capturedInput.binding,
+      },
+      source: {
+        raw_sha256: sourceRawSha256,
+        raw_records: capturedInput.binding.records,
+        selected_parents: selected.length,
+        selected_parent_ids_sha256: selectedParentIdsSha256,
+      },
+      teacher: {
+        engine_bin_sha256: engineDigest.sha256,
+        engine_bin_bytes: engineDigest.bytes,
+        engine_args: [...options.engineArgs],
+        engine_arg_files: engineArgFiles,
+        engine_receipt: engineReceipt,
+        eval_sha256: evalSha256,
+        eval_files: evalFiles,
+        runtime_snapshot: {
+          ...SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
+          engine_argument_file_count: engineArgFiles.length,
+          eval_tree_present: options.evalDir !== undefined,
+        },
+        engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+      },
+      search: {
+        multipv: options.multipv,
+        limit:
+          'nodes' in options.limit
+            ? { nodes: options.limit.nodes as number }
+            : { depth: options.limit.depth as number },
+        parallel_engines: options.engines,
+        fv_scale: options.fvScale,
+        hash_mb_per_engine: options.hashMb,
+        timeout_ms: options.timeoutMs,
+        exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
+        label_policy: SIBLING_TEACHER_LABEL_POLICY,
+        tt_reset_before_proposal: true,
+        tt_reset_before_each_candidate: true,
+        search_state_reset_before_proposal: 'isready',
+        search_state_reset_before_each_candidate: 'isready',
+        candidate_execution_order: 'utf8-bytewise-ascending',
+        synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+        engine_options: USI_TEACHER_ENGINE_CONTRACT,
+      },
+      candidate_sets: {
+        sha256: sha256(`candidate-sets-v1\0${candidateLock}`),
+        parents: completed.length,
+        candidates: candidateCounts.reduce((sum, count) => sum + count, 0),
+        min_candidates: candidateCounts.length === 0 ? 0 : Math.min(...candidateCounts),
+        max_candidates: candidateCounts.length === 0 ? 0 : Math.max(...candidateCounts),
+        skipped_parents: skipped.length,
+      },
+      progress_checkpoint: {
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        run_fingerprint: runFingerprint,
+        entries: workEntries.size,
+        completed_parents: completed.length,
+        skipped_parents: skipped.length,
+        sha256: sha256(canonicalWork),
+      },
+      parent_completion: parentCompletion,
+      outputs: { train },
+      publication: {
+        staged_inside_authenticated_callback: true,
+        consumer_postflight_bound: false,
+      },
+    };
+    const finalPipeline = await revisionVerifier(options.runnerRevision);
+    if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
+      throw new Error('pipeline provenance changed during teacher generation');
+    }
+    await outputVerifier(outputPaths, protectedInputPaths);
+    const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
+    const manifestBinding = {
+      path: path.basename(options.manifest),
+      bytes: Buffer.byteLength(manifestJson),
+      sha256: sha256(manifestJson),
+      schema: STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
+    } as const;
+    const result: StrengthFirstSiblingTeacherResult = {
+      schema: STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
+      status: 'complete-training-only',
+      run_fingerprint: runFingerprint,
+      runner_revision: options.runnerRevision,
+      bundle_verifier_revision: capturedInput.binding.verifier_revision,
+      input_parents: selected.length,
+      completed_parents: workEntries.size,
+      forced_parents_skipped: forcedParentIds.length,
+      emitted_parent_groups: emittedParentIds.length,
+      work: {
+        path: path.basename(options.work),
+        bytes: Buffer.byteLength(canonicalWork),
+        sha256: sha256(canonicalWork),
+        schema: SIBLING_TEACHER_WORK_SCHEMA,
+        records: workEntries.size + 1,
+      },
+      train,
+      parent_completion: parentCompletion,
+      manifest: manifestBinding,
+      publication: {
+        staged_inside_authenticated_callback: true,
+        consumer_postflight_bound: false,
+      },
+    };
+    await atomicWrite(options.outTrain, trainJsonl);
+    await atomicWrite(options.parentCompletion, completionJsonl);
+    await atomicWrite(options.manifest, manifestJson);
+    await atomicWrite(options.stagedResult, `${JSON.stringify(result, null, 2)}\n`);
+    return {
+      status: 'complete-training-only',
+      authentication_receipt: false,
+      target_parents: selected.length,
+      completed_parents: workEntries.size,
+      run_fingerprint: runFingerprint,
+      manifest,
+      staged_result: result,
+    };
+  }
+  if (completed.length === 0) throw new Error('no parent produced a sibling group');
   const split = splitSiblingDataset(records, {
     seed: options.seed,
     valRatio: options.valRatio,
@@ -1655,7 +2177,7 @@ export async function stageSiblingTeacherDatasetCoreForTests(
   };
 
   // Re-check immediately before committing the candidate staging generation.
-  const finalPipeline = await revisionVerifier(options.pipelineRevision);
+  const finalPipeline = await revisionVerifier(options.runnerRevision);
   if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
     throw new Error('pipeline provenance changed during teacher generation');
   }
@@ -1665,6 +2187,85 @@ export async function stageSiblingTeacherDatasetCoreForTests(
   await atomicWrite(options.outVal, valJsonl);
   await atomicWrite(options.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
+}
+
+export async function stageSiblingTeacherDatasetCoreForTests(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StageSiblingTeacherCoreForTestsOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<SiblingTeacherManifest> {
+  const targetParents = Array.isArray(input.rows) ? input.rows.length : 0;
+  return (await runSiblingTeacherDatasetCore(
+    input,
+    rawOptions,
+    {
+      targetParents,
+      finalization: 'legacy-split',
+    },
+    dependencies
+  )) as SiblingTeacherManifest;
+}
+
+export interface AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions extends StageSiblingTeacherCoreForTestsOptions {
+  readonly targetParents: number;
+  readonly finalize: boolean;
+}
+
+/**
+ * Structurally forgeable target/finalization seam for focused tests.
+ *
+ * Production callers must use advanceStrengthFirstSiblingTeacherDataset from
+ * inside the pinned training-row consumer callback.
+ */
+export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal> {
+  const { targetParents, finalize, ...options } = rawOptions;
+  return (await runSiblingTeacherDatasetCore(
+    input,
+    options,
+    {
+      targetParents,
+      finalization: finalize ? 'strength-first-training-only' : 'none',
+    },
+    dependencies
+  )) as StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal;
+}
+
+/**
+ * Strength-first production seam for one already-authenticated 24,000-row
+ * callback. Target 100 and 500 preserve only durable work. Target 24,000
+ * emits the training-only dataset and its exact completion/manifest/result
+ * bindings. The target is deliberately excluded from the run fingerprint.
+ */
+export async function advanceStrengthFirstSiblingTeacherDataset(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StrengthFirstSiblingTeacherOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<StrengthFirstSiblingTeacherAdvance> {
+  const capturedInput = captureAuthenticatedTeacherInput(input);
+  if (capturedInput.parents.length !== 24_000 || capturedInput.binding.records !== 24_000) {
+    throw new Error('strength-first production generation requires exactly 24000 parents');
+  }
+  const { targetParents, ...options } = rawOptions;
+  if (!STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS.includes(targetParents)) {
+    throw new Error('strength-first targetParents must be exactly 100, 500, or 24000');
+  }
+  const outcome = await runSiblingTeacherDatasetCore(
+    input,
+    {
+      ...options,
+      engines: STRENGTH_FIRST_PRODUCTION_ENGINES,
+    },
+    {
+      targetParents,
+      finalization: targetParents === 24_000 ? 'strength-first-training-only' : 'none',
+    },
+    dependencies
+  );
+  return outcome as StrengthFirstSiblingTeacherAdvance;
 }
 
 export const REMOVED_SIBLING_TEACHER_CLI_MESSAGE =

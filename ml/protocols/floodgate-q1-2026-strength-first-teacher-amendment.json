@@ -1,0 +1,115 @@
+{
+  "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1",
+  "status": "preregistered-before-first-complete-teacher-milestone",
+  "date": "2026-07-19",
+  "amendment_mode": "append-only-base-plan-bytes-remain-unchanged",
+  "base_plan": {
+    "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+    "schema": "shogi-floodgate-fresh-sibling-plan-v1",
+    "bytes": 10890,
+    "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+  },
+  "reason": "remove a weak stable-policy proposal that expands teacher cost without adding independent label authority, then start the already-preregistered strong-game learning work with one authenticated input lifetime and full local CPU parallelism",
+  "observed_before_amendment": {
+    "authenticated_training_input_check_completed": true,
+    "authenticated_training_parents": 24000,
+    "authenticated_training_games": 1000,
+    "complete_teacher_milestones": 0,
+    "complete_teacher_datasets": 0,
+    "completed_training_runs": 0,
+    "completed_candidate_selections": 0,
+    "completed_formal_paired_ab_runs": 0,
+    "live_weight_changes": 0,
+    "earlier_disposable_partial_parent_records": 3,
+    "earlier_disposable_partial_records_are_not_a_completed_milestone_or_dataset": true
+  },
+  "teacher_change": {
+    "candidate_union_before": [
+      "teacher-multipv-12",
+      "strong-game-played-move",
+      "frozen-runop1-production-int16-fixed-depth-11-move"
+    ],
+    "candidate_union_after": ["teacher-multipv-12", "strong-game-played-move"],
+    "stable_candidate_generation": "removed-prospectively",
+    "stable_engine_or_policy_execution": "forbidden",
+    "stable_assets_may_be_integrity_verified_by_shared_production_asset_authority": true,
+    "independent_label_authority": "YaneuraOu-multipv1-exactly-one-searchmoves-per-candidate",
+    "proposal": {
+      "multipv": 12,
+      "depth": 16
+    },
+    "independent_rescore": {
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "depth": 16,
+      "isready_before_proposal_and_each_candidate": true,
+      "tt_reset_before_proposal_and_each_candidate": true,
+      "candidate_execution_order": "utf8-bytewise-ascending"
+    }
+  },
+  "strength_first_execution": {
+    "authenticated_training_row_consumer_callbacks": 1,
+    "runtime_input_claims": 1,
+    "consumer_postflight_claims_before_public_result": 1,
+    "same_authenticated_input_for_all_targets": true,
+    "same_private_stage_for_all_targets": true,
+    "targets_in_order": [100, 500, 24000],
+    "automatic_continuation": "100-to-500-to-24000-without-operator-confirmation",
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "hash_mb_per_engine": 64,
+    "timeout_ms_per_search": 600000,
+    "engine_environment": {
+      "inherited_environment": false,
+      "darwin_spawn_injected_variables": ["__CF_USER_TEXT_ENCODING"],
+      "variables": {
+        "HOME": "<private-worker-cwd>",
+        "TMPDIR": "<private-worker-cwd>",
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "OMP_NUM_THREADS": "1",
+        "OMP_THREAD_LIMIT": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1"
+      }
+    },
+    "node": "v22.13.0",
+    "platform": "darwin-arm64",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "exclusive_single_process_run_lock": "macos-lockf-inherited-fd-same-open-file-description-parent-retained-helper-exits-before-return-parent-close-or-death-releases-no-unlink-reopen-pid-token-keeper",
+    "result_publication": "durable-file-sync-same-directory-rename-directory-sync-after-exact-consumer-postflight-claim",
+    "completed_result_retry": "verify-result-and-all-bound-files-then-return-without-reauthentication-or-engine-work",
+    "local_machine_only": true,
+    "runtime_network_requests": 0,
+    "runtime_cloud_services": [],
+    "aws": false,
+    "gcp": false,
+    "vercel": false
+  },
+  "training_dataset_change": {
+    "teacher_output_role": "training-only",
+    "all_emitted_canonical_sibling_rows_split": "train",
+    "internal_random_validation_split": "removed",
+    "fresh_selection_role": "unchanged-and-unread-during-training",
+    "fresh_final_holdout_role": "unchanged-and-sealed",
+    "existing_wcsc36_final_holdout": "unchanged-and-sealed"
+  },
+  "unchanged": [
+    "source-period-and-strong-engine-eligibility",
+    "game-and-parent-allocation-seeds",
+    "whole-game-role-exclusivity",
+    "semantic-position-isolation-and-legacy-exclusion",
+    "training-architecture-features-initializer-objective-optimizer-learning-rate-epochs-batch-replay-seeds-and-final-epoch-policy",
+    "static-selection-metrics-order-and-family-gates",
+    "fresh-and-existing-final-holdout-gates",
+    "formal-paired-ab-protocol",
+    "live-promotion-requires-all-preregistered-evidence"
+  ],
+  "claim_boundary": "protocol-change-and-local-execution-authorization-only-not-teacher-completion-training-result-paired-ab-playing-strength-or-live-promotion-evidence"
+}

@@ -14,6 +14,7 @@ import {
   validateExact24kInventory,
   verifyExact24kVitestReport,
 } from "../../../scripts/verify-exact24k-vitest-report.mjs";
+import { parseStrictWorkflowYaml } from "../../../scripts/strict-workflow-yaml.mjs";
 
 interface ExpectedTarget {
   readonly id: string;
@@ -71,6 +72,28 @@ function replaceOnce(
 ): string {
   expect(source.split(search)).toHaveLength(2);
   return source.replace(search, replacement);
+}
+
+function replaceOnceInJob(
+  source: string,
+  jobId: string,
+  nextJobId: string,
+  search: string,
+  replacement: string,
+): string {
+  const startMarker = `\n  ${jobId}:\n`;
+  const endMarker = `\n  ${nextJobId}:\n`;
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  const section = source.slice(start, end);
+  expect(section.split(search)).toHaveLength(2);
+  return (
+    source.slice(0, start) +
+    section.replace(search, replacement) +
+    source.slice(end)
+  );
 }
 
 function passingReport(expected: ExpectedTarget): ReportFixture {
@@ -152,6 +175,21 @@ describe("exact-24k Vitest inventory and report verifier", () => {
     incomplete.pass(authorityCases[0]);
     expect(() => incomplete.seal()).toThrow(/completed 1 of 3/);
 
+    for (const inheritedShardId of [
+      "__proto__",
+      "constructor",
+      "prototype",
+      "toString",
+      "valueOf",
+    ]) {
+      expect(() => exact24kScannerCaseIds(inheritedShardId)).toThrow(
+        /unknown shard/,
+      );
+    }
+    expect(() =>
+      exact24kScannerCaseIds(Object.create({ toString: () => "authority" })),
+    ).toThrow(/unknown shard/);
+
     const invented = structuredClone(inventory);
     for (const [shardIndex, shard] of invented.scanner_shards.entries()) {
       shard.case_ids = shard.case_ids.map(
@@ -161,6 +199,31 @@ describe("exact-24k Vitest inventory and report verifier", () => {
     expect(() => validateExact24kInventory(invented, { repoRoot })).toThrow(
       /immutable runtime receipt cases/,
     );
+  });
+
+  it("uses prototype-safe YAML mappings and rejects duplicate prototype keys", () => {
+    const parsed = parseStrictWorkflowYaml(
+      "__proto__: first\nconstructor: second\nprototype: third\nitems:\n  - __proto__: nested\n    constructor: nested-constructor\n",
+    ) as Record<string, unknown>;
+    expect(Object.getPrototypeOf(parsed)).toBeNull();
+    expect(Object.hasOwn(parsed, "__proto__")).toBe(true);
+    expect(Object.hasOwn(parsed, "constructor")).toBe(true);
+    expect(Object.hasOwn(parsed, "prototype")).toBe(true);
+    const [nested] = parsed.items as Array<Record<string, unknown>>;
+    expect(Object.getPrototypeOf(nested)).toBeNull();
+    expect(nested.__proto__).toBe("nested");
+    expect(nested.constructor).toBe("nested-constructor");
+
+    for (const key of ["__proto__", "constructor", "prototype"]) {
+      expect(() =>
+        parseStrictWorkflowYaml(`${key}: first\n${key}: duplicate\n`),
+      ).toThrow(new RegExp(`duplicate mapping key ${key}`));
+      expect(() =>
+        parseStrictWorkflowYaml(
+          `items:\n  - ${key}: first\n    ${key}: duplicate\n`,
+        ),
+      ).toThrow(new RegExp(`duplicate mapping key ${key}`));
+    }
   });
 
   it("parses aggregate wiring structurally and rejects comments, decoys, duplicates, and disabled checks", () => {
@@ -224,6 +287,170 @@ describe("exact-24k Vitest inventory and report verifier", () => {
         workflowSource: duplicateJob,
       }),
     ).toThrow(/workflow YAML is invalid/);
+  });
+
+  it("rejects disabling and continue-on-error on every required component job", () => {
+    const validated = validateExact24kInventory(inventory, { repoRoot });
+    for (const jobId of [
+      "core_quality_build",
+      "exact24k_scanner",
+      "exact24k_teacher",
+      "external_trust_root_protocol",
+      "aws_witness_adapter_contract",
+      "darwin_exclusive_directory_rename",
+      "e2e",
+    ]) {
+      for (const property of ["if: false", "continue-on-error: true"]) {
+        const mutated = replaceOnce(
+          workflowSource,
+          `\n  ${jobId}:\n`,
+          `\n  ${jobId}:\n    ${property}\n`,
+        );
+        expect(() =>
+          validateExact24kCiWiring(validated, {
+            repoRoot,
+            workflowSource: mutated,
+          }),
+        ).toThrow(new RegExp(`required workflow job ${jobId} keys`));
+      }
+    }
+  });
+
+  it("requires the exact scanner strategy and matrix keys", () => {
+    const validated = validateExact24kInventory(inventory, { repoRoot });
+    for (const mutated of [
+      replaceOnceInJob(
+        workflowSource,
+        "exact24k_scanner",
+        "exact24k_teacher",
+        "    strategy:\n      fail-fast: false\n",
+        "    strategy:\n      max-parallel: 5\n      fail-fast: false\n",
+      ),
+      replaceOnceInJob(
+        workflowSource,
+        "exact24k_scanner",
+        "exact24k_teacher",
+        "      matrix:\n        include:\n",
+        "      matrix:\n        exclude: []\n        include:\n",
+      ),
+      replaceOnceInJob(
+        workflowSource,
+        "exact24k_scanner",
+        "exact24k_teacher",
+        "      fail-fast: false\n",
+        "      fail-fast: true\n",
+      ),
+    ]) {
+      expect(() =>
+        validateExact24kCiWiring(validated, {
+          repoRoot,
+          workflowSource: mutated,
+        }),
+      ).toThrow(/exact24k_scanner\.strategy/);
+    }
+  });
+
+  it("requires exact ordered scanner and Teacher steps without inserted or tampered steps", () => {
+    const validated = validateExact24kInventory(inventory, { repoRoot });
+    for (const [jobId, nextJobId, uploadStep] of [
+      [
+        "exact24k_scanner",
+        "exact24k_teacher",
+        "Preserve the exact scanner report",
+      ],
+      [
+        "exact24k_teacher",
+        "external_trust_root_protocol",
+        "Preserve the exact Teacher report",
+      ],
+    ]) {
+      const inserted = replaceOnceInJob(
+        workflowSource,
+        jobId,
+        nextJobId,
+        `      - name: ${uploadStep}\n`,
+        "      - name: Decoy between verification and upload\n" +
+          '        run: "true"\n\n' +
+          `      - name: ${uploadStep}\n`,
+      );
+      expect(() =>
+        validateExact24kCiWiring(validated, {
+          repoRoot,
+          workflowSource: inserted,
+        }),
+      ).toThrow(new RegExp(`${jobId} ordered step list drifted`));
+
+      const tamperedSetup = replaceOnceInJob(
+        workflowSource,
+        jobId,
+        nextJobId,
+        '          cache: "npm"\n',
+        '          cache: "tampered"\n',
+      );
+      expect(() =>
+        validateExact24kCiWiring(validated, {
+          repoRoot,
+          workflowSource: tamperedSetup,
+        }),
+      ).toThrow(new RegExp(`${jobId} setup-node inputs drifted`));
+    }
+  });
+
+  it("pins exact scanner and Teacher upload actions, names, paths, and options", () => {
+    const validated = validateExact24kInventory(inventory, { repoRoot });
+    for (const contract of [
+      {
+        jobId: "exact24k_scanner",
+        nextJobId: "exact24k_teacher",
+        artifactName:
+          "exact24k-scanner-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}",
+        artifactPath: ".artifacts/exact24k-scanner-${{ matrix.id }}.json",
+      },
+      {
+        jobId: "exact24k_teacher",
+        nextJobId: "external_trust_root_protocol",
+        artifactName:
+          "exact24k-teacher-${{ github.sha }}-${{ github.run_attempt }}",
+        artifactPath: ".artifacts/exact24k-teacher.json",
+      },
+    ]) {
+      for (const [search, replacement, error] of [
+        [
+          "        uses: actions/upload-artifact@v7\n",
+          "        uses: actions/upload-artifact@v6\n",
+          /upload-artifact@v7/,
+        ],
+        [
+          `          name: ${contract.artifactName}\n`,
+          "          name: tampered-artifact\n",
+          /artifact name drifted/,
+        ],
+        [
+          `          path: ${contract.artifactPath}\n`,
+          `          path: ${contract.artifactPath}.tampered\n`,
+          /upload path drifted/,
+        ],
+        [
+          "          retention-days: 14\n",
+          "          retention-days: 13\n",
+          /artifact retention must be 14 days/,
+        ],
+      ] as const) {
+        const mutated = replaceOnceInJob(
+          workflowSource,
+          contract.jobId,
+          contract.nextJobId,
+          search,
+          replacement,
+        );
+        expect(() =>
+          validateExact24kCiWiring(validated, {
+            repoRoot,
+            workflowSource: mutated,
+          }),
+        ).toThrow(error);
+      }
+    }
   });
 
   it("fails closed when hidden report artifact uploads are missing, warnings, or disabled", () => {

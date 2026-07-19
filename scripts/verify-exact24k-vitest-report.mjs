@@ -3,7 +3,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { EXACT24K_SCANNER_CASE_IDS } from "./exact24k-scanner-runtime-receipt.mjs";
+import {
+  EXACT24K_SCANNER_CASE_IDS,
+  exact24kScannerCaseIds,
+} from "./exact24k-scanner-runtime-receipt.mjs";
 import { parseStrictWorkflowYaml } from "./strict-workflow-yaml.mjs";
 
 export const EXACT24K_INVENTORY_SCHEMA =
@@ -131,7 +134,12 @@ export function validateExact24kInventory(inventory, options = {}) {
     );
     assertUniqueStrings(shard.case_ids, `${shard.id}.case_ids`);
     assert(
-      sameStringSet(shard.case_ids, EXACT24K_SCANNER_CASE_IDS[shard.id] ?? []),
+      typeof shard.id === "string" &&
+        Object.hasOwn(EXACT24K_SCANNER_CASE_IDS, shard.id),
+      `${String(shard.id)} must be an own immutable scanner shard ID`,
+    );
+    assert(
+      sameStringSet(shard.case_ids, exact24kScannerCaseIds(shard.id)),
       `${shard.id}.case_ids must match its immutable runtime receipt cases`,
     );
     scannerIds.push(shard.id);
@@ -272,6 +280,73 @@ function namedStep(job, jobId, name) {
   return matches[0];
 }
 
+function validateRequiredJobKeys(jobs, jobId) {
+  const keys = [
+    "name",
+    "runs-on",
+    "timeout-minutes",
+    "permissions",
+    ...(jobId === "exact24k_scanner" ? ["strategy"] : []),
+    ...(jobId === "e2e" ? ["env"] : []),
+    "steps",
+  ];
+  const job = workflowJob(jobs, jobId);
+  assertExactKeys(job, keys, `required workflow job ${jobId}`);
+  return job;
+}
+
+function stepIdentity(step, jobId, index) {
+  if (typeof step.name === "string") return `name:${step.name}`;
+  if (typeof step.uses === "string") return `uses:${step.uses}`;
+  fail(`${jobId}.steps[${index}] has no exact name or action identity`);
+}
+
+function exactOrderedSteps(job, jobId, expectedIdentities) {
+  const steps = workflowSteps(job, jobId);
+  const actualIdentities = steps.map((step, index) =>
+    stepIdentity(step, jobId, index),
+  );
+  assert(
+    JSON.stringify(actualIdentities) === JSON.stringify(expectedIdentities),
+    `${jobId} ordered step list drifted`,
+  );
+  return steps;
+}
+
+function validateNodeTestPreamble(steps, jobId) {
+  const [checkout, setup, pinNpm, install] = steps;
+  assertExactKeys(checkout, ["uses"], `${jobId} checkout step`);
+  assert(
+    checkout.uses === "actions/checkout@v7",
+    `${jobId} checkout action drifted`,
+  );
+  assertExactKeys(setup, ["uses", "with"], `${jobId} setup-node step`);
+  assert(
+    setup.uses === "actions/setup-node@v6",
+    `${jobId} setup-node action drifted`,
+  );
+  assertExactKeys(
+    setup.with,
+    ["node-version", "cache"],
+    `${jobId} setup-node inputs`,
+  );
+  assert(
+    setup.with["node-version"] === "22.13.0" && setup.with.cache === "npm",
+    `${jobId} setup-node inputs drifted`,
+  );
+  assertExactKeys(pinNpm, ["name", "run"], `${jobId} npm pin step`);
+  assert(
+    normalizedCommand(pinNpm.run, `${jobId} npm pin command`) ===
+      "npm install -g npm@11.14.1",
+    `${jobId} npm pin command drifted`,
+  );
+  assertExactKeys(install, ["name", "run"], `${jobId} install step`);
+  assert(
+    normalizedCommand(install.run, `${jobId} install command`) === "npm ci",
+    `${jobId} install command drifted`,
+  );
+}
+
 function normalizedCommand(value, label) {
   assert(typeof value === "string" && value.trim() !== "", `${label} is empty`);
   const lines = value
@@ -285,9 +360,9 @@ function normalizedCommand(value, label) {
   return lines.join(" ").replaceAll(/\s+/g, " ");
 }
 
-function validateUploadStep(job, jobId, options) {
-  const step = namedStep(job, jobId, options.stepName);
+function validateUploadStep(step, jobId, options) {
   assertExactKeys(step, ["name", "if", "uses", "with"], `${jobId} upload step`);
+  assert(step.name === options.stepName, `${jobId} upload step name drifted`);
   assert(
     step.if === "always()",
     `${jobId} upload step must execute with if: always()`,
@@ -306,6 +381,10 @@ function validateUploadStep(job, jobId, options) {
       "retention-days",
     ],
     `${jobId} upload inputs`,
+  );
+  assert(
+    step.with.name === options.artifactName,
+    `${jobId} artifact name drifted`,
   );
   assert(step.with.path === options.path, `${jobId} upload path drifted`);
   assert(
@@ -329,8 +408,22 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
   const workflow = parseWorkflow(workflowSource);
   const jobs = workflowRecord(workflow.jobs, "workflow.jobs");
+  const requiredJobs = [
+    "core_quality_build",
+    "exact24k_scanner",
+    "exact24k_teacher",
+    "external_trust_root_protocol",
+    "darwin_exclusive_directory_rename",
+    "e2e",
+  ];
+  if (Object.hasOwn(jobs, "aws_witness_adapter_contract")) {
+    requiredJobs.push("aws_witness_adapter_contract");
+  }
+  const requiredJobRecords = Object.fromEntries(
+    requiredJobs.map((jobId) => [jobId, validateRequiredJobKeys(jobs, jobId)]),
+  );
 
-  const coreJob = workflowJob(jobs, "core_quality_build");
+  const coreJob = requiredJobRecords.core_quality_build;
   const coreStep = namedStep(
     coreJob,
     "core_quality_build",
@@ -349,13 +442,27 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     "core workflow exclusions must exactly match core_exclusions",
   );
 
-  const scannerJob = workflowJob(jobs, "exact24k_scanner");
+  const scannerJob = requiredJobRecords.exact24k_scanner;
   const scannerStrategy = workflowRecord(
     scannerJob.strategy,
     "exact24k_scanner.strategy",
   );
   const scannerMatrix = workflowRecord(
     scannerStrategy.matrix,
+    "exact24k_scanner.strategy.matrix",
+  );
+  assertExactKeys(
+    scannerStrategy,
+    ["fail-fast", "matrix"],
+    "exact24k_scanner.strategy",
+  );
+  assert(
+    scannerStrategy["fail-fast"] === false,
+    "exact24k_scanner.strategy.fail-fast must be false",
+  );
+  assertExactKeys(
+    scannerMatrix,
+    ["include"],
     "exact24k_scanner.strategy.matrix",
   );
   assert(
@@ -381,22 +488,24 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     sameStringSet(actualPairs, expectedPairs),
     "scanner workflow ID/file pairs must exactly match the inventory",
   );
-  const scannerRunStep = namedStep(
-    scannerJob,
-    "exact24k_scanner",
-    "Run the exact scanner file",
-  );
+  const scannerSteps = exactOrderedSteps(scannerJob, "exact24k_scanner", [
+    "uses:actions/checkout@v7",
+    "uses:actions/setup-node@v6",
+    "name:Pin npm to 11.14.1 (matches package.json packageManager)",
+    "name:Install dependencies",
+    "name:Run the exact scanner file",
+    "name:Verify the exact scanner file and title",
+    "name:Preserve the exact scanner report",
+  ]);
+  validateNodeTestPreamble(scannerSteps, "exact24k_scanner");
+  const scannerRunStep = scannerSteps[4];
   assertExactKeys(scannerRunStep, ["name", "run"], "exact24k_scanner run step");
   assert(
     normalizedCommand(scannerRunStep.run, "scanner run command") ===
       'npm test -- "${{ matrix.file }}" --reporter=json --outputFile=".artifacts/exact24k-scanner-${{ matrix.id }}.json"',
     "scanner workflow must execute exactly matrix.file without title or generic sharding filters",
   );
-  const scannerVerifyStep = namedStep(
-    scannerJob,
-    "exact24k_scanner",
-    "Verify the exact scanner file and title",
-  );
+  const scannerVerifyStep = scannerSteps[5];
   assertExactKeys(
     scannerVerifyStep,
     ["name", "run"],
@@ -407,28 +516,32 @@ export function validateExact24kCiWiring(inventory, options = {}) {
       'node scripts/verify-exact24k-vitest-report.mjs --target "${{ matrix.id }}" --report ".artifacts/exact24k-scanner-${{ matrix.id }}.json"',
     "scanner workflow verifier command drifted",
   );
-  validateUploadStep(scannerJob, "exact24k_scanner", {
+  validateUploadStep(scannerSteps[6], "exact24k_scanner", {
     stepName: "Preserve the exact scanner report",
+    artifactName:
+      "exact24k-scanner-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}",
     path: ".artifacts/exact24k-scanner-${{ matrix.id }}.json",
   });
 
-  const teacherJob = workflowJob(jobs, "exact24k_teacher");
-  const teacherRunStep = namedStep(
-    teacherJob,
-    "exact24k_teacher",
-    "Run the exact Teacher checkpoint file",
-  );
+  const teacherJob = requiredJobRecords.exact24k_teacher;
+  const teacherSteps = exactOrderedSteps(teacherJob, "exact24k_teacher", [
+    "uses:actions/checkout@v7",
+    "uses:actions/setup-node@v6",
+    "name:Pin npm to 11.14.1 (matches package.json packageManager)",
+    "name:Install dependencies",
+    "name:Run the exact Teacher checkpoint file",
+    "name:Verify the exact Teacher file and all forty-nine runtime titles",
+    "name:Preserve the exact Teacher report",
+  ]);
+  validateNodeTestPreamble(teacherSteps, "exact24k_teacher");
+  const teacherRunStep = teacherSteps[4];
   assertExactKeys(teacherRunStep, ["name", "run"], "exact24k_teacher run step");
   assert(
     normalizedCommand(teacherRunStep.run, "Teacher run command") ===
       `npm test -- ${inventory.teacher.file} --reporter=json --outputFile=.artifacts/exact24k-teacher.json`,
     "Teacher workflow must execute exactly its fixed file without title or generic sharding filters",
   );
-  const teacherVerifyStep = namedStep(
-    teacherJob,
-    "exact24k_teacher",
-    "Verify the exact Teacher file and all forty-nine runtime titles",
-  );
+  const teacherVerifyStep = teacherSteps[5];
   assertExactKeys(
     teacherVerifyStep,
     ["name", "run"],
@@ -439,8 +552,10 @@ export function validateExact24kCiWiring(inventory, options = {}) {
       "node scripts/verify-exact24k-vitest-report.mjs --target teacher --report .artifacts/exact24k-teacher.json",
     "Teacher workflow verifier command drifted",
   );
-  validateUploadStep(teacherJob, "exact24k_teacher", {
+  validateUploadStep(teacherSteps[6], "exact24k_teacher", {
     stepName: "Preserve the exact Teacher report",
+    artifactName:
+      "exact24k-teacher-${{ github.sha }}-${{ github.run_attempt }}",
     path: ".artifacts/exact24k-teacher.json",
   });
 
@@ -466,24 +581,11 @@ export function validateExact24kCiWiring(inventory, options = {}) {
     aggregateJob.if === "${{ always() }}",
     "required aggregate must use if: always()",
   );
-  const requiredJobs = [
-    "core_quality_build",
-    "exact24k_scanner",
-    "exact24k_teacher",
-    "external_trust_root_protocol",
-    "darwin_exclusive_directory_rename",
-    "e2e",
-  ];
-  if (Object.hasOwn(jobs, "aws_witness_adapter_contract")) {
-    requiredJobs.push("aws_witness_adapter_contract");
-  }
   assertUniqueStrings(aggregateJob.needs, "required aggregate needs");
   assert(
     sameStringSet(aggregateJob.needs, requiredJobs),
     "required aggregate needs must exactly cover every required CI component",
   );
-  for (const requiredJob of requiredJobs) workflowJob(jobs, requiredJob);
-
   const aggregateSteps = workflowSteps(aggregateJob, "test_and_build");
   assert(
     aggregateSteps.length === 1,

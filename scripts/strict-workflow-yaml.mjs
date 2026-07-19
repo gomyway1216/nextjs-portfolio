@@ -126,6 +126,22 @@ function scalar(value, lineNumber) {
   return value;
 }
 
+function createMapping() {
+  return Object.create(null);
+}
+
+function defineMappingEntry(mapping, key, value, lineNumber) {
+  if (Object.hasOwn(mapping, key)) {
+    fail(`duplicate mapping key ${key}`, lineNumber);
+  }
+  Object.defineProperty(mapping, key, {
+    value,
+    configurable: true,
+    enumerable: true,
+    writable: true,
+  });
+}
+
 export function parseStrictWorkflowYaml(source) {
   if (typeof source !== "string") fail("source must be a string");
   const physicalLines = source.replaceAll("\r\n", "\n").split("\n");
@@ -176,12 +192,9 @@ export function parseStrictWorkflowYaml(source) {
   }
 
   function mapping(index, indent, initialEntries = []) {
-    const result = {};
+    const result = createMapping();
     for (const [key, value, lineNumber] of initialEntries) {
-      if (Object.hasOwn(result, key)) {
-        fail(`duplicate mapping key ${key}`, lineNumber);
-      }
-      result[key] = value;
+      defineMappingEntry(result, key, value, lineNumber);
     }
 
     while (true) {
@@ -193,9 +206,6 @@ export function parseStrictWorkflowYaml(source) {
       }
       if (line.content.startsWith("- ")) break;
       const [key, remainder] = mappingPair(line.content, line.lineNumber);
-      if (Object.hasOwn(result, key)) {
-        fail(`duplicate mapping key ${key}`, line.lineNumber);
-      }
       if (/^[>|][+-]?$/u.test(remainder)) {
         const [value, nextIndex] = blockScalar(
           index + 1,
@@ -203,23 +213,28 @@ export function parseStrictWorkflowYaml(source) {
           remainder,
           line.lineNumber,
         );
-        result[key] = value;
+        defineMappingEntry(result, key, value, line.lineNumber);
         index = nextIndex;
         continue;
       }
       if (remainder !== "") {
-        result[key] = scalar(remainder, line.lineNumber);
+        defineMappingEntry(
+          result,
+          key,
+          scalar(remainder, line.lineNumber),
+          line.lineNumber,
+        );
         index += 1;
         continue;
       }
       const childIndex = nextMeaningful(index + 1);
       if (childIndex >= lines.length || lines[childIndex].indent <= indent) {
-        result[key] = null;
+        defineMappingEntry(result, key, null, line.lineNumber);
         index += 1;
         continue;
       }
       const [value, nextIndex] = node(childIndex, lines[childIndex].indent);
-      result[key] = value;
+      defineMappingEntry(result, key, value, line.lineNumber);
       index = nextIndex;
     }
     return [result, index];
@@ -287,7 +302,9 @@ export function parseStrictWorkflowYaml(source) {
         result.push(item);
         index = afterItem;
       } else {
-        result.push({ [key]: firstValue });
+        const item = createMapping();
+        defineMappingEntry(item, key, firstValue, line.lineNumber);
+        result.push(item);
         index = nextIndex;
       }
     }

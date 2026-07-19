@@ -47,8 +47,13 @@ function fail(message) {
 }
 
 export function exact24kScannerCaseIds(shardId) {
+  if (
+    typeof shardId !== "string" ||
+    !Object.hasOwn(EXACT24K_SCANNER_CASE_IDS, shardId)
+  ) {
+    fail(`unknown shard ${String(shardId)}`);
+  }
   const caseIds = EXACT24K_SCANNER_CASE_IDS[shardId];
-  if (caseIds === undefined) fail(`unknown shard ${String(shardId)}`);
   return caseIds;
 }
 

@@ -34,7 +34,10 @@
     "ci_source_tree": "089908e7d4bcfcecd2f66104ac0d4622dc860daf",
     "continuous_integration": "PASS",
     "continuous_integration_run": 29677392531,
-    "source_review_and_ci_ready_for_explicit_local_invocation": true
+    "source_review_and_ci_ready_for_explicit_local_invocation": true,
+    "postmerge_first_attempt_application_revision": "acdc3de9c3691d5719260b2d032586a13f5b56be",
+    "postmerge_first_attempt_remediation_revision": "9cdaee882e80d7be8667b733505dd86bf3db5923",
+    "postmerge_first_attempt_remediation_tree": "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa"
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -175,15 +178,17 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59064,
-      "sha256": "c604ddbe7d76c89843e5db40331c81edae18643ac262edf9ffd28990ffc682e4",
-      "git_blob": "1a7c67a285f1e39459265b14912179580ac48f16",
+      "bytes": 59906,
+      "sha256": "773edeee39af60dd269c2f0b0371e55c30ea71a46abd092b20dd79e301d0bbe6",
+      "git_blob": "ff628435335149d7bc9bd65f2e87777939a90490",
       "required_markers": [
         "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
         "GIT_ALLOW_PROTOCOL: \"file\"",
         "GIT_NO_LAZY_FETCH: \"1\"",
         "\"core.hooksPath=/dev/null\"",
-        "\"credential.helper=\""
+        "\"credential.helper=\"",
+        "lower !== \"http.postbuffer\"",
+        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024"
       ]
     },
     {
@@ -267,9 +272,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 30727,
-      "sha256": "9169b66b4b074d26d584901fbf3172bfc448e0216696ee5c1e1053ee572abe7d",
-      "git_blob": "a9f652cc7b85ebf7bc0f6645e74ba9f0e411866c"
+      "bytes": 31492,
+      "sha256": "4bcbfa22aaa42c921cb472f9d733e5c0b4f6775548421e38eb3bd33c2f7662e0",
+      "git_blob": "3e06b3f1f8b94dfad70ed4a345378dc39c536943"
     }
   ],
   "validation": {
@@ -373,13 +378,28 @@
       "operational_readiness_established": false
     }
   },
+  "postmerge_first_attempt": {
+    "status": "STOP",
+    "phase": "preparation",
+    "exit_code": 1,
+    "clean_room_may_exist": true,
+    "checkpoint_may_exist": false,
+    "teacher_process_started": false,
+    "parent_or_row_created": false,
+    "network_used": false,
+    "aws_used": false,
+    "live_weight_touched": false,
+    "incident_evidence": "floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json"
+  },
   "operational_state": {
-    "state": "STOP-NOT-YET-RUN",
+    "state": "STOP-PREPARATION-RECONCILIATION",
     "operational_readiness_established": false,
     "package_command_added": true,
+    "operational_command_attempts": 1,
+    "preparation_stops": 1,
     "successful_operational_command_runs": 0,
     "capture_only_negative_cli_runs": 1,
-    "real_private_copy_runs": 0,
+    "real_private_copy_runs": 1,
     "real_teacher_runs": 0,
     "teacher_processes_started": 0,
     "teacher_parents_completed": 0,

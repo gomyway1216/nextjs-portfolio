@@ -100,3 +100,11 @@ deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba46
 次はこのCI結果を記録した記事・機械可読証拠にも最終CIとexact reviewを通して通常mergeし、その後に明示的local commandを実行する。24,000 labelsが完成しても、training、候補選抜、正式A/B、外部校正、rollback証拠なしにはlive weightを変更しない。
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json)
+
+## 追記: merge後の最初の実行はpreparationで安全停止
+
+2026-07-19、PR #511の通常merge後に初めて明示的local commandを実行した。4つの入力treeはhome外clean roomへコピーされたが、verifier repositoryのmaterialization前に`STOP`した。教師process、100-parent gate、checkpoint、label、training、network、AWS、Firebase/GCP、Vercel runner、live変更はいずれも0である。
+
+原因はAWSではなく、共有Git repositoryに存在した無害な`http.postBuffer`までHTTP credential / proxy設定と同じ扱いで拒否したことと、完全性検査の1,188,132-byte object listに対してstdout上限が1,048,576 bytesしかなかったことである。固定cloneは`file` protocolだけを許可するため、`http.postBuffer`は実行に影響できない。修正候補はこの1キーだけを許可し、他のHTTP / HTTPS、credential、proxy、filter、include、URL rewriteを引き続き拒否する。上限は既存の厳密Git verifierと同じ67,108,864 bytesへ広げた。修正後の一時clean-room materializationは1,431 tracked filesの独立性検査までPASSした。
+
+残ったclean roomは自動削除せず、所有者・mode・symlink / hardlink不在、空のpublication / state / snapshot / verifierを確認してから手動reconciliationする。詳細: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.md)

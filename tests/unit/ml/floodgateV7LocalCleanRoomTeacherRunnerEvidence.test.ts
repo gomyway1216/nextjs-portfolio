@@ -124,7 +124,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
           "e56c5a5bf0197ddf319dc181e95e513f7db09461",
         deployment_key_compatibility_remediation_tree:
           "db86a90b5af516c543d792962d010909c788b344",
-        pull_request: null,
+        pull_request: 511,
         continuous_integration: "PENDING",
       },
     });

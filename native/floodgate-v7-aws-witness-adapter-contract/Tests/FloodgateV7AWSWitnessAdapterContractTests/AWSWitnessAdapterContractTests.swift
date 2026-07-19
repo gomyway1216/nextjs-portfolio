@@ -1111,6 +1111,86 @@ final class DynamoWitnessTransactionContractTests:
         )
     }
 
+    func testReadRejectsMultibyteOperationKeyWithoutTrap()
+        throws
+    {
+        let fixture = try TestCommitFixture()
+        let request =
+            try DynamoWitnessTransactionContractV1
+            .buildReadRequest(
+                tableGeneration:
+                    fixture.generation,
+                witnessID:
+                    fixture.state.witnessID,
+                operationID:
+                    fixture.request.operationID
+            )
+        let malformedSortKey =
+            "OP#"
+            + String(repeating: "0", count: 62)
+            + "\u{00e9}"
+        XCTAssertEqual(
+            malformedSortKey.utf8.count,
+            67
+        )
+        XCTAssertEqual(
+            malformedSortKey.count,
+            66
+        )
+        let operationItem = request.items[1]
+        let malformedRequest =
+            AWSWitnessTransactGetRequestV1(
+                items: [
+                    request.items[0],
+                    AWSWitnessTransactGetItemV1(
+                        tableARN:
+                            operationItem.tableARN,
+                        key:
+                            AWSWitnessPrimaryKeyV1(
+                                partitionKey:
+                                    operationItem.key
+                                    .partitionKey,
+                                sortKey:
+                                    malformedSortKey
+                            ),
+                        projectionExpression:
+                            operationItem
+                            .projectionExpression,
+                        expressionAttributeNames:
+                            operationItem
+                            .expressionAttributeNames
+                    ),
+                ],
+                returnConsumedCapacity: false
+            )
+        XCTAssertThrowsError(
+            try DynamoWitnessTransactionContractV1
+                .decodeReadResponse(
+                    request: malformedRequest,
+                    response:
+                        AWSWitnessTransactGetResponseV1(
+                            responses: [
+                                DynamoWitnessRecordCodecV1
+                                    .encodeState(
+                                        fixture.state
+                                    ),
+                                nil,
+                            ],
+                            unknownFieldsPresent: false
+                        ),
+                    tableGeneration:
+                        fixture.generation,
+                    signerBinding: fixture.binding
+                )
+        ) { error in
+            XCTAssertEqual(
+                error
+                    as? AWSWitnessContractErrorV1,
+                .stop
+            )
+        }
+    }
+
     func testWriteIsExactlySTATEUpdateOPPutATTEMPTPut()
         throws
     {

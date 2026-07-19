@@ -618,37 +618,49 @@ enum DynamoWitnessTransactionContractV1 {
     private static func operationID(
         from key: AWSWitnessPrimaryKeyV1
     ) throws -> CanonicalBytes32 {
-        let prefix = "OP#"
+        let prefix = Array("OP#".utf8)
+        let encoded = Array(key.sortKey.utf8)
         guard
-            key.sortKey.hasPrefix(prefix),
-            key.sortKey.utf8.count == 67
+            encoded.count == prefix.count + 64,
+            encoded.starts(with: prefix)
         else {
             throw AWSWitnessContractErrorV1.stop
         }
-        let hex = key.sortKey.dropFirst(prefix.count)
         var bytes: [UInt8] = []
         bytes.reserveCapacity(32)
-        var index = hex.startIndex
-        for _ in 0..<32 {
-            let next = hex.index(
-                index,
-                offsetBy: 2
-            )
+        for offset in stride(
+            from: prefix.count,
+            to: encoded.count,
+            by: 2
+        ) {
             guard
-                let byte = UInt8(
-                    hex[index..<next],
-                    radix: 16
-                )
+                let high =
+                    lowercaseHexNibble(
+                        encoded[offset]
+                    ),
+                let low =
+                    lowercaseHexNibble(
+                        encoded[offset + 1]
+                    )
             else {
                 throw AWSWitnessContractErrorV1.stop
             }
-            bytes.append(byte)
-            index = next
-        }
-        guard index == hex.endIndex else {
-            throw AWSWitnessContractErrorV1.stop
+            bytes.append((high << 4) | low)
         }
         return try CanonicalBytes32(bytes)
+    }
+
+    private static func lowercaseHexNibble(
+        _ value: UInt8
+    ) -> UInt8? {
+        switch value {
+        case 48...57:
+            return value - 48
+        case 97...102:
+            return value - 87
+        default:
+            return nil
+        }
     }
 
     private static func appendLengthPrefixed(

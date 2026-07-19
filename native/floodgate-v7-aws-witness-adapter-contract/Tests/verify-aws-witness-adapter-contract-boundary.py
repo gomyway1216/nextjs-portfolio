@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+from typing import Optional
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -155,6 +156,12 @@ SYMBOL_GRAPH_BASE = f"{TARGET}.symbols.json"
 SYMBOL_GRAPH_SHARD = re.compile(
     rf"^{re.escape(TARGET)}@[A-Za-z_][A-Za-z0-9_]*"
     r"\.symbols\.json$"
+)
+SYMBOL_GRAPH_PACKAGE_TESTS = (
+    f"{TARGET}PackageTests.symbols.json"
+)
+SYMBOL_GRAPH_PACKAGE_TESTS_MODULE = (
+    f"{TARGET}PackageTests"
 )
 EXPECTED_CI_JOB = """  aws_witness_adapter_contract:
     name: AWS witness adapter contract (source only)
@@ -428,6 +435,20 @@ def verify_ci_job() -> None:
         fail("CI contract job body drifted")
 
 
+def expected_symbol_graph_module(
+    filename: str,
+) -> Optional[str]:
+    if (
+        filename == SYMBOL_GRAPH_BASE
+        or SYMBOL_GRAPH_SHARD.fullmatch(filename)
+        is not None
+    ):
+        return TARGET
+    if filename == SYMBOL_GRAPH_PACKAGE_TESTS:
+        return SYMBOL_GRAPH_PACKAGE_TESTS_MODULE
+    return None
+
+
 def verify_symbol_graph() -> None:
     subprocess.run(
         [
@@ -468,8 +489,8 @@ def verify_symbol_graph() -> None:
         unknown = [
             name
             for name in names
-            if name != SYMBOL_GRAPH_BASE
-            and SYMBOL_GRAPH_SHARD.fullmatch(name) is None
+            if expected_symbol_graph_module(name)
+            is None
         ]
         if unknown:
             fail(f"unknown symbol graph shards: {unknown!r}")
@@ -483,7 +504,10 @@ def verify_symbol_graph() -> None:
             if (
                 not isinstance(payload, dict)
                 or not isinstance(payload.get("module"), dict)
-                or payload["module"].get("name") != TARGET
+                or payload["module"].get("name")
+                != expected_symbol_graph_module(
+                    graph.name
+                )
                 or payload.get("symbols") != []
                 or payload.get("relationships") != []
             ):
@@ -618,6 +642,31 @@ def synthetic_source_regressions() -> None:
             mutation
         ):
             fail("unsupported SwiftPM dependency schema was accepted")
+    if (
+        expected_symbol_graph_module(
+            SYMBOL_GRAPH_BASE
+        )
+        != TARGET
+        or expected_symbol_graph_module(
+            f"{TARGET}@Foundation.symbols.json"
+        )
+        != TARGET
+        or expected_symbol_graph_module(
+            SYMBOL_GRAPH_PACKAGE_TESTS
+        )
+        != SYMBOL_GRAPH_PACKAGE_TESTS_MODULE
+    ):
+        fail("supported Swift symbol-graph schema was rejected")
+    for filename in (
+        f"{TARGET}Tests.symbols.json",
+        f"{TARGET}PackageTests@Main.symbols.json",
+        f"{TARGET}PackageTestsExtra.symbols.json",
+        f"{TARGET}@bad-name.symbols.json",
+    ):
+        if expected_symbol_graph_module(
+            filename
+        ) is not None:
+            fail("unsupported Swift symbol-graph schema was accepted")
 
 
 def main() -> None:

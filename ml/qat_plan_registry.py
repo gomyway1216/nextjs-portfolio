@@ -13,6 +13,11 @@ from fresh_qat_protocol import (
     FRESH_QAT_TRAINING_RESULT_SCHEMA,
     verify_fresh_qat_experiment_plan,
 )
+from fresh_qat_v2_execution_dispatch import (
+    FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH,
+    FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA,
+    verify_fresh_qat_v2_execution_plan,
+)
 from qat_protocol import (
     QAT_FINAL_CHECKPOINT_SCHEMA,
     QAT_PLAN_SCHEMA,
@@ -28,16 +33,46 @@ def verify_qat_experiment_plan(
     *,
     tracking_verifier: Callable[[str, str], None],
 ) -> dict[str, Any]:
-    """Dispatch only the exact fresh path; preserve every old fallback."""
+    """Dispatch exact fresh v1/v2 paths; preserve every old fallback."""
     repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-    fresh_path = os.path.join(repo_root, FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH)
+    fresh_v1_path = os.path.join(
+        repo_root, FRESH_QAT_EXECUTION_PLAN_RELATIVE_PATH
+    )
+    fresh_v2_path = os.path.join(
+        repo_root, FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
+    )
     plan_argument = getattr(args, "experiment_plan", "")
     requested = (
         os.path.realpath(plan_argument)
         if isinstance(plan_argument, (str, bytes, os.PathLike))
         else None
     )
-    if requested == fresh_path:
+    if type(plan_argument) is str:
+        requested_absolute = os.path.abspath(plan_argument)
+        if (
+            requested_absolute == fresh_v2_path
+            and requested == fresh_v2_path
+        ):
+            return verify_fresh_qat_v2_execution_plan(
+                args,
+                training_runtime,
+                tracking_verifier=tracking_verifier,
+            )
+        basename = os.path.basename(requested_absolute)
+        if (
+            requested == fresh_v2_path
+            or basename.startswith(
+                os.path.basename(FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH)
+            )
+            or (
+                "fresh-qat" in basename
+                and requested_absolute != fresh_v1_path
+            )
+        ):
+            raise ValueError(
+                "fresh QAT v2 dispatch rejects a non-exact or symlinked plan path"
+            )
+    if requested == fresh_v1_path:
         return verify_fresh_qat_experiment_plan(
             args,
             training_runtime,
@@ -68,6 +103,14 @@ def resolve_qat_artifact_schemas(
         }
     if schema_pair == (
         FRESH_QAT_EXECUTION_PLAN_SCHEMA,
+        FRESH_QAT_TRAINING_CONTRACT_SCHEMA,
+    ):
+        return {
+            "result": FRESH_QAT_TRAINING_RESULT_SCHEMA,
+            "checkpoint": FRESH_QAT_FINAL_CHECKPOINT_SCHEMA,
+        }
+    if schema_pair == (
+        FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA,
         FRESH_QAT_TRAINING_CONTRACT_SCHEMA,
     ):
         return {

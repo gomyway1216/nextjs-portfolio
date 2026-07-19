@@ -42,6 +42,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_BYTES,
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_GIB,
   FloodgateV7CleanRoomRunGateError,
+  assertFloodgateV7CleanRoomLocalRunGateDependencies,
   claimFloodgateV7CleanRoomRunGateCoreForTests,
   runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests,
   statfsFloodgateV7CleanRoomRunGateCoreForTests,
@@ -492,6 +493,7 @@ function localRunDependencies(
   events: string[],
   issued: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[],
   failStableClose = false,
+  checkpointKeyId = "local-focused-integrity-v1",
 ): Readonly<FloodgateV7CleanRoomLocalRunGateDependencies> {
   const brands = new WeakSet<object>();
   async function statfs(
@@ -507,7 +509,7 @@ function localRunDependencies(
     const claim = claimFloodgateV7CleanRoomRunGateCoreForTests(capability);
     events.push(claim.gate);
     const receipt = gateReceipt(claim.gate, claim.runId, {
-      keyId: "local-focused-integrity-v1",
+      keyId: checkpointKeyId,
     });
     brands.add(receipt);
     issued.push(receipt);
@@ -535,7 +537,7 @@ function localRunDependencies(
     ),
     executeAuthenticatedCheckpointGate,
     observeFailureForTests: undefined,
-    expectedCheckpointKeyId: "local-focused-integrity-v1",
+    expectedCheckpointKeyId: checkpointKeyId,
     claimAuthenticatedCheckpointReceipt,
     finalizeSealedChainHandoff,
   });
@@ -559,6 +561,51 @@ afterEach(async () => {
 });
 
 describe("Floodgate v7 clean-room source/test gate owner", () => {
+  it("separates the fixed deployment key boundary from the nondeployment test seam before grant consumption", async () => {
+    const value = await fixture();
+    const calls: RuntimeCalls = {
+      coordinator: 0,
+      stableClose: 0,
+      teacherClose: 0,
+      teacherAbort: 0,
+    };
+    const deploymentDependencies = localRunDependencies(
+      calls,
+      [],
+      [],
+      false,
+      FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    );
+    const testDependencies = localRunDependencies(calls, [], []);
+
+    expect(() =>
+      assertFloodgateV7CleanRoomLocalRunGateDependencies(
+        deploymentDependencies,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertFloodgateV7CleanRoomLocalRunGateDependencies(testDependencies),
+    ).toThrow(FloodgateV7CleanRoomRunGateError);
+    await expect(
+      runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+        value.capability,
+        deploymentDependencies,
+      ),
+    ).rejects.toMatchObject({
+      phase: "capture",
+      work_state_may_exist: false,
+    });
+    await expect(
+      runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+        value.capability,
+        testDependencies,
+      ),
+    ).resolves.toMatchObject({
+      contract: FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_CONTRACT,
+    });
+    expect(calls.coordinator).toBe(1);
+  });
+
   it("dynamically enforces the local receipt brand and publishes handoff only after owner close", async () => {
     const value = await fixture();
     const calls: RuntimeCalls = {

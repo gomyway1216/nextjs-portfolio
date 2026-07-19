@@ -52,6 +52,7 @@ import {
   type FloodgateV7CleanRoomTeacherPreparedCapability,
 } from "../../../ml/floodgate-v7-clean-room-teacher-runner";
 import {
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT,
@@ -688,11 +689,31 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID).not.toContain(
       "deployment",
     );
+    expect(FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID).toBe(
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
+    );
     expect(localSource).toContain('const LOCAL_KEY_BYTES = 32');
     expect(localSource).toContain('"local-integrity-key.bin"');
     expect(localSource).toContain("external_credential: false");
     expect(localSource).toContain("randomBytes(LOCAL_KEY_BYTES)");
-    expect(localSource).toContain("rootKey?.fill(0)");
+    expect(localSource).toContain("integrityKey?.fill(0)");
+    expect(localSource).toContain("FLOODGATE_V7_DEPLOYMENT_KEY_ID");
+    expect(localSource).toContain(
+      "prepareFloodgateV7DeploymentTeacherCheckpointV3Key",
+    );
+    expect(localSource).toContain("checkpointFloodgateV7TeacherParentsV3(");
+    expect(localSource).toContain("authorizeFloodgateTeacherStage(");
+    expect(localSource).toContain("withVerifiedPinnedFloodgateTrainingRows(");
+    expect(localSource).toContain("run_binding_sha256");
+    expect(localSource).not.toContain(
+      "checkpointFloodgateV7TeacherParentsV3CoreForTests(",
+    );
+    expect(localSource).not.toContain(
+      "authorizeFloodgateTeacherStageCoreForTests(",
+    );
+    expect(localSource).not.toContain(
+      "withVerifiedPinnedFloodgateTrainingRowsCoreForTests(",
+    );
     expect(localSource).toContain("receipts.length !== 3");
     expect(localSource).toContain("final.sealed !== true");
     expect(localSource).toContain(

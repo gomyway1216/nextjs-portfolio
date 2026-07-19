@@ -100,3 +100,11 @@ This change creates a **source candidate for connecting teacher generation to an
 The next step is to pass final CI and exact review on the articles and machine-readable evidence that record this result, merge normally, and then invoke the explicit local command. Even after 24,000 labels exist, live weights must remain unchanged until training, candidate selection, formal A/B, external calibration, and rollback evidence are complete.
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json)
+
+## Addendum: the first post-merge run stopped safely during preparation
+
+On 2026-07-19, the explicit local command was invoked for the first time after PR #511 merged normally. Four input trees were copied into the home-external clean room, but execution stopped before verifier-repository materialization. Teacher processes, the 100-parent gate, checkpoints, labels, training, network, AWS, Firebase/GCP, the Vercel runner, and live changes all remained at zero.
+
+The cause was not AWS. The source repository's harmless `http.postBuffer` setting was rejected together with HTTP credential and proxy controls, and the 1,188,132-byte object-closure listing exceeded a 1,048,576-byte stdout cap. The fixed clone permits only the `file` protocol, so `http.postBuffer` cannot influence it. The remediation allows only that one inert key while continuing to reject every other HTTP / HTTPS, credential, proxy, filter, include, and URL-rewrite control. It raises the cap to 67,108,864 bytes, matching the existing strict Git verifier. A disposable post-fix materialization passed through the independent-file check over all 1,431 tracked files.
+
+The residual clean room is not deleted automatically. Manual reconciliation first checks ownership, modes, the absence of symlinks and hardlinks, and empty publication, state, snapshot, and verifier namespaces. Details: [blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md](./blog-shogi-floodgate-v7-local-clean-room-teacher-first-run-preparation-stop.en.md)

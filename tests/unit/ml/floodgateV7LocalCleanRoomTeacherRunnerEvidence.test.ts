@@ -454,12 +454,14 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     expect(new Set(customAdversarial.case_ids).size).toBe(15);
 
     expect(record.operational_state).toMatchObject({
-      state: "STOP-NOT-YET-RUN",
+      state: "STOP-PREPARATION-RECONCILIATION",
       operational_readiness_established: false,
       package_command_added: true,
+      operational_command_attempts: 1,
+      preparation_stops: 1,
       successful_operational_command_runs: 0,
       capture_only_negative_cli_runs: 1,
-      real_private_copy_runs: 0,
+      real_private_copy_runs: 1,
       real_teacher_runs: 0,
       teacher_processes_started: 0,
       teacher_parents_completed: 0,

@@ -22,6 +22,25 @@ export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT =
   "shogi-floodgate-v7-portable-copy-filesystem-witness-v1" as const;
 export const FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY =
   "filesystem-only-source-preseal-post-verification-seal-copy-by-value-witness-composite-destination-closure-and-borrow-pre-post-revalidation-not-callback-time-namespace-exclusivity-or-semantic-input-authenticity-source-semantic-verification-teacher-label-training-weight-live-activation-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CONTRACT =
+  "shogi-floodgate-v7-portable-copy-held-role-bundle-v1" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY =
+  "private-inventory-bound-held-root-and-exact-nine-fixed-file-no-follow-open-fstat-read-sha256-explicit-eof-synchronous-single-use-path-fd-stat-identity-free-snapshot-claim-callback-settlement-post-fstat-buffer-zeroization-all-handle-close-and-composite-postflight-not-callback-time-namespace-exclusivity-source-semantic-authenticity-source-verifier-binding-teacher-label-training-gate-weight-live-activation-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES = Object.freeze([
+  "fresh-final-holdout.protected-position-ids.txt",
+  "fresh-final-holdout.raw.jsonl",
+  "fresh-selection.protected-position-ids.txt",
+  "fresh-selection.raw.jsonl",
+  "manifest.json",
+  "replay-excluded-position-ids.txt",
+  "replay-exclusion-receipt.json",
+  "training.protected-position-ids.txt",
+  "training.raw.jsonl",
+] as const);
+export const FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_MANIFEST_MAX_BYTES =
+  64 * 1024;
+export const FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_TRAINING_RAW_MAX_BYTES =
+  64 * 1024 * 1024;
 
 const DIRECTORY_MODE = BigInt(0o700);
 const PRIVATE_FILE_MODE = 0o600;
@@ -54,6 +73,9 @@ const weakSetAdd = WeakSet.prototype.add;
 const weakSetHas = WeakSet.prototype.has;
 const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
+const uint8ArrayFill = Uint8Array.prototype.fill;
+const uint8ArraySet = Uint8Array.prototype.set;
+const NativeSharedArrayBuffer = SharedArrayBuffer;
 
 function isArray(value: unknown): value is unknown[] {
   return reflectApply(arrayIsArray, undefined, [value]) as boolean;
@@ -158,6 +180,7 @@ declare const portableSourcePresealBrand: unique symbol;
 declare const portableSourceSealBrand: unique symbol;
 declare const portableCopyWitnessBrand: unique symbol;
 declare const portableCompositeSealBrand: unique symbol;
+declare const portableHeldRoleBundleClaimBrand: unique symbol;
 
 export interface FloodgateV7PortableCopySourcePreseal {
   readonly [portableSourcePresealBrand]: true;
@@ -173,6 +196,38 @@ export interface FloodgateV7PortableCopyWitness {
 
 export interface FloodgateV7PortableCopyCompositeDestinationSeal {
   readonly [portableCompositeSealBrand]: true;
+}
+
+export interface FloodgateV7PortableCopyHeldRoleBundleClaim {
+  readonly [portableHeldRoleBundleClaimBrand]: true;
+}
+
+export type FloodgateV7PortableCopyHeldRoleBundleFilename =
+  (typeof FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES)[number];
+
+export interface FloodgateV7PortableCopyHeldRoleBundleFileIdentity {
+  readonly filename: FloodgateV7PortableCopyHeldRoleBundleFilename;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+export interface FloodgateV7PortableCopyHeldRoleBundleSnapshot {
+  readonly files: readonly Readonly<FloodgateV7PortableCopyHeldRoleBundleFileIdentity>[];
+  readonly manifestBytes: Uint8Array;
+  readonly trainingRawBytes: Uint8Array;
+}
+
+export interface FloodgateV7PortableCopyHeldRoleBundleHooksForTests {
+  readonly afterCompositePrecheck?: () => void | Promise<void>;
+  readonly afterRootOpen?: () => void | Promise<void>;
+  readonly afterFileOpen?: (
+    filename: FloodgateV7PortableCopyHeldRoleBundleFilename,
+    openedFiles: number,
+  ) => void | Promise<void>;
+  readonly beforeHandleClose?: (
+    kind: "file" | "root",
+    filename: FloodgateV7PortableCopyHeldRoleBundleFilename | null,
+  ) => void | Promise<void>;
 }
 
 export interface FloodgateV7PortableCopyWitnessResult {
@@ -370,8 +425,52 @@ interface PortableCopyWitnessState {
 interface PortableCompositeSealState {
   readonly witnesses: readonly Readonly<PortableCopyWitnessState>[];
   readonly parents: readonly Readonly<ParentDirectorySnapshot>[];
+  activeHeldRoleBundleClaim?: object;
   inUse: boolean;
   invalidated: boolean;
+}
+
+interface CapturedHeldRoleBundleHooks {
+  readonly afterCompositePrecheck?: () => void | Promise<void>;
+  readonly afterRootOpen?: () => void | Promise<void>;
+  readonly afterFileOpen?: (
+    filename: FloodgateV7PortableCopyHeldRoleBundleFilename,
+    openedFiles: number,
+  ) => void | Promise<void>;
+  readonly beforeHandleClose?: (
+    kind: "file" | "root",
+    filename: FloodgateV7PortableCopyHeldRoleBundleFilename | null,
+  ) => void | Promise<void>;
+}
+
+interface OpenedHeldRoleBundleFile {
+  readonly close: () => Promise<void>;
+  readonly filename: FloodgateV7PortableCopyHeldRoleBundleFilename;
+  readonly identity: Readonly<InventoryFile>;
+  readonly read: (
+    buffer: Uint8Array,
+    offset: number,
+    length: number,
+    position: number,
+  ) => Promise<Readonly<{ bytesRead: number; buffer: Uint8Array }>>;
+  readonly stat: () => Promise<fs.BigIntStats>;
+  closeHookRun?: boolean;
+  closed?: boolean;
+  retainedBytes?: Buffer;
+}
+
+interface OpenedHeldRoleBundle {
+  readonly files: OpenedHeldRoleBundleFile[];
+  rootClose?: () => Promise<void>;
+  rootCloseHookRun?: boolean;
+  rootClosed?: boolean;
+  rootIdentity?: Readonly<StatIdentity>;
+  rootStat?: () => Promise<fs.BigIntStats>;
+}
+
+interface ActiveHeldRoleBundleClaimState {
+  readonly composite: PortableCompositeSealState;
+  readonly snapshot: Readonly<FloodgateV7PortableCopyHeldRoleBundleSnapshot>;
 }
 
 interface PortableRegistry {
@@ -379,6 +478,14 @@ interface PortableRegistry {
   readonly sealedSources: WeakMap<object, PortableSourceSealState>;
   readonly witnesses: WeakMap<object, PortableCopyWitnessState>;
   readonly compositeSeals: WeakMap<object, PortableCompositeSealState>;
+  readonly activeHeldRoleBundleClaims: WeakMap<
+    object,
+    Readonly<ActiveHeldRoleBundleClaimState>
+  >;
+  readonly issuedHeldRoleBundleClaims: WeakMap<
+    object,
+    PortableCompositeSealState
+  >;
   readonly issuedCompositeSeals: WeakSet<object>;
   readonly revokedCompositeSeals: WeakSet<object>;
 }
@@ -495,11 +602,18 @@ function captureDependencies(
     [beforeFinalRevalidation, 0],
     [closeCopiedFileHandle, 2],
   ] as const) {
+    const callbackDescriptors =
+      typeof callback === "function" && !nodeUtilTypes.isProxy(callback)
+        ? objectGetOwnPropertyDescriptors(callback)
+        : undefined;
+    const lengthDescriptor = callbackDescriptors?.length;
     if (
       callback !== undefined &&
       (typeof callback !== "function" ||
         nodeUtilTypes.isProxy(callback) ||
-        callback.length !== arity)
+        lengthDescriptor === undefined ||
+        !("value" in lengthDescriptor) ||
+        lengthDescriptor.value !== arity)
     ) {
       throw new Error("callback differs");
     }
@@ -1745,12 +1859,447 @@ function captureWitnessList(
   return Object.freeze(objects);
 }
 
+function zeroBytes(bytes: Uint8Array): void {
+  reflectApply(uint8ArrayFill, bytes, [0]);
+}
+
+function captureHeldRoleBundleHooks(
+  value: FloodgateV7PortableCopyHeldRoleBundleHooksForTests,
+): Readonly<CapturedHeldRoleBundleHooks> {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    isArray(value) ||
+    nodeUtilTypes.isProxy(value) ||
+    (objectGetPrototypeOf(value) !== objectPrototype &&
+      objectGetPrototypeOf(value) !== null)
+  ) {
+    throw new Error("held role-bundle hooks differ");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  const allowed = [
+    "afterCompositePrecheck",
+    "afterRootOpen",
+    "afterFileOpen",
+    "beforeHandleClose",
+  ] as const;
+  if (
+    someArrayItem(
+      keys,
+      (key) =>
+        typeof key !== "string" ||
+        !someArrayItem(allowed, (candidate) => candidate === key) ||
+        !("value" in descriptors[key]),
+    )
+  ) {
+    throw new Error("held role-bundle hook keys differ");
+  }
+  const valueOf = (key: (typeof allowed)[number]): unknown => {
+    const descriptor = descriptors[key];
+    return descriptor !== undefined && "value" in descriptor
+      ? descriptor.value
+      : undefined;
+  };
+  const afterCompositePrecheck = valueOf("afterCompositePrecheck");
+  const afterRootOpen = valueOf("afterRootOpen");
+  const afterFileOpen = valueOf("afterFileOpen");
+  const beforeHandleClose = valueOf("beforeHandleClose");
+  for (const [callback, arity] of [
+    [afterCompositePrecheck, 0],
+    [afterRootOpen, 0],
+    [afterFileOpen, 2],
+    [beforeHandleClose, 2],
+  ] as const) {
+    const callbackDescriptors =
+      typeof callback === "function" && !nodeUtilTypes.isProxy(callback)
+        ? objectGetOwnPropertyDescriptors(callback)
+        : undefined;
+    const lengthDescriptor = callbackDescriptors?.length;
+    if (
+      callback !== undefined &&
+      (typeof callback !== "function" ||
+        nodeUtilTypes.isProxy(callback) ||
+        lengthDescriptor === undefined ||
+        !("value" in lengthDescriptor) ||
+        lengthDescriptor.value !== arity)
+    ) {
+      throw new Error("held role-bundle hook differs");
+    }
+  }
+  return Object.freeze({
+    ...(afterCompositePrecheck === undefined
+      ? {}
+      : {
+          afterCompositePrecheck:
+            afterCompositePrecheck as () => void | Promise<void>,
+        }),
+    ...(afterRootOpen === undefined
+      ? {}
+      : {
+          afterRootOpen: afterRootOpen as () => void | Promise<void>,
+        }),
+    ...(afterFileOpen === undefined
+      ? {}
+      : {
+          afterFileOpen: afterFileOpen as (
+            filename: FloodgateV7PortableCopyHeldRoleBundleFilename,
+            openedFiles: number,
+          ) => void | Promise<void>,
+        }),
+    ...(beforeHandleClose === undefined
+      ? {}
+      : {
+          beforeHandleClose: beforeHandleClose as (
+            kind: "file" | "root",
+            filename: FloodgateV7PortableCopyHeldRoleBundleFilename | null,
+          ) => void | Promise<void>,
+        }),
+  });
+}
+
+function roleBundleWitness(
+  state: Readonly<PortableCompositeSealState>,
+): Readonly<PortableCopyWitnessState> {
+  let roleBundle: Readonly<PortableCopyWitnessState> | undefined;
+  for (const witness of state.witnesses) {
+    if (witness.kind === "role-bundle-tree") {
+      if (roleBundle !== undefined) {
+        throw new Error("held role-bundle witness differs");
+      }
+      roleBundle = witness;
+    }
+  }
+  if (
+    roleBundle === undefined ||
+    roleBundle.destinationInventory.type !== "tree"
+  ) {
+    throw new Error("held role-bundle witness absent");
+  }
+  const inventory = roleBundle.destinationInventory.value;
+  if (
+    inventory.directories.length !== 0 ||
+    inventory.directoryIdentities.length !== 0 ||
+    inventory.files.length !==
+      FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length
+  ) {
+    throw new Error("held role-bundle inventory shape differs");
+  }
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length;
+    index += 1
+  ) {
+    const filename = FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES[index];
+    const file = inventory.files[index];
+    if (
+      filename === undefined ||
+      file === undefined ||
+      file.relativePath !== filename ||
+      file.bytes < 0 ||
+      file.bytes !== Number(file.identity.size) ||
+      file.sha256.length !== 64 ||
+      file.sourceMode !== PRIVATE_FILE_MODE ||
+      file.destinationMode !== PRIVATE_FILE_MODE
+    ) {
+      throw new Error("held role-bundle inventory file differs");
+    }
+    if (
+      (filename === "manifest.json" &&
+        file.bytes >
+          FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_MANIFEST_MAX_BYTES) ||
+      (filename === "training.raw.jsonl" &&
+        file.bytes >
+          FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_TRAINING_RAW_MAX_BYTES)
+    ) {
+      throw new Error("held role-bundle retained file exceeds bound");
+    }
+  }
+  return roleBundle;
+}
+
+async function openHeldRoleBundle(
+  witness: Readonly<PortableCopyWitnessState>,
+  hooks: Readonly<CapturedHeldRoleBundleHooks>,
+  opened: OpenedHeldRoleBundle,
+): Promise<void> {
+  if (witness.destinationInventory.type !== "tree") {
+    throw new Error("held role-bundle inventory differs");
+  }
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
+  if (typeof noFollow !== "number" || typeof directory !== "number") {
+    throw new Error("held role-bundle open flags unavailable");
+  }
+  const rootHandle = await fs.promises.open(
+    witness.destination,
+    fs.constants.O_RDONLY | directory | noFollow,
+  );
+  opened.rootClose = rootHandle.close.bind(rootHandle);
+  const rootStatMethod = rootHandle.stat.bind(rootHandle);
+  opened.rootStat = async () => rootStatMethod({ bigint: true });
+  opened.rootIdentity = witness.destinationInventory.value.rootIdentity;
+  const rootHeld = await opened.rootStat();
+  if (!sameStat(opened.rootIdentity, rootHeld)) {
+    throw new Error("held role-bundle root descriptor differs");
+  }
+  await hooks.afterRootOpen?.();
+  const rootNamed = await fs.promises.lstat(witness.destination, {
+    bigint: true,
+  });
+  if (
+    !sameStat(opened.rootIdentity, rootNamed) ||
+    (await fs.promises.realpath(witness.destination)) !== witness.destination
+  ) {
+    throw new Error("held role-bundle root name differs");
+  }
+
+  for (
+    let index = 0;
+    index < FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length;
+    index += 1
+  ) {
+    const filename = FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES[index];
+    const identity = witness.destinationInventory.value.files[index];
+    if (filename === undefined || identity === undefined) {
+      throw new Error("held role-bundle file binding differs");
+    }
+    const filePath = path.join(witness.destination, filename);
+    const handle = await fs.promises.open(
+      filePath,
+      fs.constants.O_RDONLY | noFollow,
+    );
+    const close = handle.close.bind(handle);
+    const readMethod = handle.read.bind(handle);
+    const statMethod = handle.stat.bind(handle);
+    const stat = async (): Promise<fs.BigIntStats> =>
+      statMethod({ bigint: true });
+    const read = async (
+      buffer: Uint8Array,
+      offset: number,
+      length: number,
+      position: number,
+    ): Promise<Readonly<{ bytesRead: number; buffer: Uint8Array }>> => {
+      const result = await readMethod(buffer, offset, length, position);
+      return Object.freeze({
+        bytesRead: result.bytesRead,
+        buffer: result.buffer,
+      });
+    };
+    const captured: OpenedHeldRoleBundleFile = {
+      close,
+      filename,
+      identity,
+      read,
+      stat,
+    };
+    pushArrayItem(opened.files, captured);
+    const held = await stat();
+    if (!sameStat(identity.identity, held)) {
+      throw new Error("held role-bundle file descriptor differs");
+    }
+    await hooks.afterFileOpen?.(filename, opened.files.length);
+    const named = await fs.promises.lstat(filePath, { bigint: true });
+    if (
+      !sameStat(identity.identity, named) ||
+      (await fs.promises.realpath(filePath)) !== filePath
+    ) {
+      throw new Error("held role-bundle file name differs");
+    }
+  }
+}
+
+async function readHeldRoleBundleFile(
+  opened: OpenedHeldRoleBundleFile,
+): Promise<void> {
+  const retain =
+    opened.filename === "manifest.json" ||
+    opened.filename === "training.raw.jsonl";
+  const retained = retain
+    ? Buffer.from(new NativeSharedArrayBuffer(opened.identity.bytes))
+    : undefined;
+  if (retained !== undefined) opened.retainedBytes = retained;
+  const chunk = Buffer.alloc(
+    Math.min(READ_CHUNK_BYTES, Math.max(1, opened.identity.bytes)),
+  );
+  const extra = Buffer.alloc(1);
+  const digest = createHash("sha256");
+  let offset = 0;
+  try {
+    while (offset < opened.identity.bytes) {
+      const wanted = Math.min(chunk.byteLength, opened.identity.bytes - offset);
+      const { bytesRead } = await opened.read(chunk, 0, wanted, offset);
+      if (bytesRead !== wanted) {
+        throw new Error("held role-bundle read shortened");
+      }
+      digest.update(chunk.subarray(0, bytesRead));
+      if (retained !== undefined) {
+        reflectApply(uint8ArraySet, retained, [
+          chunk.subarray(0, bytesRead),
+          offset,
+        ]);
+      }
+      offset += bytesRead;
+    }
+    const { bytesRead: extraBytes } = await opened.read(
+      extra,
+      0,
+      1,
+      opened.identity.bytes,
+    );
+    if (extraBytes !== 0 || digest.digest("hex") !== opened.identity.sha256) {
+      throw new Error("held role-bundle bytes differ");
+    }
+    if (!sameStat(opened.identity.identity, await opened.stat())) {
+      throw new Error("held role-bundle file changed while reading");
+    }
+  } catch (error) {
+    if (retained !== undefined) zeroBytes(retained);
+    throw error;
+  } finally {
+    zeroBytes(chunk);
+    zeroBytes(extra);
+  }
+}
+
+async function readHeldRoleBundle(opened: OpenedHeldRoleBundle): Promise<void> {
+  for (const file of opened.files) {
+    await readHeldRoleBundleFile(file);
+  }
+}
+
+function heldRoleBundleSnapshot(
+  opened: Readonly<OpenedHeldRoleBundle>,
+): Readonly<FloodgateV7PortableCopyHeldRoleBundleSnapshot> {
+  const files = Object.freeze(
+    mapArrayItems(opened.files, (file) =>
+      Object.freeze({
+        filename: file.filename,
+        bytes: file.identity.bytes,
+        sha256: file.identity.sha256,
+      }),
+    ),
+  );
+  let manifestBytes: Uint8Array | undefined;
+  let trainingRawBytes: Uint8Array | undefined;
+  for (const file of opened.files) {
+    if (file.filename === "manifest.json") {
+      manifestBytes = file.retainedBytes;
+    } else if (file.filename === "training.raw.jsonl") {
+      trainingRawBytes = file.retainedBytes;
+    }
+  }
+  if (
+    files.length !== FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length ||
+    manifestBytes === undefined ||
+    trainingRawBytes === undefined
+  ) {
+    throw new Error("held role-bundle snapshot differs");
+  }
+  return Object.freeze({ files, manifestBytes, trainingRawBytes });
+}
+
+async function revalidateHeldRoleBundleDescriptors(
+  opened: Readonly<OpenedHeldRoleBundle>,
+): Promise<void> {
+  if (
+    opened.rootIdentity === undefined ||
+    opened.rootStat === undefined ||
+    !sameStat(opened.rootIdentity, await opened.rootStat()) ||
+    opened.files.length !==
+      FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length
+  ) {
+    throw new Error("held role-bundle root changed");
+  }
+  for (const file of opened.files) {
+    if (!sameStat(file.identity.identity, await file.stat())) {
+      throw new Error("held role-bundle file changed");
+    }
+  }
+}
+
+function zeroHeldRoleBundle(opened: Readonly<OpenedHeldRoleBundle>): boolean {
+  let failed = false;
+  for (let index = 0; index < opened.files.length; index += 1) {
+    const retainedBytes = opened.files[index]?.retainedBytes;
+    if (retainedBytes !== undefined) {
+      try {
+        zeroBytes(retainedBytes);
+      } catch {
+        failed = true;
+      }
+    }
+  }
+  return failed;
+}
+
+async function closeHeldRoleBundle(
+  opened: OpenedHeldRoleBundle,
+  hooks: Readonly<CapturedHeldRoleBundleHooks>,
+): Promise<boolean> {
+  let failed = false;
+  for (let index = opened.files.length - 1; index >= 0; index -= 1) {
+    const file = opened.files[index];
+    if (file === undefined || file.closed === true) continue;
+    if (file.closeHookRun !== true) {
+      file.closeHookRun = true;
+      try {
+        await hooks.beforeHandleClose?.("file", file.filename);
+      } catch {
+        failed = true;
+      }
+    }
+    try {
+      await file.close();
+      file.closed = true;
+    } catch {
+      failed = true;
+    }
+  }
+  if (opened.rootClose !== undefined && opened.rootClosed !== true) {
+    if (opened.rootCloseHookRun !== true) {
+      opened.rootCloseHookRun = true;
+      try {
+        await hooks.beforeHandleClose?.("root", null);
+      } catch {
+        failed = true;
+      }
+    }
+    try {
+      await opened.rootClose();
+      opened.rootClosed = true;
+    } catch {
+      failed = true;
+    }
+  }
+  if (
+    everyArrayItem(opened.files, (file) => file.closed === true) &&
+    (opened.rootClose === undefined || opened.rootClosed === true)
+  ) {
+    opened.files.length = 0;
+    delete opened.rootClose;
+    delete opened.rootCloseHookRun;
+    delete opened.rootClosed;
+    delete opened.rootIdentity;
+    delete opened.rootStat;
+  }
+  return failed;
+}
+
 function createPortableRegistry(): PortableRegistry {
   return Object.freeze({
     presealedSources: new WeakMap<object, PortableSourcePresealState>(),
     sealedSources: new WeakMap<object, PortableSourceSealState>(),
     witnesses: new WeakMap<object, PortableCopyWitnessState>(),
     compositeSeals: new WeakMap<object, PortableCompositeSealState>(),
+    activeHeldRoleBundleClaims: new WeakMap<
+      object,
+      Readonly<ActiveHeldRoleBundleClaimState>
+    >(),
+    issuedHeldRoleBundleClaims: new WeakMap<
+      object,
+      PortableCompositeSealState
+    >(),
     issuedCompositeSeals: new WeakSet<object>(),
     revokedCompositeSeals: new WeakSet<object>(),
   });
@@ -2077,6 +2626,202 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       return result;
     } catch {
       if (state !== undefined) {
+        if (state.activeHeldRoleBundleClaim !== undefined) {
+          deleteWeakMapValue(
+            registry.activeHeldRoleBundleClaims,
+            state.activeHeldRoleBundleClaim,
+          );
+          state.activeHeldRoleBundleClaim = undefined;
+        }
+        state.invalidated = true;
+        state.inUse = false;
+      }
+      if (compositeObject !== undefined) {
+        deleteWeakMapValue(registry.compositeSeals, compositeObject);
+        if (weakSetContains(registry.issuedCompositeSeals, compositeObject)) {
+          addWeakSetValue(registry.revokedCompositeSeals, compositeObject);
+        }
+      }
+      throw new FloodgateV7PortableCopyWitnessError("borrow");
+    }
+  };
+
+  const claimHeldRoleBundle = (
+    argumentCount: number,
+    claimValue: FloodgateV7PortableCopyHeldRoleBundleClaim,
+  ): Readonly<FloodgateV7PortableCopyHeldRoleBundleSnapshot> => {
+    try {
+      if (
+        argumentCount !== 1 ||
+        (typeof claimValue !== "object" && typeof claimValue !== "function") ||
+        claimValue === null ||
+        nodeUtilTypes.isProxy(claimValue)
+      ) {
+        throw new Error("held role-bundle claim differs");
+      }
+      const claim = claimValue as object;
+      const issuedState = getWeakMapValue(
+        registry.issuedHeldRoleBundleClaims,
+        claim,
+      );
+      const active = getWeakMapValue(
+        registry.activeHeldRoleBundleClaims,
+        claim,
+      );
+      if (active === undefined) {
+        if (issuedState !== undefined) {
+          issuedState.invalidated = true;
+        }
+        throw new Error("held role-bundle claim unavailable");
+      }
+      deleteWeakMapValue(registry.activeHeldRoleBundleClaims, claim);
+      return active.snapshot;
+    } catch {
+      throw new FloodgateV7PortableCopyWitnessError("borrow");
+    }
+  };
+
+  const withHeldRoleBundle = async <Result>(
+    argumentCount: number,
+    compositeValue: FloodgateV7PortableCopyCompositeDestinationSeal,
+    operationValue: (
+      claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+    ) => Result | Promise<Result>,
+    hooksValue: FloodgateV7PortableCopyHeldRoleBundleHooksForTests,
+  ): Promise<Result> => {
+    let state: PortableCompositeSealState | undefined;
+    let compositeObject: object | undefined;
+    let claimObject: object | undefined;
+    const opened: OpenedHeldRoleBundle = { files: [] };
+    let hooks: Readonly<CapturedHeldRoleBundleHooks> = Object.freeze({});
+    try {
+      const operationDescriptors =
+        typeof operationValue === "function" &&
+        !nodeUtilTypes.isProxy(operationValue)
+          ? objectGetOwnPropertyDescriptors(operationValue)
+          : undefined;
+      const operationLength = operationDescriptors?.length;
+      if (
+        argumentCount !== 3 ||
+        (typeof compositeValue !== "object" &&
+          typeof compositeValue !== "function") ||
+        compositeValue === null ||
+        typeof operationValue !== "function" ||
+        nodeUtilTypes.isProxy(operationValue) ||
+        operationLength === undefined ||
+        !("value" in operationLength) ||
+        operationLength.value !== 1
+      ) {
+        throw new Error("held role-bundle borrow differs");
+      }
+      hooks = captureHeldRoleBundleHooks(hooksValue);
+      compositeObject = compositeValue as object;
+      state = getWeakMapValue(registry.compositeSeals, compositeObject);
+      if (state === undefined || state.invalidated || state.inUse) {
+        throw new Error("held role-bundle borrow unavailable");
+      }
+      state.inUse = true;
+
+      let primaryFailure: unknown;
+      let result: Result | undefined;
+      let resultAvailable = false;
+      try {
+        const roleBundle = roleBundleWitness(state);
+        await revalidateCompositeDestinationState(state);
+        if (state.invalidated) {
+          throw new Error("held role-bundle revoked before open");
+        }
+        await hooks.afterCompositePrecheck?.();
+        if (state.invalidated) {
+          throw new Error("held role-bundle revoked before descriptor open");
+        }
+        await openHeldRoleBundle(roleBundle, hooks, opened);
+        await readHeldRoleBundle(opened);
+        if (state.invalidated) {
+          throw new Error("held role-bundle revoked before callback");
+        }
+
+        const snapshot = heldRoleBundleSnapshot(opened);
+        const claim =
+          opaqueCapability<FloodgateV7PortableCopyHeldRoleBundleClaim>();
+        claimObject = claim as object;
+        state.activeHeldRoleBundleClaim = claimObject;
+        setWeakMapValue(
+          registry.activeHeldRoleBundleClaims,
+          claimObject,
+          Object.freeze({ composite: state, snapshot }),
+        );
+        setWeakMapValue(
+          registry.issuedHeldRoleBundleClaims,
+          claimObject,
+          state,
+        );
+        let claimed = false;
+        let callbackResult: Result | Promise<Result>;
+        try {
+          callbackResult = operationValue(claim);
+        } finally {
+          claimed = !deleteWeakMapValue(
+            registry.activeHeldRoleBundleClaims,
+            claimObject,
+          );
+          state.activeHeldRoleBundleClaim = undefined;
+        }
+        result = await callbackResult;
+        resultAvailable = true;
+        if (!claimed) {
+          throw new Error("held role-bundle claim not consumed synchronously");
+        }
+        if (state.invalidated) {
+          throw new Error("held role-bundle revoked during callback");
+        }
+        await revalidateHeldRoleBundleDescriptors(opened);
+        if (state.invalidated) {
+          throw new Error("held role-bundle revoked after callback");
+        }
+      } catch (error) {
+        primaryFailure = error;
+      }
+
+      if (claimObject !== undefined) {
+        deleteWeakMapValue(registry.activeHeldRoleBundleClaims, claimObject);
+        claimObject = undefined;
+      }
+      state.activeHeldRoleBundleClaim = undefined;
+      const zeroFailed = zeroHeldRoleBundle(opened);
+      const closeFailed = await closeHeldRoleBundle(opened, hooks);
+      if (
+        primaryFailure !== undefined ||
+        zeroFailed ||
+        closeFailed ||
+        !resultAvailable
+      ) {
+        throw new Error("held role-bundle borrow lifecycle failed");
+      }
+
+      if (state.invalidated) {
+        throw new Error("held role-bundle revoked before composite postflight");
+      }
+      await revalidateCompositeDestinationState(state);
+      if (state.invalidated) {
+        throw new Error("held role-bundle revoked after composite postflight");
+      }
+      state.inUse = false;
+      return result as Result;
+    } catch {
+      if (claimObject !== undefined) {
+        deleteWeakMapValue(registry.activeHeldRoleBundleClaims, claimObject);
+      }
+      zeroHeldRoleBundle(opened);
+      await closeHeldRoleBundle(opened, hooks).catch(() => false);
+      if (state !== undefined) {
+        if (state.activeHeldRoleBundleClaim !== undefined) {
+          deleteWeakMapValue(
+            registry.activeHeldRoleBundleClaims,
+            state.activeHeldRoleBundleClaim,
+          );
+          state.activeHeldRoleBundleClaim = undefined;
+        }
         state.invalidated = true;
         state.inUse = false;
       }
@@ -2112,6 +2857,13 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
       }
       const state = getWeakMapValue(registry.compositeSeals, compositeObject);
       if (state !== undefined) {
+        if (state.activeHeldRoleBundleClaim !== undefined) {
+          deleteWeakMapValue(
+            registry.activeHeldRoleBundleClaims,
+            state.activeHeldRoleBundleClaim,
+          );
+          state.activeHeldRoleBundleClaim = undefined;
+        }
         state.invalidated = true;
         deleteWeakMapValue(registry.compositeSeals, compositeObject);
       }
@@ -2127,6 +2879,8 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
     copy,
     composite,
     withRevalidation,
+    withHeldRoleBundle,
+    claimHeldRoleBundle,
     revoke,
   });
 }
@@ -2195,6 +2949,34 @@ export async function withFloodgateV7PortableCopyCompositeDestinationRevalidatio
   );
 }
 
+export function withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundle<
+  Result,
+>(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+  operation: (
+    claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+  ) => Result | Promise<Result>,
+): Promise<Result> {
+  if (arguments.length !== 2) {
+    return Promise.reject(new FloodgateV7PortableCopyWitnessError("borrow"));
+  }
+  return productionPortableCopyWitnessApi.withHeldRoleBundle(
+    3,
+    composite,
+    operation,
+    Object.freeze({}),
+  );
+}
+
+export function claimFloodgateV7PortableCopyHeldRoleBundleSnapshot(
+  claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+): Readonly<FloodgateV7PortableCopyHeldRoleBundleSnapshot> {
+  return productionPortableCopyWitnessApi.claimHeldRoleBundle(
+    arguments.length,
+    claim,
+  );
+}
+
 export function revokeFloodgateV7PortableCopyCompositeDestinationSeal(
   composite: FloodgateV7PortableCopyCompositeDestinationSeal,
 ): void {
@@ -2252,6 +3034,35 @@ export async function withFloodgateV7PortableCopyCompositeDestinationRevalidatio
     arguments.length,
     composite,
     operation,
+  );
+}
+
+export function withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests<
+  Result,
+>(
+  composite: FloodgateV7PortableCopyCompositeDestinationSeal,
+  operation: (
+    claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+  ) => Result | Promise<Result>,
+  hooks: FloodgateV7PortableCopyHeldRoleBundleHooksForTests = Object.freeze({}),
+): Promise<Result> {
+  if (arguments.length !== 2 && arguments.length !== 3) {
+    return Promise.reject(new FloodgateV7PortableCopyWitnessError("borrow"));
+  }
+  return testPortableCopyWitnessApi.withHeldRoleBundle(
+    3,
+    composite,
+    operation,
+    hooks,
+  );
+}
+
+export function claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+  claim: FloodgateV7PortableCopyHeldRoleBundleClaim,
+): Readonly<FloodgateV7PortableCopyHeldRoleBundleSnapshot> {
+  return testPortableCopyWitnessApi.claimHeldRoleBundle(
+    arguments.length,
+    claim,
   );
 }
 

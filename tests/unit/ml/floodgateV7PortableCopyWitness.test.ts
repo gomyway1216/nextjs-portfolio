@@ -7,8 +7,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FLOODGATE_V7_CLEAN_ROOM_COPY_CONTRACT,
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY,
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CONTRACT,
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES,
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_MANIFEST_MAX_BYTES,
+  FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_TRAINING_RAW_MAX_BYTES,
   FLOODGATE_V7_PORTABLE_COPY_WITNESS_CLAIM_BOUNDARY,
   FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT,
+  claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests,
   copyFloodgateV7PortableSourceByValueCoreForTests,
   presealFloodgateV7PortableCopySource,
   presealFloodgateV7PortableCopySourceCoreForTests,
@@ -19,6 +25,7 @@ import {
   sealFloodgateV7PortableCopySourceFilesystemCoreForTests,
   withFloodgateV7PortableCopyCompositeDestinationRevalidation,
   withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests,
+  withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests,
   type FloodgateV7PortableCopyCompositeDestinationSeal,
   type FloodgateV7PortableCopyKind,
   type FloodgateV7PortableCopyWitness,
@@ -89,6 +96,16 @@ async function fixture(overlap = false): Promise<Readonly<PortableFixture>> {
     "legacy-file": path.join(legacyDestinationParent, "legacy.txt"),
   });
   return Object.freeze({ root, sources, destinations });
+}
+
+async function heldRoleBundleFixture(): Promise<Readonly<PortableFixture>> {
+  const value = await fixture();
+  const roleBundle = value.sources["role-bundle-tree"];
+  await fs.promises.rm(path.join(roleBundle, "role-bundle-tree.txt"));
+  for (const filename of FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES) {
+    await privateFile(path.join(roleBundle, filename), `${filename}\n`);
+  }
+  return value;
 }
 
 async function resultsFor(
@@ -773,5 +790,324 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
         () => undefined,
       ),
     ).rejects.toMatchObject({ operation: "borrow" });
+  });
+
+  it("holds, claims, and zeroizes the exact nine-file role-bundle snapshot", async () => {
+    expect(FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CONTRACT).toBe(
+      "shogi-floodgate-v7-portable-copy-held-role-bundle-v1",
+    );
+    expect(
+      FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_CLAIM_BOUNDARY,
+    ).toContain(
+      "exact-nine-fixed-file-no-follow-open-fstat-read-sha256-explicit-eof",
+    );
+    const value = await heldRoleBundleFixture();
+    await privateFile(
+      path.join(
+        value.sources["role-bundle-tree"],
+        "replay-excluded-position-ids.txt",
+      ),
+      "",
+    );
+    const composite = await compositeFor(value);
+    let manifestBytes: Uint8Array | undefined;
+    let trainingRawBytes: Uint8Array | undefined;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        composite,
+        (claim) => {
+          const snapshot =
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            );
+          expect(Object.isFrozen(snapshot)).toBe(true);
+          expect(Object.isFrozen(snapshot.files)).toBe(true);
+          expect(snapshot.files.map((file) => file.filename)).toEqual(
+            FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES,
+          );
+          expect(snapshot.files.every((file) => Object.isFrozen(file))).toBe(
+            true,
+          );
+          expect(
+            snapshot.files.find(
+              (file) => file.filename === "replay-excluded-position-ids.txt",
+            ),
+          ).toMatchObject({
+            bytes: 0,
+            sha256:
+              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          });
+          expect(JSON.stringify(snapshot.files)).not.toContain(value.root);
+          expect(JSON.stringify(snapshot.files)).not.toContain('"dev"');
+          expect(JSON.stringify(snapshot.files)).not.toContain('"ino"');
+          expect(new TextDecoder().decode(snapshot.manifestBytes)).toBe(
+            "manifest.json\n",
+          );
+          expect(new TextDecoder().decode(snapshot.trainingRawBytes)).toBe(
+            "training.raw.jsonl\n",
+          );
+          expect(snapshot.manifestBytes.buffer).toBeInstanceOf(
+            SharedArrayBuffer,
+          );
+          expect(() =>
+            structuredClone(snapshot.manifestBytes, {
+              transfer: [snapshot.manifestBytes.buffer as ArrayBuffer],
+            }),
+          ).toThrow();
+          expect(new TextDecoder().decode(snapshot.manifestBytes)).toBe(
+            "manifest.json\n",
+          );
+          manifestBytes = snapshot.manifestBytes;
+          trainingRawBytes = snapshot.trainingRawBytes;
+          return "held";
+        },
+      ),
+    ).resolves.toBe("held");
+    expect(Array.from(manifestBytes ?? [])).toEqual(
+      new Array(manifestBytes?.byteLength ?? 0).fill(0),
+    );
+    expect(Array.from(trainingRawBytes ?? [])).toEqual(
+      new Array(trainingRawBytes?.byteLength ?? 0).fill(0),
+    );
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
+        composite,
+        () => "still-bound",
+      ),
+    ).resolves.toBe("still-bound");
+  });
+
+  it("rejects a non-nine-file bundle before callback and a fresh-inode pre-open swap", async () => {
+    expect(FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_MANIFEST_MAX_BYTES).toBe(
+      64 * 1024,
+    );
+    expect(
+      FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_TRAINING_RAW_MAX_BYTES,
+    ).toBe(64 * 1024 * 1024);
+    const malformed = await compositeFor(await fixture());
+    let malformedCalls = 0;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        malformed,
+        (_claim) => {
+          malformedCalls += 1;
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(malformedCalls).toBe(0);
+
+    const oversized = await heldRoleBundleFixture();
+    await fs.promises.writeFile(
+      path.join(oversized.sources["role-bundle-tree"], "manifest.json"),
+      Buffer.alloc(
+        FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_MANIFEST_MAX_BYTES + 1,
+      ),
+    );
+    const oversizedComposite = await compositeFor(oversized);
+    let oversizedCalls = 0;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        oversizedComposite,
+        (_claim) => {
+          oversizedCalls += 1;
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(oversizedCalls).toBe(0);
+
+    const value = await heldRoleBundleFixture();
+    const composite = await compositeFor(value);
+    const destination = value.destinations["role-bundle-tree"];
+    let callbackCalls = 0;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        composite,
+        (_claim) => {
+          callbackCalls += 1;
+        },
+        {
+          afterCompositePrecheck: async (): Promise<void> => {
+            await fs.promises.rename(destination, `${destination}-old`);
+            await privateDirectory(destination);
+            for (const filename of FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES) {
+              await privateFile(
+                path.join(destination, filename),
+                `${filename}\n`,
+              );
+            }
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(callbackCalls).toBe(0);
+  });
+
+  it("rejects post-root-open and partial-file-open path replacements after closing every opened handle", async () => {
+    const rootSwap = await heldRoleBundleFixture();
+    const rootComposite = await compositeFor(rootSwap);
+    const rootDestination = rootSwap.destinations["role-bundle-tree"];
+    let rootCallbackCalls = 0;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        rootComposite,
+        (_claim) => {
+          rootCallbackCalls += 1;
+        },
+        {
+          afterRootOpen: async (): Promise<void> => {
+            await fs.promises.rename(
+              rootDestination,
+              `${rootDestination}-after-open`,
+            );
+            await privateDirectory(rootDestination);
+            for (const filename of FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES) {
+              await privateFile(
+                path.join(rootDestination, filename),
+                `${filename}\n`,
+              );
+            }
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(rootCallbackCalls).toBe(0);
+
+    const fileSwap = await heldRoleBundleFixture();
+    const fileComposite = await compositeFor(fileSwap);
+    const fileDestination = fileSwap.destinations["role-bundle-tree"];
+    const closeCalls: string[] = [];
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        fileComposite,
+        (_claim) => undefined,
+        {
+          afterFileOpen: async (filename, openedFiles): Promise<void> => {
+            if (openedFiles !== 3) return;
+            const named = path.join(fileDestination, filename);
+            await fs.promises.rename(named, `${named}.after-open`);
+            await privateFile(named, `${filename}\n`);
+          },
+          beforeHandleClose: (kind, filename): void => {
+            closeCalls.push(`${kind}:${filename ?? "root"}`);
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(closeCalls).toHaveLength(4);
+    expect(closeCalls.at(-1)).toBe("root:root");
+  });
+
+  it("revokes replayed and late held claims and zeroizes failed callback views", async () => {
+    const replayComposite = await compositeFor(await heldRoleBundleFixture());
+    let replayManifest: Uint8Array | undefined;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        replayComposite,
+        (claim) => {
+          replayManifest =
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            ).manifestBytes;
+          expect(() =>
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            ),
+          ).toThrow();
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(Array.from(replayManifest ?? []).every((byte) => byte === 0)).toBe(
+      true,
+    );
+
+    const lateComposite = await compositeFor(await heldRoleBundleFixture());
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        lateComposite,
+        async (claim) => {
+          await Promise.resolve();
+          claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(claim);
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+  });
+
+  it("revalidates callback path replacement and drains every close hook once", async () => {
+    const changed = await heldRoleBundleFixture();
+    const changedComposite = await compositeFor(changed);
+    const changedFile = path.join(
+      changed.destinations["role-bundle-tree"],
+      "training.raw.jsonl",
+    );
+    let changedTraining: Uint8Array | undefined;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        changedComposite,
+        async (claim) => {
+          changedTraining =
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            ).trainingRawBytes;
+          await fs.promises.rename(changedFile, `${changedFile}.old`);
+          await privateFile(changedFile, "training.raw.jsonl\n");
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(Array.from(changedTraining ?? []).every((byte) => byte === 0)).toBe(
+      true,
+    );
+
+    const overwritten = await heldRoleBundleFixture();
+    const overwrittenComposite = await compositeFor(overwritten);
+    const overwrittenFile = path.join(
+      overwritten.destinations["role-bundle-tree"],
+      "training.raw.jsonl",
+    );
+    let overwrittenTraining: Uint8Array | undefined;
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        overwrittenComposite,
+        async (claim) => {
+          overwrittenTraining =
+            claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(
+              claim,
+            ).trainingRawBytes;
+          const replacement = Buffer.from(overwrittenTraining);
+          replacement[0] = replacement[0] === 0x74 ? 0x54 : 0x74;
+          await fs.promises.writeFile(overwrittenFile, replacement);
+          expect(replacement.byteLength).toBe(overwrittenTraining.byteLength);
+        },
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(
+      Array.from(overwrittenTraining ?? []).every((byte) => byte === 0),
+    ).toBe(true);
+
+    const closing = await compositeFor(await heldRoleBundleFixture());
+    const closeCalls: string[] = [];
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationHeldRoleBundleCoreForTests(
+        closing,
+        (claim) => {
+          claimFloodgateV7PortableCopyHeldRoleBundleSnapshotCoreForTests(claim);
+        },
+        {
+          beforeHandleClose: async (kind, filename): Promise<void> => {
+            closeCalls.push(`${kind}:${filename ?? "root"}`);
+            if (closeCalls.length === 1) {
+              throw new Error("test-only close hook failure");
+            }
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      contract: FLOODGATE_V7_PORTABLE_COPY_WITNESS_CONTRACT,
+      operation: "borrow",
+      sensitive_values_disclosed: false,
+    });
+    expect(closeCalls).toHaveLength(
+      FLOODGATE_V7_PORTABLE_COPY_HELD_ROLE_BUNDLE_FILES.length + 1,
+    );
+    expect(new Set(closeCalls).size).toBe(closeCalls.length);
   });
 });

@@ -53,6 +53,13 @@ function git(arguments_: readonly string[]): string {
   }).trim();
 }
 
+function gitRaw(arguments_: readonly string[]): Buffer {
+  return execFileSync("/usr/bin/git", ["--no-replace-objects", ...arguments_], {
+    cwd: repositoryRoot,
+    env: hermeticGitEnvironment,
+  });
+}
+
 function gitIsAncestor(ancestor: string, descendant: string): boolean {
   const result = spawnSync(
     "/usr/bin/git",
@@ -107,6 +114,18 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
           "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
         validated_head: "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
         validated_tree: "54aa3e7c5a65fbf19742cc04f16548af7f918884",
+      },
+      downstream_fresh_qat_integration: {
+        latest_main_revision_integrated:
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        integration_revision: "038f6d7bc251c91547949a717daa056f363089cc",
+        integration_tree: "030f3c6b8787082d9d679f1ca96f422705ce5806",
+        integration_parents: [
+          "586e4b810a6f13b6d49bd12823078456e01042c5",
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        ],
+        finalizer_implementation_paths_unchanged: true,
+        package_identity_refreshed: true,
       },
     });
     const implementation = record.implementation as {
@@ -167,6 +186,25 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       ]),
     ).toBe(implementation.integrated_origin_main_commit);
 
+    const downstream = record.downstream_fresh_qat_integration as {
+      latest_main_revision_integrated: string;
+      integration_revision: string;
+      integration_tree: string;
+      integration_parents: string[];
+    };
+    expect(
+      gitIsAncestor(downstream.latest_main_revision_integrated, "HEAD"),
+    ).toBe(true);
+    expect(gitIsAncestor(downstream.integration_revision, "HEAD")).toBe(true);
+    expect(
+      git(["show", "-s", "--format=%T", downstream.integration_revision]),
+    ).toBe(downstream.integration_tree);
+    expect(
+      git(["show", "-s", "--format=%P", downstream.integration_revision]).split(
+        " ",
+      ),
+    ).toEqual(downstream.integration_parents);
+
     const compatibility =
       record.required_teacher_runner_compatibility as Record<
         string,
@@ -203,12 +241,19 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "package.json",
     ]);
     for (const pin of pins) {
-      const bytes = raw(pin.path);
+      const bytes =
+        pin.path === "package.json"
+          ? gitRaw(["show", `${implementation.validated_head}:${pin.path}`])
+          : raw(pin.path);
       expect(bytes.byteLength, pin.path).toBe(pin.bytes);
       expect(createHash("sha256").update(bytes).digest("hex"), pin.path).toBe(
         pin.sha256,
       );
-      expect(git(["hash-object", "--", pin.path]), pin.path).toBe(pin.git_blob);
+      if (pin.path !== "package.json") {
+        expect(git(["hash-object", "--", pin.path]), pin.path).toBe(
+          pin.git_blob,
+        );
+      }
       expect(
         git(["rev-parse", `${implementation.validated_head}:${pin.path}`]),
         `${implementation.validated_head}:${pin.path}`,
@@ -217,6 +262,23 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       for (const marker of pin.required_markers) {
         expect(text, `${pin.path}: ${marker}`).toContain(marker);
       }
+    }
+
+    const downstream = record.downstream_fresh_qat_integration as {
+      current_package_manifest: PinnedFile;
+    };
+    const currentPackage = downstream.current_package_manifest;
+    const currentBytes = raw(currentPackage.path);
+    expect(currentBytes.byteLength).toBe(currentPackage.bytes);
+    expect(createHash("sha256").update(currentBytes).digest("hex")).toBe(
+      currentPackage.sha256,
+    );
+    expect(git(["hash-object", "--", currentPackage.path])).toBe(
+      currentPackage.git_blob,
+    );
+    const currentText = currentBytes.toString("utf8");
+    for (const marker of currentPackage.required_markers) {
+      expect(currentText, marker).toContain(marker);
     }
   });
 

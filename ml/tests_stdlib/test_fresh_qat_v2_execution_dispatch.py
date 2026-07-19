@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -362,6 +363,69 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                 / DISPATCH.FRESH_QAT_V2_READY_SUCCESSOR_RELATIVE_PATH
             ).exists()
         )
+
+    def test_default_reader_rejects_nonregular_and_unbounded_files_preopen(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO creation is unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            regular = root / "regular.bin"
+            regular.write_bytes(b"four")
+            symlink = root / "regular-link.bin"
+            symlink.symlink_to(regular)
+            fifo = root / "blocked.fifo"
+            os.mkfifo(fifo)
+
+            for label, candidate in (
+                ("symlink", symlink),
+                ("device", Path("/dev/null")),
+            ):
+                if not candidate.exists():
+                    continue
+                with self.subTest(label=label):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "regular non-symlink",
+                    ):
+                        DISPATCH._default_reader(str(candidate))
+
+            with mock.patch.object(DISPATCH.os, "open") as opener:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "regular non-symlink",
+                ):
+                    DISPATCH._default_reader(str(fifo))
+            opener.assert_not_called()
+
+            identity = {
+                "path": regular.name,
+                "bytes": 3,
+                "sha256": hashlib.sha256(b"fou").hexdigest(),
+            }
+            with mock.patch.object(DISPATCH.os, "open") as opener:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "byte length mismatch",
+                ):
+                    DISPATCH._read_bound_file(
+                        str(root),
+                        identity,
+                        "bounded fixture",
+                        DISPATCH._default_reader,
+                    )
+            opener.assert_not_called()
+
+            oversized = root / "oversized.bin"
+            oversized.write_bytes(
+                b"x" * (DISPATCH._DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES + 1)
+            )
+            with mock.patch.object(DISPATCH.os, "open") as opener:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "exceeds the maximum",
+                ):
+                    DISPATCH._default_reader(str(oversized))
+            opener.assert_not_called()
 
     def test_absent_successor_stops_before_artifact_or_runtime_reads(self):
         with tempfile.TemporaryDirectory() as directory:

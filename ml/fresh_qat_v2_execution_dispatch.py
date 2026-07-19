@@ -21,6 +21,7 @@ import json
 import math
 import os
 from pathlib import Path
+import stat
 from typing import Any
 
 import fresh_qat_parent_accounting_v2 as ACCOUNTING
@@ -88,6 +89,7 @@ FRESH_QAT_V2_SCHEMA_PAIR = {
 }
 
 _LOWER_SHA256 = frozenset("0123456789abcdef")
+_DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES = 1_048_576
 _ANCHOR_IDENTITY = {
     "path": FRESH_QAT_V2_ACTIVATION_ANCHOR_RELATIVE_PATH,
     "bytes": FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES,
@@ -487,8 +489,99 @@ def _require_identity(
     return identity
 
 
+def _read_regular_file(
+    path: str,
+    label: str,
+    *,
+    expected_bytes: int | None = None,
+    max_bytes: int | None = None,
+) -> bytes:
+    if (expected_bytes is None) == (max_bytes is None):
+        raise ValueError("fresh QAT v2 internal read bound mismatch")
+    limit = expected_bytes if expected_bytes is not None else max_bytes
+    if type(limit) is not int or limit < 1:
+        raise ValueError("fresh QAT v2 internal read limit mismatch")
+
+    before = os.lstat(path)
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"{label} must be a regular non-symlink file")
+    if expected_bytes is not None and before.st_size != expected_bytes:
+        raise ValueError(f"{label} byte length mismatch")
+    if before.st_size > limit:
+        raise ValueError(f"{label} exceeds the maximum byte length")
+
+    flags = os.O_RDONLY
+    for optional_flag in ("O_CLOEXEC", "O_NOFOLLOW", "O_NONBLOCK"):
+        flags |= getattr(os, optional_flag, 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or (opened.st_dev, opened.st_ino)
+            != (before.st_dev, before.st_ino)
+            or opened.st_size != before.st_size
+        ):
+            raise ValueError(f"{label} changed before bounded read")
+
+        chunks: list[bytes] = []
+        remaining = limit + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65_536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(descriptor)
+        if (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_size,
+            opened.st_mtime_ns,
+            opened.st_ctime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        ):
+            raise ValueError(f"{label} changed during bounded read")
+    finally:
+        os.close(descriptor)
+
+    if len(raw) > limit:
+        raise ValueError(f"{label} exceeds the maximum byte length")
+    if expected_bytes is not None and len(raw) != expected_bytes:
+        raise ValueError(f"{label} byte length mismatch")
+    return raw
+
+
 def _default_reader(path: str) -> bytes:
-    return Path(path).read_bytes()
+    return _read_regular_file(
+        path,
+        "fresh QAT v2 unbound protocol",
+        max_bytes=_DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES,
+    )
+
+
+def _read_with_reader(
+    reader: Callable[[str], bytes],
+    path: str,
+    label: str,
+    expected_bytes: int,
+) -> bytes:
+    if reader is _default_reader:
+        return _read_regular_file(
+            path,
+            label,
+            expected_bytes=expected_bytes,
+        )
+    raw = reader(path)
+    if type(raw) is not bytes:
+        raise ValueError(f"{label} reader did not return exact bytes")
+    return raw
 
 
 def _read_bound_file(
@@ -507,9 +600,12 @@ def _read_bound_file(
     ):
         raise ValueError(f"{label} path is not a fixed repository-relative path")
     absolute = os.path.join(root, relative)
-    raw = reader(absolute)
-    if type(raw) is not bytes:
-        raise ValueError(f"{label} reader did not return exact bytes")
+    raw = _read_with_reader(
+        reader,
+        absolute,
+        label,
+        identity["bytes"],
+    )
     if len(raw) != identity["bytes"]:
         raise ValueError(f"{label} byte length mismatch")
     if hashlib.sha256(raw).hexdigest() != identity["sha256"]:
@@ -1190,16 +1286,27 @@ def _validate_args_and_runtime(
     for field, path_value in input_paths.items():
         if type(path_value) is not str or not path_value:
             raise ValueError(f"fresh QAT v2 {field} path is required")
-        raw = artifact_reader(path_value)
-        if type(raw) is not bytes:
-            raise ValueError(f"fresh QAT v2 {field} reader differs")
         identity = plan["inputs"][field]
+        raw = _read_with_reader(
+            artifact_reader,
+            path_value,
+            f"fresh QAT v2 {field}",
+            identity["bytes"],
+        )
         if (
             len(raw) != identity["bytes"]
             or hashlib.sha256(raw).hexdigest() != identity["sha256"]
         ):
             raise ValueError(f"fresh QAT v2 {field} identity mismatch")
-        if artifact_reader(path_value) != raw:
+        if (
+            _read_with_reader(
+                artifact_reader,
+                path_value,
+                f"fresh QAT v2 {field}",
+                identity["bytes"],
+            )
+            != raw
+        ):
             raise ValueError(f"fresh QAT v2 {field} changed during verification")
         verified[field] = {
             "path": os.path.abspath(path_value),

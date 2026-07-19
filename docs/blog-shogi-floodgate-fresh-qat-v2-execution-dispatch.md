@@ -75,7 +75,7 @@ path変換も一度だけの不変境界にした。dispatcherは`os.fspath`をe
 
 `/tmp`から`/private/tmp`のようなrepository外のancestor symlink aliasは、同じcanonical repository rootを指す場合に限って許す。一方、repository rootより下はplan、output、model-training pathの全componentを検査し、中間componentまたは最終targetがsymlinkなら拒否する。壊れたcustom `PathLike`が`AttributeError`を出す場合も1回のcaptureで閉じる。
 
-productionのdefault readerはread前に`lstat`でregular non-symlink fileを要求する。`O_NOFOLLOW` / `O_NONBLOCK`でopenした後に`fstat`のdevice / inode / sizeを照合し、exact identityのbyte数に1 byteを加えた上限までしか読まない。identityがまだないsuccessorにも1 MiBの固定上限を置くため、FIFO、device、symlink、巨大fileでblockまたは無制限readへ進まない。
+productionのdefault readerはcanonical pathをrootからheld directory descriptorで辿り、final nameをheld parentに対する`follow_symlinks=false`の`stat`でregular non-symlink fileと確認する。同じparent fdから`O_NOFOLLOW` / `O_NONBLOCK`でopenした後に`fstat`のdevice / inode / sizeを照合し、exact identityのbyte数に1 byteを加えた上限までしか読まない。identityがまだないsuccessorにも1 MiBの固定上限を置くため、FIFO、device、symlink、巨大fileでblockまたは無制限readへ進まない。
 
 artifact schema resolverに追加した組み合わせも1つだけである。
 
@@ -129,7 +129,7 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 | infrastructure  | 今回の用途                  |
 | --------------- | --------------------------- |
-| ローカルMac CPU | verifierと176 stdlib tests  |
+| ローカルMac CPU | verifierと177 stdlib tests  |
 | AWS             | 使用なし                    |
 | Firebase / GCP  | 使用なし                    |
 | Vercel          | 使用なし                    |
@@ -141,7 +141,7 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、当初のremediation test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`である。stateful `PathLike`をsingle snapshotにするremediationは別commit `33d9b3139068fac69c44d368869006f5d5d919db`に固定した。履歴は書き換えていない。
 
-PR #513を含む最新`main` `00f255a62e01ea5a980ada987682c994e76dd1f9`は通常merge commit `038f6d7bc251c91547949a717daa056f363089cc`で統合した。Fresh-QAT実装pathはその統合で変わらず、teacher finalizerとFresh-QATの両方の実行入口を保持した。PR reviewのpath alias / symlink / malformed `PathLike`所見4件は`ade5554bdcc222183cd12183cbbfdb5301675c65`、blocking / unbounded default-reader所見1件は`6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`で修正した。さらにself-reviewで、事前`lstat`とabsolute `open`の間に中間directoryを差し替えるTOCTOUを検出したため、`91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7`でcanonical repository rootから全directory componentをheld `dirfd` + `O_DIRECTORY | O_NOFOLLOW`で辿り、final fileを同じparent fdから`O_NOFOLLOW | O_NONBLOCK`で開くようにした。raw OS errorはabsolute pathを含まないlabel-only `ValueError`へ正規化した。
+PR #513を含む最新`main` `00f255a62e01ea5a980ada987682c994e76dd1f9`は通常merge commit `038f6d7bc251c91547949a717daa056f363089cc`で統合した。Fresh-QAT実装pathはその統合で変わらず、teacher finalizerとFresh-QATの両方の実行入口を保持した。PR reviewのpath alias / symlink / malformed `PathLike`所見4件は`ade5554bdcc222183cd12183cbbfdb5301675c65`、blocking / unbounded default-reader所見1件は`6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb`で修正した。さらにself-reviewで、当時の事前`lstat`とabsolute `open`の間に中間directoryを差し替えるTOCTOUを検出したため、`91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7`でcanonical repository rootから全directory componentをheld `dirfd` + `O_DIRECTORY | O_NOFOLLOW`で辿り、final fileを同じparent fdから`O_NOFOLLOW | O_NONBLOCK`で開くようにした。raw OS errorはabsolute pathを含まないlabel-only `ValueError`へ正規化し、`0b10dff9a405778773e6dd3483ac6be6baf54475`で非表示の`__context__`原因連鎖にも元のpathが残らないようにした。
 
 - 新v2 dispatch + route test: 25 / 25 PASS、0.050秒
 - repository全stdlib suite: 177 / 177 PASS、11.978秒
@@ -153,7 +153,7 @@ PR #513を含む最新`main` `00f255a62e01ea5a980ada987682c994e76dd1f9`は通常
 - 初回independent review: P0 / P1 / P2 = 0 / 1 / 2
 - source-authentication remediation再review: P0 / P1 / P2 = 0 / 0 / 1。残ったstateful `PathLike`所見は`33d9b313`で実装・local validation済みで、最終independent rereviewはpending
 
-敵対ケースには、successor欠落、near / symlink path、v2を指す`Path` / `bytes` / `str` subclass、fallbackとv2の間で値を切り替えるstateful `PathLike`、中間directoryのrename→symlink差し替え、final fileのsymlink差し替え、raw OS errorのprivate absolute path非開示、wrong schema、v1/v2/WCSC36 hybrid、boolをintとして渡す型alias、F+E不一致、partial / full / all-forced宣言、proposal / train identity drift、input / completion / trainのexact-byte drift、未登録synthetic input / completion、自己申告upstream、replacement、slot drift、contract drift、authority escalation、duplicate key、`NaN`、既存registry driftを含めた。
+敵対ケースには、successor欠落、near / symlink path、v2を指す`Path` / `bytes` / `str` subclass、fallbackとv2の間で値を切り替えるstateful `PathLike`、中間directoryのrename→symlink差し替え、final fileのsymlink差し替え、raw OS errorのprivate absolute path非開示と`__context__`原因連鎖の除去、wrong schema、v1/v2/WCSC36 hybrid、boolをintとして渡す型alias、F+E不一致、partial / full / all-forced宣言、proposal / train identity drift、input / completion / trainのexact-byte drift、未登録synthetic input / completion、自己申告upstream、replacement、slot drift、contract drift、authority escalation、duplicate key、`NaN`、既存registry driftを含めた。
 
 machine-readable evidenceは[`floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json`](./data/floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json)にある。
 

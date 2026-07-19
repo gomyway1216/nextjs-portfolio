@@ -22,14 +22,15 @@
     "pull_request_path_remediation_commit": "ade5554bdcc222183cd12183cbbfdb5301675c65",
     "pull_request_regular_file_read_remediation_commit": "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
     "pull_request_root_bound_openat_remediation_commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
-    "test_commit": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
-    "test_commit_tree": "d7d742b50f9fdcf13153d92b88afa65a53c24274",
+    "pull_request_os_error_context_redaction_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
+    "test_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
+    "test_commit_tree": "f751505d3836eb561fd53f894d2cf1f1f3902191",
     "history_rewritten": false,
     "files": {
       "dispatcher": {
         "path": "ml/fresh_qat_v2_execution_dispatch.py",
-        "bytes": 59026,
-        "sha256": "b8a0ef66efa5965d2cf429fdc960863ea953fe46fde29828389a16d8e5017f0d"
+        "bytes": 59290,
+        "sha256": "b6a49dcab28612ec6425bd8cc8c7f2daabb03e860d5c524a58d0982e379f6fb1"
       },
       "route_registry": {
         "path": "ml/qat_plan_registry.py",
@@ -45,8 +46,8 @@
       },
       "stdlib_tests": {
         "path": "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
-        "bytes": 41070,
-        "sha256": "d0792fea4320bc6991f010224e3c6464ed7664d05ab0a6900daac5003b149023"
+        "bytes": 41250,
+        "sha256": "0f4ff4a587bfeb999fb7cab26388cf807179fedafc5460fab8cd9a2a3a69327d"
       },
       "route_stdlib_tests": {
         "path": "ml/tests_stdlib/test_qat_plan_registry.py",
@@ -196,10 +197,11 @@
       "in-repository-component-and-final-symlink-rejection",
       "default-reader-fifo-device-and-symlink-preopen-rejection",
       "default-reader-exact-size-and-unbound-size-cap",
-      "default-reader-lstat-open-fstat-identity-and-mutation-check",
+      "default-reader-held-parent-nofollow-stat-open-fstat-identity-and-mutation-check",
       "root-bound-held-directory-fd-intermediate-rename-to-symlink-rejection",
       "root-bound-final-file-swap-to-symlink-rejection",
       "root-bound-os-error-absolute-path-redaction",
+      "root-bound-os-error-context-chain-redaction",
       "wrong-successor-schema",
       "v1-plan-v2-route-hybrid",
       "v2-plan-wcsc36-contract-hybrid",
@@ -261,7 +263,8 @@
       "33d9b3139068fac69c44d368869006f5d5d919db",
       "ade5554bdcc222183cd12183cbbfdb5301675c65",
       "6b5577ab98709e824f0596ddcb7e2cb1fb6a5bfb",
-      "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7"
+      "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
+      "0b10dff9a405778773e6dd3483ac6be6baf54475"
     ],
     "post_source_authentication_remediation_rereview": {
       "result": "CHANGES_REQUIRED",
@@ -294,7 +297,8 @@
       "review_findings_addressed": 1,
       "fifo_device_and_symlink_rejected_before_open": true,
       "regular_file_open_uses_no_follow_and_nonblocking_flags": true,
-      "lstat_and_fstat_identity_bound": true,
+      "preopen_nofollow_stat_and_fstat_identity_bound": true,
+      "original_lstat_implementation_superseded_by": "91ae5c69591a38c7119f9d15a1c2a1e4fbf1c8d7",
       "exact_identity_reads_are_byte_bounded": true,
       "unbound_successor_read_has_fixed_maximum_bytes": 1048576,
       "focused_tests": "24/24-PASS",
@@ -309,6 +313,8 @@
       "preopen_and_opened_file_device_inode_and_size_bound": true,
       "bounded_read_and_postread_metadata_bound": true,
       "raw_os_errors_redacted_to_label_only_value_error": true,
+      "raw_os_error_context_chain_removed": true,
+      "os_error_context_redaction_commit": "0b10dff9a405778773e6dd3483ac6be6baf54475",
       "external_input_ancestor_alias_semantics_preserved": true,
       "intermediate_rename_to_symlink_test": "PASS",
       "final_file_swap_to_symlink_test": "PASS",

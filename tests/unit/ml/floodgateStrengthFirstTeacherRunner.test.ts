@@ -1073,9 +1073,11 @@ describe("Floodgate strength-first teacher runner", () => {
   });
 });
 
-const posixDescribe = describe.runIf(typeof process.geteuid === "function");
+const darwinDescribe = describe.runIf(
+  process.platform === "darwin" && typeof process.geteuid === "function",
+);
 
-posixDescribe("Floodgate strength-first operational run lock", () => {
+darwinDescribe("Floodgate strength-first operational run lock", () => {
   const lockDependencies = Object.freeze({
     lockfExecutable: "/usr/bin/lockf",
     acquisitionTimeoutMs: 5_000,

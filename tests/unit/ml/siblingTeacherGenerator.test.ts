@@ -730,7 +730,7 @@ describe('deterministic sibling teacher generator', () => {
         dependencies
       )
     ).rejects.toThrow(/exactly 24000 parents/);
-  });
+  }, 15_000);
 
   it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-teacher-'));

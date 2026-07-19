@@ -485,7 +485,7 @@ function assertTeacherAssetBindings(
     teacher.engine_bin_bytes !== assets.assets.engine.yaneuraou.bytes ||
     teacher.engine_bin_sha256 !== assets.assets.engine.yaneuraou.sha256 ||
     receiptFile?.bytes !== assets.assets.engine.receipt.bytes ||
-    receiptFile.sha256 !== assets.assets.engine.receipt.sha256 ||
+    receiptFile?.sha256 !== assets.assets.engine.receipt.sha256 ||
     teacher.eval_files.length !== 1 ||
     !evalNn ||
     evalNn.bytes !== assets.assets.eval.nn.bytes ||

@@ -204,13 +204,22 @@ parent scanは`opendir`で`maxEntries + 1`までprobeし、保持は`maxEntries`
 読まれたbyteのsemantic authenticityではない。後続compositionはdestinationをheld directory / file
 descriptorから読み、そのexact bytesをsource verifierのSHA-256 / record identityへbindする。
 
+PR #517 reviewでwitness一覧が変更可能な`Array.prototype.includes`へ依存していた点が見つかり、
+広い監査ではmodule読み込み後の`WeakMap` / `WeakSet` poisoningがprivate stateの偽capabilityへの
+代入やone-shot replayを許し得ることも確認した。commit `89de568e`は必要な`Array` / `String` /
+`WeakMap` / `WeakSet` / `Reflect` intrinsicをmodule初期化時に取得し、保護pathの実行時`Map` /
+`Set` instance-method依存を除去した。対象intrinsicの**module初期化後**の変更には回帰testを置いたが、
+初期化前から侵害されたrealmや任意のNode builtin prototype変更までは保証しない。commit
+`11b7c9e6`では本物のraw stateを観測後に偽witnessへ返す攻撃順序まで固定した。
+
 historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
 copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは
-portable 16 + existing copy 13 = 29 / 29 PASS。意味検証、teacher、学習、選抜、A/B、weight、
-live activation、AWS、Firebase / GCP、Vercel、networkの実行は0で、棋力向上の証拠ではない。
+portable 19 + existing copy 13 = 32 / 32 PASS。意味検証、teacher、学習、選抜、A/B、weight、
+live activation、AWS、Firebase / GCP、Vercel、基盤runtime networkの実行は0で、棋力向上の証拠ではない。
+GitHub PR / CIのnetworkはsource control / 検証だけで、評価関数の計算基盤ではない。
 failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は、通常merge
-`5fa4e179…`で統合済みで、portable implementation / testのbytesは不変、拡張回帰は
-7 files / 104 / 104 PASSである。
+`5fa4e179…`で統合済みで、その統合自体はportable implementation / testのbytesを変えていない。
+review hardening後の拡張回帰は7 files / 107 / 107 PASSである。
 詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
 [English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
 [machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。

@@ -114,6 +114,13 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
         latest_main_contains_failure_kind_intrinsic_hardening: true,
       },
       implementation: {
+        witness_list_review_hardening_commit:
+          "b7a3acb4f8fdbe04de77f0abb45ebb70c4800509",
+        collection_intrinsic_hardening_commit:
+          "89de568e56ca605e74e403b266ac26c254632464",
+        state_forgery_regression_hardening_commit:
+          "11b7c9e6831dd7607b08b80ee90373995ae337ac",
+        validated_source_revision: "11b7c9e6831dd7607b08b80ee90373995ae337ac",
         existing_public_copy_receipt_changed: false,
         existing_public_copy_acceptance_changed: false,
         existing_public_copy_error_shape_changed: false,
@@ -123,6 +130,33 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
         training_consumer_changed: false,
         teacher_runner_changed: false,
         local_runner_changed: false,
+        post_module_initialization_intrinsic_hardening: {
+          review_trigger:
+            "pull-request-517-copilot-thread-PRRT_kwDOQbO82s6SEtlH",
+          review_finding:
+            "captureWitnessList-depended-on-mutable-Array.prototype.includes",
+          broader_private_capability_risk:
+            "mutable-WeakMap-get-set-delete-could-substitute-genuine-private-state-for-a-fake-capability-or-defeat-one-shot-consumption",
+          captured_intrinsic_families: [
+            "Array",
+            "String",
+            "WeakMap",
+            "WeakSet",
+            "Reflect",
+          ],
+          captured_at_module_initialization: true,
+          captured_reflect_apply_used_for_calls: true,
+          map_and_set_runtime_instance_method_dependency_eliminated: true,
+          selected_dynamic_instance_call_scan_count: 0,
+          fake_private_state_substitution_rejected: true,
+          consumed_witness_replay_rejected: true,
+          overlapping_destinations_rejected_under_collection_poisoning: true,
+          destination_mutation_revalidation_fails_under_array_every_poisoning: true,
+          claim_scope:
+            "post-module-initialization-mutation-of-the-captured-Array-String-WeakMap-WeakSet-and-Reflect-intrinsics",
+          compromised_realm_before_module_initialization_claimed: false,
+          arbitrary_node_builtin_prototype_mutation_claimed: false,
+        },
       },
       filesystem_protocol: {
         fixed_kinds: [
@@ -194,6 +228,9 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       callback_and_parent_bound_hardening_commit: string;
       parent_bound_wording_commit: string;
       callback_namespace_nonclaim_commit: string;
+      witness_list_review_hardening_commit: string;
+      collection_intrinsic_hardening_commit: string;
+      state_forgery_regression_hardening_commit: string;
       validated_source_revision: string;
       files: Record<string, PinnedFile>;
     };
@@ -222,6 +259,9 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       implementation.callback_and_parent_bound_hardening_commit,
       implementation.parent_bound_wording_commit,
       implementation.callback_namespace_nonclaim_commit,
+      implementation.witness_list_review_hardening_commit,
+      implementation.collection_intrinsic_hardening_commit,
+      implementation.state_forgery_regression_hardening_commit,
       sourceBase.latest_origin_main_integrated,
       sourceBase.integration_commit,
     ]) {
@@ -229,8 +269,8 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     }
     expect(
       gitIsAncestor(
-        implementation.validated_source_revision,
         sourceBase.integration_commit,
+        implementation.validated_source_revision,
       ),
     ).toBe(true);
 
@@ -352,22 +392,23 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
     const record = evidence();
     expect(record.local_validation).toMatchObject({
       node: "v22.13.0",
-      portable_witness_tests: { passed: 16, failed: 0 },
+      portable_witness_tests: { passed: 19, failed: 0 },
       existing_copy_regression_tests: { passed: 13, failed: 0 },
-      combined: { passed: 29, failed: 0, wall_seconds: 1.42 },
+      combined: { passed: 32, failed: 0, wall_seconds: 1.51 },
       evidence_tests: { passed: 4, failed: 0 },
-      related_total: { passed: 33, failed: 0, wall_seconds: 1.19 },
+      related_total: { passed: 36, failed: 0, wall_seconds: 1.59 },
       expanded_runner_regression: {
         test_files: 7,
-        passed: 104,
+        passed: 107,
         failed: 0,
-        wall_seconds: 1.53,
+        wall_seconds: 1.81,
       },
       scoped_eslint: "PASS",
       prettier: "PASS",
       git_diff_check: "PASS",
       full_typescript: {
         status: "BASELINE_FAILURES_ONLY",
+        total_errors: 21,
         changed_file_errors: 0,
       },
     });
@@ -386,6 +427,7 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       match: 0,
     });
     expect(record.infrastructure).toEqual({
+      scope: "foundation-runtime-and-local-unit-validation",
       local_cpu_used_for_unit_validation: true,
       aws_required: false,
       aws_used: false,
@@ -393,9 +435,16 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       firebase_used: false,
       vercel_used: false,
       network_used: false,
+      github_source_control_and_ci_network_used_outside_foundation_scope: true,
+      source_control_and_ci_are_not_evaluator_compute: true,
     });
 
     const source = read("ml/floodgate-v7-clean-room-copy.ts");
+    const selectedDynamicInstanceCalls =
+      source.match(
+        /\.(?:includes|some|every|map|sort|push|reverse|split|startsWith|get|set|has|delete|add|entries)\s*\(/gmu,
+      ) ?? [];
+    expect(selectedDynamicInstanceCalls).toEqual([]);
     const imports = [...source.matchAll(/from "(.*?)";$/gmu)].map(
       (match) => match[1],
     );
@@ -425,15 +474,19 @@ describe("Floodgate v7 portable copy witness foundation evidence", () => {
       "1,089.52",
       "522.211",
       "maxEntries + 1",
-      "29 / 29",
-      "104 / 104",
+      "19 / 19",
+      "32 / 32",
+      "107 / 107",
       "#516",
       "0dd5469c",
       "5fa4e179",
+      "89de568e",
       "AWS",
       "dormant",
       "namespace exclusivity",
       "held",
+      "WeakMap",
+      "prototype",
     ]) {
       expect(japanese, marker).toContain(marker);
       expect(english, marker).toContain(marker);

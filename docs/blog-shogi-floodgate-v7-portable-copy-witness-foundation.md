@@ -85,6 +85,25 @@ APIは最初の`await`より前に`inUse`を立て、destination / parentのpre-
 
 独立reviewでは、通常functionのconfigurableな`length` getterがpre-revalidation前に実行できる問題を検出した。修正後は`length`を通常readせず、own property descriptorがdata descriptorかだけをgetter非実行で確認する。fake compositeとvalid compositeの両方でgetter call count 0を回帰テストした。
 
+PR #517のCopilot reviewはさらに、witness一覧の検査が変更可能な
+`Array.prototype.includes`を実行時に参照していたことを指摘した。これを単独で直すだけでは不十分だった。
+広い監査では、module読み込み後に`WeakMap.prototype.get` / `set` / `delete`を書き換えると、
+本物のprivate stateを偽capabilityへ代入したり、one-shot消費を無効化してreplayさせたりできることも
+確認した。
+
+commit `89de568e`は、必要な`Array` / `String` / `WeakMap` / `WeakSet`のmethodと
+`Reflect.apply`をmodule初期化時に取得し、その後は取得済みの`Reflect.apply`からだけ呼ぶ。
+保護対象のcopy / portable capability pathでは、`Map` / `Set`の変更可能なinstance methodへの
+実行時依存も、明示的なkind比較、短い配列のlinear scan、pairwise identity比較へ置き換えて除去した。
+選択したcollection / string methodのdynamic instance-call scanは0件である。
+
+module読み込み後にそれらのintrinsicを敵対的に変更するtestでも、fake state代入、消費済みwitnessの
+replay、destination overlapを拒否し、`Array.prototype.every`が常にtrueを返すよう変更されても
+destination byte mutationを検出した。commit `11b7c9e6`では、正規compositeの処理でraw private
+stateを観測できたと仮定した後、そのstateを偽witnessへ返す順序に回帰testを強めた。ただし保証するのは**module初期化後**に取得対象intrinsicが
+変更された場合である。module初期化前からrealmが侵害されている場合や、Node builtinを含む
+任意のprototype変更すべてに耐えるとは主張しない。
+
 さらにsynthetic private temp fixtureで境界を確認した。callback内でdestinationの共通ancestorを一時的にrenameし、同じabsolute pathへ異なるbyteのreplacementを作って読み、callback終了前に元を戻すと、post-revalidationは元のidentityを再確認してPASSする。実private dataは読んでいない。
 
 したがってAが主張するのはcallback**前後**のexact revalidationであり、callback実行中のabsolute-path namespace exclusivityや、callbackが読んだbyteのsemantic authenticityではない。これは隠れた安全保証として扱わない。後続Bはdestinationをheld directory / file descriptorから読み、そのexact bytesをsource verifierが認証したSHA-256とrecord identityへ一致させなければならない。
@@ -93,39 +112,40 @@ APIは最初の`await`より前に`inUse`を立て、destination / parentのpre-
 
 Node v22.13.0で次を確認した。
 
-- portable witness専用test: 16 / 16 PASS
+- portable witness専用test: 19 / 19 PASS
 - 既存copy regression: 13 / 13 PASS
-- 合計: 29 / 29 PASS、1.42秒
+- 合計: 32 / 32 PASS、1.51秒
 - evidence pin test: 4 / 4 PASS
-- 関連3 file合計: 33 / 33 PASS、1.19秒
-- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、104 / 104 PASS、1.53秒
+- 関連3 file合計: 36 / 36 PASS、1.59秒
+- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、107 / 107 PASS、1.81秒
 - scoped ESLint: PASS
 - Prettier: PASS
 - `git diff --check`: PASS
 - repository全体TypeScript: 既存baseline errorのみ、今回変更fileのerrorは0
 
-敵対ケースには、sourceのbyte変更、tree root / standalone fileのdelete-recreate同一byte、destinationのbyte変更、root inode swap同一byte、extra / missing entry、shared-parent sibling追加、fake / clone / replay、cross-kind、wrong / overlap destination、kind欠落 / 重複、production / test cross-token、callback `length` getter、thenable getter内のdestination変更、同期 / 非同期callback失敗、同時borrow、idle / active revokeを含めた。
+敵対ケースには、sourceのbyte変更、tree root / standalone fileのdelete-recreate同一byte、destinationのbyte変更、root inode swap同一byte、extra / missing entry、shared-parent sibling追加、fake / clone / replay、cross-kind、wrong / overlap destination、kind欠落 / 重複、production / test cross-token、callback `length` getter、`Array` / `Map` / `Set` / `String` / `WeakMap` / `WeakSet` / `Reflect`の読み込み後poisoning、thenable getter内のdestination変更、同期 / 非同期callback失敗、同時borrow、idle / active revokeを含めた。
 
 symlink、hardlink、mode、single-link、source / destination inode alias、copy descriptor close failureは既存copy regressionでも引き続き検証している。
 
-failure-kindのintrinsic hardeningを含むPR #516の最新`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。portable implementation / testのpathとbytesは変わっていない。READMEは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持している。履歴は書き換えていない。
+failure-kindのintrinsic hardeningを含むPR #516の最新`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。その統合自体はportable implementation / testのpathとbytesを変えず、その後のPR #517 review hardeningを別commitで積み上げた。READMEは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持している。履歴は書き換えていない。
 
 ## AWS、GCP、Vercelは使ったか
 
 使っていない。この基盤とunit validationはローカルfilesystem / CPUだけで完結した。
 
-| infrastructure                 | 今回の使用                     |
-| ------------------------------ | ------------------------------ |
-| ローカルMac CPU / filesystem   | unit testとhash / metadata検証 |
-| AWS                            | 0、不要                        |
-| Firebase Cloud Functions / GCP | 0                              |
-| Vercel                         | 0                              |
-| network                        | 0                              |
-| teacher process                | 0                              |
-| optimizer training             | 0                              |
-| live weight activation         | 0                              |
+| infrastructure                   | 今回の使用                     |
+| -------------------------------- | ------------------------------ |
+| ローカルMac CPU / filesystem     | unit testとhash / metadata検証 |
+| AWS                              | 0、不要                        |
+| Firebase Cloud Functions / GCP   | 0                              |
+| Vercel                           | 0                              |
+| 基盤runtime / unit testのnetwork | 0                              |
+| GitHub PR / CI network           | source control / 検証だけ      |
+| teacher process                  | 0                              |
+| optimizer training               | 0                              |
+| live weight activation           | 0                              |
 
-Firebase FunctionsがGCP、VercelがWeb deploymentを担当することとは別系統であり、今回の評価関数学習準備にAWSを導入する理由はない。
+Firebase FunctionsがGCP、VercelがWeb deploymentを担当することとは別系統であり、今回の評価関数学習準備にAWSを導入する理由はない。GitHubへのpushとCIは当然networkを使うが、評価関数の計算、teacher、学習の実行基盤ではない。
 
 ## まだ強くなった証拠ではない
 

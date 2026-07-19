@@ -25,7 +25,10 @@
     "callback_and_parent_bound_hardening_commit": "c0ec0b8093fd08e2741ed8647e983740e37c0a24",
     "parent_bound_wording_commit": "da311b3541588745d836624a07aa62ec3b0497f6",
     "callback_namespace_nonclaim_commit": "5eeb0164d07afe29a0eeaf071ddbe71a3cd49bdc",
-    "validated_source_revision": "5eeb0164d07afe29a0eeaf071ddbe71a3cd49bdc",
+    "witness_list_review_hardening_commit": "b7a3acb4f8fdbe04de77f0abb45ebb70c4800509",
+    "collection_intrinsic_hardening_commit": "89de568e56ca605e74e403b266ac26c254632464",
+    "state_forgery_regression_hardening_commit": "11b7c9e6831dd7607b08b80ee90373995ae337ac",
+    "validated_source_revision": "11b7c9e6831dd7607b08b80ee90373995ae337ac",
     "existing_public_copy_receipt_changed": false,
     "existing_public_copy_acceptance_changed": false,
     "existing_public_copy_error_shape_changed": false,
@@ -38,9 +41,9 @@
     "files": {
       "implementation": {
         "path": "ml/floodgate-v7-clean-room-copy.ts",
-        "bytes": 68554,
-        "sha256": "f850ea7f41e405dbef3fcb77ff3ed3f01a15d13f3b4756844f509a4f2d8832fb",
-        "git_blob": "ec402a0bf0678a5ffe4c9688b3feac39482aac43"
+        "bytes": 74180,
+        "sha256": "cc7858132060d4ce333fe8e87ee8d1f107103a91e1360f0bcfe6c7d6fb8dd379",
+        "git_blob": "60b8090d5243bf3d13ab3d290c0152bc4ff01fa3"
       },
       "existing_copy_regression": {
         "path": "tests/unit/ml/floodgateV7CleanRoomCopy.test.ts",
@@ -50,10 +53,33 @@
       },
       "portable_witness_tests": {
         "path": "tests/unit/ml/floodgateV7PortableCopyWitness.test.ts",
-        "bytes": 24441,
-        "sha256": "a49375af60f8abf9fb39c247fffac069d2e29dcf6be1fd50684ca86d9cdebab4",
-        "git_blob": "93cc5658298f25b7ae9c62594271129a9e0a6b37"
+        "bytes": 38937,
+        "sha256": "b38a8829c22f7b8e4973df108eef9b1cd85ac131156f800daad02c8cfb2f4f0a",
+        "git_blob": "1b54a88c7a81ee96c97a8c498b3fa947aa3089c0"
       }
+    },
+    "post_module_initialization_intrinsic_hardening": {
+      "review_trigger": "pull-request-517-copilot-thread-PRRT_kwDOQbO82s6SEtlH",
+      "review_finding": "captureWitnessList-depended-on-mutable-Array.prototype.includes",
+      "broader_private_capability_risk": "mutable-WeakMap-get-set-delete-could-substitute-genuine-private-state-for-a-fake-capability-or-defeat-one-shot-consumption",
+      "captured_intrinsic_families": [
+        "Array",
+        "String",
+        "WeakMap",
+        "WeakSet",
+        "Reflect"
+      ],
+      "captured_at_module_initialization": true,
+      "captured_reflect_apply_used_for_calls": true,
+      "map_and_set_runtime_instance_method_dependency_eliminated": true,
+      "selected_dynamic_instance_call_scan_count": 0,
+      "fake_private_state_substitution_rejected": true,
+      "consumed_witness_replay_rejected": true,
+      "overlapping_destinations_rejected_under_collection_poisoning": true,
+      "destination_mutation_revalidation_fails_under_array_every_poisoning": true,
+      "claim_scope": "post-module-initialization-mutation-of-the-captured-Array-String-WeakMap-WeakSet-and-Reflect-intrinsics",
+      "compromised_realm_before_module_initialization_claimed": false,
+      "arbitrary_node_builtin_prototype_mutation_claimed": false
     }
   },
   "filesystem_protocol": {
@@ -202,7 +228,7 @@
   "local_validation": {
     "node": "v22.13.0",
     "portable_witness_tests": {
-      "passed": 16,
+      "passed": 19,
       "failed": 0
     },
     "existing_copy_regression_tests": {
@@ -210,30 +236,31 @@
       "failed": 0
     },
     "combined": {
-      "passed": 29,
+      "passed": 32,
       "failed": 0,
-      "wall_seconds": 1.42
+      "wall_seconds": 1.51
     },
     "evidence_tests": {
       "passed": 4,
       "failed": 0
     },
     "related_total": {
-      "passed": 33,
+      "passed": 36,
       "failed": 0,
-      "wall_seconds": 1.19
+      "wall_seconds": 1.59
     },
     "expanded_runner_regression": {
       "test_files": 7,
-      "passed": 104,
+      "passed": 107,
       "failed": 0,
-      "wall_seconds": 1.53
+      "wall_seconds": 1.81
     },
     "scoped_eslint": "PASS",
     "prettier": "PASS",
     "git_diff_check": "PASS",
     "full_typescript": {
       "status": "BASELINE_FAILURES_ONLY",
+      "total_errors": 21,
       "changed_file_errors": 0
     },
     "covered_mutations_and_misuse": [
@@ -252,6 +279,11 @@
       "missing-or-duplicate-kind",
       "production-test-cross-registry",
       "callback-length-getter",
+      "witness-list-Array.prototype.includes-poisoning",
+      "WeakMap-private-state-substitution-and-delete-replay-poisoning",
+      "WeakSet-provenance-forging-poisoning",
+      "Array-Map-Set-and-String-collection-poisoning",
+      "destination-byte-revalidation-under-Array.prototype.every-poisoning",
       "thenable-getter-destination-mutation",
       "synchronous-and-asynchronous-callback-failure",
       "concurrent-borrow",
@@ -273,13 +305,16 @@
     "match": 0
   },
   "infrastructure": {
+    "scope": "foundation-runtime-and-local-unit-validation",
     "local_cpu_used_for_unit_validation": true,
     "aws_required": false,
     "aws_used": false,
     "gcp_cloud_function_used": false,
     "firebase_used": false,
     "vercel_used": false,
-    "network_used": false
+    "network_used": false,
+    "github_source_control_and_ci_network_used_outside_foundation_scope": true,
+    "source_control_and_ci_are_not_evaluator_compute": true
   },
   "next_safe_step": {
     "separate_pull_request_required": true,

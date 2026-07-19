@@ -85,6 +85,33 @@ Before its first `await`, the API marks the seal in use. It then serializes dest
 
 Independent review found that a configurable `length` getter on an ordinary function could execute before pre-revalidation. The fix no longer reads `length` normally. It inspects the own property descriptor and accepts only a data descriptor, without invoking a getter. Regression tests prove zero getter calls for both fake and valid composites.
 
+Copilot review on PR #517 then found that witness-list validation dynamically
+depended on mutable `Array.prototype.includes`. Fixing that single call would
+not have closed the class of issue. A broader audit showed that replacing
+`WeakMap.prototype.get`, `set`, or `delete` after module loading could
+substitute genuine private state for a fake capability or defeat one-shot
+consumption and enable replay.
+
+Commit `89de568e` captures the required `Array`, `String`, `WeakMap`, and
+`WeakSet` methods plus `Reflect.apply` during module initialization. Later
+calls go only through that captured `Reflect.apply`. The protected copy and
+portable-capability path also eliminates runtime dependence on mutable `Map`
+and `Set` instance methods in favor of explicit kind comparisons, linear scans
+over short arrays, and pairwise identity checks. The selected collection and
+string dynamic-instance-call scan is zero.
+
+Tests that poison those intrinsics after module loading still reject private
+state substitution, consumed-witness replay, and destination overlap. They
+also detect a destination-byte mutation even when
+`Array.prototype.every` is replaced with a function that always returns true.
+Commit `11b7c9e6` strengthens the regression order: after a genuine composite
+could have exposed raw private state, the poisoned getter returns that state
+for a replacement fake witness.
+The exact claim is resilience to mutation of the captured intrinsics **after
+module initialization**. It does not claim safety in a realm compromised
+before module initialization or against arbitrary prototype mutation,
+including every Node built-in prototype.
+
 A synthetic private temporary fixture also confirmed the boundary. Inside the callback, it temporarily renamed the destinations’ common ancestor, created and read different bytes at the same absolute path, and restored the original before returning. Post-revalidation then saw the restored original identity and passed. No real private data was read.
 
 A therefore claims exact revalidation **before and after** the callback. It does not claim absolute-path namespace exclusivity during the callback or semantic authenticity of bytes read by the callback. A future B composition must read destination inputs through held directory and file descriptors and bind those exact bytes to the SHA-256 and record identity authenticated by the source verifier.
@@ -93,39 +120,40 @@ A therefore claims exact revalidation **before and after** the callback. It does
 
 On Node v22.13.0:
 
-- portable-witness tests: 16 / 16 PASS;
+- portable-witness tests: 19 / 19 PASS;
 - existing copy regression: 13 / 13 PASS;
-- combined: 29 / 29 PASS in 1.42 seconds;
+- combined: 32 / 32 PASS in 1.51 seconds;
 - evidence-pin tests: 4 / 4 PASS;
-- all three related test files: 33 / 33 PASS in 1.19 seconds;
-- expanded copy-consumer runner/gate/finalizer regression: 7 files, 104 / 104 PASS in 1.53 seconds;
+- all three related test files: 36 / 36 PASS in 1.59 seconds;
+- expanded copy-consumer runner/gate/finalizer regression: 7 files, 107 / 107 PASS in 1.81 seconds;
 - scoped ESLint: PASS;
 - Prettier: PASS;
 - `git diff --check`: PASS;
 - repository-wide TypeScript: pre-existing baseline failures only, with zero errors in changed files.
 
-Adversarial coverage includes source-byte mutation, same-byte delete/recreate of a tree root and standalone file, destination-byte mutation, same-byte destination-root inode swap, extra and missing entries, shared-parent sibling addition, fake/clone/replay, cross-kind misuse, wrong and overlapping destinations, missing and duplicate kinds, production/test cross-token misuse, callback `length` getters, destination mutation from a thenable getter, synchronous and asynchronous callback failure, concurrent borrow, and idle/active revocation.
+Adversarial coverage includes source-byte mutation, same-byte delete/recreate of a tree root and standalone file, destination-byte mutation, same-byte destination-root inode swap, extra and missing entries, shared-parent sibling addition, fake/clone/replay, cross-kind misuse, wrong and overlapping destinations, missing and duplicate kinds, production/test cross-token misuse, callback `length` getters, post-load poisoning of `Array`, `Map`, `Set`, `String`, `WeakMap`, `WeakSet`, and `Reflect`, destination mutation from a thenable getter, synchronous and asynchronous callback failure, concurrent borrow, and idle/active revocation.
 
 Existing copy regression continues to cover symlinks, hard links, modes, single-link destinations, source/destination inode aliases, and copy-descriptor close failures.
 
-Latest `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening in PR #516, was integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. The portable implementation and test paths and bytes did not change. The README retains both the observed second-run verification STOP and the dormant foundation that addresses its cause. History was not rewritten.
+Latest `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening in PR #516, was integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. That integration itself did not change the portable implementation and test paths or bytes; the subsequent PR #517 review hardening was added in separate commits. The README retains both the observed second-run verification STOP and the dormant foundation that addresses its cause. History was not rewritten.
 
 ## Were AWS, GCP, or Vercel used?
 
 No. The foundation and unit validation use only the local filesystem and CPU.
 
-| Infrastructure                 | Use in this change                      |
-| ------------------------------ | --------------------------------------- |
-| local Mac CPU / filesystem     | unit tests and hash/metadata validation |
-| AWS                            | 0; not required                         |
-| Firebase Cloud Functions / GCP | 0                                       |
-| Vercel                         | 0                                       |
-| network                        | 0                                       |
-| teacher process                | 0                                       |
-| optimizer training             | 0                                       |
-| live-weight activation         | 0                                       |
+| Infrastructure                       | Use in this change                      |
+| ------------------------------------ | --------------------------------------- |
+| local Mac CPU / filesystem           | unit tests and hash/metadata validation |
+| AWS                                  | 0; not required                         |
+| Firebase Cloud Functions / GCP       | 0                                       |
+| Vercel                               | 0                                       |
+| foundation/runtime unit-test network | 0                                       |
+| GitHub PR/CI network                 | source control and validation only      |
+| teacher process                      | 0                                       |
+| optimizer training                   | 0                                       |
+| live-weight activation               | 0                                       |
 
-Firebase Functions running on GCP and Vercel serving web deployments are separate concerns. There is no reason to introduce AWS for this evaluator-preparation step.
+Firebase Functions running on GCP and Vercel serving web deployments are separate concerns. There is no reason to introduce AWS for this evaluator-preparation step. GitHub push and CI naturally use the network, but they are source-control and validation transport, not evaluator, teacher, or training compute.
 
 ## This is not strength evidence
 

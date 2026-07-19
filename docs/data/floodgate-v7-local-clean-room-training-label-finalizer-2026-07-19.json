@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-local-clean-room-training-label-finalizer-evidence-v1",
-  "status": "implementation-and-local-validation-pass-independent-rereview-pending-operational-stop",
+  "status": "implementation-local-validation-and-independent-rereview-pass-operational-stop",
   "recorded_date": "2026-07-19",
   "timezone": "America/Los_Angeles",
   "articles": {
@@ -34,18 +34,21 @@
     "evidence_verification_commit": "2d7f391824c0f520d168a64005361566a8edb73d",
     "integrated_origin_main_commit": "88afd052c00865b4e7fce4ed25d81a94febb1637",
     "integration_merge_commit": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
-    "validated_head": "4855f099a397f7cd5d71d827e12dd10780ae6a30",
-    "validated_tree": "581bc6510e4f8c7728eaee5128fb887d85707969",
-    "validation_scope": "authority-isolated-finalizer-integrated-with-pull-request-512-main-head-before-evidence-only-commit",
+    "readme_evidence_authority_commit": "71d1d05d9387f312942a86c3f897e01b5fc52dd4",
+    "bom_framing_hardening_commit": "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+    "validated_head": "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+    "validated_tree": "54aa3e7c5a65fbf19742cc04f16548af7f918884",
+    "validation_scope": "authority-isolated-finalizer-integrated-with-pull-request-512-main-head-and-post-review-bom-framing-hardening-before-evidence-only-commit",
     "files": {
       "finalizer": {
         "path": "ml/floodgate-v7-local-clean-room-training-label-finalizer.ts",
-        "bytes": 55596,
-        "sha256": "ed51d2a946fd1aa20f7d235b2e831a9e4728e9ddc815d9fb67664e04217c5889",
-        "git_blob": "ab80caf2634c95ddd6a6b05635da498763891a9d",
+        "bytes": 55782,
+        "sha256": "05bde95127508100b8e634112dc427c854b625b2078527254a5c09764dbeffc9",
+        "git_blob": "d8b2e2cd557a6b741167ad099913545b6c387e29",
         "required_markers": [
           "FLOODGATE_V7_LOCAL_CLEAN_ROOM_TRAINING_LABEL_FINALIZER_TEST_SCENARIOS",
           "fixed-in-memory-local-finalizer-test-scenario-not-production-authority",
+          "ignoreBOM: true",
           "mintOperationalFinalizerGrant()",
           "return executeOperationalFinalizer(mintOperationalFinalizerGrant(), handoff);"
         ]
@@ -62,10 +65,11 @@
       },
       "dynamic_tests": {
         "path": "tests/unit/ml/floodgateV7LocalCleanRoomTrainingLabelFinalizer.test.ts",
-        "bytes": 23118,
-        "sha256": "915f4730302d120e64007af3cf419405c61500ab71dd8d5a1a722c09e0059bda",
-        "git_blob": "f548f4f48e41b0fb70b332d4d487ff368dbe1a9e",
+        "bytes": 23191,
+        "sha256": "7213b15be49ab9aae3efe720e824e787cf28c2fe64f36241b2b04e3de3ffdaa6",
+        "git_blob": "2c6aaa1118b6c7e27675b7949f354b7506550250",
         "required_markers": [
+          "Buffer.from([0xef, 0xbb, 0xbf])",
           "rejects executable dependency injection before any production-shaped callback can run",
           "durably rejects the same authenticated handoff in a fresh process"
         ]
@@ -117,6 +121,7 @@
     "no_follow_open": true,
     "held_named_identity_revalidated": true,
     "canonical_single_line_utf8_json_required": true,
+    "leading_utf8_bom_allowed": false,
     "extra_fields_allowed": false,
     "duplicate_keys_allowed": false,
     "hmac": {
@@ -313,6 +318,18 @@
         "evidence-pins-were-not-hermetically-verified"
       ]
     },
+    "pull_request_513_independent_rereview_findings": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 2,
+      "issues": [
+        "readme-duplicated-stale-file-identities-and-test-counts",
+        "default-text-decoder-stripped-leading-utf8-bom-before-canonical-byte-comparison"
+      ],
+      "non_actionable_review": [
+        "utf8-bytewise-key-order-must-not-be-replaced-with-utf16-code-unit-order"
+      ]
+    },
     "remediation": {
       "durable_replay_claim": "IMPLEMENTED",
       "darwin_and_dedicated_entry_gate": "IMPLEMENTED",
@@ -320,10 +337,20 @@
       "executable_dependency_injection_test": "PASS",
       "evidence_pin_ci_verification": "IMPLEMENTED",
       "pull_request_512_regular_merge_integration": "IMPLEMENTED",
+      "readme_machine_evidence_authority": "IMPLEMENTED",
+      "leading_utf8_bom_rejection": "IMPLEMENTED",
+      "pull_request_513_review_threads_replied_and_resolved": 2,
       "prettier": "PASS"
     },
     "create_plan_throw_lease_disposition": "REVIEWED-CONSERVATIVE-MANUAL-RECONCILIATION-CORRECT",
-    "exact_post_remediation_independent_rereview": "PENDING"
+    "exact_post_remediation_independent_rereview": {
+      "commit": "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+      "tree": "54aa3e7c5a65fbf19742cc04f16548af7f918884",
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "result": "PASS"
+    }
   },
   "external_services": {
     "aws_api_or_sdk_used": false,
@@ -341,6 +368,8 @@
     "pull_request_draft": false,
     "base_branch": "main",
     "head_at_pull_request_creation": "0aba60d3bd36610fe01bd6446c125a2a855f16ee",
+    "latest_independently_reviewed_head": "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+    "review_threads_resolved": 2,
     "merged": false
   },
   "operational_state": {
@@ -370,5 +399,5 @@
     "stable_high_dan_strength_established": false,
     "repository_production_build_passed": false
   },
-  "next_required_action": "independently-rereview-pull-request-513-run-ci-and-regular-merge-before-any-real-local-teacher-or-finalizer-command"
+  "next_required_action": "run-ci-on-the-remediated-pull-request-513-head-and-regularly-merge-before-any-real-local-teacher-or-finalizer-command"
 }

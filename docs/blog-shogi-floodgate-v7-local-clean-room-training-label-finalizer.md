@@ -41,6 +41,8 @@ operational entryはprivate fileを開く前に、Darwin、非root current EUID�
 
 directoryはcurrent ownerの`0700`、fileはcurrent ownerのsingle-link `0600`を要求する。`O_NOFOLLOW`で開き、held descriptorとnamed pathのdevice / inode、size、mtime、ctimeを読み取り前後で照合する。path、key、MAC、run ID、row内容はpublic receiptへ出さない。
 
+PR reviewでは、既定のUTF-8 decoderが先頭BOMを除去するため、正しいMACを持つhandoffへBOMだけを前置した別byte列がcanonical照合を通る問題も見つかった。修正後はBOMをdecoderから隠さずexact byte照合へ残すため、valid MACでもBOM付きframingを拒否する。producerとfinalizerが共有するUTF-8 bytewise key orderは、UTF-16 code-unit orderとは一致しないため変更していない。
+
 ## 4. handoffのexact検証
 
 stage authorizationより前に、次をすべて検証する。
@@ -115,7 +117,9 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 | 新規source / testのTypeScript error  |              0 |
 | real fixed-path finalizer invocation |              0 |
 
-攻撃caseにはwrong MAC、wrong key、wrong binding digest、binding内容変更、wrong stage、prefix 100 / 500、unsealed work、wrong resume、wrong input role、completion reorder、cloud claim、extra / duplicate key、noncanonical JSON、途中mutation、別process replay、simulated Linux、実行可能dependency injection、consumer / plan / finalizer failureを含む。
+攻撃caseにはwrong MAC、wrong key、wrong binding digest、binding内容変更、wrong stage、prefix 100 / 500、unsealed work、wrong resume、wrong input role、completion reorder、cloud claim、extra / duplicate key、noncanonical JSON、valid MAC付き先頭UTF-8 BOM、途中mutation、別process replay、simulated Linux、実行可能dependency injection、consumer / plan / finalizer failureを含む。
+
+PR #513の独立再reviewでは、READMEに残った古いbyte / hash / test件数をmachine evidenceへのauthoritative参照へ置き換え、BOM alternate framingを拒否するP2修正を追加した。UTF-8 bytewise comparatorをJavaScriptの`<`へ変える提案は、U+E000とU+10000で順序が逆転しproducer / finalizerのcanonical HMAC contractを壊すため採用しなかった。修正後のexact source / testではP0 / P1 / P2が0 / 0 / 0である。
 
 証拠JSONは説明だけではなく、PR #512を含むintegrated implementation commitとtree、両parentとancestor関係、4つの実装fileのbytes / SHA-256 / Git blob、必須source marker、日英記事の境界説明、実operationが0であることをhermetic testで再計算する。これにより、実装を変更したのに古いhashや記事だけが残る状態はtest failureになる。証拠だけを追加するcommit自身は自己参照hashにできないため、pin対象は直前の最終実装commitに固定している。
 
@@ -125,6 +129,6 @@ plan composerはbegin前ならcallerがleaseを所有し、begin後ならscanner
 
 この変更で評価関数の強さは変わっていない。実教師process、24,000件work、final label publication、optimizer training、候補選抜、formal A/B、外部校正、live weight activationはすべて未実行である。
 
-PR #512を統合したこのbranchはready-for-reviewの[PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513)として公開済みだが、まだmergeしていない。次はPR #513の独立再reviewとCIを完了し、通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
+PR #512を統合したこのbranchはready-for-reviewの[PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513)として公開済みで、独立再reviewと2件のreview thread対応は完了したが、まだmergeしていない。次はremediation後の最新HEADでCIを完走し、通常mergeする。その後だけ、Macローカルclean-room教師runを100 → 500 → 24,000の順に実行し、sealed handoffをこの別commandでfinalizeする。完成datasetを検証してから3 seed再学習、候補選抜、formal A/B、外部校正へ進む。高段相当の安定棋力は、その対局証拠が揃うまで未証明のままである。
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

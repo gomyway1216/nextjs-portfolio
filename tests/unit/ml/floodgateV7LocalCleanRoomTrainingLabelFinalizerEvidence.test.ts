@@ -84,7 +84,7 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       schema:
         "shogi-floodgate-v7-local-clean-room-training-label-finalizer-evidence-v1",
       status:
-        "implementation-and-local-validation-pass-independent-rereview-pending-operational-stop",
+        "implementation-local-validation-and-independent-rereview-pass-operational-stop",
       source_base: {
         merge_base_with_origin_main: "88afd052c00865b4e7fce4ed25d81a94febb1637",
         origin_main_observed_at_recording:
@@ -101,8 +101,12 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
         integrated_origin_main_commit:
           "88afd052c00865b4e7fce4ed25d81a94febb1637",
         integration_merge_commit: "4855f099a397f7cd5d71d827e12dd10780ae6a30",
-        validated_head: "4855f099a397f7cd5d71d827e12dd10780ae6a30",
-        validated_tree: "581bc6510e4f8c7728eaee5128fb887d85707969",
+        readme_evidence_authority_commit:
+          "71d1d05d9387f312942a86c3f897e01b5fc52dd4",
+        bom_framing_hardening_commit:
+          "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+        validated_head: "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+        validated_tree: "54aa3e7c5a65fbf19742cc04f16548af7f918884",
       },
     });
     const implementation = record.implementation as {
@@ -114,6 +118,8 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       evidence_verification_commit: string;
       integrated_origin_main_commit: string;
       integration_merge_commit: string;
+      readme_evidence_authority_commit: string;
+      bom_framing_hardening_commit: string;
       validated_head: string;
       validated_tree: string;
     };
@@ -126,11 +132,13 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       implementation.evidence_verification_commit,
       implementation.integrated_origin_main_commit,
       implementation.integration_merge_commit,
+      implementation.readme_evidence_authority_commit,
+      implementation.bom_framing_hardening_commit,
     ]) {
       expect(gitIsAncestor(revision, "HEAD"), revision).toBe(true);
     }
     expect(implementation.validated_head).toBe(
-      implementation.integration_merge_commit,
+      implementation.bom_framing_hardening_commit,
     );
     expect(
       git(["show", "-s", "--format=%T", implementation.validated_head]),
@@ -139,6 +147,14 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       git(["show", "-s", "--format=%P", implementation.validated_head]).split(
         " ",
       ),
+    ).toEqual([implementation.readme_evidence_authority_commit]);
+    expect(
+      git([
+        "show",
+        "-s",
+        "--format=%P",
+        implementation.integration_merge_commit,
+      ]).split(" "),
     ).toEqual([
       implementation.evidence_verification_commit,
       implementation.integrated_origin_main_commit,
@@ -223,8 +239,27 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
         executable_dependency_injection_test: "PASS",
         evidence_pin_ci_verification: "IMPLEMENTED",
         pull_request_512_regular_merge_integration: "IMPLEMENTED",
+        readme_machine_evidence_authority: "IMPLEMENTED",
+        leading_utf8_bom_rejection: "IMPLEMENTED",
+        pull_request_513_review_threads_replied_and_resolved: 2,
       },
-      exact_post_remediation_independent_rereview: "PENDING",
+      pull_request_513_independent_rereview_findings: {
+        P0: 0,
+        P1: 0,
+        P2: 2,
+      },
+      exact_post_remediation_independent_rereview: {
+        commit: "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+        tree: "54aa3e7c5a65fbf19742cc04f16548af7f918884",
+        P0: 0,
+        P1: 0,
+        P2: 0,
+        result: "PASS",
+      },
+    });
+    expect(record.private_handoff).toMatchObject({
+      canonical_single_line_utf8_json_required: true,
+      leading_utf8_bom_allowed: false,
     });
     expect(record.local_validation).toMatchObject({
       related_suite: {
@@ -261,6 +296,9 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       pull_request_draft: false,
       base_branch: "main",
       head_at_pull_request_creation: "0aba60d3bd36610fe01bd6446c125a2a855f16ee",
+      latest_independently_reviewed_head:
+        "9470fb5ccba823e62e64d7f17a1bec48530bf5c7",
+      review_threads_resolved: 2,
       merged: false,
     });
     const operational = record.operational_state as Record<string, unknown>;
@@ -326,6 +364,8 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "PR #512",
       "PR #513",
       "4855f099",
+      "valid MAC付き先頭UTF-8 BOM",
+      "P0 / P1 / P2が0 / 0 / 0",
       path.basename(evidenceRelative),
     ]) {
       expect(japanese, marker).toContain(marker);
@@ -339,6 +379,8 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       "PR #512",
       "PR #513",
       "4855f099",
+      "leading UTF-8 BOM with a valid MAC",
+      "zero remaining P0, P1, or P2 findings",
       path.basename(evidenceRelative),
     ]) {
       expect(english, marker).toContain(marker);

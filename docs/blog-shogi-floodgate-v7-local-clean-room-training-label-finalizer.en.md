@@ -41,6 +41,8 @@ It then reads exactly two files from fixed private state:
 
 The directory must be current-owner `0700`; each file must be current-owner, single-link `0600`. Files are opened with `O_NOFOLLOW`, and the held descriptor is compared with the named path for device, inode, size, mtime, and ctime before and after reading. Public receipts disclose no private path, key, MAC, run ID, or row content.
 
+PR review also found that the default UTF-8 decoder removed a leading BOM, so an alternate byte sequence made by prepending only a BOM to a correctly MACed handoff could pass the canonical comparison. The fix keeps the BOM visible to the exact-byte comparison, so BOM-prefixed framing is rejected even with a valid MAC. The shared producer/finalizer UTF-8 bytewise key order was retained because it is not equivalent to UTF-16 code-unit order.
+
 ## 4. Exact handoff validation
 
 Before stage authorization, the finalizer requires all of the following:
@@ -116,7 +118,9 @@ The prerequisite teacher-preparation PR #512 was regularly merged into `origin/m
 | New source/test TypeScript errors         |              0 |
 | Real fixed-path finalizer invocations     |              0 |
 
-The adversarial cases include a wrong MAC, key, binding digest, binding content, stage, prefix 100 / 500, unsealed work, wrong resume point or input role, reordered completion, cloud claim, extra or duplicate keys, noncanonical JSON, mid-flight mutation, cross-process replay, simulated Linux, executable-dependency injection, and consumer / plan / finalizer failures.
+The adversarial cases include a wrong MAC, key, binding digest, binding content, stage, prefix 100 / 500, unsealed work, wrong resume point or input role, reordered completion, cloud claim, extra or duplicate keys, noncanonical JSON, a leading UTF-8 BOM with a valid MAC, mid-flight mutation, cross-process replay, simulated Linux, executable-dependency injection, and consumer / plan / finalizer failures.
+
+The independent PR #513 rereview replaced stale byte, hash, and test-count values in the README with an authoritative machine-evidence reference and added the P2 fix that rejects alternate BOM framing. A proposal to replace the UTF-8 bytewise comparator with JavaScript `<` was not adopted because U+E000 and U+10000 reverse order and would break the producer/finalizer canonical HMAC contract. The exact remediated source and tests have zero remaining P0, P1, or P2 findings.
 
 The evidence JSON is now executable evidence rather than prose alone. A hermetic test recomputes the integrated implementation commit and tree including PR #512, both merge parents and ancestry, bytes, SHA-256, and Git blobs for four implementation files, required source markers, the aligned Japanese and English boundary statements, and the zero operational state. A stale hash or article therefore fails the test when implementation changes. Because an evidence-only commit cannot pin its own hash without circularity, the pins deliberately identify the immediately preceding final implementation commit.
 
@@ -126,6 +130,6 @@ The default Turbopack build stopped before compilation because this worktree's `
 
 This change has not altered playing strength. Real teacher processes, the 24,000-parent work, final label publication, optimizer training, candidate selection, formal A/B, external calibration, and live-weight activation all remain unexecuted.
 
-This branch, with PR #512 integrated, is now published as ready-for-review [PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513), but it has not been merged. The next step is independent review, CI, and a regular merge of PR #513. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
+This branch, with PR #512 integrated, is published as ready-for-review [PR #513](https://github.com/gomyway1216/nextjs-portfolio/pull/513). Its independent rereview and both review-thread responses are complete, but it has not been merged. The next step is to complete CI on the remediated head and regularly merge PR #513. Only then should the Mac-local clean-room teacher run advance through 100 → 500 → 24,000 and hand the sealed result to this separate command. The resulting dataset must be verified before three-seed retraining, selection, formal A/B, and external calibration. Stable high-dan strength remains unproven until those match results exist.
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json](./data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)

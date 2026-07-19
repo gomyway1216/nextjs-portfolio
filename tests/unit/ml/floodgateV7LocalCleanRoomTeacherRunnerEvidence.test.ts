@@ -130,6 +130,18 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         continuous_integration: "PASS",
         continuous_integration_run: 29677392531,
         source_review_and_ci_ready_for_explicit_local_invocation: true,
+        finalizer_branch_latest_main_revision_integrated:
+          "88afd052c00865b4e7fce4ed25d81a94febb1637",
+        finalizer_branch_integration_revision:
+          "4855f099a397f7cd5d71d827e12dd10780ae6a30",
+        finalizer_branch_integration_tree:
+          "581bc6510e4f8c7728eaee5128fb887d85707969",
+        finalizer_branch_integration_parents: [
+          "2d7f391824c0f520d168a64005361566a8edb73d",
+          "88afd052c00865b4e7fce4ed25d81a94febb1637",
+        ],
+        finalizer_package_identity_refreshed_after_integration: true,
+        real_teacher_invocation_during_finalizer_integration: false,
       },
     });
 
@@ -152,6 +164,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       deployment_key_compatibility_remediation_tree: string;
       ci_source_revision: string;
       ci_source_tree: string;
+      finalizer_branch_latest_main_revision_integrated: string;
+      finalizer_branch_integration_revision: string;
+      finalizer_branch_integration_tree: string;
+      finalizer_branch_integration_parents: string[];
     };
     for (const [commit, tree] of [
       [
@@ -177,6 +193,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.deployment_key_compatibility_remediation_tree,
       ],
       [revision.ci_source_revision, revision.ci_source_tree],
+      [
+        revision.finalizer_branch_integration_revision,
+        revision.finalizer_branch_integration_tree,
+      ],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
       expect(
@@ -202,6 +222,31 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.integration_revision,
       ]),
     ).toBe(revision.integration_parents.join(" "));
+    expect(
+      gitIsAncestor(
+        revision.finalizer_branch_latest_main_revision_integrated,
+        revision.finalizer_branch_integration_revision,
+      ),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.finalizer_branch_integration_revision,
+      ]),
+    ).toBe(revision.finalizer_branch_integration_parents.join(" "));
+    expect(record.validation).toMatchObject({
+      finalizer_branch_integration_vitest: {
+        files: 21,
+        tests_passed: 199,
+        tests_failed: 0,
+        wall_duration_seconds: 141.35,
+        parallel_aggregate_test_seconds: 573.43,
+        result: "PASS",
+      },
+    });
   });
 
   it("pins each selected operational source and focused-test byte snapshot", () => {

@@ -178,7 +178,15 @@ function runPoisoningChild(
     {
       cwd: path.resolve(__dirname, "../../.."),
       encoding: "utf8",
-      env: { ...process.env, NODE_ENV: "test" },
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TMPDIR: process.env.TMPDIR,
+        LANG: "C",
+        LC_ALL: "C",
+        NODE_ENV: "test",
+        FORCE_COLOR: "0",
+      },
       timeout: 30_000,
     },
   );

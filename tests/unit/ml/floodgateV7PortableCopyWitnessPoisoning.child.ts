@@ -626,6 +626,14 @@ function modeFromArgument(value: string | undefined): PoisoningMode {
 }
 
 async function main(): Promise<void> {
+  assert(
+    process.env.NODE_OPTIONS === undefined,
+    "poisoning child must not inherit NODE_OPTIONS",
+  );
+  assert(
+    process.env.NODE_PATH === undefined,
+    "poisoning child must not inherit NODE_PATH",
+  );
   const mode = modeFromArgument(process.argv[2]);
   try {
     switch (mode) {

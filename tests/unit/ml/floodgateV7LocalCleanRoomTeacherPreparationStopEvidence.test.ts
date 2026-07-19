@@ -5,6 +5,7 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+const repositoryRoot = path.resolve(__dirname, "../../..");
 const evidenceRelative =
   "docs/data/floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json";
 const japaneseArticleRelative =
@@ -21,16 +22,16 @@ interface PinnedFile {
 }
 
 function read(relative: string): string {
-  return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
+  return fs.readFileSync(path.join(repositoryRoot, relative), "utf8");
 }
 
 function raw(relative: string): Buffer {
-  return fs.readFileSync(path.join(process.cwd(), relative));
+  return fs.readFileSync(path.join(repositoryRoot, relative));
 }
 
 function git(arguments_: readonly string[]): string {
   return execFileSync("/usr/bin/git", arguments_, {
-    cwd: process.cwd(),
+    cwd: repositoryRoot,
     encoding: "utf8",
     env: {
       PATH: "/usr/bin:/bin",
@@ -112,11 +113,14 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
         remediation_tree: "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa",
       }),
     );
-    execFileSync(
-      "/usr/bin/git",
-      ["merge-base", "--is-ancestor", revision.remediation_revision, "HEAD"],
-      { cwd: process.cwd(), stdio: "ignore" },
-    );
+    expect(
+      git([
+        "merge-base",
+        "--is-ancestor",
+        revision.remediation_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
     expect(
       git(["show", "-s", "--format=%T", revision.remediation_revision]),
     ).toBe(revision.remediation_tree);

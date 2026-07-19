@@ -48,6 +48,8 @@ CIにある `AWS witness adapter contract (source only)` は未使用の接続�
 
 関連する6 test filesは60/60 PASSした。これは診断能力の証拠であり、教師成功や強さの証拠ではない。
 
+その後、Fresh-QAT安全境界のPR #514を含むmain `9dc5755a…`を、この診断branchへ通常merge `74d825c1…`で統合した。failure-kind実装pathは不変で、Fresh-QAT実装pathもmerged mainと一致し、package / evidence pinを保持した。統合中の教師起動、学習、live weight変更は0である。
+
 ## 7. 次の安全な修正
 
 historical inode検査を単純に削るのは安全ではない。次のportable transitionを追加する。

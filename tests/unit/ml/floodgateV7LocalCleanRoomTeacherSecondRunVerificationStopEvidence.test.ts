@@ -86,6 +86,92 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
     ).toBe(diagnostic.implementation_tree);
   });
 
+  it("pins the regular Fresh-QAT main integration without claiming execution", () => {
+    const record = evidence();
+    expect(record.latest_main_integration).toEqual({
+      method: "regular-merge-commit",
+      merged_pull_request: 514,
+      merged_pull_request_head_revision:
+        "cacfc80197236a89cda2feaec4d057788875442d",
+      merged_main_revision: "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+      failure_kind_branch_integration_revision:
+        "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+      failure_kind_branch_integration_tree:
+        "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+      failure_kind_branch_integration_parents: [
+        "49f7708c861f5189c096dcee2f5401bc6547183b",
+        "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+      ],
+      failure_kind_implementation_paths_unchanged: true,
+      fresh_qat_implementation_paths_match_merged_main: true,
+      package_and_evidence_pins_preserved: true,
+      real_teacher_invocation_during_integration: false,
+      training_runs_during_integration: 0,
+      live_weight_changes_during_integration: 0,
+    });
+    const integration = record.latest_main_integration as {
+      merged_main_revision: string;
+      failure_kind_branch_integration_revision: string;
+      failure_kind_branch_integration_tree: string;
+      failure_kind_branch_integration_parents: string[];
+    };
+    expect(gitIsAncestor(integration.merged_main_revision)).toBe(true);
+    expect(
+      gitIsAncestor(integration.failure_kind_branch_integration_revision),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%T",
+        integration.failure_kind_branch_integration_revision,
+      ]),
+    ).toBe(integration.failure_kind_branch_integration_tree);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        integration.failure_kind_branch_integration_revision,
+      ]),
+    ).toBe(integration.failure_kind_branch_integration_parents.join(" "));
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "diff",
+        "--name-only",
+        integration.failure_kind_branch_integration_parents[0],
+        integration.failure_kind_branch_integration_revision,
+        "--",
+        "ml/floodgate-v7-clean-room-teacher-runner.ts",
+        "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
+        "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
+        "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
+        "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
+      ]),
+    ).toBe("");
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "diff",
+        "--name-only",
+        integration.merged_main_revision,
+        integration.failure_kind_branch_integration_revision,
+        "--",
+        "ml/fresh_qat_v2_execution_dispatch.py",
+        "ml/qat_plan_registry.py",
+        "ml/protocols/floodgate-q1-2026-fresh-qat-v2-activation-anchor.json",
+        "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
+        "ml/tests_stdlib/test_qat_plan_registry.py",
+        "docs/data/floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json",
+        "docs/blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.md",
+        "docs/blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md",
+      ]),
+    ).toBe("");
+  });
+
   it("proves materialization completion and exact copy totals", () => {
     const record = evidence();
     expect(record.phase_proof).toMatchObject({
@@ -203,6 +289,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "AWSは不要・未使用",
       "portable transition",
       "live weightは引き続き変更しない",
+      "9dc5755a…",
+      "74d825c1…",
     ]) {
       expect(japanese).toContain(marker);
     }
@@ -215,6 +303,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "AWS was not required or used",
       "portable transition",
       "Live weights remain unchanged",
+      "9dc5755a…",
+      "74d825c1…",
     ]) {
       expect(english).toContain(marker);
     }

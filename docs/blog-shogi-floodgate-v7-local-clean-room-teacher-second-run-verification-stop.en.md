@@ -48,6 +48,8 @@ The previous CLI exposed only the outer `phase=preparation`. Diagnostic commit `
 
 The related six test files pass 60/60 tests. This proves the diagnostic boundary, not teacher completion or playing strength.
 
+The branch then integrated main `9dc5755a…`, including Fresh-QAT safety PR #514, through regular merge `74d825c1…`. The failure-kind implementation paths remained unchanged, the Fresh-QAT implementation paths still match merged main, and the package/evidence pins remain valid. Teacher starts, training runs, and live-weight changes during integration were all zero.
+
 ## 7. The next safe remediation
 
 Simply deleting the historical inode check would weaken the evidence. The next change will add a portable transition:

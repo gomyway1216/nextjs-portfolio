@@ -55,7 +55,18 @@
       "00f255a62e01ea5a980ada987682c994e76dd1f9"
     ],
     "failure_kind_source_identity_refreshed_after_integration_and_format": true,
-    "real_teacher_invocation_during_failure_kind_integration": false
+    "real_teacher_invocation_during_failure_kind_integration": false,
+    "fresh_qat_branch_latest_main_revision_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+    "fresh_qat_branch_integration_revision": "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+    "fresh_qat_branch_integration_tree": "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+    "fresh_qat_branch_integration_parents": [
+      "49f7708c861f5189c096dcee2f5401bc6547183b",
+      "9dc5755a70382af544c0f89230e33b0aaae35f2f"
+    ],
+    "failure_kind_implementation_paths_unchanged_by_fresh_qat_integration": true,
+    "fresh_qat_implementation_paths_preserved_from_merged_main": true,
+    "package_and_evidence_pins_preserved_after_fresh_qat_integration": true,
+    "real_teacher_invocation_during_fresh_qat_integration": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",

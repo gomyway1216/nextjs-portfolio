@@ -135,6 +135,24 @@
       "tests_failed": 0
     }
   },
+  "latest_main_integration": {
+    "method": "regular-merge-commit",
+    "merged_pull_request": 514,
+    "merged_pull_request_head_revision": "cacfc80197236a89cda2feaec4d057788875442d",
+    "merged_main_revision": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+    "failure_kind_branch_integration_revision": "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+    "failure_kind_branch_integration_tree": "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+    "failure_kind_branch_integration_parents": [
+      "49f7708c861f5189c096dcee2f5401bc6547183b",
+      "9dc5755a70382af544c0f89230e33b0aaae35f2f"
+    ],
+    "failure_kind_implementation_paths_unchanged": true,
+    "fresh_qat_implementation_paths_match_merged_main": true,
+    "package_and_evidence_pins_preserved": true,
+    "real_teacher_invocation_during_integration": false,
+    "training_runs_during_integration": 0,
+    "live_weight_changes_during_integration": 0
+  },
   "portable_transition_next_gate": {
     "weaken_historical_inode_check": false,
     "verify_historical_closure_on_original_fixed_role_lock": true,

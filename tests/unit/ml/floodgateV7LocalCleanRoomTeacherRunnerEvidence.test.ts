@@ -154,6 +154,20 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         ],
         failure_kind_source_identity_refreshed_after_integration_and_format: true,
         real_teacher_invocation_during_failure_kind_integration: false,
+        fresh_qat_branch_latest_main_revision_integrated:
+          "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+        fresh_qat_branch_integration_revision:
+          "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+        fresh_qat_branch_integration_tree:
+          "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+        fresh_qat_branch_integration_parents: [
+          "49f7708c861f5189c096dcee2f5401bc6547183b",
+          "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+        ],
+        failure_kind_implementation_paths_unchanged_by_fresh_qat_integration: true,
+        fresh_qat_implementation_paths_preserved_from_merged_main: true,
+        package_and_evidence_pins_preserved_after_fresh_qat_integration: true,
+        real_teacher_invocation_during_fresh_qat_integration: false,
       },
     });
 
@@ -184,6 +198,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       failure_kind_branch_integration_revision: string;
       failure_kind_branch_integration_tree: string;
       failure_kind_branch_integration_parents: string[];
+      fresh_qat_branch_latest_main_revision_integrated: string;
+      fresh_qat_branch_integration_revision: string;
+      fresh_qat_branch_integration_tree: string;
+      fresh_qat_branch_integration_parents: string[];
     };
     for (const [commit, tree] of [
       [
@@ -216,6 +234,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       [
         revision.failure_kind_branch_integration_revision,
         revision.failure_kind_branch_integration_tree,
+      ],
+      [
+        revision.fresh_qat_branch_integration_revision,
+        revision.fresh_qat_branch_integration_tree,
       ],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
@@ -272,6 +294,21 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.failure_kind_branch_integration_revision,
       ]),
     ).toBe(revision.failure_kind_branch_integration_parents.join(" "));
+    expect(
+      gitIsAncestor(
+        revision.fresh_qat_branch_latest_main_revision_integrated,
+        revision.fresh_qat_branch_integration_revision,
+      ),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.fresh_qat_branch_integration_revision,
+      ]),
+    ).toBe(revision.fresh_qat_branch_integration_parents.join(" "));
     expect(record.validation).toMatchObject({
       finalizer_branch_integration_vitest: {
         files: 21,

@@ -207,6 +207,7 @@ function failureRecord(
       ? FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT
       : FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
     phase: typed?.phase ?? "capture",
+    failure_kind: typed?.failure_kind ?? "phase-level",
     clean_room_may_exist: typed?.clean_room_may_exist ?? false,
     checkpoint_may_exist: typed?.checkpoint_may_exist ?? false,
     retry_disposition:

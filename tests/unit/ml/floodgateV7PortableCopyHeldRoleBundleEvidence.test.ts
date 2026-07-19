@@ -18,6 +18,9 @@ const historicalEvidenceFixRevision =
   "fce2c9e44ce1610f09d102a78de47d92e84ff384";
 const lowLevelRevision = "7418a4f8262137e058eafd081eeae3d72dd01fca";
 const validatedRevision = "4aac34df6b65beeade12722fd116f6ce39a2105a";
+const reviewFixRevision = "177e4b88a2a7fc830269f5e38b8ff65498c9875c";
+const reviewFixParent = "cb2c67bb30b77871287f38e895dd55841b9a32eb";
+const reviewFixTree = "e0c233b77a92c704dfaf3f5cd9919fd6f98e7a44";
 const lowLevelContract = "shogi-floodgate-v7-portable-copy-held-role-bundle-v1";
 const lowLevelClaimBoundary =
   "private-inventory-bound-held-root-and-exact-nine-fixed-file-no-follow-open-fstat-read-sha256-explicit-eof-synchronous-single-use-path-fd-stat-identity-free-snapshot-claim-callback-settlement-post-fstat-buffer-zeroization-all-handle-close-and-composite-postflight-not-callback-time-namespace-exclusivity-source-semantic-authenticity-source-verifier-binding-teacher-label-training-gate-weight-live-activation-or-playing-strength-evidence";
@@ -66,6 +69,20 @@ const implementationFiles = [
     bytes: 25719,
     sha256: "fb87bd1229c0e9c4ad1c134fc03bb8ad19eeaecebf2e440eef7cdafe1a544418",
     git_blob: "07f1f8d4fdc7597c4ca9625ed030007fde0158aa",
+  },
+] as const;
+const reviewFixFiles = [
+  {
+    path: "ml/floodgate-v7-clean-room-copy.ts",
+    bytes: 101810,
+    sha256: "ac9f6c17de6f984d19bbffa72b84370be4f5492b2847e591d5fa92ccd9ae64eb",
+    git_blob: "e9ac75cedab0a56c01031999eeddc45dc92b48d4",
+  },
+  {
+    path: "tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts",
+    bytes: 27799,
+    sha256: "591c853e58644a90081eb023d5354dcafdb8afb694afb6d436a75ce292ec9433",
+    git_blob: "c6af4d9471dd1641d33c07ccf85df93135e2d68f",
   },
 ] as const;
 const hermeticGitEnvironment: NodeJS.ProcessEnv = {
@@ -136,7 +153,7 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
     expect(record).toMatchObject({
       schema: "shogi-floodgate-v7-portable-copy-held-role-bundle-evidence-v1",
       status:
-        "dormant-final-safety-foundation-local-validation-and-rereview-pass-live-gates-closed-real-execution-zero",
+        "dormant-final-safety-foundation-review-fix-fixed-awaiting-thread-resolution-live-gates-closed-real-execution-zero",
       recorded_date: "2026-07-19",
       claim_boundary: lowLevelClaimBoundary,
       implementation: {
@@ -193,7 +210,7 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
     }
   });
 
-  it("binds the base, two implementation revisions, and five historical file identities", () => {
+  it("binds the validated base and additive review-fix historical identities", () => {
     const record = evidence();
     expect(record.source_base).toEqual({
       origin_main: baseRevision,
@@ -228,6 +245,37 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
       validated_revision_parent: lowLevelRevision,
       files: implementationFiles,
     });
+    expect(record.review_fix).toEqual({
+      status: "fixed-awaiting-thread-resolution",
+      revision: reviewFixRevision,
+      subject: "Handle short descriptor reads",
+      parent: reviewFixParent,
+      tree: reviewFixTree,
+      validated_base_revision: validatedRevision,
+      changed_files: reviewFixFiles,
+      review: {
+        provider: "gemini-code-assist",
+        severity: "medium",
+        finding_count: 1,
+        finding:
+          "legal-short-descriptor-read-was-rejected-before-requested-chunk-completion",
+        implementation_fixed: true,
+        regression_test_added: true,
+        unresolved_threads_at_recording: 1,
+        required_unresolved_threads_before_merge: 0,
+      },
+      behavior: {
+        positive_short_reads_accumulated: true,
+        zero_or_oversized_read_rejected: true,
+        sha256_explicit_eof_post_callback_fstat_preserved: true,
+      },
+      validation: {
+        node: "v22.13.0",
+        test_files: 7,
+        passed: 100,
+        failed: 0,
+      },
+    });
     expect(git(["show", "-s", "--format=%T", baseRevision])).toBe(
       "c63e290def82eb89e8c8f33bc2a9e46e0a23ce1e",
     );
@@ -254,6 +302,15 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
     );
     expect(git(["show", "-s", "--format=%P", validatedRevision])).toBe(
       lowLevelRevision,
+    );
+    expect(git(["show", "-s", "--format=%s", reviewFixRevision])).toBe(
+      "Handle short descriptor reads",
+    );
+    expect(git(["show", "-s", "--format=%P", reviewFixRevision])).toBe(
+      reviewFixParent,
+    );
+    expect(git(["show", "-s", "--format=%T", reviewFixRevision])).toBe(
+      reviewFixTree,
     );
     expect(
       git([
@@ -288,6 +345,19 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
         "tests/unit/ml/floodgateV7PortableCopyOwner.test.ts",
       ].sort(),
     );
+    expect(
+      git([
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        reviewFixRevision,
+      ])
+        .split("\n")
+        .sort(),
+    ).toEqual(reviewFixFiles.map((file) => file.path).sort());
+    expect(gitIsAncestor(validatedRevision, reviewFixRevision)).toBe(true);
+    expect(gitIsAncestor(reviewFixRevision, "HEAD")).toBe(true);
     expect(gitIsAncestor(validatedRevision, "HEAD")).toBe(true);
     for (const file of implementationFiles) {
       const committed = gitRaw(["show", `${validatedRevision}:${file.path}`]);
@@ -301,6 +371,32 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
         committed,
       );
     }
+    for (const file of reviewFixFiles) {
+      const committed = gitRaw(["show", `${reviewFixRevision}:${file.path}`]);
+      expect(committed.byteLength, file.path).toBe(file.bytes);
+      expect(sha256(committed), file.path).toBe(file.sha256);
+      expect(
+        git(["rev-parse", `${reviewFixRevision}:${file.path}`]),
+        file.path,
+      ).toBe(file.git_blob);
+      expect(gitRaw(["cat-file", "blob", file.git_blob]), file.path).toEqual(
+        committed,
+      );
+    }
+    expect(
+      gitRaw([
+        "show",
+        `${reviewFixRevision}:ml/floodgate-v7-clean-room-copy.ts`,
+      ]).toString("utf8"),
+    ).toContain("bytesRead <= 0 || bytesRead > remaining");
+    expect(
+      gitRaw([
+        "show",
+        `${reviewFixRevision}:tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts`,
+      ]).toString("utf8"),
+    ).toContain(
+      "continues positional reads until each requested chunk is complete",
+    );
   });
 
   it("pins the exact nine-file snapshot and fail-closed descriptor lifecycle", () => {
@@ -374,6 +470,9 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
     );
     expect(protocol.covered_mutations_and_misuse).toContain(
       "partial-open-and-injected-pre-close-failure",
+    );
+    expect(protocol.covered_mutations_and_misuse).toContain(
+      "legal-positive-short-read-completion",
     );
   });
 
@@ -486,8 +585,12 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
       "94 / 94",
       "37 / 37",
       "11 / 11",
+      "100 / 100",
       "4aac34df",
       "7418a4f8",
+      "177e4b88",
+      "fixed-awaiting-thread-resolution",
+      "short read",
       "P0 / P1 / P2 / P3",
       "AWS",
       "GCP",
@@ -531,6 +634,10 @@ describe("Floodgate v7 portable copy held role-bundle evidence", () => {
       "prefix-100",
       "1,597",
       "header",
+      "100 / 100",
+      "177e4b88",
+      "fixed-awaiting-thread-resolution",
+      "short read",
     ]) {
       expect(readme, marker).toContain(marker);
     }

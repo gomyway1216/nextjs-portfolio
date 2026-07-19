@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-v7-portable-copy-held-role-bundle-evidence-v1",
-  "status": "dormant-final-safety-foundation-local-validation-and-rereview-pass-live-gates-closed-real-execution-zero",
+  "status": "dormant-final-safety-foundation-review-fix-fixed-awaiting-thread-resolution-live-gates-closed-real-execution-zero",
   "recorded_date": "2026-07-19",
   "claim_boundary": "private-inventory-bound-held-root-and-exact-nine-fixed-file-no-follow-open-fstat-read-sha256-explicit-eof-synchronous-single-use-path-fd-stat-identity-free-snapshot-claim-callback-settlement-post-fstat-buffer-zeroization-all-handle-close-and-composite-postflight-not-callback-time-namespace-exclusivity-source-semantic-authenticity-source-verifier-binding-teacher-label-training-gate-weight-live-activation-or-playing-strength-evidence",
   "source_base": {
@@ -91,6 +91,49 @@
       "sensitive_values_disclosed": false
     }
   },
+  "review_fix": {
+    "status": "fixed-awaiting-thread-resolution",
+    "revision": "177e4b88a2a7fc830269f5e38b8ff65498c9875c",
+    "subject": "Handle short descriptor reads",
+    "parent": "cb2c67bb30b77871287f38e895dd55841b9a32eb",
+    "tree": "e0c233b77a92c704dfaf3f5cd9919fd6f98e7a44",
+    "validated_base_revision": "4aac34df6b65beeade12722fd116f6ce39a2105a",
+    "changed_files": [
+      {
+        "path": "ml/floodgate-v7-clean-room-copy.ts",
+        "bytes": 101810,
+        "sha256": "ac9f6c17de6f984d19bbffa72b84370be4f5492b2847e591d5fa92ccd9ae64eb",
+        "git_blob": "e9ac75cedab0a56c01031999eeddc45dc92b48d4"
+      },
+      {
+        "path": "tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts",
+        "bytes": 27799,
+        "sha256": "591c853e58644a90081eb023d5354dcafdb8afb694afb6d436a75ce292ec9433",
+        "git_blob": "c6af4d9471dd1641d33c07ccf85df93135e2d68f"
+      }
+    ],
+    "review": {
+      "provider": "gemini-code-assist",
+      "severity": "medium",
+      "finding_count": 1,
+      "finding": "legal-short-descriptor-read-was-rejected-before-requested-chunk-completion",
+      "implementation_fixed": true,
+      "regression_test_added": true,
+      "unresolved_threads_at_recording": 1,
+      "required_unresolved_threads_before_merge": 0
+    },
+    "behavior": {
+      "positive_short_reads_accumulated": true,
+      "zero_or_oversized_read_rejected": true,
+      "sha256_explicit_eof_post_callback_fstat_preserved": true
+    },
+    "validation": {
+      "node": "v22.13.0",
+      "test_files": 7,
+      "passed": 100,
+      "failed": 0
+    }
+  },
   "held_role_bundle_protocol": {
     "exact_inventory": {
       "root_only": true,
@@ -171,6 +214,7 @@
       "root-and-partial-file-path-replacement-after-open",
       "callback-same-size-rewrite-and-exact-restore",
       "callback-path-replacement",
+      "legal-positive-short-read-completion",
       "partial-open-and-injected-pre-close-failure",
       "all-real-file-handles-closed",
       "success-and-failure-buffer-zeroization"

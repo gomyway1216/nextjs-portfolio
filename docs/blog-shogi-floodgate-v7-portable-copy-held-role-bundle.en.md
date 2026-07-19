@@ -43,9 +43,11 @@ The known historical context is separate: prefix-100 was started once on 2026-07
 
 ## Measurements and identity pins
 
-On Node v22.13.0, the pre-evidence related regression passed 94 / 94 tests across six files in 3.21 seconds. The owner file passed 37 / 37 in 1.66 seconds, and the dedicated held test passed 11 / 11. The focused regression with evidence passed 99 / 99 tests across seven files. Independent review found P0 / P1 / P2 / P3 = 0 / 0 / 0 / 0.
+On Node v22.13.0, the pre-evidence related regression passed 94 / 94 tests across six files in 3.21 seconds. The owner file passed 37 / 37 in 1.66 seconds, and the dedicated held test passed 11 / 11. The focused regression with evidence passed 99 / 99 tests across seven files. Independent review of the validated base found P0 / P1 / P2 / P3 = 0 / 0 / 0 / 0.
 
-The low-level introduction revision is `7418a4f8262137e058eafd081eeae3d72dd01fca`; the validated revision including owner binding is `4aac34df6b65beeade12722fd116f6ce39a2105a`. Evidence pins historical bytes from that validated revision, never mutable HEAD.
+A later Gemini Code Assist medium finding identified that a legal short read from a normal file descriptor was rejected immediately. Review-fix revision `177e4b88a2a7fc830269f5e38b8ff65498c9875c` now accumulates positive positional reads until the requested chunk is complete and rejects only zero progress or a count beyond the request. It adds a regression test, and seven files passed 100 / 100 tests on Node v22.13.0. The implementation is fixed, but the GitHub thread remained unresolved at recording time, so its status is `fixed-awaiting-thread-resolution`; zero unresolved threads remains required before merge.
+
+The low-level introduction revision is `7418a4f8262137e058eafd081eeae3d72dd01fca`; the validated revision including owner binding is `4aac34df6b65beeade12722fd116f6ce39a2105a`. Evidence preserves the five historical file pins from that validated revision, never mutable HEAD, and adds the two review-fix files as a separate layer instead of overwriting the base.
 
 | File                                                          |   Bytes | SHA-256                                                            | Git blob                                   |
 | ------------------------------------------------------------- | ------: | ------------------------------------------------------------------ | ------------------------------------------ |
@@ -54,6 +56,11 @@ The low-level introduction revision is `7418a4f8262137e058eafd081eeae3d72dd01fca
 | `tests/unit/ml/floodgateV7PortableCopyWitness.test.ts`        |  38,656 | `8db59f7f3261f16f38ac498e215d8df7611a18c041ab30a3ca97634b563f5570` | `db6b2ca96760f4c979542dd607eb8e5280d409a8` |
 | `tests/unit/ml/floodgateV7PortableCopyOwner.test.ts`          |  47,856 | `de728a71209cc841a4691c14cd3a6b121c9d85c6959c0eae1edf7893d009a3f8` | `059767f9a9e15c1d93d229d38634b439076bf7d7` |
 | `tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts` |  25,719 | `fb87bd1229c0e9c4ad1c134fc03bb8ad19eeaecebf2e440eef7cdafe1a544418` | `07f1f8d4fdc7597c4ca9625ed030007fde0158aa` |
+
+| Review-fix file                                               |   Bytes | SHA-256                                                            | Git blob                                   |
+| ------------------------------------------------------------- | ------: | ------------------------------------------------------------------ | ------------------------------------------ |
+| `ml/floodgate-v7-clean-room-copy.ts`                          | 101,810 | `ac9f6c17de6f984d19bbffa72b84370be4f5492b2847e591d5fa92ccd9ae64eb` | `e9ac75cedab0a56c01031999eeddc45dc92b48d4` |
+| `tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts` |  27,799 | `591c853e58644a90081eb023d5354dcafdb8afb694afb6d436a75ce292ec9433` | `c6af4d9471dd1641d33c07ccf85df93135e2d68f` |
 
 Machine-readable evidence is in [`floodgate-v7-portable-copy-held-role-bundle-2026-07-19.json`](./data/floodgate-v7-portable-copy-held-role-bundle-2026-07-19.json).
 

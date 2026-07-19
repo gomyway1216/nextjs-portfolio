@@ -43,9 +43,11 @@ AWSは不要で使用0、Firebase Cloud Functions / GCPとVercel evaluator compu
 
 ## 実測とidentity pin
 
-Node v22.13.0で、evidence追加前の関連回帰は6 files / 94 / 94 PASS、wall 3.21秒だった。owner単体は37 / 37 PASS、1.66秒、held専用testは11 / 11 PASS。evidenceを含むfocused回帰は7 files / 99 / 99 PASS。独立reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0である。
+Node v22.13.0で、evidence追加前の関連回帰は6 files / 94 / 94 PASS、wall 3.21秒だった。owner単体は37 / 37 PASS、1.66秒、held専用testは11 / 11 PASS。evidenceを含むfocused回帰は7 files / 99 / 99 PASS。validated baseの独立reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0である。
 
-低層導入revisionは`7418a4f8262137e058eafd081eeae3d72dd01fca`、owner束縛を含むvalidated revisionは`4aac34df6b65beeade12722fd116f6ce39a2105a`。mutable HEADではなくvalidated revisionのhistorical bytesを固定する。
+その後、Gemini Code Assistのmedium 1件で、通常のfile descriptorが合法的なshort readを返した場合も即失敗していたことが見つかった。review-fix revision `177e4b88a2a7fc830269f5e38b8ff65498c9875c`は、正の部分readをrequested chunk完成まで位置付きで累積し、0 byteまたは要求超過だけを拒否する。回帰testも追加し、Node v22.13.0で7 files / 100 / 100 PASS。実装は修正済みだが、記録時点のGitHub threadは未解決1件なのでstatusは`fixed-awaiting-thread-resolution`であり、merge前の必要値は未解決0件である。
+
+低層導入revisionは`7418a4f8262137e058eafd081eeae3d72dd01fca`、owner束縛を含むvalidated revisionは`4aac34df6b65beeade12722fd116f6ce39a2105a`。mutable HEADではなくvalidated revisionのhistorical 5 filesを固定し、そのpinを上書きせずreview-fixの2 filesを別層で固定する。
 
 | file                                                          |   bytes | SHA-256                                                            | Git blob                                   |
 | ------------------------------------------------------------- | ------: | ------------------------------------------------------------------ | ------------------------------------------ |
@@ -54,6 +56,11 @@ Node v22.13.0で、evidence追加前の関連回帰は6 files / 94 / 94 PASS、w
 | `tests/unit/ml/floodgateV7PortableCopyWitness.test.ts`        |  38,656 | `8db59f7f3261f16f38ac498e215d8df7611a18c041ab30a3ca97634b563f5570` | `db6b2ca96760f4c979542dd607eb8e5280d409a8` |
 | `tests/unit/ml/floodgateV7PortableCopyOwner.test.ts`          |  47,856 | `de728a71209cc841a4691c14cd3a6b121c9d85c6959c0eae1edf7893d009a3f8` | `059767f9a9e15c1d93d229d38634b439076bf7d7` |
 | `tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts` |  25,719 | `fb87bd1229c0e9c4ad1c134fc03bb8ad19eeaecebf2e440eef7cdafe1a544418` | `07f1f8d4fdc7597c4ca9625ed030007fde0158aa` |
+
+| review-fix file                                               |   bytes | SHA-256                                                            | Git blob                                   |
+| ------------------------------------------------------------- | ------: | ------------------------------------------------------------------ | ------------------------------------------ |
+| `ml/floodgate-v7-clean-room-copy.ts`                          | 101,810 | `ac9f6c17de6f984d19bbffa72b84370be4f5492b2847e591d5fa92ccd9ae64eb` | `e9ac75cedab0a56c01031999eeddc45dc92b48d4` |
+| `tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts` |  27,799 | `591c853e58644a90081eb023d5354dcafdb8afb694afb6d436a75ce292ec9433` | `c6af4d9471dd1641d33c07ccf85df93135e2d68f` |
 
 machine-readable evidenceは[`floodgate-v7-portable-copy-held-role-bundle-2026-07-19.json`](./data/floodgate-v7-portable-copy-held-role-bundle-2026-07-19.json)にある。
 

@@ -336,6 +336,17 @@ validated revision `4aac34df6b65beeade12722fd116f6ce39a2105a`のhistorical 5 fil
 bytes / SHA-256 / Git blobで固定した。Node v22.13.0のevidence追加前回帰は
 6 files / 94 / 94 PASS（3.21秒）、ownerは37 / 37（1.66秒）、held専用は11 / 11、
 evidence込みは7 files / 99 / 99、reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0。
+その後のGemini Code Assist medium 1件は、合法的なshort readを即失敗させる点を指摘した。
+review-fix revision `177e4b88a2a7fc830269f5e38b8ff65498c9875c`で正の部分readを
+requested chunk完成まで累積し、回帰はNode v22.13.0で7 files / 100 / 100 PASS。
+validated baseのpinは保持し、review-fixの`ml/floodgate-v7-clean-room-copy.ts`を
+101,810 bytes / SHA-256 `ac9f6c17de6f984d19bbffa72b84370be4f5492b2847e591d5fa92ccd9ae64eb` /
+blob `e9ac75cedab0a56c01031999eeddc45dc92b48d4`、
+`tests/unit/ml/floodgateV7PortableCopyHeldRoleBundle.test.ts`を
+27,799 bytes / SHA-256 `591c853e58644a90081eb023d5354dcafdb8afb694afb6d436a75ce292ec9433` /
+blob `c6af4d9471dd1641d33c07ccf85df93135e2d68f`として別層で固定した。
+実装は修正済みだが記録時点のthreadは未解決1件のためstatusは
+`fixed-awaiting-thread-resolution`であり、merge前には未解決0件が必要である。
 これは100実ラベル前の最後の安全基盤であり、
 次の別gateはgeneric source verifier identityをheld snapshotへ結んだ最初の100実ラベルである。
 この変更自身はteacherやtrainingを実行せず、live weight変更も許可しない。詳細は

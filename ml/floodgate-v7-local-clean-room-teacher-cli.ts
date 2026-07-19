@@ -40,17 +40,76 @@ export interface FloodgateV7LocalCleanRoomTeacherCliIoForTests {
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
-  }
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(",")}}`;
+  const active = new WeakSet<object>();
+  const encode = (candidate: unknown): string => {
+    if (candidate === null) return "null";
+    if (typeof candidate === "string" || typeof candidate === "boolean") {
+      return JSON.stringify(candidate);
+    }
+    if (typeof candidate === "number") {
+      if (!Number.isFinite(candidate)) {
+        throw new Error("canonical JSON number differs");
+      }
+      return JSON.stringify(candidate);
+    }
+    if (typeof candidate !== "object" || nodeUtilTypes.isProxy(candidate)) {
+      throw new Error("canonical JSON value differs");
+    }
+    if (active.has(candidate)) {
+      throw new Error("canonical JSON cycle differs");
+    }
+    active.add(candidate);
+    try {
+      const descriptors = Object.getOwnPropertyDescriptors(candidate);
+      if (Array.isArray(candidate)) {
+        if (
+          Object.getPrototypeOf(candidate) !== Array.prototype ||
+          Reflect.ownKeys(descriptors).length !== candidate.length + 1 ||
+          !Object.hasOwn(descriptors, "length")
+        ) {
+          throw new Error("canonical JSON array differs");
+        }
+        const encoded: string[] = [];
+        for (let index = 0; index < candidate.length; index += 1) {
+          const descriptor = descriptors[String(index)];
+          if (
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            !descriptor.enumerable
+          ) {
+            throw new Error("canonical JSON array entry differs");
+          }
+          encoded.push(encode(descriptor.value));
+        }
+        return `[${encoded.join(",")}]`;
+      }
+      const prototype = Object.getPrototypeOf(candidate);
+      const keys = Reflect.ownKeys(descriptors);
+      if (
+        (prototype !== Object.prototype && prototype !== null) ||
+        keys.some((key) => typeof key !== "string")
+      ) {
+        throw new Error("canonical JSON object differs");
+      }
+      return `{${(keys as string[])
+        .sort()
+        .map((key) => {
+          const descriptor = descriptors[key];
+          if (
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            !descriptor.enumerable
+          ) {
+            throw new Error("canonical JSON object field differs");
+          }
+          return `${JSON.stringify(key)}:${encode(descriptor.value)}`;
+        })
+        .join(",")}}`;
+    } finally {
+      active.delete(candidate);
+    }
+  };
+  return encode(value);
 }
 
 function exactArguments(value: readonly string[]): readonly string[] {
@@ -95,7 +154,8 @@ function captureIo(
         !("value" in descriptors[key]) ||
         typeof descriptors[key].value !== "function" ||
         nodeUtilTypes.isProxy(descriptors[key].value) ||
-        descriptors[key].value.length !== expected[key as keyof typeof expected],
+        descriptors[key].value.length !==
+          expected[key as keyof typeof expected],
     )
   ) {
     throw new Error("local clean-room CLI I/O fields differ");
@@ -113,8 +173,7 @@ function captureTestRunnerReceipt(
     !Object.isFrozen(value) ||
     value.contract !==
       FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT ||
-    value.status !==
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS ||
+    value.status !== FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS ||
     value.claim_boundary !==
       FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY ||
     value.execution_boundary !== "test-only-injected-opaque-operations" ||
@@ -201,16 +260,16 @@ export async function runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
     );
     io.setExitCode(0);
   } catch (error) {
-    const destination = io ?? (() => {
-      try {
-        return captureIo(ioValue);
-      } catch {
-        return undefined;
-      }
-    })();
-    destination?.writeStderr(
-      `${canonicalJson(failureRecord(error, true))}\n`,
-    );
+    const destination =
+      io ??
+      (() => {
+        try {
+          return captureIo(ioValue);
+        } catch {
+          return undefined;
+        }
+      })();
+    destination?.writeStderr(`${canonicalJson(failureRecord(error, true))}\n`);
     destination?.setExitCode(1);
   }
 }
@@ -219,11 +278,7 @@ export async function runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
 export function runFloodgateV7LocalCleanRoomTeacherCli(): Promise<void> {
   if (arguments.length !== 0) {
     return Promise.reject(
-      new FloodgateV7LocalCleanRoomTeacherRunnerError(
-        "capture",
-        false,
-        false,
-      ),
+      new FloodgateV7LocalCleanRoomTeacherRunnerError("capture", false, false),
     );
   }
   const io = Object.freeze({
@@ -251,8 +306,7 @@ export function runFloodgateV7LocalCleanRoomTeacherCli(): Promise<void> {
             status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_STATUS,
             claim_boundary:
               FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_CLAIM_BOUNDARY,
-            execution_boundary:
-              "fixed-operational-cli-one-shot-brand-claim",
+            execution_boundary: "fixed-operational-cli-one-shot-brand-claim",
             receipt,
           }),
         )}\n`,

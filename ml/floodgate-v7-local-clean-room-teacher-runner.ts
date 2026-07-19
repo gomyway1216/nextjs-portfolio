@@ -194,8 +194,7 @@ export interface FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly sha256: string;
 }
 
-export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence
-  extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
+export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly created_after_validated_sealed_chain: true;
   readonly finalizer_invoked: false;
   readonly finalizer_labels_published: false;
@@ -290,8 +289,7 @@ interface FixedTargets {
 interface LocalGateSession {
   readonly dependencies: Readonly<FloodgateV7CleanRoomLocalRunGateDependencies>;
   readonly finalizerHandoffEvidence: () =>
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   readonly close: () => void;
 }
 
@@ -367,19 +365,88 @@ function targets(): Readonly<FixedTargets> {
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
+  const active = new WeakSet<object>();
+  const encode = (candidate: unknown): string => {
+    if (candidate === null) return "null";
+    if (typeof candidate === "string" || typeof candidate === "boolean") {
+      return JSON.stringify(candidate);
+    }
+    if (typeof candidate === "number") {
+      if (!Number.isFinite(candidate)) {
+        throw new Error("canonical JSON number differs");
+      }
+      return JSON.stringify(candidate);
+    }
+    if (typeof candidate !== "object" || nodeUtilTypes.isProxy(candidate)) {
+      throw new Error("canonical JSON value differs");
+    }
+    if (active.has(candidate)) {
+      throw new Error("canonical JSON cycle differs");
+    }
+    active.add(candidate);
+    try {
+      const descriptors = Object.getOwnPropertyDescriptors(candidate);
+      if (Array.isArray(candidate)) {
+        if (
+          Object.getPrototypeOf(candidate) !== Array.prototype ||
+          Reflect.ownKeys(descriptors).length !== candidate.length + 1 ||
+          !Object.hasOwn(descriptors, "length")
+        ) {
+          throw new Error("canonical JSON array differs");
+        }
+        const encoded: string[] = [];
+        for (let index = 0; index < candidate.length; index += 1) {
+          const descriptor = descriptors[String(index)];
+          if (
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            !descriptor.enumerable
+          ) {
+            throw new Error("canonical JSON array entry differs");
+          }
+          encoded.push(encode(descriptor.value));
+        }
+        return `[${encoded.join(",")}]`;
+      }
+      const prototype = Object.getPrototypeOf(candidate);
+      const keys = Reflect.ownKeys(descriptors);
+      if (
+        (prototype !== Object.prototype && prototype !== null) ||
+        keys.some((key) => typeof key !== "string")
+      ) {
+        throw new Error("canonical JSON object differs");
+      }
+      return `{${(keys as string[])
+        .sort((left, right) =>
+          Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+        )
+        .map((key) => {
+          const descriptor = descriptors[key];
+          if (
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            !descriptor.enumerable
+          ) {
+            throw new Error("canonical JSON object field differs");
+          }
+          return `${JSON.stringify(key)}:${encode(descriptor.value)}`;
+        })
+        .join(",")}}`;
+    } finally {
+      active.delete(candidate);
+    }
+  };
+  return encode(value);
+}
+
+/** Exercise the fail-closed canonical JSON boundary without file or HMAC I/O. */
+export function canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests(
+  value: unknown,
+): string {
+  if (arguments.length !== 1) {
+    throw new Error("canonical JSON test seam differs");
   }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
-  }
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort((left, right) =>
-      Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
-    )
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(",")}}`;
+  return canonicalJson(value);
 }
 
 function deepFreezeCanonicalJson<T>(value: T): Readonly<T> {
@@ -983,8 +1050,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
   let runBindingCanonical: string | undefined;
   let runBindingSha256: string | undefined;
   let handoff:
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   const receipts: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
   const receiptFiles: Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>[] =
     [];

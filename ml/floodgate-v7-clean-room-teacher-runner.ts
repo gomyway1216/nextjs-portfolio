@@ -33,6 +33,7 @@ import {
 import {
   FLOODGATE_GIT_COMMAND_PREFIX,
   FLOODGATE_GIT_EXECUTABLE,
+  FLOODGATE_GIT_FIXED_ENVIRONMENT,
   assertFloodgateGitExactCleanRevision,
 } from "./floodgate-git";
 import { verifyPinnedFloodgateRoleBundleReceipt } from "./floodgate-role-bundle-result";
@@ -83,18 +84,7 @@ export const FLOODGATE_V7_CLEAN_ROOM_GATE_SEQUENCE = Object.freeze([
   "sealed-final-24000",
 ] as const);
 export const FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT = Object.freeze({
-  PATH: "/usr/bin:/bin",
-  TMPDIR: "/tmp",
-  HOME: "/var/empty",
-  LC_ALL: "C",
-  LANG: "C",
-  TZ: "UTC",
-  GIT_CONFIG_NOSYSTEM: "1",
-  GIT_CONFIG_GLOBAL: "/dev/null",
-  GIT_CONFIG_SYSTEM: "/dev/null",
-  GIT_GRAFT_FILE: "/dev/null",
-  GIT_OPTIONAL_LOCKS: "0",
-  GIT_TERMINAL_PROMPT: "0",
+  ...FLOODGATE_GIT_FIXED_ENVIRONMENT,
   GIT_ALLOW_PROTOCOL: "file",
   GIT_PROTOCOL_FROM_USER: "0",
   GIT_NO_LAZY_FETCH: "1",
@@ -144,7 +134,7 @@ const LEGACY_EXCLUSION_RELATIVE_COMPONENTS = Object.freeze([
   "int16-aware-replay-excluded-position-ids.txt",
 ] as const);
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
-const GIT_OUTPUT_CAP_BYTES = 1024 * 1024;
+const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024;
 const MODE_MASK = BigInt(0o7777);
 const PRIVATE_DIRECTORY_MODE = BigInt(0o700);
 const SAFE_WORKER_BASENAME = /^worker-[0-9]{2}$/;
@@ -624,10 +614,9 @@ export interface FloodgateV7CleanRoomGitCommandForTests {
 /** Capture the exact local-only Git child contract without starting Git. */
 export function captureFloodgateV7CleanRoomGitCommandCoreForTests(
   argumentsValue: readonly string[],
-  cwdValue: string,
 ): Readonly<FloodgateV7CleanRoomGitCommandForTests> {
   if (
-    arguments.length !== 2 ||
+    arguments.length !== 1 ||
     !Array.isArray(argumentsValue) ||
     argumentsValue.length === 0 ||
     argumentsValue.some(
@@ -635,8 +624,7 @@ export function captureFloodgateV7CleanRoomGitCommandCoreForTests(
         typeof argument !== "string" ||
         argument.length === 0 ||
         argument.includes("\0"),
-    ) ||
-    cwdValue !== "/"
+    )
   ) {
     throw new Error("clean-room Git command differs");
   }
@@ -656,14 +644,8 @@ export function captureFloodgateV7CleanRoomGitCommandCoreForTests(
   });
 }
 
-async function fixedGit(
-  arguments_: readonly string[],
-  cwd: string,
-): Promise<string> {
-  const command = captureFloodgateV7CleanRoomGitCommandCoreForTests(
-    arguments_,
-    cwd,
-  );
+async function fixedGit(arguments_: readonly string[]): Promise<string> {
+  const command = captureFloodgateV7CleanRoomGitCommandCoreForTests(arguments_);
   const { stdout } = await execFile(
     command.file,
     [...command.arguments],
@@ -682,53 +664,85 @@ function parseDenseNulList(value: string): readonly string[] {
   return Object.freeze(entries);
 }
 
+function localRepositoryConfigurationIsForbidden(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower === "extensions.partialclone" ||
+    /^remote\..+\.(?:promisor|partialclonefilter)$/u.test(lower) ||
+    /^remote\..+\.proxy$/u.test(lower) ||
+    lower === "core.hookspath" ||
+    lower === "core.sshcommand" ||
+    lower === "ssh.variant" ||
+    lower.startsWith("credential.") ||
+    lower.startsWith("filter.") ||
+    lower.startsWith("include.") ||
+    lower.startsWith("includeif.") ||
+    (lower.startsWith("http.") && lower !== "http.postbuffer") ||
+    lower.startsWith("https.") ||
+    lower.startsWith("proxy.") ||
+    lower.startsWith("url.")
+  );
+}
+
+/**
+ * Exercise the fixed file-protocol source-repository configuration policy.
+ * `http.postBuffer` only sizes HTTP request buffers and cannot affect the
+ * fixed local `file` clone; every other HTTP control remains forbidden.
+ */
+export function inspectFloodgateV7CleanRoomGitConfigurationCoreForTests(
+  nameValue: string,
+): "ALLOWED" | "FORBIDDEN" {
+  if (
+    arguments.length !== 1 ||
+    typeof nameValue !== "string" ||
+    nameValue.length === 0 ||
+    nameValue.includes("\0") ||
+    nameValue.includes("\n") ||
+    nameValue.includes("\r")
+  ) {
+    throw new Error("local repository configuration name differs");
+  }
+  return localRepositoryConfigurationIsForbidden(nameValue)
+    ? "FORBIDDEN"
+    : "ALLOWED";
+}
+
 async function assertCompleteLocalRepository(
   repository: string,
 ): Promise<void> {
   const configurationNames = parseDenseNulList(
-    await fixedGit(
-      [
-        "-C",
-        repository,
-        "config",
-        "--local",
-        "--name-only",
-        "--null",
-        "--list",
-      ],
-      "/",
-    ),
+    await fixedGit([
+      "-C",
+      repository,
+      "config",
+      "--local",
+      "--name-only",
+      "--null",
+      "--list",
+    ]),
   );
-  const forbiddenConfiguration = configurationNames.find((name) => {
-    const lower = name.toLowerCase();
-    return (
-      lower === "extensions.partialclone" ||
-      /^remote\..+\.(?:promisor|partialclonefilter)$/u.test(lower) ||
-      /^remote\..+\.proxy$/u.test(lower) ||
-      lower === "core.hookspath" ||
-      lower === "core.sshcommand" ||
-      lower === "ssh.variant" ||
-      lower.startsWith("credential.") ||
-      lower.startsWith("filter.") ||
-      lower.startsWith("include.") ||
-      lower.startsWith("includeif.") ||
-      lower.startsWith("http.") ||
-      lower.startsWith("https.") ||
-      lower.startsWith("proxy.") ||
-      lower.startsWith("url.")
-    );
-  });
+  const forbiddenConfiguration = configurationNames.find(
+    localRepositoryConfigurationIsForbidden,
+  );
   if (forbiddenConfiguration !== undefined) {
     throw new Error("local repository configuration is not self-contained");
   }
-  await fixedGit(
-    ["-C", repository, "fsck", "--full", "--strict", "--no-dangling"],
-    "/",
-  );
-  const objectList = await fixedGit(
-    ["-C", repository, "rev-list", "--objects", "--all", "--missing=print"],
-    "/",
-  );
+  await fixedGit([
+    "-C",
+    repository,
+    "fsck",
+    "--full",
+    "--strict",
+    "--no-dangling",
+  ]);
+  const objectList = await fixedGit([
+    "-C",
+    repository,
+    "rev-list",
+    "--objects",
+    "--all",
+    "--missing=print",
+  ]);
   if (
     objectList
       .split("\n")
@@ -743,7 +757,7 @@ async function assertIndependentTrackedFiles(
   destinationRepository: string,
 ): Promise<void> {
   const tracked = parseDenseNulList(
-    await fixedGit(["-C", destinationRepository, "ls-files", "-z"], "/"),
+    await fixedGit(["-C", destinationRepository, "ls-files", "-z"]),
   );
   if (tracked.length !== 1_431) throw new Error("tracked entry count differs");
   for (const relative of tracked) {
@@ -802,24 +816,25 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
   );
   await assertCompleteLocalRepository(sourceRepository);
   await assertFloodgateGitExactCleanRevision(sourceRepository, revision);
-  await fixedGit(
-    [
-      "clone",
-      "--quiet",
-      "--no-local",
-      "--no-checkout",
-      "--no-tags",
-      "--",
-      sourceRepository,
-      destinationRepository,
-    ],
-    "/",
-  );
+  await fixedGit([
+    "clone",
+    "--quiet",
+    "--no-local",
+    "--no-checkout",
+    "--no-tags",
+    "--",
+    sourceRepository,
+    destinationRepository,
+  ]);
   await fs.promises.chmod(destinationRepository, 0o700);
-  await fixedGit(
-    ["-C", destinationRepository, "checkout", "--quiet", "--detach", revision],
-    "/",
-  );
+  await fixedGit([
+    "-C",
+    destinationRepository,
+    "checkout",
+    "--quiet",
+    "--detach",
+    revision,
+  ]);
   await assertCompleteLocalRepository(destinationRepository);
   const alternates = path.join(
     destinationRepository,

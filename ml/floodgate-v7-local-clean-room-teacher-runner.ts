@@ -141,6 +141,8 @@ const GATE_ORDER = Object.freeze([
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectPrototype = Object.prototype;
+const arrayIncludes = Array.prototype.includes;
+const reflectApply = Reflect.apply;
 const reflectOwnKeys = Reflect.ownKeys;
 const operationalCompletionReceipts = new WeakMap<
   object,
@@ -161,9 +163,8 @@ export type FloodgateV7LocalCleanRoomTeacherRunnerPhase =
 function safePreparationFailureKind(
   value: unknown,
 ): FloodgateV7CleanRoomTeacherPreparationFailureKind {
-  return (
-    FLOODGATE_V7_PREPARATION_FAILURE_KINDS as readonly unknown[]
-  ).includes(value)
+  return typeof value === "string" &&
+    reflectApply(arrayIncludes, FLOODGATE_V7_PREPARATION_FAILURE_KINDS, [value])
     ? (value as FloodgateV7CleanRoomTeacherPreparationFailureKind)
     : "phase-level";
 }

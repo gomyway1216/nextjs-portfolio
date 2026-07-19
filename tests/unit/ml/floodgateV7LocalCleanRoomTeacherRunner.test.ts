@@ -502,6 +502,51 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
 
+  it("keeps private runner failure values redacted after intrinsic prototype poisoning", () => {
+    const arrayIncludesDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "includes",
+    );
+    const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(
+      Reflect,
+      "apply",
+    );
+    if (
+      arrayIncludesDescriptor === undefined ||
+      reflectApplyDescriptor === undefined
+    ) {
+      throw new Error("intrinsic descriptors are required");
+    }
+    const secret = "/private/teacher/secret-key";
+    let failure!: FloodgateV7LocalCleanRoomTeacherRunnerError;
+    try {
+      Object.defineProperty(Array.prototype, "includes", {
+        ...arrayIncludesDescriptor,
+        value: () => true,
+      });
+      Object.defineProperty(Reflect, "apply", {
+        ...reflectApplyDescriptor,
+        value: () => true,
+      });
+      failure = new FloodgateV7LocalCleanRoomTeacherRunnerError(
+        "preparation",
+        true,
+        false,
+        secret,
+      );
+    } finally {
+      Object.defineProperty(
+        Array.prototype,
+        "includes",
+        arrayIncludesDescriptor,
+      );
+      Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+    }
+    expect(failure.failure_kind).toBe("phase-level");
+    expect(JSON.stringify(failure)).not.toContain(secret);
+    expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
   it("closes the stage lease when deployment-key preparation fails before checkpoint ownership transfer", async () => {
     const events: string[] = [];
     const keyFailure = new Error(

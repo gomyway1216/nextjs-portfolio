@@ -386,11 +386,16 @@ def _validate_result(
     registry: Mapping[str, Any],
     registered_run: Mapping[str, Any],
     checkpoint_receipt: Mapping[str, Any],
+    result_schema: str = FRESH_QAT_TRAINING_RESULT_SCHEMA,
+    expected_plan_binding: Mapping[str, Any] | None = None,
+    expected_contract: Mapping[str, Any] | None = None,
+    label_prefix: str = "fresh",
 ) -> None:
     seed = registered_run["seed"]
-    _exact_keys(result, RESULT_FIELDS, f"fresh seed {seed} result")
+    label = f"{label_prefix} seed {seed}"
+    _exact_keys(result, RESULT_FIELDS, f"{label} result")
     if (
-        result["schema"] != FRESH_QAT_TRAINING_RESULT_SCHEMA
+        result["schema"] != result_schema
         or result["status"] != "complete"
         or type(result["completed_epochs"]) is not int
         or result["completed_epochs"] != 20
@@ -399,42 +404,47 @@ def _validate_result(
         or result["selection_evaluations"] != 0
         or result["early_stopping"] is not False
     ):
-        raise ValueError(f"fresh seed {seed} result is not final-only")
+        raise ValueError(f"{label} result is not final-only")
 
-    expected_plan = {
-        "path": plan_path,
-        "bytes": plan_identity["bytes"],
-        "sha256": plan_identity["sha256"],
-        "schema": FRESH_QAT_EXECUTION_PLAN_SCHEMA,
-        "slot_id": registered_run["slot_id"],
-        "slot_output": registered_run["output"],
-        "verified_input_sha256": _expected_verified_inputs(plan),
-    }
+    expected_plan = (
+        expected_plan_binding
+        if expected_plan_binding is not None
+        else {
+            "path": plan_path,
+            "bytes": plan_identity["bytes"],
+            "sha256": plan_identity["sha256"],
+            "schema": FRESH_QAT_EXECUTION_PLAN_SCHEMA,
+            "slot_id": registered_run["slot_id"],
+            "slot_output": registered_run["output"],
+            "verified_input_sha256": _expected_verified_inputs(plan),
+        }
+    )
     _exact_keys(
         result["experiment_plan"],
-        RESULT_PLAN_FIELDS,
-        f"fresh seed {seed} result plan",
+        set(expected_plan),
+        f"{label} result plan",
     )
     if not _typed_equal(result["experiment_plan"], expected_plan):
-        raise ValueError(f"fresh seed {seed} result plan binding mismatch")
+        raise ValueError(f"{label} result plan binding mismatch")
 
     slot = next(
         item for item in plan["slots"] if item["seed"] == registered_run["seed"]
     )
-    expected_contract = build_fresh_qat_training_contract(plan, slot)
+    if expected_contract is None:
+        expected_contract = build_fresh_qat_training_contract(plan, slot)
     _exact_keys(
         result["experiment_contract"],
         set(expected_contract),
-        f"fresh seed {seed} result contract",
+        f"{label} result contract",
     )
     if not _typed_equal(result["experiment_contract"], expected_contract):
-        raise ValueError(f"fresh seed {seed} result contract mismatch")
+        raise ValueError(f"{label} result contract mismatch")
 
     pipeline = result["training_pipeline"]
     _exact_keys(
         pipeline,
         {"source_revision", "tracked_tree_clean"},
-        f"fresh seed {seed} training pipeline",
+        f"{label} training pipeline",
     )
     if not _typed_equal(
         pipeline,
@@ -443,7 +453,7 @@ def _validate_result(
             "tracked_tree_clean": True,
         },
     ):
-        raise ValueError(f"fresh seed {seed} training pipeline mismatch")
+        raise ValueError(f"{label} training pipeline mismatch")
 
     runtime = result["training_runtime"]
     expected_runtime_fields = set(plan["runtime"]) | {
@@ -451,21 +461,21 @@ def _validate_result(
         "mps_available",
         "cuda_available",
     }
-    _exact_keys(runtime, expected_runtime_fields, f"fresh seed {seed} runtime")
+    _exact_keys(runtime, expected_runtime_fields, f"{label} runtime")
     for field, expected in plan["runtime"].items():
         if type(runtime[field]) is not type(expected) or runtime[field] != expected:
-            raise ValueError(f"fresh seed {seed} runtime {field} mismatch")
+            raise ValueError(f"{label} runtime {field} mismatch")
     if any(
         type(runtime[field]) is not bool
         for field in ("mps_built", "mps_available", "cuda_available")
     ):
-        raise ValueError(f"fresh seed {seed} runtime flags are invalid")
+        raise ValueError(f"{label} runtime flags are invalid")
 
     artifact = result["candidate_artifact"]
     _exact_keys(
         artifact,
         {"name", "bytes", "sha256"},
-        f"fresh seed {seed} candidate artifact",
+        f"{label} candidate artifact",
     )
     if not _typed_equal(
         artifact,
@@ -475,8 +485,8 @@ def _validate_result(
             "sha256": checkpoint_receipt["sha256"],
         },
     ):
-        raise ValueError(f"fresh seed {seed} candidate artifact mismatch")
-    _validate_history(result["training_history"], f"fresh seed {seed} history")
+        raise ValueError(f"{label} candidate artifact mismatch")
+    _validate_history(result["training_history"], f"{label} history")
 
 
 def _validate_checkpoint_data(
@@ -485,7 +495,11 @@ def _validate_checkpoint_data(
     plan: Mapping[str, Any],
     contract: Mapping[str, Any],
     seed: int,
+    replay_exclusion: Mapping[str, Any] | None = None,
+    replay_identity: Mapping[str, Any] | None = None,
+    label_prefix: str = "fresh",
 ) -> None:
+    label = f"{label_prefix} seed {seed}"
     data = checkpoint["data_provenance"]
     _exact_keys(
         data,
@@ -496,7 +510,7 @@ def _validate_checkpoint_data(
             "model_selection",
             "final_holdout",
         },
-        f"fresh seed {seed} checkpoint data",
+        f"{label} checkpoint data",
     )
     if not _typed_equal(
         data["model_selection"],
@@ -509,7 +523,7 @@ def _validate_checkpoint_data(
         data["final_holdout"],
         {"labels_read": False, "status": "sealed_not_opened"},
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint label isolation mismatch")
+        raise ValueError(f"{label} checkpoint label isolation mismatch")
 
     train = data["train"]
     _exact_keys(
@@ -524,7 +538,7 @@ def _validate_checkpoint_data(
             "requested_limit",
             "role",
         },
-        f"fresh seed {seed} checkpoint train provenance",
+        f"{label} checkpoint train provenance",
     )
     if (
         not isinstance(train["path"], str)
@@ -543,7 +557,7 @@ def _validate_checkpoint_data(
             },
         )
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint train provenance mismatch")
+        raise ValueError(f"{label} checkpoint train provenance mismatch")
 
     replay = data["replay"]
     _exact_keys(
@@ -563,9 +577,12 @@ def _validate_checkpoint_data(
             "eligible_rows_after_semantic_exclusion",
             "excluded_rows_before_sampling",
         },
-        f"fresh seed {seed} checkpoint replay provenance",
+        f"{label} checkpoint replay provenance",
     )
-    replay_exclusion = plan["inputs"]["replay_exclusion"]
+    if replay_exclusion is None:
+        replay_exclusion = plan["inputs"]["replay_exclusion"]
+    if replay_identity is None:
+        replay_identity = plan["inputs"]["replay"]
     if (
         not isinstance(replay["path"], str)
         or not replay["path"]
@@ -573,7 +590,7 @@ def _validate_checkpoint_data(
         or not replay["real_path"]
         or replay["sha256"] != contract["replay_sha256"]
         or type(replay["bytes"]) is not int
-        or replay["bytes"] != plan["inputs"]["replay"]["bytes"]
+        or replay["bytes"] != replay_identity["bytes"]
         or type(replay["usable_rows"]) is not int
         or replay["usable_rows"] != contract["replay_limit"]
         or replay["selection"] != "uniform_without_replacement_after_semantic_exclusion"
@@ -592,13 +609,13 @@ def _validate_checkpoint_data(
         or type(replay["excluded_rows_before_sampling"]) is not int
         or replay["excluded_rows_before_sampling"] < 0
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint replay provenance mismatch")
+        raise ValueError(f"{label} checkpoint replay provenance mismatch")
 
     exclusion = data["replay_exclusion"]
     _exact_keys(
         exclusion,
         {"path", "format", "bytes", "sha256", "count", "identifiers_sha256"},
-        f"fresh seed {seed} checkpoint replay exclusion",
+        f"{label} checkpoint replay exclusion",
     )
     if (
         not isinstance(exclusion["path"], str)
@@ -617,7 +634,7 @@ def _validate_checkpoint_data(
             },
         )
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint replay exclusion mismatch")
+        raise ValueError(f"{label} checkpoint replay exclusion mismatch")
 
 
 def _validate_checkpoint(
@@ -629,15 +646,20 @@ def _validate_checkpoint(
     root: str,
     registered_run: Mapping[str, Any],
     strict_model_validator: Callable[[Any, int], None],
+    checkpoint_schema: str = FRESH_QAT_FINAL_CHECKPOINT_SCHEMA,
+    replay_exclusion: Mapping[str, Any] | None = None,
+    replay_identity: Mapping[str, Any] | None = None,
+    label_prefix: str = "fresh",
 ) -> dict[str, Any]:
     seed = registered_run["seed"]
-    _exact_keys(checkpoint, CHECKPOINT_FIELDS, f"fresh seed {seed} checkpoint")
+    label = f"{label_prefix} seed {seed}"
+    _exact_keys(checkpoint, CHECKPOINT_FIELDS, f"{label} checkpoint")
     if (
-        checkpoint["schema"] != FRESH_QAT_FINAL_CHECKPOINT_SCHEMA
+        checkpoint["schema"] != checkpoint_schema
         or type(checkpoint["epoch"]) is not int
         or checkpoint["epoch"] != 20
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint schema/epoch mismatch")
+        raise ValueError(f"{label} checkpoint schema/epoch mismatch")
     for field in (
         "experiment_plan",
         "experiment_contract",
@@ -646,11 +668,11 @@ def _validate_checkpoint(
         "training_history",
     ):
         if not _typed_equal(checkpoint[field], result[field]):
-            raise ValueError(f"fresh seed {seed} checkpoint/result {field} mismatch")
+            raise ValueError(f"{label} checkpoint/result {field} mismatch")
 
     args = checkpoint["args"]
     if not isinstance(args, Mapping) or args.get("val_data") not in (None, ""):
-        raise ValueError(f"fresh seed {seed} checkpoint received selection labels")
+        raise ValueError(f"{label} checkpoint received selection labels")
     expected_args = {
         "experiment_family": "int16-aware",
         "experiment_series": None,
@@ -681,7 +703,7 @@ def _validate_checkpoint(
         type(args.get(field)) is not type(expected) or args.get(field) != expected
         for field, expected in expected_args.items()
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint invocation mismatch")
+        raise ValueError(f"{label} checkpoint invocation mismatch")
     for field in (
         "data",
         "sibling_manifest",
@@ -695,15 +717,19 @@ def _validate_checkpoint(
         "init_ckpt",
     ):
         if not isinstance(args.get(field), str) or not args[field]:
-            raise ValueError(f"fresh seed {seed} checkpoint path contract mismatch")
+            raise ValueError(f"{label} checkpoint path contract mismatch")
     if (
         not isinstance(args.get("experiment_plan"), str)
         or os.path.realpath(args["experiment_plan"]) != plan_path
         or not isinstance(args.get("out"), str)
         or os.path.realpath(args["out"])
-        != _registered_path(root, registered_run["output"], "fresh output")
+        != _registered_path(
+            root,
+            registered_run["output"],
+            f"{label_prefix} output",
+        )
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint output/plan path mismatch")
+        raise ValueError(f"{label} checkpoint output/plan path mismatch")
 
     expected_arch = {
         "schema": 1,
@@ -715,12 +741,12 @@ def _validate_checkpoint(
         "kp_buckets": 1,
     }
     if not _typed_equal(checkpoint["arch"], expected_arch):
-        raise ValueError(f"fresh seed {seed} checkpoint architecture mismatch")
+        raise ValueError(f"{label} checkpoint architecture mismatch")
     initializer = checkpoint["init_checkpoint"]
     _exact_keys(
         initializer,
         {"path", "sha256", "bytes", "epoch", "legacy_arch_inferred_fields"},
-        f"fresh seed {seed} checkpoint initializer",
+        f"{label} checkpoint initializer",
     )
     if (
         not isinstance(initializer["path"], str)
@@ -732,7 +758,7 @@ def _validate_checkpoint(
         or initializer["epoch"] != 27
         or not _typed_equal(initializer["legacy_arch_inferred_fields"], ["schema"])
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint initializer mismatch")
+        raise ValueError(f"{label} checkpoint initializer mismatch")
     if not _typed_equal(
         checkpoint["objective"],
         {
@@ -744,7 +770,7 @@ def _validate_checkpoint(
             "replay_indices_shared": True,
         },
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint objective mismatch")
+        raise ValueError(f"{label} checkpoint objective mismatch")
     if not _typed_equal(
         checkpoint["checkpoint_selection"],
         {
@@ -755,13 +781,16 @@ def _validate_checkpoint(
             "candidate_artifact": "final.pt",
         },
     ):
-        raise ValueError(f"fresh seed {seed} checkpoint selection mismatch")
+        raise ValueError(f"{label} checkpoint selection mismatch")
 
     _validate_checkpoint_data(
         checkpoint,
         plan=plan,
         contract=result["experiment_contract"],
         seed=seed,
+        replay_exclusion=replay_exclusion,
+        replay_identity=replay_identity,
+        label_prefix=label_prefix,
     )
     strict_model_validator(checkpoint["model"], seed)
     return {"schema": checkpoint["schema"], "epoch": checkpoint["epoch"]}

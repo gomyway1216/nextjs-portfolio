@@ -13,18 +13,22 @@
     "test_tree": "f437dd3984c17a9adde4f94dd2afb986f9607ce2",
     "reviewed_remediation_revision": "5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49",
     "reviewed_remediation_tree": "6b882b8cea5a3a9322b4649e824ccd524090cfc8",
-    "latest_main_revision_integrated": "1f98c3661361254bbc0854fa52888ed4b65bc689",
-    "integration_revision": "30663f7f496382a0f9082d22cc2c8fb09a10dca7",
-    "integration_tree": "1ef5aa8c0626d8b5c08795bf6a9852601a1712be",
+    "latest_main_revision_integrated": "1e7025b827797b856e7fa4cd72008acc7dc813ed",
+    "integration_revision": "d4e13ce36cb4371ceaa836ba93339138a80e83fb",
+    "integration_tree": "19426ff805a8d4079654787475c91f0bff9a34a0",
     "integration_parents": [
-      "5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49",
-      "1f98c3661361254bbc0854fa52888ed4b65bc689"
+      "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "1e7025b827797b856e7fa4cd72008acc7dc813ed"
     ],
-    "reviewed_paths_unchanged_by_integration_merge": true,
+    "reviewed_paths_unchanged_by_integration_merge": false,
+    "reviewed_implementation_paths_unchanged_by_integration_merge": true,
+    "package_identity_refreshed_after_integration": true,
     "deployment_key_compatibility_revision": "b9d8a96fd9620ba4646aeab346f259e0383a511d",
     "deployment_key_compatibility_tree": "26c9cd548abbcba8265dbad158a3c96ffbee4281",
     "deployment_key_compatibility_test_revision": "e2c88f718e936586b2ab7e898aeaef3d43f32985",
     "deployment_key_compatibility_test_tree": "2930f48ed869c2e90f16f071b12764ccd1f0fa55",
+    "deployment_key_compatibility_remediation_revision": "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+    "deployment_key_compatibility_remediation_tree": "db86a90b5af516c543d792962d010909c788b344",
     "pull_request": null,
     "continuous_integration": "PENDING"
   },
@@ -155,9 +159,9 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-run-gates.ts",
-      "bytes": 50092,
-      "sha256": "3d40e88978fba13b2014bd35ed19cee3197426ad391b9aab8259129c15d75de7",
-      "git_blob": "36068119693e82475763f06bfee4295bc8555cde",
+      "bytes": 51200,
+      "sha256": "6df67aa13e9b40fcfa7211d11929e9b49a35561a33731c8be6382ff046176c9e",
+      "git_blob": "407c6662e805d254d4beeba5e786f9ae8f98cc73",
       "required_markers": [
         "validateReceiptChain(chain);",
         "await handoff.close();",
@@ -166,9 +170,9 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59318,
-      "sha256": "06a7bf985826c2b80f171f57964be3a7a64d0d97e4ddb3f8d77e395ac0959863",
-      "git_blob": "cf435fcbe0934e7a2ef7fbd13e1dae08237a07f8",
+      "bytes": 59409,
+      "sha256": "692351e69abb4ad83d56a7e736d9d4503268c2102b4be1f8e1c60722015a6b6c",
+      "git_blob": "e25fc1b62b52749a72d0f716dff97748143cfca8",
       "required_markers": [
         "GIT_ALLOW_PROTOCOL: \"file\"",
         "GIT_NO_LAZY_FETCH: \"1\"",
@@ -198,9 +202,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 54720,
-      "sha256": "3cbb5acaa5ff8cb9e1e6530416fa8a1cc7fcc2cffbe86d3c51f6c0fcfaf8255c",
-      "git_blob": "137c22274839b28442af49a11dd90b0ca0d31be6",
+      "bytes": 56633,
+      "sha256": "a3d0bb0c593b5d5f09a832065668b99edb24e7b89e7a6134088a40d8b6fb353b",
+      "git_blob": "2a479ee1e6c7609a02633cf89500acedd2f3a887",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -227,7 +231,7 @@
       "path": "package.json",
       "bytes": 8236,
       "sha256": "c289e6ec449a4fe4293541aca4425f73ec07aa79909ad1eb974f6accb5a3d1b0",
-      "git_blob": "af4f8810bdcaa72b1e2188be2cfe471ff44f50ab",
+      "git_blob": "5d7c62555a41095603f12b9127c8433897868e43",
       "required_markers": [
         "\"shogi:floodgate-v7-local-clean-room-teacher\"",
         "ml/run-floodgate-v7-local-clean-room-teacher.ts"
@@ -249,21 +253,21 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
-      "bytes": 45176,
-      "sha256": "6289c82a1785dd50f3b61712731ab1b1b14c8042c56a57748193aa6e4edd142e",
-      "git_blob": "bf9c2c61880e819c122fe1c720a0f586c2e5acc8"
+      "bytes": 46519,
+      "sha256": "c8e442eb66022dae7084fe2cd38beb6be2adf797d943a49f6d75bd40d219d6a1",
+      "git_blob": "a04283d695fdcc20900aab1f0383df24c9f86145"
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 27738,
-      "sha256": "03d2f70de6b1dbfdf6630318097177a6fa3782acd81e64ee83a09b4e0ba7e7f4",
-      "git_blob": "d41246ba0a395aae6e9ab7208a7e6c528dd7c56b"
+      "bytes": 29338,
+      "sha256": "1e147adae4a73716d4c4ecd8e790bf84552387e6d64bacb3fcc3dc8c97c0124b",
+      "git_blob": "0c7f5fd2ac83e8dde6cd8d7624ed6ae3e059ad16"
     }
   ],
   "validation": {
     "focused_vitest": {
       "files": 4,
-      "tests_passed": 43,
+      "tests_passed": 46,
       "tests_failed": 0,
       "result": "PASS"
     },
@@ -346,12 +350,18 @@
       "unresolved_p2": 0
     },
     "deployment_key_compatibility_review": {
-      "scope_revision": "e2c88f718e936586b2ab7e898aeaef3d43f32985",
-      "result": "PENDING",
-      "unresolved_p0": null,
-      "unresolved_p1": 2,
-      "unresolved_p2": null,
-      "remediation_and_rereview_pending": true,
+      "original_scope_revision": "e2c88f718e936586b2ab7e898aeaef3d43f32985",
+      "original_result": "CHANGES-REQUIRED",
+      "original_unresolved_p0": 0,
+      "original_unresolved_p1": 2,
+      "original_unresolved_p2": 1,
+      "scope_revision": "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "scope_tree": "db86a90b5af516c543d792962d010909c788b344",
+      "result": "PASS",
+      "unresolved_p0": 0,
+      "unresolved_p1": 0,
+      "unresolved_p2": 0,
+      "remediation_and_rereview_pending": false,
       "operational_readiness_established": false
     }
   },

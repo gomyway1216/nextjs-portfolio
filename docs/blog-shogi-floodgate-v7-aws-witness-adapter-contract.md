@@ -2,7 +2,7 @@
 
 > この変更候補は、durable remote witnessをAWSへ接続するときに必要なDynamoDB / KMSの要求・応答・失敗条件を、別Swift packageの純粋データ契約として固定した。AWS SDK、認証情報、network、Lambda、IaC、実resource、production entrypointは一切ない。本番判断は引き続き **UNAVAILABLE / STOP**、teacher・training・live weightsも不変である。English version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.en.md)
 
-> **Publication status: LOCAL PASS; EXACT REREVIEW / PR CI PENDING.** localではSwift 21 / 21、repository互換9 / 9、boundary checkerがPASSした。再review済みcommitと全PR checkがまだないため、本番authorityはない。
+> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR CI PENDING.** localではSwift 21 / 21、repository互換9 / 9、boundary checkerがPASSし、固定implementation / publication snapshotの独立再reviewはP0 / P1 / P2すべて0だった。全PR checkがまだないため、本番authorityはない。
 
 ## 1. 結論
 
@@ -101,16 +101,19 @@ provider結果は次へ保守的に写像する。
 
 local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
 
-固定したimplementation revisionは`ed3932f6ec9818340144abf7949545ed292b1261`、treeは`e127fd5c21c6b611cd9c021257fe9c6d19a6f441`である。このsnapshotの独立exact rereviewとPR CIは未完了である。
+固定したimplementation revisionは`ed3932f6ec9818340144abf7949545ed292b1261`、treeは`e127fd5c21c6b611cd9c021257fe9c6d19a6f441`である。このsnapshotの独立exact rereviewはPASSし、PR CIは未完了である。
+
+独立再reviewはpublication revision `f332bdc8774593323ec91d567e01ca86a72ef097`（tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`）まで確認し、P0 / P1 / P2は**0 / 0 / 0**だった。残るpublication follow-upは上のreview結果とdifferential実測を記録するだけで、実装差分はない。
 
 - 新package tests: **21 / 21 PASS**
+- Ed25519独立differential review: **4,810 unique encoding / mismatch 0 / crash 0 / P0・P1・P2すべて0**（debug 43.816秒、release 1.727秒）
 - repository compatibility: **2 files / 9 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
 - package products / external dependencies / production consumers: **0 / 0 / 0**
 - public / SPI symbols: **0 / 0**
 - 既存service core fingerprint: **4 / 4 exact**
-- main `ec64549e` post-merge CI run `29663849790`:全job PASS
+- main `b8625cee` post-merge CI run `29666132754`とsecurity run `29666132781`: **5 / 5 job、59 / 59工程PASS**
 - AWS resource / network call / credential read: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live change: **0 / 0 / 0 / 0 / 0**
 
@@ -118,9 +121,9 @@ local Xcode 15.3 / Swift 5.10、arm64 macOSで実行した。
 
 ## 8. 次のgate
 
-次はこのexact source / test / workflow / publication snapshotを独立reviewし、同一commitのPR CIを通す。その後も順序を分ける。
+次はreview済み実装を含むexact headでready PRを作り、PR CIを通す。その後も順序を分ける。
 
-1. remediation後のexact commitを独立再reviewし、isolated AWS jobを含む全PR checkを要求する
+1. ready PRを作り、review済み実装を含むexact headでisolated AWS jobを含む全PR checkを要求する
 2. AWS job失敗時に`Test and build`も失敗する予定中のfail-closed aggregate CI edgeをmergeする
 3. dynamicなread → sign → reread/commit/retry順序を保つasync service-core successorかstrict nonblocking continuation設計を実装・独立reviewする
 4. SDK-backed adapterを実装し、semaphoreやblocking bridgeなしでexact DescribeTable preflight → operation → postflight順序を強制する

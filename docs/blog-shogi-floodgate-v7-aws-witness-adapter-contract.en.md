@@ -2,7 +2,7 @@
 
 > This change candidate freezes the DynamoDB and KMS requests, responses, and failure rules needed to connect the durable remote witness to AWS. It is an isolated Swift package containing pure data contracts. There is no AWS SDK, credential access, network transport, Lambda, IaC, real resource, or production entrypoint. The operational decision remains **UNAVAILABLE / STOP**; teacher execution, training, and live weights remain unchanged. Japanese version: [blog-shogi-floodgate-v7-aws-witness-adapter-contract.md](./blog-shogi-floodgate-v7-aws-witness-adapter-contract.md)
 
-> **Publication status: LOCAL PASS; EXACT REREVIEW / PR CI PENDING.** Local Swift tests are 21 / 21, repository compatibility is 9 / 9, and the boundary checker passes. This has no production authority until an exact commit is independently rereviewed and that same commit passes every PR check.
+> **Publication status: LOCAL PASS; EXACT REREVIEW PASS; PR CI PENDING.** Local Swift tests are 21 / 21, repository compatibility is 9 / 9, the boundary checker passes, and independent rereview of the pinned implementation and publication snapshot found zero P0, P1, or P2 issues. This has no production authority until the exact PR head passes every check.
 
 ## 1. Conclusion
 
@@ -101,16 +101,19 @@ A returning SDK call is not automatically success. Existing service-core logic r
 
 Local validation used Xcode 15.3 / Swift 5.10 on arm64 macOS.
 
-The pinned implementation revision is `ed3932f6ec9818340144abf7949545ed292b1261`; its tree is `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`. Independent exact rereview and PR CI of that snapshot remain pending.
+The pinned implementation revision is `ed3932f6ec9818340144abf7949545ed292b1261`; its tree is `e127fd5c21c6b611cd9c021257fe9c6d19a6f441`. Independent exact rereview of that snapshot passes; PR CI remains pending.
+
+Independent rereview covered publication revision `f332bdc8774593323ec91d567e01ca86a72ef097` (tree `8b7b5b57b6fea30dd538b725c1e1320709da7e5b`) and found **0 / 0 / 0** P0, P1, and P2 issues. The remaining publication-only follow-up records that verdict and the differential measurements above; it does not change the implementation.
 
 - new package tests: **21 / 21 PASS**
+- independent Ed25519 differential review: **4,810 unique encodings / 0 mismatches / 0 crashes / zero P0, P1, or P2 findings** (debug 43.816 seconds; release 1.727 seconds)
 - repository compatibility: **2 files / 9 tests PASS**
 - publication boundary: **1 file / 5 tests PASS**
 - boundary checker: PASS
 - package products / external dependencies / production consumers: **0 / 0 / 0**
 - public / SPI symbols: **0 / 0**
 - preserved service-core fingerprints: **4 / 4 exact**
-- main `ec64549e` post-merge CI run `29663849790`: every job PASS
+- main `b8625cee` post-merge CI run `29666132754` and security run `29666132781`: **5 / 5 jobs and 59 / 59 reported steps PASS**
 - AWS resources / network calls / credential reads: **0 / 0 / 0**
 - teacher / training / formal A/B / external calibration / live changes: **0 / 0 / 0 / 0 / 0**
 
@@ -118,9 +121,9 @@ These numbers validate a source contract, not real AWS durability or playing str
 
 ## 8. Next gate
 
-The next action is independent exact review of this source, tests, workflow, and publication snapshot, followed by PR CI on that same commit. Later work remains separated:
+The next action is a ready PR followed by PR CI on an exact head containing the reviewed implementation. Later work remains separated:
 
-1. independently rereview the exact remediated commit and require every PR check, including the isolated AWS job;
+1. open a ready PR and require every check, including the isolated AWS job, on the exact head containing the reviewed implementation;
 2. merge the planned fail-closed aggregate CI edge so `Test and build` cannot pass when the AWS job fails;
 3. implement and independently review an async service-core successor, or a strict nonblocking continuation design, preserving dynamic read → sign → reread/commit/retry ordering;
 4. implement the SDK-backed adapter and enforce the exact DescribeTable preflight → operation → postflight sequence without semaphores or blocking bridges;

@@ -8,7 +8,7 @@
 
 ここでいうdeployment-key authorityもcloud deploymentではない。既存のMacユーザー単位local checkpoint key authorityであり、AWS、Firebase/GCP、Vercelのcredential・service・networkを使わない。鍵値、private path、正確な端末容量は記事にも機械可読証拠にも公開しない。
 
-今回作ったのは、固定inputをhome外へ値コピーして再検証し、real stable WASMとreal YaneuraOuをローカルで所有し、同じ認証済みstreamを100 → 500 → 24,000 parentsへ進めるsource候補である。deployment-key互換性差分のblocking findingsは修正され、独立再reviewは`P0 / P1 / P2 = 0 / 0 / 0`で完了した。ただしpublication evidenceとCIはまだ完了していないため、operational readinessはまだ成立していない。commandは追加済みだが、成功する実runはまだ0回である。したがって、評価関数や棋力はまだ変わっていない。
+今回作ったのは、固定inputをhome外へ値コピーして再検証し、real stable WASMとreal YaneuraOuをローカルで所有し、同じ認証済みstreamを100 → 500 → 24,000 parentsへ進めるsource候補である。deployment-key互換性差分のblocking findingsは修正され、独立再reviewは`P0 / P1 / P2 = 0 / 0 / 0`で完了した。修正版`bdac5a46ec9152731237302e2c94c3ed0e9217a1`（tree `089908e7d4bcfcecd2f66104ac0d4622dc860daf`）はGitHub Actions run `29677392531`とVercelを含む全checkにPASSし、sourceは明示的local invocationへ進める状態になった。ただし成功する実runはまだ0回なので、operational readinessと棋力向上はまだ成立していない。評価関数やライブ環境も変わっていない。
 
 | 項目                      | 実測状態           |
 | ------------------------- | ------------------ |
@@ -67,7 +67,7 @@ Gitとengineの子process環境はexact allowlistで再構築する。AWS、Fire
 
 最初のexact review対象はremediation commit `5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49`（tree `6b882b8cea5a3a9322b4649e824ccd524090cfc8`）だった。その後、正式A/B launcherを含むmain `1e7025b827797b856e7fa4cd72008acc7dc813ed`を統合したsnapshotはmerge commit `d4e13ce36cb4371ceaa836ba93339138a80e83fb`（tree `19426ff805a8d4079654787475c91f0bff9a34a0`）である。統合mergeはreview済み実装pathを変えず、競合した`package.json`の識別値だけを両command入りの内容へ更新した。
 
-deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba4646aeab346f259e0383a511d`（tree `26c9cd548abbcba8265dbad158a3c96ffbee4281`）、対応testは`e2c88f718e936586b2ab7e898aeaef3d43f32985`（tree `2930f48ed869c2e90f16f071b12764ccd1f0fa55`）である。このsnapshotの独立reviewは、production側がdeployment keyを拒否する食い違いとkey準備失敗時のstage lease未解放というP1を2件、動的test不足というP2を1件見つけた。remediation後のexact対象は`e56c5a5bf0197ddf319dc181e95e513f7db09461`（tree `db86a90b5af516c543d792962d010909c788b344`）で、production / test鍵境界4ケース、lease ownership 4ケース、関連279 testを再検証し、実装判定は`P0 / P1 / P2 = 0 / 0 / 0`になった。これはsourceがPR候補として安全という判定であり、実command未実行・CI未完了のためoperational readinessは引き続き主張しない。
+deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba4646aeab346f259e0383a511d`（tree `26c9cd548abbcba8265dbad158a3c96ffbee4281`）、対応testは`e2c88f718e936586b2ab7e898aeaef3d43f32985`（tree `2930f48ed869c2e90f16f071b12764ccd1f0fa55`）である。このsnapshotの独立reviewは、production側がdeployment keyを拒否する食い違いとkey準備失敗時のstage lease未解放というP1を2件、動的test不足というP2を1件見つけた。remediation後のexact対象は`e56c5a5bf0197ddf319dc181e95e513f7db09461`（tree `db86a90b5af516c543d792962d010909c788b344`）で、production / test鍵境界4ケース、lease ownership 4ケース、関連279 testを再検証し、実装判定は`P0 / P1 / P2 = 0 / 0 / 0`になった。さらに修正版sourceのGitHub Actions run `29677392531`は全jobにPASSし、Vercel buildもPASSした。これはsourceが明示的local invocationへ進める判定であるが、実commandは未実行なのでoperational readinessは引き続き主張しない。
 
 | validation                              | 結果                    |
 | --------------------------------------- | ----------------------- |
@@ -79,13 +79,14 @@ deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba46
 | import side-effect events               | 0                       |
 | base review findings P0 / P1 / P2       | 0 / 0 / 0               |
 | deployment-key互換性remediation再review | 0 / 0 / 0 PASS          |
+| GitHub Actions / Vercel                 | PASS / PASS             |
 | real teacher / network / AWS / live操作 | 0 / 0 / 0 / 0           |
 
 15 probesはtest receipt昇格、CLI/brand偽造、one-shot replay/clone、private parent replacement/hardlink、5種のGit config、欠損object、engineへのAWS環境追加、CLI追加引数を含む。これはsourceとsynthetic/test seamの安全性検証であり、実24,000-parent処理の成功証拠ではない。
 
 ## 7. まだしていないこと
 
-この変更は、教師生成を**実行可能な安全境界へ接続するsource候補を作った**段階である。互換性差分のblocking findings修正と独立再reviewは完了したが、publication evidenceとCIが閉じるまでは実runを開始できず、次の処理もまだ行っていない。
+この変更は、教師生成を**実行可能な安全境界へ接続するsource候補を作り、修正版sourceのCIを閉じた**段階である。成功する実runはまだ0回で、次の処理もまだ行っていない。
 
 - 実clean-room copyと100 → 500 → 24,000 parent生成
 - sealed workの別finalizerによるlabel publication
@@ -96,6 +97,6 @@ deployment-key / `runBinding`互換性を実装したcommitは`b9d8a96fd9620ba46
 - rollback rehearsal
 - live deploy / activation
 
-次はsource・記事・機械可読証拠のreviewとCIを閉じ、その後に明示的local commandを実行する。24,000 labelsが完成しても、training、候補選抜、正式A/B、外部校正、rollback証拠なしにはlive weightを変更しない。
+次はこのCI結果を記録した記事・機械可読証拠にも最終CIとexact reviewを通して通常mergeし、その後に明示的local commandを実行する。24,000 labelsが完成しても、training、候補選抜、正式A/B、外部校正、rollback証拠なしにはlive weightを変更しない。
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json)

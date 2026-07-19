@@ -125,7 +125,11 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         deployment_key_compatibility_remediation_tree:
           "db86a90b5af516c543d792962d010909c788b344",
         pull_request: 511,
-        continuous_integration: "PENDING",
+        ci_source_revision: "bdac5a46ec9152731237302e2c94c3ed0e9217a1",
+        ci_source_tree: "089908e7d4bcfcecd2f66104ac0d4622dc860daf",
+        continuous_integration: "PASS",
+        continuous_integration_run: 29677392531,
+        source_review_and_ci_ready_for_explicit_local_invocation: true,
       },
     });
 
@@ -146,6 +150,8 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       deployment_key_compatibility_test_tree: string;
       deployment_key_compatibility_remediation_revision: string;
       deployment_key_compatibility_remediation_tree: string;
+      ci_source_revision: string;
+      ci_source_tree: string;
     };
     for (const [commit, tree] of [
       [
@@ -170,6 +176,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.deployment_key_compatibility_remediation_revision,
         revision.deployment_key_compatibility_remediation_tree,
       ],
+      [revision.ci_source_revision, revision.ci_source_tree],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
       expect(
@@ -503,6 +510,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       "実clean-room copy",
       "formal A/B",
       "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "29677392531",
       "operational readinessは引き続き主張しない",
       "live deploy / activation",
       "floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json",
@@ -521,6 +529,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       "real clean-room copy",
       "formal A/B",
       "e56c5a5bf0197ddf319dc181e95e513f7db09461",
+      "29677392531",
       "does not establish operational readiness",
       "live deployment or activation",
       "floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json",

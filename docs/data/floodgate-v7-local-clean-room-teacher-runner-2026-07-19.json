@@ -30,7 +30,11 @@
     "deployment_key_compatibility_remediation_revision": "e56c5a5bf0197ddf319dc181e95e513f7db09461",
     "deployment_key_compatibility_remediation_tree": "db86a90b5af516c543d792962d010909c788b344",
     "pull_request": 511,
-    "continuous_integration": "PENDING"
+    "ci_source_revision": "bdac5a46ec9152731237302e2c94c3ed0e9217a1",
+    "ci_source_tree": "089908e7d4bcfcecd2f66104ac0d4622dc860daf",
+    "continuous_integration": "PASS",
+    "continuous_integration_run": 29677392531,
+    "source_review_and_ci_ready_for_explicit_local_invocation": true
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",

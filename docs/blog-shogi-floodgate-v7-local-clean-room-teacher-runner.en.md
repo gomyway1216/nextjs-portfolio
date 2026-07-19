@@ -8,7 +8,7 @@ The answer to “why AWS?” is that **this runner does not use AWS**. The repos
 
 The deployment-key authority here is not a cloud deployment. It is an existing per-user Mac-local checkpoint-key authority and uses no AWS, Firebase/GCP, or Vercel credential, service, or network. Neither article nor the machine-readable evidence publishes key material, private paths, or exact machine capacity.
 
-What now exists is a source candidate that copies fixed inputs by value outside the home directory, revalidates them, owns real stable WASM and real YaneuraOu locally, and advances one authenticated stream through 100 → 500 → 24,000 parents. The blocking findings in the deployment-key compatibility delta are fixed, and independent rereview completed at `P0 / P1 / P2 = 0 / 0 / 0`. Publication evidence and CI are not yet complete, so operational readiness is not established. The command has been added, but it has completed zero real runs. The evaluator and playing strength therefore remain unchanged.
+What now exists is a source candidate that copies fixed inputs by value outside the home directory, revalidates them, owns real stable WASM and real YaneuraOu locally, and advances one authenticated stream through 100 → 500 → 24,000 parents. The blocking findings in the deployment-key compatibility delta are fixed, and independent rereview completed at `P0 / P1 / P2 = 0 / 0 / 0`. The remediated source at `bdac5a46ec9152731237302e2c94c3ed0e9217a1` (tree `089908e7d4bcfcecd2f66104ac0d4622dc860daf`) passed every check in GitHub Actions run `29677392531`, including Vercel, so the source may proceed to explicit local invocation. The command has still completed zero real runs, so operational readiness and stronger play are not established. The evaluator and live environment remain unchanged.
 
 | Item                         | Measured state     |
 | ---------------------------- | ------------------ |
@@ -67,7 +67,7 @@ Git and engine child environments are rebuilt from exact allowlists. They inheri
 
 The initial exact-review target was remediation commit `5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49` (tree `6b882b8cea5a3a9322b4649e824ccd524090cfc8`). The later snapshot integrates main `1e7025b827797b856e7fa4cd72008acc7dc813ed`, including the formal A/B launcher, at merge commit `d4e13ce36cb4371ceaa836ba93339138a80e83fb` (tree `19426ff805a8d4079654787475c91f0bff9a34a0`). That merge left the reviewed implementation paths unchanged and refreshed only the conflicted `package.json` identity to the version containing both commands.
 
-The deployment-key / `runBinding` compatibility implementation is commit `b9d8a96fd9620ba4646aeab346f259e0383a511d` (tree `26c9cd548abbcba8265dbad158a3c96ffbee4281`), with its test in `e2c88f718e936586b2ab7e898aeaef3d43f32985` (tree `2930f48ed869c2e90f16f071b12764ccd1f0fa55`). Independent review of that snapshot found two P1s—the production path rejected its deployment key and a key-preparation failure leaked the stage lease—plus one P2 for missing dynamic coverage. The exact remediated target is `e56c5a5bf0197ddf319dc181e95e513f7db09461` (tree `db86a90b5af516c543d792962d010909c788b344`). Rereview covered the four production/test key-boundary cases, four lease-ownership cases, and 279 related tests, and found `P0 / P1 / P2 = 0 / 0 / 0` in the implementation. This means the source is safe as a PR candidate; it does not establish operational readiness because the real command remains unrun and CI is still pending.
+The deployment-key / `runBinding` compatibility implementation is commit `b9d8a96fd9620ba4646aeab346f259e0383a511d` (tree `26c9cd548abbcba8265dbad158a3c96ffbee4281`), with its test in `e2c88f718e936586b2ab7e898aeaef3d43f32985` (tree `2930f48ed869c2e90f16f071b12764ccd1f0fa55`). Independent review of that snapshot found two P1s—the production path rejected its deployment key and a key-preparation failure leaked the stage lease—plus one P2 for missing dynamic coverage. The exact remediated target is `e56c5a5bf0197ddf319dc181e95e513f7db09461` (tree `db86a90b5af516c543d792962d010909c788b344`). Rereview covered the four production/test key-boundary cases, four lease-ownership cases, and 279 related tests, and found `P0 / P1 / P2 = 0 / 0 / 0` in the implementation. GitHub Actions run `29677392531` then passed every job for the remediated source, and the Vercel build passed as well. This means the source may proceed to explicit local invocation; it does not establish operational readiness because the real command remains unrun.
 
 | Validation                                  | Result                  |
 | ------------------------------------------- | ----------------------- |
@@ -79,13 +79,14 @@ The deployment-key / `runBinding` compatibility implementation is commit `b9d8a9
 | Import side-effect events                   | 0                       |
 | Base review findings P0 / P1 / P2           | 0 / 0 / 0               |
 | Deployment-key compatibility rereview       | 0 / 0 / 0 PASS          |
+| GitHub Actions / Vercel                     | PASS / PASS             |
 | Real teacher / network / AWS / live actions | 0 / 0 / 0 / 0           |
 
 The 15 probes covered test-receipt elevation, CLI/brand forgery, one-shot replay/clone, private parent replacement/hardlink, five Git configurations, a missing object, extra AWS engine environment, and an extra CLI argument. These are source and synthetic/test-seam safety results, not evidence that 24,000 real parents were processed.
 
 ## 7. What has not happened
 
-This change creates a **source candidate for connecting teacher generation to an executable safety boundary**. Compatibility-blocker remediation and independent rereview are complete, but no real run may begin until publication evidence and CI close. It has not performed:
+This change creates a **source candidate for connecting teacher generation to an executable safety boundary and closes CI for the remediated source**. It has completed zero successful real runs and has not performed:
 
 - the real clean-room copy or 100 → 500 → 24,000 parent generation;
 - label publication by a separate finalizer over the sealed work;
@@ -96,6 +97,6 @@ This change creates a **source candidate for connecting teacher generation to an
 - rollback rehearsal; or
 - live deployment or activation.
 
-The next step is to close review and CI for the source, articles, and machine-readable evidence, then invoke the explicit local command. Even after 24,000 labels exist, live weights must remain unchanged until training, candidate selection, formal A/B, external calibration, and rollback evidence are complete.
+The next step is to pass final CI and exact review on the articles and machine-readable evidence that record this result, merge normally, and then invoke the explicit local command. Even after 24,000 labels exist, live weights must remain unchanged until training, candidate selection, formal A/B, external calibration, and rollback evidence are complete.
 
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json)

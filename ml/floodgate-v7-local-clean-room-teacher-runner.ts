@@ -10,8 +10,11 @@
  * after the sealed chain validates.
  *
  * There is no AWS, Cloud Functions, Firebase, Vercel, production-worktree,
- * production-connector, deployment credential, network, live-weight,
- * optimizer, match, or activation dependency in this module.
+ * production-connector, cloud credential, network, live-weight, optimizer,
+ * match, or activation dependency in this module. The checkpoint stream uses
+ * the existing fixed per-user deployment-key authority on this Mac; the
+ * separate random local integrity key authenticates only private orchestration
+ * receipts and the finalizer handoff.
  */
 
 import { Buffer } from "node:buffer";
@@ -36,21 +39,21 @@ import {
   createFloodgateProductionTeacherUsiRuntimeCoreForTests,
   getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
 } from "./floodgate-production-teacher-usi-runtime";
-import {
-  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
-  verifyPinnedFloodgateRoleBundleReceipt,
-} from "./floodgate-role-bundle-result";
 import { createFloodgateStableWasmReusableProposalPool } from "./floodgate-stable-wasm-proposer";
 import {
-  FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
-  authorizeFloodgateTeacherStageCoreForTests,
+  authorizeFloodgateTeacherStage,
   type FloodgateTeacherStageAuthorizationOptions,
 } from "./floodgate-teacher-stage-authorization";
 import {
-  withVerifiedPinnedFloodgateTrainingRowsCoreForTests,
+  withVerifiedPinnedFloodgateTrainingRows,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingRowConsumerOptions,
 } from "./floodgate-training-row-consumer";
+import {
+  FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+  prepareFloodgateV7DeploymentTeacherCheckpointV3Key,
+  type FloodgateV7DeploymentTeacherRunBinding,
+} from "./floodgate-v7-deployment-key-authority";
 import {
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_BYTES,
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_GIB,
@@ -76,7 +79,8 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
   FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
-  checkpointFloodgateV7TeacherParentsV3CoreForTests,
+  checkpointFloodgateV7TeacherParentsV3,
+  type FloodgateV7TeacherCheckpointRunBinding,
   type FloodgateV7TeacherCheckpointV3Receipt,
 } from "./floodgate-v7-teacher-checkpoint";
 import { SHOGI_WASM_BASE64 } from "../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
@@ -86,7 +90,7 @@ export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT =
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_STATUS =
   "explicit-local-clean-room-three-gate-stream-sealed-finalizer-handoff-ready" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CLAIM_BOUNDARY =
-  "explicit-argumentless-package-command-fixed-local-input-copy-and-verification-fresh-20-gib-preflight-one-local-integrity-key-one-stage-stream-exact-100-500-24000-gates-private-completion-receipts-and-sealed-finalizer-handoff-not-label-finalization-training-weight-match-live-or-playing-strength-evidence" as const;
+  "explicit-argumentless-package-command-fixed-local-input-copy-and-verification-fresh-20-gib-preflight-fixed-current-user-local-deployment-checkpoint-key-one-separate-local-integrity-key-one-stage-stream-exact-100-500-24000-gates-private-run-binding-bound-completion-receipts-and-sealed-finalizer-handoff-not-label-finalization-training-weight-match-live-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT =
   "shogi-floodgate-v7-local-clean-room-teacher-test-runner-v1" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS =
@@ -95,8 +99,11 @@ export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY =
   "test-only-injected-opaque-operations-and-synthetic-receipts-not-private-copy-teacher-checkpoint-finalizer-or-operational-evidence" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT =
   "shogi-floodgate-v7-local-clean-room-teacher-operational-completion-v1" as const;
-export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID =
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID =
   "shogi-floodgate-v7-local-clean-room-integrity-v1" as const;
+/** Backward-compatible name for the private handoff-integrity key, not the checkpoint key. */
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID =
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT =
   "shogi:floodgate-v7-local-clean-room-teacher" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_STAGE_BASENAME =
@@ -187,8 +194,7 @@ export interface FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly sha256: string;
 }
 
-export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence
-  extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
+export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly created_after_validated_sealed_chain: true;
   readonly finalizer_invoked: false;
   readonly finalizer_labels_published: false;
@@ -207,6 +213,7 @@ export interface FloodgateV7LocalCleanRoomTeacherRunnerReceipt {
     readonly aws_used: false;
     readonly network_used: false;
     readonly cloud_credentials_used: false;
+    readonly local_deployment_key_authority_used: true;
     readonly production_worktree_used: false;
   }>;
   readonly preparation: Readonly<{
@@ -282,8 +289,7 @@ interface FixedTargets {
 interface LocalGateSession {
   readonly dependencies: Readonly<FloodgateV7CleanRoomLocalRunGateDependencies>;
   readonly finalizerHandoffEvidence: () =>
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   readonly close: () => void;
 }
 
@@ -314,10 +320,7 @@ function targets(): Readonly<FixedTargets> {
     "verifier",
     "accepted-e8a9197",
   );
-  const stateRoot = path.join(
-    FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
-    "state",
-  );
+  const stateRoot = path.join(FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT, "state");
   return Object.freeze({
     verifierRepository,
     rawLockRoot: path.join(
@@ -377,6 +380,16 @@ function canonicalJson(value: unknown): string {
     .join(",")}}`;
 }
 
+function deepFreezeCanonicalJson<T>(value: T): Readonly<T> {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      deepFreezeCanonicalJson(child);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
+
 function sha256(value: Uint8Array | string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -412,9 +425,7 @@ async function syncPrivateDirectory(directory: string): Promise<void> {
   const effectiveUserId = process.geteuid();
   const handle = await fs.promises.open(
     directory,
-    fs.constants.O_RDONLY |
-      fs.constants.O_DIRECTORY |
-      fs.constants.O_NOFOLLOW,
+    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
   );
   try {
     const before = await handle.stat({ bigint: true });
@@ -570,9 +581,7 @@ async function writePrivateFile(
   const parent = path.dirname(filename);
   const parentHandle = await fs.promises.open(
     parent,
-    fs.constants.O_RDONLY |
-      fs.constants.O_DIRECTORY |
-      fs.constants.O_NOFOLLOW,
+    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
   );
   let handle: fs.promises.FileHandle | undefined;
   let heldBytes: Buffer | undefined;
@@ -774,13 +783,12 @@ function runtimeOwnerDependencies(
             },
           ),
         spawnEngine: (file, args, options) => {
-          const contract =
-            captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
-              file,
-              args,
-              options,
-              fixed.snapshotParent,
-            );
+          const contract = captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+            file,
+            args,
+            options,
+            fixed.snapshotParent,
+          );
           return spawn(contract.file, [...contract.arguments], {
             ...contract.options,
             env: { ...contract.options.env } as unknown as NodeJS.ProcessEnv,
@@ -852,6 +860,8 @@ function consumerOptions(
 function completionPayload(
   receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
   order: number,
+  runBinding: Readonly<FloodgateV7DeploymentTeacherRunBinding>,
+  runBindingSha256: string,
 ): Readonly<Record<string, unknown>> {
   return Object.freeze({
     schema: "shogi-floodgate-v7-local-clean-room-gate-completion-v1",
@@ -861,6 +871,9 @@ function completionPayload(
     gate: receipt.gate,
     run_id: receipt.run_id,
     key_id: receipt.key_id,
+    integrity_key_id: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
+    run_binding: runBinding,
+    run_binding_sha256: runBindingSha256,
     stage: Object.freeze({
       basename: receipt.stage.basename,
       parent_dev: receipt.stage.parent_dev,
@@ -897,22 +910,49 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
       false,
     );
   }
-  const effectiveUserId = process.geteuid();
   const fixed = targets();
   const checkpointReceiptClaims = new WeakSet<object>();
-  let rootKey: Buffer | undefined;
+  let integrityKey: Buffer | undefined;
   let runId: string | undefined;
+  let runBinding: Readonly<FloodgateV7DeploymentTeacherRunBinding> | undefined;
+  let runBindingCanonical: string | undefined;
+  let runBindingSha256: string | undefined;
   let handoff:
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   const receipts: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
   const receiptFiles: Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>[] =
     [];
 
+  function bindExactRunBinding(
+    candidate: Readonly<FloodgateV7TeacherCheckpointRunBinding>,
+  ): void {
+    const canonical = canonicalJson(candidate);
+    const digest = sha256(canonical);
+    if (runBindingCanonical !== undefined) {
+      if (runBindingCanonical !== canonical || runBindingSha256 !== digest) {
+        throw new Error("local run binding changed between gates");
+      }
+      return;
+    }
+    const captured = JSON.parse(
+      canonical,
+    ) as FloodgateV7DeploymentTeacherRunBinding;
+    runBinding = deepFreezeCanonicalJson(captured);
+    runBindingCanonical = canonical;
+    runBindingSha256 = digest;
+  }
+
   async function initializePrivateState(expectedRunId: string): Promise<void> {
-    if (rootKey !== undefined) {
+    if (integrityKey !== undefined) {
       if (runId !== expectedRunId) throw new Error("local run id changed");
       return;
+    }
+    if (
+      runBinding === undefined ||
+      runBindingCanonical === undefined ||
+      runBindingSha256 === undefined
+    ) {
+      throw new Error("local run binding is unavailable");
     }
     await assertPrivateDirectory(fixed.stateRoot);
     await fs.promises.mkdir(fixed.localStateRoot, {
@@ -931,11 +971,16 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
         schema: "shogi-floodgate-v7-local-clean-room-run-control-v1",
         status: "active-one-process-three-gate-run",
         run_id: expectedRunId,
-        key_id: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
+        key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        integrity_key_id:
+          FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
+        run_binding: runBinding,
+        run_binding_sha256: runBindingSha256,
         gate_sequence: GATE_ORDER,
         same_stream_resume: true,
         automatic_cross_process_retry: false,
-        external_credential: false,
+        local_checkpoint_key_authority: true,
+        cloud_credential: false,
         network: false,
         aws: false,
       });
@@ -951,7 +996,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
         path.join(fixed.localStateRoot, LOCAL_CONTROL_FILENAME),
         control,
       );
-      rootKey = Buffer.from(candidate);
+      integrityKey = Buffer.from(candidate);
       runId = expectedRunId;
     } finally {
       candidate.fill(0);
@@ -969,53 +1014,49 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     ) {
       throw new Error("local gate order or root differs");
     }
+    bindExactRunBinding(claim.runBinding);
     await initializePrivateState(claim.runId);
-    const key = rootKey;
+    const key = integrityKey;
     if (key === undefined) throw new Error("local integrity key unavailable");
-    const lease = await authorizeFloodgateTeacherStageCoreForTests(
+    const exactRunBinding = runBinding;
+    const exactRunBindingSha256 = runBindingSha256;
+    if (exactRunBinding === undefined || exactRunBindingSha256 === undefined) {
+      throw new Error("local run binding is unavailable");
+    }
+    const lease = await authorizeFloodgateTeacherStage(
       stageAuthorization(fixed),
-      {
-        effectiveUserId,
-        inspectorPythonExecutable:
-          FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
-      },
     );
     let checkpointInvoked = false;
-    let receipt:
-      | Readonly<FloodgateV7TeacherCheckpointV3Receipt>
-      | undefined;
+    let receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
     try {
-      await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      await withVerifiedPinnedFloodgateTrainingRows(
         consumerOptions(fixed),
         async (
           input: Readonly<AuthenticatedFloodgateTrainingRows>,
         ): Promise<void> => {
           checkpointInvoked = true;
-          const gateKey = Buffer.from(key);
-          try {
-            receipt = await checkpointFloodgateV7TeacherParentsV3CoreForTests(
-              lease,
-              input,
-              claim.runBinding,
-              claim.producerController,
+          const checkpointOptions = Object.freeze({
+            gate: claim.gate,
+            runId: claim.runId,
+            keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+          });
+          const authorization =
+            await prepareFloodgateV7DeploymentTeacherCheckpointV3Key(
               Object.freeze({
-                gate: claim.gate,
-                runId: claim.runId,
-                keyId: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
-              }),
-              Object.freeze({
-                rootKey: gateKey,
-                effectiveUserId,
+                ...checkpointOptions,
+                runBinding: exactRunBinding,
+                stageAuthorizationReceipt: lease.receipt,
               }),
             );
-          } finally {
-            gateKey.fill(0);
-          }
+          receipt = await checkpointFloodgateV7TeacherParentsV3(
+            lease,
+            input,
+            exactRunBinding,
+            claim.producerController,
+            checkpointOptions,
+            authorization,
+          );
         },
-        Object.freeze({
-          verifyBundle: verifyPinnedFloodgateRoleBundleReceipt,
-          expectedManifestIdentity: FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
-        }),
       );
     } catch (error) {
       if (!checkpointInvoked) {
@@ -1033,7 +1074,12 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     if (receipt === undefined) {
       throw new Error("local checkpoint completed without a receipt");
     }
-    const payload = completionPayload(receipt, receipts.length + 1);
+    const payload = completionPayload(
+      receipt,
+      receipts.length + 1,
+      exactRunBinding,
+      exactRunBindingSha256,
+    );
     const privateReceipt = Object.freeze({
       ...payload,
       receipt_mac: hmac(key, PRIVATE_RECEIPT_HMAC_DOMAIN, payload),
@@ -1062,11 +1108,14 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
   }
 
   async function finalizeSealedChainHandoff(): Promise<void> {
-    const key = rootKey;
+    const key = integrityKey;
     const final = receipts[2];
     if (
       key === undefined ||
       runId === undefined ||
+      runBinding === undefined ||
+      runBindingCanonical === undefined ||
+      runBindingSha256 === undefined ||
       receipts.length !== 3 ||
       receiptFiles.length !== 3 ||
       receipts.some((receipt, index) => receipt.gate !== GATE_ORDER[index]) ||
@@ -1082,11 +1131,14 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
       schema: "shogi-floodgate-v7-local-clean-room-finalizer-handoff-v1",
       status: "sealed-final-ready-for-separate-local-finalizer",
       claim_boundary:
-        "validated-three-gate-local-stream-private-integrity-key-and-sealed-work-binding-not-finalized-label-training-weight-match-live-or-strength-evidence",
+        "validated-three-gate-local-stream-fixed-current-user-deployment-checkpoint-key-private-handoff-integrity-key-exact-run-binding-and-sealed-work-binding-not-finalized-label-training-weight-match-live-or-strength-evidence",
       run_id: runId,
-      key_id: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
+      key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+      integrity_key_id: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_INTEGRITY_KEY_ID,
       local_integrity_key_filename: LOCAL_INTEGRITY_KEY_FILENAME,
       local_integrity_key_is_external_credential: false,
+      run_binding: runBinding,
+      run_binding_sha256: runBindingSha256,
       stage: Object.freeze({
         basename: final.stage.basename,
         parent_dev: final.stage.parent_dev,
@@ -1104,8 +1156,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
         sealed: final.sealed,
       }),
       input: Object.freeze({
-        verifier_revision:
-          FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
+        verifier_revision: FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
         role: "training",
         parents: 24_000,
       }),
@@ -1160,8 +1211,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     runtimeOwnerDependencies: runtimeOwnerDependencies(fixed),
     executeAuthenticatedCheckpointGate,
     observeFailureForTests: undefined,
-    expectedCheckpointKeyId:
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
+    expectedCheckpointKeyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
     claimAuthenticatedCheckpointReceipt,
     finalizeSealedChainHandoff,
   });
@@ -1169,8 +1219,8 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     dependencies,
     finalizerHandoffEvidence: () => handoff,
     close: () => {
-      rootKey?.fill(0);
-      rootKey = undefined;
+      integrityKey?.fill(0);
+      integrityKey = undefined;
     },
   });
 }
@@ -1208,7 +1258,8 @@ function captureOperations(
         descriptors[key].configurable ||
         typeof descriptors[key].value !== "function" ||
         nodeUtilTypes.isProxy(descriptors[key].value) ||
-        descriptors[key].value.length !== expected[key as keyof typeof expected],
+        descriptors[key].value.length !==
+          expected[key as keyof typeof expected],
     )
   ) {
     throw new Error("local runner operation descriptors differ");
@@ -1241,8 +1292,7 @@ function buildPublicReceipt(
   return Object.freeze({
     contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
     status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_STATUS,
-    claim_boundary:
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CLAIM_BOUNDARY,
+    claim_boundary: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CLAIM_BOUNDARY,
     execution_boundary:
       "explicit-local-only-argumentless-package-command" as const,
     stack_boundary: Object.freeze({
@@ -1253,6 +1303,7 @@ function buildPublicReceipt(
       aws_used: false as const,
       network_used: false as const,
       cloud_credentials_used: false as const,
+      local_deployment_key_authority_used: true as const,
       production_worktree_used: false as const,
     }),
     preparation: Object.freeze({
@@ -1366,9 +1417,7 @@ export function claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(
 
 async function executeWithOperations(
   operationsValue: FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
-): Promise<
-  Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>
-> {
+): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>> {
   let phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase = "capture";
   let cleanRoomMayExist = false;
   let checkpointMayExist = false;
@@ -1399,12 +1448,10 @@ async function executeWithOperations(
       throw error;
     }
     if (error instanceof FloodgateV7CleanRoomTeacherPreparationError) {
-      cleanRoomMayExist =
-        cleanRoomMayExist || error.clean_room_may_exist;
+      cleanRoomMayExist = cleanRoomMayExist || error.clean_room_may_exist;
     }
     if (error instanceof FloodgateV7CleanRoomRunGateError) {
-      checkpointMayExist =
-        checkpointMayExist || error.work_state_may_exist;
+      checkpointMayExist = checkpointMayExist || error.work_state_may_exist;
       if (
         error.phase === "durable-prefix-100" ||
         error.phase === "durable-prefix-500" ||
@@ -1455,11 +1502,7 @@ export function runFloodgateV7LocalCleanRoomTeacherCoreForTests(
 ): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt>> {
   if (arguments.length !== 1) {
     return Promise.reject(
-      new FloodgateV7LocalCleanRoomTeacherRunnerError(
-        "capture",
-        false,
-        false,
-      ),
+      new FloodgateV7LocalCleanRoomTeacherRunnerError("capture", false, false),
     );
   }
   return executeWithOperations(operationsValue).then(buildTestReceipt);
@@ -1474,11 +1517,7 @@ export function runFloodgateV7LocalCleanRoomTeacher(): Promise<
 > {
   if (arguments.length !== 0) {
     return Promise.reject(
-      new FloodgateV7LocalCleanRoomTeacherRunnerError(
-        "capture",
-        false,
-        false,
-      ),
+      new FloodgateV7LocalCleanRoomTeacherRunnerError("capture", false, false),
     );
   }
   return executeWithOperations(FIXED_OPERATIONS).then((composition) =>

@@ -4,19 +4,20 @@
   "recorded_date": "2026-07-18",
   "base_revision": "1f98c3661361254bbc0854fa52888ed4b65bc689",
   "implementation": {
-    "code_commit": "a0e136296772840ea93066fe8013e4e2ec339a5a",
-    "test_commit": "8481a8bc283ca648d23ad11ebd77c0c7e4c0c04a",
+    "code_commit": "7af69a1fe518ff3f2c64a7238d695d173f642e87",
+    "test_commit": "f9fee197def90681c1444dc68a646b7f5f06a936",
+    "test_commit_tree": "fcf4da82bb03087e86666796188dd62c71f6d540",
     "history_rewritten": false,
     "files": {
       "dispatcher": {
         "path": "ml/fresh_qat_v2_execution_dispatch.py",
-        "bytes": 42523,
-        "sha256": "56a50dbd8f067651fed346e633728c2bd78b21499be2cbdcd060a3734ba7efd2"
+        "bytes": 49233,
+        "sha256": "a60dfc91a1ddc2b60240b9b392d7985527b3b52c4b8371ff1bd62c4204060876"
       },
       "route_registry": {
         "path": "ml/qat_plan_registry.py",
-        "bytes": 4250,
-        "sha256": "87325edd9a041ddb8c87a3d60198d7ad6c0a4c1491840d51362fa03b858aa4be"
+        "bytes": 5367,
+        "sha256": "6a8abdb27e10c50329823be1577616f973f6b448a7bd8b47beef979f318403db"
       },
       "activation_anchor": {
         "path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-activation-anchor.json",
@@ -27,8 +28,13 @@
       },
       "stdlib_tests": {
         "path": "ml/tests_stdlib/test_fresh_qat_v2_execution_dispatch.py",
-        "bytes": 24472,
-        "sha256": "32d1dc16a81919d07db8416efda55ff8ab3b6300a60bac3fea944e38fb025621"
+        "bytes": 30992,
+        "sha256": "1085229917d6491976f714c30b365f462862267a9b948992b1019c1f67cc7208"
+      },
+      "route_stdlib_tests": {
+        "path": "ml/tests_stdlib/test_qat_plan_registry.py",
+        "bytes": 8645,
+        "sha256": "a851d2591db339c7f5708832287e405c1dd8284e969b565479222a095fd84ef9"
       }
     }
   },
@@ -71,7 +77,8 @@
     "attempt-exact-additive-ready-successor",
     "stop-if-successor-absent-before-any-artifact-or-runtime-reader",
     "verify-frozen-v1-plan-v1-selection-and-closed-v2-registry-bytes",
-    "verify-exact-proposal-plan-and-train-identities-with-rereads",
+    "verify-exact-input-completion-proposal-plan-and-train-identities-with-rereads",
+    "invoke-production-source-accounting-validator-with-exact-input-completion-and-train-bytes",
     "cross-bind-parent-accounting-plan-proposal-train-and-training-contracts",
     "verify-runtime-and-other-input-identities",
     "issue-one-existing-v1-training-contract-for-the-selected-fixed-slot"
@@ -87,6 +94,14 @@
       "path": "ml/protocols/floodgate-q1-2026-fresh-qat-parent-accounting-proposal-v2.json",
       "schema": "shogi-floodgate-fresh-qat-parent-accounting-proposal-v2"
     },
+    "exact_input_training": {
+      "path": "training.raw.jsonl",
+      "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1"
+    },
+    "enrolled_parent_completion": {
+      "path": "parent-completion.jsonl",
+      "format": "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2"
+    },
     "exact_train": {
       "path": "ml/data/floodgate-q1-2026-fresh-qat-v2/train.jsonl",
       "format": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
@@ -97,6 +112,7 @@
     },
     "near_paths_rejected": true,
     "symlinked_v2_plan_rejected": true,
+    "non_plain_string_v2_candidates_rejected": true,
     "wrong_schemas_rejected": true,
     "v1_v2_or_wcsc36_hybrids_rejected": true,
     "selection_and_holdout_remain_unauthorized": true,
@@ -106,12 +122,16 @@
     "input_parents": 24000,
     "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
     "model_training_parents_source": "emitted_parent_groups",
-    "proposal_plan_train_and_contract_cross_bound": true,
-    "partial_emission_allowed_only_with_exact_identity_agreement": true,
+    "input_completion_proposal_plan_train_and_contract_cross_bound": true,
+    "production_source_validator_recomputation_required": true,
+    "successor_completion_enrollment_declaration_is_not_sufficient": true,
+    "partial_emission_allowed_only_after_source_recomputation_and_exact_identity_agreement": true,
     "replacement_allowed": false,
     "resampling_allowed": false,
     "emitted_order_must_be_preserved": true,
-    "all_forced_result": "STOP-no-trainable-parent-groups",
+    "all_forced_declaration_result": "early-fail-closed-exception-before-source-authentication",
+    "all_forced_parents_authenticated_by_early_exception": false,
+    "all_forced_literal_parent_accounting_stop_receipt_returned": false,
     "all_forced_training_contracts_issued": 0
   },
   "unchanged_training_contract": {
@@ -127,16 +147,16 @@
   },
   "local_validation": {
     "focused_v2_dispatch_and_registry": {
-      "tests": 17,
-      "passed": 17,
+      "tests": 20,
+      "passed": 20,
       "failed": 0,
-      "wall_seconds": 0.042
+      "wall_seconds": 0.041
     },
     "full_stdlib_suite": {
-      "tests": 150,
-      "passed": 150,
+      "tests": 153,
+      "passed": 153,
       "failed": 0,
-      "wall_seconds": 10.761,
+      "wall_seconds": 10.575,
       "command": "npm run test:ml:stdlib"
     },
     "python_compile": "PASS",
@@ -147,6 +167,7 @@
       "exact-v2-plan-path-only",
       "near-v2-plan-path",
       "symlinked-v2-plan-path",
+      "path-bytes-and-string-subclass-v2-cross-route",
       "wrong-successor-schema",
       "v1-plan-v2-route-hybrid",
       "v2-plan-wcsc36-contract-hybrid",
@@ -155,9 +176,12 @@
       "boolean-count-alias",
       "partial-emission",
       "full-emission",
-      "all-forced-zero-contract-stop",
+      "all-forced-declaration-early-exception-zero-contract",
+      "unenrolled-synthetic-input-completion-zero-contract",
+      "self-asserted-proposal-upstream",
       "proposal-train-parent-identity-drift",
       "proposal-plan-accounting-drift",
+      "input-completion-or-train-exact-byte-drift",
       "replacement-parent",
       "frozen-slot-drift",
       "training-contract-schema-drift",
@@ -191,6 +215,19 @@
     "live_weights_changed": false
   },
   "continuous_integration": "PENDING",
-  "independent_review": "PENDING",
-  "next_required_action": "keep-production-stop-until-a-separate-reviewed-data-only-change-adds-the-exact-ready-successor-after-finalizer-authenticated-proposal-plan-and-train-identities-exist"
+  "independent_review": {
+    "initial_result": "CHANGES_REQUIRED",
+    "initial_findings": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 2
+    },
+    "remediation_commits": [
+      "7af69a1fe518ff3f2c64a7238d695d173f642e87",
+      "0aaa09aae018f90648edccd9763e55c06103f031",
+      "f9fee197def90681c1444dc68a646b7f5f06a936"
+    ],
+    "post_remediation_rereview": "PENDING"
+  },
+  "next_required_action": "keep-production-stop-until-the-production-source-accounting-validator-accepts-finalizer-authenticated-completion-enrollment-and-recomputes-the-proposal-from-exact-input-completion-and-train-bytes-before-a-separately-reviewed-ready-successor-is-added"
 }

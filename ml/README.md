@@ -532,13 +532,15 @@ v2 registryも全enrollmentが`null`、全gate/authorityが`false`である。
 parent-accounting結果を学習入口へ渡すfresh QAT v2 execution dispatcherも追記した。
 3,387-byte permanent activation anchorは、v1 plan registry、v1 selection registry、
 3,501-byte closed parent-accounting v2 registryをbyte identityで固定し、自身は永久に閉じたままにする。
-将来のactivationはanchor編集ではなく、exact plan / proposal / train identityと
-`F + E = 24000`を持つ別のready-successorファイルを新規追加する方式である。
+将来のactivationはanchor編集ではなく、exact input / per-parent completion / plan / proposal /
+train identityと`F + E = 24000`を持つ別のready-successorファイルを新規追加する方式である。
 現在そのsuccessorは存在しないため、v2 routeはproposal、plan、train、他のtraining artifact、
 runtime reader、training contract生成の前でSTOPする。exact v2 pathだけを受け付け、near path、
-symlink、wrong schema、v1/v2/WCSC36 hybridを拒否する。部分的な`E`はproposal / train /
-plan / 3 seed contractのexact一致時だけ許し、`E = 0`ならcontractを1件も発行せず
-`STOP-no-trainable-parent-groups`となる。既存v1 routeとtraining / slot / selection contractは
+symlink、v2を指す非plain-string path、wrong schema、v1/v2/WCSC36 hybridを拒否する。successorの
+completion enrollment宣言だけは信頼せず、production source-accounting validatorが登録済みexact
+input / completion / train bytesからproposalを再生成した後にだけcontractへ進む。`E = 0`宣言は
+source authentication前の早期fail-closed例外で、認証済みall-forcedやliteral STOP receiptの証拠ではないが、
+contractを1件も発行しない。既存v1 routeとtraining / slot / selection contractは
 不変で、selection、holdout、production weight writeも未許可である。この検証はローカルで完結し、
 AWS、Firebase / GCP、Vercel、network、実teacher、実Torch学習を使っていない。詳細は
 [日本語execution-dispatch記事](../docs/blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.md) /

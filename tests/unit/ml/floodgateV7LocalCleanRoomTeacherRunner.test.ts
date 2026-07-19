@@ -559,21 +559,32 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
       events.push("key-prepare");
       throw keyFailure;
     }
+    async function consumeRows(
+      invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      await invokeCheckpointSynchronously();
+    }
     async function invokeCheckpoint(): Promise<void> {
       events.push("checkpoint");
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
     }
 
     await expect(
       runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
         closeUntransferredLease,
         prepareCheckpointKey,
+        consumeRows,
         invokeCheckpoint,
+        discardCheckpointKey,
       ),
     ).rejects.toBe(keyFailure);
     expect(events).toEqual(["key-prepare", "lease-closed"]);
   });
 
-  it("does not double-close a stage lease after checkpoint ownership transfer", async () => {
+  it("joins the idempotent stage close after checkpoint ownership transfer and rejection", async () => {
     const events: string[] = [];
     const checkpointFailure = new Error("synthetic checkpoint failure");
     async function closeUntransferredLease(): Promise<void> {
@@ -582,19 +593,318 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     async function prepareCheckpointKey(): Promise<void> {
       events.push("key-prepared");
     }
+    async function consumeRows(
+      invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      await invokeCheckpointSynchronously();
+    }
     async function invokeCheckpoint(): Promise<void> {
       events.push("checkpoint");
       throw checkpointFailure;
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
     }
 
     await expect(
       runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
         closeUntransferredLease,
         prepareCheckpointKey,
+        consumeRows,
         invokeCheckpoint,
+        discardCheckpointKey,
       ),
     ).rejects.toBe(checkpointFailure);
-    expect(events).toEqual(["key-prepared", "checkpoint"]);
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "checkpoint",
+      "key-discard",
+      "lease-closed",
+    ]);
+  });
+
+  it("joins a checkpoint-started memoized close without repeating physical cleanup", async () => {
+    const events: string[] = [];
+    let closeCalls = 0;
+    let physicalCloses = 0;
+    let closePromise: Promise<void> | undefined;
+    function closeUntransferredLease(): Promise<void> {
+      closeCalls += 1;
+      events.push(`lease-close-call-${closeCalls}`);
+      closePromise ??= Promise.resolve().then(() => {
+        physicalCloses += 1;
+        events.push("lease-physical-close");
+      });
+      return closePromise;
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      await invokeCheckpointSynchronously();
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+      await closeUntransferredLease();
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+    }
+
+    await runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+      closeUntransferredLease,
+      prepareCheckpointKey,
+      consumeRows,
+      invokeCheckpoint,
+      discardCheckpointKey,
+    );
+
+    expect(closeCalls).toBe(2);
+    expect(physicalCloses).toBe(1);
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "checkpoint",
+      "lease-close-call-1",
+      "lease-physical-close",
+      "key-discard",
+      "lease-close-call-2",
+    ]);
+  });
+
+  it("retains lease ownership and closes locally when checkpoint invocation throws before transfer", async () => {
+    const events: string[] = [];
+    const checkpointFailure = new Error(
+      "synthetic synchronous checkpoint invocation failure",
+    );
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      await invokeCheckpointSynchronously();
+    }
+    function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+      throw checkpointFailure;
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+    }
+
+    await expect(
+      runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        consumeRows,
+        invokeCheckpoint,
+        discardCheckpointKey,
+      ),
+    ).rejects.toBe(checkpointFailure);
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "checkpoint",
+      "key-discard",
+      "lease-closed",
+    ]);
+  });
+
+  it("prepares the checkpoint key before the consumer and invokes the checkpoint in its synchronous callback", async () => {
+    const events: string[] = [];
+    let callbackReturned = false;
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer-enter");
+      const checkpointPromise = invokeCheckpointSynchronously();
+      callbackReturned = true;
+      events.push("consumer-callback-returned");
+      await checkpointPromise;
+      events.push("consumer-settled");
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push(
+        callbackReturned
+          ? "checkpoint-after-callback"
+          : "checkpoint-synchronous",
+      );
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+    }
+
+    await runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+      closeUntransferredLease,
+      prepareCheckpointKey,
+      consumeRows,
+      invokeCheckpoint,
+      discardCheckpointKey,
+    );
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer-enter",
+      "checkpoint-synchronous",
+      "consumer-callback-returned",
+      "consumer-settled",
+      "key-discard",
+      "lease-closed",
+    ]);
+  });
+
+  it("discards an unconsumed checkpoint authorization and closes the lease when the consumer fails before callback entry", async () => {
+    const events: string[] = [];
+    const consumerFailure = new Error(
+      "synthetic consumer verification failure",
+    );
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      _invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      throw consumerFailure;
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+    }
+
+    await expect(
+      runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        consumeRows,
+        invokeCheckpoint,
+        discardCheckpointKey,
+      ),
+    ).rejects.toBe(consumerFailure);
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "key-discard",
+      "lease-closed",
+    ]);
+  });
+
+  it("fails closed when the consumer resolves without invoking the checkpoint callback", async () => {
+    const events: string[] = [];
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      _invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+    }
+
+    await expect(
+      runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        consumeRows,
+        invokeCheckpoint,
+        discardCheckpointKey,
+      ),
+    ).rejects.toThrow(
+      "local checkpoint operation completed without lease ownership transfer",
+    );
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "key-discard",
+      "lease-closed",
+    ]);
+  });
+
+  it("preserves operation, key-discard, and lease-close failures in combined cleanup evidence", async () => {
+    const events: string[] = [];
+    const consumerFailure = new Error("synthetic consumer failure");
+    const discardFailure = new Error("synthetic key discard failure");
+    const closeFailure = new Error("synthetic lease close failure");
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-close");
+      throw closeFailure;
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function consumeRows(
+      _invokeCheckpointSynchronously: () => Promise<void>,
+    ): Promise<void> {
+      events.push("consumer");
+      throw consumerFailure;
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+    }
+    function discardCheckpointKey(): void {
+      events.push("key-discard");
+      throw discardFailure;
+    }
+
+    let combined: unknown;
+    try {
+      await runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        consumeRows,
+        invokeCheckpoint,
+        discardCheckpointKey,
+      );
+    } catch (error) {
+      combined = error;
+    }
+    expect(combined).toBeInstanceOf(AggregateError);
+    const outer = combined as AggregateError;
+    expect(outer.message).toBe(
+      "local checkpoint operation and stage cleanup failed",
+    );
+    expect(outer.errors).toHaveLength(2);
+    expect(outer.errors[1]).toBe(closeFailure);
+    expect(outer.errors[0]).toBeInstanceOf(AggregateError);
+    const inner = outer.errors[0] as AggregateError;
+    expect(inner.message).toBe(
+      "local checkpoint operation and key cleanup failed",
+    );
+    expect(inner.errors).toEqual([consumerFailure, discardFailure]);
+    expect(events).toEqual([
+      "key-prepared",
+      "consumer",
+      "key-discard",
+      "lease-close",
+    ]);
   });
 
   it("accepts only the exact 100 -> 500 -> 24000 same-stream receipt and keeps strength unproven", async () => {

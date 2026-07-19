@@ -33,6 +33,7 @@ import {
   type FloodgateTrainingRowConsumerDependencies,
   type FloodgateTrainingRowConsumerOptions,
 } from "../../../ml/floodgate-training-row-consumer";
+import { runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests } from "../../../ml/floodgate-v7-local-clean-room-teacher-runner";
 import { floodgateCanonicalUrlGameId } from "../../../ml/floodgate-raw-lock";
 import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
 import { childSfenAfterUsi } from "../../../ml/shogi-sfen";
@@ -836,6 +837,7 @@ describe("FD-held verified Floodgate training-row consumer", () => {
     const syntheticBundle = verifiedBundle(input.identity);
     const verifyBundle = vi.fn(async () => syntheticBundle);
     const roleBundleResultModule = "../../../ml/floodgate-role-bundle-result";
+    const events: string[] = [];
 
     vi.resetModules();
     vi.doMock(roleBundleResultModule, async () => {
@@ -855,34 +857,71 @@ describe("FD-held verified Floodgate training-row consumer", () => {
       const productionModule =
         await import("../../../ml/floodgate-training-row-consumer");
       let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+      async function closeUntransferredLease(): Promise<void> {
+        events.push("lease-close");
+      }
+      async function prepareCheckpointKey(): Promise<void> {
+        events.push("key-prepared");
+      }
+      function consumeRows(
+        invokeCheckpointSynchronously: () => Promise<void>,
+      ): Promise<void> {
+        events.push("consumer-start");
+        return productionModule.withVerifiedPinnedFloodgateTrainingRows(
+          input.options,
+          (authenticated): Promise<void> => {
+            captured = authenticated;
+            events.push("consumer-callback");
+            return invokeCheckpointSynchronously();
+          },
+        );
+      }
+      function invokeCheckpoint(): Promise<void> {
+        events.push("checkpoint-claim");
+        const authenticated =
+          captured as Readonly<AuthenticatedFloodgateTrainingRows>;
+        expect(() =>
+          productionModule.claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          ),
+        ).toThrow(
+          /test-only runtime claim requires the exact active unclaimed input/,
+        );
+        expect(
+          productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
+            authenticated,
+          ),
+        ).toBeUndefined();
+        expect(() =>
+          productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
+            authenticated,
+          ),
+        ).toThrow(
+          /production runtime claim requires the exact active unclaimed input/,
+        );
+        return Promise.resolve();
+      }
+      function discardCheckpointKey(): void {
+        events.push("key-discard");
+      }
 
-      await productionModule.withVerifiedPinnedFloodgateTrainingRows(
-        input.options,
-        async (authenticated) => {
-          captured = authenticated;
-          expect(() =>
-            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
-              authenticated,
-            ),
-          ).toThrow(
-            /test-only runtime claim requires the exact active unclaimed input/,
-          );
-          expect(
-            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
-              authenticated,
-            ),
-          ).toBeUndefined();
-          expect(() =>
-            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
-              authenticated,
-            ),
-          ).toThrow(
-            /production runtime claim requires the exact active unclaimed input/,
-          );
-        },
+      await runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        consumeRows,
+        invokeCheckpoint,
+        discardCheckpointKey,
       );
 
       expect(verifyBundle).toHaveBeenCalledTimes(1);
+      expect(events).toEqual([
+        "key-prepared",
+        "consumer-start",
+        "consumer-callback",
+        "checkpoint-claim",
+        "key-discard",
+        "lease-close",
+      ]);
       expect(() =>
         productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
           captured as Readonly<AuthenticatedFloodgateTrainingRows>,

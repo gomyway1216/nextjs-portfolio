@@ -194,7 +194,8 @@ export interface FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly sha256: string;
 }
 
-export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
+export interface FloodgateV7LocalCleanRoomFinalizerHandoffEvidence
+  extends FloodgateV7LocalCleanRoomPrivateFileEvidence {
   readonly created_after_validated_sealed_chain: true;
   readonly finalizer_invoked: false;
   readonly finalizer_labels_published: false;
@@ -289,7 +290,8 @@ interface FixedTargets {
 interface LocalGateSession {
   readonly dependencies: Readonly<FloodgateV7CleanRoomLocalRunGateDependencies>;
   readonly finalizerHandoffEvidence: () =>
-    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
+    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
+    | undefined;
   readonly close: () => void;
 }
 
@@ -904,9 +906,7 @@ function completionPayload(
 
 async function withLocalCheckpointLeaseOwnership<T>(
   closeUntransferredLease: () => Promise<void>,
-  operation: (
-    transferOwnershipToCheckpoint: () => void,
-  ) => Promise<T>,
+  operation: (transferOwnershipToCheckpoint: () => void) => Promise<T>,
 ): Promise<T> {
   let checkpointOwnsLease = false;
   const transferOwnershipToCheckpoint = (): void => {
@@ -983,7 +983,8 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
   let runBindingCanonical: string | undefined;
   let runBindingSha256: string | undefined;
   let handoff:
-    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
+    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
+    | undefined;
   const receipts: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
   const receiptFiles: Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>[] =
     [];

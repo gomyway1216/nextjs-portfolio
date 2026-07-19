@@ -527,10 +527,7 @@ function captureLocalDependencies(
   const common = captureDependencies(
     Object.freeze({
       statfs: dataProperty(value, "statfs"),
-      runtimeOwnerDependencies: dataProperty(
-        value,
-        "runtimeOwnerDependencies",
-      ),
+      runtimeOwnerDependencies: dataProperty(value, "runtimeOwnerDependencies"),
       executeAuthenticatedCheckpointGate: dataProperty(
         value,
         "executeAuthenticatedCheckpointGate",
@@ -1102,7 +1099,8 @@ async function runCaptured(
   let executorInvoked = false;
   let preflightSnapshot: Readonly<CapacityPreflightSnapshot> | undefined;
   let activeAuthority:
-    Readonly<FloodgateV7CleanRoomRunGateCapabilityForTests> | undefined;
+    | Readonly<FloodgateV7CleanRoomRunGateCapabilityForTests>
+    | undefined;
   const capturedReceipts: Readonly<CapturedGateReceipt>[] = [];
   try {
     try {

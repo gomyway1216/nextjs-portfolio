@@ -511,6 +511,7 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             self.assertTrue(intermediate_swapped)
             self.assertNotIn(str(root), str(raised.exception))
             self.assertNotIn(str(outside), str(raised.exception))
+            self.assertIsNone(raised.exception.__context__)
             data.unlink()
             held_data.rename(data)
 
@@ -547,6 +548,7 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             self.assertTrue(final_swapped)
             self.assertNotIn(str(root), str(raised.exception))
             self.assertNotIn(str(outside), str(raised.exception))
+            self.assertIsNone(raised.exception.__context__)
             artifact.unlink()
             held_artifact.rename(artifact)
 
@@ -563,6 +565,7 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                 )
             self.assertNotIn(str(root), str(raised.exception))
             self.assertNotIn("private-missing.bin", str(raised.exception))
+            self.assertIsNone(raised.exception.__context__)
 
     def test_absent_successor_stops_before_artifact_or_runtime_reads(self):
         with tempfile.TemporaryDirectory() as directory:

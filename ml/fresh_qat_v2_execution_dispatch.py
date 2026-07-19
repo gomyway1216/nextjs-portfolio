@@ -367,6 +367,20 @@ class _SecureFileAccessError(ValueError):
     """A path-redacted repository or local file access failure."""
 
 
+def _path_free_realpath(path: str, label: str) -> str:
+    failed = False
+    try:
+        resolved = os.path.realpath(path)
+    except OSError:
+        failed = True
+        resolved = ""
+    if failed:
+        raise _SecureFileAccessError(
+            f"{label} secure file access failed"
+        ) from None
+    return resolved
+
+
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-finite JSON value is forbidden: {value}")
 
@@ -512,9 +526,13 @@ def _read_regular_file(
 
     if type(path) is not str or not path:
         raise ValueError(f"{label} path must be a non-empty string")
+    absolute_failed = False
     try:
         absolute = os.path.abspath(path)
     except OSError:
+        absolute_failed = True
+        absolute = ""
+    if absolute_failed:
         raise _SecureFileAccessError(
             f"{label} secure file access failed"
         ) from None
@@ -522,22 +540,15 @@ def _read_regular_file(
         # Preserve caller-selected external path semantics: an ancestor alias
         # may resolve to its canonical directory, but the final component must
         # still be a non-symlink regular file.
-        try:
-            directory = os.path.realpath(os.path.dirname(absolute))
-        except OSError:
-            raise _SecureFileAccessError(
-                f"{label} secure file access failed"
-            ) from None
+        directory = _path_free_realpath(
+            os.path.dirname(absolute),
+            label,
+        )
         final_name = os.path.basename(absolute)
     else:
         if type(repository_root) is not str:
             raise ValueError("fresh QAT v2 internal repository root mismatch")
-        try:
-            canonical_root = os.path.realpath(repository_root)
-        except OSError:
-            raise _SecureFileAccessError(
-                f"{label} secure file access failed"
-            ) from None
+        canonical_root = _path_free_realpath(repository_root, label)
         if repository_root != canonical_root:
             raise ValueError("fresh QAT v2 internal repository root mismatch")
         try:
@@ -579,6 +590,8 @@ def _read_regular_file(
 
     directory_descriptors: list[int] = []
     descriptor: int | None = None
+    access_failed = False
+    raw = b""
     try:
         current = os.open(os.sep, directory_flags)
         directory_descriptors.append(current)
@@ -646,9 +659,7 @@ def _read_regular_file(
         ):
             raise ValueError(f"{label} changed during bounded read")
     except OSError:
-        raise _SecureFileAccessError(
-            f"{label} secure file access failed"
-        ) from None
+        access_failed = True
     finally:
         if descriptor is not None:
             try:
@@ -661,6 +672,10 @@ def _read_regular_file(
             except OSError:
                 pass
 
+    if access_failed:
+        raise _SecureFileAccessError(
+            f"{label} secure file access failed"
+        ) from None
     if len(raw) > limit:
         raise ValueError(f"{label} exceeds the maximum byte length")
     if expected_bytes is not None and len(raw) != expected_bytes:

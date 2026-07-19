@@ -18,6 +18,13 @@ from fresh_qat_v2_execution_dispatch import (
     FRESH_QAT_V2_EXECUTION_PLAN_SCHEMA,
     verify_fresh_qat_v2_execution_plan,
 )
+from strength_first_qat_training_bridge import (
+    STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH,
+    STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+    STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+    STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+    verify_strength_first_qat_training_plan,
+)
 from qat_protocol import (
     QAT_FINAL_CHECKPOINT_SCHEMA,
     QAT_PLAN_SCHEMA,
@@ -50,6 +57,9 @@ def verify_qat_experiment_plan(
     fresh_v2_path = os.path.join(
         repo_root, FRESH_QAT_V2_EXECUTION_PLAN_RELATIVE_PATH
     )
+    strength_first_path = os.path.join(
+        repo_root, STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
+    )
     plan_argument = getattr(args, "experiment_plan", "")
     candidate_text = _plain_path_text(plan_argument)
     # Snapshot an os.PathLike exactly once. Routing must never re-evaluate a
@@ -58,6 +68,20 @@ def verify_qat_experiment_plan(
         candidate_absolute = os.path.abspath(candidate_text)
         candidate_requested = os.path.realpath(candidate_text)
         candidate_basename = os.path.basename(candidate_absolute)
+        if (
+            candidate_absolute == strength_first_path
+            or candidate_requested == strength_first_path
+            or candidate_basename.startswith(
+                os.path.basename(
+                    STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
+                )
+            )
+            or "strength-first-qat" in candidate_basename
+        ):
+            raise ValueError(
+                "strength-first QAT dispatch requires an exact built-in "
+                "string plan path"
+            )
         if (
             candidate_absolute == fresh_v2_path
             or candidate_requested == fresh_v2_path
@@ -79,6 +103,29 @@ def verify_qat_experiment_plan(
     if type(plan_argument) is str:
         requested_absolute = os.path.abspath(candidate_text)
         if (
+            requested_absolute == strength_first_path
+            and requested == strength_first_path
+        ):
+            return verify_strength_first_qat_training_plan(
+                args,
+                training_runtime,
+                tracking_verifier=tracking_verifier,
+            )
+        basename = os.path.basename(requested_absolute)
+        if (
+            requested == strength_first_path
+            or basename.startswith(
+                os.path.basename(
+                    STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
+                )
+            )
+            or "strength-first-qat" in basename
+        ):
+            raise ValueError(
+                "strength-first QAT dispatch rejects a non-exact or "
+                "symlinked plan path"
+            )
+        if (
             requested_absolute == fresh_v2_path
             and requested == fresh_v2_path
         ):
@@ -87,7 +134,6 @@ def verify_qat_experiment_plan(
                 training_runtime,
                 tracking_verifier=tracking_verifier,
             )
-        basename = os.path.basename(requested_absolute)
         if (
             requested == fresh_v2_path
             or basename.startswith(
@@ -145,6 +191,14 @@ def resolve_qat_artifact_schemas(
         return {
             "result": FRESH_QAT_TRAINING_RESULT_SCHEMA,
             "checkpoint": FRESH_QAT_FINAL_CHECKPOINT_SCHEMA,
+        }
+    if schema_pair == (
+        STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+        FRESH_QAT_TRAINING_CONTRACT_SCHEMA,
+    ):
+        return {
+            "result": STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+            "checkpoint": STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
         }
     raise ValueError(
         "QAT plan/contract artifact-schema pair is unknown or hybrid: "

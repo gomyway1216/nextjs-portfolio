@@ -191,15 +191,12 @@ stage authorization前に`O_EXCL`、file `fsync`、directory `fsync`でdurable o
 CLI再起動後の同じhandoffも拒否する。既存stage authorization、pinned training consumer、
 sealed scanner、production finalizerだけを合成し、AWS、Firebase / GCP、Vercel、networkへ接続しない。
 
-identityはfinalizer 43,838 bytes /
-SHA-256 `831b00abfa406073b2139266395c18a9d1b3936df1c3c1b156b2548f000fd994`、
-entrypoint 346 bytes /
-SHA-256 `1ffafe005259834bf3beafea99cf5333b09858ee0309518818872a8371b7353e`、
-dynamic test 26,194 bytes /
-SHA-256 `30aec3d49d6f4347ed63ace317457810bd0d543def4e74de491e52313e454e39`へ固定した。
-focused 21 / 21、関連168 / 168 testはPASSしたが、real teacher、real label finalization、
-optimizer training、weight、対局、live activationはすべて0である。独立再reviewと通常merge前には
-実commandを動かさない。詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.md) /
+実装fileのexact bytes / SHA-256 / Git blob、validated commit / tree、focused / 関連test件数は
+更新のたびに変わるため、[machine evidence](../docs/data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)を
+唯一のauthoritative recordとする。evidence pin testがその値を実fileとGit historyから再計算する。
+real teacher、real label finalization、optimizer training、weight、対局、live activationはすべて0である。
+独立再reviewと通常merge前には実commandを動かさない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.md) /
 [English article](../docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.en.md) /
 [machine evidence](../docs/data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)を参照。
 

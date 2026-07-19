@@ -12,6 +12,7 @@ const japaneseArticleRelative =
   "docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.md";
 const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-local-clean-room-training-label-finalizer.en.md";
+const readmeRelative = "ml/README.md";
 const hermeticGitEnvironment: NodeJS.ProcessEnv = {
   PATH: "/usr/bin:/bin",
   HOME: "/var/empty",
@@ -306,7 +307,7 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
     );
   });
 
-  it("keeps the Japanese and English articles aligned on the remediated boundary", () => {
+  it("keeps the articles and README aligned on the remediated boundary", () => {
     const record = evidence();
     expect(record.articles).toEqual({
       japanese:
@@ -342,5 +343,13 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
     ]) {
       expect(english, marker).toContain(marker);
     }
+
+    const readme = read(readmeRelative);
+    expect(readme).toContain(
+      "[machine evidence](../docs/data/floodgate-v7-local-clean-room-training-label-finalizer-2026-07-19.json)",
+    );
+    expect(readme).toContain("唯一のauthoritative record");
+    expect(readme).not.toContain("identityはfinalizer");
+    expect(readme).not.toContain("focused 21 / 21、関連168 / 168");
   });
 });

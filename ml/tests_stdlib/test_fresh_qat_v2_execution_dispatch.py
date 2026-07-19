@@ -591,6 +591,43 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
             contract_builder.assert_not_called()
             runtime_reader.assert_not_called()
 
+    def test_exact_source_bytes_are_bound_before_production_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = ready_fixture(Path(directory).resolve())
+            source_paths = (
+                DISPATCH.FRESH_QAT_V2_INPUT_TRAINING_RELATIVE_PATH,
+                DISPATCH.FRESH_QAT_V2_PARENT_COMPLETION_RELATIVE_PATH,
+                DISPATCH.FRESH_QAT_V2_TRAIN_RELATIVE_PATH,
+            )
+            for relative in source_paths:
+                with self.subTest(relative=relative):
+                    artifacts = dict(fixture["artifacts"])
+                    artifacts[str(fixture["root"] / relative)] += b"x"
+                    runtime_reader = mock.Mock()
+                    with mock.patch.object(
+                        ACCOUNTING,
+                        "validate_fresh_qat_parent_accounting_proposal_v2",
+                    ) as source_validator, mock.patch.object(
+                        FRESH, "build_fresh_qat_training_contract"
+                    ) as contract_builder:
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            "byte length mismatch",
+                        ):
+                            DISPATCH.dispatch_fresh_qat_v2_execution_plan_core_for_tests(
+                                fixture["args"],
+                                tracking_verifier=mock.Mock(),
+                                repo_root=str(fixture["root"]),
+                                protocol_reader=mapping_reader(
+                                    fixture["protocol"]
+                                ),
+                                artifact_reader=mapping_reader(artifacts),
+                                training_runtime_reader=runtime_reader,
+                            )
+                    source_validator.assert_not_called()
+                    contract_builder.assert_not_called()
+                    runtime_reader.assert_not_called()
+
     def test_future_ready_core_cross_binds_plan_proposal_train_and_contract(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = ready_fixture(Path(directory).resolve())

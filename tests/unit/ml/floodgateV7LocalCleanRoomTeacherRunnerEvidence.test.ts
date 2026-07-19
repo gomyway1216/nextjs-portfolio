@@ -110,6 +110,14 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
           "1f98c3661361254bbc0854fa52888ed4b65bc689",
         ],
         reviewed_paths_unchanged_by_integration_merge: true,
+        deployment_key_compatibility_revision:
+          "b9d8a96fd9620ba4646aeab346f259e0383a511d",
+        deployment_key_compatibility_tree:
+          "26c9cd548abbcba8265dbad158a3c96ffbee4281",
+        deployment_key_compatibility_test_revision:
+          "e2c88f718e936586b2ab7e898aeaef3d43f32985",
+        deployment_key_compatibility_test_tree:
+          "2930f48ed869c2e90f16f071b12764ccd1f0fa55",
         pull_request: null,
         continuous_integration: "PENDING",
       },
@@ -126,6 +134,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       integration_revision: string;
       integration_tree: string;
       integration_parents: string[];
+      deployment_key_compatibility_revision: string;
+      deployment_key_compatibility_tree: string;
+      deployment_key_compatibility_test_revision: string;
+      deployment_key_compatibility_test_tree: string;
     };
     for (const [commit, tree] of [
       [
@@ -138,6 +150,14 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.reviewed_remediation_tree,
       ],
       [revision.integration_revision, revision.integration_tree],
+      [
+        revision.deployment_key_compatibility_revision,
+        revision.deployment_key_compatibility_tree,
+      ],
+      [
+        revision.deployment_key_compatibility_test_revision,
+        revision.deployment_key_compatibility_test_tree,
+      ],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
       expect(
@@ -165,7 +185,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     ).toBe(revision.integration_parents.join(" "));
   });
 
-  it("pins every operational source and focused-test byte snapshot", () => {
+  it("pins each selected operational source and focused-test byte snapshot", () => {
     const record = evidence();
     const sourcePins = record.source_pins as PinnedFile[];
     const focusedPins = record.focused_test_pins as PinnedFile[];
@@ -175,6 +195,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       "ml/floodgate-v7-clean-room-run-gates.ts",
       "ml/floodgate-v7-clean-room-teacher-runner.ts",
       "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
+      "ml/floodgate-v7-deployment-key-authority.ts",
       "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
       "ml/run-floodgate-v7-local-clean-room-teacher.ts",
       "package.json",
@@ -218,11 +239,15 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     });
     expect(record.local_only_contract).toMatchObject({
       runner_contract: "shogi-floodgate-v7-local-clean-room-teacher-runner-v1",
+      runner_status_is_source_declared_not_operational_readiness: true,
+      operational_readiness_established: false,
       execution_boundary: "explicit-local-only-argumentless-package-command",
       aws_required: false,
       aws_used: false,
       network_used: false,
       cloud_credentials_used: false,
+      local_deployment_key_authority_used: true,
+      cloud_deployment_key_used: false,
       firebase_gcp_used: false,
       vercel_used: false,
       production_worktree_used: false,
@@ -243,13 +268,35 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     expect(runner).not.toMatch(
       /from\s+["'][^"']*(?:aws-sdk|firebase|vercel)[^"']*["']/iu,
     );
+    expect(record.checkpoint_and_handoff_key_contract).toEqual({
+      checkpoint_key_authority:
+        "existing-fixed-current-user-mac-local-deployment-key-authority",
+      checkpoint_key_authority_used_for_checkpoint_work: true,
+      checkpoint_key_authority_is_cloud_credential: false,
+      separate_local_integrity_key: "fresh-random-private-per-run",
+      local_integrity_key_used_for_checkpoint_work: false,
+      local_integrity_key_macs_private_control_receipts_and_handoff_only: true,
+      checkpoint_and_integrity_key_roles_are_distinct: true,
+      key_material_published: false,
+      private_key_path_published: false,
+    });
   });
 
   it("pins one exact stream and close-before-finalizer handoff ordering", () => {
     const record = evidence();
+    expect(record.run_binding_contract).toEqual({
+      canonical_exact_run_binding_captured_at_first_gate: true,
+      run_binding_sha256_captured_at_first_gate: true,
+      same_run_binding_and_digest_required_at_100_500_and_24000: true,
+      completion_receipts_bind_exact_run_binding_and_digest: true,
+      finalizer_handoff_binds_exact_run_binding_and_digest: true,
+      changed_run_binding_between_gates_disposition: "STOP",
+      run_binding_values_published_in_public_receipt_or_evidence: false,
+    });
     expect(record.same_stream_gate_contract).toMatchObject({
       one_authenticated_stage_work_stream: true,
       same_run_key_and_stage_identity: true,
+      same_exact_run_binding_and_digest: true,
       separate_single_use_authority_per_gate: true,
       sequence: [
         {
@@ -315,9 +362,25 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         tests_failed: 0,
         result: "PASS",
       },
+      publication_evidence_vitest: {
+        files: 1,
+        tests_passed: 6,
+        tests_failed: 0,
+        result: "PASS",
+      },
       changed_file_lint: {
         files: 8,
         files_passed: 8,
+        result: "PASS",
+      },
+      publication_evidence_lint: {
+        files: 1,
+        files_passed: 1,
+        result: "PASS",
+      },
+      publication_artifact_prettier: {
+        files: 4,
+        files_passed: 4,
         result: "PASS",
       },
       custom_adversarial: {
@@ -338,10 +401,20 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         result: "PASS",
       },
       independent_review: {
+        scope_revision: "5e4f42d8a8a38bf7790cbff91dd6cd8a32b6fe49",
         result: "PASS",
         unresolved_p0: 0,
         unresolved_p1: 0,
         unresolved_p2: 0,
+      },
+      deployment_key_compatibility_review: {
+        scope_revision: "e2c88f718e936586b2ab7e898aeaef3d43f32985",
+        result: "PENDING",
+        unresolved_p0: null,
+        unresolved_p1: 2,
+        unresolved_p2: null,
+        remediation_and_rereview_pending: true,
+        operational_readiness_established: false,
       },
     });
     const customAdversarial = (
@@ -357,6 +430,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
 
     expect(record.operational_state).toMatchObject({
       state: "STOP-NOT-YET-RUN",
+      operational_readiness_established: false,
       package_command_added: true,
       successful_operational_command_runs: 0,
       capture_only_negative_cli_runs: 1,
@@ -366,6 +440,7 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       teacher_parents_completed: 0,
       teacher_rows_created: 0,
       network_requests: 0,
+      local_deployment_key_authority_operational_uses: 0,
       aws_calls: 0,
       aws_credentials_used: 0,
       firebase_gcp_calls: 0,
@@ -400,12 +475,17 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
 
     for (const marker of [
       "AWSではない",
+      "Macユーザー単位local deployment-key authority",
+      "exact canonical `runBinding`",
       "100 → 500 → 24,000",
       "4 files / 43 tests PASS",
+      "1 file / 6 tests PASS",
       "15 / 15 PASS",
       "0 / 0 / 0",
       "実clean-room copy",
       "formal A/B",
+      "修正・再reviewがまだ`PENDING`",
+      "operational readinessも主張しない",
       "live deploy / activation",
       "floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json",
     ]) {
@@ -413,12 +493,17 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     }
     for (const marker of [
       "this runner does not use AWS",
+      "per-user Mac-local deployment-key authority",
+      "exact canonical `runBinding`",
       "100 → 500 → 24,000",
       "4 files / 43 tests PASS",
+      "1 file / 6 tests PASS",
       "15 / 15 PASS",
       "0 / 0 / 0",
       "real clean-room copy",
       "formal A/B",
+      "remediation and rereview remain `PENDING`",
+      "nor is operational readiness",
       "live deployment or activation",
       "floodgate-v7-local-clean-room-teacher-runner-2026-07-19.json",
     ]) {

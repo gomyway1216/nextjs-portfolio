@@ -105,12 +105,44 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
       remediation_base_revision: string;
       remediation_revision: string;
       remediation_tree: string;
+      pull_request: number;
+      pull_request_state_at_recording: string;
+      continuous_integration: Record<string, unknown>;
+      independent_review: Record<string, unknown>;
+      github_review: Record<string, unknown>;
     };
     expect(revision).toEqual(
       expect.objectContaining({
         remediation_base_revision: "acdc3de9c3691d5719260b2d032586a13f5b56be",
         remediation_revision: "9cdaee882e80d7be8667b733505dd86bf3db5923",
         remediation_tree: "1bd82ef2cf11d064fde36e4918eb2d7dfcd5bdaa",
+        pull_request: 512,
+        pull_request_state_at_recording: "OPEN",
+        continuous_integration: {
+          result: "PASS",
+          run: 29678783495,
+          revision: "5eefa61d0c9eca2d6894a289d1e9d12a53957d3d",
+          ci_jobs_passed: 12,
+          pr_checks_passed: 15,
+          failed: 0,
+        },
+        independent_review: {
+          result: "PASS",
+          revision: "59c7712f039e30535bc3f6ac1f358c05da5df968",
+          tree: "d73bc16214179da3d7078cc6b817c3366522ec33",
+          p0: 0,
+          p1: 0,
+          p2: 0,
+          evidence_tests_passed: 31,
+          runner_tests_passed: 47,
+        },
+        github_review: {
+          comments: 2,
+          comments_addressed: 2,
+          unresolved_threads: 0,
+          addressed_revision: "5eefa61d0c9eca2d6894a289d1e9d12a53957d3d",
+          different_cwd_evidence_tests_passed: 4,
+        },
       }),
     );
     expect(
@@ -190,6 +222,9 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
       "67,108,864 bytes",
       "1,431 tracked files",
       "teacher process / parents / rows",
+      "PR #512",
+      "29678783495",
+      "15 / 15",
       "live weightは引き続き変更しない",
       path.basename(evidenceRelative),
     ]) {
@@ -203,6 +238,9 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
       "67,108,864 bytes",
       "1,431 tracked files",
       "Teacher processes / parents / rows",
+      "PR #512",
+      "29678783495",
+      "15 / 15",
       "Live weights remain unchanged",
       path.basename(evidenceRelative),
     ]) {

@@ -50,4 +50,10 @@ The failure receipt requires manual reconciliation, so the residual root is not 
 
 After review and CI pass for the remediation, the same facts will be rechecked and only the fixed residual root will be removed. The same argumentless local command will then run again from a fresh root. Live weights remain unchanged.
 
+## 6. PR review and CI
+
+The remediation was published as ready PR #512. Independent exact review of commit `59c7712f` / tree `d73bc162` found P0 / P1 / P2 = 0 / 0 / 0. The two GitHub review comments asked the evidence test to remove its `process.cwd()` dependency and reuse the same hermetic Git helper. Commit `5eefa61d` addressed both; 31 / 31 tests passed normally, 4 / 4 also passed when launched from `/private/tmp`, and both threads received replies and were resolved.
+
+CI run `29678783495` passed 12 / 12 jobs for that HEAD. Across the PR, 15 / 15 checks passed including Security Audit and Vercel. This is a source gate for the remediation and evidence; it is not evidence of a successful teacher run, retraining, or stronger play.
+
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json)

@@ -50,4 +50,10 @@ focused Vitestは2 files / 21 tests PASS、ESLint、Prettier、diff checkもPASS
 
 修正PRのreviewとCIが終わった後、この観測と同じ状態であることをもう一度確認し、固定rootだけを削除する。その後、同じ引数なしlocal commandをfresh rootで再実行する。live weightは引き続き変更しない。
 
+## 6. PR reviewとCI
+
+修正はready PR #512として公開した。独立exact reviewはcommit `59c7712f` / tree `d73bc162`に対してP0 / P1 / P2 = 0 / 0 / 0だった。GitHub reviewの2指摘は、証拠testの`process.cwd()`依存をなくし、同じ隔離Git helperへ統一する内容だった。commit `5eefa61d`で対処し、通常起動31 / 31に加えて`/private/tmp`からの起動も4 / 4 PASS、2 threadとも返信・resolveした。
+
+そのHEADに対するCI run `29678783495`は12 / 12 jobs、PR全体ではSecurity AuditとVercelを含む15 / 15 checksがPASSした。これは修正と証拠のsource gateであり、教師生成成功、再学習、棋力向上の証拠ではない。
+
 Machine-readable evidence: [floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json](./data/floodgate-v7-local-clean-room-teacher-first-run-preparation-stop-2026-07-19.json)

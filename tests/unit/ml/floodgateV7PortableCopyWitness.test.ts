@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -163,39 +164,33 @@ function synchronousFailureOf(operation: () => void): unknown {
   throw new Error("expected synchronous rejection");
 }
 
-interface PrototypeMethodPatch {
-  readonly target: object;
-  readonly property: PropertyKey;
-  readonly value: unknown;
-}
-
-function applyPrototypeMethodPatches(
-  patches: readonly PrototypeMethodPatch[],
-): () => void {
-  const descriptors: PropertyDescriptor[] = [];
-  for (let index = 0; index < patches.length; index += 1) {
-    const patch = patches[index]!;
-    const descriptor = Object.getOwnPropertyDescriptor(
-      patch.target,
-      patch.property,
+function runPoisoningChild(
+  mode: "array-includes" | "weak-collections" | "collections",
+): void {
+  const child = spawnSync(
+    process.execPath,
+    [
+      "-r",
+      "tsx/cjs",
+      path.join(__dirname, "floodgateV7PortableCopyWitnessPoisoning.child.ts"),
+      mode,
+    ],
+    {
+      cwd: path.resolve(__dirname, "../../.."),
+      encoding: "utf8",
+      env: { ...process.env, NODE_ENV: "test" },
+      timeout: 30_000,
+    },
+  );
+  if (child.error !== undefined) throw child.error;
+  if (child.status !== 0) {
+    throw new Error(
+      `poisoning child failed (${mode}):\n${child.stdout}\n${child.stderr}`,
     );
-    if (descriptor === undefined) {
-      throw new Error(
-        `prototype descriptor is required: ${String(patch.property)}`,
-      );
-    }
-    descriptors[index] = descriptor;
-    Object.defineProperty(patch.target, patch.property, {
-      ...descriptor,
-      value: patch.value,
-    });
   }
-  return (): void => {
-    for (let index = patches.length - 1; index >= 0; index -= 1) {
-      const patch = patches[index]!;
-      Object.defineProperty(patch.target, patch.property, descriptors[index]!);
-    }
-  };
+  expect(child.signal).toBeNull();
+  expect(child.stdout.trim()).toBe(`PASS ${mode}`);
+  expect(child.stderr).toBe("");
 }
 
 afterEach(async () => {
@@ -362,428 +357,16 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
     ).rejects.toMatchObject({ operation: "seal" });
   });
 
-  it("captures the exact witness list without consulting mutable Array.prototype.includes", async () => {
-    const witnesses = await witnessesFor(await fixture());
-    const includesDescriptor = Object.getOwnPropertyDescriptor(
-      Array.prototype,
-      "includes",
-    );
-    if (includesDescriptor === undefined) {
-      throw new Error("Array.prototype.includes descriptor is required");
-    }
-    let includesCalls = 0;
-    let composite: FloodgateV7PortableCopyCompositeDestinationSeal | undefined;
-    try {
-      Object.defineProperty(Array.prototype, "includes", {
-        ...includesDescriptor,
-        value: () => {
-          includesCalls += 1;
-          throw new Error("poisoned Array.prototype.includes was invoked");
-        },
-      });
-      composite =
-        await sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
-          witnesses,
-        );
-    } finally {
-      Object.defineProperty(Array.prototype, "includes", includesDescriptor);
-    }
-    expect(includesCalls).toBe(0);
-    await expect(
-      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
-        composite!,
-        () => "prototype-safe",
-      ),
-    ).resolves.toBe("prototype-safe");
+  it("captures the exact witness list without consulting mutable Array.prototype.includes", () => {
+    runPoisoningChild("array-includes");
   });
 
-  it("keeps WeakMap and WeakSet poisoning from forging, replaying, or revoking capabilities", async () => {
-    const witnesses = await witnessesFor(await fixture());
-    const fakeWitness = Object.freeze(
-      Object.create(null),
-    ) as FloodgateV7PortableCopyWitness;
-    const fakeComposite = Object.freeze(
-      Object.create(null),
-    ) as FloodgateV7PortableCopyCompositeDestinationSeal;
-    const nativeWeakMapGet = WeakMap.prototype.get;
-    const nativeWeakMapSet = WeakMap.prototype.set;
-    const nativeWeakMapDelete = WeakMap.prototype.delete;
-    const nativeWeakSetHas = WeakSet.prototype.has;
-    const nativeWeakSetAdd = WeakSet.prototype.add;
-    const nativeReflectApply = Reflect.apply;
-    let observedRawState: unknown;
-    const restore = applyPrototypeMethodPatches([
-      {
-        target: WeakMap.prototype,
-        property: "get",
-        value: function (this: WeakMap<object, unknown>, key: object): unknown {
-          if (key === fakeWitness && observedRawState !== undefined) {
-            return observedRawState;
-          }
-          const actual = nativeReflectApply(nativeWeakMapGet, this, [
-            key,
-          ]) as unknown;
-          if (
-            actual !== null &&
-            typeof actual === "object" &&
-            (actual as { kind?: unknown }).kind === "raw-lock-tree"
-          ) {
-            observedRawState = actual;
-          }
-          return actual;
-        },
-      },
-      {
-        target: WeakMap.prototype,
-        property: "set",
-        value: function (
-          this: WeakMap<object, unknown>,
-          key: object,
-          value: unknown,
-        ): WeakMap<object, unknown> {
-          if (
-            value !== null &&
-            typeof value === "object" &&
-            "witnesses" in value &&
-            "parents" in value
-          ) {
-            return this;
-          }
-          return nativeReflectApply(nativeWeakMapSet, this, [
-            key,
-            value,
-          ]) as WeakMap<object, unknown>;
-        },
-      },
-      {
-        target: WeakMap.prototype,
-        property: "delete",
-        value: function (this: WeakMap<object, unknown>, key: object): boolean {
-          if (
-            key === witnesses[0] ||
-            key === witnesses[1] ||
-            key === witnesses[2] ||
-            key === witnesses[3]
-          ) {
-            return true;
-          }
-          return nativeReflectApply(nativeWeakMapDelete, this, [
-            key,
-          ]) as boolean;
-        },
-      },
-      {
-        target: WeakSet.prototype,
-        property: "has",
-        value: function (this: WeakSet<object>, value: object): boolean {
-          return value === fakeComposite
-            ? true
-            : (nativeReflectApply(nativeWeakSetHas, this, [value]) as boolean);
-        },
-      },
-      {
-        target: WeakSet.prototype,
-        property: "add",
-        value: function (
-          this: WeakSet<object>,
-          value: object,
-        ): WeakSet<object> {
-          return Object.getPrototypeOf(value) === null
-            ? this
-            : (nativeReflectApply(nativeWeakSetAdd, this, [
-                value,
-              ]) as WeakSet<object>);
-        },
-      },
-      {
-        target: Reflect,
-        property: "apply",
-        value: (
-          target: unknown,
-          thisArgument: unknown,
-          argumentsList: ArrayLike<unknown>,
-        ): unknown => {
-          if (
-            target === nativeWeakMapGet ||
-            target === nativeWeakMapSet ||
-            target === nativeWeakMapDelete ||
-            target === nativeWeakSetHas ||
-            target === nativeWeakSetAdd
-          ) {
-            throw new Error("poisoned Reflect.apply was invoked");
-          }
-          return nativeReflectApply(
-            target as (...arguments_: unknown[]) => unknown,
-            thisArgument,
-            argumentsList,
-          );
-        },
-      },
-    ]);
-    let duplicateFailure: unknown;
-    let forgedReplacementFailure: unknown;
-    let replayFailure: unknown;
-    let fakeRevocationFailure: unknown;
-    let borrowResult: unknown;
-    try {
-      duplicateFailure = await rejectionOf(
-        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests([
-          witnesses[0]!,
-          witnesses[0]!,
-          witnesses[2]!,
-          witnesses[3]!,
-        ]),
-      );
-      const composite =
-        await sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
-          witnesses,
-        );
-      forgedReplacementFailure = await rejectionOf(
-        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests([
-          fakeWitness,
-          witnesses[1]!,
-          witnesses[2]!,
-          witnesses[3]!,
-        ]),
-      );
-      replayFailure = await rejectionOf(
-        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(witnesses),
-      );
-      borrowResult =
-        await withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
-          composite,
-          () => "captured-weak-collections",
-        );
-      fakeRevocationFailure = synchronousFailureOf(() =>
-        revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests(
-          fakeComposite,
-        ),
-      );
-      revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests(
-        composite,
-      );
-      revokeFloodgateV7PortableCopyCompositeDestinationSealCoreForTests(
-        composite,
-      );
-    } finally {
-      restore();
-    }
-    expect(duplicateFailure).toMatchObject({ operation: "composite" });
-    expect(forgedReplacementFailure).toMatchObject({
-      operation: "composite",
-    });
-    expect(replayFailure).toMatchObject({ operation: "composite" });
-    expect(fakeRevocationFailure).toMatchObject({ operation: "revoke" });
-    expect(borrowResult).toBe("captured-weak-collections");
+  it("keeps WeakMap and WeakSet poisoning from forging, replaying, or revoking capabilities", () => {
+    runPoisoningChild("weak-collections");
   });
 
-  it("keeps exact composition and mutation revalidation under collection prototype poisoning", async () => {
-    const overlapWitnesses = await witnessesFor(await fixture(true));
-    const value = await fixture();
-    const witnesses = await witnessesFor(value);
-    const copyProbe = await fixture();
-    const nativeArrayPush = Array.prototype.push;
-    const nativeMapGet = Map.prototype.get;
-    const nativeMapSet = Map.prototype.set;
-    const nativeMapEntries = Map.prototype.entries;
-    const nativeSetAdd = Set.prototype.add;
-    const nativeSetHas = Set.prototype.has;
-    const nativeSetDelete = Set.prototype.delete;
-    const destinationParent = path.dirname(value.destinations["raw-lock-tree"]);
-    const restore = applyPrototypeMethodPatches([
-      {
-        target: Array,
-        property: "isArray",
-        value: () => true,
-      },
-      {
-        target: Array.prototype,
-        property: "includes",
-        value: () => true,
-      },
-      {
-        target: Array.prototype,
-        property: "every",
-        value: () => true,
-      },
-      {
-        target: Array.prototype,
-        property: "some",
-        value: () => false,
-      },
-      {
-        target: Array.prototype,
-        property: "map",
-        value: () => [],
-      },
-      {
-        target: Array.prototype,
-        property: "sort",
-        value: function (this: unknown[]): unknown[] {
-          return this;
-        },
-      },
-      {
-        target: Array.prototype,
-        property: "reverse",
-        value: function (this: unknown[]): unknown[] {
-          return this;
-        },
-      },
-      {
-        target: Array.prototype,
-        property: "push",
-        value: function (this: unknown[], item: unknown): number {
-          if (
-            item !== null &&
-            typeof item === "object" &&
-            ("kind" in item ||
-              "relativePath" in item ||
-              "destinationInventory" in item)
-          ) {
-            return this.length;
-          }
-          return Reflect.apply(nativeArrayPush, this, [item]) as number;
-        },
-      },
-      {
-        target: Map.prototype,
-        property: "get",
-        value: function (this: Map<unknown, unknown>, key: unknown): unknown {
-          return key === destinationParent
-            ? undefined
-            : Reflect.apply(nativeMapGet, this, [key]);
-        },
-      },
-      {
-        target: Map.prototype,
-        property: "set",
-        value: function (
-          this: Map<unknown, unknown>,
-          key: unknown,
-          value: unknown,
-        ): Map<unknown, unknown> {
-          return key === destinationParent
-            ? this
-            : (Reflect.apply(nativeMapSet, this, [key, value]) as Map<
-                unknown,
-                unknown
-              >);
-        },
-      },
-      {
-        target: Map.prototype,
-        property: "entries",
-        value: function (
-          this: Map<unknown, unknown>,
-        ): MapIterator<[unknown, unknown]> {
-          return Reflect.apply(nativeMapEntries, this, []) as MapIterator<
-            [unknown, unknown]
-          >;
-        },
-      },
-      {
-        target: Set.prototype,
-        property: "add",
-        value: function (this: Set<unknown>, value: unknown): Set<unknown> {
-          return typeof value === "string" ||
-            value === witnesses[0] ||
-            value === witnesses[1] ||
-            value === witnesses[2] ||
-            value === witnesses[3]
-            ? this
-            : (Reflect.apply(nativeSetAdd, this, [value]) as Set<unknown>);
-        },
-      },
-      {
-        target: Set.prototype,
-        property: "has",
-        value: function (this: Set<unknown>, value: unknown): boolean {
-          return typeof value === "string"
-            ? true
-            : (Reflect.apply(nativeSetHas, this, [value]) as boolean);
-        },
-      },
-      {
-        target: Set.prototype,
-        property: "delete",
-        value: function (this: Set<unknown>, value: unknown): boolean {
-          return typeof value === "string"
-            ? true
-            : (Reflect.apply(nativeSetDelete, this, [value]) as boolean);
-        },
-      },
-      {
-        target: String.prototype,
-        property: "includes",
-        value: () => true,
-      },
-      {
-        target: String.prototype,
-        property: "startsWith",
-        value: () => false,
-      },
-      {
-        target: String.prototype,
-        property: "split",
-        value: function (this: string): string[] {
-          return [String(this)];
-        },
-      },
-    ]);
-    let overlapFailure: unknown;
-    let mutationFailure: unknown;
-    let borrowResult: unknown;
-    let copyContract: unknown;
-    try {
-      const preseal = await presealFloodgateV7PortableCopySourceCoreForTests(
-        "raw-lock-tree",
-        copyProbe.sources["raw-lock-tree"],
-        copyProbe.destinations["raw-lock-tree"],
-        { effectiveUserId },
-      );
-      const seal =
-        await sealFloodgateV7PortableCopySourceFilesystemCoreForTests(
-          "raw-lock-tree",
-          preseal,
-        );
-      const copied = await copyFloodgateV7PortableSourceByValueCoreForTests(
-        "raw-lock-tree",
-        seal,
-        copyProbe.destinations["raw-lock-tree"],
-      );
-      copyContract = copied.receipt.contract;
-      overlapFailure = await rejectionOf(
-        sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
-          overlapWitnesses,
-        ),
-      );
-      const composite =
-        await sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(
-          witnesses,
-        );
-      borrowResult =
-        await withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
-          composite,
-          () => "captured-collection-intrinsics",
-        );
-      await privateFile(
-        path.join(value.destinations["role-lock-tree"], "role-lock-tree.txt"),
-        "mutated-under-poisoning\n",
-      );
-      mutationFailure = await rejectionOf(
-        withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
-          composite,
-          () => undefined,
-        ),
-      );
-    } finally {
-      restore();
-    }
-    expect(overlapFailure).toMatchObject({ operation: "composite" });
-    expect(copyContract).toBe(FLOODGATE_V7_CLEAN_ROOM_COPY_CONTRACT);
-    expect(borrowResult).toBe("captured-collection-intrinsics");
-    expect(mutationFailure).toMatchObject({ operation: "borrow" });
+  it("keeps exact composition and mutation revalidation under collection prototype poisoning", () => {
+    runPoisoningChild("collections");
   });
 
   it("keeps production and test capability registries disjoint", async () => {

@@ -11,6 +11,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_TEST_PREPARATION_STATUS,
+  FLOODGATE_V7_PREPARATION_FAILURE_KINDS,
   FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomTeacherPlanCoreForTests,
   createFloodgateV7CleanRoomParentCoordinator,
@@ -532,6 +533,30 @@ describe("Floodgate v7 clean-room teacher runner preparation", () => {
     );
     expect(normalized.failure_kind).toBe("phase-level");
     expect(JSON.stringify(normalized)).not.toContain(secret);
+  });
+
+  it("derives every safe failure kind from one frozen runtime allowlist", () => {
+    expect(Object.isFrozen(FLOODGATE_V7_PREPARATION_FAILURE_KINDS)).toBe(true);
+    expect(FLOODGATE_V7_PREPARATION_FAILURE_KINDS).toEqual([
+      "phase-level",
+      "raw-lock-copy",
+      "role-lock-copy",
+      "role-bundle-copy",
+      "teacher-assets-copy",
+      "verifier-repository-materialization",
+      "multiple-materialization-operations",
+      "role-bundle-verification",
+      "teacher-assets-verification",
+      "multiple-verification-operations",
+    ]);
+    for (const failureKind of FLOODGATE_V7_PREPARATION_FAILURE_KINDS) {
+      const normalized = new FloodgateV7CleanRoomTeacherPreparationError(
+        "verification",
+        true,
+        failureKind,
+      );
+      expect(normalized.failure_kind).toBe(failureKind);
+    }
   });
 
   it("drains a pending verifier when the second verifier throws synchronously", async () => {

@@ -67,6 +67,7 @@ import {
 import {
   FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
+  FLOODGATE_V7_PREPARATION_FAILURE_KINDS,
   FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   prepareFloodgateV7CleanRoomTeacherRun,
@@ -157,6 +158,16 @@ export type FloodgateV7LocalCleanRoomTeacherRunnerPhase =
   | "finalizer-handoff"
   | "receipt";
 
+function safePreparationFailureKind(
+  value: unknown,
+): FloodgateV7CleanRoomTeacherPreparationFailureKind {
+  return (
+    FLOODGATE_V7_PREPARATION_FAILURE_KINDS as readonly unknown[]
+  ).includes(value)
+    ? (value as FloodgateV7CleanRoomTeacherPreparationFailureKind)
+    : "phase-level";
+}
+
 export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
   readonly phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase;
   readonly failure_kind: FloodgateV7CleanRoomTeacherPreparationFailureKind;
@@ -176,18 +187,7 @@ export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
     super("Floodgate v7 local clean-room teacher runner failed");
     this.name = "FloodgateV7LocalCleanRoomTeacherRunnerError";
     this.phase = phase;
-    this.failure_kind =
-      failureKindValue === "raw-lock-copy" ||
-      failureKindValue === "role-lock-copy" ||
-      failureKindValue === "role-bundle-copy" ||
-      failureKindValue === "teacher-assets-copy" ||
-      failureKindValue === "verifier-repository-materialization" ||
-      failureKindValue === "multiple-materialization-operations" ||
-      failureKindValue === "role-bundle-verification" ||
-      failureKindValue === "teacher-assets-verification" ||
-      failureKindValue === "multiple-verification-operations"
-        ? failureKindValue
-        : "phase-level";
+    this.failure_kind = safePreparationFailureKind(failureKindValue);
     this.clean_room_may_exist = cleanRoomMayExist;
     this.checkpoint_may_exist = checkpointMayExist;
     this.retry_disposition =

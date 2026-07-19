@@ -151,36 +151,30 @@ type PreparationPhase =
   | "verification"
   | "capability";
 
+export const FLOODGATE_V7_PREPARATION_FAILURE_KINDS = Object.freeze([
+  "phase-level",
+  "raw-lock-copy",
+  "role-lock-copy",
+  "role-bundle-copy",
+  "teacher-assets-copy",
+  "verifier-repository-materialization",
+  "multiple-materialization-operations",
+  "role-bundle-verification",
+  "teacher-assets-verification",
+  "multiple-verification-operations",
+] as const);
+
 export type FloodgateV7CleanRoomTeacherPreparationFailureKind =
-  | "phase-level"
-  | "raw-lock-copy"
-  | "role-lock-copy"
-  | "role-bundle-copy"
-  | "teacher-assets-copy"
-  | "verifier-repository-materialization"
-  | "multiple-materialization-operations"
-  | "role-bundle-verification"
-  | "teacher-assets-verification"
-  | "multiple-verification-operations";
+  (typeof FLOODGATE_V7_PREPARATION_FAILURE_KINDS)[number];
 
 function safePreparationFailureKind(
   value: unknown,
 ): FloodgateV7CleanRoomTeacherPreparationFailureKind {
-  switch (value) {
-    case "phase-level":
-    case "raw-lock-copy":
-    case "role-lock-copy":
-    case "role-bundle-copy":
-    case "teacher-assets-copy":
-    case "verifier-repository-materialization":
-    case "multiple-materialization-operations":
-    case "role-bundle-verification":
-    case "teacher-assets-verification":
-    case "multiple-verification-operations":
-      return value;
-    default:
-      return "phase-level";
-  }
+  return (
+    FLOODGATE_V7_PREPARATION_FAILURE_KINDS as readonly unknown[]
+  ).includes(value)
+    ? (value as FloodgateV7CleanRoomTeacherPreparationFailureKind)
+    : "phase-level";
 }
 
 export class FloodgateV7CleanRoomTeacherPreparationError extends Error {

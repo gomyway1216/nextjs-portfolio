@@ -47,6 +47,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  FLOODGATE_V7_PREPARATION_FAILURE_KINDS,
   FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   captureFloodgateV7CleanRoomGitCommandCoreForTests,
@@ -475,6 +476,29 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     );
     expect(normalized.failure_kind).toBe("phase-level");
     expect(JSON.stringify(normalized)).not.toContain(secret);
+    expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
+  it("normalizes every runner failure kind through the shared frozen allowlist", () => {
+    expect(Object.isFrozen(FLOODGATE_V7_PREPARATION_FAILURE_KINDS)).toBe(true);
+    for (const failureKind of FLOODGATE_V7_PREPARATION_FAILURE_KINDS) {
+      const normalized = new FloodgateV7LocalCleanRoomTeacherRunnerError(
+        "preparation",
+        true,
+        false,
+        failureKind,
+      );
+      expect(normalized.failure_kind).toBe(failureKind);
+    }
+    const privateValue = Object.freeze({ path: "/private/teacher" });
+    const normalized = new FloodgateV7LocalCleanRoomTeacherRunnerError(
+      "preparation",
+      true,
+      false,
+      privateValue,
+    );
+    expect(normalized.failure_kind).toBe("phase-level");
+    expect(JSON.stringify(normalized)).not.toContain("/private/teacher");
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 # Fresh QAT v2 execution dispatch: stop before data reads without a successor
 
-> As of 2026-07-18, no ready successor exists to activate a v2 execution plan, parent-accounting proposal, or `train.jsonl`. The production route therefore always stops before its artifact reader, Torch-runtime reader, or training-contract builder. Real teacher generation, training, candidate selection, A/B games, and live-weight changes all remain at zero. [日本語版](./blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.md)
+> As of 2026-07-19, no ready successor exists to activate a v2 execution plan, parent-accounting proposal, or `train.jsonl`. The production route therefore always stops before its artifact reader, Torch-runtime reader, or training-contract builder. Real teacher generation, training, candidate selection, A/B games, and live-weight changes all remain at zero. [日本語版](./blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.md)
 
 ## What this change adds
 
@@ -71,6 +71,8 @@ ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan-v2.json
 
 A `.copy` near path, a symlink to the same name, or a similar name elsewhere is rejected. The exact v1 route and the existing WCSC36 fallback remain intact.
 
+Path conversion is also a single immutable boundary: the dispatcher calls `os.fspath` exactly once and uses only that captured text for every subsequent absolute-path and real-path decision. A stateful `PathLike` that first returns an old fallback path and would return v2 on a second call is never queried twice. If its single captured value is v2, it is rejected because it is not a plain `str`. The regression test covers both switching directions and asserts an exact call count of one.
+
 The artifact-schema resolver adds exactly one pair:
 
 | Execution plan                                | Training contract                                  | Result   |
@@ -123,7 +125,7 @@ Firebase Cloud Functions running on GCP and Vercel handling web deployment are s
 
 | Infrastructure | Use in this change                  |
 | -------------- | ----------------------------------- |
-| Local Mac CPU  | Verifier and 153 stdlib tests       |
+| Local Mac CPU  | Verifier and 154 stdlib tests       |
 | AWS            | Not used                            |
 | Firebase / GCP | Not used                            |
 | Vercel         | Not used                            |
@@ -133,18 +135,19 @@ A later decision could move large-scale teacher generation to different compute 
 
 ## Validation
 
-The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the test commits are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. History was not rewritten.
+The source-authentication remediation code commit is `7af69a1fe518ff3f2c64a7238d695d173f642e87`; the original remediation tests are `0aaa09aae018f90648edccd9763e55c06103f031` and `f9fee197def90681c1444dc68a646b7f5f06a936`. The stateful-`PathLike` single-snapshot remediation is the separate commit `33d9b3139068fac69c44d368869006f5d5d919db`. History was not rewritten.
 
-- New v2 dispatch and routing tests: 20/20 PASS in 0.041 seconds
-- Full repository stdlib suite: 153/153 PASS in 10.575 seconds
+- New v2 dispatch and routing tests: 21/21 PASS in 0.050 seconds
+- Full repository stdlib suite: 154/154 PASS in 11.118 seconds
 - Python compilation: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS
 - Actual teacher / training artifact / Torch training / selection / A/B / live-weight write executions: zero
 - CI: pending
-- Initial independent review: P0/P1/P2 = 0/1/2; post-remediation rereview: pending
+- Initial independent review: P0/P1/P2 = 0/1/2
+- Source-authentication remediation rereview: P0/P1/P2 = 0/0/1; the remaining stateful-`PathLike` finding is implemented and locally validated in `33d9b313`; final independent rereview is pending
 
-Adversarial coverage includes missing successors; near and symlink paths; v2-targeting `Path`, `bytes`, and `str` subclasses; wrong schemas; v1/v2/WCSC36 hybrids; Boolean-as-integer aliases; broken F+E accounting; partial, full, and all-forced declarations; proposal/train identity drift; exact-byte drift in input, completion, or train; unenrolled synthetic input/completion sources; self-asserted upstream values; replacement; slot drift; contract drift; authority escalation; duplicate keys; `NaN`; and predecessor-registry drift.
+Adversarial coverage includes missing successors; near and symlink paths; v2-targeting `Path`, `bytes`, and `str` subclasses; stateful `PathLike` values that switch between a fallback and v2; wrong schemas; v1/v2/WCSC36 hybrids; Boolean-as-integer aliases; broken F+E accounting; partial, full, and all-forced declarations; proposal/train identity drift; exact-byte drift in input, completion, or train; unenrolled synthetic input/completion sources; self-asserted upstream values; replacement; slot drift; contract drift; authority escalation; duplicate keys; `NaN`; and predecessor-registry drift.
 
 The machine-readable record is [`floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json`](./data/floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json).
 

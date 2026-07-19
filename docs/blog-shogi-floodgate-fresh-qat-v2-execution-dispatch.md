@@ -1,6 +1,6 @@
 # fresh QAT v2 execution dispatch: 後継がなければデータを読む前に止める
 
-> 2026-07-18時点では、v2 execution plan、parent-accounting proposal、`train.jsonl`を有効化するready successorは存在しない。したがってproduction routeはartifact reader、Torch runtime reader、training contract生成の前で必ずSTOPする。実teacher生成、学習、候補選抜、A/B、ライブ重み変更はすべて0件のままである。English version: [blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md](./blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md)
+> 2026-07-19時点では、v2 execution plan、parent-accounting proposal、`train.jsonl`を有効化するready successorは存在しない。したがってproduction routeはartifact reader、Torch runtime reader、training contract生成の前で必ずSTOPする。実teacher生成、学習、候補選抜、A/B、ライブ重み変更はすべて0件のままである。English version: [blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md](./blog-shogi-floodgate-fresh-qat-v2-execution-dispatch.en.md)
 
 ## 今回何を追加したか
 
@@ -71,6 +71,8 @@ ml/protocols/floodgate-q1-2026-fresh-qat-execution-plan-v2.json
 
 `.copy`を付けたnear path、同名へのsymlink、別directoryの類似名は拒否する。既存v1のexact routeとWCSC36 fallbackは維持した。
 
+path変換も一度だけの不変境界にした。dispatcherは`os.fspath`をexact 1回だけ呼び、その後のabsolute path / real path判定にはcaptureした文字列だけを使う。最初は旧fallbackを返し、2回目ならv2へ変わるstatefulな`PathLike`も2回目を評価しない。1回のcapture値がv2なら、plain `str`ではないため拒否する。回帰テストは両方の切替方向を覆い、call countがexact 1であることを確認する。
+
 artifact schema resolverに追加した組み合わせも1つだけである。
 
 | execution plan                                | training contract                                  | result   |
@@ -123,7 +125,7 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 | infrastructure  | 今回の用途                  |
 | --------------- | --------------------------- |
-| ローカルMac CPU | verifierと153 stdlib tests  |
+| ローカルMac CPU | verifierと154 stdlib tests  |
 | AWS             | 使用なし                    |
 | Firebase / GCP  | 使用なし                    |
 | Vercel          | 使用なし                    |
@@ -133,18 +135,19 @@ Firebase Cloud FunctionsがGCP上で動くこと、VercelがWeb deploymentを担
 
 ## 検証結果
 
-source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`で、履歴は書き換えていない。
+source-authentication remediationのcode commitは`7af69a1fe518ff3f2c64a7238d695d173f642e87`、当初のremediation test commitsは`0aaa09aae018f90648edccd9763e55c06103f031`と`f9fee197def90681c1444dc68a646b7f5f06a936`である。stateful `PathLike`をsingle snapshotにするremediationは別commit `33d9b3139068fac69c44d368869006f5d5d919db`に固定した。履歴は書き換えていない。
 
-- 新v2 dispatch + route test: 20 / 20 PASS、0.041秒
-- repository全stdlib suite: 153 / 153 PASS、10.575秒
+- 新v2 dispatch + route test: 21 / 21 PASS、0.050秒
+- repository全stdlib suite: 154 / 154 PASS、11.118秒
 - Python compile: PASS
 - JSON validation: PASS
 - `git diff --check`: PASS
 - actual teacher / training artifact / Torch training / selection / A/B / live weight write: 0
 - CI: pending
-- 初回independent review: P0 / P1 / P2 = 0 / 1 / 2、remediation後の再review: pending
+- 初回independent review: P0 / P1 / P2 = 0 / 1 / 2
+- source-authentication remediation再review: P0 / P1 / P2 = 0 / 0 / 1。残ったstateful `PathLike`所見は`33d9b313`で実装・local validation済みで、最終independent rereviewはpending
 
-敵対ケースには、successor欠落、near / symlink path、v2を指す`Path` / `bytes` / `str` subclass、wrong schema、v1/v2/WCSC36 hybrid、boolをintとして渡す型alias、F+E不一致、partial / full / all-forced宣言、proposal / train identity drift、input / completion / trainのexact-byte drift、未登録synthetic input / completion、自己申告upstream、replacement、slot drift、contract drift、authority escalation、duplicate key、`NaN`、既存registry driftを含めた。
+敵対ケースには、successor欠落、near / symlink path、v2を指す`Path` / `bytes` / `str` subclass、fallbackとv2の間で値を切り替えるstateful `PathLike`、wrong schema、v1/v2/WCSC36 hybrid、boolをintとして渡す型alias、F+E不一致、partial / full / all-forced宣言、proposal / train identity drift、input / completion / trainのexact-byte drift、未登録synthetic input / completion、自己申告upstream、replacement、slot drift、contract drift、authority escalation、duplicate key、`NaN`、既存registry driftを含めた。
 
 machine-readable evidenceは[`floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json`](./data/floodgate-fresh-qat-v2-execution-dispatch-2026-07-18.json)にある。
 

@@ -2,11 +2,13 @@
   "schema": "shogi-floodgate-fresh-qat-v2-execution-dispatch-evidence-v1",
   "status": "local-validation-pass-ci-pending-production-stop",
   "recorded_date": "2026-07-18",
+  "last_updated_date": "2026-07-19",
   "base_revision": "1f98c3661361254bbc0854fa52888ed4b65bc689",
   "implementation": {
     "code_commit": "7af69a1fe518ff3f2c64a7238d695d173f642e87",
-    "test_commit": "f9fee197def90681c1444dc68a646b7f5f06a936",
-    "test_commit_tree": "fcf4da82bb03087e86666796188dd62c71f6d540",
+    "path_snapshot_remediation_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
+    "test_commit": "33d9b3139068fac69c44d368869006f5d5d919db",
+    "test_commit_tree": "8ad0122363f8ecd0ac83dbf4a5973f9f20523996",
     "history_rewritten": false,
     "files": {
       "dispatcher": {
@@ -16,8 +18,8 @@
       },
       "route_registry": {
         "path": "ml/qat_plan_registry.py",
-        "bytes": 5367,
-        "sha256": "6a8abdb27e10c50329823be1577616f973f6b448a7bd8b47beef979f318403db"
+        "bytes": 5482,
+        "sha256": "de9df69518dc508a36913e7110127c95fad2121cdb57151c77176877ea7324c3"
       },
       "activation_anchor": {
         "path": "ml/protocols/floodgate-q1-2026-fresh-qat-v2-activation-anchor.json",
@@ -33,8 +35,8 @@
       },
       "route_stdlib_tests": {
         "path": "ml/tests_stdlib/test_qat_plan_registry.py",
-        "bytes": 8645,
-        "sha256": "a851d2591db339c7f5708832287e405c1dd8284e969b565479222a095fd84ef9"
+        "bytes": 10998,
+        "sha256": "a25333e79f85d8d35b740c940c02399ccd85cec6fbd481d7c7f903dd62989ceb"
       }
     }
   },
@@ -72,6 +74,7 @@
     "production_weight_write_authorized": false
   },
   "dispatch_order": [
+    "snapshot-plan-pathlike-exactly-once-before-route-decision",
     "require-exact-nonsymlink-v2-plan-path",
     "verify-permanent-closed-anchor-exact-bytes-and-canonical-value",
     "attempt-exact-additive-ready-successor",
@@ -113,6 +116,8 @@
     "near_paths_rejected": true,
     "symlinked_v2_plan_rejected": true,
     "non_plain_string_v2_candidates_rejected": true,
+    "pathlike_fspath_snapshotted_exactly_once": true,
+    "stateful_pathlike_v2_cross_route_rejected": true,
     "wrong_schemas_rejected": true,
     "v1_v2_or_wcsc36_hybrids_rejected": true,
     "selection_and_holdout_remain_unauthorized": true,
@@ -147,16 +152,18 @@
   },
   "local_validation": {
     "focused_v2_dispatch_and_registry": {
-      "tests": 20,
-      "passed": 20,
+      "tests": 21,
+      "passed": 21,
       "failed": 0,
-      "wall_seconds": 0.041
+      "runner_seconds": 0.05,
+      "wall_seconds": 0.15
     },
     "full_stdlib_suite": {
-      "tests": 153,
-      "passed": 153,
+      "tests": 154,
+      "passed": 154,
       "failed": 0,
-      "wall_seconds": 10.575,
+      "runner_seconds": 11.118,
+      "wall_seconds": 11.64,
       "command": "npm run test:ml:stdlib"
     },
     "python_compile": "PASS",
@@ -168,6 +175,7 @@
       "near-v2-plan-path",
       "symlinked-v2-plan-path",
       "path-bytes-and-string-subclass-v2-cross-route",
+      "stateful-pathlike-fspath-single-snapshot-cross-route",
       "wrong-successor-schema",
       "v1-plan-v2-route-hybrid",
       "v2-plan-wcsc36-contract-hybrid",
@@ -225,9 +233,25 @@
     "remediation_commits": [
       "7af69a1fe518ff3f2c64a7238d695d173f642e87",
       "0aaa09aae018f90648edccd9763e55c06103f031",
-      "f9fee197def90681c1444dc68a646b7f5f06a936"
+      "f9fee197def90681c1444dc68a646b7f5f06a936",
+      "33d9b3139068fac69c44d368869006f5d5d919db"
     ],
-    "post_remediation_rereview": "PENDING"
+    "post_source_authentication_remediation_rereview": {
+      "result": "CHANGES_REQUIRED",
+      "findings": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1
+      },
+      "remaining_finding": "stateful-os-pathlike-could-change-between-two-fspath-evaluations-and-cross-route-v2-to-wcsc36"
+    },
+    "latest_path_snapshot_remediation": {
+      "status": "IMPLEMENTED-LOCAL-VALIDATION-PASS",
+      "commit": "33d9b3139068fac69c44d368869006f5d5d919db",
+      "focused_tests": "21/21-PASS",
+      "full_stdlib_tests": "154/154-PASS"
+    },
+    "final_independent_rereview": "PENDING"
   },
   "next_required_action": "keep-production-stop-until-the-production-source-accounting-validator-accepts-finalizer-authenticated-completion-enrollment-and-recomputes-the-proposal-from-exact-input-completion-and-train-bytes-before-a-separately-reviewed-ready-successor-is-added"
 }

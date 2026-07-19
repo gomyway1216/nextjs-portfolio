@@ -536,7 +536,9 @@ parent-accounting結果を学習入口へ渡すfresh QAT v2 execution dispatcher
 train identityと`F + E = 24000`を持つ別のready-successorファイルを新規追加する方式である。
 現在そのsuccessorは存在しないため、v2 routeはproposal、plan、train、他のtraining artifact、
 runtime reader、training contract生成の前でSTOPする。exact v2 pathだけを受け付け、near path、
-symlink、v2を指す非plain-string path、wrong schema、v1/v2/WCSC36 hybridを拒否する。successorの
+symlink、v2を指す非plain-string path、wrong schema、v1/v2/WCSC36 hybridを拒否する。`os.fspath`は
+一度だけsnapshotし、以後のroute判定はその固定文字列だけを使うため、値が変化する`PathLike`でも
+v2から旧fallbackへcross-routeできない。successorの
 completion enrollment宣言だけは信頼せず、production source-accounting validatorが登録済みexact
 input / completion / train bytesからproposalを再生成した後にだけcontractへ進む。`E = 0`宣言は
 source authentication前の早期fail-closed例外で、認証済みall-forcedやliteral STOP receiptの証拠ではないが、

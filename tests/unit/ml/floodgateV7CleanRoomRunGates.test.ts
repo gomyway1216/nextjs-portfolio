@@ -42,9 +42,11 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_BYTES,
   FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_GIB,
   FloodgateV7CleanRoomRunGateError,
+  assertFloodgateV7CleanRoomLocalRunGateDependencies,
   claimFloodgateV7CleanRoomRunGateCoreForTests,
   runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests,
   statfsFloodgateV7CleanRoomRunGateCoreForTests,
+  type FloodgateV7CleanRoomLocalRunGateDependencies,
   type FloodgateV7CleanRoomRunGateDependenciesForTests,
   type FloodgateV7CleanRoomRunGateFailureEvidenceForTests,
 } from "../../../ml/floodgate-v7-clean-room-run-gates";
@@ -52,6 +54,7 @@ import {
   captureFloodgateV7CleanRoomTeacherPlanCoreForTests,
   prepareFloodgateV7CleanRoomTeacherRunCoreForTests,
   runFloodgateV7CleanRoomTeacherGatesCoreForTests,
+  runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests,
   type FloodgateV7CleanRoomTeacherPlanForTests,
   type FloodgateV7CleanRoomTeacherPreparationDependencies,
 } from "../../../ml/floodgate-v7-clean-room-teacher-runner";
@@ -318,6 +321,7 @@ function teacherReceipt(): Readonly<Record<string, unknown>> {
 
 function runtimeOwnerDependencies(
   calls: RuntimeCalls,
+  failStableClose = false,
 ): Readonly<FloodgateV7ProductionRuntimeOwnerCoreDependencies> {
   const receipt = teacherReceipt();
   const teacherRuntimeDigest = sha256(
@@ -332,6 +336,9 @@ function runtimeOwnerDependencies(
     }),
     close: Object.freeze(async function close(): Promise<void> {
       calls.stableClose += 1;
+      if (failStableClose) {
+        throw new Error("synthetic stable close failure");
+      }
     }),
   }) as unknown as StableRuntime;
   const teacher = Object.freeze({
@@ -387,6 +394,7 @@ function gateReceipt(
   overrides: Readonly<{
     readonly stageIno?: string;
     readonly resumedParents?: number;
+    readonly keyId?: string;
   }> = {},
 ): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
   const prefix100 =
@@ -420,7 +428,7 @@ function gateReceipt(
     claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
     algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
     run_id: runId,
-    key_id: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    key_id: overrides.keyId ?? FLOODGATE_V7_DEPLOYMENT_KEY_ID,
     gate,
     gate_contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
     sealed: !(prefix100 || prefix500),
@@ -480,6 +488,58 @@ function successfulRunDependencies(
   });
 }
 
+function localRunDependencies(
+  calls: RuntimeCalls,
+  events: string[],
+  issued: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[],
+  failStableClose = false,
+  checkpointKeyId = "local-focused-integrity-v1",
+): Readonly<FloodgateV7CleanRoomLocalRunGateDependencies> {
+  const brands = new WeakSet<object>();
+  async function statfs(
+    _cleanRoomFilesystemPath: string,
+  ): Promise<Readonly<{ readonly bsize: bigint; readonly bavail: bigint }>> {
+    return exactCapacityStatfs();
+  }
+  async function executeAuthenticatedCheckpointGate(
+    capability: Parameters<
+      FloodgateV7CleanRoomLocalRunGateDependencies["executeAuthenticatedCheckpointGate"]
+    >[0],
+  ): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+    const claim = claimFloodgateV7CleanRoomRunGateCoreForTests(capability);
+    events.push(claim.gate);
+    const receipt = gateReceipt(claim.gate, claim.runId, {
+      keyId: checkpointKeyId,
+    });
+    brands.add(receipt);
+    issued.push(receipt);
+    return receipt;
+  }
+  function claimAuthenticatedCheckpointReceipt(
+    receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+  ): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
+    if (!brands.delete(receipt)) {
+      throw new Error("forged or replayed local receipt");
+    }
+    events.push(`claimed:${receipt.gate}`);
+    return receipt;
+  }
+  async function finalizeSealedChainHandoff(): Promise<void> {
+    expect(calls.stableClose).toBe(1);
+    expect(calls.teacherClose).toBe(1);
+    events.push("handoff-published");
+  }
+  return Object.freeze({
+    statfs,
+    runtimeOwnerDependencies: runtimeOwnerDependencies(calls, failStableClose),
+    executeAuthenticatedCheckpointGate,
+    observeFailureForTests: undefined,
+    expectedCheckpointKeyId: checkpointKeyId,
+    claimAuthenticatedCheckpointReceipt,
+    finalizeSealedChainHandoff,
+  });
+}
+
 async function rejectionOf(run: Promise<unknown>): Promise<unknown> {
   try {
     await run;
@@ -498,6 +558,118 @@ afterEach(async () => {
 });
 
 describe("Floodgate v7 clean-room source/test gate owner", () => {
+  it("separates the fixed deployment key boundary from the nondeployment test seam before grant consumption", async () => {
+    const value = await fixture();
+    const calls: RuntimeCalls = {
+      coordinator: 0,
+      stableClose: 0,
+      teacherClose: 0,
+      teacherAbort: 0,
+    };
+    const deploymentDependencies = localRunDependencies(
+      calls,
+      [],
+      [],
+      false,
+      FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    );
+    const testDependencies = localRunDependencies(calls, [], []);
+
+    expect(() =>
+      assertFloodgateV7CleanRoomLocalRunGateDependencies(
+        deploymentDependencies,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertFloodgateV7CleanRoomLocalRunGateDependencies(testDependencies),
+    ).toThrow(FloodgateV7CleanRoomRunGateError);
+    await expect(
+      runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+        value.capability,
+        deploymentDependencies,
+      ),
+    ).rejects.toMatchObject({
+      phase: "capture",
+      work_state_may_exist: false,
+    });
+    await expect(
+      runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+        value.capability,
+        testDependencies,
+      ),
+    ).resolves.toMatchObject({
+      contract: FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_CONTRACT,
+    });
+    expect(calls.coordinator).toBe(1);
+  });
+
+  it("dynamically enforces the local receipt brand and publishes handoff only after owner close", async () => {
+    const value = await fixture();
+    const calls: RuntimeCalls = {
+      coordinator: 0,
+      stableClose: 0,
+      teacherClose: 0,
+      teacherAbort: 0,
+    };
+    const events: string[] = [];
+    const issued: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
+    const dependencies = localRunDependencies(calls, events, issued);
+
+    const receipt = await runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+      value.capability,
+      dependencies,
+    );
+
+    expect(receipt.gates.map((gate) => gate.completed_parents)).toEqual([
+      100, 500, 24_000,
+    ]);
+    expect(events).toEqual([
+      "durable-prefix-100",
+      "claimed:durable-prefix-100",
+      "durable-prefix-500",
+      "claimed:durable-prefix-500",
+      "sealed-final-24000",
+      "claimed:sealed-final-24000",
+      "handoff-published",
+    ]);
+    expect(calls.stableClose).toBe(1);
+    expect(calls.teacherClose).toBe(1);
+    expect(() =>
+      dependencies.claimAuthenticatedCheckpointReceipt(issued[2]!),
+    ).toThrow("forged or replayed");
+    expect(() =>
+      dependencies.claimAuthenticatedCheckpointReceipt(
+        Object.freeze({ ...issued[2]! }),
+      ),
+    ).toThrow("forged or replayed");
+  });
+
+  it("leaves no ready handoff when owner close fails after the sealed receipt", async () => {
+    const value = await fixture();
+    const calls: RuntimeCalls = {
+      coordinator: 0,
+      stableClose: 0,
+      teacherClose: 0,
+      teacherAbort: 0,
+    };
+    const events: string[] = [];
+    const dependencies = localRunDependencies(calls, events, [], true);
+
+    await expect(
+      runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+        value.capability,
+        dependencies,
+      ),
+    ).rejects.toMatchObject({
+      phase: "cleanup",
+      work_state_may_exist: true,
+    });
+    expect(events).not.toContain("handoff-published");
+    expect(calls.stableClose).toBe(1);
+    expect(calls.teacherClose).toBe(1);
+    expect(calls.teacherAbort).toBe(0);
+  });
+
   it("consumes one prepared capability and proves one exact continuous 100/500/24000 receipt chain", async () => {
     const value = await fixture();
     const calls: RuntimeCalls = {
@@ -1073,7 +1245,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     expect(Object.isFrozen(value)).toBe(true);
   });
 
-  it("keeps the reviewed source, bilingual explanation, machine evidence, and non-operational package boundary aligned", () => {
+  it("keeps reviewed gate evidence intact while isolating the explicit local package entrypoint", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "ml", "floodgate-v7-clean-room-run-gates.ts"),
       "utf8",
@@ -1139,9 +1311,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     expect(preparationSource).toContain(
       "runFloodgateV7CleanRoomTeacherGatesCoreForTests",
     );
-    expect(preparationSource).not.toContain(
-      "runFloodgateV7CleanRoomTeacherGates(",
-    );
+    expect(preparationSource).toContain("runFloodgateV7CleanRoomTeacherGates(");
     expect(japanese).toContain("100件 → 500件 → 24,000件");
     expect(japanese).toContain("definitely-absent-fresh-retry-allowed");
     expect(english).toContain("100 → 500 → 24,000");
@@ -1200,9 +1370,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
       stable_high_dan_strength_established: false,
     });
     expect(
-      Object.keys(packageJson.scripts ?? {}).some((key) =>
-        key.includes("clean-room"),
-      ),
-    ).toBe(false);
+      packageJson.scripts?.["shogi:floodgate-v7-local-clean-room-teacher"],
+    ).toBe("node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts");
   });
 });

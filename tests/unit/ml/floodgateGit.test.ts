@@ -64,6 +64,7 @@ afterEach(async () => {
 describe("Floodgate Git provenance environment", () => {
   it("uses an exact allowlist and removes all inherited controls and credentials", () => {
     const environment = floodgateGitEnvironment({
+      NODE_ENV: "test",
       PATH: "/usr/bin:/bin",
       SAFE_VALUE: "kept",
       GIT_DIR: "/attacker/repository",
@@ -79,6 +80,7 @@ describe("Floodgate Git provenance environment", () => {
       LANGUAGE: "ja",
     });
     expect(environment).toEqual(FLOODGATE_GIT_FIXED_ENVIRONMENT);
+    expect(environment.NODE_ENV).toBe("production");
     expect(environment.SAFE_VALUE).toBeUndefined();
     expect(Object.keys(environment).some((key) => key === "GIT_DIR")).toBe(
       false,

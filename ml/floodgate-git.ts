@@ -10,6 +10,7 @@ export const FLOODGATE_GIT_EXECUTABLE = "/usr/bin/git" as const;
 
 /** Fixed environment for Git commands that form Floodgate provenance claims. */
 export const FLOODGATE_GIT_FIXED_ENVIRONMENT = Object.freeze({
+  NODE_ENV: "production",
   PATH: "/usr/bin:/bin",
   TMPDIR: "/tmp",
   HOME: "/var/empty",

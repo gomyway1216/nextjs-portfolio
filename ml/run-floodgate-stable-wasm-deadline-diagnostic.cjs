@@ -349,6 +349,7 @@ var init_floodgate_git = __esm({
     execFile = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
     FLOODGATE_GIT_EXECUTABLE = "/usr/bin/git";
     FLOODGATE_GIT_FIXED_ENVIRONMENT = Object.freeze({
+      NODE_ENV: "production",
       PATH: "/usr/bin:/bin",
       TMPDIR: "/tmp",
       HOME: "/var/empty",

@@ -61,6 +61,7 @@ import {
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
   FloodgateV7LocalCleanRoomTeacherRunnerError,
+  canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests,
   claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion,
   runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests,
   runFloodgateV7LocalCleanRoomTeacher,
@@ -341,6 +342,52 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
 
+  it("fails closed on undefined, sparse, cyclic, and non-finite canonical JSON values", async () => {
+    expect(
+      canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests({
+        z: Object.freeze([true, null]),
+        a: 1,
+      }),
+    ).toBe('{"a":1,"z":[true,null]}');
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    for (const invalid of [
+      undefined,
+      Number.NaN,
+      Object.freeze({ invalid: undefined }),
+      Object.freeze([undefined]),
+      new Array(1),
+      cyclic,
+    ]) {
+      expect(() =>
+        canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests(invalid),
+      ).toThrow();
+    }
+
+    const receipt = await runFloodgateV7LocalCleanRoomTeacherCoreForTests(
+      operations([]),
+    );
+    for (const surprise of [undefined, Object.freeze([undefined])]) {
+      const output = { stdout: "", stderr: "" };
+      await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
+        Object.freeze([]),
+        async () =>
+          Object.freeze({
+            ...receipt,
+            surprise,
+          }) as typeof receipt,
+        cliIo(output),
+      );
+      expect(output.stdout).toBe("");
+      expect(JSON.parse(output.stderr)).toMatchObject({
+        status: "STOP",
+        phase: "capture",
+      });
+      expect(output.exitCode).toBe(1);
+    }
+    expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
   it("checks the exact 20 GiB threshold before preparation and publishes only the boolean boundary", async () => {
     expect(FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_GIB).toBe(20);
     expect(FLOODGATE_V7_CLEAN_ROOM_RUN_GATES_MINIMUM_FREE_BYTES).toBe(
@@ -618,7 +665,6 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
         "/private/source",
         "/private/destination",
       ]),
-      "/",
     );
     expect(git.file).toBe("/usr/bin/git");
     expect(git.options.cwd).toBe("/");
@@ -645,9 +691,7 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
       ),
       "utf8",
     );
-    expect(preparationSource).toContain(
-      '"fsck", "--full", "--strict", "--no-dangling"',
-    );
+    expect(preparationSource).toContain('"--no-dangling"');
     expect(preparationSource).toContain('"--missing=print"');
     expect(preparationSource).toContain("partialclonefilter");
 

@@ -142,6 +142,47 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         ],
         finalizer_package_identity_refreshed_after_integration: true,
         real_teacher_invocation_during_finalizer_integration: false,
+        failure_kind_branch_latest_main_revision_integrated:
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        failure_kind_branch_integration_revision:
+          "3ec02fcec543491a448d6a4f7537fe7255297d8c",
+        failure_kind_branch_integration_tree:
+          "67ad44bc6f1579bba4aaf2227c7c71ce8cd6eec3",
+        failure_kind_branch_integration_parents: [
+          "f19d315a8e76142a800ed80c4fb70bb05439cbca",
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        ],
+        failure_kind_source_identity_refreshed_after_integration_and_format: true,
+        real_teacher_invocation_during_failure_kind_integration: false,
+        fresh_qat_branch_latest_main_revision_integrated:
+          "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+        fresh_qat_branch_integration_revision:
+          "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+        fresh_qat_branch_integration_tree:
+          "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+        fresh_qat_branch_integration_parents: [
+          "49f7708c861f5189c096dcee2f5401bc6547183b",
+          "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+        ],
+        failure_kind_implementation_paths_unchanged_by_fresh_qat_integration: true,
+        fresh_qat_implementation_paths_preserved_from_merged_main: true,
+        package_and_evidence_pins_preserved_after_fresh_qat_integration: true,
+        real_teacher_invocation_during_fresh_qat_integration: false,
+        failure_kind_review_remediation_revision:
+          "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+        failure_kind_review_remediation_tree:
+          "b817b3922595b5ef794c72757e6bba7452f11dc5",
+        failure_kind_review_remediation_parent:
+          "e12d862c2c076db3f24c867cb455922bc83c544c",
+        failure_kind_single_frozen_allowlist_source: true,
+        failure_kind_type_derived_from_allowlist: true,
+        second_run_evidence_hermetic_git_revision:
+          "c3a47e52c25972561f17860926d1dfc45229ff0d",
+        second_run_evidence_hermetic_git_tree:
+          "eab2ab875f1c75fb884adcca5e4cdfaa652e1bca",
+        second_run_evidence_hermetic_git_parent:
+          "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+        real_teacher_invocation_during_review_remediation: false,
       },
     });
 
@@ -168,6 +209,20 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       finalizer_branch_integration_revision: string;
       finalizer_branch_integration_tree: string;
       finalizer_branch_integration_parents: string[];
+      failure_kind_branch_latest_main_revision_integrated: string;
+      failure_kind_branch_integration_revision: string;
+      failure_kind_branch_integration_tree: string;
+      failure_kind_branch_integration_parents: string[];
+      fresh_qat_branch_latest_main_revision_integrated: string;
+      fresh_qat_branch_integration_revision: string;
+      fresh_qat_branch_integration_tree: string;
+      fresh_qat_branch_integration_parents: string[];
+      failure_kind_review_remediation_revision: string;
+      failure_kind_review_remediation_tree: string;
+      failure_kind_review_remediation_parent: string;
+      second_run_evidence_hermetic_git_revision: string;
+      second_run_evidence_hermetic_git_tree: string;
+      second_run_evidence_hermetic_git_parent: string;
     };
     for (const [commit, tree] of [
       [
@@ -196,6 +251,22 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       [
         revision.finalizer_branch_integration_revision,
         revision.finalizer_branch_integration_tree,
+      ],
+      [
+        revision.failure_kind_branch_integration_revision,
+        revision.failure_kind_branch_integration_tree,
+      ],
+      [
+        revision.fresh_qat_branch_integration_revision,
+        revision.fresh_qat_branch_integration_tree,
+      ],
+      [
+        revision.failure_kind_review_remediation_revision,
+        revision.failure_kind_review_remediation_tree,
+      ],
+      [
+        revision.second_run_evidence_hermetic_git_revision,
+        revision.second_run_evidence_hermetic_git_tree,
       ],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
@@ -237,6 +308,54 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.finalizer_branch_integration_revision,
       ]),
     ).toBe(revision.finalizer_branch_integration_parents.join(" "));
+    expect(
+      gitIsAncestor(
+        revision.failure_kind_branch_latest_main_revision_integrated,
+        revision.failure_kind_branch_integration_revision,
+      ),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.failure_kind_branch_integration_revision,
+      ]),
+    ).toBe(revision.failure_kind_branch_integration_parents.join(" "));
+    expect(
+      gitIsAncestor(
+        revision.fresh_qat_branch_latest_main_revision_integrated,
+        revision.fresh_qat_branch_integration_revision,
+      ),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.fresh_qat_branch_integration_revision,
+      ]),
+    ).toBe(revision.fresh_qat_branch_integration_parents.join(" "));
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.failure_kind_review_remediation_revision,
+      ]),
+    ).toBe(revision.failure_kind_review_remediation_parent);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.second_run_evidence_hermetic_git_revision,
+      ]),
+    ).toBe(revision.second_run_evidence_hermetic_git_parent);
     expect(record.validation).toMatchObject({
       finalizer_branch_integration_vitest: {
         files: 21,

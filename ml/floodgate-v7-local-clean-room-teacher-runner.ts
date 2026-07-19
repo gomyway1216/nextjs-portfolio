@@ -67,10 +67,12 @@ import {
 import {
   FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
+  FLOODGATE_V7_PREPARATION_FAILURE_KINDS,
   FloodgateV7CleanRoomTeacherPreparationError,
   captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   prepareFloodgateV7CleanRoomTeacherRun,
   runFloodgateV7CleanRoomTeacherGates,
+  type FloodgateV7CleanRoomTeacherPreparationFailureKind,
   type FloodgateV7CleanRoomTeacherPreparationReceipt,
   type FloodgateV7CleanRoomTeacherPreparedCapability,
 } from "./floodgate-v7-clean-room-teacher-runner";
@@ -156,8 +158,19 @@ export type FloodgateV7LocalCleanRoomTeacherRunnerPhase =
   | "finalizer-handoff"
   | "receipt";
 
+function safePreparationFailureKind(
+  value: unknown,
+): FloodgateV7CleanRoomTeacherPreparationFailureKind {
+  return (
+    FLOODGATE_V7_PREPARATION_FAILURE_KINDS as readonly unknown[]
+  ).includes(value)
+    ? (value as FloodgateV7CleanRoomTeacherPreparationFailureKind)
+    : "phase-level";
+}
+
 export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
   readonly phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase;
+  readonly failure_kind: FloodgateV7CleanRoomTeacherPreparationFailureKind;
   readonly clean_room_may_exist: boolean;
   readonly checkpoint_may_exist: boolean;
   readonly retry_disposition:
@@ -169,10 +182,12 @@ export class FloodgateV7LocalCleanRoomTeacherRunnerError extends Error {
     phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase,
     cleanRoomMayExist: boolean,
     checkpointMayExist: boolean,
+    failureKindValue: unknown = "phase-level",
   ) {
     super("Floodgate v7 local clean-room teacher runner failed");
     this.name = "FloodgateV7LocalCleanRoomTeacherRunnerError";
     this.phase = phase;
+    this.failure_kind = safePreparationFailureKind(failureKindValue);
     this.clean_room_may_exist = cleanRoomMayExist;
     this.checkpoint_may_exist = checkpointMayExist;
     this.retry_disposition =
@@ -1541,6 +1556,8 @@ async function executeWithOperations(
   operationsValue: FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
 ): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>> {
   let phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase = "capture";
+  let failureKind: FloodgateV7CleanRoomTeacherPreparationFailureKind =
+    "phase-level";
   let cleanRoomMayExist = false;
   let checkpointMayExist = false;
   try {
@@ -1571,6 +1588,7 @@ async function executeWithOperations(
     }
     if (error instanceof FloodgateV7CleanRoomTeacherPreparationError) {
       cleanRoomMayExist = cleanRoomMayExist || error.clean_room_may_exist;
+      failureKind = error.failure_kind;
     }
     if (error instanceof FloodgateV7CleanRoomRunGateError) {
       checkpointMayExist = checkpointMayExist || error.work_state_may_exist;
@@ -1587,6 +1605,7 @@ async function executeWithOperations(
       phase,
       cleanRoomMayExist,
       checkpointMayExist,
+      failureKind,
     );
   }
 }

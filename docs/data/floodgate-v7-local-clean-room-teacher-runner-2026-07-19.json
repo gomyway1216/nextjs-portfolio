@@ -46,7 +46,36 @@
       "88afd052c00865b4e7fce4ed25d81a94febb1637"
     ],
     "finalizer_package_identity_refreshed_after_integration": true,
-    "real_teacher_invocation_during_finalizer_integration": false
+    "real_teacher_invocation_during_finalizer_integration": false,
+    "failure_kind_branch_latest_main_revision_integrated": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "failure_kind_branch_integration_revision": "3ec02fcec543491a448d6a4f7537fe7255297d8c",
+    "failure_kind_branch_integration_tree": "67ad44bc6f1579bba4aaf2227c7c71ce8cd6eec3",
+    "failure_kind_branch_integration_parents": [
+      "f19d315a8e76142a800ed80c4fb70bb05439cbca",
+      "00f255a62e01ea5a980ada987682c994e76dd1f9"
+    ],
+    "failure_kind_source_identity_refreshed_after_integration_and_format": true,
+    "real_teacher_invocation_during_failure_kind_integration": false,
+    "fresh_qat_branch_latest_main_revision_integrated": "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+    "fresh_qat_branch_integration_revision": "74d825c1184a0603a60e6a50ba5272e930ed9bb3",
+    "fresh_qat_branch_integration_tree": "e66af8db1ad393152d92088762e0afdf2ac6b0be",
+    "fresh_qat_branch_integration_parents": [
+      "49f7708c861f5189c096dcee2f5401bc6547183b",
+      "9dc5755a70382af544c0f89230e33b0aaae35f2f"
+    ],
+    "failure_kind_implementation_paths_unchanged_by_fresh_qat_integration": true,
+    "fresh_qat_implementation_paths_preserved_from_merged_main": true,
+    "package_and_evidence_pins_preserved_after_fresh_qat_integration": true,
+    "real_teacher_invocation_during_fresh_qat_integration": false,
+    "failure_kind_review_remediation_revision": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+    "failure_kind_review_remediation_tree": "b817b3922595b5ef794c72757e6bba7452f11dc5",
+    "failure_kind_review_remediation_parent": "e12d862c2c076db3f24c867cb455922bc83c544c",
+    "failure_kind_single_frozen_allowlist_source": true,
+    "failure_kind_type_derived_from_allowlist": true,
+    "second_run_evidence_hermetic_git_revision": "c3a47e52c25972561f17860926d1dfc45229ff0d",
+    "second_run_evidence_hermetic_git_tree": "eab2ab875f1c75fb884adcca5e4cdfaa652e1bca",
+    "second_run_evidence_hermetic_git_parent": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+    "real_teacher_invocation_during_review_remediation": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -187,9 +216,9 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59906,
-      "sha256": "773edeee39af60dd269c2f0b0371e55c30ea71a46abd092b20dd79e301d0bbe6",
-      "git_blob": "ff628435335149d7bc9bd65f2e87777939a90490",
+      "bytes": 62307,
+      "sha256": "48e3fefca9597e57553e178fe30e81127eeda842c1b3122d757af69b4dc0ada2",
+      "git_blob": "e6d39fb439469cbd9424a184ad2ffc810452928d",
       "required_markers": [
         "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
         "GIT_ALLOW_PROTOCOL: \"file\"",
@@ -197,18 +226,22 @@
         "\"core.hooksPath=/dev/null\"",
         "\"credential.helper=\"",
         "lower !== \"http.postbuffer\"",
-        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024"
+        "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
+        "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
+        "classifyVerificationFailure",
+        "\"role-bundle-verification\""
       ]
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-cli.ts",
-      "bytes": 11371,
-      "sha256": "307d6807a152246aee7f2006b5888c868e5990eb1adff636731c71bd0f8a03d6",
-      "git_blob": "602335c11922b91508bf1a4004111778993d0bdd",
+      "bytes": 11427,
+      "sha256": "0d3b70897ec2799cddda8fc47ff891a52aebe86d19f4fe22478b26ac38b1949e",
+      "git_blob": "f09eeefdf7b028266334e45c128be36d431710c3",
       "required_markers": [
         "claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(completion)",
         "\"fixed-operational-cli-one-shot-brand-claim\"",
-        "\"canonical JSON value differs\""
+        "\"canonical JSON value differs\"",
+        "failure_kind: typed?.failure_kind ?? \"phase-level\""
       ]
     },
     {
@@ -223,9 +256,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 59020,
-      "sha256": "94321bbd437cc4a09e2fd95f549d2f82d093924af4041d9e82bbe2635dcaf241",
-      "git_blob": "e6eec87b89836e3d0d33f36289d28cdb31ab71e2",
+      "bytes": 59759,
+      "sha256": "057d5b5623307f569f899414afe0656ee77fbe8483bd268f0a139fdbe441f606",
+      "git_blob": "8e5f5d80c90b1db33bf97a55576090223dac5e6d",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -236,7 +269,9 @@
         "run_binding_sha256: runBindingSha256",
         "canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests",
         "local_deployment_key_authority_used: true as const",
-        "aws_required: false as const"
+        "aws_required: false as const",
+        "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
+        "failureKind = error.failure_kind"
       ]
     },
     {
@@ -269,9 +304,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
-      "bytes": 27022,
-      "sha256": "f816c881144746e215543eb8ed1b37746293e76a88c746573596f54a33cde17d",
-      "git_blob": "3bbfb599c0c00c4ef35ab6c1e55cd1cc2100825d"
+      "bytes": 32286,
+      "sha256": "c1050a2c9aaf66f4b9b27be5511a1bf39238bb4a867d4fdaca06ec0f5b97ab47",
+      "git_blob": "d51d2eea547ac8ffdb25ef26fccad0c515f1771d"
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
@@ -281,9 +316,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 31492,
-      "sha256": "4bcbfa22aaa42c921cb472f9d733e5c0b4f6775548421e38eb3bd33c2f7662e0",
-      "git_blob": "3e06b3f1f8b94dfad70ed4a345378dc39c536943"
+      "bytes": 34555,
+      "sha256": "69a2819c3adc613272d9495a3a88ffe9dbc46bb2cc096b1b32f170e2a847194c",
+      "git_blob": "df3042e4c2928845e4ac1b3d2decf0e43bc3c7c4"
     }
   ],
   "validation": {

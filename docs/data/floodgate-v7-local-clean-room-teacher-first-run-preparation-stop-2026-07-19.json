@@ -38,7 +38,12 @@
       "unresolved_threads": 0,
       "addressed_revision": "5eefa61d0c9eca2d6894a289d1e9d12a53957d3d",
       "different_cwd_evidence_tests_passed": 4
-    }
+    },
+    "followup_failure_kind_review_revision": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+    "followup_failure_kind_review_tree": "b817b3922595b5ef794c72757e6bba7452f11dc5",
+    "followup_failure_kind_review_parent": "e12d862c2c076db3f24c867cb455922bc83c544c",
+    "source_pins_refreshed_after_followup_review": true,
+    "real_teacher_invocation_during_followup_review": false
   },
   "first_operational_attempt": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -121,25 +126,30 @@
   "source_pins": [
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 59906,
-      "sha256": "773edeee39af60dd269c2f0b0371e55c30ea71a46abd092b20dd79e301d0bbe6",
-      "git_blob": "ff628435335149d7bc9bd65f2e87777939a90490",
+      "bytes": 62307,
+      "sha256": "48e3fefca9597e57553e178fe30e81127eeda842c1b3122d757af69b4dc0ada2",
+      "git_blob": "e6d39fb439469cbd9424a184ad2ffc810452928d",
       "required_markers": [
         "lower !== \"http.postbuffer\"",
         "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
         "protocol.file.allow=always",
-        "GIT_ALLOW_PROTOCOL: \"file\""
+        "GIT_ALLOW_PROTOCOL: \"file\"",
+        "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
+        "classifyVerificationFailure",
+        "\"role-bundle-verification\""
       ]
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 31492,
-      "sha256": "4bcbfa22aaa42c921cb472f9d733e5c0b4f6775548421e38eb3bd33c2f7662e0",
-      "git_blob": "3e06b3f1f8b94dfad70ed4a345378dc39c536943",
+      "bytes": 34555,
+      "sha256": "69a2819c3adc613272d9495a3a88ffe9dbc46bb2cc096b1b32f170e2a847194c",
+      "git_blob": "df3042e4c2928845e4ac1b3d2decf0e43bc3c7c4",
       "required_markers": [
         "\"http.postBuffer\"",
         "\"http.extraHeader\"",
-        "64 * 1024 * 1024"
+        "64 * 1024 * 1024",
+        "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
+        "\"role-bundle-verification\""
       ]
     }
   ],

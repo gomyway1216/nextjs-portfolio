@@ -119,6 +119,9 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
       continuous_integration: Record<string, unknown>;
       independent_review: Record<string, unknown>;
       github_review: Record<string, unknown>;
+      followup_failure_kind_review_revision: string;
+      followup_failure_kind_review_tree: string;
+      followup_failure_kind_review_parent: string;
     };
     expect(revision).toEqual(
       expect.objectContaining({
@@ -152,6 +155,14 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
           addressed_revision: "5eefa61d0c9eca2d6894a289d1e9d12a53957d3d",
           different_cwd_evidence_tests_passed: 4,
         },
+        followup_failure_kind_review_revision:
+          "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
+        followup_failure_kind_review_tree:
+          "b817b3922595b5ef794c72757e6bba7452f11dc5",
+        followup_failure_kind_review_parent:
+          "e12d862c2c076db3f24c867cb455922bc83c544c",
+        source_pins_refreshed_after_followup_review: true,
+        real_teacher_invocation_during_followup_review: false,
       }),
     );
     expect(
@@ -165,6 +176,30 @@ describe("Floodgate v7 first local teacher preparation-stop evidence", () => {
     expect(
       git(["show", "-s", "--format=%T", revision.remediation_revision]),
     ).toBe(revision.remediation_tree);
+    expect(
+      git([
+        "merge-base",
+        "--is-ancestor",
+        revision.followup_failure_kind_review_revision,
+        "HEAD",
+      ]),
+    ).toBe("");
+    expect(
+      git([
+        "show",
+        "-s",
+        "--format=%T",
+        revision.followup_failure_kind_review_revision,
+      ]),
+    ).toBe(revision.followup_failure_kind_review_tree);
+    expect(
+      git([
+        "show",
+        "-s",
+        "--format=%P",
+        revision.followup_failure_kind_review_revision,
+      ]),
+    ).toBe(revision.followup_failure_kind_review_parent);
 
     const pins = record.source_pins as PinnedFile[];
     expect(pins.map((entry) => entry.path)).toEqual([

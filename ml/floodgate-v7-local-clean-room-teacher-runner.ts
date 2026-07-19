@@ -304,8 +304,7 @@ interface FixedTargets {
 interface LocalGateSession {
   readonly dependencies: Readonly<FloodgateV7CleanRoomLocalRunGateDependencies>;
   readonly finalizerHandoffEvidence: () =>
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   readonly close: () => void;
 }
 
@@ -1066,8 +1065,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
   let runBindingCanonical: string | undefined;
   let runBindingSha256: string | undefined;
   let handoff:
-    | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
-    | undefined;
+    Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence> | undefined;
   const receipts: Readonly<FloodgateV7TeacherCheckpointV3Receipt>[] = [];
   const receiptFiles: Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>[] =
     [];

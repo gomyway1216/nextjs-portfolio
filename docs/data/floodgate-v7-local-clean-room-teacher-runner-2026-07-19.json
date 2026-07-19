@@ -46,7 +46,16 @@
       "88afd052c00865b4e7fce4ed25d81a94febb1637"
     ],
     "finalizer_package_identity_refreshed_after_integration": true,
-    "real_teacher_invocation_during_finalizer_integration": false
+    "real_teacher_invocation_during_finalizer_integration": false,
+    "failure_kind_branch_latest_main_revision_integrated": "00f255a62e01ea5a980ada987682c994e76dd1f9",
+    "failure_kind_branch_integration_revision": "3ec02fcec543491a448d6a4f7537fe7255297d8c",
+    "failure_kind_branch_integration_tree": "67ad44bc6f1579bba4aaf2227c7c71ce8cd6eec3",
+    "failure_kind_branch_integration_parents": [
+      "f19d315a8e76142a800ed80c4fb70bb05439cbca",
+      "00f255a62e01ea5a980ada987682c994e76dd1f9"
+    ],
+    "failure_kind_source_identity_refreshed_after_integration_and_format": true,
+    "real_teacher_invocation_during_failure_kind_integration": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -226,9 +235,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 59947,
-      "sha256": "228eafe2cb260c70c741cca9fd149083e617254d0b0dd4ab385f281158dd4481",
-      "git_blob": "ad0e20cbf4446b932ce2d32dac5af7e9d15f1818",
+      "bytes": 59935,
+      "sha256": "107d50ee0669f88eeeb0cb4480e7c733b0d341013a313d913d052f4a84b80fa9",
+      "git_blob": "52c17a7d1c47b229ffdf94e4d67a7d81746e74e7",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",

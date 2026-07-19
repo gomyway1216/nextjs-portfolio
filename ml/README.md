@@ -175,6 +175,17 @@ rowsのruntime authenticity、engine/eval/stage pathとsealed rootのdisjointnes
 consumer postflight後のfinal publication、result receiptはB2 runnerで実装する。したがってB1のstage
 manifestや非鍵checkpoint checksumを公開済みteacher evidenceとして扱わない。
 
+#### Floodgate v7 Macローカル教師run 2回目のverification STOP（2026-07-19）
+
+最初のpreparation blockerを修正した後の2回目は、5つのmaterializationをすべて完了し、
+教師engine起動前のrole-bundle verificationで安全停止した。全72,717 files /
+1,227,490,748 bytesはcopy-by-value元と一致し、原因はデータ破損、AWS、network、
+timeoutではなく、historical inode / ctime固定とfresh copy-by-value closureの契約不整合だった。
+教師行、checkpoint、学習、対局、live weight変更は引き続き0である。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.md) /
+[English article](../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md) /
+[machine evidence](../docs/data/floodgate-v7-local-clean-room-teacher-second-run-verification-stop-2026-07-19.json)を参照。
+
 #### Floodgate v7 sealed 24,000件のMacローカルfinalizer（2026-07-19）
 
 clean-room教師runnerが同じ認証済みstreamを100 → 500 → 24,000へ進めてsealした後だけ使う、

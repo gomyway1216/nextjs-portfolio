@@ -142,6 +142,18 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         ],
         finalizer_package_identity_refreshed_after_integration: true,
         real_teacher_invocation_during_finalizer_integration: false,
+        failure_kind_branch_latest_main_revision_integrated:
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        failure_kind_branch_integration_revision:
+          "3ec02fcec543491a448d6a4f7537fe7255297d8c",
+        failure_kind_branch_integration_tree:
+          "67ad44bc6f1579bba4aaf2227c7c71ce8cd6eec3",
+        failure_kind_branch_integration_parents: [
+          "f19d315a8e76142a800ed80c4fb70bb05439cbca",
+          "00f255a62e01ea5a980ada987682c994e76dd1f9",
+        ],
+        failure_kind_source_identity_refreshed_after_integration_and_format: true,
+        real_teacher_invocation_during_failure_kind_integration: false,
       },
     });
 
@@ -168,6 +180,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       finalizer_branch_integration_revision: string;
       finalizer_branch_integration_tree: string;
       finalizer_branch_integration_parents: string[];
+      failure_kind_branch_latest_main_revision_integrated: string;
+      failure_kind_branch_integration_revision: string;
+      failure_kind_branch_integration_tree: string;
+      failure_kind_branch_integration_parents: string[];
     };
     for (const [commit, tree] of [
       [
@@ -196,6 +212,10 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
       [
         revision.finalizer_branch_integration_revision,
         revision.finalizer_branch_integration_tree,
+      ],
+      [
+        revision.failure_kind_branch_integration_revision,
+        revision.failure_kind_branch_integration_tree,
       ],
     ]) {
       expect(gitIsAncestor(commit, "HEAD"), commit).toBe(true);
@@ -237,6 +257,21 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
         revision.finalizer_branch_integration_revision,
       ]),
     ).toBe(revision.finalizer_branch_integration_parents.join(" "));
+    expect(
+      gitIsAncestor(
+        revision.failure_kind_branch_latest_main_revision_integrated,
+        revision.failure_kind_branch_integration_revision,
+      ),
+    ).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        revision.failure_kind_branch_integration_revision,
+      ]),
+    ).toBe(revision.failure_kind_branch_integration_parents.join(" "));
     expect(record.validation).toMatchObject({
       finalizer_branch_integration_vitest: {
         files: 21,

@@ -11,6 +11,7 @@ const japaneseRelative =
   "docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.md";
 const englishRelative =
   "docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md";
+const readmeRelative = "ml/README.md";
 const gitEnvironment = Object.freeze({
   LANG: "C",
   LC_ALL: "C",
@@ -216,6 +217,16 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "Live weights remain unchanged",
     ]) {
       expect(english).toContain(marker);
+    }
+
+    const readme = read(readmeRelative);
+    for (const marker of [
+      "../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.md",
+      "../docs/blog-shogi-floodgate-v7-local-clean-room-teacher-second-run-verification-stop.en.md",
+      "../docs/data/floodgate-v7-local-clean-room-teacher-second-run-verification-stop-2026-07-19.json",
+      "historical inode / ctime固定とfresh copy-by-value closureの契約不整合",
+    ]) {
+      expect(readme).toContain(marker);
     }
   });
 });

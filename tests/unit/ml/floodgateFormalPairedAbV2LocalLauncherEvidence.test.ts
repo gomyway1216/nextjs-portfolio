@@ -162,18 +162,26 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       live_weights_changed: false,
     });
     expect(evidence.implementation_anchor).toMatchObject({
-      review_state:
-        "pr-review-remediation-validation-pass-rereview-pending",
+      revision: "3061f35e4f9432f1222f1f5a0c0b7a8e32f5b469",
+      tree: "6a5c601f599ba97ece3ca59d8f8289ec784070c0",
+      review_state: "independent-rereview-pass-ready-to-merge",
       pull_request: 510,
-      continuous_integration: "IN_PROGRESS",
+      continuous_integration: "PASS",
     });
     expect(evidence.independent_review).toMatchObject({
       initial_state: "changes-required",
       accepted_adversarial_probe_classes_before_remediation: 6,
       rejected_adversarial_probe_classes_before_remediation: 4,
       remediation_state: "local-second-remediation-validation-pass",
-      final_independent_rereview:
-        "PENDING-AFTER-PR-REVIEW-REMEDIATION",
+      final_independent_rereview: "PASS-P0-0-P1-0-P2-0",
+      final_review_revision: "3061f35e4f9432f1222f1f5a0c0b7a8e32f5b469",
+      final_review_tree: "6a5c601f599ba97ece3ca59d8f8289ec784070c0",
+      unresolved_p0: 0,
+      unresolved_p1: 0,
+      unresolved_p2: 0,
+      safe_to_merge: true,
+      github_review_threads_total: 6,
+      github_review_threads_resolved: 6,
     });
   });
 
@@ -229,6 +237,10 @@ describe("formal paired A/B v2 local launcher publication evidence", () => {
       expect(article).toContain("157");
       expect(article).toContain("13.68");
       expect(article).toContain("STOP");
+      expect(article).toContain("3061f35e");
+      expect(article).toContain("P0=0");
+      expect(article).toContain("P1=0");
+      expect(article).toContain("P2=0");
     }
     expect(japanese).toContain("追記専用");
     expect(japanese).toContain("実対局はまだ0局");

@@ -119,9 +119,9 @@ Gitは通常のtracked data fileについてowner-read-only bitを保持しな�
 
 最初のremediationでは、実行可能APIを`CoreForTests`へ改名し、production routeをcode-pinned identity未設定の`STOP`へ閉じた。さらにread-only attempt artifacts、全path componentの`nofollow`、既存SFEN validator、exact test-only optionsを追加した。
 
-そのexact headの再reviewでは、通常のcorrectnessに関する4点が見つかった。`os.write`がshort writeした場合、journalが切れたままin-memoryの384-pair complete resultを返せたこと、schemaだけ正しいattempt / rerun JSONが無関係または矛盾した意味を持てたこと、restrictive `umask`ではjournal mode failureより先に6-pair batchを開始できたこと、pinned registry自身をnon-writable必須にすると通常のGit checkoutと両立しないことである。2回目のremediationでは、full writeとfinal journal reparse、strictなattempt / rerun semantic binding、callback前のjournal mode validation、identity / nofollowを弱めない通常checkout対応を追加した。修正後のfocused adversarial再reviewは`P0=0`、`P1=0`、`P2=0`である。PRとCIはまだ`PENDING`である。
+そのexact headの再reviewでは、通常のcorrectnessに関する4点が見つかった。`os.write`がshort writeした場合、journalが切れたままin-memoryの384-pair complete resultを返せたこと、schemaだけ正しいattempt / rerun JSONが無関係または矛盾した意味を持てたこと、restrictive `umask`ではjournal mode failureより先に6-pair batchを開始できたこと、pinned registry自身をnon-writable必須にすると通常のGit checkoutと両立しないことである。2回目のremediationでは、full writeとfinal journal reparse、strictなattempt / rerun semantic binding、callback前のjournal mode validation、identity / nofollowを弱めない通常checkout対応を追加した。その時点のfocused adversarial再reviewは`P0=0`、`P1=0`、`P2=0`で、PR reviewへ進んだ。
 
-PR #510のreviewでは、`KeyboardInterrupt` / `SystemExit`までsynthetic technical faultへ変換し得る点と、machine evidenceのgame event名が実装の`game-completed`と一致していない点も見つかった。operator abortはそのまま伝播し、technical-fault eventへ書き換えないよう修正して敵対testを追加した。2箇所のdescriptor readも`closefd=false`で元descriptorの所有権を保つ形へ単純化し、長い条件式を整形した。これらPR review後の独立再reviewは現在`PENDING`である。
+PR #510のreviewでは、`KeyboardInterrupt` / `SystemExit`までsynthetic technical faultへ変換し得る点と、machine evidenceのgame event名が実装の`game-completed`と一致していない点も見つかった。operator abortはそのまま伝播し、technical-fault eventへ書き換えないよう修正して敵対testを追加した。2箇所のdescriptor readも`closefd=false`で元descriptorの所有権を保つ形へ単純化し、長い条件式を整形した。review対象revision `3061f35e4f9432f1222f1f5a0c0b7a8e32f5b469`の最終独立再reviewは`P0=0`、`P1=0`、`P2=0`、`safe-to-merge: YES`だった。GitHub上の6 review threadはすべて解決済みで、同revisionのCI / security / Vercel checkもすべて`PASS`した。ただし実A/Bはまだ0局であり、この合格は棋力向上の証拠ではない。
 
 ## 検証結果
 

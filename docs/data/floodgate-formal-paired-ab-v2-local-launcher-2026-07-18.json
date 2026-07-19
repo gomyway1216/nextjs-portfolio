@@ -2,11 +2,11 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-local-launcher-evidence-v1",
   "recorded_date": "2026-07-18",
   "implementation_anchor": {
-    "revision": null,
-    "tree": null,
-    "review_state": "pr-review-remediation-validation-pass-rereview-pending",
+    "revision": "3061f35e4f9432f1222f1f5a0c0b7a8e32f5b469",
+    "tree": "6a5c601f599ba97ece3ca59d8f8289ec784070c0",
+    "review_state": "independent-rereview-pass-ready-to-merge",
     "pull_request": 510,
-    "continuous_integration": "IN_PROGRESS"
+    "continuous_integration": "PASS"
   },
   "implementation": {
     "launcher": "ml/formal_paired_ab_local_launcher.py",
@@ -129,7 +129,15 @@
       "restrictive-umask-pre-callback-stop",
       "normal-checkout-pinned-registry-with-exact-identity"
     ],
-    "final_independent_rereview": "PENDING-AFTER-PR-REVIEW-REMEDIATION"
+    "final_independent_rereview": "PASS-P0-0-P1-0-P2-0",
+    "final_review_revision": "3061f35e4f9432f1222f1f5a0c0b7a8e32f5b469",
+    "final_review_tree": "6a5c601f599ba97ece3ca59d8f8289ec784070c0",
+    "unresolved_p0": 0,
+    "unresolved_p1": 0,
+    "unresolved_p2": 0,
+    "safe_to_merge": true,
+    "github_review_threads_total": 6,
+    "github_review_threads_resolved": 6
   },
   "validation": {
     "python_compile_command": "python3 -m py_compile ml/formal_paired_ab_local_launcher.py ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",

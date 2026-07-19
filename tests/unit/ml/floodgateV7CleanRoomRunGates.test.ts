@@ -1073,7 +1073,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     expect(Object.isFrozen(value)).toBe(true);
   });
 
-  it("keeps the reviewed source, bilingual explanation, machine evidence, and non-operational package boundary aligned", () => {
+  it("keeps reviewed gate evidence intact while isolating the explicit local package entrypoint", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "ml", "floodgate-v7-clean-room-run-gates.ts"),
       "utf8",
@@ -1139,7 +1139,7 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
     expect(preparationSource).toContain(
       "runFloodgateV7CleanRoomTeacherGatesCoreForTests",
     );
-    expect(preparationSource).not.toContain(
+    expect(preparationSource).toContain(
       "runFloodgateV7CleanRoomTeacherGates(",
     );
     expect(japanese).toContain("100件 → 500件 → 24,000件");
@@ -1200,9 +1200,9 @@ describe("Floodgate v7 clean-room source/test gate owner", () => {
       stable_high_dan_strength_established: false,
     });
     expect(
-      Object.keys(packageJson.scripts ?? {}).some((key) =>
-        key.includes("clean-room"),
-      ),
-    ).toBe(false);
+      packageJson.scripts?.["shogi:floodgate-v7-local-clean-room-teacher"],
+    ).toBe(
+      "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
+    );
   });
 });

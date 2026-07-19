@@ -65,6 +65,7 @@ import {
   FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
   FloodgateV7CleanRoomTeacherPreparationError,
+  captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
   prepareFloodgateV7CleanRoomTeacherRun,
   runFloodgateV7CleanRoomTeacherGates,
   type FloodgateV7CleanRoomTeacherPreparationReceipt,
@@ -86,6 +87,14 @@ export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_STATUS =
   "explicit-local-clean-room-three-gate-stream-sealed-finalizer-handoff-ready" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CLAIM_BOUNDARY =
   "explicit-argumentless-package-command-fixed-local-input-copy-and-verification-fresh-20-gib-preflight-one-local-integrity-key-one-stage-stream-exact-100-500-24000-gates-private-completion-receipts-and-sealed-finalizer-handoff-not-label-finalization-training-weight-match-live-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT =
+  "shogi-floodgate-v7-local-clean-room-teacher-test-runner-v1" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS =
+  "test-only-injected-orchestration-complete-not-operational-evidence" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY =
+  "test-only-injected-opaque-operations-and-synthetic-receipts-not-private-copy-teacher-checkpoint-finalizer-or-operational-evidence" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT =
+  "shogi-floodgate-v7-local-clean-room-teacher-operational-completion-v1" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID =
   "shogi-floodgate-v7-local-clean-room-integrity-v1" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT =
@@ -124,6 +133,10 @@ const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
 const objectPrototype = Object.prototype;
 const reflectOwnKeys = Reflect.ownKeys;
+const operationalCompletionReceipts = new WeakMap<
+  object,
+  Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>
+>();
 
 export type FloodgateV7LocalCleanRoomTeacherRunnerPhase =
   | "capture"
@@ -229,6 +242,30 @@ export interface FloodgateV7LocalCleanRoomTeacherRunnerReceipt {
   }>;
 }
 
+export interface FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt {
+  readonly contract: typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY;
+  readonly execution_boundary: "test-only-injected-opaque-operations";
+  readonly operational_evidence: false;
+  readonly gates: FloodgateV7CleanRoomRunGatesReceipt["gates"];
+  readonly finalizer_handoff_observed: true;
+  readonly nonclaims: Readonly<{
+    readonly private_source_read: false;
+    readonly teacher_process: false;
+    readonly operational_checkpoint: false;
+    readonly finalizer_published: false;
+    readonly optimizer_training: false;
+    readonly live_weight_read_or_write: false;
+    readonly playing_strength: false;
+  }>;
+}
+
+export interface FloodgateV7LocalCleanRoomTeacherOperationalCompletion {
+  readonly contract: typeof FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT;
+  readonly execution_boundary: "one-shot-internal-real-local-run-completion";
+}
+
 interface FixedTargets {
   readonly verifierRepository: string;
   readonly rawLockRoot: string;
@@ -248,6 +285,12 @@ interface LocalGateSession {
     | Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>
     | undefined;
   readonly close: () => void;
+}
+
+interface FloodgateV7LocalCleanRoomTeacherCompletedComposition {
+  readonly preparation: Readonly<FloodgateV7CleanRoomTeacherPreparationReceipt>;
+  readonly gates: Readonly<FloodgateV7CleanRoomRunGatesReceipt>;
+  readonly handoff: Readonly<FloodgateV7LocalCleanRoomFinalizerHandoffEvidence>;
 }
 
 export interface FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests {
@@ -349,18 +392,6 @@ function hmac(
     .digest("hex");
 }
 
-async function syncDirectory(directory: string): Promise<void> {
-  const handle = await fs.promises.open(
-    directory,
-    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
-  );
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
 async function assertPrivateDirectory(directory: string): Promise<void> {
   const stat = await fs.promises.lstat(directory, { bigint: true });
   if (
@@ -374,43 +405,286 @@ async function assertPrivateDirectory(directory: string): Promise<void> {
   }
 }
 
-async function writePrivateFile(
-  filename: string,
-  bytes: Uint8Array,
-): Promise<Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>> {
+async function syncPrivateDirectory(directory: string): Promise<void> {
+  if (typeof process.geteuid !== "function") {
+    throw new Error("private directory owner is unavailable");
+  }
+  const effectiveUserId = process.geteuid();
   const handle = await fs.promises.open(
-    filename,
-    fs.constants.O_WRONLY |
-      fs.constants.O_CREAT |
-      fs.constants.O_EXCL |
+    directory,
+    fs.constants.O_RDONLY |
+      fs.constants.O_DIRECTORY |
       fs.constants.O_NOFOLLOW,
-    PRIVATE_FILE_MODE,
   );
   try {
-    await handle.writeFile(bytes);
+    const before = await handle.stat({ bigint: true });
+    assertHeldParentStat(before, effectiveUserId);
+    await assertParentPathIdentity(directory, before, effectiveUserId);
     await handle.sync();
+    const after = await handle.stat({ bigint: true });
+    await assertParentPathIdentity(directory, after, effectiveUserId);
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.uid !== after.uid ||
+      before.mode !== after.mode
+    ) {
+      throw new Error("private directory changed during sync");
+    }
   } finally {
     await handle.close();
   }
-  await fs.promises.chmod(filename, PRIVATE_FILE_MODE);
-  const stat = await fs.promises.lstat(filename, { bigint: true });
-  const reopened = await fs.promises.readFile(filename);
+}
+
+function sameFileStat(left: fs.BigIntStats, right: fs.BigIntStats): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mtimeNs === right.mtimeNs
+  );
+}
+
+function assertHeldParentStat(
+  stat: fs.BigIntStats,
+  effectiveUserId: number,
+): void {
+  if (
+    !stat.isDirectory() ||
+    stat.uid !== BigInt(effectiveUserId) ||
+    (stat.mode & MODE_MASK) !== BigInt(PRIVATE_DIRECTORY_MODE)
+  ) {
+    throw new Error("private parent directory differs");
+  }
+}
+
+function assertHeldFileStat(
+  stat: fs.BigIntStats,
+  effectiveUserId: number,
+  bytes: number,
+): void {
   if (
     !stat.isFile() ||
+    stat.uid !== BigInt(effectiveUserId) ||
     stat.nlink !== BigInt(1) ||
     (stat.mode & MODE_MASK) !== BigInt(PRIVATE_FILE_MODE) ||
-    stat.size !== BigInt(bytes.byteLength) ||
-    sha256(reopened) !== sha256(bytes)
+    stat.size !== BigInt(bytes)
   ) {
-    reopened.fill(0);
-    throw new Error("private file revalidation differs");
+    throw new Error("private file descriptor differs");
   }
-  reopened.fill(0);
-  await syncDirectory(path.dirname(filename));
-  return Object.freeze({
-    bytes: bytes.byteLength,
-    sha256: sha256(bytes),
-  });
+}
+
+async function assertParentPathIdentity(
+  directory: string,
+  held: fs.BigIntStats,
+  effectiveUserId: number,
+): Promise<void> {
+  const pathStat = await fs.promises.lstat(directory, { bigint: true });
+  if (
+    (await fs.promises.realpath(directory)) !== directory ||
+    pathStat.dev !== held.dev ||
+    pathStat.ino !== held.ino ||
+    pathStat.uid !== held.uid ||
+    pathStat.mode !== held.mode ||
+    !pathStat.isDirectory()
+  ) {
+    throw new Error("private parent path identity differs");
+  }
+  assertHeldParentStat(pathStat, effectiveUserId);
+}
+
+async function assertFilePathIdentity(
+  filename: string,
+  held: fs.BigIntStats,
+  effectiveUserId: number,
+  bytes: number,
+): Promise<fs.BigIntStats> {
+  const pathStat = await fs.promises.lstat(filename, { bigint: true });
+  if (
+    (await fs.promises.realpath(filename)) !== filename ||
+    pathStat.dev !== held.dev ||
+    pathStat.ino !== held.ino
+  ) {
+    throw new Error("private file path identity differs");
+  }
+  assertHeldFileStat(pathStat, effectiveUserId, bytes);
+  return pathStat;
+}
+
+async function readHeldFile(
+  handle: fs.promises.FileHandle,
+  bytes: number,
+): Promise<Buffer> {
+  const output = Buffer.alloc(bytes);
+  let offset = 0;
+  while (offset < output.byteLength) {
+    const { bytesRead } = await handle.read(
+      output,
+      offset,
+      output.byteLength - offset,
+      offset,
+    );
+    if (bytesRead === 0) {
+      output.fill(0);
+      throw new Error("private file shortened while reading");
+    }
+    offset += bytesRead;
+  }
+  const extra = Buffer.alloc(1);
+  const { bytesRead: extraBytes } = await handle.read(extra, 0, 1, offset);
+  extra.fill(0);
+  if (extraBytes !== 0) {
+    output.fill(0);
+    throw new Error("private file grew while reading");
+  }
+  return output;
+}
+
+export type FloodgateV7LocalCleanRoomPrivateWriterRaceHookForTests =
+  () => void | Promise<void>;
+
+async function writePrivateFile(
+  filename: string,
+  bytes: Uint8Array,
+  afterInitialIdentityForTests?: FloodgateV7LocalCleanRoomPrivateWriterRaceHookForTests,
+): Promise<Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>> {
+  const effectiveUserId =
+    typeof process.geteuid === "function" ? process.geteuid() : undefined;
+  if (
+    effectiveUserId === undefined ||
+    !path.isAbsolute(filename) ||
+    path.resolve(filename) !== filename ||
+    bytes.byteLength === 0 ||
+    nodeUtilTypes.isProxy(bytes) ||
+    (afterInitialIdentityForTests !== undefined &&
+      (typeof afterInitialIdentityForTests !== "function" ||
+        nodeUtilTypes.isProxy(afterInitialIdentityForTests) ||
+        afterInitialIdentityForTests.length !== 0))
+  ) {
+    throw new Error("private writer input differs");
+  }
+  const parent = path.dirname(filename);
+  const parentHandle = await fs.promises.open(
+    parent,
+    fs.constants.O_RDONLY |
+      fs.constants.O_DIRECTORY |
+      fs.constants.O_NOFOLLOW,
+  );
+  let handle: fs.promises.FileHandle | undefined;
+  let heldBytes: Buffer | undefined;
+  let finalBytes: Buffer | undefined;
+  try {
+    const parentBefore = await parentHandle.stat({ bigint: true });
+    assertHeldParentStat(parentBefore, effectiveUserId);
+    await assertParentPathIdentity(parent, parentBefore, effectiveUserId);
+    try {
+      await fs.promises.lstat(filename);
+      throw new Error("private file already exists");
+    } catch (error) {
+      if (
+        error === null ||
+        typeof error !== "object" ||
+        !("code" in error) ||
+        Reflect.get(error, "code") !== "ENOENT"
+      ) {
+        throw error;
+      }
+    }
+    handle = await fs.promises.open(
+      filename,
+      fs.constants.O_RDWR |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      PRIVATE_FILE_MODE,
+    );
+    await handle.chmod(PRIVATE_FILE_MODE);
+    await handle.writeFile(bytes);
+    await handle.sync();
+    const heldBefore = await handle.stat({ bigint: true });
+    assertHeldFileStat(heldBefore, effectiveUserId, bytes.byteLength);
+    heldBytes = await readHeldFile(handle, bytes.byteLength);
+    if (sha256(heldBytes) !== sha256(bytes)) {
+      throw new Error("private held file bytes differ");
+    }
+    const pathBefore = await assertFilePathIdentity(
+      filename,
+      heldBefore,
+      effectiveUserId,
+      bytes.byteLength,
+    );
+    if (!sameFileStat(heldBefore, pathBefore)) {
+      throw new Error("private file path stat differs");
+    }
+    await afterInitialIdentityForTests?.();
+    const heldAfter = await handle.stat({ bigint: true });
+    finalBytes = await readHeldFile(handle, bytes.byteLength);
+    const pathAfter = await assertFilePathIdentity(
+      filename,
+      heldAfter,
+      effectiveUserId,
+      bytes.byteLength,
+    );
+    const parentAfter = await parentHandle.stat({ bigint: true });
+    assertHeldParentStat(parentAfter, effectiveUserId);
+    await assertParentPathIdentity(parent, parentAfter, effectiveUserId);
+    await parentHandle.sync();
+    const heldFinal = await handle.stat({ bigint: true });
+    const parentFinal = await parentHandle.stat({ bigint: true });
+    const pathFinal = await assertFilePathIdentity(
+      filename,
+      heldFinal,
+      effectiveUserId,
+      bytes.byteLength,
+    );
+    await assertParentPathIdentity(parent, parentFinal, effectiveUserId);
+    if (
+      !sameFileStat(heldBefore, heldAfter) ||
+      !sameFileStat(heldAfter, pathAfter) ||
+      !sameFileStat(heldAfter, heldFinal) ||
+      !sameFileStat(heldFinal, pathFinal) ||
+      parentBefore.dev !== parentAfter.dev ||
+      parentBefore.ino !== parentAfter.ino ||
+      parentAfter.dev !== parentFinal.dev ||
+      parentAfter.ino !== parentFinal.ino ||
+      sha256(finalBytes) !== sha256(bytes)
+    ) {
+      throw new Error("private file or parent changed during publication");
+    }
+    return Object.freeze({
+      bytes: bytes.byteLength,
+      sha256: sha256(bytes),
+    });
+  } finally {
+    heldBytes?.fill(0);
+    finalBytes?.fill(0);
+    const closes = await Promise.allSettled([
+      handle?.close() ?? Promise.resolve(),
+      parentHandle.close(),
+    ]);
+    const failures = closes.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (failures.length !== 0) {
+      throw new AggregateError(failures, "private writer close failed");
+    }
+  }
+}
+
+/** Exercise the held-descriptor private writer without any teacher process. */
+export function writeFloodgateV7LocalCleanRoomPrivateFileCoreForTests(
+  filename: string,
+  bytes: Uint8Array,
+  afterInitialIdentityForTests?: FloodgateV7LocalCleanRoomPrivateWriterRaceHookForTests,
+): Promise<Readonly<FloodgateV7LocalCleanRoomPrivateFileEvidence>> {
+  if (arguments.length !== 2 && arguments.length !== 3) {
+    return Promise.reject(new Error("private writer test seam differs"));
+  }
+  return writePrivateFile(filename, bytes, afterInitialIdentityForTests);
 }
 
 async function writePrivateCanonicalJson(
@@ -500,16 +774,16 @@ function runtimeOwnerDependencies(
             },
           ),
         spawnEngine: (file, args, options) => {
-          if (args.length !== 0) {
-            throw new Error("local clean-room engine arguments differ");
-          }
-          return spawn(file, {
-            cwd: options.cwd,
-            env: { ...options.env } as unknown as NodeJS.ProcessEnv,
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: false,
-            windowsHide: true,
-            detached: true,
+          const contract =
+            captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+              file,
+              args,
+              options,
+              fixed.snapshotParent,
+            );
+          return spawn(contract.file, [...contract.arguments], {
+            ...contract.options,
+            env: { ...contract.options.env } as unknown as NodeJS.ProcessEnv,
           });
         },
         engineCount: FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines,
@@ -646,7 +920,7 @@ function createLocalGateSession(): Readonly<LocalGateSession> {
     });
     await fs.promises.chmod(fixed.localStateRoot, PRIVATE_DIRECTORY_MODE);
     await assertPrivateDirectory(fixed.localStateRoot);
-    await syncDirectory(fixed.stateRoot);
+    await syncPrivateDirectory(fixed.stateRoot);
     const candidate = randomBytes(LOCAL_KEY_BYTES);
     try {
       await writePrivateFile(
@@ -1016,9 +1290,85 @@ function buildPublicReceipt(
   });
 }
 
-async function runWithOperations(
+function buildTestReceipt(
+  composition: Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>,
+): Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt> {
+  buildPublicReceipt(
+    composition.preparation,
+    composition.gates,
+    composition.handoff,
+  );
+  return Object.freeze({
+    contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+    status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
+    claim_boundary:
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY,
+    execution_boundary: "test-only-injected-opaque-operations" as const,
+    operational_evidence: false as const,
+    gates: composition.gates.gates,
+    finalizer_handoff_observed: true as const,
+    nonclaims: Object.freeze({
+      private_source_read: false as const,
+      teacher_process: false as const,
+      operational_checkpoint: false as const,
+      finalizer_published: false as const,
+      optimizer_training: false as const,
+      live_weight_read_or_write: false as const,
+      playing_strength: false as const,
+    }),
+  });
+}
+
+function mintOperationalCompletion(
+  receipt: Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>,
+): Readonly<FloodgateV7LocalCleanRoomTeacherOperationalCompletion> {
+  const completion = Object.freeze({
+    contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT,
+    execution_boundary: "one-shot-internal-real-local-run-completion" as const,
+  });
+  operationalCompletionReceipts.set(completion, receipt);
+  return completion;
+}
+
+export function claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(
+  completion: Readonly<FloodgateV7LocalCleanRoomTeacherOperationalCompletion>,
+): Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt> {
+  if (
+    arguments.length !== 1 ||
+    completion === null ||
+    typeof completion !== "object" ||
+    nodeUtilTypes.isProxy(completion) ||
+    !Object.isFrozen(completion) ||
+    completion.contract !==
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT ||
+    completion.execution_boundary !==
+      "one-shot-internal-real-local-run-completion"
+  ) {
+    throw new FloodgateV7LocalCleanRoomTeacherRunnerError(
+      "receipt",
+      true,
+      true,
+    );
+  }
+  const receipt = operationalCompletionReceipts.get(completion);
+  if (
+    receipt === undefined ||
+    !operationalCompletionReceipts.delete(completion)
+  ) {
+    throw new FloodgateV7LocalCleanRoomTeacherRunnerError(
+      "receipt",
+      true,
+      true,
+    );
+  }
+  return receipt;
+}
+
+async function executeWithOperations(
   operationsValue: FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
-): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>> {
+): Promise<
+  Readonly<FloodgateV7LocalCleanRoomTeacherCompletedComposition>
+> {
   let phase: FloodgateV7LocalCleanRoomTeacherRunnerPhase = "capture";
   let cleanRoomMayExist = false;
   let checkpointMayExist = false;
@@ -1033,11 +1383,17 @@ async function runWithOperations(
     const result = await operations.runGates(capability);
     checkpointMayExist = true;
     phase = "receipt";
-    return buildPublicReceipt(
-      capability.receipt,
-      result.receipt,
-      result.handoff,
+    const composition = Object.freeze({
+      preparation: capability.receipt,
+      gates: result.receipt,
+      handoff: result.handoff,
+    });
+    buildPublicReceipt(
+      composition.preparation,
+      composition.gates,
+      composition.handoff,
     );
+    return composition;
   } catch (error) {
     if (error instanceof FloodgateV7LocalCleanRoomTeacherRunnerError) {
       throw error;
@@ -1096,7 +1452,7 @@ const FIXED_OPERATIONS: Readonly<FloodgateV7LocalCleanRoomTeacherRunnerOperation
  */
 export function runFloodgateV7LocalCleanRoomTeacherCoreForTests(
   operationsValue: FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
-): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>> {
+): Promise<Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt>> {
   if (arguments.length !== 1) {
     return Promise.reject(
       new FloodgateV7LocalCleanRoomTeacherRunnerError(
@@ -1106,7 +1462,7 @@ export function runFloodgateV7LocalCleanRoomTeacherCoreForTests(
       ),
     );
   }
-  return runWithOperations(operationsValue);
+  return executeWithOperations(operationsValue).then(buildTestReceipt);
 }
 
 /**
@@ -1114,7 +1470,7 @@ export function runFloodgateV7LocalCleanRoomTeacherCoreForTests(
  * copy inputs or start a teacher.
  */
 export function runFloodgateV7LocalCleanRoomTeacher(): Promise<
-  Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>
+  Readonly<FloodgateV7LocalCleanRoomTeacherOperationalCompletion>
 > {
   if (arguments.length !== 0) {
     return Promise.reject(
@@ -1125,5 +1481,13 @@ export function runFloodgateV7LocalCleanRoomTeacher(): Promise<
       ),
     );
   }
-  return runWithOperations(FIXED_OPERATIONS);
+  return executeWithOperations(FIXED_OPERATIONS).then((composition) =>
+    mintOperationalCompletion(
+      buildPublicReceipt(
+        composition.preparation,
+        composition.gates,
+        composition.handoff,
+      ),
+    ),
+  );
 }

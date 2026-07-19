@@ -28,12 +28,12 @@ import {
 import {
   createFloodgateProductionTeacherUsiRuntimeCoreForTests,
   getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
+  type FloodgateProductionTeacherSpawnOptions,
 } from "./floodgate-production-teacher-usi-runtime";
 import {
   FLOODGATE_GIT_COMMAND_PREFIX,
   FLOODGATE_GIT_EXECUTABLE,
   assertFloodgateGitExactCleanRevision,
-  floodgateGitEnvironment,
 } from "./floodgate-git";
 import { verifyPinnedFloodgateRoleBundleReceipt } from "./floodgate-role-bundle-result";
 import { createFloodgateStableWasmReusableProposalPool } from "./floodgate-stable-wasm-proposer";
@@ -48,6 +48,7 @@ import {
   assertFloodgateV7CleanRoomLocalRunGateDependencies,
   assertFloodgateV7CleanRoomRunGateDependenciesCoreForTests,
   runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrant,
+  runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTests,
   runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests,
   type FloodgateV7CleanRoomLocalRunGateDependencies,
   type FloodgateV7CleanRoomRunGateDependenciesForTests,
@@ -80,6 +81,40 @@ export const FLOODGATE_V7_CLEAN_ROOM_GATE_SEQUENCE = Object.freeze([
   "durable-prefix-500",
   "sealed-final-24000",
 ] as const);
+export const FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  TMPDIR: "/tmp",
+  HOME: "/var/empty",
+  LC_ALL: "C",
+  LANG: "C",
+  TZ: "UTC",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_GRAFT_FILE: "/dev/null",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_ALLOW_PROTOCOL: "file",
+  GIT_PROTOCOL_FROM_USER: "0",
+  GIT_NO_LAZY_FETCH: "1",
+} as const);
+export const FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX = Object.freeze([
+  ...FLOODGATE_GIT_COMMAND_PREFIX,
+  "-c",
+  "core.hooksPath=/dev/null",
+  "-c",
+  "credential.helper=",
+  "-c",
+  "protocol.allow=never",
+  "-c",
+  "protocol.file.allow=always",
+  "-c",
+  "fetch.fsckObjects=true",
+  "-c",
+  "transfer.fsckObjects=true",
+  "-c",
+  "receive.fsckObjects=true",
+] as const);
 
 const FIXED_VERIFIER_SOURCE_COMPONENTS = Object.freeze([
   ".codex",
@@ -111,6 +146,7 @@ const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const GIT_OUTPUT_CAP_BYTES = 1024 * 1024;
 const MODE_MASK = BigInt(0o7777);
 const PRIVATE_DIRECTORY_MODE = BigInt(0o700);
+const SAFE_WORKER_BASENAME = /^worker-[0-9]{2}$/;
 const objectPrototype = Object.prototype;
 const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectGetPrototypeOf = Object.getPrototypeOf;
@@ -572,20 +608,65 @@ async function cleanRoomEntryMayExistConservatively(
   }
 }
 
+export interface FloodgateV7CleanRoomGitCommandForTests {
+  readonly file: typeof FLOODGATE_GIT_EXECUTABLE;
+  readonly arguments: readonly string[];
+  readonly options: Readonly<{
+    readonly cwd: "/";
+    readonly encoding: "utf8";
+    readonly env: typeof FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT;
+    readonly timeout: number;
+    readonly maxBuffer: number;
+  }>;
+}
+
+/** Capture the exact local-only Git child contract without starting Git. */
+export function captureFloodgateV7CleanRoomGitCommandCoreForTests(
+  argumentsValue: readonly string[],
+  cwdValue: string,
+): Readonly<FloodgateV7CleanRoomGitCommandForTests> {
+  if (
+    arguments.length !== 2 ||
+    !Array.isArray(argumentsValue) ||
+    argumentsValue.length === 0 ||
+    argumentsValue.some(
+      (argument) =>
+        typeof argument !== "string" ||
+        argument.length === 0 ||
+        argument.includes("\0"),
+    ) ||
+    cwdValue !== "/"
+  ) {
+    throw new Error("clean-room Git command differs");
+  }
+  return Object.freeze({
+    file: FLOODGATE_GIT_EXECUTABLE,
+    arguments: Object.freeze([
+      ...FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX,
+      ...argumentsValue,
+    ]),
+    options: Object.freeze({
+      cwd: "/" as const,
+      encoding: "utf8" as const,
+      env: FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT,
+      timeout: CLONE_TIMEOUT_MS,
+      maxBuffer: GIT_OUTPUT_CAP_BYTES,
+    }),
+  });
+}
+
 async function fixedGit(
   arguments_: readonly string[],
   cwd: string,
 ): Promise<string> {
+  const command = captureFloodgateV7CleanRoomGitCommandCoreForTests(
+    arguments_,
+    cwd,
+  );
   const { stdout } = await execFile(
-    FLOODGATE_GIT_EXECUTABLE,
-    [...FLOODGATE_GIT_COMMAND_PREFIX, ...arguments_],
-    {
-      cwd,
-      encoding: "utf8",
-      env: floodgateGitEnvironment(),
-      timeout: CLONE_TIMEOUT_MS,
-      maxBuffer: GIT_OUTPUT_CAP_BYTES,
-    },
+    command.file,
+    [...command.arguments],
+    command.options,
   );
   return stdout;
 }
@@ -598,6 +679,54 @@ function parseDenseNulList(value: string): readonly string[] {
     throw new Error("Git list differs");
   }
   return Object.freeze(entries);
+}
+
+async function assertCompleteLocalRepository(
+  repository: string,
+): Promise<void> {
+  const configurationNames = parseDenseNulList(
+    await fixedGit(
+      ["-C", repository, "config", "--local", "--name-only", "--null", "--list"],
+      "/",
+    ),
+  );
+  const forbiddenConfiguration = configurationNames.find((name) => {
+    const lower = name.toLowerCase();
+    return (
+      lower === "extensions.partialclone" ||
+      /^remote\..+\.(?:promisor|partialclonefilter)$/u.test(lower) ||
+      /^remote\..+\.proxy$/u.test(lower) ||
+      lower === "core.hookspath" ||
+      lower === "core.sshcommand" ||
+      lower === "ssh.variant" ||
+      lower.startsWith("credential.") ||
+      lower.startsWith("filter.") ||
+      lower.startsWith("include.") ||
+      lower.startsWith("includeif.") ||
+      lower.startsWith("http.") ||
+      lower.startsWith("https.") ||
+      lower.startsWith("proxy.") ||
+      lower.startsWith("url.")
+    );
+  });
+  if (forbiddenConfiguration !== undefined) {
+    throw new Error("local repository configuration is not self-contained");
+  }
+  await fixedGit(
+    ["-C", repository, "fsck", "--full", "--strict", "--no-dangling"],
+    "/",
+  );
+  const objectList = await fixedGit(
+    ["-C", repository, "rev-list", "--objects", "--all", "--missing=print"],
+    "/",
+  );
+  if (
+    objectList
+      .split("\n")
+      .some((line) => line.startsWith("?") || line.startsWith("missing "))
+  ) {
+    throw new Error("local repository has missing promised objects");
+  }
 }
 
 async function assertIndependentTrackedFiles(
@@ -662,6 +791,7 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
     path.dirname(destinationRepository),
     effectiveUserId,
   );
+  await assertCompleteLocalRepository(sourceRepository);
   await assertFloodgateGitExactCleanRevision(sourceRepository, revision);
   await fixedGit(
     [
@@ -681,6 +811,7 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
     ["-C", destinationRepository, "checkout", "--quiet", "--detach", revision],
     "/",
   );
+  await assertCompleteLocalRepository(destinationRepository);
   const alternates = path.join(
     destinationRepository,
     ".git",
@@ -703,6 +834,8 @@ export async function materializeFloodgateV7CleanRoomVerifierCoreForTests(
   }
   await assertFloodgateGitExactCleanRevision(destinationRepository, revision);
   await assertIndependentTrackedFiles(sourceRepository, destinationRepository);
+  await assertCompleteLocalRepository(sourceRepository);
+  await assertCompleteLocalRepository(destinationRepository);
   await assertFloodgateGitExactCleanRevision(sourceRepository, revision);
 }
 
@@ -1194,6 +1327,121 @@ export function claimFloodgateV7CleanRoomPreparedLocalRunGrant(
   return plan;
 }
 
+export interface FloodgateV7CleanRoomEngineSpawnContractForTests {
+  readonly file: string;
+  readonly arguments: readonly [];
+  readonly options: Readonly<FloodgateProductionTeacherSpawnOptions>;
+}
+
+/**
+ * Capture the exact local engine process contract. Only the six runtime-owned
+ * variables and one worker inside the current private snapshot are accepted.
+ */
+export function captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+  fileValue: string,
+  argumentsValue: readonly string[],
+  optionsValue: FloodgateProductionTeacherSpawnOptions,
+  snapshotParentValue: string,
+): Readonly<FloodgateV7CleanRoomEngineSpawnContractForTests> {
+  if (arguments.length !== 4) {
+    throw new Error("clean-room engine spawn differs");
+  }
+  const file = canonicalAbsolutePath(fileValue);
+  const snapshotParent = canonicalAbsolutePath(snapshotParentValue);
+  const cwd = canonicalAbsolutePath(optionsValue?.cwd);
+  const environment = optionsValue?.env;
+  const environmentKeys =
+    environment === null || typeof environment !== "object"
+      ? []
+      : Reflect.ownKeys(environment);
+  const optionKeys =
+    optionsValue === null || typeof optionsValue !== "object"
+      ? []
+      : Reflect.ownKeys(optionsValue);
+  if (
+    !Array.isArray(argumentsValue) ||
+    argumentsValue.length !== 0 ||
+    Reflect.ownKeys(argumentsValue).length !== 1 ||
+    optionKeys.length !== 6 ||
+    ![
+      "cwd",
+      "env",
+      "stdio",
+      "shell",
+      "windowsHide",
+      "detached",
+    ].every((key) => optionKeys.includes(key)) ||
+    environment === null ||
+    typeof environment !== "object" ||
+    environmentKeys.length !== 6 ||
+    !["HOME", "TMPDIR", "LANG", "LC_ALL", "PATH", "TZ"].every((key) =>
+      environmentKeys.includes(key),
+    ) ||
+    optionsValue.shell !== false ||
+    optionsValue.windowsHide !== true ||
+    optionsValue.detached !== true ||
+    !Array.isArray(optionsValue.stdio) ||
+    optionsValue.stdio.length !== 3 ||
+    optionsValue.stdio[0] !== "pipe" ||
+    optionsValue.stdio[1] !== "pipe" ||
+    optionsValue.stdio[2] !== "pipe" ||
+    environment.LANG !== "C" ||
+    environment.LC_ALL !== "C" ||
+    environment.PATH !== "/usr/bin:/bin" ||
+    environment.TZ !== "UTC"
+  ) {
+    throw new Error("clean-room engine spawn options differ");
+  }
+  const home = canonicalAbsolutePath(environment.HOME);
+  const temporary = canonicalAbsolutePath(environment.TMPDIR);
+  const fileParts = path.relative(snapshotParent, file).split(path.sep);
+  const cwdParts = path.relative(snapshotParent, cwd).split(path.sep);
+  if (
+    fileParts.length !== 3 ||
+    !fileParts[0]?.startsWith("shogi-teacher-runtime-") ||
+    fileParts[1] !== "engine" ||
+    fileParts[2] !== "yaneuraou" ||
+    cwdParts.length !== 4 ||
+    cwdParts[0] !== fileParts[0] ||
+    cwdParts[1] !== "workers" ||
+    !SAFE_WORKER_BASENAME.test(cwdParts[2] ?? "") ||
+    cwdParts[3] !== "cwd"
+  ) {
+    throw new Error("clean-room engine snapshot path differs");
+  }
+  const workerRoot = path.join(
+    snapshotParent,
+    cwdParts[0]!,
+    "workers",
+    cwdParts[2]!,
+  );
+  if (
+    home !== path.join(workerRoot, "home") ||
+    temporary !== path.join(workerRoot, "tmp")
+  ) {
+    throw new Error("clean-room engine worker environment differs");
+  }
+  return Object.freeze({
+    file,
+    arguments: Object.freeze([] as const),
+    options: Object.freeze({
+      cwd,
+      env: Object.freeze({
+        HOME: home,
+        TMPDIR: temporary,
+        LANG: "C",
+        LC_ALL: "C",
+        PATH: "/usr/bin:/bin",
+        TZ: "UTC",
+      }),
+      stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+      detached: true,
+    }),
+  });
+}
+
 async function createRealTestCoreCoordinator(
   plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>,
 ): Promise<FloodgateV7ProductionParentCoordinator> {
@@ -1233,16 +1481,16 @@ async function createRealTestCoreCoordinator(
             },
           ),
         spawnEngine: (file, args, options) => {
-          if (args.length !== 0) {
-            throw new Error("clean-room teacher accepts no engine arguments");
-          }
-          return spawn(file, {
-            cwd: options.cwd,
-            env: { ...options.env } as unknown as NodeJS.ProcessEnv,
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: false,
-            windowsHide: true,
-            detached: true,
+          const contract =
+            captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+              file,
+              args,
+              options,
+              plan.targets.snapshotParent,
+            );
+          return spawn(contract.file, [...contract.arguments], {
+            ...contract.options,
+            env: { ...contract.options.env } as unknown as NodeJS.ProcessEnv,
           });
         },
         engineCount: FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines,
@@ -1380,6 +1628,33 @@ export function runFloodgateV7CleanRoomTeacherGatesCoreForTests(
   }
   const grant = mintPreparedRunGrantForTests(plan);
   return runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests(
+    grant,
+    dependenciesValue,
+  );
+}
+
+/** Test-only entry through the exact local receipt-brand and handoff path. */
+export function runFloodgateV7CleanRoomTeacherLocalGatesCoreForTests(
+  capability: Readonly<FloodgateV7CleanRoomTeacherPreparedCapability>,
+  dependenciesValue: FloodgateV7CleanRoomLocalRunGateDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
+  if (arguments.length !== 2) {
+    return Promise.reject(
+      new FloodgateV7CleanRoomRunGateError("capture", false),
+    );
+  }
+  let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
+  try {
+    assertFloodgateV7CleanRoomLocalRunGateDependencies(dependenciesValue);
+    plan = lookupPreparedPlan(capability, testPreparedPlans);
+    consumePreparedPlan(capability, testPreparedPlans);
+  } catch {
+    return Promise.reject(
+      new FloodgateV7CleanRoomRunGateError("capture", false),
+    );
+  }
+  const grant = mintPreparedRunGrantForTests(plan);
+  return runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTests(
     grant,
     dependenciesValue,
   );

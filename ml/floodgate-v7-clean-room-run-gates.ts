@@ -181,7 +181,7 @@ export interface FloodgateV7CleanRoomRunGateDependenciesForTests {
  * Fixed local-only extension. The exact checkpoint receipt is branded by the
  * local runner after the raw-key test core has closed its stage lease. The
  * handoff callback is invoked only after all three branded receipts pass the
- * same-stream continuity checks.
+ * same-stream continuity checks and the runtime owner closes successfully.
  */
 export interface FloodgateV7CleanRoomLocalRunGateDependencies
   extends FloodgateV7CleanRoomRunGateDependenciesForTests {
@@ -1168,6 +1168,10 @@ async function runCaptured(
       Readonly<CapturedGateReceipt>,
     ];
     validateReceiptChain(chain);
+    phase = "cleanup";
+    closeAttempted = true;
+    await handoff.close();
+    session.closed = true;
     if (finalizeSealedChainHandoff !== undefined) {
       phase = "finalizer-handoff";
       const handoffPromise = finalizeSealedChainHandoff();
@@ -1179,10 +1183,6 @@ async function runCaptured(
       }
       await handoffPromise;
     }
-    phase = "cleanup";
-    closeAttempted = true;
-    await handoff.close();
-    session.closed = true;
     phase = "receipt";
     return buildReceipt();
   } catch (primary) {
@@ -1285,6 +1285,39 @@ export function runFloodgateV7CleanRoomRunGatesFromPreparedGrantCoreForTests(
         claim:
           claimFloodgateV7DeploymentKeyTeacherCheckpointV3ReceiptCoreForTests,
       }),
+    ),
+  );
+}
+
+/**
+ * Test-only local composition seam. It consumes the existing opaque test
+ * grant, but exercises the exact local receipt-brand and post-close handoff
+ * ordering used by the fixed route.
+ */
+export function runFloodgateV7CleanRoomRunGatesFromPreparedLocalGrantCoreForTests(
+  grant: Readonly<FloodgateV7CleanRoomPreparedRunGrantForTests>,
+  dependenciesValue: FloodgateV7CleanRoomLocalRunGateDependencies,
+): Promise<Readonly<FloodgateV7CleanRoomRunGatesReceipt>> {
+  if (arguments.length !== 2) {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  let dependencies: Readonly<CapturedLocalDependencies>;
+  let plan: Readonly<FloodgateV7CleanRoomTeacherPlanForTests>;
+  try {
+    dependencies = captureLocalDependencies(dependenciesValue);
+    plan = claimFloodgateV7CleanRoomPreparedRunGrantCoreForTests(grant);
+  } catch {
+    return rejected(new FloodgateV7CleanRoomRunGateError("capture", false));
+  }
+  return nativePromiseResolve().then(() =>
+    runCaptured(
+      plan,
+      dependencies,
+      Object.freeze({
+        expectedKeyId: dependencies.expectedCheckpointKeyId,
+        claim: dependencies.claimAuthenticatedCheckpointReceipt,
+      }),
+      dependencies.finalizeSealedChainHandoff,
     ),
   );
 }

@@ -1,7 +1,8 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const childProcess = vi.hoisted(() => ({
   exec: vi.fn(() => {
@@ -40,27 +41,61 @@ import {
   type FloodgateV7CleanRoomRunGatesReceipt,
 } from "../../../ml/floodgate-v7-clean-room-run-gates";
 import {
-  FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
   FLOODGATE_V7_CLEAN_ROOM_FIXED_ROOT,
+  FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX,
+  FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_CLAIM_BOUNDARY,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_PREPARATION_STATUS,
   FLOODGATE_V7_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  captureFloodgateV7CleanRoomEngineSpawnCoreForTests,
+  captureFloodgateV7CleanRoomGitCommandCoreForTests,
   type FloodgateV7CleanRoomTeacherPreparedCapability,
 } from "../../../ml/floodgate-v7-clean-room-teacher-runner";
 import {
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_KEY_ID,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_PACKAGE_SCRIPT,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT,
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
   FloodgateV7LocalCleanRoomTeacherRunnerError,
+  claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion,
   runFloodgateV7LocalCleanRoomTeacher,
   runFloodgateV7LocalCleanRoomTeacherCoreForTests,
+  writeFloodgateV7LocalCleanRoomPrivateFileCoreForTests,
   type FloodgateV7LocalCleanRoomFinalizerHandoffEvidence,
+  type FloodgateV7LocalCleanRoomTeacherOperationalCompletion,
   type FloodgateV7LocalCleanRoomTeacherRunnerOperationsForTests,
 } from "../../../ml/floodgate-v7-local-clean-room-teacher-runner";
 import {
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_STATUS,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT,
   runFloodgateV7LocalCleanRoomTeacherCli,
   runFloodgateV7LocalCleanRoomTeacherCliCoreForTests,
 } from "../../../ml/floodgate-v7-local-clean-room-teacher-cli";
+
+const privateWriterRoots: string[] = [];
+
+async function privateWriterRoot(): Promise<string> {
+  const root = await fs.promises.realpath(
+    await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "floodgate-v7-local-private-writer-"),
+    ),
+  );
+  await fs.promises.chmod(root, 0o700);
+  privateWriterRoots.push(root);
+  return root;
+}
+
+afterEach(async () => {
+  await Promise.all(
+    privateWriterRoots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { recursive: true, force: true })),
+  );
+});
 
 function preparedCapability(): Readonly<FloodgateV7CleanRoomTeacherPreparedCapability> {
   return Object.freeze({
@@ -343,25 +378,12 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
       "handoff",
     ]);
     expect(receipt).toMatchObject({
-      contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
-      stack_boundary: {
-        teacher_training_and_ab: "local-machine",
-        aws_required: false,
-        aws_used: false,
-        network_used: false,
-        cloud_credentials_used: false,
-        production_worktree_used: false,
-      },
-      preparation: {
-        pinned_verifier_revision:
-          FLOODGATE_V7_CLEAN_ROOM_ACCEPTED_VERIFIER_REVISION,
-      },
-      capacity: {
-        minimum_free_gib: 20,
-        checked_before_private_copy: true,
-        checked_again_before_teacher_process: true,
-        exact_available_bytes_published: false,
-      },
+      contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+      status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY,
+      execution_boundary: "test-only-injected-opaque-operations",
+      operational_evidence: false,
       gates: [
         { gate: "durable-prefix-100", resumed_parents: 0, sealed: false },
         { gate: "durable-prefix-500", resumed_parents: 100, sealed: false },
@@ -371,20 +393,15 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
           sealed: true,
         },
       ],
-      completion_receipts: {
-        count: 3,
-        exact_run_key_and_stage_continuity_verified: true,
-      },
-      finalizer_handoff: {
-        created_after_validated_sealed_chain: true,
-        finalizer_invoked: false,
-      },
+      finalizer_handoff_observed: true,
       nonclaims: {
+        private_source_read: false,
+        teacher_process: false,
+        operational_checkpoint: false,
+        finalizer_published: false,
         optimizer_training: false,
-        formal_ab: false,
         live_weight_read_or_write: false,
         playing_strength: false,
-        stable_high_dan: false,
       },
     });
     expect(childProcess.spawn).not.toHaveBeenCalled();
@@ -441,6 +458,204 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
 
+  it("keeps injected runner/CLI results test-only and rejects forged operational completion brands", async () => {
+    const receipt =
+      await runFloodgateV7LocalCleanRoomTeacherCoreForTests(operations([]));
+    const output = { stdout: "", stderr: "" };
+    await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
+      Object.freeze([]),
+      async () => receipt,
+      cliIo(output),
+    );
+    const envelope = JSON.parse(output.stdout) as Record<string, unknown>;
+    expect(envelope).toMatchObject({
+      contract:
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT,
+      status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY,
+      execution_boundary: "test-only-injected-cli-seam",
+      operational_evidence: false,
+      receipt: {
+        contract:
+          FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+        operational_evidence: false,
+      },
+    });
+    expect(output.stderr).toBe("");
+    expect(output.exitCode).toBe(0);
+    expect(receipt.contract).not.toBe(
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+    );
+
+    const forged = Object.freeze({
+      contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_COMPLETION_CONTRACT,
+      execution_boundary:
+        "one-shot-internal-real-local-run-completion" as const,
+    }) as Readonly<FloodgateV7LocalCleanRoomTeacherOperationalCompletion>;
+    expect(() =>
+      claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(forged),
+    ).toThrow(FloodgateV7LocalCleanRoomTeacherRunnerError);
+    expect(() =>
+      claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(
+        receipt as unknown as Readonly<FloodgateV7LocalCleanRoomTeacherOperationalCompletion>,
+      ),
+    ).toThrow(FloodgateV7LocalCleanRoomTeacherRunnerError);
+
+    const forgedOutput = { stdout: "", stderr: "" };
+    await runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
+      Object.freeze([]),
+      async () =>
+        Object.freeze({
+          ...receipt,
+          contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+        }) as unknown as typeof receipt,
+      cliIo(forgedOutput),
+    );
+    expect(forgedOutput.stdout).toBe("");
+    expect(JSON.parse(forgedOutput.stderr)).toMatchObject({
+      status: "STOP",
+      execution_boundary: "test-only-injected-cli-seam",
+    });
+    expect(forgedOutput.exitCode).toBe(1);
+  });
+
+  it("rejects private-file rename, symlink, and same-content replacement races while holding both descriptors", async () => {
+    const successRoot = await privateWriterRoot();
+    const successFile = path.join(successRoot, "success.bin");
+    const successBytes = Buffer.from("private-writer-success", "utf8");
+    const evidence =
+      await writeFloodgateV7LocalCleanRoomPrivateFileCoreForTests(
+        successFile,
+        successBytes,
+      );
+    expect(evidence.bytes).toBe(successBytes.byteLength);
+    expect(await fs.promises.readFile(successFile)).toEqual(successBytes);
+    successBytes.fill(0);
+
+    const cases = ["rename", "symlink", "same-content"] as const;
+    for (const race of cases) {
+      const root = await privateWriterRoot();
+      const filename = path.join(root, `${race}.bin`);
+      const moved = path.join(root, `${race}.held`);
+      const bytes = Buffer.from("private-local-integrity-material", "utf8");
+      await expect(
+        writeFloodgateV7LocalCleanRoomPrivateFileCoreForTests(
+          filename,
+          bytes,
+          async () => {
+            await fs.promises.rename(filename, moved);
+            if (race === "symlink") {
+              await fs.promises.symlink(moved, filename);
+            } else if (race === "same-content") {
+              await fs.promises.writeFile(filename, bytes, { mode: 0o600 });
+              await fs.promises.chmod(filename, 0o600);
+            }
+          },
+        ),
+      ).rejects.toThrow();
+      bytes.fill(0);
+    }
+  });
+
+  it("captures exact allowlisted Git and engine child contracts", () => {
+    const git = captureFloodgateV7CleanRoomGitCommandCoreForTests(
+      Object.freeze([
+        "clone",
+        "--quiet",
+        "--no-local",
+        "--no-checkout",
+        "--no-tags",
+        "--",
+        "/private/source",
+        "/private/destination",
+      ]),
+      "/",
+    );
+    expect(git.file).toBe("/usr/bin/git");
+    expect(git.options.cwd).toBe("/");
+    expect(git.options.env).toEqual(
+      FLOODGATE_V7_CLEAN_ROOM_GIT_FIXED_ENVIRONMENT,
+    );
+    expect(git.arguments.slice(0, FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX.length)).toEqual(
+      FLOODGATE_V7_CLEAN_ROOM_GIT_COMMAND_PREFIX,
+    );
+    expect(git.arguments).toContain("core.hooksPath=/dev/null");
+    expect(git.arguments).toContain("credential.helper=");
+    expect(git.arguments).toContain("protocol.allow=never");
+    expect(git.arguments).toContain("protocol.file.allow=always");
+    expect(
+      Object.keys(git.options.env).some((key) =>
+        /AWS|FIREBASE|VERCEL|PROXY|SSH|CREDENTIAL/iu.test(key),
+      ),
+    ).toBe(false);
+    const preparationSource = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "ml",
+        "floodgate-v7-clean-room-teacher-runner.ts",
+      ),
+      "utf8",
+    );
+    expect(preparationSource).toContain(
+      '"fsck", "--full", "--strict", "--no-dangling"',
+    );
+    expect(preparationSource).toContain('"--missing=print"');
+    expect(preparationSource).toContain("partialclonefilter");
+
+    const snapshotParent =
+      "/private/tmp/shogi-floodgate-v7-clean-room-teacher-v1/runtime/snapshots";
+    const snapshot = path.join(
+      snapshotParent,
+      "shogi-teacher-runtime-focused",
+    );
+    const worker = path.join(snapshot, "workers", "worker-00");
+    const engine = captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+      path.join(snapshot, "engine", "yaneuraou"),
+      Object.freeze([]),
+      {
+        cwd: path.join(worker, "cwd"),
+        env: Object.freeze({
+          HOME: path.join(worker, "home"),
+          TMPDIR: path.join(worker, "tmp"),
+          LANG: "C",
+          LC_ALL: "C",
+          PATH: "/usr/bin:/bin",
+          TZ: "UTC",
+        }),
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false,
+        windowsHide: true,
+        detached: true,
+      },
+      snapshotParent,
+    );
+    expect(engine.arguments).toEqual([]);
+    expect(engine.options.cwd).toBe(path.join(worker, "cwd"));
+    expect(engine.options.env).toEqual({
+      HOME: path.join(worker, "home"),
+      TMPDIR: path.join(worker, "tmp"),
+      LANG: "C",
+      LC_ALL: "C",
+      PATH: "/usr/bin:/bin",
+      TZ: "UTC",
+    });
+    expect(() =>
+      captureFloodgateV7CleanRoomEngineSpawnCoreForTests(
+        engine.file,
+        Object.freeze([]),
+        {
+          ...engine.options,
+          env: Object.freeze({
+            ...engine.options.env,
+            AWS_SECRET_ACCESS_KEY: "forbidden",
+          }),
+        },
+        snapshotParent,
+      ),
+    ).toThrow("spawn options differ");
+  });
+
   it("binds a private local integrity key and cannot hand off before the validated sealed final receipt", () => {
     const localSource = fs.readFileSync(
       path.join(
@@ -489,6 +704,11 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     );
     expect(
       gateSource.indexOf("validateReceiptChain(chain)"),
+    ).toBeLessThan(
+      gateSource.indexOf("await handoff.close()"),
+    );
+    expect(
+      gateSource.indexOf("await handoff.close()"),
     ).toBeLessThan(
       gateSource.indexOf("finalizeSealedChainHandoff()"),
     );

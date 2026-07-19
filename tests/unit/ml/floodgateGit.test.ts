@@ -62,7 +62,7 @@ afterEach(async () => {
 });
 
 describe("Floodgate Git provenance environment", () => {
-  it("removes inherited Git and locale controls while preserving ordinary env", () => {
+  it("uses an exact allowlist and removes all inherited controls and credentials", () => {
     const environment = floodgateGitEnvironment({
       PATH: "/usr/bin:/bin",
       SAFE_VALUE: "kept",
@@ -71,15 +71,15 @@ describe("Floodgate Git provenance environment", () => {
       GIT_CONFIG_COUNT: "1",
       DYLD_INSERT_LIBRARIES: "/attacker/dylib",
       LD_PRELOAD: "/attacker/library",
+      AWS_SECRET_ACCESS_KEY: "attacker",
+      HTTPS_PROXY: "https://attacker.invalid",
+      SSH_AUTH_SOCK: "/attacker/ssh-agent",
       LC_ALL: "ja_JP.UTF-8",
       LANG: "ja_JP.UTF-8",
       LANGUAGE: "ja",
     });
-    expect(environment).toMatchObject({
-      PATH: "/usr/bin:/bin",
-      SAFE_VALUE: "kept",
-      ...FLOODGATE_GIT_FIXED_ENVIRONMENT,
-    });
+    expect(environment).toEqual(FLOODGATE_GIT_FIXED_ENVIRONMENT);
+    expect(environment.SAFE_VALUE).toBeUndefined();
     expect(Object.keys(environment).some((key) => key === "GIT_DIR")).toBe(
       false,
     );
@@ -89,6 +89,9 @@ describe("Floodgate Git provenance environment", () => {
     expect(environment.GIT_CONFIG_COUNT).toBeUndefined();
     expect(environment.DYLD_INSERT_LIBRARIES).toBeUndefined();
     expect(environment.LD_PRELOAD).toBeUndefined();
+    expect(environment.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+    expect(environment.HTTPS_PROXY).toBeUndefined();
+    expect(environment.SSH_AUTH_SOCK).toBeUndefined();
     expect(FLOODGATE_GIT_EXECUTABLE).toBe("/usr/bin/git");
   });
 

@@ -7,15 +7,31 @@ import { types as nodeUtilTypes } from "node:util";
 
 import {
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT,
+  FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
   FloodgateV7LocalCleanRoomTeacherRunnerError,
+  claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion,
   runFloodgateV7LocalCleanRoomTeacher,
-  type FloodgateV7LocalCleanRoomTeacherRunnerReceipt,
+  type FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt,
 } from "./floodgate-v7-local-clean-room-teacher-runner";
 
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_SUCCESS_CONTRACT =
   "shogi-floodgate-v7-local-clean-room-teacher-cli-success-v1" as const;
 export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_FAILURE_CONTRACT =
   "shogi-floodgate-v7-local-clean-room-teacher-cli-failure-v1" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_STATUS =
+  "real-local-run-completion-claimed-once" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_CLAIM_BOUNDARY =
+  "fixed-real-runner-one-shot-internal-completion-brand-not-injected-receipt" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT =
+  "shogi-floodgate-v7-local-clean-room-teacher-test-cli-success-v1" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_FAILURE_CONTRACT =
+  "shogi-floodgate-v7-local-clean-room-teacher-test-cli-failure-v1" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_STATUS =
+  "test-only-injected-runner-result-not-operational-evidence" as const;
+export const FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY =
+  "test-only-injected-runner-and-io-no-operational-completion-brand" as const;
 
 export interface FloodgateV7LocalCleanRoomTeacherCliIoForTests {
   readonly writeStdout: (value: string) => void;
@@ -87,16 +103,50 @@ function captureIo(
   return value;
 }
 
-function failureRecord(error: unknown): Readonly<Record<string, unknown>> {
+function captureTestRunnerReceipt(
+  value: Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt>,
+): Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt> {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeUtilTypes.isProxy(value) ||
+    !Object.isFrozen(value) ||
+    value.contract !==
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT ||
+    value.status !==
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS ||
+    value.claim_boundary !==
+      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CLAIM_BOUNDARY ||
+    value.execution_boundary !== "test-only-injected-opaque-operations" ||
+    value.operational_evidence !== false
+  ) {
+    throw new Error("test-only local runner receipt differs");
+  }
+  return value;
+}
+
+function failureRecord(
+  error: unknown,
+  testOnly: boolean,
+): Readonly<Record<string, unknown>> {
   const typed =
     error instanceof FloodgateV7LocalCleanRoomTeacherRunnerError
       ? error
       : undefined;
   return Object.freeze({
-    contract: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_FAILURE_CONTRACT,
+    contract: testOnly
+      ? FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_FAILURE_CONTRACT
+      : FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_FAILURE_CONTRACT,
     status: "STOP",
-    runner_contract:
-      FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
+    claim_boundary: testOnly
+      ? FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY
+      : FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_CLAIM_BOUNDARY,
+    execution_boundary: testOnly
+      ? "test-only-injected-cli-seam"
+      : "fixed-operational-cli-one-shot-brand-claim",
+    runner_contract: testOnly
+      ? FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_CONTRACT
+      : FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_RUNNER_CONTRACT,
     phase: typed?.phase ?? "capture",
     clean_room_may_exist: typed?.clean_room_may_exist ?? false,
     checkpoint_may_exist: typed?.checkpoint_may_exist ?? false,
@@ -116,7 +166,7 @@ function failureRecord(error: unknown): Readonly<Record<string, unknown>> {
 export async function runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
   argumentsValue: readonly string[],
   runnerValue: () => Promise<
-    Readonly<FloodgateV7LocalCleanRoomTeacherRunnerReceipt>
+    Readonly<FloodgateV7LocalCleanRoomTeacherTestRunnerReceipt>
   >,
   ioValue: FloodgateV7LocalCleanRoomTeacherCliIoForTests,
 ): Promise<void> {
@@ -134,13 +184,17 @@ export async function runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
     ) {
       throw new Error("local clean-room CLI runner differs");
     }
-    const receipt = await runnerValue();
+    const receipt = captureTestRunnerReceipt(await runnerValue());
     io.writeStdout(
       `${canonicalJson(
         Object.freeze({
           contract:
-            FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_SUCCESS_CONTRACT,
-          status: "complete",
+            FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_SUCCESS_CONTRACT,
+          status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_STATUS,
+          claim_boundary:
+            FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_CLI_CLAIM_BOUNDARY,
+          execution_boundary: "test-only-injected-cli-seam",
+          operational_evidence: false,
           receipt,
         }),
       )}\n`,
@@ -154,7 +208,9 @@ export async function runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
         return undefined;
       }
     })();
-    destination?.writeStderr(`${canonicalJson(failureRecord(error))}\n`);
+    destination?.writeStderr(
+      `${canonicalJson(failureRecord(error, true))}\n`,
+    );
     destination?.setExitCode(1);
   }
 }
@@ -170,19 +226,41 @@ export function runFloodgateV7LocalCleanRoomTeacherCli(): Promise<void> {
       ),
     );
   }
-  return runFloodgateV7LocalCleanRoomTeacherCliCoreForTests(
-    process.argv.slice(2),
-    runFloodgateV7LocalCleanRoomTeacher,
-    Object.freeze({
-      writeStdout: (value: string): void => {
-        process.stdout.write(value);
-      },
-      writeStderr: (value: string): void => {
-        process.stderr.write(value);
-      },
-      setExitCode: (value: number): void => {
-        process.exitCode = value;
-      },
-    }),
-  );
+  const io = Object.freeze({
+    writeStdout: (value: string): void => {
+      process.stdout.write(value);
+    },
+    writeStderr: (value: string): void => {
+      process.stderr.write(value);
+    },
+    setExitCode: (value: number): void => {
+      process.exitCode = value;
+    },
+  });
+  return (async (): Promise<void> => {
+    try {
+      exactArguments(process.argv.slice(2));
+      const completion = await runFloodgateV7LocalCleanRoomTeacher();
+      const receipt =
+        claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion(completion);
+      io.writeStdout(
+        `${canonicalJson(
+          Object.freeze({
+            contract:
+              FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_SUCCESS_CONTRACT,
+            status: FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_STATUS,
+            claim_boundary:
+              FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_CLI_CLAIM_BOUNDARY,
+            execution_boundary:
+              "fixed-operational-cli-one-shot-brand-claim",
+            receipt,
+          }),
+        )}\n`,
+      );
+      io.setExitCode(0);
+    } catch (error) {
+      io.writeStderr(`${canonicalJson(failureRecord(error, false))}\n`);
+      io.setExitCode(1);
+    }
+  })();
 }

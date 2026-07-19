@@ -104,8 +104,12 @@ stateを観測できたと仮定した後、そのstateを偽witnessへ返す順
 変更された場合である。module初期化前からrealmが侵害されている場合や、Node builtinを含む
 任意のprototype変更すべてに耐えるとは主張しない。
 
-最初にpushしたhead `b818f9a4`のCore quality CIでは、199 test files中195 PASS / 1 FAIL /
-3 skip、3,344 tests中3,189 PASS / 1 FAIL / 150 skip、unhandled error 1を記録した。
+最初にpushしたPR head `bfcf9773`のCore quality CIはgreenだった。その後、intrinsic hardeningを
+含む状態でtest-isolation failureを初めてtriggerしたfollow-up head `b818f9a4`では、199 test
+files中195 PASS / 1 FAIL / 3 skip、raw footerの3,344 testsに対して3,189 PASS / 1 FAIL /
+150 skip、unhandled error 1を記録した。後者3分類の合計は3,340であり、残る4 taskは
+unreported / unclassifiedとして保持する。同じrealmの汚染がVitest自身のtask accountingを
+中断したためで、raw totalを都合よく3,340へ書き換えない。
 失敗したのは実装ではなく、この敵対testが`Array.prototype.includes`を壊したまま`await`し、
 同じrealmのVitest task update自身が`includes`を呼んだためだった。
 
@@ -114,6 +118,13 @@ plain Node child processへ隔離し、外側のVitest realmではprototypeを�
 `57cb3142`はchildへ渡す環境をPATH / HOME / TMPDIRと言語・test設定に限定し、`NODE_OPTIONS` /
 `NODE_PATH`を継承しないこともchild内で確認する。3 modeは3 / 3 PASSである。最初のCI failureを
 実装failureへ書き換えず、test harness isolationの発見として残した。
+
+隔離後のhead `70a7dd89`ではportable testはPASSした一方、Core quality CIがPR #517の変更pathではない
+既存`floodgateStableProposalFinalizationResume.test.ts`の`does not steal a stale authorization
+marker`で1件失敗した。199 filesは195 PASS / 1 FAIL / 3 skip、3,344 testsは3,193 PASS /
+1 FAIL / 150 skipで、こちらの分類合計はraw totalと一致する。同じtargetをNode v22.13.0で
+単独10回実行すると10 / 10 PASSし、同時刻のPR #518 CoreもPASSした。1回の失敗をportable実装の
+failureへ読み替えず、変更外の既存testの非決定的failureとして履歴を残し、無関係な実装変更は加えなかった。
 
 さらにsynthetic private temp fixtureで境界を確認した。callback内でdestinationの共通ancestorを一時的にrenameし、同じabsolute pathへ異なるbyteのreplacementを作って読み、callback終了前に元を戻すと、post-revalidationは元のidentityを再確認してPASSする。実private dataは読んでいない。
 
@@ -129,7 +140,9 @@ Node v22.13.0で次を確認した。
 - evidence pin test: 4 / 4 PASS
 - prototype poisoning plain-Node child mode: 3 / 3 PASS
 - 関連3 file合計: 36 / 36 PASS、1.50秒
-- copy利用側runner / gate / finalizerまでの拡張回帰: 7 files、107 / 107 PASS、1.73秒
+- PR #518統合前のcopy利用側runner / gate / finalizer拡張回帰: 7 files、107 / 107 PASS、1.73秒
+- 最新`main`統合後の同じ7 files: 113 / 113 PASS、3.90秒
+- 変更外stale-authorization-marker targetの単独反復: 10 / 10 PASS
 - CI同等core再実行: 198 / 199 files、3,342 PASS / 1 FAIL / 1 skip、76.55秒
 - scoped ESLint: PASS
 - Prettier: PASS
@@ -145,7 +158,7 @@ portable poisoning fileはPASSし、1回目に見えたstable-WASM startup timeo
 
 symlink、hardlink、mode、single-link、source / destination inode alias、copy descriptor close failureは既存copy regressionでも引き続き検証している。
 
-failure-kindのintrinsic hardeningを含むPR #516の最新`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。その統合自体はportable implementation / testのpathとbytesを変えず、その後のPR #517 review hardeningを別commitで積み上げた。READMEは、2回目のverification STOPという観測記録と、その原因に対するdormant foundationの両sectionを保持している。履歴は書き換えていない。
+failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`は、先に通常merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`で統合した。その後、checkpoint runtime-claim順序修正を含むPR #518の最新`main` `3bdf6d1127b86401ef08854737c700629a2d2ea7`を通常merge commit `df7118cd81aefa932f033399a96475ae6069d11b`で統合した。後者もportable implementation / testのpathとbytesを変えていない。READMEは、2回目のverification STOP、dormant portable foundation、checkpoint runtime-claim修正の各sectionをすべて保持している。履歴は書き換えていない。
 
 ## AWS、GCP、Vercelは使ったか
 

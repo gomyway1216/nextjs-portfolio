@@ -211,10 +211,15 @@ PR #517 reviewでwitness一覧が変更可能な`Array.prototype.includes`へ依
 `Set` instance-method依存を除去した。対象intrinsicの**module初期化後**の変更には回帰testを置いたが、
 初期化前から侵害されたrealmや任意のNode builtin prototype変更までは保証しない。commit
 `11b7c9e6`では本物のraw stateを観測後に偽witnessへ返す攻撃順序まで固定した。
-最初のhead `b818f9a4`のCIは、testが`Array.prototype.includes`を壊したまま`await`し、
-Vitest自身を汚染したため1件失敗した。実装failureではない。`67353985`は3 poisoning modeを
+最初にpushしたPR head `bfcf9773`のCore CIはgreenだった。follow-up head `b818f9a4`は、
+intrinsic hardening後にtest-isolation failureを初めてtriggerし、testが
+`Array.prototype.includes`を壊したまま`await`してVitest自身を汚染したため1件失敗した。
+raw 3,344 testsに対する表示分類は3,340件だけだったため、残り4件はunreported /
+unclassifiedとして保持する。実装failureではない。`67353985`は3 poisoning modeを
 plain Node childへ隔離し、`57cb3142`はchild環境をallowlistして`NODE_OPTIONS` / `NODE_PATH`を
 継承しない。外側のVitest realmはprototypeを変更せず、child modeは3 / 3 PASSである。
+隔離後の`70a7dd89`ではportable testはPASSし、変更外の既存stale-authorization-marker testが
+1件だけ失敗した。同targetはNode v22.13.0で10 / 10 PASSし、同時刻のPR #518 CoreもPASSした。
 
 historical full replay 14,059.521秒、current source full-bundle confirmation 1,089.52秒、
 copy先isolated stop 522.211秒は別run・別範囲であり、速度比較ではない。local validationは
@@ -223,9 +228,10 @@ live activation、AWS、Firebase / GCP、Vercel、基盤runtime networkの実行
 GitHub PR / CIのnetworkはsource control / 検証だけで、評価関数の計算基盤ではない。
 共通CIの`AWS witness adapter contract (source only)`は将来用adapterのsource contract検査で、
 AWS service実行ではない。Vercel checkもWeb previewで、将棋teacher / 学習computeではない。
-failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は、通常merge
-`5fa4e179…`で統合済みで、その統合自体はportable implementation / testのbytesを変えていない。
-review hardening後の拡張回帰は7 files / 107 / 107 PASSである。
+failure-kindのintrinsic hardeningを含むPR #516の`main` `0dd5469c…`は通常merge
+`5fa4e179…`で統合し、checkpoint runtime-claim修正を含むPR #518の`main` `3bdf6d11…`も通常merge
+`df7118cd…`で統合した。どちらの統合もportable implementation / testのbytesを変えていない。
+PR #518統合前の拡張回帰は7 files / 107 / 107 PASS、統合後は同じ7 files / 113 / 113 PASSである。
 詳細は[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.md) /
 [English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
 [machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。

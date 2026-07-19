@@ -5,19 +5,22 @@
   "claim_boundary": "filesystem-copy-transition-foundation-with-borrow-pre-post-revalidation-only-not-callback-time-namespace-exclusivity-semantic-input-authenticity-source-semantic-verification-teacher-label-training-selection-holdout-ab-live-weight-or-playing-strength-evidence",
   "source_base": {
     "initial_origin_main": "00f255a62e01ea5a980ada987682c994e76dd1f9",
-    "previous_origin_main_integrated": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
-    "latest_origin_main_integrated": "0dd5469cefd88823b9b50c97c0e3531b4323eace",
-    "latest_main_pull_request": 516,
+    "earlier_origin_main_integrated": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "previous_origin_main_integrated": "0dd5469cefd88823b9b50c97c0e3531b4323eace",
+    "latest_origin_main_integrated": "3bdf6d1127b86401ef08854737c700629a2d2ea7",
+    "latest_main_pull_request": 518,
     "integration_method": "regular-merge-commit",
-    "integration_commit": "5fa4e179a86a5873c08be4b2863ae4075f6a059b",
-    "integration_tree": "036b40a551da78080d3513f03b824daa33409ea7",
+    "integration_commit": "df7118cd81aefa932f033399a96475ae6069d11b",
+    "integration_tree": "3687786f3a7658b418b436b769c92a2c88b3942e",
     "integration_parents": [
-      "aa71e7920b996f1d30a00d5a3f4d489f17cd11be",
-      "0dd5469cefd88823b9b50c97c0e3531b4323eace"
+      "70a7dd89584ba5c21c9c8720561f3c9794558ef4",
+      "3bdf6d1127b86401ef08854737c700629a2d2ea7"
     ],
     "latest_main_contains_failure_kind_intrinsic_hardening": true,
+    "latest_main_contains_local_checkpoint_runtime_claim_order_fix": true,
     "portable_implementation_and_test_paths_unchanged_by_latest_integration": true,
     "readme_preserves_second_run_stop_and_portable_foundation_sections": true,
+    "readme_preserves_portable_foundation_and_checkpoint_runtime_claim_sections": true,
     "history_rewritten": false
   },
   "implementation": {
@@ -30,7 +33,7 @@
     "state_forgery_regression_hardening_commit": "11b7c9e6831dd7607b08b80ee90373995ae337ac",
     "same_realm_test_isolation_hardening_commit": "67353985b19083445cd2927fc3d2f6d8b7c7e73a",
     "poisoning_child_environment_hardening_commit": "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
-    "validated_source_revision": "57cb31426842a51a4b3dcaeafe0412f0c5e9afe2",
+    "validated_source_revision": "df7118cd81aefa932f033399a96475ae6069d11b",
     "existing_public_copy_receipt_changed": false,
     "existing_public_copy_acceptance_changed": false,
     "existing_public_copy_error_shape_changed": false,
@@ -90,7 +93,14 @@
       "arbitrary_node_builtin_prototype_mutation_claimed": false
     },
     "ci_failure_and_test_isolation_hardening": {
+      "initial_pushed_head": "bfcf9773ae68f00ba29dab1303a379050fdd1e67",
+      "initial_pushed_head_core_ci": {
+        "workflow_run_id": 29684249170,
+        "job_id": 88185671269,
+        "result": "PASS"
+      },
       "triggering_head": "b818f9a47e64c64fb26711c7226b4aa2b92d2b88",
+      "triggering_head_role": "first-post-intrinsic-hardening-follow-up-head-that-triggered-the-same-realm-test-isolation-failure-not-the-first-pushed-pr-head",
       "failed_check": "Core quality and build",
       "failed_test": "captures-the-exact-witness-list-without-consulting-mutable-Array.prototype.includes",
       "implementation_failure": false,
@@ -105,8 +115,10 @@
         "passed": 3189,
         "failed": 1,
         "skipped": 150,
+        "unreported_or_unclassified": 4,
         "total": 3344
       },
+      "triggering_ci_test_accounting_explanation": "the raw Vitest footer reported total 3344 while passed+failed+skipped covered only 3340; four tasks were unreported or unclassified after the same-realm Array.prototype.includes pollution disrupted Vitest task accounting",
       "triggering_ci_unhandled_errors": 1,
       "plain_node_child_modes": [
         "array-includes",
@@ -117,6 +129,41 @@
       "child_environment_allowlisted": true,
       "node_options_inherited": false,
       "node_path_inherited": false
+    },
+    "subsequent_unrelated_ci_failure_after_isolation": {
+      "head": "70a7dd89584ba5c21c9c8720561f3c9794558ef4",
+      "workflow_run_id": 29685967727,
+      "core_job_id": 88190142230,
+      "failed_file": "tests/unit/ml/floodgateStableProposalFinalizationResume.test.ts",
+      "failed_test": "does not steal a stale authorization marker",
+      "expected_retry_disposition": "resume-finalization-over-complete-authenticated-work",
+      "received_retry_disposition": "rerun-synthetic-coordinator-with-fresh-authority",
+      "test_files": {
+        "passed": 195,
+        "failed": 1,
+        "skipped": 3,
+        "total": 199
+      },
+      "tests": {
+        "passed": 3193,
+        "failed": 1,
+        "skipped": 150,
+        "total": 3344
+      },
+      "wall_seconds": 94.16,
+      "portable_copy_witness_test_failed": false,
+      "failed_file_changed_by_pull_request_517": false,
+      "same_target_node_22_13_repetitions": {
+        "passed": 10,
+        "failed": 0
+      },
+      "parallel_pull_request_518_core_ci": {
+        "head": "fe85cbaa2a2553853b7bab75a4e563408599a6f5",
+        "workflow_run_id": 29685939467,
+        "job_id": 88190069831,
+        "result": "PASS"
+      },
+      "classification": "unrelated-existing-test-nondeterminism-not-reproduced-in-ten-exact-target-runs-or-the-parallel-main-bound-core-run"
     }
   },
   "filesystem_protocol": {
@@ -314,7 +361,22 @@
       "test_files": 7,
       "passed": 107,
       "failed": 0,
-      "wall_seconds": 1.73
+      "wall_seconds": 1.73,
+      "validated_before_latest_main_integration": true
+    },
+    "post_latest_main_integration": {
+      "revision": "df7118cd81aefa932f033399a96475ae6069d11b",
+      "node": "v22.13.0",
+      "expanded_runner_regression": {
+        "test_files": 7,
+        "passed": 113,
+        "failed": 0,
+        "wall_seconds": 3.9
+      },
+      "unrelated_stale_authorization_marker_exact_target_repetitions": {
+        "passed": 10,
+        "failed": 0
+      }
     },
     "scoped_eslint": "PASS",
     "prettier": "PASS",

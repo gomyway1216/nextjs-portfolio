@@ -112,9 +112,14 @@ module initialization**. It does not claim safety in a realm compromised
 before module initialization or against arbitrary prototype mutation,
 including every Node built-in prototype.
 
-The first pushed head, `b818f9a4`, recorded a Core quality CI failure: 195
-passed, one failed, and three skipped out of 199 test files; 3,189 passed, one
-failed, and 150 skipped out of 3,344 tests; and one unhandled error. The
+The initial pushed PR head, `bfcf9773`, had a green Core quality check. The
+later follow-up head `b818f9a4` was the first post-intrinsic-hardening head to
+trigger the test-isolation failure: 195 passed, one failed, and three skipped
+out of 199 test files. The raw footer reported 3,344 tests, while its displayed
+categories covered 3,189 passed, one failed, and 150 skipped, plus one
+unhandled error. Those categories sum to 3,340, so the evidence preserves four
+tasks as unreported or unclassified instead of rewriting the raw total. The
+same-realm pollution interrupted Vitest’s own task accounting. The
 implementation was not the failing component. The adversarial test kept
 `Array.prototype.includes` poisoned across an `await`, and Vitest’s own
 same-realm task update called `includes`.
@@ -126,6 +131,17 @@ child environment to PATH, HOME, TMPDIR, locale, and test settings; the child
 also verifies that it did not inherit `NODE_OPTIONS` or `NODE_PATH`. The three
 modes pass 3 / 3. The original CI failure remains recorded as a test-harness
 isolation finding rather than being rewritten as an implementation failure.
+
+After that isolation, head `70a7dd89` passed the portable tests but its Core
+quality check had one failure in the existing
+`floodgateStableProposalFinalizationResume.test.ts` test `does not steal a
+stale authorization marker`, which is outside PR #517’s changed paths. The raw
+counts were 195 passed, one failed, and three skipped out of 199 files; and
+3,193 passed, one failed, and 150 skipped out of 3,344 tests. The same target
+passed 10 / 10 isolated repetitions on Node v22.13.0, and the concurrent PR
+#518 Core check passed. The record therefore keeps this as an unrelated
+existing-test nondeterministic failure and does not add an unrelated
+implementation change.
 
 A synthetic private temporary fixture also confirmed the boundary. Inside the callback, it temporarily renamed the destinations’ common ancestor, created and read different bytes at the same absolute path, and restored the original before returning. Post-revalidation then saw the restored original identity and passed. No real private data was read.
 
@@ -141,7 +157,9 @@ On Node v22.13.0:
 - evidence-pin tests: 4 / 4 PASS;
 - prototype-poisoning plain-Node child modes: 3 / 3 PASS;
 - all three related test files: 36 / 36 PASS in 1.50 seconds;
-- expanded copy-consumer runner/gate/finalizer regression: 7 files, 107 / 107 PASS in 1.73 seconds;
+- pre-PR-#518-integration expanded copy-consumer runner/gate/finalizer regression: 7 files, 107 / 107 PASS in 1.73 seconds;
+- the same seven files after integrating latest `main`: 113 / 113 PASS in 3.90 seconds;
+- isolated repetitions of the unrelated stale-authorization-marker target: 10 / 10 PASS;
 - CI-equivalent core rerun: 198 / 199 files, 3,342 PASS / 1 FAIL / 1 skip in 76.55 seconds;
 - scoped ESLint: PASS;
 - Prettier: PASS;
@@ -159,7 +177,7 @@ Adversarial coverage includes source-byte mutation, same-byte delete/recreate of
 
 Existing copy regression continues to cover symlinks, hard links, modes, single-link destinations, source/destination inode aliases, and copy-descriptor close failures.
 
-Latest `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening in PR #516, was integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. That integration itself did not change the portable implementation and test paths or bytes; the subsequent PR #517 review hardening was added in separate commits. The README retains both the observed second-run verification STOP and the dormant foundation that addresses its cause. History was not rewritten.
+PR #516 `main` `0dd5469cefd88823b9b50c97c0e3531b4323eace`, including the failure-kind intrinsic hardening, was first integrated through regular merge commit `5fa4e179a86a5873c08be4b2863ae4075f6a059b`. Latest `main` `3bdf6d1127b86401ef08854737c700629a2d2ea7`, including PR #518’s checkpoint runtime-claim ordering fix, was then integrated through regular merge commit `df7118cd81aefa932f033399a96475ae6069d11b`. The latter integration also left the portable implementation and test paths and bytes unchanged. The README retains the observed second-run verification STOP, the dormant portable foundation, and the checkpoint runtime-claim fix sections. History was not rewritten.
 
 ## Were AWS, GCP, or Vercel used?
 

@@ -62,6 +62,7 @@ import {
   FLOODGATE_V7_LOCAL_CLEAN_ROOM_TEACHER_TEST_RUNNER_STATUS,
   FloodgateV7LocalCleanRoomTeacherRunnerError,
   claimFloodgateV7LocalCleanRoomTeacherOperationalCompletion,
+  runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests,
   runFloodgateV7LocalCleanRoomTeacher,
   runFloodgateV7LocalCleanRoomTeacherCoreForTests,
   writeFloodgateV7LocalCleanRoomPrivateFileCoreForTests,
@@ -362,6 +363,54 @@ describe("Floodgate v7 explicit local clean-room teacher runner", () => {
     expect(events).toEqual(["capacity"]);
     expect(JSON.stringify(failure)).not.toContain("available bytes");
     expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
+  it("closes the stage lease when deployment-key preparation fails before checkpoint ownership transfer", async () => {
+    const events: string[] = [];
+    const keyFailure = new Error("synthetic deployment-key preparation failure");
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepare");
+      throw keyFailure;
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+    }
+
+    await expect(
+      runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        invokeCheckpoint,
+      ),
+    ).rejects.toBe(keyFailure);
+    expect(events).toEqual(["key-prepare", "lease-closed"]);
+  });
+
+  it("does not double-close a stage lease after checkpoint ownership transfer", async () => {
+    const events: string[] = [];
+    const checkpointFailure = new Error("synthetic checkpoint failure");
+    async function closeUntransferredLease(): Promise<void> {
+      events.push("lease-closed");
+    }
+    async function prepareCheckpointKey(): Promise<void> {
+      events.push("key-prepared");
+    }
+    async function invokeCheckpoint(): Promise<void> {
+      events.push("checkpoint");
+      throw checkpointFailure;
+    }
+
+    await expect(
+      runFloodgateV7LocalCheckpointLeaseOwnershipCoreForTests(
+        closeUntransferredLease,
+        prepareCheckpointKey,
+        invokeCheckpoint,
+      ),
+    ).rejects.toBe(checkpointFailure);
+    expect(events).toEqual(["key-prepared", "checkpoint"]);
   });
 
   it("accepts only the exact 100 -> 500 -> 24000 same-stream receipt and keeps strength unproven", async () => {

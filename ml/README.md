@@ -241,6 +241,76 @@ PR check rollup 15 / 15 PASS、failure / pending 0、CLEAN / MERGEABLEだった�
 [English article](../docs/blog-shogi-floodgate-v7-portable-copy-witness-foundation.en.md) /
 [machine evidence](../docs/data/floodgate-v7-portable-copy-witness-foundation-2026-07-19.json)を参照。
 
+#### Floodgate v7 portable copy owner binding（2026-07-19）
+
+PR #517のfilesystem基盤はsource preseal、one-shot seal、copy witness、4-kind composite、
+callback前後のdestination revalidationを提供する。今回のowner経路は、それらの低水準capabilityを
+callerへ返さず、`raw-lock-tree` / `role-lock-tree` / `role-bundle-tree` / `legacy-file`の
+canonical source→destination mappingを一つのprivate snapshotへ固定する。正しいsource A、
+別sessionの正しいcopy B、さらに別sessionの正しいdestination Cを混ぜる脅威に対し、owner-bound
+opaque bridge / lifecycleのexact identity、one-shot消費、replay拒否、revokeを境界にする。
+underlying presealはmodule-private `WeakMap`に保持し、4 preseal後にgeneric verifier用pauseを置く。
+B bindのfixed-order 4 mappingはProxy / getterなしでsnapshotし、private mappingとstrict比較する。
+underlying preseal前に4 source相互、4 destination相互、全destination×全sourceをall-pairs
+namespace preflightし、cross-kind overlapを拒否してsource mutationを開始前に防ぐ。
+pathはbinding inputにだけ現れ、opaque token / success result / sanitized errorへ載せない。
+foundationのnominal capabilityであるsource preseal / source filesystem seal / copy witness /
+composite destination sealもpublic parameter / resultへ出さない。
+既存PR #517のlow-level export自体は変更しないため、repository全体で到達不能とは主張せず、
+新owner経路からunderlying capabilityが漏れないことだけを保証範囲にする。
+preseal resultはopaque owner / verification pauseだけ、bindは内部でseal / copy / compositeを
+one-shot実行してopaque bound bridgeだけを返す。production / `CoreForTests` registryは分離し、
+borrow / owner revokeはtop-level APIに限定する。
+production binding dependenciesはown dataの`effectiveUserId` / `maxEntries` / `maxTotalBytes`
+だけで、Proxy / accessor、`maxConcurrencyForTests`、4つの`*ForTests` callback keyをruntime拒否する。
+full clean-room dependenciesは別型bindingを受ける`CoreForTests` presealだけに許可する。
+bindはexternal verifier receiptを受理せず、その成功を証明しない。
+bind中のrevoke / failureはauthorityを即失効させbridgeを発行しないが、開始済みfilesystem
+Promiseのcancelやpartial destination rollbackは非claimである。既存copy contractどおり、
+fresh run前にconfigured 4 destinationをreconcile / removeしてfresh-absentからやり直す。
+production APIはpreseal、one-shot bind、serialized borrow、exact-owner revokeの4操作だけで、
+`CoreForTests`版は別registryを使う。errorは固定name / message / contractとoperationを持つ
+sanitized shapeで、nested error textやconfigured pathを転送しない。
+errorの保守的復旧分類は、`destination_write_may_have_started` /
+`consumer_callback_may_have_started`について、`preseal`だけが`false / false`かつ
+`fresh-preseal-allowed`、`bind`が`true / false`かつmanual clean-room reconciliation、
+`borrow`が`true / true`かつmanual consumer + clean-room reconciliation、`revoke`が
+`true / true`かつmanual owner reconciliationである。public borrow consumer callbackと
+destination writeの開始を過小評価せず、exact lifecycle phaseを漏らすoracleにしない分類である。
+post-module-initialization intrinsic検査はplain Node childのexact 4 mode
+（`array-string` / `weak-collections` / `reflect` / `promise-resolve-preseal`）だけである。
+前者は`Array.isArray`、
+`Array.prototype.map` / `some` / `includes`、`String.prototype.includes` / `startsWith`、
+2番目は`WeakMap.prototype.get` / `set` / `delete`、`WeakSet.prototype.has` / `add`、3番目は
+`Reflect.apply` / `Reflect.ownKeys`を検査する。Promise modeはpost-init `Promise.resolve`
+だけをpreseal + revokeまで検査し、bind / copy / borrowを走らせない。旧allSettled patternが
+同じ差し替えを参照してrejectする対照実験に対し、新settlementは4 operationすべてへhandlerを
+同期に付け、後続先行rejectでもunhandled rejection 0を確認した。`Promise.prototype.then`、
+arbitraryなglobal `Promise` / `Object` poisoning、underlying PR #517 module全体の
+full-lifecycle poisoning耐性は主張しない。
+
+ただしsource Aはfilesystem closureであって、generic semantic verifierの成功を意味しない。
+destination Cもcallback前後のrevalidationまでで、callback中のnamespace exclusivityや、held
+directory / file descriptorから実際に読んだbyteのsemantic authenticityはまだ主張しない。
+real source verification、real copy、teacher、label、学習、選抜、A/B、live weight、AWS /
+Firebase・GCP / Vercel evaluator computeは0で、棋力向上の証拠ではない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-v7-portable-copy-owner.md) /
+[English article](../docs/blog-shogi-floodgate-v7-portable-copy-owner.en.md) /
+[machine evidence](../docs/data/floodgate-v7-portable-copy-owner-2026-07-19.json)を参照。
+owner導入revisionは`ab9ac4d8363682776fc0e8518ec3f8b539f3566b`、Promise hardening /
+freeze revisionは`dff9ee445686693e852afafb9ac0f593027bca27`。owner sourceは32,309 bytes /
+SHA-256 `040798583c6cb56e6fe461d51179a2ff5c289effc7d2ca1966be88f1ea931b3c` /
+blob `391c08cf3551086a2a2e398cfcc03096dab82e23`、functional testは30,117 bytes /
+SHA-256 `9560dd70a2ba6b285f7fae8d32a9d39300b8841cd64c9bddbb94704d82034a75` /
+blob `9a0ab95d552b20938bd7876bec4ecf067de7b364`、poisoning childは6,921 bytes /
+SHA-256 `6610f685ad19fc6b527bd48c75090706fc194709868ead6f67b233ea3e539c6d` /
+blob `a008fee38008c12ebc7031fe2b7c3072e2783d62`である。Node v22.13.0 focusedは
+functional 25 + evidence 5 = 30 / 30、functional 5回反復は125 / 125、関連回帰は
+5 files / 66 / 66（`maxWorkers=4`、Vitest 1.83秒、test aggregate 5.73秒）PASS。
+TypeScript changed-file error、ESLint、
+Prettier、diff errorは0、最終security reviewはP0 / P1 / P2 / P3 = 0 / 0 / 0 / 0、
+unresolved 0だった。
+
 #### Floodgate v7 ローカルcheckpoint runtime-claim順序修正（2026-07-19）
 
 実教師run前の再監査で、training-row runtime claimがconsumer callbackの同期呼び出し中だけ有効なのに、

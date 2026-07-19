@@ -90,6 +90,9 @@ FRESH_QAT_V2_SCHEMA_PAIR = {
 
 _LOWER_SHA256 = frozenset("0123456789abcdef")
 _DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES = 1_048_576
+_DIR_FD_OPEN_SUPPORTED = os.open in os.supports_dir_fd
+_DIR_FD_STAT_SUPPORTED = os.stat in os.supports_dir_fd
+_NOFOLLOW_STAT_SUPPORTED = os.stat in os.supports_follow_symlinks
 _ANCHOR_IDENTITY = {
     "path": FRESH_QAT_V2_ACTIVATION_ANCHOR_RELATIVE_PATH,
     "bytes": FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES,
@@ -360,6 +363,10 @@ class FreshQATV2NoTrainableParentGroups(FreshQATV2ActivationStop):
         )
 
 
+class _SecureFileAccessError(ValueError):
+    """A path-redacted repository or local file access failure."""
+
+
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-finite JSON value is forbidden: {value}")
 
@@ -495,6 +502,7 @@ def _read_regular_file(
     *,
     expected_bytes: int | None = None,
     max_bytes: int | None = None,
+    repository_root: str | None = None,
 ) -> bytes:
     if (expected_bytes is None) == (max_bytes is None):
         raise ValueError("fresh QAT v2 internal read bound mismatch")
@@ -502,19 +510,108 @@ def _read_regular_file(
     if type(limit) is not int or limit < 1:
         raise ValueError("fresh QAT v2 internal read limit mismatch")
 
-    before = os.lstat(path)
-    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
-        raise ValueError(f"{label} must be a regular non-symlink file")
-    if expected_bytes is not None and before.st_size != expected_bytes:
-        raise ValueError(f"{label} byte length mismatch")
-    if before.st_size > limit:
-        raise ValueError(f"{label} exceeds the maximum byte length")
-
-    flags = os.O_RDONLY
-    for optional_flag in ("O_CLOEXEC", "O_NOFOLLOW", "O_NONBLOCK"):
-        flags |= getattr(os, optional_flag, 0)
-    descriptor = os.open(path, flags)
+    if type(path) is not str or not path:
+        raise ValueError(f"{label} path must be a non-empty string")
     try:
+        absolute = os.path.abspath(path)
+    except OSError:
+        raise _SecureFileAccessError(
+            f"{label} secure file access failed"
+        ) from None
+    if repository_root is None:
+        # Preserve caller-selected external path semantics: an ancestor alias
+        # may resolve to its canonical directory, but the final component must
+        # still be a non-symlink regular file.
+        try:
+            directory = os.path.realpath(os.path.dirname(absolute))
+        except OSError:
+            raise _SecureFileAccessError(
+                f"{label} secure file access failed"
+            ) from None
+        final_name = os.path.basename(absolute)
+    else:
+        if type(repository_root) is not str:
+            raise ValueError("fresh QAT v2 internal repository root mismatch")
+        try:
+            canonical_root = os.path.realpath(repository_root)
+        except OSError:
+            raise _SecureFileAccessError(
+                f"{label} secure file access failed"
+            ) from None
+        if repository_root != canonical_root:
+            raise ValueError("fresh QAT v2 internal repository root mismatch")
+        try:
+            relative = os.path.relpath(absolute, canonical_root)
+            parts = tuple(part for part in relative.split(os.sep) if part)
+        except (TypeError, ValueError, OSError):
+            raise ValueError(
+                "fresh QAT v2 internal repository path mismatch"
+            ) from None
+        if (
+            not parts
+            or any(part in (".", "..") for part in parts)
+            or absolute != os.path.join(canonical_root, *parts)
+        ):
+            raise ValueError(
+                "fresh QAT v2 internal repository path mismatch"
+            )
+        directory = os.path.join(canonical_root, *parts[:-1])
+        final_name = parts[-1]
+
+    if not final_name or final_name in (".", ".."):
+        raise ValueError(f"{label} path is invalid")
+    if (
+        any(
+            not hasattr(os, name)
+            for name in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK")
+        )
+        or not _DIR_FD_OPEN_SUPPORTED
+        or not _DIR_FD_STAT_SUPPORTED
+        or not _NOFOLLOW_STAT_SUPPORTED
+    ):
+        raise ValueError(f"{label} secure file access is unsupported")
+
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    if hasattr(os, "O_CLOEXEC"):
+        directory_flags |= os.O_CLOEXEC
+        file_flags |= os.O_CLOEXEC
+
+    directory_descriptors: list[int] = []
+    descriptor: int | None = None
+    try:
+        current = os.open(os.sep, directory_flags)
+        directory_descriptors.append(current)
+        for component in (
+            part for part in directory.split(os.sep) if part
+        ):
+            current = os.open(
+                component,
+                directory_flags,
+                dir_fd=current,
+            )
+            directory_descriptors.append(current)
+            if not stat.S_ISDIR(os.fstat(current).st_mode):
+                raise ValueError(f"{label} parent must be a directory")
+
+        parent_descriptor = directory_descriptors[-1]
+        before = os.stat(
+            final_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"{label} must be a regular non-symlink file")
+        if expected_bytes is not None and before.st_size != expected_bytes:
+            raise ValueError(f"{label} byte length mismatch")
+        if before.st_size > limit:
+            raise ValueError(f"{label} exceeds the maximum byte length")
+
+        descriptor = os.open(
+            final_name,
+            file_flags,
+            dir_fd=parent_descriptor,
+        )
         opened = os.fstat(descriptor)
         if (
             not stat.S_ISREG(opened.st_mode)
@@ -548,8 +645,21 @@ def _read_regular_file(
             after.st_ctime_ns,
         ):
             raise ValueError(f"{label} changed during bounded read")
+    except OSError:
+        raise _SecureFileAccessError(
+            f"{label} secure file access failed"
+        ) from None
     finally:
-        os.close(descriptor)
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        for directory_descriptor in reversed(directory_descriptors):
+            try:
+                os.close(directory_descriptor)
+            except OSError:
+                pass
 
     if len(raw) > limit:
         raise ValueError(f"{label} exceeds the maximum byte length")
@@ -571,16 +681,42 @@ def _read_with_reader(
     path: str,
     label: str,
     expected_bytes: int,
+    *,
+    repository_root: str | None = None,
 ) -> bytes:
     if reader is _default_reader:
         return _read_regular_file(
             path,
             label,
             expected_bytes=expected_bytes,
+            repository_root=repository_root,
         )
     raw = reader(path)
     if type(raw) is not bytes:
         raise ValueError(f"{label} reader did not return exact bytes")
+    return raw
+
+
+def _read_unbound_with_reader(
+    reader: Callable[[str], bytes],
+    path: str,
+    label: str,
+    max_bytes: int,
+    *,
+    repository_root: str,
+) -> bytes:
+    if reader is _default_reader:
+        return _read_regular_file(
+            path,
+            label,
+            max_bytes=max_bytes,
+            repository_root=repository_root,
+        )
+    raw = reader(path)
+    if type(raw) is not bytes:
+        raise ValueError(f"{label} reader did not return exact bytes")
+    if len(raw) > max_bytes:
+        raise ValueError(f"{label} exceeds the maximum byte length")
     return raw
 
 
@@ -605,6 +741,7 @@ def _read_bound_file(
         absolute,
         label,
         identity["bytes"],
+        repository_root=root,
     )
     if len(raw) != identity["bytes"]:
         raise ValueError(f"{label} byte length mismatch")
@@ -638,9 +775,17 @@ def validate_fresh_qat_v2_activation_anchor(
 ) -> Mapping[str, Any]:
     """Validate exact checked-in anchor bytes and its closed value."""
 
-    raw = Path(path).read_bytes()
-    if len(raw) != FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES:
-        raise ValueError("fresh QAT v2 activation anchor byte length mismatch")
+    try:
+        absolute = os.path.abspath(os.fsdecode(os.fspath(path)))
+    except (TypeError, ValueError, UnicodeError, OSError):
+        raise ValueError(
+            "fresh QAT v2 activation anchor path is invalid"
+        ) from None
+    raw = _read_regular_file(
+        absolute,
+        "fresh QAT v2 activation anchor",
+        expected_bytes=FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES,
+    )
     if hashlib.sha256(raw).hexdigest() != FRESH_QAT_V2_ACTIVATION_ANCHOR_SHA256:
         raise ValueError("fresh QAT v2 activation anchor SHA-256 mismatch")
     anchor = _strict_json(raw, "fresh QAT v2 activation anchor")
@@ -1276,7 +1421,7 @@ def _validate_args_and_runtime(
             args, "replay_excluded_position_ids", None
         ),
     }
-    _exact_repository_path(
+    input_paths["model_training"] = _exact_repository_path(
         input_paths["model_training"],
         root,
         FRESH_QAT_V2_TRAIN_RELATIVE_PATH,
@@ -1292,6 +1437,9 @@ def _validate_args_and_runtime(
             path_value,
             f"fresh QAT v2 {field}",
             identity["bytes"],
+            repository_root=(
+                root if field == "model_training" else None
+            ),
         )
         if (
             len(raw) != identity["bytes"]
@@ -1304,6 +1452,9 @@ def _validate_args_and_runtime(
                 path_value,
                 f"fresh QAT v2 {field}",
                 identity["bytes"],
+                repository_root=(
+                    root if field == "model_training" else None
+                ),
             )
             != raw
         ):
@@ -1334,9 +1485,13 @@ def _dispatch_fresh_qat_v2_execution_plan(
     anchor_path = os.path.join(
         root, FRESH_QAT_V2_ACTIVATION_ANCHOR_RELATIVE_PATH
     )
-    anchor_raw = protocol_reader(anchor_path)
-    if type(anchor_raw) is not bytes:
-        raise ValueError("fresh QAT v2 anchor reader differs")
+    anchor_raw = _read_with_reader(
+        protocol_reader,
+        anchor_path,
+        "fresh QAT v2 activation anchor",
+        FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES,
+        repository_root=root,
+    )
     if (
         len(anchor_raw) != FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES
         or hashlib.sha256(anchor_raw).hexdigest()
@@ -1346,28 +1501,50 @@ def _dispatch_fresh_qat_v2_execution_plan(
     anchor = _strict_json(anchor_raw, "fresh QAT v2 activation anchor")
     validate_fresh_qat_v2_activation_anchor_data(anchor)
     tracking_verifier(anchor_path, revision)
-    if protocol_reader(anchor_path) != anchor_raw:
+    if (
+        _read_with_reader(
+            protocol_reader,
+            anchor_path,
+            "fresh QAT v2 activation anchor",
+            FRESH_QAT_V2_ACTIVATION_ANCHOR_BYTES,
+            repository_root=root,
+        )
+        != anchor_raw
+    ):
         raise ValueError("fresh QAT v2 activation anchor changed")
 
     successor_path = os.path.join(
         root, FRESH_QAT_V2_READY_SUCCESSOR_RELATIVE_PATH
     )
     try:
-        successor_raw = protocol_reader(successor_path)
-    except (FileNotFoundError, OSError) as error:
+        successor_raw = _read_unbound_with_reader(
+            protocol_reader,
+            successor_path,
+            "fresh QAT v2 ready successor",
+            _DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES,
+            repository_root=root,
+        )
+    except (FileNotFoundError, OSError, _SecureFileAccessError):
         raise FreshQATV2ActivationStop(
             "ready-successor",
             "additive ready successor is absent",
-        ) from error
-    if type(successor_raw) is not bytes:
-        raise ValueError("fresh QAT v2 successor reader differs")
+        ) from None
     successor = _strict_json(
         successor_raw,
         "fresh QAT v2 ready successor",
     )
     validate_fresh_qat_v2_ready_successor_data(successor)
     tracking_verifier(successor_path, revision)
-    if protocol_reader(successor_path) != successor_raw:
+    if (
+        _read_unbound_with_reader(
+            protocol_reader,
+            successor_path,
+            "fresh QAT v2 ready successor",
+            _DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES,
+            repository_root=root,
+        )
+        != successor_raw
+    ):
         raise ValueError("fresh QAT v2 ready successor changed")
 
     for identity, label in (

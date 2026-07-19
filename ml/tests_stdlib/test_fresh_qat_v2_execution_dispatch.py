@@ -389,20 +389,32 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                     ):
                         DISPATCH._default_reader(str(candidate))
 
-            with mock.patch.object(DISPATCH.os, "open") as opener:
+            real_open = os.open
+            with mock.patch.object(
+                DISPATCH.os,
+                "open",
+                wraps=real_open,
+            ) as opener:
                 with self.assertRaisesRegex(
                     ValueError,
                     "regular non-symlink",
                 ):
                     DISPATCH._default_reader(str(fifo))
-            opener.assert_not_called()
+            self.assertNotIn(
+                fifo.name,
+                [call.args[0] for call in opener.call_args_list],
+            )
 
             identity = {
                 "path": regular.name,
                 "bytes": 3,
                 "sha256": hashlib.sha256(b"fou").hexdigest(),
             }
-            with mock.patch.object(DISPATCH.os, "open") as opener:
+            with mock.patch.object(
+                DISPATCH.os,
+                "open",
+                wraps=real_open,
+            ) as opener:
                 with self.assertRaisesRegex(
                     ValueError,
                     "byte length mismatch",
@@ -413,19 +425,144 @@ class FreshQatV2ExecutionDispatchTests(unittest.TestCase):
                         "bounded fixture",
                         DISPATCH._default_reader,
                     )
-            opener.assert_not_called()
+            self.assertNotIn(
+                regular.name,
+                [call.args[0] for call in opener.call_args_list],
+            )
 
             oversized = root / "oversized.bin"
             oversized.write_bytes(
                 b"x" * (DISPATCH._DEFAULT_UNBOUND_PROTOCOL_MAX_BYTES + 1)
             )
-            with mock.patch.object(DISPATCH.os, "open") as opener:
+            with mock.patch.object(
+                DISPATCH.os,
+                "open",
+                wraps=real_open,
+            ) as opener:
                 with self.assertRaisesRegex(
                     ValueError,
                     "exceeds the maximum",
                 ):
                     DISPATCH._default_reader(str(oversized))
-            opener.assert_not_called()
+            self.assertNotIn(
+                oversized.name,
+                [call.args[0] for call in opener.call_args_list],
+            )
+
+    def test_root_bound_reader_holds_directories_and_redacts_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            root = base / "repo"
+            data = root / "ml" / "data"
+            data.mkdir(parents=True)
+            artifact = data / "artifact.bin"
+            artifact.write_bytes(b"safe")
+            outside = base / "outside"
+            outside.mkdir()
+            outside_artifact = outside / artifact.name
+            outside_artifact.write_bytes(b"safe")
+            identity = {
+                "path": "ml/data/artifact.bin",
+                "bytes": 4,
+                "sha256": hashlib.sha256(b"safe").hexdigest(),
+            }
+
+            self.assertEqual(
+                DISPATCH._read_bound_file(
+                    str(root),
+                    identity,
+                    "root-bound fixture",
+                    DISPATCH._default_reader,
+                ),
+                b"safe",
+            )
+
+            real_open = os.open
+            held_data = data.with_name("data-held")
+            intermediate_swapped = False
+
+            def swap_intermediate(path, flags, *args, **kwargs):
+                nonlocal intermediate_swapped
+                if (
+                    not intermediate_swapped
+                    and path == "data"
+                    and kwargs.get("dir_fd") is not None
+                ):
+                    data.rename(held_data)
+                    data.symlink_to(outside, target_is_directory=True)
+                    intermediate_swapped = True
+                return real_open(path, flags, *args, **kwargs)
+
+            with mock.patch.object(
+                DISPATCH.os,
+                "open",
+                side_effect=swap_intermediate,
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "secure file access failed",
+                ) as raised:
+                    DISPATCH._read_bound_file(
+                        str(root),
+                        identity,
+                        "root-bound fixture",
+                        DISPATCH._default_reader,
+                    )
+            self.assertTrue(intermediate_swapped)
+            self.assertNotIn(str(root), str(raised.exception))
+            self.assertNotIn(str(outside), str(raised.exception))
+            data.unlink()
+            held_data.rename(data)
+
+            held_artifact = artifact.with_name("artifact-held.bin")
+            final_swapped = False
+
+            def swap_final(path, flags, *args, **kwargs):
+                nonlocal final_swapped
+                if (
+                    not final_swapped
+                    and path == artifact.name
+                    and kwargs.get("dir_fd") is not None
+                ):
+                    artifact.rename(held_artifact)
+                    artifact.symlink_to(outside_artifact)
+                    final_swapped = True
+                return real_open(path, flags, *args, **kwargs)
+
+            with mock.patch.object(
+                DISPATCH.os,
+                "open",
+                side_effect=swap_final,
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "secure file access failed",
+                ) as raised:
+                    DISPATCH._read_bound_file(
+                        str(root),
+                        identity,
+                        "root-bound fixture",
+                        DISPATCH._default_reader,
+                    )
+            self.assertTrue(final_swapped)
+            self.assertNotIn(str(root), str(raised.exception))
+            self.assertNotIn(str(outside), str(raised.exception))
+            artifact.unlink()
+            held_artifact.rename(artifact)
+
+            missing = dict(identity, path="ml/data/private-missing.bin")
+            with self.assertRaisesRegex(
+                ValueError,
+                "secure file access failed",
+            ) as raised:
+                DISPATCH._read_bound_file(
+                    str(root),
+                    missing,
+                    "root-bound fixture",
+                    DISPATCH._default_reader,
+                )
+            self.assertNotIn(str(root), str(raised.exception))
+            self.assertNotIn("private-missing.bin", str(raised.exception))
 
     def test_absent_successor_stops_before_artifact_or_runtime_reads(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -49,6 +49,9 @@ import {
   createFloodgateV7TrainingLabelFinalizationPlan,
   discardFloodgateV7TrainingLabelFinalizationPlan,
   finalizeAndPublishFloodgateV7TrainingLabels,
+  FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
+  FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
+  FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
   type FloodgateV7TrainingLabelFinalizationPlan,
   type FloodgateV7TrainingLabelFinalizationReceipt,
 } from "./floodgate-v7-training-label-finalizer-core";
@@ -794,8 +797,24 @@ function assertStageBinding(
   }
 }
 
-function fileEvidence(value: unknown, label: string) {
-  const record = exactRecord(value, ["filename", "bytes", "sha256"], label);
+function fileEvidence(
+  value: unknown,
+  expectedFilename: string,
+  label: string,
+) {
+  const record = exactRecord(
+    value,
+    ["filename", "dev", "ino", "mode", "bytes", "sha256"],
+    label,
+  );
+  if (
+    record.filename !== expectedFilename ||
+    record.mode !== "0600"
+  ) {
+    throw new Error(`${label} differs`);
+  }
+  decimal(record.dev, `${label} device`);
+  decimal(record.ino, `${label} inode`);
   return Object.freeze({
     bytes: integer(record.bytes, `${label} bytes`, 1),
     sha256: digest(record.sha256, `${label} digest`),
@@ -836,10 +855,26 @@ function buildReceipt(
         finalization.content.training_records,
         "training records",
       ),
-      work: fileEvidence(finalization.content.work, "work"),
-      train: fileEvidence(finalization.content.train, "train"),
-      result: fileEvidence(finalization.content.result, "result"),
-      manifest: fileEvidence(finalization.content.manifest, "manifest"),
+      work: fileEvidence(
+        finalization.content.work,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+        "work",
+      ),
+      train: fileEvidence(
+        finalization.content.train,
+        FLOODGATE_V7_TRAINING_LABEL_TRAIN_FILENAME,
+        "train",
+      ),
+      result: fileEvidence(
+        finalization.content.result,
+        FLOODGATE_V7_TRAINING_LABEL_RESULT_FILENAME,
+        "result",
+      ),
+      manifest: fileEvidence(
+        finalization.content.manifest,
+        FLOODGATE_V7_TRAINING_LABEL_MANIFEST_FILENAME,
+        "manifest",
+      ),
     }),
     verification: Object.freeze({
       handoff_mac_revalidated: true as const,
@@ -878,8 +913,10 @@ async function executeFinalizer<TPlan>(
   let plan: TPlan | undefined;
   let composerInvoked = false;
   let finalizerInvoked = false;
+  let stageOrLeaseMayRemain = false;
   try {
     lease = await dependencies.authorizeStage(stageOptions());
+    stageOrLeaseMayRemain = true;
     phase = "stage-binding";
     assertStageBinding(lease, handoff);
     assertSameHandoff(handoff, await revalidateHandoff());
@@ -917,6 +954,7 @@ async function executeFinalizer<TPlan>(
       if (plan !== undefined) {
         try {
           await dependencies.discardPlan(plan);
+          stageOrLeaseMayRemain = false;
         } catch {
           throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
             "cleanup",
@@ -927,6 +965,7 @@ async function executeFinalizer<TPlan>(
       } else if (!composerInvoked && lease !== undefined) {
         try {
           await lease.close();
+          stageOrLeaseMayRemain = false;
         } catch {
           throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
             "cleanup",
@@ -939,7 +978,7 @@ async function executeFinalizer<TPlan>(
     throw new FloodgateV7LocalCleanRoomTrainingLabelFinalizerError(
       phase,
       finalizerInvoked,
-      lease !== undefined,
+      stageOrLeaseMayRemain,
     );
   }
 }

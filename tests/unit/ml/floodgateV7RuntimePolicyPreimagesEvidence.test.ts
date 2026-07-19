@@ -274,8 +274,8 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
       "jobs:",
     ].join("\n");
     if (
-      workflow.slice(0, jobsOffset + jobsMarker.length).trimEnd()
-      !== expectedPreamble
+      workflow.slice(0, jobsOffset + jobsMarker.length).trimEnd() !==
+      expectedPreamble
     ) {
       throw new Error("workflow-level mapping before jobs is not exact");
     }
@@ -284,14 +284,12 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
       .split("\n")
       .find(
         (line) =>
-          line.trim() !== ""
-          && !line.startsWith(" ")
-          && !line.startsWith("#"),
+          line.trim() !== "" && !line.startsWith(" ") && !line.startsWith("#"),
       );
     if (unexpectedPostJobsTopLevelLine !== undefined) {
       throw new Error(
-        "workflow contains a top-level mapping after jobs: "
-        + unexpectedPostJobsTopLevelLine,
+        "workflow contains a top-level mapping after jobs: " +
+          unexpectedPostJobsTopLevelLine,
       );
     }
   }
@@ -310,8 +308,8 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     "    steps:",
   ].join("\n");
   if (
-    job.slice(0, stepsOffset + stepsMarker.length).trimEnd()
-    !== expectedJobHeader
+    job.slice(0, stepsOffset + stepsMarker.length).trimEnd() !==
+    expectedJobHeader
   ) {
     throw new Error("external trust-root job header is not exact");
   }
@@ -325,8 +323,7 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     .split("\n")
     .filter((line) => /^[ \t]+if[ \t]*:/iu.test(line));
   if (
-    JSON.stringify(conditionLines)
-    !== JSON.stringify(["        if: always()"])
+    JSON.stringify(conditionLines) !== JSON.stringify(["        if: always()"])
   ) {
     throw new Error(
       `external trust-root job conditions drifted: ${JSON.stringify(conditionLines)}`,
@@ -640,10 +637,7 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         "          name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
         "          name: unsafe # name: floodgate-v7-public-symbol-graphs-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}",
       ],
-      [
-        "          path: |",
-        "          path: /etc/passwd # path: |",
-      ],
+      ["          path: |", "          path: /etc/passwd # path: |"],
       [
         `            ${protocolSymbolGraphPath}`,
         `            /etc/passwd # ${protocolSymbolGraphPath}`,
@@ -778,7 +772,10 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       assertExternalTrustRootProtocolJob(movedSpiFlagToDecoyStepJob),
     ).toThrow();
     for (const [safePath, unsafePath] of [
-      [symbolGraphVerifierRelative, `/tmp/unsafe.py # ${symbolGraphVerifierRelative}`],
+      [
+        symbolGraphVerifierRelative,
+        `/tmp/unsafe.py # ${symbolGraphVerifierRelative}`,
+      ],
       [
         serviceCoreBoundaryVerifierRelative,
         `/tmp/unsafe.py # ${serviceCoreBoundaryVerifierRelative}`,
@@ -873,15 +870,9 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     }
     const unsafeDefaultShellWorkflow = workflow.replace(
       "\njobs:\n",
-      [
-        "",
-        "defaults:",
-        "  run:",
-        "    shell: bash {0}",
-        "",
-        "jobs:",
-        "",
-      ].join("\n"),
+      ["", "defaults:", "  run:", "    shell: bash {0}", "", "jobs:", ""].join(
+        "\n",
+      ),
     );
     expect(unsafeDefaultShellWorkflow).not.toBe(workflow);
     expect(() =>
@@ -925,10 +916,12 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
         appendedQuotedDefaultShellWorkflow,
       ),
     ).toThrow();
-    const testAndBuildJob = workflowJob(workflow, "test_and_build");
-    expect(workflowScalar(testAndBuildJob, 4, "timeout-minutes")).toBe("25");
-    expect(workflowScalar(testAndBuildJob, 10, "fetch-depth")).toBe("0");
-    const commentedSafeProvenanceJob = testAndBuildJob
+    const coreQualityBuildJob = workflowJob(workflow, "core_quality_build");
+    expect(workflowScalar(coreQualityBuildJob, 4, "timeout-minutes")).toBe(
+      "25",
+    );
+    expect(workflowScalar(coreQualityBuildJob, 10, "fetch-depth")).toBe("0");
+    const commentedSafeProvenanceJob = coreQualityBuildJob
       .replace(
         "    timeout-minutes: 25",
         "    timeout-minutes: 10 # timeout-minutes: 25",

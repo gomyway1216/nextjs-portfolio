@@ -1403,9 +1403,19 @@ async function captureParentDirectory(
   maxEntries: number,
 ): Promise<Readonly<ParentDirectorySnapshot>> {
   const identity = await assertPrivateRealDirectory(parent, effectiveUserId);
-  const dirents = await fs.promises.readdir(parent, { withFileTypes: true });
-  if (dirents.length > maxEntries) {
-    throw new Error("parent entry limit exceeded");
+  const directory = await fs.promises.opendir(parent);
+  const dirents: fs.Dirent[] = [];
+  try {
+    for (;;) {
+      const dirent = await directory.read();
+      if (dirent === null) break;
+      if (dirents.length >= maxEntries) {
+        throw new Error("parent entry limit exceeded");
+      }
+      dirents.push(dirent);
+    }
+  } finally {
+    await directory.close();
   }
   dirents.sort((left, right) => compareUtf8(left.name, right.name));
   const entries: ParentEntrySnapshot[] = [];
@@ -1844,6 +1854,12 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
     let state: PortableCompositeSealState | undefined;
     let compositeObject: object | undefined;
     try {
+      const operationDescriptors =
+        typeof operationValue === "function" &&
+        !nodeUtilTypes.isProxy(operationValue)
+          ? objectGetOwnPropertyDescriptors(operationValue)
+          : undefined;
+      const operationLength = operationDescriptors?.length;
       if (
         argumentCount !== 2 ||
         (typeof compositeValue !== "object" &&
@@ -1851,7 +1867,9 @@ function createPortableCopyWitnessApi(registry: PortableRegistry) {
         compositeValue === null ||
         typeof operationValue !== "function" ||
         nodeUtilTypes.isProxy(operationValue) ||
-        operationValue.length !== 0
+        operationLength === undefined ||
+        !("value" in operationLength) ||
+        operationLength.value !== 0
       ) {
         throw new Error("portable borrow differs");
       }

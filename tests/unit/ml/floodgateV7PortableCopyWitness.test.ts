@@ -91,6 +91,7 @@ async function fixture(overlap = false): Promise<Readonly<PortableFixture>> {
 
 async function resultsFor(
   value: Readonly<PortableFixture>,
+  maxEntries?: number,
 ): Promise<readonly Readonly<FloodgateV7PortableCopyWitnessResult>[]> {
   const preseals = await Promise.all(
     kinds.map((kind) =>
@@ -98,7 +99,10 @@ async function resultsFor(
         kind,
         value.sources[kind],
         value.destinations[kind],
-        { effectiveUserId },
+        {
+          effectiveUserId,
+          ...(maxEntries === undefined ? {} : { maxEntries }),
+        },
       ),
     ),
   );
@@ -125,9 +129,10 @@ async function resultsFor(
 
 async function witnessesFor(
   value: Readonly<PortableFixture>,
+  maxEntries?: number,
 ): Promise<readonly FloodgateV7PortableCopyWitness[]> {
   return Object.freeze(
-    (await resultsFor(value)).map((result) => result.witness),
+    (await resultsFor(value, maxEntries)).map((result) => result.witness),
   );
 }
 
@@ -368,6 +373,43 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
     });
   });
 
+  it("never invokes a callback length getter before composite prevalidation", async () => {
+    const composite = await compositeFor(await fixture());
+    let getterCalls = 0;
+    let callbackCalls = 0;
+    const callback = (): void => {
+      callbackCalls += 1;
+    };
+    Object.defineProperty(callback, "length", {
+      configurable: true,
+      get: () => {
+        getterCalls += 1;
+        return 0;
+      },
+    });
+
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
+        {} as FloodgateV7PortableCopyCompositeDestinationSeal,
+        callback,
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
+        composite,
+        callback,
+      ),
+    ).rejects.toMatchObject({ operation: "borrow" });
+    expect(getterCalls).toBe(0);
+    expect(callbackCalls).toBe(0);
+    await expect(
+      withFloodgateV7PortableCopyCompositeDestinationRevalidationCoreForTests(
+        composite,
+        () => "still-valid",
+      ),
+    ).resolves.toBe("still-valid");
+  });
+
   it("rejects duplicate or ancestor-overlapping destinations before composite capture", async () => {
     const overlap = await fixture(true);
     const witnesses = await witnessesFor(overlap);
@@ -433,6 +475,21 @@ describe("Floodgate v7 portable copy filesystem witness foundation", () => {
     await expect(
       sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(witnesses),
     ).rejects.toMatchObject({ operation: "composite" });
+  });
+
+  it("bounds each shared-parent scan before reading an extra entry", async () => {
+    const witnesses = await witnessesFor(await fixture(), 1);
+    await expect(
+      sealFloodgateV7PortableCopyCompositeDestinationCoreForTests(witnesses),
+    ).rejects.toMatchObject({ operation: "composite" });
+    const implementation = await fs.promises.readFile(
+      path.join(process.cwd(), "ml", "floodgate-v7-clean-room-copy.ts"),
+      "utf8",
+    );
+    expect(implementation).toContain("if (dirents.length >= maxEntries)");
+    expect(implementation).toContain(
+      "const directory = await fs.promises.opendir(parent)",
+    );
   });
 
   it("makes idle revocation idempotent and permanently rejects reuse", async () => {

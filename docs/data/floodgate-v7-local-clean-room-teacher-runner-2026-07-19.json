@@ -75,7 +75,21 @@
     "second_run_evidence_hermetic_git_revision": "c3a47e52c25972561f17860926d1dfc45229ff0d",
     "second_run_evidence_hermetic_git_tree": "eab2ab875f1c75fb884adcca5e4cdfaa652e1bca",
     "second_run_evidence_hermetic_git_parent": "5c00ea324f36e3c3bdd6a77f2f2e7d13ff93690b",
-    "real_teacher_invocation_during_review_remediation": false
+    "real_teacher_invocation_during_review_remediation": false,
+    "failure_kind_pull_request": 515,
+    "failure_kind_pull_request_merge_revision": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "failure_kind_pull_request_merge_tree": "c0d1f74e3f90bb6f451b1422f68be69ecb1959d1",
+    "failure_kind_pull_request_merge_parents": [
+      "9dc5755a70382af544c0f89230e33b0aaae35f2f",
+      "b0644331de455ba97bb8f7af40f81397d31a9193"
+    ],
+    "postmerge_intrinsic_hardening_revision": "52145c9f4b7f3ef434db3cfc7d52755e32f11ca5",
+    "postmerge_intrinsic_hardening_tree": "3a8893491eff145849d50752be76cebeefc8cea2",
+    "postmerge_intrinsic_hardening_parent": "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+    "failure_kind_string_type_required_before_allowlist": true,
+    "array_includes_and_reflect_apply_captured_at_module_initialization": true,
+    "prototype_poisoning_regressions_added_for_both_error_boundaries": true,
+    "real_teacher_invocation_during_intrinsic_hardening": false
   },
   "command_boundary": {
     "package_script": "shogi:floodgate-v7-local-clean-room-teacher",
@@ -216,9 +230,9 @@
     },
     {
       "path": "ml/floodgate-v7-clean-room-teacher-runner.ts",
-      "bytes": 62307,
-      "sha256": "48e3fefca9597e57553e178fe30e81127eeda842c1b3122d757af69b4dc0ada2",
-      "git_blob": "e6d39fb439469cbd9424a184ad2ffc810452928d",
+      "bytes": 62414,
+      "sha256": "0390ff58e01853e517d316c23c4422603ad8a0720e00ab4a74f8b6d1fc875b9b",
+      "git_blob": "41429008659c5acf4ebc2e4733a5e14954b48cd7",
       "required_markers": [
         "...FLOODGATE_GIT_FIXED_ENVIRONMENT",
         "GIT_ALLOW_PROTOCOL: \"file\"",
@@ -227,6 +241,8 @@
         "\"credential.helper=\"",
         "lower !== \"http.postbuffer\"",
         "const GIT_OUTPUT_CAP_BYTES = 64 * 1024 * 1024",
+        "const arrayIncludes = Array.prototype.includes",
+        "const reflectApply = Reflect.apply",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
         "classifyVerificationFailure",
         "\"role-bundle-verification\""
@@ -256,9 +272,9 @@
     },
     {
       "path": "ml/floodgate-v7-local-clean-room-teacher-runner.ts",
-      "bytes": 59759,
-      "sha256": "057d5b5623307f569f899414afe0656ee77fbe8483bd268f0a139fdbe441f606",
-      "git_blob": "8e5f5d80c90b1db33bf97a55576090223dac5e6d",
+      "bytes": 59866,
+      "sha256": "532faa9f3494e4508ff7d83419ef4bba628530996a111e073c42ba626c11a0b3",
+      "git_blob": "f48616462af3bbd1f5bea6f312a7e8d24e77578b",
       "required_markers": [
         "const operationalCompletionReceipts = new WeakMap<",
         "final.work.completed_parents !== 24_000",
@@ -270,6 +286,8 @@
         "canonicalizeFloodgateV7LocalCleanRoomJsonCoreForTests",
         "local_deployment_key_authority_used: true as const",
         "aws_required: false as const",
+        "const arrayIncludes = Array.prototype.includes",
+        "const reflectApply = Reflect.apply",
         "FLOODGATE_V7_PREPARATION_FAILURE_KINDS",
         "failureKind = error.failure_kind"
       ]
@@ -304,9 +322,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomTeacherRunner.test.ts",
-      "bytes": 32286,
-      "sha256": "c1050a2c9aaf66f4b9b27be5511a1bf39238bb4a867d4fdaca06ec0f5b97ab47",
-      "git_blob": "d51d2eea547ac8ffdb25ef26fccad0c515f1771d"
+      "bytes": 33604,
+      "sha256": "4dfa096605c224bb83e4f1accf5a3e268008c3603bf2eb7f53d17b32aad9ec50",
+      "git_blob": "b08a228c8ae9062017b6ed5ead39b523b9b71d33"
     },
     {
       "path": "tests/unit/ml/floodgateV7CleanRoomRunGates.test.ts",
@@ -316,9 +334,9 @@
     },
     {
       "path": "tests/unit/ml/floodgateV7LocalCleanRoomTeacherRunner.test.ts",
-      "bytes": 34555,
-      "sha256": "69a2819c3adc613272d9495a3a88ffe9dbc46bb2cc096b1b32f170e2a847194c",
-      "git_blob": "df3042e4c2928845e4ac1b3d2decf0e43bc3c7c4"
+      "bytes": 35949,
+      "sha256": "a9d77e74c8291d74dd888c622eca479edf3354e58825056bc489ee1baa4b58ff",
+      "git_blob": "400f755a35191d89862b0a2d09ec699b305e074c"
     }
   ],
   "validation": {

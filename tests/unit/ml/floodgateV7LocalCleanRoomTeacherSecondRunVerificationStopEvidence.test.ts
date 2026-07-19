@@ -116,6 +116,32 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
           training_runs: 0,
           live_weight_changes: 0,
         },
+        postmerge_intrinsic_hardening: {
+          merged_pull_request: 515,
+          merged_revision: "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+          independent_review_finding:
+            "P2-mutable-array-prototype-includes-could-bypass-failure-kind-redaction",
+          finding_counts_before_remediation: {
+            p0: 0,
+            p1: 0,
+            p2: 1,
+            p3: 0,
+          },
+          hardening_revision: "52145c9f4b7f3ef434db3cfc7d52755e32f11ca5",
+          hardening_tree: "3a8893491eff145849d50752be76cebeefc8cea2",
+          hardening_parent: "5f2569dcf730e709ab36346c559d210fa6a63bf1",
+          string_type_gate_before_allowlist: true,
+          captured_intrinsics: ["Array.prototype.includes", "Reflect.apply"],
+          prototype_poisoning_regressions: {
+            error_boundaries: 2,
+            focused_test_files: 2,
+            focused_tests_passed: 28,
+            private_value_disclosed: false,
+          },
+          real_teacher_invocations: 0,
+          training_runs: 0,
+          live_weight_changes: 0,
+        },
       },
     });
     const diagnostic = record.diagnostic_remediation as {
@@ -180,6 +206,36 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
         review.evidence_git_environment_revision,
       ]),
     ).toBe(review.evidence_git_environment_parent);
+    const hardening = (
+      record.diagnostic_remediation as {
+        postmerge_intrinsic_hardening: {
+          merged_revision: string;
+          hardening_revision: string;
+          hardening_tree: string;
+          hardening_parent: string;
+        };
+      }
+    ).postmerge_intrinsic_hardening;
+    expect(gitIsAncestor(hardening.merged_revision)).toBe(true);
+    expect(gitIsAncestor(hardening.hardening_revision)).toBe(true);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%T",
+        hardening.hardening_revision,
+      ]),
+    ).toBe(hardening.hardening_tree);
+    expect(
+      gitOutput([
+        "--no-replace-objects",
+        "show",
+        "-s",
+        "--format=%P",
+        hardening.hardening_revision,
+      ]),
+    ).toBe(hardening.hardening_parent);
   });
 
   it("pins the regular Fresh-QAT main integration without claiming execution", () => {
@@ -389,6 +445,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "74d825c1…",
       "5c00ea32…",
       "c3a47e52…",
+      "5f2569dc…",
+      "52145c9f…",
     ]) {
       expect(japanese).toContain(marker);
     }
@@ -405,6 +463,8 @@ describe("Floodgate v7 second local teacher verification-stop evidence", () => {
       "74d825c1…",
       "5c00ea32…",
       "c3a47e52…",
+      "5f2569dc…",
+      "52145c9f…",
     ]) {
       expect(english).toContain(marker);
     }

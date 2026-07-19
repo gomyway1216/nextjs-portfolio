@@ -52,6 +52,8 @@ CIにある `AWS witness adapter contract (source only)` は未使用の接続�
 
 PRレビュー後のcommit `5c00ea32…`では、`failure_kind`の許可値を1つのruntime凍結配列へ集約し、TypeScriptの型も同じ配列から導出した。commit `c3a47e52…`では証拠テストのGit環境を固定PATH / HOME / locale、system / global config無効、optional lock無効へ揃えた。対象テストはそれぞれ26/26と6/6 PASSし、このレビュー修正でも教師起動、学習、live weight変更は0である。
 
+PR #515の通常merge `5f2569dc…`直後の独立レビューで、凍結配列が可変な `Array.prototype.includes` を動的参照するため、prototype改変でprivate値を `failure_kind` に通せるP2を発見した。commit `52145c9f…`は、文字列型を先に要求し、module初期化時に固定取得した `Array.prototype.includes` と `Reflect.apply` だけで照合する。両error境界でprototypeを改変する回帰を追加し、対象28/28 PASS、private値開示0、教師起動・学習・live weight変更0を確認した。
+
 ## 7. 次の安全な修正
 
 historical inode検査を単純に削るのは安全ではない。次のportable transitionを追加する。

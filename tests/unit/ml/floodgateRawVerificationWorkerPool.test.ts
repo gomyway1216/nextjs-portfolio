@@ -386,8 +386,8 @@ describe("Floodgate ordered raw-verification worker pool", () => {
 
   it("reports a lower-index timeout over an earlier higher-index failure", async () => {
     await expect(
-      runInjectedFault("ordered_timeout", faultTasks(12), 12, 75, 100),
-    ).rejects.toThrow("task 2 timed out after 75 ms");
+      runInjectedFault("ordered_timeout", faultTasks(12), 12, 1_000, 100),
+    ).rejects.toThrow("task 2 timed out after 1000 ms");
     expectNoInjectedWorkerLeak();
   });
 });

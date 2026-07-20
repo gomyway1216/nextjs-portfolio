@@ -8,7 +8,8 @@
  * Its JSON output omits the lock path, URLs, receipts, and digests.
  *
  * Run:
- *   npm run shogi:floodgate-raw-verification-worker-benchmark -- \
+ *   node --expose-gc -r tsx/cjs \
+ *     ml/benchmark-floodgate-raw-verification-workers.ts \
  *     --raw-lock /canonical/absolute/completed-raw-lock
  */
 

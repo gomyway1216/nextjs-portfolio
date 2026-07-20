@@ -217,7 +217,12 @@
         "forbidden-runtime-import-detection-covers-from-submodule-alias-and-multi-import-forms"
       ],
       "local_validation": "PASS",
-      "thread_state": "pending-reply-and-resolution"
+      "reply_urls": [
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783548",
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783543",
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783547"
+      ],
+      "thread_state": "resolved"
     }
   },
   "execution_counters": {

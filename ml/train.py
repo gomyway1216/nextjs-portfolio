@@ -148,6 +148,7 @@ INT16_AWARE_EPOCHS = 20
 INT16_AWARE_FLOAT_TASK_WEIGHT = 0.5
 INT16_AWARE_STE_TASK_WEIGHT = 0.5
 INT16_AWARE_CANDIDATE_ARTIFACT = "final.pt"
+DARWIN_SYSCTL_EXECUTABLE = "/usr/sbin/sysctl"
 
 
 def mate_to_cp(mate: int, mate_sign: int) -> int:
@@ -1778,6 +1779,32 @@ def verify_tracked_experiment_plan(path: str, expected_revision: str) -> None:
         raise ValueError("experiment plan is modified or untracked")
 
 
+def _runtime_cpu_model(system: str, processor: str, machine: str) -> str:
+    """Read the Darwin CPU model without depending on the caller's PATH."""
+
+    cpu_model = ""
+    if system == "Darwin":
+        try:
+            completed = subprocess.run(
+                [
+                    DARWIN_SYSCTL_EXECUTABLE,
+                    "-n",
+                    "machdep.cpu.brand_string",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="strict",
+            )
+            cpu_model = completed.stdout.strip()
+        except (OSError, subprocess.CalledProcessError, UnicodeError):
+            pass
+    if not cpu_model:
+        cpu_model = processor or machine or "unknown"
+    return cpu_model
+
+
 def configure_sealed_torch_runtime(torch_threads: int) -> dict[str, object]:
     """Set and verify the deterministic CPU runtime shared by six processes."""
     if type(torch_threads) is not int or torch_threads != 2:
@@ -1801,26 +1828,15 @@ def configure_sealed_torch_runtime(torch_threads: int) -> dict[str, object]:
     debug_mode = torch.get_deterministic_debug_mode()
     if debug_mode != 2:
         raise ValueError("PyTorch deterministic debug mode is not error")
-    cpu_model = ""
-    try:
-        completed = subprocess.run(
-            ["sysctl", "-n", "machdep.cpu.brand_string"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        cpu_model = completed.stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        pass
+    system = platform.system()
+    machine = platform.machine()
     processor = platform.processor()
-    if not cpu_model:
-        cpu_model = processor or platform.machine() or "unknown"
     return {
         "platform": platform.platform(),
-        "system": platform.system(),
-        "machine": platform.machine(),
+        "system": system,
+        "machine": machine,
         "processor": processor,
-        "cpu_model": cpu_model,
+        "cpu_model": _runtime_cpu_model(system, processor, machine),
         "logical_cpu_count": os.cpu_count(),
         "python_version": platform.python_version(),
         "torch_version": str(torch.__version__),

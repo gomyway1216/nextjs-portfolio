@@ -16,6 +16,7 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 import train as train_module  # noqa: E402
+import build_strength_first_qat_training_plan_candidate as strength_builder  # noqa: E402
 import fresh_qat_protocol as fresh_qat_protocol  # noqa: E402
 import qat_protocol as qat_protocol  # noqa: E402
 
@@ -814,7 +815,10 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
 
     def test_sealed_torch_runtime_sets_and_receipts_exact_determinism(self):
         completed = SimpleNamespace(stdout="Apple M4 Max\n")
-        with mock.patch.object(
+        with mock.patch.dict(
+            os.environ,
+            {"PATH": "/usr/bin:/bin"},
+        ), mock.patch.object(
             train_module.torch, "set_num_threads"
         ) as set_threads, mock.patch.object(
             train_module.torch, "set_num_interop_threads"
@@ -834,7 +838,7 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
             train_module.torch, "get_deterministic_debug_mode", return_value=2
         ), mock.patch.object(
             train_module.subprocess, "run", return_value=completed
-        ), mock.patch.object(
+        ) as read_cpu_model, mock.patch.object(
             train_module.platform, "platform", return_value="macOS-test"
         ), mock.patch.object(
             train_module.platform, "system", return_value="Darwin"
@@ -855,6 +859,18 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
         set_interop.assert_called_once_with(1)
         use_deterministic.assert_called_once_with(True)
         set_debug.assert_called_once_with("error")
+        read_cpu_model.assert_called_once_with(
+            [
+                train_module.DARWIN_SYSCTL_EXECUTABLE,
+                "-n",
+                "machdep.cpu.brand_string",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+        )
         self.assertEqual(
             receipt,
             {
@@ -873,6 +889,129 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                 "deterministic_debug_mode": "error",
             },
         )
+
+    def test_runtime_cpu_model_is_identical_for_builder_and_launcher_paths(self):
+        completed = SimpleNamespace(stdout="Apple M4 Pro\n")
+        normal_path = os.environ.get("PATH", "")
+        models = []
+        with mock.patch.object(
+            train_module.subprocess,
+            "run",
+            return_value=completed,
+        ) as run:
+            for path in (
+                strength_builder._FIXED_RUNTIME_ENVIRONMENT["PATH"],
+                normal_path,
+            ):
+                with mock.patch.dict(os.environ, {"PATH": path}):
+                    models.append(
+                        train_module._runtime_cpu_model(
+                            "Darwin",
+                            "arm",
+                            "arm64",
+                        )
+                    )
+
+        self.assertEqual(models, ["Apple M4 Pro", "Apple M4 Pro"])
+        self.assertEqual(
+            run.call_args_list,
+            [
+                mock.call(
+                    [
+                        train_module.DARWIN_SYSCTL_EXECUTABLE,
+                        "-n",
+                        "machdep.cpu.brand_string",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="strict",
+                ),
+                mock.call(
+                    [
+                        train_module.DARWIN_SYSCTL_EXECUTABLE,
+                        "-n",
+                        "machdep.cpu.brand_string",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="strict",
+                ),
+            ],
+        )
+
+    def test_runtime_cpu_model_preserves_non_darwin_and_failure_fallbacks(self):
+        with mock.patch.object(train_module.subprocess, "run") as run:
+            self.assertEqual(
+                train_module._runtime_cpu_model(
+                    "Linux",
+                    "x86_64",
+                    "x86_64",
+                ),
+                "x86_64",
+            )
+        run.assert_not_called()
+
+        for failed_lookup in (
+            FileNotFoundError(),
+            train_module.subprocess.CalledProcessError(
+                1,
+                [train_module.DARWIN_SYSCTL_EXECUTABLE],
+            ),
+        ):
+            with self.subTest(failed_lookup=type(failed_lookup).__name__):
+                with mock.patch.object(
+                    train_module.subprocess,
+                    "run",
+                    side_effect=failed_lookup,
+                ):
+                    self.assertEqual(
+                        train_module._runtime_cpu_model(
+                            "Darwin",
+                            "arm",
+                            "arm64",
+                        ),
+                        "arm",
+                    )
+
+        with mock.patch.object(
+            train_module.subprocess,
+            "run",
+            return_value=SimpleNamespace(stdout="\n"),
+        ):
+            self.assertEqual(
+                train_module._runtime_cpu_model(
+                    "Darwin",
+                    "",
+                    "arm64",
+                ),
+                "arm64",
+            )
+
+    def test_runtime_cpu_model_falls_back_after_unicode_decode_error(self):
+        invalid_utf8 = UnicodeDecodeError(
+            "utf-8",
+            b"\xff",
+            0,
+            1,
+            "invalid start byte",
+        )
+        with mock.patch.object(
+            train_module.subprocess,
+            "run",
+            side_effect=invalid_utf8,
+        ):
+            self.assertEqual(
+                train_module._runtime_cpu_model(
+                    "Darwin",
+                    "arm",
+                    "arm64",
+                ),
+                "arm",
+            )
 
     def test_training_outputs_cannot_alias_any_input_or_each_other(self):
         with tempfile.TemporaryDirectory() as tmp:

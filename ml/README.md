@@ -828,7 +828,7 @@ AWS、Firebase / GCP、Vercel、network、実teacher、実Torch学習を使っ�
 strength-first teacher完了後のtraining-only `train.jsonl`を、固定warm initializerから
 seed 42 / 43 / 44で並列学習するbridgeとargumentless Python launcherも準備した。
 teacher flat rootは
-`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`に固定し、`work.jsonl` /
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`に固定し、`work.jsonl` /
 `result.json` / `manifest.json` / `train.jsonl` / `parent-completion.jsonl`のbytes /
 SHA-256をfuture exact planで束縛する。resultのstaged outputとmanifestのtraining-only
 outputを相互照合し、raw training / completion / trainをneutral scannerで再scanして

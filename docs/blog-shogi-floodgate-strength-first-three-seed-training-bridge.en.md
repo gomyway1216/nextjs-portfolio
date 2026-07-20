@@ -41,7 +41,7 @@ processes or open the large datasets. `package.json` is unchanged, and no npm sc
 
 The future plan will bind individual byte lengths and SHA-256 identities for these five files
 under the private flat root
-`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`:
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`:
 
 | File                      | Relationship verified by the bridge                                    |
 | ------------------------- | ---------------------------------------------------------------------- |

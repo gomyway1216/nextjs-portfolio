@@ -38,7 +38,7 @@ planを追加するまでSTOP」だった。plan loadがrevision reader、local 
 ## flat teacher rootを一組のtraining sourceとして再検証
 
 将来planはprivateなflat root
-`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`の次の5 fileを個別の
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`の次の5 fileを個別の
 bytes / SHA-256で固定する。
 
 | file                      | bridgeが確認する関係                                                    |

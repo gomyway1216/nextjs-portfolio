@@ -1,0 +1,201 @@
+{
+  "schema": "shogi-floodgate-strength-first-qat-plan-candidate-builder-evidence-v1",
+  "status": "stdout-only-builder-validated-active-lock-and-missing-result-stops-plan-unenrolled-training-selection-live-zero",
+  "recorded_date": "2026-07-19",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-qat-plan-candidate-builder.md",
+    "english": "../blog-shogi-floodgate-strength-first-qat-plan-candidate-builder.en.md"
+  },
+  "implementation": {
+    "builder": "ml/build_strength_first_qat_training_plan_candidate.py",
+    "training_bridge": "ml/strength_first_qat_training_bridge.py",
+    "command": "python3 ml/build_strength_first_qat_training_plan_candidate.py",
+    "argumentless": true,
+    "success_output": "one-exact-plan-json-on-stdout",
+    "tracked_plan_write_implemented": false,
+    "existing_plan_overwrite_allowed": false,
+    "training_launch_implemented": false,
+    "selection_or_holdout_reader_implemented": false,
+    "network_or_cloud_call_implemented": false,
+    "live_weight_write_implemented": false
+  },
+  "fixed_paths": {
+    "teacher_root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7",
+    "teacher_terminal_files": [
+      "result.json",
+      "manifest.json",
+      "work.jsonl",
+      "parent-completion.jsonl",
+      "train.jsonl"
+    ],
+    "role_bundle_files": [
+      "manifest.json",
+      "training.raw.jsonl",
+      "replay-excluded-position-ids.txt"
+    ],
+    "sealed_files": ["runOp1-train.jsonl", "runOp1-best.pt"],
+    "tracked_plan": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json"
+  },
+  "completion_and_snapshot_gates": {
+    "tracked_plan_must_be_absent": true,
+    "retained_teacher_lock_file_may_remain": true,
+    "retained_teacher_lock_acquired_nonblocking": true,
+    "retained_teacher_lock_held_through_candidate_construction": true,
+    "teacher_result_checked_first": true,
+    "all_terminal_files_required": true,
+    "effective_owner_required": true,
+    "accepted_modes": ["0400", "0600"],
+    "single_link_required": true,
+    "regular_files_required": true,
+    "symbolic_link_components_rejected": true,
+    "inode_size_mtime_ctime_stable_during_read": true,
+    "snapshot_metadata_revalidated_after_runtime_probe": true,
+    "retained_teacher_lock_revalidated_before_stdout": true,
+    "retained_teacher_lock_held_through_stdout_flush": true,
+    "retained_teacher_lock_path_inode_replacement_rejected": true,
+    "retained_teacher_lock_released_after_success_or_error": true
+  },
+  "source_validation": {
+    "strict_duplicate_rejecting_json": true,
+    "role_teacher_result_cross_binding": true,
+    "raw_completion_train_neutral_rescan": true,
+    "input_parents_required": 24000,
+    "forced_plus_emitted_required": 24000,
+    "replacement_parents_allowed": 0,
+    "resampled_parents_allowed": 0,
+    "emitted_order_preserved": true,
+    "replay_exclusion_ascii_canonical_sorted_unique": true,
+    "replay_exclusion_file_and_identifier_hashes_recomputed": true,
+    "teacher_work_stream_hashed": true,
+    "fixed_replay_stream_hashed": true,
+    "warm_initializer_stream_hashed": true
+  },
+  "runtime_probe": {
+    "runs_only_after_source_validation": true,
+    "fixed_training_python": true,
+    "isolated_python_mode": true,
+    "canonical_parent_required": true,
+    "regular_executable_target_required": true,
+    "safe_target_owner_mode_and_link_count_required": true,
+    "venv_final_symlink_allowed": true,
+    "entry_and_target_identity_revalidated_after_probe": true,
+    "directory_target_rejected_before_subprocess": true,
+    "torch_threads": 2,
+    "torch_interop_threads": 1,
+    "deterministic_algorithms": true,
+    "deterministic_debug_mode": "error",
+    "dataset_reads": 0,
+    "model_constructions": 0,
+    "optimizer_steps": 0,
+    "checkpoint_writes": 0
+  },
+  "candidate_contract": {
+    "schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
+    "top_level_fields": [
+      "schema",
+      "status",
+      "artifacts",
+      "runtime",
+      "training",
+      "slots",
+      "boundary"
+    ],
+    "seeds": [42, 43, 44],
+    "learning_rate": 0.0001,
+    "epochs": 20,
+    "batch": 256,
+    "device": "cpu",
+    "training_only": true,
+    "selection_label_read_authorized": false,
+    "holdout_label_read_authorized": false,
+    "candidate_selection_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "observed_active_v7_stop": {
+    "command": "python3 ml/build_strength_first_qat_training_plan_candidate.py",
+    "exit_code": 1,
+    "stdout_bytes": 0,
+    "reason": "v7-teacher-lock-held-by-active-run",
+    "artifact_snapshots": 0,
+    "runtime_probes": 0,
+    "torch_imports": 0,
+    "plan_candidates_emitted": 0
+  },
+  "observed_released_v7_stop": {
+    "command": "python3 ml/build_strength_first_qat_training_plan_candidate.py",
+    "exit_code": 1,
+    "stdout_bytes": 0,
+    "retained_lock_file_present": true,
+    "retained_lock_acquired": true,
+    "reason": "terminal-v7-artifact-absent-teacher-result",
+    "artifact_snapshots": 0,
+    "runtime_probes": 0,
+    "torch_imports": 0,
+    "plan_candidates_emitted": 0
+  },
+  "forbidden_reads_and_actions": {
+    "fresh_selection_raw_or_labels": 0,
+    "fresh_final_holdout_raw_or_labels": 0,
+    "protected_identifier_files": 0,
+    "training_output_slots": 0,
+    "git_commands": 0,
+    "network_requests": 0,
+    "cloud_requests": 0,
+    "training_processes": 0,
+    "selection_evaluations": 0,
+    "live_weight_changes": 0
+  },
+  "validation": {
+    "python_compile": "PASS",
+    "builder_focused_stdlib": {
+      "status": "PASS",
+      "tests": 13
+    },
+    "builder_plus_existing_bridge_stdlib": {
+      "status": "PASS",
+      "tests": 21
+    },
+    "publication_evidence": {
+      "status": "PASS",
+      "tests": 4
+    },
+    "publication_plus_existing_bridge_evidence": {
+      "status": "PASS",
+      "tests": 9
+    },
+    "full_ml_stdlib": {
+      "status": "PASS",
+      "tests": 260,
+      "elapsed_seconds": 14.185
+    },
+    "scoped_ruff": "PASS",
+    "full_ml_ruff": {
+      "status": "PREEXISTING-FAIL",
+      "errors": 7,
+      "changed_file_errors": 0
+    },
+    "prettier": "PASS",
+    "diff_check": "PASS"
+  },
+  "corrected_operational_record": {
+    "stale_teacher_root": "strength-first-v6",
+    "current_teacher_root": "strength-first-v7",
+    "readme_corrected": true,
+    "japanese_bridge_article_corrected": true,
+    "english_bridge_article_corrected": true,
+    "bridge_machine_evidence_corrected": true,
+    "bridge_publication_test_corrected": true
+  },
+  "observed_counts_at_publication": {
+    "tracked_strength_first_training_plans": 0,
+    "real_three_seed_training_processes": 0,
+    "candidate_checkpoints": 0,
+    "candidate_selections": 0,
+    "holdout_evaluations": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "next_step": "after-v7-terminal-completion-run-builder-review-stdout-and-add-the-exact-plan-in-a-separate-data-only-pr-before-three-seed-training",
+  "claim_boundary": "builder-implementation-synthetic-validation-and-observed-active-lock-and-missing-result-stops-only-not-terminal-teacher-completion-enrolled-plan-training-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence"
+}

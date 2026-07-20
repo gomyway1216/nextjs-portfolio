@@ -1181,19 +1181,47 @@ function referencePlayer(
       book: false as const,
       network: false as const,
     }),
-    chooseMove: async (input: Readonly<LocalExternalCalibrationMoveInput>) => {
-      const result = await runtime.propose(
-        input.sfen,
-        input.legal_moves.length,
-      );
-      return Object.freeze({
-        usi: result.bestmove,
-        search_receipt_sha256: digestCanonical(DECISION_DIGEST_DOMAIN, result),
-      });
-    },
+    chooseMove: (input: Readonly<LocalExternalCalibrationMoveInput>) =>
+      choosePinnedReferenceMove(input, runtime),
     abortAndReap: () => runtime.abortAndReap(),
     close: () => runtime.close(),
   });
+}
+
+interface PinnedReferenceSearchRuntime {
+  readonly propose: (
+    sfen: string,
+    legalMoveCount: number,
+  ) => Promise<Readonly<{ readonly bestmove: string }>>;
+  readonly rescore: (
+    sfen: string,
+    move: string,
+  ) => Promise<Readonly<{ readonly bestmove: string }>>;
+}
+
+async function choosePinnedReferenceMove(
+  input: Readonly<LocalExternalCalibrationMoveInput>,
+  runtime: Readonly<PinnedReferenceSearchRuntime>,
+): Promise<Readonly<LocalExternalCalibrationMoveDecision>> {
+  // The production proposal surface intentionally requires at least two legal
+  // moves. A forced position still needs one real depth-16 engine search, so
+  // use its fixed MultiPV-1/searchmoves rescore path for the sole legal move.
+  const result =
+    input.legal_moves.length === 1
+      ? await runtime.rescore(input.sfen, input.legal_moves[0])
+      : await runtime.propose(input.sfen, input.legal_moves.length);
+  return Object.freeze({
+    usi: result.bestmove,
+    search_receipt_sha256: digestCanonical(DECISION_DIGEST_DOMAIN, result),
+  });
+}
+
+/** Test-only seam for the production reference adapter's forced-move branch. */
+export function choosePinnedReferenceMoveCoreForTests(
+  input: Readonly<LocalExternalCalibrationMoveInput>,
+  runtime: Readonly<PinnedReferenceSearchRuntime>,
+): Promise<Readonly<LocalExternalCalibrationMoveDecision>> {
+  return choosePinnedReferenceMove(input, runtime);
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL,
   LocalExternalCalibrationError,
   PINNED_LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL,
+  choosePinnedReferenceMoveCoreForTests,
   localExternalCalibrationOpeningId,
   runLocalExternalCalibrationCoreForTests,
   type LocalExternalCalibrationCoreDependencies,
@@ -481,6 +482,45 @@ describe("local external calibration paired harness", () => {
           Array.isArray(event.searchmoves) && event.searchmoves.length > 0,
       ),
     ).toBe(true);
+  });
+
+  it("uses a fixed-depth forced rescore when the reference has one legal move", async () => {
+    let proposalCalls = 0;
+    let rescoreCalls = 0;
+    const input = Object.freeze({
+      game_id: `sha256:${"6".repeat(64)}`,
+      opening_id: localExternalCalibrationOpeningId(START_SFEN),
+      stable_color: "sente" as const,
+      ply: 20,
+      sfen: START_SFEN,
+      legal_moves: Object.freeze(["7g7f"]),
+    });
+
+    const decision = await choosePinnedReferenceMoveCoreForTests(
+      input,
+      Object.freeze({
+        propose: async () => {
+          proposalCalls += 1;
+          throw new Error("proposal must not run for a forced move");
+        },
+        rescore: async (sfen: string, move: string) => {
+          rescoreCalls += 1;
+          expect(sfen).toBe(START_SFEN);
+          expect(move).toBe("7g7f");
+          return Object.freeze({
+            bestmove: move,
+            requested_multipv: 1,
+            searchmoves: Object.freeze([move]),
+            depth: 16,
+          });
+        },
+      }),
+    );
+
+    expect(proposalCalls).toBe(0);
+    expect(rescoreCalls).toBe(1);
+    expect(decision.usi).toBe("7g7f");
+    expect(decision.search_receipt_sha256).toMatch(/^[0-9a-f]{64}$/u);
   });
 
   it("binds the explicit pinned depth/timeout contract without running it", () => {

@@ -5,8 +5,8 @@
   "implementation": {
     "adapter": {
       "path": "ml/strength_first_qat_selection_eval_adapter.py",
-      "bytes": 11156,
-      "sha256": "227ddf449209c1999f8a30fde429853a0e199343b76efcea5d60013e983694d3"
+      "bytes": 11185,
+      "sha256": "c5a301326d2a4c23e397edd249e55666dcf3f22493983577c479ff037629bea1"
     },
     "evaluator": {
       "path": "ml/strength_first_qat_selection_evaluator.py",
@@ -20,8 +20,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_strength_first_qat_selection_evaluator.py",
-      "bytes": 34532,
-      "sha256": "097312ff21835c4e0e5ec0f97b77791505cd2553417b47f3c63198918e657246"
+      "bytes": 35106,
+      "sha256": "5088873e328dcb2fd98e85e382316cd6fe752c4d2fd2b2f8065150e791379c51"
     },
     "article_ja": {
       "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.md",
@@ -37,8 +37,8 @@
   "validation": {
     "focused_unittest": {
       "command": "PYTHONPATH=ml python3 -m unittest -v ml.tests_stdlib.test_strength_first_qat_selection_evaluator",
-      "tests": 14,
-      "passed": 14,
+      "tests": 15,
+      "passed": 15,
       "failed": 0,
       "errors": 0
     },
@@ -102,7 +102,8 @@
     "post_evaluation_dataset_drift_rejected": true,
     "post_evaluation_tracked_plan_drift_rejected": true,
     "one_shot_preflight_replay_rejected": true,
-    "existing_receipt_overwrite_rejected": true
+    "existing_receipt_overwrite_rejected": true,
+    "all_zero_sha256_rejected": true
   },
   "resources": {
     "registry_max_workers": 2,

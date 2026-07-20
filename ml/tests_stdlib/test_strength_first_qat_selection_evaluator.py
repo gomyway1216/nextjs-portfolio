@@ -753,9 +753,10 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
         self.assertFalse(real["high_dan_calibrated"])
 
     def test_exclusive_publisher_is_complete_private_and_non_overwriting(self):
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
-            os.chmod(temporary, 0o700)
-            target = Path(temporary) / "selection-receipt.json"
+        with tempfile.TemporaryDirectory() as temporary:
+            canonical_temporary = os.path.realpath(temporary)
+            os.chmod(canonical_temporary, 0o700)
+            target = Path(canonical_temporary) / "selection-receipt.json"
             raw = canonical(
                 {
                     "schema": (
@@ -866,6 +867,18 @@ class StrengthFirstSelectionEvalAdapterTest(unittest.TestCase):
                 expected_records=2,
                 expected_parents=1,
                 max_workers=3,
+                eval_module=SimpleNamespace(),
+            )
+
+    def test_adapter_rejects_all_zero_dataset_sha256(self):
+        with self.assertRaisesRegex(ValueError, "lowercase SHA-256"):
+            adapter.evaluate_strength_first_selection(
+                data_path="/synthetic/selection.jsonl",
+                dataset_identity={"bytes": 7, "sha256": "0" * 64},
+                checkpoint_specs=[],
+                expected_records=2,
+                expected_parents=1,
+                max_workers=1,
                 eval_module=SimpleNamespace(),
             )
 

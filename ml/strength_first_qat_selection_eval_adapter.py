@@ -84,6 +84,7 @@ def _sha256(value: Any, label: str) -> str:
     if (
         type(value) is not str
         or len(value) != 64
+        or value == "0" * 64
         or any(character not in "0123456789abcdef" for character in value)
     ):
         raise ValueError(f"{label} is not a lowercase SHA-256")

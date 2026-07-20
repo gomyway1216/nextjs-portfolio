@@ -54,23 +54,26 @@ Timestamps and absolute paths are excluded, so identical fake inputs produce the
 
 ## Measured validation
 
-The implementation anchor is `2f32cf36b2d8fa2e40d24523a3d1b892571398d3`.
+The implementation anchor is `70f9a6d0f1098dd37cb4024691ed92e8336582e9`. Independent review found both that the normal MultiPV proposal path technically faults when exactly one legal move remains and that unreachable openings could be accepted. The fix sends a sole legal move through the same fixed-depth-16 MultiPV-1 `searchmoves` rescore path. Request capture now also requires exactly one king per side, board-plus-hand piece totals within physical limits, neither both kings nor the non-moving king in check, no unpromoted double pawn, and no unpromoted pawn, lance, or knight on an immobile rank. This does not claim a complete proof of game-record reachability. The remaining P2 findings were also fixed: a request with non-pinned depth or timeout now stops before runtime initialization, and diagnostics retain both the primary operation failure and a secondary close failure.
 
-| Check                                                                                  |                                                      Result |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------: |
-| adapter focused                                                                        |                                                  9 / 9 PASS |
-| related SFEN, lightweight USI, production stable, and production Yaneura runtime tests |                                                76 / 76 PASS |
-| complete ML unit suite                                                                 |                    149 / 149 files, 2,569 PASS, one skipped |
-| fake-USI subprocess match                                                              |         one opening pair / two games, four plies each, PASS |
-| reset trace                                                                            | one initialization ready + four pre-reference-search resets |
-| partial discard after illegal move                                                     |                   one earlier game discarded, zero receipts |
-| synthetic 10ms timeout                                                                 |              both players aborted and closed, zero receipts |
-| fourfold-position fixture                                                              |                            draw at 12 plies for both colors |
-| real YaneuraOu / exact-stable games                                                    |                                                        zero |
-| network / AWS / GCP / Firebase / Vercel                                                |                                                        zero |
-| live / holdout / production-result writes                                              |                                                        zero |
+| Check                                                                                  |                                                         Result |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------: |
+| adapter focused                                                                        |                                                   14 / 14 PASS |
+| related SFEN, lightweight USI, production stable, and production Yaneura runtime tests |                                                   81 / 81 PASS |
+| pre-P2-fix complete ML suite attempt                                                   | 148 / 149 files, 2,570 PASS, two timeout failures, one skipped |
+| isolated rerun of the timed-out file                                                   |                                                   13 / 13 PASS |
+| fake-USI subprocess match                                                              |            one opening pair / two games, four plies each, PASS |
+| reset trace                                                                            |    one initialization ready + four pre-reference-search resets |
+| partial discard after illegal move                                                     |                      one earlier game discarded, zero receipts |
+| synthetic 10ms timeout                                                                 |                 both players aborted and closed, zero receipts |
+| fourfold-position fixture                                                              |                               draw at 12 plies for both colors |
+| perpetual-check fixture                                                                |                   checking side loses at 12 plies, both colors |
+| no-legal-moves fixture                                                                 |                          mover wins after one ply, both colors |
+| real YaneuraOu / exact-stable games                                                    |                                                           zero |
+| network / AWS / GCP / Firebase / Vercel                                                |                                                           zero |
+| live / holdout / production-result writes                                              |                                                           zero |
 
-The complete ML unit suite ran against fixed source for 200.20 seconds with zero failures. The two changed code/test files introduce no new type errors. The repository has unrelated pre-existing TypeScript errors, so this evidence does not claim a passing whole-repository typecheck. ESLint, Prettier, and Git diff checks pass.
+At pre-P2-fix revision `5ff1bb6d`, the complete ML unit suite ran for 212.26 seconds: 148 / 149 files passed, with 2,570 passes, two five-second timeout failures, and one skip. Both failures were in the existing, adapter-independent `siblingTeacherGenerator.test.ts`; its immediate isolated rerun passed 13 / 13 in 18.16 seconds. The record does not rewrite the full attempt as green, and the full suite has not been rerun after the final P2 fixes. The two changed code/test files introduce no new type errors. The repository has unrelated pre-existing TypeScript errors, so this evidence does not claim a passing whole-repository typecheck. ESLint, Prettier, and Git diff checks pass.
 
 ## Next gate
 

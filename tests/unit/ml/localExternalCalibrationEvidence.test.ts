@@ -40,8 +40,8 @@ describe("local external calibration publication evidence", () => {
   it("binds the exact reviewed implementation artifacts", () => {
     const evidence = JSON.parse(read(EVIDENCE));
     expect(evidence.implementation_anchor).toMatchObject({
-      revision: "2f32cf36b2d8fa2e40d24523a3d1b892571398d3",
-      tree: "84054dd125134b735ebce468ac9992809f185ff3",
+      revision: "70f9a6d0f1098dd37cb4024691ed92e8336582e9",
+      tree: "b8ab2e49c38dbd0333d7e42472f41ba06ef51716",
       base_revision: "f5f49c2bea0c6de1ba5d28696281b9002426308a",
       pushed: false,
       pull_request_created: false,
@@ -82,9 +82,12 @@ describe("local external calibration publication evidence", () => {
     expect(evidence.rules).toMatchObject({
       canonical_sfen_round_trip: true,
       rules_complete_usi_membership: true,
+      structural_opening_checks:
+        "exactly-one-king-per-side-physical-piece-limits-check-state-no-double-pawn-and-no-immobile-unpromoted-piece",
       fourfold_position_repetition:
         "draw-unless-one-side-gave-continuous-check",
       perpetual_check: "checking-side-loses",
+      single_legal_reference_move: "fixed-depth-multipv1-forced-rescore",
     });
     expect(LOCAL_EXTERNAL_CALIBRATION_ADJUDICATION).toContain(
       "perpetual-check-loss",
@@ -119,21 +122,31 @@ describe("local external calibration publication evidence", () => {
     const evidence = JSON.parse(read(EVIDENCE));
     expect(evidence.validation).toMatchObject({
       node: "v22.13.0",
-      focused_tests_passed: 9,
+      focused_tests_passed: 14,
       focused_tests_failed: 0,
       related_files_passed: 5,
-      related_tests_passed: 76,
+      related_tests_passed: 81,
       related_tests_failed: 0,
-      full_ml_test_files_passed: 149,
-      full_ml_test_files_failed: 0,
-      full_ml_tests_passed: 2569,
-      full_ml_tests_failed: 0,
+      full_ml_final_status: "NOT_RERUN_AFTER_FINAL_P2_FIXES",
+      full_ml_attempt_revision: "5ff1bb6d4207c8f9c78de922fad402b2487e8a70",
+      full_ml_attempt_status: "FAILED_TWO_UNRELATED_FIVE_SECOND_TIMEOUTS",
+      full_ml_test_files_passed: 148,
+      full_ml_test_files_failed: 1,
+      full_ml_tests_passed: 2570,
+      full_ml_tests_failed: 2,
       full_ml_tests_skipped: 1,
-      full_ml_duration_seconds: 200.2,
+      full_ml_duration_seconds: 212.26,
+      isolated_timeout_file_tests_passed: 13,
+      isolated_timeout_file_tests_failed: 0,
+      isolated_timeout_file_duration_seconds: 18.16,
       fake_usi_subprocess_games: 2,
       illegal_move_completed_games_discarded: 1,
       illegal_move_receipts_issued: 0,
       synthetic_timeout_receipts_issued: 0,
+      perpetual_check_fixture_plies: 12,
+      no_legal_moves_fixture_plies: 1,
+      pinned_request_preflight_before_runtime: true,
+      combined_operation_and_close_failure_tests_passed: 2,
       eslint: "PASS",
       prettier: "PASS",
       diff_check: "PASS",
@@ -145,7 +158,11 @@ describe("local external calibration publication evidence", () => {
       Object.values(evidence.nonclaims).every((value) => value === false),
     ).toBe(true);
     expect(evidence.review).toMatchObject({
-      independent_review: "pending",
+      independent_review: "complete",
+      unresolved_p0: 0,
+      unresolved_p1: 0,
+      unresolved_p2: 0,
+      code_review_gate_passed: true,
       real_pilot_authorized: false,
     });
   });
@@ -154,12 +171,15 @@ describe("local external calibration publication evidence", () => {
     const japanese = read(JAPANESE);
     const english = read(ENGLISH);
     for (const article of [japanese, english]) {
-      expect(article).toContain("2f32cf36");
-      expect(article).toContain("9 / 9 PASS");
-      expect(article).toContain("76 / 76 PASS");
-      expect(article).toMatch(/149 \/ 149 files/iu);
-      expect(article).toContain("2,569 PASS");
-      expect(article).toContain("200.20");
+      expect(article).toContain("70f9a6d0");
+      expect(article).toContain("14 / 14 PASS");
+      expect(article).toContain("81 / 81 PASS");
+      expect(article).toMatch(/148 \/ 149 files/iu);
+      expect(article).toContain("2,570 PASS");
+      expect(article).toContain("212.26");
+      expect(article).toContain("13 / 13 PASS");
+      expect(article).toContain("18.16");
+      expect(article).toMatch(/not been rerun|未再実行/iu);
       expect(article).toContain(
         "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
       );

@@ -54,23 +54,26 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 
 ## 実測したtest
 
-実装anchorは`2f32cf36b2d8fa2e40d24523a3d1b892571398d3`である。
+実装anchorは`70f9a6d0f1098dd37cb4024691ed92e8336582e9`である。独立reviewで、合法手が1手だけの局面を通常のMultiPV proposalへ渡すとtechnical faultになる問題と、到達不能な開始局面を受理する問題が見つかった。修正版は、唯一の合法手を同じ固定depth 16のMultiPV 1 / `searchmoves` rescoreへ渡す。またrequest capture時に、両陣営の王が各1枚、盤上と持駒を合わせた種類別駒数が物理上限内、両王同時王手ではなく非手番側の王が王手されていないこと、二歩がないこと、未成の歩・香・桂が行き所のない段にないことを検査する。完全な棋譜到達可能性の証明は主張しない。reviewで残ったP2も修正し、固定depth / timeoutと異なるrequestはruntime起動前に拒否し、主処理失敗と二次close失敗が同時に起きた場合は両方を診断へ保持する。
 
-| 検証                                                                       |                                  結果 |
-| -------------------------------------------------------------------------- | ------------------------------------: |
-| adapter focused                                                            |                            9 / 9 PASS |
-| SFEN、軽量USI、production stable、production Yaneura runtimeを含む関連test |                          76 / 76 PASS |
-| ML unit suite全体                                                          |   149 / 149 files、2,569 PASS、1 skip |
-| fake USI subprocess対局                                                    |     1 opening pair / 2局、各4手、PASS |
-| reset trace                                                                | 初期ready 1回 + reference search前4回 |
-| illegal move後のpartial discard                                            |              先行1局を破棄、receipt 0 |
-| 10ms synthetic timeout                                                     |     両player abort + close、receipt 0 |
-| 4回同一局面fixture                                                         |                    両色とも12手でdraw |
-| 実YaneuraOu / exact stable対局                                             |                                   0局 |
-| network / AWS / GCP / Firebase / Vercel                                    |                                     0 |
-| live / holdout / production-result write                                   |                                     0 |
+| 検証                                                                       |                                                結果 |
+| -------------------------------------------------------------------------- | --------------------------------------------------: |
+| adapter focused                                                            |                                        14 / 14 PASS |
+| SFEN、軽量USI、production stable、production Yaneura runtimeを含む関連test |                                        81 / 81 PASS |
+| P2修正前のML unit suite attempt                                            | 148 / 149 files、2,570 PASS、2 timeout FAIL、1 skip |
+| timeout対象fileの単独再実行                                                |                                        13 / 13 PASS |
+| fake USI subprocess対局                                                    |                   1 opening pair / 2局、各4手、PASS |
+| reset trace                                                                |               初期ready 1回 + reference search前4回 |
+| illegal move後のpartial discard                                            |                            先行1局を破棄、receipt 0 |
+| 10ms synthetic timeout                                                     |                   両player abort + close、receipt 0 |
+| 4回同一局面fixture                                                         |                                  両色とも12手でdraw |
+| 連続王手千日手fixture                                                      |                        12手、連続王手側の負け、PASS |
+| 応手なしfixture                                                            |                       1手、着手側の勝ち、両色、PASS |
+| 実YaneuraOu / exact stable対局                                             |                                                 0局 |
+| network / AWS / GCP / Firebase / Vercel                                    |                                                   0 |
+| live / holdout / production-result write                                   |                                                   0 |
 
-ML unit suite全体は固定したsourceで200.20秒かけて実行し、失敗0だった。型検査では今回の2 fileに新規errorはない。repository全体には今回と無関係な既存TypeScript errorがあるため、全体typecheckをPASSとは記録しない。ESLint、Prettier、Git diff checkはPASSした。
+P2修正前の`5ff1bb6d`でML unit suite全体を実行し、148 / 149 files、2,570 PASS、2 timeout FAIL、1 skip、212.26秒だった。失敗は今回のadapter外にある既存`siblingTeacherGenerator.test.ts`の5秒timeout 2件で、直後の同file単独再実行は13 / 13 PASS、18.16秒だった。途中結果を全greenへ書き換えず、P2修正後のfull suiteは未再実行と記録する。型検査では今回の2 fileに新規errorはない。repository全体には今回と無関係な既存TypeScript errorがあるため、全体typecheckをPASSとは記録しない。ESLint、Prettier、Git diff checkはPASSした。
 
 ## 次のgate
 

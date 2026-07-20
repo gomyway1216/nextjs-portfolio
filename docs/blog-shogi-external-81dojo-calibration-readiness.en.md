@@ -33,7 +33,7 @@ The new verifier is offline-only. For each game manually observed through the of
 - the fixed candidate runtime's trace artifact and per-search receipts; and
 - whether the game counted as rated and whether a technical fault occurred.
 
-Every row names the SHA-256 of its predecessor, and the sequence must be exactly 1 through 200. The verifier also checks uniqueness and continuity across game IDs, timestamps, ratings, and rated-game counts. Every candidate move in the runtime trace must match the same ply and USI move in the observed game record. Deleting, reordering, or rewriting a previously published prefix fails.
+Every row names the SHA-256 of its predecessor, and the sequence must be exactly 1 through 200. The candidate protocol requires a preregistration timestamp, and even game 1 is rejected if its timestamp is not later. The verifier also checks uniqueness and continuity across game IDs, timestamps, ratings, and rated-game counts. Every candidate move in the runtime trace must match the same ply and USI move in the observed game record. Deleting, reordering, or rewriting a previously published prefix fails.
 
 This does not claim a cryptographic attestation from the official server. It fixes manual-export identities and a local hash chain so that the project has materially less room to select or replace results.
 
@@ -55,7 +55,7 @@ The receipt also reports an opponent-cluster bootstrap, so repeat games against 
 | ------------------------------------------------------- | ---------: |
 | Fixed policy                                            |   complete |
 | Offline ledger and verifier                             |   complete |
-| Focused fixtures                                        | 8 / 8 PASS |
+| Focused fixtures                                        | 9 / 9 PASS |
 | Article/evidence consistency tests                      | 4 / 4 PASS |
 | Candidate selection and runtime binding                 | incomplete |
 | Internal formal A/B                                     | incomplete |

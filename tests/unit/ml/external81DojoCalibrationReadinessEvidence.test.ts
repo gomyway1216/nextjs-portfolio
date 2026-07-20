@@ -42,8 +42,8 @@ describe("external 81Dojo calibration readiness publication", () => {
       recorded_date: "2026-07-20",
       status: "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
       implementation_anchor: {
-        revision: "d2425e977cdb04bdf6667fbcefdfadaa32991631",
-        tree: "ce238bfada9be66ca255e20b4f3954cbd7bab3ff",
+        revision: "5facc49a784510b04a360cf07ccfb8b524480047",
+        tree: "0908921337c03a4512d14f1167089a93892ce0c9",
         base_revision: "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
         branch: "codex/shogi-81dojo-calibration-protocol",
       },
@@ -96,6 +96,12 @@ describe("external 81Dojo calibration readiness publication", () => {
       external_games_observed: 0,
       ledger_entries: 0,
       complete_receipts: 0,
+    });
+    expect(evidence.candidate_runtime_binding).toMatchObject({
+      preregistered_at_utc_required_before_game_1: true,
+    });
+    expect(evidence.ledger_and_receipt).toMatchObject({
+      every_game_timestamp_after_candidate_preregistration: true,
     });
   });
 

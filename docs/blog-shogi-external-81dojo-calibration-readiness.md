@@ -33,7 +33,7 @@
 - 固定candidate runtimeのtrace artifactと各探索receipt
 - 対局がratingへ算入されたか、technical faultがなかったか
 
-各行は直前行のSHA-256を含み、1から200まで欠番を許さない。game ID、時刻、rating、rating戦局数も連続性を検査する。candidate側の全手は公式棋譜の同じ手番・同じUSI指し手と一致しなければならない。既公開prefixの削除、並べ替え、書換えも失敗する。
+各行は直前行のSHA-256を含み、1から200まで欠番を許さない。candidate protocolには事前登録時刻を必須化し、その時刻以前のgameはgame 1としても追加できない。game ID、時刻、rating、rating戦局数も連続性を検査する。candidate側の全手は公式棋譜の同じ手番・同じUSI指し手と一致しなければならない。既公開prefixの削除、並べ替え、書換えも失敗する。
 
 これは公式serverによる暗号署名を主張する仕組みではない。manual exportのidentityとlocal hash chainを固定し、少なくともproject側で結果を選び直す余地を減らす仕組みである。
 
@@ -55,7 +55,7 @@
 | ---------------------------------------------- | ---------: |
 | 固定policy                                     |       完了 |
 | offline ledger / verifier                      |       完了 |
-| focused fixture                                | 8 / 8 PASS |
+| focused fixture                                | 9 / 9 PASS |
 | 記事・evidence整合test                         | 4 / 4 PASS |
 | candidate選定・runtime binding                 |       未完 |
 | internal formal A/B                            |       未完 |

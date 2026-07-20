@@ -3,29 +3,30 @@
   "recorded_date": "2026-07-20",
   "status": "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
   "implementation_anchor": {
-    "revision": "d2425e977cdb04bdf6667fbcefdfadaa32991631",
-    "tree": "ce238bfada9be66ca255e20b4f3954cbd7bab3ff",
+    "revision": "5facc49a784510b04a360cf07ccfb8b524480047",
+    "tree": "0908921337c03a4512d14f1167089a93892ce0c9",
     "base_revision": "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
     "branch": "codex/shogi-81dojo-calibration-protocol",
     "policy_commit": "8a87081e46a5789e2876c9d040bb75ac86cc55f6",
     "verifier_commit": "c7535e777abceae5545302048b1daaebdb7b06c8",
-    "lightweight_fixture_commit": "d2425e977cdb04bdf6667fbcefdfadaa32991631"
+    "lightweight_fixture_commit": "d2425e977cdb04bdf6667fbcefdfadaa32991631",
+    "preregistration_fix_commit": "5facc49a784510b04a360cf07ccfb8b524480047"
   },
   "implementation_artifacts": {
     "policy": {
       "path": "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy.json",
-      "bytes": 3674,
-      "sha256": "74a1160d6547a250631b1fd36e67cf086ca25ff791acfee8bbefc23861f2a0ca"
+      "bytes": 3668,
+      "sha256": "b0c0f994eef66c47e3d574d4533b23600a891f66490ae7c63e4b60fd173d4cd0"
     },
     "offline_verifier": {
       "path": "ml/external_81dojo_calibration.py",
-      "bytes": 45752,
-      "sha256": "196f1e89899642f73a8fb7ab0a141c538430bf53f348c498f913a0400285d301"
+      "bytes": 46714,
+      "sha256": "aa18098bd16ffc9fe6387c649a3545aacdf45a7d2332b08a15255331a5f7af09"
     },
     "fixture_tests": {
       "path": "ml/tests_stdlib/test_external_81dojo_calibration.py",
-      "bytes": 13246,
-      "sha256": "f65a47269f240c5076160f44f7b3e5ba9a9292c3155e4efa230dc8b5bf30a18a"
+      "bytes": 13850,
+      "sha256": "eb26deb02ad738e2762cec4efb6c1760422204f14f64496fce57d3c6f111e45b"
     }
   },
   "official_sources": {
@@ -61,6 +62,7 @@
     "opening_book": true,
     "exact_weights_worker_wasm_and_opening_book_required": true,
     "reference_hardware_and_official_client_required": true,
+    "preregistered_at_utc_required_before_game_1": true,
     "all_candidate_moves_require_matching_trace_receipts": true,
     "all_internal_gate_receipts_required": true
   },
@@ -68,6 +70,7 @@
     "format": "canonical-jsonl-utf8-lf-v1",
     "local_only": true,
     "append_only_prefix_verification": true,
+    "every_game_timestamp_after_candidate_preregistration": true,
     "sha256_hash_chain": true,
     "sequence_exactly_1_through_200": true,
     "unique_server_game_ids": true,
@@ -104,9 +107,9 @@
     "python": "3.9.6",
     "python_compile": "PASS",
     "focused_fixture_test_file": "ml.tests_stdlib.test_external_81dojo_calibration",
-    "focused_tests_passed": 8,
+    "focused_tests_passed": 9,
     "focused_tests_failed": 0,
-    "focused_duration_seconds": 1.142,
+    "focused_duration_seconds": 1.215,
     "fixture_bootstrap_replicates": 100,
     "production_bootstrap_replicates_unchanged": 100000,
     "node": "v22.13.0",

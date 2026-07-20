@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -40,6 +41,27 @@ def identity(path: str, raw: bytes, schema: str) -> dict:
     }
 
 
+def synthetic_blocked_registry() -> dict:
+    """Project any checked-in lifecycle state back to an exact blocked fixture."""
+
+    registry = json.loads(
+        (
+            REPO_ROOT
+            / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
+        ).read_text(encoding="utf-8")
+    )
+    registry["status"] = evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS
+    for name in registry["implementation"]:
+        registry["implementation"][name] = None
+    for name in registry["enrollments"]:
+        registry["enrollments"][name] = None
+    registry["gates"] = copy.deepcopy(evaluator._BLOCKED_GATES)
+    registry["nonclaims"] = copy.deepcopy(evaluator._NONCLAIMS)
+    return dict(
+        evaluator.validate_strength_first_selection_evaluator_registry_data(registry)
+    )
+
+
 class ReadyHarness:
     def __init__(self, temporary: str):
         self.repo_root = REPO_ROOT
@@ -65,12 +87,7 @@ class ReadyHarness:
             "dataset_records": 9_598,
             "sealed": True,
         }
-        self.registry = json.loads(
-            (
-                REPO_ROOT
-                / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
-            ).read_text(encoding="utf-8")
-        )
+        self.registry = synthetic_blocked_registry()
         self._build_ready()
 
     @staticmethod
@@ -511,7 +528,7 @@ class ReadyHarness:
 
 
 class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
-    def test_checked_in_registry_is_closed_and_valid(self):
+    def test_checked_in_registry_is_a_valid_non_live_lifecycle_state(self):
         registry = json.loads(
             (
                 REPO_ROOT
@@ -521,21 +538,22 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
         validated = evaluator.validate_strength_first_selection_evaluator_registry_data(
             registry
         )
-        self.assertEqual(
+        self.assertIn(
             validated["status"],
-            evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS,
+            {
+                evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS,
+                evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS,
+                evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS,
+            },
         )
-        self.assertFalse(validated["gates"]["local_selection_evaluation_authorized"])
+        self.assertFalse(validated["gates"]["production_weight_write_authorized"])
+        self.assertFalse(validated["boundary"]["live_weight_write"])
+        self.assertFalse(validated["nonclaims"]["live_weights_changed"])
 
     def test_closed_path_stops_before_preflight_or_private_reads(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = ReadyHarness(temporary)
-            closed = json.loads(
-                (
-                    REPO_ROOT
-                    / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
-                ).read_text(encoding="utf-8")
-            )
+            closed = synthetic_blocked_registry()
             harness._put(
                 REPO_ROOT
                 / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
@@ -733,13 +751,110 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             "floodgate-q1-2026-strength-first-selection-evaluator-"
             "foundation-evidence.json"
         )
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence_raw = evidence_path.read_bytes()
+        evidence = json.loads(evidence_raw)
         self.assertEqual(
             evidence["schema"],
             evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_EVIDENCE_SCHEMA,
         )
-        for artifact in evidence["implementation"].values():
-            raw = (REPO_ROOT / artifact["path"]).read_bytes()
+        evidence_relative = evidence_path.relative_to(REPO_ROOT).as_posix()
+        git_environment = {
+            "PATH": "/usr/bin:/bin",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+            "LANG": "C",
+        }
+
+        def git_output(*arguments: str) -> bytes:
+            return subprocess.run(
+                ["git", *arguments],
+                cwd=REPO_ROOT,
+                env=git_environment,
+                check=True,
+                capture_output=True,
+            ).stdout
+
+        evidence_revisions = (
+            git_output(
+                "log",
+                "--format=%H",
+                "--",
+                evidence_relative,
+            )
+            .decode("ascii")
+            .splitlines()
+        )
+
+        def is_coherent_frozen_revision(revision: str) -> bool:
+            if evaluator._GIT_REVISION_RE.fullmatch(revision) is None:
+                return False
+            try:
+                if (
+                    git_output("show", f"{revision}:{evidence_relative}")
+                    != evidence_raw
+                ):
+                    return False
+                for artifact in evidence["implementation"].values():
+                    raw = git_output("show", f"{revision}:{artifact['path']}")
+                    if (
+                        len(raw) != artifact["bytes"]
+                        or hashlib.sha256(raw).hexdigest() != artifact["sha256"]
+                    ):
+                        return False
+            except subprocess.CalledProcessError:
+                return False
+            return True
+
+        coherent_revisions = [
+            revision
+            for revision in evidence_revisions
+            if is_coherent_frozen_revision(revision)
+        ]
+        self.assertGreaterEqual(len(coherent_revisions), 1)
+        evidence_revision = coherent_revisions[0]
+        ancestry = subprocess.run(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                evidence["base_revision"],
+                evidence_revision,
+            ],
+            cwd=REPO_ROOT,
+            env=git_environment,
+            check=False,
+            capture_output=True,
+        )
+        self.assertEqual(ancestry.returncode, 0)
+        historical_registry = evidence["implementation"]["closed_registry"]
+        self.assertEqual(
+            historical_registry["path"],
+            evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
+        )
+        historical_registry_raw = (
+            json.dumps(
+                synthetic_blocked_registry(),
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        self.assertEqual(historical_registry["bytes"], len(historical_registry_raw))
+        self.assertEqual(
+            historical_registry["sha256"],
+            hashlib.sha256(historical_registry_raw).hexdigest(),
+        )
+
+        for name, artifact in evidence["implementation"].items():
+            raw = git_output(
+                "show",
+                f"{evidence_revision}:{artifact['path']}",
+            )
             self.assertEqual(artifact["bytes"], len(raw))
             self.assertEqual(
                 artifact["sha256"],

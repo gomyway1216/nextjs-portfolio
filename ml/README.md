@@ -867,13 +867,20 @@ enrollment null / 全gate closedである。argumentless commandはexit 2のexpe
 candidate authorization消費、final label read、実受領証、formal A/B、live変更は全て0。
 plain JSONではreaderを開けず、candidate-selection laneの一回限りbranded authorizationが
 必要である。ready registryは全roleのexact schemaと12 identityのpairwise-distinct path /
-SHA-256を要求する。evaluatorもplain metricを返せず、integer seed、実測した全input identity、
-content-addressed evidenceを持つ一回限りobservationが必要である。test-only coreのsynthetic
-identityは実候補へ数えない。保存済みmetricや`path_verified=true`から権限を再生成せず、
-別に再認証したregistry-bound evidence bundleだけから全受領証を再構成する。production
-evidence issuerは未実装なので自己申告resultは通らない。focused stdlibは29 / 29 PASS、
-full suiteと独立rereviewはこのlaneでは未実施である。この検証はlocalのみで、AWS、GCP /
-Firebase、Vercel、networkを使わない。詳細は
+SHA-256を要求する。候補選抜はWCSC36のwarm / scratch 6-run受領証を再利用せず、専用schemaで
+warm-only seed 42 / 43 / 44、3つの`final.pt`、strength-first plan / result / checkpoint、
+fresh選抜の全gateを固定する。authorizationは全role・browser時間枠・このcontractを含む
+registry全体のcanonical identityを持ち、別registryではreader前に失敗する。callback中に
+caller registryを変えても、各callbackのexpected inputと受領証は固定snapshotからだけ作る。
+evaluatorもplain metricを返せず、integer seed、実測した全input identity、content-addressed
+evidenceを持つ一回限りobservationが必要である。live coreは5 observationを先に認証し、
+evidence path / SHA-256の両方がpairwise distinctであることを受領証生成前に確認する。
+test-only coreのsynthetic identityは実候補へ数えない。保存済みmetricや
+`path_verified=true`から権限を再生成せず、別に再認証したregistry-bound evidence bundleだけ
+から全受領証を再構成する。production evidence issuerは未実装なので自己申告resultは通らない。
+focused stdlibは38 / 38 PASS、独立最終rereviewもP0 / P1 / P2 = 0 / 0 / 0、full suiteは
+このlaneでは未実施である。この検証はlocalのみで、AWS、GCP / Firebase、Vercel、networkを
+使わない。詳細は
 [日本語downstream記事](../docs/blog-shogi-floodgate-strength-first-downstream-gates.md) /
 [English downstream article](../docs/blog-shogi-floodgate-strength-first-downstream-gates.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-downstream-gates-2026-07-19.json)を参照。

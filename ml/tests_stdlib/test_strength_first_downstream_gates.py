@@ -15,6 +15,7 @@ if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
 import strength_first_downstream_gates as GATES  # noqa: E402
+import sibling_selection_protocol as LEGACY_SELECTION  # noqa: E402
 
 
 def digest(character: str) -> str:
@@ -41,6 +42,9 @@ def ready_registry() -> dict:
                 GATES._STRENGTH_FIRST_AMENDMENT_IDENTITY
             ),
         },
+        "candidate_selection_contract": copy.deepcopy(
+            GATES._CANDIDATE_SELECTION_CONTRACT
+        ),
         "enrollments": {
             "candidate_selection_receipt": identity(
                 "candidate-selection.json",
@@ -181,9 +185,11 @@ def verified_callbacks(
     selected_seed: int = 43,
     results: dict | None = None,
     measured_inputs: dict | None = None,
+    evidence_paths: dict | None = None,
 ) -> tuple[dict, dict]:
     results = observation_results(registry) if results is None else results
     measured_inputs = {} if measured_inputs is None else measured_inputs
+    evidence_paths = {} if evidence_paths is None else evidence_paths
     tokens = {}
     observations = {}
     for role in GATES._EVALUATION_ROLES:
@@ -197,6 +203,7 @@ def verified_callbacks(
                 )
             ),
             result=copy.deepcopy(results[role]),
+            evidence_path=evidence_paths.get(role),
         )
         observations[role] = token.to_dict()
         tokens[role] = token
@@ -235,6 +242,61 @@ class StrengthFirstDownstreamRegistryTests(unittest.TestCase):
         )
         self.assertEqual(validated["nonclaims"]["final_holdout_label_reads"], 0)
         self.assertEqual(validated["nonclaims"]["downstream_receipts_emitted"], 0)
+        self.assertEqual(
+            validated["candidate_selection_contract"],
+            GATES._CANDIDATE_SELECTION_CONTRACT,
+        )
+
+    def test_candidate_selection_contract_is_warm_three_seed_only(self):
+        contract = ready_registry()["candidate_selection_contract"]
+
+        self.assertEqual(contract["series"], "warm")
+        self.assertEqual(contract["seeds"], [42, 43, 44])
+        self.assertEqual(contract["run_count"], 3)
+        self.assertTrue(contract["warm_only"])
+        self.assertFalse(contract["wcsc36_six_run_receipt_compatible"])
+        self.assertEqual(
+            contract["training_result_schema"],
+            GATES.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+        )
+        self.assertEqual(
+            contract["selection"],
+            GATES.FRESH_QAT_REQUIRED_SELECTION,
+        )
+        self.assertNotEqual(
+            contract["receipt_schema"],
+            LEGACY_SELECTION.CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+        )
+
+    def test_registry_rejects_six_run_selection_semantic_collision(self):
+        mutations = (
+            (
+                "receipt_schema",
+                LEGACY_SELECTION.CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+            ),
+            ("run_count", 6),
+            ("series", "baseline"),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field):
+                registry = ready_registry()
+                registry["candidate_selection_contract"][field] = value
+
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "candidate-selection contract mismatch",
+                ):
+                    GATES.validate_downstream_registry_data(registry)
+
+        registry = ready_registry()
+        registry["enrollments"]["candidate_selection_receipt"]["schema"] = (
+            LEGACY_SELECTION.CANDIDATE_SELECTION_RECEIPT_SCHEMA
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "candidate_selection_receipt schema mismatch",
+        ):
+            GATES.validate_downstream_registry_data(registry)
 
     def test_blocked_registry_rejects_an_invented_identity(self):
         path = MODULE_PATH.parents[1] / GATES.DOWNSTREAM_REGISTRY_RELATIVE_PATH
@@ -393,6 +455,129 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 **callbacks(registry),
             )
 
+    def test_authorization_binds_the_entire_canonical_registry_snapshot(self):
+        registry = ready_registry()
+        authorization = GATES._issue_candidate_selection_authorization_for_tests(
+            registry,
+            selected_seed=44,
+        )
+
+        registry_raw, candidate_raw = GATES._CANDIDATE_AUTHORIZATIONS[
+            authorization
+        ]
+        snapshot = GATES._strict_json_loads(registry_raw, "test snapshot")
+        candidate = GATES._strict_json_loads(candidate_raw, "test candidate")
+
+        self.assertEqual(
+            candidate["downstream_registry"],
+            GATES._registry_identity(registry_raw),
+        )
+        self.assertEqual(
+            snapshot["candidate_selection_contract"],
+            GATES._CANDIDATE_SELECTION_CONTRACT,
+        )
+        self.assertEqual(
+            snapshot["enrollments"]["browser_time_budgets_ms"],
+            [800, 2_000, 4_000],
+        )
+
+    def test_authorization_cannot_cross_to_another_ready_registry(self):
+        registry = ready_registry()
+        authorization = GATES._issue_candidate_selection_authorization_for_tests(
+            registry
+        )
+        other = copy.deepcopy(registry)
+        other["enrollments"]["browser_time_budgets_ms"][-1] = 5_000
+        GATES.validate_downstream_registry_data(other)
+        calls = []
+
+        def reader(_context):
+            calls.append("read")
+
+        configured = {
+            name: reader
+            for name in (
+                "evaluate_fresh_final",
+                "evaluate_legacy_final",
+                "evaluate_retention",
+                "evaluate_known_regression",
+                "evaluate_production_parity",
+            )
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            "authorization registry snapshot mismatch",
+        ):
+            GATES.run_strength_first_downstream_gates_core_for_tests(
+                registry=other,
+                authorization=authorization,
+                **configured,
+            )
+
+        self.assertEqual(calls, [])
+        with self.assertRaisesRegex(ValueError, "already consumed"):
+            GATES.run_strength_first_downstream_gates_core_for_tests(
+                registry=registry,
+                authorization=authorization,
+                **configured,
+            )
+
+    def test_caller_registry_mutation_cannot_change_inflight_receipts(self):
+        registry = ready_registry()
+        captured = copy.deepcopy(registry)
+        captured_raw = GATES._canonical_json_bytes(captured)
+        expected_identity = GATES._registry_identity(captured_raw)
+        authorization = GATES._issue_candidate_selection_authorization_for_tests(
+            registry,
+            selected_seed=42,
+        )
+        configured, _ = verified_callbacks(
+            registry,
+            selected_seed=42,
+        )
+        original_fresh = configured["evaluate_fresh_final"]
+        original_parity = configured["evaluate_production_parity"]
+        callback_contexts = []
+        parity_contexts = []
+
+        def mutate_after_capture(context):
+            callback_contexts.append(copy.deepcopy(context))
+            registry["enrollments"]["browser_time_budgets_ms"][-1] = 5_000
+            return original_fresh(context)
+
+        def record_parity_context(context):
+            parity_contexts.append(copy.deepcopy(context))
+            return original_parity(context)
+
+        configured["evaluate_fresh_final"] = mutate_after_capture
+        configured["evaluate_production_parity"] = record_parity_context
+        result = GATES.run_strength_first_downstream_gates_core_for_tests(
+            registry=registry,
+            authorization=authorization,
+            **configured,
+        )
+
+        self.assertEqual(
+            registry["enrollments"]["browser_time_budgets_ms"],
+            [800, 2_000, 5_000],
+        )
+        self.assertEqual(result["downstream_registry"], expected_identity)
+        self.assertEqual(
+            callback_contexts[0]["downstream_registry"],
+            expected_identity,
+        )
+        self.assertEqual(
+            parity_contexts[0]["expected_measured_inputs"][
+                "browser_time_budgets_ms"
+            ],
+            [800, 2_000, 4_000],
+        )
+        for receipt in result["receipts"].values():
+            self.assertEqual(
+                receipt["downstream_registry"],
+                expected_identity,
+            )
+
     def test_valid_core_emits_exact_five_pass_receipts_without_live_authority(self):
         result = self.run_valid()
 
@@ -411,6 +596,10 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         self.assertTrue(result["formal_ab_enrollment_ready"])
         self.assertFalse(result["production_weight_write_authorized"])
         self.assertFalse(result["live_weights_changed"])
+        self.assertEqual(
+            result["downstream_registry"]["schema"],
+            GATES.DOWNSTREAM_REGISTRY_CANONICAL_IDENTITY_SCHEMA,
+        )
         for role, receipt in result["receipts"].items():
             self.assertEqual(receipt["status"], "pass")
             self.assertFalse(receipt["production_weight_write_authorized"])
@@ -419,6 +608,10 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 GATES._EVIDENCE_SCHEMAS[role],
             )
             self.assertEqual(len(receipt["measured_inputs_sha256"]), 64)
+            self.assertEqual(
+                receipt["downstream_registry"],
+                result["downstream_registry"],
+            )
 
     def test_plain_evaluator_mapping_cannot_issue_a_receipt(self):
         registry = ready_registry()
@@ -503,6 +696,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         registry = ready_registry()
         result, observations = self.run_valid_details(registry)
         mutations = (
+            lambda value: value["downstream_registry"].update(
+                {"bytes": value["downstream_registry"]["bytes"] + 1}
+            ),
             lambda value: value["receipts"]["retention"]["gates"].update(
                 {"value_mae_cp": "candidate-always-passes"}
             ),
@@ -598,6 +794,27 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 verified_evidence=bundle,
             )
 
+    def test_evidence_bundle_issuer_rejects_cross_registry_authorization(self):
+        registry = ready_registry()
+        _, observations = self.run_valid_details(registry)
+        authorization = GATES._issue_candidate_selection_authorization_for_tests(
+            registry,
+            selected_seed=43,
+        )
+        other = copy.deepcopy(registry)
+        other["enrollments"]["fresh_final_holdout"]["sha256"] = digest("d")
+        GATES.validate_downstream_registry_data(other)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "authorization registry snapshot mismatch",
+        ):
+            GATES._issue_verified_downstream_evidence_bundle_for_tests(
+                registry=other,
+                authorization=authorization,
+                observations=observations,
+            )
+
     def test_stored_result_does_not_synthesize_parity_verification(self):
         registry = ready_registry()
         result, _ = self.run_valid_details(registry)
@@ -636,7 +853,90 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         ):
             self.evidence_bundle(registry, observations)
 
-    def test_fresh_final_failure_stops_before_every_later_reader(self):
+    def test_live_core_rejects_reused_evidence_path_before_any_receipt(self):
+        registry = ready_registry()
+        authorization = GATES._issue_candidate_selection_authorization_for_tests(
+            registry,
+            selected_seed=42,
+        )
+        configured, _ = verified_callbacks(
+            registry,
+            selected_seed=42,
+            evidence_paths={
+                "fresh_final_holdout": "evidence/reused.json",
+                "legacy_final_holdout": "evidence/reused.json",
+            },
+        )
+
+        with mock.patch.object(
+            GATES,
+            "_final_holdout_receipt",
+            wraps=GATES._final_holdout_receipt,
+        ) as receipt_builder:
+            with self.assertRaisesRegex(ValueError, "pairwise distinct"):
+                GATES.run_strength_first_downstream_gates_core_for_tests(
+                    registry=registry,
+                    authorization=authorization,
+                    **configured,
+                )
+
+        receipt_builder.assert_not_called()
+
+    def test_five_evidence_hashes_must_also_be_pairwise_distinct(self):
+        observations = {
+            role: {
+                "evidence": {
+                    "path": f"evidence/{role}.json",
+                    "sha256": digest(str(index + 1)),
+                }
+            }
+            for index, role in enumerate(GATES._EVALUATION_ROLES)
+        }
+        observations["legacy_final_holdout"]["evidence"]["sha256"] = (
+            observations["fresh_final_holdout"]["evidence"]["sha256"]
+        )
+
+        with self.assertRaisesRegex(ValueError, "pairwise distinct"):
+            GATES._require_pairwise_distinct_observation_evidence(
+                observations
+            )
+
+    def test_live_core_rejects_reused_evidence_hash_before_any_receipt(self):
+        class FixedHash:
+            def hexdigest(self):
+                return digest("f")
+
+        registry = ready_registry()
+        with mock.patch.object(
+            GATES.hashlib,
+            "sha256",
+            side_effect=lambda _raw=b"": FixedHash(),
+        ):
+            authorization = (
+                GATES._issue_candidate_selection_authorization_for_tests(
+                    registry,
+                    selected_seed=42,
+                )
+            )
+            configured, _ = verified_callbacks(
+                registry,
+                selected_seed=42,
+            )
+            with mock.patch.object(
+                GATES,
+                "_final_holdout_receipt",
+                wraps=GATES._final_holdout_receipt,
+            ) as receipt_builder:
+                with self.assertRaisesRegex(ValueError, "pairwise distinct"):
+                    GATES.run_strength_first_downstream_gates_core_for_tests(
+                        registry=registry,
+                        authorization=authorization,
+                        **configured,
+                    )
+
+        receipt_builder.assert_not_called()
+
+    def test_fresh_final_failure_stops_receipts_after_all_evidence_reads(self):
         registry = ready_registry()
         authorization = GATES._issue_candidate_selection_authorization_for_tests(
             registry
@@ -649,25 +949,46 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             selected_seed=42,
             results=failed,
         )
-        for name in (
-            "evaluate_legacy_final",
-            "evaluate_retention",
-            "evaluate_known_regression",
-            "evaluate_production_parity",
-        ):
-            configured[name] = lambda _context, name=name: calls.append(name)
-
-        with self.assertRaisesRegex(
-            GATES.DownstreamGateFailed,
-            "fresh_final_holdout",
-        ):
-            GATES.run_strength_first_downstream_gates_core_for_tests(
-                registry=registry,
-                authorization=authorization,
-                **configured,
+        for name, callback in tuple(configured.items()):
+            configured[name] = (
+                lambda context, name=name, callback=callback: (
+                    calls.append(name),
+                    callback(context),
+                )[1]
             )
 
-        self.assertEqual(calls, [])
+        with mock.patch.object(
+            GATES,
+            "_final_holdout_receipt",
+            wraps=GATES._final_holdout_receipt,
+        ) as final_builder:
+            with mock.patch.object(
+                GATES,
+                "_retention_receipt",
+                wraps=GATES._retention_receipt,
+            ) as later_builder:
+                with self.assertRaisesRegex(
+                    GATES.DownstreamGateFailed,
+                    "fresh_final_holdout",
+                ):
+                    GATES.run_strength_first_downstream_gates_core_for_tests(
+                        registry=registry,
+                        authorization=authorization,
+                        **configured,
+                    )
+
+        self.assertEqual(
+            calls,
+            [
+                "evaluate_fresh_final",
+                "evaluate_legacy_final",
+                "evaluate_retention",
+                "evaluate_known_regression",
+                "evaluate_production_parity",
+            ],
+        )
+        self.assertEqual(final_builder.call_count, 1)
+        later_builder.assert_not_called()
 
     def test_retention_uses_preregistered_floors(self):
         registry = ready_registry()

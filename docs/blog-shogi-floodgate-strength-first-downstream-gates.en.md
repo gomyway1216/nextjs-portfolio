@@ -2,7 +2,7 @@
 
 > On July 19, 2026, we implemented contracts for the final-holdout, retention,
 > known-regression, and production-browser-parity receipts used after three-seed training
-> and candidate selection. Twenty-nine focused tests passed. **This is not a training result.
+> and candidate selection. Thirty-eight focused tests passed. **This is not a training result.
 > It is the downstream decision boundary that prevents a weaker candidate from being called
 > stronger and entering formal A/B.** Real candidate-selection receipts and artifact
 > identities do not exist yet, so the production entry stops before opening holdout labels
@@ -21,8 +21,8 @@
 | final-holdout label reads | 0 |
 | real downstream receipts / formal A/B games | 0 / 0 |
 | production / live-weight changes | 0 / 0 |
-| focused unit tests | 29/29 PASS in 0.035 seconds |
-| full suite / independent rereview | not run / pending |
+| focused unit tests | 38/38 PASS in 0.076 seconds |
+| full suite / independent rereview | not run / PASS (P0/P1/P2 = 0/0/0) |
 
 The entry point verifies the fixed registry and the bytes of the existing protocols it
 references. The registry currently contains no identity for a candidate-selection receipt,
@@ -56,8 +56,10 @@ fail:
 
 Fresh and legacy final results are separate receipts, so passing one cannot substitute for
 the other. Retention requires both general and opening results. One `P*8f` observation stops
-before the browser-parity reader. All five passes may prepare formal A/B enrollment, but
-production-weight write and live activation remain false.
+later receipts and formal readiness. The live core first collects all five authenticated
+evidence envelopes and requires their paths and SHA-256 values to be pairwise distinct
+before it starts building any receipt. All five passes may prepare formal A/B enrollment,
+but production-weight write and live activation remain false.
 
 This change therefore improves playing strength by zero on its own. Its role is to make sure
 only a genuinely stronger retrained candidate reaches formal games. It was prepared in a
@@ -83,10 +85,22 @@ and WASM cannot merely have the same four-field shape. Paths and SHA-256 values 
 12 identities must also be pairwise distinct, preventing one dataset or binary from being
 relabelled as another role.
 
+Candidate selection also does not reuse the existing WCSC36 warm/scratch six-run receipt.
+Its dedicated schema is warm-only and fixes seeds 42/43/44, exactly three `final.pt`
+artifacts, the strength-first plan/training-result/checkpoint schemas, stable recomputation
+on the same fresh selection, the metric order, four per-seed gates, the median-ranked seed,
+the two-of-three family gate, every seed's quantization-delta gates, and one evaluation per
+checkpoint. It is explicitly incompatible with the legacy six-run receipt.
+
 A plain JSON mapping still cannot open a reader. The future production adapter must consume
 a typed one-shot authorization issued only when candidate selection succeeds. That adapter
 has not landed yet, so rewriting only the registry into a ready-looking shape would still
-STOP. An evaluator also cannot return a plain metric mapping. Its one-shot verified
+STOP. At issue time the authorization captures canonical bytes and a SHA-256 identity for
+the entire registry, including every role, browser budget, and the selection contract. A
+different registry is rejected before the first reader. After capture, every callback gets
+role-specific expected inputs from the immutable snapshot and every receipt uses that same
+snapshot, so mutating the caller's registry in flight cannot change the result. An evaluator
+also cannot return a plain metric mapping. Its one-shot verified
 observation binds an exact integer selected seed, selection receipt, candidate/stable
 checkpoints and weights, and the dataset, fixture, worker/WASM, or browser budgets actually
 measured. Any difference from the registry stops before a receipt. The observation body is
@@ -96,12 +110,14 @@ is a contract fixture, not a real candidate, holdout evaluation, or receipt.
 ## Revalidating receipts after storage
 
 Every receipt binds the candidate-selection receipt and both candidate/stable checkpoint and
-weight digests, plus the evaluation-evidence identity and measured-input digest. Stored
+weight digests, plus the entire registry's canonical identity, the evaluation-evidence
+identity, and the measured-input digest. Stored
 metrics and stored `path_verified=true` values are never reused as authority. Revalidation
 also consumes candidate-selection authorization and requires a registry-bound one-shot
-bundle issued after production evidence IO separately rereads the original evidence. Only a
-test issuer exists now; there is no production path that can validate a self-asserted stored
-result.
+bundle issued after production evidence IO separately rereads the original evidence.
+Issuing a bundle with an authorization from another registry and consuming a bundle under
+another registry are both rejected. Only a test issuer exists now; there is no production
+path that can validate a self-asserted stored result.
 
 All five receipts are rebuilt from that separately verified bundle. Tests reject changes to
 retention gate text, the candidate-weight digest, a stored metric, or top-level weight
@@ -114,14 +130,17 @@ writes no receipt file.
 
 ## Validation and non-claims
 
-The focused stdlib suite passed 29/29 in 0.035 seconds. Python compilation and the diff check
-also passed. Coverage includes the closed registry, wrong role schemas and reused identities,
+The focused stdlib suite passed 38/38 in 0.076 seconds. Python compilation and registry JSON
+checks also passed. Coverage includes the closed registry, wrong role schemas and reused identities,
 protocol-byte drift, plain candidate/evaluator/stored-evidence mappings, one-shot tokens, a
 different measured dataset, changed stored metrics, false browser-path verification,
 evidence-content tampering, float seeds, empty or malformed USI bestmoves, each gate
-boundary, early stop, all five receipts, canonical paths, and the argumentless STOP. The
-identity/provenance findings from the first independent review are fixed; resource-wide
-tests and independent rereview remain pending.
+boundary, all five receipts, canonical paths, the argumentless STOP, legacy six-run schema
+collisions, cross-registry tokens and bundles, in-callback registry mutation, and live
+evidence path/hash collisions. Because all five evidence envelopes are authenticated first,
+a gate failure stops later receipts and formal readiness, not later readers. The three
+findings from the second independent review are fixed, and the independent final rereview
+reported P0/P1/P2 = 0/0/0. The resource-wide suite remains pending.
 
 This change used local tests only. It used no AWS, GCP/Firebase, Vercel, or network service.
 It is not evidence of teacher generation, three-seed training, candidate selection, holdout

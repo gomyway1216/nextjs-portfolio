@@ -1,7 +1,7 @@
 # Strength-first候補の下流棋力ゲートを準備
 
 > 2026年7月19日、3-seed学習と候補選抜の後に使う、final holdout・retention・
-> known regression・本番browser parityの受領証contractを実装し、29件のfocused testで
+> known regression・本番browser parityの受領証contractを実装し、38件のfocused testで
 > 検証した。**これは評価関数を学習した結果ではなく、弱い候補を「強くなった」と誤認して
 > formal A/Bへ進めないための下流判定である。** 実候補選抜受領証と実artifact identityは
 > まだ存在しないため、production入口はholdout labelや評価器を開く前にexpected STOPとなる。
@@ -20,8 +20,8 @@
 | final holdout label read | 0 |
 | 実下流受領証 / formal A/B | 0 / 0 |
 | production / live weight変更 | 0 / 0 |
-| focused unit test | 29 / 29 PASS（0.035秒） |
-| full suite / 独立rereview | 未実施 / pending |
+| focused unit test | 38 / 38 PASS（0.076秒） |
+| full suite / 独立rereview | 未実施 / PASS（P0 / P1 / P2 = 0 / 0 / 0） |
 
 実行入口は固定registryと、そのregistryが参照する既存protocolのbytesを確認する。現在の
 registryにはcandidate selection receipt、candidate / stable checkpoint、candidate / stable
@@ -51,9 +51,11 @@ python3 ml/strength_first_downstream_gates.py
 | production parity | 学習候補とWeb実行物のずれ | exact candidate weight、固定worker / WASM、全時間枠で合法手・時間内、console/runtime error 0 |
 
 freshとlegacyは別々の受領証なので、片方を通っただけでは次へ進めない。retentionもgeneralと
-openingの両方が必要である。known regressionで一つでも`P*8f`が出れば、その時点でbrowser
-parity readerまで進まない。5つ全部を通過して初めてformal A/B enrollmentを準備できるが、
-それでもproduction weight writeとlive変更はfalseのままである。
+openingの両方が必要である。live coreはまず5 evaluatorの認証済みevidenceをすべて集め、
+5つのpathとSHA-256がそれぞれpairwise distinctであることを確認してから受領証判定を始める。
+known regressionで一つでも`P*8f`が出れば後続の受領証とformal readinessは作らない。
+5つ全部を通過して初めてformal A/B enrollmentを準備できるが、それでもproduction weight
+writeとlive変更はfalseのままである。
 
 したがって、この変更自体の直接的な棋力向上は0である。一方で、再学習後に「本当に強い候補」
 だけを正式対局へ送るための必要な測定経路を、teacher生成・学習本体とは別laneで先に用意した。
@@ -76,9 +78,19 @@ int16 weight、fresh / legacy / retention dataset、fixture、worker、WASMそ�
 要求する。全12 identityのpathとSHA-256もpairwise distinctでなければならず、fresh datasetを
 legacyやretentionとして再利用したり、workerとWASMを同じidentityで登録したりできない。
 
+候補選抜contractも既存WCSC36のwarm / scratch 6-run受領証を再利用しない。専用schemaは
+warm-onlyのseed 42 / 43 / 44、3つの`final.pt`、strength-first plan / training-result /
+checkpoint schema、同じfresh selection上でのstable再計測、固定metric順、4つのper-seed gate、
+中央seed、2 / 3 family gate、全seedの量子化delta gate、各checkpoint 1評価をexactに固定し、
+旧6-run受領証とは非互換である。
+
 さらに、普通のJSON mappingでは下流readerを開けない。candidate-selection laneが成功時だけ
-発行する、型付きの一回限りauthorizationをproduction adapterが消費する必要がある。この
-adapterはまだ未完成なので、仮にregistryだけをready形へ書き換えてもproduction入口はSTOPする。
+発行する、型付きの一回限りauthorizationをproduction adapterが消費する必要がある。発行時に
+全role、browser時間枠、候補選抜contractを含むregistry全体をcanonical bytes / SHA-256へ固定し、
+消費時のregistryが完全一致しなければ最初のreader前に拒否する。固定後はcaller側のregistryが
+途中で書き換わっても、各callbackへ渡すrole-specific expected inputと全受領証はimmutable
+snapshotだけから作る。このadapterはまだ未完成なので、仮にregistryだけをready形へ書き換えても
+production入口はSTOPする。
 各evaluatorもplain metric mappingを返せず、一回限りのverified observationが必要である。
 observationはintegerのselected seed、candidate-selection receipt、candidate / stableの
 checkpoint / weight、対象dataset / fixture / worker / WASM / browser時間枠を明示し、registryの
@@ -89,11 +101,13 @@ content-addressed evidence identityへ結び付く。今回のtest-only issuer�
 ## 受領証を保存後にも再検証
 
 各受領証はcandidate selection receipt、candidate / stable checkpoint、candidate / stable
-weightのdigestに加え、評価evidence identityとmeasured-input digestを持つ。保存済みaggregate
+weightのdigestに加え、registry全体のcanonical identity、評価evidence identityと
+measured-input digestを持つ。保存済みaggregate
 resultのmetricや`path_verified=true`を権限として再利用しない。再検証にはcandidate-selection
 authorizationも消費し、production evidence IOが元evidenceを別に読み直して発行する
-registry-boundの一回限りbundleが必要である。現在はtest-only issuerだけでproduction issuerは
-未実装なので、実保存結果を自己申告だけで通す経路はない。
+registry-boundの一回限りbundleが必要である。authorizationを別registryでbundle化する操作と、
+bundleを別registryで消費する操作はどちらも拒否する。現在はtest-only issuerだけでproduction
+issuerは未実装なので、実保存結果を自己申告だけで通す経路はない。
 
 別認証済みbundleから5受領証を再構成し、保存後にretention gate文言、candidate weight digest、
 metric、top-level weight authorityのいずれかを変えた場合は完全一致に失敗する。bundle側で
@@ -104,13 +118,15 @@ canonical relative pathだけを許し、absolute path、parent traversal、back
 
 ## validationと非主張
 
-focused stdlib 29 / 29を0.035秒でPASSし、Python compile checkとdiff checkもPASSした。
+focused stdlib 38 / 38を0.076秒でPASSし、Python compile checkとregistry JSON checkもPASSした。
 対象はclosed registry、role schema / identity再利用、protocol byte drift、plain candidate /
 evaluator / stored-evidence mappingによる権限偽装、一回限りtoken、別dataset計測、保存metric改ざん、
 偽のbrowser path verification、evidence content改ざん、float seed、空または不正なUSI bestmove、
-各gateの境界値、早期停止、全5受領証、canonical path、argumentless STOPを含む。最初の独立reviewで
-見つかったidentity / provenanceの指摘は修正したが、rereviewとresourceを広く使うfull suiteは
-pendingである。
+各gateの境界値、全5受領証、canonical path、argumentless STOPに加え、旧6-run schema衝突、
+cross-registry token / bundle、callback中のregistry書換え、live evidence path / hash衝突を含む。
+5 evidenceを先に認証するため、gate failureが止めるのは後続readerではなく後続receipt / formal
+readinessである。2回目の独立reviewで見つかった3点を修正し、独立最終rereviewは
+P0 / P1 / P2 = 0 / 0 / 0だった。resourceを広く使うfull suiteはpendingである。
 
 この変更はlocal testだけで完結し、AWS、GCP / Firebase、Vercel、networkを使っていない。
 teacher生成、3-seed学習、candidate selection、holdout評価、formal A/B、外部校正、棋力向上、

@@ -15,6 +15,43 @@
       "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
     }
   },
+  "candidate_selection_contract": {
+    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
+    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+    "series": "warm",
+    "seeds": [42, 43, 44],
+    "run_count": 3,
+    "candidate_artifact": "final.pt",
+    "selection": {
+      "precondition": "all-three-final-checkpoints-and-results-strict-load-before-first-selection-label-read",
+      "stable_recomputed_on_same_fresh_selection": true,
+      "metric_order": [
+        "int16-pair-accuracy:max",
+        "int16-teacher-top1:max",
+        "int16-value-mae-cp:min",
+        "seed:ascending",
+        "checkpoint-sha256:ascending"
+      ],
+      "representative": "median-ranked-seed",
+      "per_seed_gates": [
+        "int16-pair-accuracy-strictly-above-stable",
+        "int16-top1-at-least-stable",
+        "absolute-float-to-int16-pair-delta-at-most-0.002",
+        "absolute-float-to-int16-top1-delta-at-most-0.005"
+      ],
+      "family_gate": {
+        "representative_passes_all_four": true,
+        "minimum_seeds_passing_all_four": 2,
+        "all_seeds_pass_both_quantization_delta_gates": true
+      },
+      "evaluations_per_checkpoint": 1,
+      "used_wcsc36_selection_reopened": false
+    },
+    "warm_only": true,
+    "wcsc36_six_run_receipt_compatible": false
+  },
   "enrollments": {
     "candidate_selection_receipt": null,
     "candidate_checkpoint": null,

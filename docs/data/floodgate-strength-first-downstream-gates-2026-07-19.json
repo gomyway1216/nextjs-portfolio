@@ -25,6 +25,7 @@
     "future_ready_role_schemas_exact": true,
     "future_ready_role_paths_pairwise_distinct": true,
     "future_ready_role_sha256_values_pairwise_distinct": true,
+    "exact_candidate_selection_contract_required": true,
     "production_weight_write_authorized": false,
     "live_weight_write_authorized": false,
     "placeholder_or_invented_real_identities_allowed": false
@@ -43,9 +44,33 @@
   "candidate_authority": {
     "plain_mapping_accepted": false,
     "typed_one_shot_authorization_required": true,
+    "entire_registry_canonical_identity_bound": true,
+    "all_roles_budgets_and_contract_bound": true,
+    "immutable_captured_snapshot_used_by_callbacks_and_receipts": true,
+    "role_specific_expected_inputs_passed_to_callbacks": true,
+    "cross_registry_token_rejected_before_reader": true,
+    "caller_registry_toctou_mutation_cannot_change_result": true,
     "production_adapter_landed": false,
     "ready_registry_identity_code_pinned": false,
     "test_only_issuer_counted_as_real": false
+  },
+  "candidate_selection_contract": {
+    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+    "legacy_wcsc36_receipt_schema": "shogi-sibling-candidate-selection-receipt-v1",
+    "legacy_wcsc36_six_run_receipt_compatible": false,
+    "series": "warm",
+    "seeds": [42, 43, 44],
+    "run_count": 3,
+    "candidate_artifact": "final.pt",
+    "strength_first_training_plan_result_and_checkpoint_schemas_bound": true,
+    "full_fresh_qat_required_selection_contract_bound": true,
+    "same_fresh_selection_stable_recompute_required": true,
+    "four_per_seed_gates_required": true,
+    "median_ranked_seed_required": true,
+    "minimum_seeds_passing_all_four": 2,
+    "all_seeds_pass_both_quantization_delta_gates": true,
+    "evaluations_per_checkpoint": 1,
+    "used_wcsc36_selection_reopened": false
   },
   "evaluator_authority": {
     "plain_metric_mapping_accepted": false,
@@ -53,6 +78,9 @@
     "exact_integer_selected_seed_required": true,
     "all_measured_input_identities_bound": true,
     "role_specific_content_addressed_evidence_bound": true,
+    "all_five_observations_authenticated_before_any_receipt": true,
+    "live_evidence_paths_pairwise_distinct": true,
+    "live_evidence_sha256_values_pairwise_distinct": true,
     "production_observation_or_evidence_issuer_landed": false,
     "test_only_issuer_counted_as_real": false
   },
@@ -82,7 +110,8 @@
       "timed_budgets_ms": [800, 2000, 4000],
       "runs_per_budget": 3,
       "nonempty_usi_bestmove_grammar_required": true,
-      "one_failure_stops_later_readers": true
+      "one_failure_stops_later_receipts_and_formal_readiness": true,
+      "one_failure_stops_phase_one_evidence_readers": false
     },
     "production_parity": {
       "exact_candidate_weight_required": true,
@@ -98,6 +127,7 @@
     "all_receipts_reconstructed_from_stored_metrics": false,
     "branded_registry_bound_evidence_bundle_required": true,
     "candidate_selection_authorization_consumed_by_evidence_bundle": true,
+    "cross_registry_evidence_bundle_issuance_rejected": true,
     "cross_registry_evidence_bundle_rejected": true,
     "stored_path_verified_true_synthesized": false,
     "evaluation_evidence_identity_bound_in_each_receipt": true,
@@ -116,13 +146,14 @@
     "focused_stdlib": {
       "command": "python3 -m unittest ml.tests_stdlib.test_strength_first_downstream_gates",
       "status": "PASS",
-      "tests": 29,
-      "elapsed_seconds_reported_by_unittest": 0.035
+      "tests": 38,
+      "elapsed_seconds_reported_by_unittest": 0.076
     },
     "python_compile": "PASS",
+    "registry_json": "PASS",
     "diff_check": "PASS",
     "full_suite": "NOT_RUN_SCOPED_LANE",
-    "independent_review": "P1_IDENTITY_AND_PROVENANCE_FINDINGS_FIXED_REREVIEW_PENDING"
+    "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0"
   },
   "observed_real_counts": {
     "teacher_runs_started_by_this_lane": 0,

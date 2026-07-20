@@ -51,6 +51,15 @@
         "completed_within_formal_600000ms_limit": true
       }
     },
+    "first_v7_timeout_parent_fresh_full_label_hash_512": {
+      "total_elapsed_ms": 51379,
+      "candidate_count": 12,
+      "proposal_nodes": 37909321,
+      "aggregate_independent_rescore_nodes": 9745451,
+      "timeout_ms_per_search": 600000,
+      "completed": true,
+      "fresh_hash_512_candidate_set_not_v7_candidate_migration": true
+    },
     "second_v7_timeout_parent_full_label": {
       "hash_64": {
         "total_elapsed_ms": 1007432,
@@ -122,16 +131,24 @@
     },
     "timeout_ms_per_search": 600000,
     "timeout_skip_limit_formula": "ceil(target_parents/1000)",
-    "target_order": [
-      100,
-      500,
-      24000
-    ],
+    "target_order": [100, 500, 24000],
     "full_input_reauthentication": true,
     "v7_work_or_labels_reused": false,
     "v7_to_v8_migration_authorized": false,
     "reason_no_migration": "hash-size-is-search-state-and-label-policy-input-bound-into-the-run-fingerprint",
-    "downstream_training_bridge_accepts": "v8-path-and-v2-postflight-result-only"
+    "downstream_training_bridge_status": "existing-v7-v1-bridge-rejects-v8-fail-closed-pending-separate-provenance-pr",
+    "execution_authority": {
+      "contract": "shogi-floodgate-strength-first-v8-teacher-authority-v1",
+      "legacy_v1_asset_receipt_is-nested-and-unchanged": true,
+      "legacy_v1_hash_mb_per_engine": 64,
+      "v8_hash_mb_per_engine": 512,
+      "raw_legacy_v1_receipt_accepted": false,
+      "top_policy_and-nested-provenance_must-match": true,
+      "nested_assets_match_static-production-registry": true,
+      "nested_engine-metadata-owner-and-postverification-pinned": true,
+      "untrusted-receipt-is-captured-as-canonical-deep-frozen-data": true,
+      "proxy-accessor-symbol-hidden-and-custom-prototype-rejected": true
+    }
   },
   "unchanged": [
     "exact-authenticated-24000-parent-input",
@@ -152,6 +169,25 @@
     "requires_empty-new-v8-output-root": true,
     "requires_private-v7-failure-and-diagnostic-receipt": true,
     "live_weights_may_change": false
+  },
+  "independent_diagnostic_audit": {
+    "status": "PASS",
+    "scope": "v7-failure-artifacts-and-v8-search-configuration-only",
+    "implementation_security_review_complete": false,
+    "recommended_parallel_engines": 12,
+    "recommended_threads_per_engine": 1,
+    "recommended_depth": 16,
+    "recommended_proposal_multipv": 12,
+    "recommended_hash_mb_per_engine": 512,
+    "recommended_timeout_ms_per_search": 600000,
+    "recommended_timeout_skip_divisor": 1000,
+    "recommended_timeout_skip_caps": {
+      "100": 1,
+      "500": 1,
+      "24000": 24
+    },
+    "fresh_v8_root_schema_and_fingerprint_required": true,
+    "v7_reuse_reseal_or_migration_allowed": false
   },
   "claim_boundary": "v8-recovery-protocol-and-code-candidate-only-not-teacher-completion-training-result-playing-strength-or-live-promotion-evidence"
 }

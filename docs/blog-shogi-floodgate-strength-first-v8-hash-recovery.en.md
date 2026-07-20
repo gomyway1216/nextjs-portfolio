@@ -6,30 +6,38 @@
 
 v7 authenticated all 24,000 training parents and completed its 100-parent milestone. It later stopped on the second search timeout inside the 500-parent prefix. The registered timeout-skip allowance at 500 was one, so the runner failed closed without saving the second timeout as either a label or another skip.
 
-| v7 state at exit | Measurement |
-| --- | ---: |
-| `work.jsonl` | 500 records including its header; 6,818,743 bytes |
-| Non-timeout parent entries | 498 |
-| Persisted timeout skips | 1 |
-| Second timeout entry / partial label | 0 / 0 |
-| Milestone 100 / 500 | Complete / incomplete |
-| Final result / training / live changes | None / not started / 0 |
+| v7 state at exit                       |                                       Measurement |
+| -------------------------------------- | ------------------------------------------------: |
+| `work.jsonl`                           | 500 records including its header; 6,818,743 bytes |
+| Non-timeout parent entries             |                                               498 |
+| Persisted timeout skips                |                                                 1 |
+| Second timeout entry / partial label   |                                             0 / 0 |
+| Milestone 100 / 500                    |                             Complete / incomplete |
+| Final result / training / live changes |                            None / not started / 0 |
 
 Every runner and YaneuraOu process was reaped. The retained lock file is not an active lock; retaining that private inode is the normal locking protocol.
 
-## The problem was pathological search growth with a 64 MB TT, not unused CPU
+## The tail growth was hash-sensitive and consistent with TT pressure
 
-Twelve one-thread YaneuraOu processes were already running concurrently. Under the formal `USI_Hash=64` setting, however, a few depth-16 searches repeatedly collided and replaced transposition-table entries and ran beyond 600 seconds. Adding more parallel jobs cannot accelerate one pathological single-thread search.
+Twelve one-thread YaneuraOu processes were already running concurrently. Under the formal
+`USI_Hash=64` setting, a few depth-16 searches ran beyond 600 seconds, while larger hashes
+sharply reduced nodes and elapsed time on the known cases. We did not record `hashfull` or
+collision counters, so TT collision/pressure is a mechanism consistent with the measurements,
+not a directly measured cause. Under the current fixed one-thread policy, adding worker
+processes does not shorten the one tail search. Changing `Threads` would be a different search
+protocol and fingerprint; the concurrent diagnostics already reached 1,258% aggregate CPU.
 
 We reran only the two v7-stopping positions with the same pinned engine, evaluation data, and depth 16 from private temporary directories. Positions, parent identities, and candidate moves remain private.
 
-| Diagnostic | Hash 64 | Hash 256 | Hash 512 |
-| --- | ---: | ---: | ---: |
-| First independent rescore | 870.566 s / 707,909,200 nodes | 132.162 s / 130,950,979 nodes | 157.325 s / 162,457,860 nodes |
-| Full label for the second parent | Still incomplete after 1,007.432 s; 900 s rescore timeout | 88.063 s | 70.316 s |
-| Aggregate for nine normal positions | — | 212.208 s | 206.092 s |
+| Diagnostic                          |                                                   Hash 64 |                      Hash 256 |                      Hash 512 |
+| ----------------------------------- | --------------------------------------------------------: | ----------------------------: | ----------------------------: |
+| First independent rescore           |                             870.566 s / 707,909,200 nodes | 132.162 s / 130,950,979 nodes | 157.325 s / 162,457,860 nodes |
+| Full label for the second parent    | Still incomplete after 1,007.432 s; 900 s rescore timeout |                      88.063 s |                      70.316 s |
+| Aggregate for nine normal positions |                                                         — |                     212.208 s |                     206.092 s |
 
-Hash 256 was faster on the first case. Hash 512 was 2.882% faster across the nine normal positions and 20.153% faster on the second failed parent. Both 256 and 512 completed the two known failures within the formal 600-second bound. These measurements do not prove that every future timeout has been eliminated.
+We also ran a fresh full label for the first parent at Hash 512, starting from proposal generation and rescoring every newly proposed candidate. It completed twelve candidates in 51.379 seconds, with 37,909,321 proposal nodes and 9,745,451 aggregate independent-rescore nodes, then left no engine or temporary directory. This is a new Hash-512 candidate set, not a rescore or migration of the old v7 candidates.
+
+Hash 256 was faster when directly rescoring only the old move from the first case. Hash 512 was 2.882% faster across the nine normal positions and 20.153% faster on the second failed parent. Fresh full labeling completed both known parents in 51.379 and 70.316 seconds. These measurements do not prove that every future timeout has been eliminated.
 
 ## v8 fixes `512 MB × 12 processes`
 
@@ -56,15 +64,30 @@ The implementation enforces that separation:
 
 - New output root `~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`
 - v2 runner, milestone, result, and public-receipt schemas
-- The downstream training bridge rejects the v7 path and v1 result
+- An append-only v8 execution authority nests the unchanged v1 Hash-64 asset receipt, while
+  requiring the exact Hash-512 policy at the top level
+- The runner rejects a raw v1 receipt, altered v8 policy, nested v1 contract/runtime drift,
+  or any top-level/nested asset mismatch before authentication or engine work
+- The existing downstream bridge remains fixed to v7/v1 and therefore rejects v8 fail-closed;
+  exact v8 provenance and work validation will be added in a separate reviewed PR
 - Full reauthentication of all 24,000 inputs into an empty v8 root
 - No modification or deletion of the failed v7 artifacts
 
 The public JSON contains only aggregate counts, byte sizes, timings, and protocol configuration. Exact parent identities, positions, moves, and private work/prefix digests stay in a local mode-`0600` receipt that is not committed to Git.
 
+An independent diagnostic audit, scoped to the v7 failure artifacts and v8 search
+configuration, recommended the same values: twelve engines, one thread each, depth 16,
+MultiPV 12, a 512 MB hash, a 600-second timeout, skip caps 1 / 1 / 24, a fresh v8 start, and
+no v7 reuse. It independently rechecked all 500 saved records, all 499 parent-disposition
+checksums and identities, complete absence of the second timeout parent, and zero remaining
+process or lock holder. Implementation review remains a separate pre-merge gate.
+
 ## This is not yet a strength claim
 
-The completed work reproduces the known timeouts, chooses a measured hash setting, and implements an isolated v8 entrypoint, downstream boundary, and regression tests. This change does not launch the formal v8 teacher. That run begins only after review, CI, a regular merge, and capture of the exact clean merged revision.
+The completed work reproduces the known timeouts, chooses a measured hash setting, and implements
+an isolated v8 teacher entrypoint and regression tests. Downstream training remains closed pending
+its separate provenance PR. This change does not launch the formal v8 teacher. That run begins only
+after review, CI, a regular merge, and capture of the exact clean merged revision.
 
 The accurate conclusion today is “a v8 candidate removes the known completion blocker,” not “the AI now plays at a high-dan level.” A strength claim still requires the complete 24,000-parent teacher, three-seed retraining, candidate selection, sealed holdouts, formal paired A/B, and external calibration.
 

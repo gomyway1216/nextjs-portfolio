@@ -1,14 +1,14 @@
 # fresh final教師生成を「候補選抜後だけ」実行可能にした
 
 > 2026年7月20日、固定4,800親局面 / 200局のfresh final holdoutから
-> `final.jsonl`を生成するローカル経路を実装した。現在は候補選抜receiptが存在しないため、
-> 実commandは元データを一度も開かず`STOP`する。棋力向上、高段到達、live weight変更を
+> `final.jsonl`を生成するローカル経路を実装した。公開時点は候補選抜receiptが存在しなかったため、
+> 実commandは元データを一度も開かず`STOP`した。棋力向上、高段到達、live weight変更を
 > 示す結果ではない。English:
 > [blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.en.md](./blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.en.md)
 
 ## 結論
 
-| 項目 | 現在の実測状態 |
+| 項目 | 公開時点の実測状態 |
 | --- | --- |
 | fresh-final generator / runner | 実装・focused validation済み |
 | 選抜済みcandidate | なし |
@@ -25,7 +25,7 @@
 npx tsx ml/run-floodgate-fresh-final-teacher.ts
 ```
 
-現在これを実行するとexit 2になり、`selected-candidate-receipt-not-ready`を返す。観測した
+公開時点の実行はexit 2になり、`selected-candidate-receipt-not-ready`を返した。観測した
 counterはselection registry read 1、それ以外のselection receipt、selection dataset、
 fresh-final source、fresh-final label、teacher process、network、cloud、live writeがすべて
 0だった。
@@ -71,7 +71,7 @@ registryが必要」という循環を作らない。一方、同じuserがrepor
 これはcloud処理ではなくローカルMac上の実行で、AWS、Firebase/GCP、Vercelは使わない。
 
 ただし、既存の13-process優位の計測はMultiPV 12条件であり、このMultiPV 6方針の最適値を
-証明していない。最初の4,800 run前、現在の24,000 runがCPUを解放した後に、fresh finalではない
+証明していない。最初の4,800 run前、当時稼働中の24,000 runがCPUを解放した後に、fresh finalではない
 公開局面を使って同じMultiPV 6条件の12対13を測る。13が実測で速い場合だけ、reviewed policyを
 変更する。このbenchmarkでもfresh-final holdout readは0のままにする。
 

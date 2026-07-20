@@ -38,6 +38,7 @@ import {
   acquireFloodgateStrengthFirstTeacherRunLockCoreForTests,
   floodgateStrengthFirstTeacherPaths,
 } from "./floodgate-strength-first-teacher-runner";
+import { resolveFloodgateStrengthFirstTrainingPython } from "./floodgate-strength-first-training-python";
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 
 export const FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA =
@@ -889,10 +890,9 @@ function subprocessJson(
 async function checkpointPreflight(
   repositoryRoot: string,
 ): Promise<Readonly<FreshSelectionTeacherCheckpointPreflight>> {
-  const localPython = path.join(repositoryRoot, ".venv", "bin", "python3");
-  const executable = fs.existsSync(localPython)
-    ? localPython
-    : "python3";
+  const executable = await resolveFloodgateStrengthFirstTrainingPython(
+    os.homedir(),
+  );
   return (await subprocessJson(
     executable,
     [path.join(repositoryRoot, "ml", "run_strength_first_selection_teacher_preflight.py")],

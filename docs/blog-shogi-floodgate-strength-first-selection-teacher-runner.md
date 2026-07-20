@@ -2,11 +2,11 @@
 
 > 2026年7月20日、固定4,800親 / 200局のfresh selectionへ、3つのcandidate
 > checkpointをstrict-loadした後だけYaneuraOu labelを生成するローカルrunnerを実装した。
-> 現在のcheckpoint registryはまだ閉じているため、実commandはselection sourceを開く前に
-> STOPする。実selection label、候補選抜、live weight変更はすべて0である。English version:
+> 公開時点のcheckpoint registryはまだ閉じていたため、実commandはselection sourceを開く前に
+> STOPした。公開時点の実selection label、候補選抜、live weight変更はすべて0だった。English version:
 > [blog-shogi-floodgate-strength-first-selection-teacher-runner.en.md](./blog-shogi-floodgate-strength-first-selection-teacher-runner.en.md)
 
-## 現在地
+## 公開時点の記録
 
 | 項目 | 状態 |
 | --- | --- |
@@ -45,7 +45,7 @@ npx tsx ml/run-floodgate-fresh-selection-teacher.ts
 取得したv8 lockを解放する。したがってformal v8 / v9のどちらかが稼働中ならcheckpoint、
 selection source、engineへ進まない。process-wideな`umask`は変更しない。
 
-preflightが失敗した場合、source readerとgeneratorは呼ばれない。現在のtracked registryは
+preflightが失敗した場合、source readerとgeneratorは呼ばれない。公開時点のtracked registryは
 training planと3つのfinal result / checkpoint identityがすべて`null`なので、直接preflightは
 stdout 0 byte、exit 1で「registry remains closed」と停止した。STOP確認のためにselection
 source、Torch checkpoint、YaneuraOuを開いていない。

@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-selection-teacher-runner-evidence-v1",
-  "status": "implementation-locally-validated-checkpoint-registry-closed-real-selection-unread-live-unchanged",
+  "status": "implementation-locally-validated-publication-time-checkpoint-registry-closed-real-selection-unread-live-unchanged",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-selection-teacher-runner.md",
@@ -25,7 +25,7 @@
     "dependency_must_be_declared_before_merge": true,
     "nonduplicated_final_diff_must_be_confirmed": true
   },
-  "current_checkpoint_gate": {
+  "checkpoint_gate_observed_at_publication": {
     "registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
     "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
     "artifact_identities_registered": false,

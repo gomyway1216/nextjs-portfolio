@@ -55,6 +55,7 @@ import {
   type FreshSelectionTeacherSearchPolicy,
 } from "./floodgate-fresh-selection-teacher-runner";
 import { acquireFloodgateStrengthFirstTeacherRunLockCoreForTests } from "./floodgate-strength-first-teacher-runner";
+import { resolveFloodgateStrengthFirstTrainingPython } from "./floodgate-strength-first-training-python";
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 
 export const FRESH_FINAL_TEACHER_AUTHORITY_SCHEMA =
@@ -1644,8 +1645,9 @@ export function subprocessJsonCoreForTests(
 async function selectionPreflight(
   repositoryRoot: string,
 ): Promise<Readonly<FreshFinalTeacherSelectionPreflight>> {
-  const localPython = path.join(repositoryRoot, ".venv", "bin", "python3");
-  const executable = fs.existsSync(localPython) ? localPython : "python3";
+  const executable = await resolveFloodgateStrengthFirstTrainingPython(
+    os.homedir(),
+  );
   return (await subprocessJson(
     executable,
     [

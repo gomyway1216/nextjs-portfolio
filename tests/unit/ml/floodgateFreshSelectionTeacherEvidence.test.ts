@@ -26,27 +26,18 @@ const policyPath = path.join(
   repositoryRoot,
   "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json",
 );
-const registryPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
-);
-
 function readJson(file: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
 }
 
 describe("Floodgate strength-first fresh-selection teacher evidence", () => {
-  it("records the closed three-checkpoint gate without claiming a source read", () => {
-    const registry = readJson(registryPath);
-    expect(registry).toMatchObject({
-      status: "awaiting-exact-strength-first-plan-and-three-final-run-identities",
-      artifact_identities_registered: false,
-      selection_preflight_ready: false,
-    });
-    expect(readJson(evidencePath)).toMatchObject({
+  it("records the publication-time gate without asserting current registry state", () => {
+    const evidence = readJson(evidencePath);
+    expect(evidence).not.toHaveProperty("current_checkpoint_gate");
+    expect(evidence).toMatchObject({
       schema:
         "shogi-floodgate-strength-first-selection-teacher-runner-evidence-v1",
-      current_checkpoint_gate: {
+      checkpoint_gate_observed_at_publication: {
         status:
           "awaiting-exact-strength-first-plan-and-three-final-run-identities",
         artifact_identities_registered: false,

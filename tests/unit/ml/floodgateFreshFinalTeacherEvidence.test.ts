@@ -25,36 +25,18 @@ const englishPath = path.join(
   repositoryRoot,
   "docs/blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.en.md",
 );
-const registryPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
-);
-
 function readJson(file: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
 }
 
 describe("Floodgate strength-first fresh-final teacher evidence", () => {
-  it("records the real closed selection gate and exact all-zero STOP counters", () => {
-    expect(readJson(registryPath)).toMatchObject({
-      status: "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
-      gates: {
-        local_selection_evaluation_authorized: false,
-        final_holdout_read_authorized: false,
-        production_weight_write_authorized: false,
-      },
-      nonclaims: {
-        real_candidate_selected: false,
-        final_holdout_label_reads: 0,
-        live_weights_changed: false,
-        strength_improved: false,
-        high_dan_calibrated: false,
-      },
-    });
-    expect(readJson(evidencePath)).toMatchObject({
+  it("records the publication-time STOP without asserting current registry state", () => {
+    const evidence = readJson(evidencePath);
+    expect(evidence).not.toHaveProperty("current_selection_gate");
+    expect(evidence).toMatchObject({
       schema:
         "shogi-floodgate-strength-first-fresh-final-teacher-runner-evidence-v1",
-      current_selection_gate: {
+      selection_gate_observed_at_publication: {
         selected_candidate_receipt_enrolled: false,
         selected_candidate_exists: false,
         downstream_ready_registry_consulted: false,

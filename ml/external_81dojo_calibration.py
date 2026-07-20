@@ -1036,12 +1036,20 @@ def append_local_game(
 
     validate_candidate_protocol(protocol)
     path = Path(ledger_path)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        try:
+            path_info = os.lstat(path)
+        except FileNotFoundError:
+            path_info = None
+        if path_info is not None and stat.S_ISLNK(path_info.st_mode):
+            raise ValueError("ledger path is a symlink")
+        raise OSError("platform lacks atomic symlink-safe ledger open")
     path.parent.mkdir(parents=True, exist_ok=True)
     flags = os.O_RDWR | os.O_APPEND | os.O_CREAT
     if hasattr(os, "O_CLOEXEC"):
         flags |= os.O_CLOEXEC
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    flags |= no_follow
     fd = os.open(path, flags, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
@@ -1104,17 +1112,21 @@ def _cluster_bootstrap(games: Sequence[Mapping]) -> Mapping:
     for game in games:
         clusters[game["opponent_public_id_sha256"]].append(_score_units(game))
     cluster_ids = sorted(clusters)
+    cluster_summaries = [
+        (sum(clusters[cluster_id]), len(clusters[cluster_id]))
+        for cluster_id in cluster_ids
+    ]
     rng = random.Random(BOOTSTRAP_SEED)
     rates: list[float] = []
     cluster_count = len(cluster_ids)
     for _ in range(BOOTSTRAP_REPLICATES):
         units = 0
         game_count = 0
-        for _cluster_index in range(cluster_count):
-            sampled = cluster_ids[rng.randrange(cluster_count)]
-            values = clusters[sampled]
-            units += sum(values)
-            game_count += len(values)
+        for cluster_units, cluster_games in rng.choices(
+            cluster_summaries, k=cluster_count
+        ):
+            units += cluster_units
+            game_count += cluster_games
         rates.append(units / (2 * game_count))
     rates.sort()
     lower_index = BOOTSTRAP_REPLICATES * 25 // 1000

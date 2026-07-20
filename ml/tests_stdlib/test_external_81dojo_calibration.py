@@ -287,6 +287,14 @@ class External81DojoCalibrationTest(unittest.TestCase):
             self.assertEqual(games[1]["previous_entry_sha256"], first["entry_sha256"])
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
 
+            symlink = Path(directory) / "ledger-link.jsonl"
+            symlink.symlink_to(path)
+            with mock.patch.object(calibration.os, "O_NOFOLLOW", None):
+                with self.assertRaisesRegex(ValueError, "path is a symlink"):
+                    calibration.append_local_game(
+                        symlink, self.protocol, fixture_observation(3)
+                    )
+
     def test_complete_receipt_keeps_primary_decision_separate_from_bootstrap(self):
         with mock.patch.object(calibration, "BOOTSTRAP_REPLICATES", 100):
             receipt = calibration.finalize_calibration(
@@ -302,6 +310,10 @@ class External81DojoCalibrationTest(unittest.TestCase):
         self.assertEqual(
             receipt["auxiliary_statistics"]["authority"],
             "report-only-never-primary",
+        )
+        self.assertEqual(
+            receipt["auxiliary_statistics"]["all_games"]["bootstrap_replicates"],
+            100,
         )
         self.assertFalse(receipt["nonclaims"]["bootstrap_authorizes_primary_decision"])
         self.assertFalse(receipt["nonclaims"]["universal_human_rank_established"])

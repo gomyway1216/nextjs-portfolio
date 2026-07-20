@@ -117,6 +117,16 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Unlinked, exact-query browser/Worker parity harness. Keep the
+        // canonical game page static while giving diagnostics the same
+        // cross-origin isolation contract as real play.
+        source: '/games/shogi/engine-parity',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
         // Next build output: CORP so the isolated document can embed it, and
         // COEP so the AI worker's script chunks (turbopack-worker-*.js) load
         // instead of being blocked (see note above).

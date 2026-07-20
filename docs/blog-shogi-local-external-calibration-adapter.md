@@ -79,11 +79,15 @@ P2修正前の`5ff1bb6d`でML unit suite全体を実行し、148 / 149 files、2
 
 実対局結果を見る前に、[pilot request](./data/shogi-local-external-calibration-pilot-request-2026-07-19.json)を1,677 bytes、SHA-256 `37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca`で固定した。平手初期局面、矢倉系、振り飛車系、角交換、相掛かり系、中飛車系の公開標準手順から作った6局面を、それぞれstable先手 / 後手で1局ずつ、合計12局・最大12並列で実行する。探索条件はstable depth 11、YaneuraOu depth 16、各600秒technical timeout、最大8手で固定した。
 
-これはadapterと固定assetが12並列で完走できるかを見るtechnical pilotである。8手上限のため全局drawでも不思議ではなく、勝率・Elo・段位・高段を評価する実験ではない。request review、exact private assetのread-only preflight、writer閉鎖確認が揃うまで実engineは開始しない。
+これはadapterと固定assetが12並列で完走できるかを見るtechnical pilotである。8手上限のため全局drawでも不思議ではなく、勝率・Elo・段位・高段を評価する実験ではない。
+
+独立request reviewは、request file identity、6本のsource move列からのSFEN、opening ID、重複なし、12局schedule、validatorを再導出し、P0 / P1 / P2 = 0 / 0 / 0でPASSした。run IDは末尾NULを含む46-byte domain `shogi-local-external-calibration-pilot-run-v1\0`と、`run_id`を除く1,372-byte canonical body（SHA-256 `0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1`）を連結してSHA-256を取った値である。
+
+exact private assetのread-only preflightもPASSした。YaneuraOu、64,217,066-byte eval、stable weights / WASM / workerは固定identityと一致し、exact tree、private directory、stable read後の再検証もすべてtrueだった。adapterにはfilesystem / network / live weight / holdout / production-result writerがなく、pilot wrapperが許可される出力はprivate control directoryのPID、開始metadata、local log、全局完走receiptまたはW/D/Lを含まないfailure recordだけである。これでtechnical pilotの3事前gateはPASSした。
 
 ## 次のgate
 
-実YaneuraOu pilotは、次を満たすまで開始しない。
+実YaneuraOu pilotの開始条件は次であり、今回の固定12局technical pilotではすべてPASSした。
 
 1. codeの独立reviewでP0 / P1が0
 2. focused / related validationがreview対象commitでgreen

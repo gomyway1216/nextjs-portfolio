@@ -79,12 +79,24 @@ describe("local external calibration publication evidence", () => {
       ),
     ).toBe(true);
     expect(evidence.pilot_preregistration).toMatchObject({
-      status: "FIXED_BEFORE_RESULTS_PENDING_INDEPENDENT_REVIEW",
+      status: "INDEPENDENT_REVIEW_PASS_FIXED_BEFORE_RESULTS",
       run_id: pilot.run_id,
       opening_pairs: 6,
       games: 12,
       game_concurrency: 12,
       max_plies: 8,
+    });
+    expect(evidence.pilot_preregistration.run_id_derivation).toMatchObject({
+      domain_bytes: 46,
+      canonical_body_bytes: 1372,
+      canonical_body_sha256:
+        "0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1",
+    });
+    expect(evidence.pilot_preregistration.independent_review).toMatchObject({
+      p0: 0,
+      p1: 0,
+      p2: 0,
+      schedule_games_rederived: 12,
     });
   });
 
@@ -196,7 +208,25 @@ describe("local external calibration publication evidence", () => {
       unresolved_p1: 0,
       unresolved_p2: 0,
       code_review_gate_passed: true,
-      real_pilot_authorized: false,
+      technical_pilot_authorized: true,
+      real_pilot_authorized: true,
+    });
+    expect(evidence.review.remaining_pilot_gates).toEqual([]);
+    expect(
+      evidence.pilot_preflight.exact_private_asset_read_only,
+    ).toMatchObject({
+      status: "PASS",
+      engine: FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.engine.yaneuraou,
+      stable_weights:
+        FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.weights,
+    });
+    expect(evidence.pilot_preflight.writer_closure).toMatchObject({
+      status: "PASS",
+      adapter_filesystem_writer: false,
+      adapter_network_writer: false,
+      live_weight_writer: false,
+      holdout_reader_or_writer: false,
+      production_result_writer: false,
     });
   });
 

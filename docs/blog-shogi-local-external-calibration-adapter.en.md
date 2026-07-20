@@ -79,11 +79,15 @@ At pre-P2-fix revision `5ff1bb6d`, the complete ML unit suite ran for 212.26 sec
 
 Before seeing any real-game result, the [pilot request](./data/shogi-local-external-calibration-pilot-request-2026-07-19.json) was fixed at 1,677 bytes and SHA-256 `37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca`. Six public standard opening positions—startpos, Yagura development, ranging-rook development, bishop exchange, double-wing pawn, and central-rook development—each produce one stable-sente and one stable-gote game. The fixed request therefore schedules 12 games at up to 12-way concurrency, stable depth 11, YaneuraOu depth 16, 600-second technical timeouts, and an eight-ply maximum.
 
-This is a technical pilot for proving that the adapter and exact assets complete under 12-way concurrency. With an eight-ply cap, all draws would be unsurprising; it is not a win-rate, Elo, rank, or high-dan experiment. No real engine starts until request review, exact-private-asset read-only preflight, and writer-closure verification all pass.
+This is a technical pilot for proving that the adapter and exact assets complete under 12-way concurrency. With an eight-ply cap, all draws would be unsurprising; it is not a win-rate, Elo, rank, or high-dan experiment.
+
+Independent request review rederived the request identity, all six source-move sequences to SFEN, opening IDs, uniqueness, the 12-game schedule, and validator result, passing with P0 / P1 / P2 = 0 / 0 / 0. The run ID hashes a 46-byte domain, `shogi-local-external-calibration-pilot-run-v1\0` including its trailing NUL, concatenated with the 1,372-byte canonical request body excluding `run_id` (body SHA-256 `0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1`).
+
+The exact-private-asset read-only preflight also passed. YaneuraOu, the 64,217,066-byte eval, and stable weights / WASM / worker matched their pinned identities; exact-tree, private-directory, and post-read revalidation checks were all true. The adapter exposes no filesystem, network, live-weight, holdout, or production-result writer. The pilot wrapper may write only PID, start metadata, a local log, and either a complete receipt or a failure record without W/D/L inside its private control directory. All three technical-pilot gates therefore pass.
 
 ## Next gate
 
-No real YaneuraOu pilot starts until:
+The real YaneuraOu start conditions are below; all pass for this exact 12-game technical pilot:
 
 1. independent code review reports zero P0/P1 findings;
 2. focused and related validation is green at the reviewed commit;

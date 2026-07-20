@@ -92,13 +92,31 @@
     "production_result_writer": false
   },
   "pilot_preregistration": {
-    "status": "FIXED_BEFORE_RESULTS_PENDING_INDEPENDENT_REVIEW",
+    "status": "INDEPENDENT_REVIEW_PASS_FIXED_BEFORE_RESULTS",
     "request": {
       "path": "docs/data/shogi-local-external-calibration-pilot-request-2026-07-19.json",
       "bytes": 1677,
       "sha256": "37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca"
     },
     "run_id": "sha256:76dbf55c6c71b4c7fa790c9f94d34014ff4fe517800bfc519c5b390ae4b0abd3",
+    "run_id_derivation": {
+      "domain_utf8_display": "shogi-local-external-calibration-pilot-run-v1\\0",
+      "domain_bytes": 46,
+      "domain_hex": "73686f67692d6c6f63616c2d65787465726e616c2d63616c6962726174696f6e2d70696c6f742d72756e2d763100",
+      "canonical_body_bytes": 1372,
+      "canonical_body_sha256": "0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1",
+      "formula": "sha256:<hex(SHA-256(domain_bytes || canonical_body_bytes))>"
+    },
+    "independent_review": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "opening_ids_rederived": true,
+      "source_moves_to_sfen_rederived": true,
+      "openings_unique": true,
+      "request_validator_passed": true,
+      "schedule_games_rederived": 12
+    },
     "opening_pairs": 6,
     "games": 12,
     "game_concurrency": 12,
@@ -158,6 +176,56 @@
       }
     ]
   },
+  "pilot_preflight": {
+    "exact_private_asset_read_only": {
+      "status": "PASS",
+      "contract": "shogi-floodgate-production-teacher-asset-authority-v1",
+      "execution_boundary": "production-fixed-registry-and-deployment-root",
+      "exact_tree": true,
+      "private_directories": true,
+      "engine": {
+        "bytes": 700048,
+        "sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1"
+      },
+      "eval_nn": {
+        "bytes": 64217066,
+        "sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782"
+      },
+      "eval_tree_sha256": "639397609565fc2f113242503483addaf812b39c43a4d813d51b9c68ca51d568",
+      "stable_weights": {
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+      },
+      "stable_wasm": {
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      },
+      "stable_worker": {
+        "bytes": 19216,
+        "sha256": "d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3"
+      },
+      "postverification": {
+        "embedded_wasm_exactly_equal": true,
+        "exact_entries_revalidated": true,
+        "identities_revalidated": true,
+        "contents_stably_read": true
+      }
+    },
+    "writer_closure": {
+      "status": "PASS",
+      "adapter_filesystem_writer": false,
+      "adapter_network_writer": false,
+      "live_weight_writer": false,
+      "holdout_reader_or_writer": false,
+      "production_result_writer": false,
+      "allowed_private_control_outputs": [
+        "pid",
+        "start-metadata",
+        "local-log",
+        "complete-receipt-or-zero-claim-failure"
+      ]
+    }
+  },
   "validation": {
     "node": "v22.13.0",
     "focused_tests_passed": 14,
@@ -203,12 +271,10 @@
     "unresolved_p1": 0,
     "unresolved_p2": 0,
     "code_review_gate_passed": true,
-    "remaining_pilot_gates": [
-      "reviewed-12-game-request-fixed-before-results",
-      "exact-private-asset-read-only-preflight-green",
-      "live-holdout-production-writers-closed"
-    ],
-    "real_pilot_authorized": false
+    "remaining_pilot_gates": [],
+    "technical_pilot_authorized": true,
+    "authorization_scope": "exact-preregistered-12-game-local-technical-pilot-only",
+    "real_pilot_authorized": true
   },
   "execution_counters": {
     "real_stable_games": 0,

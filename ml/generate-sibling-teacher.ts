@@ -83,6 +83,7 @@ export const FRESH_ROLE_TIMEOUT_QUARANTINE_POLICY = Object.freeze({
   skip_limit_divisor: 1_000,
   maximum_skips_for_4_800_parents: 5,
   partial_parent_labels_accepted: false,
+  proposal_fallback_timeout: 'fatal-no-publication',
   proposal_incomplete_without_exact_fallback: 'fatal-no-publication',
 } as const);
 export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
@@ -770,44 +771,64 @@ export function siblingTeacherRunFingerprint(
   );
 }
 
-export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
-  evidence: Readonly<{
-    source: Readonly<FloodgateFreshFinalRawIdentity>;
-    sourceRows: readonly Readonly<FloodgateTrainingParent>[];
-    pipeline: Readonly<PipelineProvenance>;
-    engineBinSha256: string;
-    engineBinBytes: number;
-    engineReceiptBytes: Uint8Array;
-    evalSha256: string;
-    multipv: number;
-    proposalDepth: number;
-    depth: number;
-    parallelEngines: number;
-    hashMbPerEngine: number;
-    timeoutMs: number;
-    proposalIncompleteAllLegalFallbackMaxMoves: number;
-  }>
+interface FreshRoleSiblingTeacherRunFingerprintEvidence {
+  readonly source:
+    | Readonly<FloodgateFreshSelectionRawIdentity>
+    | Readonly<FloodgateFreshFinalRawIdentity>;
+  readonly sourceRows: readonly Readonly<FloodgateTrainingParent>[];
+  readonly pipeline: Readonly<PipelineProvenance>;
+  readonly engineBinSha256: string;
+  readonly engineBinBytes: number;
+  readonly engineReceiptBytes: Uint8Array;
+  readonly evalSha256: string;
+  readonly multipv: number;
+  readonly proposalDepth: number;
+  readonly depth: number;
+  readonly parallelEngines: number;
+  readonly hashMbPerEngine: number;
+  readonly timeoutMs: number;
+  readonly proposalIncompleteAllLegalFallbackMaxMoves: number;
+}
+
+function freshRoleSiblingTeacherRunFingerprintFromEvidence(
+  role: 'fresh_selection' | 'fresh_final_holdout',
+  evidence: Readonly<FreshRoleSiblingTeacherRunFingerprintEvidence>
 ): string {
+  const expectedParents =
+    role === 'fresh_selection'
+      ? FRESH_SELECTION_TEACHER_PARENT_COUNT
+      : FRESH_FINAL_TEACHER_PARENT_COUNT;
   if (
-    evidence.source.records !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
-    evidence.sourceRows.length !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
+    evidence.source.records !== expectedParents ||
+    evidence.sourceRows.length !== expectedParents ||
     evidence.pipeline.tracked_tree_clean !== true ||
     !/^[0-9a-f]{40}$/.test(evidence.pipeline.source_revision)
   ) {
-    throw new Error('fresh-final generation fingerprint evidence is incomplete');
+    throw new Error(`${role} generation fingerprint evidence is incomplete`);
   }
   const parentIds = evidence.sourceRows.map((row) => row.parent_id);
+  const gameIds = new Set(evidence.sourceRows.map((row) => row.game_id));
+  const positionIds = new Set(evidence.sourceRows.map((row) => row.position_id));
   if (
     parentIds.some((parentId) => typeof parentId !== 'string' || parentId.length === 0) ||
-    new Set(parentIds).size !== parentIds.length
+    new Set(parentIds).size !== parentIds.length ||
+    parentIds.some(
+      (parentId, index) =>
+        index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0
+    ) ||
+    evidence.source.parent_ids_sha256 !== floodgateIdentifierDigest(parentIds) ||
+    evidence.source.games !== gameIds.size ||
+    evidence.source.game_ids_sha256 !== floodgateIdentifierDigest(gameIds) ||
+    evidence.source.position_ids_count !== positionIds.size ||
+    evidence.source.position_ids_sha256 !== floodgateIdentifierDigest(positionIds)
   ) {
-    throw new Error('fresh-final generation fingerprint parent IDs are invalid');
+    throw new Error(`${role} generation fingerprint parent IDs are invalid`);
   }
   let receiptValue: unknown;
   try {
     receiptValue = JSON.parse(Buffer.from(evidence.engineReceiptBytes).toString('utf8'));
   } catch {
-    throw new Error('fresh-final generation fingerprint engine receipt is not JSON');
+    throw new Error(`${role} generation fingerprint engine receipt is not JSON`);
   }
   const engineReceipt = validateEngineReceipt(receiptValue);
   if (
@@ -815,15 +836,25 @@ export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
     engineReceipt.binary_bytes !== evidence.engineBinBytes
   ) {
     throw new Error(
-      'fresh-final generation fingerprint engine receipt does not bind the engine'
+      `${role} generation fingerprint engine receipt does not bind the engine`
     );
   }
   return siblingTeacherRunFingerprint({
-    authenticated_fresh_final_binding: {
-      schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-      role: 'fresh_final_holdout',
-      source: evidence.source,
-    },
+    ...(role === 'fresh_selection'
+      ? {
+          authenticated_fresh_selection_binding: {
+            schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+            role: 'fresh_selection' as const,
+            source: evidence.source as Readonly<FloodgateFreshSelectionRawIdentity>,
+          },
+        }
+      : {
+          authenticated_fresh_final_binding: {
+            schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+            role: 'fresh_final_holdout' as const,
+            source: evidence.source as Readonly<FloodgateFreshFinalRawIdentity>,
+          },
+        }),
     source_raw_sha256: evidence.source.sha256,
     selected_parent_ids_sha256: sha256(parentIds.join('\n')),
     pipeline: evidence.pipeline,
@@ -846,6 +877,32 @@ export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
     hash_mb_per_engine: evidence.hashMbPerEngine,
     timeout_ms: evidence.timeoutMs,
   });
+}
+
+export function freshSelectionSiblingTeacherRunFingerprintFromEvidence(
+  evidence: Readonly<
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+      readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
+    }
+  >
+): string {
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    'fresh_selection',
+    evidence
+  );
+}
+
+export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
+  evidence: Readonly<
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+      readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
+    }
+  >
+): string {
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    'fresh_final_holdout',
+    evidence
+  );
 }
 
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
@@ -3882,7 +3939,8 @@ export interface FreshSelectionSiblingTeacherOptions extends Omit<
 /**
  * Production generator seam for the already-authenticated 4,800-parent
  * fresh-selection role. It emits only selection.jsonl plus resumable private
- * work. Any timeout or non-rescuable incomplete proposal is fatal.
+ * work. Up to the fixed cap of proposal/rescore timeouts is quarantined with
+ * no labels; fallback timeouts and non-rescuable incomplete proposals are fatal.
  */
 export async function generateFreshSelectionSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshSelectionRows>,
@@ -3935,7 +3993,8 @@ export type FreshFinalSiblingTeacherOptions =
 /**
  * Production generator seam for the already-authenticated 4,800-parent
  * fresh-final role. It emits only final.jsonl plus resumable private work.
- * Any timeout or non-rescuable incomplete proposal is fatal.
+ * Up to the fixed cap of proposal/rescore timeouts is quarantined with no
+ * labels; fallback timeouts and non-rescuable incomplete proposals are fatal.
  */
 export async function generateFreshFinalSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshFinalRows>,

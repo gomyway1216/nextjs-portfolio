@@ -7,6 +7,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -273,7 +274,10 @@ class External81DojoCalibrationTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
 
     def test_complete_receipt_keeps_primary_decision_separate_from_bootstrap(self):
-        receipt = calibration.finalize_calibration(self.protocol, self.complete_ledger)
+        with mock.patch.object(calibration, "BOOTSTRAP_REPLICATES", 100):
+            receipt = calibration.finalize_calibration(
+                self.protocol, self.complete_ledger
+            )
 
         self.assertEqual(receipt["status"], "complete-pass")
         self.assertTrue(receipt["primary_decision"]["passed"])

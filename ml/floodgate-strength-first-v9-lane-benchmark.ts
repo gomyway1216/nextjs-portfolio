@@ -177,6 +177,9 @@ export async function runFloodgateStrengthFirstV9LaneBenchmark(): Promise<
     .map((trial) => trial.elapsed_ms);
   const median12 = median(elapsed12);
   const median13 = median(elapsed13);
+  if (median12 <= 0 || median13 <= 0) {
+    throw new Error("lane benchmark requires positive median elapsed times");
+  }
   const speedupPpm = Math.round((median12 * 1_000_000) / median13);
   const selected = speedupPpm >= MINIMUM_13_LANE_SPEEDUP_PPM ? 13 : 12;
   const receipt = Object.freeze({

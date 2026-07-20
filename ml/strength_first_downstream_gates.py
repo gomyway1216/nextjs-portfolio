@@ -1146,6 +1146,74 @@ def _validate_enrolled_candidate_selection_receipt(
     return seed
 
 
+def validate_selection_receipt_against_evaluator_registry(
+    receipt: Mapping[str, Any],
+    *,
+    selection_registry: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recompute a selection receipt without consulting the downstream registry.
+
+    The selection-evaluator registry already binds the teacher artifacts,
+    stable checkpoint, and three-checkpoint preflight. The selected checkpoint
+    is then derived from the receipt's recomputed median-ranked run. This
+    adapter is intentionally read-only and grants no downstream authorization.
+    """
+
+    import strength_first_qat_selection_evaluator as selection_evaluator
+
+    validated = (
+        selection_evaluator.validate_strength_first_selection_evaluator_registry_data(
+            selection_registry
+        )
+    )
+    if (
+        validated["status"]
+        != selection_evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+    ):
+        raise ValueError("selection evaluator registry is not ready")
+    selected = _exact_dict(
+        receipt.get("selected") if isinstance(receipt, Mapping) else None,
+        {"slot_id", "seed", "checkpoint"},
+        "candidate-selection receipt selected candidate",
+    )
+    enrollments = validated["enrollments"]
+    adapter_registry = {
+        "enrollments": {
+            "candidate_selection_training_plan": enrollments["training_plan"],
+            "candidate_selection_checkpoint_preflight_sha256": enrollments[
+                "checkpoint_preflight_sha256"
+            ],
+            "candidate_selection_teacher_run_fingerprint": enrollments[
+                "selection_teacher_run_fingerprint"
+            ],
+            "candidate_selection_teacher_authority": enrollments[
+                "selection_teacher_authority"
+            ],
+            "candidate_selection_teacher_manifest": enrollments[
+                "selection_teacher_manifest"
+            ],
+            "candidate_selection_teacher_result": enrollments[
+                "selection_teacher_result"
+            ],
+            "candidate_selection_dataset": enrollments["selection_dataset"],
+            "candidate_checkpoint": selected["checkpoint"],
+            "stable_checkpoint": enrollments["stable_checkpoint"],
+        }
+    }
+    seed = _validate_enrolled_candidate_selection_receipt(
+        receipt,
+        registry=adapter_registry,
+    )
+    checkpoint = _identity(
+        selected["checkpoint"],
+        "candidate-selection receipt selected checkpoint",
+    )
+    return {
+        "selected_seed": seed,
+        "selected_checkpoint": copy.deepcopy(checkpoint),
+    }
+
+
 def _mint_candidate_selection_authorization_from_receipt_bytes(
     *,
     snapshot: Mapping[str, Any],
@@ -2197,6 +2265,7 @@ __all__ = [
     "receipt_identity",
     "run_strength_first_downstream_gates",
     "run_strength_first_downstream_gates_core_for_tests",
+    "validate_selection_receipt_against_evaluator_registry",
     "validate_downstream_result_data",
     "validate_downstream_registry_data",
 ]

@@ -29,10 +29,6 @@ const cliPath = path.join(
   repositoryRoot,
   "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts",
 );
-const builderPath = path.join(
-  repositoryRoot,
-  "ml/build_strength_first_qat_training_plan_candidate.py",
-);
 const bridgePath = path.join(
   repositoryRoot,
   "ml/strength_first_qat_training_bridge.py",
@@ -88,7 +84,7 @@ describe("Floodgate strength-first v8 downstream provenance evidence", () => {
     });
   });
 
-  it("binds the sole semantic authority to the fixed CLI and v2 plan builder", () => {
+  it("preserves the v8 semantic authority, fixed CLI, and v2 plan contract", () => {
     expect(FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA).toBe(
       "shogi-floodgate-strength-first-v8-downstream-provenance-v1",
     );
@@ -124,10 +120,10 @@ describe("Floodgate strength-first v8 downstream provenance evidence", () => {
       },
     });
     expect(read(corePath)).toContain("validateWorkEntry");
-    expect(read(cliPath)).toContain("fs.createReadStream(workPath)");
-    expect(read(builderPath)).toContain(
-      "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts",
+    expect(read(corePath)).toContain(
+      "verifyFloodgateStrengthFirstV8DownstreamProvenance",
     );
+    expect(read(cliPath)).toContain("fs.createReadStream(workPath)");
     expect(read(bridgePath)).toContain(
       "shogi-floodgate-strength-first-qat-training-plan-v2",
     );

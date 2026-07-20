@@ -1,0 +1,122 @@
+{
+  "schema": "shogi-floodgate-strength-first-v9-training-bridge-evidence-v1",
+  "status": "implementation-focused-validation-pass-formal-v9-running-no-training-or-live-change",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-v9-training-bridge.md",
+    "english": "../blog-shogi-floodgate-strength-first-v9-training-bridge.en.md"
+  },
+  "formal_v9_at_capture": {
+    "teacher_running": true,
+    "final_result_exists": false,
+    "exact_training_plan_exists": false,
+    "real_training_processes_started": 0,
+    "candidate_selections": 0,
+    "formal_ab_games": 0,
+    "live_weight_changes": 0,
+    "numeric_progress_snapshot_published_here": false
+  },
+  "source_contract": {
+    "generation": "v9",
+    "parents": 24000,
+    "milestone_targets": [100, 500],
+    "proposal": {
+      "multipv": 12,
+      "depth": 14
+    },
+    "independent_rescore": {
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "depth": 16
+    },
+    "parallel_engines": 13,
+    "threads_per_engine": 1,
+    "hash_mib_per_engine": 512,
+    "timeout_ms_per_search": 600000,
+    "proposal_incomplete_reason": "proposal_incomplete_no_label",
+    "exact_rescore_incomplete_is_fatal": true
+  },
+  "semantic_verifier": {
+    "argumentless_fixed_local_cli": "ml/verify-floodgate-strength-first-v9-downstream-provenance.ts",
+    "work_jsonl_streamed": true,
+    "authenticated_raw_rows_reparsed": true,
+    "fast_input_preflight_and_postflight_equal": true,
+    "nested_v9_v8_asset_authority_validated": true,
+    "manifest_fingerprint_recomputed": true,
+    "every_work_entry_revalidated_with_shared_teacher_validator": true,
+    "candidate_sets_and_scores_recomputed": true,
+    "three_skip_reasons_recounted": true,
+    "shared_recoverable_skip_cap_rechecked": true,
+    "milestones_bound_to_actual_work_prefixes": true,
+    "parent_completion_recomputed": true,
+    "training_groups_recomputed": true,
+    "result_manifest_staged_and_row_aggregates_cross_bound": true,
+    "success_output_is_aggregate_only": true,
+    "private_identifiers_or_digests_in_success_output": false,
+    "hash_only_shortcut": false
+  },
+  "schema_transition": {
+    "v8_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v2",
+    "v8_plan_validation_preserved": true,
+    "v9_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
+    "v9_plan_requires_v9_semantic_summary": true,
+    "cross_generation_plan_summary_pair_rejected": true,
+    "training_result_schema_unchanged_v2": true,
+    "final_checkpoint_schema_unchanged_v2": true
+  },
+  "training_handoff": {
+    "candidate_builder": "ml/build_strength_first_qat_training_plan_candidate.py",
+    "launcher": "ml/run_strength_first_three_seed_training.py",
+    "reviewed_exact_plan_required": true,
+    "placeholder_or_invented_identities_allowed": false,
+    "seeds": [42, 43, 44],
+    "concurrent": true,
+    "all_processes_spawned_before_polling": true,
+    "one_seed_failure_stops_remaining_processes": true,
+    "initializer": "fixed-warm-model-only",
+    "learning_rate": 0.0001,
+    "epochs": 20,
+    "batch": 256,
+    "checkpoint_policy": "fixed-final-epoch-only"
+  },
+  "authority": {
+    "training_only": true,
+    "selection_label_read_authorized": false,
+    "holdout_label_read_authorized": false,
+    "candidate_selection_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_promotion_authorized": false,
+    "cloud_required": false,
+    "runtime_network_required": false
+  },
+  "focused_validation": {
+    "python": {
+      "status": "PASS",
+      "tests": 31
+    },
+    "typescript_semantic_chain": {
+      "status": "PASS",
+      "tests": 5,
+      "covers_v8_regression": true,
+      "covers_v9_d14_d16_chain": true,
+      "covers_fail_closed_mutation": true
+    },
+    "python_compile": "PASS",
+    "diff_check": "PASS"
+  },
+  "strength_claims": {
+    "teacher_complete": false,
+    "model_retrained": false,
+    "candidate_selected": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "privacy": {
+    "private_absolute_paths_published": false,
+    "training_positions_or_identifiers_published": false,
+    "private_file_digests_published": false
+  },
+  "claim_boundary": "validated-v9-semantic-teacher-to-training-handoff-not-teacher-completion-retraining-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "after-formal-v9-result-run-the-candidate-builder-review-and-enroll-the-exact-v3-plan-then-launch-seeds-42-43-44"
+}

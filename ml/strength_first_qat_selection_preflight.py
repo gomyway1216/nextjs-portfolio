@@ -537,16 +537,19 @@ def call_strength_first_selection_reader(
 ) -> Any:
     """Use one guard once; this does not stop direct same-process reader calls."""
 
-    if (
-        type(receipt) is not StrengthFirstQatSelectionPreflightReceipt
-        or receipt not in _RECEIPT_STATES
-    ):
+    if type(receipt) is not StrengthFirstQatSelectionPreflightReceipt:
         raise ValueError(
             "strength-first selection reader requires an unused " "preflight receipt"
         )
     if not callable(selection_reader):
         raise TypeError("strength-first selection reader must be callable")
-    return selection_reader(receipt._claim())
+    try:
+        claimed = receipt._claim()
+    except ValueError as error:
+        raise ValueError(
+            "strength-first selection reader requires an unused " "preflight receipt"
+        ) from error
+    return selection_reader(claimed)
 
 
 def preflight_strength_first_qat_selection(

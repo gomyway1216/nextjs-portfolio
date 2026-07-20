@@ -454,6 +454,45 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
                 )
             loader.assert_not_called()
 
+    def test_external_contract_does_not_require_a_matching_fresh_plan_slot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = synthetic_fixture(Path(directory).resolve())
+            registered = fixture["registry"]["runs"][0]
+            result = fixture["results"][registered["seed"]]
+            plan_without_seed = copy.deepcopy(fixture["plan"])
+            plan_without_seed["slots"] = [
+                slot
+                for slot in plan_without_seed["slots"]
+                if slot["seed"] != registered["seed"]
+            ]
+
+            COMMON._validate_result(
+                result,
+                plan=plan_without_seed,
+                plan_path=str(fixture["plan_path"]),
+                plan_identity=fixture["registry"]["training_plan"],
+                registry=fixture["registry"],
+                registered_run=registered,
+                checkpoint_receipt=registered["checkpoint"],
+                result_schema=BRIDGE.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+                expected_plan_binding=result["experiment_plan"],
+                expected_contract=result["experiment_contract"],
+                label_prefix="strength-first",
+            )
+            with self.assertRaisesRegex(ValueError, "no matching plan slot"):
+                COMMON._validate_result(
+                    result,
+                    plan=plan_without_seed,
+                    plan_path=str(fixture["plan_path"]),
+                    plan_identity=fixture["registry"]["training_plan"],
+                    registry=fixture["registry"],
+                    registered_run=registered,
+                    checkpoint_receipt=registered["checkpoint"],
+                    result_schema=BRIDGE.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+                    expected_plan_binding=result["experiment_plan"],
+                    label_prefix="strength-first",
+                )
+
     def test_missing_late_checkpoint_stops_before_first_checkpoint_load(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = synthetic_fixture(Path(directory).resolve())

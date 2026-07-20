@@ -427,10 +427,13 @@ def _validate_result(
     if not _typed_equal(result["experiment_plan"], expected_plan):
         raise ValueError(f"{label} result plan binding mismatch")
 
-    slot = next(
-        item for item in plan["slots"] if item["seed"] == registered_run["seed"]
-    )
     if expected_contract is None:
+        try:
+            slot = next(
+                item for item in plan["slots"] if item["seed"] == registered_run["seed"]
+            )
+        except StopIteration as error:
+            raise ValueError(f"{label} has no matching plan slot") from error
         expected_contract = build_fresh_qat_training_contract(plan, slot)
     _exact_keys(
         result["experiment_contract"],

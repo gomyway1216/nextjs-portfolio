@@ -36,34 +36,37 @@ export async function middleware(request: NextRequest) {
 
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
-  if (!sessionCookie) {
+  const signInRedirect = () => {
     const signInUrl = new URL('/signin', request.url);
     signInUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(signInUrl);
+  };
+
+  if (!sessionCookie) {
+    return signInRedirect();
   }
 
-  if (isAdminRoute(pathname)) {
-    try {
-      const verifyUrl = new URL('/api/auth/verify', request.url);
-      const res = await fetch(verifyUrl, {
-        headers: { Cookie: `${SESSION_COOKIE_NAME}=${sessionCookie}` },
-      });
+  // Every protected route verifies the session cookie server-side. A
+  // presence-only check is not authentication: any non-empty value for
+  // the cookie would have passed the auth-required (non-admin) routes.
+  try {
+    const verifyUrl = new URL('/api/auth/verify', request.url);
+    const res = await fetch(verifyUrl, {
+      headers: { Cookie: `${SESSION_COOKIE_NAME}=${sessionCookie}` },
+    });
 
-      if (!res.ok) {
-        const signInUrl = new URL('/signin', request.url);
-        signInUrl.searchParams.set('redirect', pathname);
-        return NextResponse.redirect(signInUrl);
-      }
+    if (!res.ok) {
+      return signInRedirect();
+    }
 
+    if (isAdminRoute(pathname)) {
       const data = await res.json();
       if (!data.isAdmin) {
         return NextResponse.redirect(new URL('/', request.url));
       }
-    } catch {
-      const signInUrl = new URL('/signin', request.url);
-      signInUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(signInUrl);
     }
+  } catch {
+    return signInRedirect();
   }
 
   return NextResponse.next();

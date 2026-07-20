@@ -184,7 +184,10 @@
       "notFoundText": "This article is unavailable or has not been published.",
       "backToBlog": "Back to blog",
       "edit": "Edit",
-      "related": "Related posts"
+      "related": "Related posts",
+      "like": "Like",
+      "liked": "Liked",
+      "unlike": "Remove like"
     }
   },
   "study": {

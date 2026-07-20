@@ -1,5 +1,6 @@
 'use client';
 
+import PostLikeButton from '@/components/blog/PostLikeButton';
 import RelatedPosts from '@/components/blog/RelatedPosts';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
 import { usePostViewBeacon } from '@/hooks/usePostViewBeacon';
@@ -122,6 +123,7 @@ const PostPage = ({ initialPost }: PostPageProps) => {
             image: post.image || '',
           }}
         />
+        <PostLikeButton postId={post.id} enabled={post.isPublic} />
         <RelatedPosts ids={post.relatedPostIds} />
         {isAdmin && (
           <div className={styles.adminActions}>

@@ -33,11 +33,6 @@ const bridgePath = path.join(
   repositoryRoot,
   "ml/strength_first_qat_training_bridge.py",
 );
-const planPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-);
-
 function read(file: string): string {
   return fs.readFileSync(file, "utf8");
 }
@@ -47,13 +42,11 @@ function evidence(): Record<string, unknown> {
 }
 
 describe("Floodgate strength-first v8 downstream provenance evidence", () => {
-  it("records real prefix accounting without claiming teacher or strength completion", () => {
-    expect(fs.existsSync(planPath)).toBe(false);
+  it("records real prefix accounting and the then-absent plan without claiming completion", () => {
     expect(evidence()).toMatchObject({
       schema:
         "shogi-floodgate-strength-first-v8-downstream-provenance-evidence-v1",
-      status:
-        "bridge-implementation-validated-formal-v8-teacher-still-running",
+      status: "bridge-implementation-validated-formal-v8-teacher-still-running",
       formal_teacher_observation: {
         target_parents: 24_000,
         milestone_100_complete: true,

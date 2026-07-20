@@ -29,11 +29,6 @@ const launcherPath = path.join(
   repositoryRoot,
   "ml/run_strength_first_three_seed_training.py",
 );
-const planPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-);
-
 function read(file: string): string {
   return fs.readFileSync(file, "utf8");
 }
@@ -43,11 +38,9 @@ function evidence(): Record<string, unknown> {
 }
 
 describe("Floodgate strength-first v9 training bridge evidence", () => {
-  it("records the running teacher boundary without claiming training or strength", () => {
-    expect(fs.existsSync(planPath)).toBe(false);
+  it("records the running teacher and then-absent plan without claiming training or strength", () => {
     expect(evidence()).toMatchObject({
-      schema:
-        "shogi-floodgate-strength-first-v9-training-bridge-evidence-v1",
+      schema: "shogi-floodgate-strength-first-v9-training-bridge-evidence-v1",
       status:
         "implementation-focused-validation-pass-formal-v9-running-no-training-or-live-change",
       formal_v9_at_capture: {
@@ -102,11 +95,9 @@ describe("Floodgate strength-first v9 training bridge evidence", () => {
         hash_only_shortcut: false,
       },
       schema_transition: {
-        v8_plan_schema:
-          "shogi-floodgate-strength-first-qat-training-plan-v2",
+        v8_plan_schema: "shogi-floodgate-strength-first-qat-training-plan-v2",
         v8_plan_validation_preserved: true,
-        v9_plan_schema:
-          "shogi-floodgate-strength-first-qat-training-plan-v3",
+        v9_plan_schema: "shogi-floodgate-strength-first-qat-training-plan-v3",
         cross_generation_plan_summary_pair_rejected: true,
         training_result_schema_unchanged_v2: true,
         final_checkpoint_schema_unchanged_v2: true,

@@ -359,8 +359,10 @@ function forcedSkipReasonCounts(
     if (entry.kind !== 'skip') continue;
     if (entry.reason === 'fewer-than-two-legal-moves') {
       fewerThanTwoLegalMoves += 1;
-    } else {
+    } else if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
       searchTimeoutNoLabel += 1;
+    } else {
+      throw new Error('unsupported forced skip reason');
     }
   }
   return Object.freeze({

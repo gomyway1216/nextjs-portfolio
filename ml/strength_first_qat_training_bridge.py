@@ -44,11 +44,11 @@ STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA = (
     "shogi-strength-first-sibling-teacher-manifest-v1"
 )
 STRENGTH_FIRST_TEACHER_RESULT_SCHEMA = (
-    "shogi-floodgate-strength-first-teacher-postflight-result-v2"
+    "shogi-floodgate-strength-first-teacher-postflight-result-v1"
 )
 STRENGTH_FIRST_TEACHER_RESULT_STATUS = "complete-training-only-postflight-bound"
 
-_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8"
+_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v7"
 _ROLE_BUNDLE_DIRECTORY = (
     ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
 )

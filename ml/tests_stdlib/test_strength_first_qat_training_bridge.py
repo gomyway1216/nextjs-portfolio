@@ -321,7 +321,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             )
         )
 
-    def test_default_teacher_paths_follow_the_hash_recovery_v8_root(self):
+    def test_default_teacher_paths_follow_the_timeout_recovery_v7_root(self):
         paths = BRIDGE.default_strength_first_local_paths(
             repo_root="/repo",
             home="/home/tester",
@@ -330,7 +330,7 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             paths["teacher_result"],
             (
                 "/home/tester/.codex/shogi-runs/"
-                "floodgate-q1-2026-strength-first-v8/result.json"
+                "floodgate-q1-2026-strength-first-v7/result.json"
             ),
         )
 
@@ -378,10 +378,6 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
         )
 
         mutations = {
-            "v1 result schema": lambda manifest, result: result.__setitem__(
-                "schema",
-                "shogi-floodgate-strength-first-teacher-postflight-result-v1",
-            ),
             "outer status": lambda manifest, result: result.__setitem__(
                 "status", "complete-training-only"
             ),

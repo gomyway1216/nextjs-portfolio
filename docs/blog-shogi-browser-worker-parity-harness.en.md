@@ -16,6 +16,8 @@ Diagnostics run only on a separate, unlinked route. That route returns 404 unles
 
 The fixture is the initial bishop-handicap position with Gote, the handicap giver, to move. Focused tests prove that neither the compiled-in opening book nor the shipped external opening-book file has a move for it, so the request cannot pass by silently returning a `book` move.
 
+The first remote E2E run also exposed a real timing distinction: if search is sent immediately after Worker construction, it can begin before the 1.18 MB weight fetch, SHA-256, and load complete, producing the designed temporary `v3-wasm` fallback. Ordinary play has a delay before its first search; the diagnostic harness did not. The corrected harness first waits for read-only startup diagnostics to confirm weight identity/load and WASM readiness, then searches and requires post-search `nnue-wasm`. It does not weaken the gate by accepting fallback; it defines the intended measurement start state.
+
 The aggregate browser result contains only the following checks:
 
 | Check | Pass condition |

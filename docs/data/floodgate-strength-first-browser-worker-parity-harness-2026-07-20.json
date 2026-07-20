@@ -29,6 +29,7 @@
       "difficulty": "hard",
       "curated_book_move": false,
       "shipped_external_book_move": false,
+      "awaits_startup_diagnostics_before_search": true,
       "raw_position_published": false
     },
     "runner": {

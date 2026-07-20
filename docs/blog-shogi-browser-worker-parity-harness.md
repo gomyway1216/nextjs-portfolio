@@ -16,6 +16,8 @@
 
 固定局面には角落ちの初期局面を使い、上手の後手を手番にした。現在の組込み定跡と配布中の外部定跡ファイルの両方に該当手がないことをfocused testで固定している。そのため、返答が`book`へ逃げず、実探索へ進む。
 
+remote E2Eの初回実行から、Worker生成直後に探索を送ると1.18MB重みのfetch・SHA-256・loadが完了する前に検索が始まり、仕様どおり`v3-wasm`へ一時fallbackすることも分かった。通常対局には初手前の待ち時間があるが、診断ハーネスにはなかった。修正後は、read-onlyのstartup diagnosticsで重みidentityとload、WASM readyを確定してから探索を送り、探索後のdiagnosticsで`nnue-wasm`を確認する。fallbackを合格扱いに変えたのではなく、測りたい状態の開始点を明示した。
+
 ブラウザ内のaggregate結果には、次だけを含める。
 
 | 確認項目 | 合格条件 |

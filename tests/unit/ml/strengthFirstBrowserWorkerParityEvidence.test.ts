@@ -24,6 +24,9 @@ describe("browser Worker parity harness evidence", () => {
       diagnostics_ui_mounted: false,
       static_delivery_contract_preserved: true,
     });
+    expect(evidence.implemented.fixed_fixture).toMatchObject({
+      awaits_startup_diagnostics_before_search: true,
+    });
     expect(evidence.implemented.runner).toMatchObject({
       other_request_intercepts: 0,
       artifact_preflight_and_postflight: true,

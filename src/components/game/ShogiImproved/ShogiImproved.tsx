@@ -267,11 +267,11 @@ const ShogiImproved = () => {
   const { currentUser } = useAuth();
   const { language } = useGameLanguage();
   const copy = getShogiImprovedCopy(language);
-  const difficultyOptions = DIFFICULTY_ORDER.map((value) => ({
+  const difficultyOptions = React.useMemo(() => DIFFICULTY_ORDER.map((value) => ({
     value,
     label: copy.difficulties[value].label,
     description: copy.difficulties[value].description,
-  }));
+  })), [copy]);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);

@@ -701,6 +701,10 @@ def _validate_openings(value: Any) -> tuple[dict, dict]:
             _OPENING_FIELDS,
             f"CoreForTests opening pair {pair_index}.opening",
         )
+        if type(opening["sfen"]) is not str:
+            raise FormalAbV2ActivationError(
+                f"CoreForTests opening pair {pair_index} SFEN is not a string"
+            )
         try:
             normalized_sfen = _normalized_sfen(
                 opening["sfen"],
@@ -710,10 +714,7 @@ def _validate_openings(value: Any) -> tuple[dict, dict]:
             raise FormalAbV2ActivationError(
                 f"CoreForTests opening pair {pair_index} SFEN is invalid"
             ) from error
-        if (
-            type(opening["sfen"]) is not str
-            or normalized_sfen != opening["sfen"]
-        ):
+        if normalized_sfen != opening["sfen"]:
             raise FormalAbV2ActivationError(
                 f"CoreForTests opening pair {pair_index} SFEN is not canonical"
             )

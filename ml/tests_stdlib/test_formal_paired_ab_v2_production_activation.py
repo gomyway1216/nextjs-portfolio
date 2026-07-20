@@ -432,6 +432,23 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
                         invalid_seed_probe
                     )
 
+        for invalid_sfen in (None, 42, []):
+            invalid_sfen_probe = composition_fixture()
+            invalid_sfen_probe["openings_manifest"]["payload"]["pairs"][0][
+                "opening"
+            ]["sfen"] = invalid_sfen
+            invalid_sfen_probe["openings_manifest"] = rebind_content_record(
+                invalid_sfen_probe["openings_manifest"]
+            )
+            with self.subTest(invalid_sfen=invalid_sfen):
+                with self.assertRaisesRegex(
+                    activation.FormalAbV2ActivationError,
+                    "SFEN is not a string",
+                ):
+                    activation.compose_formal_ab_v2_activation_core_for_tests(
+                        invalid_sfen_probe
+                    )
+
     def test_content_identity_drift_time_and_worker_types_fail_closed(self):
         time_drift = composition_fixture()
         time_drift["time_control"]["payload"]["byoyomi_ms"] += 1

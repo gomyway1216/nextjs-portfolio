@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
 
+import { findDisallowedRuntimePackageRequires } from "./floodgate-raw-verification-worker-bundle-policy.mjs";
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const entrypoint = "ml/floodgate-raw-verification-worker.ts";
 const outputRelative = "ml/floodgate-raw-verification-worker.cjs";
@@ -92,10 +94,10 @@ if (
 if (forbiddenOutputPatterns.some((pattern) => pattern.test(text))) {
   fail("bundle contains forbidden local or package-loader text");
 }
-const packageLikeRequires = Array.from(
-  text.matchAll(/require\(["']([^"']+)["']\)/gu),
-  (match) => match[1],
-).filter((specifier) => !allowedExternals.has(specifier));
+const packageLikeRequires = findDisallowedRuntimePackageRequires(
+  text,
+  allowedExternals,
+);
 if (packageLikeRequires.length !== 0) {
   fail("bundle contains package resolution at runtime");
 }

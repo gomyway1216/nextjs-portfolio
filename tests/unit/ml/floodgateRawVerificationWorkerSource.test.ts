@@ -14,8 +14,10 @@ import {
   FLOODGATE_RAW_VERIFICATION_WORKER_TRANSITIVE_SOURCES,
   captureFloodgateRawVerificationWorkerBundleCoreForTests,
   capturePinnedFloodgateRawVerificationWorkerBundle,
+  floodgateRawVerificationWorkerBundlePathEscapesRepositoryRootForTests,
   type FloodgateRawVerificationWorkerDescriptorOperationsForTests,
 } from "../../../ml/floodgate-raw-verification-worker-source";
+import { findDisallowedRuntimePackageRequires } from "../../../ml/floodgate-raw-verification-worker-bundle-policy.mjs";
 
 const temporaryRoots: string[] = [];
 const fixtureRelative = "ml/worker.cjs";
@@ -78,6 +80,7 @@ function faultInjectedDescriptorOperations(
   let parentRealpaths = 0;
   return Object.freeze({
     operations: Object.freeze({
+      noFollowFlag: fs.constants.O_NOFOLLOW,
       openSync: (filePath: string, flags: number): number => {
         if (fault === "parent-open" && filePath === parent) throw primary;
         const descriptor = fs.openSync(filePath, flags);
@@ -178,6 +181,103 @@ describe("Floodgate pinned raw-verification worker source", () => {
     expect(child.stdout).toBe("");
     expect(child.stderr).toBe("");
   });
+
+  it("rejects the exact parent directory as outside the repository root", async () => {
+    const root = await temporaryRoot();
+    expect(
+      floodgateRawVerificationWorkerBundlePathEscapesRepositoryRootForTests(
+        root,
+        path.dirname(root),
+      ),
+    ).toBe(true);
+    expect(
+      floodgateRawVerificationWorkerBundlePathEscapesRepositoryRootForTests(
+        root,
+        path.join(root, "ml/worker.cjs"),
+      ),
+    ).toBe(false);
+  });
+
+  it("detects package requires with inner whitespace and template literals", () => {
+    expect(
+      findDisallowedRuntimePackageRequires(
+        [
+          'require( "left-pad" )',
+          "require(\t`template-package`\n)",
+          "require('node:fs')",
+        ].join("\n"),
+        new Set(["node:fs"]),
+      ),
+    ).toEqual(["left-pad", "template-package"]);
+  });
+
+  it.each([undefined, 0] as const)(
+    "fails before opening a directory when O_NOFOLLOW is %s",
+    async (noFollowFlag) => {
+      const root = await temporaryRoot();
+      await writeFixture(root);
+      const openCalls: string[] = [];
+      const operations =
+        Object.freeze<FloodgateRawVerificationWorkerDescriptorOperationsForTests>(
+          {
+            noFollowFlag,
+            openSync: (filePath, flags) => {
+              openCalls.push(filePath);
+              return fs.openSync(filePath, flags);
+            },
+            fstatSync: (descriptor) =>
+              fs.fstatSync(descriptor, { bigint: true }),
+            realpathSyncNative: (filePath) => fs.realpathSync.native(filePath),
+            closeSync: (descriptor) => fs.closeSync(descriptor),
+          },
+        );
+
+      expect(() => captureFixture(root, operations)).toThrow(
+        /O_NOFOLLOW is required/,
+      );
+      expect(openCalls).toEqual([]);
+    },
+  );
+
+  it.each([undefined, 0] as const)(
+    "closes held directories without opening the bundle when O_NOFOLLOW becomes %s",
+    async (unavailableFlag) => {
+      const root = await temporaryRoot();
+      await writeFixture(root);
+      const openCalls: string[] = [];
+      const closeCalls: number[] = [];
+      let noFollowReads = 0;
+      const operations =
+        Object.freeze<FloodgateRawVerificationWorkerDescriptorOperationsForTests>(
+          {
+            get noFollowFlag(): unknown {
+              noFollowReads += 1;
+              return noFollowReads <= 2
+                ? fs.constants.O_NOFOLLOW
+                : unavailableFlag;
+            },
+            openSync: (filePath, flags) => {
+              openCalls.push(filePath);
+              return fs.openSync(filePath, flags);
+            },
+            fstatSync: (descriptor) =>
+              fs.fstatSync(descriptor, { bigint: true }),
+            realpathSyncNative: (filePath) => fs.realpathSync.native(filePath),
+            closeSync: (descriptor) => {
+              closeCalls.push(descriptor);
+              fs.closeSync(descriptor);
+            },
+          },
+        );
+
+      expect(() => captureFixture(root, operations)).toThrow(
+        /O_NOFOLLOW is required/,
+      );
+      expect(openCalls).toEqual([root, path.join(root, "ml")]);
+      expect(closeCalls).toHaveLength(2);
+      expect(new Set(closeCalls).size).toBe(2);
+    },
+  );
 
   it("rejects a worker bundle symlink and a symlinked parent", async () => {
     const fileRoot = await temporaryRoot();

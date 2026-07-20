@@ -56,6 +56,7 @@ export interface FloodgateRawVerificationWorkerBundleLease {
 }
 
 export interface FloodgateRawVerificationWorkerDescriptorOperationsForTests {
+  readonly noFollowFlag: unknown;
   readonly openSync: (filePath: string, flags: number) => number;
   readonly fstatSync: (descriptor: number) => fs.BigIntStats;
   readonly realpathSyncNative: (filePath: string) => string;
@@ -77,6 +78,7 @@ interface FileIdentity {
 
 const PRODUCTION_DESCRIPTOR_OPERATIONS =
   Object.freeze<FloodgateRawVerificationWorkerDescriptorOperationsForTests>({
+    noFollowFlag: fs.constants.O_NOFOLLOW,
     openSync: (filePath, flags) => fs.openSync(filePath, flags),
     fstatSync: (descriptor) => fs.fstatSync(descriptor, { bigint: true }),
     realpathSyncNative: (filePath) => fs.realpathSync.native(filePath),
@@ -204,15 +206,22 @@ function assertRegularOwnedSingleLink(
   }
 }
 
+function requiredNoFollowFlag(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value === 0) {
+    fail("O_NOFOLLOW is required");
+  }
+  return value;
+}
+
 function openDirectoryNoFollow(
   directoryPath: string,
   label: string,
   openedDescriptors: number[],
   operations: FloodgateRawVerificationWorkerDescriptorOperationsForTests,
 ): number {
-  const noFollow = fs.constants.O_NOFOLLOW;
+  const noFollow = requiredNoFollowFlag(operations.noFollowFlag);
   const directory = fs.constants.O_DIRECTORY;
-  if (typeof noFollow !== "number" || typeof directory !== "number") {
+  if (typeof directory !== "number") {
     fail("O_NOFOLLOW and O_DIRECTORY are required");
   }
   const descriptor = operations.openSync(
@@ -228,6 +237,14 @@ function openDirectoryNoFollow(
     fail(`${label} must be a real canonical directory`);
   }
   return descriptor;
+}
+
+function bundlePathEscapesRepositoryRoot(
+  repositoryRoot: string,
+  bundlePath: string,
+): boolean {
+  const relative = path.relative(repositoryRoot, bundlePath);
+  return relative === ".." || relative.startsWith(`..${path.sep}`);
 }
 
 function runtimeIdentity(): FloodgateRawVerificationWorkerRuntimeIdentity {
@@ -308,7 +325,7 @@ function captureBundle(
   const bundlePath = path.join(repositoryRoot, ...relativePath.split("/"));
   const parentPath = path.dirname(bundlePath);
   if (
-    path.relative(repositoryRoot, bundlePath).startsWith(`..${path.sep}`) ||
+    bundlePathEscapesRepositoryRoot(repositoryRoot, bundlePath) ||
     operations.realpathSyncNative(parentPath) !== parentPath
   ) {
     fail("bundle path escapes or traverses a symlink");
@@ -331,9 +348,10 @@ function captureBundle(
       openedDescriptors,
       operations,
     );
+    const noFollow = requiredNoFollowFlag(operations.noFollowFlag);
     const bundleDescriptor = operations.openSync(
       bundlePath,
-      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
+      fs.constants.O_RDONLY | noFollow | fs.constants.O_NONBLOCK,
     );
     openedDescriptors.push(bundleDescriptor);
     const rootBefore = identity(operations.fstatSync(rootDescriptor));
@@ -454,6 +472,14 @@ function captureBundle(
       );
     }
   }
+}
+
+/** Path-containment seam; it does not authorize a production worker. */
+export function floodgateRawVerificationWorkerBundlePathEscapesRepositoryRootForTests(
+  repositoryRoot: string,
+  bundlePath: string,
+): boolean {
+  return bundlePathEscapesRepositoryRoot(repositoryRoot, bundlePath);
 }
 
 /** Open the one production-pinned worker source and hold its inode to drain. */

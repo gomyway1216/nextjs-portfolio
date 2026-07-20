@@ -1,0 +1,46 @@
+{
+  "schema": "shogi-floodgate-fresh-selection-teacher-search-policy-v1",
+  "status": "ready-for-post-checkpoint-local-teacher",
+  "role": "fresh_selection",
+  "teacher": {
+    "engine": "YaneuraOu",
+    "threads_per_engine": 1,
+    "proposal": {
+      "multipv": 6,
+      "depth": 14
+    },
+    "typed_incomplete_proposal_fallback": {
+      "allowed_only_when_legal_moves_at_most": 6,
+      "search": "every-legal-move-separately",
+      "multipv": 1,
+      "depth": 14,
+      "mixed_partial_and_fallback_ranks_accepted": false
+    },
+    "candidate_union": [
+      "complete-proposal-or-complete-all-legal-fallback",
+      "strong-game-played-move"
+    ],
+    "independent_rescore": {
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "depth": 16,
+      "isready_before_each_candidate": true,
+      "tt_reset_before_each_candidate": true,
+      "candidate_execution_order": "utf8-bytewise-ascending"
+    }
+  },
+  "runtime": {
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "hash_mb_per_engine": 512,
+    "timeout_ms_per_search": 600000,
+    "network": false
+  },
+  "completion": {
+    "input_parents": 4800,
+    "input_games": 200,
+    "timeout_or_incomplete_without_exact_fallback": "fatal-no-publication",
+    "allowed_forced_skip_reason": "fewer_than_two_legal_moves",
+    "partial_publication": false
+  }
+}

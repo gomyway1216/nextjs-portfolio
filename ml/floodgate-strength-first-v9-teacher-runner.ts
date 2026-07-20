@@ -16,7 +16,7 @@ import {
   SIBLING_TEACHER_WORK_SCHEMA,
   STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
   STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
-  advanceStrengthFirstSiblingTeacherDataset,
+  advanceStrengthFirstV9SiblingTeacherDataset,
   siblingTeacherStagePaths,
   strengthFirstTimeoutSkipLimit,
   type StrengthFirstForcedSkipReasonCounts,
@@ -529,7 +529,8 @@ function assertFinal(
     !sameJson(manifest.search.limit, { depth: 16 }) ||
     manifest.search.proposal_incomplete_quarantine_policy !==
       PROPOSAL_INCOMPLETE_QUARANTINE_POLICY ||
-    manifest.search.parallel_engines !== 12 ||
+    manifest.search.parallel_engines !==
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.parallel_engines ||
     manifest.search.hash_mb_per_engine !== 512 ||
     manifest.search.timeout_ms !== 600_000 ||
     staged.schema !== STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA ||
@@ -957,7 +958,7 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstV9TeacherRunnerDependencies
       verifyPinnedFloodgateStrengthFirstV9TeacherAuthority,
     captureExactCleanRevision: captureFloodgateGitExactCleanRevision,
     loadFastTrainingInput: loadFloodgateStrengthFirstFastTrainingInput,
-    advanceTeacher: advanceStrengthFirstSiblingTeacherDataset,
+    advanceTeacher: advanceStrengthFirstV9SiblingTeacherDataset,
     readPrivateJson: readFloodgateStrengthFirstTeacherPrivateJson,
     digestPrivateFile: digestFloodgateStrengthFirstTeacherPrivateFile,
     commitPrivateJson: commitFloodgateStrengthFirstTeacherPrivateJson,

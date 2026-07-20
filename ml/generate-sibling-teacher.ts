@@ -71,6 +71,7 @@ export const FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE =
   'typed-incomplete-then-all-legal-single-move-proposals-v1' as const;
 export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
+export const STRENGTH_FIRST_V9_PRODUCTION_ENGINES = 13 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR = 1_000 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_REASON = 'search-timeout-no-label' as const;
 export const STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON =
@@ -3363,8 +3364,8 @@ export interface AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions extends S
 /**
  * Structurally forgeable target/finalization seam for focused tests.
  *
- * Production callers must use advanceStrengthFirstSiblingTeacherDataset from
- * inside the pinned training-row consumer callback.
+ * Production callers must use a fixed-engine production seam from inside the
+ * pinned training-row consumer callback.
  */
 export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
@@ -3389,9 +3390,12 @@ export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
  * emits the training-only dataset and its exact completion/manifest/result
  * bindings. The target is deliberately excluded from the run fingerprint.
  */
-export async function advanceStrengthFirstSiblingTeacherDataset(
+async function advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StrengthFirstSiblingTeacherOptions,
+  engines:
+    | typeof STRENGTH_FIRST_PRODUCTION_ENGINES
+    | typeof STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
   if (
@@ -3426,7 +3430,7 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
     input,
     {
       ...options,
-      engines: STRENGTH_FIRST_PRODUCTION_ENGINES,
+      engines,
     },
     {
       targetParents,
@@ -3492,6 +3496,33 @@ export async function generateFreshSelectionSiblingTeacherDataset(
     },
     dependencies
   )) as FreshSelectionSiblingTeacherOutcome;
+}
+
+export function advanceStrengthFirstSiblingTeacherDataset(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StrengthFirstSiblingTeacherOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<StrengthFirstSiblingTeacherAdvance> {
+  return advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
+    input,
+    rawOptions,
+    STRENGTH_FIRST_PRODUCTION_ENGINES,
+    dependencies
+  );
+}
+
+/** V9 production seam; the legacy/v8 production seam remains fixed at 12. */
+export function advanceStrengthFirstV9SiblingTeacherDataset(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StrengthFirstSiblingTeacherOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<StrengthFirstSiblingTeacherAdvance> {
+  return advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
+    input,
+    rawOptions,
+    STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
+    dependencies
+  );
 }
 
 export const REMOVED_SIBLING_TEACHER_CLI_MESSAGE =

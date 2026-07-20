@@ -314,7 +314,7 @@ function fixture(postflightMutation = false) {
         limit: { depth: 16 },
         proposal_incomplete_quarantine_policy:
           "proposal-only-typed-fixed-depth-incomplete-ranks-no-label-v1",
-        parallel_engines: 12,
+        parallel_engines: 13,
         hash_mb_per_engine: 512,
         timeout_ms: 600_000,
       },

@@ -1,6 +1,6 @@
 # From the v8 stop to v9: depth-14 proposals with depth-16 scoring
 
-> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 lane measurement, and the v9 runner implementation. The formal v9 teacher, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
+> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 and 12-vs-13 lane measurements, and the v9 runner implementation. The formal v9 teacher, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
 
 ## Conclusion
 
@@ -12,7 +12,7 @@ V9 separates candidate discovery from exact candidate scoring.
 | ------------------------------------ | --------------------: | ------------------------: |
 | Candidate proposal                   | MultiPV 12 / depth 16 | MultiPV 12 / **depth 14** |
 | Independent score for each candidate |              depth 16 |        **still depth 16** |
-| Parallelism                          |            12 engines |                12 engines |
+| Parallelism                          |            12 engines |                13 engines |
 | Hash                                 |      512 MiB / engine |          512 MiB / engine |
 | Per-search bound                     |           600 seconds |               600 seconds |
 
@@ -51,7 +51,7 @@ The fast input boundary instead:
 
 The real 24,000-row load took about 3.70 seconds. The runner does not keep a file descriptor open for the multi-hour teacher run. It holds the frozen validated rows in memory, then rereads the same pinned input afterward. A mid-run input change therefore prevents result publication.
 
-## Twelve engines beat fourteen
+## Selecting thirteen while rejecting fourteen
 
 We measured rather than assuming that fourteen physical cores imply fourteen engines. Every trial fully labeled the same 42-position prefix using depth-14 proposals and depth-16 independent rescoring. The counterbalanced order was 12 → 14 → 14 → 12, for 168 labels and zero forced skips.
 
@@ -60,11 +60,18 @@ We measured rather than assuming that fourteen physical cores imply fourteen eng
 | 12 engines  | 59.672 s, 87.004 s  | 73.338 s |
 | 14 engines  | 73.295 s, 86.510 s  | 79.903 s |
 
-Fourteen-lane throughput was 91.784% of twelve-lane throughput, or about 8.216% slower. The extra hash memory, memory-bandwidth pressure, and scheduling contention did not pay back, so v9 keeps twelve engines. Cleanup left zero engines, zero disposable directories, zero throttled pages, and no thermal or performance warning.
+Fourteen-lane throughput was 91.784% of twelve-lane throughput, or about 8.216% slower. We therefore measured the intermediate thirteen-lane setting in a separate counterbalanced run. It used the same 42 positions, one thread and 512 MiB hash per engine, the order 12 → 13 → 13 → 12, 168 total labels, and zero forced skips.
+
+| Parallelism | Measured wall times |   Median |
+| ----------- | ------------------- | -------: |
+| 12 engines  | 90.314 s, 74.878 s  | 82.596 s |
+| 13 engines  | 78.288 s, 72.873 s  | 75.581 s |
+
+Thirteen-lane median throughput was 109.2814% of twelve-lane throughput, clearing the predeclared 101% selection threshold. Its median wall time was 8.493% lower. Two short trial pairs do not prove playing strength or the full 24,000-position duration, and the absolute twelve-lane time varied between the two benchmark runs. Within the same run, however, thirteen was faster, while the separate twelve-vs-fourteen run showed fourteen was slower. V9 therefore selects thirteen among the measured twelve-, thirteen-, and fourteen-lane settings.
 
 ## What now reaches playing strength
 
-The new runner binds a separate v9 output root, clean Git revision, fast-input policy, the depth-14/depth-16 split, twelve engines, 512 MiB hash, and typed proposal quarantine into the run fingerprint and final result. It never mixes v8 labels into v9. The formal v9 root has not been written by unmerged code.
+The new runner binds a separate v9 output root, clean Git revision, fast-input policy, the depth-14/depth-16 split, thirteen engines, 512 MiB hash, and typed proposal quarantine into the run fingerprint and final result. It never mixes v8 labels into v9. The formal v9 root has not been written by unmerged code.
 
 The remaining path is direct:
 
@@ -75,6 +82,6 @@ The remaining path is direct:
 5. measure formal paired A/B and external calibration; and
 6. promote only a candidate with stable high-dan evidence.
 
-The accurate claim today is: “the implementation can start formal v9 with the known v8 stop handled, the long serial input reconstruction removed, and the faster measured twelve-lane configuration.” It is not yet “the AI is high-dan.”
+The accurate claim today is: “the implementation can start formal v9 with the known v8 stop handled, the long serial input reconstruction removed, and the faster measured thirteen-lane configuration.” It is not yet “the AI is high-dan.”
 
 The aggregate record is available as [machine-readable evidence](./data/floodgate-strength-first-v9-proposal-rescue-2026-07-20.json).

@@ -38,15 +38,20 @@ fresh finalは、3 seedから一つを選んだ**後**に初めて使う未見�
 
 1. tracked selection-evaluator registryを検証する。
 2. registryが閉じていれば、private selection receiptを開く前に停止する。
-3. READY時だけ固定receiptを1回読み、3-checkpoint preflight hash、各seedの4 gate、
-   ranking、中央値candidate、family gate、選択checkpointを再計算する。
-4. その後だけfresh-final source、engine asset、search policyを開く。
-5. 4,800親すべてを処理し、同じ証拠をpostflightで再検証する。
-6. `manifest.json`と`authority.json`を保存し、唯一の完了markerである`result.json`を最後に保存する。
+3. 評価前READYとは別の`candidate-selected-publication-enrolled`状態だけを受理し、
+   `selection-evaluation-report.json`、`selection-receipt.json`、最後に保存された
+   `selection-publication-result.json`をそれぞれsingle-link `0600`として安定readする。
+4. 同じselection datasetとstable + seed 42/43/44の4 checkpointで評価を決定論的に
+   再実行し、evaluation reportのbytesと完全一致させる。そこからreceipt、各seedの4 gate、
+   ranking、中央値candidate、family gate、選択checkpointを再構築する。
+5. その後だけfresh-final source、engine asset、search policyを開く。
+6. 4,800親すべてを処理し、同じ証拠をpostflightで再検証する。
+7. `manifest.json`と`authority.json`を保存し、唯一の完了markerである`result.json`を最後に保存する。
 
 ここでは後工程用のdownstream READY registryを前提にしていない。選抜を実施した既存registryと
-発行済みreceiptを直接検証するので、「finalを生成するにはfinal後のregistryが必要」という循環を
-作らない。
+reviewでidentityを登録した3 artifactを直接検証するので、「finalを生成するにはfinal後の
+registryが必要」という循環を作らない。一方、同じuserがreport、receipt、markerをまとめて
+書き換える自己整合的な偽造も、4 checkpointの実replayと一致しない限り通らない。
 
 ## Macを使う並列設定
 
@@ -81,21 +86,26 @@ fresh finalは、3 seedから一つを選んだ**後**に初めて使う未見�
 に固定した。directoryは`0700`、fileはsingle-link `0600`で、再開用`work.jsonl`と完走後の
 `final.jsonl`を分ける。
 
-既存`result.json`がある場合も、ファイルが存在するだけでは完了扱いしない。datasetの実hash、
+既存`result.json`がある場合も、ファイルが存在するだけでは完了扱いしない。現在のclean revision、
+選抜publication、search policy、generation fingerprint、engine asset authorityからrun fingerprintを
+再計算する。datasetは実hashだけでなく、全行をcanonical sibling recordとしてparseし、
+record数、parent group数、1 group 2 records以上、source順、4,800親の重複なしcoverageを検証する。
+欠けた親は合法手2未満の場合だけ許す。その上で
 manifest、authority、resultの相互identity、全completion型、selection receipt、selected
 checkpoint、search policy、source、run fingerprint、boundaryを再検証する。focused testでは
-dataset 1 byte、manifest、authority、completion型、selected checkpointの各改ざんをすべて
-拒否した。
+dataset row/count/group/coverage、manifest、authority、completion型、selected checkpoint、
+古いrevision、asset、generation fingerprintの各改ざんをすべて拒否した。
 
 ## validationと次工程
 
 Node v22で、fresh-final generator、fresh-selection既存runner、fresh-final runnerのfocused
-20 tests、Python receipt preflight 4 tests、TypeScript compile、diff checkがPASSした。
+tests、Python receipt preflight 6 tests、TypeScript compile、diff checkがPASSした。
 実commandのSTOPも上記の全0 counterで確認した。元の4,800局面は開いておらず、重いteacher runも
 開始していない。
 
-次は24,000局面の教師生成、3-seed再学習、fresh-selectionによる候補選抜を完了し、その実receiptを
-発行すること。その後この固定commandが12 processで`final.jsonl`を生成し、選抜済みcandidateと
+次は24,000局面の教師生成、3-seed再学習、fresh-selectionによる候補選抜を完了し、evaluation
+report / receipt / final markerを同一実行で発行してreview登録すること。その後4-model replayを
+通った場合だけ、この固定commandが12 processで`final.jsonl`を生成し、選抜済みcandidateと
 stableの最終比較へ進める。
 
 機械可読記録:

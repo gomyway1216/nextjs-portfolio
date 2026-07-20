@@ -27,6 +27,7 @@ from typing import Any
 
 from fresh_qat_selection_preflight import _verify_tracked_file
 import strength_first_downstream_gates as DOWNSTREAM
+import strength_first_qat_selection_eval_adapter as EVALUATION
 import strength_first_qat_selection_evaluator as SELECTION
 
 
@@ -47,7 +48,8 @@ class FreshFinalTeacherPreflightBlocked(RuntimeError):
 class _Dependencies:
     read_bytes: Callable[[str], bytes]
     verify_tracked: Callable[[str, bytes], None]
-    read_private_receipt: Callable[[str], bytes]
+    read_private_artifact: Callable[[str], bytes]
+    replay_evaluation: Callable[..., Mapping[str, Any]]
 
 
 def _strict_json(raw: bytes, label: str) -> dict[str, Any]:
@@ -126,26 +128,120 @@ def _validate_tracked_identity(
     dependencies.verify_tracked(str(path), raw)
 
 
+def _strict_publication_result(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_fields = {
+        "schema",
+        "status",
+        "evaluation_origin_registry",
+        "evaluation_report",
+        "selection_receipt",
+        "selected_seed",
+        "selected_checkpoint",
+        "boundary",
+    }
+    if type(value) is not dict or set(value) != expected_fields:
+        raise ValueError("selection publication result fields are not exact")
+    if (
+        value["schema"]
+        != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA
+        or value["status"]
+        != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_STATUS
+        or not SELECTION._typed_equal(
+            value["boundary"],
+            SELECTION._PUBLICATION_RESULT_BOUNDARY,
+        )
+    ):
+        raise ValueError("selection publication result is incomplete")
+    return dict(value)
+
+
 def build_fresh_final_teacher_selection_preflight(
     *,
     registry: Mapping[str, Any],
     registry_raw: bytes,
+    evaluation_report: Mapping[str, Any],
+    evaluation_report_raw: bytes,
     receipt: Mapping[str, Any],
     receipt_raw: bytes,
+    publication_result: Mapping[str, Any],
+    publication_result_raw: bytes,
+    replayed_evaluation_report: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Recompute the receipt and return only portable, non-label evidence."""
+    """Replay the evaluator, rebuild the receipt, and return portable evidence."""
 
-    if _canonical_json_bytes(receipt) != receipt_raw:
-        raise ValueError("selection receipt is not canonical JSON")
-    selected = DOWNSTREAM.validate_selection_receipt_against_evaluator_registry(
-        receipt,
-        selection_registry=registry,
+    for value, raw, label in (
+        (evaluation_report, evaluation_report_raw, "selection evaluation report"),
+        (receipt, receipt_raw, "selection receipt"),
+        (publication_result, publication_result_raw, "selection publication result"),
+    ):
+        if _canonical_json_bytes(value) != raw:
+            raise ValueError(f"{label} is not canonical JSON")
+    enrolled = registry["enrollments"]
+    evaluation_report_identity = _identity(
+        path=SELECTION.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
+        raw=evaluation_report_raw,
+        schema=EVALUATION.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA,
     )
     receipt_identity = _identity(
         path=SELECTION.STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
         raw=receipt_raw,
         schema=SELECTION.STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
     )
+    publication_result_identity = _identity(
+        path=SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
+        raw=publication_result_raw,
+        schema=SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA,
+    )
+    if (
+        not SELECTION._typed_equal(
+            evaluation_report_identity,
+            enrolled["selection_evaluation_report"],
+        )
+        or not SELECTION._typed_equal(
+            receipt_identity,
+            enrolled["selection_receipt"],
+        )
+        or not SELECTION._typed_equal(
+            publication_result_identity,
+            enrolled["selection_publication_result"],
+        )
+    ):
+        raise ValueError("selection publication identity is not enrolled")
+    publication = _strict_publication_result(publication_result)
+    if (
+        not SELECTION._typed_equal(
+            publication["evaluation_origin_registry"],
+            enrolled["selection_evaluation_origin_registry"],
+        )
+        or not SELECTION._typed_equal(
+            publication["evaluation_report"],
+            evaluation_report_identity,
+        )
+        or not SELECTION._typed_equal(
+            publication["selection_receipt"],
+            receipt_identity,
+        )
+    ):
+        raise ValueError("selection publication result binding mismatch")
+    selected = DOWNSTREAM.validate_selection_receipt_against_evaluator_registry(
+        receipt,
+        evaluation_report=evaluation_report,
+        replayed_evaluation_report=replayed_evaluation_report,
+        selection_registry=registry,
+    )
+    if (
+        not SELECTION._typed_equal(
+            publication["selected_seed"],
+            selected["selected_seed"],
+        )
+        or not SELECTION._typed_equal(
+            publication["selected_checkpoint"],
+            selected["selected_checkpoint"],
+        )
+    ):
+        raise ValueError("selection publication selected candidate mismatch")
     return {
         "schema": SUMMARY_SCHEMA,
         "status": SUMMARY_STATUS,
@@ -157,11 +253,16 @@ def build_fresh_final_teacher_selection_preflight(
             raw=registry_raw,
             schema=SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA,
         ),
+        "selection_evaluation_report": evaluation_report_identity,
         "selection_receipt": receipt_identity,
+        "selection_publication_result": publication_result_identity,
         "selected_seed": selected["selected_seed"],
         "selected_checkpoint": selected["selected_checkpoint"],
+        "selection_evaluation_report_reads": 1,
         "selection_receipt_reads": 1,
-        "selection_dataset_reads": 0,
+        "selection_publication_result_reads": 1,
+        "selection_dataset_reads": 1,
+        "selection_checkpoint_evaluations": 4,
         "fresh_final_source_opened": False,
         "fresh_final_label_reads": 0,
         "teacher_engines_started": 0,
@@ -169,6 +270,87 @@ def build_fresh_final_teacher_selection_preflight(
         "cloud_requests": 0,
         "live_weight_writes": 0,
     }
+
+
+def _replay_selection_evaluation(
+    *,
+    receipt: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    repo_root: Path,
+    home_root: Path,
+    replay: Callable[..., Mapping[str, Any]],
+) -> Mapping[str, Any]:
+    try:
+        runs = receipt["runs"]
+        completion = receipt["selection_teacher"]["completion"]
+    except (KeyError, TypeError) as error:
+        raise ValueError("selection receipt cannot define replay inputs") from error
+    if type(runs) is not list or len(runs) != 3:
+        raise ValueError("selection replay requires exact three candidate runs")
+    checkpoint_specs = []
+    for expected_seed, run in zip((42, 43, 44), runs):
+        if type(run) is not dict or run.get("seed") != expected_seed:
+            raise ValueError("selection replay candidate order mismatch")
+        checkpoint = SELECTION._identity(
+            run.get("checkpoint"),
+            f"selection replay seed {expected_seed} checkpoint",
+        )
+        expected_relative = (
+            f"{SELECTION.BRIDGE.STRENGTH_FIRST_QAT_RUN_ROOT}/"
+            f"seed-{expected_seed}/final.pt"
+        )
+        if (
+            checkpoint["path"] != expected_relative
+            or checkpoint["schema"]
+            != SELECTION.BRIDGE.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
+        ):
+            raise ValueError("selection replay candidate checkpoint drifted")
+        checkpoint_specs.append(
+            {
+                "name": (
+                    "floodgate-strength-first-int16-aware-"
+                    f"seed-{expected_seed}"
+                ),
+                "path": str(repo_root / expected_relative),
+                "bytes": checkpoint["bytes"],
+                "sha256": checkpoint["sha256"],
+                "epoch": 20,
+            }
+        )
+    stable = SELECTION._identity(
+        registry["enrollments"]["stable_checkpoint"],
+        "selection replay stable checkpoint",
+    )
+    dataset = SELECTION._identity(
+        registry["enrollments"]["selection_dataset"],
+        "selection replay dataset",
+    )
+    if (
+        type(completion) is not dict
+        or type(completion.get("dataset_records")) is not int
+        or type(completion.get("emitted_parent_groups")) is not int
+    ):
+        raise ValueError("selection replay completion is invalid")
+    return replay(
+        data_path=str(home_root / dataset["path"]),
+        dataset_identity={
+            "bytes": dataset["bytes"],
+            "sha256": dataset["sha256"],
+        },
+        checkpoint_specs=[
+            {
+                "name": "stable",
+                "path": str(home_root / stable["path"]),
+                "bytes": stable["bytes"],
+                "sha256": stable["sha256"],
+                "epoch": 27,
+            },
+            *checkpoint_specs,
+        ],
+        expected_records=completion["dataset_records"],
+        expected_parents=completion["emitted_parent_groups"],
+        max_workers=2,
+    )
 
 
 def run_strength_first_fresh_final_teacher_preflight_core(
@@ -194,10 +376,10 @@ def run_strength_first_fresh_final_teacher_preflight_core(
 
     if (
         registry["status"]
-        != SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+        != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
     ):
         raise FreshFinalTeacherPreflightBlocked(
-            "selected candidate receipt is not enrolled and ready"
+            "selected candidate publication is not enrolled and replay-ready"
         )
 
     for name, identity in registry["protocol"].items():
@@ -224,23 +406,61 @@ def run_strength_first_fresh_final_teacher_preflight_core(
             f"selection evaluator enrollment {name}",
         )
 
-    receipt_relative = registry["fixed_paths"]["selection_receipt"]
-    if receipt_relative != SELECTION.STRENGTH_FIRST_SELECTION_RECEIPT_PATH:
-        raise ValueError("selection receipt fixed path drifted")
-    receipt_path = home / receipt_relative
-    if os.path.realpath(receipt_path) != os.path.abspath(receipt_path):
-        raise ValueError("selection receipt fixed path is not canonical")
-    receipt_raw = dependencies.read_private_receipt(str(receipt_path))
+    private_artifacts = {}
+    for name, expected_path in (
+        (
+            "selection_evaluation_report",
+            SELECTION.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
+        ),
+        ("selection_receipt", SELECTION.STRENGTH_FIRST_SELECTION_RECEIPT_PATH),
+        (
+            "selection_publication_result",
+            SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
+        ),
+    ):
+        relative = registry["fixed_paths"][name]
+        if relative != expected_path:
+            raise ValueError(f"{name} fixed path drifted")
+        artifact_path = home / relative
+        if os.path.realpath(artifact_path) != os.path.abspath(artifact_path):
+            raise ValueError(f"{name} fixed path is not canonical")
+        private_artifacts[name] = dependencies.read_private_artifact(
+            str(artifact_path)
+        )
+
+    evaluation_report_raw = private_artifacts["selection_evaluation_report"]
+    evaluation_report = _strict_json(
+        evaluation_report_raw,
+        "selection evaluation report",
+    )
+    receipt_raw = private_artifacts["selection_receipt"]
     receipt = _strict_json(receipt_raw, "selection receipt")
+    publication_result_raw = private_artifacts["selection_publication_result"]
+    publication_result = _strict_json(
+        publication_result_raw,
+        "selection publication result",
+    )
+    replayed_evaluation_report = _replay_selection_evaluation(
+        receipt=receipt,
+        registry=registry,
+        repo_root=root,
+        home_root=home,
+        replay=dependencies.replay_evaluation,
+    )
     return build_fresh_final_teacher_selection_preflight(
         registry=registry,
         registry_raw=registry_raw,
+        evaluation_report=evaluation_report,
+        evaluation_report_raw=evaluation_report_raw,
         receipt=receipt,
         receipt_raw=receipt_raw,
+        publication_result=publication_result,
+        publication_result_raw=publication_result_raw,
+        replayed_evaluation_report=replayed_evaluation_report,
     )
 
 
-def _read_private_receipt(path: str) -> bytes:
+def _read_private_artifact(path: str) -> bytes:
     parent = os.path.dirname(path)
     parent_stat = os.lstat(parent)
     if (
@@ -249,7 +469,7 @@ def _read_private_receipt(path: str) -> bytes:
         or stat.S_IMODE(parent_stat.st_mode) != 0o700
     ):
         raise ValueError(
-            "selection receipt directory must be a current-user 0700 directory"
+            "selection publication directory must be a current-user 0700 directory"
         )
     before = os.lstat(path)
     if (
@@ -258,7 +478,9 @@ def _read_private_receipt(path: str) -> bytes:
         or stat.S_IMODE(before.st_mode) != 0o600
         or before.st_nlink != 1
     ):
-        raise ValueError("selection receipt must be a current-user 0600 regular file")
+        raise ValueError(
+            "selection publication must be a current-user 0600 regular file"
+        )
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags)
     try:
@@ -268,7 +490,7 @@ def _read_private_receipt(path: str) -> bytes:
             or opened.st_ino != before.st_ino
             or not stat.S_ISREG(opened.st_mode)
         ):
-            raise ValueError("selection receipt changed before open")
+            raise ValueError("selection publication changed before open")
         blocks = []
         while True:
             block = os.read(descriptor, 1024 * 1024)
@@ -298,7 +520,7 @@ def _read_private_receipt(path: str) -> bytes:
             current.st_ctime_ns,
             current.st_nlink,
         ) != observed:
-            raise ValueError("selection receipt changed while being read")
+            raise ValueError("selection publication changed while being read")
     return b"".join(blocks)
 
 
@@ -313,7 +535,8 @@ def run_strength_first_fresh_final_teacher_preflight() -> dict[str, Any]:
             revision,
             raw,
         ),
-        read_private_receipt=_read_private_receipt,
+        read_private_artifact=_read_private_artifact,
+        replay_evaluation=EVALUATION.evaluate_strength_first_selection,
     )
     return run_strength_first_fresh_final_teacher_preflight_core(
         repo_root=root,

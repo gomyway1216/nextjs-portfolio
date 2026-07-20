@@ -35,7 +35,21 @@
     },
     "downstream_ready_registry_consulted": false,
     "downstream_ready_registry_required": false,
+    "terminal_publication_required_when_ready": {
+      "status": "candidate-selected-publication-enrolled",
+      "artifacts": [
+        "selection-evaluation-report.json",
+        "selection-receipt.json",
+        "selection-publication-result.json"
+      ],
+      "completion_marker_committed_last": true,
+      "all_three_identities_review_enrolled": true,
+      "deterministic_same-dataset-four-checkpoint-replay_required": true,
+      "self_consistent_metrics_without_replay_rejected": true
+    },
     "receipt_recomputations_when_ready": [
+      "deterministic-four-model-evaluation-report-byte-match",
+      "evaluation-report-receipt-completion-marker-identities",
       "three-checkpoint-preflight-hash",
       "all-three-per-seed-metric-gates",
       "ranked-seed-order",
@@ -62,7 +76,9 @@
     "exact_clean_revision_before_selection_preflight": true,
     "selection_registry_validated_before_receipt_read": true,
     "blocked_registry_stops_before_receipt_read": true,
-    "selection_receipt_recomputed_before_output_lock_source_or_engine": true,
+    "terminal-publication-three-artifact-stable-read-before-output": true,
+    "selection-evaluation-report-replayed-on-exact-dataset-and-four-checkpoints": true,
+    "selection_receipt_rebuilt-from-replayed-report-before-output-lock-source-or-engine": true,
     "source_assets_and_shared_policy_open_only_after_selection_receipt": true,
     "selection_receipt_source_assets_and_policy_revalidated_after_generation": true,
     "result_committed_last": true,
@@ -122,12 +138,37 @@
     "authority": "authority.json",
     "result": "result.json",
     "strict_existing_result_revalidation": true,
+    "existing_result_expected_fingerprint_recomputed_from": [
+      "current-clean-runner-revision",
+      "current-selection-publication-preflight",
+      "current-shared-search-policy",
+      "current-generation-fingerprint",
+      "current-engine-asset-authority"
+    ],
+    "final_jsonl_semantic_revalidation": {
+      "strict_canonical_rows": true,
+      "exact_record_count": true,
+      "exact_parent_group_count": true,
+      "minimum_two-records-per-group": true,
+      "duplicate-or-unknown-parent-rejected": true,
+      "source-order-and-metadata-bound": true,
+      "all_4800_source_parents_accounted": true,
+      "missing_parent_must-have-fewer-than-two-legal-moves": true
+    },
     "existing_result_tamper_negatives": [
       "dataset-byte",
+      "dataset-invalid-utf8",
+      "dataset-row",
+      "dataset-record-count",
+      "dataset-parent-group",
+      "dataset-parent-coverage",
       "manifest",
       "authority",
       "completion-type",
-      "selected-checkpoint"
+      "selected-checkpoint",
+      "stale-runner-revision",
+      "stale-engine-asset-receipt",
+      "stale-generation-fingerprint"
     ]
   },
   "local_validation": {
@@ -135,7 +176,7 @@
     "focused_runtime_vitest": {
       "status": "PASS",
       "files": 3,
-      "tests": 20
+      "tests": 22
     },
     "publication_evidence_vitest": {
       "status": "PASS",
@@ -145,11 +186,11 @@
     "combined_focused_vitest": {
       "status": "PASS",
       "files": 4,
-      "tests": 24
+      "tests": 26
     },
     "python_receipt_preflight": {
       "status": "PASS",
-      "tests": 4
+      "tests": 6
     },
     "production_stop_command": "PASS",
     "git_diff_check": "PASS",
@@ -182,5 +223,5 @@
     "live_weights_changed": false
   },
   "claim_boundary": "receipt-gated-runner-implementation-and-focused-validation-only-not-real-selection-final-labels-evaluation-ab-calibration-strength-or-live-promotion-evidence",
-  "next_step": "finish-three-seed-selection-and-publish-the-recomputed-selection-receipt-then-run-this-fixed-local-command"
+  "next_step": "finish-three-seed-selection, publish and review-enroll the evaluation-report/receipt/final-marker bundle, then run the fixed deterministic four-model replay before this local teacher command can open fresh-final"
 }

@@ -51,6 +51,9 @@ STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS = (
 STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS = (
     "exact-plan-three-checkpoints-and-selection-teacher-ready"
 )
+STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS = (
+    "candidate-selected-publication-enrolled"
+)
 STRENGTH_FIRST_SELECTION_TEACHER_AUTHORITY_SCHEMA = (
     "shogi-floodgate-strength-first-selection-teacher-authority-v1"
 )
@@ -68,6 +71,12 @@ STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA = (
 )
 STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
     "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1"
+)
+STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA = (
+    "shogi-floodgate-strength-first-selection-publication-result-v1"
+)
+STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_STATUS = (
+    "complete-evaluation-report-and-selection-receipt-published"
 )
 STRENGTH_FIRST_SELECTION_EVALUATOR_CLI_SCHEMA = (
     "shogi-floodgate-strength-first-selection-evaluator-cli-v1"
@@ -100,6 +109,12 @@ STRENGTH_FIRST_SELECTION_DATASET_PATH = (
 )
 STRENGTH_FIRST_SELECTION_RECEIPT_PATH = (
     f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/selection-receipt.json"
+)
+STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH = (
+    f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/selection-evaluation-report.json"
+)
+STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH = (
+    f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/selection-publication-result.json"
 )
 STRENGTH_FIRST_STABLE_CHECKPOINT_PATH = (
     ".codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt"
@@ -153,6 +168,15 @@ _RECEIPT_BOUNDARY = {
     "production_promotion_authorized": False,
     "live_weight_write_authorized": False,
 }
+_PUBLICATION_RESULT_BOUNDARY = {
+    "local_only": True,
+    "evaluation_report_and_receipt_published_same_run": True,
+    "result_committed_last": True,
+    "deterministic_replay_required_before_final_holdout": True,
+    "final_holdout_read": False,
+    "production_promotion_authorized": False,
+    "live_weight_write_authorized": False,
+}
 _REGISTRY_BOUNDARY = {
     "local_only": True,
     "fixed_private_paths": True,
@@ -171,6 +195,8 @@ _BLOCKED_GATES = {
     "three_checkpoint_preflight_enrolled": False,
     "selection_teacher_enrolled": False,
     "local_selection_evaluation_authorized": False,
+    "candidate_selected_publication_enrolled": False,
+    "deterministic_selection_evaluation_replay_required": False,
     "final_holdout_read_authorized": False,
     "production_weight_write_authorized": False,
 }
@@ -180,8 +206,16 @@ _READY_GATES = {
     "three_checkpoint_preflight_enrolled": True,
     "selection_teacher_enrolled": True,
     "local_selection_evaluation_authorized": True,
+    "candidate_selected_publication_enrolled": False,
+    "deterministic_selection_evaluation_replay_required": False,
     "final_holdout_read_authorized": False,
     "production_weight_write_authorized": False,
+}
+_PUBLICATION_ENROLLED_GATES = {
+    **_READY_GATES,
+    "candidate_selected_publication_enrolled": True,
+    "deterministic_selection_evaluation_replay_required": True,
+    "final_holdout_read_authorized": True,
 }
 _NONCLAIMS = {
     "real_candidate_selected": False,
@@ -192,6 +226,11 @@ _NONCLAIMS = {
     "live_weights_changed": False,
     "strength_improved": False,
     "high_dan_calibrated": False,
+}
+_PUBLICATION_ENROLLED_NONCLAIMS = {
+    **_NONCLAIMS,
+    "real_candidate_selected": True,
+    "selection_receipts_emitted": 1,
 }
 _BASE_PLAN_IDENTITY = {
     "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
@@ -244,7 +283,9 @@ _FIXED_PATHS = {
     "selection_teacher_result": STRENGTH_FIRST_SELECTION_RESULT_PATH,
     "selection_dataset": STRENGTH_FIRST_SELECTION_DATASET_PATH,
     "stable_checkpoint": STRENGTH_FIRST_STABLE_CHECKPOINT_PATH,
+    "selection_evaluation_report": STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
     "selection_receipt": STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
+    "selection_publication_result": STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
 }
 _IMPLEMENTATION_PATHS = {
     "evaluator": _EVALUATOR_SOURCE_PATH,
@@ -264,6 +305,10 @@ _ENROLLMENT_FIELDS = {
     "selection_teacher_result",
     "selection_dataset",
     "stable_checkpoint",
+    "selection_evaluation_origin_registry",
+    "selection_evaluation_report",
+    "selection_receipt",
+    "selection_publication_result",
 }
 _REGISTRY_FIELDS = {
     "schema",
@@ -295,7 +340,7 @@ class _SelectionDependencies:
     claim_preflight: Callable[[Callable[[Mapping[str, Any]], Any]], Any]
     validate_plan: Callable[[Mapping[str, Any]], Any]
     evaluate: Callable[..., Mapping[str, Any]]
-    publish: Callable[[str, bytes], Mapping[str, Any]]
+    publish: Callable[[str, bytes, str], Mapping[str, Any]]
 
 
 def _exact_dict(
@@ -496,10 +541,8 @@ def _validate_registry(
         set(_BLOCKED_GATES),
         "selection evaluator gates",
     )
-    if not _typed_equal(registry["boundary"], _REGISTRY_BOUNDARY) or not _typed_equal(
-        registry["nonclaims"], _NONCLAIMS
-    ):
-        raise ValueError("selection evaluator boundary or nonclaims mismatch")
+    if not _typed_equal(registry["boundary"], _REGISTRY_BOUNDARY):
+        raise ValueError("selection evaluator boundary mismatch")
 
     if registry["status"] == STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS:
         if any(value is not None for value in implementation.values()) or any(
@@ -508,8 +551,17 @@ def _validate_registry(
             raise ValueError("blocked selection evaluator registry has an enrollment")
         if not _typed_equal(gates, _BLOCKED_GATES):
             raise ValueError("blocked selection evaluator registry has an open gate")
+        if not _typed_equal(registry["nonclaims"], _NONCLAIMS):
+            raise ValueError("blocked selection evaluator nonclaims mismatch")
         return registry, False
-    if registry["status"] != STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS:
+    terminal = (
+        registry["status"]
+        == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
+    )
+    if (
+        registry["status"] != STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+        and not terminal
+    ):
         raise ValueError("selection evaluator registry status mismatch")
 
     for name, expected_path in _IMPLEMENTATION_PATHS.items():
@@ -569,8 +621,101 @@ def _validate_registry(
         raise ValueError("selection evaluator enrollment paths are not distinct")
     if len({item["sha256"] for item in identities.values()}) != len(identities):
         raise ValueError("selection evaluator enrollment hashes are not distinct")
-    if not _typed_equal(gates, _READY_GATES):
-        raise ValueError("ready selection evaluator gates mismatch")
+    publication_fields = (
+        "selection_evaluation_origin_registry",
+        "selection_evaluation_report",
+        "selection_receipt",
+        "selection_publication_result",
+    )
+    if not terminal:
+        if any(enrollments[name] is not None for name in publication_fields):
+            raise ValueError("pre-evaluation registry contains a publication")
+        if not _typed_equal(gates, _READY_GATES):
+            raise ValueError("ready selection evaluator gates mismatch")
+        if not _typed_equal(registry["nonclaims"], _NONCLAIMS):
+            raise ValueError("ready selection evaluator nonclaims mismatch")
+        return registry, True
+
+    expected_publication_paths = {
+        "selection_evaluation_origin_registry": (
+            STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
+        ),
+        "selection_evaluation_report": _FIXED_PATHS[
+            "selection_evaluation_report"
+        ],
+        "selection_receipt": _FIXED_PATHS["selection_receipt"],
+        "selection_publication_result": _FIXED_PATHS[
+            "selection_publication_result"
+        ],
+    }
+    expected_publication_schemas = {
+        "selection_evaluation_origin_registry": (
+            STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA
+        ),
+        "selection_evaluation_report": (
+            ADAPTER.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA
+        ),
+        "selection_receipt": STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+        "selection_publication_result": (
+            STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA
+        ),
+    }
+    publication_identities = {}
+    for name in publication_fields:
+        identity = _identity(
+            enrollments[name],
+            f"selection evaluator enrollment {name}",
+        )
+        if (
+            identity["path"] != expected_publication_paths[name]
+            or identity["schema"] != expected_publication_schemas[name]
+        ):
+            raise ValueError(
+                f"selection evaluator enrollment {name} identity mismatch"
+            )
+        publication_identities[name] = identity
+    ready_preimage = copy.deepcopy(registry)
+    ready_preimage["status"] = STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+    for name in publication_fields:
+        ready_preimage["enrollments"][name] = None
+    ready_preimage["gates"] = copy.deepcopy(_READY_GATES)
+    ready_preimage["nonclaims"] = copy.deepcopy(_NONCLAIMS)
+    ready_preimage_raw = _canonical_json_bytes(ready_preimage)
+    expected_origin_identity = {
+        "path": STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
+        "bytes": len(ready_preimage_raw),
+        "sha256": hashlib.sha256(ready_preimage_raw).hexdigest(),
+        "schema": STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA,
+    }
+    if not _typed_equal(
+        publication_identities["selection_evaluation_origin_registry"],
+        expected_origin_identity,
+    ):
+        raise ValueError(
+            "selection evaluation origin registry is not the exact READY preimage"
+        )
+    if len(
+        {
+            publication_identities[name]["path"]
+            for name in (
+                "selection_evaluation_report",
+                "selection_receipt",
+                "selection_publication_result",
+            )
+        }
+    ) != 3:
+        raise ValueError("selection publication paths are not distinct")
+    if len(
+        {identity["sha256"] for identity in publication_identities.values()}
+    ) != len(publication_identities):
+        raise ValueError("selection publication hashes are not distinct")
+    if not _typed_equal(gates, _PUBLICATION_ENROLLED_GATES):
+        raise ValueError("publication-enrolled selection evaluator gates mismatch")
+    if not _typed_equal(
+        registry["nonclaims"],
+        _PUBLICATION_ENROLLED_NONCLAIMS,
+    ):
+        raise ValueError("publication-enrolled selection nonclaims mismatch")
     return registry, True
 
 
@@ -1278,6 +1423,7 @@ def _execute_ready_selection(
     preflight_value: Mapping[str, Any],
     *,
     registry: Mapping[str, Any],
+    origin_registry_identity: Mapping[str, Any],
     repo_root: Path,
     home_root: Path,
     dependencies: _SelectionDependencies,
@@ -1298,7 +1444,9 @@ def _execute_ready_selection(
             "selection_teacher_result",
             "selection_dataset",
             "stable_checkpoint",
+            "selection_evaluation_report",
             "selection_receipt",
+            "selection_publication_result",
         )
     }
     authority_raw = _read_registered(
@@ -1423,22 +1571,64 @@ def _execute_ready_selection(
                 "tracked selection input changed during selection evaluation"
             )
         dependencies.verify_tracked(path, raw)
-    raw = _canonical_json_bytes(receipt)
-    publication = dependencies.publish(
-        private_paths["selection_receipt"],
-        raw,
-    )
-    expected_publication = {
+    report_raw = _canonical_json_bytes(dict(report))
+    report_identity = {
+        "path": STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
+        "bytes": len(report_raw),
+        "sha256": hashlib.sha256(report_raw).hexdigest(),
+        "schema": ADAPTER.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA,
+    }
+    receipt_raw = _canonical_json_bytes(receipt)
+    receipt_identity = {
         "path": STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
-        "bytes": len(raw),
-        "sha256": hashlib.sha256(raw).hexdigest(),
+        "bytes": len(receipt_raw),
+        "sha256": hashlib.sha256(receipt_raw).hexdigest(),
         "schema": STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
     }
-    if not _typed_equal(publication, expected_publication):
-        raise ValueError("selection receipt publication identity mismatch")
+    publication_result = {
+        "schema": STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA,
+        "status": STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_STATUS,
+        "evaluation_origin_registry": copy.deepcopy(origin_registry_identity),
+        "evaluation_report": copy.deepcopy(report_identity),
+        "selection_receipt": copy.deepcopy(receipt_identity),
+        "selected_seed": receipt["selected"]["seed"],
+        "selected_checkpoint": copy.deepcopy(receipt["selected"]["checkpoint"]),
+        "boundary": copy.deepcopy(_PUBLICATION_RESULT_BOUNDARY),
+    }
+    publication_result_raw = _canonical_json_bytes(publication_result)
+    publication_result_identity = {
+        "path": STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
+        "bytes": len(publication_result_raw),
+        "sha256": hashlib.sha256(publication_result_raw).hexdigest(),
+        "schema": STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA,
+    }
+    published_report = dependencies.publish(
+        private_paths["selection_evaluation_report"],
+        report_raw,
+        ADAPTER.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA,
+    )
+    published_receipt = dependencies.publish(
+        private_paths["selection_receipt"],
+        receipt_raw,
+        STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+    )
+    # This is the sole completion marker and is always committed last.
+    published_result = dependencies.publish(
+        private_paths["selection_publication_result"],
+        publication_result_raw,
+        STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA,
+    )
+    if (
+        not _typed_equal(published_report, report_identity)
+        or not _typed_equal(published_receipt, receipt_identity)
+        or not _typed_equal(published_result, publication_result_identity)
+    ):
+        raise ValueError("selection publication identity mismatch")
     return {
+        "evaluation_report": report_identity,
         "receipt": receipt,
-        "publication": expected_publication,
+        "publication": receipt_identity,
+        "completion": publication_result_identity,
     }
 
 
@@ -1457,6 +1647,20 @@ def _run_strength_first_selection_evaluator(
     registry = _strict_json(registry_raw, "selection evaluator registry")
     registry, ready = _validate_registry(registry)
     dependencies.verify_tracked(str(registry_path), registry_raw)
+    if (
+        registry["status"]
+        == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
+    ):
+        raise StrengthFirstSelectionBlocked(
+            "selection publication is already enrolled"
+        )
+    origin_registry_canonical_raw = _canonical_json_bytes(registry)
+    origin_registry_identity = {
+        "path": STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
+        "bytes": len(origin_registry_canonical_raw),
+        "sha256": hashlib.sha256(origin_registry_canonical_raw).hexdigest(),
+        "schema": STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA,
+    }
     tracked_snapshots = [(str(registry_path), registry_raw)]
     for name, identity in registry["protocol"].items():
         if name == "fresh_selection_source":
@@ -1508,6 +1712,7 @@ def _run_strength_first_selection_evaluator(
         lambda preflight: _execute_ready_selection(
             preflight,
             registry=registry,
+            origin_registry_identity=origin_registry_identity,
             repo_root=root,
             home_root=home,
             dependencies=dependencies,
@@ -1553,28 +1758,51 @@ def _file_fingerprint(path: str) -> dict[str, Any]:
     return {"bytes": before.st_size, "sha256": digest.hexdigest()}
 
 
-def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
+def _publish_artifact_exclusive(
+    path: str,
+    raw: bytes,
+    schema: str,
+) -> dict[str, Any]:
     if type(raw) is not bytes or not raw:
-        raise ValueError("selection receipt bytes are empty")
-    receipt = _strict_json(raw, "selection receipt publication")
-    if receipt.get("schema") != STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA:
-        raise ValueError("selection receipt publication schema mismatch")
+        raise ValueError("selection publication bytes are empty")
+    expected_by_schema = {
+        (
+            ADAPTER.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA
+        ): STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
+        (
+            STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA
+        ): STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
+        (
+            STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA
+        ): STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
+    }
+    relative = expected_by_schema.get(schema)
+    if (
+        relative is None
+        or not os.path.abspath(path).endswith(
+            f"{os.sep}{relative.replace('/', os.sep)}"
+        )
+    ):
+        raise ValueError("selection publication fixed path/schema mismatch")
+    value = _strict_json(raw, "selection publication")
+    if value.get("schema") != schema or _canonical_json_bytes(value) != raw:
+        raise ValueError("selection publication schema or canonical bytes mismatch")
     target = os.path.abspath(path)
     parent = os.path.dirname(target)
     if os.path.realpath(target) != target or not os.path.isdir(parent):
-        raise ValueError("selection receipt target is not a fixed existing directory")
+        raise ValueError("selection publication target is not fixed")
     parent_stat = os.lstat(parent)
     if (
         not stat.S_ISDIR(parent_stat.st_mode)
         or parent_stat.st_uid != os.geteuid()
         or stat.S_IMODE(parent_stat.st_mode) != 0o700
     ):
-        raise ValueError("selection receipt directory must be current-user 0700")
+        raise ValueError("selection publication directory must be current-user 0700")
     if os.path.lexists(target):
-        raise ValueError("refusing to overwrite existing selection receipt")
+        raise ValueError("refusing to overwrite existing selection publication")
 
     descriptor, temporary = tempfile.mkstemp(
-        prefix=".selection-receipt.",
+        prefix=f".{Path(path).name}.",
         suffix=".tmp",
         dir=parent,
     )
@@ -1591,7 +1819,7 @@ def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
             os.link(temporary, target, follow_symlinks=False)
         except FileExistsError as error:
             raise ValueError(
-                "refusing to overwrite existing selection receipt"
+                "refusing to overwrite existing selection publication"
             ) from error
         installed = True
         os.unlink(temporary)
@@ -1609,7 +1837,7 @@ def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
             or final_stat.st_nlink != 1
             or Path(target).read_bytes() != raw
         ):
-            raise ValueError("published selection receipt failed revalidation")
+            raise ValueError("published selection artifact failed revalidation")
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -1619,13 +1847,23 @@ def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
             except FileNotFoundError:
                 pass
         if installed and not os.path.isfile(target):
-            raise ValueError("selection receipt publication was lost")
+            raise ValueError("selection publication was lost")
     return {
-        "path": STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
+        "path": relative,
         "bytes": len(raw),
         "sha256": hashlib.sha256(raw).hexdigest(),
-        "schema": STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+        "schema": schema,
     }
+
+
+def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
+    """Backward-compatible focused seam for the receipt-only publisher test."""
+
+    return _publish_artifact_exclusive(
+        path,
+        raw,
+        STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+    )
 
 
 def _git_head(repo_root: str) -> str:
@@ -1691,7 +1929,7 @@ def run_strength_first_qat_selection_evaluator() -> dict[str, Any]:
         claim_preflight=claim_preflight,
         validate_plan=BRIDGE.validate_strength_first_qat_training_plan_data,
         evaluate=ADAPTER.evaluate_strength_first_selection,
-        publish=_publish_receipt_exclusive,
+        publish=_publish_artifact_exclusive,
     )
     return _run_strength_first_selection_evaluator(
         repo_root=root,
@@ -1722,7 +1960,9 @@ def main(argv: list[str] | None = None) -> int:
                         "schema": STRENGTH_FIRST_SELECTION_EVALUATOR_CLI_SCHEMA,
                         "status": "PASS",
                         "selected_seed": receipt["selected"]["seed"],
+                        "evaluation_report": result["evaluation_report"],
                         "receipt": result["publication"],
+                        "publication_result": result["completion"],
                         "final_holdout_label_reads": 0,
                         "live_weights_changed": False,
                     },
@@ -1757,6 +1997,10 @@ __all__ = [
     "STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS",
     "STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH",
     "STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA",
+    "STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH",
+    "STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS",
+    "STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH",
+    "STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA",
     "STRENGTH_FIRST_SELECTION_TEACHER_AUTHORITY_SCHEMA",
     "StrengthFirstSelectionBlocked",
     "StrengthFirstSelectionGateFailed",

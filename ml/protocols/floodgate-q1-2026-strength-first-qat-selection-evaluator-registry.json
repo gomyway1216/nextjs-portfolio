@@ -67,7 +67,9 @@
     "selection_teacher_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/result.json",
     "selection_dataset": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection.jsonl",
     "stable_checkpoint": ".codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
-    "selection_receipt": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json"
+    "selection_evaluation_report": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json",
+    "selection_receipt": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json",
+    "selection_publication_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json"
   },
   "implementation": {
     "evaluator": null,
@@ -85,7 +87,11 @@
     "selection_teacher_manifest": null,
     "selection_teacher_result": null,
     "selection_dataset": null,
-    "stable_checkpoint": null
+    "stable_checkpoint": null,
+    "selection_evaluation_origin_registry": null,
+    "selection_evaluation_report": null,
+    "selection_receipt": null,
+    "selection_publication_result": null
   },
   "gates": {
     "implementation_sources_enrolled": false,
@@ -93,6 +99,8 @@
     "three_checkpoint_preflight_enrolled": false,
     "selection_teacher_enrolled": false,
     "local_selection_evaluation_authorized": false,
+    "candidate_selected_publication_enrolled": false,
+    "deterministic_selection_evaluation_replay_required": false,
     "final_holdout_read_authorized": false,
     "production_weight_write_authorized": false
   },

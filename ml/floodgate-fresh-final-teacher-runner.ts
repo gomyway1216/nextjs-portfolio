@@ -12,6 +12,7 @@ import { createHash, randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { TextDecoder } from "node:util";
 
 import {
   FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
@@ -24,9 +25,19 @@ import {
 } from "./floodgate-training-row-validation";
 import {
   FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+  freshFinalSiblingTeacherRunFingerprintFromEvidence,
   generateFreshFinalSiblingTeacherDataset,
   siblingTeacherStagePaths,
 } from "./generate-sibling-teacher";
+import {
+  validateParentGroups,
+  type SiblingRecord,
+} from "./sibling-data";
+import {
+  childSfenAfterUsi,
+  positionFromSfen,
+  rulesCompleteLegalMoves,
+} from "./shogi-sfen";
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
 } from "./floodgate-production-teacher-asset-authority";
@@ -67,6 +78,10 @@ export const FRESH_FINAL_TEACHER_SOURCE_RELATIVE_PATH =
   ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_RECEIPT_RELATIVE_PATH =
   ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json" as const;
+export const FRESH_FINAL_TEACHER_SELECTION_EVALUATION_REPORT_RELATIVE_PATH =
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json" as const;
+export const FRESH_FINAL_TEACHER_SELECTION_PUBLICATION_RESULT_RELATIVE_PATH =
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_REGISTRY_PATH =
   "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json" as const;
 export const FRESH_FINAL_TEACHER_PARENT_COUNT = 4_800 as const;
@@ -115,11 +130,16 @@ export interface FreshFinalTeacherSelectionPreflight {
   readonly schema: typeof FRESH_FINAL_TEACHER_SELECTION_PREFLIGHT_SCHEMA;
   readonly status: "selected-candidate-receipt-recomputed";
   readonly selection_evaluator_registry: FreshSelectionTeacherArtifactIdentity;
+  readonly selection_evaluation_report: FreshSelectionTeacherArtifactIdentity;
   readonly selection_receipt: FreshSelectionTeacherArtifactIdentity;
+  readonly selection_publication_result: FreshSelectionTeacherArtifactIdentity;
   readonly selected_seed: 42 | 43 | 44;
   readonly selected_checkpoint: FreshSelectionTeacherArtifactIdentity;
+  readonly selection_evaluation_report_reads: 1;
   readonly selection_receipt_reads: 1;
-  readonly selection_dataset_reads: 0;
+  readonly selection_publication_result_reads: 1;
+  readonly selection_dataset_reads: 1;
+  readonly selection_checkpoint_evaluations: 4;
   readonly fresh_final_source_opened: false;
   readonly fresh_final_label_reads: 0;
   readonly teacher_engines_started: 0;
@@ -237,6 +257,15 @@ export interface FreshFinalTeacherRunnerDependencies {
   readonly generate: (
     request: Readonly<FreshFinalTeacherGeneratorRequest>,
   ) => Promise<Readonly<FreshFinalTeacherGeneratorOutcome>>;
+  readonly computeGenerationFingerprint: (
+    request: Readonly<{
+      paths: FreshFinalTeacherPaths;
+      revision: string;
+      source: FreshFinalTeacherSourceSnapshot;
+      policy: SearchPolicySnapshot;
+      assets: AssetReceipt;
+    }>,
+  ) => Promise<string>;
   readonly reportProgress: (phase: string) => void;
 }
 
@@ -309,9 +338,19 @@ export function validateFreshFinalTeacherSelectionPreflight(
       "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
     ) ||
     !validArtifactIdentity(
+      value.selection_evaluation_report,
+      FRESH_FINAL_TEACHER_SELECTION_EVALUATION_REPORT_RELATIVE_PATH,
+      "shogi-floodgate-strength-first-selection-evaluation-report-v1",
+    ) ||
+    !validArtifactIdentity(
       value.selection_receipt,
       FRESH_FINAL_TEACHER_SELECTION_RECEIPT_RELATIVE_PATH,
       "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+    ) ||
+    !validArtifactIdentity(
+      value.selection_publication_result,
+      FRESH_FINAL_TEACHER_SELECTION_PUBLICATION_RESULT_RELATIVE_PATH,
+      "shogi-floodgate-strength-first-selection-publication-result-v1",
     ) ||
     !SELECTED_SEEDS.includes(value.selected_seed) ||
     !validArtifactIdentity(
@@ -319,8 +358,11 @@ export function validateFreshFinalTeacherSelectionPreflight(
       `ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-${value.selected_seed}/final.pt`,
       SELECTED_CHECKPOINT_SCHEMA,
     ) ||
+    value.selection_evaluation_report_reads !== 1 ||
     value.selection_receipt_reads !== 1 ||
-    value.selection_dataset_reads !== 0 ||
+    value.selection_publication_result_reads !== 1 ||
+    value.selection_dataset_reads !== 1 ||
+    value.selection_checkpoint_evaluations !== 4 ||
     value.fresh_final_source_opened !== false ||
     value.fresh_final_label_reads !== 0 ||
     value.teacher_engines_started !== 0 ||
@@ -417,15 +459,6 @@ async function commitPrivateBytes(
 
 function jsonBytes(value: unknown): Uint8Array {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-async function digestPrivateFile(
-  file: string,
-  root: string,
-  effectiveUserId: number,
-  schema: string,
-): Promise<FreshSelectionTeacherArtifactIdentity> {
-  return (await readPrivateArtifact(file, root, effectiveUserId, schema)).identity;
 }
 
 interface PrivateArtifactSnapshot {
@@ -627,6 +660,228 @@ function validateStoredCompletion(value: unknown): Readonly<Record<string, unkno
   return completion;
 }
 
+const FRESH_FINAL_SIBLING_RECORD_FIELDS = Object.freeze([
+  "schema",
+  "schema_version",
+  "game_id",
+  "parent_id",
+  "position_id",
+  "parent_sfen",
+  "parent_ply",
+  "ply",
+  "move",
+  "sources",
+  "sfen",
+  "child_position_id",
+  "cp",
+  "child_sfen",
+  "teacher_child_cp",
+  "teacher_parent_cp",
+  "teacher_rank",
+  "teacher_score_kind",
+] as const);
+
+export function validateFreshFinalDatasetBytesCoreForTests(
+  bytes: Uint8Array,
+  sourceRows: readonly Readonly<FloodgateTrainingParent>[],
+  completionValue: unknown,
+): readonly Readonly<SiblingRecord>[] {
+  const completion = validateStoredCompletion(completionValue);
+  if (sourceRows.length !== FRESH_FINAL_TEACHER_PARENT_COUNT) {
+    throw new Error("fresh-final dataset source cardinality is invalid");
+  }
+  const sourceByParent = new Map<string, Readonly<FloodgateTrainingParent>>();
+  for (const row of sourceRows) {
+    if (
+      typeof row.parent_id !== "string" ||
+      row.parent_id.length === 0 ||
+      sourceByParent.has(row.parent_id)
+    ) {
+      throw new Error("fresh-final dataset source parent IDs are not unique");
+    }
+    sourceByParent.set(row.parent_id, row);
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error("fresh-final dataset is not exact UTF-8");
+  }
+  if (
+    Buffer.byteLength(text, "utf8") !== bytes.byteLength ||
+    text.length === 0 ||
+    !text.endsWith("\n") ||
+    text.endsWith("\n\n") ||
+    text.includes("\r")
+  ) {
+    throw new Error("fresh-final dataset is not exact LF-terminated UTF-8 JSONL");
+  }
+  const records: SiblingRecord[] = [];
+  for (const [index, line] of text.slice(0, -1).split("\n").entries()) {
+    let value: unknown;
+    try {
+      value = JSON.parse(line) as unknown;
+    } catch {
+      throw new Error(`fresh-final dataset line ${index + 1} is not JSON`);
+    }
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      canonicalJson(value) !== line
+    ) {
+      throw new Error(
+        `fresh-final dataset line ${index + 1} is not canonical JSON`,
+      );
+    }
+    const row = value as Record<string, unknown>;
+    const expectedFields =
+      row.teacher_score_kind === "mate"
+        ? [...FRESH_FINAL_SIBLING_RECORD_FIELDS, "teacher_mate", "teacher_mate_sign"]
+        : [...FRESH_FINAL_SIBLING_RECORD_FIELDS];
+    if (!sameJson(Object.keys(row).sort(), expectedFields.sort())) {
+      throw new Error(`fresh-final dataset line ${index + 1} fields are not exact`);
+    }
+    for (const field of [
+      "game_id",
+      "parent_id",
+      "position_id",
+      "parent_sfen",
+      "move",
+      "sfen",
+      "child_position_id",
+      "child_sfen",
+      "teacher_score_kind",
+    ] as const) {
+      if (typeof row[field] !== "string" || row[field].length === 0) {
+        throw new Error(
+          `fresh-final dataset line ${index + 1} ${field} is invalid`,
+        );
+      }
+    }
+    for (const field of [
+      "schema_version",
+      "parent_ply",
+      "ply",
+      "cp",
+      "teacher_child_cp",
+      "teacher_parent_cp",
+      "teacher_rank",
+    ] as const) {
+      if (!Number.isSafeInteger(row[field])) {
+        throw new Error(
+          `fresh-final dataset line ${index + 1} ${field} is not an integer`,
+        );
+      }
+    }
+    if (
+      !Array.isArray(row.sources) ||
+      row.sources.length === 0 ||
+      row.sources.some(
+        (source) => source !== "played" && source !== "teacher",
+      ) ||
+      !sameJson(
+        row.sources,
+        row.sources.includes("played")
+          ? row.sources.includes("teacher")
+            ? ["played", "teacher"]
+            : ["played"]
+          : ["teacher"],
+      )
+    ) {
+      throw new Error(`fresh-final dataset line ${index + 1} sources are invalid`);
+    }
+    records.push(row as unknown as SiblingRecord);
+  }
+  if (records.length !== completion.dataset_records) {
+    throw new Error("fresh-final dataset record count does not match completion");
+  }
+  const summaries = validateParentGroups(records);
+  if (summaries.length !== completion.emitted_parent_groups) {
+    throw new Error("fresh-final dataset parent count does not match completion");
+  }
+  const observedParentOrder: string[] = [];
+  const closedParents = new Set<string>();
+  const firstByParent = new Map<string, SiblingRecord>();
+  const recordsByParent = new Map<string, SiblingRecord[]>();
+  const expectedChildByParentAndMove = new Map<string, string>();
+  for (const record of records) {
+    if (
+      observedParentOrder.at(-1) !== record.parent_id &&
+      closedParents.has(record.parent_id)
+    ) {
+      throw new Error("fresh-final dataset parent groups are not contiguous");
+    }
+    if (observedParentOrder.at(-1) !== record.parent_id) {
+      const previous = observedParentOrder.at(-1);
+      if (previous !== undefined) closedParents.add(previous);
+      observedParentOrder.push(record.parent_id);
+      firstByParent.set(record.parent_id, record);
+    }
+    const group = recordsByParent.get(record.parent_id) ?? [];
+    group.push(record);
+    recordsByParent.set(record.parent_id, group);
+  }
+  const emitted = new Set<string>();
+  for (const summary of summaries) {
+    const source = sourceByParent.get(summary.parent_id);
+    if (!source || emitted.has(summary.parent_id)) {
+      throw new Error("fresh-final dataset has duplicate or unknown parent coverage");
+    }
+    emitted.add(summary.parent_id);
+    const first = firstByParent.get(summary.parent_id);
+    const group = recordsByParent.get(summary.parent_id) ?? [];
+    const played = group.filter((record) => record.sources.includes("played"));
+    if (
+      first === undefined ||
+      first.game_id !== source.game_id ||
+      first.position_id !== source.position_id ||
+      first.parent_sfen !== source.parent_sfen ||
+      first.parent_ply !== source.ply ||
+      played.length !== 1 ||
+      played[0].move !== source.played_move
+    ) {
+      throw new Error("fresh-final dataset parent metadata does not match source");
+    }
+    for (const record of group) {
+      const childKey = `${source.parent_sfen}\0${record.move}`;
+      let expectedChild = expectedChildByParentAndMove.get(childKey);
+      if (expectedChild === undefined) {
+        expectedChild = childSfenAfterUsi(source.parent_sfen, record.move);
+        expectedChildByParentAndMove.set(childKey, expectedChild);
+      }
+      if (
+        record.child_sfen !== expectedChild
+      ) {
+        throw new Error(
+          "fresh-final dataset child position does not match its legal move",
+        );
+      }
+    }
+  }
+  const expectedEmittedOrder = sourceRows
+    .filter((row) => emitted.has(row.parent_id))
+    .map((row) => row.parent_id);
+  if (!sameJson(observedParentOrder, expectedEmittedOrder)) {
+    throw new Error("fresh-final dataset parent order does not match source");
+  }
+  const missing = sourceRows.filter((row) => !emitted.has(row.parent_id));
+  if (missing.length !== completion.forced_parents_skipped) {
+    throw new Error("fresh-final dataset source accounting is incomplete");
+  }
+  for (const row of missing) {
+    const legalMoves = rulesCompleteLegalMoves(
+      positionFromSfen(row.parent_sfen).position,
+    );
+    if (legalMoves.length >= 2) {
+      throw new Error(
+        "fresh-final dataset omitted a parent that is not a forced-move skip",
+      );
+    }
+  }
+  return Object.freeze(records.map((record) => Object.freeze(record)));
+}
+
 function validateStoredIdentity(
   value: unknown,
   expected: Readonly<FreshSelectionTeacherArtifactIdentity>,
@@ -667,7 +922,7 @@ function buildRunFingerprint(
   revision: string,
   preflight: Readonly<FreshFinalTeacherSelectionPreflight>,
   policy: Readonly<SearchPolicySnapshot>,
-  outcome: Readonly<FreshFinalTeacherGeneratorOutcome>,
+  generationRunFingerprint: string,
   assets: AssetReceipt,
 ): string {
   return sha256(
@@ -676,11 +931,13 @@ function buildRunFingerprint(
       runner_revision: revision,
       source: FRESH_FINAL_TEACHER_SOURCE,
       selection_evaluator_registry: preflight.selection_evaluator_registry,
+      selection_evaluation_report: preflight.selection_evaluation_report,
       selection_receipt: preflight.selection_receipt,
+      selection_publication_result: preflight.selection_publication_result,
       selected_seed: preflight.selected_seed,
       selected_checkpoint: preflight.selected_checkpoint,
       shared_fresh_selection_search_policy: policy.identity,
-      generation_run_fingerprint: outcome.generation_run_fingerprint,
+      generation_run_fingerprint: generationRunFingerprint,
       engine_asset_receipt: assets,
     }),
   );
@@ -689,10 +946,21 @@ function buildRunFingerprint(
 async function verifyExistingResult(
   paths: Readonly<FreshFinalTeacherPaths>,
   effectiveUserId: number,
+  revision: string,
   preflight: Readonly<FreshFinalTeacherSelectionPreflight>,
-  searchPolicyIdentity: Readonly<FreshSelectionTeacherArtifactIdentity>,
+  policy: Readonly<SearchPolicySnapshot>,
+  assets: AssetReceipt,
+  source: Readonly<FreshFinalTeacherSourceSnapshot>,
+  expectedGenerationRunFingerprint: string,
 ): Promise<FreshFinalTeacherRunReceipt | null> {
   try {
+    const expectedRunFingerprint = buildRunFingerprint(
+      revision,
+      preflight,
+      policy,
+      expectedGenerationRunFingerprint,
+      assets,
+    );
     const [authoritySnapshot, manifestSnapshot, resultSnapshot, datasetSnapshot] =
       await Promise.all([
         readPrivateArtifact(
@@ -732,6 +1000,8 @@ async function verifyExistingResult(
         "manifest",
         "dataset",
         "completion",
+        "runner_revision",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "postflight_complete",
         "boundary",
@@ -748,11 +1018,17 @@ async function verifyExistingResult(
       !sameJson(result.selected_checkpoint, preflight.selected_checkpoint) ||
       !sameJson(result.selection_receipt, preflight.selection_receipt) ||
       !sameJson(result.boundary, FRESH_FINAL_TEACHER_BOUNDARY) ||
-      typeof result.run_fingerprint !== "string" ||
-      !SHA256_RE.test(result.run_fingerprint)
+      result.runner_revision !== revision ||
+      result.generation_run_fingerprint !== expectedGenerationRunFingerprint ||
+      result.run_fingerprint !== expectedRunFingerprint
     ) {
       throw new Error("existing fresh-final result is not complete");
     }
+    validateFreshFinalDatasetBytesCoreForTests(
+      datasetSnapshot.bytes,
+      source.rows,
+      completion,
+    );
     validateStoredIdentity(
       result.manifest,
       manifestSnapshot.identity,
@@ -776,6 +1052,8 @@ async function verifyExistingResult(
         "selection_receipt",
         "dataset",
         "completion",
+        "runner_revision",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ],
@@ -790,6 +1068,9 @@ async function verifyExistingResult(
       !sameJson(manifest.selected_checkpoint, preflight.selected_checkpoint) ||
       !sameJson(manifest.selection_receipt, preflight.selection_receipt) ||
       !sameJson(manifest.completion, completion) ||
+      manifest.runner_revision !== revision ||
+      manifest.generation_run_fingerprint !==
+        expectedGenerationRunFingerprint ||
       manifest.run_fingerprint !== result.run_fingerprint ||
       !sameJson(manifest.boundary, FRESH_FINAL_TEACHER_BOUNDARY)
     ) {
@@ -809,12 +1090,17 @@ async function verifyExistingResult(
         "role",
         "source",
         "selection_evaluator_registry",
+        "selection_evaluation_report",
         "selection_receipt",
+        "selection_publication_result",
         "selected_seed",
         "selected_checkpoint",
         "shared_fresh_selection_search_policy",
+        "engine_asset_receipt",
         "artifacts",
         "completion",
+        "runner_revision",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ],
@@ -835,13 +1121,25 @@ async function verifyExistingResult(
         authority.selection_evaluator_registry,
         preflight.selection_evaluator_registry,
       ) ||
+      !sameJson(
+        authority.selection_evaluation_report,
+        preflight.selection_evaluation_report,
+      ) ||
       !sameJson(authority.selection_receipt, preflight.selection_receipt) ||
+      !sameJson(
+        authority.selection_publication_result,
+        preflight.selection_publication_result,
+      ) ||
       !sameJson(authority.selected_checkpoint, preflight.selected_checkpoint) ||
       !sameJson(
         authority.shared_fresh_selection_search_policy,
-        searchPolicyIdentity,
+        policy.identity,
       ) ||
+      !sameJson(authority.engine_asset_receipt, assets) ||
       !sameJson(authority.completion, completion) ||
+      authority.runner_revision !== revision ||
+      authority.generation_run_fingerprint !==
+        expectedGenerationRunFingerprint ||
       authority.run_fingerprint !== result.run_fingerprint ||
       !sameJson(authority.boundary, FRESH_FINAL_TEACHER_BOUNDARY)
     ) {
@@ -925,12 +1223,27 @@ export async function runFreshFinalTeacherCore(
       throw new Error("fresh-final source identity is invalid");
     }
     dependencies.reportProgress("source-assets-policy-before-complete");
+    const expectedGenerationRunFingerprint =
+      await dependencies.computeGenerationFingerprint({
+        paths,
+        revision,
+        source: beforeSource,
+        policy: beforePolicy,
+        assets: beforeAssets,
+      });
+    if (!SHA256_RE.test(expectedGenerationRunFingerprint)) {
+      throw new Error("fresh-final expected generation fingerprint is invalid");
+    }
 
     const existing = await verifyExistingResult(
       paths,
       dependencies.effectiveUserId,
+      revision,
       beforePreflight,
-      beforePolicy.identity,
+      beforePolicy,
+      beforeAssets,
+      beforeSource,
+      expectedGenerationRunFingerprint,
     );
     if (existing) {
       const [afterPreflight, afterAssets, afterPolicy, afterSource] =
@@ -955,6 +1268,19 @@ export async function runFreshFinalTeacherCore(
       ) {
         throw new Error("fresh-final existing-result postflight drifted");
       }
+      const afterGenerationRunFingerprint =
+        await dependencies.computeGenerationFingerprint({
+          paths,
+          revision,
+          source: afterSource,
+          policy: afterPolicy,
+          assets: afterAssets,
+        });
+      if (afterGenerationRunFingerprint !== expectedGenerationRunFingerprint) {
+        throw new Error(
+          "fresh-final existing-result generation evidence drifted",
+        );
+      }
       return Object.freeze({
         ...existing,
         parallel_engines: searchPolicy.runtime.parallel_engines,
@@ -975,6 +1301,13 @@ export async function runFreshFinalTeacherCore(
       searchPolicyIdentity: beforePolicy.identity,
       selectionPreflight: beforePreflight,
     });
+    if (
+      outcome.generation_run_fingerprint !== expectedGenerationRunFingerprint
+    ) {
+      throw new Error(
+        "fresh-final generator fingerprint does not match current evidence",
+      );
+    }
     const completion = completionFromOutcome(outcome);
     dependencies.reportProgress("teacher-generation-complete");
 
@@ -996,17 +1329,34 @@ export async function runFreshFinalTeacherCore(
     ) {
       throw new Error("fresh-final postflight evidence drifted");
     }
-    const dataset = await digestPrivateFile(
+    const afterGenerationRunFingerprint =
+      await dependencies.computeGenerationFingerprint({
+        paths,
+        revision,
+        source: afterSource,
+        policy: afterPolicy,
+        assets: afterAssets,
+      });
+    if (afterGenerationRunFingerprint !== expectedGenerationRunFingerprint) {
+      throw new Error("fresh-final generation fingerprint changed postflight");
+    }
+    const datasetSnapshot = await readPrivateArtifact(
       paths.dataset,
       paths.outputRoot,
       dependencies.effectiveUserId,
       FRESH_FINAL_TEACHER_DATASET_SCHEMA,
     );
+    validateFreshFinalDatasetBytesCoreForTests(
+      datasetSnapshot.bytes,
+      beforeSource.rows,
+      completion,
+    );
+    const dataset = datasetSnapshot.identity;
     const runFingerprint = buildRunFingerprint(
       revision,
       beforePreflight,
       beforePolicy,
-      outcome,
+      expectedGenerationRunFingerprint,
       beforeAssets,
     );
     const manifest = {
@@ -1019,6 +1369,8 @@ export async function runFreshFinalTeacherCore(
       selection_receipt: beforePreflight.selection_receipt,
       dataset,
       completion,
+      runner_revision: revision,
+      generation_run_fingerprint: expectedGenerationRunFingerprint,
       run_fingerprint: runFingerprint,
       boundary: FRESH_FINAL_TEACHER_BOUNDARY,
     };
@@ -1038,6 +1390,8 @@ export async function runFreshFinalTeacherCore(
       manifest: manifestIdentity,
       dataset,
       completion,
+      runner_revision: revision,
+      generation_run_fingerprint: expectedGenerationRunFingerprint,
       run_fingerprint: runFingerprint,
       postflight_complete: true,
       boundary: FRESH_FINAL_TEACHER_BOUNDARY,
@@ -1055,16 +1409,23 @@ export async function runFreshFinalTeacherCore(
       source: FRESH_FINAL_TEACHER_SOURCE,
       selection_evaluator_registry:
         beforePreflight.selection_evaluator_registry,
+      selection_evaluation_report:
+        beforePreflight.selection_evaluation_report,
       selection_receipt: beforePreflight.selection_receipt,
+      selection_publication_result:
+        beforePreflight.selection_publication_result,
       selected_seed: beforePreflight.selected_seed,
       selected_checkpoint: beforePreflight.selected_checkpoint,
       shared_fresh_selection_search_policy: beforePolicy.identity,
+      engine_asset_receipt: beforeAssets,
       artifacts: {
         manifest: manifestIdentity,
         result: resultIdentity,
         dataset,
       },
       completion,
+      runner_revision: revision,
+      generation_run_fingerprint: expectedGenerationRunFingerprint,
       run_fingerprint: runFingerprint,
       boundary: FRESH_FINAL_TEACHER_BOUNDARY,
     };
@@ -1102,6 +1463,50 @@ async function readSource(
     bytes: new Uint8Array(bytes),
     rows,
     identity: FRESH_FINAL_TEACHER_SOURCE,
+  });
+}
+
+async function computeGenerationFingerprint(
+  request: Readonly<{
+    paths: FreshFinalTeacherPaths;
+    revision: string;
+    source: FreshFinalTeacherSourceSnapshot;
+    policy: SearchPolicySnapshot;
+    assets: AssetReceipt;
+  }>,
+): Promise<string> {
+  const receiptBytes = await fs.promises.readFile(request.paths.engineReceipt);
+  const receiptIdentity = request.assets.assets.engine.receipt;
+  if (
+    receiptBytes.byteLength !== receiptIdentity.bytes ||
+    sha256(receiptBytes) !== receiptIdentity.sha256
+  ) {
+    throw new Error("fresh-final generation engine receipt changed");
+  }
+  const engineIdentity = request.assets.assets.engine.yaneuraou;
+  return freshFinalSiblingTeacherRunFingerprintFromEvidence({
+    source: Object.freeze({
+      ...FRESH_FINAL_TEACHER_SOURCE,
+      path: "fresh-final-holdout.raw.jsonl",
+    }),
+    sourceRows: request.source.rows,
+    pipeline: {
+      source_revision: request.revision,
+      tracked_tree_clean: true,
+    },
+    engineBinSha256: engineIdentity.sha256,
+    engineBinBytes: engineIdentity.bytes,
+    engineReceiptBytes: receiptBytes,
+    evalSha256: request.assets.assets.eval.tree_sha256,
+    multipv: request.policy.value.teacher.proposal.multipv,
+    proposalDepth: request.policy.value.teacher.proposal.depth,
+    depth: request.policy.value.teacher.independent_rescore.depth,
+    parallelEngines: request.policy.value.runtime.parallel_engines,
+    hashMbPerEngine: request.policy.value.runtime.hash_mb_per_engine,
+    timeoutMs: request.policy.value.runtime.timeout_ms_per_search,
+    proposalIncompleteAllLegalFallbackMaxMoves:
+      request.policy.value.teacher.typed_incomplete_proposal_fallback
+        .allowed_only_when_legal_moves_at_most,
   });
 }
 
@@ -1336,6 +1741,7 @@ const PRODUCTION_DEPENDENCIES: FreshFinalTeacherRunnerDependencies =
     readSearchPolicy,
     readSource,
     generate: generateFreshFinalTeacher,
+    computeGenerationFingerprint,
     reportProgress: (phase: string) => {
       process.stderr.write(
         `${JSON.stringify({

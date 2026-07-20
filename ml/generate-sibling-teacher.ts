@@ -763,6 +763,84 @@ export function siblingTeacherRunFingerprint(
   );
 }
 
+export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
+  evidence: Readonly<{
+    source: Readonly<FloodgateFreshFinalRawIdentity>;
+    sourceRows: readonly Readonly<FloodgateTrainingParent>[];
+    pipeline: Readonly<PipelineProvenance>;
+    engineBinSha256: string;
+    engineBinBytes: number;
+    engineReceiptBytes: Uint8Array;
+    evalSha256: string;
+    multipv: number;
+    proposalDepth: number;
+    depth: number;
+    parallelEngines: number;
+    hashMbPerEngine: number;
+    timeoutMs: number;
+    proposalIncompleteAllLegalFallbackMaxMoves: number;
+  }>
+): string {
+  if (
+    evidence.source.records !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
+    evidence.sourceRows.length !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
+    evidence.pipeline.tracked_tree_clean !== true ||
+    !/^[0-9a-f]{40}$/.test(evidence.pipeline.source_revision)
+  ) {
+    throw new Error('fresh-final generation fingerprint evidence is incomplete');
+  }
+  const parentIds = evidence.sourceRows.map((row) => row.parent_id);
+  if (
+    parentIds.some((parentId) => typeof parentId !== 'string' || parentId.length === 0) ||
+    new Set(parentIds).size !== parentIds.length
+  ) {
+    throw new Error('fresh-final generation fingerprint parent IDs are invalid');
+  }
+  let receiptValue: unknown;
+  try {
+    receiptValue = JSON.parse(Buffer.from(evidence.engineReceiptBytes).toString('utf8'));
+  } catch {
+    throw new Error('fresh-final generation fingerprint engine receipt is not JSON');
+  }
+  const engineReceipt = validateEngineReceipt(receiptValue);
+  if (
+    engineReceipt.binary_sha256 !== evidence.engineBinSha256 ||
+    engineReceipt.binary_bytes !== evidence.engineBinBytes
+  ) {
+    throw new Error(
+      'fresh-final generation fingerprint engine receipt does not bind the engine'
+    );
+  }
+  return siblingTeacherRunFingerprint({
+    authenticated_fresh_final_binding: {
+      schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+      role: 'fresh_final_holdout',
+      source: evidence.source,
+    },
+    source_raw_sha256: evidence.source.sha256,
+    selected_parent_ids_sha256: sha256(parentIds.join('\n')),
+    pipeline: evidence.pipeline,
+    engine_bin_sha256: evidence.engineBinSha256,
+    engine_args: [],
+    engine_arg_files: [],
+    engine_receipt_sha256: sha256(evidence.engineReceiptBytes),
+    engine_receipt: engineReceipt,
+    eval_sha256: evidence.evalSha256,
+    multipv: evidence.multipv,
+    limit: { depth: evidence.depth },
+    ...(evidence.proposalDepth === evidence.depth
+      ? {}
+      : { proposal_limit: { depth: evidence.proposalDepth } }),
+    proposal_incomplete_all_legal_fallback_max_moves:
+      evidence.proposalIncompleteAllLegalFallbackMaxMoves,
+    engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+    parallel_engines: evidence.parallelEngines,
+    fv_scale: 20,
+    hash_mb_per_engine: evidence.hashMbPerEngine,
+    timeout_ms: evidence.timeoutMs,
+  });
+}
+
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
   const privateWorkerCwd = fs.realpathSync.native(workerCwd);
   const environment = Object.freeze(
@@ -2736,7 +2814,26 @@ async function runSiblingTeacherDatasetCore(
             ? [options.work, options.outFinal]
         : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
-  const runFingerprint = siblingTeacherRunFingerprint({
+  const runFingerprint =
+    execution.finalization === 'fresh-final-only'
+      ? freshFinalSiblingTeacherRunFingerprintFromEvidence({
+          source: capturedInput.source as Readonly<FloodgateFreshFinalRawIdentity>,
+          sourceRows: allParents,
+          pipeline,
+          engineBinSha256: engineDigest.sha256,
+          engineBinBytes: engineDigest.bytes,
+          engineReceiptBytes: receiptBytes,
+          evalSha256: evalSha256 as string,
+          multipv: options.multipv,
+          proposalDepth: (options.proposalLimit as { depth: number }).depth,
+          depth: (options.limit as { depth: number }).depth,
+          parallelEngines: options.engines,
+          hashMbPerEngine: options.hashMb,
+          timeoutMs: options.timeoutMs,
+          proposalIncompleteAllLegalFallbackMaxMoves:
+            options.proposalIncompleteAllLegalFallbackMaxMoves as number,
+        })
+      : siblingTeacherRunFingerprint({
     ...(capturedInput.role === 'training'
       ? { authenticated_training_binding: capturedInput.binding }
       : capturedInput.role === 'fresh_selection'
@@ -2794,7 +2891,7 @@ async function runSiblingTeacherDatasetCore(
           test_only_engine_initialization_timeout_ms:
             options.testOnlyInitializationTimeoutMs,
         }),
-  });
+        });
   const header: WorkHeader = {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
     kind: 'header',

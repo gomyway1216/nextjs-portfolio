@@ -138,10 +138,18 @@ describe("Floodgate strength-first fresh-final teacher evidence", () => {
         strict_existing_result_revalidation: true,
         existing_result_tamper_negatives: [
           "dataset-byte",
+          "dataset-invalid-utf8",
+          "dataset-row",
+          "dataset-record-count",
+          "dataset-parent-group",
+          "dataset-parent-coverage",
           "manifest",
           "authority",
           "completion-type",
           "selected-checkpoint",
+          "stale-runner-revision",
+          "stale-engine-asset-receipt",
+          "stale-generation-fingerprint",
         ],
       },
     });
@@ -151,10 +159,10 @@ describe("Floodgate strength-first fresh-final teacher evidence", () => {
     expect(readJson(evidencePath)).toMatchObject({
       local_validation: {
         typescript_compile: "PASS",
-        focused_runtime_vitest: { status: "PASS", files: 3, tests: 20 },
+        focused_runtime_vitest: { status: "PASS", files: 3, tests: 22 },
         publication_evidence_vitest: { status: "PASS", files: 1, tests: 4 },
-        combined_focused_vitest: { status: "PASS", files: 4, tests: 24 },
-        python_receipt_preflight: { status: "PASS", tests: 4 },
+        combined_focused_vitest: { status: "PASS", files: 4, tests: 26 },
+        python_receipt_preflight: { status: "PASS", tests: 6 },
         production_stop_command: "PASS",
         git_diff_check: "PASS",
         independent_review: "PENDING",

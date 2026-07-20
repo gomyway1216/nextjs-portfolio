@@ -40,18 +40,24 @@ final test. The runner therefore fixes this order:
 
 1. validate the tracked selection-evaluator registry;
 2. if it is closed, stop before opening the private selection receipt;
-3. only in a reviewed READY state, read the fixed receipt once and recompute
-   the three-checkpoint preflight hash, all four gates per seed, ranking,
-   median representative, family gate, and selected checkpoint;
-4. only then open the fresh-final source, engine assets, and search policy;
-5. account for all 4,800 parents and revalidate the same evidence after generation;
-6. save `manifest.json` and `authority.json`, then save the sole completion
+3. accept only the separate `candidate-selected-publication-enrolled` terminal
+   state and stable-read the enrolled evaluation report, receipt, and
+   last-written publication result as single-link `0600` files;
+4. deterministically reevaluate the same selection dataset with stable plus
+   seed 42/43/44, require an exact report-byte match, and rebuild every gate,
+   rank, representative, family result, and selected checkpoint from it;
+5. only then open the fresh-final source, engine assets, and search policy;
+6. account for all 4,800 parents and revalidate the same evidence after generation;
+7. save `manifest.json` and `authority.json`, then save the sole completion
    marker, `result.json`, last.
 
 This preflight does not depend on the later downstream READY registry. It
-validates the existing selection registry and published receipt directly,
+validates the existing selection registry and the three review-enrolled
+publication artifacts directly,
 avoiding a circular requirement in which final generation would depend on a
-registry produced only after final evaluation.
+registry produced only after final evaluation. A same-user, self-consistent
+report/receipt/marker rewrite still fails unless it matches the real four-model
+deterministic replay.
 
 ## Local parallel configuration
 
@@ -93,23 +99,31 @@ Directories are `0700`; files are single-link `0600`. Resumable `work.jsonl`
 is separate from the completed `final.jsonl`.
 
 An existing `result.json` is never trusted merely because it exists. The
-runner rechecks the dataset's observed hash; the cross-identities of result,
+runner recomputes the expected run fingerprint from the current clean
+revision, selection publication, search policy, generation fingerprint, and
+engine-asset authority. It parses every final JSONL row as a canonical sibling
+record and checks record count, parent-group count, at least two records per
+group, source order, unique/known coverage of all 4,800 parents, and that any
+missing parent truly has fewer than two legal moves. It then rechecks the
+cross-identities of result,
 manifest, and authority; every completion type; the selection receipt;
 selected checkpoint; search policy; source; run fingerprint; and boundary.
-Focused negatives rejected a changed dataset byte, manifest, authority,
-completion type, and selected checkpoint.
+Focused negatives rejected row/count/group/coverage lies, changed manifest,
+authority, completion type, selected checkpoint, old revision, changed asset
+authority, and a stale generation fingerprint.
 
 ## Validation and next step
 
-Under Node v22, 20 focused tests covering the fresh-final generator, existing
+Under Node v22, focused tests covering the fresh-final generator, existing
 fresh-selection runner, and fresh-final runner passed. The Python receipt
-preflight passed 4 tests, and TypeScript compilation plus the diff check
+preflight passed 6 tests, and TypeScript compilation plus the diff check
 passed. The real STOP command also produced the all-zero sensitive-operation
 counters above. It did not open the 4,800 positions or start the heavy teacher.
 
 The next dependency is to finish the 24,000-parent teacher, three-seed
-retraining, and fresh-selection candidate choice, then publish its real
-receipt. Only then will this command use 12 local processes to generate
+retraining, and fresh-selection candidate choice, then publish and
+review-enroll the evaluation report, receipt, and final marker from one run.
+Only after the four-model replay matches will this command use 12 local processes to generate
 `final.jsonl` for the final selected-candidate-versus-stable comparison.
 
 Machine-readable record:

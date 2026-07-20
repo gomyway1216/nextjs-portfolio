@@ -1149,14 +1149,17 @@ def _validate_enrolled_candidate_selection_receipt(
 def validate_selection_receipt_against_evaluator_registry(
     receipt: Mapping[str, Any],
     *,
+    evaluation_report: Mapping[str, Any],
+    replayed_evaluation_report: Mapping[str, Any],
     selection_registry: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Recompute a selection receipt without consulting the downstream registry.
+    """Authenticate a replayed evaluator publication without downstream state.
 
-    The selection-evaluator registry already binds the teacher artifacts,
-    stable checkpoint, and three-checkpoint preflight. The selected checkpoint
-    is then derived from the receipt's recomputed median-ranked run. This
-    adapter is intentionally read-only and grants no downstream authorization.
+    A receipt is not its own metric authority. The terminal evaluator registry
+    must enroll the report/receipt/completion bundle, and the report must be
+    reproduced from the exact dataset plus four checkpoint files before this
+    adapter reconstructs the receipt byte-for-byte. This adapter is read-only
+    and grants no downstream authorization.
     """
 
     import strength_first_qat_selection_evaluator as selection_evaluator
@@ -1168,9 +1171,13 @@ def validate_selection_receipt_against_evaluator_registry(
     )
     if (
         validated["status"]
-        != selection_evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+        != selection_evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
     ):
-        raise ValueError("selection evaluator registry is not ready")
+        raise ValueError("selection evaluator publication is not enrolled")
+    if not _typed_equal(evaluation_report, replayed_evaluation_report):
+        raise ValueError(
+            "selection evaluation report does not match deterministic replay"
+        )
     selected = _exact_dict(
         receipt.get("selected") if isinstance(receipt, Mapping) else None,
         {"slot_id", "seed", "checkpoint"},
@@ -1204,6 +1211,41 @@ def validate_selection_receipt_against_evaluator_registry(
         receipt,
         registry=adapter_registry,
     )
+    checkpoint_preflight = receipt["checkpoint_preflight"]
+    runs = receipt["runs"]
+    preflight_projection = {
+        "schema": SELECTION_PREFLIGHT_SCHEMA,
+        "training_plan": copy.deepcopy(receipt["training_plan"]),
+        "training_pipeline": copy.deepcopy(
+            checkpoint_preflight["training_pipeline"]
+        ),
+        "runs": [
+            {
+                "slot_id": run["slot_id"],
+                "seed": run["seed"],
+                "output": (
+                    f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"
+                ),
+                "result": copy.deepcopy(run["result"]),
+                "checkpoint": copy.deepcopy(run["checkpoint"]),
+                "checkpoint_metadata": {
+                    "schema": STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+                    "epoch": 20,
+                },
+            }
+            for run in runs
+        ],
+    }
+    rebuilt = selection_evaluator._validate_report_and_build_receipt(
+        evaluation_report,
+        registry=validated,
+        preflight_projection=preflight_projection,
+        completion=receipt["selection_teacher"]["completion"],
+    )
+    if not _typed_equal(rebuilt, receipt):
+        raise ValueError(
+            "selection receipt does not match its enrolled evaluation report"
+        )
     checkpoint = _identity(
         selected["checkpoint"],
         "candidate-selection receipt selected checkpoint",

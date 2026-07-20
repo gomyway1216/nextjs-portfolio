@@ -10,18 +10,18 @@
     },
     "evaluator": {
       "path": "ml/strength_first_qat_selection_evaluator.py",
-      "bytes": 62893,
-      "sha256": "2bd15585f50935c9fc689a7b89b9408e4552a263dd6ff586a008cadda3ac223b"
+      "bytes": 72942,
+      "sha256": "d1f5d3a950885084d122a438b4e7558c971cdd7541763aa91c03d3a73d892bbb"
     },
     "closed_registry": {
       "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
-      "bytes": 5044,
-      "sha256": "aa358086516c344d6ee36cbd9fcbbeeb87a18f77b277a07b9f9383b9829adcc7"
+      "bytes": 5599,
+      "sha256": "10c8eb04cefc43333541060623d944f1cef3576f158f986e69a29b6588a96227"
     },
     "tests": {
       "path": "ml/tests_stdlib/test_strength_first_qat_selection_evaluator.py",
-      "bytes": 34417,
-      "sha256": "4e1419050c366a31fac7b7bebd276011e01b404df636ea2a2c29fc51f2c88695"
+      "bytes": 35735,
+      "sha256": "300bcc988894a11723df24f19aaac5639f7559fa006d29a942404a98552390ce"
     },
     "article_ja": {
       "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.md",

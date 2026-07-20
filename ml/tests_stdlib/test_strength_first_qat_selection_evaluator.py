@@ -717,6 +717,41 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
                 harness.run()
             self.assertEqual(len(harness.publications), 1)
 
+    def test_machine_evidence_matches_files_and_keeps_real_counts_zero(self):
+        evidence_path = (
+            REPO_ROOT / "ml/protocols/"
+            "floodgate-q1-2026-strength-first-selection-evaluator-"
+            "foundation-evidence.json"
+        )
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            evidence["schema"],
+            evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_EVIDENCE_SCHEMA,
+        )
+        for artifact in evidence["implementation"].values():
+            raw = (REPO_ROOT / artifact["path"]).read_bytes()
+            self.assertEqual(artifact["bytes"], len(raw))
+            self.assertEqual(
+                artifact["sha256"],
+                hashlib.sha256(raw).hexdigest(),
+            )
+        self.assertEqual(evidence["resources"]["implemented_actual_workers"], 1)
+        self.assertEqual(evidence["resources"]["registry_max_workers"], 2)
+        real = evidence["real_execution"]
+        for field in (
+            "selection_teacher_artifacts_read",
+            "selection_labels_read",
+            "candidate_checkpoints_evaluated",
+            "selection_receipts_emitted",
+            "final_holdout_label_reads",
+            "formal_ab_games",
+            "external_calibration_games",
+        ):
+            self.assertEqual(real[field], 0)
+        self.assertFalse(real["live_weights_changed"])
+        self.assertFalse(real["strength_improved"])
+        self.assertFalse(real["high_dan_calibrated"])
+
     def test_exclusive_publisher_is_complete_private_and_non_overwriting(self):
         with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
             os.chmod(temporary, 0o700)

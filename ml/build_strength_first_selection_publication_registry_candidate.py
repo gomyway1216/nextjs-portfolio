@@ -266,6 +266,59 @@ def build_strength_first_selection_publication_registry_candidate_core(
         )
     )
 
+    for value, raw, label in (
+        (report, report_raw, "selection evaluation report"),
+        (receipt, receipt_raw, "selection receipt"),
+        (
+            publication_result,
+            publication_result_raw,
+            "selection publication result",
+        ),
+    ):
+        if EVALUATOR._canonical_json_bytes(value) != raw:
+            raise StrengthFirstSelectionPublicationRegistryCandidateError(
+                f"{label} is not canonical JSON"
+            )
+    publication = FRESH_FINAL._strict_publication_result(publication_result)
+    if (
+        not EVALUATOR._typed_equal(
+            publication["evaluation_origin_registry"],
+            origin_registry_identity,
+        )
+        or not EVALUATOR._typed_equal(
+            publication["evaluation_report"],
+            report_identity,
+        )
+        or not EVALUATOR._typed_equal(
+            publication["selection_receipt"],
+            receipt_identity,
+        )
+    ):
+        raise StrengthFirstSelectionPublicationRegistryCandidateError(
+            "selection publication result binding mismatch"
+        )
+    try:
+        selected = receipt["selected"]
+        selected_seed = selected["seed"]
+        selected_checkpoint = selected["checkpoint"]
+    except (KeyError, TypeError) as error:
+        raise StrengthFirstSelectionPublicationRegistryCandidateError(
+            "selection receipt selected candidate is incomplete"
+        ) from error
+    if (
+        not EVALUATOR._typed_equal(
+            publication["selected_seed"],
+            selected_seed,
+        )
+        or not EVALUATOR._typed_equal(
+            publication["selected_checkpoint"],
+            selected_checkpoint,
+        )
+    ):
+        raise StrengthFirstSelectionPublicationRegistryCandidateError(
+            "selection publication selected candidate mismatch"
+        )
+
     replayed_report = FRESH_FINAL._replay_selection_evaluation(
         receipt=receipt,
         registry=candidate,

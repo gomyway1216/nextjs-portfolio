@@ -9,8 +9,8 @@
   "implementation": {
     "source": {
       "path": "ml/build_strength_first_selection_publication_registry_candidate.py",
-      "bytes": 14926,
-      "sha256": "bab9f0afa48886697b1734ba5cbfdabcceb5e6fc3cd8fc4ff2f78ad5d604028d",
+      "bytes": 16778,
+      "sha256": "7527d7612c8a959a6ed6c00e52ab48248975abca4498f50651fa17ad592ed198",
       "schema": "shogi-reviewed-python-source-v1"
     },
     "argumentless_command": "~/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/build_strength_first_selection_publication_registry_candidate.py",

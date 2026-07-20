@@ -191,6 +191,7 @@ class SelectionPublicationRegistryCandidateTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     build(harness)
                 self.assertEqual(len(harness.publications), 3)
+                self.assertEqual(len(harness.evaluations), 1)
 
     def test_deterministic_four_model_replay_mismatch_fails(self):
         with tempfile.TemporaryDirectory() as temporary:

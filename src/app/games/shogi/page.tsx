@@ -8,16 +8,7 @@
  */
 
 import { ShogiImproved } from '@/components/game/ShogiImproved';
-import { ShogiEngineParityHarness } from '@/components/game/ShogiImproved/ShogiEngineParityHarness';
-import { isExactShogiEngineParityQuery } from '@/components/game/ShogiImproved/shogiEngineParityProtocol';
 
-export default async function ShogiPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  if (isExactShogiEngineParityQuery(await searchParams)) {
-    return <ShogiEngineParityHarness />;
-  }
+export default function ShogiPage() {
   return <ShogiImproved />;
 }

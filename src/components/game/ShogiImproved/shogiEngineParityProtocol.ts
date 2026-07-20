@@ -8,7 +8,7 @@ export const SHOGI_ENGINE_PARITY_QUERY_KEY = "__shogiEngineParity" as const;
 export const SHOGI_ENGINE_PARITY_QUERY_VALUE =
   "browser-worker-nnue-v1" as const;
 export const SHOGI_ENGINE_PARITY_PATH =
-  `/games/shogi?${SHOGI_ENGINE_PARITY_QUERY_KEY}=${SHOGI_ENGINE_PARITY_QUERY_VALUE}` as const;
+  `/games/shogi/engine-parity?${SHOGI_ENGINE_PARITY_QUERY_KEY}=${SHOGI_ENGINE_PARITY_QUERY_VALUE}` as const;
 export const SHOGI_ENGINE_PARITY_TEST_ID =
   "shogi-engine-parity-result" as const;
 export const SHOGI_ENGINE_PARITY_FIXTURE =

@@ -17,8 +17,10 @@ if TEST_DIR not in sys.path:
     sys.path.insert(0, TEST_DIR)
 
 import formal_paired_ab_local_launcher as legacy  # noqa: E402
+import formal_paired_ab_v2_wasm_contract as contract  # noqa: E402
 import formal_paired_ab_v2_wasm_match_launcher as launcher  # noqa: E402
 from test_formal_paired_ab_local_launcher import ReadyFixture  # noqa: E402
+from test_formal_paired_ab_v2_wasm_contract import openings_manifest  # noqa: E402
 
 
 def passing_pair_receipt(request, results=("win", "loss")):
@@ -132,6 +134,43 @@ def passing_pair_receipt(request, results=("win", "loss")):
 
 
 class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
+    def test_production_rules_opening_preflight_binds_pass_before_runner(self):
+        manifest = contract.validate_formal_wasm_openings_manifest(
+            openings_manifest()
+        )
+        body = {
+            "schema": contract.FORMAL_WASM_OPENINGS_PREFLIGHT_SCHEMA,
+            "status": "PASS",
+            "manifest_sha256": contract._domain_digest(
+                "shogi-formal-paired-ab-v2-wasm-openings-manifest-v2",
+                manifest,
+            ),
+            "pairs": contract.PAIR_COUNT,
+            "games": contract.GAME_COUNT,
+            "source_games": contract.PAIR_COUNT,
+            "semantic_final_positions": contract.PAIR_COUNT,
+            "source_game_ids_sha256": "a" * 64,
+            "semantic_final_position_ids_sha256": "b" * 64,
+        }
+        receipt = {
+            **body,
+            "receipt_sha256": contract._domain_digest(
+                "shogi-formal-paired-ab-v2-wasm-openings-preflight-v1",
+                body,
+            ),
+        }
+        with mock.patch.object(
+            launcher,
+            "_execute_openings_preflight_subprocess",
+            return_value=receipt,
+        ) as execute:
+            captured = launcher.preflight_formal_wasm_openings(
+                Path(ML_DIR).parent,
+                manifest,
+            )
+        execute.assert_called_once_with(Path(ML_DIR).parent.resolve(), manifest)
+        self.assertEqual(captured["preflight_receipt"], receipt)
+
     def test_attempt_or_unsafe_seed_is_rejected_before_journal_creation(self):
         mutations = (
             ("attempt", "attempt_index", 1),
@@ -172,9 +211,9 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
     def test_exact_384_pair_768_game_run_journals_receipts_and_resumes(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
-            fixture.registry["pair_workers"] = launcher.MAX_PAIR_WORKERS
+            fixture.registry["pair_workers"] = 4
             fixture.write_registry()
-            barrier = threading.Barrier(launcher.MAX_PAIR_WORKERS)
+            barrier = threading.Barrier(fixture.registry["pair_workers"])
             lock = threading.Lock()
             active = 0
             maximum_active = 0
@@ -186,7 +225,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                     active += 1
                     maximum_active = max(maximum_active, active)
                     requests.append(copy.deepcopy(request))
-                if request["pair_index"] < launcher.MAX_PAIR_WORKERS:
+                if request["pair_index"] < fixture.registry["pair_workers"]:
                     barrier.wait(timeout=5)
                 with lock:
                     active -= 1
@@ -198,7 +237,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                 fixture.receipts,
                 execute_pair,
             )
-            self.assertEqual(maximum_active, launcher.MAX_PAIR_WORKERS)
+            self.assertEqual(maximum_active, fixture.registry["pair_workers"])
             self.assertEqual(len(requests), launcher.PAIR_COUNT)
             self.assertEqual(len(result["pairs"]), launcher.PAIR_COUNT)
             self.assertEqual(
@@ -271,7 +310,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
     def test_pair_crash_is_terminal_and_never_replayed(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
-            fixture.registry["pair_workers"] = 1
+            fixture.registry["pair_workers"] = 2
             fixture.write_registry()
 
             def crash(_request):
@@ -306,7 +345,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                 )
             self.assertEqual(calls, 0)
 
-    def test_real_runner_is_code_pinned_closed_and_caps_workers_at_two(self):
+    def test_real_runner_is_code_pinned_closed_and_requires_benchmark_workers(self):
         self.assertTrue(callable(launcher.run_pinned_ready_wasm_pairs))
         with self.assertRaisesRegex(
             legacy.FormalAbLocalLauncherBlocked,
@@ -327,7 +366,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                 calls += 1
                 return passing_pair_receipt(request)
 
-            with self.assertRaisesRegex(ValueError, "one or two pair workers"):
+            with self.assertRaisesRegex(ValueError, "2, 4, 8, or 12"):
                 launcher.run_ready_wasm_pairs_core_for_tests(
                     fixture.root,
                     fixture.registry_path,
@@ -335,6 +374,8 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                     execute,
                 )
             self.assertEqual(calls, 0)
+            self.assertEqual(launcher.MAX_PAIR_WORKERS, 12)
+            self.assertEqual(launcher.PAIR_WORKER_CANDIDATES, (2, 4, 8, 12))
 
     def test_subprocess_fault_reports_sanitized_diagnostic_not_raw_stderr(self):
         sensitive_stderr = "private path: /tmp/operator-secret\n"

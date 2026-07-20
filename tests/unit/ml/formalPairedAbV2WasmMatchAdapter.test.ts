@@ -565,18 +565,21 @@ describe("formal paired A/B v2 executable WASM match adapter", () => {
     });
   }, 30_000);
 
-  it("enforces exact 384-pair/768-game accounting and at most two pair workers", () => {
-    expect(() =>
-      validateFormalPairedAbV2ExactAccounting(
-        FORMAL_PAIRED_AB_V2_PAIR_COUNT,
-        FORMAL_PAIRED_AB_V2_GAME_COUNT,
-        2,
-      ),
-    ).not.toThrow();
+  it("enforces exact accounting and benchmark-selected pair workers", () => {
+    for (const pairWorkers of [2, 4, 8, 12]) {
+      expect(() =>
+        validateFormalPairedAbV2ExactAccounting(
+          FORMAL_PAIRED_AB_V2_PAIR_COUNT,
+          FORMAL_PAIRED_AB_V2_GAME_COUNT,
+          pairWorkers,
+        ),
+      ).not.toThrow();
+    }
     for (const probe of [
       [383, 766, 2],
       [384, 767, 2],
       [384, 768, 3],
+      [384, 768, 13],
       [384, 768, 0],
     ] as const) {
       expect(() => validateFormalPairedAbV2ExactAccounting(...probe)).toThrow(

@@ -169,6 +169,20 @@ class DictSubclass(dict):
 
 
 class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
+    def test_repository_reader_fails_closed_without_effective_user_support(self):
+        with (
+            mock.patch.object(activation.os, "geteuid", None),
+            self.assertRaisesRegex(
+                activation.FormalAbV2ActivationError,
+                "requires effective-user ownership support",
+            ),
+        ):
+            activation._open_repository_file(
+                REPO_ROOT,
+                activation.ACTIVATION_REGISTRY_PATH,
+                "test registry",
+            )
+
     def test_checked_in_activation_registry_is_exact_closed_and_null(self):
         path = REPO_ROOT / activation.ACTIVATION_REGISTRY_PATH
         raw = path.read_bytes()

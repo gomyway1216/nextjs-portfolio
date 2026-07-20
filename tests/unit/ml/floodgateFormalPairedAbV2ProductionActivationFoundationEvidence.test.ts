@@ -122,9 +122,19 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
     });
     expect(source).toContain("def argumentless_production_preflight()");
     expect(source).toContain("compose_formal_ab_v2_activation_core_for_tests");
-    expect(source).not.toMatch(
-      /^import (?:subprocess|socket|urllib|requests)\b/mu,
-    );
+    const forbiddenRuntimeImport =
+      /^(?:\s*from\s+(?:subprocess|socket|urllib(?:\.[A-Za-z_]\w*)*|requests(?:\.[A-Za-z_]\w*)*)\s+import\b|\s*import\s+(?=[^\n#]*(?:\bsubprocess\b|\bsocket\b|\burllib(?:\.[A-Za-z_]\w*)*\b|\brequests(?:\.[A-Za-z_]\w*)*\b))[^\n#]+$)/mu;
+    for (const importStatement of [
+      "import subprocess",
+      "import os, subprocess as child",
+      "from subprocess import Popen",
+      "import urllib.request",
+      "from urllib import request",
+      "import requests as http",
+    ]) {
+      expect(importStatement).toMatch(forbiddenRuntimeImport);
+    }
+    expect(source).not.toMatch(forbiddenRuntimeImport);
     expect(evidence.implementation).toMatchObject({
       production_match_execution_api: false,
       caller_selected_registry_production_api: false,

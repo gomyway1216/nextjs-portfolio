@@ -430,6 +430,16 @@ def _open_repository_file(
     """Open one current-user-owned regular file without following components."""
 
     _safe_relative_path(relative_path, label)
+    get_effective_user_id = getattr(os, "geteuid", None)
+    if not callable(get_effective_user_id):
+        raise FormalAbV2ActivationError(
+            f"{label} requires effective-user ownership support"
+        )
+    effective_user_id = get_effective_user_id()
+    if type(effective_user_id) is not int or effective_user_id < 0:
+        raise FormalAbV2ActivationError(
+            f"{label} effective-user identity is invalid"
+        )
     if (
         not hasattr(os, "O_NOFOLLOW")
         or not hasattr(os, "O_DIRECTORY")
@@ -450,7 +460,7 @@ def _open_repository_file(
         root_metadata = os.fstat(current)
         if (
             not stat.S_ISDIR(root_metadata.st_mode)
-            or root_metadata.st_uid != os.geteuid()
+            or root_metadata.st_uid != effective_user_id
         ):
             raise FormalAbV2ActivationError(
                 f"{label} repository root is not a current-user directory"
@@ -466,7 +476,7 @@ def _open_repository_file(
             metadata = os.fstat(current)
             if (
                 not stat.S_ISDIR(metadata.st_mode)
-                or metadata.st_uid != os.geteuid()
+                or metadata.st_uid != effective_user_id
             ):
                 raise FormalAbV2ActivationError(
                     f"{label} path component is not a current-user directory"
@@ -479,7 +489,7 @@ def _open_repository_file(
         metadata = os.fstat(descriptor)
         if (
             not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
+            or metadata.st_uid != effective_user_id
             or metadata.st_nlink != 1
         ):
             raise FormalAbV2ActivationError(
@@ -678,7 +688,7 @@ def _validate_openings(value: Any) -> tuple[dict, dict]:
     pairs = manifest["pairs"]
     if type(pairs) is not list or len(pairs) != PAIR_COUNT:
         raise FormalAbV2ActivationError(
-            "CoreForTests openings require exactly 384 ordered pairs"
+            f"CoreForTests openings require exactly {PAIR_COUNT} ordered pairs"
         )
     opening_ids: set[str] = set()
     game_ids: set[str] = set()
@@ -906,7 +916,8 @@ def compose_formal_ab_v2_activation_core_for_tests(
         or workers > MAX_PAIR_WORKERS
     ):
         raise FormalAbV2ActivationError(
-            "CoreForTests pair_workers must be an integer from 1 through 6"
+            "CoreForTests pair_workers must be an integer from "
+            f"1 through {MAX_PAIR_WORKERS}"
         )
     adapter = _validate_identity(
         composition["match_adapter"],

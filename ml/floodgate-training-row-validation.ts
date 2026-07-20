@@ -34,6 +34,11 @@ export interface FloodgateFreshSelectionRawIdentity
   readonly path: "fresh-selection.raw.jsonl";
 }
 
+export interface FloodgateFreshFinalRawIdentity
+  extends Omit<FloodgateTrainingRawIdentity, "path"> {
+  readonly path: "fresh-final-holdout.raw.jsonl";
+}
+
 export interface FloodgateTrainingParent {
   readonly schema_version: 1;
   readonly game_id: string;
@@ -341,7 +346,8 @@ function requiredString(value: unknown, label: string): string {
 
 function captureFloodgateRawIdentity<Path extends
   | "training.raw.jsonl"
-  | "fresh-selection.raw.jsonl">(
+  | "fresh-selection.raw.jsonl"
+  | "fresh-final-holdout.raw.jsonl">(
   value: unknown,
   expectedPath: Path,
 ): Readonly<Omit<FloodgateTrainingRawIdentity, "path"> & { readonly path: Path }> {
@@ -406,6 +412,12 @@ export function captureFloodgateFreshSelectionRawIdentity(
   value: unknown,
 ): Readonly<FloodgateFreshSelectionRawIdentity> {
   return captureFloodgateRawIdentity(value, "fresh-selection.raw.jsonl");
+}
+
+export function captureFloodgateFreshFinalRawIdentity(
+  value: unknown,
+): Readonly<FloodgateFreshFinalRawIdentity> {
+  return captureFloodgateRawIdentity(value, "fresh-final-holdout.raw.jsonl");
 }
 
 function parseRawParent(
@@ -513,7 +525,10 @@ function parseRawParent(
 function parseAuthenticatedFloodgateRows(
   bytes: Uint8Array,
   expectedIdentityInput: unknown,
-  expectedPath: "training.raw.jsonl" | "fresh-selection.raw.jsonl",
+  expectedPath:
+    | "training.raw.jsonl"
+    | "fresh-selection.raw.jsonl"
+    | "fresh-final-holdout.raw.jsonl",
 ): readonly Readonly<FloodgateTrainingParent>[] {
   if (!(bytes instanceof Uint8Array) || nodeUtilTypes.isProxy(bytes)) {
     fail("authenticated raw snapshot must be a non-Proxy Uint8Array");
@@ -628,5 +643,16 @@ export function parseAuthenticatedFloodgateFreshSelectionRows(
     bytes,
     expectedIdentityInput,
     "fresh-selection.raw.jsonl",
+  );
+}
+
+export function parseAuthenticatedFloodgateFreshFinalRows(
+  bytes: Uint8Array,
+  expectedIdentityInput: unknown,
+): readonly Readonly<FloodgateTrainingParent>[] {
+  return parseAuthenticatedFloodgateRows(
+    bytes,
+    expectedIdentityInput,
+    "fresh-final-holdout.raw.jsonl",
   );
 }

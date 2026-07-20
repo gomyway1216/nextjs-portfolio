@@ -1146,6 +1146,116 @@ def _validate_enrolled_candidate_selection_receipt(
     return seed
 
 
+def validate_selection_receipt_against_evaluator_registry(
+    receipt: Mapping[str, Any],
+    *,
+    evaluation_report: Mapping[str, Any],
+    replayed_evaluation_report: Mapping[str, Any],
+    selection_registry: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Authenticate a replayed evaluator publication without downstream state.
+
+    A receipt is not its own metric authority. The terminal evaluator registry
+    must enroll the report/receipt/completion bundle, and the report must be
+    reproduced from the exact dataset plus four checkpoint files before this
+    adapter reconstructs the receipt byte-for-byte. This adapter is read-only
+    and grants no downstream authorization.
+    """
+
+    import strength_first_qat_selection_evaluator as selection_evaluator
+
+    validated = (
+        selection_evaluator.validate_strength_first_selection_evaluator_registry_data(
+            selection_registry
+        )
+    )
+    if (
+        validated["status"]
+        != selection_evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
+    ):
+        raise ValueError("selection evaluator publication is not enrolled")
+    if not _typed_equal(evaluation_report, replayed_evaluation_report):
+        raise ValueError(
+            "selection evaluation report does not match deterministic replay"
+        )
+    selected = _exact_dict(
+        receipt.get("selected") if isinstance(receipt, Mapping) else None,
+        {"slot_id", "seed", "checkpoint"},
+        "candidate-selection receipt selected candidate",
+    )
+    enrollments = validated["enrollments"]
+    adapter_registry = {
+        "enrollments": {
+            "candidate_selection_training_plan": enrollments["training_plan"],
+            "candidate_selection_checkpoint_preflight_sha256": enrollments[
+                "checkpoint_preflight_sha256"
+            ],
+            "candidate_selection_teacher_run_fingerprint": enrollments[
+                "selection_teacher_run_fingerprint"
+            ],
+            "candidate_selection_teacher_authority": enrollments[
+                "selection_teacher_authority"
+            ],
+            "candidate_selection_teacher_manifest": enrollments[
+                "selection_teacher_manifest"
+            ],
+            "candidate_selection_teacher_result": enrollments[
+                "selection_teacher_result"
+            ],
+            "candidate_selection_dataset": enrollments["selection_dataset"],
+            "candidate_checkpoint": selected["checkpoint"],
+            "stable_checkpoint": enrollments["stable_checkpoint"],
+        }
+    }
+    seed = _validate_enrolled_candidate_selection_receipt(
+        receipt,
+        registry=adapter_registry,
+    )
+    checkpoint_preflight = receipt["checkpoint_preflight"]
+    runs = receipt["runs"]
+    preflight_projection = {
+        "schema": SELECTION_PREFLIGHT_SCHEMA,
+        "training_plan": copy.deepcopy(receipt["training_plan"]),
+        "training_pipeline": copy.deepcopy(
+            checkpoint_preflight["training_pipeline"]
+        ),
+        "runs": [
+            {
+                "slot_id": run["slot_id"],
+                "seed": run["seed"],
+                "output": (
+                    f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"
+                ),
+                "result": copy.deepcopy(run["result"]),
+                "checkpoint": copy.deepcopy(run["checkpoint"]),
+                "checkpoint_metadata": {
+                    "schema": STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+                    "epoch": 20,
+                },
+            }
+            for run in runs
+        ],
+    }
+    rebuilt = selection_evaluator._validate_report_and_build_receipt(
+        evaluation_report,
+        registry=validated,
+        preflight_projection=preflight_projection,
+        completion=receipt["selection_teacher"]["completion"],
+    )
+    if not _typed_equal(rebuilt, receipt):
+        raise ValueError(
+            "selection receipt does not match its enrolled evaluation report"
+        )
+    checkpoint = _identity(
+        selected["checkpoint"],
+        "candidate-selection receipt selected checkpoint",
+    )
+    return {
+        "selected_seed": seed,
+        "selected_checkpoint": copy.deepcopy(checkpoint),
+    }
+
+
 def _mint_candidate_selection_authorization_from_receipt_bytes(
     *,
     snapshot: Mapping[str, Any],
@@ -2197,6 +2307,7 @@ __all__ = [
     "receipt_identity",
     "run_strength_first_downstream_gates",
     "run_strength_first_downstream_gates_core_for_tests",
+    "validate_selection_receipt_against_evaluator_registry",
     "validate_downstream_result_data",
     "validate_downstream_registry_data",
 ]

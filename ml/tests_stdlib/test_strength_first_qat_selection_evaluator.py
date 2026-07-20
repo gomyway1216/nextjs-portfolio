@@ -462,13 +462,26 @@ class ReadyHarness:
         self.evaluations.append(copy.deepcopy(kwargs))
         return copy.deepcopy(self.report)
 
-    def publish(self, path: str, raw: bytes) -> dict:
+    def publish(self, path: str, raw: bytes, schema: str) -> dict:
         self.publications.append((self._key(path), raw))
+        self._put(path, raw)
+        self._set_fingerprint(path, raw=raw)
+        relative_by_schema = {
+            adapter.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_SCHEMA: (
+                evaluator.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH
+            ),
+            evaluator.STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA: (
+                evaluator.STRENGTH_FIRST_SELECTION_RECEIPT_PATH
+            ),
+            evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA: (
+                evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH
+            ),
+        }
         return {
-            "path": evaluator.STRENGTH_FIRST_SELECTION_RECEIPT_PATH,
+            "path": relative_by_schema[schema],
             "bytes": len(raw),
             "sha256": hashlib.sha256(raw).hexdigest(),
-            "schema": (evaluator.STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA),
+            "schema": schema,
         }
 
     def dependencies(self) -> evaluator._SelectionDependencies:
@@ -556,11 +569,27 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertEqual(len(receipt["runs"]), 3)
             self.assertEqual(len(harness.evaluations), 1)
             self.assertEqual(len(harness.evaluations[0]["checkpoint_specs"]), 4)
-            self.assertEqual(len(harness.publications), 1)
-            serialized = harness.publications[0][1].decode("utf-8")
-            self.assertNotIn(str(harness.home_root), serialized)
-            self.assertNotIn("sfen", serialized.lower())
-            self.assertNotIn("teacher_score", serialized.lower())
+            self.assertEqual(len(harness.publications), 3)
+            self.assertTrue(
+                harness.publications[0][0].endswith(
+                    evaluator.STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH
+                )
+            )
+            self.assertTrue(
+                harness.publications[1][0].endswith(
+                    evaluator.STRENGTH_FIRST_SELECTION_RECEIPT_PATH
+                )
+            )
+            self.assertTrue(
+                harness.publications[2][0].endswith(
+                    evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH
+                )
+            )
+            for _path, raw in harness.publications:
+                serialized = raw.decode("utf-8")
+                self.assertNotIn(str(harness.home_root), serialized)
+                self.assertNotIn("sfen", serialized.lower())
+                self.assertNotIn("teacher_score", serialized.lower())
             self.assertFalse(receipt["boundary"]["final_holdout_read"])
             self.assertFalse(receipt["boundary"]["production_promotion_authorized"])
             self.assertFalse(receipt["boundary"]["live_weight_write_authorized"])
@@ -696,7 +725,7 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             harness.run()
             with self.assertRaisesRegex(ValueError, "already consumed"):
                 harness.run()
-            self.assertEqual(len(harness.publications), 1)
+            self.assertEqual(len(harness.publications), 3)
 
     def test_machine_evidence_matches_files_and_keeps_real_counts_zero(self):
         evidence_path = (
@@ -737,7 +766,12 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             canonical_temporary = os.path.realpath(temporary)
             os.chmod(canonical_temporary, 0o700)
-            target = Path(canonical_temporary) / "selection-receipt.json"
+            target = (
+                Path(canonical_temporary)
+                / evaluator.STRENGTH_FIRST_SELECTION_RECEIPT_PATH
+            )
+            target.parent.mkdir(parents=True, mode=0o700)
+            os.chmod(target.parent, 0o700)
             raw = canonical(
                 {
                     "schema": (

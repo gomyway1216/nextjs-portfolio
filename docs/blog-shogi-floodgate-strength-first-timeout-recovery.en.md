@@ -48,6 +48,8 @@ The new implementation fixes this order:
 
 No stdout, TT, history, or working-directory state from the timed-out search can reach the next parent.
 
+If either the initial process or a replacement cannot complete its `usiok` / `readyok` handshake, cleanup is enforced at both the wrapper and worker boundaries: send quit, apply a bounded force-kill, wait for the OS close, and only then propagate the error. An initialization failure never becomes another search-timeout skip; it stops the run without an additional parent entry or published result.
+
 ## Timeout skips are strictly bounded
 
 One hard parent can be quarantined; a dataset with widespread timeouts cannot be called complete. The cumulative limit for each canonical target prefix is:
@@ -89,7 +91,7 @@ Reusing 99 entries would require a new cross-revision migration authority that r
 
 ## Validation scope
 
-With fixed Node v22.13.0, the three focused USI-wrapper, generator, and runner test files passed 47 tests. Eight training-bridge stdlib tests also passed. They cover typed proposal and independent-rescore timeouts, zero partial labels, replacement in a fresh private directory, forced/emitted accounting, the public reason breakdown, timeout-metadata tamper rejection, fatal behavior beyond the cap, the new v7 root, and the pre-training revalidation.
+With fixed Node v22.13.0, the three focused USI-wrapper, generator, and runner test files passed 49 tests. Eight training-bridge stdlib tests also passed. They cover typed proposal and independent-rescore timeouts, zero partial labels, replacement in a fresh private directory, no surviving child after initial or replacement handshake timeouts, no extra skip or result for initialization failure, forced/emitted accounting, the public reason breakdown, timeout-metadata tamper rejection, fatal behavior beyond the cap, the new v7 root, and the pre-training revalidation.
 
 That pass validates recovery code; it is not evidence of teacher completion or playing strength. Only after review, CI, and a regular merge should the v7 run begin, followed by separate audits of the 100, 500, and 24,000 receipts.
 

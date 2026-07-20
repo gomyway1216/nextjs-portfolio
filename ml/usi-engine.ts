@@ -14,6 +14,8 @@ export interface UsiTeacherEngineOptions {
   fvScale?: number;
   hashMb?: number;
   timeoutMs?: number;
+  /** Focused-test override; production callers must use the fixed defaults. */
+  testOnlyInitializationTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
 }
@@ -167,16 +169,28 @@ export class UsiTeacherEngine {
 
   async init(): Promise<void> {
     if (this.process) throw new Error('USI engine is already initialized');
-    this.spawn();
-    this.send('usi');
-    await this.waitFor((line) => line === 'usiok', 15_000);
-    if (this.options.evalDir) this.send(`setoption name EvalDir value ${this.options.evalDir}`);
-    this.send(`setoption name FV_SCALE value ${this.options.fvScale ?? 20}`);
-    this.send(`setoption name USI_Hash value ${this.options.hashMb ?? 128}`);
-    for (const command of fixedUsiOptionCommands()) this.send(command);
-    this.send('isready');
-    await this.waitFor((line) => line === 'readyok', 120_000);
-    this.send('usinewgame');
+    const testTimeout = this.options.testOnlyInitializationTimeoutMs;
+    if (
+      testTimeout !== undefined &&
+      (!Number.isSafeInteger(testTimeout) || testTimeout <= 0)
+    ) {
+      throw new Error('testOnlyInitializationTimeoutMs must be a positive safe integer');
+    }
+    try {
+      this.spawn();
+      this.send('usi');
+      await this.waitFor((line) => line === 'usiok', testTimeout ?? 15_000);
+      if (this.options.evalDir) this.send(`setoption name EvalDir value ${this.options.evalDir}`);
+      this.send(`setoption name FV_SCALE value ${this.options.fvScale ?? 20}`);
+      this.send(`setoption name USI_Hash value ${this.options.hashMb ?? 128}`);
+      for (const command of fixedUsiOptionCommands()) this.send(command);
+      this.send('isready');
+      await this.waitFor((line) => line === 'readyok', testTimeout ?? 120_000);
+      this.send('usinewgame');
+    } catch (error) {
+      await this.quit();
+      throw error;
+    }
   }
 
   /**

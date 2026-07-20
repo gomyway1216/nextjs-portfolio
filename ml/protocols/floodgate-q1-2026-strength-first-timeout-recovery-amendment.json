@@ -42,6 +42,16 @@
     ],
     "timed_out_engine_disposition": "quit-then-bounded-force-kill-before-any-replacement",
     "replacement_engine": "fresh-process-fresh-private-working-directory-same-pinned-assets-options-and-environment",
+    "engine_initialization_failure": {
+      "applies_to": [
+        "initial-process",
+        "post-timeout-replacement-process"
+      ],
+      "process_disposition": "quit-then-bounded-force-kill-and-wait-for-close",
+      "run_disposition": "fatal",
+      "recorded_as_timeout_skip": false,
+      "result_published": false
+    },
     "non_timeout_error_disposition": "fatal",
     "timeout_skip_limit": {
       "formula": "ceil(target_parents/1000)",

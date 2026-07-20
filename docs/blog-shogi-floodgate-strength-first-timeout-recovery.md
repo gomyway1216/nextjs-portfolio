@@ -48,6 +48,8 @@ JavaScript側のtimerが切れても、YaneuraOu processはまだ探索中かも
 
 これにより、古い探索のstdout、TT、history、作業directoryを次parentへ持ち越さない。
 
+初回processまたはreplacement processが`usiok` / `readyok` handshakeを完了できない場合も、wrapper自身とworker側の二重のcleanup境界で、quit、bounded force-kill、OS close待ちを完了してからerrorを返す。この初期化failureはsearch timeout skipには変換せず、追加のparent entryやresultを公開しないままrun全体を停止する。
+
 ## timeoutを無制限にskipしない
 
 1件のhard parentを除外できても、大量timeoutを「完了」と呼ぶことはできない。各canonical target prefixで累積上限を次の式へ固定する。
@@ -89,7 +91,7 @@ private `work.jsonl`を開かなくても上限を監査できるよう、各pre
 
 ## 検証範囲
 
-固定Node v22.13.0で、USI wrapper、generator、runnerの対象3 test file、47 testを通した。さらにtraining bridgeのstdlib test 8件も通した。focused testは、proposal / independent-rescore両方のtyped timeout、partial label 0件、fresh private directoryでのprocess replacement、forced/emitted accounting、公開理由別件数、timeout metadata改ざん拒否、上限超過時の停止、新しいv7 rootとtraining前の再検証を確認する。
+固定Node v22.13.0で、USI wrapper、generator、runnerの対象3 test file、49 testを通した。さらにtraining bridgeのstdlib test 8件も通した。focused testは、proposal / independent-rescore両方のtyped timeout、partial label 0件、fresh private directoryでのprocess replacement、初回とreplacementのhandshake timeout後にchildが残らないこと、初期化failureが追加skipやresultにならないこと、forced/emitted accounting、公開理由別件数、timeout metadata改ざん拒否、上限超過時の停止、新しいv7 rootとtraining前の再検証を確認する。
 
 このpassは回復codeの検証であり、実teacher completionや棋力の証拠ではない。次はreview / CI / regular merge後にだけv7 runを開始し、100、500、24,000の各receiptを順に監査する。
 

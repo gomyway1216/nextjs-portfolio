@@ -13,6 +13,10 @@ const hangSearchmove =
 const hangOnceMarkerIndex = process.argv.indexOf('--hang-once-marker');
 const hangOnceMarkerPath =
   hangOnceMarkerIndex >= 0 ? process.argv[hangOnceMarkerIndex + 1] : null;
+const hangUsiAfterMarkerIndex = process.argv.indexOf('--hang-usi-after-marker');
+const hangUsiAfterMarkerPath =
+  hangUsiAfterMarkerIndex >= 0 ? process.argv[hangUsiAfterMarkerIndex + 1] : null;
+const hangUsi = process.argv.includes('--hang-usi');
 const hangEveryGo = process.argv.includes('--hang-go');
 if (environmentTracePath) {
   fs.appendFileSync(
@@ -20,6 +24,7 @@ if (environmentTracePath) {
     `${JSON.stringify({
       environment: process.env,
       cwd: process.cwd(),
+      pid: process.pid,
     })}\n`
   );
 }
@@ -60,6 +65,12 @@ rl.on('line', (line) => {
   if (line === 'usi') {
     if (exitBeforeUsi) {
       process.stderr.write('intentional startup failure\n', () => process.exit(7));
+      return;
+    }
+    if (
+      hangUsi ||
+      (hangUsiAfterMarkerPath !== null && fs.existsSync(hangUsiAfterMarkerPath))
+    ) {
       return;
     }
     console.log('id name deterministic-fake-usi');

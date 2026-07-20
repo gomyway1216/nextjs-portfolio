@@ -227,6 +227,16 @@ function parseJsonl<T>(text: string): T[] {
     .map((line) => JSON.parse(line) as T);
 }
 
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
 function expectExactKeys(value: object, expected: readonly string[]): void {
   expect(Object.keys(value).sort()).toEqual([...expected].sort());
 }
@@ -239,6 +249,13 @@ describe('deterministic sibling teacher generator', () => {
     >;
     const removedFromPublicType: RemovedOptionKeys extends never ? true : false = true;
     expect(removedFromPublicType).toBe(true);
+    type ProductionTestOnlyKeys = Extract<
+      keyof StrengthFirstSiblingTeacherOptions,
+      'testOnlyEngineInitializationTimeoutMs'
+    >;
+    const testOverrideExcludedFromProduction: ProductionTestOnlyKeys extends never ? true : false =
+      true;
+    expect(testOverrideExcludedFromProduction).toBe(true);
 
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cli-tombstone-'));
     const sentinel = path.join(root, 'train.jsonl');
@@ -977,6 +994,79 @@ describe('deterministic sibling teacher generator', () => {
     });
     expect(workRows[1]).not.toHaveProperty('records');
     expect(await fs.promises.readFile(stage.train, 'utf8')).toBe('');
+  }, 15_000);
+
+  it('kills a replacement whose initialization times out and fails without another skip or result', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-replacement-init-timeout-')
+    );
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+    );
+    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    await expect(
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        {
+          stageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [
+            FAKE_ENGINE,
+            '--environment-trace',
+            environmentTrace,
+            '--hang-searchmove',
+            '2g2f',
+            '--hang-once-marker',
+            hangOnceMarker,
+            '--hang-usi-after-marker',
+            hangOnceMarker,
+          ],
+          engineReceipt: await writeEngineReceipt(root),
+          multipv: 2,
+          depth: 8,
+          engines: 1,
+          timeoutMs: 25,
+          testOnlyEngineInitializationTimeoutMs: 3_000,
+          targetParents: 2,
+          finalize: true,
+        },
+        {
+          verifyRevision: async (revision) => ({
+            source_revision: revision,
+            tracked_tree_clean: true,
+          }),
+          verifyOutputPaths: async () => undefined,
+        }
+      )
+    ).rejects.toThrow(/USI timeout after 3000ms/);
+
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    expect(
+      workRows.filter(
+        (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+      )
+    ).toHaveLength(1);
+    expect(workRows.some((row) => row.parent_id === 'parent-b')).toBe(false);
+    await expect(fs.promises.access(stage.stagedResult)).rejects.toThrow();
+    await expect(fs.promises.access(stage.train)).rejects.toThrow();
+
+    const processes = parseJsonl<{ cwd: string; pid: number }>(
+      await fs.promises.readFile(environmentTrace, 'utf8')
+    );
+    expect(processes.map((entry) => entry.cwd)).toEqual([
+      expect.stringMatching(/\/cwd\/worker-0\/engine-0$/),
+      expect.stringMatching(/\/cwd\/worker-0\/engine-1$/),
+    ]);
+    expect(processes.every((entry) => !processIsRunning(entry.pid))).toBe(true);
   }, 15_000);
 
   it('fails closed before recording a search timeout beyond the bounded prefix budget', async () => {

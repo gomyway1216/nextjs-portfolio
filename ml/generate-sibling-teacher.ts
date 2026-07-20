@@ -152,6 +152,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   fvScale?: number;
   hashMb?: number;
   timeoutMs?: number;
+  testOnlyEngineInitializationTimeoutMs?: number;
 }
 
 interface NormalizedOptions {
@@ -175,6 +176,7 @@ interface NormalizedOptions {
   fvScale: number;
   hashMb: number;
   timeoutMs: number;
+  testOnlyEngineInitializationTimeoutMs?: number;
 }
 
 interface FileDigest {
@@ -483,7 +485,7 @@ export type StrengthFirstSiblingTeacherAdvance =
 
 export interface StrengthFirstSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'engines' | 'seed' | 'valRatio'
+  'engines' | 'seed' | 'testOnlyEngineInitializationTimeoutMs' | 'valRatio'
 > {
   readonly targetParents: StrengthFirstProductionParentTarget;
 }
@@ -687,6 +689,12 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
+  if (options.testOnlyEngineInitializationTimeoutMs !== undefined) {
+    normalized.testOnlyEngineInitializationTimeoutMs = positiveInteger(
+      options.testOnlyEngineInitializationTimeoutMs,
+      'testOnlyEngineInitializationTimeoutMs'
+    );
+  }
   if (!/^[0-9a-f]{40}$/.test(normalized.runnerRevision)) {
     throw new Error('runnerRevision must be a lowercase 40-digit Git commit');
   }
@@ -1882,6 +1890,12 @@ async function runSiblingTeacherDatasetCore(
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
       timeout_ms: options.timeoutMs,
+      ...(options.testOnlyEngineInitializationTimeoutMs === undefined
+        ? {}
+        : {
+            test_only_engine_initialization_timeout_ms:
+              options.testOnlyEngineInitializationTimeoutMs,
+          }),
       engine_options: USI_TEACHER_ENGINE_CONTRACT,
     })
   );
@@ -2007,9 +2021,20 @@ async function runSiblingTeacherDatasetCore(
           fvScale: options.fvScale,
           hashMb: options.hashMb,
           timeoutMs: options.timeoutMs,
+          ...(options.testOnlyEngineInitializationTimeoutMs === undefined
+            ? {}
+            : {
+                testOnlyInitializationTimeoutMs:
+                  options.testOnlyEngineInitializationTimeoutMs,
+              }),
         });
-        await started.init();
-        return started;
+        try {
+          await started.init();
+          return started;
+        } catch (error) {
+          await started.quit();
+          throw error;
+        }
       };
       let engine: UsiTeacherEngine | null = null;
       try {

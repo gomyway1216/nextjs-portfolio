@@ -36,6 +36,9 @@
     "partial_scores_or_labels_preserved": false,
     "timed_out_process_replaced_before_more_work": true,
     "replacement_private_working_directory_is_fresh": true,
+    "initialization_failure_process_closed_before_propagation": true,
+    "replacement_initialization_failure_is_fatal_not_skip": true,
+    "replacement_initialization_failure_publishes_result": false,
     "non_timeout_errors_remain_fatal": true,
     "limit_formula": "ceil(target_parents/1000)",
     "limits": {
@@ -66,7 +69,7 @@
   "focused_validation": {
     "node": "v22.13.0",
     "test_files": 3,
-    "tests_passed": 47,
+    "tests_passed": 49,
     "tests_failed": 0,
     "training_bridge_unittest_tests_passed": 8,
     "training_bridge_unittest_tests_failed": 0,
@@ -76,6 +79,9 @@
       "timeout-parent-has-no-labels",
       "timed-out-process-is-replaced",
       "replacement-process-uses-a-fresh-private-working-directory",
+      "initial-handshake-timeout-closes-the-live-child",
+      "replacement-initialization-timeout-closes-all-children-and-remains-fatal",
+      "replacement-initialization-failure-emits-no-additional-skip-or-result",
       "exact-forced-and-emitted-parent-accounting",
       "public-reason-breakdown-and-cap-validation",
       "training-bridge-revalidates-manifest-result-reason-equality-and-cap",

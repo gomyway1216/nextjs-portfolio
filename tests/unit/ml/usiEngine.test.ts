@@ -97,6 +97,31 @@ describe('USI teacher engine subprocess contract', () => {
     }
   });
 
+  it('closes a live child when the initial USI handshake times out', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--hang-usi'],
+      timeoutMs: 5_000,
+      testOnlyInitializationTimeoutMs: 25,
+    });
+    const initialization = engine.init();
+    const child = (
+      engine as unknown as {
+        process: ChildProcessWithoutNullStreams | null;
+      }
+    ).process;
+    expect(child).not.toBeNull();
+    await expect(initialization).rejects.toThrow('USI timeout after 25ms');
+    expect(
+      (
+        engine as unknown as {
+          process: ChildProcessWithoutNullStreams | null;
+        }
+      ).process
+    ).toBeNull();
+    expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true);
+  });
+
   it('clears failed child state, reports stderr, and permits initialization retry', async () => {
     const engine = new UsiTeacherEngine({
       engineBin: process.execPath,

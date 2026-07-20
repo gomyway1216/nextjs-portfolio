@@ -107,6 +107,8 @@ The same synthetic input with a different key order produces the same compositio
 
 The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 findings were the missing per-pair seed and the omitted activation-registry identity in the composition hash. The P2 finding was a noncanonical path alias that could bypass a distinct-path check. Implementation anchor `651359df6a56a36379d834cd092b77cbac15a076` fixes all three, adds a compatibility test that passes the same synthetic opening manifest through the existing launcher validator, and explicitly probes duplicate, boolean, zero, negative, and signed-64-bit-overflow seeds. The final read-only review of exact head `ea56f82b44234a41243545fbb8e6960bb9b06010` reported `P0=0`, `P1=0`, `P2=0`, and safe-to-review.
 
+PR review then noted that a non-string SFEN could reach `_normalized_sfen` and leak a raw `TypeError` or `AttributeError` before the explicit type check. Current implementation anchor `35d0ca71bd5d60747667c3dad4e804b270cb3551` moves the type check before normalization and adds regression probes proving that `null`, integer, and list values all fail closed as `FormalAbV2ActivationError`.
+
 | Check                                                            |                       Result |
 | ---------------------------------------------------------------- | ---------------------------: |
 | Python compile                                                   |                         PASS |

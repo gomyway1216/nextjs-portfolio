@@ -95,6 +95,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
         "negative",
         "signed-64-bit-overflow",
       ],
+      non_string_sfen_probes: ["null", "integer", "list"],
       exact_768_game_accounting: true,
       deterministic_binding_sha256: true,
       opens_artifact_files: false,
@@ -156,7 +157,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       publication_evidence_tests_failed: 0,
       full_ml_stdlib_tests_passed: 204,
       full_ml_stdlib_tests_failed: 0,
-      full_ml_stdlib_wall_seconds: 14.06,
+      full_ml_stdlib_wall_seconds: 13.89,
       ruff: "PASS",
       prettier: "PASS",
       diff_check: "PASS",
@@ -176,6 +177,14 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       unresolved_p0: 0,
       unresolved_p1: 0,
       unresolved_p2: 0,
+      github_review_remediation: {
+        thread_id: "PRRT_kwDOQbO82s6SIQd1",
+        finding: "non-string-sfen-could-escape-before-explicit-type-check",
+        revision: "35d0ca71bd5d60747667c3dad4e804b270cb3551",
+        regression_probes: ["null", "integer", "list"],
+        local_validation: "PASS",
+        thread_state: "pending-push-reply-and-resolution",
+      },
     });
   });
 
@@ -193,6 +202,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       expect(article).toContain("time control");
       expect(article).toContain("STOP");
       expect(article).toContain("651359df");
+      expect(article).toContain("35d0ca71");
       expect(article).toContain("P0=0");
       expect(article).toContain("P1=0");
       expect(article).toContain("P2=0");

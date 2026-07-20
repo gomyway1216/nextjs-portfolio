@@ -107,6 +107,8 @@ unit testは次を拒否した。
 
 独立reviewは最初に`P0=0`、`P1=2`、`P2=1`を報告した。P1はpair seedの欠落とcomposition hashからactivation-registry identityが落ちていたこと、P2はnoncanonical path aliasでdistinct-path checkを回避できたことだった。実装anchor `651359df6a56a36379d834cd092b77cbac15a076`で3点を修正し、既存launcher validatorへ同じsynthetic opening manifestを通す互換testと、duplicate / bool / 0 / negative / signed-64-bit overflow seedの各probeも追加した。exact review head `ea56f82b44234a41243545fbb8e6960bb9b06010`の最終read-only reviewは`P0=0`、`P1=0`、`P2=0`、safe-to-reviewだった。
 
+PR reviewでは、non-string SFENを`_normalized_sfen`へ渡すと明示型checkより先にraw `TypeError` / `AttributeError`が漏れ得る指摘も受けた。現行実装anchor `35d0ca71bd5d60747667c3dad4e804b270cb3551`はtype checkをnormalization前へ移し、`null`、integer、listがすべて`FormalAbV2ActivationError`としてfail closedになる回帰probeを追加した。
+
 | 検証                                        |                     結果 |
 | ------------------------------------------- | -----------------------: |
 | Python compile                              |                     PASS |

@@ -2,8 +2,8 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-foundation-evidence-v1",
   "recorded_date": "2026-07-19",
   "implementation_anchor": {
-    "revision": "651359df6a56a36379d834cd092b77cbac15a076",
-    "tree": "d79b9697e07ebb9905a626b1db2123af9e29a257",
+    "revision": "35d0ca71bd5d60747667c3dad4e804b270cb3551",
+    "tree": "6cd6db7bb5295fde831a81748a932586de26f8ef",
     "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
     "branch": "codex/formal-ab-v2-activation-foundation",
     "pushed": false,
@@ -22,8 +22,8 @@
   "implementation_artifacts": {
     "module": {
       "path": "ml/formal_paired_ab_v2_production_activation.py",
-      "bytes": 33811,
-      "sha256": "34aa2b80e5f652d38ffa36cefc0ff6691e54dbfba7b4dd3f1bd3190b310136df"
+      "bytes": 33922,
+      "sha256": "3825ab3e0d222f757b295dc186d3a1ae5498b9a2ded3f17a0de43c85d3f372d3"
     },
     "registry": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
@@ -32,8 +32,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
-      "bytes": 22745,
-      "sha256": "6d98cdc7d9c5a5e95f64380ab4d4fb6f131d7cc728703f6440a6022d89191d45"
+      "bytes": 23499,
+      "sha256": "a01489d628041e7d8e69df45943c60db2bb84673736fa972f5c79532d5b4a156"
     }
   },
   "protocol_binding": {
@@ -109,6 +109,7 @@
       "negative",
       "signed-64-bit-overflow"
     ],
+    "non_string_sfen_probes": ["null", "integer", "list"],
     "exact_768_game_accounting": true,
     "deterministic_binding_sha256": true,
     "opens_artifact_files": false,
@@ -150,7 +151,7 @@
     "publication_evidence_tests_failed": 0,
     "full_ml_stdlib_tests_passed": 204,
     "full_ml_stdlib_tests_failed": 0,
-    "full_ml_stdlib_wall_seconds": 14.06,
+    "full_ml_stdlib_wall_seconds": 13.89,
     "ruff": "PASS",
     "prettier": "PASS",
     "diff_check": "PASS",
@@ -193,7 +194,15 @@
     "safe_to_review": true,
     "unresolved_p0": 0,
     "unresolved_p1": 0,
-    "unresolved_p2": 0
+    "unresolved_p2": 0,
+    "github_review_remediation": {
+      "thread_id": "PRRT_kwDOQbO82s6SIQd1",
+      "finding": "non-string-sfen-could-escape-before-explicit-type-check",
+      "revision": "35d0ca71bd5d60747667c3dad4e804b270cb3551",
+      "regression_probes": ["null", "integer", "list"],
+      "local_validation": "PASS",
+      "thread_state": "pending-push-reply-and-resolution"
+    }
   },
   "execution_counters": {
     "real_formal_attempts_started": 0,

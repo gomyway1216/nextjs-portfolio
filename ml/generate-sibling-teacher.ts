@@ -152,7 +152,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   fvScale?: number;
   hashMb?: number;
   timeoutMs?: number;
-  testOnlyEngineInitializationTimeoutMs?: number;
+  testOnlyInitializationTimeoutMs?: number;
 }
 
 interface NormalizedOptions {
@@ -176,7 +176,7 @@ interface NormalizedOptions {
   fvScale: number;
   hashMb: number;
   timeoutMs: number;
-  testOnlyEngineInitializationTimeoutMs?: number;
+  testOnlyInitializationTimeoutMs?: number;
 }
 
 interface FileDigest {
@@ -487,7 +487,7 @@ export type StrengthFirstSiblingTeacherAdvance =
 
 export interface StrengthFirstSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'engines' | 'seed' | 'testOnlyEngineInitializationTimeoutMs' | 'valRatio'
+  'engines' | 'seed' | 'testOnlyInitializationTimeoutMs' | 'valRatio'
 > {
   readonly targetParents: StrengthFirstProductionParentTarget;
 }
@@ -691,10 +691,10 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
-  if (options.testOnlyEngineInitializationTimeoutMs !== undefined) {
-    normalized.testOnlyEngineInitializationTimeoutMs = positiveInteger(
-      options.testOnlyEngineInitializationTimeoutMs,
-      'testOnlyEngineInitializationTimeoutMs'
+  if (options.testOnlyInitializationTimeoutMs !== undefined) {
+    normalized.testOnlyInitializationTimeoutMs = positiveInteger(
+      options.testOnlyInitializationTimeoutMs,
+      'testOnlyInitializationTimeoutMs'
     );
   }
   if (!/^[0-9a-f]{40}$/.test(normalized.runnerRevision)) {
@@ -1449,19 +1449,20 @@ function validateWorkEntry(
   value: unknown,
   fingerprint: string,
   parents: ReadonlyMap<string, RawParentOccurrence>,
-  line: number,
+  source: number | string,
   expectedMultipv: number,
   expectedLimit: UsiSearchLimit,
   expectedTimeoutMs: number
 ): WorkEntry {
-  if (!value || typeof value !== 'object') throw new Error(`work line ${line} must be an object`);
+  const context = typeof source === 'number' ? `work line ${source}` : source;
+  if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
   const row = value as Partial<WorkEntry>;
   if (row.schema !== SIBLING_TEACHER_WORK_SCHEMA || row.run_fingerprint !== fingerprint) {
-    throw new Error(`work line ${line} belongs to a different generator run`);
+    throw new Error(`${context} belongs to a different generator run`);
   }
-  const parentId = requiredText(row.parent_id, `work line ${line} parent_id`);
+  const parentId = requiredText(row.parent_id, `${context} parent_id`);
   const parent = parents.get(parentId);
-  if (!parent) throw new Error(`work line ${line} references an unselected parent: ${parentId}`);
+  if (!parent) throw new Error(`${context} references an unselected parent: ${parentId}`);
 
   if (row.kind === 'skip') {
     const actualLegalMoves = legalMovesForParent(parent).length;
@@ -1471,19 +1472,19 @@ function validateWorkEntry(
         (row.legal_moves as number) < 0 ||
         (row.legal_moves as number) >= 2
       ) {
-        throw new Error(`work line ${line} has invalid forced-move skip metadata`);
+        throw new Error(`${context} has invalid forced-move skip metadata`);
       }
       const entry = row as ForcedLegalMoveSkippedWorkEntry;
       if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
-        throw new Error(`work line ${line} payload checksum mismatch`);
+        throw new Error(`${context} payload checksum mismatch`);
       }
       if (entry.legal_moves !== actualLegalMoves) {
-        throw new Error(`work line ${line} skip legal_moves does not match its raw parent`);
+        throw new Error(`${context} skip legal_moves does not match its raw parent`);
       }
       return entry;
     }
     if (row.reason !== STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
-      throw new Error(`work line ${line} has unsupported skip reason`);
+      throw new Error(`${context} has unsupported skip reason`);
     }
     const entry = row as SearchTimeoutSkippedWorkEntry;
     const timeout = entry.timeout;
@@ -1515,7 +1516,7 @@ function validateWorkEntry(
       canonicalJson(timeout.requested_limit) !==
         canonicalJson(normalizedSearchLimit(expectedLimit))
     ) {
-      throw new Error(`work line ${line} has invalid search-timeout skip metadata`);
+      throw new Error(`${context} has invalid search-timeout skip metadata`);
     }
     const expectedInitialMultipv = Math.min(expectedMultipv, actualLegalMoves);
     if (
@@ -1527,7 +1528,7 @@ function validateWorkEntry(
           timeout.searchmoves.length !== 1 ||
           !legalMovesForParent(parent).includes(timeout.searchmoves[0])))
     ) {
-      throw new Error(`work line ${line} search-timeout context is inconsistent`);
+      throw new Error(`${context} search-timeout context is inconsistent`);
     }
     if (
       Object.keys(timeout).sort().join('\0') !==
@@ -1535,23 +1536,23 @@ function validateWorkEntry(
           .sort()
           .join('\0')
     ) {
-      throw new Error(`work line ${line} search-timeout metadata has extra fields`);
+      throw new Error(`${context} search-timeout metadata has extra fields`);
     }
     if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
-      throw new Error(`work line ${line} payload checksum mismatch`);
+      throw new Error(`${context} payload checksum mismatch`);
     }
     return entry;
   }
   if (row.kind !== 'parent' || !Array.isArray(row.records) || !Array.isArray(row.candidate_moves)) {
-    throw new Error(`work line ${line} has an unsupported kind or missing records`);
+    throw new Error(`${context} has an unsupported kind or missing records`);
   }
   const entry = row as CompletedWorkEntry;
   if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
-    throw new Error(`work line ${line} payload checksum mismatch`);
+    throw new Error(`${context} payload checksum mismatch`);
   }
   validateParentGroups(entry.records);
   if (entry.records.some((record) => record.parent_id !== parentId)) {
-    throw new Error(`work line ${line} contains records for another parent`);
+    throw new Error(`${context} contains records for another parent`);
   }
   const first = entry.records[0];
   if (
@@ -1560,13 +1561,13 @@ function validateWorkEntry(
     first.position_id !== parent.position_id ||
     first.parent_ply !== parent.ply
   ) {
-    throw new Error(`work line ${line} does not match its raw parent`);
+    throw new Error(`${context} does not match its raw parent`);
   }
   const moves = canonicalSortedMoves(entry.records.map((record) => record.move));
   const candidates = entry.candidate_moves.map((move) => requiredText(move, 'candidate move'));
   const initialSearch = validateSearchMetadata(
     entry.initial_search,
-    `work line ${line} initial search`
+    `${context} initial search`
   );
   const legalMoves = legalMovesForParent(parent);
   const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
@@ -1587,13 +1588,13 @@ function validateWorkEntry(
     expectedCandidates.some((move, index) => move !== candidates[index]) ||
     entry.candidate_set_sha256 !== candidateSetSha256(candidates)
   ) {
-    throw new Error(`work line ${line} has inconsistent candidate metadata`);
+    throw new Error(`${context} has inconsistent candidate metadata`);
   }
   const exactSearch = validateIndependentExactSearch(
     entry.exact_search,
     candidates,
     normalizedExpectedLimit,
-    `work line ${line} exact search`
+    `${context} exact search`
   );
   const rankedMoves = entry.records.map((record) => record.move);
   if (
@@ -1601,18 +1602,18 @@ function validateWorkEntry(
     exactSearch.moves.some((move, index) => move !== rankedMoves[index]) ||
     exactSearch.scores.length !== rankedMoves.length
   ) {
-    throw new Error(`work line ${line} records do not match synthesized exact ranks`);
+    throw new Error(`${context} records do not match synthesized exact ranks`);
   }
   const playedRecords = entry.records.filter((record) => record.sources.includes('played'));
   if (playedRecords.length !== 1 || playedRecords[0].move !== parent.played_move) {
-    throw new Error(`work line ${line} does not preserve exactly one played move`);
+    throw new Error(`${context} does not preserve exactly one played move`);
   }
   const initialMoves = new Set(initialSearch.moves);
   for (let index = 0; index < entry.records.length; index++) {
     const record = entry.records[index];
     const expectedChild = childSfenAfterUsi(parent.parent_sfen, record.move);
     if (record.child_sfen !== expectedChild || record.sfen !== expectedChild) {
-      throw new Error(`work line ${line} move ${record.move} has a non-derived child SFEN`);
+      throw new Error(`${context} move ${record.move} has a non-derived child SFEN`);
     }
     const expectedSources = [
       ...(record.move === parent.played_move ? ['played'] : []),
@@ -1622,7 +1623,7 @@ function validateWorkEntry(
       record.sources.length !== expectedSources.length ||
       record.sources.some((source, sourceIndex) => source !== expectedSources[sourceIndex])
     ) {
-      throw new Error(`work line ${line} move ${record.move} has inconsistent sources`);
+      throw new Error(`${context} move ${record.move} has inconsistent sources`);
     }
     const score = exactSearch.scores[index];
     if (
@@ -1632,7 +1633,7 @@ function validateWorkEntry(
       record.teacher_mate !== score.mate ||
       record.teacher_mate_sign !== score.mate_sign
     ) {
-      throw new Error(`work line ${line} move ${record.move} disagrees with exact score metadata`);
+      throw new Error(`${context} move ${record.move} disagrees with exact score metadata`);
     }
   }
   return entry;
@@ -1892,11 +1893,11 @@ async function runSiblingTeacherDatasetCore(
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
       timeout_ms: options.timeoutMs,
-      ...(options.testOnlyEngineInitializationTimeoutMs === undefined
+      ...(options.testOnlyInitializationTimeoutMs === undefined
         ? {}
         : {
             test_only_engine_initialization_timeout_ms:
-              options.testOnlyEngineInitializationTimeoutMs,
+              options.testOnlyInitializationTimeoutMs,
           }),
       engine_options: USI_TEACHER_ENGINE_CONTRACT,
     })
@@ -2023,18 +2024,22 @@ async function runSiblingTeacherDatasetCore(
           fvScale: options.fvScale,
           hashMb: options.hashMb,
           timeoutMs: options.timeoutMs,
-          ...(options.testOnlyEngineInitializationTimeoutMs === undefined
+          ...(options.testOnlyInitializationTimeoutMs === undefined
             ? {}
             : {
                 testOnlyInitializationTimeoutMs:
-                  options.testOnlyEngineInitializationTimeoutMs,
+                  options.testOnlyInitializationTimeoutMs,
               }),
         });
         try {
           await started.init();
           return started;
         } catch (error) {
-          await started.quit();
+          try {
+            await started.quit();
+          } catch {
+            // Preserve the initialization failure; cleanup is best-effort.
+          }
           throw error;
         }
       };
@@ -2059,7 +2064,7 @@ async function runSiblingTeacherDatasetCore(
               sealed,
               runFingerprint,
               parentMap,
-              0,
+              `runtime parent ${job.parent.parent_id}`,
               options.multipv,
               options.limit,
               options.timeoutMs
@@ -2096,7 +2101,7 @@ async function runSiblingTeacherDatasetCore(
                   sealed,
                   runFingerprint,
                   parentMap,
-                  0,
+                  `runtime timeout quarantine ${job.parent.parent_id}`,
                   options.multipv,
                   options.limit,
                   options.timeoutMs
@@ -2572,11 +2577,11 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
   if (
     Object.prototype.hasOwnProperty.call(
       rawOptions,
-      'testOnlyEngineInitializationTimeoutMs'
+      'testOnlyInitializationTimeoutMs'
     )
   ) {
     throw new Error(
-      'strength-first production generation rejects testOnlyEngineInitializationTimeoutMs'
+      'strength-first production generation rejects testOnlyInitializationTimeoutMs'
     );
   }
   const capturedInput = captureAuthenticatedTeacherInput(input);

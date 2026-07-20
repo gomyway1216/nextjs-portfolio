@@ -251,7 +251,7 @@ describe('deterministic sibling teacher generator', () => {
     expect(removedFromPublicType).toBe(true);
     type ProductionTestOnlyKeys = Extract<
       keyof StrengthFirstSiblingTeacherOptions,
-      'testOnlyEngineInitializationTimeoutMs'
+      'testOnlyInitializationTimeoutMs'
     >;
     const testOverrideExcludedFromProduction: ProductionTestOnlyKeys extends never ? true : false =
       true;
@@ -303,13 +303,13 @@ describe('deterministic sibling teacher generator', () => {
       depth: 8,
       timeoutMs: 25,
       targetParents: 100,
-      testOnlyEngineInitializationTimeoutMs: 25,
+      testOnlyInitializationTimeoutMs: 25,
     } as unknown as StrengthFirstSiblingTeacherOptions;
 
     await expect(
       advanceStrengthFirstSiblingTeacherDataset(input, unsafeRuntimeOptions)
     ).rejects.toThrow(
-      'strength-first production generation rejects testOnlyEngineInitializationTimeoutMs'
+      'strength-first production generation rejects testOnlyInitializationTimeoutMs'
     );
     await expect(fs.promises.access(environmentTrace)).rejects.toThrow();
     await expect(fs.promises.access(stageRoot)).rejects.toThrow();
@@ -1065,7 +1065,7 @@ describe('deterministic sibling teacher generator', () => {
           depth: 8,
           engines: 1,
           timeoutMs: 25,
-          testOnlyEngineInitializationTimeoutMs: 3_000,
+          testOnlyInitializationTimeoutMs: 3_000,
           targetParents: 2,
           finalize: true,
         },

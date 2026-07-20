@@ -93,7 +93,7 @@ private `work.jsonl`を開かなくても上限を監査できるよう、各pre
 
 ## 検証範囲
 
-固定Node v22.13.0で、USI wrapper、generator、runnerの対象3 test file、50 testを通した。さらにtraining bridgeのstdlib test 8件も通した。focused testは、proposal / independent-rescore両方のtyped timeout、partial label 0件、fresh private directoryでのprocess replacement、初回とreplacementのhandshake timeout後にchildが残らないこと、初期化failureが追加skipやresultにならないこと、test専用timeoutがproductionへ入らないこと、forced/emitted accounting、公開理由別件数、timeout metadata改ざん拒否、上限超過時の停止、新しいv7 rootとtraining前の再検証を確認する。
+固定Node v22.13.0で、USI wrapper、generator、runnerの対象3 test file、51 testを通した。さらにtraining bridgeのstdlib test 8件も通した。focused testは、proposal / independent-rescore両方のtyped timeout、partial label 0件、fresh private directoryでのprocess replacement、初回とreplacementのhandshake timeout後にchildが残らないこと、cleanup failureが元の初期化failureを上書きしないこと、初期化failureが追加skipやresultにならないこと、test専用timeoutがproductionへ入らないこと、forced/emitted accounting、公開理由別件数、timeout metadata改ざん拒否、上限超過時の停止、新しいv7 rootとtraining前の再検証を確認する。
 
 このpassは回復codeの検証であり、実teacher completionや棋力の証拠ではない。次はreview / CI / regular merge後にだけv7 runを開始し、100、500、24,000の各receiptを順に監査する。
 

@@ -70,7 +70,7 @@
   "focused_validation": {
     "node": "v22.13.0",
     "test_files": 3,
-    "tests_passed": 50,
+    "tests_passed": 51,
     "tests_failed": 0,
     "training_bridge_unittest_tests_passed": 8,
     "training_bridge_unittest_tests_failed": 0,
@@ -81,6 +81,7 @@
       "timed-out-process-is-replaced",
       "replacement-process-uses-a-fresh-private-working-directory",
       "initial-handshake-timeout-closes-the-live-child",
+      "cleanup-failure-does-not-mask-the-original-initialization-failure",
       "replacement-initialization-timeout-closes-all-children-and-remains-fatal",
       "replacement-initialization-failure-emits-no-additional-skip-or-result",
       "runtime-test-only-timeout-cannot-enter-production-seam",

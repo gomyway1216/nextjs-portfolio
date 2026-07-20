@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   USI_TEACHER_ENGINE_CONTRACT,
@@ -120,6 +120,29 @@ describe('USI teacher engine subprocess contract', () => {
       ).process
     ).toBeNull();
     expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true);
+  });
+
+  it('preserves the initialization failure when best-effort cleanup also fails', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--hang-usi'],
+      timeoutMs: 5_000,
+      testOnlyInitializationTimeoutMs: 25,
+    });
+    const realQuit = engine.quit.bind(engine);
+    vi.spyOn(engine, 'quit').mockImplementationOnce(async () => {
+      await realQuit();
+      throw new Error('synthetic cleanup failure');
+    });
+
+    await expect(engine.init()).rejects.toThrow('USI timeout after 25ms');
+    expect(
+      (
+        engine as unknown as {
+          process: ChildProcessWithoutNullStreams | null;
+        }
+      ).process
+    ).toBeNull();
   });
 
   it('clears failed child state, reports stderr, and permits initialization retry', async () => {

@@ -188,7 +188,12 @@ export class UsiTeacherEngine {
       await this.waitFor((line) => line === 'readyok', testTimeout ?? 120_000);
       this.send('usinewgame');
     } catch (error) {
-      await this.quit();
+      try {
+        await this.quit();
+      } catch {
+        // Cleanup is best-effort here: preserve the initialization failure
+        // that explains why this engine could not be used.
+      }
       throw error;
     }
   }

@@ -93,7 +93,7 @@ Reusing 99 entries would require a new cross-revision migration authority that r
 
 ## Validation scope
 
-With fixed Node v22.13.0, the three focused USI-wrapper, generator, and runner test files passed 50 tests. Eight training-bridge stdlib tests also passed. They cover typed proposal and independent-rescore timeouts, zero partial labels, replacement in a fresh private directory, no surviving child after initial or replacement handshake timeouts, no extra skip or result for initialization failure, rejection of the test-only timeout at the production seam, forced/emitted accounting, the public reason breakdown, timeout-metadata tamper rejection, fatal behavior beyond the cap, the new v7 root, and the pre-training revalidation.
+With fixed Node v22.13.0, the three focused USI-wrapper, generator, and runner test files passed 51 tests. Eight training-bridge stdlib tests also passed. They cover typed proposal and independent-rescore timeouts, zero partial labels, replacement in a fresh private directory, no surviving child after initial or replacement handshake timeouts, preservation of the original initialization failure when cleanup also fails, no extra skip or result for initialization failure, rejection of the test-only timeout at the production seam, forced/emitted accounting, the public reason breakdown, timeout-metadata tamper rejection, fatal behavior beyond the cap, the new v7 root, and the pre-training revalidation.
 
 That pass validates recovery code; it is not evidence of teacher completion or playing strength. Only after review, CI, and a regular merge should the v7 run begin, followed by separate audits of the 100, 500, and 24,000 receipts.
 

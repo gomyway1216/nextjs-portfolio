@@ -1,0 +1,116 @@
+{
+  "schema": "shogi-floodgate-strength-first-runtime-cpu-model-evidence-v1",
+  "status": "implementation-and-focused-runtime-preflight-pass-no-training-or-live-change",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-runtime-cpu-model.md",
+    "english": "../blog-shogi-floodgate-strength-first-runtime-cpu-model.en.md"
+  },
+  "incident": {
+    "found_during": "read-only-three-seed-resource-audit",
+    "candidate_builder_path": "/usr/bin:/bin",
+    "training_launcher_path_kind": "inherited-normal-environment",
+    "cpu_model_before": {
+      "candidate_builder": "arm",
+      "training_launcher": "Apple M4 Pro"
+    },
+    "root_cause": "bare-sysctl-resolution-depended-on-caller-path",
+    "effect_without_fix": "exact-runtime-mismatch-stops-all-three-seeds-before-training",
+    "failed_training_slots_created": 0,
+    "partial_checkpoints_created": 0,
+    "selection_labels_read": false,
+    "holdout_labels_read": false
+  },
+  "fix": {
+    "file": "ml/train.py",
+    "darwin_executable": "/usr/sbin/sysctl",
+    "darwin_argv": ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"],
+    "path_independent": true,
+    "non_darwin_sysctl_invoked": false,
+    "fallback_order": ["processor", "machine", "unknown"],
+    "fallback_preserved_for_absent_failed_or_empty_darwin_lookup": true,
+    "training_arithmetic_changed": false,
+    "data_or_gate_changed": false
+  },
+  "real_runtime_preflight": {
+    "fixed_venv": true,
+    "optimizer_training_started": false,
+    "environments": [
+      {
+        "name": "candidate-builder-restricted",
+        "path": "/usr/bin:/bin"
+      },
+      {
+        "name": "training-launcher-normal",
+        "path": "inherited"
+      }
+    ],
+    "byte_identical_json": true,
+    "observed_runtime": {
+      "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+      "system": "Darwin",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_model": "Apple M4 Pro",
+      "logical_cpu_count": 14,
+      "python_version": "3.13.0",
+      "torch_version": "2.12.1",
+      "device": "cpu",
+      "torch_threads": 2,
+      "torch_interop_threads": 1,
+      "deterministic_algorithms": true,
+      "deterministic_debug_mode": "error"
+    },
+    "combined_wall_seconds_approx": 4.4
+  },
+  "focused_validation": {
+    "mock_runtime_tests": {
+      "status": "PASS",
+      "tests": 3,
+      "covers_absolute_darwin_argv": true,
+      "covers_builder_and_launcher_path_equality": true,
+      "covers_non_darwin_and_darwin_failure_fallback": true
+    },
+    "python_compile": "PASS",
+    "ruff": "PASS",
+    "diff_check": "PASS"
+  },
+  "existing_plan_impact": {
+    "historical_plan_files_changed": false,
+    "historical_plan_or_audit_bytes_changed": false,
+    "historical_runtime_cpu_model": "Apple M4 Pro",
+    "normal_launcher_observed_value_changed": false,
+    "new_v9_plan_must_bind_reviewed_fix_revision": true,
+    "historical_experiment_rerun_authorized": false
+  },
+  "formal_v9_at_capture": {
+    "teacher_running": true,
+    "final_result_exists": false,
+    "exact_training_plan_exists": false,
+    "real_training_processes_started": 0,
+    "candidate_selections": 0,
+    "formal_ab_games": 0,
+    "live_weight_changes": 0
+  },
+  "authority": {
+    "training_authorized_by_this_change": false,
+    "selection_authorized": false,
+    "holdout_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_promotion_authorized": false
+  },
+  "privacy": {
+    "private_absolute_paths_published": false,
+    "training_positions_or_identifiers_published": false,
+    "private_file_digests_published": false
+  },
+  "strength_claims": {
+    "model_retrained": false,
+    "candidate_selected": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "claim_boundary": "path-independent-runtime-identification-and-focused-preflight-not-teacher-completion-training-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "after-merge-and-formal-v9-completion-build-review-and-enroll-the-exact-v3-training-plan-before-launching-seeds-42-43-44"
+}

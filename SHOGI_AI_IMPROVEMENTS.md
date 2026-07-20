@@ -9,21 +9,21 @@ The main `/games/shogi` page now uses the opening book early and then delegates 
 
 ## Current training status (2026-07-20)
 
-The formal v8 teacher stopped safely after accounting 1,388 / 24,000
-training parents; it did not produce a complete dataset or stronger live
-weights. The v9 recovery keeps exact candidate scoring at depth 16 while
-reducing only MultiPV proposal discovery to depth 14. Real diagnostics
-completed all five former proposal timeouts, retained the independently
-rescored best move in 6 / 6 references, and selected 13 local engines after
-counterbalanced full-label benchmarks showed 13 was faster than 12 and 14 was
-slower than 12.
+Formal v9 is running locally from the clean merged revision
+`682e5a1dd8027519f2277ec311000bfedf4aced3`. It reached milestone 100 in
+411 seconds and milestone 500 in 1,001 seconds, with exact 500 / 500
+completion, an emitted count of 500, and zero forced skips, search timeouts, or
+fewer-than-two cases. A later monitoring sample recorded 1,003 durable work
+entries at 1,705 seconds; that sample is not an additional formal milestone or
+a final-label verification.
 
-The fast pinned-input path validates all 24,000 training rows in about 3.7
-seconds before and after teacher work, without opening holdout or selection
-files. Formal v9 starts only from the clean merged revision. Retraining,
-candidate selection, formal paired A/B, external calibration, and any live
-promotion remain pending. See the [v9 proposal-rescue evidence and
-explanation](docs/blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md).
+The run uses 13 one-thread local engines with 512 MiB hash each. Observed use
+was about 9 GiB, with about 50% memory and 81 GiB storage free; cloud use and
+live-weight changes remain zero. The provisional remaining time is 9–11 hours
+and will be recalculated at 2,000 entries. The final 24,000 dataset,
+retraining, candidate selection, formal paired A/B, external calibration, and
+playing-strength evidence remain pending. See the [v9 proposal-rescue
+evidence and explanation](docs/blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md).
 
 ---
 

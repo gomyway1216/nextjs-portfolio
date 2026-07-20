@@ -1,6 +1,6 @@
 # From the v8 stop to v9: depth-14 proposals with depth-16 scoring
 
-> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 and 12-vs-13 lane measurements, and the v9 runner implementation. The formal v9 teacher, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
+> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 and 12-vs-13 lane measurements, the v9 runner implementation, and formal-run progress. Formal v9 started locally from the clean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3` and completed the exact 500 milestone. The final 24,000 result, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
 
 ## Conclusion
 
@@ -69,19 +69,47 @@ Fourteen-lane throughput was 91.784% of twelve-lane throughput, or about 8.216% 
 
 Thirteen-lane median throughput was 109.2814% of twelve-lane throughput, clearing the predeclared 101% selection threshold. Its median wall time was 8.493% lower. Two short trial pairs do not prove playing strength or the full 24,000-position duration, and the absolute twelve-lane time varied between the two benchmark runs. Within the same run, however, thirteen was faster, while the separate twelve-vs-fourteen run showed fourteen was slower. V9 therefore selects thirteen among the measured twelve-, thirteen-, and fourteen-lane settings.
 
+## Formal v9 completed the exact 500 milestone and continues toward 24,000
+
+The formal run started from the clean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3`. Its observed times are:
+
+| Observation  | Epoch      | Elapsed from start |
+| ------------ | ---------: | -----------------: |
+| Formal start | 1784539512 |                  0 |
+| Milestone 100 | 1784539923 |       411 s (6m51s) |
+| Milestone 500 | 1784540513 |    1,001 s (16m41s) |
+
+At milestone 500, target/completed was exactly 500/500, emitted was 500, and forced skips were zero. The `fewer-than-two` and `search-timeout` reason counts were also zero.
+
+At a later monitoring sample, the durable work-entry count had reached 1,003 at 1,705 seconds from launch. This is not an additional formal milestone and does not independently verify 1,003 final labels. It is a monitoring sample of entries durably recorded in the growing work file while the same formal runner continues toward 24,000.
+
+| Runtime resource                  | Observation                |
+| --------------------------------- | -------------------------- |
+| Location                          | local only                 |
+| Engines                           | 13 in parallel             |
+| Threads per engine                | 1                          |
+| Hash per engine                   | 512 MiB                    |
+| Run memory                        | about 9 GiB                |
+| Free memory                       | about 50%                  |
+| Free storage                      | about 81 GiB               |
+| Cloud use / live-weight changes   | 0 / 0                      |
+
+Extrapolating the overall rate through the monitoring sample gave about 10.9 hours remaining, while the post-500 steady rate gave about 8.9 hours. Treating that difference as uncertainty, the current provisional range is **9–11 hours remaining**. This is not a completion-time guarantee; it will be recalculated at the 2,000-work-entry observation.
+
+There is no final 24,000 result and no complete teacher dataset yet. Retraining, candidate selection, formal A/B, and any playing-strength claim therefore remain pending, and the live weight is unchanged.
+
 ## What now reaches playing strength
 
-The new runner binds a separate v9 output root, clean Git revision, fast-input policy, the depth-14/depth-16 split, thirteen engines, 512 MiB hash, and typed proposal quarantine into the run fingerprint and final result. It never mixes v8 labels into v9. The formal v9 root has not been written by unmerged code.
+The new runner binds a separate v9 output root, clean Git revision, fast-input policy, the depth-14/depth-16 split, thirteen engines, 512 MiB hash, and typed proposal quarantine into the formal result. It never mixes v8 labels into v9. The formal v9 root was started only from the merged revision.
 
 The remaining path is direct:
 
-1. pass review and CI on a ready PR, then merge normally;
-2. launch the 24,000-parent teacher from the clean merge SHA with `npx tsx ml/run-floodgate-strength-first-v9-teacher.ts`;
-3. retrain seeds 42, 43, and 44;
-4. run candidate selection and sealed holdout evaluation;
-5. measure formal paired A/B and external calibration; and
-6. promote only a candidate with stable high-dan evidence.
+1. continue the same formal run to 24,000 and refine the ETA at 2,000 entries;
+2. retrain seeds 42, 43, and 44 only after final accounting and input postflight succeed;
+3. run candidate selection and sealed holdout evaluation;
+4. measure formal paired A/B and external calibration; and
+5. promote only a candidate with stable high-dan evidence.
 
-The accurate claim today is: “the implementation can start formal v9 with the known v8 stop handled, the long serial input reconstruction removed, and the faster measured thirteen-lane configuration.” It is not yet “the AI is high-dan.”
+The accurate claim today is: “formal v9 has handled the known v8 stop, removed the long serial input reconstruction, started with the faster measured thirteen-lane configuration, and exactly completed 500 entries with no skips.” It is not yet “the AI is high-dan.”
 
 The aggregate record is available as [machine-readable evidence](./data/floodgate-strength-first-v9-proposal-rescue-2026-07-20.json).

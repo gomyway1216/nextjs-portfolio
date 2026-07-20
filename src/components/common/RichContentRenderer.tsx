@@ -51,6 +51,17 @@ const components: Components = {
       return <>{children}</>;
     }
 
+    // Same-site links (e.g. /blog/... cross-references between posts) stay
+    // in the current tab; only external destinations open a new one.
+    const isInternal = href.startsWith('#') || isSafeRelativeUrl(href.trim());
+    if (isInternal) {
+      return (
+        <a href={href} {...props}>
+          {children}
+        </a>
+      );
+    }
+
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
         {children}

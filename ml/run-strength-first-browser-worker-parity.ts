@@ -18,6 +18,7 @@ import { chromium, type Page, type Request, type Route } from "@playwright/test"
 import {
   canonicalShogiEngineParityJson,
   SHOGI_ENGINE_PARITY_FIXTURE,
+  SHOGI_ENGINE_PARITY_FAILURE_CODES,
   SHOGI_ENGINE_PARITY_HARNESS_SCHEMA,
   SHOGI_ENGINE_PARITY_PATH,
   SHOGI_ENGINE_PARITY_TEST_ID,
@@ -266,10 +267,20 @@ function validateHarnessObservation(
   );
   if (
     observation.schema !== SHOGI_ENGINE_PARITY_HARNESS_SCHEMA ||
-    observation.status !== "pass" ||
-    observation.fixture !== SHOGI_ENGINE_PARITY_FIXTURE ||
-    observation.failure_code !== null
+    observation.fixture !== SHOGI_ENGINE_PARITY_FIXTURE
   ) {
+    fail("browser harness did not report a passing fixed fixture");
+  }
+  if (observation.status !== "pass" || observation.failure_code !== null) {
+    if (
+      observation.status === "fail" &&
+      typeof observation.failure_code === "string" &&
+      SHOGI_ENGINE_PARITY_FAILURE_CODES.includes(
+        observation.failure_code as (typeof SHOGI_ENGINE_PARITY_FAILURE_CODES)[number],
+      )
+    ) {
+      fail(`browser harness reported ${observation.failure_code}`);
+    }
     fail("browser harness did not report a passing fixed fixture");
   }
 

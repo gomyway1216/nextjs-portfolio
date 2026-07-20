@@ -74,6 +74,22 @@ describe("Shogi browser Worker parity protocol", () => {
     );
     expect(diagnosticsPage).toContain("isExactShogiEngineParityQuery");
     expect(diagnosticsPage).toContain("notFound()");
+
+    const harness = readFileSync(
+      join(
+        process.cwd(),
+        "src",
+        "components",
+        "game",
+        "ShogiImproved",
+        "ShogiEngineParityHarness.tsx",
+      ),
+      "utf8",
+    );
+    expect(harness.indexOf("requestEngineDiagnostics()")).toBeLessThan(
+      harness.indexOf("requestBestMoveWithInfo("),
+    );
+    expect(harness.match(/requestEngineDiagnostics\(\)/gu)).toHaveLength(2);
   });
 
   it("canonicalizes aggregate evidence and rejects ambiguous numbers", () => {

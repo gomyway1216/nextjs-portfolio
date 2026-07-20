@@ -140,6 +140,38 @@ export function ShogiEngineParityHarness() {
     void (async () => {
       const fixture = buildFixture();
       const observed = baseResult();
+      let startupDiagnostics: ShogiAiEngineDiagnostics;
+      try {
+        // The normal game deliberately allows its first search to fall back
+        // while the weight fetch is still in flight. Parity measurement must
+        // instead wait for the explicit startup identity/load decision before
+        // asking which evaluator the real search used.
+        startupDiagnostics = await client.requestEngineDiagnostics();
+      } catch {
+        publishFailure("worker-diagnostics-failed", observed);
+        return;
+      }
+      if (cancelled) return;
+      observed.nnue.fetch_status = startupDiagnostics.nnue.fetchStatus;
+      observed.nnue.fetched_weights =
+        startupDiagnostics.nnue.fetchedWeights;
+      observed.nnue.loaded = startupDiagnostics.nnue.loaded;
+      observed.nnue.enabled = startupDiagnostics.nnue.enabled;
+      observed.runtime_wasm.ready = startupDiagnostics.wasm.ready;
+      observed.runtime_wasm.embedded = startupDiagnostics.wasm.embedded;
+      if (
+        startupDiagnostics.nnue.fetchStatus !== "loaded" ||
+        !startupDiagnostics.nnue.fetchedWeights ||
+        !startupDiagnostics.nnue.loaded
+      ) {
+        publishFailure("nnue-not-loaded", observed);
+        return;
+      }
+      if (!startupDiagnostics.wasm.ready) {
+        publishFailure("runtime-wasm-not-ready", observed);
+        return;
+      }
+
       let bestMove: BestMoveInfo;
       try {
         bestMove = await client.requestBestMoveWithInfo(

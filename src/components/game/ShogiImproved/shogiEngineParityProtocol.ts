@@ -80,15 +80,20 @@ export interface ShogiEngineParitySha256Identity {
   readonly sha256: string;
 }
 
+export const SHOGI_ENGINE_PARITY_FAILURE_CODES = [
+  "worker-request-failed",
+  "worker-returned-no-move",
+  "worker-returned-illegal-move",
+  "worker-search-path-differed",
+  "worker-diagnostics-failed",
+  "worker-evaluation-path-differed",
+  "nnue-not-loaded",
+  "nnue-not-loaded-and-enabled",
+  "runtime-wasm-not-ready",
+] as const;
+
 export type ShogiEngineParityFailureCode =
-  | "worker-request-failed"
-  | "worker-returned-no-move"
-  | "worker-returned-illegal-move"
-  | "worker-search-path-differed"
-  | "worker-diagnostics-failed"
-  | "worker-evaluation-path-differed"
-  | "nnue-not-loaded-and-enabled"
-  | "runtime-wasm-not-ready";
+  (typeof SHOGI_ENGINE_PARITY_FAILURE_CODES)[number];
 
 export interface ShogiEngineParityHarnessResult {
   readonly schema: typeof SHOGI_ENGINE_PARITY_HARNESS_SCHEMA;

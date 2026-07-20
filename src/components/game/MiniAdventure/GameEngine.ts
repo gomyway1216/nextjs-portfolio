@@ -722,8 +722,9 @@ function processTurnEnd(state: GameState): void {
     }
   }
 
-  // Egg hatching
-  for (const item of player.inventory) {
+  // Egg hatching. Iterate over a copy: hatching splices the inventory, and
+  // splicing mid-iteration would skip the next item's eggTurns update.
+  for (const item of [...player.inventory]) {
     if (item.type === ItemType.EGG && item.eggTurns !== undefined) {
       item.eggTurns++;
       if (item.eggTurns >= EGG_HATCH_TURNS && item.petType) {

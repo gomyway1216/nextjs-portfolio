@@ -1,7 +1,6 @@
-// Lightweight path → {id, title, thumbnail} lookup for the global
-// toolbar. Kept separate from games.ts so the GlobalToolbar (which the
-// root layout renders on nearly every route) doesn't pull every game's
-// description/category/difficulty into the shared client bundle.
+// Lightweight path → {id, title, thumbnail} lookup for the global toolbar.
+// Derived from games.ts at module load so it can never go stale (note this
+// does pull games.ts into any bundle that imports this file).
 import { games } from './games';
 
 export interface GameNavEntry {

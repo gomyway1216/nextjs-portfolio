@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -750,11 +751,85 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             "floodgate-q1-2026-strength-first-selection-evaluator-"
             "foundation-evidence.json"
         )
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence_raw = evidence_path.read_bytes()
+        evidence = json.loads(evidence_raw)
         self.assertEqual(
             evidence["schema"],
             evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_EVIDENCE_SCHEMA,
         )
+        evidence_relative = evidence_path.relative_to(REPO_ROOT).as_posix()
+        git_environment = {
+            "PATH": "/usr/bin:/bin",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+            "LANG": "C",
+        }
+
+        def git_output(*arguments: str) -> bytes:
+            return subprocess.run(
+                ["git", *arguments],
+                cwd=REPO_ROOT,
+                env=git_environment,
+                check=True,
+                capture_output=True,
+            ).stdout
+
+        evidence_revisions = (
+            git_output(
+                "log",
+                "--format=%H",
+                "--",
+                evidence_relative,
+            )
+            .decode("ascii")
+            .splitlines()
+        )
+
+        def is_coherent_frozen_revision(revision: str) -> bool:
+            if evaluator._GIT_REVISION_RE.fullmatch(revision) is None:
+                return False
+            try:
+                if (
+                    git_output("show", f"{revision}:{evidence_relative}")
+                    != evidence_raw
+                ):
+                    return False
+                for artifact in evidence["implementation"].values():
+                    raw = git_output("show", f"{revision}:{artifact['path']}")
+                    if (
+                        len(raw) != artifact["bytes"]
+                        or hashlib.sha256(raw).hexdigest() != artifact["sha256"]
+                    ):
+                        return False
+            except subprocess.CalledProcessError:
+                return False
+            return True
+
+        coherent_revisions = [
+            revision
+            for revision in evidence_revisions
+            if is_coherent_frozen_revision(revision)
+        ]
+        self.assertGreaterEqual(len(coherent_revisions), 1)
+        evidence_revision = coherent_revisions[0]
+        ancestry = subprocess.run(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                evidence["base_revision"],
+                evidence_revision,
+            ],
+            cwd=REPO_ROOT,
+            env=git_environment,
+            check=False,
+            capture_output=True,
+        )
+        self.assertEqual(ancestry.returncode, 0)
         historical_registry = evidence["implementation"]["closed_registry"]
         self.assertEqual(
             historical_registry["path"],
@@ -776,9 +851,10 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
         )
 
         for name, artifact in evidence["implementation"].items():
-            if name == "closed_registry":
-                continue
-            raw = (REPO_ROOT / artifact["path"]).read_bytes()
+            raw = git_output(
+                "show",
+                f"{evidence_revision}:{artifact['path']}",
+            )
             self.assertEqual(artifact["bytes"], len(raw))
             self.assertEqual(
                 artifact["sha256"],

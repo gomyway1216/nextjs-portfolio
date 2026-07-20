@@ -8,7 +8,7 @@ This change alone has not made the AI stronger, and it has not changed the produ
 
 It completes the executable path needed immediately after the three-seed retraining selects a candidate. Previously this area was mostly a contract. It can now:
 
-1. recompute and authenticate a real selection receipt before issuing one single-use candidate authorization;
+1. authenticate the enrolled selection receipt, recompute its gates, preflight hash, ranking, representative median, and family gate, bind teacher identity/completion to the fixed registry, and then issue one single-use candidate authorization;
 2. reproduce production int16 weights from checkpoints and require byte-for-byte equality;
 3. evaluate fresh and legacy final holdouts plus general and opening retention with real models;
 4. measure the known `P*8f` regression from an exact legal-child fixture through the production-family WASM module; and
@@ -20,7 +20,7 @@ Real browser/Worker parity, formal A/B, and external strength calibration have n
 
 | Path | Result in this change | Why it matters for strength |
 | --- | --- | --- |
-| candidate authorization | recomputes all three runs, four gates, ranking, representative seed, teacher lineage, and preflight before issuing a single-use token | prevents evaluating the wrong checkpoint |
+| candidate authorization | recomputes the three runs' gates, preflight hash, ranking/representative median, and family gate, then binds teacher identity/completion before issuing a single-use token | prevents evaluating the wrong checkpoint |
 | checkpoint → int16 | reproduces the candidate epoch-20 and stable epoch-27 production format and requires exact 1,185,988-byte outputs | proves training and play use the same weights |
 | final holdout | reuses the strict sibling loader and production int16 forward path | compares unseen pair/top-1 behavior with the same implementation |
 | retention | fail-closed loader for the real legacy general/opening JSONL format | detects broad and decisive-position regressions |

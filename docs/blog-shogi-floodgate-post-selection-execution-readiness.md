@@ -8,7 +8,7 @@
 
 今回終えたのは、3 seed再学習から候補が選ばれた直後に、その候補を実データで検査するための実行経路である。これまで契約だけだった部分へ、次の処理を接続した。
 
-1. 実際のselection receiptを再計算し、選ばれた候補だけへ一度限りの権限を発行する
+1. 登録済みselection receiptを認証し、各runのgate、preflight hash、順位/代表seed、family gateを再計算し、teacher identity/completionを固定registryへ照合してから一度限りの権限を発行する
 2. checkpointから本番int16重みを再生成し、1 byte単位で一致を確認する
 3. fresh / legacy final holdoutとgeneral / opening retentionを実モデルで評価する
 4. 既知の`P*8f`回帰を、正確な合法手集合と本番系WASMで測る
@@ -20,7 +20,7 @@
 
 | 経路 | 今回の結果 | 棋力との関係 |
 | --- | --- | --- |
-| candidate authorization | selectionの全3 run、4 gate、順位、代表seed、teacher、preflightを再計算してから一度限りの権限を作る | 間違ったcheckpointを評価する事故を防ぐ |
+| candidate authorization | 全3 runのgate、preflight hash、順位/代表seed、family gateを再計算し、teacher identity/completionを照合してから一度限りの権限を作る | 間違ったcheckpointを評価する事故を防ぐ |
 | checkpoint → int16 | candidate epoch 20とstable epoch 27から本番形式を再生成し、各1,185,988 bytesの完全一致を要求 | 学習時の候補と実戦で読む重みを同一にする |
 | final holdout | 既存のstrict sibling loaderと本番int16 forwardを再利用 | 未見局面のpair/top1を同じ実装で比較する |
 | retention | 旧形式のgeneral/opening JSONLをfail-closedで読む | 全体精度や決定的局面を壊していないか確認する |

@@ -241,6 +241,16 @@ def run_strength_first_fresh_final_teacher_preflight_core(
 
 
 def _read_private_receipt(path: str) -> bytes:
+    parent = os.path.dirname(path)
+    parent_stat = os.lstat(parent)
+    if (
+        not stat.S_ISDIR(parent_stat.st_mode)
+        or parent_stat.st_uid != os.geteuid()
+        or stat.S_IMODE(parent_stat.st_mode) != 0o700
+    ):
+        raise ValueError(
+            "selection receipt directory must be a current-user 0700 directory"
+        )
     before = os.lstat(path)
     if (
         not stat.S_ISREG(before.st_mode)

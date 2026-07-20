@@ -16,6 +16,8 @@ interface MeasuredTrial {
 interface MeasuredEvidence {
   readonly schema: string;
   readonly status: string;
+  readonly date: string;
+  readonly claim_boundary: string;
   readonly trials: readonly MeasuredTrial[];
   readonly comparison: {
     readonly lane_12_elapsed_ms: readonly number[];
@@ -45,6 +47,12 @@ interface MeasuredEvidence {
     readonly process_swaps: number;
   };
   readonly receipt_validation: {
+    readonly schema: string;
+    readonly status: string;
+    readonly current_user_owner_verified: boolean;
+    readonly private_file_mode: string;
+    readonly regular_file: boolean;
+    readonly hard_link_count: number;
     readonly private_payload_fields_emitted: number;
     readonly private_path_published: boolean;
     readonly private_receipt_digest_published: boolean;
@@ -95,6 +103,10 @@ describe("fresh-lane MultiPV-6 measured evidence", () => {
       "shogi-floodgate-strength-first-fresh-lane-multipv6-benchmark-measured-evidence-v1",
     );
     expect(evidence.status).toBe("complete-lane-13-selected");
+    expect(evidence.date).toBe("2026-07-20");
+    expect(evidence.claim_boundary).toBe(
+      "local-throughput-only-not-teacher-training-model-selection-or-playing-strength-evidence",
+    );
     expect(
       evidence.trials.map(({ ordinal, parallel_engines, elapsed_ms }) => ({
         ordinal,
@@ -156,6 +168,13 @@ describe("fresh-lane MultiPV-6 measured evidence", () => {
       process_swaps: 0,
     });
     expect(evidence.receipt_validation).toMatchObject({
+      schema:
+        "shogi-floodgate-strength-first-fresh-lane-multipv6-benchmark-v1",
+      status: "complete-aggregate-only",
+      current_user_owner_verified: true,
+      private_file_mode: "0600",
+      regular_file: true,
+      hard_link_count: 1,
       private_payload_fields_emitted: 0,
       private_path_published: false,
       private_receipt_digest_published: false,
@@ -182,7 +201,10 @@ describe("fresh-lane MultiPV-6 measured evidence", () => {
       expect(article).toContain("31.332");
       expect(article).toContain("31.376");
       expect(article).not.toContain("/Users/");
-      expect(article).not.toMatch(/sha256:[0-9a-f]{64}/u);
+      expect(article).not.toMatch(/\b[0-9a-f]{64}\b/iu);
+      expect(article).not.toMatch(
+        /(?:\/Users\/|\/home\/|\/private\/var\/|[A-Z]:\\Users\\|\.codex\/shogi-(?:runs|data)\/)/iu,
+      );
     }
   });
 });

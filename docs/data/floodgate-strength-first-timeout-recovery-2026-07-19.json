@@ -1,0 +1,94 @@
+{
+  "schema": "shogi-floodgate-strength-first-timeout-recovery-evidence-v1",
+  "status": "failed-run-recorded-recovery-implementation-under-review",
+  "date": "2026-07-19",
+  "real_failed_run": {
+    "input_authentication_succeeded": true,
+    "input_authentication_elapsed_ms": 1088743,
+    "durable_parent_entries": 99,
+    "work_records_including_header": 100,
+    "timeout": {
+      "phase": "independent-rescore",
+      "configured_ms": 600000,
+      "typed_in_failed_revision": false
+    },
+    "milestone_100_published": false,
+    "milestone_500_published": false,
+    "final_result_published": false,
+    "teacher_dataset_complete": false,
+    "training_started": false,
+    "live_weight_changes": 0,
+    "process_disposition": "stopped-after-fail-closed-propagation",
+    "private_parent_identity_disclosed": false
+  },
+  "source_diagnosis": {
+    "timeout_rejected_search_promise": true,
+    "partial_parent_work_entry_persisted": false,
+    "parent_error_became_worker_failure": true,
+    "other_completed_parent_entries_remained_durable": true,
+    "timed_out_engine_could_still_be_searching_until_termination": true
+  },
+  "recovery_contract": {
+    "output_generation": "strength-first-v7",
+    "failed_v6_checkpoint_reused": false,
+    "typed_timeout_only": true,
+    "skip_reason": "search-timeout-no-label",
+    "partial_scores_or_labels_preserved": false,
+    "timed_out_process_replaced_before_more_work": true,
+    "replacement_private_working_directory_is_fresh": true,
+    "non_timeout_errors_remain_fatal": true,
+    "limit_formula": "ceil(target_parents/1000)",
+    "limits": {
+      "100": 1,
+      "500": 1,
+      "24000": 24
+    },
+    "reason_breakdown": {
+      "exact_fields": [
+        "fewer_than_two_legal_moves",
+        "search_timeout_no_label"
+      ],
+      "bound_in_prefix_milestones": true,
+      "bound_in_teacher_manifest": true,
+      "bound_in_staged_result": true,
+      "bound_in_public_completion_result": true,
+      "final_locations_must_match": true,
+      "auditable_without_private_work_jsonl": true
+    },
+    "parent_completion_jsonl_or_binding_changed": false,
+    "training_bridge_reads_recovery_v7_root": true,
+    "training_bridge_revalidates_reason_sum_and_timeout_cap": true,
+    "excess_timeout_recorded_as_skip": false,
+    "excess_timeout_fails_run": true,
+    "exact_parent_accounting_preserved": true,
+    "fabricated_teacher_rows": 0
+  },
+  "focused_validation": {
+    "node": "v22.13.0",
+    "test_files": 3,
+    "tests_passed": 47,
+    "tests_failed": 0,
+    "training_bridge_unittest_tests_passed": 8,
+    "training_bridge_unittest_tests_failed": 0,
+    "coverage": [
+      "typed-search-timeout",
+      "proposal-timeout-context",
+      "timeout-parent-has-no-labels",
+      "timed-out-process-is-replaced",
+      "replacement-process-uses-a-fresh-private-working-directory",
+      "exact-forced-and-emitted-parent-accounting",
+      "public-reason-breakdown-and-cap-validation",
+      "training-bridge-revalidates-manifest-result-reason-equality-and-cap",
+      "timeout-metadata-tamper-rejected",
+      "second-timeout-beyond-small-prefix-limit-fails-before-recording",
+      "runner-output-generation-is-v7"
+    ],
+    "broad_full_suite_run": false
+  },
+  "claims": {
+    "teacher_completion": false,
+    "training_completion": false,
+    "playing_strength_gain": false,
+    "live_promotion": false
+  }
+}

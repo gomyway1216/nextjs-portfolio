@@ -21,8 +21,9 @@ export type ShogiEngineParitySearchParams = Readonly<
 >;
 
 export function isExactShogiEngineParityQuery(
-  searchParams: ShogiEngineParitySearchParams,
+  searchParams: ShogiEngineParitySearchParams | null | undefined,
 ): boolean {
+  if (!searchParams) return false;
   const keys = Object.keys(searchParams);
   return (
     keys.length === 1 &&

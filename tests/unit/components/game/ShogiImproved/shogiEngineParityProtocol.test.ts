@@ -24,6 +24,8 @@ describe("Shogi browser Worker parity protocol", () => {
       }),
     ).toBe(true);
     expect(isExactShogiEngineParityQuery({})).toBe(false);
+    expect(isExactShogiEngineParityQuery(null)).toBe(false);
+    expect(isExactShogiEngineParityQuery(undefined)).toBe(false);
     expect(
       isExactShogiEngineParityQuery({
         [SHOGI_ENGINE_PARITY_QUERY_KEY]: [

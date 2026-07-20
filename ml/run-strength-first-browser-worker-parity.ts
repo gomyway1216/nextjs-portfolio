@@ -203,7 +203,12 @@ function authenticateRequest(
       wasm,
       "production WASM",
     );
-    if (!WebAssembly.validate(Uint8Array.from(wasmBytes))) {
+    const wasmView = new Uint8Array(
+      wasmBytes.buffer as ArrayBuffer,
+      wasmBytes.byteOffset,
+      wasmBytes.byteLength,
+    );
+    if (!WebAssembly.validate(wasmView)) {
       fail("production WASM is invalid");
     }
   } catch (error) {

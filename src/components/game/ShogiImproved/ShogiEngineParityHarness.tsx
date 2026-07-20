@@ -151,6 +151,7 @@ export function ShogiEngineParityHarness() {
         publishFailure("worker-request-failed", observed);
         return;
       }
+      if (cancelled) return;
       observed.execution.worker_response = true;
       observed.execution.search_path = bestMove.searchPath;
       if (bestMove.move === null) {
@@ -188,7 +189,7 @@ export function ShogiEngineParityHarness() {
 
       if (diagnostics.lastSearch?.searchPath !== "wasm") {
         publishFailure("worker-search-path-differed", observed);
-      } else if (diagnostics.lastSearch.evaluationPath !== "nnue-wasm") {
+      } else if (diagnostics.lastSearch?.evaluationPath !== "nnue-wasm") {
         publishFailure("worker-evaluation-path-differed", observed);
       } else if (
         diagnostics.nnue.fetchStatus !== "loaded" ||

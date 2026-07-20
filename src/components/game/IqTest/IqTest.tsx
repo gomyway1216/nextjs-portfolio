@@ -130,6 +130,13 @@ export const IqTest = () => {
 
   // Fingerprints used this session to prevent repeats.
   const usedRef = useRef<Set<string>>(new Set());
+  // Blocks re-entrant next() calls (Enter key repeat / double-click) so a
+  // single feedback screen can't generate multiple questions and desync
+  // usedRef from the question index. Cleared when the transition commits.
+  const advancingRef = useRef(false);
+  useEffect(() => {
+    advancingRef.current = false;
+  });
 
   const makeQuestion = useCallback(
     (index: number): Question =>
@@ -167,7 +174,10 @@ export const IqTest = () => {
   const next = useCallback(() => {
     // makeQuestion rolls Math.random and mutates usedRef, so it must run
     // outside the setState updater (updaters stay pure; Strict Mode runs them
-    // twice in dev) — same as start().
+    // twice in dev) — same as start(). Only advance from feedback, and only
+    // once per feedback screen (advancingRef) until the transition commits.
+    if (state.phase !== 'feedback' || advancingRef.current) return;
+    advancingRef.current = true;
     if (state.questionIndex >= TOTAL_QUESTIONS) {
       setState((prev) => ({ ...prev, phase: 'gameover' }));
     } else {
@@ -181,7 +191,7 @@ export const IqTest = () => {
       }));
     }
     setTimeLeft(TIME_PER_QUESTION);
-  }, [makeQuestion, state.questionIndex]);
+  }, [makeQuestion, state.phase, state.questionIndex]);
 
   const reset = useCallback(() => {
     usedRef.current = new Set();

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -181,6 +182,53 @@ class StrengthFirstSelectionPreflightRegistryCandidateTests(unittest.TestCase):
         self.assertNotIn("selection.raw", joined)
         self.assertNotIn("runop1-best", joined)
         self.assertNotIn("live", joined)
+
+    def test_reader_rejects_hard_links_and_open_time_path_substitution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original = Path(directory) / "original"
+            hard_link = Path(directory) / "hard-link"
+            original.write_bytes(b"original-bytes")
+            os.link(original, hard_link)
+            with self.assertRaisesRegex(
+                BUILDER.StrengthFirstSelectionPreflightRegistryCandidateError,
+                "canonical regular file",
+            ):
+                BUILDER._read_stable_regular_file(str(original), "linked artifact")
+
+        with tempfile.TemporaryDirectory() as directory:
+            original = Path(directory) / "original"
+            decoy = Path(directory) / "decoy"
+            original.write_bytes(b"original-bytes")
+            decoy.write_bytes(b"decoy-bytes")
+            real_open = os.open
+            decoy_descriptor = real_open(decoy, os.O_RDONLY)
+            try:
+                with (
+                    mock.patch.object(
+                        BUILDER.os,
+                        "open",
+                        side_effect=lambda *_args, **_kwargs: os.dup(decoy_descriptor),
+                    ),
+                    mock.patch.object(
+                        BUILDER.os.path,
+                        "realpath",
+                        side_effect=lambda value: os.path.abspath(value),
+                    ),
+                    self.assertRaisesRegex(
+                        BUILDER.StrengthFirstSelectionPreflightRegistryCandidateError,
+                        "changed before it could be read",
+                    ),
+                ):
+                    BUILDER._read_stable_regular_file(
+                        str(original),
+                        "substituted artifact",
+                    )
+                self.assertEqual(
+                    os.lseek(decoy_descriptor, 0, os.SEEK_CUR),
+                    0,
+                )
+            finally:
+                os.close(decoy_descriptor)
 
     def test_serialization_is_one_ready_json_without_absolute_paths(self):
         with tempfile.TemporaryDirectory() as directory:

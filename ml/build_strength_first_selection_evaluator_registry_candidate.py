@@ -75,6 +75,7 @@ def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
 
 def _read_canonical_regular_file(path: str, label: str) -> bytes:
     absolute = os.path.abspath(path)
+    descriptor = -1
     try:
         before = os.lstat(absolute)
         if (
@@ -85,16 +86,42 @@ def _read_canonical_regular_file(path: str, label: str) -> bytes:
             raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
                 f"{label} is not a canonical regular file"
             )
-        with open(absolute, "rb") as source:
+        descriptor = os.open(
+            absolute,
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened_before = os.fstat(descriptor)
+        if (
+            _stat_identity(before) != _stat_identity(opened_before)
+            or not stat.S_ISREG(opened_before.st_mode)
+            or opened_before.st_nlink != 1
+        ):
+            raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+                f"{label} changed before it could be read"
+            )
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
             raw = source.read()
+        opened_after = os.fstat(descriptor)
         after = os.lstat(absolute)
     except OSError as error:
         raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
             f"{label} cannot be read"
         ) from error
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
     if (
         not raw
-        or _stat_identity(before) != _stat_identity(after)
+        or len(
+            {
+                _stat_identity(value)
+                for value in (before, opened_before, opened_after, after)
+            }
+        )
+        != 1
         or before.st_size != len(raw)
     ):
         raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
@@ -105,6 +132,7 @@ def _read_canonical_regular_file(path: str, label: str) -> bytes:
 
 def _fingerprint_canonical_regular_file(path: str, label: str) -> dict[str, Any]:
     absolute = os.path.abspath(path)
+    descriptor = -1
     try:
         before = os.lstat(absolute)
         if (
@@ -115,18 +143,56 @@ def _fingerprint_canonical_regular_file(path: str, label: str) -> dict[str, Any]
             raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
                 f"{label} is not a canonical single-link regular file"
             )
-        observed = EVALUATOR._file_fingerprint(absolute)
+        descriptor = os.open(
+            absolute,
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened_before = os.fstat(descriptor)
+        if (
+            _stat_identity(before) != _stat_identity(opened_before)
+            or not stat.S_ISREG(opened_before.st_mode)
+            or opened_before.st_nlink != 1
+        ):
+            raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+                f"{label} changed before it could be fingerprinted"
+            )
+        digest = hashlib.sha256()
+        byte_count = 0
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            byte_count += len(chunk)
+        observed = {
+            "bytes": byte_count,
+            "sha256": digest.hexdigest(),
+        }
+        opened_after = os.fstat(descriptor)
         after = os.lstat(absolute)
     except (OSError, ValueError) as error:
         raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
             f"{label} cannot be fingerprinted"
         ) from error
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
     if (
         type(observed) is not dict
         or set(observed) != {"bytes", "sha256"}
         or type(observed["bytes"]) is not int
         or observed["bytes"] < 1
-        or _stat_identity(before) != _stat_identity(after)
+        or len(
+            {
+                _stat_identity(value)
+                for value in (before, opened_before, opened_after, after)
+            }
+        )
+        != 1
+        or before.st_size != observed["bytes"]
     ):
         raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
             f"{label} fingerprint is invalid"
@@ -292,6 +358,9 @@ def build_strength_first_selection_evaluator_registry_candidate(
     _fingerprint_private: Callable[
         [str, str], Mapping[str, Any]
     ] = _fingerprint_canonical_regular_file,
+    _validate_training_plan: Callable[
+        [Mapping[str, Any]], Mapping[str, Any]
+    ] = EVALUATOR.BRIDGE.validate_strength_first_qat_training_plan_data,
     _run_checkpoint_preflight: Callable[
         [], Mapping[str, Any]
     ] = TEACHER_PREFLIGHT.run_strength_first_selection_teacher_preflight,
@@ -371,6 +440,7 @@ def build_strength_first_selection_evaluator_registry_candidate(
             "selection teacher checkpoint preflight failed"
         ) from error
     preflight = _validate_checkpoint_preflight_summary(preflight_value)
+    plan_document: Mapping[str, Any] | None = None
     for name, label in (
         ("training_plan", "strength-first selection training plan"),
         (
@@ -387,6 +457,26 @@ def build_strength_first_selection_evaluator_registry_candidate(
             verify_tracked=_verify_tracked,
         )
         tracked_snapshots[path] = raw
+        if name == "training_plan":
+            plan_document = EVALUATOR._strict_json(raw, label)
+            _validate_training_plan(plan_document)
+    if plan_document is None:
+        raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+            "authenticated training plan was not loaded"
+        )
+    warm_initializer = EVALUATOR._exact_dict(
+        plan_document["artifacts"]["warm_initializer"],
+        {"path", "bytes", "sha256"},
+        "strength-first training plan warm initializer",
+    )
+    expected_stable_path = (
+        f"{EVALUATOR.BRIDGE._SEALED_INPUT_DIRECTORY}/" f"{warm_initializer['path']}"
+    )
+    if expected_stable_path != EVALUATOR._FIXED_PATHS["stable_checkpoint"]:
+        raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+            "stable checkpoint path differs from the authenticated "
+            "training plan warm initializer"
+        )
 
     private_document_raw: dict[str, bytes] = {}
     private_documents: dict[str, dict[str, Any]] = {}
@@ -434,6 +524,16 @@ def build_strength_first_selection_evaluator_registry_candidate(
             "sha256": identity["sha256"],
         }
         private_documents[name] = identity
+    if private_documents["stable_checkpoint"] != {
+        "path": expected_stable_path,
+        "bytes": warm_initializer["bytes"],
+        "sha256": warm_initializer["sha256"],
+        "schema": EVALUATOR.STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA,
+    }:
+        raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+            "stable checkpoint differs from the authenticated training "
+            "plan warm initializer"
+        )
 
     authority = parsed_documents["selection_teacher_authority"]
     run_fingerprint = authority.get("run_fingerprint")

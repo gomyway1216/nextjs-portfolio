@@ -70,6 +70,7 @@ def _git_head(repo_root: str) -> str:
 
 def _read_stable_regular_file(path: str, label: str) -> bytes:
     absolute = os.path.abspath(path)
+    descriptor = -1
     try:
         before = os.lstat(absolute)
         if (
@@ -80,13 +81,38 @@ def _read_stable_regular_file(path: str, label: str) -> bytes:
             raise StrengthFirstSelectionPreflightRegistryCandidateError(
                 f"{label} must be one canonical regular file"
             )
-        raw = Path(absolute).read_bytes()
+        descriptor = os.open(
+            absolute,
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened_before = os.fstat(descriptor)
+        if (
+            COMMON._stat_identity(before) != COMMON._stat_identity(opened_before)
+            or not stat.S_ISREG(opened_before.st_mode)
+            or opened_before.st_nlink != 1
+        ):
+            raise StrengthFirstSelectionPreflightRegistryCandidateError(
+                f"{label} changed before it could be read"
+            )
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            raw = source.read()
+        opened_after = os.fstat(descriptor)
         after = os.lstat(absolute)
     except OSError as error:
         raise StrengthFirstSelectionPreflightRegistryCandidateError(
             f"{label} is absent or unreadable"
         ) from error
-    if COMMON._stat_identity(before) != COMMON._stat_identity(after):
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+    identities = {
+        COMMON._stat_identity(value)
+        for value in (before, opened_before, opened_after, after)
+    }
+    if len(identities) != 1 or before.st_size != len(raw):
         raise StrengthFirstSelectionPreflightRegistryCandidateError(
             f"{label} changed while it was read"
         )

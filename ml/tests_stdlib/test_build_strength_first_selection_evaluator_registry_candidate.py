@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import copy
 import hashlib
 import io
@@ -54,6 +55,7 @@ class CandidateHarness:
         self.private_reads: list[str] = []
         self.private_fingerprints: list[str] = []
         self.preflight_calls = 0
+        stable_raw = b"synthetic-stable-checkpoint\n"
 
         registry_relative = (
             EVALUATOR.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
@@ -65,6 +67,13 @@ class CandidateHarness:
             {
                 "schema": (EVALUATOR.BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA),
                 "synthetic": True,
+                "artifacts": {
+                    "warm_initializer": {
+                        "path": "runOp1-best.pt",
+                        "bytes": len(stable_raw),
+                        "sha256": hashlib.sha256(stable_raw).hexdigest(),
+                    }
+                },
             }
         )
         self.preflight_registry_raw = pretty(
@@ -161,7 +170,6 @@ class CandidateHarness:
         }
 
         dataset_raw = b'{"synthetic":"first"}\n{"synthetic":"second"}\n'
-        stable_raw = b"synthetic-stable-checkpoint\n"
         self._write_private(
             EVALUATOR._FIXED_PATHS["selection_dataset"],
             dataset_raw,
@@ -287,6 +295,7 @@ class CandidateHarness:
             _read_tracked=self.read_tracked,
             _read_private=self.read_private,
             _fingerprint_private=self.fingerprint_private,
+            _validate_training_plan=lambda plan: plan,
             _run_checkpoint_preflight=self.checkpoint_preflight,
         )
 
@@ -372,15 +381,25 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                     for _path, revision, _raw in harness.verifications
                 )
             )
-            all_private_reads = harness.private_reads + harness.private_fingerprints
-            self.assertFalse(
-                any("holdout" in path.lower() for path in all_private_reads)
+            expected_document_reads = Counter(
+                {
+                    str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
+                    for name in SUBJECT._PRIVATE_DOCUMENTS
+                }
             )
-            self.assertFalse(
-                any("selection-receipt" in path for path in all_private_reads)
+            expected_large_fingerprints = Counter(
+                {
+                    str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
+                    for name in ("selection_dataset", "stable_checkpoint")
+                }
             )
-            self.assertFalse(
-                any("fresh-selection.raw" in path for path in all_private_reads)
+            self.assertEqual(
+                Counter(harness.private_reads),
+                expected_document_reads,
+            )
+            self.assertEqual(
+                Counter(harness.private_fingerprints),
+                expected_large_fingerprints,
             )
 
     def test_ready_registry_recomputes_exactly_and_rejects_ready_drift(self):
@@ -478,6 +497,65 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             ):
                 harness.build()
 
+    def test_stable_checkpoint_is_cross_bound_to_authenticated_plan_initializer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = CandidateHarness(temporary)
+            stable_path = harness.home / EVALUATOR._FIXED_PATHS["stable_checkpoint"]
+            original = stable_path.read_bytes()
+            stable_path.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+            with self.assertRaisesRegex(
+                SUBJECT.StrengthFirstSelectionEvaluatorRegistryCandidateError,
+                "authenticated training plan warm initializer",
+            ):
+                harness.build()
+
+    def test_fd_identity_rejects_open_time_path_substitution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            original = Path(temporary) / "original"
+            decoy = Path(temporary) / "decoy"
+            original.write_bytes(b"original-bytes")
+            decoy.write_bytes(b"decoy-bytes")
+            real_open = os.open
+
+            for reader, message in (
+                (
+                    SUBJECT._read_canonical_regular_file,
+                    "changed before it could be read",
+                ),
+                (
+                    SUBJECT._fingerprint_canonical_regular_file,
+                    "cannot be fingerprinted",
+                ),
+            ):
+                decoy_descriptor = real_open(decoy, os.O_RDONLY)
+                try:
+                    with (
+                        self.subTest(reader=reader.__name__),
+                        mock.patch.object(
+                            SUBJECT.os,
+                            "open",
+                            side_effect=lambda *_args, **_kwargs: os.dup(
+                                decoy_descriptor
+                            ),
+                        ),
+                        mock.patch.object(
+                            SUBJECT.os.path,
+                            "realpath",
+                            side_effect=lambda value: os.path.abspath(value),
+                        ),
+                        self.assertRaisesRegex(
+                            SUBJECT.StrengthFirstSelectionEvaluatorRegistryCandidateError,
+                            message,
+                        ),
+                    ):
+                        reader(str(original), "substituted private artifact")
+                    self.assertEqual(
+                        os.lseek(decoy_descriptor, 0, os.SEEK_CUR),
+                        0,
+                    )
+                finally:
+                    os.close(decoy_descriptor)
+
     def test_tracked_input_change_stops_before_candidate_consumer(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = CandidateHarness(temporary)
@@ -506,6 +584,7 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                         _read_tracked=drifting_reader,
                         _read_private=harness.read_private,
                         _fingerprint_private=harness.fingerprint_private,
+                        _validate_training_plan=lambda plan: plan,
                         _run_checkpoint_preflight=(harness.checkpoint_preflight),
                         _candidate_consumer=lambda value: emitted.append(dict(value)),
                     )

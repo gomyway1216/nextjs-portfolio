@@ -301,13 +301,28 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
 
     def test_subprocess_fault_reports_sanitized_diagnostic_not_raw_stderr(self):
         sensitive_stderr = "private path: /tmp/operator-secret\n"
+        valid_runtime_identity = mock.Mock(
+            st_mode=0o100700,
+            st_uid=os.geteuid(),
+        )
         completed = launcher.subprocess.CompletedProcess(
             args=[],
             returncode=7,
             stdout="",
             stderr=sensitive_stderr,
         )
-        with mock.patch.object(launcher.subprocess, "run", return_value=completed):
+        with (
+            mock.patch.object(
+                launcher.Path,
+                "stat",
+                return_value=valid_runtime_identity,
+            ),
+            mock.patch.object(
+                launcher.subprocess,
+                "run",
+                return_value=completed,
+            ),
+        ):
             with self.assertRaises(
                 launcher.FormalAbV2WasmMatchTechnicalFault
             ) as raised:

@@ -43,8 +43,8 @@
     },
     "formal_launcher_tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_wasm_match_launcher.py",
-      "bytes": 12286,
-      "sha256": "dbbe7684d6503827d28e325d0347e07b57decd680bcf360e9304583387f5d882"
+      "bytes": 12645,
+      "sha256": "b64fbb19abb87355f2dc134d475acc8d6af8a7854afd8f70168470b134d07b63"
     }
   },
   "historical_publication_preserved": {

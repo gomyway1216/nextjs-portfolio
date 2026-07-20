@@ -12,6 +12,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
+import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
 
@@ -99,6 +100,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
         body: excludeBody ? '' : picked.translation.body,
         language: picked.language,
         availableLanguages: availableLanguages(translations),
+        viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
         created: data.created?.toDate?.()?.toISOString() || data.created,
         lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
       }];
@@ -151,12 +153,13 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     }
 
     const body = await request.json();
-    const { category, isPublic, image, tags, translations } = body as {
+    const { category, isPublic, image, tags, translations, relatedPostIds } = body as {
       category?: string;
       isPublic?: boolean;
       image?: string;
       tags?: unknown;
       translations?: PostTranslations;
+      relatedPostIds?: unknown;
     };
 
     const normalizedCategory = normalizePostCategory(category);
@@ -186,6 +189,8 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
       lastUpdated: now,
       image: image || null,
       translations,
+      relatedPostIds: normalizeRelatedPostIds(relatedPostIds),
+      viewCount: 0,
     });
 
     revalidateTag(BLOG_POST_LIST_CACHE_TAG, 'max');

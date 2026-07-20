@@ -183,7 +183,8 @@
       "notFoundTitle": "Post not found",
       "notFoundText": "This article is unavailable or has not been published.",
       "backToBlog": "Back to blog",
-      "edit": "Edit"
+      "edit": "Edit",
+      "related": "Related posts"
     }
   },
   "study": {

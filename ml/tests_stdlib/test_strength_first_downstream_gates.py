@@ -173,9 +173,7 @@ def retention_metrics() -> dict:
 def known_regression_observation(registry: dict) -> dict:
     wasm = registry["enrollments"]["production_wasm"]
     return {
-        "schema": (
-            "shogi-floodgate-strength-first-downstream-wasm-probe-result-v1"
-        ),
+        "schema": ("shogi-floodgate-strength-first-downstream-wasm-probe-result-v1"),
         "status": "complete-local-wasm-module-probes",
         "loaded_weights_sha256": (
             registry["enrollments"]["candidate_weights"]["sha256"]
@@ -279,8 +277,7 @@ def enrolled_selection_receipt(
                 "slot_id": run["slot_id"],
                 "seed": run["seed"],
                 "output": (
-                    f"{GATES.STRENGTH_FIRST_QAT_RUN_ROOT}/"
-                    f"seed-{run['seed']}"
+                    f"{GATES.STRENGTH_FIRST_QAT_RUN_ROOT}/" f"seed-{run['seed']}"
                 ),
                 "result": copy.deepcopy(run["result"]),
                 "checkpoint": copy.deepcopy(run["checkpoint"]),
@@ -300,15 +297,27 @@ def enrolled_selection_receipt(
         allow_nan=False,
     ).encode("utf-8")
     preflight_sha256 = hashlib.sha256(preflight_raw).hexdigest()
-    registry["enrollments"][
-        "candidate_selection_checkpoint_preflight_sha256"
-    ] = preflight_sha256
+    registry["enrollments"]["candidate_selection_checkpoint_preflight_sha256"] = (
+        preflight_sha256
+    )
     completion = {
         "input_games": 200,
         "input_parents": 4_800,
         "completed_parents": 4_800,
         "forced_parents_skipped": 1,
-        "forced_skip_reasons": {"fewer_than_two_legal_moves": 1},
+        "forced_skip_reasons": {
+            "fewer_than_two_legal_moves": 1,
+            "search_timeout_no_label": 0,
+        },
+        "parent_accounting": {
+            "parent_ids_sha256": GATES.SELECTION_SOURCE_PARENT_IDS_SHA256,
+            "forced_parent_ids_sha256": digest("forced-parents"),
+            "emitted_parent_ids_sha256": digest("emitted-parents"),
+            "fewer_than_two_legal_moves_parent_ids_sha256": digest(
+                "forced-move-parents"
+            ),
+            "search_timeout_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+        },
         "emitted_parent_groups": 4_799,
         "dataset_records": 9_598,
         "sealed": True,
@@ -329,19 +338,13 @@ def enrolled_selection_receipt(
                 "candidate_selection_teacher_run_fingerprint"
             ],
             "authority": copy.deepcopy(
-                registry["enrollments"][
-                    "candidate_selection_teacher_authority"
-                ]
+                registry["enrollments"]["candidate_selection_teacher_authority"]
             ),
             "manifest": copy.deepcopy(
-                registry["enrollments"][
-                    "candidate_selection_teacher_manifest"
-                ]
+                registry["enrollments"]["candidate_selection_teacher_manifest"]
             ),
             "result": copy.deepcopy(
-                registry["enrollments"][
-                    "candidate_selection_teacher_result"
-                ]
+                registry["enrollments"]["candidate_selection_teacher_result"]
             ),
             "dataset": copy.deepcopy(
                 registry["enrollments"]["candidate_selection_dataset"]
@@ -375,21 +378,19 @@ def enrolled_selection_receipt(
         "evaluation": {
             "schema": GATES.SELECTION_EVALUATION_REPORT_SCHEMA,
             "dataset": {
-                "bytes": registry["enrollments"][
-                    "candidate_selection_dataset"
-                ]["bytes"],
-                "sha256": registry["enrollments"][
-                    "candidate_selection_dataset"
-                ]["sha256"],
+                "bytes": registry["enrollments"]["candidate_selection_dataset"][
+                    "bytes"
+                ],
+                "sha256": registry["enrollments"]["candidate_selection_dataset"][
+                    "sha256"
+                ],
                 "records": completion["dataset_records"],
                 "parents": completion["emitted_parent_groups"],
                 "eligible_pairs": 1,
                 "pair_min_cp": 50.0,
                 "value_cp_clamp": 3_000,
                 "value_target": "clamped_child_cp",
-                "ranking_target": (
-                    "unclamped_parent_cp_equals_negative_child_cp"
-                ),
+                "ranking_target": ("unclamped_parent_cp_equals_negative_child_cp"),
             },
             "evaluation_count_per_model": 1,
             "max_workers": 2,
@@ -752,6 +753,38 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 registry=registry,
                 receipt_raw=raw,
             )
+
+    def test_selection_receipt_rejects_v1_timeout_over_cap_and_proposal_skip(self):
+        for label in ("v1", "timeout_cap", "proposal_incomplete"):
+            with self.subTest(label=label):
+                registry = ready_registry()
+                receipt, _ = enrolled_selection_receipt(registry)
+                completion = receipt["selection_teacher"]["completion"]
+                if label == "v1":
+                    receipt["schema"] = (
+                        "shogi-floodgate-strength-first-three-seed-"
+                        "candidate-selection-receipt-v1"
+                    )
+                elif label == "timeout_cap":
+                    completion["forced_skip_reasons"]["search_timeout_no_label"] = (
+                        GATES.SELECTION_TIMEOUT_SKIP_LIMIT + 1
+                    )
+                else:
+                    completion["forced_skip_reasons"][
+                        "proposal_incomplete_no_label"
+                    ] = 1
+                raw = GATES._canonical_json_bytes(receipt)
+                registry["enrollments"]["candidate_selection_receipt"].update(
+                    {
+                        "bytes": len(raw),
+                        "sha256": hashlib.sha256(raw).hexdigest(),
+                    }
+                )
+                with self.assertRaises(ValueError):
+                    GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                        registry=registry,
+                        receipt_raw=raw,
+                    )
 
     def test_enrolled_selection_receipt_rejects_failed_family_before_authority(
         self,
@@ -1222,9 +1255,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         registry = ready_registry()
         result, _ = self.run_valid_details(registry)
         failed = observation_results(registry)
-        failed["known_regression"]["wasm_module_identity"][
-            "embedded_bytes_equal"
-        ] = False
+        failed["known_regression"]["wasm_module_identity"]["embedded_bytes_equal"] = (
+            False
+        )
         _, failed_observations = verified_callbacks(
             registry,
             results=failed,

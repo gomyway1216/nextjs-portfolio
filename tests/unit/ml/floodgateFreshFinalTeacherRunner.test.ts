@@ -37,6 +37,7 @@ import {
 } from "../../../ml/floodgate-fresh-selection-teacher-runner";
 import { runFreshFinalTeacherCliCore } from "../../../ml/run-floodgate-fresh-final-teacher";
 import type { FloodgateTrainingParent } from "../../../ml/floodgate-training-row-validation";
+import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
 import {
   buildSiblingGroup,
   positionKeyFromSfen,
@@ -47,6 +48,44 @@ const REVISION = "1".repeat(40);
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function writeValidatorOwnedWorkHandoff(file: string) {
+  const bytes = `${[
+    JSON.stringify({
+      schema: "shogi-sibling-teacher-work-v2",
+      kind: "header",
+      test_scope: "runner-handoff-semantic-validation-is-injected",
+    }),
+    ...Array.from({ length: 4_800 }, (_, index) =>
+      JSON.stringify({
+        schema: "shogi-sibling-teacher-work-v2",
+        kind: "runner-handoff",
+        sequence: index,
+      }),
+    ),
+  ].join("\n")}\n`;
+  await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+  return {
+    path: "work.jsonl" as const,
+    bytes: Buffer.byteLength(bytes),
+    sha256: sha256(bytes),
+    schema: "shogi-sibling-teacher-work-v2" as const,
+    records: 4_801 as const,
+  };
+}
+
+function parentAccounting(
+  parentIdsSha256: string,
+  emittedParentIdsSha256 = parentIdsSha256,
+) {
+  return {
+    parent_ids_sha256: parentIdsSha256,
+    forced_parent_ids_sha256: sha256(""),
+    emitted_parent_ids_sha256: emittedParentIdsSha256,
+    fewer_than_two_legal_moves_parent_ids_sha256: sha256(""),
+    search_timeout_parent_ids_sha256: sha256(""),
+  };
 }
 
 function artifact(
@@ -67,19 +106,19 @@ function preflight(): FreshFinalTeacherSelectionPreflight {
     status: "selected-candidate-receipt-recomputed",
     selection_evaluator_registry: artifact(
       "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
-      "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+      "shogi-floodgate-strength-first-selection-evaluator-registry-v2",
     ),
     selection_evaluation_report: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-evaluation-report.json",
       "shogi-floodgate-strength-first-selection-evaluation-report-v1",
     ),
     selection_receipt: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json",
-      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-receipt.json",
+      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
     ),
     selection_publication_result: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json",
-      "shogi-floodgate-strength-first-selection-publication-result-v1",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json",
+      "shogi-floodgate-strength-first-selection-publication-result-v2",
     ),
     selected_seed: 43,
     selected_checkpoint: artifact(
@@ -121,7 +160,7 @@ function policy(): FreshSelectionTeacherSearchPolicy {
   return {
     schema: FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
     status: "ready-for-post-checkpoint-local-teacher",
-    role: "fresh_selection",
+    role: "fresh_selection_and_fresh_final",
     teacher: {
       engine: "YaneuraOu",
       threads_per_engine: 1,
@@ -147,7 +186,7 @@ function policy(): FreshSelectionTeacherSearchPolicy {
       },
     },
     runtime: {
-      parallel_engines: 12,
+      parallel_engines: 13,
       threads_per_engine: 1,
       hash_mb_per_engine: 512,
       timeout_ms_per_search: 600_000,
@@ -156,8 +195,18 @@ function policy(): FreshSelectionTeacherSearchPolicy {
     completion: {
       input_parents: 4_800,
       input_games: 200,
-      timeout_or_incomplete_without_exact_fallback: "fatal-no-publication",
-      allowed_forced_skip_reason: "fewer_than_two_legal_moves",
+      search_timeout_no_label: {
+        disposition: "forced-parent-skip-no-label",
+        skip_limit_divisor: 1_000,
+        maximum_skips: 5,
+        partial_parent_labels_accepted: false,
+      },
+      proposal_fallback_timeout: "fatal-no-publication",
+      proposal_incomplete_without_exact_fallback: "fatal-no-publication",
+      allowed_forced_skip_reasons: [
+        "fewer_than_two_legal_moves",
+        "search-timeout-no-label",
+      ],
       partial_publication: false,
     },
   };
@@ -266,12 +315,21 @@ async function dependencies(
         mode: 0o600,
       });
       await fs.promises.chmod(request.datasetPath, 0o600);
+      const work = await writeValidatorOwnedWorkHandoff(request.workPath);
       return {
         status: "complete-fresh-final-only",
         generation_run_fingerprint: sha256("fresh-final-generation"),
         completed_parents: 4_800,
         forced_parents_skipped: 0,
-        forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 0,
+        },
+        work,
+        parent_accounting: parentAccounting(
+          FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+          floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
+        ),
         emitted_parent_groups: 4_800,
         dataset_records: 9_600,
       };
@@ -279,6 +337,7 @@ async function dependencies(
     computeGenerationFingerprint: vi.fn(async () =>
       sha256("fresh-final-generation"),
     ),
+    validateArtifacts: vi.fn(),
     reportProgress: vi.fn(),
     ...overrides,
   };
@@ -352,12 +411,21 @@ describe("fresh-final teacher runner", () => {
           validDatasetBytes(),
           { mode: 0o600 },
         );
+        const work = await writeValidatorOwnedWorkHandoff(request.workPath);
         return {
           status: "complete-fresh-final-only",
           generation_run_fingerprint: sha256("fresh-final-generation"),
           completed_parents: 4_800,
           forced_parents_skipped: 0,
-          forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 0,
+          },
+          work,
+          parent_accounting: parentAccounting(
+            FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+            floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
+          ),
           emitted_parent_groups: 4_800,
           dataset_records: 9_600,
         };
@@ -373,7 +441,7 @@ describe("fresh-final teacher runner", () => {
       completed_parents: 4_800,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0,
     });
     expect(events).toEqual([
@@ -411,6 +479,7 @@ describe("fresh-final teacher runner", () => {
         "final.jsonl",
         "manifest.json",
         "result.json",
+        "work.jsonl",
       ]),
     );
     await expect(
@@ -421,9 +490,20 @@ describe("fresh-final teacher runner", () => {
       paths.manifest,
       paths.result,
       paths.dataset,
+      paths.work,
     ]) {
       expect((await fs.promises.lstat(file)).mode & 0o7777).toBe(0o600);
     }
+    expect(wrapped.validateArtifacts).toHaveBeenCalledTimes(1);
+    expect(wrapped.validateArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputGames: 200,
+        inputParents: 4_800,
+        sourceRawSha256: FRESH_FINAL_TEACHER_SOURCE.sha256,
+        expectedGenerationRunFingerprint: sha256("fresh-final-generation"),
+        expectedRevision: REVISION,
+      }),
+    );
   });
 
   it("binds exact preflight paths and generator final/work outputs", () => {
@@ -432,7 +512,7 @@ describe("fresh-final teacher runner", () => {
         ...preflight(),
         selection_receipt: artifact(
           "/tmp/forged-receipt.json",
-          "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+          "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
         ),
       }),
     ).toThrow(/preflight is incomplete/);
@@ -521,7 +601,14 @@ describe("fresh-final teacher runner", () => {
       input_parents: 4_800,
       completed_parents: 4_800,
       forced_parents_skipped: 0,
-      forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 0,
+      },
+      parent_accounting: parentAccounting(
+        FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+        floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
+      ),
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
       sealed: true,
@@ -535,6 +622,52 @@ describe("fresh-final teacher runner", () => {
     ).not.toThrow();
 
     const lines = validDatasetBytes().toString("utf8").trimEnd().split("\n");
+    const timeoutParentId = SOURCE_ROWS[0].parent_id;
+    const timeoutRecords = lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((record) => record.parent_id !== timeoutParentId);
+    const timeoutBytes = Buffer.from(
+      `${timeoutRecords.map(canonicalJson).join("\n")}\n`,
+      "utf8",
+    );
+    const timeoutCompletion = {
+      ...completion,
+      forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 1,
+      },
+      parent_accounting: {
+        parent_ids_sha256: FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+        forced_parent_ids_sha256: floodgateIdentifierDigest([timeoutParentId]),
+        emitted_parent_ids_sha256: floodgateIdentifierDigest(
+          SOURCE_ROWS.slice(1).map((row) => row.parent_id),
+        ),
+        fewer_than_two_legal_moves_parent_ids_sha256:
+          floodgateIdentifierDigest([]),
+        search_timeout_parent_ids_sha256:
+          floodgateIdentifierDigest([timeoutParentId]),
+      },
+      emitted_parent_groups: 4_799,
+      dataset_records: 9_598,
+    };
+    expect(() =>
+      validateFreshFinalDatasetBytesCoreForTests(
+        timeoutBytes,
+        SOURCE_ROWS,
+        timeoutCompletion,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateFreshFinalDatasetBytesCoreForTests(timeoutBytes, SOURCE_ROWS, {
+        ...timeoutCompletion,
+        parent_accounting: {
+          ...timeoutCompletion.parent_accounting,
+          search_timeout_parent_ids_sha256: sha256("wrong-timeout-parent"),
+        },
+      }),
+    ).toThrow(/reason-specific parent accounting/);
+
     const rewrite = (
       mutate: (records: Record<string, unknown>[]) => void,
     ): Buffer => {
@@ -669,6 +802,14 @@ describe("fresh-final teacher runner", () => {
         },
       },
       {
+        label: "work byte",
+        mutate: async (
+          paths: ReturnType<typeof freshFinalTeacherPaths>,
+        ): Promise<void> => {
+          await fs.promises.appendFile(paths.work, "tampered\n");
+        },
+      },
+      {
         label: "authority",
         mutate: async (
           paths: ReturnType<typeof freshFinalTeacherPaths>,
@@ -734,6 +875,37 @@ describe("fresh-final teacher runner", () => {
     }
   });
 
+  it("fails closed when a result exists but any bound auxiliary artifact is missing", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-final-partial-commit-"),
+    );
+    const base = await dependencies(home);
+    await runFreshFinalTeacherCore(base);
+    const paths = freshFinalTeacherPaths(home, base.repositoryRoot);
+    for (const file of [paths.manifest, paths.authority, paths.dataset, paths.work]) {
+      const bytes = await fs.promises.readFile(file);
+      await fs.promises.unlink(file);
+      await expect(runFreshFinalTeacherCore(base), path.basename(file)).rejects.toThrow();
+      expect(base.generate).toHaveBeenCalledTimes(1);
+      await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+    }
+  });
+
+  it("resumes generation when the result marker itself is absent", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-final-resume-"),
+    );
+    const base = await dependencies(home);
+    await runFreshFinalTeacherCore(base);
+    const paths = freshFinalTeacherPaths(home, base.repositoryRoot);
+    await fs.promises.unlink(paths.result);
+
+    const resumed = await runFreshFinalTeacherCore(base);
+    expect(resumed.idempotent_existing_result).toBe(false);
+    expect(base.generate).toHaveBeenCalledTimes(2);
+    await expect(fs.promises.access(paths.result)).resolves.toBeUndefined();
+  });
+
   it("recomputes existing-result revision, asset, and generation fingerprints", async () => {
     for (const stale of ["revision", "asset", "generation"] as const) {
       const home = await fs.promises.mkdtemp(
@@ -743,6 +915,7 @@ describe("fresh-final teacher runner", () => {
       await runFreshFinalTeacherCore(base);
       const reused = await runFreshFinalTeacherCore(base);
       expect(reused.idempotent_existing_result).toBe(true);
+      expect(base.validateArtifacts).toHaveBeenCalledTimes(2);
       if (stale === "revision") {
         vi.mocked(base.captureExactCleanRevision).mockResolvedValue(
           "2".repeat(40),

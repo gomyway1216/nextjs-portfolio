@@ -32,6 +32,7 @@ import {
   siblingTeacherStagePaths,
   siblingTeacherRunFingerprint,
   stageSiblingTeacherDatasetCoreForTests,
+  stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests,
   strengthFirstTimeoutSkipLimit,
   validateWorkEntry,
   type GenerateSiblingTeacherDependencies,
@@ -1334,6 +1335,275 @@ describe('deterministic sibling teacher generator', () => {
     await expect(
       fs.promises.access(siblingTeacherStagePaths(stageRoot).stagedResult)
     ).rejects.toThrow();
+  }, 15_000);
+
+  it('uses timeout-only fresh-role quarantine, restarts the engine, and persists no partial labels', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-timeout-only-')
+    );
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(
+        rawParent('parent-a')
+      )}\n`
+    );
+    const outcome = await stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+      await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5)),
+      {
+        stageRoot,
+        runnerRevision: PIPELINE_REVISION,
+        engineBin: process.execPath,
+        engineArgs: [
+          FAKE_ENGINE,
+          '--environment-trace',
+          environmentTrace,
+          '--hang-searchmove',
+          '2g2f',
+          '--hang-once-marker',
+          hangOnceMarker,
+        ],
+        engineReceipt: await writeEngineReceipt(root),
+        multipv: 2,
+        depth: 8,
+        engines: 1,
+        timeoutMs: 25,
+      },
+      {
+        verifyRevision: async (revision) => ({
+          source_revision: revision,
+          tracked_tree_clean: true,
+        }),
+        verifyOutputPaths: async () => undefined,
+      }
+    );
+    expect(outcome).toMatchObject({
+      status: 'local-work-prefix-complete-not-an-authentication-receipt',
+      completed_parents: 2,
+      forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 1,
+      },
+      emitted_parent_groups: 1,
+    });
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    const skip = workRows.find((row) => row.kind === 'skip');
+    expect(skip).toMatchObject({
+      reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      timeout: { phase: 'independent-rescore', searchmoves: ['2g2f'] },
+    });
+    expect(skip).not.toHaveProperty('records');
+    expect(skip).not.toHaveProperty('initial_search');
+    expect(skip).not.toHaveProperty('exact_search');
+    expect(
+      parseJsonl<{ cwd: string }>(await fs.promises.readFile(environmentTrace, 'utf8'))
+    ).toHaveLength(2);
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+  }, 15_000);
+
+  it('keeps proposal incomplete and proposal-fallback timeout fatal in timeout-only fresh lanes', async () => {
+    const dependencies = {
+      verifyRevision: async (revision: string) => ({
+        source_revision: revision,
+        tracked_tree_clean: true as const,
+      }),
+      verifyOutputPaths: async () => undefined,
+    };
+
+    const incompleteRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-proposal-incomplete-')
+    );
+    const incompleteRaw = path.join(incompleteRoot, 'training.raw.jsonl');
+    const incompleteStageRoot = path.join(incompleteRoot, 'stage');
+    const incompleteTrace = path.join(
+      incompleteRoot,
+      'engine-environment.jsonl'
+    );
+    await fs.promises.writeFile(
+      incompleteRaw,
+      `${JSON.stringify(rawParent('fresh-incomplete'))}\n`
+    );
+    const incompleteInput = await authenticatedInputFromRaw(
+      incompleteRaw,
+      '89abcdef'.repeat(5)
+    );
+    const incompleteOptions = {
+      stageRoot: incompleteStageRoot,
+      runnerRevision: PIPELINE_REVISION,
+      engineBin: process.execPath,
+      engineArgs: [
+        FAKE_ENGINE,
+        '--incomplete-proposal',
+        '--environment-trace',
+        incompleteTrace,
+      ],
+      engineReceipt: await writeEngineReceipt(incompleteRoot),
+      multipv: 2,
+      depth: 8,
+      proposalDepth: 6,
+      engines: 1,
+      timeoutMs: 5_000,
+    };
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        incompleteInput,
+        incompleteOptions,
+        dependencies
+      )
+    ).rejects.toThrow(/incomplete MultiPV/);
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(incompleteStageRoot).work,
+          'utf8'
+        )
+      )
+    ).toHaveLength(1);
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))
+    ).toHaveLength(1);
+    await fs.promises.rm(incompleteTrace);
+
+    const resumeStageRoot = path.join(incompleteRoot, 'resume-stage');
+    const resumeOptions = {
+      ...incompleteOptions,
+      stageRoot: resumeStageRoot,
+    };
+    await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      incompleteInput,
+      { ...resumeOptions, targetParents: 1, finalize: false },
+      dependencies
+    );
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(resumeStageRoot).work,
+          'utf8'
+        )
+      ).at(1)
+    ).toMatchObject({
+      kind: 'skip',
+      reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
+    });
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))
+    ).toHaveLength(1);
+    await fs.promises.rm(incompleteTrace);
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        incompleteInput,
+        resumeOptions,
+        dependencies
+      )
+    ).rejects.toThrow(/forbidden by timeout-only/);
+    await expect(fs.promises.access(incompleteTrace)).rejects.toThrow();
+
+    const fallbackRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-proposal-fallback-timeout-')
+    );
+    const fallbackRaw = path.join(fallbackRoot, 'training.raw.jsonl');
+    const fallbackStageRoot = path.join(fallbackRoot, 'stage');
+    await fs.promises.writeFile(
+      fallbackRaw,
+      `${JSON.stringify(rawParent('fresh-fallback-timeout'))}\n`
+    );
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        await authenticatedInputFromRaw(fallbackRaw, '89abcdef'.repeat(5)),
+        {
+          stageRoot: fallbackStageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [
+            FAKE_ENGINE,
+            '--incomplete-proposal',
+            '--hang-searchmove',
+            '2g2f',
+          ],
+          engineReceipt: await writeEngineReceipt(fallbackRoot),
+          multipv: 30,
+          depth: 8,
+          proposalDepth: 6,
+          proposalIncompleteAllLegalFallbackMaxMoves: 30,
+          engines: 1,
+          timeoutMs: 25,
+        },
+        dependencies
+      )
+    ).rejects.toThrow(/USI search timeout after 25ms/);
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(fallbackStageRoot).work,
+          'utf8'
+        )
+      )
+    ).toHaveLength(1);
+  }, 15_000);
+
+  it('fails closed on the sixth fresh-role timeout and keeps exactly five no-label skips', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-timeout-cap-')
+    );
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    await fs.promises.writeFile(
+      raw,
+      `${Array.from({ length: 4_800 }, (_, index) => {
+        const parent = rawParent(
+          `fresh-cap-${index.toString().padStart(4, '0')}`
+        );
+        const parentSfen = START.replace(
+          ' b - 1',
+          ` b ${index + 1 === 1 ? 'P' : `${index + 1}P`} 1`
+        );
+        return JSON.stringify({
+          ...parent,
+          position_id: positionKeyFromSfen(parentSfen),
+          parent_sfen: parentSfen,
+        });
+      }).join('\n')}\n`
+    );
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5)),
+        {
+          stageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [FAKE_ENGINE, '--hang-go'],
+          engineReceipt: await writeEngineReceipt(root),
+          multipv: 2,
+          depth: 8,
+          engines: 1,
+          timeoutMs: 25,
+        },
+        {
+          verifyRevision: async (revision) => ({
+            source_revision: revision,
+            tracked_tree_clean: true,
+          }),
+          verifyOutputPaths: async () => undefined,
+        }
+      )
+    ).rejects.toThrow(/recoverable search skip limit 5 exhausted/);
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(siblingTeacherStagePaths(stageRoot).work, 'utf8')
+    );
+    const skips = workRows.filter((row) => row.kind === 'skip');
+    expect(skips).toHaveLength(5);
+    expect(skips.every((row) => row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)).toBe(
+      true
+    );
+    expect(skips.some((row) => Object.hasOwn(row, 'records'))).toBe(false);
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
   }, 15_000);
 
   it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {

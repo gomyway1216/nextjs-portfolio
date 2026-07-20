@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_ORDER,
+  FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_PATH,
   FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_TARGET_PARENTS,
   assertFloodgateStrengthFirstFreshLaneAggregateReceiptForTests,
   assertFloodgateStrengthFirstFreshLaneBenchmarkCliArguments,
@@ -18,16 +19,15 @@ import {
   validateFloodgateStrengthFirstFreshLaneSearchPolicyForTests,
   type FloodgateStrengthFirstFreshLaneTrial,
 } from "../../../ml/floodgate-strength-first-fresh-lane-benchmark";
-import {
-  FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
-  type FreshSelectionTeacherSearchPolicy,
+import type {
+  FreshSelectionTeacherSearchPolicy,
 } from "../../../ml/floodgate-fresh-selection-teacher-runner";
 import type { AuthenticatedFloodgateTrainingRows } from "../../../ml/floodgate-training-row-consumer";
 
 const REPOSITORY = path.resolve(__dirname, "../../..");
 const POLICY_FILE = path.join(
   REPOSITORY,
-  FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
+  FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_PATH,
 );
 const POLICY_BYTES = fs.readFileSync(POLICY_FILE);
 const POLICY = JSON.parse(

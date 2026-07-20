@@ -22,9 +22,7 @@ import {
   type FloodgateStrengthFirstFastTrainingInput,
 } from "./floodgate-strength-first-fast-training-input";
 import {
-  FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
   acquireFreshSelectionFormalTeacherExclusionCoreForTests,
-  validateFreshSelectionTeacherSearchPolicy,
   type FreshSelectionTeacherSearchPolicy,
 } from "./floodgate-fresh-selection-teacher-runner";
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
@@ -43,6 +41,8 @@ export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_STATUS =
   "complete-aggregate-only" as const;
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_OUTPUT_DIRECTORY =
   "floodgate-q1-2026-strength-first-fresh-lane-multipv6-benchmark-v1" as const;
+export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_PATH =
+  "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json" as const;
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_NODE_VERSION =
   "v22.13.0" as const;
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_TARGET_PARENTS =
@@ -239,7 +239,7 @@ export function floodgateStrengthFirstFreshLaneBenchmarkPaths(
     receipt: path.join(outputRoot, "receipt.json"),
     searchPolicy: path.join(
       repositoryRoot,
-      FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
+      FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_PATH,
     ),
     assetRoot: path.join(
       home,
@@ -331,7 +331,7 @@ export function validateFloodgateStrengthFirstFreshLaneSearchPolicyForTests(
   const repositoryRoot = path.resolve(repositoryRootInput);
   const expectedPath = path.join(
     repositoryRoot,
-    FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
+    FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_PATH,
   );
   if (path.resolve(file) !== expectedPath) {
     fail("search-policy path drifted");
@@ -350,10 +350,10 @@ export function validateFloodgateStrengthFirstFreshLaneSearchPolicyForTests(
   } catch {
     fail("search policy is not JSON");
   }
-  const policy = validateFreshSelectionTeacherSearchPolicy(
-    parsed as Readonly<FreshSelectionTeacherSearchPolicy>,
-    availableParallelism,
-  );
+  // The byte identity above pins the complete historical v1 policy used by
+  // the measured ABBA run. Do not dispatch it through the mutable production
+  // runner's current policy validator after that runner advances to v2.
+  const policy = parsed as Readonly<FreshSelectionTeacherSearchPolicy>;
   if (
     policy.teacher.proposal.multipv !== 6 ||
     policy.teacher.proposal.depth !== 14 ||

@@ -763,44 +763,64 @@ export function siblingTeacherRunFingerprint(
   );
 }
 
-export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
-  evidence: Readonly<{
-    source: Readonly<FloodgateFreshFinalRawIdentity>;
-    sourceRows: readonly Readonly<FloodgateTrainingParent>[];
-    pipeline: Readonly<PipelineProvenance>;
-    engineBinSha256: string;
-    engineBinBytes: number;
-    engineReceiptBytes: Uint8Array;
-    evalSha256: string;
-    multipv: number;
-    proposalDepth: number;
-    depth: number;
-    parallelEngines: number;
-    hashMbPerEngine: number;
-    timeoutMs: number;
-    proposalIncompleteAllLegalFallbackMaxMoves: number;
-  }>
+interface FreshRoleSiblingTeacherRunFingerprintEvidence {
+  readonly source:
+    | Readonly<FloodgateFreshSelectionRawIdentity>
+    | Readonly<FloodgateFreshFinalRawIdentity>;
+  readonly sourceRows: readonly Readonly<FloodgateTrainingParent>[];
+  readonly pipeline: Readonly<PipelineProvenance>;
+  readonly engineBinSha256: string;
+  readonly engineBinBytes: number;
+  readonly engineReceiptBytes: Uint8Array;
+  readonly evalSha256: string;
+  readonly multipv: number;
+  readonly proposalDepth: number;
+  readonly depth: number;
+  readonly parallelEngines: number;
+  readonly hashMbPerEngine: number;
+  readonly timeoutMs: number;
+  readonly proposalIncompleteAllLegalFallbackMaxMoves: number;
+}
+
+function freshRoleSiblingTeacherRunFingerprintFromEvidence(
+  role: 'fresh_selection' | 'fresh_final_holdout',
+  evidence: Readonly<FreshRoleSiblingTeacherRunFingerprintEvidence>
 ): string {
+  const expectedParents =
+    role === 'fresh_selection'
+      ? FRESH_SELECTION_TEACHER_PARENT_COUNT
+      : FRESH_FINAL_TEACHER_PARENT_COUNT;
   if (
-    evidence.source.records !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
-    evidence.sourceRows.length !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
+    evidence.source.records !== expectedParents ||
+    evidence.sourceRows.length !== expectedParents ||
     evidence.pipeline.tracked_tree_clean !== true ||
     !/^[0-9a-f]{40}$/.test(evidence.pipeline.source_revision)
   ) {
-    throw new Error('fresh-final generation fingerprint evidence is incomplete');
+    throw new Error(`${role} generation fingerprint evidence is incomplete`);
   }
   const parentIds = evidence.sourceRows.map((row) => row.parent_id);
+  const gameIds = new Set(evidence.sourceRows.map((row) => row.game_id));
+  const positionIds = new Set(evidence.sourceRows.map((row) => row.position_id));
   if (
     parentIds.some((parentId) => typeof parentId !== 'string' || parentId.length === 0) ||
-    new Set(parentIds).size !== parentIds.length
+    new Set(parentIds).size !== parentIds.length ||
+    parentIds.some(
+      (parentId, index) =>
+        index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0
+    ) ||
+    evidence.source.parent_ids_sha256 !== floodgateIdentifierDigest(parentIds) ||
+    evidence.source.games !== gameIds.size ||
+    evidence.source.game_ids_sha256 !== floodgateIdentifierDigest(gameIds) ||
+    evidence.source.position_ids_count !== positionIds.size ||
+    evidence.source.position_ids_sha256 !== floodgateIdentifierDigest(positionIds)
   ) {
-    throw new Error('fresh-final generation fingerprint parent IDs are invalid');
+    throw new Error(`${role} generation fingerprint parent IDs are invalid`);
   }
   let receiptValue: unknown;
   try {
     receiptValue = JSON.parse(Buffer.from(evidence.engineReceiptBytes).toString('utf8'));
   } catch {
-    throw new Error('fresh-final generation fingerprint engine receipt is not JSON');
+    throw new Error(`${role} generation fingerprint engine receipt is not JSON`);
   }
   const engineReceipt = validateEngineReceipt(receiptValue);
   if (
@@ -808,15 +828,25 @@ export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
     engineReceipt.binary_bytes !== evidence.engineBinBytes
   ) {
     throw new Error(
-      'fresh-final generation fingerprint engine receipt does not bind the engine'
+      `${role} generation fingerprint engine receipt does not bind the engine`
     );
   }
   return siblingTeacherRunFingerprint({
-    authenticated_fresh_final_binding: {
-      schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-      role: 'fresh_final_holdout',
-      source: evidence.source,
-    },
+    ...(role === 'fresh_selection'
+      ? {
+          authenticated_fresh_selection_binding: {
+            schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+            role: 'fresh_selection' as const,
+            source: evidence.source as Readonly<FloodgateFreshSelectionRawIdentity>,
+          },
+        }
+      : {
+          authenticated_fresh_final_binding: {
+            schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+            role: 'fresh_final_holdout' as const,
+            source: evidence.source as Readonly<FloodgateFreshFinalRawIdentity>,
+          },
+        }),
     source_raw_sha256: evidence.source.sha256,
     selected_parent_ids_sha256: sha256(parentIds.join('\n')),
     pipeline: evidence.pipeline,
@@ -839,6 +869,32 @@ export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
     hash_mb_per_engine: evidence.hashMbPerEngine,
     timeout_ms: evidence.timeoutMs,
   });
+}
+
+export function freshSelectionSiblingTeacherRunFingerprintFromEvidence(
+  evidence: Readonly<
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+      readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
+    }
+  >
+): string {
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    'fresh_selection',
+    evidence
+  );
+}
+
+export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
+  evidence: Readonly<
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+      readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
+    }
+  >
+): string {
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    'fresh_final_holdout',
+    evidence
+  );
 }
 
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
@@ -2609,9 +2665,13 @@ interface SiblingTeacherExecution {
     | 'strength-first-training-only'
     | 'fresh-selection-only'
     | 'fresh-final-only';
+  readonly recoverableSearchFailures:
+    | 'none'
+    | 'timeout-and-proposal-incomplete'
+    | 'timeout-only';
 }
 
-interface StrengthFirstCorePrefixProgress {
+export interface StrengthFirstCorePrefixProgress {
   readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
   readonly authentication_receipt: false;
   readonly target_parents: number;
@@ -2648,6 +2708,21 @@ export interface FreshSelectionSiblingTeacherOutcome {
   readonly forced_parents_skipped: number;
   readonly forced_skip_reasons: Readonly<{
     readonly fewer_than_two_legal_moves: number;
+    readonly search_timeout_no_label: number;
+  }>;
+  readonly work: Readonly<{
+    readonly path: 'work.jsonl';
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: 4_801;
+  }>;
+  readonly parent_accounting: Readonly<{
+    readonly parent_ids_sha256: string;
+    readonly forced_parent_ids_sha256: string;
+    readonly emitted_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
+    readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
   readonly dataset_records: number;
@@ -2660,6 +2735,21 @@ export interface FreshFinalSiblingTeacherOutcome {
   readonly forced_parents_skipped: number;
   readonly forced_skip_reasons: Readonly<{
     readonly fewer_than_two_legal_moves: number;
+    readonly search_timeout_no_label: number;
+  }>;
+  readonly work: Readonly<{
+    readonly path: 'work.jsonl';
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: 4_801;
+  }>;
+  readonly parent_accounting: Readonly<{
+    readonly parent_ids_sha256: string;
+    readonly forced_parent_ids_sha256: string;
+    readonly emitted_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
+    readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
   readonly dataset_records: number;
@@ -2912,19 +3002,38 @@ async function runSiblingTeacherDatasetCore(
     options.proposalIncompleteAllLegalFallbackMaxMoves
   );
   const recoverableSearchSkipLimit =
-    execution.finalization === 'legacy-split' ||
-    execution.finalization === 'fresh-selection-only' ||
-    execution.finalization === 'fresh-final-only'
+    execution.recoverableSearchFailures === 'none'
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
   const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
-  let recoverableSearchSkipCount = [...workEntries.values()].filter(
-    (entry) =>
-      selectedParentIdSet.has(entry.parent_id) &&
-      entry.kind === 'skip' &&
-      (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
-        entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON)
-  ).length;
+  let existingTimeoutSkipCount = 0;
+  let existingProposalIncompleteSkipCount = 0;
+  for (const entry of workEntries.values()) {
+    if (!selectedParentIdSet.has(entry.parent_id) || entry.kind !== 'skip') {
+      continue;
+    }
+    if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
+      existingTimeoutSkipCount += 1;
+    } else if (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+      existingProposalIncompleteSkipCount += 1;
+    }
+  }
+  if (
+    (execution.recoverableSearchFailures === 'none' &&
+      (existingTimeoutSkipCount !== 0 ||
+        existingProposalIncompleteSkipCount !== 0)) ||
+    (execution.recoverableSearchFailures === 'timeout-only' &&
+      existingProposalIncompleteSkipCount !== 0)
+  ) {
+    throw new Error(
+      `work checkpoint contains a skip reason forbidden by ${execution.recoverableSearchFailures}`
+    );
+  }
+  let recoverableSearchSkipCount =
+    existingTimeoutSkipCount +
+    (execution.recoverableSearchFailures === 'timeout-and-proposal-incomplete'
+      ? existingProposalIncompleteSkipCount
+      : 0);
   if (recoverableSearchSkipCount > recoverableSearchSkipLimit) {
     throw new Error(
       `recoverable search skip count ${recoverableSearchSkipCount} exceeds target ${selected.length} limit ${recoverableSearchSkipLimit}`
@@ -2951,6 +3060,19 @@ async function runSiblingTeacherDatasetCore(
   const persist = async (entry: WorkEntry): Promise<void> => {
     const operation = appendTail.then(async () => {
       if (checkpointFailure) throw checkpointFailure;
+      if (
+        entry.kind === 'skip' &&
+        ((entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
+          execution.recoverableSearchFailures === 'none') ||
+          (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON &&
+            execution.recoverableSearchFailures !==
+              'timeout-and-proposal-incomplete'))
+      ) {
+        checkpointFailure = new Error(
+          `skip reason ${entry.reason} is forbidden by ${execution.recoverableSearchFailures}`
+        );
+        throw checkpointFailure;
+      }
       if (
         entry.kind === 'skip' &&
         (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
@@ -3076,11 +3198,12 @@ async function runSiblingTeacherDatasetCore(
             await persist(validated);
           } catch (error) {
             if (
-              execution.finalization !== 'legacy-split' &&
-              execution.finalization !== 'fresh-selection-only' &&
-              execution.finalization !== 'fresh-final-only' &&
-              (error instanceof SiblingTeacherSearchTimeoutError ||
-                error instanceof SiblingTeacherProposalIncompleteError)
+              (error instanceof SiblingTeacherSearchTimeoutError &&
+                error.phase !== 'proposal-fallback' &&
+                execution.recoverableSearchFailures !== 'none') ||
+              (error instanceof SiblingTeacherProposalIncompleteError &&
+                execution.recoverableSearchFailures ===
+                  'timeout-and-proposal-incomplete')
             ) {
               try {
                 await engine.quit();
@@ -3243,16 +3366,46 @@ async function runSiblingTeacherDatasetCore(
         : 'fresh-final';
     const skipReasons = forcedSkipReasonCounts(workEntries.values());
     const forcedParentsSkipped = skipped.length;
+    const forcedParentIds = skipped.map((entry) => entry.parent_id);
+    const fewerThanTwoLegalMoveParentIds = skipped
+      .filter((entry) => entry.reason === 'fewer-than-two-legal-moves')
+      .map((entry) => entry.parent_id);
+    const searchTimeoutParentIds = skipped
+      .filter((entry) => entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)
+      .map((entry) => entry.parent_id);
+    const emittedParentIds = completed.map((entry) => entry.parent_id);
+    const work = {
+      path: 'work.jsonl' as const,
+      bytes: Buffer.byteLength(canonicalWork),
+      sha256: sha256(canonicalWork),
+      schema: SIBLING_TEACHER_WORK_SCHEMA,
+      records: 4_801 as const,
+    };
+    const parentAccounting = {
+      parent_ids_sha256: floodgateIdentifierDigest(
+        selected.map((parent) => parent.parent_id)
+      ),
+      forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
+      emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
+      fewer_than_two_legal_moves_parent_ids_sha256: floodgateIdentifierDigest(
+        fewerThanTwoLegalMoveParentIds
+      ),
+      search_timeout_parent_ids_sha256: floodgateIdentifierDigest(
+        searchTimeoutParentIds
+      ),
+    };
     if (
-      skipReasons.search_timeout_no_label !== 0 ||
       (skipReasons.proposal_incomplete_no_label ?? 0) !== 0 ||
-      skipReasons.fewer_than_two_legal_moves !== forcedParentsSkipped ||
+      skipReasons.search_timeout_no_label > recoverableSearchSkipLimit ||
+      skipReasons.fewer_than_two_legal_moves +
+        skipReasons.search_timeout_no_label !==
+        forcedParentsSkipped ||
       completed.length + forcedParentsSkipped !== selected.length ||
       records.length < 2 * completed.length ||
       completed.length < 1
     ) {
       throw new Error(
-        `${freshRole} completion permits only fewer-than-two-legal-moves skips`
+        `${freshRole} completion has invalid forced-skip accounting`
       );
     }
     const datasetJsonl = serializeCanonicalJsonl(records);
@@ -3274,8 +3427,11 @@ async function runSiblingTeacherDatasetCore(
         completed_parents: FRESH_FINAL_TEACHER_PARENT_COUNT,
         forced_parents_skipped: forcedParentsSkipped,
         forced_skip_reasons: {
-          fewer_than_two_legal_moves: forcedParentsSkipped,
+          fewer_than_two_legal_moves: skipReasons.fewer_than_two_legal_moves,
+          search_timeout_no_label: skipReasons.search_timeout_no_label,
         },
+        work,
+        parent_accounting: parentAccounting,
         emitted_parent_groups: completed.length,
         dataset_records: records.length,
       };
@@ -3286,8 +3442,11 @@ async function runSiblingTeacherDatasetCore(
       completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
       forced_parents_skipped: forcedParentsSkipped,
       forced_skip_reasons: {
-        fewer_than_two_legal_moves: forcedParentsSkipped,
+        fewer_than_two_legal_moves: skipReasons.fewer_than_two_legal_moves,
+        search_timeout_no_label: skipReasons.search_timeout_no_label,
       },
+      work,
+      parent_accounting: parentAccounting,
       emitted_parent_groups: completed.length,
       dataset_records: records.length,
     };
@@ -3649,9 +3808,29 @@ export async function stageSiblingTeacherDatasetCoreForTests(
     {
       targetParents,
       finalization: 'legacy-split',
+      recoverableSearchFailures: 'none',
     },
     dependencies
   )) as SiblingTeacherManifest;
+}
+
+/** Test-only seam for the fresh-role typed-timeout quarantine lifecycle. */
+export async function stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StageSiblingTeacherCoreForTestsOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<StrengthFirstCorePrefixProgress> {
+  const targetParents = Array.isArray(input.rows) ? input.rows.length : 0;
+  return (await runSiblingTeacherDatasetCore(
+    input,
+    rawOptions,
+    {
+      targetParents,
+      finalization: 'none',
+      recoverableSearchFailures: 'timeout-only',
+    },
+    dependencies
+  )) as StrengthFirstCorePrefixProgress;
 }
 
 export interface AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions extends StageSiblingTeacherCoreForTestsOptions {
@@ -3677,6 +3856,7 @@ export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
     {
       targetParents,
       finalization: finalize ? 'strength-first-training-only' : 'none',
+      recoverableSearchFailures: 'timeout-and-proposal-incomplete',
     },
     dependencies
   )) as StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal;
@@ -3733,6 +3913,7 @@ async function advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
     {
       targetParents,
       finalization: targetParents === 24_000 ? 'strength-first-training-only' : 'none',
+      recoverableSearchFailures: 'timeout-and-proposal-incomplete',
     },
     dependencies
   );
@@ -3750,7 +3931,8 @@ export interface FreshSelectionSiblingTeacherOptions extends Omit<
 /**
  * Production generator seam for the already-authenticated 4,800-parent
  * fresh-selection role. It emits only selection.jsonl plus resumable private
- * work. Any timeout or non-rescuable incomplete proposal is fatal.
+ * work. Up to the fixed cap of proposal/rescore timeouts is quarantined with
+ * no labels; fallback timeouts and non-rescuable incomplete proposals are fatal.
  */
 export async function generateFreshSelectionSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshSelectionRows>,
@@ -3791,6 +3973,7 @@ export async function generateFreshSelectionSiblingTeacherDataset(
     {
       targetParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
       finalization: 'fresh-selection-only',
+      recoverableSearchFailures: 'timeout-only',
     },
     dependencies
   )) as FreshSelectionSiblingTeacherOutcome;
@@ -3802,7 +3985,8 @@ export type FreshFinalSiblingTeacherOptions =
 /**
  * Production generator seam for the already-authenticated 4,800-parent
  * fresh-final role. It emits only final.jsonl plus resumable private work.
- * Any timeout or non-rescuable incomplete proposal is fatal.
+ * Up to the fixed cap of proposal/rescore timeouts is quarantined with no
+ * labels; fallback timeouts and non-rescuable incomplete proposals are fatal.
  */
 export async function generateFreshFinalSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshFinalRows>,
@@ -3843,6 +4027,7 @@ export async function generateFreshFinalSiblingTeacherDataset(
     {
       targetParents: FRESH_FINAL_TEACHER_PARENT_COUNT,
       finalization: 'fresh-final-only',
+      recoverableSearchFailures: 'timeout-only',
     },
     dependencies
   )) as FreshFinalSiblingTeacherOutcome;

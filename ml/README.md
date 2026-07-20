@@ -911,6 +911,29 @@ formal A/B、live変更の証拠ではない。live weightは0変更のまま、
 [English article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-three-seed-training-completion-2026-07-20.json)を参照。
 
+#### fresh-selection / fresh-final timeout quarantine v2（2026-07-20）
+
+4,800-parent fresh-selection teacherは12 enginesで1,678親まで進んだ後、1親の600秒timeoutで
+停止した。同一条件resumeでも同じ非公開親がtimeoutし、2,669親までの`work.jsonl`だけを
+安全保存して停止した。24,000-parent training teacherの実測15 timeoutから、fresh 4,800親で
+timeout 0件を要求する完走確率はPoisson近似で約4.98%だった。
+
+v2はfresh-selectionとfresh-finalの両方へ、proposal / independent-rescoreのtyped timeoutだけを
+最大5件まで`search-timeout-no-label`として隔離する。部分labelは保存せず、6件目、
+proposal incomplete、all-legal fallback timeoutはfatalである。理由別親digestとcanonical workを
+completion / manifest / authority / resultへ束縛し、旧v1 checkpointはv2へ移行しない。
+同じ42局面のMultiPV 6 ABBA実測で13 enginesが12より中央値約3.94%速かったため、クリーンな
+v2実行は13 engines × 1 thread × 512 MiB Hashを使う。
+
+共通artifact validatorを新規生成と既存result再利用の両方へ接続し、resultだけが存在して
+補助artifactが欠ける状態、source順序・game数、search / score / recordの入れ子改変も
+fail-closeする。focused Vitest 4 files / 64 tests、記事証拠込み7 files / 76 tests、
+TypeScript compile、diff checkはPASSした。これはv2 policyの
+検証であり、v2 dataset完了、候補選抜、正式A/B、棋力向上、live変更の証拠ではない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

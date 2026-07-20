@@ -1,5 +1,5 @@
 {
-  "schema": "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+  "schema": "shogi-floodgate-strength-first-selection-evaluator-registry-v2",
   "status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
   "protocol": {
     "base_plan": {
@@ -62,14 +62,15 @@
     "training_plan": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
     "selection_preflight_registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
     "selection_source": ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl",
-    "selection_teacher_authority": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/authority.json",
-    "selection_teacher_manifest": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/manifest.json",
-    "selection_teacher_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/result.json",
-    "selection_dataset": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection.jsonl",
+    "selection_teacher_authority": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/authority.json",
+    "selection_teacher_manifest": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/manifest.json",
+    "selection_teacher_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/result.json",
+    "selection_teacher_work": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/work.jsonl",
+    "selection_dataset": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
     "stable_checkpoint": ".codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
-    "selection_evaluation_report": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json",
-    "selection_receipt": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json",
-    "selection_publication_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json"
+    "selection_evaluation_report": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-evaluation-report.json",
+    "selection_receipt": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-receipt.json",
+    "selection_publication_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json"
   },
   "implementation": {
     "evaluator": null,
@@ -86,6 +87,7 @@
     "selection_teacher_authority": null,
     "selection_teacher_manifest": null,
     "selection_teacher_result": null,
+    "selection_teacher_work": null,
     "selection_dataset": null,
     "stable_checkpoint": null,
     "selection_evaluation_origin_registry": null,

@@ -12,6 +12,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -38,6 +39,123 @@ def identity(path: str, raw: bytes, schema: str) -> dict:
         "bytes": len(raw),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "schema": schema,
+    }
+
+
+def jsonl(rows: list[dict]) -> bytes:
+    return b"".join(
+        evaluator._canonical_json_payload_bytes(row) + b"\n" for row in rows
+    )
+
+
+def accounting_fixture() -> dict:
+    run_fingerprint = digest("accounting-run")
+    source_rows = [
+        {"parent_id": parent_id, "synthetic": True}
+        for parent_id in ("parent-a", "parent-b", "parent-c")
+    ]
+    source_raw = jsonl(source_rows)
+    source_ids = [row["parent_id"] for row in source_rows]
+    source_identity = {
+        "bytes": len(source_raw),
+        "sha256": hashlib.sha256(source_raw).hexdigest(),
+        "records": len(source_rows),
+        "parent_ids_sha256": evaluator._identifier_digest(source_ids),
+    }
+    records = [
+        {"parent_id": "parent-a", "teacher_rank": 1},
+        {"parent_id": "parent-a", "teacher_rank": 2},
+    ]
+
+    def sealed(row: dict) -> dict:
+        payload = copy.deepcopy(row)
+        return {
+            **row,
+            "payload_sha256": hashlib.sha256(
+                evaluator._canonical_json_payload_bytes(payload)
+            ).hexdigest(),
+        }
+
+    work_rows = [
+        {
+            "schema": evaluator.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+            "kind": "header",
+            "run_fingerprint": run_fingerprint,
+            "source_raw_sha256": source_identity["sha256"],
+            "selected_parent_ids_sha256": source_identity["parent_ids_sha256"],
+            "label_policy": evaluator.STRENGTH_FIRST_SELECTION_LABEL_POLICY,
+            "pipeline": {"source_revision": "1" * 40, "tracked_tree_clean": True},
+        },
+        sealed(
+            {
+                "schema": evaluator.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+                "kind": "parent",
+                "run_fingerprint": run_fingerprint,
+                "parent_id": "parent-a",
+                "candidate_set_sha256": digest("candidate-set"),
+                "candidate_moves": ["7g7f", "2g2f"],
+                "initial_search": {"synthetic": True},
+                "exact_search": {"synthetic": True},
+                "records": copy.deepcopy(records),
+            }
+        ),
+        sealed(
+            {
+                "schema": evaluator.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+                "kind": "skip",
+                "run_fingerprint": run_fingerprint,
+                "parent_id": "parent-b",
+                "reason": "fewer-than-two-legal-moves",
+                "legal_moves": 1,
+            }
+        ),
+        sealed(
+            {
+                "schema": evaluator.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+                "kind": "skip",
+                "run_fingerprint": run_fingerprint,
+                "parent_id": "parent-c",
+                "reason": "search-timeout-no-label",
+                "legal_moves": 42,
+                "timeout": {
+                    "phase": "independent-rescore",
+                    "requested_multipv": 1,
+                    "requested_limit": {"depth": 16},
+                    "searchmoves": ["7g7f"],
+                    "timeout_ms": 600_000,
+                },
+            }
+        ),
+    ]
+    accounting = {
+        "parent_ids_sha256": evaluator._identifier_digest(source_ids),
+        "forced_parent_ids_sha256": evaluator._identifier_digest(
+            ["parent-b", "parent-c"]
+        ),
+        "emitted_parent_ids_sha256": evaluator._identifier_digest(["parent-a"]),
+        "fewer_than_two_legal_moves_parent_ids_sha256": (
+            evaluator._identifier_digest(["parent-b"])
+        ),
+        "search_timeout_parent_ids_sha256": evaluator._identifier_digest(["parent-c"]),
+    }
+    completion = {
+        "forced_parents_skipped": 2,
+        "forced_skip_reasons": {
+            "fewer_than_two_legal_moves": 1,
+            "search_timeout_no_label": 1,
+        },
+        "parent_accounting": accounting,
+        "emitted_parent_groups": 1,
+        "dataset_records": 2,
+    }
+    return {
+        "source_raw": source_raw,
+        "source_identity": source_identity,
+        "work_rows": work_rows,
+        "work_raw": jsonl(work_rows),
+        "dataset_raw": jsonl(records),
+        "completion": completion,
+        "run_fingerprint": run_fingerprint,
     }
 
 
@@ -77,12 +195,28 @@ class ReadyHarness:
         self.claim_used = False
         self.evaluations: list[dict] = []
         self.publications: list[tuple[str, bytes]] = []
+        self.accounting_validations: list[dict] = []
+        self.semantic_validations: list[dict] = []
+        self.semantic_error: Exception | None = None
+        self.semantic_receipt_mutator = None
         self.completion = {
             "input_games": 200,
             "input_parents": 4_800,
             "completed_parents": 4_800,
             "forced_parents_skipped": 1,
-            "forced_skip_reasons": {"fewer_than_two_legal_moves": 1},
+            "forced_skip_reasons": {
+                "fewer_than_two_legal_moves": 1,
+                "search_timeout_no_label": 0,
+            },
+            "parent_accounting": {
+                "parent_ids_sha256": evaluator._SELECTION_SOURCE["parent_ids_sha256"],
+                "forced_parent_ids_sha256": digest("forced-parents"),
+                "emitted_parent_ids_sha256": digest("emitted-parents"),
+                "fewer_than_two_legal_moves_parent_ids_sha256": digest(
+                    "forced-move-parents"
+                ),
+                "search_timeout_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+            },
             "emitted_parent_groups": 4_799,
             "dataset_records": 9_598,
             "sealed": True,
@@ -233,6 +367,12 @@ class ReadyHarness:
             dataset_raw,
             evaluator.STRENGTH_FIRST_SELECTION_DATASET_SCHEMA,
         )
+        work_raw = b"synthetic-selection-work\n"
+        work_identity = identity(
+            evaluator.STRENGTH_FIRST_SELECTION_WORK_PATH,
+            work_raw,
+            evaluator.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+        )
         stable_raw = b"synthetic-stable-checkpoint\n"
         stable_identity = identity(
             evaluator.STRENGTH_FIRST_STABLE_CHECKPOINT_PATH,
@@ -249,6 +389,10 @@ class ReadyHarness:
             raw=dataset_raw,
         )
         self._set_fingerprint(
+            self.home_root / work_identity["path"],
+            raw=work_raw,
+        )
+        self._set_fingerprint(
             self.home_root / stable_identity["path"],
             raw=stable_raw,
         )
@@ -260,7 +404,9 @@ class ReadyHarness:
         enrollments["selection_teacher_run_fingerprint"] = digest(
             "selection-teacher-run"
         )
+        self.generation_run_fingerprint = digest("selection-generation-run")
         enrollments["selection_dataset"] = dataset_identity
+        enrollments["selection_teacher_work"] = work_identity
         enrollments["stable_checkpoint"] = stable_identity
         self._rebuild_teacher_documents()
         self.report = self._passing_report()
@@ -278,7 +424,9 @@ class ReadyHarness:
             "role": "fresh_selection",
             "source": copy.deepcopy(evaluator._SELECTION_SOURCE),
             "dataset": copy.deepcopy(enrollments["selection_dataset"]),
+            "work": copy.deepcopy(enrollments["selection_teacher_work"]),
             "completion": copy.deepcopy(self.completion),
+            "generation_run_fingerprint": self.generation_run_fingerprint,
             "run_fingerprint": enrollments["selection_teacher_run_fingerprint"],
             "boundary": copy.deepcopy(evaluator._TEACHER_BOUNDARY),
         }
@@ -294,7 +442,9 @@ class ReadyHarness:
             "role": "fresh_selection",
             "manifest": manifest_identity,
             "dataset": copy.deepcopy(enrollments["selection_dataset"]),
+            "work": copy.deepcopy(enrollments["selection_teacher_work"]),
             "completion": copy.deepcopy(self.completion),
+            "generation_run_fingerprint": self.generation_run_fingerprint,
             "run_fingerprint": enrollments["selection_teacher_run_fingerprint"],
             "postflight_complete": True,
             "boundary": copy.deepcopy(evaluator._TEACHER_BOUNDARY),
@@ -319,8 +469,10 @@ class ReadyHarness:
                 "manifest": manifest_identity,
                 "result": result_identity,
                 "dataset": copy.deepcopy(enrollments["selection_dataset"]),
+                "work": copy.deepcopy(enrollments["selection_teacher_work"]),
             },
             "completion": copy.deepcopy(self.completion),
+            "generation_run_fingerprint": self.generation_run_fingerprint,
             "run_fingerprint": enrollments["selection_teacher_run_fingerprint"],
             "boundary": copy.deepcopy(evaluator._TEACHER_BOUNDARY),
         }
@@ -479,6 +631,38 @@ class ReadyHarness:
         self.evaluations.append(copy.deepcopy(kwargs))
         return copy.deepcopy(self.report)
 
+    def validate_parent_accounting(self, **kwargs):
+        self.accounting_validations.append(copy.deepcopy(kwargs))
+        return copy.deepcopy(self.completion["parent_accounting"])
+
+    def validate_teacher_semantics(self, **kwargs):
+        self.semantic_validations.append(copy.deepcopy(kwargs))
+        if self.semantic_error is not None:
+            raise self.semantic_error
+        enrollment = self.registry["enrollments"]
+        receipt = {
+            "schema": (
+                evaluator.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_RECEIPT_SCHEMA
+            ),
+            "status": evaluator.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_STATUS,
+            "run_fingerprint": enrollment["selection_teacher_run_fingerprint"],
+            "generation_run_fingerprint": self.generation_run_fingerprint,
+            "dataset": copy.deepcopy(enrollment["selection_dataset"]),
+            "work": copy.deepcopy(enrollment["selection_teacher_work"]),
+            "completion_sha256": hashlib.sha256(
+                evaluator._canonical_json_payload_bytes(self.completion)
+            ).hexdigest(),
+            "completed_parents": self.completion["completed_parents"],
+            "emitted_parent_groups": self.completion["emitted_parent_groups"],
+            "dataset_records": self.completion["dataset_records"],
+            "private_paths_emitted": False,
+            "labels_emitted": False,
+            "live_weight_changes": 0,
+        }
+        if self.semantic_receipt_mutator is not None:
+            self.semantic_receipt_mutator(receipt)
+        return receipt
+
     def publish(self, path: str, raw: bytes, schema: str) -> dict:
         self.publications.append((self._key(path), raw))
         self._put(path, raw)
@@ -508,6 +692,8 @@ class ReadyHarness:
             verify_tracked=self.verify_tracked,
             claim_preflight=self.claim_preflight,
             validate_plan=lambda _plan: None,
+            validate_parent_accounting=self.validate_parent_accounting,
+            validate_teacher_semantics=self.validate_teacher_semantics,
             evaluate=self.evaluate,
             publish=self.publish,
         )
@@ -528,6 +714,101 @@ class ReadyHarness:
 
 
 class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
+    def test_parent_accounting_recomputes_reason_bound_missing_parents(self):
+        fixture = accounting_fixture()
+        observed = evaluator._validate_selection_parent_accounting(
+            source_raw=fixture["source_raw"],
+            work_raw=fixture["work_raw"],
+            dataset_raw=fixture["dataset_raw"],
+            completion=fixture["completion"],
+            generation_run_fingerprint=fixture["run_fingerprint"],
+            source_identity=fixture["source_identity"],
+        )
+        self.assertEqual(observed, fixture["completion"]["parent_accounting"])
+
+        proposal_fixture = accounting_fixture()
+        timeout_row = proposal_fixture["work_rows"][-1]
+        timeout_row["timeout"] = {
+            "phase": "proposal",
+            "requested_multipv": (evaluator.STRENGTH_FIRST_SELECTION_PROPOSAL_MULTIPV),
+            "requested_limit": {
+                "depth": evaluator.STRENGTH_FIRST_SELECTION_PROPOSAL_DEPTH
+            },
+            "searchmoves": [],
+            "timeout_ms": evaluator.STRENGTH_FIRST_SELECTION_TIMEOUT_MS,
+        }
+        payload = {
+            key: value for key, value in timeout_row.items() if key != "payload_sha256"
+        }
+        timeout_row["payload_sha256"] = hashlib.sha256(
+            evaluator._canonical_json_payload_bytes(payload)
+        ).hexdigest()
+        proposal_fixture["work_raw"] = jsonl(proposal_fixture["work_rows"])
+        evaluator._validate_selection_parent_accounting(
+            source_raw=proposal_fixture["source_raw"],
+            work_raw=proposal_fixture["work_raw"],
+            dataset_raw=proposal_fixture["dataset_raw"],
+            completion=proposal_fixture["completion"],
+            generation_run_fingerprint=proposal_fixture["run_fingerprint"],
+            source_identity=proposal_fixture["source_identity"],
+        )
+
+    def test_parent_accounting_rejects_proposal_incomplete_and_digest_drift(self):
+        for label in (
+            "proposal_incomplete",
+            "timeout_policy",
+            "reason_digest",
+            "dataset",
+        ):
+            with self.subTest(label=label):
+                fixture = accounting_fixture()
+                if label == "proposal_incomplete":
+                    row = fixture["work_rows"][-1]
+                    row["reason"] = "proposal-incomplete-no-label"
+                    row.pop("timeout")
+                    row["incomplete"] = {"phase": "proposal"}
+                    payload = {
+                        key: value
+                        for key, value in row.items()
+                        if key != "payload_sha256"
+                    }
+                    row["payload_sha256"] = hashlib.sha256(
+                        evaluator._canonical_json_payload_bytes(payload)
+                    ).hexdigest()
+                    fixture["work_raw"] = jsonl(fixture["work_rows"])
+                elif label == "timeout_policy":
+                    row = fixture["work_rows"][-1]
+                    row["timeout"]["requested_limit"] = {
+                        "depth": evaluator.STRENGTH_FIRST_SELECTION_RESCORE_DEPTH,
+                        "nodes": 1,
+                    }
+                    payload = {
+                        key: value
+                        for key, value in row.items()
+                        if key != "payload_sha256"
+                    }
+                    row["payload_sha256"] = hashlib.sha256(
+                        evaluator._canonical_json_payload_bytes(payload)
+                    ).hexdigest()
+                    fixture["work_raw"] = jsonl(fixture["work_rows"])
+                elif label == "reason_digest":
+                    fixture["completion"]["parent_accounting"][
+                        "search_timeout_parent_ids_sha256"
+                    ] = digest("wrong-timeout-parent")
+                else:
+                    fixture["dataset_raw"] = jsonl(
+                        [{"parent_id": "parent-a", "teacher_rank": 1}]
+                    )
+                with self.assertRaises(ValueError):
+                    evaluator._validate_selection_parent_accounting(
+                        source_raw=fixture["source_raw"],
+                        work_raw=fixture["work_raw"],
+                        dataset_raw=fixture["dataset_raw"],
+                        completion=fixture["completion"],
+                        generation_run_fingerprint=fixture["run_fingerprint"],
+                        source_identity=fixture["source_identity"],
+                    )
+
     def test_checked_in_registry_is_a_valid_non_live_lifecycle_state(self):
         registry = json.loads(
             (
@@ -586,6 +867,19 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertTrue(receipt["family_gate"]["passed"])
             self.assertEqual(len(receipt["runs"]), 3)
             self.assertEqual(len(harness.evaluations), 1)
+            self.assertEqual(len(harness.accounting_validations), 1)
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(
+                harness.semantic_validations[0],
+                {
+                    "repo_root": str(REPO_ROOT),
+                    "home_root": str(harness.home_root),
+                },
+            )
+            self.assertEqual(
+                harness.accounting_validations[0]["work_identity"],
+                harness.registry["enrollments"]["selection_teacher_work"],
+            )
             self.assertEqual(len(harness.evaluations[0]["checkpoint_specs"]), 4)
             self.assertEqual(len(harness.publications), 3)
             self.assertTrue(
@@ -611,6 +905,158 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertFalse(receipt["boundary"]["final_holdout_read"])
             self.assertFalse(receipt["boundary"]["production_promotion_authorized"])
             self.assertFalse(receipt["boundary"]["live_weight_write_authorized"])
+
+    def test_semantic_bridge_rejects_coherent_nested_invalid_before_evaluation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            harness.semantic_error = ValueError(
+                "coherently rehashed nested teacher work is semantically invalid"
+            )
+            with self.assertRaisesRegex(ValueError, "nested teacher work"):
+                harness.run()
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(harness.accounting_validations, [])
+            self.assertEqual(harness.evaluations, [])
+            self.assertEqual(harness.publications, [])
+
+    def test_semantic_bridge_receipt_must_match_enrolled_evidence(self):
+        mutations = {
+            "run": lambda receipt: receipt.__setitem__(
+                "run_fingerprint", digest("wrong-run")
+            ),
+            "generation": lambda receipt: receipt.__setitem__(
+                "generation_run_fingerprint", digest("wrong-generation")
+            ),
+            "completion": lambda receipt: receipt.__setitem__(
+                "completion_sha256", digest("wrong-completion")
+            ),
+            "dataset": lambda receipt: receipt["dataset"].__setitem__(
+                "sha256", digest("wrong-dataset")
+            ),
+            "work": lambda receipt: receipt["work"].__setitem__(
+                "sha256", digest("wrong-work")
+            ),
+            "privacy": lambda receipt: receipt.__setitem__(
+                "private_paths_emitted", True
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                harness = ReadyHarness(temporary)
+                harness.semantic_receipt_mutator = mutate
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "semantic validation receipt mismatch",
+                ):
+                    harness.run()
+                self.assertEqual(harness.accounting_validations, [])
+                self.assertEqual(harness.evaluations, [])
+                self.assertEqual(harness.publications, [])
+
+    def test_semantic_validator_subprocess_is_fixed_bounded_and_canonical(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            repo = base / "repo"
+            home = base / "home"
+            entry = repo / evaluator._SEMANTIC_VALIDATOR_SOURCE_PATH
+            node = home / evaluator._FIXED_NODE_RELATIVE_PATH
+            entry.parent.mkdir(parents=True)
+            node.parent.mkdir(parents=True)
+            entry.write_bytes(b"export {};\n")
+            node.write_bytes(b"synthetic-node\n")
+            node.chmod(0o700)
+            stdout = evaluator._canonical_json_bytes({"valid": True})
+            completed = SimpleNamespace(returncode=0, stdout=stdout, stderr=b"")
+            with mock.patch.object(
+                evaluator.subprocess,
+                "run",
+                return_value=completed,
+            ) as run:
+                receipt = evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: "a" * 40,
+                )
+            self.assertEqual(receipt, {"valid": True})
+            run.assert_called_once_with(
+                [str(node), "-r", "tsx/cjs", str(entry)],
+                cwd=str(repo),
+                env={
+                    "HOME": str(home),
+                    "PATH": "/usr/bin:/bin",
+                    "LANG": "C",
+                    "LC_ALL": "C",
+                    "TZ": "UTC",
+                },
+                check=False,
+                capture_output=True,
+                text=False,
+                timeout=120,
+            )
+
+            invalid_results = (
+                SimpleNamespace(returncode=1, stdout=b"", stderr=b"rejected"),
+                SimpleNamespace(returncode=0, stdout=stdout, stderr=b"warning\n"),
+                SimpleNamespace(returncode=0, stdout=b'{"valid": true}\n', stderr=b""),
+                SimpleNamespace(returncode=0, stdout=stdout + b"{}\n", stderr=b""),
+            )
+            for result in invalid_results:
+                with (
+                    self.subTest(result=result),
+                    mock.patch.object(
+                        evaluator.subprocess,
+                        "run",
+                        return_value=result,
+                    ),
+                    self.assertRaises(ValueError),
+                ):
+                    evaluator._run_selection_teacher_semantic_validator(
+                        repo_root=str(repo),
+                        home_root=str(home),
+                        expected_revision="a" * 40,
+                        _read_revision=lambda _root: "a" * 40,
+                    )
+            with (
+                mock.patch.object(
+                    evaluator.subprocess,
+                    "run",
+                    side_effect=subprocess.TimeoutExpired("node", 120),
+                ),
+                self.assertRaisesRegex(ValueError, "semantic validator failed"),
+            ):
+                evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: "a" * 40,
+                )
+
+            with mock.patch.object(evaluator.subprocess, "run") as forbidden:
+                with self.assertRaisesRegex(ValueError, "revision drifted"):
+                    evaluator._run_selection_teacher_semantic_validator(
+                        repo_root=str(repo),
+                        home_root=str(home),
+                        expected_revision="a" * 40,
+                        _read_revision=lambda _root: "b" * 40,
+                    )
+                forbidden.assert_not_called()
+
+            revisions = iter(("a" * 40, "b" * 40))
+            with (
+                mock.patch.object(
+                    evaluator.subprocess,
+                    "run",
+                    return_value=completed,
+                ),
+                self.assertRaisesRegex(ValueError, "runtime changed"),
+            ):
+                evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: next(revisions),
+                )
 
     def test_real_teacher_preflight_hash_is_accepted_by_ready_evaluator(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -656,8 +1102,13 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
                 self.assertEqual(harness.evaluations, [])
                 self.assertEqual(harness.publications, [])
 
-    def test_teacher_fingerprint_incomplete_or_timeout_completion_fails(self):
-        for label in ("fingerprint", "completion", "timeout"):
+    def test_teacher_fingerprint_incomplete_or_forbidden_completion_fails(self):
+        for label in (
+            "fingerprint",
+            "completion",
+            "timeout_cap",
+            "proposal_incomplete",
+        ):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
                 harness = ReadyHarness(temporary)
                 if label == "fingerprint":
@@ -669,9 +1120,15 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
                     harness.completion["completed_parents"] = 4_799
                     harness._rebuild_teacher_documents()
                     harness.refresh_registry_bytes()
-                else:
+                elif label == "timeout_cap":
                     harness.completion["forced_skip_reasons"][
                         "search_timeout_no_label"
+                    ] = evaluator.STRENGTH_FIRST_SELECTION_TIMEOUT_SKIP_LIMIT + 1
+                    harness._rebuild_teacher_documents()
+                    harness.refresh_registry_bytes()
+                else:
+                    harness.completion["forced_skip_reasons"][
+                        "proposal_incomplete_no_label"
                     ] = 1
                     harness._rebuild_teacher_documents()
                     harness.refresh_registry_bytes()
@@ -679,6 +1136,29 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
                     harness.run()
                 self.assertEqual(harness.evaluations, [])
                 self.assertEqual(harness.publications, [])
+
+    def test_one_timeout_within_cap_is_accepted_by_exact_v2_completion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            harness.completion["forced_skip_reasons"] = {
+                "fewer_than_two_legal_moves": 0,
+                "search_timeout_no_label": 1,
+            }
+            harness.completion["parent_accounting"][
+                "fewer_than_two_legal_moves_parent_ids_sha256"
+            ] = hashlib.sha256(b"").hexdigest()
+            harness.completion["parent_accounting"][
+                "search_timeout_parent_ids_sha256"
+            ] = digest("timeout-parent")
+            harness._rebuild_teacher_documents()
+            harness.refresh_registry_bytes()
+            result = harness.run()
+            self.assertEqual(
+                result["receipt"]["selection_teacher"]["completion"][
+                    "forced_skip_reasons"
+                ]["search_timeout_no_label"],
+                1,
+            )
 
     def test_partial_report_nonfinite_metric_and_gate_failure_never_publish(self):
         mutations = {
@@ -835,15 +1315,10 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             historical_registry["path"],
             evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
         )
-        historical_registry_raw = (
-            json.dumps(
-                synthetic_blocked_registry(),
-                ensure_ascii=False,
-                indent=2,
-                allow_nan=False,
-            )
-            + "\n"
-        ).encode("utf-8")
+        historical_registry_raw = git_output(
+            "show",
+            f"{evidence_revision}:{historical_registry['path']}",
+        )
         self.assertEqual(historical_registry["bytes"], len(historical_registry_raw))
         self.assertEqual(
             historical_registry["sha256"],

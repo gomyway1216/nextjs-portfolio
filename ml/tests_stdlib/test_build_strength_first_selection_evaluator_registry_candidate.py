@@ -59,6 +59,9 @@ class CandidateHarness:
         self.tracked_reads: list[str] = []
         self.private_reads: list[str] = []
         self.private_fingerprints: list[str] = []
+        self.accounting_validations: list[dict] = []
+        self.semantic_validations: list[dict] = []
+        self.semantic_error: Exception | None = None
         self.preflight_calls = 0
         stable_raw = b"synthetic-stable-checkpoint\n"
 
@@ -175,6 +178,16 @@ class CandidateHarness:
         }
 
         dataset_raw = b'{"synthetic":"first"}\n{"synthetic":"second"}\n'
+        source_raw = b'{"parent_id":"synthetic-parent"}\n'
+        work_raw = b'{"kind":"synthetic-work"}\n'
+        self._write_private(
+            EVALUATOR._FIXED_PATHS["selection_source"],
+            source_raw,
+        )
+        self._write_private(
+            EVALUATOR._FIXED_PATHS["selection_teacher_work"],
+            work_raw,
+        )
         self._write_private(
             EVALUATOR._FIXED_PATHS["selection_dataset"],
             dataset_raw,
@@ -188,24 +201,53 @@ class CandidateHarness:
             dataset_raw,
             EVALUATOR.STRENGTH_FIRST_SELECTION_DATASET_SCHEMA,
         )
+        work_identity = identity(
+            EVALUATOR._FIXED_PATHS["selection_teacher_work"],
+            work_raw,
+            EVALUATOR.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+        )
         completion = {
             "input_games": EVALUATOR.STRENGTH_FIRST_SELECTION_GAME_COUNT,
             "input_parents": EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT,
             "completed_parents": EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT,
             "forced_parents_skipped": 0,
-            "forced_skip_reasons": {"fewer_than_two_legal_moves": 0},
+            "forced_skip_reasons": {
+                "fewer_than_two_legal_moves": 0,
+                "search_timeout_no_label": 0,
+            },
+            "parent_accounting": {
+                "parent_ids_sha256": EVALUATOR._SELECTION_SOURCE["parent_ids_sha256"],
+                "forced_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+                "emitted_parent_ids_sha256": hashlib.sha256(
+                    b"synthetic-emitted"
+                ).hexdigest(),
+                "fewer_than_two_legal_moves_parent_ids_sha256": hashlib.sha256(
+                    b""
+                ).hexdigest(),
+                "search_timeout_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+            },
             "emitted_parent_groups": (EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT),
             "dataset_records": (2 * EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT),
             "sealed": True,
         }
         run_fingerprint = hashlib.sha256(b"synthetic-teacher-run").hexdigest()
+        generation_run_fingerprint = hashlib.sha256(
+            b"synthetic-generation-run"
+        ).hexdigest()
+        self.selection_dataset_identity = copy.deepcopy(dataset_identity)
+        self.selection_work_identity = copy.deepcopy(work_identity)
+        self.completion = copy.deepcopy(completion)
+        self.run_fingerprint = run_fingerprint
+        self.generation_run_fingerprint = generation_run_fingerprint
         manifest = {
             "schema": EVALUATOR.STRENGTH_FIRST_SELECTION_TEACHER_MANIFEST_SCHEMA,
             "status": EVALUATOR.STRENGTH_FIRST_SELECTION_TEACHER_STATUS,
             "role": "fresh_selection",
             "source": copy.deepcopy(EVALUATOR._SELECTION_SOURCE),
             "dataset": copy.deepcopy(dataset_identity),
+            "work": copy.deepcopy(work_identity),
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
         }
@@ -221,7 +263,9 @@ class CandidateHarness:
             "role": "fresh_selection",
             "manifest": copy.deepcopy(manifest_identity),
             "dataset": copy.deepcopy(dataset_identity),
+            "work": copy.deepcopy(work_identity),
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "postflight_complete": True,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
@@ -246,8 +290,10 @@ class CandidateHarness:
                 "manifest": copy.deepcopy(manifest_identity),
                 "result": copy.deepcopy(result_identity),
                 "dataset": copy.deepcopy(dataset_identity),
+                "work": copy.deepcopy(work_identity),
             },
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
         }
@@ -291,6 +337,34 @@ class CandidateHarness:
         self.preflight_calls += 1
         return copy.deepcopy(self.preflight_summary)
 
+    def validate_parent_accounting(self, **kwargs) -> dict:
+        self.accounting_validations.append(copy.deepcopy(kwargs))
+        return copy.deepcopy(self.completion["parent_accounting"])
+
+    def validate_teacher_semantics(self, **kwargs) -> dict:
+        self.semantic_validations.append(copy.deepcopy(kwargs))
+        if self.semantic_error is not None:
+            raise self.semantic_error
+        return {
+            "schema": (
+                EVALUATOR.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_RECEIPT_SCHEMA
+            ),
+            "status": EVALUATOR.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_STATUS,
+            "run_fingerprint": self.run_fingerprint,
+            "generation_run_fingerprint": self.generation_run_fingerprint,
+            "dataset": copy.deepcopy(self.selection_dataset_identity),
+            "work": copy.deepcopy(self.selection_work_identity),
+            "completion_sha256": hashlib.sha256(
+                EVALUATOR._canonical_json_payload_bytes(self.completion)
+            ).hexdigest(),
+            "completed_parents": self.completion["completed_parents"],
+            "emitted_parent_groups": self.completion["emitted_parent_groups"],
+            "dataset_records": self.completion["dataset_records"],
+            "private_paths_emitted": False,
+            "labels_emitted": False,
+            "live_weight_changes": 0,
+        }
+
     def build(self) -> dict:
         return SUBJECT.build_strength_first_selection_evaluator_registry_candidate(
             _repo_root=str(REPO_ROOT),
@@ -301,6 +375,8 @@ class CandidateHarness:
             _read_private=self.read_private,
             _fingerprint_private=self.fingerprint_private,
             _validate_training_plan=lambda plan: plan,
+            _validate_parent_accounting=self.validate_parent_accounting,
+            _validate_teacher_semantics=self.validate_teacher_semantics,
             _run_checkpoint_preflight=self.checkpoint_preflight,
         )
 
@@ -349,6 +425,16 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                 harness.with_lf_preflight_sha256,
             )
             self.assertEqual(harness.preflight_calls, 1)
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(
+                harness.semantic_validations[0],
+                {
+                    "repo_root": str(REPO_ROOT),
+                    "home_root": str(harness.home),
+                    "expected_revision": harness.revision,
+                },
+            )
+            self.assertEqual(len(harness.accounting_validations), 1)
             self.assertEqual(
                 harness.tracked_overrides[harness.registry_path],
                 original_registry,
@@ -375,6 +461,7 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                     str(REPO_ROOT / relative)
                     for relative in EVALUATOR._IMPLEMENTATION_PATHS.values()
                 ),
+                str(REPO_ROOT / EVALUATOR._SEMANTIC_VALIDATOR_SOURCE_PATH),
             }
             self.assertEqual(
                 {path for path, _revision, _raw in harness.verifications},
@@ -389,13 +476,18 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             expected_document_reads = Counter(
                 {
                     str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
-                    for name in SUBJECT._PRIVATE_DOCUMENTS
+                    for name in (
+                        *SUBJECT._PRIVATE_DOCUMENTS,
+                        "selection_source",
+                        "selection_teacher_work",
+                        "selection_dataset",
+                    )
                 }
             )
             expected_large_fingerprints = Counter(
                 {
                     str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
-                    for name in ("selection_dataset", "stable_checkpoint")
+                    for name in ("stable_checkpoint",)
                 }
             )
             self.assertEqual(
@@ -465,6 +557,17 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "authority binding mismatch"):
                 harness.build()
 
+    def test_semantic_bridge_rejects_coherent_nested_invalid_before_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = CandidateHarness(temporary)
+            harness.semantic_error = ValueError(
+                "coherently rehashed nested teacher work is semantically invalid"
+            )
+            with self.assertRaisesRegex(ValueError, "nested teacher work"):
+                harness.build()
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(harness.accounting_validations, [])
+
     def test_large_artifact_drift_and_hard_links_stop_before_emission(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = CandidateHarness(temporary)
@@ -498,7 +601,7 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             os.link(dataset_path, dataset_path.with_name("dataset-hard-link"))
             with self.assertRaisesRegex(
                 SUBJECT.StrengthFirstSelectionEvaluatorRegistryCandidateError,
-                "cannot be fingerprinted",
+                "canonical regular file",
             ):
                 harness.build()
 
@@ -590,6 +693,12 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                         _read_private=harness.read_private,
                         _fingerprint_private=harness.fingerprint_private,
                         _validate_training_plan=lambda plan: plan,
+                        _validate_parent_accounting=(
+                            harness.validate_parent_accounting
+                        ),
+                        _validate_teacher_semantics=(
+                            harness.validate_teacher_semantics
+                        ),
                         _run_checkpoint_preflight=(harness.checkpoint_preflight),
                         _candidate_consumer=lambda value: emitted.append(dict(value)),
                     )

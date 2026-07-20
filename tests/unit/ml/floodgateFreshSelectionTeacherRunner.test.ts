@@ -36,12 +36,51 @@ import {
   type FloodgateTrainingParent,
 } from "../../../ml/floodgate-training-row-validation";
 import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
-import { positionKeyFromSfen } from "../../../ml/sibling-data";
+import {
+  buildSiblingGroup,
+  positionKeyFromSfen,
+} from "../../../ml/sibling-data";
+import { childSfenAfterUsi } from "../../../ml/shogi-sfen";
 
 const REVISION = "1".repeat(40);
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function writeValidatorOwnedWorkHandoff(file: string) {
+  const bytes = `${[
+    JSON.stringify({
+      schema: "shogi-sibling-teacher-work-v2",
+      kind: "header",
+      test_scope: "runner-handoff-semantic-validation-is-injected",
+    }),
+    ...Array.from({ length: 4_800 }, (_, index) =>
+      JSON.stringify({
+        schema: "shogi-sibling-teacher-work-v2",
+        kind: "runner-handoff",
+        sequence: index,
+      }),
+    ),
+  ].join("\n")}\n`;
+  await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+  return {
+    path: "work.jsonl" as const,
+    bytes: Buffer.byteLength(bytes),
+    sha256: sha256(bytes),
+    schema: "shogi-sibling-teacher-work-v2" as const,
+    records: 4_801 as const,
+  };
+}
+
+function parentAccounting(parentIdsSha256: string) {
+  return {
+    parent_ids_sha256: parentIdsSha256,
+    forced_parent_ids_sha256: sha256(""),
+    emitted_parent_ids_sha256: parentIdsSha256,
+    fewer_than_two_legal_moves_parent_ids_sha256: sha256(""),
+    search_timeout_parent_ids_sha256: sha256(""),
+  };
 }
 
 function canonicalJson(value: unknown): string {
@@ -87,7 +126,7 @@ function policy(
   return {
     schema: FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
     status: "ready-for-post-checkpoint-local-teacher",
-    role: "fresh_selection",
+    role: "fresh_selection_and_fresh_final",
     teacher: {
       engine: "YaneuraOu",
       threads_per_engine: 1,
@@ -113,7 +152,7 @@ function policy(
       },
     },
     runtime: {
-      parallel_engines: 12,
+      parallel_engines: 13,
       threads_per_engine: 1,
       hash_mb_per_engine: 512,
       timeout_ms_per_search: 600_000,
@@ -123,20 +162,32 @@ function policy(
     completion: {
       input_parents: 4_800,
       input_games: 200,
-      timeout_or_incomplete_without_exact_fallback: "fatal-no-publication",
-      allowed_forced_skip_reason: "fewer_than_two_legal_moves",
+      search_timeout_no_label: {
+        disposition: "forced-parent-skip-no-label",
+        skip_limit_divisor: 1_000,
+        maximum_skips: 5,
+        partial_parent_labels_accepted: false,
+      },
+      proposal_fallback_timeout: "fatal-no-publication",
+      proposal_incomplete_without_exact_fallback: "fatal-no-publication",
+      allowed_forced_skip_reasons: [
+        "fewer_than_two_legal_moves",
+        "search-timeout-no-label",
+      ],
       partial_publication: false,
     },
   };
 }
 
 function source(): FreshSelectionTeacherSourceSnapshot {
+  const parentSfen =
+    "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
   const row: FloodgateTrainingParent = Object.freeze({
     schema_version: 1,
     game_id: `sha256:${"2".repeat(64)}`,
     parent_id: `sha256:${"3".repeat(64)}`,
-    position_id: `sha256:${"4".repeat(64)}`,
-    parent_sfen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1",
+    position_id: positionKeyFromSfen(parentSfen),
+    parent_sfen: parentSfen,
     ply: 0,
     played_move: "7g7f",
   });
@@ -145,6 +196,40 @@ function source(): FreshSelectionTeacherSourceSnapshot {
     rows: Object.freeze(Array.from({ length: 4_800 }, () => row)),
     identity: FRESH_SELECTION_TEACHER_SOURCE,
   };
+}
+
+let cachedDatasetBytes: Buffer | undefined;
+function validRunnerDatasetBytes(): Buffer {
+  if (cachedDatasetBytes !== undefined) return cachedDatasetBytes;
+  const row = source().rows[0];
+  const records = buildSiblingGroup(
+    {
+      game_id: row.game_id,
+      parent_id: row.parent_id,
+      position_id: row.position_id,
+      parent_sfen: row.parent_sfen,
+      parent_ply: row.ply,
+    },
+    [
+      {
+        move: "7g7f",
+        child_sfen: childSfenAfterUsi(row.parent_sfen, "7g7f"),
+        sources: ["played", "teacher"],
+        teacher_parent_cp: 100,
+        teacher_rank: 1,
+      },
+      {
+        move: "2g2f",
+        child_sfen: childSfenAfterUsi(row.parent_sfen, "2g2f"),
+        sources: ["teacher"],
+        teacher_parent_cp: 50,
+        teacher_rank: 2,
+      },
+    ],
+  );
+  const group = `${records.map(canonicalJson).join("\n")}\n`;
+  cachedDatasetBytes = Buffer.from(group.repeat(4_800), "utf8");
+  return cachedDatasetBytes;
 }
 
 async function dependencies(
@@ -173,18 +258,30 @@ async function dependencies(
     })),
     readSource: vi.fn(async () => sourceSnapshot),
     generate: vi.fn(async (request) => {
-      await fs.promises.writeFile(request.datasetPath, "{}\n", { mode: 0o600 });
+      await fs.promises.writeFile(request.datasetPath, validRunnerDatasetBytes(), {
+        mode: 0o600,
+      });
       await fs.promises.chmod(request.datasetPath, 0o600);
+      const work = await writeValidatorOwnedWorkHandoff(request.workPath);
       return {
         status: "complete-fresh-selection-only",
         generation_run_fingerprint: sha256("generation"),
         completed_parents: 4_800,
         forced_parents_skipped: 0,
-        forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 0,
+        },
+        work,
+        parent_accounting: parentAccounting(
+          FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+        ),
         emitted_parent_groups: 4_800,
         dataset_records: 9_600,
       };
     }),
+    computeGenerationFingerprint: vi.fn(async () => sha256("generation")),
+    validateArtifacts: vi.fn(),
     reportProgress: vi.fn(),
     ...overrides,
   };
@@ -292,13 +389,25 @@ describe("fresh-selection teacher runner", () => {
           depth: 14,
         });
         expect(request.searchPolicy.teacher.independent_rescore.depth).toBe(16);
-        await fs.promises.writeFile(request.datasetPath, "{}\n", { mode: 0o600 });
+        await fs.promises.writeFile(
+          request.datasetPath,
+          validRunnerDatasetBytes(),
+          { mode: 0o600 },
+        );
+        const work = await writeValidatorOwnedWorkHandoff(request.workPath);
         return {
           status: "complete-fresh-selection-only",
           generation_run_fingerprint: sha256("generation"),
           completed_parents: 4_800,
           forced_parents_skipped: 0,
-          forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 0,
+          },
+          work,
+          parent_accounting: parentAccounting(
+            FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+          ),
           emitted_parent_groups: 4_800,
           dataset_records: 9_600,
         };
@@ -313,7 +422,7 @@ describe("fresh-selection teacher runner", () => {
       completed_parents: 4_800,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0,
     });
     expect(events).toEqual([
@@ -348,6 +457,7 @@ describe("fresh-selection teacher runner", () => {
         "checkpoint_preflight_sha256",
         "artifacts",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ].sort(),
@@ -359,7 +469,9 @@ describe("fresh-selection teacher runner", () => {
         "role",
         "source",
         "dataset",
+        "work",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ].sort(),
@@ -371,7 +483,9 @@ describe("fresh-selection teacher runner", () => {
         "role",
         "manifest",
         "dataset",
+        "work",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "postflight_complete",
         "boundary",
@@ -380,11 +494,15 @@ describe("fresh-selection teacher runner", () => {
     expect(authority.schema).toBe(FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA);
     expect(manifest.schema).toBe(FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA);
     expect(result.schema).toBe(FRESH_SELECTION_TEACHER_RESULT_SCHEMA);
+    expect(authority.generation_run_fingerprint).toBe(sha256("generation"));
+    expect(manifest.generation_run_fingerprint).toBe(sha256("generation"));
+    expect(result.generation_run_fingerprint).toBe(sha256("generation"));
     expect((result.dataset as Record<string, unknown>).schema).toBe(
       FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
     );
     expect((result.completion as Record<string, unknown>).forced_skip_reasons).toEqual({
       fewer_than_two_legal_moves: 0,
+      search_timeout_no_label: 0,
     });
     expect(result.postflight_complete).toBe(true);
     for (const file of [
@@ -392,8 +510,200 @@ describe("fresh-selection teacher runner", () => {
       paths.manifest,
       paths.result,
       paths.dataset,
+      paths.work,
     ]) {
       expect((await fs.promises.lstat(file)).mode & 0o7777).toBe(0o600);
+    }
+    expect(wrapped.validateArtifacts).toHaveBeenCalledTimes(1);
+    expect(wrapped.validateArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputGames: 200,
+        inputParents: 4_800,
+        sourceRawSha256: FRESH_SELECTION_TEACHER_SOURCE.sha256,
+        expectedGenerationRunFingerprint: sha256("generation"),
+        expectedRevision: REVISION,
+      }),
+    );
+
+    const reused = await runFreshSelectionTeacherCore(wrapped);
+    expect(reused).toMatchObject({
+      idempotent_existing_result: true,
+      parallel_engines: 13,
+    });
+    expect(wrapped.generate).toHaveBeenCalledTimes(1);
+    expect(wrapped.validateArtifacts).toHaveBeenCalledTimes(2);
+    expect(wrapped.computeGenerationFingerprint).toHaveBeenCalledTimes(4);
+  });
+
+  it("fails closed when a result exists but any bound auxiliary artifact is missing", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-selection-partial-commit-"),
+    );
+    const base = await dependencies(home);
+    await runFreshSelectionTeacherCore(base);
+    const paths = freshSelectionTeacherPaths(home, base.repositoryRoot);
+    for (const file of [paths.manifest, paths.authority, paths.dataset, paths.work]) {
+      const bytes = await fs.promises.readFile(file);
+      await fs.promises.unlink(file);
+      await expect(runFreshSelectionTeacherCore(base), path.basename(file)).rejects.toThrow();
+      expect(base.generate).toHaveBeenCalledTimes(1);
+      await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+    }
+  });
+
+  it("resumes generation when and only when the result marker is absent", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-selection-resume-"),
+    );
+    const base = await dependencies(home);
+    await runFreshSelectionTeacherCore(base);
+    const paths = freshSelectionTeacherPaths(home, base.repositoryRoot);
+    await fs.promises.unlink(paths.result);
+
+    const resumed = await runFreshSelectionTeacherCore(base);
+    expect(resumed.idempotent_existing_result).toBe(false);
+    expect(base.generate).toHaveBeenCalledTimes(2);
+    await expect(fs.promises.access(paths.result)).resolves.toBeUndefined();
+  });
+
+  it("rejects tampered result, manifest, authority, dataset, and work bindings", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-selection-binding-tamper-"),
+    );
+    const base = await dependencies(home);
+    await runFreshSelectionTeacherCore(base);
+    const paths = freshSelectionTeacherPaths(home, base.repositoryRoot);
+    const files = [
+      paths.result,
+      paths.manifest,
+      paths.authority,
+      paths.dataset,
+      paths.work,
+    ] as const;
+    const originals = new Map(
+      await Promise.all(
+        files.map(async (file) => [file, await fs.promises.readFile(file)] as const),
+      ),
+    );
+    const cases = [
+      {
+        file: paths.result,
+        mutate: async () => {
+          const value = JSON.parse(await fs.promises.readFile(paths.result, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          value.unknown = true;
+          await fs.promises.writeFile(paths.result, `${JSON.stringify(value, null, 2)}\n`, {
+            mode: 0o600,
+          });
+        },
+      },
+      {
+        file: paths.manifest,
+        mutate: async () => {
+          const value = JSON.parse(
+            await fs.promises.readFile(paths.manifest, "utf8"),
+          ) as Record<string, unknown>;
+          value.role = "fresh_final_holdout";
+          await fs.promises.writeFile(paths.manifest, `${JSON.stringify(value, null, 2)}\n`, {
+            mode: 0o600,
+          });
+        },
+      },
+      {
+        file: paths.authority,
+        mutate: async () => {
+          const value = JSON.parse(
+            await fs.promises.readFile(paths.authority, "utf8"),
+          ) as Record<string, unknown>;
+          (value.artifacts as Record<string, unknown>).unknown = true;
+          await fs.promises.writeFile(paths.authority, `${JSON.stringify(value, null, 2)}\n`, {
+            mode: 0o600,
+          });
+        },
+      },
+      {
+        file: paths.dataset,
+        mutate: async () => fs.promises.appendFile(paths.dataset, "tampered\n"),
+      },
+      {
+        file: paths.work,
+        mutate: async () => fs.promises.appendFile(paths.work, "tampered\n"),
+      },
+    ] as const;
+    for (const testCase of cases) {
+      await testCase.mutate();
+      await expect(runFreshSelectionTeacherCore(base), path.basename(testCase.file)).rejects.toThrow(
+        /fresh-selection/,
+      );
+      expect(base.generate).toHaveBeenCalledTimes(1);
+      await fs.promises.writeFile(testCase.file, originals.get(testCase.file)!, {
+        mode: 0o600,
+      });
+    }
+  });
+
+  it("recomputes revision, preflight, policy, assets, and generation evidence", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-selection-stale-evidence-"),
+    );
+    const base = await dependencies(home);
+    await runFreshSelectionTeacherCore(base);
+    const originalPreflight = preflight();
+    const originalPolicy = {
+      value: policy(),
+      identity: artifact(
+        FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
+        FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
+      ),
+    };
+
+    vi.mocked(base.captureExactCleanRevision).mockResolvedValue("2".repeat(40));
+    await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fresh-selection/);
+    vi.mocked(base.captureExactCleanRevision).mockResolvedValue(REVISION);
+
+    vi.mocked(base.checkpointPreflight).mockResolvedValue({
+      ...originalPreflight,
+      checkpoint_preflight_sha256: sha256("changed-preflight"),
+    });
+    await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fresh-selection/);
+    vi.mocked(base.checkpointPreflight).mockResolvedValue(originalPreflight);
+
+    vi.mocked(base.readSearchPolicy).mockResolvedValue({
+      ...originalPolicy,
+      identity: { ...originalPolicy.identity, sha256: sha256("changed-policy") },
+    });
+    await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fresh-selection/);
+    vi.mocked(base.readSearchPolicy).mockResolvedValue(originalPolicy);
+
+    vi.mocked(base.verifyAssets).mockResolvedValue({ fixed: "changed-assets" } as never);
+    await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fresh-selection/);
+    vi.mocked(base.verifyAssets).mockResolvedValue({ fixed: "asset-receipt" } as never);
+
+    vi.mocked(base.computeGenerationFingerprint).mockResolvedValue(
+      sha256("changed-generation"),
+    );
+    await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fresh-selection/);
+    expect(base.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes no result when generation fingerprints mismatch or drift postflight", async () => {
+    for (const drift of ["generator", "postflight"] as const) {
+      const home = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), `fresh-selection-${drift}-fingerprint-`),
+      );
+      const base = await dependencies(home);
+      if (drift === "generator") {
+        vi.mocked(base.computeGenerationFingerprint).mockResolvedValue(sha256("different"));
+      } else {
+        vi.mocked(base.computeGenerationFingerprint)
+          .mockResolvedValueOnce(sha256("generation"))
+          .mockResolvedValueOnce(sha256("postflight-drift"));
+      }
+      await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/fingerprint/);
+      const paths = freshSelectionTeacherPaths(home, base.repositoryRoot);
+      await expect(fs.promises.access(paths.result)).rejects.toThrow();
     }
   });
 
@@ -569,6 +879,19 @@ describe("fresh-selection teacher runner", () => {
     expect(() =>
       validateFreshSelectionTeacherSearchPolicy(mixedRanks, 14),
     ).toThrow(/invalid/);
+    const topLevelExtra = { ...policy(), unknown: true };
+    expect(() =>
+      validateFreshSelectionTeacherSearchPolicy(topLevelExtra, 14),
+    ).toThrow(/fields are not exact/);
+    const nestedExtra = policy() as FreshSelectionTeacherSearchPolicy & {
+      teacher: FreshSelectionTeacherSearchPolicy["teacher"] & {
+        unknown?: boolean;
+      };
+    };
+    nestedExtra.teacher.unknown = true;
+    expect(() =>
+      validateFreshSelectionTeacherSearchPolicy(nestedExtra, 14),
+    ).toThrow(/fields are not exact/);
   });
 
   it("CLI rejects path overrides and emits no private path or label", async () => {
@@ -579,7 +902,7 @@ describe("fresh-selection teacher runner", () => {
       completed_parents: 4_800 as const,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0 as const,
     }));
     await expect(
@@ -595,7 +918,7 @@ describe("fresh-selection teacher runner", () => {
     const output = JSON.parse(writeStdout.mock.calls[0][0]) as Record<string, unknown>;
     expect(output).toMatchObject({
       completed_parents: 4_800,
-      parallel_engines: 12,
+      parallel_engines: 13,
       private_paths_emitted: false,
       labels_emitted: false,
       live_weight_changes: 0,

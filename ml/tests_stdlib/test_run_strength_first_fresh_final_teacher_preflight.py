@@ -153,6 +153,25 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                     replayed_evaluation_report=harness.report,
                 )
 
+    def test_replay_rejects_non_v2_completion_before_dataset_evaluation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            result = harness.run()
+            receipt = copy.deepcopy(result["receipt"])
+            receipt["selection_teacher"]["completion"]["forced_skip_reasons"][
+                "proposal_incomplete_no_label"
+            ] = 1
+            replay_calls = []
+            with self.assertRaises(ValueError):
+                SUBJECT._replay_selection_evaluation(
+                    receipt=receipt,
+                    registry=harness.registry,
+                    repo_root=REPO_ROOT,
+                    home_root=Path(temporary),
+                    replay=lambda **kwargs: replay_calls.append(kwargs),
+                )
+            self.assertEqual(replay_calls, [])
+
     def test_self_consistent_forged_metric_bundle_fails_deterministic_replay(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = ReadyHarness(temporary)
@@ -244,13 +263,13 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                 publication_result_raw,
                 SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA,
             )
-            harness.registry["enrollments"][
-                "selection_evaluation_report"
-            ] = report_identity
+            harness.registry["enrollments"]["selection_evaluation_report"] = (
+                report_identity
+            )
             harness.registry["enrollments"]["selection_receipt"] = receipt_identity
-            harness.registry["enrollments"][
-                "selection_publication_result"
-            ] = publication_result_identity
+            harness.registry["enrollments"]["selection_publication_result"] = (
+                publication_result_identity
+            )
             with self.assertRaisesRegex(ValueError, "deterministic replay"):
                 SUBJECT.build_fresh_final_teacher_selection_preflight(
                     registry=harness.registry,

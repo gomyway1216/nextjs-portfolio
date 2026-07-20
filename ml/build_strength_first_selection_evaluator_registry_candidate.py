@@ -3,11 +3,11 @@
 
 The production CLI is argumentless and writes exactly one pretty JSON
 candidate to stdout.  It never edits the tracked registry.  A candidate is
-emitted only after the five evaluator implementation sources are recomputed
-from exact HEAD, the public three-checkpoint preflight has actually run, and
-the fixed private selection-teacher artifacts plus stable checkpoint have
-been bound and revalidated.  Final-holdout and live-weight paths are not part
-of this builder.
+emitted only after the five evaluator implementation sources and the fixed
+TypeScript semantic validator are authenticated from exact HEAD, the public
+three-checkpoint preflight has actually run, and the private selection-teacher
+artifacts plus stable checkpoint have been bound and revalidated.  Final-
+holdout and live-weight paths are not part of this builder.
 """
 
 from __future__ import annotations
@@ -361,6 +361,12 @@ def build_strength_first_selection_evaluator_registry_candidate(
     _validate_training_plan: Callable[
         [Mapping[str, Any]], Mapping[str, Any]
     ] = EVALUATOR.BRIDGE.validate_strength_first_qat_training_plan_data,
+    _validate_parent_accounting: Callable[..., Mapping[str, Any]] = (
+        EVALUATOR._validate_selection_parent_accounting
+    ),
+    _validate_teacher_semantics: Callable[..., Mapping[str, Any]] = (
+        EVALUATOR._run_selection_teacher_semantic_validator
+    ),
     _run_checkpoint_preflight: Callable[
         [], Mapping[str, Any]
     ] = TEACHER_PREFLIGHT.run_strength_first_selection_teacher_preflight,
@@ -422,6 +428,16 @@ def build_strength_first_selection_evaluator_registry_candidate(
             schema=EVALUATOR._SOURCE_IDENTITY_SCHEMA,
             raw=raw,
         )
+    semantic_validator_path = str(root / EVALUATOR._SEMANTIC_VALIDATOR_SOURCE_PATH)
+    semantic_validator_raw = _tracked_snapshot(
+        root=root,
+        relative=EVALUATOR._SEMANTIC_VALIDATOR_SOURCE_PATH,
+        revision=revision,
+        label="selection teacher semantic validator",
+        read_tracked=_read_tracked,
+        verify_tracked=_verify_tracked,
+    )
+    tracked_snapshots[semantic_validator_path] = semantic_validator_raw
 
     try:
         preflight_value = _run_checkpoint_preflight()
@@ -500,12 +516,29 @@ def build_strength_first_selection_evaluator_registry_candidate(
             name.replace("_", " "),
         )
 
+    private_artifact_raw: dict[str, bytes] = {}
+    for name, schema in (
+        ("selection_source", None),
+        ("selection_teacher_work", EVALUATOR.STRENGTH_FIRST_SELECTION_WORK_SCHEMA),
+        ("selection_dataset", EVALUATOR.STRENGTH_FIRST_SELECTION_DATASET_SCHEMA),
+    ):
+        relative = EVALUATOR._FIXED_PATHS[name]
+        absolute = _resolve_private_path(home, relative, name.replace("_", " "))
+        raw = _read_private(absolute, name.replace("_", " "))
+        if type(raw) is not bytes or not raw:
+            raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+                f"{name.replace('_', ' ')} is not nonempty exact bytes"
+            )
+        private_artifact_raw[absolute] = raw
+        if schema is not None:
+            private_documents[name] = _artifact_identity(
+                path=relative,
+                schema=schema,
+                raw=raw,
+            )
+
     large_artifact_fingerprints: dict[str, dict[str, Any]] = {}
     for name, schema in (
-        (
-            "selection_dataset",
-            EVALUATOR.STRENGTH_FIRST_SELECTION_DATASET_SCHEMA,
-        ),
         (
             "stable_checkpoint",
             EVALUATOR.STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA,
@@ -570,6 +603,7 @@ def build_strength_first_selection_evaluator_registry_candidate(
     enrollments["selection_teacher_result"] = private_documents[
         "selection_teacher_result"
     ]
+    enrollments["selection_teacher_work"] = private_documents["selection_teacher_work"]
     enrollments["selection_dataset"] = private_documents["selection_dataset"]
     enrollments["stable_checkpoint"] = private_documents["stable_checkpoint"]
     candidate["gates"] = copy.deepcopy(EVALUATOR._READY_GATES)
@@ -577,16 +611,54 @@ def build_strength_first_selection_evaluator_registry_candidate(
     validated = dict(
         EVALUATOR.validate_strength_first_selection_evaluator_registry_data(candidate)
     )
-    EVALUATOR._validate_teacher_documents(
+    completion, generation_run_fingerprint = EVALUATOR._validate_teacher_documents(
         authority=parsed_documents["selection_teacher_authority"],
         manifest=parsed_documents["selection_teacher_manifest"],
         result=parsed_documents["selection_teacher_result"],
         registry=validated,
     )
-    if registry[
-        "status"
-    ] == EVALUATOR.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS and not EVALUATOR._typed_equal(
-        registry, validated
+    semantic_receipt = _validate_teacher_semantics(
+        repo_root=str(root),
+        home_root=str(home),
+        expected_revision=revision,
+    )
+    EVALUATOR._validate_selection_teacher_semantic_receipt(
+        semantic_receipt,
+        run_fingerprint=run_fingerprint,
+        generation_run_fingerprint=generation_run_fingerprint,
+        dataset_identity=enrollments["selection_dataset"],
+        work_identity=enrollments["selection_teacher_work"],
+        completion=completion,
+    )
+    _validate_parent_accounting(
+        source_raw=private_artifact_raw[
+            _resolve_private_path(
+                home,
+                EVALUATOR._FIXED_PATHS["selection_source"],
+                "selection source",
+            )
+        ],
+        work_raw=private_artifact_raw[
+            _resolve_private_path(
+                home,
+                EVALUATOR._FIXED_PATHS["selection_teacher_work"],
+                "selection teacher work",
+            )
+        ],
+        dataset_raw=private_artifact_raw[
+            _resolve_private_path(
+                home,
+                EVALUATOR._FIXED_PATHS["selection_dataset"],
+                "selection dataset",
+            )
+        ],
+        completion=completion,
+        generation_run_fingerprint=generation_run_fingerprint,
+        source_identity=EVALUATOR._SELECTION_SOURCE,
+    )
+    if (
+        registry["status"] == EVALUATOR.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
+        and not EVALUATOR._typed_equal(registry, validated)
     ):
         raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
             "tracked READY selection evaluator registry is not an exact "
@@ -609,6 +681,11 @@ def build_strength_first_selection_evaluator_registry_candidate(
         if _read_private(path, "selection teacher document") != expected_raw:
             raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
                 "selection teacher document changed before candidate emission"
+            )
+    for path, expected_raw in private_artifact_raw.items():
+        if _read_private(path, "selection accounting artifact") != expected_raw:
+            raise StrengthFirstSelectionEvaluatorRegistryCandidateError(
+                "selection accounting artifact changed before candidate emission"
             )
     for path, expected in large_artifact_fingerprints.items():
         observed = _fingerprint_private(path, "selection evaluator artifact")

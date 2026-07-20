@@ -4,7 +4,6 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  FRESH_FINAL_TEACHER_OUTPUT_RELATIVE_ROOT,
   FRESH_FINAL_TEACHER_SOURCE,
 } from "../../../ml/floodgate-fresh-final-teacher-runner";
 import {
@@ -85,8 +84,8 @@ describe("Floodgate strength-first fresh-final teacher evidence", () => {
     });
   });
 
-  it("records the shared measured 12-by-512 local policy and exact output", () => {
-    expect(FRESH_SELECTION_TEACHER_PARALLEL_ENGINES).toBe(12);
+  it("preserves the historical 12-by-512 evidence while the current runner uses measured 13", () => {
+    expect(FRESH_SELECTION_TEACHER_PARALLEL_ENGINES).toBe(13);
     expect(FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE).toBe(512);
     expect(readJson(evidencePath)).toMatchObject({
       local_compute: {
@@ -113,7 +112,8 @@ describe("Floodgate strength-first fresh-final teacher evidence", () => {
         vercel_used_for_teacher_compute: false,
       },
       completion_contract: {
-        output_root: `~/${FRESH_FINAL_TEACHER_OUTPUT_RELATIVE_ROOT}`,
+        output_root:
+          "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-fresh-final-teacher-v1",
         dataset: "final.jsonl",
         directory_mode: "0700",
         file_mode: "0600",

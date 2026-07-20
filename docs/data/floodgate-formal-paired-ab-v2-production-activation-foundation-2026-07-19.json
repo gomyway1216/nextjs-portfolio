@@ -1,0 +1,246 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-foundation-evidence-v1",
+  "recorded_date": "2026-07-19",
+  "implementation_anchor": {
+    "revision": "35d0ca71bd5d60747667c3dad4e804b270cb3551",
+    "tree": "6cd6db7bb5295fde831a81748a932586de26f8ef",
+    "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
+    "branch": "codex/formal-ab-v2-activation-foundation",
+    "pushed": false,
+    "pull_request_created": false
+  },
+  "implementation": {
+    "module": "ml/formal_paired_ab_v2_production_activation.py",
+    "registry": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
+    "tests": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
+    "argumentless_command": "python3 ml/formal_paired_ab_v2_production_activation.py",
+    "test_only_composition": "compose_formal_ab_v2_activation_core_for_tests",
+    "production_match_execution_api": false,
+    "caller_selected_registry_production_api": false,
+    "automatic_activation": false
+  },
+  "implementation_artifacts": {
+    "module": {
+      "path": "ml/formal_paired_ab_v2_production_activation.py",
+      "bytes": 34422,
+      "sha256": "7cf49a1872fce4b822c453d88d6b3cd75824f777c31794d33025b6817bac6464"
+    },
+    "registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
+      "bytes": 2604,
+      "sha256": "90749b092a16b800ed909ba53235b5bf8eda0d330330ada5386790b33fad14f1"
+    },
+    "tests": {
+      "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
+      "bytes": 24010,
+      "sha256": "9d587f30ece722e09f68df6517a9983bcf586f8251122cf3a71e1ac6fa67922a"
+    }
+  },
+  "protocol_binding": {
+    "source_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "source_v2_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+      "bytes": 3480,
+      "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v2"
+    },
+    "source_v2_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+      "bytes": 4459,
+      "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+      "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2"
+    },
+    "pairs": 384,
+    "games_per_pair": 2,
+    "games": 768,
+    "candidate_colors": ["sente", "gote"],
+    "candidate_sente_games": 384,
+    "candidate_gote_games": 384,
+    "maximum_pair_workers": 6,
+    "opening_id_domain_matches_existing_local_launcher": true,
+    "game_id_domain_matches_existing_local_launcher": true,
+    "opening_manifest_schema_matches_existing_local_launcher": true,
+    "unique_positive_signed_64_bit_seed_per_pair": true
+  },
+  "closed_registry": {
+    "status": "closed-awaiting-reviewed-enrollments",
+    "all_enrollments_null": true,
+    "all_gates_false": true,
+    "candidate_weights": null,
+    "stable_weights": null,
+    "openings_manifest": null,
+    "time_control": null,
+    "pair_workers": null,
+    "match_adapter": null,
+    "result_receipt": null,
+    "retention_receipt": null,
+    "rollback_receipt": null,
+    "execution_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "test_only_composition_binding": {
+    "experiment_id": true,
+    "run_id": true,
+    "candidate_weights_identity": true,
+    "stable_weights_identity": true,
+    "candidate_and_stable_must_differ": true,
+    "candidate_and_stable_paths_must_differ": true,
+    "canonical_openings_and_identity": true,
+    "activation_registry_identity": true,
+    "candidate_colors": true,
+    "time_control_content_identity": true,
+    "pair_workers_integer_1_through_6": true,
+    "match_adapter_identity": true,
+    "result_receipt_identity": true,
+    "retention_receipt_identity": true,
+    "rollback_receipt_identity": true,
+    "receipt_paths_and_digests_must_be_distinct": true,
+    "plain_json_only": true,
+    "canonical_relative_paths_only": true,
+    "seed_boundary_probes": [
+      "duplicate",
+      "boolean",
+      "zero",
+      "negative",
+      "signed-64-bit-overflow"
+    ],
+    "non_string_sfen_probes": ["null", "integer", "list"],
+    "exact_768_game_accounting": true,
+    "deterministic_binding_sha256": true,
+    "opens_artifact_files": false,
+    "executes_games": false,
+    "production_authority": false
+  },
+  "production_entry": {
+    "arguments_allowed": false,
+    "registry_path_caller_selectable": false,
+    "closed_exit_code": 2,
+    "closed_status": "STOP",
+    "closed_reason": "enrollments-closed",
+    "pairs_started": 0,
+    "games_started": 0,
+    "engine_processes_started": 0,
+    "network_requests": 0,
+    "live_weight_changes": 0
+  },
+  "safety": {
+    "repository_path_component_policy": "directory-descriptor-no-follow-every-component",
+    "registry_exact_path_bytes_sha256_schema": true,
+    "strict_duplicate_key_rejection": true,
+    "strict_json_type_equality": true,
+    "network_access": false,
+    "aws_access": false,
+    "gcp_access": false,
+    "vercel_access": false,
+    "firebase_access": false,
+    "external_calibration": false,
+    "live_weight_access": false
+  },
+  "validation": {
+    "python_compile": "PASS",
+    "focused_tests_passed": 12,
+    "focused_tests_failed": 0,
+    "related_tests_passed": 61,
+    "related_tests_failed": 0,
+    "publication_evidence_tests_passed": 5,
+    "publication_evidence_tests_failed": 0,
+    "full_ml_stdlib_tests_passed": 205,
+    "full_ml_stdlib_tests_failed": 0,
+    "full_ml_stdlib_wall_seconds": 13.974,
+    "ruff": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS",
+    "argumentless_command_status": "expected-STOP",
+    "argumentless_command_exit_code": 2,
+    "argumentless_games_started": 0,
+    "real_engine_used_by_tests": false,
+    "real_game_process_used_by_tests": false,
+    "real_weight_used_by_tests": false,
+    "network_used_by_tests": false
+  },
+  "review": {
+    "initial_independent_review": {
+      "p0": 0,
+      "p1": 2,
+      "p2": 1,
+      "safe_to_review": false,
+      "findings": [
+        "per-pair-execution-seed-not-bound",
+        "composition-hash-omitted-activation-registry-identity",
+        "noncanonical-relative-path-alias-could-bypass-distinct-path-check"
+      ]
+    },
+    "remediation_revision": "297c9a9e3698b3736f4726b4ba9453e955b3645a",
+    "remediations": [
+      "existing-launcher-compatible-unique-positive-signed-64-bit-pair-seeds",
+      "activation-registry-identity-added-to-composition-binding",
+      "pure-posix-exact-spelling-required-for-every-relative-path"
+    ],
+    "intermediate_rereview": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 1,
+      "finding": "seed-boundary-article-claim-needed-explicit-probes"
+    },
+    "evidence_correction_revision": "651359df6a56a36379d834cd092b77cbac15a076",
+    "final_independent_rereview": "PASS-P0-0-P1-0-P2-0",
+    "final_review_head": "ea56f82b44234a41243545fbb8e6960bb9b06010",
+    "final_review_tree": "a879fb9597320b83234d645cc9822c116e5e3e51",
+    "safe_to_review": true,
+    "unresolved_p0": 0,
+    "unresolved_p1": 0,
+    "unresolved_p2": 0,
+    "github_review_remediation": {
+      "thread_id": "PRRT_kwDOQbO82s6SIQd1",
+      "finding": "non-string-sfen-could-escape-before-explicit-type-check",
+      "revision": "35d0ca71bd5d60747667c3dad4e804b270cb3551",
+      "regression_probes": ["null", "integer", "list"],
+      "local_validation": "PASS",
+      "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611694906",
+      "thread_state": "resolved"
+    },
+    "github_copilot_review_remediation": {
+      "thread_ids": [
+        "PRRT_kwDOQbO82s6SIYpw",
+        "PRRT_kwDOQbO82s6SIYp2",
+        "PRRT_kwDOQbO82s6SIYp8"
+      ],
+      "revision": "eb444083b0f98a7da56a1af7f9c84ed08168257c",
+      "fixes": [
+        "explicit-fail-closed-when-effective-user-support-is-unavailable",
+        "pair-and-worker-diagnostics-derived-from-contract-constants",
+        "forbidden-runtime-import-detection-covers-from-submodule-alias-and-multi-import-forms"
+      ],
+      "local_validation": "PASS",
+      "reply_urls": [
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783548",
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783543",
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611783547"
+      ],
+      "thread_state": "resolved"
+    }
+  },
+  "execution_counters": {
+    "real_formal_attempts_started": 0,
+    "real_pairs_started": 0,
+    "real_games_started": 0,
+    "real_engine_processes_started": 0,
+    "network_requests": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "formal_ab_executed": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "promotion_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_weights_changed": false
+  }
+}

@@ -1,0 +1,130 @@
+# Shogi evaluation: preparing formal A/B v2 production activation while remaining closed at zero games
+
+> As of 2026-07-19, real formal A/B remains **0 / 768 games**, with zero engine processes, zero network requests, and zero live-weight changes. This change is not strength-improvement compute. It is a small, anticipatory boundary that prevents a later 384-pair / 768-game run from starting with mismatched inputs. Teacher generation continues on a separate path and this work does not consume its search CPU. Japanese version: [blog-shogi-floodgate-formal-paired-ab-v2-production-activation-foundation.md](./blog-shogi-floodgate-formal-paired-ab-v2-production-activation-foundation.md)
+
+## Conclusion
+
+Formal A/B v2 already had a fixed statistical protocol and a local-only test launcher. It did not yet have a production entry that binds the candidate, stable baseline, openings, time control, adapter, and upstream receipts into one exact activation.
+
+This change adds only three things:
+
+1. an exact closed registry whose enrollments are all `null`;
+2. an argumentless production entry that validates the registry and returns `STOP` at zero games; and
+3. an explicitly named `CoreForTests` that can verify every identity and exact 768-game accounting required by a future ready enrollment.
+
+No real identity is enrolled. There is no production match adapter, and no route to an engine, game process, network, or live-weight writer.
+
+## Closed registry
+
+The new registry has a code-pinned path, byte count, SHA-256, and schema. Its only accepted state is:
+
+| Item                                   | Fixed state     |
+| -------------------------------------- | --------------- |
+| candidate / stable                     | `null` / `null` |
+| opening manifest                       | `null`          |
+| time control                           | `null`          |
+| pair workers                           | `null`          |
+| match adapter                          | `null`          |
+| result / retention / rollback receipts | all `null`      |
+| execution authorized                   | `false`         |
+| production weight write authorized     | `false`         |
+| pairs / games started                  | 0 / 0           |
+
+The validator also reads the exact existing v1 registry, v2 amendment, v2 closed registry, and fresh sibling plan with a `no-follow` open for every component of a repository-relative path. A one-byte drift, field or type drift, extra field, duplicate JSON key, schema mismatch, or digest mismatch stops.
+
+## Argumentless production entry
+
+The entry is:
+
+```text
+python3 ml/formal_paired_ab_v2_production_activation.py
+```
+
+Any argument returns `arguments-forbidden` before registry access. With no arguments, it revalidates the closed chain and exits 2 with a sanitized receipt equivalent to:
+
+```json
+{
+  "status": "STOP",
+  "reason": "enrollments-closed",
+  "pairs_started": 0,
+  "games_started": 0,
+  "engine_processes_started": 0,
+  "network_requests": 0,
+  "live_weight_changes": 0
+}
+```
+
+The entry accepts no caller-selected registry path. It does not invoke `CoreForTests` or connect to an engine, game process, AWS, GCP, Vercel, Firebase, an external playing site, or live weights. Opening production requires a separate reviewed change after real inputs exist.
+
+## What `CoreForTests` binds
+
+The test-only composition interface is not an execution API. It validates a synthetic mapping and derives one deterministic binding SHA-256 from:
+
+| Binding            | Validation                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| experiment / run   | distinct, nonzero semantic SHA-256 IDs                                                 |
+| candidate / stable | distinct exact weight-artifact identities                                              |
+| openings           | existing-launcher schema, canonical SFEN / USI, and 384 unique openings / seeds        |
+| colors             | candidate sente, then candidate gote, in every pair                                    |
+| time control       | exact content identity, nonnegative clocks, positive thinking time, fixed adjudication |
+| pair workers       | integer 1 through 6                                                                    |
+| match adapter      | exact artifact identity                                                                |
+| result receipt     | exact downstream-result artifact identity                                              |
+| retention receipt  | exact retention artifact identity                                                      |
+| rollback receipt   | exact rollback-readiness artifact identity                                             |
+
+The opening manifest uses the existing local launcher's schema and field structure. Opening and game IDs are rederived with its same domain-separated rules, and every pair requires a unique positive signed-64-bit seed. The interface validates two games in each of 384 pairs and refuses a composition unless the total is exactly 768: 384 candidate-sente games and 384 candidate-gote games.
+
+The binding's protocol section includes the exact activation-registry identity as well as the source plan, amendment, and v2 registry. Replacing the closed registry with a future ready registry therefore cannot reuse the same binding hash or replay an old composition receipt.
+
+Returned authority is always:
+
+- game execution: `false`;
+- production activation: `false`; and
+- production weight write: `false`.
+
+`CoreForTests` does not open artifact files. It binds receipt identities but does not certify their real production semantics. In particular, the rollback-readiness receipt is a future separate contract; this change creates no real receipt. If final upstream merges change the result or retention schema, the exact enrollment must be updated and reviewed before this closed foundation can open.
+
+## Adversarial tests
+
+Unit tests reject:
+
+- registry byte drift and an intermediate-directory symlink;
+- any argument to the production entry;
+- 383 pairs, a wrong color, and duplicate or wrong game IDs;
+- duplicate, boolean, nonpositive, or signed-64-bit-overflow opening seeds;
+- opening or time-control content that disagrees with its identity digest;
+- identical candidate and stable digests or paths;
+- boolean, zero, seven, and floating-point pair-worker values;
+- wrong adapter or receipt schemas and aliased receipt digests or paths;
+- unsafe relative paths, extra fields, and nested or top-level `dict` subclasses;
+- path aliases using `a//b`, `a/./b`, or a trailing slash; and
+- authority expansion such as `production_authority: true`.
+
+The same synthetic input with a different key order produces the same composition receipt. The returned value does not alias the input, and composition performs no filesystem open.
+
+## Validation
+
+The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 findings were the missing per-pair seed and the omitted activation-registry identity in the composition hash. The P2 finding was a noncanonical path alias that could bypass a distinct-path check. Implementation anchor `651359df6a56a36379d834cd092b77cbac15a076` fixes all three, adds a compatibility test that passes the same synthetic opening manifest through the existing launcher validator, and explicitly probes duplicate, boolean, zero, negative, and signed-64-bit-overflow seeds. The final read-only review of exact head `ea56f82b44234a41243545fbb8e6960bb9b06010` reported `P0=0`, `P1=0`, `P2=0`, and safe-to-review.
+
+PR review then noted that a non-string SFEN could reach `_normalized_sfen` and leak a raw `TypeError` or `AttributeError` before the explicit type check. Current implementation anchor `35d0ca71bd5d60747667c3dad4e804b270cb3551` moves the type check before normalization and adds regression probes proving that `null`, integer, and list values all fail closed as `FormalAbV2ActivationError`.
+
+A later review's three findings are fixed at implementation anchor `eb444083b0f98a7da56a1af7f9c84ed08168257c`. A platform without `os.geteuid` now fails closed explicitly instead of leaking `AttributeError`; pair-count and worker-limit diagnostics are derived from the contract constants rather than duplicated literals. The publication test's forbidden-import detector now includes regression examples for `from subprocess import Popen`, `import urllib.request`, aliases, and multi-import statements.
+
+| Check                                                            |                       Result |
+| ---------------------------------------------------------------- | ---------------------------: |
+| Python compile                                                   |                         PASS |
+| activation focused                                               |                 12 / 12 PASS |
+| related tests including the existing protocol and local launcher |                 61 / 61 PASS |
+| complete ML stdlib                                               |               205 / 205 PASS |
+| publication evidence                                             |                   5 / 5 PASS |
+| Ruff / Prettier / diff check                                     |                         PASS |
+| argumentless production entry                                    | expected STOP, 0 / 768 games |
+
+Machine-readable values are in the [production activation foundation evidence](./data/floodgate-formal-paired-ab-v2-production-activation-foundation-2026-07-19.json).
+
+## Next gate
+
+This change alone does not make the AI stronger. The next work is the running teacher generation, three-seed retraining, candidate selection, and sealed holdout / retention / regression / production-parity gates. Only after those pass should a separate PR enroll the real candidate, stable baseline, openings, time control, adapter, and result / retention / rollback receipts and connect the production entry to a reviewed adapter.
+
+Completing 768 formal A/B games still would not directly prove human high-dan strength. Live weights remain unchanged until formal A/B passes, external calibration succeeds, and rollback plus monitoring are verified.

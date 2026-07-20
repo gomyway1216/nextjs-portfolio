@@ -25,10 +25,20 @@ import {
 import {
   FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
   SIBLING_TEACHER_WORK_SCHEMA,
+  freshSelectionSiblingTeacherRunFingerprintFromEvidence,
   generateFreshSelectionSiblingTeacherDataset,
   siblingTeacherStagePaths,
   strengthFirstTimeoutSkipLimit,
 } from "./generate-sibling-teacher";
+import {
+  exactFreshTeacherObject,
+  parseCanonicalFreshTeacherJson,
+  readFreshTeacherPrivateArtifact,
+  validateFreshTeacherArtifacts,
+  validateFreshTeacherStoredCompletion,
+  validateFreshTeacherStoredIdentity,
+  type FreshTeacherPrivateArtifactSnapshot,
+} from "./floodgate-fresh-teacher-artifact-validation";
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
 } from "./floodgate-production-teacher-asset-authority";
@@ -274,6 +284,16 @@ export interface FreshSelectionTeacherRunnerDependencies {
   readonly generate: (
     request: Readonly<FreshSelectionTeacherGeneratorRequest>,
   ) => Promise<Readonly<FreshSelectionTeacherGeneratorOutcome>>;
+  readonly computeGenerationFingerprint: (
+    request: Readonly<{
+      paths: FreshSelectionTeacherPaths;
+      revision: string;
+      source: FreshSelectionTeacherSourceSnapshot;
+      policy: SearchPolicySnapshot;
+      assets: AssetReceipt;
+    }>,
+  ) => Promise<string>;
+  readonly validateArtifacts: typeof validateFreshTeacherArtifacts;
   readonly reportProgress: (phase: string) => void;
 }
 
@@ -393,6 +413,85 @@ export function validateFreshSelectionTeacherSearchPolicy(
   value: Readonly<FreshSelectionTeacherSearchPolicy>,
   availableParallelism: number,
 ): Readonly<FreshSelectionTeacherSearchPolicy> {
+  exactFreshTeacherObject(
+    value,
+    ["schema", "status", "role", "teacher", "runtime", "completion"],
+    "fresh-selection search policy",
+  );
+  exactFreshTeacherObject(
+    value.teacher,
+    [
+      "engine",
+      "threads_per_engine",
+      "proposal",
+      "typed_incomplete_proposal_fallback",
+      "candidate_union",
+      "independent_rescore",
+    ],
+    "fresh-selection search policy teacher",
+  );
+  exactFreshTeacherObject(
+    value.teacher?.proposal,
+    ["multipv", "depth"],
+    "fresh-selection search policy proposal",
+  );
+  exactFreshTeacherObject(
+    value.teacher?.typed_incomplete_proposal_fallback,
+    [
+      "allowed_only_when_legal_moves_at_most",
+      "search",
+      "multipv",
+      "depth",
+      "mixed_partial_and_fallback_ranks_accepted",
+    ],
+    "fresh-selection search policy fallback",
+  );
+  exactFreshTeacherObject(
+    value.teacher?.independent_rescore,
+    [
+      "multipv",
+      "searchmoves",
+      "depth",
+      "isready_before_each_candidate",
+      "tt_reset_before_each_candidate",
+      "candidate_execution_order",
+    ],
+    "fresh-selection search policy rescore",
+  );
+  exactFreshTeacherObject(
+    value.runtime,
+    [
+      "parallel_engines",
+      "threads_per_engine",
+      "hash_mb_per_engine",
+      "timeout_ms_per_search",
+      "network",
+    ],
+    "fresh-selection search policy runtime",
+  );
+  exactFreshTeacherObject(
+    value.completion,
+    [
+      "input_parents",
+      "input_games",
+      "search_timeout_no_label",
+      "proposal_fallback_timeout",
+      "proposal_incomplete_without_exact_fallback",
+      "allowed_forced_skip_reasons",
+      "partial_publication",
+    ],
+    "fresh-selection search policy completion",
+  );
+  exactFreshTeacherObject(
+    value.completion?.search_timeout_no_label,
+    [
+      "disposition",
+      "skip_limit_divisor",
+      "maximum_skips",
+      "partial_parent_labels_accepted",
+    ],
+    "fresh-selection search policy timeout quarantine",
+  );
   const teacher = value.teacher;
   const runtime = value.runtime;
   const fallback = teacher?.typed_incomplete_proposal_fallback;
@@ -473,28 +572,20 @@ async function ensurePrivateDirectory(
   }
 }
 
-async function digestPrivateFile(
+async function readPrivateArtifact(
   file: string,
   root: string,
   effectiveUserId: number,
   schema: string,
-): Promise<FreshSelectionTeacherArtifactIdentity> {
-  const stat = await fs.promises.lstat(file);
-  if (
-    !stat.isFile() ||
-    stat.uid !== effectiveUserId ||
-    (stat.mode & 0o7777) !== FILE_MODE
-  ) {
-    throw new Error(`fresh-selection artifact is not private 0600: ${path.basename(file)}`);
-  }
-  const bytes = await fs.promises.readFile(file);
-  const relative = path.relative(root, file).split(path.sep).join("/");
-  return Object.freeze({
-    path: `${FRESH_SELECTION_TEACHER_OUTPUT_RELATIVE_ROOT}/${relative}`,
-    bytes: bytes.byteLength,
-    sha256: sha256(bytes),
+): Promise<Readonly<FreshTeacherPrivateArtifactSnapshot>> {
+  return readFreshTeacherPrivateArtifact(
+    file,
+    root,
+    effectiveUserId,
     schema,
-  });
+    FRESH_SELECTION_TEACHER_OUTPUT_RELATIVE_ROOT,
+    "fresh-selection",
+  );
 }
 
 async function syncDirectory(directory: string): Promise<void> {
@@ -604,85 +695,266 @@ function buildRunFingerprint(
   revision: string,
   preflight: Readonly<FreshSelectionTeacherCheckpointPreflight>,
   policy: Readonly<SearchPolicySnapshot>,
-  outcome: Readonly<FreshSelectionTeacherGeneratorOutcome>,
-  assetReceipt: AssetReceipt,
+  generationRunFingerprint: string,
+  assetReceipt: AssetReceipt
 ): string {
   return sha256(
     canonicalJson({
-      schema: "shogi-floodgate-strength-first-selection-teacher-run-fingerprint-v1",
+      schema:
+        "shogi-floodgate-strength-first-selection-teacher-run-fingerprint-v1",
       runner_revision: revision,
       source: FRESH_SELECTION_TEACHER_SOURCE,
       checkpoint_preflight_sha256: preflight.checkpoint_preflight_sha256,
       search_policy: policy.identity,
-      generation_run_fingerprint: outcome.generation_run_fingerprint,
+      generation_run_fingerprint: generationRunFingerprint,
       engine_asset_receipt: assetReceipt,
-    }),
+    })
   );
 }
 
 async function verifyExistingResult(
   paths: Readonly<FreshSelectionTeacherPaths>,
   effectiveUserId: number,
+  revision: string,
+  preflight: Readonly<FreshSelectionTeacherCheckpointPreflight>,
+  policy: Readonly<SearchPolicySnapshot>,
+  assets: AssetReceipt,
+  source: Readonly<FreshSelectionTeacherSourceSnapshot>,
+  expectedGenerationRunFingerprint: string,
+  validateArtifacts: typeof validateFreshTeacherArtifacts
 ): Promise<FreshSelectionTeacherRunReceipt | null> {
   try {
-    const raw = await fs.promises.readFile(paths.result);
-    const result = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
-    const completion = result.completion as Record<string, unknown>;
-    if (
-      result.schema !== FRESH_SELECTION_TEACHER_RESULT_SCHEMA ||
-      result.status !== FRESH_SELECTION_TEACHER_STATUS ||
-      result.role !== "fresh_selection" ||
-      result.postflight_complete !== true ||
-      completion.completed_parents !== FRESH_SELECTION_TEACHER_PARENT_COUNT
-    ) {
-      throw new Error("existing fresh-selection result is not complete");
-    }
-    await Promise.all([
-      digestPrivateFile(
-        paths.authority,
-        paths.outputRoot,
-        effectiveUserId,
-        FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA,
-      ),
-      digestPrivateFile(
-        paths.manifest,
-        paths.outputRoot,
-        effectiveUserId,
-        FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA,
-      ),
-      digestPrivateFile(
-        paths.result,
-        paths.outputRoot,
-        effectiveUserId,
-        FRESH_SELECTION_TEACHER_RESULT_SCHEMA,
-      ),
-      digestPrivateFile(
-        paths.dataset,
-        paths.outputRoot,
-        effectiveUserId,
-        FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
-      ),
-      digestPrivateFile(
-        paths.work,
-        paths.outputRoot,
-        effectiveUserId,
-        SIBLING_TEACHER_WORK_SCHEMA,
-      ),
-    ]);
-    return {
-      schema: FRESH_SELECTION_TEACHER_RUNNER_SCHEMA,
-      status: FRESH_SELECTION_TEACHER_STATUS,
-      idempotent_existing_result: true,
-      completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
-      emitted_parent_groups: completion.emitted_parent_groups as number,
-      dataset_records: completion.dataset_records as number,
-      parallel_engines: 0,
-      live_weight_changes: 0,
-    };
+    await fs.promises.lstat(paths.result);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+  const expectedRunFingerprint = buildRunFingerprint(
+    revision,
+    preflight,
+    policy,
+    expectedGenerationRunFingerprint,
+    assets
+  );
+  const [
+    authoritySnapshot,
+    manifestSnapshot,
+    resultSnapshot,
+    datasetSnapshot,
+    workSnapshot,
+  ] = await Promise.all([
+    readPrivateArtifact(
+      paths.authority,
+      paths.outputRoot,
+      effectiveUserId,
+      FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA
+    ),
+    readPrivateArtifact(
+      paths.manifest,
+      paths.outputRoot,
+      effectiveUserId,
+      FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA
+    ),
+    readPrivateArtifact(
+      paths.result,
+      paths.outputRoot,
+      effectiveUserId,
+      FRESH_SELECTION_TEACHER_RESULT_SCHEMA
+    ),
+    readPrivateArtifact(
+      paths.dataset,
+      paths.outputRoot,
+      effectiveUserId,
+      FRESH_SELECTION_TEACHER_DATASET_SCHEMA
+    ),
+    readPrivateArtifact(
+      paths.work,
+      paths.outputRoot,
+      effectiveUserId,
+      SIBLING_TEACHER_WORK_SCHEMA
+    ),
+  ]);
+  const result = exactFreshTeacherObject(
+    parseCanonicalFreshTeacherJson(resultSnapshot, "fresh-selection result"),
+    [
+      "schema",
+      "status",
+      "role",
+      "manifest",
+      "dataset",
+      "work",
+      "completion",
+      "generation_run_fingerprint",
+      "run_fingerprint",
+      "postflight_complete",
+      "boundary",
+    ],
+    "fresh-selection result"
+  );
+  const completion = validateFreshTeacherStoredCompletion(result.completion, {
+    label: "fresh-selection",
+    inputGames: FRESH_SELECTION_TEACHER_GAME_COUNT,
+    inputParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+    sourceParentIdsSha256: FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+  });
+  if (
+    result.schema !== FRESH_SELECTION_TEACHER_RESULT_SCHEMA ||
+    result.status !== FRESH_SELECTION_TEACHER_STATUS ||
+    result.role !== "fresh_selection" ||
+    result.postflight_complete !== true ||
+    !sameJson(result.boundary, FRESH_SELECTION_TEACHER_BOUNDARY) ||
+    result.generation_run_fingerprint !== expectedGenerationRunFingerprint ||
+    result.run_fingerprint !== expectedRunFingerprint
+  ) {
+    throw new Error("existing fresh-selection result is not complete");
+  }
+  validateArtifacts({
+    label: "fresh-selection",
+    inputGames: FRESH_SELECTION_TEACHER_GAME_COUNT,
+    inputParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+    sourceParentIdsSha256: FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+    datasetBytes: datasetSnapshot.bytes,
+    workBytes: workSnapshot.bytes,
+    sourceRows: source.rows,
+    sourceRawSha256: FRESH_SELECTION_TEACHER_SOURCE.sha256,
+    expectedGenerationRunFingerprint,
+    expectedRevision: revision,
+    searchPolicy: policy.value,
+    completion,
+  });
+  validateFreshTeacherStoredIdentity(
+    result.manifest,
+    manifestSnapshot.identity,
+    "fresh-selection result manifest identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    result.dataset,
+    datasetSnapshot.identity,
+    "fresh-selection result dataset identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    result.work,
+    workSnapshot.identity,
+    "fresh-selection result work identity"
+  );
+
+  const manifest = exactFreshTeacherObject(
+    parseCanonicalFreshTeacherJson(
+      manifestSnapshot,
+      "fresh-selection manifest"
+    ),
+    [
+      "schema",
+      "status",
+      "role",
+      "source",
+      "dataset",
+      "work",
+      "completion",
+      "generation_run_fingerprint",
+      "run_fingerprint",
+      "boundary",
+    ],
+    "fresh-selection manifest"
+  );
+  if (
+    manifest.schema !== FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA ||
+    manifest.status !== FRESH_SELECTION_TEACHER_STATUS ||
+    manifest.role !== "fresh_selection" ||
+    !sameJson(manifest.source, FRESH_SELECTION_TEACHER_SOURCE) ||
+    !sameJson(manifest.completion, completion) ||
+    manifest.generation_run_fingerprint !== expectedGenerationRunFingerprint ||
+    manifest.run_fingerprint !== expectedRunFingerprint ||
+    !sameJson(manifest.boundary, FRESH_SELECTION_TEACHER_BOUNDARY)
+  ) {
+    throw new Error("existing fresh-selection manifest is not fully bound");
+  }
+  validateFreshTeacherStoredIdentity(
+    manifest.dataset,
+    datasetSnapshot.identity,
+    "fresh-selection manifest dataset identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    manifest.work,
+    workSnapshot.identity,
+    "fresh-selection manifest work identity"
+  );
+
+  const authority = exactFreshTeacherObject(
+    parseCanonicalFreshTeacherJson(
+      authoritySnapshot,
+      "fresh-selection authority"
+    ),
+    [
+      "schema",
+      "status",
+      "role",
+      "source",
+      "training_plan",
+      "selection_preflight_registry",
+      "checkpoint_preflight_sha256",
+      "artifacts",
+      "completion",
+      "generation_run_fingerprint",
+      "run_fingerprint",
+      "boundary",
+    ],
+    "fresh-selection authority"
+  );
+  const artifacts = exactFreshTeacherObject(
+    authority.artifacts,
+    ["manifest", "result", "dataset", "work"],
+    "fresh-selection authority artifacts"
+  );
+  if (
+    authority.schema !== FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA ||
+    authority.status !== FRESH_SELECTION_TEACHER_STATUS ||
+    authority.role !== "fresh_selection" ||
+    !sameJson(authority.source, FRESH_SELECTION_TEACHER_SOURCE) ||
+    !sameJson(authority.training_plan, preflight.training_plan) ||
+    !sameJson(
+      authority.selection_preflight_registry,
+      preflight.selection_preflight_registry
+    ) ||
+    authority.checkpoint_preflight_sha256 !==
+      preflight.checkpoint_preflight_sha256 ||
+    !sameJson(authority.completion, completion) ||
+    authority.generation_run_fingerprint !== expectedGenerationRunFingerprint ||
+    authority.run_fingerprint !== expectedRunFingerprint ||
+    !sameJson(authority.boundary, FRESH_SELECTION_TEACHER_BOUNDARY)
+  ) {
+    throw new Error("existing fresh-selection authority is not fully bound");
+  }
+  validateFreshTeacherStoredIdentity(
+    artifacts.manifest,
+    manifestSnapshot.identity,
+    "fresh-selection authority manifest identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    artifacts.result,
+    resultSnapshot.identity,
+    "fresh-selection authority result identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    artifacts.dataset,
+    datasetSnapshot.identity,
+    "fresh-selection authority dataset identity"
+  );
+  validateFreshTeacherStoredIdentity(
+    artifacts.work,
+    workSnapshot.identity,
+    "fresh-selection authority work identity"
+  );
+  return {
+    schema: FRESH_SELECTION_TEACHER_RUNNER_SCHEMA,
+    status: FRESH_SELECTION_TEACHER_STATUS,
+    idempotent_existing_result: true,
+    completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+    emitted_parent_groups: completion.emitted_parent_groups as number,
+    dataset_records: completion.dataset_records as number,
+    parallel_engines: 0,
+    live_weight_changes: 0,
+  };
 }
 
 export async function runFreshSelectionTeacherCore(
@@ -731,10 +1003,28 @@ export async function runFreshSelectionTeacherCore(
       throw new Error("fresh-selection source identity is invalid");
     }
     dependencies.reportProgress("source-assets-policy-before-complete");
+    const expectedGenerationRunFingerprint =
+      await dependencies.computeGenerationFingerprint({
+        paths,
+        revision,
+        source: beforeSource,
+        policy: beforePolicy,
+        assets: beforeAssets,
+      });
+    if (!SHA256_RE.test(expectedGenerationRunFingerprint)) {
+      throw new Error("fresh-selection expected generation fingerprint is invalid");
+    }
 
     const existing = await verifyExistingResult(
       paths,
       dependencies.effectiveUserId,
+      revision,
+      beforePreflight,
+      beforePolicy,
+      beforeAssets,
+      beforeSource,
+      expectedGenerationRunFingerprint,
+      dependencies.validateArtifacts,
     );
     if (existing) {
       const [afterPreflight, afterAssets, afterPolicy, afterSource] =
@@ -756,6 +1046,19 @@ export async function runFreshSelectionTeacherCore(
       ) {
         throw new Error("fresh-selection existing-result postflight drifted");
       }
+      const afterGenerationRunFingerprint =
+        await dependencies.computeGenerationFingerprint({
+          paths,
+          revision,
+          source: afterSource,
+          policy: afterPolicy,
+          assets: afterAssets,
+        });
+      if (afterGenerationRunFingerprint !== expectedGenerationRunFingerprint) {
+        throw new Error(
+          "fresh-selection existing-result generation evidence drifted",
+        );
+      }
       return Object.freeze({
         ...existing,
         parallel_engines: searchPolicy.runtime.parallel_engines,
@@ -776,6 +1079,13 @@ export async function runFreshSelectionTeacherCore(
       searchPolicyIdentity: beforePolicy.identity,
       checkpointPreflightSha256: beforePreflight.checkpoint_preflight_sha256,
     });
+    if (
+      outcome.generation_run_fingerprint !== expectedGenerationRunFingerprint
+    ) {
+      throw new Error(
+        "fresh-selection generator fingerprint does not match current evidence",
+      );
+    }
     const completion = completionFromOutcome(outcome);
     dependencies.reportProgress("teacher-generation-complete");
 
@@ -794,30 +1104,57 @@ export async function runFreshSelectionTeacherCore(
     ) {
       throw new Error("fresh-selection postflight evidence drifted");
     }
-    const dataset = await digestPrivateFile(
+    const afterGenerationRunFingerprint =
+      await dependencies.computeGenerationFingerprint({
+        paths,
+        revision,
+        source: afterSource,
+        policy: afterPolicy,
+        assets: afterAssets,
+      });
+    if (afterGenerationRunFingerprint !== expectedGenerationRunFingerprint) {
+      throw new Error("fresh-selection generation fingerprint changed postflight");
+    }
+    const datasetSnapshot = await readPrivateArtifact(
       paths.dataset,
       paths.outputRoot,
       dependencies.effectiveUserId,
       FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
     );
-    const work = await digestPrivateFile(
+    const workSnapshot = await readPrivateArtifact(
       paths.work,
       paths.outputRoot,
       dependencies.effectiveUserId,
       SIBLING_TEACHER_WORK_SCHEMA,
     );
     if (
-      work.bytes !== outcome.work.bytes ||
-      work.sha256 !== outcome.work.sha256 ||
+      workSnapshot.identity.bytes !== outcome.work.bytes ||
+      workSnapshot.identity.sha256 !== outcome.work.sha256 ||
       outcome.work.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT + 1
     ) {
       throw new Error("fresh-selection work identity drifted after generation");
     }
+    dependencies.validateArtifacts({
+      label: "fresh-selection",
+      inputGames: FRESH_SELECTION_TEACHER_GAME_COUNT,
+      inputParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+      sourceParentIdsSha256: FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+      datasetBytes: datasetSnapshot.bytes,
+      workBytes: workSnapshot.bytes,
+      sourceRows: beforeSource.rows,
+      sourceRawSha256: FRESH_SELECTION_TEACHER_SOURCE.sha256,
+      expectedGenerationRunFingerprint,
+      expectedRevision: revision,
+      searchPolicy: beforePolicy.value,
+      completion,
+    });
+    const dataset = datasetSnapshot.identity;
+    const work = workSnapshot.identity;
     const runFingerprint = buildRunFingerprint(
       revision,
       beforePreflight,
       beforePolicy,
-      outcome,
+      expectedGenerationRunFingerprint,
       beforeAssets,
     );
     const manifest = {
@@ -1032,6 +1369,51 @@ async function generateFreshSelectionTeacher(
   );
 }
 
+async function computeGenerationFingerprint(
+  request: Readonly<{
+    paths: FreshSelectionTeacherPaths;
+    revision: string;
+    source: FreshSelectionTeacherSourceSnapshot;
+    policy: SearchPolicySnapshot;
+    assets: AssetReceipt;
+  }>
+): Promise<string> {
+  const receiptBytes = await fs.promises.readFile(request.paths.engineReceipt);
+  const receiptIdentity = request.assets.assets.engine.receipt;
+  if (
+    receiptBytes.byteLength !== receiptIdentity.bytes ||
+    sha256(receiptBytes) !== receiptIdentity.sha256
+  ) {
+    throw new Error("fresh-selection generation engine receipt changed");
+  }
+  const engineIdentity = request.assets.assets.engine.yaneuraou;
+  return freshSelectionSiblingTeacherRunFingerprintFromEvidence({
+    source: Object.freeze({
+      ...FRESH_SELECTION_TEACHER_SOURCE,
+      path: "fresh-selection.raw.jsonl",
+    }),
+    sourceRows: request.source.rows,
+    pipeline: {
+      source_revision: request.revision,
+      tracked_tree_clean: true,
+    },
+    engineBinSha256: engineIdentity.sha256,
+    engineBinBytes: engineIdentity.bytes,
+    engineReceiptBytes: receiptBytes,
+    evalSha256: request.assets.assets.eval.tree_sha256,
+    multipv: request.policy.value.teacher.proposal.multipv,
+    proposalDepth: request.policy.value.teacher.proposal.depth,
+    depth: request.policy.value.teacher.independent_rescore.depth,
+    parallelEngines: request.policy.value.runtime.parallel_engines,
+    hashMbPerEngine: request.policy.value.runtime.hash_mb_per_engine,
+    timeoutMs: request.policy.value.runtime.timeout_ms_per_search,
+    proposalIncompleteAllLegalFallbackMaxMoves:
+      request.policy.value.teacher.typed_incomplete_proposal_fallback
+        .allowed_only_when_legal_moves_at_most,
+  });
+}
+
+
 export function assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests(
   outputRoot: string,
   datasetPath: string,
@@ -1155,6 +1537,8 @@ const PRODUCTION_DEPENDENCIES: FreshSelectionTeacherRunnerDependencies =
     readSearchPolicy,
     readSource,
     generate: generateFreshSelectionTeacher,
+    computeGenerationFingerprint,
+    validateArtifacts: validateFreshTeacherArtifacts,
     reportProgress: (phase: string) => {
       process.stderr.write(
         `${JSON.stringify({

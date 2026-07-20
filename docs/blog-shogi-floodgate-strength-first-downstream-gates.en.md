@@ -2,7 +2,7 @@
 
 > On July 19, 2026, we implemented contracts for the final-holdout, retention,
 > known-regression, and production-browser-parity receipts used after three-seed training
-> and candidate selection. Forty focused tests passed. **This is not a training result.
+> and candidate selection. Forty-one focused tests passed. **This is not a training result.
 > It is the downstream decision boundary that prevents a weaker candidate from being called
 > stronger and entering formal A/B.** Real candidate-selection receipts and artifact
 > identities do not exist yet, so the production entry stops before opening holdout labels
@@ -11,18 +11,18 @@
 
 ## Current state
 
-| Item | State |
-| --- | --- |
-| five downstream receipt contracts | implemented |
-| stored-result reconstruction | contract implemented; separately verified evidence required |
-| production registry | closed with no enrolled identities |
-| argumentless production command | exit 2 / expected STOP |
-| real candidate authorizations consumed | 0 |
-| final-holdout label reads | 0 |
-| real downstream receipts / formal A/B games | 0 / 0 |
-| production / live-weight changes | 0 / 0 |
-| focused unit tests | 40/40 PASS in 0.085 seconds |
-| full suite / independent rereview | not run / PASS (P0/P1/P2 = 0/0/0) |
+| Item                                        | State                                                       |
+| ------------------------------------------- | ----------------------------------------------------------- |
+| five downstream receipt contracts           | implemented                                                 |
+| stored-result reconstruction                | contract implemented; separately verified evidence required |
+| production registry                         | closed with no enrolled identities                          |
+| argumentless production command             | exit 2 / expected STOP                                      |
+| real candidate authorizations consumed      | 0                                                           |
+| final-holdout label reads                   | 0                                                           |
+| real downstream receipts / formal A/B games | 0 / 0                                                       |
+| production / live-weight changes            | 0 / 0                                                       |
+| focused unit tests                          | 41/41 PASS in 0.088 seconds                                 |
+| full suite / independent rereview           | not run / PASS (P0/P1/P2 = 0/0/0)                           |
 
 The entry point verifies the fixed registry and the bytes of the existing protocols it
 references. The registry currently contains no identity for a candidate-selection receipt,
@@ -46,13 +46,13 @@ Training loss and selection score cannot establish that the AI actually playing 
 became stronger. The five receipts freeze independent ways a post-selection candidate can
 fail:
 
-| Receipt | Failure rejected | Pass condition |
-| --- | --- | --- |
-| fresh final holdout | weaker on unused positions | both int16 pair accuracy and top-1 accuracy are at least stable |
-| legacy final holdout | regression on the earlier distribution | both metrics are at least stable |
-| general / opening retention | broad or opening damage | value MAE is at most 1.05 times stable; both pair metrics are at least stable minus 0.005 |
-| known regression | return of known bad move `P*8f` | static rank, depths 11/12, and three runs at each of 800/2000/4000 ms all reject it |
-| production parity | mismatch between the trained candidate and Web runtime | exact candidate weight, fixed worker/WASM, legal in-budget move at every budget, zero console/runtime errors |
+| Receipt                     | Failure rejected                                       | Pass condition                                                                                               |
+| --------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| fresh final holdout         | weaker on unused positions                             | both int16 pair accuracy and top-1 accuracy are at least stable                                              |
+| legacy final holdout        | regression on the earlier distribution                 | both metrics are at least stable                                                                             |
+| general / opening retention | broad or opening damage                                | value MAE is at most 1.05 times stable; both pair metrics are at least stable minus 0.005                    |
+| known regression            | return of known bad move `P*8f`                        | static rank, depths 11/12, and three runs at each of 800/2000/4000 ms all reject it                          |
+| production parity           | mismatch between the trained candidate and Web runtime | exact candidate weight, fixed worker/WASM, legal in-budget move at every budget, zero console/runtime errors |
 
 Fresh and legacy final results are separate receipts, so passing one cannot substitute for
 the other. Retention requires both general and opening results. One `P*8f` observation stops
@@ -130,7 +130,7 @@ writes no receipt file.
 
 ## Validation and non-claims
 
-The focused stdlib suite passed 40/40 in 0.085 seconds. Python compilation and registry JSON
+The focused stdlib suite passed 41/41 in 0.088 seconds. Python compilation and registry JSON
 checks also passed. Coverage includes the closed registry, wrong role schemas and reused identities,
 protocol-byte drift, plain candidate/evaluator/stored-evidence mappings, one-shot tokens, a
 different measured dataset, changed stored metrics, false browser-path verification,
@@ -139,7 +139,10 @@ boundary, all five receipts, canonical paths, the argumentless STOP, legacy six-
 collisions, cross-registry tokens and bundles, in-callback registry mutation, and live
 evidence path/hash collisions. Review follow-up coverage also requires a blocked registry
 to fail explicitly before enrollment access and rejects POSIX absolute receipt paths
-independently of the host operating system. Because all five evidence envelopes are authenticated first,
+independently of the host operating system. A later review also led the core to validate
+each observation once before passing it to explicitly validated receipt builders, and added
+regressions that reject colon-bearing receipt paths including Windows drive-relative forms.
+Because all five evidence envelopes are authenticated first,
 a gate failure stops later receipts and formal readiness, not later readers. The three
 findings from the second independent review are fixed, and the independent final rereview
 reported P0/P1/P2 = 0/0/0. The resource-wide suite remains pending.

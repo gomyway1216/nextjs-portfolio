@@ -148,15 +148,16 @@
     "focused_stdlib": {
       "command": "python3 -m unittest ml.tests_stdlib.test_strength_first_downstream_gates",
       "status": "PASS",
-      "tests": 40,
-      "elapsed_seconds_reported_by_unittest": 0.085
+      "tests": 41,
+      "elapsed_seconds_reported_by_unittest": 0.088
     },
     "python_compile": "PASS",
     "registry_json": "PASS",
     "diff_check": "PASS",
     "full_suite": "NOT_RUN_SCOPED_LANE",
     "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0",
-    "github_review_followup": "BLOCKED_REGISTRY_AND_HOST_INDEPENDENT_ABSOLUTE_PATH_FINDINGS_FIXED"
+    "github_review_followup": "BLOCKED_REGISTRY_HOST_INDEPENDENT_ABSOLUTE_PATH_SINGLE_OBSERVATION_VALIDATION_AND_PORTABLE_COLON_PATH_FINDINGS_FIXED",
+    "github_copilot_review_remediation_revision": "4c1313859491f793584bf4935929c06a84b2129a"
   },
   "observed_real_counts": {
     "teacher_runs_started_by_this_lane": 0,

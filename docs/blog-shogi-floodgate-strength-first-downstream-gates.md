@@ -1,7 +1,7 @@
 # Strength-first候補の下流棋力ゲートを準備
 
 > 2026年7月19日、3-seed学習と候補選抜の後に使う、final holdout・retention・
-> known regression・本番browser parityの受領証contractを実装し、40件のfocused testで
+> known regression・本番browser parityの受領証contractを実装し、41件のfocused testで
 > 検証した。**これは評価関数を学習した結果ではなく、弱い候補を「強くなった」と誤認して
 > formal A/Bへ進めないための下流判定である。** 実候補選抜受領証と実artifact identityは
 > まだ存在しないため、production入口はholdout labelや評価器を開く前にexpected STOPとなる。
@@ -10,18 +10,18 @@
 
 ## 現在地
 
-| 項目 | 状態 |
-| --- | --- |
-| 5種類の下流受領証contract | 実装済み |
-| 保存結果の再構成 | 別認証済みevidence必須のcontractを実装 |
-| production registry | identity未登録のclosed状態 |
-| argumentless production command | exit 2 / expected STOP |
-| 実候補authorization消費 | 0 |
-| final holdout label read | 0 |
-| 実下流受領証 / formal A/B | 0 / 0 |
-| production / live weight変更 | 0 / 0 |
-| focused unit test | 40 / 40 PASS（0.085秒） |
-| full suite / 独立rereview | 未実施 / PASS（P0 / P1 / P2 = 0 / 0 / 0） |
+| 項目                            | 状態                                      |
+| ------------------------------- | ----------------------------------------- |
+| 5種類の下流受領証contract       | 実装済み                                  |
+| 保存結果の再構成                | 別認証済みevidence必須のcontractを実装    |
+| production registry             | identity未登録のclosed状態                |
+| argumentless production command | exit 2 / expected STOP                    |
+| 実候補authorization消費         | 0                                         |
+| final holdout label read        | 0                                         |
+| 実下流受領証 / formal A/B       | 0 / 0                                     |
+| production / live weight変更    | 0 / 0                                     |
+| focused unit test               | 41 / 41 PASS（0.088秒）                   |
+| full suite / 独立rereview       | 未実施 / PASS（P0 / P1 / P2 = 0 / 0 / 0） |
 
 実行入口は固定registryと、そのregistryが参照する既存protocolのbytesを確認する。現在の
 registryにはcandidate selection receipt、candidate / stable checkpoint、candidate / stable
@@ -42,13 +42,13 @@ python3 ml/strength_first_downstream_gates.py
 学習lossやselection scoreだけでは、サイト上で実際に指すAIが強くなったとは判断できない。
 今回固定した5受領証は、候補選抜後に次の異なる失敗を落とす。
 
-| 受領証 | 落とす失敗 | pass条件 |
-| --- | --- | --- |
-| fresh final holdout | 未使用局面でstableより弱い | int16 pair accuracyとtop-1 accuracyが両方stable以上 |
-| legacy final holdout | 過去分布での後退 | 同じ2指標が両方stable以上 |
-| general / opening retention | 全般・序盤の壊れ方 | value MAEはstableの1.05倍以下、pair系2指標はstable-0.005以上 |
-| known regression | 既知の悪手`P*8f`の再発 | static順位、depth 11/12、800/2000/4000msを各3回の全条件で拒否 |
-| production parity | 学習候補とWeb実行物のずれ | exact candidate weight、固定worker / WASM、全時間枠で合法手・時間内、console/runtime error 0 |
+| 受領証                      | 落とす失敗                 | pass条件                                                                                     |
+| --------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| fresh final holdout         | 未使用局面でstableより弱い | int16 pair accuracyとtop-1 accuracyが両方stable以上                                          |
+| legacy final holdout        | 過去分布での後退           | 同じ2指標が両方stable以上                                                                    |
+| general / opening retention | 全般・序盤の壊れ方         | value MAEはstableの1.05倍以下、pair系2指標はstable-0.005以上                                 |
+| known regression            | 既知の悪手`P*8f`の再発     | static順位、depth 11/12、800/2000/4000msを各3回の全条件で拒否                                |
+| production parity           | 学習候補とWeb実行物のずれ  | exact candidate weight、固定worker / WASM、全時間枠で合法手・時間内、console/runtime error 0 |
 
 freshとlegacyは別々の受領証なので、片方を通っただけでは次へ進めない。retentionもgeneralと
 openingの両方が必要である。live coreはまず5 evaluatorの認証済みevidenceをすべて集め、
@@ -118,14 +118,16 @@ canonical relative pathだけを許し、absolute path、parent traversal、back
 
 ## validationと非主張
 
-focused stdlib 40 / 40を0.085秒でPASSし、Python compile checkとregistry JSON checkもPASSした。
+focused stdlib 41 / 41を0.088秒でPASSし、Python compile checkとregistry JSON checkもPASSした。
 対象はclosed registry、role schema / identity再利用、protocol byte drift、plain candidate /
 evaluator / stored-evidence mappingによる権限偽装、一回限りtoken、別dataset計測、保存metric改ざん、
 偽のbrowser path verification、evidence content改ざん、float seed、空または不正なUSI bestmove、
 各gateの境界値、全5受領証、canonical path、argumentless STOPに加え、旧6-run schema衝突、
 cross-registry token / bundle、callback中のregistry書換え、live evidence path / hash衝突を含む。
 review follow-upでは、blocked registryをenrollment参照前に明示拒否することと、host OSに依存せず
-POSIX absolute receipt pathを拒否することも回帰testへ追加した。
+POSIX absolute receipt pathを拒否することも回帰testへ追加した。後続reviewでは、observationを
+coreで一度だけ検証して明示的にvalidatedなreceipt builderへ渡す構造へ整理し、Windowsの
+drive-relative表記を含むcolon付きreceipt pathも拒否する回帰testを追加した。
 5 evidenceを先に認証するため、gate failureが止めるのは後続readerではなく後続receipt / formal
 readinessである。2回目の独立reviewで見つかった3点を修正し、独立最終rereviewは
 P0 / P1 / P2 = 0 / 0 / 0だった。resourceを広く使うfull suiteはpendingである。

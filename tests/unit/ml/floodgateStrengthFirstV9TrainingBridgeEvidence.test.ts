@@ -142,7 +142,7 @@ describe("Floodgate strength-first v9 training bridge evidence", () => {
         python: { status: "PASS", tests: 31 },
         typescript_semantic_chain: {
           status: "PASS",
-          tests: 5,
+          tests: 6,
           covers_v8_regression: true,
           covers_v9_d14_d16_chain: true,
           covers_fail_closed_mutation: true,

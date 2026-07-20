@@ -1360,6 +1360,24 @@ function forcedReasons(
   return { fewer, timedOut, proposalIncomplete };
 }
 
+export function validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+  value: unknown,
+  target: number,
+  forced: number,
+): Readonly<{
+  fewer: number;
+  timedOut: number;
+  proposalIncomplete: number;
+}> {
+  return forcedReasons(
+    value,
+    target,
+    forced,
+    "v9-forced-reasons-test",
+    "v9",
+  );
+}
+
 function fileDigest(value: unknown, code: string): Record<string, unknown> {
   const file = exactRecord(value, ["path", "bytes", "sha256"], code);
   text(file.path, code);

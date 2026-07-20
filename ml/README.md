@@ -888,7 +888,7 @@ v8由来planのv2検証は維持し、v9由来planはgeneration取り違え防�
 training result / final checkpointはv2のままで、seed 42 / 43 / 44、warm model-only、
 lr `1e-4`、20 epochs、batch 256、fixed-final-epoch policyも不変である。正式v9教師は記録時点で
 稼働中、final resultとexact planは未作成のため、実学習・選抜・live変更は0である。
-focused Python 31 testとv8/v9 semantic TypeScript 5 testを通した。詳細は
+focused Python 31 testとv8/v9 semantic TypeScript 6 testを通した。詳細は
 [日本語記事](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.md) /
 [English article](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-v9-training-bridge-2026-07-20.json)を参照。

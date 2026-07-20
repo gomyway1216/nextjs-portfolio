@@ -543,6 +543,66 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             v9_plan["artifacts"],
             v9_plan["teacher_provenance"],
         )
+        missing_manifest, missing_result = teacher_documents(v9_plan)
+        del missing_manifest["forced_skip_reasons"][
+            "proposal_incomplete_no_label"
+        ]
+        del missing_result["completion"]["forced_skip_reasons"][
+            "proposal_incomplete_no_label"
+        ]
+        BRIDGE._validate_teacher_documents(
+            missing_manifest,
+            missing_result,
+            v9_plan["artifacts"],
+            v9_plan["teacher_provenance"],
+        )
+        for label in ("manifest", "result"):
+            with self.subTest(v9_asymmetric_reason_presence=label):
+                asymmetric_manifest, asymmetric_result = teacher_documents(
+                    v9_plan
+                )
+                asymmetric_target = (
+                    asymmetric_manifest["forced_skip_reasons"]
+                    if label == "manifest"
+                    else asymmetric_result["completion"][
+                        "forced_skip_reasons"
+                    ]
+                )
+                del asymmetric_target["proposal_incomplete_no_label"]
+                with self.assertRaisesRegex(ValueError, "completion mismatch"):
+                    BRIDGE._validate_teacher_documents(
+                        asymmetric_manifest,
+                        asymmetric_result,
+                        v9_plan["artifacts"],
+                        v9_plan["teacher_provenance"],
+                    )
+        positive_plan = complete_plan(generation="v9")
+        positive_plan["teacher_provenance"] = provenance_summary(
+            generation="v9",
+            proposal_incomplete=1,
+        )
+        positive_manifest, positive_result = teacher_documents(positive_plan)
+        for reasons in (
+            positive_manifest["forced_skip_reasons"],
+            positive_result["completion"]["forced_skip_reasons"],
+        ):
+            reasons["fewer_than_two_legal_moves"] = 999
+            reasons["proposal_incomplete_no_label"] = 1
+        BRIDGE._validate_teacher_documents(
+            positive_manifest,
+            positive_result,
+            positive_plan["artifacts"],
+            positive_plan["teacher_provenance"],
+        )
+        extra_manifest, extra_result = teacher_documents(v9_plan)
+        extra_manifest["forced_skip_reasons"]["unexpected"] = 0
+        with self.assertRaisesRegex(ValueError, "fields are not exact"):
+            BRIDGE._validate_teacher_documents(
+                extra_manifest,
+                extra_result,
+                v9_plan["artifacts"],
+                v9_plan["teacher_provenance"],
+            )
         v9_result["completion"]["forced_skip_reasons"] = {
             "fewer_than_two_legal_moves": 999,
             "search_timeout_no_label": 0,

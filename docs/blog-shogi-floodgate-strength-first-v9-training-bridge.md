@@ -84,7 +84,7 @@ seed 42 / 43 / 44はすべてspawnしてから待機へ入り、1つが失敗す
 ## 検証結果と限界
 
 Pythonのbridge / builder / launcherはfocused 31 test、TypeScriptのv8 / v9 semantic chainは
-focused 5 testをPASSした。v9 testは小規模な実物同型runを実際に生成し、depth 14 proposalと
+focused 6 testをPASSした。v9 testは小規模な実物同型runを実際に生成し、depth 14 proposalと
 depth 16独立再採点、fast-input二重確認、13 engine、第3 skip aggregate、privacy-safe出力、
 改ざん時のfail-closedを確認した。v8回帰も同じsuiteで通した。
 

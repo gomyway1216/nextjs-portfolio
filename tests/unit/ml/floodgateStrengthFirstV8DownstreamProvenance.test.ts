@@ -26,6 +26,7 @@ import {
   FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS,
   FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
   parseFloodgateStrengthFirstV8PrettyJsonForTests,
+  validateFloodgateStrengthFirstV9ForcedReasonsForTests,
   verifyFloodgateStrengthFirstV8DownstreamProvenance,
   verifyFloodgateStrengthFirstV9DownstreamProvenance,
   type FloodgateStrengthFirstV8DownstreamProvenanceInput,
@@ -751,6 +752,52 @@ describe("strength-first v8 downstream provenance", () => {
 });
 
 describe("strength-first v9 downstream provenance", () => {
+  it("canonicalizes an absent third reason to zero and rejects only noncanonical fields", () => {
+    expect(
+      validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+        {
+          fewer_than_two_legal_moves: 1,
+          search_timeout_no_label: 0,
+        },
+        1_000,
+        1,
+      ),
+    ).toEqual({ fewer: 1, timedOut: 0, proposalIncomplete: 0 });
+    expect(
+      validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+        {
+          fewer_than_two_legal_moves: 1,
+          search_timeout_no_label: 0,
+          proposal_incomplete_no_label: 0,
+        },
+        1_000,
+        1,
+      ),
+    ).toEqual({ fewer: 1, timedOut: 0, proposalIncomplete: 0 });
+    expect(
+      validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+        {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 0,
+          proposal_incomplete_no_label: 1,
+        },
+        1_000,
+        1,
+      ),
+    ).toEqual({ fewer: 0, timedOut: 0, proposalIncomplete: 1 });
+    expect(() =>
+      validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+        {
+          fewer_than_two_legal_moves: 1,
+          search_timeout_no_label: 0,
+          unexpected: 0,
+        },
+        1_000,
+        1,
+      ),
+    ).toThrow();
+  });
+
   it("keeps the production CLI argumentless", async () => {
     await expect(
       runFloodgateStrengthFirstV9DownstreamProvenanceCli(["path-override"]),

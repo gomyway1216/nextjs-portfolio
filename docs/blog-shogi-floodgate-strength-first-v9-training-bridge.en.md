@@ -102,7 +102,7 @@ holdout labels, or write production weights.
 ## Validation and limits
 
 The focused Python bridge, builder, and launcher suite passed 31 tests. The
-focused TypeScript v8/v9 semantic-chain suite passed five tests. The v9 test
+focused TypeScript v8/v9 semantic-chain suite passed six tests. The v9 test
 generates a production-shaped small run and covers depth-14 proposal,
 depth-16 independent rescoring, fast-input reauthentication, 13 engines, the
 third skip aggregate, privacy-safe output, and fail-closed mutation handling.

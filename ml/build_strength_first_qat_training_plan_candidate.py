@@ -828,7 +828,20 @@ def _verify_v8_downstream_provenance(
             text=False,
             timeout=300,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr
+        detail = ""
+        if type(stderr) is bytes and 0 < len(stderr) <= 1_024:
+            try:
+                decoded = stderr.decode("utf-8", errors="strict").strip()
+            except UnicodeDecodeError:
+                decoded = ""
+            if decoded and "\x00" not in decoded and "\r" not in decoded:
+                detail = f": {decoded}"
+        raise StrengthFirstPlanCandidateError(
+            f"v8 downstream provenance verification failed{detail}"
+        ) from error
+    except (OSError, subprocess.TimeoutExpired) as error:
         raise StrengthFirstPlanCandidateError(
             "v8 downstream provenance verification failed"
         ) from error

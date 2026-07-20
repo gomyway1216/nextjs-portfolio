@@ -644,6 +644,41 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             {"stable": True},
         )
 
+    def test_v8_provenance_subprocess_reports_generic_stderr_on_failure(self):
+        failure = BUILDER.subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["/fixed/node"],
+            stderr=b"v8 downstream provenance verification failed\n",
+        )
+        with mock.patch.object(
+            BUILDER,
+            "_snapshot_fixed_training_interpreter",
+            return_value=("/fixed/node", {"stable": True}),
+        ), mock.patch.object(
+            BUILDER,
+            "_revalidate_fixed_training_interpreter",
+        ) as revalidate, mock.patch.object(
+            BUILDER.subprocess,
+            "run",
+            side_effect=failure,
+        ):
+            with self.assertRaisesRegex(
+                BUILDER.StrengthFirstPlanCandidateError,
+                (
+                    "v8 downstream provenance verification failed: "
+                    "v8 downstream provenance verification failed"
+                ),
+            ):
+                BUILDER._verify_v8_downstream_provenance(
+                    node_path="/fixed/node",
+                    repo_root="/repo",
+                    home="/home/user",
+                )
+        revalidate.assert_called_once_with(
+            "/fixed/node",
+            {"stable": True},
+        )
+
     def test_snapshot_rejects_permissive_mode_and_symbolic_link(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

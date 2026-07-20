@@ -1,29 +1,30 @@
-import { createHash } from 'node:crypto';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
   siblingTeacherStagePaths,
-} from '../../../ml/generate-sibling-teacher';
+} from "../../../ml/generate-sibling-teacher";
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CLAIM_BOUNDARY,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_TRUST_BOUNDARY,
   FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
-} from '../../../ml/floodgate-production-teacher-asset-authority';
+} from "../../../ml/floodgate-production-teacher-asset-authority";
 import {
   FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
   FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
+  parseFloodgateStrengthFirstV8PrettyJsonForTests,
   verifyFloodgateStrengthFirstV8DownstreamProvenance,
   type FloodgateStrengthFirstV8DownstreamProvenanceInput,
-} from '../../../ml/floodgate-strength-first-v8-downstream-provenance';
+} from "../../../ml/floodgate-strength-first-v8-downstream-provenance";
 import {
   FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
   FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA,
@@ -31,16 +32,14 @@ import {
   FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION,
-} from '../../../ml/floodgate-strength-first-teacher-runner';
+} from "../../../ml/floodgate-strength-first-teacher-runner";
 import {
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CONTRACT,
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_STATUS,
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
-} from '../../../ml/floodgate-strength-first-v8-teacher-authority';
-import {
-  runFloodgateStrengthFirstV8DownstreamProvenanceCli,
-} from '../../../ml/verify-floodgate-strength-first-v8-downstream-provenance';
+} from "../../../ml/floodgate-strength-first-v8-teacher-authority";
+import { runFloodgateStrengthFirstV8DownstreamProvenanceCli } from "../../../ml/verify-floodgate-strength-first-v8-downstream-provenance";
 import {
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM,
@@ -49,39 +48,47 @@ import {
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
-} from '../../../ml/floodgate-training-row-consumer';
-import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from '../../../ml/floodgate-role-bundle';
-import { floodgateIdentifierDigest } from '../../../ml/floodgate-roles';
-import { positionKeyFromSfen } from '../../../ml/sibling-data';
+} from "../../../ml/floodgate-training-row-consumer";
+import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from "../../../ml/floodgate-role-bundle";
+import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
+import { positionKeyFromSfen } from "../../../ml/sibling-data";
 
-const START = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
+const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const START_WITHOUT_NINTH_FILE_PAWN =
-  'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/1PPPPPPPP/1B5R1/LNSGKGSNL b - 1';
+  "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/1PPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const ONE_LEGAL =
-  '1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107';
+  "1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107";
 const roots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) => fs.promises.rm(root, { force: true, recursive: true })),
+    roots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { force: true, recursive: true })),
   );
 });
 
 function sha256(value: Uint8Array | string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return JSON.stringify(value);
   }
-  if (typeof value === 'number') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (typeof value === "number") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   const record = value as Record<string, unknown>;
   return `{${Object.keys(record)
-    .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
+    .sort((left, right) =>
+      Buffer.compare(Buffer.from(left), Buffer.from(right)),
+    )
     .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(',')}}`;
+    .join(",")}}`;
 }
 
 function prettyBytes(value: unknown): Buffer {
@@ -120,26 +127,26 @@ function rawRow(
     ply,
     position_id: positionKeyFromSfen(parentSfen),
     schema_version: 1,
-    source: 'floodgate',
+    source: "floodgate",
     source_url: sourceUrl,
   };
 }
 
 async function writeEngineReceipt(root: string): Promise<string> {
   const engine = await fs.promises.readFile(process.execPath);
-  const receipt = path.join(root, 'engine-receipt.json');
+  const receipt = path.join(root, "engine-receipt.json");
   await fs.promises.writeFile(
     receipt,
     `${JSON.stringify({
-      schema: 'shogi-teacher-engine-receipt-v1',
-      source_repository: 'https://example.test/teacher-engine.git',
-      source_commit: '0123456789abcdef0123456789abcdef01234567',
-      source_commit_date: '2026-07-02T13:41:06+09:00',
-      build_directory: 'source',
-      build_command: 'test build',
-      compiler: 'test compiler',
-      compiler_target: 'test-target',
-      engine_id: 'deterministic fake engine',
+      schema: "shogi-teacher-engine-receipt-v1",
+      source_repository: "https://example.test/teacher-engine.git",
+      source_commit: "0123456789abcdef0123456789abcdef01234567",
+      source_commit_date: "2026-07-02T13:41:06+09:00",
+      build_directory: "source",
+      build_command: "test build",
+      compiler: "test compiler",
+      compiler_target: "test-target",
+      engine_id: "deterministic fake engine",
       binary_bytes: engine.byteLength,
       binary_sha256: sha256(engine),
     })}\n`,
@@ -148,7 +155,7 @@ async function writeEngineReceipt(root: string): Promise<string> {
 }
 
 async function writeFixtureEngine(root: string): Promise<string> {
-  const engine = path.join(root, 'fixture-engine.mjs');
+  const engine = path.join(root, "fixture-engine.mjs");
   await fs.promises.writeFile(
     engine,
     `import readline from 'node:readline';
@@ -181,7 +188,7 @@ function evidence(
   relativePath: string,
   bytes: number,
   digest: string,
-  mode: '0600' | '0700',
+  mode: "0600" | "0700",
   inode: number,
 ) {
   return {
@@ -189,7 +196,7 @@ function evidence(
     bytes,
     sha256: digest,
     mode,
-    identity: { dev: '1', ino: String(inode) },
+    identity: { dev: "1", ino: String(inode) },
   };
 }
 
@@ -199,72 +206,76 @@ interface Fixture {
 }
 
 async function fixture(): Promise<Fixture> {
-  const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'v8-provenance-'));
+  const root = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), "v8-provenance-"),
+  );
   roots.push(root);
-  const stageRoot = path.join(root, 'stage');
+  const stageRoot = path.join(root, "stage");
   const stage = siblingTeacherStagePaths(stageRoot);
-  const evalDir = path.join(root, 'eval');
+  const evalDir = path.join(root, "eval");
   await fs.promises.mkdir(evalDir, { recursive: true });
-  await fs.promises.writeFile(path.join(evalDir, 'nn.bin'), 'fixture-nnue\n');
+  await fs.promises.writeFile(path.join(evalDir, "nn.bin"), "fixture-nnue\n");
   const rawRows = [
     rawRow(
-      'https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+A+B+20260101000000.csa',
+      "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+A+B+20260101000000.csa",
       ONE_LEGAL,
       106,
-      '8h5h',
+      "8h5h",
     ),
     rawRow(
-      'https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/02/wdoor+floodgate-300-10F+C+D+20260102000000.csa',
+      "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/02/wdoor+floodgate-300-10F+C+D+20260102000000.csa",
       START,
       0,
-      '6g6f',
+      "6g6f",
     ),
     rawRow(
-      'https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/03/wdoor+floodgate-300-10F+E+F+20260103000000.csa',
+      "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/03/wdoor+floodgate-300-10F+E+F+20260103000000.csa",
       START_WITHOUT_NINTH_FILE_PAWN,
       0,
-      '6g6f',
+      "6g6f",
     ),
   ].sort((left, right) =>
-    Buffer.compare(Buffer.from(String(left.parent_id)), Buffer.from(String(right.parent_id))),
+    Buffer.compare(
+      Buffer.from(String(left.parent_id)),
+      Buffer.from(String(right.parent_id)),
+    ),
   );
-  const authenticatedRows = rawRows.map(
-    (row): FloodgateTrainingParent => ({
-      schema_version: 1,
-      game_id: String(row.game_id),
-      parent_id: String(row.parent_id),
-      position_id: String(row.position_id),
-      parent_sfen: String(row.parent_sfen),
-      ply: Number(row.ply),
-      played_move: String(row.played_move),
-    }),
-  );
-  const raw = Buffer.from(`${rawRows.map(canonicalJson).join('\n')}\n`);
+  const authenticatedRows = rawRows.map((row): FloodgateTrainingParent => ({
+    schema_version: 1,
+    game_id: String(row.game_id),
+    parent_id: String(row.parent_id),
+    position_id: String(row.position_id),
+    parent_sfen: String(row.parent_sfen),
+    ply: Number(row.ply),
+    played_move: String(row.played_move),
+  }));
+  const raw = Buffer.from(`${rawRows.map(canonicalJson).join("\n")}\n`);
   const gameIds = new Set(authenticatedRows.map((row) => row.game_id));
   const parentIds = new Set(authenticatedRows.map((row) => row.parent_id));
   const positionIds = new Set(authenticatedRows.map((row) => row.position_id));
-  const authenticated: Readonly<AuthenticatedFloodgateTrainingRows> = Object.freeze({
-    schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
-    role: 'training',
-    binding: Object.freeze({
-      result_receipt_bytes: 1,
-      result_receipt_sha256: sha256('result-receipt'),
-      bundle_manifest_bytes: 1,
-      bundle_manifest_sha256: sha256('bundle-manifest'),
-      bundle_producer_revision: '1'.repeat(40),
-      verifier_revision: FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION,
-      raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
-      raw_bytes: raw.byteLength,
-      raw_sha256: sha256(raw),
-      records: authenticatedRows.length,
-      games: gameIds.size,
-      game_ids_sha256: floodgateIdentifierDigest(gameIds),
-      parent_ids_sha256: floodgateIdentifierDigest(parentIds),
-      position_ids_count: positionIds.size,
-      position_ids_sha256: floodgateIdentifierDigest(positionIds),
-    }),
-    rows: Object.freeze(authenticatedRows.map((row) => Object.freeze(row))),
-  });
+  const authenticated: Readonly<AuthenticatedFloodgateTrainingRows> =
+    Object.freeze({
+      schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+      role: "training",
+      binding: Object.freeze({
+        result_receipt_bytes: 1,
+        result_receipt_sha256: sha256("result-receipt"),
+        bundle_manifest_bytes: 1,
+        bundle_manifest_sha256: sha256("bundle-manifest"),
+        bundle_producer_revision: "1".repeat(40),
+        verifier_revision: FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION,
+        raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+        raw_bytes: raw.byteLength,
+        raw_sha256: sha256(raw),
+        records: authenticatedRows.length,
+        games: gameIds.size,
+        game_ids_sha256: floodgateIdentifierDigest(gameIds),
+        parent_ids_sha256: floodgateIdentifierDigest(parentIds),
+        position_ids_count: positionIds.size,
+        position_ids_sha256: floodgateIdentifierDigest(positionIds),
+      }),
+      rows: Object.freeze(authenticatedRows.map((row) => Object.freeze(row))),
+    });
   const baseOptions = {
     stageRoot,
     runnerRevision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
@@ -301,11 +312,13 @@ async function fixture(): Promise<Fixture> {
     dependencies,
   );
   if (
-    first.status !== 'local-work-prefix-complete-not-an-authentication-receipt' ||
-    second.status !== 'local-work-prefix-complete-not-an-authentication-receipt' ||
-    final.status !== 'complete-training-only'
+    first.status !==
+      "local-work-prefix-complete-not-an-authentication-receipt" ||
+    second.status !==
+      "local-work-prefix-complete-not-an-authentication-receipt" ||
+    final.status !== "complete-training-only"
   ) {
-    throw new Error('fixture generation did not reach the expected milestones');
+    throw new Error("fixture generation did not reach the expected milestones");
   }
   const [manifest, stagedResult, work, completion, train] = await Promise.all([
     fs.promises.readFile(stage.manifest),
@@ -314,42 +327,51 @@ async function fixture(): Promise<Fixture> {
     fs.promises.readFile(stage.parentCompletion),
     fs.promises.readFile(stage.train),
   ]);
-  const manifestValue = JSON.parse(manifest.toString('utf8')) as Record<string, any>;
+  const manifestValue = JSON.parse(manifest.toString("utf8")) as Record<
+    string,
+    any
+  >;
   const engineReceiptFile = manifestValue.teacher.engine_receipt.file;
   const evalNn = manifestValue.teacher.eval_files[0];
   const engineAsset = evidence(
-    'engine/yaneuraou',
+    "engine/yaneuraou",
     manifestValue.teacher.engine_bin_bytes,
     manifestValue.teacher.engine_bin_sha256,
-    '0700',
+    "0700",
     1,
   );
   const receiptAsset = evidence(
-    'engine/yaneuraou-receipt.json',
+    "engine/yaneuraou-receipt.json",
     engineReceiptFile.bytes,
     engineReceiptFile.sha256,
-    '0600',
+    "0600",
     2,
   );
-  const evalAsset = evidence('eval/nn.bin', evalNn.bytes, evalNn.sha256, '0600', 3);
+  const evalAsset = evidence(
+    "eval/nn.bin",
+    evalNn.bytes,
+    evalNn.sha256,
+    "0600",
+    3,
+  );
   const stableAsset = (name: string, inode: number) =>
-    evidence(`stable/${name}`, 1, sha256(name), '0600', inode);
+    evidence(`stable/${name}`, 1, sha256(name), "0600", inode);
   const assets = {
     engine: { yaneuraou: engineAsset, receipt: receiptAsset },
     eval: { nn: evalAsset, tree_sha256: manifestValue.teacher.eval_sha256 },
     stable: {
-      plan: stableAsset('plan.json', 4),
-      wasm: stableAsset('shogi.wasm', 5),
-      weights: stableAsset('weights.bin', 6),
-      worker: stableAsset('worker.mjs', 7),
+      plan: stableAsset("plan.json", 4),
+      wasm: stableAsset("shogi.wasm", 5),
+      weights: stableAsset("weights.bin", 6),
+      worker: stableAsset("worker.mjs", 7),
     },
   };
   const engine = {
-    receipt_schema: 'shogi-teacher-engine-receipt-v1',
-    source_repository: 'https://example.test/teacher-engine.git',
-    source_commit: '0123456789abcdef0123456789abcdef01234567',
-    source_commit_date: '2026-07-02T13:41:06+09:00',
-    engine_id: 'deterministic fake engine',
+    receipt_schema: "shogi-teacher-engine-receipt-v1",
+    source_repository: "https://example.test/teacher-engine.git",
+    source_commit: "0123456789abcdef0123456789abcdef01234567",
+    source_commit_date: "2026-07-02T13:41:06+09:00",
+    engine_id: "deterministic fake engine",
     binary_cross_bound: true,
   };
   const postverification = {
@@ -363,9 +385,9 @@ async function fixture(): Promise<Fixture> {
     status: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
     claim_boundary: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CLAIM_BOUNDARY,
     trust_boundary: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_TRUST_BOUNDARY,
-    execution_boundary: 'production-fixed-registry-and-deployment-root',
+    execution_boundary: "production-fixed-registry-and-deployment-root",
     deployment: {
-      layout: 'fixed-per-user-application-support-v1',
+      layout: "fixed-per-user-application-support-v1",
       owner_uid: 501,
       exact_tree: true,
       private_directories: true,
@@ -378,8 +400,9 @@ async function fixture(): Promise<Fixture> {
   const authority = {
     contract: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CONTRACT,
     status: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_STATUS,
-    claim_boundary: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
-    execution_boundary: 'production-fixed-registry-and-deployment-root',
+    claim_boundary:
+      FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
+    execution_boundary: "production-fixed-registry-and-deployment-root",
     asset_authority: legacy,
     assets,
     engine,
@@ -394,7 +417,7 @@ async function fixture(): Promise<Fixture> {
   const milestone = (progress: typeof first) => ({
     schema: FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA,
     status:
-      'local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt',
+      "local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt",
     authentication_receipt: false,
     playing_strength_evidence: false,
     target_parents: progress.target_parents,
@@ -402,7 +425,7 @@ async function fixture(): Promise<Fixture> {
     runner_revision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
     authenticated_input: inputProjection,
     stage: {
-      root: '.',
+      root: ".",
       same_stage_for_all_targets: true,
       automatically_continue_to_next_target: true,
     },
@@ -424,7 +447,7 @@ async function fixture(): Promise<Fixture> {
     schema: FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_SCHEMA,
     status: FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_STATUS,
     claim_boundary: FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
-    execution_boundary: 'production-fixed-pinned-bundle-verifier',
+    execution_boundary: "production-fixed-pinned-bundle-verifier",
     input: inputProjection,
     runtime_claim: FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM,
     postflight: {
@@ -435,15 +458,15 @@ async function fixture(): Promise<Fixture> {
   };
   const resultValue = {
     schema: FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
-    status: 'complete-training-only-postflight-bound',
+    status: "complete-training-only-postflight-bound",
     claim_boundary:
-      'postflight-input-and-staged-output-integrity-not-playing-strength-evidence',
+      "postflight-input-and-staged-output-integrity-not-playing-strength-evidence",
     runner: {
       schema: FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA,
       revision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
       node: FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION,
-      platform: 'darwin',
-      architecture: 'arm64',
+      platform: "darwin",
+      architecture: "arm64",
       local_only: true,
       network_requests: 0,
       cloud_services: [],
@@ -453,13 +476,13 @@ async function fixture(): Promise<Fixture> {
     authenticated_input: inputProjection,
     consumer_postflight: postflight,
     teacher: {
-      engine: 'YaneuraOu',
+      engine: "YaneuraOu",
       parallel_engines: 12,
       threads_per_engine: 1,
       proposal: { multipv: 12, depth: 16 },
       independent_rescore: {
         multipv: 1,
-        searchmoves: 'exactly-one-candidate',
+        searchmoves: "exactly-one-candidate",
         depth: 16,
       },
       hash_mb_per_engine: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
@@ -470,8 +493,8 @@ async function fixture(): Promise<Fixture> {
     },
     milestones: {
       targets: [1, 2, 3],
-      prefix_100: fileBinding('milestone-1.json', milestone100),
-      prefix_500: fileBinding('milestone-2.json', milestone500),
+      prefix_100: fileBinding("milestone-1.json", milestone100),
+      prefix_500: fileBinding("milestone-2.json", milestone500),
     },
     completion: {
       input_parents: 3,
@@ -482,11 +505,11 @@ async function fixture(): Promise<Fixture> {
       run_fingerprint: final.run_fingerprint,
     },
     staged_outputs: {
-      work: fileBinding('work.jsonl', work),
-      train: fileBinding('train.jsonl', train),
-      parent_completion: fileBinding('parent-completion.jsonl', completion),
-      manifest: fileBinding('manifest.json', manifest),
-      staged_result: fileBinding('staged-result.json', stagedResult),
+      work: fileBinding("work.jsonl", work),
+      train: fileBinding("train.jsonl", train),
+      parent_completion: fileBinding("parent-completion.jsonl", completion),
+      manifest: fileBinding("manifest.json", manifest),
+      staged_result: fileBinding("staged-result.json", stagedResult),
     },
     publication: {
       stage_root_private_0700: true,
@@ -517,59 +540,69 @@ async function fixture(): Promise<Fixture> {
   };
 }
 
-describe('strength-first v8 downstream provenance', () => {
-  it('keeps the production CLI argumentless', async () => {
-    await expect(
-      runFloodgateStrengthFirstV8DownstreamProvenanceCli(['path-override']),
-    ).rejects.toThrow('unsupported-invocation');
+describe("strength-first v8 downstream provenance", () => {
+  it("accepts canonical small pretty JSON records before semantic validation", () => {
+    expect(
+      parseFloodgateStrengthFirstV8PrettyJsonForTests(Buffer.from("{}\n")),
+    ).toEqual({});
   });
 
-  it(
-    'accepts the complete row-semantic chain, emits only safe aggregates, and fails closed',
-    async () => {
-      const data = await fixture();
-      const summary = await verifyFloodgateStrengthFirstV8DownstreamProvenance(data.input);
-      expect(summary).toMatchObject({
-        schema: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
-        status: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
-        target_parents: 3,
-        forced_parents_skipped: 1,
-        emitted_parent_groups: 2,
-        fewer_than_two_legal_moves: 1,
-        search_timeout_no_label: 0,
-        milestone_targets: [1, 2],
-        local_only: true,
-        network_requests: 0,
-        cloud_services: 0,
-        live_weight_changes: 0,
-        training_only: true,
-        private_identifiers_disclosed: false,
-        private_digests_disclosed: false,
-      });
-      const publicText = JSON.stringify(summary);
-      expect(publicText).not.toMatch(/sha256:/u);
-      expect(publicText).not.toMatch(/[0-9a-f]{64}/u);
+  it("keeps the production CLI argumentless", async () => {
+    await expect(
+      runFloodgateStrengthFirstV8DownstreamProvenanceCli(["path-override"]),
+    ).rejects.toThrow("unsupported-invocation");
+  });
 
-      const timeoutMiscount = structuredClone(data.resultValue) as Record<string, any>;
-      timeoutMiscount.completion.forced_skip_reasons = {
-        fewer_than_two_legal_moves: 0,
-        search_timeout_no_label: 1,
-      };
-      const failures: FloodgateStrengthFirstV8DownstreamProvenanceInput[] = [
-        { ...data.input, result: prettyBytes(timeoutMiscount) },
-        { ...data.input, work: Buffer.concat([data.input.work as Uint8Array, Buffer.from('x')]) },
-        { ...data.input, verifyRevisionDescendant: async () => false },
-        {
-          ...data.input,
-          authenticatedInput: {} as AuthenticatedFloodgateTrainingRows,
-        },
-      ];
-      for (const invalid of failures) {
-        await expect(
-          verifyFloodgateStrengthFirstV8DownstreamProvenance(invalid),
-        ).rejects.toThrow(/^v8-downstream-provenance-verification-failed$/u);
-      }
-    },
-    30_000,
-  );
+  it("accepts the complete row-semantic chain, emits only safe aggregates, and fails closed", async () => {
+    const data = await fixture();
+    const summary = await verifyFloodgateStrengthFirstV8DownstreamProvenance(
+      data.input,
+    );
+    expect(summary).toMatchObject({
+      schema: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
+      status: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
+      target_parents: 3,
+      forced_parents_skipped: 1,
+      emitted_parent_groups: 2,
+      fewer_than_two_legal_moves: 1,
+      search_timeout_no_label: 0,
+      milestone_targets: [1, 2],
+      local_only: true,
+      network_requests: 0,
+      cloud_services: 0,
+      live_weight_changes: 0,
+      training_only: true,
+      private_identifiers_disclosed: false,
+      private_digests_disclosed: false,
+    });
+    const publicText = JSON.stringify(summary);
+    expect(publicText).not.toMatch(/sha256:/u);
+    expect(publicText).not.toMatch(/[0-9a-f]{64}/u);
+
+    const timeoutMiscount = structuredClone(data.resultValue) as Record<
+      string,
+      any
+    >;
+    timeoutMiscount.completion.forced_skip_reasons = {
+      fewer_than_two_legal_moves: 0,
+      search_timeout_no_label: 1,
+    };
+    const failures: FloodgateStrengthFirstV8DownstreamProvenanceInput[] = [
+      { ...data.input, result: prettyBytes(timeoutMiscount) },
+      {
+        ...data.input,
+        work: Buffer.concat([data.input.work as Uint8Array, Buffer.from("x")]),
+      },
+      { ...data.input, verifyRevisionDescendant: async () => false },
+      {
+        ...data.input,
+        authenticatedInput: {} as AuthenticatedFloodgateTrainingRows,
+      },
+    ];
+    for (const invalid of failures) {
+      await expect(
+        verifyFloodgateStrengthFirstV8DownstreamProvenance(invalid),
+      ).rejects.toThrow(/^v8-downstream-provenance-verification-failed$/u);
+    }
+  }, 30_000);
 });

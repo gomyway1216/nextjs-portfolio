@@ -9,9 +9,7 @@
 
 import { createHash, type Hash } from "node:crypto";
 
-import {
-  FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
-} from "./floodgate-production-teacher-asset-authority";
+import { FLOODGATE_PRODUCTION_TEACHER_RUNTIME } from "./floodgate-production-teacher-asset-authority";
 import {
   INDEPENDENT_EXACT_RESCORE_MODE,
   SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
@@ -56,7 +54,11 @@ import {
 } from "./floodgate-training-row-consumer";
 import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from "./floodgate-role-bundle";
 import { parseAuthenticatedFloodgateTrainingRows } from "./floodgate-training-row-validation";
-import { compareBytewise, validateParentGroups, type SiblingRecord } from "./sibling-data";
+import {
+  compareBytewise,
+  validateParentGroups,
+  type SiblingRecord,
+} from "./sibling-data";
 import { USI_TEACHER_ENGINE_CONTRACT } from "./usi-engine";
 
 export const FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA =
@@ -228,7 +230,8 @@ function exactArray(value: unknown, length: number, code: string): unknown[] {
 
 function sameJson(left: unknown, right: unknown): boolean {
   if (left === right) return true;
-  if (typeof left !== typeof right || left === null || right === null) return false;
+  if (typeof left !== typeof right || left === null || right === null)
+    return false;
   if (Array.isArray(left) || Array.isArray(right)) {
     return (
       Array.isArray(left) &&
@@ -303,12 +306,14 @@ function fatalUtf8(bytes: Uint8Array, code: string): string {
   }
 }
 
-function parsePrettyJson(bytes: Uint8Array, code: string): Record<string, unknown> {
+function parsePrettyJson(
+  bytes: Uint8Array,
+  code: string,
+): Record<string, unknown> {
   const buffer = Buffer.from(bytes);
   if (
     buffer.byteLength === 0 ||
     buffer.at(-1) !== 0x0a ||
-    buffer.subarray(0, -1).includes(0x0a) === false ||
     buffer.includes(0x00) ||
     buffer.includes(0x0d) ||
     (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf)
@@ -326,6 +331,12 @@ function parsePrettyJson(bytes: Uint8Array, code: string): Record<string, unknow
     fail(code);
   }
   return parsed;
+}
+
+export function parseFloodgateStrengthFirstV8PrettyJsonForTests(
+  bytes: Uint8Array,
+): Record<string, unknown> {
+  return parsePrettyJson(bytes, "pretty-json");
 }
 
 function byteSources(source: SerializedBytesSource): AsyncIterable<Uint8Array> {
@@ -374,7 +385,8 @@ function createJsonlReader(
       }
       hash.update(chunk);
       stats.bytes += chunk.byteLength;
-      pending = pending.byteLength === 0 ? chunk : Buffer.concat([pending, chunk]);
+      pending =
+        pending.byteLength === 0 ? chunk : Buffer.concat([pending, chunk]);
       let newline: number;
       while ((newline = pending.indexOf(0x0a)) !== -1) {
         const raw = pending.subarray(0, newline);
@@ -405,7 +417,8 @@ function createJsonlReader(
       fail(options.code);
     }
     if (stats.lines === 0 && options.allowEmpty !== true) fail(options.code);
-    if (prefixes.some((prefix) => prefix.sha256 === undefined)) fail(options.code);
+    if (prefixes.some((prefix) => prefix.sha256 === undefined))
+      fail(options.code);
     stats.sha256 = hash.digest("hex");
   })()[Symbol.asyncIterator]();
   return { iterator, stats, prefixes };
@@ -517,7 +530,11 @@ function validateAuthenticatedInput(
   ) {
     fail("input-contract");
   }
-  const binding = exactRecord(input.binding, INPUT_BINDING_KEYS, "input-binding");
+  const binding = exactRecord(
+    input.binding,
+    INPUT_BINDING_KEYS,
+    "input-binding",
+  );
   if (
     binding.raw_format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT ||
     binding.verifier_revision !==
@@ -591,7 +608,10 @@ function validateAuthenticatedInput(
   return parents;
 }
 
-function validateEvidence(value: unknown, code: string): Record<string, unknown> {
+function validateEvidence(
+  value: unknown,
+  code: string,
+): Record<string, unknown> {
   const evidence = exactRecord(
     value,
     ["relative_path", "bytes", "sha256", "mode", "identity"],
@@ -670,7 +690,11 @@ function validateAssetAuthority(
   ) {
     fail("asset-authority-alias");
   }
-  const assets = exactRecord(authority.assets, ["engine", "eval", "stable"], "assets");
+  const assets = exactRecord(
+    authority.assets,
+    ["engine", "eval", "stable"],
+    "assets",
+  );
   const engineAssets = exactRecord(
     assets.engine,
     ["yaneuraou", "receipt"],
@@ -678,13 +702,21 @@ function validateAssetAuthority(
   );
   validateEvidence(engineAssets.yaneuraou, "assets-engine-bin");
   validateEvidence(engineAssets.receipt, "assets-engine-receipt");
-  const evalAssets = exactRecord(assets.eval, ["nn", "tree_sha256"], "assets-eval");
+  const evalAssets = exactRecord(
+    assets.eval,
+    ["nn", "tree_sha256"],
+    "assets-eval",
+  );
   validateEvidence(evalAssets.nn, "assets-eval-nn");
   digest(evalAssets.tree_sha256, "assets-eval-tree");
   return authority;
 }
 
-function validateInputBinding(value: unknown, expected: unknown, code: string): void {
+function validateInputBinding(
+  value: unknown,
+  expected: unknown,
+  code: string,
+): void {
   const input = exactRecord(value, ["schema", "role", "binding"], code);
   if (
     input.schema !== FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA ||
@@ -792,7 +824,11 @@ function validateResultEnvelope(
     fail("runner-contract");
   }
   validateAssetAuthority(result.production_asset_preflight, expectedAuthority);
-  validateInputBinding(result.authenticated_input, expectedInput, "result-input");
+  validateInputBinding(
+    result.authenticated_input,
+    expectedInput,
+    "result-input",
+  );
   validatePostflight(result.consumer_postflight, expectedInput);
   const teacher = exactRecord(
     result.teacher,
@@ -842,8 +878,16 @@ function validateResultEnvelope(
     [milestoneTargets[0], milestoneTargets[1], target],
     "result-milestone-targets",
   );
-  fileBinding(milestones.prefix_100, `milestone-${milestoneTargets[0]}.json`, "prefix-1");
-  fileBinding(milestones.prefix_500, `milestone-${milestoneTargets[1]}.json`, "prefix-2");
+  fileBinding(
+    milestones.prefix_100,
+    `milestone-${milestoneTargets[0]}.json`,
+    "prefix-1",
+  );
+  fileBinding(
+    milestones.prefix_500,
+    `milestone-${milestoneTargets[1]}.json`,
+    "prefix-2",
+  );
   const completion = exactRecord(
     result.completion,
     [
@@ -1123,15 +1167,29 @@ function validateManifest(
     ["staged_inside_authenticated_callback", "consumer_postflight_bound"],
     "manifest-publication",
   );
-  const authority = validateAssetAuthority(expectedAuthority, expectedAuthority);
-  const assets = exactRecord(authority.assets, ["engine", "eval", "stable"], "assets");
+  const authority = validateAssetAuthority(
+    expectedAuthority,
+    expectedAuthority,
+  );
+  const assets = exactRecord(
+    authority.assets,
+    ["engine", "eval", "stable"],
+    "assets",
+  );
   const engineAssets = exactRecord(
     assets.engine,
     ["yaneuraou", "receipt"],
     "assets-engine",
   );
-  const evalAssets = exactRecord(assets.eval, ["nn", "tree_sha256"], "assets-eval");
-  const engineBinary = validateEvidence(engineAssets.yaneuraou, "assets-engine-bin");
+  const evalAssets = exactRecord(
+    assets.eval,
+    ["nn", "tree_sha256"],
+    "assets-eval",
+  );
+  const engineBinary = validateEvidence(
+    engineAssets.yaneuraou,
+    "assets-engine-bin",
+  );
   const receiptEvidence = validateEvidence(
     engineAssets.receipt,
     "assets-engine-receipt",
@@ -1196,8 +1254,7 @@ function validateManifest(
     search.search_state_reset_before_proposal !== "isready" ||
     search.search_state_reset_before_each_candidate !== "isready" ||
     search.candidate_execution_order !== "utf8-bytewise-ascending" ||
-    search.synthesized_rank_order !==
-      "cp-descending-then-utf8-bytewise-move" ||
+    search.synthesized_rank_order !== "cp-descending-then-utf8-bytewise-move" ||
     !sameJson(search.engine_options, USI_TEACHER_ENGINE_CONTRACT) ||
     completion.path !== "parent-completion.jsonl" ||
     completion.format !== STRENGTH_FIRST_PARENT_COMPLETION_FORMAT ||
@@ -1208,7 +1265,8 @@ function validateManifest(
   ) {
     fail("manifest-contract");
   }
-  for (const argument of teacher.engine_args) text(argument, "manifest-engine-arg");
+  for (const argument of teacher.engine_args)
+    text(argument, "manifest-engine-arg");
   const runtimeSnapshot = exactRecord(
     teacher.runtime_snapshot,
     [
@@ -1440,14 +1498,7 @@ function validateMilestoneDocument(
   );
   const work = exactRecord(
     progress.work,
-    [
-      "path",
-      "bytes",
-      "sha256",
-      "schema",
-      "records",
-      "binding_scope",
-    ],
+    ["path", "bytes", "sha256", "schema", "records", "binding_scope"],
     "milestone-work",
   );
   const forced = integer(
@@ -1461,7 +1512,11 @@ function validateMilestoneDocument(
     forced,
     "milestone-reasons",
   );
-  const emitted = integer(progress.emitted_parent_groups, 0, "milestone-progress");
+  const emitted = integer(
+    progress.emitted_parent_groups,
+    0,
+    "milestone-progress",
+  );
   if (
     value.schema !== FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA ||
     value.status !==
@@ -1538,7 +1593,9 @@ async function scanWork(
   ) {
     fail("work-header");
   }
-  const parents = new Map(input.rows.map((row) => [row.parent_id, row] as const));
+  const parents = new Map(
+    input.rows.map((row) => [row.parent_id, row] as const),
+  );
   const projections = new Map<string, WorkProjection>();
   const prefixMutable = new Map(
     milestoneTargets.map((value) => [
@@ -1627,7 +1684,8 @@ async function scanWork(
     }
   }
   await finish(reader, "work-jsonl");
-  if (completed !== target || projections.size !== target) fail("work-coverage");
+  if (completed !== target || projections.size !== target)
+    fail("work-coverage");
   if (
     reader.stats.bytes !== expectedBinding.bytes ||
     reader.stats.sha256 !== expectedBinding.sha256
@@ -1970,11 +2028,7 @@ function contract(
     "test-contract",
   );
   const target = integer(captured.parentTarget, 3, "test-contract");
-  const targets = exactArray(
-    captured.milestoneTargets,
-    2,
-    "test-contract",
-  );
+  const targets = exactArray(captured.milestoneTargets, 2, "test-contract");
   const first = integer(targets[0], 1, "test-contract");
   const second = integer(targets[1], 1, "test-contract");
   if (!(first < second && second < target)) fail("test-contract");
@@ -2158,7 +2212,10 @@ async function verifyCore(
     fewer_than_two_legal_moves: work.fewerThanTwo,
     search_timeout_no_label: work.timedOut,
     train_records: work.trainRecords,
-    milestone_targets: Object.freeze([...milestones]) as readonly [number, number],
+    milestone_targets: Object.freeze([...milestones]) as readonly [
+      number,
+      number,
+    ],
     local_only: true,
     network_requests: 0,
     cloud_services: 0,

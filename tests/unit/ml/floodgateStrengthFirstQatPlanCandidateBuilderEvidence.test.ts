@@ -33,11 +33,6 @@ const bridgeEvidencePath = path.join(
   "docs/data/floodgate-strength-first-three-seed-training-bridge-2026-07-19.json",
 );
 const readmePath = path.join(repositoryRoot, "ml/README.md");
-const planPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-);
-
 function read(filePath: string): string {
   return fs.readFileSync(filePath, "utf8");
 }
@@ -47,8 +42,7 @@ function evidence(): Record<string, unknown> {
 }
 
 describe("Floodgate strength-first QAT plan candidate builder evidence", () => {
-  it("keeps the exact plan unenrolled and records the stdout-only builder", () => {
-    expect(fs.existsSync(planPath)).toBe(false);
+  it("records that the exact plan was unenrolled when the stdout-only builder was published", () => {
     expect(evidence()).toMatchObject({
       schema:
         "shogi-floodgate-strength-first-qat-plan-candidate-builder-evidence-v1",
@@ -84,6 +78,10 @@ describe("Floodgate strength-first QAT plan candidate builder evidence", () => {
         runtime_probes: 0,
         torch_imports: 0,
         plan_candidates_emitted: 0,
+      },
+      observed_counts_at_publication: {
+        tracked_strength_first_training_plans: 0,
+        real_three_seed_training_processes: 0,
       },
     });
   });

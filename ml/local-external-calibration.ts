@@ -407,6 +407,7 @@ function assertStructurallyLegalOpening(
   label: string,
 ): void {
   const pieceCounts = new Map<number, number>();
+  const unpromotedPawnsBySideAndFile = new Map<string, number>();
   let senteKings = 0;
   let goteKings = 0;
 
@@ -414,11 +415,29 @@ function assertStructurallyLegalOpening(
     for (let rank = 1; rank <= 9; rank += 1) {
       const piece = position.ban[(file << 4) + rank];
       if (piece === 0) continue;
-      const kind = basePieceKind(piece);
-      pieceCounts.set(kind, (pieceCounts.get(kind) ?? 0) + 1);
-      if (kind === OU) {
+      const encodedKind = getKomashu(piece);
+      const baseKind = basePieceKind(piece);
+      const side = (piece & SENTE) !== 0 ? SENTE : GOTE;
+      pieceCounts.set(baseKind, (pieceCounts.get(baseKind) ?? 0) + 1);
+      if (baseKind === OU) {
         if ((piece & SENTE) !== 0) senteKings += 1;
         if ((piece & GOTE) !== 0) goteKings += 1;
+      }
+      if (encodedKind === FU) {
+        const key = `${side}:${file}`;
+        const count = (unpromotedPawnsBySideAndFile.get(key) ?? 0) + 1;
+        if (count > 1) {
+          throw new Error(`${label} contains an unpromoted double pawn`);
+        }
+        unpromotedPawnsBySideAndFile.set(key, count);
+      }
+      const lastRank = side === SENTE ? 1 : 9;
+      const lastTwoRanks = side === SENTE ? rank <= 2 : rank >= 8;
+      if (
+        ((encodedKind === FU || encodedKind === KY) && rank === lastRank) ||
+        (encodedKind === KE && lastTwoRanks)
+      ) {
+        throw new Error(`${label} contains an immobile unpromoted piece`);
       }
     }
   }

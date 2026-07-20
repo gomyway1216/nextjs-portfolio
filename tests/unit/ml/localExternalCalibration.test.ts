@@ -200,6 +200,11 @@ describe("local external calibration paired harness", () => {
       "4k4/9/9/9/9/9/9/4K4/4K4 b - 1",
       "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P 1",
       "9/9/9/9/4k4/4K4/9/9/9 b - 1",
+      "4k4/9/4P4/4P4/9/9/9/9/4K4 b - 1",
+      "k3P4/9/9/9/9/9/9/9/4K4 b - 1",
+      "4k4/9/9/9/9/9/9/9/K3p4 w - 1",
+      "k3N4/9/9/9/9/9/9/9/4K4 b - 1",
+      "4k4/9/9/9/9/9/9/9/K3l4 w - 1",
     ] as const;
     const symbolRequest = { ...base } as LocalExternalCalibrationRequest & {
       [key: symbol]: unknown;

@@ -1,0 +1,8 @@
+import { redirect } from 'next/navigation';
+
+// Only post detail pages have language-pinned /ja URLs (that's where the
+// indexable content lives). List browsing stays on the cookie-driven
+// pages, so /ja/blog simply lands there.
+export default function JaBlogIndex() {
+  redirect('/blog');
+}

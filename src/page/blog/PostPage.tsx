@@ -4,7 +4,7 @@ import PostLikeButton from '@/components/blog/PostLikeButton';
 import RelatedPosts from '@/components/blog/RelatedPosts';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
 import { usePostViewBeacon } from '@/hooks/usePostViewBeacon';
-import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
+import { normalizeLanguage, pickTranslation, type PostLanguage } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import type { DetailPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
@@ -19,15 +19,21 @@ import styles from './blog-post.module.css';
 interface PostPageProps {
   /** Server-fetched public post; null/undefined falls back to client fetch. */
   initialPost?: DetailPost | null;
+  /**
+   * Pin the displayed translation regardless of the i18n cookie. Set by
+   * the language-pinned /ja/... routes so one URL always means one
+   * language (what hreflang promises crawlers).
+   */
+  forcedLanguage?: PostLanguage;
 }
 
-const PostPage = ({ initialPost }: PostPageProps) => {
+const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   const { category: routeCategory, id: routeId } = useParams();
   const [post, setPost] = useState<DetailPost | null>(initialPost ?? null);
   const [isLoading, setIsLoading] = useState(!initialPost);
   const { isAdmin } = useAuth();
   const { t, i18n } = useTranslation();
-  const activeLanguage = normalizeLanguage(i18n.language);
+  const activeLanguage = forcedLanguage ?? normalizeLanguage(i18n.language);
 
   const _category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || '';
   const id = Array.isArray(routeId) ? routeId[0] : routeId || '';
@@ -100,6 +106,19 @@ const PostPage = ({ initialPost }: PostPageProps) => {
   const backCategory = post.category || _category || 'all';
   const categoryLabel = post.category ? post.category.replace(/-/g, ' ') : '';
 
+  // Cross-link to the same article's other-language URL when that
+  // translation exists. The label is deliberately written in the target
+  // language — it's addressed to the reader who wants that language.
+  const postPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const languageSwitch =
+    forcedLanguage === 'ja'
+      ? post.availableLanguages.includes('en')
+        ? { href: postPath, label: 'Read in English' }
+        : null
+      : view.language === 'en' && post.availableLanguages.includes('ja')
+        ? { href: `/ja${postPath}`, label: '日本語版を読む' }
+        : null;
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -108,6 +127,11 @@ const PostPage = ({ initialPost }: PostPageProps) => {
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
             {t('blogPage.post.backToBlog')}
           </Link>
+          {languageSwitch && (
+            <Link href={languageSwitch.href} className={styles.langSwitchLink}>
+              {languageSwitch.label}
+            </Link>
+          )}
           {categoryLabel && <span className={styles.categoryPill}>{categoryLabel}</span>}
         </div>
         <RichTextDisplay

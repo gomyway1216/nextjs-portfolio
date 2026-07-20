@@ -16,6 +16,7 @@ interface BlogEntry {
   id: string;
   category: string;
   lastUpdated?: Date;
+  hasJa: boolean;
 }
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
@@ -27,11 +28,15 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 
     return snapshot.docs.map((doc) => {
       const data = doc.data();
+      const ja = data.translations?.ja;
       return {
         id: doc.id,
         // Empty string would render /blog//{id}; treat it like missing.
         category: typeof data.category === 'string' && data.category ? data.category : 'all',
         lastUpdated: data.lastUpdated?.toDate?.() ?? undefined,
+        // Mirrors availableLanguages(): a translation counts when it has
+        // a non-empty title or body.
+        hasJa: !!ja && (!!ja.title?.trim() || !!ja.body?.trim()),
       };
     });
   } catch (error) {
@@ -86,12 +91,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
-    url: `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`,
-    lastModified: post.lastUpdated,
-    changeFrequency: 'monthly',
-    priority: 0.7,
-  }));
+  // Bare post URLs are the English/default entries; posts with a Japanese
+  // translation also get their language-pinned /ja URL, and both carry
+  // hreflang alternates pointing at each other.
+  const postRoutes: MetadataRoute.Sitemap = posts.flatMap((post) => {
+    const enUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+    const base = {
+      lastModified: post.lastUpdated,
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    };
+
+    if (!post.hasJa) {
+      return [{ url: enUrl, ...base }];
+    }
+
+    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+    const alternates = { languages: { en: enUrl, ja: jaUrl } };
+    return [
+      { url: enUrl, ...base, alternates },
+      { url: jaUrl, ...base, alternates },
+    ];
+  });
 
   const projectRoutes: MetadataRoute.Sitemap = projects.map((project) => ({
     url: `${SITE_URL}${getProjectPath(project.id)}`,

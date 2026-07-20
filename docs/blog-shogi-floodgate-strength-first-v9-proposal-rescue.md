@@ -1,6 +1,6 @@
 # v8停止からv9へ：提案をdepth 14、採点をdepth 16に分離した
 
-> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14並列の実測、v9 runner実装を記録する。正式v9教師生成、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
+> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14・12対13並列の実測、v9 runner実装を記録する。正式v9教師生成、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
 
 ## 結論
 
@@ -12,7 +12,7 @@ v9では候補を探す仕事と、その候補を正確に採点する仕事を
 | ---------------- | --------------------: | ------------------------: |
 | 候補提案         | MultiPV 12 / depth 16 | MultiPV 12 / **depth 14** |
 | 各候補の独立採点 |              depth 16 |        **depth 16のまま** |
-| 並列             |            12 engines |                12 engines |
+| 並列             |            12 engines |                13 engines |
 | Hash             |      512 MiB / engine |          512 MiB / engine |
 | 1探索上限        |                 600秒 |                     600秒 |
 
@@ -51,7 +51,7 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 
 実24,000局面のloadは約3.70秒だった。9時間file descriptorを保持する方式ではなく、検証済みのfreeze済みrowsをmemoryに置き、終了後に同じ固定入力をもう一度読む。これで長い直列前処理を削りつつ、途中改ざん時は結果を公開しない。
 
-## 14並列より12並列の方が速かった
+## 13並列を採用し、14並列は採用しない
 
 「14コアなら14 engineにすべき」を推測で採用せず、本番と同じfull label処理を実測した。各trialは同じ42局面に対し、depth 14 proposalと全候補のdepth 16独立再採点を行った。順序は12 → 14 → 14 → 12、合計168局面、forced skip 0だった。
 
@@ -60,11 +60,18 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 | 12 engines | 59.672秒、87.004秒 | 73.338秒 |
 | 14 engines | 73.295秒、86.510秒 | 79.903秒 |
 
-14並列のthroughputは12並列の91.784%で、約8.216%遅かった。Hash memory、memory bandwidth、scheduler競合を増やすだけになったため、v9は12 enginesを維持する。終了後はengine 0、使い捨てdirectory 0、throttled page 0、thermal / performance warning 0だった。
+14並列のthroughputは12並列の91.784%で、約8.216%遅かった。そこで12と14の間にある13を、別のcounterbalanced runで測った。条件は同じ42局面、Threads 1、Hash 512 MiB / engine、順序12 → 13 → 13 → 12、合計168局面、forced skip 0である。
+
+| 並列       | 実測wall time      |   中央値 |
+| ---------- | ------------------ | -------: |
+| 12 engines | 90.314秒、74.878秒 | 82.596秒 |
+| 13 engines | 78.288秒、72.873秒 | 75.581秒 |
+
+13並列の中央値throughputは12並列の109.2814%で、事前の選定閾値101%を超えた。wall time中央値では8.493%短い。2組の短いtrialなので棋力や24,000局面の所要時間を証明するものではなく、別run間の12並列の絶対時間も揺れている。それでも同一run内の比較では13が速く、別の12対14比較では14が遅かったため、測定した12・13・14の中からv9は13 enginesを採用する。
 
 ## ここから本当に棋力へ進む
 
-今回追加したrunnerは、別のv9出力root、clean Git revision、fast input policy、depth 14 / 16分離、12 engines、Hash 512、型付きproposal隔離をrun fingerprintとresultへ固定する。旧v8 labelは混ぜない。未mergeコードで正式v9 rootは書いていない。
+今回追加したrunnerは、別のv9出力root、clean Git revision、fast input policy、depth 14 / 16分離、13 engines、Hash 512、型付きproposal隔離をrun fingerprintとresultへ固定する。旧v8 labelは混ぜない。未mergeコードで正式v9 rootは書いていない。
 
 次の順番は以下である。
 
@@ -75,6 +82,6 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 5. 正式paired A/Bと外部校正で棋力を測る
 6. 高段安定の証拠が揃った候補だけlive昇格する
 
-現時点の正確な結論は「v8の既知停止を回避し、長い直列入力確認を削り、最速と実測した12並列で正式v9を始められる実装ができた」である。「AIが高段になった」ではない。
+現時点の正確な結論は「v8の既知停止を回避し、長い直列入力確認を削り、最速と実測した13並列で正式v9を始められる実装ができた」である。「AIが高段になった」ではない。
 
 機械可読の集計は[公開evidence](./data/floodgate-strength-first-v9-proposal-rescue-2026-07-20.json)に置いた。

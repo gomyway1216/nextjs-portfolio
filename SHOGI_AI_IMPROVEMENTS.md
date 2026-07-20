@@ -14,8 +14,9 @@ training parents; it did not produce a complete dataset or stronger live
 weights. The v9 recovery keeps exact candidate scoring at depth 16 while
 reducing only MultiPV proposal discovery to depth 14. Real diagnostics
 completed all five former proposal timeouts, retained the independently
-rescored best move in 6 / 6 references, and selected 12 rather than 14 local
-engines after a counterbalanced full-label throughput benchmark.
+rescored best move in 6 / 6 references, and selected 13 local engines after
+counterbalanced full-label benchmarks showed 13 faster than 12 and 14 slower
+than 12.
 
 The fast pinned-input path validates all 24,000 training rows in about 3.7
 seconds before and after teacher work, without opening holdout or selection

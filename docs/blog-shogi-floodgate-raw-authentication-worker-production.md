@@ -1,6 +1,6 @@
 # 24,000局面の実認証を、証明を変えずに12並列へつないだ
 
-先に結果を書く。36,349件のraw receiptを1回認証する実測は、現行直列の31.706秒から、source closure込みの本番12 workerで15.680秒になった。**2.022倍、1 passあたり16.026秒短縮**である。直列と並列のreportはdeep strict equalityで一致し、候補manifestのcanonical bytesも一致し、raw manifestの保存bytesは前後で不変だった。
+先に結果を書く。36,349件のraw receiptを1回認証する単発観測は、現行直列の31.706秒、source closure込みの本番12 workerで15.680秒だった。**この1回の経路比は2.022倍、差は1 passあたり16.026秒**である。直列と並列のreportはdeep strict equalityで一致し、候補manifestのcanonical bytesも一致し、raw manifestの保存bytesは前後で不変だった。
 
 これは前回の[非本番foundation](./blog-shogi-floodgate-raw-authentication-worker-foundation.md)を本番認証経路へ接続した続編である。ローカルMacだけを使い、AWS、GCP/Firebase、Vercel、network requestは使っていない。教師生成、学習、formal A/B、live weightも変更していない。
 
@@ -8,7 +8,7 @@ English version: [Productionizing twelve-core raw authentication without changin
 
 ## 実測
 
-同じ完了済みraw lockと同じcandidate manifestを、Node v22.13.0、Apple M4 Pro 14 core、48 GB RAMで直列、本番12 workerの順に1回ずつ処理した。時刻は`process.hrtime.bigint`、RSSは5 ms間隔のprocess観測値である。
+同じ完了済みraw lockと同じcandidate manifestを、Node v22.13.0、Apple M4 Pro 14 core、48 GB RAMで直列、本番12 workerの順に各1回だけ処理した。明示的なpage-cache warmup、反復、counterbalanceは行っていない。直列が先に全receiptを読んだため、後続のparallelが温まったpage cacheの利益を受けた可能性があり、cache / order biasは除去できていない。したがって2.022倍はこの順序での1回の観測比であり、order-neutralなthroughput推定値ではない。時刻は`process.hrtime.bigint`、RSSは5 ms間隔のprocess観測値である。
 
 | 実経路                     |           36,349件 |       観測peak RSS | 結果           |
 | -------------------------- | -----------------: | -----------------: | -------------- |
@@ -16,9 +16,9 @@ English version: [Productionizing twelve-core raw authentication without changin
 | source-closed本番12 worker |      15,679.927 ms |  754,171,904 bytes | PASS           |
 | 差                         | **-16,025.661 ms** | +399,130,624 bytes | report完全一致 |
 
-12 workerは2.022049倍だった。48 GB machineに対する観測peakは約719 MiBであり、メモリを増やして速さを得る設計として十分小さい。ただし384 MiB × 12のold-generation設定はV8の構成上限であって、process RSSの予約値でも実使用量でもない。
+このserial-first単発観測では12 worker / serial比が2.022049だった。48 GB machineに対する観測peakは約719 MiBであり、メモリを増やして速さを得る設計として十分小さい。ただし384 MiB × 12のold-generation設定はV8の構成上限であって、process RSSの予約値でも実使用量でもない。
 
-前回のproduction-shape emulationは2.82倍だったが、今回の2.02倍が採用値である。今回の時間には、実際のcandidate再検証だけでなく、worker bundleのheld read、Git tracked tree全体のexact-clean確認、worker終了後の同一revision再確認が入る。安全境界を除いた数字を本番速度として扱わない。
+前回のproduction-shape emulationでは2.82倍を観測したが、本番経路で採用できる観測は、上記bias制限を持つserial-first単発の2.02倍だけである。今回の時間には、実際のcandidate再検証だけでなく、worker bundleのheld read、Git tracked tree全体のexact-clean確認、worker終了後の同一revision再確認が入る。安全境界を除いた数字を本番速度として扱わない。
 
 逆順の追加runも実行自体と出力同値性は通ったが、一時diagnosticのtimerが`await`より前にelapsedを計算する誤りだった。その0.003 / 0.005 msという値は明らかに無効であり、速度計算から除外した。途中の失敗値を都合よく採用しない。
 
@@ -61,7 +61,7 @@ worker responseは親でexact shape、receipt kind、URL、body identityを再ca
 
 ## 全認証への効果と残る床
 
-過去のfull authentication 1,088.743秒はraw passを4回行った。今回の1 pass短縮16.025661秒を4回へ単純投影すると、64.102646秒短縮、1,024.640秒、約17.08分になる。
+過去のfull authentication 1,088.743秒はraw passを4回行った。cache / order biasを除去していない今回の単発差16.025661秒を4回へ単純投影すると、64.102646秒短縮、1,024.640秒、約17.08分になる。
 
 これは**full authenticationの実測ではなく投影**である。次の正式run自身が同じ認証を必要とし、その直後に12 engine教師探索へ進むため、別の16〜18分認証を重複実行してCPUを競合させなかった。
 

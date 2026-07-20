@@ -55,6 +55,13 @@ export interface FloodgateRawVerificationWorkerBundleLease {
   assertUnchangedAndClose(): void;
 }
 
+export interface FloodgateRawVerificationWorkerDescriptorOperationsForTests {
+  readonly openSync: (filePath: string, flags: number) => number;
+  readonly fstatSync: (descriptor: number) => fs.BigIntStats;
+  readonly realpathSyncNative: (filePath: string) => string;
+  readonly closeSync: (descriptor: number) => void;
+}
+
 interface FileIdentity {
   readonly dev: bigint;
   readonly ino: bigint;
@@ -67,6 +74,14 @@ interface FileIdentity {
   readonly mtimeNs: bigint;
   readonly ctimeNs: bigint;
 }
+
+const PRODUCTION_DESCRIPTOR_OPERATIONS =
+  Object.freeze<FloodgateRawVerificationWorkerDescriptorOperationsForTests>({
+    openSync: (filePath, flags) => fs.openSync(filePath, flags),
+    fstatSync: (descriptor) => fs.fstatSync(descriptor, { bigint: true }),
+    realpathSyncNative: (filePath) => fs.realpathSync.native(filePath),
+    closeSync: (descriptor) => fs.closeSync(descriptor),
+  });
 
 function fail(message: string): never {
   throw new Error(
@@ -189,22 +204,27 @@ function assertRegularOwnedSingleLink(
   }
 }
 
-function openDirectoryNoFollow(directoryPath: string, label: string): number {
+function openDirectoryNoFollow(
+  directoryPath: string,
+  label: string,
+  openedDescriptors: number[],
+  operations: FloodgateRawVerificationWorkerDescriptorOperationsForTests,
+): number {
   const noFollow = fs.constants.O_NOFOLLOW;
   const directory = fs.constants.O_DIRECTORY;
   if (typeof noFollow !== "number" || typeof directory !== "number") {
     fail("O_NOFOLLOW and O_DIRECTORY are required");
   }
-  const descriptor = fs.openSync(
+  const descriptor = operations.openSync(
     directoryPath,
     fs.constants.O_RDONLY | noFollow | directory,
   );
-  const stat = fs.fstatSync(descriptor, { bigint: true });
+  openedDescriptors.push(descriptor);
+  const stat = operations.fstatSync(descriptor);
   if (
     !stat.isDirectory() ||
-    fs.realpathSync.native(directoryPath) !== directoryPath
+    operations.realpathSyncNative(directoryPath) !== directoryPath
   ) {
-    fs.closeSync(descriptor);
     fail(`${label} must be a real canonical directory`);
   }
   return descriptor;
@@ -238,16 +258,34 @@ function runtimeIdentity(): FloodgateRawVerificationWorkerRuntimeIdentity {
   });
 }
 
-function closeDescriptors(descriptors: readonly number[]): void {
-  let failure: unknown;
-  for (const descriptor of [...descriptors].reverse()) {
+function closeDescriptors(
+  descriptors: readonly number[],
+  closeSync: (descriptor: number) => void,
+  primaryFailed: boolean,
+  primaryFailure: unknown,
+  phase: string,
+): void {
+  const cleanupFailures: unknown[] = [];
+  for (let index = descriptors.length - 1; index >= 0; index -= 1) {
     try {
-      fs.closeSync(descriptor);
+      closeSync(descriptors[index]);
     } catch (error) {
-      failure ??= error;
+      cleanupFailures.push(error);
     }
   }
-  if (failure) throw failure;
+  if (cleanupFailures.length === 0) return;
+  if (primaryFailed) {
+    throw new AggregateError(
+      [primaryFailure, ...cleanupFailures],
+      `Floodgate raw-verification worker source ${phase} and descriptor cleanup both failed`,
+      { cause: primaryFailure },
+    );
+  }
+  if (cleanupFailures.length === 1) throw cleanupFailures[0];
+  throw new AggregateError(
+    cleanupFailures,
+    `multiple Floodgate raw-verification worker source ${phase} descriptor cleanup operations failed`,
+  );
 }
 
 function captureBundle(
@@ -256,6 +294,7 @@ function captureBundle(
   expectedBytes: number,
   expectedSha256: string,
   runtime: FloodgateRawVerificationWorkerRuntimeIdentity,
+  operations: FloodgateRawVerificationWorkerDescriptorOperationsForTests,
 ): FloodgateRawVerificationWorkerBundleLease {
   const repositoryRoot = canonicalRoot(repositoryRootInput);
   const relativePath = exactRelativePath(relativePathInput);
@@ -270,27 +309,36 @@ function captureBundle(
   const parentPath = path.dirname(bundlePath);
   if (
     path.relative(repositoryRoot, bundlePath).startsWith(`..${path.sep}`) ||
-    fs.realpathSync.native(parentPath) !== parentPath
+    operations.realpathSyncNative(parentPath) !== parentPath
   ) {
     fail("bundle path escapes or traverses a symlink");
   }
 
-  const rootDescriptor = openDirectoryNoFollow(
-    repositoryRoot,
-    "repository root",
-  );
-  const parentDescriptor = openDirectoryNoFollow(parentPath, "bundle parent");
-  let bundleDescriptor: number | undefined;
+  const openedDescriptors: number[] = [];
+  let acquisitionComplete = false;
+  let acquisitionFailed = false;
+  let acquisitionFailure: unknown;
   try {
-    bundleDescriptor = fs.openSync(
+    const rootDescriptor = openDirectoryNoFollow(
+      repositoryRoot,
+      "repository root",
+      openedDescriptors,
+      operations,
+    );
+    const parentDescriptor = openDirectoryNoFollow(
+      parentPath,
+      "bundle parent",
+      openedDescriptors,
+      operations,
+    );
+    const bundleDescriptor = operations.openSync(
       bundlePath,
       fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
     );
-    const rootBefore = identity(fs.fstatSync(rootDescriptor, { bigint: true }));
-    const parentBefore = identity(
-      fs.fstatSync(parentDescriptor, { bigint: true }),
-    );
-    const fileBeforeStat = fs.fstatSync(bundleDescriptor, { bigint: true });
+    openedDescriptors.push(bundleDescriptor);
+    const rootBefore = identity(operations.fstatSync(rootDescriptor));
+    const parentBefore = identity(operations.fstatSync(parentDescriptor));
+    const fileBeforeStat = operations.fstatSync(bundleDescriptor);
     assertRegularOwnedSingleLink(fileBeforeStat, "worker bundle");
     const fileBefore = identity(fileBeforeStat);
     const pathBeforeStat = fs.lstatSync(bundlePath, { bigint: true });
@@ -302,9 +350,7 @@ function captureBundle(
       fail("worker bundle pathname does not bind the held file");
     }
     const bytes = readExact(bundleDescriptor, expectedBytes, "worker bundle");
-    const fileAfterRead = identity(
-      fs.fstatSync(bundleDescriptor, { bigint: true }),
-    );
+    const fileAfterRead = identity(operations.fstatSync(bundleDescriptor));
     if (
       !sameIdentity(fileBefore, fileAfterRead) ||
       sha256(bytes) !== expectedSha256
@@ -321,12 +367,8 @@ function captureBundle(
     }
 
     let closed = false;
-    const descriptors = [
-      rootDescriptor,
-      parentDescriptor,
-      bundleDescriptor,
-    ] as const;
-    return Object.freeze({
+    const descriptors = Object.freeze([...openedDescriptors]);
+    const lease = Object.freeze({
       source,
       identity: Object.freeze({
         schema: FLOODGATE_RAW_VERIFICATION_WORKER_BUNDLE_SCHEMA,
@@ -342,16 +384,11 @@ function captureBundle(
         if (closed) fail("worker bundle lease was already closed");
         closed = true;
         let primary: unknown;
+        let primaryFailed = false;
         try {
-          const rootAfter = identity(
-            fs.fstatSync(rootDescriptor, { bigint: true }),
-          );
-          const parentAfter = identity(
-            fs.fstatSync(parentDescriptor, { bigint: true }),
-          );
-          const fileAfter = identity(
-            fs.fstatSync(bundleDescriptor as number, { bigint: true }),
-          );
+          const rootAfter = identity(operations.fstatSync(rootDescriptor));
+          const parentAfter = identity(operations.fstatSync(parentDescriptor));
+          const fileAfter = identity(operations.fstatSync(bundleDescriptor));
           const pathAfter = identity(
             fs.lstatSync(bundlePath, { bigint: true }),
           );
@@ -386,24 +423,36 @@ function captureBundle(
             fail("worker bundle bytes changed while workers ran");
           }
         } catch (error) {
+          primaryFailed = true;
           primary = error;
           throw error;
         } finally {
-          try {
-            closeDescriptors(descriptors);
-          } catch (closeError) {
-            if (primary === undefined) throw closeError;
-          }
+          closeDescriptors(
+            descriptors,
+            operations.closeSync,
+            primaryFailed,
+            primary,
+            "postflight",
+          );
         }
       },
     });
+    acquisitionComplete = true;
+    return lease;
   } catch (error) {
-    closeDescriptors(
-      bundleDescriptor === undefined
-        ? [rootDescriptor, parentDescriptor]
-        : [rootDescriptor, parentDescriptor, bundleDescriptor],
-    );
+    acquisitionFailed = true;
+    acquisitionFailure = error;
     throw error;
+  } finally {
+    if (!acquisitionComplete) {
+      closeDescriptors(
+        openedDescriptors,
+        operations.closeSync,
+        acquisitionFailed,
+        acquisitionFailure,
+        "acquisition",
+      );
+    }
   }
 }
 
@@ -417,6 +466,7 @@ export function capturePinnedFloodgateRawVerificationWorkerBundle(
     FLOODGATE_RAW_VERIFICATION_WORKER_BUNDLE_BYTES,
     FLOODGATE_RAW_VERIFICATION_WORKER_BUNDLE_SHA256,
     runtimeIdentity(),
+    PRODUCTION_DESCRIPTOR_OPERATIONS,
   );
 }
 
@@ -426,6 +476,7 @@ export function captureFloodgateRawVerificationWorkerBundleCoreForTests(
   relativePath: string,
   expectedBytes: number,
   expectedSha256: string,
+  operations: FloodgateRawVerificationWorkerDescriptorOperationsForTests = PRODUCTION_DESCRIPTOR_OPERATIONS,
 ): FloodgateRawVerificationWorkerBundleLease {
   return captureBundle(
     repositoryRoot,
@@ -440,5 +491,6 @@ export function captureFloodgateRawVerificationWorkerBundleCoreForTests(
       platform: process.platform,
       architecture: process.arch,
     }),
+    operations,
   );
 }

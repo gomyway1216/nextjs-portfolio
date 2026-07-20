@@ -117,6 +117,12 @@ describe("Floodgate production raw-authentication worker evidence", () => {
     expect(measured).toMatchObject({
       tasks: 36349,
       order: ["serial", "source-closed-production-12-worker"],
+      samples_per_path: 1,
+      explicit_page_cache_warmup_passes: 0,
+      valid_counterbalanced_or_reverse_order_runs: 0,
+      page_cache_and_order_bias_controlled: false,
+      parallel_may_benefit_from_serial_first_page_cache_warmup: true,
+      ratio_is_single_run_observation_not_order_neutral_estimate: true,
       speedup: 2.0220494834682516,
       saved_ms_per_pass: 16025.661375999998,
       report_deep_strict_equality: true,
@@ -149,6 +155,7 @@ describe("Floodgate production raw-authentication worker evidence", () => {
       projected_saved_ms_if_all_four_passes_match_the_measured_production_gain: 64102.64550399999,
       projected_elapsed_ms: 1024640.354496,
       projection_not_a_measured_full_authentication: true,
+      projection_inherits_single_run_order_bias: true,
       full_authentication_deliberately_not_duplicated: true,
       serial_floor_if_raw_verification_were_free_ms: 961920.646164,
     });
@@ -202,6 +209,10 @@ describe("Floodgate production raw-authentication worker evidence", () => {
         /(?:\/Users\/|\/private\/|parent_sfen|secret-(?:game|parent|position))/iu,
       );
     }
+    expect(japanese).toContain("cache / order biasは除去できていない");
+    expect(japanese).toContain("order-neutralなthroughput推定値ではない");
+    expect(english).toContain("cache and order bias were not removed");
+    expect(english).toContain("not an order-neutral throughput estimate");
     expect(JSON.stringify(evidence())).not.toMatch(
       /(?:\/Users\/|\/private\/|parent_sfen|secret-(?:game|parent|position))/iu,
     );

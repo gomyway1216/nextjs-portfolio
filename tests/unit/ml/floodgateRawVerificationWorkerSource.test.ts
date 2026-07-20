@@ -14,6 +14,7 @@ import {
   FLOODGATE_RAW_VERIFICATION_WORKER_TRANSITIVE_SOURCES,
   captureFloodgateRawVerificationWorkerBundleCoreForTests,
   capturePinnedFloodgateRawVerificationWorkerBundle,
+  type FloodgateRawVerificationWorkerDescriptorOperationsForTests,
 } from "../../../ml/floodgate-raw-verification-worker-source";
 
 const temporaryRoots: string[] = [];
@@ -40,13 +41,87 @@ async function writeFixture(root: string): Promise<string> {
   return target;
 }
 
-function captureFixture(root: string) {
+function captureFixture(
+  root: string,
+  operations?: FloodgateRawVerificationWorkerDescriptorOperationsForTests,
+) {
   return captureFloodgateRawVerificationWorkerBundleCoreForTests(
     root,
     fixtureRelative,
     fixtureSource.byteLength,
     sha256(fixtureSource),
+    operations,
   );
+}
+
+type DirectoryAcquisitionFault =
+  "parent-open" | "parent-fstat" | "parent-realpath";
+
+function faultInjectedDescriptorOperations(
+  root: string,
+  fault: DirectoryAcquisitionFault,
+  failRootClose = false,
+): Readonly<{
+  operations: FloodgateRawVerificationWorkerDescriptorOperationsForTests;
+  openedPaths: Map<number, string>;
+  closeCalls: number[];
+  primary: Error;
+  cleanup: Error;
+}> {
+  const parent = path.join(root, "ml");
+  const openedPaths = new Map<number, string>();
+  const closeCalls: number[] = [];
+  const primary = new Error(`synthetic ${fault} failure`);
+  const cleanup = new Error("synthetic repository-root close failure");
+  let parentRealpaths = 0;
+  return Object.freeze({
+    operations: Object.freeze({
+      openSync: (filePath: string, flags: number): number => {
+        if (fault === "parent-open" && filePath === parent) throw primary;
+        const descriptor = fs.openSync(filePath, flags);
+        openedPaths.set(descriptor, filePath);
+        return descriptor;
+      },
+      fstatSync: (descriptor: number): fs.BigIntStats => {
+        if (
+          fault === "parent-fstat" &&
+          openedPaths.get(descriptor) === parent
+        ) {
+          throw primary;
+        }
+        return fs.fstatSync(descriptor, { bigint: true });
+      },
+      realpathSyncNative: (filePath: string): string => {
+        if (filePath === parent) {
+          parentRealpaths += 1;
+          if (fault === "parent-realpath" && parentRealpaths === 2) {
+            throw primary;
+          }
+        }
+        return fs.realpathSync.native(filePath);
+      },
+      closeSync: (descriptor: number): void => {
+        closeCalls.push(descriptor);
+        fs.closeSync(descriptor);
+        if (failRootClose && openedPaths.get(descriptor) === root) {
+          throw cleanup;
+        }
+      },
+    }),
+    openedPaths,
+    closeCalls,
+    primary,
+    cleanup,
+  });
+}
+
+function capturedFailure(operation: () => unknown): unknown {
+  try {
+    operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected operation to fail");
 }
 
 afterEach(async () => {
@@ -120,6 +195,52 @@ describe("Floodgate pinned raw-verification worker source", () => {
     );
     await fs.promises.symlink(actualParent, path.join(parentRoot, "ml"));
     expect(() => captureFixture(parentRoot)).toThrow(/symlink|canonical/);
+  });
+
+  it.each(["parent-open", "parent-fstat", "parent-realpath"] as const)(
+    "closes every partially opened descriptor exactly once after a %s failure",
+    async (fault) => {
+      const root = await temporaryRoot();
+      await writeFixture(root);
+      const injected = faultInjectedDescriptorOperations(root, fault);
+
+      const failure = capturedFailure(() =>
+        captureFixture(root, injected.operations),
+      );
+
+      expect(failure).toBe(injected.primary);
+      const closedPaths = injected.closeCalls.map((descriptor) =>
+        injected.openedPaths.get(descriptor),
+      );
+      expect(closedPaths).toEqual(
+        fault === "parent-open" ? [root] : [path.join(root, "ml"), root],
+      );
+      expect(new Set(injected.closeCalls).size).toBe(
+        injected.closeCalls.length,
+      );
+      expect(injected.closeCalls).toHaveLength(injected.openedPaths.size);
+    },
+  );
+
+  it("preserves the parent-open primary and aggregates a repository-root close failure", async () => {
+    const root = await temporaryRoot();
+    await writeFixture(root);
+    const injected = faultInjectedDescriptorOperations(
+      root,
+      "parent-open",
+      true,
+    );
+
+    const failure = capturedFailure(() =>
+      captureFixture(root, injected.operations),
+    );
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    const aggregate = failure as AggregateError;
+    expect(aggregate.cause).toBe(injected.primary);
+    expect(aggregate.errors).toEqual([injected.primary, injected.cleanup]);
+    expect(injected.closeCalls).toHaveLength(1);
+    expect(injected.openedPaths.get(injected.closeCalls[0])).toBe(root);
   });
 
   it("rejects a pathname swap while workers hold the original inode", async () => {

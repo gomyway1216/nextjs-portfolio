@@ -85,7 +85,7 @@ READYなら、完全一致する再計算だけを許す。
 
 ## 実測した現在のSTOP
 
-codeだけをcommitしたexact revisionで両commandを本番実行した。
+更新済みorigin/mainを通常mergeしたclean exact revisionで両commandを本番実行した。
 
 | command                      | exit |  stdout | 停止理由                                      | tracked write / live change |
 | ---------------------------- | ---: | ------: | --------------------------------------------- | --------------------------: |
@@ -108,9 +108,9 @@ selection、formal A/B、live promotionの実証はない。
 
 ## validationと限界
 
-builder A / Bだけのfocused suiteは19 / 19、既存plan、launcher、preflight、
+builder A / Bだけのfocused suiteは19 / 19（0.131秒）、既存plan、launcher、preflight、
 teacher-preflight、evaluatorまで合わせたfocused suiteは68 / 68、ML stdlib全体は
-312 / 312（21.658秒）をPASSした。Python compile、
+312 / 312（24.754秒）をPASSした。Python compile、
 changed-file Ruff、Black、diff checkもPASSした。テストは、3 checkpoint strict-load、
 READY idempotence、stdout-only、tracked input再確認、symlink / hard-link拒否、datasetと
 teacher authorityの交差束縛、stableとplan initializerの同一長・異SHA差替え拒否、

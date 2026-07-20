@@ -87,7 +87,7 @@ it is an exact idempotent recomputation.
 
 ## Current production STOP observations
 
-Both commands were run from the exact code-only implementation revision.
+Both commands were run from a clean exact revision after regular-merging updated origin/main.
 
 | Command                      | Exit |  Stdout | Stop reason                                                        | Tracked writes / live changes |
 | ---------------------------- | ---: | ------: | ------------------------------------------------------------------ | ----------------------------: |
@@ -112,9 +112,9 @@ mixed with another revision.
 
 ## Validation and limit
 
-The builder-only focused suite passes 19/19. The focused suite adding the existing plan,
+The builder-only focused suite passes 19/19 in 0.131 seconds. The focused suite adding the existing plan,
 launcher, preflight, teacher preflight, and evaluator passes 68/68. The full ML stdlib passes
-312/312 in 21.658 seconds. Python compile, changed-file Ruff, Black, and the diff check also
+312/312 in 24.754 seconds. Python compile, changed-file Ruff, Black, and the diff check also
 pass. Coverage
 includes three-checkpoint strict loading, READY idempotence, stdout-only behavior, tracked
 input revalidation, symlink and hard-link rejection, dataset/teacher-authority cross-binding,

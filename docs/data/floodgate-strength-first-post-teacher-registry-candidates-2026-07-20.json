@@ -2,8 +2,9 @@
   "schema": "shogi-floodgate-strength-first-post-teacher-registry-candidates-evidence-v1",
   "status": "implementation-validated-prerequisites-absent-production-stops-no-enrollment-or-live-change",
   "recorded_date": "2026-07-20",
-  "base_revision": "919becefb1abef8bd452a8ec347558beda13f733",
+  "base_revision": "4e355b251dfa8e3d6c4f5fb7a4ca8659ca949781",
   "implementation_revision": "51d69d6377b03dd2efac2ebc5f5ad71dead57ce8",
+  "integration_revision": "bdab29b06b539b436feca4e140407bf69ec9837e",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-post-teacher-registry-candidates.md",
     "english": "../blog-shogi-floodgate-strength-first-post-teacher-registry-candidates.en.md"
@@ -97,7 +98,7 @@
     "evaluator_registry_status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher"
   },
   "observed_production_cli": {
-    "revision": "51d69d6377b03dd2efac2ebc5f5ad71dead57ce8",
+    "revision": "bdab29b06b539b436feca4e140407bf69ec9837e",
     "preflight_registry_candidate": {
       "exit_code": 1,
       "stdout_bytes": 0,
@@ -128,17 +129,17 @@
     "builders_combined_stdlib": {
       "status": "PASS",
       "tests": 19,
-      "elapsed_seconds": 0.147
+      "elapsed_seconds": 0.131
     },
     "related_pipeline_focused_stdlib": {
       "status": "PASS",
       "tests": 68,
-      "elapsed_seconds": 0.387
+      "elapsed_seconds": 0.357
     },
     "full_ml_stdlib": {
       "status": "PASS",
       "tests": 312,
-      "elapsed_seconds": 21.658
+      "elapsed_seconds": 24.754
     },
     "python_compile": "PASS",
     "changed_file_ruff": "PASS",

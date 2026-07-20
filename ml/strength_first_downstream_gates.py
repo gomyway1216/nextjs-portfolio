@@ -20,7 +20,6 @@ import copy
 import hashlib
 import json
 import math
-import os
 from pathlib import Path
 from pathlib import PurePosixPath
 import re
@@ -821,6 +820,10 @@ def _validate_observation_data(
     registry: Mapping[str, Any],
     candidate: Mapping[str, Any],
 ) -> dict[str, Any]:
+    if registry.get("status") != DOWNSTREAM_READY_STATUS:
+        raise ValueError(
+            f"{role} observation requires a ready downstream registry"
+        )
     observation = _exact_dict(
         observation,
         _OBSERVATION_FIELDS,
@@ -1596,7 +1599,7 @@ def receipt_identity(
     if (
         canonical_path is None
         or not path
-        or os.path.isabs(path)
+        or canonical_path.is_absolute()
         or str(canonical_path) != path
         or any(part in ("", ".", "..") for part in canonical_path.parts)
     ):

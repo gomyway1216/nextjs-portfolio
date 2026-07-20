@@ -2,7 +2,7 @@
 
 > On July 19, 2026, we implemented contracts for the final-holdout, retention,
 > known-regression, and production-browser-parity receipts used after three-seed training
-> and candidate selection. Thirty-eight focused tests passed. **This is not a training result.
+> and candidate selection. Forty focused tests passed. **This is not a training result.
 > It is the downstream decision boundary that prevents a weaker candidate from being called
 > stronger and entering formal A/B.** Real candidate-selection receipts and artifact
 > identities do not exist yet, so the production entry stops before opening holdout labels
@@ -21,7 +21,7 @@
 | final-holdout label reads | 0 |
 | real downstream receipts / formal A/B games | 0 / 0 |
 | production / live-weight changes | 0 / 0 |
-| focused unit tests | 38/38 PASS in 0.076 seconds |
+| focused unit tests | 40/40 PASS in 0.085 seconds |
 | full suite / independent rereview | not run / PASS (P0/P1/P2 = 0/0/0) |
 
 The entry point verifies the fixed registry and the bytes of the existing protocols it
@@ -130,14 +130,16 @@ writes no receipt file.
 
 ## Validation and non-claims
 
-The focused stdlib suite passed 38/38 in 0.076 seconds. Python compilation and registry JSON
+The focused stdlib suite passed 40/40 in 0.085 seconds. Python compilation and registry JSON
 checks also passed. Coverage includes the closed registry, wrong role schemas and reused identities,
 protocol-byte drift, plain candidate/evaluator/stored-evidence mappings, one-shot tokens, a
 different measured dataset, changed stored metrics, false browser-path verification,
 evidence-content tampering, float seeds, empty or malformed USI bestmoves, each gate
 boundary, all five receipts, canonical paths, the argumentless STOP, legacy six-run schema
 collisions, cross-registry tokens and bundles, in-callback registry mutation, and live
-evidence path/hash collisions. Because all five evidence envelopes are authenticated first,
+evidence path/hash collisions. Review follow-up coverage also requires a blocked registry
+to fail explicitly before enrollment access and rejects POSIX absolute receipt paths
+independently of the host operating system. Because all five evidence envelopes are authenticated first,
 a gate failure stops later receipts and formal readiness, not later readers. The three
 findings from the second independent review are fixed, and the independent final rereview
 reported P0/P1/P2 = 0/0/0. The resource-wide suite remains pending.

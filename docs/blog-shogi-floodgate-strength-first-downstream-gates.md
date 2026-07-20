@@ -1,7 +1,7 @@
 # Strength-first候補の下流棋力ゲートを準備
 
 > 2026年7月19日、3-seed学習と候補選抜の後に使う、final holdout・retention・
-> known regression・本番browser parityの受領証contractを実装し、38件のfocused testで
+> known regression・本番browser parityの受領証contractを実装し、40件のfocused testで
 > 検証した。**これは評価関数を学習した結果ではなく、弱い候補を「強くなった」と誤認して
 > formal A/Bへ進めないための下流判定である。** 実候補選抜受領証と実artifact identityは
 > まだ存在しないため、production入口はholdout labelや評価器を開く前にexpected STOPとなる。
@@ -20,7 +20,7 @@
 | final holdout label read | 0 |
 | 実下流受領証 / formal A/B | 0 / 0 |
 | production / live weight変更 | 0 / 0 |
-| focused unit test | 38 / 38 PASS（0.076秒） |
+| focused unit test | 40 / 40 PASS（0.085秒） |
 | full suite / 独立rereview | 未実施 / PASS（P0 / P1 / P2 = 0 / 0 / 0） |
 
 実行入口は固定registryと、そのregistryが参照する既存protocolのbytesを確認する。現在の
@@ -118,12 +118,14 @@ canonical relative pathだけを許し、absolute path、parent traversal、back
 
 ## validationと非主張
 
-focused stdlib 38 / 38を0.076秒でPASSし、Python compile checkとregistry JSON checkもPASSした。
+focused stdlib 40 / 40を0.085秒でPASSし、Python compile checkとregistry JSON checkもPASSした。
 対象はclosed registry、role schema / identity再利用、protocol byte drift、plain candidate /
 evaluator / stored-evidence mappingによる権限偽装、一回限りtoken、別dataset計測、保存metric改ざん、
 偽のbrowser path verification、evidence content改ざん、float seed、空または不正なUSI bestmove、
 各gateの境界値、全5受領証、canonical path、argumentless STOPに加え、旧6-run schema衝突、
 cross-registry token / bundle、callback中のregistry書換え、live evidence path / hash衝突を含む。
+review follow-upでは、blocked registryをenrollment参照前に明示拒否することと、host OSに依存せず
+POSIX absolute receipt pathを拒否することも回帰testへ追加した。
 5 evidenceを先に認証するため、gate failureが止めるのは後続readerではなく後続receipt / formal
 readinessである。2回目の独立reviewで見つかった3点を修正し、独立最終rereviewは
 P0 / P1 / P2 = 0 / 0 / 0だった。resourceを広く使うfull suiteはpendingである。

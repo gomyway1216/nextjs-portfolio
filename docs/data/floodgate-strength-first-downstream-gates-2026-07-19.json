@@ -140,20 +140,23 @@
     "false_worker_path_verification_rejected": true,
     "tampered_weight_authority_rejected": true,
     "canonical_relative_receipt_path_required": true,
-    "parent_traversal_rejected": true
+    "parent_traversal_rejected": true,
+    "posix_absolute_receipt_path_rejected_on_every_host": true,
+    "blocked_registry_observation_rejected_before_enrollment_access": true
   },
   "validation": {
     "focused_stdlib": {
       "command": "python3 -m unittest ml.tests_stdlib.test_strength_first_downstream_gates",
       "status": "PASS",
-      "tests": 38,
-      "elapsed_seconds_reported_by_unittest": 0.076
+      "tests": 40,
+      "elapsed_seconds_reported_by_unittest": 0.085
     },
     "python_compile": "PASS",
     "registry_json": "PASS",
     "diff_check": "PASS",
     "full_suite": "NOT_RUN_SCOPED_LANE",
-    "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0"
+    "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0",
+    "github_review_followup": "BLOCKED_REGISTRY_AND_HOST_INDEPENDENT_ABSOLUTE_PATH_FINDINGS_FIXED"
   },
   "observed_real_counts": {
     "teacher_runs_started_by_this_lane": 0,

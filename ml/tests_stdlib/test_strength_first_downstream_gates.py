@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -436,6 +437,23 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             )
 
         self.assertEqual(calls, [])
+
+    def test_observation_validation_rejects_blocked_registry_before_enrollment_access(
+        self,
+    ):
+        path = MODULE_PATH.parents[1] / GATES.DOWNSTREAM_REGISTRY_RELATIVE_PATH
+        registry = json.loads(path.read_text(encoding="utf-8"))
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires a ready downstream registry",
+        ):
+            GATES._validate_observation_data(
+                {},
+                role="fresh_final_holdout",
+                registry=registry,
+                candidate={},
+            )
 
     def test_authorization_is_one_shot_even_after_success(self):
         registry = ready_registry()
@@ -1113,6 +1131,19 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             GATES.receipt_identity(
                 receipt,
                 path="../retention-receipt.json",
+            )
+
+    def test_receipt_identity_rejects_posix_absolute_path_on_any_host(self):
+        receipt = self.run_valid()["receipts"]["retention"]
+
+        with mock.patch.object(
+            os.path,
+            "isabs",
+            return_value=False,
+        ), self.assertRaisesRegex(ValueError, "canonical relative path"):
+            GATES.receipt_identity(
+                receipt,
+                path="/retention-receipt.json",
             )
 
 

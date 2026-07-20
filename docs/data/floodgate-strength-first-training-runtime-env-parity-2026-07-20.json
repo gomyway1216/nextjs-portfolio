@@ -1,0 +1,79 @@
+{
+  "schema": "shogi-floodgate-strength-first-training-runtime-environment-parity-evidence-v1",
+  "status": "implementation-and-focused-validation-pass-no-training-selection-or-live-change",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-training-runtime-env-parity.md",
+    "english": "../blog-shogi-floodgate-strength-first-training-runtime-env-parity.en.md"
+  },
+  "implementation": {
+    "launcher": "ml/run_strength_first_three_seed_training.py",
+    "seeds": [42, 43, 44],
+    "children_started_by_validation": 0,
+    "parent_environment_copied_before_fixed_overrides": true,
+    "independent_environment_map_per_child": true,
+    "fixed_child_environment": {
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": "2",
+      "MKL_NUM_THREADS": "2",
+      "OPENBLAS_NUM_THREADS": "2",
+      "VECLIB_MAXIMUM_THREADS": "2",
+      "OMP_DYNAMIC": "FALSE",
+      "MKL_DYNAMIC": "FALSE"
+    },
+    "aligned_with_thread_benchmark_environment": true,
+    "current_threads_per_seed_changed": false,
+    "future_thread_benchmark_decision_bypassed": false
+  },
+  "adversarial_test": {
+    "hostile_inherited_values_supplied_for_all_fixed_keys": true,
+    "all_three_child_environments_checked": true,
+    "seed_order_checked": [42, 43, 44],
+    "distinct_child_environment_maps_checked": true,
+    "parent_environment_unchanged_checked": true
+  },
+  "validation": {
+    "focused_python": {
+      "status": "PASS",
+      "tests": 8
+    },
+    "typescript_evidence_contract": {
+      "status": "PASS",
+      "tests": 3
+    },
+    "python_compile": "PASS",
+    "ruff": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS"
+  },
+  "historical_record_boundary": {
+    "existing_cpu_model_article_rewritten": false,
+    "existing_cpu_model_evidence_rewritten": false,
+    "historical_validation_counts_rewritten": false,
+    "this_is_a_new_additive_record": true
+  },
+  "authority": {
+    "teacher_or_training_data_read": false,
+    "training_plan_read": false,
+    "selection_labels_read": false,
+    "holdout_labels_read": false,
+    "real_optimizer_training_authorized_by_this_change": false,
+    "candidate_selection_authorized": false,
+    "production_weight_write_authorized": false,
+    "live_promotion_authorized": false
+  },
+  "strength_claims": {
+    "model_retrained": false,
+    "candidate_selected": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "privacy": {
+    "private_absolute_paths_published": false,
+    "training_positions_or_identifiers_published": false,
+    "private_file_digests_published": false
+  },
+  "claim_boundary": "three-child-launch-environment-parity-and-focused-tests-only-not-real-training-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "merge-before-building-the-exact-training-plan-or-launching-the-real-seeds-42-43-44"
+}

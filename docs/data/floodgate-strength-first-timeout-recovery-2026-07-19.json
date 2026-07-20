@@ -92,7 +92,12 @@
       "second-timeout-beyond-small-prefix-limit-fails-before-recording",
       "runner-output-generation-is-v7"
     ],
-    "broad_full_suite_run": false
+    "broad_full_suite_run": true,
+    "broad_full_suite_environment": "independent-detached-user-home-worktree-with-physical-node_modules",
+    "broad_full_suite_test_files_passed": 216,
+    "broad_full_suite_tests_passed": 3537,
+    "broad_full_suite_tests_skipped": 1,
+    "broad_full_suite_tests_failed": 0
   },
   "claims": {
     "teacher_completion": false,

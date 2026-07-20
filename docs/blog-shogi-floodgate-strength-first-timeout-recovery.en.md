@@ -95,6 +95,8 @@ Reusing 99 entries would require a new cross-revision migration authority that r
 
 With fixed Node v22.13.0, the three focused USI-wrapper, generator, and runner test files passed 51 tests. Eight training-bridge stdlib tests also passed. They cover typed proposal and independent-rescore timeouts, zero partial labels, replacement in a fresh private directory, no surviving child after initial or replacement handshake timeouts, preservation of the original initialization failure when cleanup also fails, no extra skip or result for initialization failure, rejection of the test-only timeout at the production seam, forced/emitted accounting, the public reason breakdown, timeout-metadata tamper rejection, fatal behavior beyond the cap, the new v7 root, and the pre-training revalidation.
 
+The latest head was also checked out into an independent detached worktree under the user home with a physical, non-symlinked `node_modules`. The full suite passed 3,537 tests across 216 test files, with one skipped test and zero failures. A `/private/tmp` checkout was rejected only by production-home alias boundary tests, so the recorded broad result uses the normal-checkout environment.
+
 That pass validates recovery code; it is not evidence of teacher completion or playing strength. Only after review, CI, and a regular merge should the v7 run begin, followed by separate audits of the 100, 500, and 24,000 receipts.
 
 Machine-readable facts are in the [timeout recovery evidence](./data/floodgate-strength-first-timeout-recovery-2026-07-19.json), and the prospective policy is in the [timeout recovery amendment](../ml/protocols/floodgate-q1-2026-strength-first-timeout-recovery-amendment.json).

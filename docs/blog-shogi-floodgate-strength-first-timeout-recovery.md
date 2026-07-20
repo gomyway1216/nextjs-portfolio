@@ -95,6 +95,8 @@ private `work.jsonl`を開かなくても上限を監査できるよう、各pre
 
 固定Node v22.13.0で、USI wrapper、generator、runnerの対象3 test file、51 testを通した。さらにtraining bridgeのstdlib test 8件も通した。focused testは、proposal / independent-rescore両方のtyped timeout、partial label 0件、fresh private directoryでのprocess replacement、初回とreplacementのhandshake timeout後にchildが残らないこと、cleanup failureが元の初期化failureを上書きしないこと、初期化failureが追加skipやresultにならないこと、test専用timeoutがproductionへ入らないこと、forced/emitted accounting、公開理由別件数、timeout metadata改ざん拒否、上限超過時の停止、新しいv7 rootとtraining前の再検証を確認する。
 
+さらに、最新headをユーザーホーム配下の独立detached worktreeへ展開し、共有symlinkではない`node_modules`を実体配置した条件で全suiteを実行した。216 test file、3,537 testがpass、1 testがskip、failureは0だった。`/private/tmp`配置ではproduction-home alias境界testだけが環境を拒否したため、正式記録には通常checkout条件の結果を採用する。
+
 このpassは回復codeの検証であり、実teacher completionや棋力の証拠ではない。次はreview / CI / regular merge後にだけv7 runを開始し、100、500、24,000の各receiptを順に監査する。
 
 機械可読記録は[timeout recovery evidence](./data/floodgate-strength-first-timeout-recovery-2026-07-19.json)、prospective policyは[timeout recovery amendment](../ml/protocols/floodgate-q1-2026-strength-first-timeout-recovery-amendment.json)に置いた。

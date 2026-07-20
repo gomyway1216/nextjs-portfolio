@@ -457,22 +457,33 @@ async function waitForLine(
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       listeners.delete(onLine);
+      child.off('close', onClose);
+      child.off('error', onError);
       reject(new Error('diagnostic-engine-initialization-timeout'));
     }, timeoutMs);
     const onClose = () => {
       clearTimeout(timer);
       listeners.delete(onLine);
+      child.off('error', onError);
       reject(new Error('diagnostic-engine-exited'));
+    };
+    const onError = () => {
+      clearTimeout(timer);
+      listeners.delete(onLine);
+      child.off('close', onClose);
+      reject(new Error('diagnostic-engine-spawn-error'));
     };
     const onLine = (line: string) => {
       if (!predicate(line)) return;
       clearTimeout(timer);
       child.off('close', onClose);
+      child.off('error', onError);
       listeners.delete(onLine);
       resolve();
     };
     listeners.add(onLine);
     child.once('close', onClose);
+    child.once('error', onError);
   });
 }
 
@@ -551,12 +562,21 @@ async function runSearch(
     result = await new Promise<UsiMultiPvResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         listeners.delete(onLine);
+        child.off('close', onClose);
+        child.off('error', onError);
         reject(new Error('diagnostic-search-timeout'));
       }, TIMEOUT_MS);
       const onClose = () => {
         clearTimeout(timer);
         listeners.delete(onLine);
+        child.off('error', onError);
         reject(new Error('diagnostic-engine-exited'));
+      };
+      const onError = () => {
+        clearTimeout(timer);
+        listeners.delete(onLine);
+        child.off('close', onClose);
+        reject(new Error('diagnostic-engine-spawn-error'));
       };
       const onLine = (line: string) => {
         accumulator.push(`${line}\n`);
@@ -564,6 +584,7 @@ async function runSearch(
         if (!line.startsWith('bestmove')) return;
         clearTimeout(timer);
         child.off('close', onClose);
+        child.off('error', onError);
         listeners.delete(onLine);
         try {
           resolve(accumulator.finish());
@@ -573,6 +594,7 @@ async function runSearch(
       };
       listeners.add(onLine);
       child.once('close', onClose);
+      child.once('error', onError);
       send(`setoption name MultiPV value ${expectedRanks}`);
       send(`position sfen ${parent.sfen}`);
       send(buildGo({ depth }));

@@ -489,6 +489,7 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+    expect((await fs.promises.stat(stage.work)).mode & 0o777).toBe(0o600);
     expect(verifyRevision).toHaveBeenLastCalledWith(PIPELINE_REVISION);
     expect(verifyRevision).not.toHaveBeenCalledWith(bundleVerifierRevision);
     expect(verifyOutputPaths.mock.calls.map(([outputs]) => outputs)).toEqual([

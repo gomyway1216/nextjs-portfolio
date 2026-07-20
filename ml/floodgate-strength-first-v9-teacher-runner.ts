@@ -216,7 +216,6 @@ export interface FloodgateStrengthFirstV9TeacherRunnerDependencies {
   readonly platform: NodeJS.Platform;
   readonly architecture: string;
   readonly effectiveUserId: number;
-  readonly setUmask: (mode: number) => number;
   readonly ensurePrivateDirectory: (
     directory: string,
     effectiveUserId: number,
@@ -780,7 +779,6 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
   dependencies: FloodgateStrengthFirstV9TeacherRunnerDependencies,
 ): Promise<Readonly<FloodgateStrengthFirstV9TeacherPublicReceipt>> {
   assertRuntime(dependencies);
-  const previousUmask = dependencies.setUmask(0o077);
   let releaseRunLock: RunLockRelease | undefined;
   try {
     const paths = floodgateStrengthFirstV9TeacherPaths(
@@ -930,11 +928,7 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
       result,
     });
   } finally {
-    try {
-      await releaseRunLock?.();
-    } finally {
-      dependencies.setUmask(previousUmask);
-    }
+    await releaseRunLock?.();
   }
 }
 
@@ -953,7 +947,6 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstV9TeacherRunnerDependencies
     platform: process.platform,
     architecture: process.arch,
     effectiveUserId: productionEffectiveUserId(),
-    setUmask: (mode: number) => process.umask(mode),
     ensurePrivateDirectory: ensureFloodgateStrengthFirstTeacherPrivateDirectory,
     acquireRunLock: (outputRoot: string, effectiveUserId: number) =>
       acquireFloodgateStrengthFirstTeacherRunLock(outputRoot, effectiveUserId, {

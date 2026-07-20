@@ -386,7 +386,6 @@ function fixture(postflightMutation = false) {
     platform: "darwin",
     architecture: "arm64",
     effectiveUserId: 501,
-    setUmask: vi.fn(() => 0o022),
     ensurePrivateDirectory: vi.fn(async () => undefined),
     acquireRunLock: vi.fn(async () => async () => undefined),
     verifyProductionAssets: vi.fn(async () => assets),

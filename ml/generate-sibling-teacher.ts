@@ -2214,7 +2214,7 @@ async function runSiblingTeacherDatasetCore(
   );
   let workHandle: fs.promises.FileHandle;
   try {
-    workHandle = await fs.promises.open(options.work, 'a');
+    workHandle = await fs.promises.open(options.work, 'a', 0o600);
   } catch (error) {
     await fs.promises.rm(runtimeSnapshot.root, {
       recursive: true,

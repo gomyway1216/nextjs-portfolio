@@ -24,7 +24,8 @@ strength-first学習は、既存fresh QATと同じ最終checkpoint構造・固�
 `result schema`、`plan binding`、`training contract`、`checkpoint schema`、
 `replay identity`を明示的に渡せるようにした。strength-firstの固定公開APIが渡す値は
 code内の定数と検証済みplanから作られ、呼出側がloader、model validator、path familyを
-差し替えることはできない。
+公開functionの引数として差し替えることはできない。ただし、同一processのPythonがprivate
+helperを直接importして呼ぶことまで防ぐsecurity boundaryではない。
 
 新しいregistryは
 [`floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json`](../ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json)
@@ -85,9 +86,17 @@ exact matchする。
 
 ## selectionとfinal holdoutは別の権限
 
-このpreflight自身はselection labelを読まない。全3候補が通ったときだけ、公開API内部で
-one-shot receiptを発行し、selection readerを1回呼べる。plain `dict`、別class、使用済みreceipt、
-外部生成objectではreaderへ進めない。reader自身が失敗してもreceiptは消費済みになる。
+このpreflight自身はselection labelを読まない。固定公開preflightの正常経路は、全3候補が
+通ったときにone-shot receiptを発行し、通常の公開API経路ではselection readerを1回だけ呼べる。
+plain `dict`、別class、任意のbrand、使用済みreceiptは通常functionに拒否され、
+reader自身が失敗してもreceiptは消費済みになる。
+
+これは協調的なcall siteで、検証済みreceiptの取り違え・再利用を防ぐための
+**accidental-misuse guard**である。同一processのPythonに対する認可tokenではない。
+`_RECEIPT_BRAND`と`_RECEIPT_STATES`はPythonの命名上privateなだけでimport可能であり、それらへ
+アクセスできるcodeはreceiptを構築できる。selection readerを直接呼ぶcodeもこのmoduleでは
+止められない。したがって暗号的な偽造不能性、same-process authorization、敵対的Pythonからの
+security isolationは主張しない。
 
 final holdoutのlabel pathはこのpreflightへ渡さず、receiptにも
 `not_opened_by_this_preflight`と記録する。候補選抜後にもsealed final holdout、既知回帰、
@@ -110,8 +119,9 @@ final holdoutのlabel pathはこのpreflightへ渡さず、receiptにも
 synthetic temporary artifactだけを使い、closed registryがplan / artifact / Torchへ進まないこと、
 strength-firstの3 schema / path / seedを受け入れること、fresh schemaやwrong pathを拒否すること、
 resultのteacher-work binding改変をcheckpoint load前に拒否すること、最後のcheckpoint欠落時にも
-loaderを1回も呼ばないこと、one-shot receiptを再利用できないことを確認した。既存fresh 17件も
-全成功し、旧公開経路の既定動作が維持されている。
+loaderを1回も呼ばないこと、通常APIでone-shot receiptを再利用できないことを確認した。またtestは
+private brandをimportすればreceiptを構築できることを意図的に示し、これが認可境界ではないことも
+固定した。既存fresh 17件も全成功し、旧公開経路の既定動作が維持されている。
 
 実teacher worktree、実teacher output、process controlには触れていない。AWS、GCP、Vercelを含む
 cloud computeも使わず、将来の実行先は引き続きlocal Macである。

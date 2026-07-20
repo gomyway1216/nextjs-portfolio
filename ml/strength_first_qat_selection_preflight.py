@@ -5,6 +5,11 @@ plan and all three final result/checkpoint identities exist.  The public path
 uses the same immutable-byte, strict-model, and tracked-file boundary as the
 fresh QAT preflight, but accepts only the strength-first schema/path family.
 It does not read selection labels or the final holdout itself.
+
+The receipt is only a one-shot accidental-misuse guard for cooperative callers
+using the public API. Python code in this process can import module-private
+state or call a selection reader directly, so this module does not claim
+same-process authorization, cryptographic unforgeability, or security isolation.
 """
 
 from __future__ import annotations
@@ -479,21 +484,23 @@ def _preflight_strength_first_qat_selection(
             "tracked_tree_clean": True,
         },
         "runs": runs,
-        "reader_gate": "one-shot-public-api-preflight-guard",
+        "reader_gate": "one-shot-public-api-accidental-misuse-guard",
+        "same_process_python_authorization_enforced": False,
         "final_holdout": "not_opened_by_this_preflight",
         "production_promotion_authorized": False,
     }
 
 
 class StrengthFirstQatSelectionPreflightReceipt:
-    """One-shot guard created only by the fixed strength-first public path."""
+    """One-shot public-API misuse guard, not a same-process authority token."""
 
     __slots__ = ("__weakref__",)
 
     def __init__(self, brand: object, value: Mapping[str, Any]) -> None:
         if brand is not _RECEIPT_BRAND:
             raise TypeError(
-                "strength-first selection receipt cannot be constructed externally"
+                "strength-first selection receipt requires the module-private "
+                "misuse-guard brand"
             )
         serialized = (json.dumps(value, sort_keys=True, allow_nan=False) + "\n").encode(
             "utf-8"
@@ -528,7 +535,7 @@ def call_strength_first_selection_reader(
     receipt: StrengthFirstQatSelectionPreflightReceipt,
     selection_reader: Callable[[Mapping[str, Any]], Any],
 ) -> Any:
-    """Invoke one selection reader once after all three strict validations."""
+    """Use one guard once; this does not stop direct same-process reader calls."""
 
     if (
         type(receipt) is not StrengthFirstQatSelectionPreflightReceipt
@@ -546,7 +553,7 @@ def preflight_strength_first_qat_selection(
     *,
     audit_revision: str,
 ) -> StrengthFirstQatSelectionPreflightReceipt:
-    """Return a fixed-path one-shot guard, or stop before any label reader."""
+    """Return a fixed-path one-shot misuse guard, or stop before a reader."""
 
     root = os.path.realpath(
         os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")

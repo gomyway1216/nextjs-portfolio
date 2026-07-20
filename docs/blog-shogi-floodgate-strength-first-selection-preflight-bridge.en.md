@@ -24,8 +24,9 @@ The existing public fresh API and all of its defaults are unchanged. Its interna
 common validation can now receive an explicit result schema, plan binding,
 training contract, checkpoint schema, and replay identity. The fixed
 strength-first public API derives those values only from code constants and the
-validated plan. A caller cannot replace the loader, model validator, or accepted
-path family.
+validated plan. Its public function signature does not let a caller replace the
+loader, model validator, or accepted path family. This does not prevent
+same-process Python from importing and invoking private helpers directly.
 
 The new registry is
 [`floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json`](../ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json)
@@ -89,11 +90,19 @@ prevents receipt issuance.
 
 ## Selection and the final holdout remain separate authorities
 
-This preflight does not read selection labels. Only after all three candidates
-pass can the fixed public path mint a one-shot receipt and call one selection
-reader. A plain dictionary, another class, a consumed receipt, or an
-externally-constructed object cannot enter the reader. The receipt is consumed
-even if the reader raises.
+This preflight does not read selection labels. In the fixed public preflight's
+normal path, all three candidates must pass before it mints a one-shot receipt
+and calls one selection reader through the ordinary public API. A plain
+dictionary, another class, an arbitrary brand, or a consumed receipt is
+rejected by that function. The receipt is consumed even if the reader raises.
+
+This is an **accidental-misuse guard** for cooperative call sites: it prevents
+mixing up or reusing a validated receipt. It is not an authorization token
+against Python running in the same process. `_RECEIPT_BRAND` and
+`_RECEIPT_STATES` are private by naming convention but remain importable, and
+code with access to them can construct a receipt. Code can also call a selection
+reader directly. We therefore claim no cryptographic unforgeability,
+same-process authorization, or security isolation from adversarial Python.
 
 No final-holdout label path is passed into this preflight. Its receipt records
 `not_opened_by_this_preflight`. After selection, the candidate still must pass
@@ -118,8 +127,10 @@ Synthetic temporary artifacts verify the closed-registry early STOP; acceptance
 of the exact strength-first schemas, paths, and seeds; rejection of fresh
 schemas and wrong paths; rejection of a changed teacher-work binding before any
 checkpoint load; zero checkpoint loads when the last checkpoint is absent; and
-one-shot receipt consumption. All 17 existing fresh tests also pass, preserving
-the old public path's default behavior.
+one-shot receipt consumption through the ordinary API. The test deliberately
+constructs a receipt with the importable private brand, documenting that this is
+not an authorization boundary. All 17 existing fresh tests also pass,
+preserving the old public path's default behavior.
 
 The active teacher worktree, teacher output, and process control were untouched.
 No AWS, GCP, Vercel, or other cloud compute is involved; future execution

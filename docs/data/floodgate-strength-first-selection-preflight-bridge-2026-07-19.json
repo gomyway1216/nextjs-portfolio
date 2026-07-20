@@ -39,8 +39,17 @@
     "require-one-shared-training-pipeline-and-runtime",
     "strict-load-and-model-validate-all-three-captured-checkpoints",
     "reread-tracked-inputs-results-and-checkpoint-identities",
-    "mint-one-shot-public-api-receipt"
+    "mint-one-shot-public-api-accidental-misuse-receipt"
   ],
+  "receipt_boundary": {
+    "purpose": "cooperative-public-api-accidental-misuse-prevention",
+    "one_shot": true,
+    "same_process_python_authorization_enforced": false,
+    "cryptographic_unforgeability_claimed": false,
+    "security_isolation_claimed": false,
+    "module_private_brand_and_state_are_importable_by_python": true,
+    "direct_same_process_selection_reader_calls_prevented": false
+  },
   "strength_first_bindings": {
     "exact_slot_ids_outputs_and_paths": true,
     "exact_result_and_checkpoint_schemas": true,
@@ -100,6 +109,6 @@
     "gcp_required": false,
     "vercel_required": false
   },
-  "claim_boundary": "validated-closed-strength-first-three-candidate-preflight-bridge-not-real-training-completion-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "claim_boundary": "validated-closed-strength-first-three-candidate-preflight-and-cooperative-one-shot-accidental-misuse-bridge-not-same-process-authorization-or-security-and-not-real-training-completion-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
   "next_step": "after-the-real-teacher-and-three-training-runs-complete-register-only-observed-plan-result-and-checkpoint-identities-in-a-reviewed-data-only-opening"
 }

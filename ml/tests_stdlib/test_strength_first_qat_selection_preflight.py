@@ -385,6 +385,11 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
         )
         self.assertFalse(validated["selection_labels_read"])
         self.assertEqual(
+            validated["reader_gate"],
+            "one-shot-public-api-accidental-misuse-guard",
+        )
+        self.assertFalse(validated["same_process_python_authorization_enforced"])
+        self.assertEqual(
             validated["final_holdout"],
             "not_opened_by_this_preflight",
         )
@@ -464,7 +469,7 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
                 )
             loader.assert_not_called()
 
-    def test_public_api_is_fixed_and_internal_receipt_is_one_shot(self):
+    def test_public_api_is_fixed_but_private_brand_is_not_security_boundary(self):
         signature = inspect.signature(PREFLIGHT.preflight_strength_first_qat_selection)
         self.assertEqual(set(signature.parameters), {"audit_revision"})
         self.assertEqual(
@@ -475,6 +480,9 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
             "schema": PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_PREFLIGHT_SCHEMA,
             "validated": True,
         }
+        # Python module privacy is conventional, not enforced. Importing the
+        # private brand can mint this one-shot guard, so the receipt is not an
+        # authorization or cryptographic authenticity boundary.
         receipt = PREFLIGHT.StrengthFirstQatSelectionPreflightReceipt(
             PREFLIGHT._RECEIPT_BRAND,
             value,

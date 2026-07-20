@@ -582,6 +582,52 @@ describe("fresh-final teacher runner", () => {
         completion,
         pattern: /unknown parent coverage/,
       },
+      {
+        label: "intra-parent order",
+        bytes: rewrite((records) => {
+          for (let start = 0; start < records.length; ) {
+            const parentId = records[start].parent_id;
+            let end = start + 1;
+            while (
+              end < records.length &&
+              records[end].parent_id === parentId
+            ) {
+              end += 1;
+            }
+            records.splice(
+              start,
+              end - start,
+              ...records.slice(start, end).reverse(),
+            );
+            start = end;
+          }
+        }),
+        completion,
+        pattern: /canonical teacher-rank and move order/,
+      },
+      {
+        label: "unsafe mate distance",
+        bytes: rewrite((records) => {
+          records[0].teacher_score_kind = "mate";
+          records[0].teacher_mate = 1e20;
+          records[0].teacher_mate_sign = 1;
+          records[0].teacher_parent_cp = 900_001;
+          records[0].teacher_child_cp = -900_001;
+          records[0].cp = -900_001;
+        }),
+        completion,
+        pattern: /mate metadata is not a safe integer with exact sign/,
+      },
+      {
+        label: "invalid mate sign",
+        bytes: rewrite((records) => {
+          records[0].teacher_score_kind = "mate";
+          records[0].teacher_mate = 1;
+          records[0].teacher_mate_sign = 0;
+        }),
+        completion,
+        pattern: /mate metadata is not a safe integer with exact sign/,
+      },
     ] as const;
     for (const testCase of cases) {
       expect(

@@ -30,6 +30,7 @@ import {
   siblingTeacherStagePaths,
 } from "./generate-sibling-teacher";
 import {
+  compareBytewise,
   validateParentGroups,
   type SiblingRecord,
 } from "./sibling-data";
@@ -775,6 +776,15 @@ export function validateFreshFinalDatasetBytesCoreForTests(
       }
     }
     if (
+      row.teacher_score_kind === "mate" &&
+      (!Number.isSafeInteger(row.teacher_mate) ||
+        (row.teacher_mate_sign !== 1 && row.teacher_mate_sign !== -1))
+    ) {
+      throw new Error(
+        `fresh-final dataset line ${index + 1} mate metadata is not a safe integer with exact sign`,
+      );
+    }
+    if (
       !Array.isArray(row.sources) ||
       row.sources.length === 0 ||
       row.sources.some(
@@ -819,6 +829,17 @@ export function validateFreshFinalDatasetBytesCoreForTests(
       firstByParent.set(record.parent_id, record);
     }
     const group = recordsByParent.get(record.parent_id) ?? [];
+    const previous = group.at(-1);
+    if (
+      previous !== undefined &&
+      (previous.teacher_rank > record.teacher_rank ||
+        (previous.teacher_rank === record.teacher_rank &&
+          compareBytewise(previous.move, record.move) > 0))
+    ) {
+      throw new Error(
+        "fresh-final dataset sibling rows are not in canonical teacher-rank and move order",
+      );
+    }
     group.push(record);
     recordsByParent.set(record.parent_id, group);
   }

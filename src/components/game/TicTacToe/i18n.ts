@@ -9,8 +9,10 @@ import type { Difficulty } from '../common/types';
 export interface TicTacToeCopy {
   title: string;
   subtitle: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
+  cellLabel: (n: number) => string;
   firstMove: string;
   youFirst: string;
   aiFirst: string;
@@ -37,8 +39,10 @@ export interface TicTacToeCopy {
 const en: TicTacToeCopy = {
   title: 'Tic-Tac-Toe',
   subtitle: 'Line up three marks before the AI does.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Choose your opponent',
   start: 'Start Game',
+  cellLabel: (n) => `Cell ${n}, empty`,
   firstMove: 'Who moves first?',
   youFirst: 'You (X)',
   aiFirst: 'AI (O)',
@@ -77,8 +81,10 @@ const en: TicTacToeCopy = {
 const ja: TicTacToeCopy = {
   title: '三目並べ',
   subtitle: 'AIより先に3つ並べよう。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '相手を選ぶ',
   start: 'ゲーム開始',
+  cellLabel: (n) => `マス${n}・空き`,
   firstMove: '先手はどっち？',
   youFirst: 'あなた (X)',
   aiFirst: 'AI (O)',

@@ -8,6 +8,7 @@ import type { GameLanguage } from '../constants/gameTranslations';
 export interface BreakoutStrings {
   title: string;
   tagline: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
   howToPlay: string;
@@ -45,6 +46,7 @@ export interface BreakoutStrings {
 const en: BreakoutStrings = {
   title: 'BREAKOUT',
   tagline: 'Classic brick-breaking action, rebuilt.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Select difficulty',
   start: 'Start Game',
   howToPlay: 'How to Play',
@@ -82,6 +84,7 @@ const en: BreakoutStrings = {
 const ja: BreakoutStrings = {
   title: 'ブロック崩し',
   tagline: '定番のブロック崩しをリニューアル。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '難易度を選択',
   start: 'ゲーム開始',
   howToPlay: '遊び方',

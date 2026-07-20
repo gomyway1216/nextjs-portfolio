@@ -408,6 +408,7 @@ const Breakout: React.FC = () => {
           onStart={startNewGame}
           difficultyTitle={t.selectDifficulty}
           startLabel={t.start}
+          kickerLabel={t.gameSetup}
         />
         <button type="button" onClick={() => setShowInfo(true)} style={linkBtnStyle}>
           {t.howToPlay}

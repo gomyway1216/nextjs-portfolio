@@ -78,7 +78,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [showInfo, setShowInfo] = useState(false);
 
-  const [playerName, setPlayerName] = useState('You');
+  const [playerName, setPlayerName] = useState('');
   const [aiCount, setAiCount] = useState<number>(3); // total players = aiCount + 1 (min 3, max 6)
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
@@ -505,6 +505,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
               onStart={startGame}
               difficultyTitle={t.difficulty}
               startLabel={t.startGame}
+              kickerLabel={t.gameSetup}
               setupContent={(
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 700 }}>

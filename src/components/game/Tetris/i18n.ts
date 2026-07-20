@@ -8,6 +8,7 @@ import type { GameLanguage } from '../constants/gameTranslations';
 export interface TetrisStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
   easy: string;
@@ -57,6 +58,7 @@ export interface TetrisStrings {
 const en: TetrisStrings = {
   title: 'Tetris',
   subtitle: 'Stack blocks, clear lines, chase the Tetris.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Starting Speed',
   start: 'Start Game',
   easy: 'Easy',
@@ -107,6 +109,7 @@ const en: TetrisStrings = {
 const ja: TetrisStrings = {
   title: 'テトリス',
   subtitle: 'ブロックを積んでラインを消そう。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '開始スピード',
   start: 'ゲーム開始',
   easy: 'かんたん',

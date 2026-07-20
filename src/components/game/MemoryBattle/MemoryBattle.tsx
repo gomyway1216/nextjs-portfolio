@@ -316,6 +316,7 @@ const MemoryBattle = () => {
             options={difficultyOptions}
             difficultyTitle={t.difficultyTitle}
             startLabel={t.startLabel}
+            kickerLabel={t.gameSetup}
             onStart={startGame}
             setupContent={
               <div>

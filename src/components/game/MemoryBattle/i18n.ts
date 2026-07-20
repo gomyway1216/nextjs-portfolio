@@ -8,6 +8,7 @@ import type { GameLanguage } from '../constants/gameTranslations';
 export interface MemoryBattleStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   difficultyTitle: string;
   startLabel: string;
   difficulties: {
@@ -47,6 +48,7 @@ export interface MemoryBattleStrings {
 const en: MemoryBattleStrings = {
   title: 'Memory Battle',
   subtitle: 'Out-remember the AI in a game of concentration.',
+  gameSetup: 'Game setup',
   difficultyTitle: 'AI Difficulty',
   startLabel: 'Start Battle',
   difficulties: {
@@ -91,6 +93,7 @@ const en: MemoryBattleStrings = {
 const ja: MemoryBattleStrings = {
   title: 'メモリーバトル',
   subtitle: '神経衰弱でAIより多くのペアを記憶しよう。',
+  gameSetup: 'ゲーム設定',
   difficultyTitle: 'AIの強さ',
   startLabel: '対戦開始',
   difficulties: {

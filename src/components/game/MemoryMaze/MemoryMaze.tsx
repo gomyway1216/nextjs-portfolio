@@ -441,6 +441,7 @@ export const MemoryMaze = () => {
           onStart={startNewGame}
           difficultyTitle={t.selectDifficulty}
           startLabel={t.start}
+          kickerLabel={t.gameSetup}
         />
       ) : (
         <div className={styles.shell}>

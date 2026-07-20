@@ -232,6 +232,7 @@ export const MirrorOthello = () => {
             onStart={start}
             difficultyTitle={t.selectDifficulty}
             startLabel={t.start}
+            kickerLabel={t.gameSetup}
           />
         ) : (
           <>

@@ -10,6 +10,7 @@ import type { GameLanguage } from '../constants/gameTranslations';
 export interface DoubtStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   tagline: string;
 
   // setup
@@ -103,6 +104,7 @@ export interface DoubtStrings {
 const en: DoubtStrings = {
   title: 'Doubt',
   subtitle: 'Bluff, read your opponents, and empty your hand first.',
+  gameSetup: 'Game setup',
   tagline: 'Place cards face-down, claim a rank — get caught and you eat the pile.',
 
   playVsAi: 'Play vs AI',
@@ -188,6 +190,7 @@ const en: DoubtStrings = {
 const ja: DoubtStrings = {
   title: 'ダウト',
   subtitle: 'ブラフと読み合いで、いち早く手札を出し切ろう。',
+  gameSetup: 'ゲーム設定',
   tagline: 'カードを裏向きに出してランクを宣言。見破られたら山札を引き取り。',
 
   playVsAi: 'AI と対戦',

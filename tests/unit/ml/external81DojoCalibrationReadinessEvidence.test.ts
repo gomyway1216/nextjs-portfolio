@@ -34,7 +34,7 @@ function sha256(value: Uint8Array): string {
 }
 
 describe("external 81Dojo calibration readiness publication", () => {
-  it("binds the exact policy, offline verifier, and fixture tests", () => {
+  it("binds the exact policy, calibration verifier, and fixture tests", () => {
     const evidence = JSON.parse(read(EVIDENCE));
 
     expect(evidence).toMatchObject({
@@ -42,9 +42,9 @@ describe("external 81Dojo calibration readiness publication", () => {
       recorded_date: "2026-07-20",
       status: "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
       implementation_anchor: {
-        revision: "06ee2a14ffd1e56f3db2c65cd5f4984785ef336f",
-        tree: "fc554c228c8d0f2d7f9760a0f223afa5045821a0",
-        base_revision: "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
+        revision: "86b1d9e30dda4326bf67fbc1b82f8db23b94f6fb",
+        tree: "c478fab41badaf1191c1003375ac9a5d35badffd",
+        base_revision: "bae76159216bb46897adf94b1d062c0417fd239c",
         branch: "codex/shogi-81dojo-calibration-protocol",
       },
     });
@@ -55,6 +55,18 @@ describe("external 81Dojo calibration readiness publication", () => {
       expect(bytes.byteLength).toBe(artifact.bytes);
       expect(sha256(bytes)).toBe(artifact.sha256);
     }
+    expect(evidence.validation).toMatchObject({
+      focused_tests_passed: 23,
+      focused_tests_failed: 0,
+      focused_duration_seconds: 30.417,
+      independent_review_round_blockers_addressed: [5, 6],
+      independent_review_blockers_addressed_total: 11,
+      final_bounded_rereview_tests_passed: 9,
+      final_bounded_rereview_p0: 0,
+      final_bounded_rereview_p1: 0,
+      final_bounded_rereview_p2: 0,
+      live_network_calls_in_python_fixtures: 0,
+    });
   });
 
   it("matches the fixed external protocol and keeps execution closed", () => {
@@ -81,7 +93,9 @@ describe("external 81Dojo calibration readiness publication", () => {
     expect(evidence.authorization_boundary).toEqual({
       external_execution_authorized: false,
       external_write_authorized: false,
-      server_api_access_authorized: false,
+      "81dojo_server_api_access_authorized": false,
+      public_github_read_only_publication_verification_enabled: true,
+      github_credential_access_authorized: false,
       browser_or_ui_automation_authorized: false,
       credential_access_authorized: false,
       manual_official_client_relay_authorized: false,
@@ -102,7 +116,9 @@ describe("external 81Dojo calibration readiness publication", () => {
     expect(evidence.candidate_runtime_binding).toMatchObject({
       public_merged_main_data_only_core_commitment_required_before_game_1: true,
       self_asserted_assembly_time_is_preregistration_proof: false,
-      trace_binds_protocol_candidate_runtime_server_game_and_server_record: true,
+      trace_receipt_schema: "shogi-external-81dojo-candidate-trace-v2",
+      runtime_and_every_decision_are_exact_canonical_content_receipts: true,
+      outer_wrapper_relabel_cannot_reuse_nested_receipt_bytes: true,
     });
     expect(evidence.preregistration_publication_contract).toMatchObject({
       protocol_core_schema: "shogi-external-81dojo-candidate-protocol-core-v1",
@@ -110,26 +126,47 @@ describe("external 81Dojo calibration readiness publication", () => {
         "shogi-external-81dojo-protocol-publication-document-v1",
       merged_main_binding_schema:
         "shogi-external-81dojo-merged-main-publication-binding-v1",
+      github_verification_schema:
+        "shogi-external-81dojo-github-publication-verification-v1",
       branch: "main",
+      server_branch_ref: "refs/heads/main",
+      fixed_api_host: "api.github.com",
+      network_method: "read-only-public-GET",
+      authorization_header_or_token_used: false,
       document_binds_exact_protocol_core_sha256: true,
+      github_pr_must_be_server_reported_merged_to_exact_repository_main: true,
+      github_server_merged_at_and_merge_commit_sha_required: true,
+      live_main_must_descend_from_recorded_head_and_merge_commit: true,
+      github_commit_tree_and_contents_path_blob_bytes_required: true,
+      local_git_revision_tree_blob_and_bytes_cross_checked: true,
+      local_origin_ref_or_committer_time_alone_is_proof: false,
+      terminal_receipt_live_reverifies_github: true,
       game_1_must_follow_merge_and_protocol_assembly: true,
-      offline_verifier_independently_proves_remote_merge: false,
-      independent_public_commit_check_required: true,
+      fail_closed_if_github_cannot_be_reverified_at_finalization: true,
     });
     expect(evidence.ledger_and_receipt).toMatchObject({
       authoritative_storage: "immutable-entry-directory-v1",
       jsonl_role: "derived-view-only",
       every_game_timestamp_after_merged_publication_and_protocol_assembly: true,
       atomic_nofollow_required_for_local_append: true,
-      every_existing_ancestor_symlink_rejected: true,
+      descriptor_relative_walk_rejects_every_symlink_component: true,
+      opened_root_lock_and_entries_inode_binding_reverified: true,
+      first_namespace_parent_lock_root_and_entries_fsync_ordered: true,
       whole_candidate_prefix_validated_before_any_temp_write: true,
       temp_fsync_exclusive_link_publish_directory_fsync: true,
       partial_temp_write_is_not_authoritative: true,
+      exact_retry_after_commit_is_idempotent: true,
+      terminal_receipt_accepts_only_locked_authoritative_directory: true,
+      terminal_receipt_binds_full_file_identity_and_content_manifest: true,
+      arbitrary_jsonl_cannot_issue_terminal_receipt: true,
     });
     expect(policy.ledger_contract).toMatchObject({
       authoritative_storage: "immutable-entry-directory-v1",
       public_merged_main_protocol_commitment_before_game_1: true,
       self_asserted_timestamp_is_not_preregistration_proof: true,
+      github_api_tls_pr_merge_time_main_ancestry_tree_blob_path_bytes: true,
+      local_git_object_tree_blob_cross_check: true,
+      terminal_receipt_reverifies_live_github_publication: true,
     });
   });
 
@@ -176,29 +213,43 @@ describe("external 81Dojo calibration readiness publication", () => {
       pull_request_ready_for_review: true,
       automatic_vercel_preview_triggered_by_existing_repository_integration: true,
       vercel_preview_is_calibration_execution: false,
+      vercel_preview_status_is_not_a_calibration_gate: true,
       calibration_games_or_credentials_sent_to_preview: false,
     });
     expect(
       Object.values(evidence.nonclaims).every((value) => value === false),
     ).toBe(true);
     expect(verifier).not.toMatch(
-      /^\s*(?:from|import)\s+(?:boto|google|requests|selenium|playwright|socket|urllib|webbrowser)\b/mu,
+      /^\s*(?:from|import)\s+(?:boto|google|requests|selenium|playwright|webbrowser)\b/mu,
     );
-    expect(verifier).not.toMatch(/\bsubprocess\b/u);
+    expect(verifier).toContain("http.client.HTTPSConnection");
+    expect(verifier).toContain('PUBLIC_GITHUB_API_HOST = "api.github.com"');
+    expect(verifier).toContain('"GET"');
+    expect(verifier).not.toContain('"Authorization"');
+    expect(verifier).not.toMatch(/"(?:POST|PUT|PATCH|DELETE)"/u);
+    expect(verifier).toContain('"/usr/bin/git"');
+    expect(verifier).toContain('"--no-replace-objects"');
+    expect(verifier).not.toMatch(/"(?:fetch|push|clone|ls-remote)"/u);
     expect(verifier).toContain("manual official-client relay");
     expect(verifier).toContain("O_NOFOLLOW");
+    expect(verifier).toContain("_open_absolute_parent_descriptor");
+    expect(verifier).toContain("AppendIndeterminateError");
+    expect(verifier).toContain("authoritative_manifest");
+    expect(verifier).toContain("TRACE_RECEIPT_SCHEMA");
     expect(verifier).toContain("candidate_raw = raw + encoded");
     expect(verifier).toContain("os.link(");
     expect(verifier).not.toContain("O_APPEND");
     expect(japaneseText).toContain("外部対局0局、候補未選定、実行許可なし");
     expect(japaneseText).toContain(
-      "AWS、GCP、Firebase、Vercelはこの校正には使わない",
+      "AWS、GCP、Firebase、Vercelはこの校正の計算・保存・実行には使わない",
     );
+    expect(japaneseText).toContain("public GitHub APIへのread-only TLS GET");
     expect(englishText).toContain(
       "zero external games, no selected candidate, and no execution authorization",
     );
     expect(englishText).toContain(
-      "AWS, GCP, Firebase, and Vercel are not used for this calibration",
+      "AWS, GCP, Firebase, and Vercel are not used to compute, store, or execute this calibration",
     );
+    expect(englishText).toContain("public read-only GitHub API TLS GET");
   });
 });

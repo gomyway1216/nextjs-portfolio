@@ -27,11 +27,13 @@
 
 候補protocolに「この時刻に作った」と書くだけでは、対局結果を見た後に時刻を戻して作れてしまう。したがって、その時刻だけで事前登録済みとは主張しない。
 
-game 1前に、候補、runtime、内部gate receipt、account、持時間、matching、判定規則を含むprotocol coreのSHA-256 commitmentを、独立したdata-only JSONとしてpublic `main`へmergeする必要がある。最終protocolは、その公開fileのpath・bytes・SHA-256、`main` revision・tree、merge時刻を束縛する。offline verifierは構造とdigestの整合を検査するが、remote GitHubで本当にmergeされたことまでは単独で証明しない。人または独立processがpublic commitを確認してからgame 1へ進む。現在は候補未選定なので、この公開commitmentもまだ0件である。
+game 1前に、候補、runtime、内部gate receipt、account、持時間、matching、判定規則を含むprotocol coreのSHA-256 commitmentを、独立したdata-only JSONとしてpublic `main`へmergeする必要がある。最終protocolは、その公開fileのpath・bytes・SHA-256、merge commit、tree、blob、PR番号、GitHub serverの`merged_at`を束縛する。
+
+技術commit `86b1d9e30dda4326bf67fbc1b82f8db23b94f6fb`では、localの`origin/main`や自己申告時刻を事前登録の証拠として受け入れない。固定host `api.github.com`への直接TLS GETだけを使い、PRが対象repositoryの`main`へmerge済みであること、server側のmerge時刻とmerge commit、記録時と現在の`main` ancestry、commit tree、公開pathのblob identityとbase64 bytesを照合する。同じrevision・tree・blob・bytesをlocal Git objectとも一致させ、最終receipt発行時にもGitHubのlive stateを再検査する。これはpublic read-only通信であり、token、credential、GitHubへの書込みは使わない。現在は候補未選定なので、この公開commitmentもまだ0件である。
 
 ## 200局を差し替えられない形で残す
 
-追加したverifierはofflineでしか動かない。authoritative dataは追記型JSONL fileではなく、private directory内のread-onlyな1局1fileである。JSONLは検証・最終receipt用にそこから生成するderived viewに限定した。人が公式clientから確認した各局について、次を1entryへ保存する。
+81Dojo対局の記録処理はlocalだけで動く。authoritative dataは追記型JSONL fileではなく、private directory内のread-onlyな1局1fileである。JSONLは診断用のderived viewにすぎず、terminal receiptを発行できない。最終判定はlock中のauthoritative directoryから全entryを読み、各file identityを含むmanifestを作れた場合だけ進む。人が公式clientから確認した各局について、次を1entryへ保存する。
 
 - 公式側game ID、対局時刻、先後、相手の公開identityのhash
 - 対局前後ratingとaccountのrating戦局数
@@ -39,11 +41,13 @@ game 1前に、候補、runtime、内部gate receipt、account、持時間、mat
 - 固定candidate runtimeのtrace artifactと各探索receipt
 - 対局がratingへ算入されたか、technical faultがなかったか
 
-candidate traceはprotocol SHA-256、candidate、runtime・hardware、server game ID、公式棋譜artifact、正規化指し手digestをすべて束縛する。同じ指し手列でも、別候補、別protocol、別game、別server recordへ流用できない。
+candidate traceは、outer traceだけでなく、nested runtime receiptと各decision receiptのcanonical bytesにもprotocol SHA-256、candidate、runtime・hardware、server game ID、公式棋譜artifact、正規化指し手digestを重ねて束縛する。各receiptはdomain-separated digestとexact artifact identityを持つため、外側のlabelだけを変えて別候補、別protocol、別game、別server recordへ流用できない。
 
-新entryをdiskへ書く前に、既存prefixと新entryを結合したderived JSONL全体を検査する。重複game ID、ratingまたはrating戦局数の不連続、時刻逆行、hash-chain不一致があればtemporary fileすら作らない。各entryは直前entryのSHA-256を含み、1から200まで欠番を許さない。game 1もpublic `main` mergeと最終protocol組立ての両方より後でなければならない。
+新entryをdiskへ書く前に、既存prefixと新entryを結合したderived JSONL全体を検査する。重複game ID、ratingまたはrating戦局数の不連続、時刻逆行、hash-chain不一致があればtemporary fileすら作らない。各entryは直前entryのSHA-256を含み、1から200まで欠番を許さない。game 1もGitHub serverが記録したpublic `main` mergeと最終protocol組立ての両方より後でなければならない。通常のappendとderived-view確認はGitHubへ接続せず、API rate limitも消費しない。
 
-書込みはcomplete temporary file作成、file `fsync`、上書き不能なexclusive hard-link publish、directory `fsync`の順で行う。途中で停止したpartial temporary fileはauthoritative prefixに入らず、再起動後のderived viewも直前の完全prefixを返す。ledger pathの既存ancestorをすべて`lstat`し、leafだけでなく親directoryのsymlinkも拒否する。原子的no-follow機能がないOSでは停止する。
+ledger pathはfilesystem rootから各componentを`dir_fd`と`O_NOFOLLOW`で順に開き、保持したdescriptorを基準に作成・読取り・postflightを行う。親directoryの差し替えや途中componentのsymlinkを追わず、原子的なdescriptor-relative primitiveがないOSでは停止する。初回namespace作成では親directory、lock file、ledger root、entries directoryを必要な順で`fsync`してからentry発行へ進む。
+
+entryの発行はcomplete temporary file作成、file `fsync`、上書き不能なexclusive hard-link publish、entries directory `fsync`の順で行う。partial temporary fileはauthoritative prefixに入らない。link、最初の`fsync`、temporary unlink、最後の`fsync`でerrorになっても、同じlock内でexact entryを再読込して`committed`、`not-committed-safe-to-retry`、`indeterminate-stop-and-inspect`のいずれかへreconcileする。committed entryへ同じ観測を再送した場合は新しい局を作らず、idempotentに既存commitを返す。
 
 これは公式serverによる暗号署名を主張する仕組みではない。public protocol-core commitment、manual exportのidentity、immutable local entry、hash chainを組み合わせ、project側で条件や結果を後から選び直す余地を減らす仕組みである。
 
@@ -61,22 +65,22 @@ candidate traceはprotocol SHA-256、candidate、runtime・hardware、server gam
 
 ## 現在地と次の実行条件
 
-| 状態                                           |   2026-07-20 |
-| ---------------------------------------------- | -----------: |
-| 固定policy                                     |         完了 |
-| offline ledger / verifier                      |         完了 |
-| focused fixture                                | 13 / 13 PASS |
-| 記事・evidence整合test                         |   4 / 4 PASS |
-| candidate選定・runtime binding                 |         未完 |
-| internal formal A/B                            |         未完 |
-| 公式`COM_` account・client・reference hardware |       未準備 |
-| userの外部実行許可                             |         なし |
-| candidate coreのpublic `main` commitment       |            0 |
-| 81Dojo外部対局                                 |      0 / 200 |
-| live weights変更                               |            0 |
+| 状態                                           |                         2026-07-20 |
+| ---------------------------------------------- | ---------------------------------: |
+| 固定policy                                     |                               完了 |
+| local ledger / public-commit verifier          |                               完了 |
+| focused Python fixture                         |             23 / 23 PASS、30.417秒 |
+| 独立bounded rereview                           | 9 / 9 PASS、15.386秒、P0/P1/P2 = 0 |
+| candidate選定・runtime binding                 |                               未完 |
+| internal formal A/B                            |                               未完 |
+| 公式`COM_` account・client・reference hardware |                             未準備 |
+| userの外部実行許可                             |                               なし |
+| candidate coreのpublic `main` commitment       |                                  0 |
+| 81Dojo外部対局                                 |                            0 / 200 |
+| live weights変更                               |                                  0 |
 
-候補が内部gateを通るまでは外部対局を始めない。候補確定後も、account、公式client、reference hardware、現在の規約再確認、userの明示許可をprotocol coreへ固定し、そのdata-only commitmentをpublic `main`へmergeして独立確認する必要がある。確認後に最終protocolを組み立て、公式clientを人が操作して200局を記録し、完全なderived ledgerだけを最終判定へ渡す。
+候補が内部gateを通るまでは外部対局を始めない。候補確定後も、account、公式client、reference hardware、現在の規約再確認、userの明示許可をprotocol coreへ固定し、そのdata-only commitmentをpublic `main`へmergeしてGitHub server上のPR・commit・objectを確認する必要がある。確認後に最終protocolを組み立て、公式clientを人が操作して200局をlocal authoritative ledgerへ記録する。最終判定は完全なimmutable-entry manifestとGitHub live再検査の両方が通った場合だけ発行する。
 
-AWS、GCP、Firebase、Vercelはこの校正には使わない。学習と内部評価はlocal、外部校正は81Dojo公式clientとlocal ledgerで行う。校正処理によるcloud操作、credential読取、外部書込、live反映はいずれも0である。ただし、ready PR #567のpush後、repositoryに既設のGitHub連携がVercelの通常preview buildを1件自動起動した。これはweb変更を確認するdelivery CIであり、学習、対局、校正実行ではなく、対局dataやcredentialも渡していない。
+AWS、GCP、Firebase、Vercelはこの校正の計算・保存・実行には使わない。学習と内部評価はlocal、外部対局は81Dojo公式client、ledger appendはlocalで行う。例外となる唯一のnetwork処理は、事前登録の組立て時とterminal receipt発行時に行うpublic GitHub APIへのread-only TLS GETである。認証tokenやcredentialを送らず、GitHubを含む外部serviceへ書き込まず、対局dataも送らない。live weights変更は0である。ready PR #567のpush後に既設のGitHub連携が起動したVercel previewはdelivery CIであり、学習、対局、校正計算ではない。
 
 固定値と未解決条件は[機械可読evidence](./data/shogi-external-81dojo-calibration-readiness-2026-07-20.json)に記録した。

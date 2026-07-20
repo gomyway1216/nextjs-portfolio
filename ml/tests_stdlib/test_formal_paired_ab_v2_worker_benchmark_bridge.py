@@ -462,12 +462,68 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 forged_body,
             )
 
+            with self.assertRaises(TypeError):
+                benchmark.validate_bound_worker_benchmark_receipt(forged)
+            with self.assertRaises(TypeError):
+                benchmark.publish_bound_worker_benchmark_receipt({}, forged)
             with self.assertRaisesRegex(ValueError, "benchmark trust root"):
                 benchmark.validate_bound_worker_benchmark_receipt(
                     forged,
                     expected_registry=captured["registry"],
                     expected_registry_identity=captured["registry_identity"],
                 )
+            with self.assertRaisesRegex(ValueError, "benchmark trust root"):
+                benchmark.publish_bound_worker_benchmark_receipt(
+                    {},
+                    forged,
+                    expected_registry=captured["registry"],
+                    expected_registry_identity=captured["registry_identity"],
+                )
+
+    def test_cli_rejects_receipt_naming_nonexistent_benchmark_authority(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            captured = fixture.capture_ready()
+            clock = iter(range(len(benchmark.BENCHMARK_SEQUENCE) * 2))
+            receipt = benchmark.run_captured_worker_benchmark(
+                fixture.root,
+                captured,
+                execute_round=synthetic_round,
+                monotonic_ns=lambda: next(clock),
+            )
+            forged = copy.deepcopy(receipt)
+            forged["benchmark_registry"] = {
+                **forged["benchmark_registry"],
+                "path": "ml/protocols/nonexistent-worker-benchmark-registry.json",
+            }
+            forged_body = {
+                key: value for key, value in forged.items() if key != "receipt_sha256"
+            }
+            forged["receipt_sha256"] = benchmark._domain_digest(
+                "shogi-formal-paired-ab-v2-bound-worker-benchmark-receipt-v1",
+                forged_body,
+            )
+            receipt_path = Path(temporary, benchmark.BENCHMARK_OUTPUT_RECEIPT_NAME)
+
+            with (
+                mock.patch.object(
+                    benchmark,
+                    "validate_pinned_worker_benchmark_registry",
+                    return_value=captured,
+                ),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            ):
+                self.assertEqual(
+                    runner._main_core_for_tests(
+                        [],
+                        fixture.root,
+                        lambda: (forged, receipt_path),
+                    ),
+                    2,
+                )
+            self.assertEqual(
+                json.loads(stderr.getvalue())["reason"], "benchmark-failed-closed"
+            )
 
     def test_output_is_reserved_before_games_and_fault_is_a_rerun_tombstone(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -493,7 +549,9 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 ),
             ):
                 with self.assertRaisesRegex(RuntimeError, "synthetic benchmark crash"):
-                    benchmark.run_pinned_worker_benchmark(fixture.root, temporary)
+                    benchmark._run_pinned_worker_benchmark_core_for_tests(
+                        fixture.root, temporary
+                    )
                 run_root = (
                     Path(temporary)
                     / benchmark.BENCHMARK_OUTPUT_DIRECTORY
@@ -507,8 +565,44 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     benchmark.FormalAbV2WorkerBenchmarkError,
                     "already reserved; automatic rerun is forbidden",
                 ):
-                    benchmark.run_pinned_worker_benchmark(fixture.root, temporary)
+                    benchmark._run_pinned_worker_benchmark_core_for_tests(
+                        fixture.root, temporary
+                    )
             self.assertEqual(calls, 1)
+
+    def test_production_output_home_is_not_caller_or_environment_selected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            alternate_home = Path(temporary).resolve(strict=True)
+            account_home = Path(
+                benchmark.pwd.getpwuid(benchmark.os.geteuid()).pw_dir
+            ).resolve(strict=True)
+            with mock.patch.dict(
+                benchmark.os.environ,
+                {"HOME": str(alternate_home)},
+            ):
+                self.assertEqual(benchmark._current_user_home(), account_home)
+            self.assertNotEqual(alternate_home, account_home)
+
+            with self.assertRaises(TypeError):
+                benchmark.run_pinned_worker_benchmark(REPO_ROOT, alternate_home)
+            with self.assertRaises(TypeError):
+                runner.main([], _home_root=alternate_home)
+
+            sentinel = ({"status": "PASS"}, alternate_home / "receipt.json")
+            with (
+                mock.patch.object(
+                    benchmark,
+                    "_current_user_home",
+                    return_value=account_home,
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "_run_pinned_worker_benchmark_core_for_tests",
+                    return_value=sentinel,
+                ) as core,
+            ):
+                self.assertEqual(benchmark.run_pinned_worker_benchmark(), sentinel)
+            core.assert_called_once_with(REPO_ROOT, account_home)
 
     def test_postflight_registry_drift_blocks_receipt_publication(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -548,7 +642,9 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     ValueError, "pinned worker benchmark registry identity differs"
                 ),
             ):
-                benchmark.run_pinned_worker_benchmark(fixture.root, temporary)
+                benchmark._run_pinned_worker_benchmark_core_for_tests(
+                    fixture.root, temporary
+                )
             publish.assert_not_called()
 
     def test_formal_production_pin_stays_closed_until_real_receipt_is_reviewed(self):

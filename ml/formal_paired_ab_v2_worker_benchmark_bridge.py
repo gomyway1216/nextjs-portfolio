@@ -14,6 +14,7 @@ import copy
 import hashlib
 import os
 from pathlib import Path
+import pwd
 import re
 import stat
 import threading
@@ -744,10 +745,10 @@ def compose_bound_worker_benchmark_receipt(
 def validate_bound_worker_benchmark_receipt(
     value: Any,
     *,
-    expected_registry: Mapping[str, Any] | None = None,
-    expected_registry_identity: Mapping[str, Any] | None = None,
+    expected_registry: Mapping[str, Any],
+    expected_registry_identity: Mapping[str, Any],
 ) -> dict:
-    """Validate the reviewable receipt used by the formal READY bridge."""
+    """Validate a receipt against one independently authenticated authority."""
 
     fields = frozenset(
         {
@@ -832,46 +833,41 @@ def validate_bound_worker_benchmark_receipt(
         _require_exact_json(
             receipt[field], expected, f"bound worker benchmark receipt.{field}"
         )
-    if (expected_registry is None) != (expected_registry_identity is None):
+    expected_identity = _identity(
+        expected_registry_identity,
+        "bound receipt expected benchmark registry",
+        schema=BENCHMARK_REGISTRY_SCHEMA,
+    )
+    _require_exact_json(
+        registry_identity,
+        expected_identity,
+        "bound worker benchmark trust root",
+    )
+    registry = validate_worker_benchmark_registry_data(expected_registry)
+    if registry["status"] != BENCHMARK_REGISTRY_READY_STATUS:
         raise FormalAbV2WorkerBenchmarkError(
-            "bound receipt expected registry and identity must be provided together"
+            "bound receipt expected registry is not READY"
         )
-    if expected_registry is not None:
-        expected_identity = _identity(
-            expected_registry_identity,
-            "bound receipt expected benchmark registry",
-            schema=BENCHMARK_REGISTRY_SCHEMA,
-        )
-        _require_exact_json(
-            registry_identity,
-            expected_identity,
-            "bound worker benchmark trust root",
-        )
-        registry = validate_worker_benchmark_registry_data(expected_registry)
-        if registry["status"] != BENCHMARK_REGISTRY_READY_STATUS:
-            raise FormalAbV2WorkerBenchmarkError(
-                "bound receipt expected registry is not READY"
-            )
-        enrollments = registry["enrollments"]
-        expected_values = {
-            "benchmark_id": enrollments["benchmark_id"],
-            "source_revision": enrollments["source_revision"],
-            "match_binding": enrollments["match_binding"],
-            "dedicated_openings_manifest": enrollments["dedicated_openings_manifest"],
-            "openings_preflight_receipt": enrollments["openings_preflight_receipt"],
-        }
-        observed_values = {
-            "benchmark_id": benchmark_id,
-            "source_revision": receipt["source_revision"],
-            "match_binding": match_binding,
-            "dedicated_openings_manifest": openings,
-            "openings_preflight_receipt": preflight,
-        }
-        _require_exact_json(
-            observed_values,
-            expected_values,
-            "bound worker benchmark enrollment",
-        )
+    enrollments = registry["enrollments"]
+    expected_values = {
+        "benchmark_id": enrollments["benchmark_id"],
+        "source_revision": enrollments["source_revision"],
+        "match_binding": enrollments["match_binding"],
+        "dedicated_openings_manifest": enrollments["dedicated_openings_manifest"],
+        "openings_preflight_receipt": enrollments["openings_preflight_receipt"],
+    }
+    observed_values = {
+        "benchmark_id": benchmark_id,
+        "source_revision": receipt["source_revision"],
+        "match_binding": match_binding,
+        "dedicated_openings_manifest": openings,
+        "openings_preflight_receipt": preflight,
+    }
+    _require_exact_json(
+        observed_values,
+        expected_values,
+        "bound worker benchmark enrollment",
+    )
     body = {key: receipt[key] for key in receipt if key != "receipt_sha256"}
     expected_digest = _domain_digest(
         "shogi-formal-paired-ab-v2-bound-worker-benchmark-receipt-v1", body
@@ -1458,6 +1454,24 @@ def _reserve_worker_benchmark_output(
     return {**reservation, "benchmark_id": reservation["semantic_id"]}
 
 
+def _current_user_home() -> Path:
+    """Resolve the account-database home without honoring caller HOME."""
+
+    try:
+        record = pwd.getpwuid(os.geteuid())
+        home = Path(record.pw_dir).resolve(strict=True)
+        metadata = home.stat()
+    except (KeyError, OSError, RuntimeError) as error:
+        raise FormalAbV2WorkerBenchmarkError(
+            "worker benchmark account home cannot be authenticated"
+        ) from error
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        raise FormalAbV2WorkerBenchmarkError(
+            "worker benchmark account home is not current-user-owned"
+        )
+    return home
+
+
 def _close_private_run_output_reservation(reservation: Mapping[str, Any]) -> None:
     for field in ("run_descriptor", "parent_descriptor"):
         descriptor = reservation.get(field)
@@ -1542,10 +1556,17 @@ def _write_exclusive_json_at(
 def publish_bound_worker_benchmark_receipt(
     reservation: Mapping[str, Any],
     receipt: Mapping[str, Any],
+    *,
+    expected_registry: Mapping[str, Any],
+    expected_registry_identity: Mapping[str, Any],
 ) -> Path:
     """Publish once into an already-reserved private run directory."""
 
-    validated = validate_bound_worker_benchmark_receipt(receipt)
+    validated = validate_bound_worker_benchmark_receipt(
+        receipt,
+        expected_registry=expected_registry,
+        expected_registry_identity=expected_registry_identity,
+    )
     if validated["benchmark_id"] != reservation.get("benchmark_id"):
         raise FormalAbV2WorkerBenchmarkError(
             "worker benchmark receipt differs from its output reservation"
@@ -1560,11 +1581,11 @@ def publish_bound_worker_benchmark_receipt(
     return reservation["path"] / BENCHMARK_OUTPUT_RECEIPT_NAME
 
 
-def run_pinned_worker_benchmark(
+def _run_pinned_worker_benchmark_core_for_tests(
     repo_root: str | Path,
     home_root: str | Path,
 ) -> tuple[dict, Path]:
-    """Production API: one code-pinned benchmark, no caller-selected inputs."""
+    """Injected filesystem seam; production authority is never caller supplied."""
 
     captured = validate_pinned_worker_benchmark_registry(repo_root)
     reservation = _reserve_worker_benchmark_output(
@@ -1578,9 +1599,24 @@ def run_pinned_worker_benchmark(
             captured,
             "post-benchmark code-pinned enrollment snapshot",
         )
-        return receipt, publish_bound_worker_benchmark_receipt(reservation, receipt)
+        return receipt, publish_bound_worker_benchmark_receipt(
+            reservation,
+            receipt,
+            expected_registry=recaptured["registry"],
+            expected_registry_identity=recaptured["registry_identity"],
+        )
     finally:
         _close_worker_benchmark_output_reservation(reservation)
+
+
+def run_pinned_worker_benchmark() -> tuple[dict, Path]:
+    """Production API: run one code-pinned benchmark with no caller inputs."""
+
+    root = Path(__file__).resolve().parents[1]
+    return _run_pinned_worker_benchmark_core_for_tests(
+        root,
+        _current_user_home(),
+    )
 
 
 def validate_formal_ready_registry_data(value: Any) -> dict:

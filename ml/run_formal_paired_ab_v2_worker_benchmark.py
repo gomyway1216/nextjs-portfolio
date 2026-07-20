@@ -47,26 +47,24 @@ def _stop(reason: str) -> dict[str, Any]:
     }
 
 
-def main(
-    argv: list[str] | None = None,
-    *,
-    _repo_root: str | Path | None = None,
-    _home_root: str | Path | None = None,
-    _run: Callable[[str | Path, str | Path], tuple[Mapping[str, Any], Path]] = (
-        benchmark.run_pinned_worker_benchmark
-    ),
+def _main_core_for_tests(
+    arguments: list[str],
+    repo_root: str | Path,
+    run: Callable[[], tuple[Mapping[str, Any], Path]],
 ) -> int:
-    arguments = list(sys.argv[1:] if argv is None else argv)
+    """Injected CLI seam; production authority and output remain argumentless."""
+
     if arguments:
         print(_canonical_json(_stop("arguments-forbidden")), file=sys.stderr)
         return 2
-    repo_root = (
-        Path(__file__).resolve().parents[1] if _repo_root is None else Path(_repo_root)
-    )
-    home_root = Path.home() if _home_root is None else Path(_home_root)
     try:
-        receipt, receipt_path = _run(repo_root, home_root)
-        validated = benchmark.validate_bound_worker_benchmark_receipt(receipt)
+        receipt, receipt_path = run()
+        captured = benchmark.validate_pinned_worker_benchmark_registry(repo_root)
+        validated = benchmark.validate_bound_worker_benchmark_receipt(
+            receipt,
+            expected_registry=captured["registry"],
+            expected_registry_identity=captured["registry_identity"],
+        )
         if receipt_path.name != benchmark.BENCHMARK_OUTPUT_RECEIPT_NAME:
             raise benchmark.FormalAbV2WorkerBenchmarkError(
                 "worker benchmark receipt publication path differs"
@@ -84,6 +82,15 @@ def main(
         return 2
     print(_canonical_json(validated))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    return _main_core_for_tests(
+        arguments,
+        Path(__file__).resolve().parents[1],
+        benchmark.run_pinned_worker_benchmark,
+    )
 
 
 if __name__ == "__main__":

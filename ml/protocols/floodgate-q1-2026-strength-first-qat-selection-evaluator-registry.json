@@ -1,0 +1,121 @@
+{
+  "schema": "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+  "status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
+  "protocol": {
+    "base_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "strength_first_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-teacher-amendment.json",
+      "bytes": 5123,
+      "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e",
+      "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
+    },
+    "role_bundle_result": {
+      "path": "ml/protocols/floodgate-q1-2026-role-bundle-result.json",
+      "bytes": 14735,
+      "sha256": "56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf",
+      "schema": "shogi-floodgate-role-bundle-result-v1"
+    },
+    "fresh_selection_source": {
+      "path": ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl",
+      "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+      "bytes": 3073306,
+      "sha256": "76e43969374704a77745fd329e5d22059d036fb8235626af91421fbeba16a4d9",
+      "records": 4800,
+      "games": 200,
+      "game_ids_sha256": "417e2e1053d9f222e82478840f9021c68d88948fec6c9db927538ebadd77e0cb",
+      "parent_ids_sha256": "db24301a7168e84de2474939e8d2b865b670b448aa6ccba2999a4e19df111a3f",
+      "position_ids_count": 4800,
+      "position_ids_sha256": "3e0c7c049bc4e0799854a4371266278c61ce53184ae14f6be82c40ab73ef02c0"
+    }
+  },
+  "selection_contract": {
+    "precondition": "all-three-final-checkpoints-and-results-strict-load-before-first-selection-label-read",
+    "stable_recomputed_on_same_fresh_selection": true,
+    "metric_order": [
+      "int16-pair-accuracy:max",
+      "int16-teacher-top1:max",
+      "int16-value-mae-cp:min",
+      "seed:ascending",
+      "checkpoint-sha256:ascending"
+    ],
+    "representative": "median-ranked-seed",
+    "per_seed_gates": [
+      "int16-pair-accuracy-strictly-above-stable",
+      "int16-top1-at-least-stable",
+      "absolute-float-to-int16-pair-delta-at-most-0.002",
+      "absolute-float-to-int16-top1-delta-at-most-0.005"
+    ],
+    "family_gate": {
+      "representative_passes_all_four": true,
+      "minimum_seeds_passing_all_four": 2,
+      "all_seeds_pass_both_quantization_delta_gates": true
+    },
+    "evaluations_per_checkpoint": 1,
+    "used_wcsc36_selection_reopened": false
+  },
+  "fixed_paths": {
+    "training_plan": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
+    "selection_preflight_registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
+    "selection_source": ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl",
+    "selection_teacher_authority": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/authority.json",
+    "selection_teacher_manifest": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/manifest.json",
+    "selection_teacher_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/result.json",
+    "selection_dataset": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection.jsonl",
+    "stable_checkpoint": ".codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
+    "selection_receipt": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json"
+  },
+  "implementation": {
+    "evaluator": null,
+    "adapter": null,
+    "preflight": null,
+    "real_eval_core": null,
+    "metric_gates": null
+  },
+  "enrollments": {
+    "training_plan": null,
+    "selection_preflight_registry": null,
+    "checkpoint_preflight_sha256": null,
+    "selection_teacher_run_fingerprint": null,
+    "selection_teacher_authority": null,
+    "selection_teacher_manifest": null,
+    "selection_teacher_result": null,
+    "selection_dataset": null,
+    "stable_checkpoint": null
+  },
+  "gates": {
+    "implementation_sources_enrolled": false,
+    "training_plan_enrolled": false,
+    "three_checkpoint_preflight_enrolled": false,
+    "selection_teacher_enrolled": false,
+    "local_selection_evaluation_authorized": false,
+    "final_holdout_read_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "boundary": {
+    "local_only": true,
+    "fixed_private_paths": true,
+    "max_workers": 2,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "external_calibration": false,
+    "final_holdout_read": false,
+    "live_weight_write": false
+  },
+  "nonclaims": {
+    "real_candidate_selected": false,
+    "selection_receipts_emitted": 0,
+    "final_holdout_label_reads": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false
+  }
+}

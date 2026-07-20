@@ -1,7 +1,7 @@
 'use client';
 
 import { Heart } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getPostLikeCount, setPostLike } from '@/services/postsService';
 import styles from './post-like-button.module.css';
@@ -41,6 +41,9 @@ const PostLikeButton = ({ postId, enabled }: PostLikeButtonProps) => {
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // Once the reader has toggled, the initial count fetch is stale — don't
+  // let a slow response overwrite the optimistic/server value.
+  const hasInteracted = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -49,7 +52,7 @@ const PostLikeButton = ({ postId, enabled }: PostLikeButtonProps) => {
     let cancelled = false;
     getPostLikeCount(postId)
       .then((n) => {
-        if (!cancelled) setCount(n);
+        if (!cancelled && !hasInteracted.current) setCount(n);
       })
       .catch(() => {
         // Leave the count hidden; the button still works.
@@ -63,6 +66,7 @@ const PostLikeButton = ({ postId, enabled }: PostLikeButtonProps) => {
 
   const toggle = async () => {
     if (busy) return;
+    hasInteracted.current = true;
     const next = !liked;
 
     // Optimistic flip

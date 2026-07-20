@@ -26,9 +26,10 @@ export async function POST(request: NextRequest,
 
     let action: unknown;
     try {
-      ({ action } = await request.json());
+      const body = await request.json();
+      action = body?.action;
     } catch {
-      action = 'like';
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     if (action !== 'like' && action !== 'unlike') {
       return NextResponse.json({ error: 'action must be "like" or "unlike"' }, { status: 400 });
@@ -39,10 +40,11 @@ export async function POST(request: NextRequest,
 
     const likeCount = await db.runTransaction(async (tx) => {
       const doc = await tx.get(docRef);
+      const data = doc.data();
       // Same shape for missing and private: don't confirm draft existence.
-      if (!doc.exists || !doc.data()?.isPublic) return null;
+      if (!doc.exists || !data?.isPublic) return null;
 
-      const current = typeof doc.data()?.likeCount === 'number' ? doc.data()!.likeCount : 0;
+      const current = typeof data.likeCount === 'number' ? data.likeCount : 0;
       if (action === 'unlike' && current <= 0) return 0;
 
       tx.update(docRef, {
@@ -76,11 +78,12 @@ export async function GET(_request: NextRequest,
     }
 
     const doc = await getFirestore().collection(POSTS_COLLECTION).doc(id).get();
-    if (!doc.exists || !doc.data()?.isPublic) {
+    const data = doc.data();
+    if (!doc.exists || !data?.isPublic) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const likeCount = typeof doc.data()?.likeCount === 'number' ? doc.data()!.likeCount : 0;
+    const likeCount = typeof data.likeCount === 'number' ? data.likeCount : 0;
     return NextResponse.json({ likeCount });
   } catch (error) {
     console.error('Error fetching post likes:', error);

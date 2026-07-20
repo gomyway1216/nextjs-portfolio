@@ -69,7 +69,7 @@ The implementation anchor is `70f9a6d0f1098dd37cb4024691ed92e8336582e9`. Indepen
 | fourfold-position fixture                                                              |                               draw at 12 plies for both colors |
 | perpetual-check fixture                                                                |                   checking side loses at 12 plies, both colors |
 | no-legal-moves fixture                                                                 |                          mover wins after one ply, both colors |
-| real YaneuraOu / exact-stable games                                                    |                                                           zero |
+| real YaneuraOu / exact-stable games                                                    |                      12 completed in attempt 1, zero claimable |
 | network / AWS / GCP / Firebase / Vercel                                                |                                                           zero |
 | live / holdout / production-result writes                                              |                                                           zero |
 
@@ -83,11 +83,15 @@ This is a technical pilot for proving that the adapter and exact assets complete
 
 Independent request review rederived the request identity, all six source-move sequences to SFEN, opening IDs, uniqueness, the 12-game schedule, and validator result, passing with P0 / P1 / P2 = 0 / 0 / 0. The run ID hashes a 46-byte domain, `shogi-local-external-calibration-pilot-run-v1\0` including its trailing NUL, concatenated with the 1,372-byte canonical request body excluding `run_id` (body SHA-256 `0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1`).
 
-The exact-private-asset read-only preflight also passed. YaneuraOu, the 64,217,066-byte eval, and stable weights / WASM / worker matched their pinned identities; exact-tree, private-directory, and post-read revalidation checks were all true. The adapter exposes no filesystem, network, live-weight, holdout, or production-result writer. The pilot wrapper may write only PID, start metadata, a local log, and either a complete receipt or a failure record without W/D/L inside its private control directory. All three technical-pilot gates therefore pass.
+The exact-private-asset read-only preflight also passed. YaneuraOu, the 64,217,066-byte eval, and stable weights / WASM / worker matched their pinned identities; exact-tree, private-directory, and post-read revalidation checks were all true. The adapter itself exposes no filesystem, network, live-weight, holdout, or production-result writer.
+
+The first real attempt completed all 12 games with zero technical faults and confirmed runtime cleanup. Its outer result-publication wrapper nevertheless retained a check-then-act race under concurrent launch and used rename semantics that could replace an existing file. It therefore could not prove exactly-once issuance, so attempt 1 is non-issuable. Its W/D/L is not used in this article or any evaluation, and the private artifacts remain preserved. Attempt 2 never started an engine: pre-launch review found missing post-run source revalidation, single-terminal publication, and bounded supervision.
+
+Attempt 3 changes the boundary to an exclusive-directory one-shot claim, pre- and post-run checks of the fixed HEAD, tree, source, request, and wrapper identities, one hard-link-published `terminal.json` containing either receipt or sanitized failure, and a 15-minute supervisor that reaps or terminates children. It is pending independent rereview and is not running while the formal teacher occupies 12 engines, avoiding CPU oversubscription.
 
 ## Next gate
 
-The real YaneuraOu start conditions are below; all pass for this exact 12-game technical pilot:
+The rerun conditions are below. Adapter and asset conditions pass, while independent rereview of the attempt-3 wrapper and a safe idle machine window remain open:
 
 1. independent code review reports zero P0/P1 findings;
 2. focused and related validation is green at the reviewed commit;

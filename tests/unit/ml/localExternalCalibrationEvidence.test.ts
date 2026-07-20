@@ -163,7 +163,7 @@ describe("local external calibration publication evidence", () => {
     expect(source).not.toMatch(/\b(?:fetch|writeFile|appendFile)\s*\(/u);
   });
 
-  it("records fake-only validation, zero real games, and no strength claim", () => {
+  it("records the non-issuable real attempt without making a strength claim", () => {
     const evidence = JSON.parse(read(EVIDENCE));
     expect(evidence.validation).toMatchObject({
       node: "v22.13.0",
@@ -196,9 +196,23 @@ describe("local external calibration publication evidence", () => {
       prettier: "PASS",
       diff_check: "PASS",
     });
-    expect(
-      Object.values(evidence.execution_counters).every((value) => value === 0),
-    ).toBe(true);
+    expect(evidence.execution_counters).toMatchObject({
+      real_stable_games: 12,
+      real_yaneuraou_games: 12,
+      real_engine_processes_started_by_this_change: 12,
+      claimable_real_games: 0,
+      claimable_pilot_receipts: 0,
+      non_issuable_completed_attempts: 1,
+      network_requests: 0,
+      aws_operations: 0,
+      gcp_operations: 0,
+      firebase_operations: 0,
+      vercel_operations: 0,
+      holdout_reads: 0,
+      holdout_writes: 0,
+      production_result_writes: 0,
+      live_weight_changes: 0,
+    });
     expect(
       Object.values(evidence.nonclaims).every((value) => value === false),
     ).toBe(true);
@@ -208,10 +222,29 @@ describe("local external calibration publication evidence", () => {
       unresolved_p1: 0,
       unresolved_p2: 0,
       code_review_gate_passed: true,
-      technical_pilot_authorized: true,
-      real_pilot_authorized: true,
+      technical_pilot_authorized: false,
+      real_pilot_authorized: false,
     });
-    expect(evidence.review.remaining_pilot_gates).toEqual([]);
+    expect(evidence.review.remaining_pilot_gates).toEqual([
+      "attempt-3-independent-wrapper-review-p0-p1-zero",
+      "safe-idle-machine-window",
+    ]);
+    expect(evidence.pilot_execution_attempts.attempt_1).toMatchObject({
+      status: "NON_ISSUABLE_WRAPPER_PUBLICATION_RACE",
+      games_completed: 12,
+      cleanup_completed: true,
+      result_claimable: false,
+      wdl_published: false,
+    });
+    expect(evidence.pilot_execution_attempts.attempt_2).toMatchObject({
+      status: "NOT_LAUNCHED_REVIEW_REJECTED",
+      engine_processes_started: 0,
+    });
+    expect(evidence.pilot_execution_attempts.attempt_3).toMatchObject({
+      status: "PREIMAGE_PENDING_INDEPENDENT_REREVIEW_NOT_LAUNCHED",
+      engine_processes_started: 0,
+      output_directory_claimed: false,
+    });
     expect(
       evidence.pilot_preflight.exact_private_asset_read_only,
     ).toMatchObject({
@@ -221,7 +254,8 @@ describe("local external calibration publication evidence", () => {
         FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.weights,
     });
     expect(evidence.pilot_preflight.writer_closure).toMatchObject({
-      status: "PASS",
+      status: "ADAPTER_PASS_ATTEMPT_3_WRAPPER_PENDING_INDEPENDENT_REREVIEW",
+      adapter_status: "PASS",
       adapter_filesystem_writer: false,
       adapter_network_writer: false,
       live_weight_writer: false,
@@ -249,7 +283,7 @@ describe("local external calibration publication evidence", () => {
       expect(article).toContain(
         "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
       );
-      expect(article).toMatch(/zero games|0局/iu);
+      expect(article).toMatch(/non-issuable|採用不能/iu);
       expect(article).toMatch(/high-dan|高段/iu);
     }
     expect(japanese).toContain(

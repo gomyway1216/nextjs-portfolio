@@ -69,7 +69,7 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 | 4回同一局面fixture                                                         |                                  両色とも12手でdraw |
 | 連続王手千日手fixture                                                      |                        12手、連続王手側の負け、PASS |
 | 応手なしfixture                                                            |                       1手、着手側の勝ち、両色、PASS |
-| 実YaneuraOu / exact stable対局                                             |                                                 0局 |
+| 実YaneuraOu / exact stable対局                                             |                    attempt 1で12局完走、採用可能0局 |
 | network / AWS / GCP / Firebase / Vercel                                    |                                                   0 |
 | live / holdout / production-result write                                   |                                                   0 |
 
@@ -83,11 +83,15 @@ P2修正前の`5ff1bb6d`でML unit suite全体を実行し、148 / 149 files、2
 
 独立request reviewは、request file identity、6本のsource move列からのSFEN、opening ID、重複なし、12局schedule、validatorを再導出し、P0 / P1 / P2 = 0 / 0 / 0でPASSした。run IDは末尾NULを含む46-byte domain `shogi-local-external-calibration-pilot-run-v1\0`と、`run_id`を除く1,372-byte canonical body（SHA-256 `0d84be515d14f54d7b7174638459ab58808eb35caab973ddbd18b6025381c0c1`）を連結してSHA-256を取った値である。
 
-exact private assetのread-only preflightもPASSした。YaneuraOu、64,217,066-byte eval、stable weights / WASM / workerは固定identityと一致し、exact tree、private directory、stable read後の再検証もすべてtrueだった。adapterにはfilesystem / network / live weight / holdout / production-result writerがなく、pilot wrapperが許可される出力はprivate control directoryのPID、開始metadata、local log、全局完走receiptまたはW/D/Lを含まないfailure recordだけである。これでtechnical pilotの3事前gateはPASSした。
+exact private assetのread-only preflightもPASSした。YaneuraOu、64,217,066-byte eval、stable weights / WASM / workerは固定identityと一致し、exact tree、private directory、stable read後の再検証もすべてtrueだった。adapter自体にはfilesystem / network / live weight / holdout / production-result writerがない。
+
+最初の実行は12局すべてを完走し、technical fault 0、runtime cleanup完了まで確認した。しかし、結果を保存する外側のwrapperに、同時起動時のcheck-then-act競合と既存fileを置換できるrenameが残っていた。このため「結果が1回だけ発行された」と証明できず、attempt 1は採用不能（non-issuable）とした。W/D/Lは記事や評価へ使わず、private artifactをそのまま保存している。attempt 2はengineを起動する前のreviewで、source再検証、単一terminal、bounded supervisorが不足すると判明したため実行していない。
+
+attempt 3は、排他的directory作成によるone-shot claim、固定HEAD / tree / source / request / wrapper identityの実行前後検査、結果または失敗のどちらか一方だけをhard-linkで発行する単一`terminal.json`、15分上限のsupervisorと子process回収へ変更した。現在は独立再review待ちで、formal teacherが12 engineを使用中のためCPU oversubscriptionを避けて起動を保留している。
 
 ## 次のgate
 
-実YaneuraOu pilotの開始条件は次であり、今回の固定12局technical pilotではすべてPASSした。
+実YaneuraOu pilotの再実行条件は次である。adapterとassetの条件はPASSしているが、attempt 3 wrapperの独立再reviewと安全なidle時間帯は未完了である。
 
 1. codeの独立reviewでP0 / P1が0
 2. focused / related validationがreview対象commitでgreen

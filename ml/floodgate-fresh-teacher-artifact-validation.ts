@@ -160,7 +160,11 @@ export async function readFreshTeacherPrivateArtifact(
   schema: string,
   outputRelativeRoot: string,
   label: string,
+  maximumBytes: number = Number.MAX_SAFE_INTEGER,
 ): Promise<Readonly<FreshTeacherPrivateArtifactSnapshot>> {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0) {
+    throw new Error(`${label} artifact byte limit is invalid`);
+  }
   const relative = freshTeacherPrivateArtifactRelativePath(file, root, label);
   const canonicalFromRoot = path.join(
     await fs.promises.realpath(root),
@@ -176,25 +180,13 @@ export async function readFreshTeacherPrivateArtifact(
     !before.isFile() ||
     before.uid !== effectiveUserId ||
     (before.mode & 0o7777) !== PRIVATE_FILE_MODE ||
-    before.nlink !== 1
+    before.nlink !== 1 ||
+    before.size > maximumBytes
   ) {
     throw new Error(
-      `${label} artifact is not private single-link 0600: ${path.basename(file)}`,
+      `${label} artifact is not bounded private single-link 0600: ${path.basename(file)}`,
     );
   }
-  const noFollow = "O_NOFOLLOW" in fs.constants ? fs.constants.O_NOFOLLOW : 0;
-  const handle = await fs.promises.open(file, fs.constants.O_RDONLY | noFollow);
-  let bytes: Buffer;
-  let openedBefore: fs.Stats;
-  let openedAfter: fs.Stats;
-  try {
-    openedBefore = await handle.stat();
-    bytes = await handle.readFile();
-    openedAfter = await handle.stat();
-  } finally {
-    await handle.close();
-  }
-  const after = await fs.promises.lstat(file);
   const statIdentity = (value: fs.Stats) => [
     value.dev,
     value.ino,
@@ -206,6 +198,42 @@ export async function readFreshTeacherPrivateArtifact(
     value.ctimeMs,
     value.nlink,
   ];
+  const noFollow = "O_NOFOLLOW" in fs.constants ? fs.constants.O_NOFOLLOW : 0;
+  const handle = await fs.promises.open(file, fs.constants.O_RDONLY | noFollow);
+  let bytes: Buffer;
+  let openedBefore: fs.Stats;
+  let openedAfter: fs.Stats;
+  try {
+    openedBefore = await handle.stat();
+    if (
+      !sameJson(statIdentity(before), statIdentity(openedBefore)) ||
+      openedBefore.size > maximumBytes
+    ) {
+      throw new Error(
+        `${label} artifact changed before read: ${path.basename(file)}`,
+      );
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for (;;) {
+      const remaining = maximumBytes - total;
+      const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, remaining + 1));
+      const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength, null);
+      if (bytesRead === 0) break;
+      total += bytesRead;
+      if (total > maximumBytes) {
+        throw new Error(
+          `${label} artifact exceeds its byte limit: ${path.basename(file)}`,
+        );
+      }
+      chunks.push(chunk.subarray(0, bytesRead));
+    }
+    bytes = Buffer.concat(chunks, total);
+    openedAfter = await handle.stat();
+  } finally {
+    await handle.close();
+  }
+  const after = await fs.promises.lstat(file);
   if (
     !sameJson(statIdentity(before), statIdentity(openedBefore)) ||
     !sameJson(statIdentity(before), statIdentity(openedAfter)) ||

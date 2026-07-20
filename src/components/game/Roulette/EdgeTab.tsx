@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EdgeChart } from './charts';
 import { Bet, HOUSE_EDGE, HouseEdgeResult, simulateHouseEdge } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
@@ -26,6 +26,13 @@ export const EdgeTab = () => {
   const [spins, setSpins] = useState(100_000);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<HouseEdgeResult | null>(null);
+  const runTimer = useRef<number | null>(null);
+
+  // Cancel a pending simulation on unmount so navigating away doesn't run the
+  // heavy compute and setState on an unmounted component.
+  useEffect(() => () => {
+    if (runTimer.current !== null) window.clearTimeout(runTimer.current);
+  }, []);
 
   const run = () => {
     setRunning(true);
@@ -33,7 +40,7 @@ export const EdgeTab = () => {
     // Yield to the event loop so the browser can paint the "running" state
     // before the heavy synchronous compute (up to ~1M spins) blocks the main
     // thread. requestAnimationFrame fires before paint, so it wouldn't help.
-    setTimeout(() => {
+    runTimer.current = window.setTimeout(() => {
       const res = simulateHouseEdge(option.bet, spins);
       setResult(res);
       setRunning(false);

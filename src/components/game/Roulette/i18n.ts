@@ -83,7 +83,6 @@ export interface RouletteStrings {
   sampleRun: string;
   outcomeBust: string;
   outcomeCapped: (n: number) => string;
-  outcomeSurvived: string;
   sampleMeta: (spins: number, final: number, maxBet: number) => string;
   hitCapSuffix: string;
   // Edge tab
@@ -209,7 +208,6 @@ const EN: RouletteStrings = {
   sampleRun: 'Sample run: bankroll trajectory',
   outcomeBust: '💥 Bust',
   outcomeCapped: (n) => `🛑 Reached max spins (${n})`,
-  outcomeSurvived: '✅ Survived',
   sampleMeta: (spins, final, maxBet) => `${spins} spins / final ${final} / max bet ${maxBet}`,
   hitCapSuffix: ' / hit table max',
   edgeTitle: 'House edge convergence',
@@ -301,7 +299,6 @@ const JA: RouletteStrings = {
   sampleRun: 'サンプル1ラン: 資金推移',
   outcomeBust: '💥 破産',
   outcomeCapped: (n) => `🛑 最大スピン (${n}) 到達`,
-  outcomeSurvived: '✅ 生存',
   sampleMeta: (spins, final, maxBet) => `スピン数 ${spins} / 最終 ${final} / 最大賭金 ${maxBet}`,
   hitCapSuffix: ' / 上限到達あり',
   edgeTitle: 'ハウスエッジ収束',

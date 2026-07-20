@@ -185,7 +185,7 @@ export interface MartingaleConfig {
   side: 'red' | 'black';
 }
 
-export type RunOutcome = 'bust' | 'capped' | 'survived';
+export type RunOutcome = 'bust' | 'capped';
 
 export interface RunResult {
   outcome: RunOutcome;
@@ -259,8 +259,11 @@ export function runMartingale(
     }
   }
 
+  // Only reachable by exhausting maxSpins: a bust returns inside the loop and
+  // actualBet is always > 0 (bankroll and baseBet stay positive), so the loop
+  // never breaks early.
   return {
-    outcome: i >= maxSpins ? 'capped' : 'survived',
+    outcome: 'capped',
     spins: i,
     finalBankroll: bankroll,
     peakBankroll: peak,

@@ -384,6 +384,7 @@ def _identity(value: Any, label: str) -> dict[str, Any]:
     if (
         canonical_path is None
         or not raw_path
+        or ":" in raw_path
         or canonical_path.is_absolute()
         or str(canonical_path) != raw_path
         or any(part in ("", ".", "..") for part in canonical_path.parts)
@@ -1060,18 +1061,12 @@ def _common_receipt(
     }
 
 
-def _final_holdout_receipt(
+def _final_holdout_receipt_from_validated_observation(
     role: str,
     registry: Mapping[str, Any],
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    observation = _validate_observation_data(
-        observation,
-        role=role,
-        registry=registry,
-        candidate=authorization,
-    )
     metrics = observation["result"]
     metrics = _exact_dict(
         metrics,
@@ -1121,17 +1116,11 @@ def _final_holdout_receipt(
     }
 
 
-def _retention_receipt(
+def _retention_receipt_from_validated_observation(
     registry: Mapping[str, Any],
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    observation = _validate_observation_data(
-        observation,
-        role="retention",
-        registry=registry,
-        candidate=authorization,
-    )
     metrics = observation["result"]
     metrics = _exact_dict(
         metrics,
@@ -1209,17 +1198,12 @@ def _retention_receipt(
     }
 
 
-def _known_regression_receipt(
+def _known_regression_receipt_from_validated_observation(
     registry: Mapping[str, Any],
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    verified = _validate_observation_data(
-        observation,
-        role="known_regression",
-        registry=registry,
-        candidate=authorization,
-    )
+    verified = observation
     result = _exact_dict(
         verified["result"],
         {"static_ranks", "fixed_depth_bestmoves", "timed_bestmoves"},
@@ -1293,17 +1277,12 @@ def _known_regression_receipt(
     }
 
 
-def _production_parity_receipt(
+def _production_parity_receipt_from_validated_observation(
     registry: Mapping[str, Any],
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    verified = _validate_observation_data(
-        observation,
-        role="production_parity",
-        registry=registry,
-        candidate=authorization,
-    )
+    verified = observation
     result = _exact_dict(
         verified["result"],
         {
@@ -1429,29 +1408,29 @@ def run_strength_first_downstream_gates_core_for_tests(
     _require_pairwise_distinct_observation_evidence(
         validated_observations
     )
-    fresh = _final_holdout_receipt(
+    fresh = _final_holdout_receipt_from_validated_observation(
         "fresh_final_holdout",
         snapshot,
         validated_observations["fresh_final_holdout"],
         candidate,
     )
-    legacy = _final_holdout_receipt(
+    legacy = _final_holdout_receipt_from_validated_observation(
         "legacy_final_holdout",
         snapshot,
         validated_observations["legacy_final_holdout"],
         candidate,
     )
-    retention = _retention_receipt(
+    retention = _retention_receipt_from_validated_observation(
         snapshot,
         validated_observations["retention"],
         candidate,
     )
-    known = _known_regression_receipt(
+    known = _known_regression_receipt_from_validated_observation(
         snapshot,
         validated_observations["known_regression"],
         candidate,
     )
-    parity = _production_parity_receipt(
+    parity = _production_parity_receipt_from_validated_observation(
         snapshot,
         validated_observations["production_parity"],
         candidate,
@@ -1522,29 +1501,29 @@ def validate_downstream_result_data(
         )
     try:
         expected_receipts = {
-            "fresh_final_holdout": _final_holdout_receipt(
+            "fresh_final_holdout": _final_holdout_receipt_from_validated_observation(
                 "fresh_final_holdout",
                 snapshot,
                 observations["fresh_final_holdout"],
                 candidate,
             ),
-            "legacy_final_holdout": _final_holdout_receipt(
+            "legacy_final_holdout": _final_holdout_receipt_from_validated_observation(
                 "legacy_final_holdout",
                 snapshot,
                 observations["legacy_final_holdout"],
                 candidate,
             ),
-            "retention": _retention_receipt(
+            "retention": _retention_receipt_from_validated_observation(
                 snapshot,
                 observations["retention"],
                 candidate,
             ),
-            "known_regression": _known_regression_receipt(
+            "known_regression": _known_regression_receipt_from_validated_observation(
                 snapshot,
                 observations["known_regression"],
                 candidate,
             ),
-            "production_parity": _production_parity_receipt(
+            "production_parity": _production_parity_receipt_from_validated_observation(
                 snapshot,
                 observations["production_parity"],
                 candidate,
@@ -1599,6 +1578,7 @@ def receipt_identity(
     if (
         canonical_path is None
         or not path
+        or ":" in path
         or canonical_path.is_absolute()
         or str(canonical_path) != path
         or any(part in ("", ".", "..") for part in canonical_path.parts)

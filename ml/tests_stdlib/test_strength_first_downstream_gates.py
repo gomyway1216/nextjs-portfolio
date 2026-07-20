@@ -888,8 +888,8 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
 
         with mock.patch.object(
             GATES,
-            "_final_holdout_receipt",
-            wraps=GATES._final_holdout_receipt,
+            "_final_holdout_receipt_from_validated_observation",
+            wraps=GATES._final_holdout_receipt_from_validated_observation,
         ) as receipt_builder:
             with self.assertRaisesRegex(ValueError, "pairwise distinct"):
                 GATES.run_strength_first_downstream_gates_core_for_tests(
@@ -942,8 +942,8 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             )
             with mock.patch.object(
                 GATES,
-                "_final_holdout_receipt",
-                wraps=GATES._final_holdout_receipt,
+                "_final_holdout_receipt_from_validated_observation",
+                wraps=GATES._final_holdout_receipt_from_validated_observation,
             ) as receipt_builder:
                 with self.assertRaisesRegex(ValueError, "pairwise distinct"):
                     GATES.run_strength_first_downstream_gates_core_for_tests(
@@ -977,13 +977,13 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
 
         with mock.patch.object(
             GATES,
-            "_final_holdout_receipt",
-            wraps=GATES._final_holdout_receipt,
+            "_final_holdout_receipt_from_validated_observation",
+            wraps=GATES._final_holdout_receipt_from_validated_observation,
         ) as final_builder:
             with mock.patch.object(
                 GATES,
-                "_retention_receipt",
-                wraps=GATES._retention_receipt,
+                "_retention_receipt_from_validated_observation",
+                wraps=GATES._retention_receipt_from_validated_observation,
             ) as later_builder:
                 with self.assertRaisesRegex(
                     GATES.DownstreamGateFailed,
@@ -1145,6 +1145,22 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 receipt,
                 path="/retention-receipt.json",
             )
+
+    def test_receipt_identity_rejects_drive_relative_and_colon_paths(self):
+        receipt = self.run_valid()["receipts"]["retention"]
+
+        for unsafe_path in (
+            "C:retention-receipt.json",
+            "evidence/name:retention.json",
+        ):
+            with self.subTest(path=unsafe_path), self.assertRaisesRegex(
+                ValueError,
+                "canonical relative path",
+            ):
+                GATES.receipt_identity(
+                    receipt,
+                    path=unsafe_path,
+                )
 
 
 if __name__ == "__main__":

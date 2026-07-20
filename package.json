@@ -42,7 +42,6 @@
     "shogi:floodgate-v7-local-clean-room-teacher": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
     "shogi:floodgate-v7-local-clean-room-training-label-finalizer": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
     "shogi:formal-ab-v2-local": "python3 ml/formal_paired_ab_local_launcher.py",
-    "shogi:browser-worker-parity": "node -r tsx/cjs ml/run-strength-first-browser-worker-parity.ts",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },

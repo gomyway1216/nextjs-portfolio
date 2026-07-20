@@ -39,6 +39,35 @@ export interface UsiMultiPvAccumulatorOptions {
   allowTerminalMateBeforeRequiredDepth?: boolean;
 }
 
+/** Structured fixed-depth failure used by proposal-only quarantine policy. */
+export class UsiFixedDepthRanksIncompleteError extends Error {
+  readonly requestedRanks: number;
+  readonly requiredDepth: number;
+  readonly finalExactRanks: number;
+  readonly finalCpRanks: number;
+  readonly finalMateRanks: number;
+  readonly missingOrNonExactRanks: number;
+
+  constructor(
+    requestedRanks: number,
+    requiredDepth: number,
+    finalExactRanks: number,
+    finalCpRanks: number,
+    finalMateRanks: number
+  ) {
+    super(
+      `incomplete MultiPV: fixed-depth ranks did not end with exact updates at depth ${requiredDepth}`
+    );
+    this.name = 'UsiFixedDepthRanksIncompleteError';
+    this.requestedRanks = requestedRanks;
+    this.requiredDepth = requiredDepth;
+    this.finalExactRanks = finalExactRanks;
+    this.finalCpRanks = finalCpRanks;
+    this.finalMateRanks = finalMateRanks;
+    this.missingOrNonExactRanks = requestedRanks - finalExactRanks;
+  }
+}
+
 function positiveInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer (got ${value})`);
@@ -398,8 +427,23 @@ export class UsiMultiPvAccumulator {
         return finalUpdate?.acceptedExact && finalUpdate.depth === this.requiredDepth;
       });
     if (!requiredDepthIsFinal && !this.allowTerminalMateBeforeRequiredDepth) {
-      throw new Error(
-        `incomplete MultiPV: fixed-depth ranks did not end with exact updates at depth ${this.requiredDepth}`,
+      const requiredDepth = this.requiredDepth as number;
+      const finalExactLines = Array.from(
+        { length: this.expectedMultiPv },
+        (_, index) => {
+          const rank = index + 1;
+          const finalUpdate = this.lastUpdateByRank.get(rank);
+          return finalUpdate?.acceptedExact && finalUpdate.depth === requiredDepth
+            ? this.snapshots.get(requiredDepth)?.get(rank)
+            : undefined;
+        },
+      ).filter((line): line is ParsedUsiPv => line !== undefined);
+      throw new UsiFixedDepthRanksIncompleteError(
+        this.expectedMultiPv,
+        requiredDepth,
+        finalExactLines.length,
+        finalExactLines.filter((line) => line.scoreKind === 'cp').length,
+        finalExactLines.filter((line) => line.scoreKind === 'mate').length,
       );
     }
 

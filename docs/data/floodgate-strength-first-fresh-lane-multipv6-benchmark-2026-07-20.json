@@ -1,8 +1,8 @@
 {
-  "schema": "shogi-floodgate-strength-first-fresh-lane-multipv6-benchmark-implementation-status-v1",
-  "status": "implemented-not-executed-formal-teacher-active",
+  "schema": "shogi-floodgate-strength-first-fresh-lane-multipv6-benchmark-measured-evidence-v1",
+  "status": "complete-lane-13-selected",
   "date": "2026-07-20",
-  "claim_boundary": "benchmark-harness-and-lightweight-tests-only-no-throughput-result-training-or-playing-strength-evidence",
+  "claim_boundary": "local-throughput-only-not-teacher-training-model-selection-or-playing-strength-evidence",
   "tracked_search_policy": {
     "path": "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json",
     "bytes": 1349,
@@ -17,24 +17,106 @@
     "timeout_ms_per_search": 600000,
     "network": false
   },
-  "planned_comparison": {
+  "receipt_validation": {
+    "schema": "shogi-floodgate-strength-first-fresh-lane-multipv6-benchmark-v1",
+    "status": "complete-aggregate-only",
+    "current_user_owner_verified": true,
+    "private_file_mode": "0600",
+    "regular_file": true,
+    "hard_link_count": 1,
+    "private_payload_fields_emitted": 0,
+    "private_path_published": false,
+    "private_receipt_digest_published": false,
+    "work_fingerprints_published": false,
+    "positions_games_moves_sfen_labels_or_scores_published": false
+  },
+  "workload": {
     "authenticated_training_positions_per_trial": 42,
     "trial_order": [12, 13, 13, 12],
     "trials": 4,
     "total_parent_slots": 168,
-    "pair_favors_13_boundary_ppm": 1000000,
-    "pair_comparison": "strictly-greater-than-boundary",
-    "minimum_speedup_ppm": 1010000,
-    "selection_rule": "both-abba-pairs-must-strictly-favor-13-and-median-must-reach-minimum-speedup",
     "required_completed_parents_per_trial": 42,
     "required_emitted_parent_groups_per_trial": 42,
     "required_forced_skips_per_trial": 0
   },
-  "execution_status": {
-    "real_comparison_started": false,
-    "reason": "formal-24000-position-teacher-active",
-    "measured_selected_parallel_engines": null,
-    "measured_elapsed_ms": null
+  "trials": [
+    {
+      "ordinal": 1,
+      "parallel_engines": 12,
+      "elapsed_ms": 35430,
+      "parents_per_second_ppm": 1185436,
+      "target_parents": 42,
+      "completed_parents": 42,
+      "forced_parents_skipped": 0,
+      "emitted_parent_groups": 42,
+      "work_records": 43,
+      "current_work_records": 43
+    },
+    {
+      "ordinal": 2,
+      "parallel_engines": 13,
+      "elapsed_ms": 32941,
+      "parents_per_second_ppm": 1275007,
+      "target_parents": 42,
+      "completed_parents": 42,
+      "forced_parents_skipped": 0,
+      "emitted_parent_groups": 42,
+      "work_records": 43,
+      "current_work_records": 43
+    },
+    {
+      "ordinal": 3,
+      "parallel_engines": 13,
+      "elapsed_ms": 31332,
+      "parents_per_second_ppm": 1340483,
+      "target_parents": 42,
+      "completed_parents": 42,
+      "forced_parents_skipped": 0,
+      "emitted_parent_groups": 42,
+      "work_records": 43,
+      "current_work_records": 43
+    },
+    {
+      "ordinal": 4,
+      "parallel_engines": 12,
+      "elapsed_ms": 31376,
+      "parents_per_second_ppm": 1338603,
+      "target_parents": 42,
+      "completed_parents": 42,
+      "forced_parents_skipped": 0,
+      "emitted_parent_groups": 42,
+      "work_records": 43,
+      "current_work_records": 43
+    }
+  ],
+  "comparison": {
+    "lane_12_elapsed_ms": [35430, 31376],
+    "lane_12_median_elapsed_ms": 33403,
+    "lane_13_elapsed_ms": [32941, 31332],
+    "lane_13_median_elapsed_ms": 32137,
+    "abba_pair_1_lane_13_speedup_ppm": 1075559,
+    "abba_pair_2_lane_13_speedup_ppm": 1001404,
+    "lane_13_median_speedup_ppm": 1039394,
+    "abba_pair_favors_lane_13_boundary_ppm": 1000000,
+    "minimum_speedup_to_select_lane_13_ppm": 1010000,
+    "abba_pair_1_favors_lane_13": true,
+    "abba_pair_2_favors_lane_13": true,
+    "median_passed": true,
+    "selection_rule": "both-abba-pairs-must-strictly-favor-13-and-median-must-reach-minimum-speedup",
+    "selected_parallel_engines": 13
+  },
+  "aggregate_completion": {
+    "target_parent_slots": 168,
+    "completed_parent_slots": 168,
+    "forced_parents_skipped": 0,
+    "emitted_parent_groups": 168,
+    "work_records_including_four_headers": 172
+  },
+  "process_measurement": {
+    "wall_seconds": 140.28,
+    "user_seconds": 1002.86,
+    "system_seconds": 30.16,
+    "process_swaps": 0
   },
   "safety": {
     "formal_teacher_exclusion_before_engine_launch": true,
@@ -55,7 +137,10 @@
     "benchmark": "ml/floodgate-strength-first-fresh-lane-benchmark.ts",
     "argumentless_entry": "ml/run-floodgate-strength-first-fresh-lane-benchmark.ts",
     "unit_test": "tests/unit/ml/floodgateStrengthFirstFreshLaneBenchmark.test.ts",
-    "unit_tests_passed": 11,
-    "real_engine_processes_started_by_validation": 0
+    "measured_evidence_test": "tests/unit/ml/floodgateStrengthFirstFreshLaneMeasuredEvidence.test.ts",
+    "benchmark_unit_tests_passed": 11,
+    "measured_evidence_tests_passed": 2,
+    "shared_policy_changed": false,
+    "model_or_live_weight_changed": false
   }
 }

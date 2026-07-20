@@ -1,64 +1,68 @@
-# MultiPV 6の12対13並列を、同じ42局面で測る
+# MultiPV 6の12対13並列を、同じ42局面で測った
 
-> 2026年7月20日時点。fresh-selection教師の実際の探索条件で、12と13のYaneuraOu processを比較するローカル専用ツールを実装した。24,000局面の正式教師生成が動作中なので、比較そのものはまだ実行していない。モデル、live weight、共有search policyは変更していない。English version: [blog-shogi-floodgate-fresh-lane-multipv6-benchmark.en.md](./blog-shogi-floodgate-fresh-lane-multipv6-benchmark.en.md)
+> 2026年7月20日時点。fresh-selection教師と同じ探索条件で、12と13のYaneuraOu processをローカル実測した。事前登録した判定規則を満たしたため、**この処理には13 processを選ぶ**。モデル、live weight、共有search policyは変更していない。English version: [blog-shogi-floodgate-fresh-lane-multipv6-benchmark.en.md](./blog-shogi-floodgate-fresh-lane-multipv6-benchmark.en.md)
 
 ## 結論
 
-「コアを増やせば必ず速い」とは限らない。各局面内のYaneuraOu探索はほぼ直列だが、別局面を別processへ配ることで局面間を並列化できる。一方、processを増やしすぎるとCPU競合、Hash memory、memory帯域によって遅くなる。実際、以前のMultiPV 12比較では14 processが12より遅かった。
+同じ42局面を `12 → 13 → 13 → 12` のABBA順で処理した結果、所要時間は次の通りだった。
 
-fresh-selectionの固定条件はproposalがMultiPV 6 / depth 14、各候補の独立再採点がdepth 16である。候補数が違えばprocess数の最適値も変わり得るため、以前のMultiPV 12による12対13の結果をそのまま流用しない。新しいツールは次の同一workloadを測る。
+| trial | process数 | 42局面の所要時間 | forced skip |
+| ----: | --------: | ---------------: | ----------: |
+|     1 |        12 |         35.430秒 |           0 |
+|     2 |        13 |         32.941秒 |           0 |
+|     3 |        13 |         31.332秒 |           0 |
+|     4 |        12 |         31.376秒 |           0 |
 
-| 項目 | 固定値 |
-| --- | ---: |
-| 認証済みtraining prefix | 同じ42局面 |
-| 実行順 | 12 → 13 → 13 → 12 |
-| trial数 / 合計処理枠 | 4 / 168 |
-| proposal | MultiPV 6 / depth 14 |
+12 processの中央値は33.403秒、13 processは32.137秒だった。同一workloadに対する速度比は1.039394、つまり13 processが約3.94%高いthroughputになった。wall timeの短縮率で表すと約3.79%である。
+
+1組目の速度比は1.075559、2組目は1.001404だった。2組目は僅差だが、両組とも13が12を厳密に上回り、中央値も事前登録した1%以上の条件を通った。そのため選択結果は13である。
+
+これは棋力テストではない。変わるのは教師label生成の並列数だけで、探索深さ、MultiPV、Hash、1 engineあたりのthread数は同じである。
+
+## 固定した比較条件
+
+各局面内のYaneuraOu探索はほぼ直列だが、別局面は別processへ配れる。一方でprocessを増やしすぎるとCPU競合、Hash memory、memory帯域で逆に遅くなるため、実測で選んだ。
+
+| 項目                           |                            固定値 |
+| ------------------------------ | --------------------------------: |
+| 認証済みtraining prefix        |                        同じ42局面 |
+| 実行順                         |                 12 → 13 → 13 → 12 |
+| trial数 / 合計処理枠           |                           4 / 168 |
+| proposal                       |              MultiPV 6 / depth 14 |
 | 不完全proposalのexact fallback | 合法手6以下だけ全合法手を個別探索 |
-| 独立再採点 | MultiPV 1 / depth 16 |
-| Threads | 1 / engine |
-| Hash | 512 MiB / engine |
-| 1探索上限 | 600秒 |
+| 独立再採点                     |              MultiPV 1 / depth 16 |
+| Threads                        |                        1 / engine |
+| Hash                           |                  512 MiB / engine |
+| 1探索上限                      |                             600秒 |
 
-これは棋力テストではなく、教師labelを作るthroughputだけの比較である。
+4 trialすべてで42 / 42局面を完了し、合計168 / 168だった。forced skipは0、emitted groupは168、各trialのwork recordはheader込み43だった。
 
-## 13 processを選ぶ条件
+## 13 processを選ぶ規則
 
-順序による温度、cache、background loadの偏りを減らすためABBA順にする。対応する比較はtrial 1の12対trial 2の13、trial 4の12対trial 3の13である。
+順序による温度、cache、background loadの偏りを減らすためABBA順にした。対応する比較はtrial 1の12対trial 2の13、trial 4の12対trial 3の13である。
 
-13を推奨するには、次の3条件を全て満たす必要がある。
+13を選ぶには、次の3条件をすべて満たす必要がある。
 
 1. 1組目で13が12より少しでも速い（同率は不可）
 2. 2組目でも13が12より少しでも速い（同率は不可）
 3. 12の2回と13の2回のwall time中央値でも13が1%以上速い
 
-中央値だけが良くても、片方の組が同率または13の方が遅ければ12を維持する。さらに各trialは42 / 42完了、forced skip 0、emitted group 42、work record 43でなければ比較全体を失敗させる。同じprocess数の2 trialは内部work fingerprintが一致し、12と13では異なることも確認する。fingerprint自体は結果へ公開しない。
+今回は3条件すべてを満たした。中央値だけを見て都合よく選んだのではなく、実行前に固定した規則をそのまま適用している。
 
-## 稼働中の正式処理とは同時実行しない
+## 実行時間と計算資源
 
-比較ツールは正式v8 / v9教師の排他lockを先に取る。24,000局面の処理が動いていれば、engineを1つも起動せず失敗する。このため、現在の正式処理からCPUや約6.0 GiBまたは約6.5 GiBのengine Hashを奪わない。
+ベンチマーク全体の計測はwall 140.28秒、user 1002.86秒、system 30.16秒、process swap 0だった。trial内の純粋な探索時間の合計は131.079秒で、残りには認証、preflight / postflight、排他、stage cleanupなどが含まれる。
 
-実行前後には次も確認する。
+比較ツールは正式v8 / v9教師の排他lockをengine起動前に取得する。正式処理と同時には走らず、CPUやengine Hashを奪わない。さらにcleanな同一Git revision、tracked search policy、認証済みtraining input、pinned YaneuraOu / eval assetsを実行前後で再確認した。各trialの一時stageも開始前と成功後の両方で削除した。
 
-- macOS arm64、Node v22.13.0、利用可能logical CPU 13以上
-- cleanな同一Git revision
-- tracked search policyのexact 1,349 bytes / SHA-256
-- pinned YaneuraOu / eval asset authority
-- 固定home、repository、asset、private output root
-- argumentなしのentry point
+## 公開しない情報
 
-各trialのstageは開始前と成功・失敗後の両方で削除する。skip、件数不一致、policy変更、source変更、asset変更があればreceiptをcommitしない。
+私的receiptはcurrent user所有の通常ファイル、mode 0600、hard link 1としてread-only検証した。schema、status、4 trial、選択規則、集計値も一致し、private payload fieldは0だった。
 
-## 結果に残すもの、残さないもの
+公開データには私的なpath、receipt hash、内部work fingerprint、局面、棋譜、指し手、SFEN、label、scoreを含めていない。公開しているのはprocess数、時間、throughput、件数と判定結果だけである。
 
-privateな`receipt.json`に残すのは、process数、経過時間、throughput、件数、2組と中央値の比率、12または13の推奨だけである。局面、棋譜、指し手、SFEN、label、path、hash、内部fingerprintは含めない。
+## 次に何が変わるか
 
-また、結果は共有policyを自動変更しない。13が閾値を超えた場合でも「別変更で検討できる推奨」に留まり、モデルやlive weightは一切書かない。
+この結果は「MultiPV 6のfresh教師処理では13 processを使う」という実測根拠になる。ただし共有search policyを自動変更せず、モデルやlive weightも一切書き換えていない。13 processの採用は、別のレビュー済み変更で反映する。
 
-## 現在地
-
-実装と11件の軽量単体テストは完了した。中央値閾値ちょうどの採用、両組が約0.5% / 1.5%速い境界、片方が同率のときの12維持、順序・件数・fingerprint drift、private field、skip後cleanup、入力postflight、policy・platform・root・CLI driftを確認している。
-
-実比較は意図的に未実行であり、12と13のどちらがMultiPV 6で速いかはまだ確定していない。24,000局面の正式処理が終了し、この実装がmergeされたclean revisionからだけABBA比較を実行する。
-
-機械可読の実装statusは[こちら](./data/floodgate-strength-first-fresh-lane-multipv6-benchmark-2026-07-20.json)にある。
+既存11件のbenchmark単体テストに加え、公開した実測値、判定計算、168 / 168完了、非公開境界を固定する証拠テストを追加した。機械可読の実測証拠は[こちら](./data/floodgate-strength-first-fresh-lane-multipv6-benchmark-2026-07-20.json)にある。

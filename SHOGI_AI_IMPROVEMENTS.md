@@ -9,7 +9,7 @@ The main `/games/shogi` page now uses the opening book early and then delegates 
 
 ## Current training status (2026-07-20)
 
-Formal v9 is running locally from clean merge revision
+Formal v9 is running locally from the clean merged revision
 `682e5a1dd8027519f2277ec311000bfedf4aced3`. It reached milestone 100 in
 411 seconds and milestone 500 in 1,001 seconds, with exact 500 / 500
 completion, an emitted count of 500, and zero forced skips, search timeouts, or

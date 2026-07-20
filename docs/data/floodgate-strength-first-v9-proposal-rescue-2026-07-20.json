@@ -179,7 +179,7 @@
         "target": 500,
         "completed": 500,
         "emitted": 500,
-        "forced_skipped": 0,
+        "forced_parents_skipped": 0,
         "reasons": {
           "fewer_than_two": 0,
           "search_timeout": 0

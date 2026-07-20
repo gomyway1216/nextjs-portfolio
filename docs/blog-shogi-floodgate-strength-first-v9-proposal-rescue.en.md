@@ -1,6 +1,6 @@
 # From the v8 stop to v9: depth-14 proposals with depth-16 scoring
 
-> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 and 12-vs-13 lane measurements, the v9 runner implementation, and formal-run progress. Formal v9 started locally from clean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3` and completed the exact 500 milestone. The final 24,000 result, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
+> Status on July 20, 2026. This records the formal v8 teacher stop, real-position depth diagnostics, the fast input path, the 12-vs-14 and 12-vs-13 lane measurements, the v9 runner implementation, and formal-run progress. Formal v9 started locally from the clean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3` and completed the exact 500 milestone. The final 24,000 result, retraining, strength gain, and live promotion are not complete. [日本語版](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.md)
 
 ## Conclusion
 
@@ -71,7 +71,7 @@ Thirteen-lane median throughput was 109.2814% of twelve-lane throughput, clearin
 
 ## Formal v9 completed the exact 500 milestone and continues toward 24,000
 
-The formal run started from clean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3`. Its observed times are:
+The formal run started from the clean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3`. Its observed times are:
 
 | Observation  | Epoch      | Elapsed from start |
 | ------------ | ---------: | -----------------: |

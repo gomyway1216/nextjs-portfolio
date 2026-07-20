@@ -1,6 +1,6 @@
 # v8停止からv9へ：提案をdepth 14、採点をdepth 16に分離した
 
-> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14・12対13並列の実測、v9 runner実装と正式実行の進捗を記録する。正式v9はclean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3`からローカルで開始し、500 milestoneをexact完了した。24,000の最終結果、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
+> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14・12対13並列の実測、v9 runner実装と正式実行の進捗を記録する。正式v9はclean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3`からローカルで開始し、500 milestoneをexact完了した。24,000の最終結果、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
 
 ## 結論
 
@@ -71,7 +71,7 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 
 ## 正式v9は500をexact完了し、そのまま24,000へ進行中
 
-正式実行はclean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3`から開始した。時刻と経過時間は次のとおりである。
+正式実行はclean merged revision `682e5a1dd8027519f2277ec311000bfedf4aced3`から開始した。時刻と経過時間は次のとおりである。
 
 | 観測点        | epoch      | 開始からの経過 |
 | ------------- | ---------: | -------------: |

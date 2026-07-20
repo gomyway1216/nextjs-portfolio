@@ -73,6 +73,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       candidate_weights_identity: true,
       stable_weights_identity: true,
       candidate_and_stable_must_differ: true,
+      candidate_and_stable_paths_must_differ: true,
       canonical_openings_and_identity: true,
       candidate_colors: true,
       time_control_content_identity: true,
@@ -81,6 +82,8 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       result_receipt_identity: true,
       retention_receipt_identity: true,
       rollback_receipt_identity: true,
+      receipt_paths_and_digests_must_be_distinct: true,
+      plain_json_only: true,
       exact_768_game_accounting: true,
       deterministic_binding_sha256: true,
       opens_artifact_files: false,
@@ -163,7 +166,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       expect(article).toContain("rollback");
       expect(article).toContain("time control");
       expect(article).toContain("STOP");
-      expect(article).toContain("7bdda5f8");
+      expect(article).toContain("6cdf145a");
       expect(article).toMatch(/no-?follow/iu);
     }
     expect(japanese).toContain("0 / 768局");

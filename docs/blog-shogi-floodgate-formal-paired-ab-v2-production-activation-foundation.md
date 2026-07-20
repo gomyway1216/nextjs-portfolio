@@ -91,17 +91,17 @@ unit testは次を拒否した。
 - argument付きproduction entry
 - 383 pair、wrong color、duplicate / wrong game ID
 - opening / time-control contentとidentity digestの不一致
-- candidateとstableの同一digest
+- candidateとstableの同一digestまたは同一path
 - bool、0、7、floatのpair worker
-- wrong adapter / receipt schema、receipt digest alias
-- unsafe relative path、extra field、`dict` subclass
+- wrong adapter / receipt schema、receipt digest / path alias
+- unsafe relative path、extra field、nestedを含む`dict` subclass
 - `production_authority: true`などのauthority拡張
 
 同じsynthetic inputとkey順だけを変えたinputは同じcomposition receiptを作る。返却値はinputとaliasせず、composition中にfilesystem openを行わない。
 
 ## 検証
 
-実装anchor `7bdda5f81b5a6258e28d3066bb22330281c20a17`で次を確認した。
+実装anchor `6cdf145af77fa90db4feac100752d3ff3db328f1`で次を確認した。
 
 | 検証                                        |                     結果 |
 | ------------------------------------------- | -----------------------: |

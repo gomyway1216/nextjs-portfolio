@@ -2,8 +2,8 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-foundation-evidence-v1",
   "recorded_date": "2026-07-19",
   "implementation_anchor": {
-    "revision": "7bdda5f81b5a6258e28d3066bb22330281c20a17",
-    "tree": "0dd7b87a4dbe5480fe51861243eed6e9376ea48c",
+    "revision": "6cdf145af77fa90db4feac100752d3ff3db328f1",
+    "tree": "0c27a4cc9b90223130eae098dac01659c2f9ce4c",
     "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
     "branch": "codex/formal-ab-v2-activation-foundation",
     "pushed": false,
@@ -22,8 +22,8 @@
   "implementation_artifacts": {
     "module": {
       "path": "ml/formal_paired_ab_v2_production_activation.py",
-      "bytes": 32364,
-      "sha256": "605df715aa9fac9cb3e1139daa70dbdda18e51a4ca333298c09c26c456539035"
+      "bytes": 33261,
+      "sha256": "3ffbab29b75dcdc5021fe404885ab6da96def66878ea5ce8da6060ea0158a27b"
     },
     "registry": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
@@ -32,8 +32,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
-      "bytes": 18189,
-      "sha256": "9077d7d17a694208f8e6d8679edf14f7b9b3f941cb0523dd4d3becb10c5bf7de"
+      "bytes": 19525,
+      "sha256": "db137852d3b71cd06eceefaee1269614171b1d55fcd6ec97bdbb4d8199fbece2"
     }
   },
   "protocol_binding": {
@@ -87,6 +87,7 @@
     "candidate_weights_identity": true,
     "stable_weights_identity": true,
     "candidate_and_stable_must_differ": true,
+    "candidate_and_stable_paths_must_differ": true,
     "canonical_openings_and_identity": true,
     "candidate_colors": true,
     "time_control_content_identity": true,
@@ -95,6 +96,8 @@
     "result_receipt_identity": true,
     "retention_receipt_identity": true,
     "rollback_receipt_identity": true,
+    "receipt_paths_and_digests_must_be_distinct": true,
+    "plain_json_only": true,
     "exact_768_game_accounting": true,
     "deterministic_binding_sha256": true,
     "opens_artifact_files": false,

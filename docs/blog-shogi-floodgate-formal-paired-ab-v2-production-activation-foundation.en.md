@@ -91,17 +91,17 @@ Unit tests reject:
 - any argument to the production entry;
 - 383 pairs, a wrong color, and duplicate or wrong game IDs;
 - opening or time-control content that disagrees with its identity digest;
-- identical candidate and stable digests;
+- identical candidate and stable digests or paths;
 - boolean, zero, seven, and floating-point pair-worker values;
-- wrong adapter or receipt schemas and aliased receipt digests;
-- unsafe relative paths, extra fields, and a `dict` subclass; and
+- wrong adapter or receipt schemas and aliased receipt digests or paths;
+- unsafe relative paths, extra fields, and nested or top-level `dict` subclasses; and
 - authority expansion such as `production_authority: true`.
 
 The same synthetic input with a different key order produces the same composition receipt. The returned value does not alias the input, and composition performs no filesystem open.
 
 ## Validation
 
-At implementation anchor `7bdda5f81b5a6258e28d3066bb22330281c20a17`:
+At implementation anchor `6cdf145af77fa90db4feac100752d3ff3db328f1`:
 
 | Check                                                            |                       Result |
 | ---------------------------------------------------------------- | ---------------------------: |

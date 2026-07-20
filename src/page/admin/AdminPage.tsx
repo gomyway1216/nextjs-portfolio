@@ -628,6 +628,7 @@ const PostsTable = memo(function PostsTable({
             <th style={styles.th}>Category</th>
             <th style={styles.th}>Status</th>
             <th style={{ ...styles.th, textAlign: 'right' }}>Views</th>
+            <th style={{ ...styles.th, textAlign: 'right' }}>Likes</th>
             <th style={styles.th}>Updated</th>
             <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
           </tr>
@@ -679,6 +680,9 @@ const PostsTable = memo(function PostsTable({
               <td style={{ ...styles.td, textAlign: 'right', color: adminColors.textMuted, fontSize: '14px', fontVariantNumeric: 'tabular-nums' }}>
                 {(post.viewCount ?? 0).toLocaleString()}
               </td>
+              <td style={{ ...styles.td, textAlign: 'right', color: adminColors.textMuted, fontSize: '14px', fontVariantNumeric: 'tabular-nums' }}>
+                {(post.likeCount ?? 0).toLocaleString()}
+              </td>
               <td style={{ ...styles.td, color: adminColors.textMuted, fontSize: '14px' }} suppressHydrationWarning>
                 {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
               </td>
@@ -709,7 +713,7 @@ const PostsTable = memo(function PostsTable({
           ))}
           {posts.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
+              <td colSpan={7} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
                 No posts yet. Click &quot;Add Post&quot; to create one.
               </td>
             </tr>

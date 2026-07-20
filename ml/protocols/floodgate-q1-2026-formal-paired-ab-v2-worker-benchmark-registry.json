@@ -1,0 +1,59 @@
+{
+  "schema": "shogi-formal-paired-ab-v2-worker-benchmark-registry-v1",
+  "status": "BLOCKED",
+  "reason": "dedicated-benchmark-enrollment-not-reviewed",
+  "implementation": {
+    "wasm_contract": null,
+    "wasm_match_launcher": null,
+    "pair_entry": null,
+    "match_adapter": null,
+    "isolated_player": null,
+    "wasm_module_source": null
+  },
+  "enrollments": {
+    "benchmark_id": null,
+    "source_revision": null,
+    "match_binding": null,
+    "dedicated_openings_manifest": null,
+    "openings_preflight_receipt": null
+  },
+  "contract": {
+    "worker_candidates": [2, 4, 8, 12],
+    "round_sequence": [2, 4, 8, 12, 12, 8, 4, 2],
+    "pairs_per_round": 12,
+    "games_per_round": 24,
+    "repetitions_per_setting": 2,
+    "selection_condition": "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality"
+  },
+  "gates": {
+    "implementation_code_pinned": false,
+    "candidate_and_stable_weights_verified": false,
+    "dedicated_openings_verified": false,
+    "production_rules_preflight_verified": false,
+    "benchmark_execution_authorized": false,
+    "formal_execution_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "boundary": {
+    "argumentless_production_entry": true,
+    "caller_selected_registry": false,
+    "dedicated_benchmark_openings_only": true,
+    "sealed_formal_openings_access": false,
+    "formal_pair_journal_access": false,
+    "network": false,
+    "cloud": false,
+    "aws": false,
+    "gcp": false,
+    "live_weight_write": false
+  },
+  "nonclaims": {
+    "benchmark_rounds_started": 0,
+    "benchmark_pairs_started": 0,
+    "benchmark_games_started": 0,
+    "formal_pairs_started": 0,
+    "formal_games_started": 0,
+    "candidate_stronger": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

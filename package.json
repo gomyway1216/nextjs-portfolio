@@ -10,7 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:shogi-floodgate-stable-wasm-deadline-public-calibration": "FLOODGATE_STABLE_WASM_DEADLINE_REAL_PUBLIC_CALIBRATION=1 vitest run tests/unit/ml/floodgateStableWasmDeadlineRunBinding.test.ts -t \"runs the pinned public sentinel\" --reporter=verbose",
-    "test:ml:stdlib": "python3 -m py_compile ml/train.py ml/eval-sibling.py ml/checkpoint_compat.py ml/sibling_selection_audit.py ml/sibling_evidence_reproduction.py ml/qat_protocol.py ml/fresh_qat_protocol.py ml/fresh_qat_parent_accounting_v2.py ml/fresh_qat_v2_execution_dispatch.py ml/qat_plan_registry.py ml/qat_selection_audit.py ml/fresh_qat_selection_preflight.py ml/prepare_qat_replay_exclusion.py ml/formal_paired_ab_protocol.py ml/formal_paired_ab_protocol_v2.py ml/formal_paired_ab_local_launcher.py ml/int16_forward.py ml/helpers/floodgate-exclusive-directory-rename.py && python3 -m unittest discover -s ml/tests_stdlib -v",
+    "test:ml:stdlib": "python3 -m py_compile ml/train.py ml/eval-sibling.py ml/checkpoint_compat.py ml/sibling_selection_audit.py ml/sibling_evidence_reproduction.py ml/qat_protocol.py ml/fresh_qat_protocol.py ml/fresh_qat_parent_accounting_v2.py ml/fresh_qat_v2_execution_dispatch.py ml/qat_plan_registry.py ml/qat_selection_audit.py ml/fresh_qat_selection_preflight.py ml/prepare_qat_replay_exclusion.py ml/formal_paired_ab_protocol.py ml/formal_paired_ab_protocol_v2.py ml/formal_paired_ab_local_launcher.py ml/formal_paired_ab_v2_worker_benchmark.py ml/run_formal_paired_ab_v2_worker_benchmark.py ml/build_formal_paired_ab_v2_worker_benchmark_registry_candidate.py ml/int16_forward.py ml/helpers/floodgate-exclusive-directory-rename.py && python3 -m unittest discover -s ml/tests_stdlib -v",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --testTimeout=20000",
     "test:e2e": "playwright test",
@@ -42,6 +42,7 @@
     "shogi:floodgate-v7-local-clean-room-teacher": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
     "shogi:floodgate-v7-local-clean-room-training-label-finalizer": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
     "shogi:formal-ab-v2-local": "python3 ml/formal_paired_ab_local_launcher.py",
+    "shogi:formal-ab-v2-worker-benchmark": "python3 ml/run_formal_paired_ab_v2_worker_benchmark.py",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },

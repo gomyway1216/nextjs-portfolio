@@ -898,7 +898,12 @@ def run_pinned_ready_wasm_pairs(
     """Execute only the one code-pinned reviewed ready registry."""
 
     root = Path(repo_root).resolve(strict=True)
-    captured = legacy.validate_pinned_ready_local_run_registry(root)
+    # Production no longer accepts the historical generic local registry. The
+    # reviewed bridge requires one P0 WASM registry whose worker count is bound
+    # to an exact real benchmark receipt before any formal journal is created.
+    import formal_paired_ab_v2_worker_benchmark as worker_benchmark
+
+    captured = worker_benchmark.validate_pinned_formal_ready_registry(root)
     for name in ("candidate_weights", "stable_weights"):
         if captured["assets"][name]["bytes"] != NNUE_BYTES:
             raise FormalAbV2WasmMatchLauncherError(
@@ -912,5 +917,5 @@ def run_pinned_ready_wasm_pairs(
         captured,
         receipt_directory,
         lambda request: _execute_pair_subprocess(root, request),
-        lambda: legacy.validate_pinned_ready_local_run_registry(root),
+        lambda: worker_benchmark.validate_pinned_formal_ready_registry(root),
     )

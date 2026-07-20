@@ -1,0 +1,151 @@
+{
+  "schema": "shogi-local-external-calibration-adapter-evidence-v1",
+  "recorded_date": "2026-07-19",
+  "implementation_anchor": {
+    "revision": "2f32cf36b2d8fa2e40d24523a3d1b892571398d3",
+    "tree": "84054dd125134b735ebce468ac9992809f185ff3",
+    "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
+    "branch": "codex/shogi-local-external-calibration-adapter",
+    "pushed": false,
+    "pull_request_created": false
+  },
+  "implementation_artifacts": {
+    "adapter": {
+      "path": "ml/local-external-calibration.ts",
+      "bytes": 40188,
+      "sha256": "d4303507fad66538cde1498d90e8ff648c0e7369d1664d7be7bfdec6c8945dc2"
+    },
+    "tests": {
+      "path": "tests/unit/ml/localExternalCalibration.test.ts",
+      "bytes": 15796,
+      "sha256": "7816df3d6b539571c49234b25c4be1c4df9294455fb5b51bc2cfdba05e6c7487"
+    }
+  },
+  "runtime_binding": {
+    "stable": {
+      "factory": "createFloodgateProductionStableWasmRuntime",
+      "workers": 12,
+      "depth": 11,
+      "book": false,
+      "private_tt": "cleared-before-every-parent",
+      "timeout_ms": 600000,
+      "weights": {
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+      }
+    },
+    "reference": {
+      "factory": "createFloodgateProductionTeacherUsiRuntime",
+      "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+      "processes": 12,
+      "threads_per_process": 1,
+      "depth": 16,
+      "book": false,
+      "reset_before_every_move": true,
+      "timeout_ms": 600000,
+      "binary": {
+        "bytes": 700048,
+        "sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1"
+      }
+    }
+  },
+  "pairing": {
+    "games_per_opening": 2,
+    "stable_colors": ["sente", "gote"],
+    "identical_canonical_opening_within_pair": true,
+    "maximum_game_concurrency": 12,
+    "receipt_order_independent_of_completion_order": true
+  },
+  "rules": {
+    "canonical_sfen_round_trip": true,
+    "rules_complete_usi_membership": true,
+    "opposing_king_capture_rejected": true,
+    "no_legal_moves": "side-to-move-loses",
+    "fourfold_position_repetition": "draw-unless-one-side-gave-continuous-check",
+    "perpetual_check": "checking-side-loses",
+    "maximum_plies": "preregistered-draw-bound",
+    "unauthenticated_terminal_usi": "technical-fault-no-result"
+  },
+  "receipt": {
+    "returned_only_after_all_games_and_both_cleanups": true,
+    "request_sha256": true,
+    "runtime_receipts_bound": true,
+    "every_move_and_search_receipt_bound": true,
+    "final_sfen_and_termination_bound": true,
+    "complete_wdl_bound": true,
+    "timestamps_excluded": true,
+    "absolute_paths_excluded": true,
+    "partial_result_publishable": false
+  },
+  "entry_boundary": {
+    "explicit_complete_request_required": true,
+    "argumentless_entry": false,
+    "cli": false,
+    "caller_selected_engine_path": false,
+    "caller_selected_weight_path": false,
+    "caller_selected_depth": false,
+    "network": false,
+    "live_weight_writer": false,
+    "holdout_reader_or_writer": false,
+    "production_result_writer": false
+  },
+  "validation": {
+    "node": "v22.13.0",
+    "focused_tests_passed": 9,
+    "focused_tests_failed": 0,
+    "related_files_passed": 5,
+    "related_tests_passed": 76,
+    "related_tests_failed": 0,
+    "fake_usi_subprocess_games": 2,
+    "fake_usi_subprocess_plies_per_game": 4,
+    "fake_usi_searches": 4,
+    "fake_usi_ready_events": 5,
+    "illegal_move_completed_games_discarded": 1,
+    "illegal_move_receipts_issued": 0,
+    "synthetic_timeout_ms": 10,
+    "synthetic_timeout_receipts_issued": 0,
+    "fourfold_repetition_plies": 12,
+    "eslint": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS",
+    "changed_file_type_errors": 0,
+    "whole_repository_typecheck": "NOT_CLAIMED_PREEXISTING_UNRELATED_ERRORS"
+  },
+  "review": {
+    "independent_review": "pending",
+    "unresolved_p0": null,
+    "unresolved_p1": null,
+    "unresolved_p2": null,
+    "real_pilot_authorized": false
+  },
+  "execution_counters": {
+    "real_stable_games": 0,
+    "real_yaneuraou_games": 0,
+    "real_engine_processes_started_by_this_change": 0,
+    "network_requests": 0,
+    "aws_operations": 0,
+    "gcp_operations": 0,
+    "firebase_operations": 0,
+    "vercel_operations": 0,
+    "holdout_reads": 0,
+    "holdout_writes": 0,
+    "production_result_writes": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "strength_improved": false,
+    "high_dan": false,
+    "formal_ab_executed": false,
+    "external_calibration_completed": false,
+    "candidate_selected": false,
+    "promotion_authorized": false,
+    "live_weights_changed": false
+  },
+  "real_pilot_gate": [
+    "independent-review-p0-p1-zero",
+    "reviewed-commit-focused-and-related-validation-green",
+    "openings-and-request-fixed-before-results",
+    "exact-private-asset-read-only-preflight-green",
+    "live-holdout-production-writers-closed"
+  ]
+}

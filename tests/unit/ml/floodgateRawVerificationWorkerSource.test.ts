@@ -55,7 +55,9 @@ function captureFixture(
 }
 
 type DirectoryAcquisitionFault =
-  "parent-open" | "parent-fstat" | "parent-realpath";
+  | "parent-open"
+  | "parent-fstat"
+  | "parent-realpath";
 
 function faultInjectedDescriptorOperations(
   root: string,

@@ -23,7 +23,8 @@ export interface FloodgateRawVerificationTaskInput {
   readonly url: string;
 }
 
-export interface FloodgateRawVerificationWorkerTask extends FloodgateRawVerificationTaskInput {
+export interface FloodgateRawVerificationWorkerTask
+  extends FloodgateRawVerificationTaskInput {
   readonly schema: typeof FLOODGATE_RAW_VERIFICATION_WORKER_TASK_SCHEMA;
   readonly ordinal: number;
 }
@@ -97,7 +98,8 @@ export interface FloodgateRawVerificationWorkerFailure {
 }
 
 export type FloodgateRawVerificationWorkerResult =
-  FloodgateRawVerificationWorkerSuccess | FloodgateRawVerificationWorkerFailure;
+  | FloodgateRawVerificationWorkerSuccess
+  | FloodgateRawVerificationWorkerFailure;
 
 export interface FloodgateRawVerificationWorkerShutdown {
   readonly schema: typeof FLOODGATE_RAW_VERIFICATION_WORKER_CONTROL_SCHEMA;

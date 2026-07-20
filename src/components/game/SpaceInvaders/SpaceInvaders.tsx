@@ -339,7 +339,16 @@ const SpaceInvaders: React.FC = () => {
 
   // Keyboard input
   useEffect(() => {
+    // Don't swallow keys while the user types into a form field (e.g. the
+    // multiplayer lobby name/room inputs) — space there is just a space.
+    const isTypingTarget = (target: EventTarget | null): boolean =>
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         inputRef.current.left = true;
         e.preventDefault();
@@ -357,12 +366,16 @@ const SpaceInvaders: React.FC = () => {
         e.preventDefault();
       }
       if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        // While the info modal is open, Escape belongs to the modal (which
+        // closes itself) — don't also toggle pause in the same keypress.
+        if (e.key === 'Escape' && showInfo) return;
         if (!showStartScreen) togglePause();
         e.preventDefault();
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      // (no typing-target guard here: releasing a key should always clear flags)
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') inputRef.current.left = false;
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') inputRef.current.right = false;
       if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') inputRef.current.shoot = false;
@@ -374,7 +387,7 @@ const SpaceInvaders: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [showStartScreen, togglePause, startNewGame]);
+  }, [showStartScreen, showInfo, togglePause, startNewGame]);
 
   // Render game to canvas
   const render = useCallback((
@@ -384,6 +397,11 @@ const SpaceInvaders: React.FC = () => {
     myColor: string = '#22c55e',
     otherColor: string = '#3b82f6'
   ) => {
+    // Map logical game coordinates onto the DPR-scaled backing store (sized by
+    // the ResizeObserver effect); logical coordinates are unchanged.
+    const canvas = ctx.canvas;
+    ctx.setTransform(canvas.width / CANVAS_WIDTH, 0, 0, canvas.height / CANVAS_HEIGHT, 0, 0);
+
     ctx.fillStyle = '#05060c';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -491,6 +509,34 @@ const SpaceInvaders: React.FC = () => {
       }
     }
   }, [t]);
+
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size.
+  useEffect(() => {
+    if (showStartScreen) return; // canvas not mounted
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [showStartScreen]);
 
   // Game loop — single RAF driven by refs (state syncs to React for the HUD).
   useEffect(() => {

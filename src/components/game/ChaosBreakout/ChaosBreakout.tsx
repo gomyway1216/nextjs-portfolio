@@ -9,7 +9,7 @@ import { getDifficultyColor } from '../common';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import styles from './ChaosBreakout.module.css';
-import { getBannerText, getStrings } from './i18n';
+import { getBannerText, getGravityLabel, getStrings } from './i18n';
 import {
   BRICK_TOP,
   createGameState,
@@ -26,13 +26,6 @@ import {
 type Phase = 'menu' | 'ready' | 'playing' | 'paused' | 'gameover';
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
-
-const GRAVITY_ARROW: Record<GameState['gravity'], string> = {
-  down: '↓',
-  up: '↑',
-  left: '←',
-  right: '→',
-};
 
 interface Hud {
   score: number;
@@ -76,8 +69,40 @@ export const ChaosBreakout = () => {
     languageRef.current = language;
   }, [language]);
 
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size.
+  useEffect(() => {
+    if (phase === 'menu') return; // canvas not mounted
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [phase]);
+
   // ---- Rendering ------------------------------------------------------------
   const draw = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
+    // Map logical game coordinates onto the DPR-scaled backing store (sized by
+    // the ResizeObserver above); logical coordinates are unchanged.
+    const canvas = ctx.canvas;
+    ctx.setTransform(canvas.width / WIDTH, 0, 0, canvas.height / HEIGHT, 0, 0);
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
     const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
@@ -181,13 +206,20 @@ export const ChaosBreakout = () => {
     if (!ctx) return;
 
     let hudFrame = 0;
+    let lastTime = 0;
 
-    const loop = () => {
+    const loop = (time: number) => {
       if (phaseRef.current !== 'playing') return;
       const s = stateRef.current;
       if (!s) return;
 
-      const events = step(s, inputRef.current, difficultyRef.current);
+      // Normalize the rAF delta to 60fps-frame units (capped so a stalled tab
+      // can't fast-forward the sim) — keeps game speed identical on 120Hz+.
+      if (lastTime === 0) lastTime = time;
+      const dt = Math.min((time - lastTime) / (1000 / 60), 3) || 1;
+      lastTime = time;
+
+      const events = step(s, inputRef.current, difficultyRef.current, Math.random, dt);
 
       if (events.chaos) trackEvent('chaos', { kind: events.chaos });
       if (events.stageCleared) trackEvent('stage', { stage: s.stage });
@@ -268,14 +300,24 @@ export const ChaosBreakout = () => {
   // Keyboard
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // Paddle keys only matter in-game; leave the menu (and page scrolling)
+      // keyboard behaviour alone.
+      const inGame =
+        phaseRef.current === 'playing' ||
+        phaseRef.current === 'ready' ||
+        phaseRef.current === 'paused';
       switch (e.code) {
         case 'ArrowLeft':
         case 'KeyA':
+          if (!inGame) break;
+          if (phaseRef.current === 'playing') e.preventDefault();
           inputRef.current.left = true;
           inputRef.current.pointerX = null;
           break;
         case 'ArrowRight':
         case 'KeyD':
+          if (!inGame) break;
+          if (phaseRef.current === 'playing') e.preventDefault();
           inputRef.current.right = true;
           inputRef.current.pointerX = null;
           break;
@@ -405,7 +447,7 @@ export const ChaosBreakout = () => {
               <div className={styles.stat}>
                 <span className={styles.statLabel}>{t.gravity}</span>
                 <span className={styles.statValue} data-tone="gravity">
-                  {GRAVITY_ARROW[hud.gravity]} {hud.gravity.toUpperCase()}
+                  {getGravityLabel(hud.gravity, language)}
                 </span>
               </div>
               {/* Always mounted so the HUD grid doesn't reflow; just fade it. */}

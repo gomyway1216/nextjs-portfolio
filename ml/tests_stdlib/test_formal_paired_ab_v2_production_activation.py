@@ -415,6 +415,23 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
                         probe
                     )
 
+        for invalid_seed in (True, 0, -1, 1 << 63):
+            invalid_seed_probe = composition_fixture()
+            invalid_seed_probe["openings_manifest"]["payload"]["pairs"][0][
+                "seed"
+            ] = invalid_seed
+            invalid_seed_probe["openings_manifest"] = rebind_content_record(
+                invalid_seed_probe["openings_manifest"]
+            )
+            with self.subTest(invalid_seed=invalid_seed):
+                with self.assertRaisesRegex(
+                    activation.FormalAbV2ActivationError,
+                    "opening seeds",
+                ):
+                    activation.compose_formal_ab_v2_activation_core_for_tests(
+                        invalid_seed_probe
+                    )
+
     def test_content_identity_drift_time_and_worker_types_fail_closed(self):
         time_drift = composition_fixture()
         time_drift["time_control"]["payload"]["byoyomi_ms"] += 1

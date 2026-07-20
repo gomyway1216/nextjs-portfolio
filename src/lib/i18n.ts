@@ -32,6 +32,16 @@ const getInitialLanguage = (): 'en' | 'ja' => {
   return 'en';
 };
 
+// Keep <html lang> in sync with the active locale; the server only sets it
+// for the initial document, so without this a JA session keeps lang="en"
+// (wrong signal for screen readers, translators, and crawlers). Registered
+// before init() so the initial detection event is also captured.
+if (typeof document !== 'undefined') {
+  i18n.on('languageChanged', (lng) => {
+    document.documentElement.lang = lng;
+  });
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -69,14 +79,5 @@ i18n
       },
     },
   });
-
-// Keep <html lang> in sync after client-side language switches; the server
-// only sets it for the initial document, so without this a JA session keeps
-// lang="en" (wrong signal for screen readers, translators, and crawlers).
-if (typeof document !== 'undefined') {
-  i18n.on('languageChanged', (lng) => {
-    document.documentElement.lang = lng;
-  });
-}
 
 export default i18n;

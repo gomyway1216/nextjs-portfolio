@@ -4,6 +4,7 @@ import { htmlToText } from 'html-to-text';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
+import { categoryLabel } from '@/lib/blog/categoryLabel';
 import { SITE_URL } from '@/lib/siteConfig';
 
 interface BlogPostParams {
@@ -13,8 +14,9 @@ interface BlogPostParams {
 function excerpt(body: string): string {
   // Bodies are markdown; htmlToText only handles HTML, so markdown
   // syntax (blockquote ">", headings, emphasis) leaked into meta
-  // descriptions verbatim. Strip the common markers before truncating.
-  return htmlToText(body, { wordwrap: false })
+  // descriptions verbatim. Drop fenced code blocks first (their contents
+  // are noise in a description), then strip the inline markers.
+  return htmlToText(body.replace(/```[\s\S]*?(```|$)/g, ' '), { wordwrap: false })
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/^[>#\s*-]+/gm, ' ')
@@ -22,13 +24,6 @@ function excerpt(body: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160);
-}
-
-function categoryLabel(category: string): string {
-  return category
-    .split('-')
-    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-    .join(' ');
 }
 
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {

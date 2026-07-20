@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import CategoryPostPage from '@/page/blog/CategoryPostPage';
 import { getInitialPostsCached, type PostsPage } from '@/lib/blog/getPostsServer';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
+import { categoryLabel } from '@/lib/blog/categoryLabel';
 
 // Revalidate the route every 60s in addition to the in-process cache.
 export const revalidate = 60;
@@ -14,10 +15,7 @@ export async function generateMetadata({
   params: Promise<{ category: string }>;
 }): Promise<Metadata> {
   const { category } = await params;
-  const label = category
-    .split('-')
-    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-    .join(' ');
+  const label = categoryLabel(category);
   const description = `${label} articles by Yudai Yaguchi.`;
   return {
     title: `${label} — Blog`,

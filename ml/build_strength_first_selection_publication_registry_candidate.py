@@ -96,7 +96,15 @@ def _read_tracked_identity(
     dependencies: _Dependencies,
 ) -> tuple[str, bytes]:
     registered = EVALUATOR._identity(identity, label)
-    absolute = str(repo_root / registered["path"])
+    root_absolute = os.path.abspath(repo_root)
+    absolute = os.path.abspath(repo_root / registered["path"])
+    if (
+        os.path.commonpath((root_absolute, absolute)) != root_absolute
+        or os.path.realpath(absolute) != absolute
+    ):
+        raise StrengthFirstSelectionPublicationRegistryCandidateError(
+            f"{label} path is not canonical"
+        )
     raw = dependencies.read_bytes(absolute)
     if (
         type(raw) is not bytes
@@ -108,7 +116,10 @@ def _read_tracked_identity(
         )
     if registered["path"].endswith(".json"):
         value = FRESH_FINAL._strict_json(raw, label)
-        if value.get("schema") != registered["schema"]:
+        if (
+            type(value) is not dict
+            or value.get("schema") != registered["schema"]
+        ):
             raise StrengthFirstSelectionPublicationRegistryCandidateError(
                 f"{label} schema mismatch"
             )
@@ -280,17 +291,27 @@ def build_strength_first_selection_publication_registry_candidate_core(
                 f"{label} is not canonical JSON"
             )
     publication = FRESH_FINAL._strict_publication_result(publication_result)
+    try:
+        publication_origin = publication["evaluation_origin_registry"]
+        publication_report = publication["evaluation_report"]
+        publication_receipt = publication["selection_receipt"]
+        publication_seed = publication["selected_seed"]
+        publication_checkpoint = publication["selected_checkpoint"]
+    except (KeyError, TypeError) as error:
+        raise StrengthFirstSelectionPublicationRegistryCandidateError(
+            "selection publication result is incomplete or invalid"
+        ) from error
     if (
         not EVALUATOR._typed_equal(
-            publication["evaluation_origin_registry"],
+            publication_origin,
             origin_registry_identity,
         )
         or not EVALUATOR._typed_equal(
-            publication["evaluation_report"],
+            publication_report,
             report_identity,
         )
         or not EVALUATOR._typed_equal(
-            publication["selection_receipt"],
+            publication_receipt,
             receipt_identity,
         )
     ):
@@ -307,11 +328,11 @@ def build_strength_first_selection_publication_registry_candidate_core(
         ) from error
     if (
         not EVALUATOR._typed_equal(
-            publication["selected_seed"],
+            publication_seed,
             selected_seed,
         )
         or not EVALUATOR._typed_equal(
-            publication["selected_checkpoint"],
+            publication_checkpoint,
             selected_checkpoint,
         )
     ):

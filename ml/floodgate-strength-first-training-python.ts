@@ -31,9 +31,11 @@ export async function resolveFloodgateStrengthFirstTrainingPythonCoreForTests(
       throw new Error("not a regular file");
     }
     await fileSystem.access(executable, fs.constants.X_OK);
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `fixed strength-first training Python is absent or not executable: ${executable}`,
+      `fixed strength-first training Python is absent or not executable: ${executable} (${detail})`,
+      { cause: error },
     );
   }
   return executable;

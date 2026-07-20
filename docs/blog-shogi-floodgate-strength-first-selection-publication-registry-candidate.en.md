@@ -69,7 +69,7 @@ report/receipt/marker bundle to verify exact terminal identities, four-model
 replay, stdout-only output, tamper and swap rejection, replay-mismatch
 rejection, idempotence, and zero downstream/fresh-final reads. The focused
 suite including the selection evaluator and fresh-final preflight passed
-28 / 28 tests.
+31 / 31 tests.
 
 This is not a playing-strength result. At publication, real builder
 invocations, real publication reads, fresh-final reads, formal A/B games,

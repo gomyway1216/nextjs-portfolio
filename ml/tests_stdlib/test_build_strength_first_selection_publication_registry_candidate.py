@@ -62,6 +62,100 @@ def build(
 
 
 class SelectionPublicationRegistryCandidateTests(unittest.TestCase):
+    def test_tracked_symlink_is_rejected_before_any_read(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            root.mkdir()
+            root = root.resolve()
+            outside = Path(temporary) / "outside.json"
+            raw = b'{"schema":"synthetic-v1"}\n'
+            outside.write_bytes(raw)
+            (root / "tracked.json").symlink_to(outside)
+            reads = []
+            candidate_dependencies = SUBJECT._Dependencies(
+                read_bytes=lambda path: (
+                    reads.append(path),
+                    Path(path).read_bytes(),
+                )[1],
+                verify_tracked=lambda _path, _raw: self.fail(
+                    "symlinked tracked file was verified"
+                ),
+                read_private_artifact=lambda _path: self.fail(
+                    "private artifact was read"
+                ),
+                replay_evaluation=lambda **_kwargs: self.fail(
+                    "selection evaluation was replayed"
+                ),
+            )
+            with self.assertRaisesRegex(
+                SUBJECT.StrengthFirstSelectionPublicationRegistryCandidateError,
+                "path is not canonical",
+            ):
+                SUBJECT._read_tracked_identity(
+                    repo_root=root,
+                    identity={
+                        "path": "tracked.json",
+                        "bytes": len(raw),
+                        "sha256": hashlib.sha256(raw).hexdigest(),
+                        "schema": "synthetic-v1",
+                    },
+                    label="synthetic tracked input",
+                    dependencies=candidate_dependencies,
+                )
+            self.assertEqual(reads, [])
+
+    def test_tracked_json_type_drift_fails_with_candidate_error(self):
+        raw = b'{"schema":"synthetic-v1"}\n'
+        candidate_dependencies = SUBJECT._Dependencies(
+            read_bytes=lambda _path: raw,
+            verify_tracked=lambda _path, _raw: self.fail(
+                "invalid tracked JSON was verified"
+            ),
+            read_private_artifact=lambda _path: self.fail(
+                "private artifact was read"
+            ),
+            replay_evaluation=lambda **_kwargs: self.fail(
+                "selection evaluation was replayed"
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            SUBJECT.FRESH_FINAL,
+            "_strict_json",
+            return_value=[],
+        ):
+            root = Path(temporary).resolve()
+            (root / "tracked.json").write_bytes(raw)
+            with self.assertRaisesRegex(
+                SUBJECT.StrengthFirstSelectionPublicationRegistryCandidateError,
+                "schema mismatch",
+            ):
+                SUBJECT._read_tracked_identity(
+                    repo_root=root,
+                    identity={
+                        "path": "tracked.json",
+                        "bytes": len(raw),
+                        "sha256": hashlib.sha256(raw).hexdigest(),
+                        "schema": "synthetic-v1",
+                    },
+                    label="synthetic tracked input",
+                    dependencies=candidate_dependencies,
+                )
+
+    def test_incomplete_publication_projection_fails_cleanly_before_replay(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            harness.run()
+            with mock.patch.object(
+                SUBJECT.FRESH_FINAL,
+                "_strict_publication_result",
+                return_value={},
+            ), self.assertRaisesRegex(
+                SUBJECT.StrengthFirstSelectionPublicationRegistryCandidateError,
+                "incomplete or invalid",
+            ):
+                build(harness)
+            self.assertEqual(len(harness.evaluations), 1)
+
     def test_public_evidence_matches_source_and_keeps_real_counts_zero(self):
         evidence = json.loads(
             (

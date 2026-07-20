@@ -9,8 +9,8 @@
   "implementation": {
     "source": {
       "path": "ml/build_strength_first_selection_publication_registry_candidate.py",
-      "bytes": 16778,
-      "sha256": "7527d7612c8a959a6ed6c00e52ab48248975abca4498f50651fa17ad592ed198",
+      "bytes": 17621,
+      "sha256": "83abea7623af412e81027f5ed3eba48b667fe4ebbba1a32a4794f6dea7cc22c7",
       "schema": "shogi-reviewed-python-source-v1"
     },
     "argumentless_command": "~/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/build_strength_first_selection_publication_registry_candidate.py",
@@ -56,11 +56,11 @@
     "python_compile": "PASS",
     "new_builder_stdlib": {
       "status": "PASS",
-      "tests": 6
+      "tests": 9
     },
     "focused_builder_evaluator_and_fresh_final_preflight": {
       "status": "PASS",
-      "tests": 28
+      "tests": 31
     },
     "git_diff_check": "PASS",
     "independent_review": "PENDING",

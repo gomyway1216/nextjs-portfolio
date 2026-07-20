@@ -62,7 +62,7 @@ report改ざん、report / receipt取り違え、再計算不一致、終端iden
 synthetic READY registryと合成report / receipt / markerを使った標準ライブラリtestで、
 正しい終端identity、4 checkpoint再計算、stdout-only、改ざん、取り違え、replay mismatch、
 idempotence、downstream / fresh-final非readを確認した。関連するselection evaluatorと
-fresh-final preflightを合わせたfocused suiteは28 / 28 PASSした。
+fresh-final preflightを合わせたfocused suiteは31 / 31 PASSした。
 
 これは棋力向上の測定結果ではない。公開時点の実builder invocation、実publication read、
 fresh-final read、formal A/B、外部較正、live weight変更はすべて0である。次は3-seed学習と

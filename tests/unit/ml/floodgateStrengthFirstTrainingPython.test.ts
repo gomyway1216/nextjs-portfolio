@@ -75,6 +75,26 @@ describe("fixed strength-first training Python", () => {
     ).rejects.toThrow(/not executable/);
   });
 
+  it("preserves the original filesystem failure in the message and cause", async () => {
+    const home = await temporaryHome();
+    const original = new Error("synthetic permission failure");
+    try {
+      await resolveFloodgateStrengthFirstTrainingPythonCoreForTests(home, {
+        access: async () => undefined,
+        stat: async () => {
+          throw original;
+        },
+      });
+      throw new Error("resolver unexpectedly succeeded");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        "synthetic permission failure",
+      );
+      expect((error as Error).cause).toBe(original);
+    }
+  });
+
   it("rejects a relative home instead of resolving against the process cwd", async () => {
     await expect(
       resolveFloodgateStrengthFirstTrainingPythonCoreForTests("."),

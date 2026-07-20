@@ -349,7 +349,9 @@ const alphabeta = (
 ): number => {
   if (searchTimedOut || Date.now() > searchDeadline) {
     searchTimedOut = true;
-    return evaluateBoard(board);
+    // The timed-out iteration is discarded by the caller, so skip the
+    // (expensive) leaf evaluation — any value works here.
+    return 0;
   }
   if (
     lastPlayer &&

@@ -182,8 +182,9 @@ const negamax = (
 ): number => {
   if (searchTimedOut || Date.now() > searchDeadline) {
     searchTimedOut = true;
-    const sign = color === AI ? 1 : -1;
-    return sign * evaluate(board);
+    // The timed-out iteration is discarded by the caller, so skip the
+    // (expensive) leaf evaluation — any value works here.
+    return 0;
   }
 
   const moves = getValidMoves(board, color);

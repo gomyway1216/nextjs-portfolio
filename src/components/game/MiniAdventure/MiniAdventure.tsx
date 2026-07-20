@@ -71,19 +71,28 @@ const MiniAdventure: React.FC = () => {
   }, []);
 
   // ---- Action dispatch helpers (shared by keyboard + touch) ----
+  // processAction (which rolls Math.random) runs OUTSIDE the setState updater:
+  // updaters must stay pure and Strict Mode runs them twice in dev.
   const dispatch = useCallback((action: Parameters<typeof processAction>[1]) => {
-    setGameState(prev => {
-      if (!prev || prev.gameOver) return prev;
-      const next = processAction(prev, action);
-      // Record the result exactly once, at the moment the run transitions to over.
-      if (next.gameOver && !prev.gameOver) {
-        setStats(s => next.victory
-          ? { ...s, wins: s.wins + 1 }
-          : { ...s, losses: s.losses + 1 });
-      }
-      return next;
-    });
-  }, []);
+    if (!gameState || gameState.gameOver) return;
+    setGameState(processAction(gameState, action));
+  }, [gameState]);
+
+  // Record win/loss as a side effect of the run finishing, not inside a state
+  // updater. hasRecordedRef keeps this idempotent so the double-invoked effect
+  // in dev Strict Mode can't double-count.
+  const hasRecordedRef = useRef(false);
+  useEffect(() => {
+    if (!gameState || !gameState.gameOver) {
+      hasRecordedRef.current = false;
+      return;
+    }
+    if (hasRecordedRef.current) return;
+    hasRecordedRef.current = true;
+    setStats(s => gameState.victory
+      ? { ...s, wins: s.wins + 1 }
+      : { ...s, losses: s.losses + 1 });
+  }, [gameState]);
 
   const move = useCallback((direction: Direction) => dispatch({ type: ActionType.MOVE, direction }), [dispatch]);
 

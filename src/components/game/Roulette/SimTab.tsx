@@ -154,7 +154,6 @@ const Results = ({ state }: { state: SimState }) => {
   const sampleOutcomeLabel: Record<RunResult['outcome'], string> = {
     bust: t.outcomeBust,
     capped: t.outcomeCapped(config.maxSpins),
-    survived: t.outcomeSurvived,
   };
 
   return (

@@ -165,20 +165,23 @@ export const IqTest = () => {
   }, []);
 
   const next = useCallback(() => {
-    setState((prev) => {
-      if (prev.questionIndex >= TOTAL_QUESTIONS) {
-        return { ...prev, phase: 'gameover' };
-      }
-      return {
+    // makeQuestion rolls Math.random and mutates usedRef, so it must run
+    // outside the setState updater (updaters stay pure; Strict Mode runs them
+    // twice in dev) — same as start().
+    if (state.questionIndex >= TOTAL_QUESTIONS) {
+      setState((prev) => ({ ...prev, phase: 'gameover' }));
+    } else {
+      const question = makeQuestion(state.questionIndex);
+      setState((prev) => ({
         ...prev,
         phase: 'question',
         questionIndex: prev.questionIndex + 1,
-        question: makeQuestion(prev.questionIndex),
+        question,
         selected: null,
-      };
-    });
+      }));
+    }
     setTimeLeft(TIME_PER_QUESTION);
-  }, [makeQuestion]);
+  }, [makeQuestion, state.questionIndex]);
 
   const reset = useCallback(() => {
     usedRef.current = new Set();
@@ -204,6 +207,8 @@ export const IqTest = () => {
   // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The How-to-play modal pauses the game — don't let keys answer through it.
+      if (showInfo) return;
       if (state.phase === 'question') {
         const num = Number(e.key);
         if (Number.isInteger(num) && num >= 1 && num <= 4) {
@@ -219,7 +224,7 @@ export const IqTest = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.phase, choose, next]);
+  }, [state.phase, choose, next, showInfo]);
 
   const q = state.question;
   const correctCount = state.history.filter((h) => h.correct).length;

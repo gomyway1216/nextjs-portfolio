@@ -210,8 +210,8 @@ const MemoryBattle = () => {
 
       later(() => {
         setFlipped([plan.first]);
-        // AI sees the first card it flipped.
-        observeReveal(aiMemory.current, currentBoard[plan.first], cfg);
+        // resolveFlip observes both revealed cards, so no observeReveal here —
+        // observing the first flip twice would silently boost the AI's memory.
         later(() => {
           setFlipped([plan.first, plan.second]);
           later(() => resolveFlip(currentBoard, [plan.first, plan.second], 'ai'), 260);
@@ -268,10 +268,10 @@ const MemoryBattle = () => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const n = Number(e.key);
       if (!Number.isInteger(n) || n < 1) return;
-      // map the nth in-play, face-down card
-      const inPlay = board.map((c, i) => i).filter((i) => !board[i].matched && !flipped.includes(i));
-      const target = inPlay[n - 1];
-      if (target !== undefined) {
+      // Key n maps to fixed board position n-1, matching the "card N" aria
+      // labels; matched or already-flipped positions are ignored.
+      const target = n - 1;
+      if (target < board.length && !board[target].matched && !flipped.includes(target)) {
         e.preventDefault();
         onCardClick(target);
       }

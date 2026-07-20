@@ -41,7 +41,6 @@
     "shogi:floodgate-v7-training-label-production": "/usr/bin/osascript -l JavaScript \"$(/bin/pwd -P)/ml/helpers/floodgate-v7-production-native-launcher.jxa\" training-label-finalization-24000",
     "shogi:floodgate-v7-local-clean-room-teacher": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts",
     "shogi:floodgate-v7-local-clean-room-training-label-finalizer": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
-    "shogi:floodgate-fresh-selection-semantic-validation": "node -r tsx/cjs ml/validate-floodgate-fresh-selection-teacher.ts",
     "shogi:formal-ab-v2-local": "python3 ml/formal_paired_ab_local_launcher.py",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"

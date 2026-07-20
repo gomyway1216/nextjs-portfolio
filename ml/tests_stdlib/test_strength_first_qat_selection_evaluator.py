@@ -997,6 +997,7 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
 
             invalid_results = (
                 SimpleNamespace(returncode=1, stdout=b"", stderr=b"rejected"),
+                SimpleNamespace(returncode=0, stdout=stdout, stderr=b"warning\n"),
                 SimpleNamespace(returncode=0, stdout=b'{"valid": true}\n', stderr=b""),
                 SimpleNamespace(returncode=0, stdout=stdout + b"{}\n", stderr=b""),
             )

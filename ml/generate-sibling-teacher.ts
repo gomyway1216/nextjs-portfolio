@@ -3014,18 +3014,18 @@ async function runSiblingTeacherDatasetCore(
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
   const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
-  const existingTimeoutSkipCount = [...workEntries.values()].filter(
-    (entry) =>
-      selectedParentIdSet.has(entry.parent_id) &&
-      entry.kind === 'skip' &&
-      entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
-  ).length;
-  const existingProposalIncompleteSkipCount = [...workEntries.values()].filter(
-    (entry) =>
-      selectedParentIdSet.has(entry.parent_id) &&
-      entry.kind === 'skip' &&
-      entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON
-  ).length;
+  let existingTimeoutSkipCount = 0;
+  let existingProposalIncompleteSkipCount = 0;
+  for (const entry of workEntries.values()) {
+    if (!selectedParentIdSet.has(entry.parent_id) || entry.kind !== 'skip') {
+      continue;
+    }
+    if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
+      existingTimeoutSkipCount += 1;
+    } else if (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+      existingProposalIncompleteSkipCount += 1;
+    }
+  }
   if (
     (execution.recoverableSearchFailures === 'none' &&
       (existingTimeoutSkipCount !== 0 ||

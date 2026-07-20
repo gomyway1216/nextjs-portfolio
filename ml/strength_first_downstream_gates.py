@@ -48,7 +48,7 @@ from strength_first_qat_training_bridge import (
 
 
 DOWNSTREAM_REGISTRY_SCHEMA = (
-    "shogi-floodgate-strength-first-downstream-gates-registry-v1"
+    "shogi-floodgate-strength-first-downstream-gates-registry-v2"
 )
 DOWNSTREAM_REGISTRY_RELATIVE_PATH = (
     "ml/protocols/" "floodgate-q1-2026-strength-first-downstream-gates-registry.json"
@@ -72,7 +72,7 @@ DOWNSTREAM_EVIDENCE_BUNDLE_SCHEMA = (
     "shogi-floodgate-strength-first-verified-evidence-bundle-v1"
 )
 STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
-    "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1"
+    "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2"
 )
 DOWNSTREAM_REGISTRY_CANONICAL_IDENTITY_SCHEMA = (
     "shogi-floodgate-strength-first-downstream-registry-canonical-identity-v1"
@@ -96,20 +96,20 @@ KNOWN_REGRESSION_FIXTURE_IDENTITY_SCHEMA = (
 )
 PRODUCTION_WASM_IDENTITY_SCHEMA = "shogi-floodgate-strength-first-production-wasm-v1"
 SELECTION_TEACHER_AUTHORITY_IDENTITY_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-authority-v1"
+    "shogi-floodgate-strength-first-selection-teacher-authority-v2"
 )
 SELECTION_TEACHER_MANIFEST_IDENTITY_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-manifest-v1"
+    "shogi-floodgate-strength-first-selection-teacher-manifest-v2"
 )
 SELECTION_TEACHER_RESULT_IDENTITY_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-result-v1"
+    "shogi-floodgate-strength-first-selection-teacher-result-v2"
 )
-SELECTION_DATASET_IDENTITY_SCHEMA = (
-    "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+SELECTION_TIMEOUT_SKIP_LIMIT = 5
+SELECTION_SOURCE_PARENT_IDS_SHA256 = (
+    "db24301a7168e84de2474939e8d2b865b670b448aa6ccba2999a4e19df111a3f"
 )
-SELECTION_PREFLIGHT_SCHEMA = (
-    "shogi-floodgate-strength-first-qat-selection-preflight-v1"
-)
+SELECTION_DATASET_IDENTITY_SCHEMA = "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+SELECTION_PREFLIGHT_SCHEMA = "shogi-floodgate-strength-first-qat-selection-preflight-v1"
 SELECTION_EVALUATION_REPORT_SCHEMA = (
     "shogi-floodgate-strength-first-selection-evaluation-report-v1"
 )
@@ -245,18 +245,14 @@ _EVALUATION_ROLES = (
 )
 _ROLE_IDENTITY_SCHEMAS = {
     "candidate_selection_receipt": (STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA),
-    "candidate_selection_training_plan": (
-        STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
-    ),
+    "candidate_selection_training_plan": (STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA),
     "candidate_selection_teacher_authority": (
         SELECTION_TEACHER_AUTHORITY_IDENTITY_SCHEMA
     ),
     "candidate_selection_teacher_manifest": (
         SELECTION_TEACHER_MANIFEST_IDENTITY_SCHEMA
     ),
-    "candidate_selection_teacher_result": (
-        SELECTION_TEACHER_RESULT_IDENTITY_SCHEMA
-    ),
+    "candidate_selection_teacher_result": (SELECTION_TEACHER_RESULT_IDENTITY_SCHEMA),
     "candidate_selection_dataset": SELECTION_DATASET_IDENTITY_SCHEMA,
     "candidate_checkpoint": STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
     "stable_checkpoint": QAT_FINAL_CHECKPOINT_SCHEMA,
@@ -609,11 +605,7 @@ def _canonical_json_sha256(value: Mapping[str, Any]) -> str:
 
 
 def _remove_exactly_one_final_lf(raw: bytes, label: str) -> bytes:
-    if (
-        not raw.endswith(b"\n")
-        or raw.endswith(b"\n\n")
-        or raw.endswith(b"\r\n")
-    ):
+    if not raw.endswith(b"\n") or raw.endswith(b"\n\n") or raw.endswith(b"\r\n"):
         raise ValueError(f"{label} must end with exactly one LF")
     return raw.removesuffix(b"\n")
 
@@ -811,9 +803,7 @@ def _validate_enrolled_candidate_selection_receipt(
     if (
         checkpoint_preflight["sha256"]
         != enrollments["candidate_selection_checkpoint_preflight_sha256"]
-        or checkpoint_preflight[
-            "all_three_strict_loaded_before_teacher_read"
-        ]
+        or checkpoint_preflight["all_three_strict_loaded_before_teacher_read"]
         is not True
         or type(pipeline["source_revision"]) is not str
         or re.fullmatch(r"[0-9a-f]{40}", pipeline["source_revision"]) is None
@@ -845,9 +835,7 @@ def _validate_enrolled_candidate_selection_receipt(
             ),
             expected,
         ):
-            raise ValueError(
-                f"candidate-selection teacher {field} identity mismatch"
-            )
+            raise ValueError(f"candidate-selection teacher {field} identity mismatch")
     if (
         teacher["run_fingerprint"]
         != enrollments["candidate_selection_teacher_run_fingerprint"]
@@ -861,6 +849,7 @@ def _validate_enrolled_candidate_selection_receipt(
             "completed_parents",
             "forced_parents_skipped",
             "forced_skip_reasons",
+            "parent_accounting",
             "emitted_parent_groups",
             "dataset_records",
             "sealed",
@@ -869,25 +858,44 @@ def _validate_enrolled_candidate_selection_receipt(
     )
     forced_reasons = _exact_dict(
         completion["forced_skip_reasons"],
-        {"fewer_than_two_legal_moves"},
+        {"fewer_than_two_legal_moves", "search_timeout_no_label"},
         "candidate-selection teacher forced skip reasons",
     )
+    parent_accounting = _exact_dict(
+        completion["parent_accounting"],
+        {
+            "parent_ids_sha256",
+            "forced_parent_ids_sha256",
+            "emitted_parent_ids_sha256",
+            "fewer_than_two_legal_moves_parent_ids_sha256",
+            "search_timeout_parent_ids_sha256",
+        },
+        "candidate-selection teacher parent accounting",
+    )
+    for field, digest in parent_accounting.items():
+        _sha256(digest, f"candidate-selection parent accounting {field}")
     if (
         completion["input_games"] != 200
         or completion["input_parents"] != 4_800
         or completion["completed_parents"] != 4_800
         or type(completion["forced_parents_skipped"]) is not int
         or completion["forced_parents_skipped"] < 0
+        or type(forced_reasons["fewer_than_two_legal_moves"]) is not int
+        or forced_reasons["fewer_than_two_legal_moves"] < 0
+        or type(forced_reasons["search_timeout_no_label"]) is not int
+        or not 0
+        <= forced_reasons["search_timeout_no_label"]
+        <= SELECTION_TIMEOUT_SKIP_LIMIT
         or forced_reasons["fewer_than_two_legal_moves"]
+        + forced_reasons["search_timeout_no_label"]
         != completion["forced_parents_skipped"]
+        or parent_accounting["parent_ids_sha256"] != SELECTION_SOURCE_PARENT_IDS_SHA256
         or type(completion["emitted_parent_groups"]) is not int
         or completion["emitted_parent_groups"] < 1
-        or completion["emitted_parent_groups"]
-        + completion["forced_parents_skipped"]
+        or completion["emitted_parent_groups"] + completion["forced_parents_skipped"]
         != 4_800
         or type(completion["dataset_records"]) is not int
-        or completion["dataset_records"]
-        < 2 * completion["emitted_parent_groups"]
+        or completion["dataset_records"] < 2 * completion["emitted_parent_groups"]
         or completion["sealed"] is not True
     ):
         raise ValueError("candidate-selection teacher completion mismatch")
@@ -953,9 +961,7 @@ def _validate_enrolled_candidate_selection_receipt(
             },
             f"candidate-selection receipt run {index}",
         )
-        expected_slot = (
-            f"floodgate-strength-first-int16-aware-seed-{expected_seed}"
-        )
+        expected_slot = f"floodgate-strength-first-int16-aware-seed-{expected_seed}"
         if (
             type(run["seed"]) is not int
             or run["seed"] != expected_seed
@@ -971,14 +977,11 @@ def _validate_enrolled_candidate_selection_receipt(
             f"candidate-selection receipt run {index} checkpoint",
         )
         if (
-            result_identity["schema"]
-            != STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA
+            result_identity["schema"] != STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA
             or checkpoint_identity["schema"]
             != STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
         ):
-            raise ValueError(
-                "candidate-selection receipt run artifact schema mismatch"
-            )
+            raise ValueError("candidate-selection receipt run artifact schema mismatch")
         floating = _selection_metrics(
             run["float"],
             f"candidate-selection receipt run {index} float",
@@ -1011,9 +1014,7 @@ def _validate_enrolled_candidate_selection_receipt(
             {
                 "slot_id": run["slot_id"],
                 "seed": run["seed"],
-                "output": (
-                    f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"
-                ),
+                "output": (f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"),
                 "result": copy.deepcopy(run["result"]),
                 "checkpoint": copy.deepcopy(run["checkpoint"]),
                 "checkpoint_metadata": {
@@ -1030,9 +1031,7 @@ def _validate_enrolled_candidate_selection_receipt(
     )
     observed_preflight_sha256 = hashlib.sha256(preflight_raw).hexdigest()
     if observed_preflight_sha256 != checkpoint_preflight["sha256"]:
-        raise ValueError(
-            "candidate-selection checkpoint preflight is not recomputable"
-        )
+        raise ValueError("candidate-selection checkpoint preflight is not recomputable")
     selected_runs = [run for run in runs if run.get("seed") == seed]
     if len(selected_runs) != 1:
         raise ValueError("candidate-selection receipt selected run is not unique")
@@ -1074,8 +1073,7 @@ def _validate_enrolled_candidate_selection_receipt(
     )
     seeds_passing = sum(run["gates"]["passed"] for run in runs)
     all_delta_gates = all(
-        run["gates"]["checks"][2]["passed"]
-        and run["gates"]["checks"][3]["passed"]
+        run["gates"]["checks"][2]["passed"] and run["gates"]["checks"][3]["passed"]
         for run in runs
     )
     expected_family = {
@@ -1085,9 +1083,7 @@ def _validate_enrolled_candidate_selection_receipt(
         "minimum_seed_count_passed": seeds_passing >= 2,
         "all_seeds_passed_both_quantization_delta_gates": all_delta_gates,
         "passed": (
-            ranked_runs[1]["gates"]["passed"]
-            and seeds_passing >= 2
-            and all_delta_gates
+            ranked_runs[1]["gates"]["passed"] and seeds_passing >= 2 and all_delta_gates
         ),
     }
     if not _typed_equal(family, expected_family) or family["passed"] is not True:
@@ -1132,8 +1128,7 @@ def _validate_enrolled_candidate_selection_receipt(
         evaluation_dataset["bytes"] != selection_dataset["bytes"]
         or evaluation_dataset["sha256"] != selection_dataset["sha256"]
         or evaluation_dataset["records"] != completion["dataset_records"]
-        or evaluation_dataset["parents"]
-        != completion["emitted_parent_groups"]
+        or evaluation_dataset["parents"] != completion["emitted_parent_groups"]
         or type(evaluation_dataset["eligible_pairs"]) is not int
         or evaluation_dataset["eligible_pairs"] < 1
         or evaluation_dataset["pair_min_cp"] != 50.0
@@ -1216,16 +1211,12 @@ def validate_selection_receipt_against_evaluator_registry(
     preflight_projection = {
         "schema": SELECTION_PREFLIGHT_SCHEMA,
         "training_plan": copy.deepcopy(receipt["training_plan"]),
-        "training_pipeline": copy.deepcopy(
-            checkpoint_preflight["training_pipeline"]
-        ),
+        "training_pipeline": copy.deepcopy(checkpoint_preflight["training_pipeline"]),
         "runs": [
             {
                 "slot_id": run["slot_id"],
                 "seed": run["seed"],
-                "output": (
-                    f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"
-                ),
+                "output": (f"{STRENGTH_FIRST_QAT_RUN_ROOT}/seed-{run['seed']}"),
                 "result": copy.deepcopy(run["result"]),
                 "checkpoint": copy.deepcopy(run["checkpoint"]),
                 "checkpoint_metadata": {
@@ -1308,8 +1299,9 @@ def _issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
     )
 
 
-def issue_candidate_selection_authorization_from_enrolled_receipt(
-) -> CandidateSelectionAuthorization:
+def issue_candidate_selection_authorization_from_enrolled_receipt() -> (
+    CandidateSelectionAuthorization
+):
     """Authenticate only the receipt enrolled by the code-pinned fixed registry."""
 
     repo_root = Path(__file__).resolve().parent.parent
@@ -1317,7 +1309,9 @@ def issue_candidate_selection_authorization_from_enrolled_receipt(
     if snapshot["status"] != DOWNSTREAM_READY_STATUS:
         raise DownstreamGatesBlocked("fixed downstream registry is not ready")
     if _PINNED_READY_REGISTRY_IDENTITY is None:
-        raise DownstreamGatesBlocked("ready downstream registry identity is not code-pinned")
+        raise DownstreamGatesBlocked(
+            "ready downstream registry identity is not code-pinned"
+        )
     expected = _PINNED_READY_REGISTRY_IDENTITY
     if (
         len(tracked_registry_raw) != expected["bytes"]
@@ -1345,7 +1339,9 @@ def issue_candidate_selection_authorization_from_enrolled_receipt(
     try:
         receipt_raw = resolved_path.read_bytes()
     except OSError as error:
-        raise ValueError("enrolled candidate-selection receipt is unreadable") from error
+        raise ValueError(
+            "enrolled candidate-selection receipt is unreadable"
+        ) from error
     return _mint_candidate_selection_authorization_from_receipt_bytes(
         snapshot=snapshot,
         registry_raw=_canonical_json_bytes(snapshot),
@@ -1459,9 +1455,7 @@ def _expected_measured_inputs(
             **common,
             "fixture": copy.deepcopy(enrollments["known_regression_fixture"]),
             "production_wasm": copy.deepcopy(enrollments["production_wasm"]),
-            "time_budgets_ms": copy.deepcopy(
-                enrollments["local_wasm_time_budgets_ms"]
-            ),
+            "time_budgets_ms": copy.deepcopy(enrollments["local_wasm_time_budgets_ms"]),
         }
     raise ValueError("downstream evaluation role is invalid")
 

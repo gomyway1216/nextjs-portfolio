@@ -39,7 +39,7 @@ from fresh_qat_selection_preflight import _verify_tracked_file
 
 
 STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-evaluator-registry-v1"
+    "shogi-floodgate-strength-first-selection-evaluator-registry-v2"
 )
 STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH = (
     "ml/protocols/"
@@ -55,25 +55,26 @@ STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS = (
     "candidate-selected-publication-enrolled"
 )
 STRENGTH_FIRST_SELECTION_TEACHER_AUTHORITY_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-authority-v1"
+    "shogi-floodgate-strength-first-selection-teacher-authority-v2"
 )
 STRENGTH_FIRST_SELECTION_TEACHER_MANIFEST_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-manifest-v1"
+    "shogi-floodgate-strength-first-selection-teacher-manifest-v2"
 )
 STRENGTH_FIRST_SELECTION_TEACHER_RESULT_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-teacher-result-v1"
+    "shogi-floodgate-strength-first-selection-teacher-result-v2"
 )
 STRENGTH_FIRST_SELECTION_DATASET_SCHEMA = (
     "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
 )
+STRENGTH_FIRST_SELECTION_WORK_SCHEMA = "shogi-sibling-teacher-work-v2"
 STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA = (
     "shogi-int16-aware-stable-checkpoint-v1"
 )
 STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
-    "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1"
+    "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2"
 )
 STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA = (
-    "shogi-floodgate-strength-first-selection-publication-result-v1"
+    "shogi-floodgate-strength-first-selection-publication-result-v2"
 )
 STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_STATUS = (
     "complete-evaluation-report-and-selection-receipt-published"
@@ -92,8 +93,19 @@ STRENGTH_FIRST_SELECTION_RECEIPT_STATUS = (
 )
 STRENGTH_FIRST_SELECTION_PARENT_COUNT = 4_800
 STRENGTH_FIRST_SELECTION_GAME_COUNT = 200
+STRENGTH_FIRST_SELECTION_TIMEOUT_SKIP_LIMIT = (
+    STRENGTH_FIRST_SELECTION_PARENT_COUNT + 999
+) // 1_000
+STRENGTH_FIRST_SELECTION_TIMEOUT_MS = 600_000
+STRENGTH_FIRST_SELECTION_PROPOSAL_MULTIPV = 6
+STRENGTH_FIRST_SELECTION_PROPOSAL_DEPTH = 14
+STRENGTH_FIRST_SELECTION_RESCORE_DEPTH = 16
+STRENGTH_FIRST_SELECTION_LABEL_POLICY = (
+    "initial-multipv-plus-played-independent-single-move-rescore-"
+    "final-mate-v7-timeout-quarantine"
+)
 STRENGTH_FIRST_SELECTION_TEACHER_ROOT = (
-    ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1"
+    ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2"
 )
 STRENGTH_FIRST_SELECTION_AUTHORITY_PATH = (
     f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/authority.json"
@@ -106,6 +118,9 @@ STRENGTH_FIRST_SELECTION_RESULT_PATH = (
 )
 STRENGTH_FIRST_SELECTION_DATASET_PATH = (
     f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/selection.jsonl"
+)
+STRENGTH_FIRST_SELECTION_WORK_PATH = (
+    f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/work.jsonl"
 )
 STRENGTH_FIRST_SELECTION_RECEIPT_PATH = (
     f"{STRENGTH_FIRST_SELECTION_TEACHER_ROOT}/selection-receipt.json"
@@ -147,6 +162,7 @@ _COMPLETION_FIELDS = {
     "completed_parents",
     "forced_parents_skipped",
     "forced_skip_reasons",
+    "parent_accounting",
     "emitted_parent_groups",
     "dataset_records",
     "sealed",
@@ -281,6 +297,7 @@ _FIXED_PATHS = {
     "selection_teacher_authority": STRENGTH_FIRST_SELECTION_AUTHORITY_PATH,
     "selection_teacher_manifest": STRENGTH_FIRST_SELECTION_MANIFEST_PATH,
     "selection_teacher_result": STRENGTH_FIRST_SELECTION_RESULT_PATH,
+    "selection_teacher_work": STRENGTH_FIRST_SELECTION_WORK_PATH,
     "selection_dataset": STRENGTH_FIRST_SELECTION_DATASET_PATH,
     "stable_checkpoint": STRENGTH_FIRST_STABLE_CHECKPOINT_PATH,
     "selection_evaluation_report": STRENGTH_FIRST_SELECTION_EVALUATION_REPORT_PATH,
@@ -303,6 +320,7 @@ _ENROLLMENT_FIELDS = {
     "selection_teacher_authority",
     "selection_teacher_manifest",
     "selection_teacher_result",
+    "selection_teacher_work",
     "selection_dataset",
     "stable_checkpoint",
     "selection_evaluation_origin_registry",
@@ -339,6 +357,7 @@ class _SelectionDependencies:
     verify_tracked: Callable[[str, bytes], None]
     claim_preflight: Callable[[Callable[[Mapping[str, Any]], Any]], Any]
     validate_plan: Callable[[Mapping[str, Any]], Any]
+    validate_parent_accounting: Callable[..., Any]
     evaluate: Callable[..., Mapping[str, Any]]
     publish: Callable[[str, bytes, str], Mapping[str, Any]]
 
@@ -555,8 +574,7 @@ def _validate_registry(
             raise ValueError("blocked selection evaluator nonclaims mismatch")
         return registry, False
     terminal = (
-        registry["status"]
-        == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
+        registry["status"] == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
     )
     if (
         registry["status"] != STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
@@ -582,6 +600,7 @@ def _validate_registry(
         "selection_teacher_authority": _FIXED_PATHS["selection_teacher_authority"],
         "selection_teacher_manifest": _FIXED_PATHS["selection_teacher_manifest"],
         "selection_teacher_result": _FIXED_PATHS["selection_teacher_result"],
+        "selection_teacher_work": _FIXED_PATHS["selection_teacher_work"],
         "selection_dataset": _FIXED_PATHS["selection_dataset"],
         "stable_checkpoint": _FIXED_PATHS["stable_checkpoint"],
     }
@@ -597,6 +616,7 @@ def _validate_registry(
             STRENGTH_FIRST_SELECTION_TEACHER_MANIFEST_SCHEMA
         ),
         "selection_teacher_result": (STRENGTH_FIRST_SELECTION_TEACHER_RESULT_SCHEMA),
+        "selection_teacher_work": STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
         "selection_dataset": STRENGTH_FIRST_SELECTION_DATASET_SCHEMA,
         "stable_checkpoint": STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA,
     }
@@ -640,13 +660,9 @@ def _validate_registry(
         "selection_evaluation_origin_registry": (
             STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
         ),
-        "selection_evaluation_report": _FIXED_PATHS[
-            "selection_evaluation_report"
-        ],
+        "selection_evaluation_report": _FIXED_PATHS["selection_evaluation_report"],
         "selection_receipt": _FIXED_PATHS["selection_receipt"],
-        "selection_publication_result": _FIXED_PATHS[
-            "selection_publication_result"
-        ],
+        "selection_publication_result": _FIXED_PATHS["selection_publication_result"],
     }
     expected_publication_schemas = {
         "selection_evaluation_origin_registry": (
@@ -670,9 +686,7 @@ def _validate_registry(
             identity["path"] != expected_publication_paths[name]
             or identity["schema"] != expected_publication_schemas[name]
         ):
-            raise ValueError(
-                f"selection evaluator enrollment {name} identity mismatch"
-            )
+            raise ValueError(f"selection evaluator enrollment {name} identity mismatch")
         publication_identities[name] = identity
     ready_preimage = copy.deepcopy(registry)
     ready_preimage["status"] = STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS
@@ -694,20 +708,23 @@ def _validate_registry(
         raise ValueError(
             "selection evaluation origin registry is not the exact READY preimage"
         )
-    if len(
-        {
-            publication_identities[name]["path"]
-            for name in (
-                "selection_evaluation_report",
-                "selection_receipt",
-                "selection_publication_result",
-            )
-        }
-    ) != 3:
+    if (
+        len(
+            {
+                publication_identities[name]["path"]
+                for name in (
+                    "selection_evaluation_report",
+                    "selection_receipt",
+                    "selection_publication_result",
+                )
+            }
+        )
+        != 3
+    ):
         raise ValueError("selection publication paths are not distinct")
-    if len(
-        {identity["sha256"] for identity in publication_identities.values()}
-    ) != len(publication_identities):
+    if len({identity["sha256"] for identity in publication_identities.values()}) != len(
+        publication_identities
+    ):
         raise ValueError("selection publication hashes are not distinct")
     if not _typed_equal(gates, _PUBLICATION_ENROLLED_GATES):
         raise ValueError("publication-enrolled selection evaluator gates mismatch")
@@ -923,6 +940,322 @@ def _validate_preflight(
     return preflight, projection
 
 
+def _strict_jsonl_objects(raw: bytes, label: str) -> list[dict[str, Any]]:
+    if (
+        type(raw) is not bytes
+        or not raw
+        or not raw.endswith(b"\n")
+        or raw.endswith(b"\n\n")
+        or b"\r" in raw
+    ):
+        raise ValueError(f"{label} is not exact LF-terminated JSONL")
+    rows = []
+    for index, line in enumerate(raw[:-1].split(b"\n"), start=1):
+        if not line:
+            raise ValueError(f"{label} line {index} is empty")
+        rows.append(_strict_json(line, f"{label} line {index}"))
+    return rows
+
+
+def _identifier_digest(values: list[str]) -> str:
+    unique = set(values)
+    if len(unique) != len(values):
+        raise ValueError("parent accounting contains a duplicate identifier")
+    encoded = "\n".join(sorted(unique, key=lambda value: value.encode("utf-8")))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _validate_selection_parent_accounting(
+    *,
+    source_raw: bytes,
+    work_raw: bytes,
+    dataset_raw: bytes,
+    completion: Mapping[str, Any],
+    generation_run_fingerprint: str,
+    source_identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recompute every emitted/omitted parent and bind its exact skip reason."""
+
+    _sha256(
+        generation_run_fingerprint,
+        "selection teacher generation run fingerprint",
+    )
+    if (
+        len(source_raw) != source_identity["bytes"]
+        or hashlib.sha256(source_raw).hexdigest() != source_identity["sha256"]
+    ):
+        raise ValueError("selection source identity mismatch during parent accounting")
+    source_rows = _strict_jsonl_objects(source_raw, "selection source")
+    if len(source_rows) != source_identity["records"]:
+        raise ValueError("selection source parent count drifted")
+    source_ids = []
+    for index, row in enumerate(source_rows, start=1):
+        parent_id = row.get("parent_id")
+        if type(parent_id) is not str or not parent_id:
+            raise ValueError(f"selection source line {index} has no parent ID")
+        source_ids.append(parent_id)
+    source_id_set = set(source_ids)
+    if len(source_id_set) != len(source_ids):
+        raise ValueError("selection source parent IDs are not unique")
+    source_digest = _identifier_digest(source_ids)
+    if source_digest != source_identity["parent_ids_sha256"]:
+        raise ValueError("selection source parent digest drifted")
+
+    work_rows = _strict_jsonl_objects(work_raw, "selection teacher work")
+    if len(work_rows) != len(source_rows) + 1:
+        raise ValueError("selection teacher work is not complete for every parent")
+    header = _exact_dict(
+        work_rows[0],
+        {
+            "schema",
+            "kind",
+            "run_fingerprint",
+            "source_raw_sha256",
+            "selected_parent_ids_sha256",
+            "label_policy",
+            "pipeline",
+        },
+        "selection teacher work header",
+    )
+    if (
+        header["schema"] != STRENGTH_FIRST_SELECTION_WORK_SCHEMA
+        or header["kind"] != "header"
+        or header["run_fingerprint"] != generation_run_fingerprint
+        or header["source_raw_sha256"] != source_identity["sha256"]
+        or header["selected_parent_ids_sha256"] != source_digest
+        or header["label_policy"] != STRENGTH_FIRST_SELECTION_LABEL_POLICY
+    ):
+        raise ValueError("selection teacher work header binding mismatch")
+    pipeline = _exact_dict(
+        header["pipeline"],
+        {"source_revision", "tracked_tree_clean"},
+        "selection teacher work pipeline",
+    )
+    if (
+        type(pipeline["source_revision"]) is not str
+        or _GIT_REVISION_RE.fullmatch(pipeline["source_revision"]) is None
+        or pipeline["tracked_tree_clean"] is not True
+    ):
+        raise ValueError("selection teacher work pipeline is not exact clean HEAD")
+
+    work_ids: list[str] = []
+    forced_ids: list[str] = []
+    emitted_ids: list[str] = []
+    fewer_ids: list[str] = []
+    timeout_ids: list[str] = []
+    emitted_records: list[dict[str, Any]] = []
+    seen_work_ids: set[str] = set()
+    for index, row in enumerate(work_rows[1:], start=2):
+        parent_id = row.get("parent_id")
+        if (
+            type(parent_id) is not str
+            or not parent_id
+            or parent_id not in source_id_set
+            or parent_id in seen_work_ids
+            or row.get("schema") != STRENGTH_FIRST_SELECTION_WORK_SCHEMA
+            or row.get("run_fingerprint") != generation_run_fingerprint
+        ):
+            raise ValueError(
+                f"selection teacher work line {index} parent binding failed"
+            )
+        payload_sha256 = row.get("payload_sha256")
+        payload = {key: value for key, value in row.items() if key != "payload_sha256"}
+        if (
+            type(payload_sha256) is not str
+            or _SHA256_RE.fullmatch(payload_sha256) is None
+            or hashlib.sha256(_canonical_json_payload_bytes(payload)).hexdigest()
+            != payload_sha256
+        ):
+            raise ValueError(f"selection teacher work line {index} payload drifted")
+        work_ids.append(parent_id)
+        seen_work_ids.add(parent_id)
+        if row.get("kind") == "parent":
+            completed_fields = {
+                "schema",
+                "kind",
+                "run_fingerprint",
+                "payload_sha256",
+                "parent_id",
+                "candidate_set_sha256",
+                "candidate_moves",
+                "initial_search",
+                "exact_search",
+                "records",
+            }
+            if set(row) not in (
+                completed_fields,
+                completed_fields | {"proposal_fallback"},
+            ):
+                raise ValueError(
+                    f"selection teacher work line {index} parent fields drifted"
+                )
+            records = row.get("records")
+            if type(records) is not list or len(records) < 2:
+                raise ValueError(
+                    f"selection teacher work line {index} has incomplete records"
+                )
+            for record in records:
+                if type(record) is not dict or record.get("parent_id") != parent_id:
+                    raise ValueError(
+                        f"selection teacher work line {index} record parent drifted"
+                    )
+                emitted_records.append(record)
+            emitted_ids.append(parent_id)
+            continue
+        if row.get("kind") != "skip":
+            raise ValueError(f"selection teacher work line {index} kind is unsupported")
+        forced_ids.append(parent_id)
+        reason = row.get("reason")
+        legal_moves = row.get("legal_moves")
+        if reason == "fewer-than-two-legal-moves":
+            if (
+                set(row)
+                != {
+                    "schema",
+                    "kind",
+                    "run_fingerprint",
+                    "payload_sha256",
+                    "parent_id",
+                    "reason",
+                    "legal_moves",
+                }
+                or type(legal_moves) is not int
+                or not 0 <= legal_moves < 2
+            ):
+                raise ValueError(
+                    f"selection teacher work line {index} forced-move reason drifted"
+                )
+            fewer_ids.append(parent_id)
+        elif reason == "search-timeout-no-label":
+            timeout = row.get("timeout")
+            phase = timeout.get("phase") if type(timeout) is dict else None
+            expected_multipv = (
+                min(STRENGTH_FIRST_SELECTION_PROPOSAL_MULTIPV, legal_moves)
+                if type(legal_moves) is int and phase == "proposal"
+                else 1
+            )
+            expected_limit = {
+                "depth": (
+                    STRENGTH_FIRST_SELECTION_PROPOSAL_DEPTH
+                    if phase == "proposal"
+                    else STRENGTH_FIRST_SELECTION_RESCORE_DEPTH
+                )
+            }
+            expected_searchmove_count = 0 if phase == "proposal" else 1
+            if (
+                set(row)
+                != {
+                    "schema",
+                    "kind",
+                    "run_fingerprint",
+                    "payload_sha256",
+                    "parent_id",
+                    "reason",
+                    "legal_moves",
+                    "timeout",
+                }
+                or type(legal_moves) is not int
+                or legal_moves < 2
+                or type(timeout) is not dict
+                or set(timeout)
+                != {
+                    "phase",
+                    "requested_multipv",
+                    "requested_limit",
+                    "searchmoves",
+                    "timeout_ms",
+                }
+                or timeout.get("phase") not in {"proposal", "independent-rescore"}
+                or type(timeout.get("requested_multipv")) is not int
+                or timeout["requested_multipv"] != expected_multipv
+                or not _typed_equal(timeout.get("requested_limit"), expected_limit)
+                or type(timeout.get("searchmoves")) is not list
+                or len(timeout["searchmoves"]) != expected_searchmove_count
+                or any(
+                    type(move) is not str or not move for move in timeout["searchmoves"]
+                )
+                or type(timeout.get("timeout_ms")) is not int
+                or timeout["timeout_ms"] != STRENGTH_FIRST_SELECTION_TIMEOUT_MS
+            ):
+                raise ValueError(
+                    f"selection teacher work line {index} timeout reason drifted"
+                )
+            timeout_ids.append(parent_id)
+        else:
+            # In particular, proposal-incomplete-no-label remains fatal.
+            raise ValueError(
+                f"selection teacher work line {index} has a forbidden skip reason"
+            )
+
+    bytewise_work_ids = sorted(work_ids, key=lambda value: value.encode("utf-8"))
+    if work_ids != bytewise_work_ids or set(work_ids) != source_id_set:
+        raise ValueError("selection teacher work parent coverage or order drifted")
+    dataset_rows = _strict_jsonl_objects(dataset_raw, "selection dataset")
+    for index, (line, row) in enumerate(
+        zip(dataset_raw[:-1].split(b"\n"), dataset_rows), start=1
+    ):
+        if line != _canonical_json_payload_bytes(row):
+            raise ValueError(f"selection dataset line {index} is not canonical")
+    if not _typed_equal(dataset_rows, emitted_records):
+        raise ValueError("selection dataset does not match completed work records")
+
+    actual_accounting = {
+        "parent_ids_sha256": source_digest,
+        "forced_parent_ids_sha256": _identifier_digest(forced_ids),
+        "emitted_parent_ids_sha256": _identifier_digest(emitted_ids),
+        "fewer_than_two_legal_moves_parent_ids_sha256": _identifier_digest(fewer_ids),
+        "search_timeout_parent_ids_sha256": _identifier_digest(timeout_ids),
+    }
+    if (
+        len(forced_ids) != completion["forced_parents_skipped"]
+        or len(emitted_ids) != completion["emitted_parent_groups"]
+        or len(emitted_records) != completion["dataset_records"]
+        or len(fewer_ids)
+        != completion["forced_skip_reasons"]["fewer_than_two_legal_moves"]
+        or len(timeout_ids)
+        != completion["forced_skip_reasons"]["search_timeout_no_label"]
+        or not _typed_equal(completion["parent_accounting"], actual_accounting)
+    ):
+        raise ValueError("selection teacher parent accounting does not recompute")
+    return actual_accounting
+
+
+def _validate_selection_parent_accounting_paths(
+    *,
+    source_path: str,
+    source_identity: Mapping[str, Any],
+    work_path: str,
+    work_identity: Mapping[str, Any],
+    dataset_path: str,
+    dataset_identity: Mapping[str, Any],
+    completion: Mapping[str, Any],
+    generation_run_fingerprint: str,
+    read_bytes: Callable[[str], bytes],
+) -> dict[str, Any]:
+    snapshots = {}
+    for name, path, identity in (
+        ("source", source_path, source_identity),
+        ("work", work_path, work_identity),
+        ("dataset", dataset_path, dataset_identity),
+    ):
+        raw = read_bytes(path)
+        if (
+            type(raw) is not bytes
+            or len(raw) != identity["bytes"]
+            or hashlib.sha256(raw).hexdigest() != identity["sha256"]
+        ):
+            raise ValueError(f"selection {name} identity mismatch during accounting")
+        snapshots[name] = raw
+    return _validate_selection_parent_accounting(
+        source_raw=snapshots["source"],
+        work_raw=snapshots["work"],
+        dataset_raw=snapshots["dataset"],
+        completion=completion,
+        generation_run_fingerprint=generation_run_fingerprint,
+        source_identity=source_identity,
+    )
+
+
 def _validate_completion(value: Any) -> dict[str, Any]:
     completion = _exact_dict(
         value,
@@ -931,12 +1264,25 @@ def _validate_completion(value: Any) -> dict[str, Any]:
     )
     reasons = _exact_dict(
         completion["forced_skip_reasons"],
-        {"fewer_than_two_legal_moves"},
+        {"fewer_than_two_legal_moves", "search_timeout_no_label"},
         "selection teacher forced skip reasons",
+    )
+    accounting = _exact_dict(
+        completion["parent_accounting"],
+        {
+            "parent_ids_sha256",
+            "forced_parent_ids_sha256",
+            "emitted_parent_ids_sha256",
+            "fewer_than_two_legal_moves_parent_ids_sha256",
+            "search_timeout_parent_ids_sha256",
+        },
+        "selection teacher parent accounting",
     )
     forced = completion["forced_parents_skipped"]
     emitted = completion["emitted_parent_groups"]
     records = completion["dataset_records"]
+    for field, digest in accounting.items():
+        _sha256(digest, f"selection teacher parent accounting {field}")
     if (
         completion["input_games"] != STRENGTH_FIRST_SELECTION_GAME_COUNT
         or type(completion["input_games"]) is not int
@@ -947,7 +1293,14 @@ def _validate_completion(value: Any) -> dict[str, Any]:
         or type(forced) is not int
         or forced < 0
         or type(reasons["fewer_than_two_legal_moves"]) is not int
-        or reasons["fewer_than_two_legal_moves"] != forced
+        or reasons["fewer_than_two_legal_moves"] < 0
+        or type(reasons["search_timeout_no_label"]) is not int
+        or not 0
+        <= reasons["search_timeout_no_label"]
+        <= STRENGTH_FIRST_SELECTION_TIMEOUT_SKIP_LIMIT
+        or reasons["fewer_than_two_legal_moves"] + reasons["search_timeout_no_label"]
+        != forced
+        or accounting["parent_ids_sha256"] != _SELECTION_SOURCE["parent_ids_sha256"]
         or type(emitted) is not int
         or emitted < 1
         or emitted + forced != STRENGTH_FIRST_SELECTION_PARENT_COUNT
@@ -965,7 +1318,7 @@ def _validate_teacher_documents(
     manifest: Mapping[str, Any],
     result: Mapping[str, Any],
     registry: Mapping[str, Any],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str]:
     enrollment = registry["enrollments"]
     authority = _exact_dict(
         dict(authority),
@@ -979,6 +1332,7 @@ def _validate_teacher_documents(
             "checkpoint_preflight_sha256",
             "artifacts",
             "completion",
+            "generation_run_fingerprint",
             "run_fingerprint",
             "boundary",
         },
@@ -992,7 +1346,9 @@ def _validate_teacher_documents(
             "role",
             "source",
             "dataset",
+            "work",
             "completion",
+            "generation_run_fingerprint",
             "run_fingerprint",
             "boundary",
         },
@@ -1006,7 +1362,9 @@ def _validate_teacher_documents(
             "role",
             "manifest",
             "dataset",
+            "work",
             "completion",
+            "generation_run_fingerprint",
             "run_fingerprint",
             "postflight_complete",
             "boundary",
@@ -1015,10 +1373,14 @@ def _validate_teacher_documents(
     )
     artifacts = _exact_dict(
         authority["artifacts"],
-        {"manifest", "result", "dataset"},
+        {"manifest", "result", "dataset", "work"},
         "selection teacher authority artifacts",
     )
     completion = _validate_completion(authority["completion"])
+    generation_run_fingerprint = _sha256(
+        authority["generation_run_fingerprint"],
+        "selection teacher generation run fingerprint",
+    )
     if (
         authority["schema"] != STRENGTH_FIRST_SELECTION_TEACHER_AUTHORITY_SCHEMA
         or manifest["schema"] != STRENGTH_FIRST_SELECTION_TEACHER_MANIFEST_SCHEMA
@@ -1044,15 +1406,20 @@ def _validate_teacher_documents(
                 "manifest": enrollment["selection_teacher_manifest"],
                 "result": enrollment["selection_teacher_result"],
                 "dataset": enrollment["selection_dataset"],
+                "work": enrollment["selection_teacher_work"],
             },
         )
         or not _typed_equal(manifest["dataset"], enrollment["selection_dataset"])
+        or not _typed_equal(manifest["work"], enrollment["selection_teacher_work"])
         or not _typed_equal(
             result["manifest"], enrollment["selection_teacher_manifest"]
         )
         or not _typed_equal(result["dataset"], enrollment["selection_dataset"])
+        or not _typed_equal(result["work"], enrollment["selection_teacher_work"])
         or not _typed_equal(manifest["completion"], completion)
         or not _typed_equal(result["completion"], completion)
+        or manifest["generation_run_fingerprint"] != generation_run_fingerprint
+        or result["generation_run_fingerprint"] != generation_run_fingerprint
         or authority["run_fingerprint"]
         != enrollment["selection_teacher_run_fingerprint"]
         or manifest["run_fingerprint"]
@@ -1064,7 +1431,7 @@ def _validate_teacher_documents(
         or result["postflight_complete"] is not True
     ):
         raise ValueError("selection teacher authority binding mismatch")
-    return completion
+    return completion, generation_run_fingerprint
 
 
 def _metric_set(value: Any, label: str) -> dict[str, float]:
@@ -1442,6 +1809,7 @@ def _execute_ready_selection(
             "selection_teacher_authority",
             "selection_teacher_manifest",
             "selection_teacher_result",
+            "selection_teacher_work",
             "selection_dataset",
             "stable_checkpoint",
             "selection_evaluation_report",
@@ -1467,14 +1835,25 @@ def _execute_ready_selection(
         dependencies,
         "selection teacher result",
     )
-    completion = _validate_teacher_documents(
+    completion, generation_run_fingerprint = _validate_teacher_documents(
         authority=_strict_json(authority_raw, "selection teacher authority"),
         manifest=_strict_json(manifest_raw, "selection teacher manifest"),
         result=_strict_json(result_raw, "selection teacher result"),
         registry=registry,
     )
+    dependencies.validate_parent_accounting(
+        source_path=private_paths["selection_source"],
+        source_identity=_SELECTION_SOURCE,
+        work_path=private_paths["selection_teacher_work"],
+        work_identity=enrollment["selection_teacher_work"],
+        dataset_path=private_paths["selection_dataset"],
+        dataset_identity=enrollment["selection_dataset"],
+        completion=completion,
+        generation_run_fingerprint=generation_run_fingerprint,
+    )
     for name in (
         "selection_source",
+        "selection_teacher_work",
         "selection_dataset",
         "stable_checkpoint",
     ):
@@ -1544,6 +1923,7 @@ def _execute_ready_selection(
         "selection_teacher_authority",
         "selection_teacher_manifest",
         "selection_teacher_result",
+        "selection_teacher_work",
         "selection_dataset",
         "stable_checkpoint",
     ):
@@ -1647,13 +2027,8 @@ def _run_strength_first_selection_evaluator(
     registry = _strict_json(registry_raw, "selection evaluator registry")
     registry, ready = _validate_registry(registry)
     dependencies.verify_tracked(str(registry_path), registry_raw)
-    if (
-        registry["status"]
-        == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
-    ):
-        raise StrengthFirstSelectionBlocked(
-            "selection publication is already enrolled"
-        )
+    if registry["status"] == STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS:
+        raise StrengthFirstSelectionBlocked("selection publication is already enrolled")
     origin_registry_canonical_raw = _canonical_json_bytes(registry)
     origin_registry_identity = {
         "path": STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
@@ -1777,11 +2152,8 @@ def _publish_artifact_exclusive(
         ): STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_PATH,
     }
     relative = expected_by_schema.get(schema)
-    if (
-        relative is None
-        or not os.path.abspath(path).endswith(
-            f"{os.sep}{relative.replace('/', os.sep)}"
-        )
+    if relative is None or not os.path.abspath(path).endswith(
+        f"{os.sep}{relative.replace('/', os.sep)}"
     ):
         raise ValueError("selection publication fixed path/schema mismatch")
     value = _strict_json(raw, "selection publication")
@@ -1928,6 +2300,12 @@ def run_strength_first_qat_selection_evaluator() -> dict[str, Any]:
         ),
         claim_preflight=claim_preflight,
         validate_plan=BRIDGE.validate_strength_first_qat_training_plan_data,
+        validate_parent_accounting=lambda **kwargs: (
+            _validate_selection_parent_accounting_paths(
+                read_bytes=lambda path: Path(path).read_bytes(),
+                **kwargs,
+            )
+        ),
         evaluate=ADAPTER.evaluate_strength_first_selection,
         publish=_publish_artifact_exclusive,
     )

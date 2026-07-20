@@ -35,9 +35,7 @@ SUMMARY_SCHEMA = (
     "shogi-floodgate-strength-first-fresh-final-teacher-selection-preflight-v1"
 )
 SUMMARY_STATUS = "selected-candidate-receipt-recomputed"
-CLI_SCHEMA = (
-    "shogi-floodgate-strength-first-fresh-final-teacher-preflight-cli-v1"
-)
+CLI_SCHEMA = "shogi-floodgate-strength-first-fresh-final-teacher-preflight-cli-v1"
 
 
 class FreshFinalTeacherPreflightBlocked(RuntimeError):
@@ -144,8 +142,7 @@ def _strict_publication_result(
     if type(value) is not dict or set(value) != expected_fields:
         raise ValueError("selection publication result fields are not exact")
     if (
-        value["schema"]
-        != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA
+        value["schema"] != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_SCHEMA
         or value["status"]
         != SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_RESULT_STATUS
         or not SELECTION._typed_equal(
@@ -231,25 +228,19 @@ def build_fresh_final_teacher_selection_preflight(
         replayed_evaluation_report=replayed_evaluation_report,
         selection_registry=registry,
     )
-    if (
-        not SELECTION._typed_equal(
-            publication["selected_seed"],
-            selected["selected_seed"],
-        )
-        or not SELECTION._typed_equal(
-            publication["selected_checkpoint"],
-            selected["selected_checkpoint"],
-        )
+    if not SELECTION._typed_equal(
+        publication["selected_seed"],
+        selected["selected_seed"],
+    ) or not SELECTION._typed_equal(
+        publication["selected_checkpoint"],
+        selected["selected_checkpoint"],
     ):
         raise ValueError("selection publication selected candidate mismatch")
     return {
         "schema": SUMMARY_SCHEMA,
         "status": SUMMARY_STATUS,
         "selection_evaluator_registry": _identity(
-            path=(
-                SELECTION
-                .STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
-            ),
+            path=(SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH),
             raw=registry_raw,
             schema=SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_SCHEMA,
         ),
@@ -282,9 +273,10 @@ def _replay_selection_evaluation(
 ) -> Mapping[str, Any]:
     try:
         runs = receipt["runs"]
-        completion = receipt["selection_teacher"]["completion"]
+        completion_value = receipt["selection_teacher"]["completion"]
     except (KeyError, TypeError) as error:
         raise ValueError("selection receipt cannot define replay inputs") from error
+    completion = SELECTION._validate_completion(completion_value)
     if type(runs) is not list or len(runs) != 3:
         raise ValueError("selection replay requires exact three candidate runs")
     checkpoint_specs = []
@@ -308,8 +300,7 @@ def _replay_selection_evaluation(
         checkpoint_specs.append(
             {
                 "name": (
-                    "floodgate-strength-first-int16-aware-"
-                    f"seed-{expected_seed}"
+                    "floodgate-strength-first-int16-aware-" f"seed-{expected_seed}"
                 ),
                 "path": str(repo_root / expected_relative),
                 "bytes": checkpoint["bytes"],
@@ -325,12 +316,6 @@ def _replay_selection_evaluation(
         registry["enrollments"]["selection_dataset"],
         "selection replay dataset",
     )
-    if (
-        type(completion) is not dict
-        or type(completion.get("dataset_records")) is not int
-        or type(completion.get("emitted_parent_groups")) is not int
-    ):
-        raise ValueError("selection replay completion is invalid")
     return replay(
         data_path=str(home_root / dataset["path"]),
         dataset_identity={
@@ -362,15 +347,12 @@ def run_strength_first_fresh_final_teacher_preflight_core(
     root = Path(repo_root).resolve()
     home = Path(home_root).expanduser().resolve()
     registry_path = (
-        root
-        / SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
+        root / SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
     )
     registry_raw = dependencies.read_bytes(str(registry_path))
     registry = _strict_json(registry_raw, "selection evaluator registry")
     registry = dict(
-        SELECTION.validate_strength_first_selection_evaluator_registry_data(
-            registry
-        )
+        SELECTION.validate_strength_first_selection_evaluator_registry_data(registry)
     )
     dependencies.verify_tracked(str(registry_path), registry_raw)
 
@@ -424,9 +406,7 @@ def run_strength_first_fresh_final_teacher_preflight_core(
         artifact_path = home / relative
         if os.path.realpath(artifact_path) != os.path.abspath(artifact_path):
             raise ValueError(f"{name} fixed path is not canonical")
-        private_artifacts[name] = dependencies.read_private_artifact(
-            str(artifact_path)
-        )
+        private_artifacts[name] = dependencies.read_private_artifact(str(artifact_path))
 
     evaluation_report_raw = private_artifacts["selection_evaluation_report"]
     evaluation_report = _strict_json(

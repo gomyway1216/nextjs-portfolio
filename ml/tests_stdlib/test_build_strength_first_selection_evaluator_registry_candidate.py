@@ -175,6 +175,16 @@ class CandidateHarness:
         }
 
         dataset_raw = b'{"synthetic":"first"}\n{"synthetic":"second"}\n'
+        source_raw = b'{"parent_id":"synthetic-parent"}\n'
+        work_raw = b'{"kind":"synthetic-work"}\n'
+        self._write_private(
+            EVALUATOR._FIXED_PATHS["selection_source"],
+            source_raw,
+        )
+        self._write_private(
+            EVALUATOR._FIXED_PATHS["selection_teacher_work"],
+            work_raw,
+        )
         self._write_private(
             EVALUATOR._FIXED_PATHS["selection_dataset"],
             dataset_raw,
@@ -188,24 +198,48 @@ class CandidateHarness:
             dataset_raw,
             EVALUATOR.STRENGTH_FIRST_SELECTION_DATASET_SCHEMA,
         )
+        work_identity = identity(
+            EVALUATOR._FIXED_PATHS["selection_teacher_work"],
+            work_raw,
+            EVALUATOR.STRENGTH_FIRST_SELECTION_WORK_SCHEMA,
+        )
         completion = {
             "input_games": EVALUATOR.STRENGTH_FIRST_SELECTION_GAME_COUNT,
             "input_parents": EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT,
             "completed_parents": EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT,
             "forced_parents_skipped": 0,
-            "forced_skip_reasons": {"fewer_than_two_legal_moves": 0},
+            "forced_skip_reasons": {
+                "fewer_than_two_legal_moves": 0,
+                "search_timeout_no_label": 0,
+            },
+            "parent_accounting": {
+                "parent_ids_sha256": EVALUATOR._SELECTION_SOURCE["parent_ids_sha256"],
+                "forced_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+                "emitted_parent_ids_sha256": hashlib.sha256(
+                    b"synthetic-emitted"
+                ).hexdigest(),
+                "fewer_than_two_legal_moves_parent_ids_sha256": hashlib.sha256(
+                    b""
+                ).hexdigest(),
+                "search_timeout_parent_ids_sha256": hashlib.sha256(b"").hexdigest(),
+            },
             "emitted_parent_groups": (EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT),
             "dataset_records": (2 * EVALUATOR.STRENGTH_FIRST_SELECTION_PARENT_COUNT),
             "sealed": True,
         }
         run_fingerprint = hashlib.sha256(b"synthetic-teacher-run").hexdigest()
+        generation_run_fingerprint = hashlib.sha256(
+            b"synthetic-generation-run"
+        ).hexdigest()
         manifest = {
             "schema": EVALUATOR.STRENGTH_FIRST_SELECTION_TEACHER_MANIFEST_SCHEMA,
             "status": EVALUATOR.STRENGTH_FIRST_SELECTION_TEACHER_STATUS,
             "role": "fresh_selection",
             "source": copy.deepcopy(EVALUATOR._SELECTION_SOURCE),
             "dataset": copy.deepcopy(dataset_identity),
+            "work": copy.deepcopy(work_identity),
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
         }
@@ -221,7 +255,9 @@ class CandidateHarness:
             "role": "fresh_selection",
             "manifest": copy.deepcopy(manifest_identity),
             "dataset": copy.deepcopy(dataset_identity),
+            "work": copy.deepcopy(work_identity),
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "postflight_complete": True,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
@@ -246,8 +282,10 @@ class CandidateHarness:
                 "manifest": copy.deepcopy(manifest_identity),
                 "result": copy.deepcopy(result_identity),
                 "dataset": copy.deepcopy(dataset_identity),
+                "work": copy.deepcopy(work_identity),
             },
             "completion": copy.deepcopy(completion),
+            "generation_run_fingerprint": generation_run_fingerprint,
             "run_fingerprint": run_fingerprint,
             "boundary": copy.deepcopy(EVALUATOR._TEACHER_BOUNDARY),
         }
@@ -301,6 +339,7 @@ class CandidateHarness:
             _read_private=self.read_private,
             _fingerprint_private=self.fingerprint_private,
             _validate_training_plan=lambda plan: plan,
+            _validate_parent_accounting=lambda **_kwargs: {},
             _run_checkpoint_preflight=self.checkpoint_preflight,
         )
 
@@ -389,13 +428,18 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             expected_document_reads = Counter(
                 {
                     str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
-                    for name in SUBJECT._PRIVATE_DOCUMENTS
+                    for name in (
+                        *SUBJECT._PRIVATE_DOCUMENTS,
+                        "selection_source",
+                        "selection_teacher_work",
+                        "selection_dataset",
+                    )
                 }
             )
             expected_large_fingerprints = Counter(
                 {
                     str(harness.home / EVALUATOR._FIXED_PATHS[name]): 2
-                    for name in ("selection_dataset", "stable_checkpoint")
+                    for name in ("stable_checkpoint",)
                 }
             )
             self.assertEqual(
@@ -498,7 +542,7 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
             os.link(dataset_path, dataset_path.with_name("dataset-hard-link"))
             with self.assertRaisesRegex(
                 SUBJECT.StrengthFirstSelectionEvaluatorRegistryCandidateError,
-                "cannot be fingerprinted",
+                "canonical regular file",
             ):
                 harness.build()
 
@@ -590,6 +634,7 @@ class StrengthFirstSelectionEvaluatorRegistryCandidateTests(unittest.TestCase):
                         _read_private=harness.read_private,
                         _fingerprint_private=harness.fingerprint_private,
                         _validate_training_plan=lambda plan: plan,
+                        _validate_parent_accounting=lambda **_kwargs: {},
                         _run_checkpoint_preflight=(harness.checkpoint_preflight),
                         _candidate_consumer=lambda value: emitted.append(dict(value)),
                     )

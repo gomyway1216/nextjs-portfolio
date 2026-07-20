@@ -49,8 +49,12 @@ describe("local external calibration publication evidence", () => {
       revision: "70f9a6d0f1098dd37cb4024691ed92e8336582e9",
       tree: "b8ab2e49c38dbd0333d7e42472f41ba06ef51716",
       base_revision: "f5f49c2bea0c6de1ba5d28696281b9002426308a",
-      pushed: false,
-      pull_request_created: false,
+      pushed: true,
+      pull_request_created: true,
+      pull_request_number: 531,
+      pull_request_url:
+        "https://github.com/gomyway1216/nextjs-portfolio/pull/531",
+      pull_request_ready_for_review: true,
     });
     for (const artifact of Object.values(
       evidence.implementation_artifacts,

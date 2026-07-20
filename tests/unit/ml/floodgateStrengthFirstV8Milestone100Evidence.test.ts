@@ -36,6 +36,14 @@ function evidence(): Record<string, unknown> {
   return cachedEvidence;
 }
 
+function nextGates(): string[] {
+  const value = evidence().next_gates;
+  if (!Array.isArray(value) || value.some((gate) => typeof gate !== "string")) {
+    throw new Error("milestone 100 next_gates must be a string array");
+  }
+  return value;
+}
+
 describe("Floodgate strength-first v8 milestone 100 evidence", () => {
   it("records the real pinned launch and completed input authentication", () => {
     expect(evidence()).toMatchObject({
@@ -147,8 +155,8 @@ describe("Floodgate strength-first v8 milestone 100 evidence", () => {
         live_promotion: false,
       },
     });
-    expect(evidence().next_gates).toContain("formal-384-pair-768-game-ab");
-    expect(evidence().next_gates).not.toContain("formal-192-pair-384-game-ab");
+    expect(nextGates()).toContain("formal-384-pair-768-game-ab");
+    expect(nextGates()).not.toContain("formal-192-pair-384-game-ab");
   });
 
   it("keeps both articles aligned and publishes no private payload or path", () => {

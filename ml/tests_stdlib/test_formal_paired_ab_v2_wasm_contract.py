@@ -151,6 +151,8 @@ class FormalPairedAbV2WasmContractTest(unittest.TestCase):
             )
         for mutation in (
             {"attempt_index": 1},
+            {"attempt_index": False},
+            {"attempt_index": 0.0},
             {"rerun_authorization": {"path": "rerun.json"}},
             {"pair_workers": 1},
             {"pair_workers": 6},

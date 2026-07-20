@@ -50,9 +50,9 @@ export const FORMAL_PAIRED_AB_V2_WASM_IPC_SCHEMA =
 export const FORMAL_PAIRED_AB_V2_WASM_STATUS = "complete" as const;
 export const FORMAL_PAIRED_AB_V2_WASM_ADJUDICATION =
   "legal-moves-fourfold-repetition-with-perpetual-check-loss-and-max-plies-draw-v1" as const;
-export const FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES = [
+export const FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES = Object.freeze([
   2, 4, 8, 12,
-] as const;
+] as const);
 export const FORMAL_PAIRED_AB_V2_MAX_PAIR_WORKERS = 12 as const;
 export const FORMAL_PAIRED_AB_V2_GAMES_PER_PAIR = 2 as const;
 export const FORMAL_PAIRED_AB_V2_PAIR_COUNT = 384 as const;
@@ -94,7 +94,10 @@ export type FormalPairedAbV2Color = "sente" | "gote";
 export type FormalPairedAbV2Role = "candidate" | "stable";
 export type FormalPairedAbV2GameResult = "win" | "draw" | "loss";
 export type FormalPairedAbV2Termination =
-  "no-legal-moves" | "fourfold-repetition" | "perpetual-check" | "max-plies";
+  | "no-legal-moves"
+  | "fourfold-repetition"
+  | "perpetual-check"
+  | "max-plies";
 
 export interface FormalPairedAbV2ArtifactIdentity {
   readonly path: string;
@@ -1273,7 +1276,8 @@ async function runInternal(
   executionBoundary: FormalPairedAbV2PairReceipt["execution_boundary"],
 ): Promise<Readonly<FormalPairedAbV2PairReceipt>> {
   let players:
-    readonly [FormalPairedAbV2Player, FormalPairedAbV2Player] | undefined;
+    | readonly [FormalPairedAbV2Player, FormalPairedAbV2Player]
+    | undefined;
   let operationFailure: unknown;
   let cleanupComplete = false;
   try {
@@ -1519,7 +1523,7 @@ export function validateFormalPairedAbV2ExactAccounting(
   ) {
     throw new FormalPairedAbV2WasmMatchError(
       "capture",
-      "formal schedule must be exactly 384 pairs/768 games with a benchmark-selected 2, 4, 8, or 12 pair workers",
+      "formal schedule must be exactly 384 pairs/768 games with a benchmark-eligible 2, 4, 8, or 12 pair workers",
     );
   }
 }

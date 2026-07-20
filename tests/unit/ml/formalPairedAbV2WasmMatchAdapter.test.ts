@@ -11,6 +11,7 @@ import {
   FORMAL_PAIRED_AB_V2_GAME_COUNT,
   FORMAL_PAIRED_AB_V2_NNUE_BYTES,
   FORMAL_PAIRED_AB_V2_PAIR_COUNT,
+  FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES,
   FORMAL_PAIRED_AB_V2_SEARCH_DEPTH,
   FORMAL_PAIRED_AB_V2_QUIESCENCE_DEPTH,
   FORMAL_PAIRED_AB_V2_WASM_PAIR_REQUEST_SCHEMA,
@@ -565,7 +566,16 @@ describe("formal paired A/B v2 executable WASM match adapter", () => {
     });
   }, 30_000);
 
-  it("enforces exact accounting and benchmark-selected pair workers", () => {
+  it("enforces exact accounting and immutable benchmark-eligible pair workers", () => {
+    expect(Object.isFrozen(FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES)).toBe(
+      true,
+    );
+    expect(() =>
+      (FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES as unknown as number[]).push(
+        16,
+      ),
+    ).toThrow(TypeError);
+    expect(FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES).toEqual([2, 4, 8, 12]);
     for (const pairWorkers of [2, 4, 8, 12]) {
       expect(() =>
         validateFormalPairedAbV2ExactAccounting(

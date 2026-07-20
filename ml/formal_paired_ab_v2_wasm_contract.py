@@ -70,7 +70,7 @@ PAIR_WORKER_POLICY = {
     "benchmark_candidates": list(PAIR_WORKER_CANDIDATES),
     "safe_maximum": MAX_PAIR_WORKERS,
     "selection_condition": (
-        "highest-median-pairs-per-second-after-exact-transcript-hash-equality"
+        "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality"
     ),
 }
 
@@ -180,11 +180,12 @@ def _domain_digest(domain: str, payload: Mapping | list) -> str:
 
 
 def validate_formal_wasm_run_envelope(registry: Mapping) -> int:
-    """Reject reruns and non-benchmarked worker counts before any journal."""
+    """Reject reruns and non-eligible worker counts before any journal."""
 
     if not isinstance(registry, Mapping):
         raise FormalAbV2WasmContractError("formal WASM registry must be a mapping")
-    if registry.get("attempt_index") != 0:
+    attempt_index = registry.get("attempt_index")
+    if type(attempt_index) is not int or attempt_index != 0:
         raise FormalAbV2WasmContractError(
             "formal WASM execution is attempt-zero only"
         )
@@ -195,7 +196,7 @@ def validate_formal_wasm_run_envelope(registry: Mapping) -> int:
     workers = registry.get("pair_workers")
     if type(workers) is not int or workers not in PAIR_WORKER_CANDIDATES:
         raise FormalAbV2WasmContractError(
-            "pair_workers must be selected from the benchmark candidates "
+            "pair_workers must be one of the benchmark-eligible candidates "
             "2, 4, 8, or 12"
         )
     return workers

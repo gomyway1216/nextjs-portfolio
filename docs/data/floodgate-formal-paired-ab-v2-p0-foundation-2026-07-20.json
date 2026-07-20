@@ -45,22 +45,33 @@
   "execution_contract": {
     "attempt_index": 0,
     "attempt_greater_than_zero_rejected_before_journal": true,
+    "non_integer_attempt_rejected_before_journal": true,
     "seed_minimum": 1,
     "seed_maximum": 9007199254740991,
     "unsafe_seed_rejected_before_journal": true,
     "pair_worker_candidates": [2, 4, 8, 12],
+    "pair_worker_validation_in_this_change": "benchmark-eligible-membership-only",
+    "benchmark_receipt_identity_bound_before_journal": false,
+    "selected_pair_workers_equality_bound_before_journal": false,
     "safe_maximum_pair_workers": 12,
     "maximum_concurrent_engine_processes": 24
   },
   "worker_benchmark_contract": {
-    "pairs_per_round": 2,
-    "games_per_round": 4,
-    "repetitions_per_setting": 3,
-    "rounds": 12,
-    "sequence": [2, 4, 8, 12, 12, 8, 4, 2, 2, 4, 8, 12],
-    "selection_condition": "highest-median-pairs-per-second-after-exact-transcript-hash-equality",
+    "pairs_per_round": 12,
+    "games_per_round": 24,
+    "total_pairs": 96,
+    "total_games": 192,
+    "idealized_worker_waves": 24,
+    "formal_384_pair_idealized_waves_at_12_workers": 32,
+    "repetitions_per_setting": 2,
+    "rounds": 8,
+    "sequence": [2, 4, 8, 12, 12, 8, 4, 2],
+    "two_sample_mean_representation": "exact-total-numerator-over-denominator-2",
+    "derived_throughput_is_selection_authority": false,
+    "selection_condition": "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality",
     "any_transcript_hash_drift_forbids_selection": true,
     "any_technical_fault_forbids_selection": true,
+    "observed_peak_must_equal_requested_pair_workers": true,
     "exact_tie_selects_lower_worker_count": true,
     "real_benchmark_executed": false,
     "selected_pair_workers": null
@@ -68,8 +79,8 @@
   "implementation_artifacts": {
     "wasm_contract": {
       "path": "ml/formal_paired_ab_v2_wasm_contract.py",
-      "bytes": 17850,
-      "sha256": "905aa73f0673e9856c8e16d26cfe6c5c5ac336cf3f38b90c30d9149502300828"
+      "bytes": 17920,
+      "sha256": "4aa5e5384dad2701b0aa178ee59f9397cbceddf020c1a90746c6bc45027f1869"
     },
     "openings": {
       "path": "ml/formal-paired-ab-v2-openings.ts",
@@ -88,18 +99,18 @@
     },
     "worker_benchmark": {
       "path": "ml/formal_paired_ab_v2_worker_benchmark.py",
-      "bytes": 8633,
-      "sha256": "3ac832eb48b6d0a62436612f23783d7b46dced600a33303470a9588ace82fa03"
+      "bytes": 9631,
+      "sha256": "e894e1e0bfa171dc84f7f5b8f63a6d9bc22009c3bc68151c4921bdf447cb1b88"
     },
     "wasm_match_adapter": {
       "path": "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
-      "bytes": 49930,
-      "sha256": "3c235ecd457e1c7c97bfe9bb6d92c6242ad8d429ab7d6a55529a8bbd218452e3"
+      "bytes": 49959,
+      "sha256": "4d54721cd88e0c7518913f8bc899f821f60777a0720cce6b7c7ebe5ef6649562"
     },
     "wasm_launcher": {
       "path": "ml/formal_paired_ab_v2_wasm_match_launcher.py",
-      "bytes": 33882,
-      "sha256": "13e5bb111cd278ab4e1e3c24ad28adf9e5edd758f9454ca6580800a50f5d1bd5"
+      "bytes": 33969,
+      "sha256": "dc0c1e25dff62143defde027fcccf6c3daa41edb763a4230db73c3bcb215fce3"
     }
   },
   "validation": {
@@ -126,6 +137,7 @@
   },
   "deferred_second_pull_request": [
     "ready_registry_bridge",
+    "benchmark_receipt_identity_and_selected_worker_pre_journal_gate",
     "argumentless_production_cli",
     "atomic_results_publication",
     "source_game_provenance_closure"

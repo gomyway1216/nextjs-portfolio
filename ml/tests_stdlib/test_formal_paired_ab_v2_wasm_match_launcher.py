@@ -174,6 +174,8 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
     def test_attempt_or_unsafe_seed_is_rejected_before_journal_creation(self):
         mutations = (
             ("attempt", "attempt_index", 1),
+            ("boolean-attempt", "attempt_index", False),
+            ("float-attempt", "attempt_index", 0.0),
             ("zero-seed", "seed", 0),
             ("unsafe-seed", "seed", (1 << 53)),
         )
@@ -379,6 +381,7 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                     execute,
                 )
             self.assertEqual(calls, 0)
+            self.assertFalse(fixture.receipts.exists())
             self.assertEqual(launcher.MAX_PAIR_WORKERS, 12)
             self.assertEqual(launcher.PAIR_WORKER_CANDIDATES, (2, 4, 8, 12))
 

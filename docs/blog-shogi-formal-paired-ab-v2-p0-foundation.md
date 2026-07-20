@@ -44,10 +44,11 @@ manifest preflightは384件すべてについて、合法・非終局・source u
 
 実WASM launcherは、次をreceipt directory作成より前に拒否する。
 
-- `attempt_index > 0`
+- `attempt_index`がexact integer `0`でない
 - seedがintegerでない
 - seedが0以下
 - seedが`Number.MAX_SAFE_INTEGER`を超える
+- `pair_workers`がbenchmark候補`[2, 4, 8, 12]`にない
 
 今回のformal operational contractはattempt 0だけである。現在のjournalは部分結果を保持するため、結果を見た後のattempt 1を安全な「blind rerun」とは扱わない。将来rerunが必要なら、結果をoperatorから隠す別protocolを事前登録する必要がある。
 
@@ -55,9 +56,11 @@ manifest preflightは384件すべてについて、合法・非終局・source u
 
 safe capを12 pair workerへ広げ、候補を`[2, 4, 8, 12]`に限定した。ただし12を無条件採用しない。
 
-benchmark harnessは同じ2 pair / 4 gameを固定順序で各設定3回ずつ測る。全12 roundのordered transcript SHA-256 vectorがexactに一致した場合だけ、median throughputが最大の設定を選ぶ。hashが1件でも違う、technical faultが1件でもある、roundが欠ける、順序が違う場合はworkerを選ばない。同率なら小さいworker数を選び、不要なmemory/process負荷を避ける。
+benchmark harnessは同じ12 pair / 24 gameを`2,4,8,12,12,8,4,2`の固定順序で各設定2回ずつ測る。最大候補12 workerを1 waveすべて使い、各roundで要求したworker数と実測peakが一致することも必須にした。全8 roundのordered transcript SHA-256 vectorがexactに一致した場合だけ、2回のelapsed合計が最小の設定を選ぶ。同一workload・同一sample数なので、これはmean elapsed最小と同値である。各sample、合計、meanの分子と分母2をintegerのまま記録し、floatや丸めを選抜根拠に使わない。mean elapsedから換算するthroughputは表示専用で、選抜authorityではない。hashが1件でも違う、technical faultが1件でもある、workerが埋まらない、roundが欠ける、順序が違う場合はworkerを選ばない。同率なら小さいworker数を選び、不要なmemory/process負荷を避ける。実測時の総量は96 pair / 192 game、理想化24 worker waveであり、12 workerでのformal 384 pairに必要な理想化32 waveより小さい。
 
-このPRでは実candidateも実opening manifestもないため、重い実WASM benchmarkはまだ走らせていない。fixtureでは12 workerの同時callback、384 pair / 768 game会計、hash drift時の選抜拒否を確認した。
+このPRでは実candidateも実opening manifestもないため、重い実WASM benchmarkはまだ走らせていない。fixtureでは2/4/8/12の各設定で要求数まで同時callbackが立つこと、384 pair / 768 game会計、hash drift時の選抜拒否を確認した。
+
+重要なのは、現PRのregistry検査が証明するのはworker数がbenchmark候補集合に入ることまでで、benchmark receiptのcontent identityや`selected_pair_workers`との一致ではない点である。production entryはchecked-in ready registry未登録のため閉じたままにする。次のreviewed ready-registry bridgeは、benchmark receipt identityと選抜値の一致をjournal作成前のhard gateとして実装しなければならない。
 
 ## 今回確認した値
 
@@ -77,6 +80,7 @@ benchmark harnessは同じ2 pair / 4 gameを固定順序で各設定3回ずつ�
 このPRは基盤だけで、次の変更に以下を明示的に残す。
 
 - reviewed ready-registryと新WASM contractのbridge
+- benchmark receipt identityと`selected_pair_workers`の一致を確認するpre-journal hard gate
 - argumentless production CLI
 - manifest / benchmark / resultのatomic publication
 - source-game provenance closure

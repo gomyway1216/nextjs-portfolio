@@ -9,7 +9,6 @@ same ordered transcript SHA-256 vector.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-import statistics
 import time
 from typing import Any
 
@@ -17,10 +16,10 @@ import formal_paired_ab_local_launcher as legacy
 from formal_paired_ab_v2_wasm_contract import PAIR_WORKER_CANDIDATES
 
 
-BENCHMARK_PAIRS_PER_ROUND = 2
+BENCHMARK_PAIRS_PER_ROUND = 12
 BENCHMARK_GAMES_PER_ROUND = BENCHMARK_PAIRS_PER_ROUND * 2
-BENCHMARK_SEQUENCE = (2, 4, 8, 12, 12, 8, 4, 2, 2, 4, 8, 12)
-REPETITIONS_PER_SETTING = 3
+BENCHMARK_SEQUENCE = (2, 4, 8, 12, 12, 8, 4, 2)
+REPETITIONS_PER_SETTING = 2
 BENCHMARK_ROUND_RESULT_SCHEMA = (
     "shogi-formal-paired-ab-v2-worker-benchmark-round-result-v1"
 )
@@ -28,7 +27,7 @@ BENCHMARK_RECEIPT_SCHEMA = (
     "shogi-formal-paired-ab-v2-worker-benchmark-receipt-v1"
 )
 SELECTION_CONDITION = (
-    "highest-median-pairs-per-second-after-exact-transcript-hash-equality"
+    "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality"
 )
 
 _ROUND_RESULT_FIELDS = frozenset(
@@ -36,6 +35,7 @@ _ROUND_RESULT_FIELDS = frozenset(
         "schema",
         "pairs",
         "games",
+        "peak_pair_workers_observed",
         "technical_fault_count",
         "transcript_sha256s",
     }
@@ -47,6 +47,7 @@ _OBSERVATION_FIELDS = frozenset(
         "elapsed_ns",
         "pairs",
         "games",
+        "peak_pair_workers_observed",
         "technical_fault_count",
         "transcript_sha256s",
     }
@@ -91,7 +92,7 @@ def _validated_transcript_vector(value: Any, label: str) -> list[str]:
 
 
 def select_formal_ab_v2_pair_workers(observations: Any) -> dict:
-    """Select the fastest median only after byte-exact transcript equality."""
+    """Select the lowest two-sample total after byte-exact transcript parity."""
 
     if type(observations) is not list or len(observations) != len(
         BENCHMARK_SEQUENCE
@@ -119,6 +120,9 @@ def select_formal_ab_v2_pair_workers(observations: Any) -> dict:
             or observation["elapsed_ns"] <= 0
             or observation["pairs"] != BENCHMARK_PAIRS_PER_ROUND
             or observation["games"] != BENCHMARK_GAMES_PER_ROUND
+            or type(observation["peak_pair_workers_observed"]) is not int
+            or observation["peak_pair_workers_observed"] != expected_workers
+            or type(observation["technical_fault_count"]) is not int
             or observation["technical_fault_count"] != 0
         ):
             raise FormalAbV2WorkerBenchmarkError(
@@ -140,6 +144,9 @@ def select_formal_ab_v2_pair_workers(observations: Any) -> dict:
             {
                 "round_index": round_index,
                 "pair_workers": expected_workers,
+                "peak_pair_workers_observed": observation[
+                    "peak_pair_workers_observed"
+                ],
                 "elapsed_ns": observation["elapsed_ns"],
                 "transcript_vector_sha256": _domain_digest(
                     "shogi-formal-paired-ab-v2-worker-benchmark-transcripts-v1",
@@ -155,23 +162,31 @@ def select_formal_ab_v2_pair_workers(observations: Any) -> dict:
         elapsed = elapsed_by_workers[workers]
         if len(elapsed) != REPETITIONS_PER_SETTING:
             raise FormalAbV2WorkerBenchmarkError(
-                "each pair-worker setting requires exactly three repetitions"
+                "each pair-worker setting requires exactly two repetitions"
             )
-        median_elapsed_ns = int(statistics.median(elapsed))
+        total_elapsed_ns = sum(elapsed)
         timing_summary.append(
             {
                 "pair_workers": workers,
                 "repetitions": REPETITIONS_PER_SETTING,
-                "median_elapsed_ns": median_elapsed_ns,
-                "median_pairs_per_second_milli": (
-                    BENCHMARK_PAIRS_PER_ROUND * 1_000_000_000_000
+                "elapsed_ns_samples": list(elapsed),
+                "total_elapsed_ns": total_elapsed_ns,
+                "mean_elapsed_ns_numerator": total_elapsed_ns,
+                "mean_elapsed_ns_denominator": REPETITIONS_PER_SETTING,
+                "pairs_per_second_milli_at_mean_elapsed": (
+                    BENCHMARK_PAIRS_PER_ROUND
+                    * 1_000_000_000_000
+                    * REPETITIONS_PER_SETTING
                 )
-                // median_elapsed_ns,
+                // max(1, total_elapsed_ns),
             }
         )
     selected = min(
         timing_summary,
-        key=lambda row: (row["median_elapsed_ns"], row["pair_workers"]),
+        key=lambda row: (
+            row["total_elapsed_ns"],
+            row["pair_workers"],
+        ),
     )["pair_workers"]
     body = {
         "schema": BENCHMARK_RECEIPT_SCHEMA,
@@ -217,6 +232,11 @@ def run_formal_ab_v2_worker_benchmark_core_for_tests(
         started_ns = monotonic_ns()
         raw_result = execute_round(pair_workers, round_index)
         finished_ns = monotonic_ns()
+        elapsed_ns = finished_ns - started_ns
+        if elapsed_ns < 0:
+            raise FormalAbV2WorkerBenchmarkError(
+                "worker benchmark monotonic clock moved backwards"
+            )
         result = _exact_dict(
             raw_result,
             _ROUND_RESULT_FIELDS,
@@ -230,9 +250,12 @@ def run_formal_ab_v2_worker_benchmark_core_for_tests(
             {
                 "round_index": round_index,
                 "pair_workers": pair_workers,
-                "elapsed_ns": finished_ns - started_ns,
+                "elapsed_ns": max(1, elapsed_ns),
                 "pairs": result["pairs"],
                 "games": result["games"],
+                "peak_pair_workers_observed": result[
+                    "peak_pair_workers_observed"
+                ],
                 "technical_fault_count": result["technical_fault_count"],
                 "transcript_sha256s": result["transcript_sha256s"],
             }

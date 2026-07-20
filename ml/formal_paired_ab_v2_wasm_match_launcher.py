@@ -612,7 +612,8 @@ def _run_captured(
     execute_pair: Callable[[Mapping], Mapping],
     recapture: Callable[[], Mapping],
 ) -> dict:
-    if captured["registry"]["attempt_index"] != 0:
+    attempt_index = captured["registry"]["attempt_index"]
+    if type(attempt_index) is not int or attempt_index != 0:
         raise FormalAbV2WasmMatchLauncherError(
             "formal WASM execution is attempt-zero only"
         )
@@ -621,21 +622,22 @@ def _run_captured(
         if (
             type(seed) is not int
             or seed < 1
-            or seed > (1 << 53) - 1
+            or seed > formal_contract.MAX_SAFE_SEED
         ):
             raise FormalAbV2WasmMatchLauncherError(
                 "all pair seeds must be integers from 1 through "
                 "Number.MAX_SAFE_INTEGER"
             )
 
-    receipt_dir = legacy._safe_receipt_directory(receipt_directory, create=True)
-    completed = _load_completed_prefix(receipt_dir, captured)
     workers = captured["registry"]["pair_workers"]
     if type(workers) is not int or workers not in PAIR_WORKER_CANDIDATES:
         raise FormalAbV2WasmMatchLauncherError(
-            "real WASM runner requires benchmark-selected 2, 4, 8, or 12 "
+            "real WASM runner requires a benchmark-eligible 2, 4, 8, or 12 "
             "pair workers"
         )
+
+    receipt_dir = legacy._safe_receipt_directory(receipt_directory, create=True)
+    completed = _load_completed_prefix(receipt_dir, captured)
 
     next_pair = len(completed)
     while next_pair < PAIR_COUNT:

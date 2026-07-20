@@ -66,17 +66,34 @@ describe("formal paired A/B v2 P0 foundation evidence", () => {
     expect(evidence.execution_contract).toMatchObject({
       attempt_index: 0,
       attempt_greater_than_zero_rejected_before_journal: true,
+      non_integer_attempt_rejected_before_journal: true,
       seed_minimum: 1,
       seed_maximum: Number.MAX_SAFE_INTEGER,
       unsafe_seed_rejected_before_journal: true,
       pair_worker_candidates: [2, 4, 8, 12],
+      pair_worker_validation_in_this_change:
+        "benchmark-eligible-membership-only",
+      benchmark_receipt_identity_bound_before_journal: false,
+      selected_pair_workers_equality_bound_before_journal: false,
       safe_maximum_pair_workers: 12,
     });
     expect(evidence.worker_benchmark_contract).toMatchObject({
-      repetitions_per_setting: 3,
-      rounds: 12,
+      pairs_per_round: 12,
+      games_per_round: 24,
+      total_pairs: 96,
+      total_games: 192,
+      idealized_worker_waves: 24,
+      formal_384_pair_idealized_waves_at_12_workers: 32,
+      repetitions_per_setting: 2,
+      rounds: 8,
+      two_sample_mean_representation:
+        "exact-total-numerator-over-denominator-2",
+      derived_throughput_is_selection_authority: false,
+      selection_condition:
+        "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality",
       any_transcript_hash_drift_forbids_selection: true,
       any_technical_fault_forbids_selection: true,
+      observed_peak_must_equal_requested_pair_workers: true,
       real_benchmark_executed: false,
       selected_pair_workers: null,
     });

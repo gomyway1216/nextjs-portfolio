@@ -1,0 +1,157 @@
+{
+  "schema": "shogi-floodgate-q1-2026-strength-first-v8-hash-recovery-amendment-v1",
+  "status": "preregistered-after-v7-failed-before-formal-v8-start",
+  "date": "2026-07-19",
+  "amendment_mode": "append-only-v7-plan-and-amendments-and-failed-output-remain-unchanged",
+  "prior_amendment": {
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-timeout-recovery-amendment.json",
+    "schema": "shogi-floodgate-q1-2026-strength-first-timeout-recovery-amendment-v1",
+    "bytes": 5175,
+    "sha256": "b579d976ea68daecd7036ca79547288c68557d8144ebddad3b86e05e8bb78902"
+  },
+  "observed_v7_failure": {
+    "runner_revision": "31381c7abb03a8ae2f4ff6226dc831b31a770a7f",
+    "authenticated_input_completed": true,
+    "prefix_100_completed": true,
+    "prefix_500_completed": false,
+    "result_published": false,
+    "saved_work_records_including_header": 500,
+    "saved_work_bytes": 6818743,
+    "non_timeout_parent_entries": 498,
+    "recorded_timeout_skip_entries": 1,
+    "second_timeout_recorded": false,
+    "target_500_timeout_skip_limit": 1,
+    "failure_disposition": "failed-closed-before-recording-excess-timeout-or-partial-label",
+    "all_teacher_processes_reaped": true,
+    "live_weight_changes": 0
+  },
+  "diagnostic_basis": {
+    "execution": "read-only-exact-pinned-yaneuraou-and-eval-private-temporary-directories",
+    "normal_sample_count": 9,
+    "normal_aggregate_ms": {
+      "hash_256": 212208,
+      "hash_512": 206092,
+      "hash_512_reduction_percent": 2.882078
+    },
+    "first_v7_timeout_parent_independent_rescore": {
+      "hash_64": {
+        "elapsed_ms": 870566,
+        "nodes": 707909200,
+        "completed_with_900000ms_diagnostic_limit": true,
+        "exceeded_formal_600000ms_limit": true
+      },
+      "hash_256": {
+        "elapsed_ms": 132162,
+        "nodes": 130950979,
+        "completed_within_formal_600000ms_limit": true
+      },
+      "hash_512": {
+        "elapsed_ms": 157325,
+        "nodes": 162457860,
+        "completed_within_formal_600000ms_limit": true
+      }
+    },
+    "second_v7_timeout_parent_full_label": {
+      "hash_64": {
+        "total_elapsed_ms": 1007432,
+        "outcome": "independent-rescore-timeout",
+        "timed_out_search_limit_ms": 900000,
+        "completed": false
+      },
+      "hash_256": {
+        "total_elapsed_ms": 88063,
+        "completed": true
+      },
+      "hash_512": {
+        "total_elapsed_ms": 70316,
+        "completed": true,
+        "reduction_from_hash_256_percent": 20.152618
+      }
+    },
+    "resource_observation": {
+      "physical_memory_gib": 48,
+      "configured_hash_mib_for_12_hash_512_processes": 6144,
+      "configured_hash_share_of_physical_memory_percent": 12.5,
+      "observed_peak_diagnostic_processes": 15,
+      "observed_peak_aggregate_cpu_percent": 1258,
+      "observed_memory_free_percent": 47,
+      "observed_pages_throttled": 0,
+      "observed_free_disk_gib_approx": 92
+    },
+    "production_like_hash_512_load_test": {
+      "parallel_processes": 12,
+      "representative_normal_parents": 12,
+      "completed": 12,
+      "failures": 0,
+      "wall_elapsed_ms": 47557,
+      "minimum_parent_elapsed_ms": 11894,
+      "maximum_parent_elapsed_ms": 47520,
+      "peak_engine_rss_gib_approx": 8,
+      "system_memory_free_percent_at_peak": 45,
+      "pages_throttled": 0,
+      "post_test_engine_processes": 0,
+      "post_test_private_temporary_directories": 0,
+      "post_test_memory_free_percent": 49
+    },
+    "privacy": {
+      "parent_ids_published": false,
+      "positions_published": false,
+      "candidate_moves_published": false,
+      "private_work_or_prefix_digests_published": false,
+      "exact_private_receipt_required": true,
+      "exact_private_receipt_mode": "0600"
+    }
+  },
+  "v8_change": {
+    "output_generation": "floodgate-q1-2026-strength-first-v8",
+    "runner_schema": "shogi-floodgate-strength-first-teacher-runner-v2",
+    "milestone_schema": "shogi-floodgate-strength-first-teacher-milestone-v2",
+    "postflight_result_schema": "shogi-floodgate-strength-first-teacher-postflight-result-v2",
+    "public_receipt_schema": "shogi-floodgate-strength-first-teacher-public-receipt-v2",
+    "hash_mb_per_engine": 512,
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "proposal": {
+      "multipv": 12,
+      "depth": 16
+    },
+    "independent_rescore": {
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "depth": 16
+    },
+    "timeout_ms_per_search": 600000,
+    "timeout_skip_limit_formula": "ceil(target_parents/1000)",
+    "target_order": [
+      100,
+      500,
+      24000
+    ],
+    "full_input_reauthentication": true,
+    "v7_work_or_labels_reused": false,
+    "v7_to_v8_migration_authorized": false,
+    "reason_no_migration": "hash-size-is-search-state-and-label-policy-input-bound-into-the-run-fingerprint",
+    "downstream_training_bridge_accepts": "v8-path-and-v2-postflight-result-only"
+  },
+  "unchanged": [
+    "exact-authenticated-24000-parent-input",
+    "pinned-yaneuraou-engine-and-evaluation-assets",
+    "fixed-depth-16-proposal-and-independent-rescore",
+    "600000ms-per-search-timeout",
+    "typed-timeout-no-label-only-recovery",
+    "ceil-target-parents-divided-by-1000-timeout-skip-cap",
+    "one-authenticated-callback-and-postflight-before-result",
+    "training-selection-holdout-formal-ab-and-live-promotion-gates",
+    "local-only-zero-network-zero-cloud"
+  ],
+  "launch_gate": {
+    "formal_v8_started_by_this_change": false,
+    "requires_review_and_ci": true,
+    "requires_regular_merge": true,
+    "requires_exact_clean_merged_revision": true,
+    "requires_empty-new-v8-output-root": true,
+    "requires_private-v7-failure-and-diagnostic-receipt": true,
+    "live_weights_may_change": false
+  },
+  "claim_boundary": "v8-recovery-protocol-and-code-candidate-only-not-teacher-completion-training-result-playing-strength-or-live-promotion-evidence"
+}

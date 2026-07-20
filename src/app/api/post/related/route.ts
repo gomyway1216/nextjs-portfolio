@@ -6,7 +6,7 @@ import {
   pickTranslation,
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
-import { MAX_RELATED_POSTS } from '@/lib/blog/relatedPosts';
+import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -23,9 +23,10 @@ export const GET = withActivityLog('next_api.post.related.GET', async (request: 
     const idsParam = searchParams.get('ids') || '';
     const language = normalizeLanguage(searchParams.get('language'));
 
-    const ids = Array.from(new Set(
-      idsParam.split(',').map((id) => id.trim()).filter(Boolean)
-    )).slice(0, MAX_RELATED_POSTS);
+    // Same sanitizer as the write path: trims, dedupes, caps, and drops
+    // ids containing '/' that would make `.doc(id)` throw on a malformed
+    // multi-segment path.
+    const ids = normalizeRelatedPostIds(idsParam.split(','));
 
     if (ids.length === 0) {
       return NextResponse.json({ posts: [] });

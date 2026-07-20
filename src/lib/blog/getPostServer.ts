@@ -27,7 +27,7 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
     image: typeof data.image === 'string' ? data.image : undefined,
     translations,
     availableLanguages: availableLanguages(translations),
-    relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds),
+    relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds, id),
     created: data.created?.toDate?.()?.toISOString() || data.created || '',
     lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated || '',
   };

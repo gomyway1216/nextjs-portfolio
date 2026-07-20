@@ -53,7 +53,7 @@ export const GET = withActivityLog('next_api.post.id.GET', async (request: NextR
       image: data.image,
       translations,
       availableLanguages: availableLanguages(translations),
-      relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds),
+      relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds, id),
       viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
       created: data.created?.toDate?.()?.toISOString() || data.created,
       lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,

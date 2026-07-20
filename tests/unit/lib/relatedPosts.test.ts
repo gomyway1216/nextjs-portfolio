@@ -21,6 +21,10 @@ describe('normalizeRelatedPostIds', () => {
     expect(normalizeRelatedPostIds(['a', 'self', 'b'], 'self')).toEqual(['a', 'b']);
   });
 
+  it('drops ids containing a slash (would break Firestore doc paths)', () => {
+    expect(normalizeRelatedPostIds(['a', 'some/invalid/path', '/b', 'c'])).toEqual(['a', 'c']);
+  });
+
   it('caps the list at MAX_RELATED_POSTS', () => {
     const ids = Array.from({ length: MAX_RELATED_POSTS + 3 }, (_, i) => `post-${i}`);
     const result = normalizeRelatedPostIds(ids);

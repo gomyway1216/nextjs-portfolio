@@ -3726,7 +3726,7 @@ const AdminPage = () => {
                       .filter((p) => {
                         const q = relatedPostFilter.trim().toLowerCase();
                         if (!q) return true;
-                        return p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+                        return p.title.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q);
                       })
                       .map((p) => {
                         const selected = postForm.relatedPostIds.includes(p.id);
@@ -3734,6 +3734,7 @@ const AdminPage = () => {
                           <button
                             key={p.id}
                             type="button"
+                            aria-pressed={selected}
                             onClick={() => toggleRelatedPost(p.id)}
                             style={{
                               ...styles.ghostButton,

@@ -29,6 +29,7 @@ import {
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
   bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests,
   captureFloodgateStrengthFirstV8TeacherAuthorityReceipt,
+  verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
 } from "../../../ml/floodgate-strength-first-v8-teacher-authority";
 import {
   FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
@@ -693,6 +694,35 @@ describe("Floodgate strength-first teacher runner", () => {
     const receipt = assetReceiptFixture();
     expect(receipt.runtime.hash_mb_per_engine).toBe(512);
     expect(receipt.asset_authority.runtime.hash_mb_per_engine).toBe(64);
+  });
+
+  it("rejects a non-POSIX runtime before reading production assets", async () => {
+    const geteuidDescriptor = Object.getOwnPropertyDescriptor(
+      process,
+      "geteuid",
+    );
+    const realpath = vi.spyOn(fs.promises, "realpath");
+    try {
+      Object.defineProperty(process, "geteuid", {
+        configurable: true,
+        enumerable: geteuidDescriptor?.enumerable ?? true,
+        value: undefined,
+        writable: true,
+      });
+      await expect(
+        verifyPinnedFloodgateStrengthFirstV8TeacherAuthority(),
+      ).rejects.toThrow(
+        "strength-first v8 teacher requires POSIX process.geteuid() before production asset verification",
+      );
+      expect(realpath).not.toHaveBeenCalled();
+    } finally {
+      realpath.mockRestore();
+      if (geteuidDescriptor === undefined) {
+        Reflect.deleteProperty(process, "geteuid");
+      } else {
+        Object.defineProperty(process, "geteuid", geteuidDescriptor);
+      }
+    }
   });
 
   it("derives every private production input, asset, and output path from the user home", () => {

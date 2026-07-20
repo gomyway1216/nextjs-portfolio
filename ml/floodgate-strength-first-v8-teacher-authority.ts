@@ -517,6 +517,11 @@ export async function verifyPinnedFloodgateStrengthFirstV8TeacherAuthority(): Pr
     FloodgateStrengthFirstV8TeacherAuthorityReceipt<"production-fixed-registry-and-deployment-root">
   >
 > {
+  if (typeof process.geteuid !== "function") {
+    throw new Error(
+      "strength-first v8 teacher requires POSIX process.geteuid() before production asset verification",
+    );
+  }
   return bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests(
     await verifyPinnedFloodgateProductionTeacherAssets(),
     process.geteuid(),

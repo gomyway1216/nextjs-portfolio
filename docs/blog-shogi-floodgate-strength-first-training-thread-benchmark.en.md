@@ -35,15 +35,26 @@ forward, backward, and AdamW step.
 ## Selection rule
 
 For each seed, repeated trials at the same thread setting must produce identical
-hashes for every final model tensor and a fixed probe output. A mismatch stops
-the benchmark. The two- and four-thread outputs must also be byte-identical;
-otherwise the benchmark stops without selecting a setting.
+hashes for every final model tensor and a fixed probe output. The canonical
+AdamW state hash also covers `step`, `exp_avg`, and `exp_avg_sq`. A mismatch
+stops the benchmark. The two- and four-thread outputs must also be
+byte-identical; otherwise the benchmark stops without selecting a setting.
+Every combined, float, and STE task loss, final model parameter, and float/STE
+probe must be finite, so matching NaNs or infinities cannot pass parity. The
+integer probe must be detached int64.
+
+At start and end, every worker records byte identities for the Python
+executable, Torch Python module, and native `_C` module, plus versions, CPU,
+actual thread count, inter-op count one, deterministic algorithms, and
+debug-error mode. Start and end must match. All 12 workers must have the same
+runtime identity except for the requested thread count. Worker stderr goes to
+one private file per seed instead of an undrained pipe.
 
 Only after parity passes are the two counterbalanced pairs compared. Four is
 selected only if it is strictly faster in both pairs and the median speedup is
-at least 1.05×. Otherwise two is selected. A benchmark result still cannot
-change production training by itself; a separate reviewed change would be
-required.
+at least 1.05×. The gate uses exact integer cross-products, not rounded display
+ppm. Otherwise two is selected. A benchmark result still cannot change
+production training by itself; a separate reviewed change would be required.
 
 ## Execution order
 
@@ -54,17 +65,24 @@ with the existing contract. If four is selected, first review and merge a
 separate production-contract PR with its tests and documentation, then build
 the candidate from that revision.
 
+Use this exact wrapper to prevent sleep. The Python script itself receives zero
+arguments.
+
+```sh
+/usr/bin/caffeinate -dimsu ~/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/run_strength_first_training_thread_benchmark.py
+```
+
 Do not redirect the builder's stdout directly onto the tracked plan path. The
 builder safely stops when that file already exists. Write its stdout candidate
 to a separate temporary file and use the reviewed enrollment step.
 
 ## Current state
 
-Seven pure-stdlib unit tests, Python compilation, Ruff, and the diff check pass.
+Twelve pure-stdlib unit tests, Python compilation, Ruff, and the diff check pass.
 They cover process dispatch, the three-seed barrier, ABBA order, the 5% gate,
-same-setting determinism stops, cross-setting parity stops, and the
-training-only boundary. They launch no Torch worker and perform no optimizer
-training.
+same-setting determinism stops, cross-setting parity stops, runtime matching,
+finite-value stops, optimizer-state hashing, and the training-only boundary.
+They launch no Torch worker and perform no optimizer training.
 
 The real benchmark is deferred until the active formal 24,000-position teacher
 finishes and must run before the plan candidate is built. There is currently no

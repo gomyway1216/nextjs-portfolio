@@ -8,6 +8,7 @@
     "real_loss_callable": "ml/train.py:int16_aware_dual_task_loss",
     "real_fixed_point_callable": "ml/int16_forward.py:int16_forward_ste",
     "optimizer": "torch.optim.AdamW",
+    "worker_stderr": "exclusive-private-file-per-seed",
     "source_files_bound_by_bytes_and_sha256": [
       "ml/run_strength_first_training_thread_benchmark.py",
       "ml/train.py",
@@ -28,15 +29,33 @@
     "timing_scope": "loss-forward-backward-adamw-step-only",
     "same_setting_model_and_probe_hash_equality_required": true,
     "cross_setting_model_and_probe_hash_equality_required": true,
+    "adamw_state_hash_equality_required": true,
+    "adamw_state_includes": ["step", "exp_avg", "exp_avg_sq"],
+    "loss_model_and_probe_finite_required": true,
+    "integer_probe_detached_int64_required": true,
+    "runtime_start_end_identity_required": true,
+    "runtime_identity_includes": [
+      "python-executable-bytes-sha256",
+      "torch-python-module-bytes-sha256",
+      "torch-native-c-module-bytes-sha256",
+      "python-and-torch-versions",
+      "cpu",
+      "actual-intraop-and-interop-threads",
+      "deterministic-algorithms-and-debug-error"
+    ],
+    "all_12_workers_runtime_equal_except_requested_threads": true,
     "mismatch_action": "STOP-without-selection",
     "both_pairs_must_strictly_favor_four": true,
     "minimum_median_speedup_ppm": 1050000,
+    "speed_gate_arithmetic": "exact-integer-cross-products-display-ppm-not-authoritative",
     "fallback_threads_per_seed": 2
   },
   "execution_status": {
     "real_benchmark_started": false,
     "reason": "formal-24000-position-teacher-active",
     "required_order": "after-formal-teacher-before-exact-qat-plan-candidate",
+    "sleep_prevention_wrapper": "/usr/bin/caffeinate -dimsu ~/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/run_strength_first_training_thread_benchmark.py",
+    "python_script_argument_count": 0,
     "torch_workers_started_by_validation": 0,
     "optimizer_steps_run_by_validation": 0,
     "measured_elapsed_ns": null,
@@ -45,7 +64,7 @@
   "focused_validation": {
     "pure_stdlib_unit_tests": {
       "status": "PASS",
-      "tests": 7
+      "tests": 12
     },
     "python_compile": "PASS",
     "ruff": "PASS",
@@ -74,5 +93,5 @@
     "high_dan_calibrated": false,
     "live_model_changed": false
   },
-  "next_step": "run-the-short-real-abba-benchmark-after-the-formal-teacher-releases-the-cpu-and-before-building-the-exact-qat-plan-candidate"
+  "next_step": "use-the-caffeinate-wrapper-to-run-the-short-real-abba-benchmark-after-the-formal-teacher-releases-the-cpu-and-before-building-the-exact-qat-plan-candidate"
 }

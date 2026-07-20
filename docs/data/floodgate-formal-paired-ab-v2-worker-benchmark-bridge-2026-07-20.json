@@ -1,0 +1,124 @@
+{
+  "schema": "shogi-formal-paired-ab-v2-worker-benchmark-bridge-evidence-v1",
+  "recorded_date": "2026-07-20",
+  "status": {
+    "benchmark_registry": "BLOCKED",
+    "benchmark_rounds_started": 0,
+    "benchmark_rounds_required": 8,
+    "benchmark_pairs_started": 0,
+    "benchmark_games_started": 0,
+    "formal_pairs_started": 0,
+    "formal_games_started": 0,
+    "formal_games_required": 768,
+    "candidate_selected": false,
+    "live_weights_changed": false
+  },
+  "benchmark_contract": {
+    "worker_candidates": [2, 4, 8, 12],
+    "round_sequence": [2, 4, 8, 12, 12, 8, 4, 2],
+    "pairs_per_round": 12,
+    "games_per_round": 24,
+    "rounds": 8,
+    "total_pairs": 96,
+    "total_games": 192,
+    "repetitions_per_setting": 2,
+    "maximum_pair_workers": 12,
+    "maximum_engine_processes": 24,
+    "selection_condition": "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality",
+    "exact_tie_selects_lower_worker_count": true,
+    "technical_faults_allowed": 0,
+    "observed_peak_must_equal_requested_pair_workers": true
+  },
+  "authority": {
+    "production_entry_argumentless": true,
+    "caller_selected_registry": false,
+    "registry_identity": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json",
+      "bytes": 2383,
+      "sha256": "15b47424a14f7464a45950adc6537ea62ab7f91fcb997b2c9e4e146392785fc6",
+      "schema": "shogi-formal-paired-ab-v2-worker-benchmark-registry-v1"
+    },
+    "runtime_source_identities_required": 25,
+    "source_revision_ancestry_required": true,
+    "post_run_source_revalidation_required": true,
+    "os_account_home_required": true,
+    "caller_home_override_allowed": false,
+    "output_directory_mode": "0700",
+    "receipt_file_mode": "0600",
+    "receipt_single_link_required": true,
+    "receipt_publication_exclusive": true,
+    "formal_ready_requires_receipt_identity": true,
+    "formal_ready_requires_selected_worker_equality": true
+  },
+  "implementation_artifacts": {
+    "registry_candidate_builder": {
+      "path": "ml/build_formal_paired_ab_v2_worker_benchmark_registry_candidate.py",
+      "bytes": 11022,
+      "sha256": "b6c9cc0eea6a6128160ae8e2cd43a0dd209ddccc42a2f1222b3a1d14f5392404"
+    },
+    "benchmark_bound_runner": {
+      "path": "ml/formal_paired_ab_v2_benchmark_bound_runner.py",
+      "bytes": 12301,
+      "sha256": "3628864ec1602ef11652f7c786413405dbd9534691c25b0cb8e66fc73bf5f6dc"
+    },
+    "benchmark_authority": {
+      "path": "ml/formal_paired_ab_v2_worker_benchmark_authority.py",
+      "bytes": 990,
+      "sha256": "da8426c894d3922808544d645b2faeef92e47bd0dc04239748e8d65a13a8d667"
+    },
+    "benchmark_bridge": {
+      "path": "ml/formal_paired_ab_v2_worker_benchmark_bridge.py",
+      "bytes": 73100,
+      "sha256": "73db9db46034f446fa6e1e3dfde014d0cc84d3345fd8003b3c061d4ae16925f5"
+    },
+    "benchmark_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json",
+      "bytes": 2383,
+      "sha256": "15b47424a14f7464a45950adc6537ea62ab7f91fcb997b2c9e4e146392785fc6"
+    },
+    "production_cli": {
+      "path": "ml/run_formal_paired_ab_v2_worker_benchmark.py",
+      "bytes": 2953,
+      "sha256": "21aae85b59611fac37e5a9895454824e8bbad24dfd4c9ab34b0024071bc4ca99"
+    }
+  },
+  "validation": {
+    "python_full_tests_passed": 406,
+    "python_full_tests_failed": 0,
+    "formal_typescript_tests_passed": 37,
+    "formal_typescript_tests_failed": 0,
+    "independent_focused_tests_passed": 15,
+    "independent_focused_tests_failed": 0,
+    "initial_python_source_drift_rejected": true,
+    "initial_typescript_source_drift_rejected": true,
+    "initial_wasm_source_drift_rejected": true,
+    "post_run_source_drift_rejected": true,
+    "historical_launcher_evidence_changed": false
+  },
+  "safety": {
+    "local_only": true,
+    "network": false,
+    "cloud": false,
+    "aws": false,
+    "gcp": false,
+    "formal_pair_journal_access": false,
+    "live_weight_write": false
+  },
+  "next": [
+    "finish_fresh_selection_teacher",
+    "select_one_candidate",
+    "review_ready_benchmark_enrollment",
+    "run_eight_round_worker_benchmark",
+    "pin_selected_pair_workers",
+    "run_384_pair_formal_ab",
+    "run_retention_regression_and_external_calibration"
+  ],
+  "nonclaims": {
+    "benchmark_executed": false,
+    "formal_ab_executed": false,
+    "candidate_stronger": false,
+    "high_dan_calibrated": false,
+    "promotion_authorized": false,
+    "live_weights_changed": false
+  }
+}

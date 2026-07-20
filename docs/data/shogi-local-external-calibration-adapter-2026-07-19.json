@@ -212,7 +212,7 @@
       }
     },
     "writer_closure": {
-      "status": "ADAPTER_PASS_ATTEMPT_3_WRAPPER_PENDING_INDEPENDENT_REREVIEW",
+      "status": "PASS_ATTEMPT_3_VALID_SINGLE_TERMINAL",
       "adapter_status": "PASS",
       "adapter_filesystem_writer": false,
       "adapter_network_writer": false,
@@ -247,11 +247,218 @@
       "reason": "preimage-review-found-bootstrap-terminal-and-supervision-races"
     },
     "attempt_3": {
-      "status": "PREIMAGE_PENDING_INDEPENDENT_REREVIEW_NOT_LAUNCHED",
-      "engine_processes_started": 0,
-      "output_directory_claimed": false,
-      "result_claimable": false,
-      "launch_deferred_reason": "formal-teacher-12-engine-full-cpu-avoid-oversubscription"
+      "status": "VALID_COMPLETE_RECEIPT",
+      "engine_processes_started": 12,
+      "output_directory_claimed": true,
+      "games_required": 12,
+      "games_completed": 12,
+      "technical_faults": 0,
+      "cleanup_completed": true,
+      "result_claimable": true,
+      "single_terminal_outcome": "receipt"
+    }
+  },
+  "pilot_result": {
+    "status": "VALID_COMPLETE_TECHNICAL_PILOT_ZERO_STRENGTH_SIGNAL",
+    "attempt": 3,
+    "started_at_utc": "2026-07-20T03:42:23.897Z",
+    "observed_control_artifact_elapsed_seconds": 153,
+    "terminal": {
+      "schema": "shogi-local-external-calibration-terminal-v1",
+      "outcome": "receipt",
+      "bytes": 21066,
+      "file_sha256": "f1f77b1c74a3b0a3fb2579d316e492e904cead5db898e4ef987714e7cc285723",
+      "receipt_sha256": "6fa8de0d10a30791f9cc75a4b312fcc2e3b85ec481d770672c1be1d62c070a87"
+    },
+    "execution_identity": {
+      "head": "cacfa730fdc8d7bfd3005eb1c47bb855c0495a70",
+      "tree": "b1ac618c3ecb2e284f663edc7948033cc911f0cf",
+      "adapter_sha256": "85c6a8aabc1b62ab0a755fe746daa4e4b6893ab5cb1ee7a7eeb5b0d5ff3957d3",
+      "wrapper": {
+        "bytes": 9656,
+        "sha256": "4870280cd801c775adc3a277b3416dbed3f83fe24b56ee232aea79dd5332c6f0"
+      },
+      "launcher": {
+        "bytes": 5056,
+        "sha256": "990f8f52bef19b17f549813cb3f6162ce834c3abec3af3fa49ef112b9acbf54a"
+      },
+      "publication": "exclusive-one-shot-directory-and-fsync-hard-link-no-replace-single-terminal-v1",
+      "supervisor_deadline_seconds": 900
+    },
+    "request": {
+      "file_bytes": 1677,
+      "file_sha256": "37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca",
+      "canonical_digest_sha256": "813449f55b7cb23265237b101b7f239d7bea981eec558d536a754a748af72e0e",
+      "run_id": "sha256:76dbf55c6c71b4c7fa790c9f94d34014ff4fe517800bfc519c5b390ae4b0abd3"
+    },
+    "runtime": {
+      "stable": {
+        "player_id": "production-stable-worker-wasm-nnue-v20",
+        "runtime_receipt_sha256": "fae54fe33187e92e143beefaa4e8407fcad9351390fb380b3543902814f64085",
+        "depth": 11
+      },
+      "reference": {
+        "player_id": "pinned-yaneuraou-nnue-9.60git-applem1",
+        "runtime_receipt_sha256": "a9741dfcecd4dc7f6e4910e6754069951d067594fb8edabcb5b092cce3afbe5e",
+        "depth": 16
+      },
+      "per_move_timeout_ms": 600000,
+      "network": false
+    },
+    "summary": {
+      "games": 12,
+      "plies": 96,
+      "stable_wins": 0,
+      "draws": 12,
+      "stable_losses": 0,
+      "stable_points": 6,
+      "decisive_games": 0,
+      "all_terminations": "max-plies",
+      "max_plies_per_game": 8,
+      "technical_faults": 0,
+      "cleanup_completed": true
+    },
+    "games": [
+      {
+        "game_id": "sha256:67e46cb0ff4db9409340cc798ad9cde3c53803f451a1e7d6a9f06efae62af0a3",
+        "opening_id": "sha256:79be4ac399ab70940c9c374dec76751c8b0a9062b9b7144b47be105d5c8026ad",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "cc73c3cba5d905f301652b3c1e1f48bb56cea167ca9082aa3645d384cb53d139"
+      },
+      {
+        "game_id": "sha256:4e4c9883a8f35f3d6d4219eb5d379584d230bfd915951148fb37db8c31d26509",
+        "opening_id": "sha256:79be4ac399ab70940c9c374dec76751c8b0a9062b9b7144b47be105d5c8026ad",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "95660a4730a5b41b87705b444e89afeda1fbbd46b128642d0e00b5140b8a0070"
+      },
+      {
+        "game_id": "sha256:dec306381c4a03a49603311d7f33889b9aa7e5a55843df3456ca32eed79ca3b8",
+        "opening_id": "sha256:6be5c87c02c6bd791f3be1cfdd60ce4dc91a658e948a3640e08d71d3bcf14490",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "59bb77d5aea8e736d4f4806c1bb31d28acfd574b136272f161f08ef00aee21f1"
+      },
+      {
+        "game_id": "sha256:f16f9a01badaa822d7b9abdf5519fc10bf7a8e079a7a185ac873a7b65b14ed0e",
+        "opening_id": "sha256:6be5c87c02c6bd791f3be1cfdd60ce4dc91a658e948a3640e08d71d3bcf14490",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "5773b4136033aa2a300e03f16b93f19c82538ee42381650d9bff7169bbddf1b9"
+      },
+      {
+        "game_id": "sha256:4f638c6e4b5386a5c140faaa58ae4245c627c409a00b96ead3fe1cfd6c7dee74",
+        "opening_id": "sha256:8681745eba9c0ffe2848d887c3cf6513e4d6f4dab53b29d1f2864d76d09138d5",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "1722b29363ad72a44dd1104779867a2fe98dea92e0c98b4bd031155ec0709b1d"
+      },
+      {
+        "game_id": "sha256:84d9f31295ddb75cd1f24c4a6675eeab9b6ba401420b4ab0e4df628b5f0c2d89",
+        "opening_id": "sha256:8681745eba9c0ffe2848d887c3cf6513e4d6f4dab53b29d1f2864d76d09138d5",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "56798f107a167f61a5f5bd1505bfab5c3140bab2549f7ce59d64b629f9258d44"
+      },
+      {
+        "game_id": "sha256:d89048082972763a205981124b8fc440e1356cbfad6bec8545885b130bbec2dd",
+        "opening_id": "sha256:4096b16aa7588ccddc78cc35827ea5dc66538e4cce99ee42e280393b1427cc44",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "e6158723217f3a662670d0de0dd2c552254e3bf2380be039583e30818af0e189"
+      },
+      {
+        "game_id": "sha256:662ad18b541c7c9d2fa64c18b92ce343cae793a31f4261f22eb755a144786a4c",
+        "opening_id": "sha256:4096b16aa7588ccddc78cc35827ea5dc66538e4cce99ee42e280393b1427cc44",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "f870ff33d5d51c768904aa4b647f91dfae55931f84849e31906c418fccee8a3c"
+      },
+      {
+        "game_id": "sha256:1ad1923c7e4bcfa1c2794cfd8f85b3f8bf6a253033054b4cb9b06e5c67a11779",
+        "opening_id": "sha256:ea57d839d2189f391883f4f43e93a2289a9593765ecd1fdd039aac181660be2d",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "c2f01cb3900538a8d29e5221604866e09066f4c11d5e5f6fbf13bfeecc56e78a"
+      },
+      {
+        "game_id": "sha256:16a85767b9b3d3f9a08c00dbcd217dc77c924de4c2ab5d33a45b0a45b49b8e2a",
+        "opening_id": "sha256:ea57d839d2189f391883f4f43e93a2289a9593765ecd1fdd039aac181660be2d",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "64a936f4e09f48a55ac7217522672a5752be49b897e546bcfdc55ac721bbb40f"
+      },
+      {
+        "game_id": "sha256:d2289dcead597a2df2e3d6c19f99badf0774f2344ebb97a4c2b001f1e741da08",
+        "opening_id": "sha256:54ffe1f00bd32bd3e0eeb48feef2fa24847b45f94acfff9af1985cf124a0a355",
+        "stable_color": "sente",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "eccf41f9dd3480281d22df07819c03f96bc28abd1f0fe7242dee3348e8e2f50e"
+      },
+      {
+        "game_id": "sha256:98dd8016d1d927069b5e9495d7d7ac12cdb1fd9655292aabd54225d87c218598",
+        "opening_id": "sha256:54ffe1f00bd32bd3e0eeb48feef2fa24847b45f94acfff9af1985cf124a0a355",
+        "stable_color": "gote",
+        "result_for_stable": "draw",
+        "termination": "max-plies",
+        "plies": 8,
+        "transcript_sha256": "5104fc8ff23d20d216a74758614798939634142b955b808dbcf9fa24ab7f204f"
+      }
+    ],
+    "independent_recomputation": {
+      "canonical_request_digest_match": true,
+      "game_ids_recomputed": 12,
+      "transcript_digests_recomputed": 12,
+      "unique_transcript_digests": 12,
+      "receipt_digest_match": true,
+      "legal_plies_replayed": 96,
+      "final_sfen_matches": 12,
+      "final_positions_still_nonterminal": 12
+    },
+    "writer_and_process_cleanup": {
+      "control_entries_exact": 6,
+      "control_directory_mode": "0700",
+      "output_file_mode": "0600",
+      "hidden_or_temporary_outputs": 0,
+      "terminal_hard_links_after_temp_unlink": 1,
+      "private_snapshot_children_after_cleanup": 0,
+      "stored_unique_pids_reaped": 2,
+      "pilot_log_bytes": 0,
+      "head_unchanged": true,
+      "tree_unchanged": true,
+      "worktree_clean": true,
+      "request_unchanged": true,
+      "adapter_unchanged": true
+    },
+    "strength_interpretation": {
+      "technical_completion_signal": true,
+      "strength_signal": false,
+      "elo_signal": false,
+      "rank_signal": false,
+      "reason": "all-games-ended-at-preregistered-eight-ply-cap-with-no-decisive-result"
     }
   },
   "validation": {
@@ -299,20 +506,18 @@
     "unresolved_p1": 0,
     "unresolved_p2": 0,
     "code_review_gate_passed": true,
-    "remaining_pilot_gates": [
-      "attempt-3-independent-wrapper-review-p0-p1-zero",
-      "safe-idle-machine-window"
-    ],
-    "technical_pilot_authorized": false,
+    "remaining_pilot_gates": [],
+    "technical_pilot_authorized": true,
+    "technical_pilot_completed": true,
     "authorization_scope": "exact-preregistered-12-game-local-technical-pilot-only",
-    "real_pilot_authorized": false
+    "real_pilot_authorized": true
   },
   "execution_counters": {
-    "real_stable_games": 12,
-    "real_yaneuraou_games": 12,
-    "real_engine_processes_started_by_this_change": 12,
-    "claimable_real_games": 0,
-    "claimable_pilot_receipts": 0,
+    "real_stable_games": 24,
+    "real_yaneuraou_games": 24,
+    "real_engine_processes_started_by_this_change": 24,
+    "claimable_real_games": 12,
+    "claimable_pilot_receipts": 1,
     "non_issuable_completed_attempts": 1,
     "network_requests": 0,
     "aws_operations": 0,

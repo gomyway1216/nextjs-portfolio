@@ -69,7 +69,7 @@ The implementation anchor is `70f9a6d0f1098dd37cb4024691ed92e8336582e9`. Indepen
 | fourfold-position fixture                                                              |                               draw at 12 plies for both colors |
 | perpetual-check fixture                                                                |                   checking side loses at 12 plies, both colors |
 | no-legal-moves fixture                                                                 |                          mover wins after one ply, both colors |
-| real YaneuraOu / exact-stable games                                                    |                      12 completed in attempt 1, zero claimable |
+| real YaneuraOu / exact-stable games                                                    |           12 non-issuable in attempt 1 + 12 valid in attempt 3 |
 | network / AWS / GCP / Firebase / Vercel                                                |                                                           zero |
 | live / holdout / production-result writes                                              |                                                           zero |
 
@@ -87,17 +87,35 @@ The exact-private-asset read-only preflight also passed. YaneuraOu, the 64,217,0
 
 The first real attempt completed all 12 games with zero technical faults and confirmed runtime cleanup. Its outer result-publication wrapper nevertheless retained a check-then-act race under concurrent launch and used rename semantics that could replace an existing file. It therefore could not prove exactly-once issuance, so attempt 1 is non-issuable. Its W/D/L is not used in this article or any evaluation, and the private artifacts remain preserved. Attempt 2 never started an engine: pre-launch review found missing post-run source revalidation, single-terminal publication, and bounded supervision.
 
-Attempt 3 changes the boundary to an exclusive-directory one-shot claim, pre- and post-run checks of the fixed HEAD, tree, source, request, and wrapper identities, one hard-link-published `terminal.json` containing either receipt or sanitized failure, and a 15-minute supervisor that reaps or terminates children. It is pending independent rereview and is not running while the formal teacher occupies 12 engines, avoiding CPU oversubscription.
+Attempt 3 changes the boundary to an exclusive-directory one-shot claim, pre- and post-run checks of the fixed HEAD, tree, source, request, and wrapper identities, one hard-link-published `terminal.json` containing either receipt or sanitized failure, and a 15-minute supervisor that reaps or terminates children. After independent rereview, it ran in a safe execution window and completed normally in about 153 seconds.
+
+## Measured attempt-3 result
+
+| Item                     |                                                             Result |
+| ------------------------ | -----------------------------------------------------------------: |
+| Completion               |                                            12 / 12 games, 96 plies |
+| Stable W / D / L         |                                                         0 / 12 / 0 |
+| Termination              |                     all 12 reached the preregistered eight-ply cap |
+| Technical faults         |                                                                  0 |
+| Runtime cleanup          |                                                               true |
+| Receipt SHA-256          | `6fa8de0d10a30791f9cc75a4b312fcc2e3b85ec481d770672c1be1d62c070a87` |
+| Terminal-file SHA-256    | `f1f77b1c74a3b0a3fb2579d316e492e904cead5db898e4ef987714e7cc285723` |
+| Independent digest check |                  one request, 12 transcripts, and one full receipt |
+| Independent legal replay |               96 / 96 legal moves and 12 / 12 matching final SFENs |
+| Process / writer cleanup |  two stored PIDs reaped, zero snapshots or temp outputs, empty log |
+
+An independent implementation recomputed the request digest, all 12 game IDs, all 12 transcript digests, and the full receipt digest; every value matched. It then replayed all 96 moves from the opening SFENs. Every move belonged to the position's legal set, and every final SFEN matched the receipt. Each final position still had legal moves, so these draws came from the planned eight-ply cutoff—not an on-board draw adjudication.
+
+This is therefore a zero strength signal. It proves that the pinned assets, 12-way execution, color swaps, digests, cleanup, and single-result publication complete on the real machine. It does not mean stable played YaneuraOu evenly. The result cannot support a win rate, Elo, rank, or high-dan claim, and live weights remain unchanged.
 
 ## Next gate
 
-The rerun conditions are below. Adapter and asset conditions pass, while independent rereview of the attempt-3 wrapper and a safe idle machine window remain open:
+The 12-game technical-pilot gate is complete. Measuring playing strength now requires a strength experiment rather than another eight-ply plumbing run:
 
-1. independent code review reports zero P0/P1 findings;
-2. focused and related validation is green at the reviewed commit;
-3. pilot openings and request are fixed before seeing results, preserving the color swap;
-4. read-only preflight of the exact private assets is green; and
-5. live, holdout, and production writers are reconfirmed closed.
+1. preregister a broader opening set and play long enough for decisive outcomes;
+2. retain color swaps and run enough games for confidence intervals;
+3. complete candidate-versus-stable formal A/B; and
+4. separately bridge to a known rating pool or human ratings.
 
 The first pilot calibrates whether the adapter can complete; it is not a high-dan certification. A stable high-dan claim needs a broader preregistered opening set, adequate game count, multiple external references, and preferably a separate bridge to a known rating pool or human ratings. Live weights stay unchanged until both formal A/B and external calibration evidence exist.
 

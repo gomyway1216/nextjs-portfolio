@@ -69,7 +69,7 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 | 4回同一局面fixture                                                         |                                  両色とも12手でdraw |
 | 連続王手千日手fixture                                                      |                        12手、連続王手側の負け、PASS |
 | 応手なしfixture                                                            |                       1手、着手側の勝ち、両色、PASS |
-| 実YaneuraOu / exact stable対局                                             |                    attempt 1で12局完走、採用可能0局 |
+| 実YaneuraOu / exact stable対局                                             |       attempt 1の採用不能12局 + attempt 3の有効12局 |
 | network / AWS / GCP / Firebase / Vercel                                    |                                                   0 |
 | live / holdout / production-result write                                   |                                                   0 |
 
@@ -87,17 +87,35 @@ exact private assetのread-only preflightもPASSした。YaneuraOu、64,217,066-
 
 最初の実行は12局すべてを完走し、technical fault 0、runtime cleanup完了まで確認した。しかし、結果を保存する外側のwrapperに、同時起動時のcheck-then-act競合と既存fileを置換できるrenameが残っていた。このため「結果が1回だけ発行された」と証明できず、attempt 1は採用不能（non-issuable）とした。W/D/Lは記事や評価へ使わず、private artifactをそのまま保存している。attempt 2はengineを起動する前のreviewで、source再検証、単一terminal、bounded supervisorが不足すると判明したため実行していない。
 
-attempt 3は、排他的directory作成によるone-shot claim、固定HEAD / tree / source / request / wrapper identityの実行前後検査、結果または失敗のどちらか一方だけをhard-linkで発行する単一`terminal.json`、15分上限のsupervisorと子process回収へ変更した。現在は独立再review待ちで、formal teacherが12 engineを使用中のためCPU oversubscriptionを避けて起動を保留している。
+attempt 3は、排他的directory作成によるone-shot claim、固定HEAD / tree / source / request / wrapper identityの実行前後検査、結果または失敗のどちらか一方だけをhard-linkで発行する単一`terminal.json`、15分上限のsupervisorと子process回収へ変更した。独立再review後、安全な実行枠で起動し、約153秒で正常完了した。
+
+## attempt 3の実測結果
+
+| 項目                     |                                                               結果 |
+| ------------------------ | -----------------------------------------------------------------: |
+| 完走                     |                                                    12 / 12局、96手 |
+| stable W / D / L         |                                                         0 / 12 / 0 |
+| 終局理由                 |                                        12局すべて事前固定の8手上限 |
+| technical fault          |                                                                  0 |
+| runtime cleanup          |                                                               true |
+| receipt SHA-256          | `6fa8de0d10a30791f9cc75a4b312fcc2e3b85ec481d770672c1be1d62c070a87` |
+| terminal file SHA-256    | `f1f77b1c74a3b0a3fb2579d316e492e904cead5db898e4ef987714e7cc285723` |
+| 独立digest再計算         |                          request 1件、transcript 12件、receipt 1件 |
+| 独立合法手replay         |                              96 / 96手合法、final SFEN 12 / 12一致 |
+| process / writer cleanup |        stored PID 2件reaped、snapshot残留0、temp出力0、log 0 bytes |
+
+request digest、12個のgame ID、12個のtranscript digest、receipt digestをadapterの出力値とは別に再計算し、すべて一致した。さらにopening SFENから96手を再生し、全着手がその局面の合法手集合に含まれ、12局のfinal SFENがreceiptと一致することを確認した。終了局面はいずれもまだ合法手を持つため、drawは盤上の引き分け判定ではなく、予定どおり8手上限に達した結果である。
+
+したがって、今回の棋力signalは0である。確認できたのは「固定asset、12並列、先後入替、digest、cleanup、単一結果発行が実機で完走する」ことだけで、stableがYaneuraOuと互角という意味ではない。勝率、Elo、段位、高段の証拠には使えず、live weightsも変更していない。
 
 ## 次のgate
 
-実YaneuraOu pilotの再実行条件は次である。adapterとassetの条件はPASSしているが、attempt 3 wrapperの独立再reviewと安全なidle時間帯は未完了である。
+12局technical pilotのgateは完了した。次に棋力を測るには、8手で打ち切るtechnical runではなく、次の強度評価が必要である。
 
-1. codeの独立reviewでP0 / P1が0
-2. focused / related validationがreview対象commitでgreen
-3. pilot openingとrequestを結果を見る前に固定し、同一opening先後入替を維持
-4. exact private assetsのread-only preflightがgreen
-5. live、holdout、production writerが閉じていることを再確認
+1. より広いopeningを事前固定し、勝敗が付くまで十分長く指す
+2. 先後入替を維持した十分な対局数で信頼区間を出す
+3. candidate対stableのformal A/Bを完了する
+4. 既知rating poolまたは人間ratingへつながる外部校正を別に行う
 
 最初のpilotはadapterが本当に完走できるかを見る校正であり、高段認定ではない。安定した高段相当を主張するには、より広い事前登録opening、十分な対局数、複数の外部基準、可能なら既知rating poolまたは人間ratingとの別校正が必要である。formal A/Bと外部校正の両方が揃うまでlive weightsは変更しない。
 

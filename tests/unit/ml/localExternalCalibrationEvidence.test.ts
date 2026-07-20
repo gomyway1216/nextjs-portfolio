@@ -163,7 +163,7 @@ describe("local external calibration publication evidence", () => {
     expect(source).not.toMatch(/\b(?:fetch|writeFile|appendFile)\s*\(/u);
   });
 
-  it("records the non-issuable real attempt without making a strength claim", () => {
+  it("records both real attempts without making a strength claim", () => {
     const evidence = JSON.parse(read(EVIDENCE));
     expect(evidence.validation).toMatchObject({
       node: "v22.13.0",
@@ -197,11 +197,11 @@ describe("local external calibration publication evidence", () => {
       diff_check: "PASS",
     });
     expect(evidence.execution_counters).toMatchObject({
-      real_stable_games: 12,
-      real_yaneuraou_games: 12,
-      real_engine_processes_started_by_this_change: 12,
-      claimable_real_games: 0,
-      claimable_pilot_receipts: 0,
+      real_stable_games: 24,
+      real_yaneuraou_games: 24,
+      real_engine_processes_started_by_this_change: 24,
+      claimable_real_games: 12,
+      claimable_pilot_receipts: 1,
       non_issuable_completed_attempts: 1,
       network_requests: 0,
       aws_operations: 0,
@@ -222,13 +222,11 @@ describe("local external calibration publication evidence", () => {
       unresolved_p1: 0,
       unresolved_p2: 0,
       code_review_gate_passed: true,
-      technical_pilot_authorized: false,
-      real_pilot_authorized: false,
+      technical_pilot_authorized: true,
+      technical_pilot_completed: true,
+      real_pilot_authorized: true,
     });
-    expect(evidence.review.remaining_pilot_gates).toEqual([
-      "attempt-3-independent-wrapper-review-p0-p1-zero",
-      "safe-idle-machine-window",
-    ]);
+    expect(evidence.review.remaining_pilot_gates).toEqual([]);
     expect(evidence.pilot_execution_attempts.attempt_1).toMatchObject({
       status: "NON_ISSUABLE_WRAPPER_PUBLICATION_RACE",
       games_completed: 12,
@@ -241,10 +239,78 @@ describe("local external calibration publication evidence", () => {
       engine_processes_started: 0,
     });
     expect(evidence.pilot_execution_attempts.attempt_3).toMatchObject({
-      status: "PREIMAGE_PENDING_INDEPENDENT_REREVIEW_NOT_LAUNCHED",
-      engine_processes_started: 0,
-      output_directory_claimed: false,
+      status: "VALID_COMPLETE_RECEIPT",
+      engine_processes_started: 12,
+      output_directory_claimed: true,
+      games_completed: 12,
+      technical_faults: 0,
+      cleanup_completed: true,
+      result_claimable: true,
     });
+    expect(evidence.pilot_result).toMatchObject({
+      status: "VALID_COMPLETE_TECHNICAL_PILOT_ZERO_STRENGTH_SIGNAL",
+      attempt: 3,
+      terminal: {
+        outcome: "receipt",
+        bytes: 21066,
+        file_sha256:
+          "f1f77b1c74a3b0a3fb2579d316e492e904cead5db898e4ef987714e7cc285723",
+        receipt_sha256:
+          "6fa8de0d10a30791f9cc75a4b312fcc2e3b85ec481d770672c1be1d62c070a87",
+      },
+      execution_identity: {
+        head: "cacfa730fdc8d7bfd3005eb1c47bb855c0495a70",
+        tree: "b1ac618c3ecb2e284f663edc7948033cc911f0cf",
+        adapter_sha256:
+          "85c6a8aabc1b62ab0a755fe746daa4e4b6893ab5cb1ee7a7eeb5b0d5ff3957d3",
+        wrapper: {
+          bytes: 9656,
+          sha256:
+            "4870280cd801c775adc3a277b3416dbed3f83fe24b56ee232aea79dd5332c6f0",
+        },
+        launcher: {
+          bytes: 5056,
+          sha256:
+            "990f8f52bef19b17f549813cb3f6162ce834c3abec3af3fa49ef112b9acbf54a",
+        },
+        supervisor_deadline_seconds: 900,
+      },
+      summary: {
+        games: 12,
+        plies: 96,
+        stable_wins: 0,
+        draws: 12,
+        stable_losses: 0,
+        decisive_games: 0,
+        technical_faults: 0,
+        cleanup_completed: true,
+      },
+      independent_recomputation: {
+        game_ids_recomputed: 12,
+        transcript_digests_recomputed: 12,
+        legal_plies_replayed: 96,
+        final_sfen_matches: 12,
+      },
+      strength_interpretation: {
+        technical_completion_signal: true,
+        strength_signal: false,
+        elo_signal: false,
+        rank_signal: false,
+      },
+    });
+    expect(evidence.pilot_result.games).toHaveLength(12);
+    expect(
+      evidence.pilot_result.games.every(
+        (game) =>
+          game.result_for_stable === "draw" &&
+          game.termination === "max-plies" &&
+          game.plies === 8,
+      ),
+    ).toBe(true);
+    expect(
+      new Set(evidence.pilot_result.games.map((game) => game.transcript_sha256))
+        .size,
+    ).toBe(12);
     expect(
       evidence.pilot_preflight.exact_private_asset_read_only,
     ).toMatchObject({
@@ -254,7 +320,7 @@ describe("local external calibration publication evidence", () => {
         FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.weights,
     });
     expect(evidence.pilot_preflight.writer_closure).toMatchObject({
-      status: "ADAPTER_PASS_ATTEMPT_3_WRAPPER_PENDING_INDEPENDENT_REREVIEW",
+      status: "PASS_ATTEMPT_3_VALID_SINGLE_TERMINAL",
       adapter_status: "PASS",
       adapter_filesystem_writer: false,
       adapter_network_writer: false,
@@ -284,6 +350,10 @@ describe("local external calibration publication evidence", () => {
         "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
       );
       expect(article).toMatch(/non-issuable|採用不能/iu);
+      expect(article).toContain(
+        "6fa8de0d10a30791f9cc75a4b312fcc2e3b85ec481d770672c1be1d62c070a87",
+      );
+      expect(article).toMatch(/zero strength signal|棋力signalは0/iu);
       expect(article).toMatch(/high-dan|高段/iu);
     }
     expect(japanese).toContain(

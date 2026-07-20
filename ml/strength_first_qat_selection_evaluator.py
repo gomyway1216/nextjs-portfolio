@@ -399,23 +399,26 @@ def _strict_json(raw: bytes, label: str) -> dict[str, Any]:
     return value
 
 
-def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+def _canonical_json_payload_bytes(value: Mapping[str, Any]) -> bytes:
     if type(value) is not dict:
         raise ValueError("canonical receipt root must be an exact object")
-    return (
-        json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
-        + "\n"
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 
-def _canonical_json_sha256(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    return _canonical_json_payload_bytes(value) + b"\n"
+
+
+def _checkpoint_preflight_sha256(value: Mapping[str, Any]) -> str:
+    """Match the teacher preflight's canonical payload hash without file LF."""
+
+    return hashlib.sha256(_canonical_json_payload_bytes(value)).hexdigest()
 
 
 def _validate_protocol_file(
@@ -767,7 +770,10 @@ def _validate_preflight(
         "training_pipeline": copy.deepcopy(pipeline),
         "runs": portable_runs,
     }
-    if _canonical_json_sha256(projection) != enrollment["checkpoint_preflight_sha256"]:
+    if (
+        _checkpoint_preflight_sha256(projection)
+        != enrollment["checkpoint_preflight_sha256"]
+    ):
         raise ValueError("strength-first selection checkpoint preflight drifted")
     return preflight, projection
 

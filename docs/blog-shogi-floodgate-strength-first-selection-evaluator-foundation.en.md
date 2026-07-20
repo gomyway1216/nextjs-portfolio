@@ -44,6 +44,12 @@ The registry's `max_workers = 2` is a ceiling. This adapter loads the dataset on
 
 A later two-process optimization would need to prove that it neither duplicates evaluations nor changes the dataset fingerprint. Duplicating the dataset and model state merely to report a larger worker number is not part of this change.
 
+## Checkpoint-preflight hash connection fix (July 20, 2026)
+
+The selection-teacher preflight defines `checkpoint_preflight_sha256` over the canonical UTF-8 JSON payload itself, without a trailing LF. The evaluator previously reused its LF-terminated receipt-file serializer for this recomputation, so no hash could satisfy both the real teacher authority and a READY registry.
+
+The evaluator now separates payload hashing from file serialization and follows the producer's no-LF contract. A cross-interface regression passes the real teacher-preflight builder's summary into the READY evaluator. Receipt files retain their trailing LF; registry `null` values, private artifacts, real selection, and live weights remain unchanged.
+
 ## Today's closed state
 
 The argumentless command is:

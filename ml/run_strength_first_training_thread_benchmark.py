@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import random
 import re
 import subprocess
@@ -67,6 +68,112 @@ def _sha256_file(path: Path) -> dict[str, Any]:
 
 def _implementation_identities(repo_root: Path) -> dict[str, dict[str, Any]]:
     return {name: _sha256_file(repo_root / name) for name in SOURCE_FILES}
+
+
+def _runtime_snapshot(torch: Any, train: Any, threads: int) -> dict[str, Any]:
+    actual_threads = torch.get_num_threads()
+    interop_threads = torch.get_num_interop_threads()
+    deterministic = torch.are_deterministic_algorithms_enabled()
+    debug_mode = torch.get_deterministic_debug_mode()
+    if (
+        actual_threads != threads
+        or interop_threads != 1
+        or deterministic is not True
+        or debug_mode != 2
+    ):
+        raise BenchmarkStop("verified Torch runtime settings drifted")
+    system = platform.system()
+    machine = platform.machine()
+    processor = platform.processor()
+    torch_module = Path(torch.__file__).resolve()
+    torch_native_module = Path(torch._C.__file__).resolve()
+    python_executable = Path(sys.executable).resolve()
+    return {
+        "platform": platform.platform(),
+        "system": system,
+        "machine": machine,
+        "processor": processor,
+        "cpu_model": train._runtime_cpu_model(system, processor, machine),
+        "logical_cpu_count": os.cpu_count(),
+        "python": {
+            "implementation": platform.python_implementation(),
+            "version": platform.python_version(),
+            "executable": _sha256_file(python_executable),
+        },
+        "torch": {
+            "version": str(torch.__version__),
+            "module": _sha256_file(torch_module),
+            "native_module": _sha256_file(torch_native_module),
+        },
+        "device": "cpu",
+        "torch_threads": actual_threads,
+        "torch_interop_threads": interop_threads,
+        "deterministic_algorithms": deterministic,
+        "deterministic_debug_mode": "error",
+    }
+
+
+def _validate_runtime(value: Any, threads: int) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != {
+        "platform",
+        "system",
+        "machine",
+        "processor",
+        "cpu_model",
+        "logical_cpu_count",
+        "python",
+        "torch",
+        "device",
+        "torch_threads",
+        "torch_interop_threads",
+        "deterministic_algorithms",
+        "deterministic_debug_mode",
+    }:
+        raise BenchmarkStop("worker runtime shape drifted")
+    python = value["python"]
+    torch = value["torch"]
+    identities = (
+        python.get("executable") if type(python) is dict else None,
+        torch.get("module") if type(torch) is dict else None,
+        torch.get("native_module") if type(torch) is dict else None,
+    )
+    if (
+        any(type(value[field]) is not str or not value[field] for field in (
+            "platform",
+            "system",
+            "machine",
+            "processor",
+            "cpu_model",
+        ))
+        or type(value["logical_cpu_count"]) is not int
+        or value["logical_cpu_count"] < 12
+        or type(python) is not dict
+        or set(python) != {"implementation", "version", "executable"}
+        or type(python["implementation"]) is not str
+        or not python["implementation"]
+        or type(python["version"]) is not str
+        or not python["version"]
+        or type(torch) is not dict
+        or set(torch) != {"version", "module", "native_module"}
+        or type(torch["version"]) is not str
+        or not torch["version"]
+        or any(
+            type(identity) is not dict
+            or set(identity) != {"bytes", "sha256"}
+            or type(identity["bytes"]) is not int
+            or identity["bytes"] <= 0
+            or type(identity["sha256"]) is not str
+            or not SHA256_RE.fullmatch(identity["sha256"])
+            for identity in identities
+        )
+        or value["device"] != "cpu"
+        or value["torch_threads"] != threads
+        or value["torch_interop_threads"] != 1
+        or value["deterministic_algorithms"] is not True
+        or value["deterministic_debug_mode"] != "error"
+    ):
+        raise BenchmarkStop("worker runtime contract drifted")
+    return value
 
 
 def _capture_clean_revision(
@@ -195,11 +302,13 @@ def _validate_worker_result(
         "compute_ns",
         "model_tensor_sha256",
         "probe_output_sha256",
+        "optimizer_state_sha256",
+        "runtime_start",
+        "runtime_end",
         "training_only",
         "selection_labels_read",
         "holdout_labels_read",
         "live_weights_changed",
-        "torch_version",
     }
     if type(value) is not dict or set(value) != expected_keys:
         raise BenchmarkStop("private worker result shape drifted")
@@ -219,14 +328,18 @@ def _validate_worker_result(
         or not SHA256_RE.fullmatch(value["model_tensor_sha256"])
         or type(value["probe_output_sha256"]) is not str
         or not SHA256_RE.fullmatch(value["probe_output_sha256"])
+        or type(value["optimizer_state_sha256"]) is not str
+        or not SHA256_RE.fullmatch(value["optimizer_state_sha256"])
         or value["training_only"] is not True
         or value["selection_labels_read"] is not False
         or value["holdout_labels_read"] is not False
         or value["live_weights_changed"] is not False
-        or type(value["torch_version"]) is not str
-        or not value["torch_version"]
     ):
         raise BenchmarkStop("private worker result contract drifted")
+    runtime_start = _validate_runtime(value["runtime_start"], request["threads"])
+    runtime_end = _validate_runtime(value["runtime_end"], request["threads"])
+    if runtime_start != runtime_end:
+        raise BenchmarkStop("private worker runtime changed during compute")
     return value
 
 
@@ -260,6 +373,7 @@ def _run_trial(
         for seed in SEEDS
     ]
     processes = []
+    worker_logs = []
     try:
         for request in requests:
             environment = dict(os.environ)
@@ -275,13 +389,21 @@ def _run_trial(
                     "MKL_DYNAMIC": "FALSE",
                 }
             )
+            log_path = trial_root / f"worker-{request['seed']}.stderr.log"
+            log_descriptor = os.open(
+                log_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+            worker_log = os.fdopen(log_descriptor, "wb")
+            worker_logs.append(worker_log)
             processes.append(
                 popen_factory(
                     [str(python), str(repo_root / SOURCE_FILES[0])],
                     cwd=repo_root,
                     env=environment,
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
+                    stderr=worker_log,
                 )
             )
         deadline = time.monotonic() + timeout_seconds
@@ -310,6 +432,9 @@ def _run_trial(
     except BaseException:
         _stop_processes(processes)
         raise
+    finally:
+        for worker_log in worker_logs:
+            worker_log.close()
     return {
         "ordinal": ordinal,
         "threads_per_seed": threads,
@@ -327,10 +452,14 @@ def _speedup_ppm(elapsed_two: int, elapsed_four: int) -> int:
         or elapsed_four <= 0
     ):
         raise BenchmarkStop("trial compute time is invalid")
-    return round(elapsed_two * 1_000_000 / elapsed_four)
+    return (
+        elapsed_two * 1_000_000 + elapsed_four // 2
+    ) // elapsed_four
 
 
-def _canonical_outputs(trial: Mapping[str, Any]) -> dict[int, tuple[str, str]]:
+def _canonical_outputs(
+    trial: Mapping[str, Any],
+) -> dict[int, tuple[str, str, str]]:
     workers = trial.get("workers")
     if type(workers) is not list or len(workers) != len(SEEDS):
         raise BenchmarkStop("trial worker grid drifted")
@@ -344,10 +473,28 @@ def _canonical_outputs(trial: Mapping[str, Any]) -> dict[int, tuple[str, str]]:
         outputs[seed] = (
             worker.get("model_tensor_sha256"),
             worker.get("probe_output_sha256"),
+            worker.get("optimizer_state_sha256"),
         )
     if set(outputs) != set(SEEDS):
         raise BenchmarkStop("trial worker seed grid is incomplete")
     return outputs
+
+
+def _validate_runtime_grid(trials: Sequence[Mapping[str, Any]]) -> None:
+    baseline = None
+    for trial in trials:
+        threads = trial["threads_per_seed"]
+        for worker in trial["workers"]:
+            runtime_start = _validate_runtime(worker.get("runtime_start"), threads)
+            runtime_end = _validate_runtime(worker.get("runtime_end"), threads)
+            if runtime_start != runtime_end:
+                raise BenchmarkStop("worker runtime changed during compute")
+            normalized = dict(runtime_start)
+            normalized["torch_threads"] = 0
+            if baseline is None:
+                baseline = normalized
+            elif normalized != baseline:
+                raise BenchmarkStop("worker runtime identity differs across ABBA")
 
 
 def _select_threads(trials: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -357,6 +504,7 @@ def _select_threads(trials: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         or tuple(trial.get("ordinal") for trial in trials) != (1, 2, 3, 4)
     ):
         raise BenchmarkStop("ABBA result grid drifted")
+    _validate_runtime_grid(trials)
     outputs = [_canonical_outputs(trial) for trial in trials]
     for seed in SEEDS:
         if outputs[0][seed] != outputs[3][seed]:
@@ -365,20 +513,40 @@ def _select_threads(trials: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             raise BenchmarkStop(f"same-setting determinism failed for seed {seed} at 4 threads")
         if outputs[0][seed] != outputs[1][seed]:
             raise BenchmarkStop(f"cross-setting canonical parity failed for seed {seed}")
+    elapsed_two_first = trials[0]["compute_ns"]
+    elapsed_four_first = trials[1]["compute_ns"]
+    elapsed_four_second = trials[2]["compute_ns"]
+    elapsed_two_second = trials[3]["compute_ns"]
     pair_speedups = [
-        _speedup_ppm(trials[0]["compute_ns"], trials[1]["compute_ns"]),
-        _speedup_ppm(trials[3]["compute_ns"], trials[2]["compute_ns"]),
+        _speedup_ppm(elapsed_two_first, elapsed_four_first),
+        _speedup_ppm(elapsed_two_second, elapsed_four_second),
     ]
-    median_speedup = round(sum(pair_speedups) / 2)
+    median_numerator = (
+        elapsed_two_first * elapsed_four_second
+        + elapsed_two_second * elapsed_four_first
+    )
+    median_denominator = 2 * elapsed_four_first * elapsed_four_second
+    median_speedup = (
+        median_numerator * 1_000_000 + median_denominator // 2
+    ) // median_denominator
+    strict_pairs = [
+        elapsed_two_first > elapsed_four_first,
+        elapsed_two_second > elapsed_four_second,
+    ]
+    median_gate = (
+        median_numerator * 1_000_000
+        >= MINIMUM_SPEEDUP_PPM * median_denominator
+    )
     selected = (
         4
-        if all(speedup > 1_000_000 for speedup in pair_speedups)
-        and median_speedup >= MINIMUM_SPEEDUP_PPM
+        if all(strict_pairs) and median_gate
         else 2
     )
     return {
         "pair_speedups_ppm": pair_speedups,
+        "pair_strictly_faster": strict_pairs,
         "median_speedup_ppm": median_speedup,
+        "median_speedup_gate_passed": median_gate,
         "minimum_speedup_ppm": MINIMUM_SPEEDUP_PPM,
         "selected_threads_per_seed": selected,
     }
@@ -391,12 +559,63 @@ def _tensor_digest(named_tensors: Sequence[tuple[str, Any]]) -> str:
         metadata = _canonical_json(
             {"name": name, "dtype": str(value.dtype), "shape": list(value.shape)}
         ).encode("ascii")
-        raw = bytes(value.untyped_storage())
+        raw = value.numpy().tobytes(order="C")
         digest.update(len(metadata).to_bytes(8, "big"))
         digest.update(metadata)
         digest.update(len(raw).to_bytes(8, "big"))
         digest.update(raw)
     return digest.hexdigest()
+
+
+def _optimizer_digest(torch: Any, optimizer: Any) -> str:
+    state_dict = optimizer.state_dict()
+    tensor_values = []
+    scalar_state = {}
+    for parameter_id, values in sorted(state_dict["state"].items()):
+        scalar_values = {}
+        for name, value in sorted(values.items()):
+            if isinstance(value, torch.Tensor):
+                if value.is_floating_point() and not bool(
+                    torch.isfinite(value).all().item()
+                ):
+                    raise BenchmarkStop("AdamW state contains a non-finite tensor")
+                tensor_name = f"state/{parameter_id}/{name}"
+                tensor_values.append((tensor_name, value))
+                scalar_values[name] = {"tensor": tensor_name}
+            else:
+                scalar_values[name] = value
+        scalar_state[str(parameter_id)] = scalar_values
+    metadata = _canonical_json(
+        {
+            "state": scalar_state,
+            "param_groups": state_dict["param_groups"],
+        }
+    ).encode("ascii")
+    digest = hashlib.sha256()
+    digest.update(len(metadata).to_bytes(8, "big"))
+    digest.update(metadata)
+    digest.update(bytes.fromhex(_tensor_digest(tensor_values)))
+    return digest.hexdigest()
+
+
+def _require_finite_values(torch: Any, values: Sequence[Any], label: str) -> None:
+    if not all(
+        bool(torch.isfinite(value).all().item())
+        for value in values
+    ):
+        raise BenchmarkStop(f"{label} contains a non-finite value")
+
+
+def _require_finite_model(train: Any, model: Any) -> None:
+    try:
+        train.require_finite_model_parameters(model, "thread benchmark final")
+    except ValueError as error:
+        raise BenchmarkStop("final model contains a non-finite parameter") from error
+
+
+def _require_integer_probe(torch: Any, probe_q: Any) -> None:
+    if probe_q.dtype != torch.int64 or probe_q.requires_grad:
+        raise BenchmarkStop("fixed probe integer output drifted")
 
 
 def _run_private_worker(request: Mapping[str, Any]) -> None:
@@ -440,6 +659,7 @@ def _run_private_worker(request: Mapping[str, Any]) -> None:
     torch.set_num_interop_threads(1)
     torch.use_deterministic_algorithms(True)
     torch.set_deterministic_debug_mode("error")
+    runtime_start = _runtime_snapshot(torch, train, threads)
 
     row = torch.arange(BATCH_ROWS, dtype=torch.int64).unsqueeze(1)
     slot = torch.arange(train.MAX_PIECES, dtype=torch.int64).unsqueeze(0)
@@ -470,7 +690,7 @@ def _run_private_worker(request: Mapping[str, Any]) -> None:
 
     started = time.perf_counter_ns()
     for _ in range(BATCH_COUNT):
-        loss, _float_task, _ste_task = train.int16_aware_dual_task_loss(
+        loss, float_task, ste_task = train.int16_aware_dual_task_loss(
             model,
             board,
             hands,
@@ -487,11 +707,17 @@ def _run_private_worker(request: Mapping[str, Any]) -> None:
             policy_temp_cp=200.0,
             replay_batch=(replay_board, replay_hands, bucket, replay_targets),
         )
+        _require_finite_values(
+            torch,
+            (loss, float_task, ste_task),
+            "training task",
+        )
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
     compute_ns = time.perf_counter_ns() - started
 
+    _require_finite_model(train, model)
     model.eval()
     with torch.no_grad():
         probe_float = model(board[:16], hands[:16], bucket[:16])
@@ -501,6 +727,14 @@ def _run_private_worker(request: Mapping[str, Any]) -> None:
             hands[:16],
             bucket[:16],
         )
+    _require_finite_values(
+        torch,
+        (probe_float, probe_ste),
+        "fixed probe output",
+    )
+    _require_integer_probe(torch, probe_q)
+    optimizer_state_sha256 = _optimizer_digest(torch, optimizer)
+    runtime_end = _runtime_snapshot(torch, train, threads)
     result = {
         "schema": WORKER_SCHEMA,
         "status": WORKER_STATUS,
@@ -520,11 +754,13 @@ def _run_private_worker(request: Mapping[str, Any]) -> None:
                 ("out_q", probe_q),
             ]
         ),
+        "optimizer_state_sha256": optimizer_state_sha256,
+        "runtime_start": runtime_start,
+        "runtime_end": runtime_end,
         "training_only": True,
         "selection_labels_read": False,
         "holdout_labels_read": False,
         "live_weights_changed": False,
-        "torch_version": torch.__version__,
     }
     if (
         _capture_clean_revision(repo_root) != request["revision"]

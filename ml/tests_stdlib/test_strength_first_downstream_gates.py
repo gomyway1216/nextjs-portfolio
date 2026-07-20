@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,7 +21,9 @@ import sibling_selection_protocol as LEGACY_SELECTION  # noqa: E402
 
 
 def digest(character: str) -> str:
-    return character * 64
+    if len(character) == 1 and character in "0123456789abcdef":
+        return character * 64
+    return hashlib.sha256(character.encode("utf-8")).hexdigest()
 
 
 def identity(name: str, character: str, schema: str | None = None) -> dict:
@@ -54,6 +57,37 @@ def ready_registry() -> dict:
                 "candidate-selection.json",
                 "1",
                 schemas["candidate_selection_receipt"],
+            ),
+            "candidate_selection_training_plan": identity(
+                "training-plan.json",
+                "d",
+                schemas["candidate_selection_training_plan"],
+            ),
+            "candidate_selection_checkpoint_preflight_sha256": (
+                hashlib.sha256(b"selection-preflight").hexdigest()
+            ),
+            "candidate_selection_teacher_run_fingerprint": (
+                hashlib.sha256(b"selection-teacher-run").hexdigest()
+            ),
+            "candidate_selection_teacher_authority": identity(
+                "selection-authority.json",
+                "e",
+                schemas["candidate_selection_teacher_authority"],
+            ),
+            "candidate_selection_teacher_manifest": identity(
+                "selection-manifest.json",
+                "f",
+                schemas["candidate_selection_teacher_manifest"],
+            ),
+            "candidate_selection_teacher_result": identity(
+                "selection-result.json",
+                "g",
+                schemas["candidate_selection_teacher_result"],
+            ),
+            "candidate_selection_dataset": identity(
+                "selection.jsonl",
+                "h",
+                schemas["candidate_selection_dataset"],
             ),
             "candidate_checkpoint": identity(
                 "candidate.pt",
@@ -100,17 +134,12 @@ def ready_registry() -> dict:
                 "a",
                 schemas["known_regression_fixture"],
             ),
-            "production_worker": identity(
-                "shogi-ai.worker.js",
-                "b",
-                schemas["production_worker"],
-            ),
             "production_wasm": identity(
                 "shogi.wasm",
                 "c",
                 schemas["production_wasm"],
             ),
-            "browser_time_budgets_ms": [800, 2_000, 4_000],
+            "local_wasm_time_budgets_ms": [800, 2_000, 4_000],
         },
         "gates": copy.deepcopy(GATES._READY_GATES),
         "boundary": copy.deepcopy(GATES._BOUNDARY),
@@ -141,8 +170,16 @@ def retention_metrics() -> dict:
     }
 
 
-def known_regression_observation() -> dict:
+def known_regression_observation(registry: dict) -> dict:
+    wasm = registry["enrollments"]["production_wasm"]
     return {
+        "schema": (
+            "shogi-floodgate-strength-first-downstream-wasm-probe-result-v1"
+        ),
+        "status": "complete-local-wasm-module-probes",
+        "loaded_weights_sha256": (
+            registry["enrollments"]["candidate_weights"]["sha256"]
+        ),
         "static_ranks": {"P*8f": 16, "3a4b": 1},
         "fixed_depth_bestmoves": {"11": "3a4b", "12": "3a4b"},
         "timed_bestmoves": [
@@ -150,26 +187,19 @@ def known_regression_observation() -> dict:
             for time_ms in (800, 2_000, 4_000)
             for run in (1, 2, 3)
         ],
-    }
-
-
-def production_parity_observation(registry: dict) -> dict:
-    return {
-        "loaded_weights_sha256": registry["enrollments"]["candidate_weights"][
-            "sha256"
-        ],
-        "production_worker_path_verified": True,
-        "production_wasm_path_verified": True,
-        "budget_runs": [
-            {
-                "time_ms": value,
-                "move_is_legal": True,
-                "completed_within_budget": True,
-            }
-            for value in registry["enrollments"]["browser_time_budgets_ms"]
-        ],
-        "console_errors": 0,
-        "runtime_errors": 0,
+        "wasm_module_identity": {
+            "path": wasm["path"],
+            "bytes": wasm["bytes"],
+            "sha256": wasm["sha256"],
+            "embedded_bytes_equal": True,
+        },
+        "safety": {
+            "local_only": True,
+            "network": False,
+            "cloud": False,
+            "aws": False,
+            "live_weight_write": False,
+        },
     }
 
 
@@ -178,9 +208,203 @@ def observation_results(registry: dict) -> dict:
         "fresh_final_holdout": final_metrics(),
         "legacy_final_holdout": final_metrics(),
         "retention": retention_metrics(),
-        "known_regression": known_regression_observation(),
-        "production_parity": production_parity_observation(registry),
+        "known_regression": known_regression_observation(registry),
     }
+
+
+def enrolled_selection_receipt(
+    registry: dict,
+    *,
+    selected_seed: int = 43,
+) -> tuple[dict, bytes]:
+    stable_metrics = {
+        "value_mae_cp": 100.0,
+        "value_mse_cp2": 10_000.0,
+        "within_parent_pair_accuracy": 0.60,
+        "teacher_top1_accuracy": 0.50,
+    }
+    other_seeds = [seed for seed in (42, 43, 44) if seed != selected_seed]
+    ranked = [other_seeds[0], selected_seed, other_seeds[1]]
+    metrics_by_seed = {
+        ranked_seed: {
+            "value_mae_cp": 80.0 + rank * 5.0,
+            "value_mse_cp2": 8_000.0 + rank * 500.0,
+            "within_parent_pair_accuracy": 0.63 - rank * 0.01,
+            "teacher_top1_accuracy": 0.53 - rank * 0.01,
+        }
+        for rank, ranked_seed in enumerate(ranked)
+    }
+    runs = [
+        {
+            "slot_id": f"floodgate-strength-first-int16-aware-seed-{seed}",
+            "seed": seed,
+            "result": identity(
+                f"seed-{seed}-result.json",
+                chr(ord("d") + index),
+                GATES.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA,
+            ),
+            "checkpoint": (
+                copy.deepcopy(registry["enrollments"]["candidate_checkpoint"])
+                if seed == selected_seed
+                else identity(
+                    f"seed-{seed}-candidate.pt",
+                    chr(ord("g") + index),
+                    GATES.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+                )
+            ),
+            "float": copy.deepcopy(metrics_by_seed[seed]),
+            "int16": copy.deepcopy(metrics_by_seed[seed]),
+            "gates": LEGACY_SELECTION.selection_gate_results(
+                metrics_by_seed[seed],
+                metrics_by_seed[seed],
+                stable_metrics,
+            ),
+        }
+        for index, seed in enumerate((42, 43, 44))
+    ]
+    selected = next(run for run in runs if run["seed"] == selected_seed)
+    training_plan = copy.deepcopy(
+        registry["enrollments"]["candidate_selection_training_plan"]
+    )
+    training_pipeline = {
+        "source_revision": "1" * 40,
+        "tracked_tree_clean": True,
+    }
+    preflight_projection = {
+        "schema": GATES.SELECTION_PREFLIGHT_SCHEMA,
+        "training_plan": copy.deepcopy(training_plan),
+        "training_pipeline": copy.deepcopy(training_pipeline),
+        "runs": [
+            {
+                "slot_id": run["slot_id"],
+                "seed": run["seed"],
+                "output": (
+                    f"{GATES.STRENGTH_FIRST_QAT_RUN_ROOT}/"
+                    f"seed-{run['seed']}"
+                ),
+                "result": copy.deepcopy(run["result"]),
+                "checkpoint": copy.deepcopy(run["checkpoint"]),
+                "checkpoint_metadata": {
+                    "schema": GATES.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+                    "epoch": 20,
+                },
+            }
+            for run in runs
+        ],
+    }
+    preflight_raw = json.dumps(
+        preflight_projection,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    preflight_sha256 = hashlib.sha256(preflight_raw).hexdigest()
+    registry["enrollments"][
+        "candidate_selection_checkpoint_preflight_sha256"
+    ] = preflight_sha256
+    completion = {
+        "input_games": 200,
+        "input_parents": 4_800,
+        "completed_parents": 4_800,
+        "forced_parents_skipped": 1,
+        "forced_skip_reasons": {"fewer_than_two_legal_moves": 1},
+        "emitted_parent_groups": 4_799,
+        "dataset_records": 9_598,
+        "sealed": True,
+    }
+    stable_identity = copy.deepcopy(registry["enrollments"]["stable_checkpoint"])
+    stable_identity["schema"] = "shogi-int16-aware-stable-checkpoint-v1"
+    receipt = {
+        "schema": GATES.STRENGTH_FIRST_CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+        "status": GATES._SELECTION_RECEIPT_STATUS,
+        "training_plan": training_plan,
+        "checkpoint_preflight": {
+            "sha256": preflight_sha256,
+            "training_pipeline": training_pipeline,
+            "all_three_strict_loaded_before_teacher_read": True,
+        },
+        "selection_teacher": {
+            "run_fingerprint": registry["enrollments"][
+                "candidate_selection_teacher_run_fingerprint"
+            ],
+            "authority": copy.deepcopy(
+                registry["enrollments"][
+                    "candidate_selection_teacher_authority"
+                ]
+            ),
+            "manifest": copy.deepcopy(
+                registry["enrollments"][
+                    "candidate_selection_teacher_manifest"
+                ]
+            ),
+            "result": copy.deepcopy(
+                registry["enrollments"][
+                    "candidate_selection_teacher_result"
+                ]
+            ),
+            "dataset": copy.deepcopy(
+                registry["enrollments"]["candidate_selection_dataset"]
+            ),
+            "completion": completion,
+        },
+        "stable": {
+            "checkpoint": stable_identity,
+            "float": copy.deepcopy(stable_metrics),
+            "int16": copy.deepcopy(stable_metrics),
+        },
+        "runs": runs,
+        "selection_metric_order": copy.deepcopy(
+            GATES._CANDIDATE_SELECTION_CONTRACT["selection"]["metric_order"]
+        ),
+        "ranked_seed_order": ranked,
+        "representative_seed": selected_seed,
+        "selected": {
+            "slot_id": selected["slot_id"],
+            "seed": selected_seed,
+            "checkpoint": copy.deepcopy(selected["checkpoint"]),
+        },
+        "family_gate": {
+            "representative_passed_all_four": True,
+            "seeds_passing_all_four": 3,
+            "minimum_seeds_passing_all_four": 2,
+            "minimum_seed_count_passed": True,
+            "all_seeds_passed_both_quantization_delta_gates": True,
+            "passed": True,
+        },
+        "evaluation": {
+            "schema": GATES.SELECTION_EVALUATION_REPORT_SCHEMA,
+            "dataset": {
+                "bytes": registry["enrollments"][
+                    "candidate_selection_dataset"
+                ]["bytes"],
+                "sha256": registry["enrollments"][
+                    "candidate_selection_dataset"
+                ]["sha256"],
+                "records": completion["dataset_records"],
+                "parents": completion["emitted_parent_groups"],
+                "eligible_pairs": 1,
+                "pair_min_cp": 50.0,
+                "value_cp_clamp": 3_000,
+                "value_target": "clamped_child_cp",
+                "ranking_target": (
+                    "unclamped_parent_cp_equals_negative_child_cp"
+                ),
+            },
+            "evaluation_count_per_model": 1,
+            "max_workers": 2,
+            "network_requests": 0,
+        },
+        "boundary": copy.deepcopy(GATES._SELECTION_RECEIPT_BOUNDARY),
+    }
+    raw = GATES._canonical_json_bytes(receipt)
+    registry["enrollments"]["candidate_selection_receipt"].update(
+        {
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    )
+    return receipt, raw
 
 
 def verified_callbacks(
@@ -212,19 +436,10 @@ def verified_callbacks(
         observations[role] = token.to_dict()
         tokens[role] = token
     callbacks = {
-        "evaluate_fresh_final": (
-            lambda _context: tokens["fresh_final_holdout"]
-        ),
-        "evaluate_legacy_final": (
-            lambda _context: tokens["legacy_final_holdout"]
-        ),
+        "evaluate_fresh_final": (lambda _context: tokens["fresh_final_holdout"]),
+        "evaluate_legacy_final": (lambda _context: tokens["legacy_final_holdout"]),
         "evaluate_retention": lambda _context: tokens["retention"],
-        "evaluate_known_regression": (
-            lambda _context: tokens["known_regression"]
-        ),
-        "evaluate_production_parity": (
-            lambda _context: tokens["production_parity"]
-        ),
+        "evaluate_known_regression": (lambda _context: tokens["known_regression"]),
     }
     return callbacks, observations
 
@@ -305,9 +520,7 @@ class StrengthFirstDownstreamRegistryTests(unittest.TestCase):
     def test_blocked_registry_rejects_an_invented_identity(self):
         path = MODULE_PATH.parents[1] / GATES.DOWNSTREAM_REGISTRY_RELATIVE_PATH
         registry = json.loads(path.read_text(encoding="utf-8"))
-        registry["enrollments"]["candidate_weights"] = identity(
-            "candidate.bin", "d"
-        )
+        registry["enrollments"]["candidate_weights"] = identity("candidate.bin", "d")
 
         with self.assertRaisesRegex(ValueError, "contains an enrollment"):
             GATES.validate_downstream_registry_data(registry)
@@ -343,9 +556,9 @@ class StrengthFirstDownstreamRegistryTests(unittest.TestCase):
         for field in ("path", "sha256"):
             with self.subTest(field=field):
                 registry = ready_registry()
-                registry["enrollments"]["legacy_final_holdout"][field] = (
-                    registry["enrollments"]["fresh_final_holdout"][field]
-                )
+                registry["enrollments"]["legacy_final_holdout"][field] = registry[
+                    "enrollments"
+                ]["fresh_final_holdout"][field]
 
                 with self.assertRaisesRegex(
                     ValueError,
@@ -367,9 +580,7 @@ class StrengthFirstDownstreamRegistryTests(unittest.TestCase):
                 target = isolated / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes((repo_root / relative).read_bytes())
-            amendment = (
-                isolated / GATES._STRENGTH_FIRST_AMENDMENT_IDENTITY["path"]
-            )
+            amendment = isolated / GATES._STRENGTH_FIRST_AMENDMENT_IDENTITY["path"]
             raw = bytearray(amendment.read_bytes())
             raw[-2] = 0x20 if raw[-2] != 0x20 else 0x21
             amendment.write_bytes(raw)
@@ -413,9 +624,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
     def evidence_bundle(self, registry: dict, observations: dict):
         authorization = GATES._issue_candidate_selection_authorization_for_tests(
             registry,
-            selected_seed=observations["fresh_final_holdout"][
-                "selected_seed"
-            ],
+            selected_seed=observations["fresh_final_holdout"]["selected_seed"],
         )
         return GATES._issue_verified_downstream_evidence_bundle_for_tests(
             registry=registry,
@@ -441,6 +650,161 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             )
 
         self.assertEqual(calls, [])
+
+    def test_enrolled_selection_receipt_mints_one_shot_test_authorization(
+        self,
+    ):
+        registry = ready_registry()
+        _, raw = enrolled_selection_receipt(registry, selected_seed=43)
+        authorization = (
+            GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                registry=registry,
+                receipt_raw=raw,
+            )
+        )
+
+        result = GATES.run_strength_first_downstream_gates_core_for_tests(
+            registry=registry,
+            authorization=authorization,
+            **callbacks(registry, selected_seed=43),
+        )
+
+        self.assertEqual(result["selected_seed"], 43)
+        with self.assertRaisesRegex(ValueError, "already consumed"):
+            GATES.run_strength_first_downstream_gates_core_for_tests(
+                registry=registry,
+                authorization=authorization,
+                **callbacks(registry, selected_seed=43),
+            )
+
+    def test_caller_authored_registry_and_receipt_cannot_mint_production_authority(
+        self,
+    ):
+        registry = ready_registry()
+        _, raw = enrolled_selection_receipt(registry)
+
+        self.assertFalse(
+            hasattr(
+                GATES,
+                "issue_candidate_selection_authorization_from_receipt_bytes",
+            )
+        )
+        with self.assertRaises(TypeError):
+            GATES.issue_candidate_selection_authorization_from_enrolled_receipt(
+                registry=registry,
+                receipt_raw=raw,
+            )
+        with self.assertRaises(GATES.DownstreamGatesBlocked):
+            GATES.issue_candidate_selection_authorization_from_enrolled_receipt()
+
+    def test_enrolled_selection_receipt_requires_exact_evaluation_schema(self):
+        registry = ready_registry()
+        receipt, _ = enrolled_selection_receipt(registry)
+        receipt["evaluation"]["schema"] = "selection-evaluation-v1"
+        raw = GATES._canonical_json_bytes(receipt)
+        registry["enrollments"]["candidate_selection_receipt"].update(
+            {
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "evaluation mismatch"):
+            GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                registry=registry,
+                receipt_raw=raw,
+            )
+
+    def test_enrolled_selection_receipt_rejects_float_run_seed(self):
+        registry = ready_registry()
+        receipt, _ = enrolled_selection_receipt(registry)
+        receipt["runs"][0]["seed"] = 42.0
+        raw = GATES._canonical_json_bytes(receipt)
+        registry["enrollments"]["candidate_selection_receipt"].update(
+            {
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "run order mismatch"):
+            GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                registry=registry,
+                receipt_raw=raw,
+            )
+
+    def test_enrolled_selection_receipt_rejects_failed_family_before_authority(
+        self,
+    ):
+        registry = ready_registry()
+        receipt, _ = enrolled_selection_receipt(registry)
+        receipt["family_gate"]["passed"] = False
+        raw = GATES._canonical_json_bytes(receipt)
+        registry["enrollments"]["candidate_selection_receipt"].update(
+            {
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "family gate did not pass"):
+            GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                registry=registry,
+                receipt_raw=raw,
+            )
+
+    def test_enrolled_selection_receipt_recomputes_every_run_gate(self):
+        registry = ready_registry()
+        receipt, _ = enrolled_selection_receipt(registry)
+        receipt["runs"][0]["int16"]["within_parent_pair_accuracy"] = 0.1
+        raw = GATES._canonical_json_bytes(receipt)
+        registry["enrollments"]["candidate_selection_receipt"].update(
+            {
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "run gates are not recomputable",
+        ):
+            GATES._issue_candidate_selection_authorization_from_receipt_bytes_for_tests(
+                registry=registry,
+                receipt_raw=raw,
+            )
+
+    def test_caller_hashed_favorable_evidence_cannot_mint_an_observation(self):
+        registry = ready_registry()
+        role = "fresh_final_holdout"
+        forged = {
+            "schema": GATES._OBSERVATION_SCHEMAS[role],
+            "role": role,
+            "selected_seed": 43,
+            "measured_inputs": GATES._expected_measured_inputs(registry, role),
+            "result": final_metrics(),
+        }
+        raw = GATES._canonical_json_bytes(forged)
+        caller_hash = {
+            "path": "evidence/fresh-final.json",
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "schema": GATES._EVIDENCE_SCHEMAS[role],
+        }
+
+        self.assertFalse(
+            hasattr(
+                GATES,
+                "issue_verified_evaluation_observation_from_evidence_bytes",
+            )
+        )
+        with self.assertRaisesRegex(
+            TypeError,
+            "cannot be constructed externally",
+        ):
+            GATES.VerifiedEvaluationObservation(
+                {"forged": forged, "caller_hash": caller_hash}
+            )
 
     def test_observation_validation_rejects_blocked_registry_before_enrollment_access(
         self,
@@ -484,9 +848,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             selected_seed=44,
         )
 
-        registry_raw, candidate_raw = GATES._CANDIDATE_AUTHORIZATIONS[
-            authorization
-        ]
+        registry_raw, candidate_raw = GATES._CANDIDATE_AUTHORIZATIONS[authorization]
         snapshot = GATES._strict_json_loads(registry_raw, "test snapshot")
         candidate = GATES._strict_json_loads(candidate_raw, "test candidate")
 
@@ -499,7 +861,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             GATES._CANDIDATE_SELECTION_CONTRACT,
         )
         self.assertEqual(
-            snapshot["enrollments"]["browser_time_budgets_ms"],
+            snapshot["enrollments"]["local_wasm_time_budgets_ms"],
             [800, 2_000, 4_000],
         )
 
@@ -509,7 +871,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             registry
         )
         other = copy.deepcopy(registry)
-        other["enrollments"]["browser_time_budgets_ms"][-1] = 5_000
+        other["enrollments"]["local_wasm_time_budgets_ms"][-1] = 5_000
         GATES.validate_downstream_registry_data(other)
         calls = []
 
@@ -523,7 +885,6 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 "evaluate_legacy_final",
                 "evaluate_retention",
                 "evaluate_known_regression",
-                "evaluate_production_parity",
             )
         }
         with self.assertRaisesRegex(
@@ -558,21 +919,21 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             selected_seed=42,
         )
         original_fresh = configured["evaluate_fresh_final"]
-        original_parity = configured["evaluate_production_parity"]
+        original_known = configured["evaluate_known_regression"]
         callback_contexts = []
-        parity_contexts = []
+        known_contexts = []
 
         def mutate_after_capture(context):
             callback_contexts.append(copy.deepcopy(context))
-            registry["enrollments"]["browser_time_budgets_ms"][-1] = 5_000
+            registry["enrollments"]["local_wasm_time_budgets_ms"][-1] = 5_000
             return original_fresh(context)
 
-        def record_parity_context(context):
-            parity_contexts.append(copy.deepcopy(context))
-            return original_parity(context)
+        def record_known_context(context):
+            known_contexts.append(copy.deepcopy(context))
+            return original_known(context)
 
         configured["evaluate_fresh_final"] = mutate_after_capture
-        configured["evaluate_production_parity"] = record_parity_context
+        configured["evaluate_known_regression"] = record_known_context
         result = GATES.run_strength_first_downstream_gates_core_for_tests(
             registry=registry,
             authorization=authorization,
@@ -580,7 +941,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            registry["enrollments"]["browser_time_budgets_ms"],
+            registry["enrollments"]["local_wasm_time_budgets_ms"],
             [800, 2_000, 5_000],
         )
         self.assertEqual(result["downstream_registry"], expected_identity)
@@ -589,9 +950,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             expected_identity,
         )
         self.assertEqual(
-            parity_contexts[0]["expected_measured_inputs"][
-                "browser_time_budgets_ms"
-            ],
+            known_contexts[0]["expected_measured_inputs"]["time_budgets_ms"],
             [800, 2_000, 4_000],
         )
         for receipt in result["receipts"].values():
@@ -600,10 +959,13 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 expected_identity,
             )
 
-    def test_valid_core_emits_exact_five_pass_receipts_without_live_authority(self):
+    def test_valid_core_emits_four_local_receipts_with_formal_parity_pending(self):
         result = self.run_valid()
 
-        self.assertEqual(result["status"], "complete-all-downstream-gates-pass")
+        self.assertEqual(
+            result["status"],
+            "complete-local-downstream-checks-pass-formal-parity-pending",
+        )
         self.assertEqual(result["selected_seed"], 43)
         self.assertEqual(
             set(result["receipts"]),
@@ -612,10 +974,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 "legacy_final_holdout",
                 "retention",
                 "known_regression",
-                "production_parity",
             },
         )
-        self.assertTrue(result["formal_ab_enrollment_ready"])
+        self.assertFalse(result["formal_ab_enrollment_ready"])
         self.assertFalse(result["production_weight_write_authorized"])
         self.assertFalse(result["live_weights_changed"])
         self.assertEqual(
@@ -641,9 +1002,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             registry
         )
         configured = callbacks(registry)
-        configured["evaluate_fresh_final"] = (
-            lambda _context: final_metrics()
-        )
+        configured["evaluate_fresh_final"] = lambda _context: final_metrics()
 
         with self.assertRaisesRegex(
             ValueError,
@@ -724,12 +1083,10 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             lambda value: value["receipts"]["retention"]["gates"].update(
                 {"value_mae_cp": "candidate-always-passes"}
             ),
-            lambda value: value["receipts"]["production_parity"].update(
+            lambda value: value["receipts"]["known_regression"].update(
                 {"loaded_weights_sha256": digest("d")}
             ),
-            lambda value: value.update(
-                {"production_weight_write_authorized": True}
-            ),
+            lambda value: value.update({"production_weight_write_authorized": True}),
         )
 
         for mutate in mutations:
@@ -803,7 +1160,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         result, observations = self.run_valid_details(registry)
         bundle = self.evidence_bundle(registry, observations)
         other = copy.deepcopy(registry)
-        other["enrollments"]["candidate_weights"]["sha256"] = digest("d")
+        other["enrollments"]["candidate_weights"]["sha256"] = hashlib.sha256(
+            b"unique-candidate-cross-registry"
+        ).hexdigest()
         GATES.validate_downstream_registry_data(other)
 
         with self.assertRaisesRegex(
@@ -824,7 +1183,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             selected_seed=43,
         )
         other = copy.deepcopy(registry)
-        other["enrollments"]["fresh_final_holdout"]["sha256"] = digest("d")
+        other["enrollments"]["fresh_final_holdout"]["sha256"] = hashlib.sha256(
+            b"unique-holdout-cross-registry"
+        ).hexdigest()
         GATES.validate_downstream_registry_data(other)
 
         with self.assertRaisesRegex(
@@ -837,12 +1198,12 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 observations=observations,
             )
 
-    def test_stored_result_does_not_synthesize_parity_verification(self):
+    def test_stored_result_reverifies_local_wasm_identity(self):
         registry = ready_registry()
         result, _ = self.run_valid_details(registry)
         failed = observation_results(registry)
-        failed["production_parity"][
-            "production_worker_path_verified"
+        failed["known_regression"]["wasm_module_identity"][
+            "embedded_bytes_equal"
         ] = False
         _, failed_observations = verified_callbacks(
             registry,
@@ -851,7 +1212,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ValueError,
-            "contains failed gate: production_parity",
+            "contains failed gate: known_regression_local_wasm_identity",
         ):
             GATES.validate_downstream_result_data(
                 result,
@@ -904,7 +1265,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
 
         receipt_builder.assert_not_called()
 
-    def test_five_evidence_hashes_must_also_be_pairwise_distinct(self):
+    def test_evidence_hashes_must_also_be_pairwise_distinct(self):
         observations = {
             role: {
                 "evidence": {
@@ -914,19 +1275,19 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             }
             for index, role in enumerate(GATES._EVALUATION_ROLES)
         }
-        observations["legacy_final_holdout"]["evidence"]["sha256"] = (
-            observations["fresh_final_holdout"]["evidence"]["sha256"]
-        )
+        observations["legacy_final_holdout"]["evidence"]["sha256"] = observations[
+            "fresh_final_holdout"
+        ]["evidence"]["sha256"]
 
         with self.assertRaisesRegex(ValueError, "pairwise distinct"):
-            GATES._require_pairwise_distinct_observation_evidence(
-                observations
-            )
+            GATES._require_pairwise_distinct_observation_evidence(observations)
 
     def test_live_core_rejects_reused_evidence_hash_before_any_receipt(self):
+        fixed_digest = hashlib.sha256(b"unique-fixed-evidence-hash").hexdigest()
+
         class FixedHash:
             def hexdigest(self):
-                return digest("f")
+                return fixed_digest
 
         registry = ready_registry()
         with mock.patch.object(
@@ -934,11 +1295,9 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             "sha256",
             side_effect=lambda _raw=b"": FixedHash(),
         ):
-            authorization = (
-                GATES._issue_candidate_selection_authorization_for_tests(
-                    registry,
-                    selected_seed=42,
-                )
+            authorization = GATES._issue_candidate_selection_authorization_for_tests(
+                registry,
+                selected_seed=42,
             )
             configured, _ = verified_callbacks(
                 registry,
@@ -972,12 +1331,10 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             results=failed,
         )
         for name, callback in tuple(configured.items()):
-            configured[name] = (
-                lambda context, name=name, callback=callback: (
-                    calls.append(name),
-                    callback(context),
-                )[1]
-            )
+            configured[name] = lambda context, name=name, callback=callback: (
+                calls.append(name),
+                callback(context),
+            )[1]
 
         with mock.patch.object(
             GATES,
@@ -1006,7 +1363,6 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 "evaluate_legacy_final",
                 "evaluate_retention",
                 "evaluate_known_regression",
-                "evaluate_production_parity",
             ],
         )
         self.assertEqual(final_builder.call_count, 1)
@@ -1018,9 +1374,7 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
             registry
         )
         failed = observation_results(registry)
-        failed["retention"]["opening"][
-            "candidate_value_mae_cp"
-        ] = 105.000001
+        failed["retention"]["opening"]["candidate_value_mae_cp"] = 105.000001
         configured, _ = verified_callbacks(
             registry,
             selected_seed=42,
@@ -1065,14 +1419,10 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
         for bestmove in ("", "resign", "3a4b trailing", "7g7"):
             with self.subTest(bestmove=bestmove):
                 authorization = (
-                    GATES._issue_candidate_selection_authorization_for_tests(
-                        registry
-                    )
+                    GATES._issue_candidate_selection_authorization_for_tests(registry)
                 )
                 failed = observation_results(registry)
-                failed["known_regression"]["fixed_depth_bestmoves"][
-                    "11"
-                ] = bestmove
+                failed["known_regression"]["fixed_depth_bestmoves"]["11"] = bestmove
                 configured, _ = verified_callbacks(
                     registry,
                     selected_seed=42,
@@ -1089,30 +1439,13 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                         **configured,
                     )
 
-    def test_browser_parity_binds_exact_candidate_and_each_budget(self):
+    def test_local_wasm_probe_cannot_claim_formal_browser_parity(self):
         registry = ready_registry()
-        authorization = GATES._issue_candidate_selection_authorization_for_tests(
-            registry
-        )
-        failed = observation_results(registry)
-        failed["production_parity"]["budget_runs"][1][
-            "move_is_legal"
-        ] = False
-        configured, _ = verified_callbacks(
-            registry,
-            selected_seed=42,
-            results=failed,
-        )
+        result = self.run_valid(registry)
 
-        with self.assertRaisesRegex(
-            GATES.DownstreamGateFailed,
-            "production_parity_budget",
-        ):
-            GATES.run_strength_first_downstream_gates_core_for_tests(
-                registry=registry,
-                authorization=authorization,
-                **configured,
-            )
+        self.assertNotIn("production_parity", result["receipts"])
+        self.assertFalse(result["formal_ab_enrollment_ready"])
+        self.assertFalse(result["production_weight_write_authorized"])
 
     def test_receipt_identity_is_canonical_and_does_not_write(self):
         receipt = self.run_valid()["receipts"]["retention"]

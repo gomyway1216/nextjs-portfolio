@@ -60,6 +60,13 @@
   },
   "enrollments": {
     "candidate_selection_receipt": null,
+    "candidate_selection_training_plan": null,
+    "candidate_selection_checkpoint_preflight_sha256": null,
+    "candidate_selection_teacher_run_fingerprint": null,
+    "candidate_selection_teacher_authority": null,
+    "candidate_selection_teacher_manifest": null,
+    "candidate_selection_teacher_result": null,
+    "candidate_selection_dataset": null,
     "candidate_checkpoint": null,
     "stable_checkpoint": null,
     "candidate_weights": null,
@@ -69,9 +76,8 @@
     "general_retention": null,
     "opening_retention": null,
     "known_regression_fixture": null,
-    "production_worker": null,
     "production_wasm": null,
-    "browser_time_budgets_ms": null
+    "local_wasm_time_budgets_ms": null
   },
   "gates": {
     "candidate_selection_receipt_enrolled": false,

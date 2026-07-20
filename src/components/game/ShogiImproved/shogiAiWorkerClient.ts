@@ -18,12 +18,15 @@ import { createSharedTTBuffer } from './sharedTT';
 import type {
   SerializedKyokumenImproved,
   SerializedTeImproved,
+  ShogiAiEngineDiagnostics,
+  ShogiAiWorkerEvaluationPath,
   ShogiAiWorkerSearchPath,
 } from './shogi-ai.worker';
 import type { HelperInitMessage, MainThreadsInitMessage } from './smpProtocol';
 
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
+  | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
   | { type: 'ponderControl'; action: 'suspend' | 'resume' }
   | MainThreadsInitMessage;
@@ -38,9 +41,10 @@ type WorkerResponse =
       /** Optional here so an older/corrupt worker response safely becomes `unknown`. */
       searchPath?: ShogiAiWorkerSearchPath;
     }
+  | { type: 'engineDiagnosticsResult'; id: number; diagnostics?: unknown }
   | { type: 'error'; id: number; message: string };
 
-export type { SerializedKyokumenImproved, SerializedTeImproved };
+export type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiEngineDiagnostics };
 
 /** Worker route observed by the page; `unknown` is the backward-compatible fallback. */
 export type ShogiAiSearchPath = ShogiAiWorkerSearchPath | 'unknown';
@@ -71,6 +75,94 @@ function normalizeSearchPath(value: unknown): ShogiAiSearchPath {
     : 'unknown';
 }
 
+const WORKER_EVALUATION_PATHS: ReadonlySet<ShogiAiWorkerEvaluationPath> = new Set([
+  'nnue-wasm',
+  'v3-wasm',
+  'worker-js',
+  'not-applicable',
+]);
+
+function normalizeEvaluationPath(value: unknown): ShogiAiWorkerEvaluationPath | 'unknown' {
+  return typeof value === 'string' && WORKER_EVALUATION_PATHS.has(value as ShogiAiWorkerEvaluationPath)
+    ? (value as ShogiAiWorkerEvaluationPath)
+    : 'unknown';
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+const NNUE_FETCH_STATUSES = new Set(['pending', 'loaded', 'rejected', 'unavailable']);
+
+function record(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid AI engine diagnostics');
+  }
+  return value as Record<string, unknown>;
+}
+
+function sha256Identity(value: unknown): { bytes: number; sha256: string } {
+  const identity = record(value);
+  if (
+    !Number.isSafeInteger(identity.bytes) ||
+    (identity.bytes as number) <= 0 ||
+    typeof identity.sha256 !== 'string' ||
+    !SHA256_HEX.test(identity.sha256)
+  ) {
+    throw new Error('Invalid AI engine diagnostics identity');
+  }
+  return { bytes: identity.bytes as number, sha256: identity.sha256 };
+}
+
+function normalizeEngineDiagnostics(value: unknown): ShogiAiEngineDiagnostics {
+  const diagnostics = record(value);
+  const nnue = record(diagnostics.nnue);
+  const wasm = record(diagnostics.wasm);
+  if (
+    diagnostics.schema !== 'shogi-ai-engine-diagnostics-v1' ||
+    typeof nnue.fetchStatus !== 'string' ||
+    !NNUE_FETCH_STATUSES.has(nnue.fetchStatus) ||
+    typeof nnue.loaded !== 'boolean' ||
+    typeof nnue.enabled !== 'boolean' ||
+    typeof wasm.ready !== 'boolean'
+  ) {
+    throw new Error('Invalid AI engine diagnostics');
+  }
+  if (nnue.enabled && !nnue.loaded) {
+    throw new Error('Invalid AI engine diagnostics NNUE state');
+  }
+  const fetchedWeights = nnue.fetchedWeights === null ? null : sha256Identity(nnue.fetchedWeights);
+  const lastSearchRecord = diagnostics.lastSearch === null ? null : record(diagnostics.lastSearch);
+  const lastSearchPath = lastSearchRecord ? normalizeSearchPath(lastSearchRecord.searchPath) : null;
+  const lastEvaluationPath = lastSearchRecord ? normalizeEvaluationPath(lastSearchRecord.evaluationPath) : null;
+  if (
+    lastSearchRecord &&
+    (!Number.isSafeInteger(lastSearchRecord.requestId) ||
+      (lastSearchRecord.requestId as number) <= 0 ||
+      lastSearchPath === 'unknown' ||
+      lastEvaluationPath === 'unknown')
+  ) {
+    throw new Error('Invalid AI engine diagnostics last search');
+  }
+  return {
+    schema: 'shogi-ai-engine-diagnostics-v1',
+    nnue: {
+      fetchStatus: nnue.fetchStatus as ShogiAiEngineDiagnostics['nnue']['fetchStatus'],
+      fetchedWeights,
+      loaded: nnue.loaded,
+      enabled: nnue.enabled,
+    },
+    wasm: {
+      ready: wasm.ready,
+      embedded: sha256Identity(wasm.embedded),
+    },
+    lastSearch: lastSearchRecord
+      ? {
+          requestId: lastSearchRecord.requestId as number,
+          searchPath: lastSearchPath as ShogiAiWorkerSearchPath,
+          evaluationPath: lastEvaluationPath as ShogiAiWorkerEvaluationPath,
+        }
+      : null,
+  };
+}
+
 export interface ShogiAiWorkerClient {
   requestBestMove: (
     position: SerializedKyokumenImproved,
@@ -83,6 +175,8 @@ export interface ShogiAiWorkerClient {
     difficulty: Difficulty,
     tesu: number
   ) => Promise<BestMoveInfo>;
+  /** Read-only identity/load-state evidence for explicit parity diagnostics. */
+  requestEngineDiagnostics: () => Promise<ShogiAiEngineDiagnostics>;
   clearTT: () => void;
   terminate: () => void;
 }
@@ -113,6 +207,8 @@ const HARD_DEADLINE_MS: Record<Difficulty, number> = {
   expert: 12_000,
   master: 14_000,
 };
+const ENGINE_DIAGNOSTICS_DEADLINE_MS = 15_000;
+
 function hardDeadlineMs(difficulty: Difficulty): number {
   return HARD_DEADLINE_MS[difficulty] ?? HARD_DEADLINE_MS.hard;
 }
@@ -190,11 +286,18 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     number,
     { resolve: (info: BestMoveInfo) => void; reject: (err: Error) => void }
   >();
+  const pendingDiagnostics = new Map<
+    number,
+    { resolve: (diagnostics: ShogiAiEngineDiagnostics) => void; reject: (err: Error) => void }
+  >();
 
   const rejectAll = (err: Error) => {
     const entries = [...pending.values()];
+    const diagnosticEntries = [...pendingDiagnostics.values()];
     pending.clear();
+    pendingDiagnostics.clear();
     for (const p of entries) p.reject(err);
+    for (const p of diagnosticEntries) p.reject(err);
   };
 
   // Wire the message/error handlers onto whatever worker is current, so a
@@ -217,11 +320,30 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
         return;
       }
 
+      if (msg.type === 'engineDiagnosticsResult') {
+        const p = pendingDiagnostics.get(msg.id);
+        if (!p) return;
+        pendingDiagnostics.delete(msg.id);
+        try {
+          p.resolve(normalizeEngineDiagnostics(msg.diagnostics));
+        } catch (error) {
+          p.reject(error instanceof Error ? error : new Error(String(error)));
+        }
+        return;
+      }
+
       if (msg.type === 'error') {
         const p = pending.get(msg.id);
-        if (!p) return;
-        pending.delete(msg.id);
-        p.reject(new Error(msg.message));
+        if (p) {
+          pending.delete(msg.id);
+          p.reject(new Error(msg.message));
+          return;
+        }
+        const diagnostic = pendingDiagnostics.get(msg.id);
+        if (diagnostic) {
+          pendingDiagnostics.delete(msg.id);
+          diagnostic.reject(new Error(msg.message));
+        }
       }
     };
     w.onerror = (event) => {
@@ -360,11 +482,46 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     });
   };
 
+  const requestEngineDiagnostics = (): Promise<ShogiAiEngineDiagnostics> => {
+    const id = nextId++;
+    return new Promise<ShogiAiEngineDiagnostics>((resolve, reject) => {
+      if (respawnDisabled) {
+        reject(new Error('AI worker unavailable'));
+        return;
+      }
+      const timer = setTimeout(() => {
+        if (pendingDiagnostics.delete(id)) {
+          // A slow asset fetch should fail this explicit diagnostic without
+          // disrupting an otherwise playable worker or its ponder session.
+          reject(new Error('AI worker diagnostics timed out'));
+        }
+      }, ENGINE_DIAGNOSTICS_DEADLINE_MS);
+      pendingDiagnostics.set(id, {
+        resolve: (diagnostics) => {
+          clearTimeout(timer);
+          resolve(diagnostics);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      try {
+        worker.postMessage({ type: 'engineDiagnostics', id } as WorkerRequest);
+      } catch (error) {
+        clearTimeout(timer);
+        pendingDiagnostics.delete(id);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  };
+
   return {
     requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
       return requestBestMoveWithInfo(position, difficulty, tesu).then((info) => info.move);
     },
     requestBestMoveWithInfo,
+    requestEngineDiagnostics,
     clearTT() {
       try {
         worker.postMessage({ type: 'clearTT' } as WorkerRequest);

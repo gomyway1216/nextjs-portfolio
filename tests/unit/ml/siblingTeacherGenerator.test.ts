@@ -1053,6 +1053,7 @@ describe('deterministic sibling teacher generator', () => {
       engineBin: process.execPath,
       engineArgs: [FAKE_ENGINE, '--incomplete-proposal'],
       engineReceipt: await writeEngineReceipt(root),
+      authenticatedInputPolicy: 'fast-held-fd-v1',
       multipv: 2,
       depth: 8,
       proposalDepth: 6,
@@ -1081,6 +1082,9 @@ describe('deterministic sibling teacher generator', () => {
         emitted_parent_groups: 0,
       },
       manifest: {
+        authenticated_input: {
+          runtime_policy: 'fast-held-fd-v1',
+        },
         search: {
           limit: { depth: 8 },
           proposal_limit: { depth: 6 },
@@ -1862,6 +1866,12 @@ describe('deterministic sibling teacher generator', () => {
       siblingTeacherRunFingerprint({
         ...legacy,
         proposal_limit: { depth: 14 },
+      })
+    ).not.toBe(siblingTeacherRunFingerprint(legacy));
+    expect(
+      siblingTeacherRunFingerprint({
+        ...legacy,
+        authenticated_input_policy: 'fast-held-fd-v1',
       })
     ).not.toBe(siblingTeacherRunFingerprint(legacy));
   });

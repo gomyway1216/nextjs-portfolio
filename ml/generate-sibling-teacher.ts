@@ -147,6 +147,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   engineBin: string;
   engineArgs?: readonly string[];
   engineReceipt: string;
+  authenticatedInputPolicy?: string;
   evalDir?: string;
   multipv?: number;
   nodes?: number;
@@ -168,6 +169,7 @@ interface NormalizedOptions {
   runnerRevision: string;
   engineArgs: readonly string[];
   engineReceipt: string;
+  authenticatedInputPolicy?: string;
   evalDir?: string;
   multipv: number;
   limit: UsiSearchLimit;
@@ -439,6 +441,7 @@ export interface StrengthFirstSiblingTeacherManifest {
   readonly authenticated_input: Readonly<{
     readonly bundle_verifier_revision: string;
     readonly binding: Readonly<FloodgateTrainingInputBinding>;
+    readonly runtime_policy?: string;
   }>;
   readonly source: Readonly<{
     readonly raw_sha256: string;
@@ -592,6 +595,7 @@ export interface SiblingTeacherRunFingerprintInput {
   readonly fv_scale: number;
   readonly hash_mb_per_engine: number;
   readonly timeout_ms: number;
+  readonly authenticated_input_policy?: string;
   readonly test_only_engine_initialization_timeout_ms?: number;
 }
 
@@ -607,6 +611,11 @@ export function siblingTeacherRunFingerprint(
     canonicalJson({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
       authenticated_training_binding: input.authenticated_training_binding,
+      ...(input.authenticated_input_policy === undefined
+        ? {}
+        : {
+            authenticated_input_policy: input.authenticated_input_policy,
+          }),
       source_raw_sha256: input.source_raw_sha256,
       selected_parent_ids_sha256: input.selected_parent_ids_sha256,
       label_policy: SIBLING_TEACHER_LABEL_POLICY,
@@ -811,6 +820,14 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     runnerRevision: requiredText(options.runnerRevision, 'runnerRevision'),
     engineArgs: [...(options.engineArgs ?? [])],
     engineReceipt: path.resolve(requiredText(options.engineReceipt, 'engineReceipt')),
+    ...(options.authenticatedInputPolicy === undefined
+      ? {}
+      : {
+          authenticatedInputPolicy: requiredText(
+            options.authenticatedInputPolicy,
+            'authenticatedInputPolicy'
+          ),
+        }),
     multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
     limit,
     proposalLimit,
@@ -2119,6 +2136,11 @@ async function runSiblingTeacherDatasetCore(
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint = siblingTeacherRunFingerprint({
     authenticated_training_binding: capturedInput.binding,
+    ...(options.authenticatedInputPolicy === undefined
+      ? {}
+      : {
+          authenticated_input_policy: options.authenticatedInputPolicy,
+        }),
     source_raw_sha256: sourceRawSha256,
     selected_parent_ids_sha256: selectedParentIdsSha256,
     pipeline,
@@ -2592,6 +2614,9 @@ async function runSiblingTeacherDatasetCore(
       authenticated_input: {
         bundle_verifier_revision: capturedInput.binding.verifier_revision,
         binding: capturedInput.binding,
+        ...(options.authenticatedInputPolicy === undefined
+          ? {}
+          : { runtime_policy: options.authenticatedInputPolicy }),
       },
       source: {
         raw_sha256: sourceRawSha256,

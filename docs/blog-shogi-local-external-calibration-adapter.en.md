@@ -1,6 +1,6 @@
 # Shogi AI: a local external-calibration match adapter for stable versus YaneuraOu
 
-> As of 2026-07-19, real calibration against YaneuraOu remains at **zero games**, with **zero** claims of improved strength, high-dan strength, or formal A/B success. This change adds only a local adapter that swaps colors from the same openings and returns a result after every game and both cleanups complete. It writes no live weights, holdout data, production results, or network state. [日本語版](./blog-shogi-local-external-calibration-adapter.md)
+> As of 2026-07-19, real YaneuraOu execution comprises 12 non-issuable games in attempt 1 and 12 valid technical-pilot games in attempt 3. Because all 12 valid games ended at the preregistered eight-ply cap, they provide **zero strength signal** and support **zero** claims of improved strength, high-dan strength, or formal A/B success. This change adds a local adapter that swaps colors from the same openings and returns a result after every game and both cleanups complete. It writes no live weights, holdout data, production results, or network state. [日本語版](./blog-shogi-local-external-calibration-adapter.md)
 
 ## Why this is needed
 

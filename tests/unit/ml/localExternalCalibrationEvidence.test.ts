@@ -277,6 +277,8 @@ describe("local external calibration publication evidence", () => {
           sha256:
             "990f8f52bef19b17f549813cb3f6162ce834c3abec3af3fa49ef112b9acbf54a",
         },
+        publication:
+          "exclusive-one-shot-claim-and-fsync-hard-link-no-replace-single-terminal-v1",
         supervisor_deadline_seconds: 900,
       },
       summary: {
@@ -363,8 +365,11 @@ describe("local external calibration publication evidence", () => {
     expect(japanese).toContain(
       "blog-shogi-local-external-calibration-adapter.en.md",
     );
+    expect(japanese).toMatch(/採用不能12局.*有効.*12局/iu);
     expect(english).toContain(
       "blog-shogi-local-external-calibration-adapter.md",
     );
+    expect(english).toMatch(/12 non-issuable games.*12 valid/iu);
+    expect(english).not.toMatch(/real calibration.*zero games/iu);
   });
 });

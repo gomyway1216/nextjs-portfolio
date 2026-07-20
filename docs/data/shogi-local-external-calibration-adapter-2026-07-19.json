@@ -285,7 +285,7 @@
         "bytes": 5056,
         "sha256": "990f8f52bef19b17f549813cb3f6162ce834c3abec3af3fa49ef112b9acbf54a"
       },
-      "publication": "exclusive-one-shot-directory-and-fsync-hard-link-no-replace-single-terminal-v1",
+      "publication": "exclusive-one-shot-claim-and-fsync-hard-link-no-replace-single-terminal-v1",
       "supervisor_deadline_seconds": 900
     },
     "request": {

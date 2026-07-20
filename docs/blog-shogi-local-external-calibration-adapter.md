@@ -1,6 +1,6 @@
 # 将棋AI: 現行stableをYaneuraOuでローカル外部校正する対局adapter
 
-> 2026-07-19時点で、実YaneuraOuとの校正対局は **0局**、棋力向上・高段・formal A/Bの主張も **0** である。今回追加したのは、現行stableと固定YaneuraOuを同じ局面から先後入替で対局させ、全局完走・cleanup成功後にだけ結果を返すローカルadapterである。live weights、holdout、production data、networkには書き込まない。[English version](./blog-shogi-local-external-calibration-adapter.en.md)
+> 2026-07-19時点で、実YaneuraOuとはattempt 1の採用不能12局とattempt 3の有効なtechnical pilot 12局を実行した。ただし有効12局もすべて事前固定の8手上限で終了したため、棋力signalは **0**、棋力向上・高段・formal A/Bの主張も **0** である。今回追加したのは、現行stableと固定YaneuraOuを同じ局面から先後入替で対局させ、全局完走・cleanup成功後にだけ結果を返すローカルadapterである。live weights、holdout、production data、networkには書き込まない。[English version](./blog-shogi-local-external-calibration-adapter.en.md)
 
 ## なぜ必要か
 

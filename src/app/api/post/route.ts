@@ -101,6 +101,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
         language: picked.language,
         availableLanguages: availableLanguages(translations),
         viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
+        likeCount: typeof data.likeCount === 'number' ? data.likeCount : 0,
         created: data.created?.toDate?.()?.toISOString() || data.created,
         lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
       }];

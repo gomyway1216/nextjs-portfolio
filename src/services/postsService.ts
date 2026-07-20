@@ -40,6 +40,7 @@ export interface ListingPost {
   language: PostLanguage;
   availableLanguages: PostLanguage[];
   viewCount?: number;
+  likeCount?: number;
   created: string;
   lastUpdated: string;
 }
@@ -216,6 +217,28 @@ export async function getPostById(id: string): Promise<DetailPost> {
 
   const data = await response.json();
   return data.post;
+}
+
+export async function getPostLikeCount(id: string): Promise<number> {
+  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`);
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const data = await response.json();
+  return typeof data.likeCount === 'number' ? data.likeCount : 0;
+}
+
+export async function setPostLike(id: string, action: 'like' | 'unlike'): Promise<number> {
+  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const data = await response.json();
+  return typeof data.likeCount === 'number' ? data.likeCount : 0;
 }
 
 export async function getRelatedPosts(

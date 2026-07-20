@@ -1,0 +1,43 @@
+.likeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 15px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.likeButton:hover,
+.likeButton:focus-visible {
+  border-color: color-mix(in srgb, #e11d48 44%, var(--border));
+  color: var(--foreground);
+}
+
+.likeButton:active {
+  transform: scale(0.97);
+}
+
+.liked {
+  border-color: color-mix(in srgb, #e11d48 55%, var(--border));
+  background: color-mix(in srgb, #e11d48 10%, var(--card));
+  color: #e11d48;
+}
+
+.count {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.liked .count {
+  color: color-mix(in srgb, #e11d48 75%, var(--foreground));
+}

@@ -57,7 +57,7 @@ privateな`receipt.json`に残すのは、process数、経過時間、throughput
 
 ## 現在地
 
-実装と10件の軽量単体テストは完了した。中央値閾値ちょうどの採用、両組が約0.5% / 1.5%速い境界、片方が同率のときの12維持、順序・件数・fingerprint drift、private field、skip後cleanup、入力postflight、policy・platform・root・CLI driftを確認している。
+実装と11件の軽量単体テストは完了した。中央値閾値ちょうどの採用、両組が約0.5% / 1.5%速い境界、片方が同率のときの12維持、順序・件数・fingerprint drift、private field、skip後cleanup、入力postflight、policy・platform・root・CLI driftを確認している。
 
 実比較は意図的に未実行であり、12と13のどちらがMultiPV 6で速いかはまだ確定していない。24,000局面の正式処理が終了し、この実装がmergeされたclean revisionからだけABBA比較を実行する。
 

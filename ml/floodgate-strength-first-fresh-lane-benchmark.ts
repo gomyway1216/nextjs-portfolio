@@ -163,8 +163,31 @@ function fail(message: string): never {
   throw new Error(`fresh-lane benchmark: ${message}`);
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0)) {
+      fail("canonical JSON rejects this number");
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+      .join(",")}}`;
+  }
+  fail(`canonical JSON rejects ${typeof value}`);
+}
+
 function sameJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return canonicalJson(left) === canonicalJson(right);
 }
 
 function medianPair(left: number, right: number): number {
@@ -262,6 +285,15 @@ export function assertFloodgateStrengthFirstFreshLaneBenchmarkCliArguments(
   if (!Array.isArray(args) || args.length !== 0) {
     fail("the production entry point accepts no arguments");
   }
+}
+
+export function formatFloodgateStrengthFirstFreshLaneBenchmarkErrorForTests(
+  error: unknown,
+): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^fresh-lane benchmark(?: failed)?:/u.test(message)
+    ? message
+    : `fresh-lane benchmark failed: ${message}`;
 }
 
 export function floodgateStrengthFirstFreshLaneInputPublicIdentityForTests(

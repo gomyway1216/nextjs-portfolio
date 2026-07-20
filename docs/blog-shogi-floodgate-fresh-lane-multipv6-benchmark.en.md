@@ -57,7 +57,7 @@ The result does not rewrite the shared policy. Even a passing thirteen-process r
 
 ## Current status
 
-Implementation and ten lightweight unit tests are complete. They cover the exact median threshold, the approximately +0.5% / +1.5% paired boundary, retaining twelve when one pair ties, order/count/fingerprint drift, forbidden private fields, cleanup after a skip, input postflight, and policy/platform/root/CLI drift.
+Implementation and eleven lightweight unit tests are complete. They cover the exact median threshold, the approximately +0.5% / +1.5% paired boundary, retaining twelve when one pair ties, order/count/fingerprint drift, forbidden private fields, cleanup after a skip, input postflight, and policy/platform/root/CLI drift.
 
 The real comparison is intentionally pending, so this work does not yet claim whether twelve or thirteen is faster for MultiPV 6. It may run only after the active 24,000-position teacher finishes and this implementation is available from a clean merged revision.
 

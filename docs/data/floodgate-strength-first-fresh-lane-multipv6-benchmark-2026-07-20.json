@@ -55,7 +55,7 @@
     "benchmark": "ml/floodgate-strength-first-fresh-lane-benchmark.ts",
     "argumentless_entry": "ml/run-floodgate-strength-first-fresh-lane-benchmark.ts",
     "unit_test": "tests/unit/ml/floodgateStrengthFirstFreshLaneBenchmark.test.ts",
-    "unit_tests_passed": 10,
+    "unit_tests_passed": 11,
     "real_engine_processes_started_by_validation": 0
   }
 }

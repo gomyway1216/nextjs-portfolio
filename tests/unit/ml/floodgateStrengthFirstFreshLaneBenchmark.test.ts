@@ -13,6 +13,7 @@ import {
   assertFloodgateStrengthFirstFreshLaneInputPostflightForTests,
   buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests,
   floodgateStrengthFirstFreshLaneBenchmarkPaths,
+  formatFloodgateStrengthFirstFreshLaneBenchmarkErrorForTests,
   runFloodgateStrengthFirstFreshLaneTrialCoreForTests,
   validateFloodgateStrengthFirstFreshLaneSearchPolicyForTests,
   type FloodgateStrengthFirstFreshLaneTrial,
@@ -337,7 +338,11 @@ describe("fresh-lane MultiPV 6 benchmark", () => {
       typeof assertFloodgateStrengthFirstFreshLaneInputPostflightForTests
     >[0];
     const samePublicAfter = {
-      ...publicInput,
+      schema: "schema",
+      role: "training",
+      policy: "policy",
+      manifest: { sha256: "a", bytes: 1 },
+      source: { records: 24_000, sha256: "b", bytes: 2 },
       rows: Object.freeze([{ parent_id: "private-after" }]),
     } as unknown as Parameters<
       typeof assertFloodgateStrengthFirstFreshLaneInputPostflightForTests
@@ -359,6 +364,19 @@ describe("fresh-lane MultiPV 6 benchmark", () => {
         changedSource,
       ),
     ).toThrow(/training input changed/iu);
+  });
+
+  it("formats CLI failures without duplicating the benchmark prefix", () => {
+    expect(
+      formatFloodgateStrengthFirstFreshLaneBenchmarkErrorForTests(
+        new Error("fresh-lane benchmark: policy drifted"),
+      ),
+    ).toBe("fresh-lane benchmark: policy drifted");
+    expect(
+      formatFloodgateStrengthFirstFreshLaneBenchmarkErrorForTests(
+        new Error("unexpected"),
+      ),
+    ).toBe("fresh-lane benchmark failed: unexpected");
   });
 
   it("rejects platform, fixed-root, and CLI-option drift before work", () => {

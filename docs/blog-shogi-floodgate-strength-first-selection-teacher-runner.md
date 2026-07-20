@@ -17,7 +17,7 @@
 | 実YaneuraOu selection engine | 0 process |
 | 実selection label / candidate selection | 0 / 0 |
 | live weight変更 | 0 |
-| focused TypeScript / Python | 55 / 55（runtime 51 + evidence 4）、3 / 3 PASS |
+| focused TypeScript / Python | 62 / 62（runtime 58 + evidence 4）、3 / 3 PASS |
 
 これは棋力が上がったという結果ではない。3-seed学習が終わった直後に必要になる、
 実selection teacher生成経路を先に閉じた変更である。
@@ -27,7 +27,7 @@
 引数なしcommandは次である。
 
 ```sh
-npm run shogi:floodgate-fresh-selection-teacher
+npx tsx ml/run-floodgate-fresh-selection-teacher.ts
 ```
 
 処理順は固定した。
@@ -39,6 +39,11 @@ npm run shogi:floodgate-fresh-selection-teacher
 4. local teacherを完走する。
 5. checkpoint、asset、policy、sourceをもう一度検証する。
 6. `manifest.json`、`authority.json`をcommitし、完了markerの`result.json`を最後にcommitする。
+
+開始前にformal v8とv9のrun lockをこの順に取得し、成功・失敗のどちらでもrun全体が
+終わるまで保持して、v9からv8の逆順で解放する。v9 lockの取得に失敗した場合も、先に
+取得したv8 lockを解放する。したがってformal v8 / v9のどちらかが稼働中ならcheckpoint、
+selection source、engineへ進まない。process-wideな`umask`は変更しない。
 
 preflightが失敗した場合、source readerとgeneratorは呼ばれない。現在のtracked registryは
 training planと3つのfinal result / checkpoint identityがすべて`null`なので、直接preflightは
@@ -104,9 +109,10 @@ data-only review後である。
 
 ## validationと依存関係
 
-Node v22のruntime focused suiteはgenerator、USI MultiPV、fixed runnerの
-3 files / 51 tests、publication evidenceは1 file / 4 tests、合計4 files / 55 testsが
-PASSした。preflight projectionはPython 3 / 3、ML stdlib全体は287 / 287、
+Node v22のruntime focused suiteはgenerator、USI MultiPV、fixed runner、
+v9 diagnostic spawn-failureの4 files / 58 tests、publication evidenceは
+1 file / 4 tests、合計5 files / 62 testsがPASSした。preflight projectionは
+Python 3 / 3、ML stdlib全体は287 / 287、
 TypeScript compileとdiff checkもPASSした。
 実checkpointがないため、heavy selection runは意図的に開始していない。
 

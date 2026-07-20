@@ -17,7 +17,7 @@
 | Real YaneuraOu selection engines | 0 processes |
 | Real selection labels / candidate selections | 0 / 0 |
 | Live weight changes | 0 |
-| Focused TypeScript / Python | 55 / 55 (51 runtime + 4 evidence) and 3 / 3 PASS |
+| Focused TypeScript / Python | 62 / 62 (58 runtime + 4 evidence) and 3 / 3 PASS |
 
 This is not a playing-strength result. It closes the real selection-teacher generation path
 needed immediately after three-seed training.
@@ -27,7 +27,7 @@ needed immediately after three-seed training.
 The fixed argumentless command is:
 
 ```sh
-npm run shogi:floodgate-fresh-selection-teacher
+npx tsx ml/run-floodgate-fresh-selection-teacher.ts
 ```
 
 Its order is fixed:
@@ -38,6 +38,12 @@ Its order is fixed:
 4. complete the local teacher;
 5. revalidate the checkpoints, assets, policy, and source;
 6. commit `manifest.json` and `authority.json`, then commit completion marker `result.json` last.
+
+Before that sequence, the runner acquires the formal v8 and v9 run locks in that order, holds
+both for the full run on success or failure, and releases v9 then v8. A failed v9 acquisition
+also releases the already-held v8 lock. An active formal v8 or v9 run therefore blocks before
+checkpoint, selection-source, or engine work. The runner does not change the process-wide
+`umask`.
 
 When preflight fails, neither the source reader nor the generator is called. The current tracked
 registry keeps the training plan and all three final result/checkpoint identities at `null`.
@@ -104,11 +110,11 @@ training complete and a data-only review registers their observed identities.
 
 ## Validation and dependency
 
-Under Node v22, the focused generator, USI MultiPV, and fixed-runner suite passed 51 / 51 tests
-across three files; publication evidence passed 4 / 4, for 55 / 55 across four files. The Python
-preflight projection passed 3 / 3 tests, and the full ML stdlib passed 287 / 287; TypeScript
-compilation and the diff check also passed. No heavy selection run was started because the real
-checkpoints do not exist.
+Under Node v22, the focused generator, USI MultiPV, fixed-runner, and v9 diagnostic spawn-failure
+suite passed 58 / 58 tests across four files; publication evidence passed 4 / 4, for 62 / 62
+across five files. The Python preflight projection passed 3 / 3 tests, and the full ML stdlib
+passed 287 / 287; TypeScript compilation and the diff check also passed. No heavy selection run
+was started because the real checkpoints do not exist.
 
 The generator includes the same change as strength-first v9 proposal-rescue commit
 `a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe`. That exact commit is also a second parent of a

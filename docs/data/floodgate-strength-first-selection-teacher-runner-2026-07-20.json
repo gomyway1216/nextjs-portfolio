@@ -10,7 +10,7 @@
     "foundation_commit": "26dc8e08e86c75440e828964d8a655b1f05a142b",
     "v9_core_local_cherry_pick_commit": "408fd2436ffd3fbf950423157846e3e0d0a3c5a1",
     "generator_integration_commit": "749689746f0e6b5d626d4c54da8424a09f0b0710",
-    "argumentless_command": "npm run shogi:floodgate-fresh-selection-teacher",
+    "argumentless_command": "npx tsx ml/run-floodgate-fresh-selection-teacher.ts",
     "accepts_arguments_or_path_overrides": false,
     "fixed_local_runner": true,
     "real_sibling_generator_adapter_connected": true
@@ -35,7 +35,7 @@
     "registered_final_checkpoint_identities": 0,
     "strict_loaded_candidate_checkpoints": 0,
     "direct_preflight": {
-      "command": "/opt/homebrew/bin/python3 ml/run_strength_first_selection_teacher_preflight.py",
+      "command": "python3 ml/run_strength_first_selection_teacher_preflight.py",
       "exit_code": 1,
       "stdout_bytes": 0,
       "status": "expected-stop-selection-registry-remains-closed"
@@ -58,6 +58,24 @@
     "opened_during_implementation_or_validation": false
   },
   "ordering_contract": {
+    "formal_teacher_exclusion": {
+      "roots": [
+        "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+        "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9"
+      ],
+      "acquisition_order": [
+        "v8",
+        "v9"
+      ],
+      "release_order": [
+        "v9",
+        "v8"
+      ],
+      "held_for_entire_run": true,
+      "v9_acquisition_failure_releases_v8": true,
+      "active_v8_or_v9_blocks_before_checkpoint_source_or_engine": true
+    },
+    "process_umask_changed": false,
     "exact_clean_revision_before_checkpoint_preflight": true,
     "all_three_checkpoints_strict_loaded_before_source_open": true,
     "source_assets_and_policy_open_only_after_preflight": true,
@@ -135,8 +153,8 @@
     "typescript_compile": "PASS",
     "focused_runtime_vitest": {
       "status": "PASS",
-      "files": 3,
-      "tests": 51
+      "files": 4,
+      "tests": 58
     },
     "publication_evidence_vitest": {
       "status": "PASS",
@@ -145,8 +163,8 @@
     },
     "combined_focused_vitest": {
       "status": "PASS",
-      "files": 4,
-      "tests": 55
+      "files": 5,
+      "tests": 62
     },
     "python_preflight_projection": {
       "status": "PASS",

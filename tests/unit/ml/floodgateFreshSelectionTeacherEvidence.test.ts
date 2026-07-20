@@ -69,6 +69,20 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
         candidate_selections: 0,
         live_weight_changes: 0,
       },
+      ordering_contract: {
+        formal_teacher_exclusion: {
+          roots: [
+            "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+            "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9",
+          ],
+          acquisition_order: ["v8", "v9"],
+          release_order: ["v9", "v8"],
+          held_for_entire_run: true,
+          v9_acquisition_failure_releases_v8: true,
+          active_v8_or_v9_blocks_before_checkpoint_source_or_engine: true,
+        },
+        process_umask_changed: false,
+      },
     });
   });
 
@@ -168,7 +182,7 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
       },
       local_validation: {
         typescript_compile: "PASS",
-        focused_runtime_vitest: { status: "PASS", files: 3, tests: 51 },
+        focused_runtime_vitest: { status: "PASS", files: 4, tests: 58 },
         publication_evidence_vitest: {
           status: "PASS",
           files: 1,
@@ -176,8 +190,8 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
         },
         combined_focused_vitest: {
           status: "PASS",
-          files: 4,
-          tests: 55,
+          files: 5,
+          tests: 62,
         },
         python_preflight_projection: { status: "PASS", tests: 3 },
         full_ml_stdlib: { status: "PASS", tests: 287 },
@@ -195,7 +209,7 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
       const article = fs.readFileSync(articlePath, "utf8");
       expect(article).toContain("12");
       expect(article).toContain("512");
-      expect(article).toContain("51");
+      expect(article).toContain("58");
       expect(article).not.toContain("/Users/");
       expect(article).not.toContain("高段になった");
       expect(article).not.toContain("high-dan achieved");

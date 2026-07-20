@@ -448,28 +448,79 @@ function privateEngineEnvironment(workerDirectory: string): NodeJS.ProcessEnv {
   };
 }
 
+interface DiagnosticChildErrorMonitor {
+  readonly current: () => Error | undefined;
+  readonly subscribe: (listener: (error: Error) => void) => () => void;
+  readonly close: () => void;
+}
+
+function monitorDiagnosticChildErrors(
+  child: ChildProcessWithoutNullStreams,
+): DiagnosticChildErrorMonitor {
+  const subscribers = new Set<(error: Error) => void>();
+  let failure: Error | undefined;
+  const onError = (cause: Error) => {
+    failure ??= new Error('diagnostic-engine-process-error', { cause });
+    for (const subscriber of [...subscribers]) subscriber(failure);
+  };
+  child.on('error', onError);
+  child.stdin.on('error', onError);
+  child.stdout.on('error', onError);
+  child.stderr.on('error', onError);
+  return {
+    current: () => failure,
+    subscribe: (listener) => {
+      subscribers.add(listener);
+      return () => subscribers.delete(listener);
+    },
+    close: () => {
+      subscribers.clear();
+      child.off('error', onError);
+      child.stdin.off('error', onError);
+      child.stdout.off('error', onError);
+      child.stderr.off('error', onError);
+    },
+  };
+}
+
 async function waitForLine(
   child: ChildProcessWithoutNullStreams,
+  errors: DiagnosticChildErrorMonitor,
   listeners: Set<(line: string) => void>,
   predicate: (line: string) => boolean,
   timeoutMs: number,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
+    const existingError = errors.current();
+    if (existingError) {
+      reject(existingError);
+      return;
+    }
     const timer = setTimeout(() => {
-      listeners.delete(onLine);
+      cleanup();
       reject(new Error('diagnostic-engine-initialization-timeout'));
     }, timeoutMs);
+    const onError = (error: Error) => {
+      clearTimeout(timer);
+      cleanup();
+      reject(error);
+    };
     const onClose = () => {
       clearTimeout(timer);
-      listeners.delete(onLine);
+      cleanup();
       reject(new Error('diagnostic-engine-exited'));
     };
     const onLine = (line: string) => {
       if (!predicate(line)) return;
       clearTimeout(timer);
+      cleanup();
+      resolve();
+    };
+    const unsubscribeError = errors.subscribe(onError);
+    const cleanup = () => {
       child.off('close', onClose);
       listeners.delete(onLine);
-      resolve();
+      unsubscribeError();
     };
     listeners.add(onLine);
     child.once('close', onClose);
@@ -477,7 +528,13 @@ async function waitForLine(
 }
 
 async function closeEngine(child: ChildProcessWithoutNullStreams): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (
+    child.pid === undefined ||
+    child.exitCode !== null ||
+    child.signalCode !== null
+  ) {
+    return;
+  }
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -513,6 +570,7 @@ async function runSearch(
     env: privateEngineEnvironment(workerDirectory),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  const childErrors = monitorDiagnosticChildErrors(child);
   child.stderr.resume();
   const listeners = new Set<(line: string) => void>();
   let buffer = '';
@@ -526,13 +584,21 @@ async function runSearch(
     }
   });
   const send = (line: string) => {
+    const childError = childErrors.current();
+    if (childError) throw childError;
     if (!child.stdin.writable) throw new Error('diagnostic-engine-not-writable');
     child.stdin.write(`${line}\n`);
   };
   let result: UsiMultiPvResult | undefined;
   let failureKind: FailureKind = 'none';
   try {
-    const usi = waitForLine(child, listeners, (line) => line === 'usiok', 15_000);
+    const usi = waitForLine(
+      child,
+      childErrors,
+      listeners,
+      (line) => line === 'usiok',
+      15_000
+    );
     send('usi');
     await usi;
     send(`setoption name EvalDir value ${evalDir}`);
@@ -541,6 +607,7 @@ async function runSearch(
     for (const command of fixedUsiOptionCommands()) send(command);
     const ready = waitForLine(
       child,
+      childErrors,
       listeners,
       (line) => line === 'readyok',
       120_000,
@@ -549,13 +616,23 @@ async function runSearch(
     await ready;
     send('usinewgame');
     result = await new Promise<UsiMultiPvResult>((resolve, reject) => {
+      const existingError = childErrors.current();
+      if (existingError) {
+        reject(existingError);
+        return;
+      }
       const timer = setTimeout(() => {
-        listeners.delete(onLine);
+        cleanup();
         reject(new Error('diagnostic-search-timeout'));
       }, TIMEOUT_MS);
+      const onError = (error: Error) => {
+        clearTimeout(timer);
+        cleanup();
+        reject(error);
+      };
       const onClose = () => {
         clearTimeout(timer);
-        listeners.delete(onLine);
+        cleanup();
         reject(new Error('diagnostic-engine-exited'));
       };
       const onLine = (line: string) => {
@@ -563,13 +640,18 @@ async function runSearch(
         classifier.consume(line);
         if (!line.startsWith('bestmove')) return;
         clearTimeout(timer);
-        child.off('close', onClose);
-        listeners.delete(onLine);
+        cleanup();
         try {
           resolve(accumulator.finish());
         } catch (error) {
           reject(error);
         }
+      };
+      const unsubscribeError = childErrors.subscribe(onError);
+      const cleanup = () => {
+        child.off('close', onClose);
+        listeners.delete(onLine);
+        unsubscribeError();
       };
       listeners.add(onLine);
       child.once('close', onClose);
@@ -581,6 +663,7 @@ async function runSearch(
     failureKind = sanitizedFailureKind(error);
   } finally {
     await closeEngine(child);
+    childErrors.close();
   }
   return Object.freeze({
     depth,
@@ -589,6 +672,34 @@ async function runSearch(
     elapsedMs: Math.round(performance.now() - started),
     ...(result === undefined ? {} : { result }),
     transcript: classifier.finish(),
+  });
+}
+
+export async function runStrengthFirstV9DiagnosticSearchCoreForTests(
+  options: Readonly<{
+    engineBin: string;
+    evalDir: string;
+    workerDirectory: string;
+    sfen: string;
+    legalMoves: number;
+    depth: DiagnosticDepth;
+  }>,
+): Promise<Readonly<{ complete: boolean; failureKind: FailureKind }>> {
+  const outcome = await runSearch(
+    options.engineBin,
+    options.evalDir,
+    options.workerDirectory,
+    {
+      group: 'critical',
+      sfen: options.sfen,
+      legalMoves: options.legalMoves,
+      fatalTranscriptClassification: false,
+    },
+    options.depth,
+  );
+  return Object.freeze({
+    complete: outcome.complete,
+    failureKind: outcome.failureKind,
   });
 }
 

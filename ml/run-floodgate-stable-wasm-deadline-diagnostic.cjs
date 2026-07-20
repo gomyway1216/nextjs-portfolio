@@ -5963,7 +5963,7 @@ var init_shogi_sfen = __esm({
 
 // ml/floodgate-training-row-validation.ts
 function fail8(message) {
-  throw new Error(`invalid Floodgate training rows: ${message}`);
+  throw new Error(`invalid Floodgate authenticated rows: ${message}`);
 }
 function sha2563(value) {
   return (0, import_node_crypto5.createHash)("sha256").update(value).digest("hex");
@@ -6123,14 +6123,14 @@ function requiredString(value, label) {
   }
   return value;
 }
-function captureFloodgateTrainingRawIdentity(value) {
+function captureFloodgateRawIdentity(value, expectedPath) {
   const identity = exactDataRecord2(
     value,
     RAW_IDENTITY_KEYS,
-    "training raw identity"
+    "Floodgate raw identity"
   );
-  if (identity.path !== "training.raw.jsonl" || identity.format !== FLOODGATE_TRAINING_RAW_PARENT_FORMAT) {
-    fail8("training raw path or format is not fixed");
+  if (identity.path !== expectedPath || identity.format !== FLOODGATE_TRAINING_RAW_PARENT_FORMAT) {
+    fail8("raw path or format is not fixed");
   }
   for (const key of [
     "bytes",
@@ -6139,11 +6139,11 @@ function captureFloodgateTrainingRawIdentity(value) {
     "position_ids_count"
   ]) {
     if (!Number.isSafeInteger(identity[key]) || identity[key] <= 0) {
-      fail8(`training raw ${key} is not a positive safe integer`);
+      fail8(`raw ${key} is not a positive safe integer`);
     }
   }
   if (identity.bytes > FLOODGATE_TRAINING_RAW_MAX_BYTES) {
-    fail8("training raw identity exceeds the fixed size bound");
+    fail8("raw identity exceeds the fixed size bound");
   }
   for (const key of [
     "sha256",
@@ -6152,7 +6152,7 @@ function captureFloodgateTrainingRawIdentity(value) {
     "position_ids_sha256"
   ]) {
     if (typeof identity[key] !== "string" || !SHA256_RE2.test(identity[key])) {
-      fail8(`training raw ${key} is not a SHA-256 digest`);
+      fail8(`raw ${key} is not a SHA-256 digest`);
     }
   }
   return Object.freeze({
@@ -6161,81 +6161,84 @@ function captureFloodgateTrainingRawIdentity(value) {
     game_ids_sha256: identity.game_ids_sha256,
     games: identity.games,
     parent_ids_sha256: identity.parent_ids_sha256,
-    path: "training.raw.jsonl",
+    path: expectedPath,
     position_ids_count: identity.position_ids_count,
     position_ids_sha256: identity.position_ids_sha256,
     records: identity.records,
     sha256: identity.sha256
   });
 }
+function captureFloodgateTrainingRawIdentity(value) {
+  return captureFloodgateRawIdentity(value, "training.raw.jsonl");
+}
 function parseRawParent(value, canonicalLine, lineNumber) {
   const raw = exactDataRecord2(
     value,
     RAW_PARENT_KEYS,
-    `training row ${lineNumber}`
+    `authenticated row ${lineNumber}`
   );
   if (canonicalJson3(value) !== canonicalLine) {
-    fail8(`training row ${lineNumber} is not canonical JSON`);
+    fail8(`authenticated row ${lineNumber} is not canonical JSON`);
   }
   if (raw.schema_version !== 1 || raw.source !== "floodgate") {
-    fail8(`training row ${lineNumber} source schema is invalid`);
+    fail8(`authenticated row ${lineNumber} source schema is invalid`);
   }
   const sourceUrl = canonicalFloodgateCsaUrl(raw.source_url);
   const gameSha256 = requiredString(
     raw.game_sha256,
-    `training row ${lineNumber} game_sha256`
+    `authenticated row ${lineNumber} game_sha256`
   );
   if (!SHA256_RE2.test(gameSha256)) {
-    fail8(`training row ${lineNumber} game_sha256 is invalid`);
+    fail8(`authenticated row ${lineNumber} game_sha256 is invalid`);
   }
   const gameId = requiredString(
     raw.game_id,
-    `training row ${lineNumber} game_id`
+    `authenticated row ${lineNumber} game_id`
   );
   const parentId = requiredString(
     raw.parent_id,
-    `training row ${lineNumber} parent_id`
+    `authenticated row ${lineNumber} parent_id`
   );
   const positionId = requiredString(
     raw.position_id,
-    `training row ${lineNumber} position_id`
+    `authenticated row ${lineNumber} position_id`
   );
   if (!POSITION_ID_RE.test(gameId) || !POSITION_ID_RE.test(parentId) || !POSITION_ID_RE.test(positionId) || gameId !== gameIdForUrl(sourceUrl)) {
-    fail8(`training row ${lineNumber} semantic identifiers are invalid`);
+    fail8(`authenticated row ${lineNumber} semantic identifiers are invalid`);
   }
   if (!Number.isSafeInteger(raw.ply) || raw.ply < 0) {
-    fail8(`training row ${lineNumber} ply is invalid`);
+    fail8(`authenticated row ${lineNumber} ply is invalid`);
   }
   const ply = raw.ply;
   if (parentId !== parentOccurrenceId(gameId, ply)) {
-    fail8(`training row ${lineNumber} parent_id does not match game and ply`);
+    fail8(`authenticated row ${lineNumber} parent_id does not match game and ply`);
   }
   const parentSfen = requiredString(
     raw.parent_sfen,
-    `training row ${lineNumber} parent_sfen`
+    `authenticated row ${lineNumber} parent_sfen`
   );
   if (parentSfen.split(/\s+/u).join(" ") !== parentSfen) {
-    fail8(`training row ${lineNumber} parent_sfen is not normalized`);
+    fail8(`authenticated row ${lineNumber} parent_sfen is not normalized`);
   }
   const playedMove = requiredString(
     raw.played_move,
-    `training row ${lineNumber} played_move`
+    `authenticated row ${lineNumber} played_move`
   );
   try {
     const parsed = positionFromSfen(parentSfen);
     if (toSfen(parsed.position, parsed.moveNumber) !== parentSfen || parsed.moveNumber !== ply + 1) {
-      fail8(`training row ${lineNumber} SFEN is not canonical for its ply`);
+      fail8(`authenticated row ${lineNumber} SFEN is not canonical for its ply`);
     }
     if (!rulesCompleteLegalMoves(parsed.position).some(
       (move) => move.usi === playedMove
     )) {
-      fail8(`training row ${lineNumber} played_move is illegal`);
+      fail8(`authenticated row ${lineNumber} played_move is illegal`);
     }
   } catch {
-    fail8(`training row ${lineNumber} SFEN or played_move is invalid`);
+    fail8(`authenticated row ${lineNumber} SFEN or played_move is invalid`);
   }
   if (positionIdForSfen(parentSfen) !== positionId) {
-    fail8(`training row ${lineNumber} position_id does not match SFEN`);
+    fail8(`authenticated row ${lineNumber} position_id does not match SFEN`);
   }
   return Object.freeze({
     gameSha256,
@@ -6251,31 +6254,32 @@ function parseRawParent(value, canonicalLine, lineNumber) {
     sourceUrl
   });
 }
-function parseAuthenticatedFloodgateTrainingRows(bytes, expectedIdentityInput) {
+function parseAuthenticatedFloodgateRows(bytes, expectedIdentityInput, expectedPath) {
   if (!(bytes instanceof Uint8Array) || import_node_util6.types.isProxy(bytes)) {
-    fail8("training raw snapshot must be a non-Proxy Uint8Array");
+    fail8("authenticated raw snapshot must be a non-Proxy Uint8Array");
   }
-  const expectedIdentity = captureFloodgateTrainingRawIdentity(
-    expectedIdentityInput
+  const expectedIdentity = captureFloodgateRawIdentity(
+    expectedIdentityInput,
+    expectedPath
   );
   if (bytes.byteLength !== expectedIdentity.bytes || sha2563(bytes) !== expectedIdentity.sha256) {
-    fail8("training raw bytes do not match the authenticated identity");
+    fail8("authenticated raw bytes do not match its identity");
   }
   if (bytes.byteLength >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) {
-    fail8("training raw snapshot contains a UTF-8 BOM");
+    fail8("authenticated raw snapshot contains a UTF-8 BOM");
   }
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return fail8("training raw snapshot is not fatal-valid UTF-8");
+    return fail8("authenticated raw snapshot is not fatal-valid UTF-8");
   }
   if (text.startsWith("\uFEFF") || text.includes("\0") || text.includes("\r") || !text.endsWith("\n") || text.endsWith("\n\n")) {
-    fail8("training raw JSONL framing is not canonical");
+    fail8("authenticated raw JSONL framing is not canonical");
   }
   const lines = text.slice(0, -1).split("\n");
   if (lines.length !== expectedIdentity.records || lines.some((line) => line.length === 0)) {
-    fail8("training raw record count or blank-line framing differs");
+    fail8("authenticated raw record count or blank-line framing differs");
   }
   const rows = [];
   const gameIds = /* @__PURE__ */ new Set();
@@ -6288,22 +6292,22 @@ function parseAuthenticatedFloodgateTrainingRows(bytes, expectedIdentityInput) {
     try {
       parsed = JSON.parse(lines[index]);
     } catch {
-      return fail8(`training row ${index + 1} is not valid JSON`);
+      return fail8(`authenticated row ${index + 1} is not valid JSON`);
     }
     const parsedRow = parseRawParent(parsed, lines[index], index + 1);
     const row = parsedRow.parent;
     if (previousParentId !== void 0 && compareBytewise(previousParentId, row.parent_id) >= 0) {
-      fail8("training parent_id order is not strict UTF-8 byte order");
+      fail8("authenticated parent_id order is not strict UTF-8 byte order");
     }
     previousParentId = row.parent_id;
-    if (parentIds.has(row.parent_id)) fail8("training parent_id is duplicated");
+    if (parentIds.has(row.parent_id)) fail8("authenticated parent_id is duplicated");
     if (positionIds.has(row.position_id)) {
-      fail8("training semantic position is duplicated");
+      fail8("authenticated semantic position is duplicated");
     }
     const sourceIdentity = `${parsedRow.sourceUrl}\0${parsedRow.gameSha256}`;
     const existingSource = gameSources.get(row.game_id);
     if (existingSource !== void 0 && existingSource !== sourceIdentity) {
-      fail8("training game source identity is inconsistent");
+      fail8("authenticated game source identity is inconsistent");
     }
     gameSources.set(row.game_id, sourceIdentity);
     gameIds.add(row.game_id);
@@ -6312,9 +6316,16 @@ function parseAuthenticatedFloodgateTrainingRows(bytes, expectedIdentityInput) {
     rows.push(row);
   }
   if (gameIds.size !== expectedIdentity.games || parentIds.size !== expectedIdentity.records || positionIds.size !== expectedIdentity.position_ids_count || identifierDigest(gameIds) !== expectedIdentity.game_ids_sha256 || identifierDigest(parentIds) !== expectedIdentity.parent_ids_sha256 || identifierDigest(positionIds) !== expectedIdentity.position_ids_sha256) {
-    fail8("training aggregate identity does not match the manifest");
+    fail8("authenticated aggregate identity does not match the manifest");
   }
   return Object.freeze(rows);
+}
+function parseAuthenticatedFloodgateTrainingRows(bytes, expectedIdentityInput) {
+  return parseAuthenticatedFloodgateRows(
+    bytes,
+    expectedIdentityInput,
+    "training.raw.jsonl"
+  );
 }
 var import_node_crypto5, import_node_util6, FLOODGATE_TRAINING_RAW_PARENT_FORMAT, FLOODGATE_TRAINING_RAW_MAX_BYTES, FLOODGATE_ORIGIN, FLOODGATE_EVENT, FLOODGATE_GAME_ID_DOMAIN, POSITION_ID_RE, SHA256_RE2, CONTROL_RE2, ENCODED_STRUCTURAL_RE, RAW_PARENT_KEYS, RAW_IDENTITY_KEYS;
 var init_floodgate_training_row_validation = __esm({

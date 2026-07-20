@@ -152,6 +152,9 @@ def _git_head(repo_root: str) -> str:
         "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
     }
+    # This runner is intentionally macOS-local. Use Apple's fixed system Git
+    # shim so a repository-controlled or user-modified PATH cannot substitute
+    # a different executable during checkpoint authentication.
     result = subprocess.run(
         ["/usr/bin/git", "-C", repo_root, "rev-parse", "HEAD"],
         check=True,

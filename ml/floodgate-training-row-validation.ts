@@ -1,5 +1,5 @@
 /**
- * Pure validation for authenticated Floodgate training rows.
+ * Pure validation for authenticated Floodgate role rows.
  *
  * The production consumer and the deadline diagnostic share this module so
  * row ordering, identifiers, SFEN canonicalization, and legal-move checks
@@ -77,7 +77,7 @@ const RAW_IDENTITY_KEYS = Object.freeze([
 ] as const);
 
 function fail(message: string): never {
-  throw new Error(`invalid Floodgate training rows: ${message}`);
+  throw new Error(`invalid Floodgate authenticated rows: ${message}`);
 }
 
 function sha256(value: Uint8Array | string): string {
@@ -420,33 +420,33 @@ function parseRawParent(
   const raw = exactDataRecord(
     value,
     RAW_PARENT_KEYS,
-    `training row ${lineNumber}`,
+    `authenticated row ${lineNumber}`,
   );
   if (canonicalJson(value) !== canonicalLine) {
-    fail(`training row ${lineNumber} is not canonical JSON`);
+    fail(`authenticated row ${lineNumber} is not canonical JSON`);
   }
   if (raw.schema_version !== 1 || raw.source !== "floodgate") {
-    fail(`training row ${lineNumber} source schema is invalid`);
+    fail(`authenticated row ${lineNumber} source schema is invalid`);
   }
   const sourceUrl = canonicalFloodgateCsaUrl(raw.source_url);
   const gameSha256 = requiredString(
     raw.game_sha256,
-    `training row ${lineNumber} game_sha256`,
+    `authenticated row ${lineNumber} game_sha256`,
   );
   if (!SHA256_RE.test(gameSha256)) {
-    fail(`training row ${lineNumber} game_sha256 is invalid`);
+    fail(`authenticated row ${lineNumber} game_sha256 is invalid`);
   }
   const gameId = requiredString(
     raw.game_id,
-    `training row ${lineNumber} game_id`,
+    `authenticated row ${lineNumber} game_id`,
   );
   const parentId = requiredString(
     raw.parent_id,
-    `training row ${lineNumber} parent_id`,
+    `authenticated row ${lineNumber} parent_id`,
   );
   const positionId = requiredString(
     raw.position_id,
-    `training row ${lineNumber} position_id`,
+    `authenticated row ${lineNumber} position_id`,
   );
   if (
     !POSITION_ID_RE.test(gameId) ||
@@ -454,25 +454,25 @@ function parseRawParent(
     !POSITION_ID_RE.test(positionId) ||
     gameId !== gameIdForUrl(sourceUrl)
   ) {
-    fail(`training row ${lineNumber} semantic identifiers are invalid`);
+    fail(`authenticated row ${lineNumber} semantic identifiers are invalid`);
   }
   if (!Number.isSafeInteger(raw.ply) || (raw.ply as number) < 0) {
-    fail(`training row ${lineNumber} ply is invalid`);
+    fail(`authenticated row ${lineNumber} ply is invalid`);
   }
   const ply = raw.ply as number;
   if (parentId !== parentOccurrenceId(gameId, ply)) {
-    fail(`training row ${lineNumber} parent_id does not match game and ply`);
+    fail(`authenticated row ${lineNumber} parent_id does not match game and ply`);
   }
   const parentSfen = requiredString(
     raw.parent_sfen,
-    `training row ${lineNumber} parent_sfen`,
+    `authenticated row ${lineNumber} parent_sfen`,
   );
   if (parentSfen.split(/\s+/u).join(" ") !== parentSfen) {
-    fail(`training row ${lineNumber} parent_sfen is not normalized`);
+    fail(`authenticated row ${lineNumber} parent_sfen is not normalized`);
   }
   const playedMove = requiredString(
     raw.played_move,
-    `training row ${lineNumber} played_move`,
+    `authenticated row ${lineNumber} played_move`,
   );
   try {
     const parsed = positionFromSfen(parentSfen);
@@ -480,20 +480,20 @@ function parseRawParent(
       toSfen(parsed.position, parsed.moveNumber) !== parentSfen ||
       parsed.moveNumber !== ply + 1
     ) {
-      fail(`training row ${lineNumber} SFEN is not canonical for its ply`);
+      fail(`authenticated row ${lineNumber} SFEN is not canonical for its ply`);
     }
     if (
       !rulesCompleteLegalMoves(parsed.position).some(
         (move) => move.usi === playedMove,
       )
     ) {
-      fail(`training row ${lineNumber} played_move is illegal`);
+      fail(`authenticated row ${lineNumber} played_move is illegal`);
     }
   } catch {
-    fail(`training row ${lineNumber} SFEN or played_move is invalid`);
+    fail(`authenticated row ${lineNumber} SFEN or played_move is invalid`);
   }
   if (positionIdForSfen(parentSfen) !== positionId) {
-    fail(`training row ${lineNumber} position_id does not match SFEN`);
+    fail(`authenticated row ${lineNumber} position_id does not match SFEN`);
   }
   return Object.freeze({
     gameSha256,
@@ -516,7 +516,7 @@ function parseAuthenticatedFloodgateRows(
   expectedPath: "training.raw.jsonl" | "fresh-selection.raw.jsonl",
 ): readonly Readonly<FloodgateTrainingParent>[] {
   if (!(bytes instanceof Uint8Array) || nodeUtilTypes.isProxy(bytes)) {
-    fail("training raw snapshot must be a non-Proxy Uint8Array");
+    fail("authenticated raw snapshot must be a non-Proxy Uint8Array");
   }
   const expectedIdentity = captureFloodgateRawIdentity(
     expectedIdentityInput,
@@ -526,7 +526,7 @@ function parseAuthenticatedFloodgateRows(
     bytes.byteLength !== expectedIdentity.bytes ||
     sha256(bytes) !== expectedIdentity.sha256
   ) {
-    fail("training raw bytes do not match the authenticated identity");
+    fail("authenticated raw bytes do not match its identity");
   }
   if (
     bytes.byteLength >= 3 &&
@@ -534,13 +534,13 @@ function parseAuthenticatedFloodgateRows(
     bytes[1] === 0xbb &&
     bytes[2] === 0xbf
   ) {
-    fail("training raw snapshot contains a UTF-8 BOM");
+    fail("authenticated raw snapshot contains a UTF-8 BOM");
   }
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return fail("training raw snapshot is not fatal-valid UTF-8");
+    return fail("authenticated raw snapshot is not fatal-valid UTF-8");
   }
   if (
     text.startsWith("\uFEFF") ||
@@ -549,14 +549,14 @@ function parseAuthenticatedFloodgateRows(
     !text.endsWith("\n") ||
     text.endsWith("\n\n")
   ) {
-    fail("training raw JSONL framing is not canonical");
+    fail("authenticated raw JSONL framing is not canonical");
   }
   const lines = text.slice(0, -1).split("\n");
   if (
     lines.length !== expectedIdentity.records ||
     lines.some((line) => line.length === 0)
   ) {
-    fail("training raw record count or blank-line framing differs");
+    fail("authenticated raw record count or blank-line framing differs");
   }
 
   const rows: Readonly<FloodgateTrainingParent>[] = [];
@@ -570,7 +570,7 @@ function parseAuthenticatedFloodgateRows(
     try {
       parsed = JSON.parse(lines[index]) as unknown;
     } catch {
-      return fail(`training row ${index + 1} is not valid JSON`);
+      return fail(`authenticated row ${index + 1} is not valid JSON`);
     }
     const parsedRow = parseRawParent(parsed, lines[index], index + 1);
     const row = parsedRow.parent;
@@ -578,17 +578,17 @@ function parseAuthenticatedFloodgateRows(
       previousParentId !== undefined &&
       compareBytewise(previousParentId, row.parent_id) >= 0
     ) {
-      fail("training parent_id order is not strict UTF-8 byte order");
+      fail("authenticated parent_id order is not strict UTF-8 byte order");
     }
     previousParentId = row.parent_id;
-    if (parentIds.has(row.parent_id)) fail("training parent_id is duplicated");
+    if (parentIds.has(row.parent_id)) fail("authenticated parent_id is duplicated");
     if (positionIds.has(row.position_id)) {
-      fail("training semantic position is duplicated");
+      fail("authenticated semantic position is duplicated");
     }
     const sourceIdentity = `${parsedRow.sourceUrl}\0${parsedRow.gameSha256}`;
     const existingSource = gameSources.get(row.game_id);
     if (existingSource !== undefined && existingSource !== sourceIdentity) {
-      fail("training game source identity is inconsistent");
+      fail("authenticated game source identity is inconsistent");
     }
     gameSources.set(row.game_id, sourceIdentity);
     gameIds.add(row.game_id);
@@ -604,7 +604,7 @@ function parseAuthenticatedFloodgateRows(
     identifierDigest(parentIds) !== expectedIdentity.parent_ids_sha256 ||
     identifierDigest(positionIds) !== expectedIdentity.position_ids_sha256
   ) {
-    fail("training aggregate identity does not match the manifest");
+    fail("authenticated aggregate identity does not match the manifest");
   }
   return Object.freeze(rows);
 }

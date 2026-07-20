@@ -66,6 +66,8 @@ export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_SELECTION_TEACHER_GAME_COUNT = 200 as const;
 export const FRESH_SELECTION_TEACHER_PARALLEL_ENGINES = 12 as const;
 export const FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE = 512 as const;
+export const FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY =
+  "floodgate-q1-2026-strength-first-v9" as const;
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -227,8 +229,7 @@ export interface FreshSelectionTeacherRunnerDependencies {
   readonly repositoryRoot: string;
   readonly effectiveUserId: number;
   readonly availableParallelism: number;
-  readonly setUmask: (mode: number) => number;
-  readonly assertFormalTeacherIdle: () => Promise<void>;
+  readonly acquireFormalTeacherExclusion: () => Promise<() => Promise<void>>;
   readonly captureExactCleanRevision: (repositoryRoot: string) => Promise<string>;
   readonly checkpointPreflight: (
     repositoryRoot: string,
@@ -322,6 +323,24 @@ export function freshSelectionTeacherPaths(
     engineReceipt: path.join(assetRoot, "engine", "yaneuraou-receipt.json"),
     evalDir: path.join(assetRoot, "eval"),
   });
+}
+
+export function freshSelectionFormalTeacherOutputRoots(
+  homeInput: string,
+  repositoryInput: string,
+): readonly [string, string] {
+  const home = path.resolve(homeInput);
+  const v8Root = floodgateStrengthFirstTeacherPaths(
+    home,
+    path.resolve(repositoryInput),
+  ).outputRoot;
+  const v9Root = path.join(
+    home,
+    ".codex",
+    "shogi-runs",
+    FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY,
+  );
+  return Object.freeze([v8Root, v9Root]);
 }
 
 function validatePreflight(
@@ -612,14 +631,14 @@ export async function runFreshSelectionTeacherCore(
   ) {
     throw new Error("fresh-selection runner requires a local POSIX runtime");
   }
-  const previousUmask = dependencies.setUmask(0o077);
+  const paths = freshSelectionTeacherPaths(
+    dependencies.homeDirectory(),
+    dependencies.repositoryRoot,
+  );
+  await ensurePrivateDirectory(paths.outputRoot, dependencies.effectiveUserId);
+  const releaseFormalTeacherExclusion =
+    await dependencies.acquireFormalTeacherExclusion();
   try {
-    const paths = freshSelectionTeacherPaths(
-      dependencies.homeDirectory(),
-      dependencies.repositoryRoot,
-    );
-    await ensurePrivateDirectory(paths.outputRoot, dependencies.effectiveUserId);
-    await dependencies.assertFormalTeacherIdle();
     const revision = await dependencies.captureExactCleanRevision(paths.repositoryRoot);
     if (!REVISION_RE.test(revision)) {
       throw new Error("fresh-selection runner revision is invalid");
@@ -791,7 +810,7 @@ export async function runFreshSelectionTeacherCore(
       live_weight_changes: 0,
     });
   } finally {
-    dependencies.setUmask(previousUmask);
+    await releaseFormalTeacherExclusion();
   }
 }
 
@@ -873,7 +892,7 @@ async function checkpointPreflight(
   const localPython = path.join(repositoryRoot, ".venv", "bin", "python3");
   const executable = fs.existsSync(localPython)
     ? localPython
-    : "/opt/homebrew/bin/python3";
+    : "python3";
   return (await subprocessJson(
     executable,
     [path.join(repositoryRoot, "ml", "run_strength_first_selection_teacher_preflight.py")],
@@ -883,7 +902,7 @@ async function checkpointPreflight(
         HOME: os.homedir(),
         LANG: "C",
         LC_ALL: "C",
-        PATH: "/opt/homebrew/bin:/usr/bin:/bin",
+        PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
         PYTHONPATH: path.join(repositoryRoot, "ml"),
         TZ: "UTC",
       },
@@ -894,11 +913,16 @@ async function checkpointPreflight(
 async function generateFreshSelectionTeacher(
   request: Readonly<FreshSelectionTeacherGeneratorRequest>,
 ): Promise<Readonly<FreshSelectionTeacherGeneratorOutcome>> {
+  assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests(
+    request.outputRoot,
+    request.datasetPath,
+    request.workPath,
+  );
   const source: FloodgateFreshSelectionRawIdentity = Object.freeze({
     ...request.source,
     path: "fresh-selection.raw.jsonl",
   });
-  const outcome = await generateFreshSelectionSiblingTeacherDataset(
+  return generateFreshSelectionSiblingTeacherDataset(
     Object.freeze({
       schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
       role: "fresh_selection",
@@ -923,31 +947,109 @@ async function generateFreshSelectionTeacher(
           .allowed_only_when_legal_moves_at_most,
     }),
   );
-  const generatedPaths = siblingTeacherStagePaths(request.outputRoot);
+}
+
+export function assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests(
+  outputRoot: string,
+  datasetPath: string,
+  workPath: string,
+): void {
+  const generatedPaths = siblingTeacherStagePaths(outputRoot);
   if (
-    generatedPaths.dataset !== path.resolve(request.datasetPath) ||
-    generatedPaths.work !== path.resolve(request.workPath)
+    generatedPaths.selection !== path.resolve(datasetPath) ||
+    generatedPaths.work !== path.resolve(workPath)
   ) {
     throw new Error("fresh-selection generator output paths drifted");
   }
-  return outcome;
 }
 
-async function assertFormalTeacherIdle(): Promise<void> {
-  const home = os.homedir();
-  const repositoryRoot = path.resolve(__dirname, "..");
-  const uid = effectiveUserId();
-  const formal = floodgateStrengthFirstTeacherPaths(home, repositoryRoot);
-  await ensurePrivateDirectory(formal.outputRoot, uid);
-  const release = await acquireFloodgateStrengthFirstTeacherRunLockCoreForTests(
-    formal.outputRoot,
-    uid,
+async function releaseFormalTeacherLocks(
+  releases: readonly (() => Promise<void>)[],
+): Promise<void> {
+  const failures: Error[] = [];
+  for (const release of [...releases].reverse()) {
+    try {
+      await release();
+    } catch (error) {
+      failures.push(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(failures, "formal teacher lock releases failed");
+  }
+}
+
+export interface FreshSelectionFormalTeacherLockDependencies {
+  readonly prepareDirectory: (
+    outputRoot: string,
+    effectiveUserId: number,
+  ) => Promise<void>;
+  readonly acquireLock: (
+    outputRoot: string,
+    effectiveUserId: number,
+  ) => Promise<() => Promise<void>>;
+}
+
+export async function acquireFreshSelectionFormalTeacherExclusionCoreForTests(
+  home: string,
+  repositoryRoot: string,
+  uid: number,
+  dependencies: Readonly<FreshSelectionFormalTeacherLockDependencies>,
+): Promise<() => Promise<void>> {
+  const releases: (() => Promise<void>)[] = [];
+  try {
+    for (const outputRoot of freshSelectionFormalTeacherOutputRoots(
+      home,
+      repositoryRoot,
+    )) {
+      await dependencies.prepareDirectory(outputRoot, uid);
+      releases.push(
+        await dependencies.acquireLock(outputRoot, uid),
+      );
+    }
+  } catch (error) {
+    try {
+      await releaseFormalTeacherLocks(releases);
+    } catch (releaseError) {
+      throw new AggregateError(
+        [
+          error instanceof Error ? error : new Error(String(error)),
+          releaseError,
+        ],
+        "formal teacher exclusion acquisition and cleanup failed",
+      );
+    }
+    throw error;
+  }
+  let released = false;
+  return async () => {
+    if (released) {
+      throw new Error("formal teacher exclusion was already released");
+    }
+    released = true;
+    await releaseFormalTeacherLocks(releases);
+  };
+}
+
+async function acquireFormalTeacherExclusion(): Promise<() => Promise<void>> {
+  return acquireFreshSelectionFormalTeacherExclusionCoreForTests(
+    os.homedir(),
+    path.resolve(__dirname, ".."),
+    effectiveUserId(),
     {
-      lockfExecutable: "/usr/bin/lockf",
-      acquisitionTimeoutMs: 10_000,
+      prepareDirectory: ensurePrivateDirectory,
+      acquireLock: (outputRoot, uid) =>
+        acquireFloodgateStrengthFirstTeacherRunLockCoreForTests(
+          outputRoot,
+          uid,
+          {
+            lockfExecutable: "/usr/bin/lockf",
+            acquisitionTimeoutMs: 10_000,
+          },
+        ),
     },
   );
-  await release();
 }
 
 function effectiveUserId(): number {
@@ -963,8 +1065,7 @@ const PRODUCTION_DEPENDENCIES: FreshSelectionTeacherRunnerDependencies =
     repositoryRoot: path.resolve(__dirname, ".."),
     effectiveUserId: effectiveUserId(),
     availableParallelism: os.availableParallelism(),
-    setUmask: (mode: number) => process.umask(mode),
-    assertFormalTeacherIdle,
+    acquireFormalTeacherExclusion,
     captureExactCleanRevision: captureFloodgateGitExactCleanRevision,
     checkpointPreflight,
     verifyAssets: verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,

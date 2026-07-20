@@ -15,6 +15,10 @@ import {
   FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
   FRESH_SELECTION_TEACHER_SOURCE,
   FRESH_SELECTION_TEACHER_STATUS,
+  FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY,
+  acquireFreshSelectionFormalTeacherExclusionCoreForTests,
+  assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests,
+  freshSelectionFormalTeacherOutputRoots,
   freshSelectionTeacherPaths,
   runFreshSelectionTeacherCore,
   validateFreshSelectionTeacherSearchPolicy,
@@ -155,8 +159,7 @@ async function dependencies(
     repositoryRoot,
     effectiveUserId: process.geteuid?.() ?? 0,
     availableParallelism: 14,
-    setUmask: (mode) => process.umask(mode),
-    assertFormalTeacherIdle: vi.fn(async () => undefined),
+    acquireFormalTeacherExclusion: vi.fn(async () => async () => undefined),
     captureExactCleanRevision: vi.fn(async () => REVISION),
     checkpointPreflight: vi.fn(async () => preflight()),
     verifyAssets: vi.fn(async () => ({ fixed: "asset-receipt" }) as never),
@@ -225,23 +228,51 @@ describe("fresh-selection teacher runner", () => {
     expect(() =>
       parseAuthenticatedFloodgateTrainingRows(bytes, identity),
     ).toThrow(/path or format is not fixed/);
+    expect(() =>
+      parseAuthenticatedFloodgateFreshSelectionRows(
+        Buffer.from("tampered\n"),
+        identity,
+      ),
+    ).toThrow(/authenticated raw bytes do not match its identity/);
+    try {
+      parseAuthenticatedFloodgateFreshSelectionRows(
+        Buffer.from("tampered\n"),
+        identity,
+      );
+    } catch (error) {
+      expect((error as Error).message).not.toContain("training raw");
+    }
   });
 
   it("strict-loads first, generates all 4,800 parents, revalidates, and commits exact documents", async () => {
     const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fresh-selection-runner-"));
     const events: string[] = [];
+    let exclusionHeld = false;
     const base = await dependencies(home);
     const wrapped: FreshSelectionTeacherRunnerDependencies = {
       ...base,
+      acquireFormalTeacherExclusion: vi.fn(async () => {
+        expect(exclusionHeld).toBe(false);
+        exclusionHeld = true;
+        events.push("formal-exclusion-acquired");
+        return async () => {
+          expect(exclusionHeld).toBe(true);
+          exclusionHeld = false;
+          events.push("formal-exclusion-released");
+        };
+      }),
       checkpointPreflight: vi.fn(async () => {
+        expect(exclusionHeld).toBe(true);
         events.push("checkpoint-preflight");
         return preflight();
       }),
       readSource: vi.fn(async () => {
+        expect(exclusionHeld).toBe(true);
         events.push("source-read");
         return source();
       }),
       generate: vi.fn(async (request) => {
+        expect(exclusionHeld).toBe(true);
         events.push("generate");
         expect(request.rows).toHaveLength(4_800);
         expect(request.searchPolicy.teacher.proposal).toEqual({
@@ -274,12 +305,15 @@ describe("fresh-selection teacher runner", () => {
       live_weight_changes: 0,
     });
     expect(events).toEqual([
+      "formal-exclusion-acquired",
       "checkpoint-preflight",
       "source-read",
       "generate",
       "checkpoint-preflight",
       "source-read",
+      "formal-exclusion-released",
     ]);
+    expect(exclusionHeld).toBe(false);
 
     const paths = freshSelectionTeacherPaths(home, wrapped.repositoryRoot);
     const authority = JSON.parse(
@@ -355,17 +389,149 @@ describe("fresh-selection teacher runner", () => {
     const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fresh-selection-blocked-"));
     const readSource = vi.fn(async () => source());
     const generate = vi.fn();
+    let exclusionHeld = false;
+    const releaseFormalTeacherExclusion = vi.fn(async () => {
+      expect(exclusionHeld).toBe(true);
+      exclusionHeld = false;
+    });
     const base = await dependencies(home, {
+      acquireFormalTeacherExclusion: vi.fn(async () => {
+        exclusionHeld = true;
+        return releaseFormalTeacherExclusion;
+      }),
       checkpointPreflight: vi.fn(async () => {
+        expect(exclusionHeld).toBe(true);
         throw new Error("seed 44 final.pt is absent");
       }),
       readSource,
       generate,
     });
     await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(/seed 44/);
+    expect(releaseFormalTeacherExclusion).toHaveBeenCalledOnce();
+    expect(exclusionHeld).toBe(false);
     expect(readSource).not.toHaveBeenCalled();
     expect(generate).not.toHaveBeenCalled();
   });
+
+  it("uses the exact formal v8 and v9 roots for whole-run exclusion", () => {
+    const roots = freshSelectionFormalTeacherOutputRoots(
+      "/Users/tester",
+      "/repository",
+    );
+    expect(roots).toEqual([
+      "/Users/tester/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+      `/Users/tester/.codex/shogi-runs/${FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY}`,
+    ]);
+    expect(FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY).toBe(
+      "floodgate-q1-2026-strength-first-v9",
+    );
+  });
+
+  it("acquires formal v8 then v9 and releases them in reverse order", async () => {
+    const events: string[] = [];
+    const prepareDirectory = vi.fn(async (outputRoot: string, uid: number) => {
+      events.push(`prepare:${path.basename(outputRoot)}:${uid}`);
+    });
+    const acquireLock = vi.fn(async (outputRoot: string, uid: number) => {
+      const name = path.basename(outputRoot);
+      events.push(`acquire:${name}:${uid}`);
+      return async () => {
+        events.push(`release:${name}:${uid}`);
+      };
+    });
+    const release = await acquireFreshSelectionFormalTeacherExclusionCoreForTests(
+      "/Users/tester",
+      "/repository",
+      501,
+      { prepareDirectory, acquireLock },
+    );
+    expect(events).toEqual([
+      "prepare:floodgate-q1-2026-strength-first-v8:501",
+      "acquire:floodgate-q1-2026-strength-first-v8:501",
+      "prepare:floodgate-q1-2026-strength-first-v9:501",
+      "acquire:floodgate-q1-2026-strength-first-v9:501",
+    ]);
+    await release();
+    expect(events.slice(-2)).toEqual([
+      "release:floodgate-q1-2026-strength-first-v9:501",
+      "release:floodgate-q1-2026-strength-first-v8:501",
+    ]);
+    await expect(release()).rejects.toThrow(/already released/);
+  });
+
+  it("releases v8 when acquiring the formal v9 exclusion fails", async () => {
+    const events: string[] = [];
+    await expect(
+      acquireFreshSelectionFormalTeacherExclusionCoreForTests(
+        "/Users/tester",
+        "/repository",
+        501,
+        {
+          prepareDirectory: vi.fn(async (outputRoot: string) => {
+            events.push(`prepare:${path.basename(outputRoot)}`);
+          }),
+          acquireLock: vi.fn(async (outputRoot: string) => {
+            const name = path.basename(outputRoot);
+            events.push(`acquire:${name}`);
+            if (name === FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY) {
+              throw new Error("formal-v9-teacher-active");
+            }
+            return async () => {
+              events.push(`release:${name}`);
+            };
+          }),
+        },
+      ),
+    ).rejects.toThrow(/formal-v9-teacher-active/);
+    expect(events).toEqual([
+      "prepare:floodgate-q1-2026-strength-first-v8",
+      "acquire:floodgate-q1-2026-strength-first-v8",
+      "prepare:floodgate-q1-2026-strength-first-v9",
+      "acquire:floodgate-q1-2026-strength-first-v9",
+      "release:floodgate-q1-2026-strength-first-v8",
+    ]);
+  });
+
+  it("binds the generator dataset to the fixed selection.jsonl stage path", () => {
+    assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests(
+      "/private/stage",
+      "/private/stage/selection.jsonl",
+      "/private/stage/work.jsonl",
+    );
+    expect(() =>
+      assertFreshSelectionTeacherGeneratorOutputPathsCoreForTests(
+        "/private/stage",
+        "/private/stage/dataset.jsonl",
+        "/private/stage/work.jsonl",
+      ),
+    ).toThrow(/output paths drifted/);
+  });
+
+  it.each(["v8", "v9"])(
+    "an active formal %s run blocks before checkpoint, source, or engine work",
+    async (formalGeneration) => {
+      const home = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), `fresh-selection-${formalGeneration}-active-`),
+      );
+      const checkpointPreflight = vi.fn(async () => preflight());
+      const readSource = vi.fn(async () => source());
+      const generate = vi.fn();
+      const base = await dependencies(home, {
+        acquireFormalTeacherExclusion: vi.fn(async () => {
+          throw new Error(`formal-${formalGeneration}-teacher-active`);
+        }),
+        checkpointPreflight,
+        readSource,
+        generate,
+      });
+      await expect(runFreshSelectionTeacherCore(base)).rejects.toThrow(
+        `formal-${formalGeneration}-teacher-active`,
+      );
+      expect(checkpointPreflight).not.toHaveBeenCalled();
+      expect(readSource).not.toHaveBeenCalled();
+      expect(generate).not.toHaveBeenCalled();
+    },
+  );
 
   it("keeps search depth in tracked policy data and bounds local parallelism", () => {
     const changed = policy();

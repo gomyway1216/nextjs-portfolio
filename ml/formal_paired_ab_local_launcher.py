@@ -77,7 +77,8 @@ LOCAL_RERUN_AUTHORIZATION_SCHEMA = (
     "shogi-floodgate-formal-paired-ab-local-rerun-authorization-v1"
 )
 
-MAX_PAIR_WORKERS = 6
+PAIR_WORKER_CANDIDATES = (2, 4, 8, 12)
+MAX_PAIR_WORKERS = max(PAIR_WORKER_CANDIDATES)
 ZERO_SHA256 = "0" * 64
 PAIR_FILE_PREFIX = "pair-"
 PAIR_FILE_SUFFIX = ".jsonl"
@@ -957,8 +958,8 @@ def _validate_ready_local_run_registry_core_for_tests(
                 "local rerun authorization schema differs"
             )
     workers = registry["pair_workers"]
-    if type(workers) is not int or workers < 1 or workers > MAX_PAIR_WORKERS:
-        raise FormalAbLocalLauncherError("pair_workers must be an integer from 1 to 6")
+    if type(workers) is not int or workers not in PAIR_WORKER_CANDIDATES:
+        raise FormalAbLocalLauncherError("pair_workers must be exactly 2, 4, 8, or 12")
     if registry["execution_boundary"] != (
         "argumentless-local-only-reviewed-enrollment-no-network-aws-external-or-live"
     ):

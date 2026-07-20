@@ -1,0 +1,117 @@
+{
+  "schema": "shogi-floodgate-q1-2026-strength-first-timeout-recovery-amendment-v1",
+  "status": "prospective-recovery-after-failed-run-before-first-complete-milestone",
+  "date": "2026-07-19",
+  "amendment_mode": "append-only-prior-plan-and-amendment-bytes-remain-unchanged",
+  "prior_amendment": {
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-teacher-amendment.json",
+    "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1",
+    "bytes": 5123,
+    "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e"
+  },
+  "observed_failure": {
+    "authenticated_input_completed": true,
+    "authentication_elapsed_ms": 1088743,
+    "durable_parent_entries": 99,
+    "work_records_including_header": 100,
+    "failed_search_phase": "independent-rescore",
+    "configured_timeout_ms": 600000,
+    "complete_teacher_milestones": 0,
+    "complete_teacher_datasets": 0,
+    "completed_training_runs": 0,
+    "completed_candidate_selections": 0,
+    "completed_formal_paired_ab_runs": 0,
+    "result_published": false,
+    "live_weight_changes": 0,
+    "failure_disposition": "failed-closed-no-partial-parent-label-or-result"
+  },
+  "recovery_policy": {
+    "applies_only_to": "typed-USI-search-timeout",
+    "work_skip_reason": "search-timeout-no-label",
+    "partial_search_scores_persisted": false,
+    "training_rows_emitted_for_timed_out_parent": 0,
+    "required_private_work_metadata": [
+      "parent_id",
+      "legal_moves",
+      "phase",
+      "requested_multipv",
+      "requested_limit",
+      "searchmoves",
+      "timeout_ms",
+      "payload_sha256"
+    ],
+    "timed_out_engine_disposition": "quit-then-bounded-force-kill-before-any-replacement",
+    "replacement_engine": "fresh-process-fresh-private-working-directory-same-pinned-assets-options-and-environment",
+    "engine_initialization_failure": {
+      "applies_to": [
+        "initial-process",
+        "post-timeout-replacement-process"
+      ],
+      "process_disposition": "quit-then-bounded-force-kill-and-wait-for-close",
+      "run_disposition": "fatal",
+      "recorded_as_timeout_skip": false,
+      "result_published": false,
+      "production_handshake_timeouts_overridable": false,
+      "test_only_timeout_own_property_disposition": "reject-before-input-capture-engine-spawn-or-output"
+    },
+    "non_timeout_error_disposition": "fatal",
+    "timeout_skip_limit": {
+      "formula": "ceil(target_parents/1000)",
+      "prefix_100": 1,
+      "prefix_500": 1,
+      "final_24000": 24,
+      "scope": "cumulative-within-each-canonical-target-prefix",
+      "excess_disposition": "fatal-before-recording-the-excess-skip"
+    },
+    "externally_auditable_reason_breakdown": {
+      "exact_fields": [
+        "fewer_than_two_legal_moves",
+        "search_timeout_no_label"
+      ],
+      "required_locations": [
+        "prefix-milestone.progress.forced_skip_reasons",
+        "teacher-manifest.forced_skip_reasons",
+        "staged-result.forced_skip_reasons",
+        "public-result.completion.forced_skip_reasons"
+      ],
+      "equality_required_across_final_locations": true,
+      "sum_equals_forced_parents_skipped": true,
+      "search_timeout_no_label_must_not_exceed_target_limit": true,
+      "private_work_jsonl_not_required_for_count_audit": true
+    },
+    "schema_compatibility": {
+      "parent_completion_jsonl_v2_rows_changed": false,
+      "parent_completion_binding_changed": false,
+      "reason": "reason-specific work metadata is not present in the unchanged parent-completion rows; the additive required aggregate is amendment-bound in teacher completion documents instead",
+      "completed_pre_amendment_v1_teacher_artifacts": 0
+    },
+    "parent_accounting": {
+      "equation": "forced_parents_skipped+emitted_parent_groups=input_parents",
+      "timed_out_parent_is_explicit_forced_parent": true,
+      "completed_parent_sha256_binds_timeout_work_metadata": true,
+      "missing_group_never_infers_skip": true,
+      "replacement_or_resampling": "forbidden"
+    }
+  },
+  "restart_policy": {
+    "failed_output_generation": "strength-first-v6",
+    "recovery_output_generation": "strength-first-v7",
+    "reuse_99_entries": false,
+    "reason": "work-header-and-run-fingerprint-bind-the-exact-runner-revision; cross-revision-migration-is-not-authorized-and-saves-only-a-small-labeling-prefix",
+    "failed_generation_preservation": "immutable-private-failure-evidence",
+    "recovery_start": "clean-output-root-and-full-input-reauthentication"
+  },
+  "unchanged": [
+    "authenticated-24000-parent-input-and-1000-game-identity",
+    "proposal-multipv-12-depth-16",
+    "independent-multipv-1-one-searchmoves-depth-16",
+    "candidate-order-and-search-state-reset",
+    "12-engines-one-thread-each-hash-64MiB",
+    "600000ms-search-timeout",
+    "single-authenticated-callback-and-postflight-before-result",
+    "100-500-24000-target-order",
+    "training-selection-holdout-paired-ab-and-live-promotion-gates",
+    "local-only-zero-network-zero-cloud"
+  ],
+  "claim_boundary": "prospective-timeout-recovery-policy-and-code-contract-only-not-a-complete-teacher-dataset-training-result-playing-strength-or-live-promotion"
+}

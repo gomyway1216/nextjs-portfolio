@@ -34,7 +34,11 @@ import {
   verifyPipelineRevision,
   type PipelineProvenance,
 } from './pipeline-revision';
-import { USI_TEACHER_ENGINE_CONTRACT, UsiTeacherEngine } from './usi-engine';
+import {
+  USI_TEACHER_ENGINE_CONTRACT,
+  UsiSearchTimeoutError,
+  UsiTeacherEngine,
+} from './usi-engine';
 import {
   MAX_NON_MATE_CP,
   mateToCp,
@@ -57,10 +61,20 @@ export const STRENGTH_FIRST_TRAIN_FORMAT =
   'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
 export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
+export const STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR = 1_000 as const;
+export const STRENGTH_FIRST_TIMEOUT_SKIP_REASON = 'search-timeout-no-label' as const;
 export const SIBLING_TEACHER_LABEL_POLICY =
-  'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v6' as const;
+  'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v7-timeout-quarantine' as const;
 export const INDEPENDENT_EXACT_RESCORE_MODE = 'independent-single-move' as const;
 const PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN = '<private-worker-cwd>' as const;
+
+export function strengthFirstTimeoutSkipLimit(targetParents: number): number {
+  if (!Number.isSafeInteger(targetParents) || targetParents <= 0) {
+    throw new Error('timeout-skip target must be a positive safe integer');
+  }
+  return Math.ceil(targetParents / STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR);
+}
+
 export const SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT = Object.freeze({
   inherited_environment: false,
   darwin_spawn_injected_variables: Object.freeze(['__CF_USER_TEXT_ENCODING'] as const),
@@ -138,6 +152,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   fvScale?: number;
   hashMb?: number;
   timeoutMs?: number;
+  testOnlyInitializationTimeoutMs?: number;
 }
 
 interface NormalizedOptions {
@@ -161,6 +176,7 @@ interface NormalizedOptions {
   fvScale: number;
   hashMb: number;
   timeoutMs: number;
+  testOnlyInitializationTimeoutMs?: number;
 }
 
 interface FileDigest {
@@ -222,7 +238,7 @@ interface CompletedWorkEntry {
   records: SiblingRecord[];
 }
 
-interface SkippedWorkEntry {
+interface ForcedLegalMoveSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'skip';
   run_fingerprint: string;
@@ -232,6 +248,24 @@ interface SkippedWorkEntry {
   legal_moves: number;
 }
 
+interface SearchTimeoutSkippedWorkEntry {
+  schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+  kind: 'skip';
+  run_fingerprint: string;
+  payload_sha256: string;
+  parent_id: string;
+  reason: typeof STRENGTH_FIRST_TIMEOUT_SKIP_REASON;
+  legal_moves: number;
+  timeout: Readonly<{
+    phase: 'proposal' | 'independent-rescore';
+    requested_multipv: number;
+    requested_limit: { nodes: number } | { depth: number };
+    searchmoves: readonly [] | readonly [string];
+    timeout_ms: number;
+  }>;
+}
+
+type SkippedWorkEntry = ForcedLegalMoveSkippedWorkEntry | SearchTimeoutSkippedWorkEntry;
 type WorkEntry = CompletedWorkEntry | SkippedWorkEntry;
 
 export interface SiblingTeacherManifest {
@@ -311,6 +345,32 @@ interface StrengthFirstFileBinding {
   readonly sha256: string;
 }
 
+export interface StrengthFirstForcedSkipReasonCounts {
+  readonly fewer_than_two_legal_moves: number;
+  readonly search_timeout_no_label: number;
+}
+
+function forcedSkipReasonCounts(
+  entries: Iterable<WorkEntry>
+): Readonly<StrengthFirstForcedSkipReasonCounts> {
+  let fewerThanTwoLegalMoves = 0;
+  let searchTimeoutNoLabel = 0;
+  for (const entry of entries) {
+    if (entry.kind !== 'skip') continue;
+    if (entry.reason === 'fewer-than-two-legal-moves') {
+      fewerThanTwoLegalMoves += 1;
+    } else if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
+      searchTimeoutNoLabel += 1;
+    } else {
+      throw new Error('unsupported forced skip reason');
+    }
+  }
+  return Object.freeze({
+    fewer_than_two_legal_moves: fewerThanTwoLegalMoves,
+    search_timeout_no_label: searchTimeoutNoLabel,
+  });
+}
+
 export interface StrengthFirstParentCompletionBinding extends StrengthFirstFileBinding {
   readonly format: typeof STRENGTH_FIRST_PARENT_COMPLETION_FORMAT;
   readonly records: number;
@@ -356,6 +416,7 @@ export interface StrengthFirstSiblingTeacherManifest {
   readonly progress_checkpoint: SiblingTeacherManifest['progress_checkpoint'] & {
     readonly entries: number;
   };
+  readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
   readonly parent_completion: StrengthFirstParentCompletionBinding;
   readonly outputs: Readonly<{
     readonly train: StrengthFirstTrainBinding;
@@ -375,6 +436,7 @@ export interface StrengthFirstSiblingTeacherResult {
   readonly input_parents: number;
   readonly completed_parents: number;
   readonly forced_parents_skipped: number;
+  readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
   readonly emitted_parent_groups: number;
   readonly work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
@@ -397,6 +459,9 @@ export interface StrengthFirstSiblingTeacherPrefixProgress {
   readonly target_parents: 100 | 500;
   readonly completed_parents: 100 | 500;
   readonly run_fingerprint: string;
+  readonly forced_parents_skipped: number;
+  readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
+  readonly emitted_parent_groups: number;
   readonly work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
     readonly records: number;
@@ -422,7 +487,7 @@ export type StrengthFirstSiblingTeacherAdvance =
 
 export interface StrengthFirstSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'engines' | 'seed' | 'valRatio'
+  'engines' | 'seed' | 'testOnlyInitializationTimeoutMs' | 'valRatio'
 > {
   readonly targetParents: StrengthFirstProductionParentTarget;
 }
@@ -626,6 +691,12 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
+  if (options.testOnlyInitializationTimeoutMs !== undefined) {
+    normalized.testOnlyInitializationTimeoutMs = positiveInteger(
+      options.testOnlyInitializationTimeoutMs,
+      'testOnlyInitializationTimeoutMs'
+    );
+  }
   if (!/^[0-9a-f]{40}$/.test(normalized.runnerRevision)) {
     throw new Error('runnerRevision must be a lowercase 40-digit Git commit');
   }
@@ -1202,6 +1273,54 @@ function legalMovesForParent(parent: RawParentOccurrence): string[] {
   return moves;
 }
 
+class SiblingTeacherSearchTimeoutError extends Error {
+  readonly phase: 'proposal' | 'independent-rescore';
+  readonly requestedMultipv: number;
+  readonly requestedLimit: { nodes: number } | { depth: number };
+  readonly searchmoves: readonly string[];
+  readonly timeoutMs: number;
+
+  constructor(
+    cause: UsiSearchTimeoutError,
+    phase: 'proposal' | 'independent-rescore',
+    requestedMultipv: number,
+    requestedLimit: UsiSearchLimit,
+    searchmoves: readonly string[]
+  ) {
+    super(cause.message, { cause });
+    this.name = 'SiblingTeacherSearchTimeoutError';
+    this.phase = phase;
+    this.requestedMultipv = requestedMultipv;
+    this.requestedLimit = normalizedSearchLimit(requestedLimit);
+    this.searchmoves = Object.freeze([...searchmoves]);
+    this.timeoutMs = cause.timeoutMs;
+  }
+}
+
+async function searchWithTimeoutContext(
+  engine: UsiTeacherEngine,
+  parent: RawParentOccurrence,
+  multipv: number,
+  limit: UsiSearchLimit,
+  searchmoves: readonly string[],
+  phase: 'proposal' | 'independent-rescore'
+): Promise<UsiMultiPvResult> {
+  try {
+    return await engine.search(parent.parent_sfen, multipv, limit, searchmoves);
+  } catch (error) {
+    if (error instanceof UsiSearchTimeoutError) {
+      throw new SiblingTeacherSearchTimeoutError(
+        error,
+        phase,
+        multipv,
+        limit,
+        searchmoves
+      );
+    }
+    throw error;
+  }
+}
+
 /** Label one parent with a proposal search and independent single-move re-searches. */
 export async function labelSiblingParent(
   engine: UsiTeacherEngine,
@@ -1217,7 +1336,14 @@ export async function labelSiblingParent(
   // independent of worker assignment and resume history.
   await engine.resetForParent();
   const initialMultiPv = Math.min(multipv, legalMoves.length);
-  const initial = await engine.search(parent.parent_sfen, initialMultiPv, limit);
+  const initial = await searchWithTimeoutContext(
+    engine,
+    parent,
+    initialMultiPv,
+    limit,
+    [],
+    'proposal'
+  );
   const initialMoves = initial.lines.map((line) => line.move);
   const legalMoveSet = new Set(legalMoves);
   for (const move of initialMoves) {
@@ -1243,7 +1369,14 @@ export async function labelSiblingParent(
   const searches: SearchMetadata[] = [];
   for (const move of candidateMoves) {
     await engine.resetForParent();
-    const result = await engine.search(parent.parent_sfen, 1, limit, [move]);
+    const result = await searchWithTimeoutContext(
+      engine,
+      parent,
+      1,
+      limit,
+      [move],
+      'independent-rescore'
+    );
     if (
       result.lines.length !== 1 ||
       result.bestmove !== move ||
@@ -1316,48 +1449,110 @@ function validateWorkEntry(
   value: unknown,
   fingerprint: string,
   parents: ReadonlyMap<string, RawParentOccurrence>,
-  line: number,
+  source: number | string,
   expectedMultipv: number,
-  expectedLimit: UsiSearchLimit
+  expectedLimit: UsiSearchLimit,
+  expectedTimeoutMs: number
 ): WorkEntry {
-  if (!value || typeof value !== 'object') throw new Error(`work line ${line} must be an object`);
+  const context = typeof source === 'number' ? `work line ${source}` : source;
+  if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
   const row = value as Partial<WorkEntry>;
   if (row.schema !== SIBLING_TEACHER_WORK_SCHEMA || row.run_fingerprint !== fingerprint) {
-    throw new Error(`work line ${line} belongs to a different generator run`);
+    throw new Error(`${context} belongs to a different generator run`);
   }
-  const parentId = requiredText(row.parent_id, `work line ${line} parent_id`);
+  const parentId = requiredText(row.parent_id, `${context} parent_id`);
   const parent = parents.get(parentId);
-  if (!parent) throw new Error(`work line ${line} references an unselected parent: ${parentId}`);
+  if (!parent) throw new Error(`${context} references an unselected parent: ${parentId}`);
 
   if (row.kind === 'skip') {
-    if (
-      row.reason !== 'fewer-than-two-legal-moves' ||
-      !Number.isSafeInteger(row.legal_moves) ||
-      (row.legal_moves as number) < 0 ||
-      (row.legal_moves as number) >= 2
-    ) {
-      throw new Error(`work line ${line} has invalid skip metadata`);
-    }
-    const entry = row as SkippedWorkEntry;
-    if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
-      throw new Error(`work line ${line} payload checksum mismatch`);
-    }
     const actualLegalMoves = legalMovesForParent(parent).length;
-    if (entry.legal_moves !== actualLegalMoves) {
-      throw new Error(`work line ${line} skip legal_moves does not match its raw parent`);
+    if (row.reason === 'fewer-than-two-legal-moves') {
+      if (
+        !Number.isSafeInteger(row.legal_moves) ||
+        (row.legal_moves as number) < 0 ||
+        (row.legal_moves as number) >= 2
+      ) {
+        throw new Error(`${context} has invalid forced-move skip metadata`);
+      }
+      const entry = row as ForcedLegalMoveSkippedWorkEntry;
+      if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
+        throw new Error(`${context} payload checksum mismatch`);
+      }
+      if (entry.legal_moves !== actualLegalMoves) {
+        throw new Error(`${context} skip legal_moves does not match its raw parent`);
+      }
+      return entry;
+    }
+    if (row.reason !== STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
+      throw new Error(`${context} has unsupported skip reason`);
+    }
+    const entry = row as SearchTimeoutSkippedWorkEntry;
+    const timeout = entry.timeout;
+    if (
+      Object.keys(entry).sort().join('\0') !==
+        [
+          'kind',
+          'legal_moves',
+          'parent_id',
+          'payload_sha256',
+          'reason',
+          'run_fingerprint',
+          'schema',
+          'timeout',
+        ]
+          .sort()
+          .join('\0') ||
+      !Number.isSafeInteger(entry.legal_moves) ||
+      entry.legal_moves < 2 ||
+      entry.legal_moves !== actualLegalMoves ||
+      !timeout ||
+      typeof timeout !== 'object' ||
+      (timeout.phase !== 'proposal' && timeout.phase !== 'independent-rescore') ||
+      !Number.isSafeInteger(timeout.requested_multipv) ||
+      timeout.requested_multipv <= 0 ||
+      !Array.isArray(timeout.searchmoves) ||
+      !Number.isSafeInteger(timeout.timeout_ms) ||
+      timeout.timeout_ms !== expectedTimeoutMs ||
+      canonicalJson(timeout.requested_limit) !==
+        canonicalJson(normalizedSearchLimit(expectedLimit))
+    ) {
+      throw new Error(`${context} has invalid search-timeout skip metadata`);
+    }
+    const expectedInitialMultipv = Math.min(expectedMultipv, actualLegalMoves);
+    if (
+      (timeout.phase === 'proposal' &&
+        (timeout.requested_multipv !== expectedInitialMultipv ||
+          timeout.searchmoves.length !== 0)) ||
+      (timeout.phase === 'independent-rescore' &&
+        (timeout.requested_multipv !== 1 ||
+          timeout.searchmoves.length !== 1 ||
+          !legalMovesForParent(parent).includes(timeout.searchmoves[0])))
+    ) {
+      throw new Error(`${context} search-timeout context is inconsistent`);
+    }
+    if (
+      Object.keys(timeout).sort().join('\0') !==
+        ['phase', 'requested_limit', 'requested_multipv', 'searchmoves', 'timeout_ms']
+          .sort()
+          .join('\0')
+    ) {
+      throw new Error(`${context} search-timeout metadata has extra fields`);
+    }
+    if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
+      throw new Error(`${context} payload checksum mismatch`);
     }
     return entry;
   }
   if (row.kind !== 'parent' || !Array.isArray(row.records) || !Array.isArray(row.candidate_moves)) {
-    throw new Error(`work line ${line} has an unsupported kind or missing records`);
+    throw new Error(`${context} has an unsupported kind or missing records`);
   }
   const entry = row as CompletedWorkEntry;
   if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
-    throw new Error(`work line ${line} payload checksum mismatch`);
+    throw new Error(`${context} payload checksum mismatch`);
   }
   validateParentGroups(entry.records);
   if (entry.records.some((record) => record.parent_id !== parentId)) {
-    throw new Error(`work line ${line} contains records for another parent`);
+    throw new Error(`${context} contains records for another parent`);
   }
   const first = entry.records[0];
   if (
@@ -1366,13 +1561,13 @@ function validateWorkEntry(
     first.position_id !== parent.position_id ||
     first.parent_ply !== parent.ply
   ) {
-    throw new Error(`work line ${line} does not match its raw parent`);
+    throw new Error(`${context} does not match its raw parent`);
   }
   const moves = canonicalSortedMoves(entry.records.map((record) => record.move));
   const candidates = entry.candidate_moves.map((move) => requiredText(move, 'candidate move'));
   const initialSearch = validateSearchMetadata(
     entry.initial_search,
-    `work line ${line} initial search`
+    `${context} initial search`
   );
   const legalMoves = legalMovesForParent(parent);
   const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
@@ -1393,13 +1588,13 @@ function validateWorkEntry(
     expectedCandidates.some((move, index) => move !== candidates[index]) ||
     entry.candidate_set_sha256 !== candidateSetSha256(candidates)
   ) {
-    throw new Error(`work line ${line} has inconsistent candidate metadata`);
+    throw new Error(`${context} has inconsistent candidate metadata`);
   }
   const exactSearch = validateIndependentExactSearch(
     entry.exact_search,
     candidates,
     normalizedExpectedLimit,
-    `work line ${line} exact search`
+    `${context} exact search`
   );
   const rankedMoves = entry.records.map((record) => record.move);
   if (
@@ -1407,18 +1602,18 @@ function validateWorkEntry(
     exactSearch.moves.some((move, index) => move !== rankedMoves[index]) ||
     exactSearch.scores.length !== rankedMoves.length
   ) {
-    throw new Error(`work line ${line} records do not match synthesized exact ranks`);
+    throw new Error(`${context} records do not match synthesized exact ranks`);
   }
   const playedRecords = entry.records.filter((record) => record.sources.includes('played'));
   if (playedRecords.length !== 1 || playedRecords[0].move !== parent.played_move) {
-    throw new Error(`work line ${line} does not preserve exactly one played move`);
+    throw new Error(`${context} does not preserve exactly one played move`);
   }
   const initialMoves = new Set(initialSearch.moves);
   for (let index = 0; index < entry.records.length; index++) {
     const record = entry.records[index];
     const expectedChild = childSfenAfterUsi(parent.parent_sfen, record.move);
     if (record.child_sfen !== expectedChild || record.sfen !== expectedChild) {
-      throw new Error(`work line ${line} move ${record.move} has a non-derived child SFEN`);
+      throw new Error(`${context} move ${record.move} has a non-derived child SFEN`);
     }
     const expectedSources = [
       ...(record.move === parent.played_move ? ['played'] : []),
@@ -1428,7 +1623,7 @@ function validateWorkEntry(
       record.sources.length !== expectedSources.length ||
       record.sources.some((source, sourceIndex) => source !== expectedSources[sourceIndex])
     ) {
-      throw new Error(`work line ${line} move ${record.move} has inconsistent sources`);
+      throw new Error(`${context} move ${record.move} has inconsistent sources`);
     }
     const score = exactSearch.scores[index];
     if (
@@ -1438,7 +1633,7 @@ function validateWorkEntry(
       record.teacher_mate !== score.mate ||
       record.teacher_mate_sign !== score.mate_sign
     ) {
-      throw new Error(`work line ${line} move ${record.move} disagrees with exact score metadata`);
+      throw new Error(`${context} move ${record.move} disagrees with exact score metadata`);
     }
   }
   return entry;
@@ -1454,7 +1649,8 @@ async function loadWork(
   header: WorkHeader,
   parents: ReadonlyMap<string, RawParentOccurrence>,
   expectedMultipv: number,
-  expectedLimit: UsiSearchLimit
+  expectedLimit: UsiSearchLimit,
+  expectedTimeoutMs: number
 ): Promise<Map<string, WorkEntry>> {
   let text = '';
   try {
@@ -1503,7 +1699,8 @@ async function loadWork(
         parents,
         index + 1,
         expectedMultipv,
-        expectedLimit
+        expectedLimit,
+        expectedTimeoutMs
       );
       if (entries.has(entry.parent_id)) {
         throw new Error(`duplicate parent in work checkpoint: ${entry.parent_id}`);
@@ -1537,6 +1734,9 @@ interface StrengthFirstCorePrefixProgress {
   readonly target_parents: number;
   readonly completed_parents: number;
   readonly run_fingerprint: string;
+  readonly forced_parents_skipped: number;
+  readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
+  readonly emitted_parent_groups: number;
   readonly work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
     readonly records: number;
@@ -1693,6 +1893,12 @@ async function runSiblingTeacherDatasetCore(
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
       timeout_ms: options.timeoutMs,
+      ...(options.testOnlyInitializationTimeoutMs === undefined
+        ? {}
+        : {
+            test_only_engine_initialization_timeout_ms:
+              options.testOnlyInitializationTimeoutMs,
+          }),
       engine_options: USI_TEACHER_ENGINE_CONTRACT,
     })
   );
@@ -1710,8 +1916,25 @@ async function runSiblingTeacherDatasetCore(
     header,
     parentMap,
     options.multipv,
-    options.limit
+    options.limit,
+    options.timeoutMs
   );
+  const timeoutSkipLimit =
+    execution.finalization === 'legacy-split'
+      ? 0
+      : strengthFirstTimeoutSkipLimit(selected.length);
+  const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
+  let timeoutSkipCount = [...workEntries.values()].filter(
+    (entry) =>
+      selectedParentIdSet.has(entry.parent_id) &&
+      entry.kind === 'skip' &&
+      entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+  ).length;
+  if (timeoutSkipCount > timeoutSkipLimit) {
+    throw new Error(
+      `search-timeout skip count ${timeoutSkipCount} exceeds target ${selected.length} limit ${timeoutSkipLimit}`
+    );
+  }
   const runtimeSnapshot = await createRuntimeSnapshot(
     options,
     engineDigest,
@@ -1733,16 +1956,29 @@ async function runSiblingTeacherDatasetCore(
   const persist = async (entry: WorkEntry): Promise<void> => {
     const operation = appendTail.then(async () => {
       if (checkpointFailure) throw checkpointFailure;
+      if (
+        entry.kind === 'skip' &&
+        entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
+        timeoutSkipCount >= timeoutSkipLimit
+      ) {
+        checkpointFailure = new Error(
+          `search-timeout skip limit ${timeoutSkipLimit} exhausted for target ${selected.length}`
+        );
+        throw checkpointFailure;
+      }
       try {
         await appendWorkEntry(workHandle, entry);
       } catch (error) {
         checkpointFailure = error instanceof Error ? error : new Error(String(error));
         throw checkpointFailure;
       }
+      workEntries.set(entry.parent_id, entry);
+      if (entry.kind === 'skip' && entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
+        timeoutSkipCount += 1;
+      }
     });
     appendTail = operation.catch(() => undefined);
     await operation;
-    workEntries.set(entry.parent_id, entry);
   };
 
   let failure: Error | null = null;
@@ -1772,24 +2008,48 @@ async function runSiblingTeacherDatasetCore(
     const workers = Array.from({ length: workerCount }, async (_, workerIndex) => {
       const workerCwd = path.join(runtimeSnapshot.cwd, `worker-${workerIndex}`);
       await fs.promises.mkdir(workerCwd, { mode: 0o700 });
-      const engine = new UsiTeacherEngine({
-        engineBin: runtimeSnapshot.engineBin,
-        engineArgs: runtimeSnapshot.engineArgs,
-        evalDir: runtimeSnapshot.evalDir,
-        cwd: workerCwd,
-        ...(execution.finalization === 'legacy-split'
-          ? {}
-          : { env: siblingTeacherEngineEnvironment(workerCwd) }),
-        fvScale: options.fvScale,
-        hashMb: options.hashMb,
-        timeoutMs: options.timeoutMs,
-      });
+      let engineGeneration = 0;
+      const startEngine = async (): Promise<UsiTeacherEngine> => {
+        const engineCwd = path.join(workerCwd, `engine-${engineGeneration}`);
+        engineGeneration += 1;
+        await fs.promises.mkdir(engineCwd, { mode: 0o700 });
+        const started = new UsiTeacherEngine({
+          engineBin: runtimeSnapshot.engineBin,
+          engineArgs: runtimeSnapshot.engineArgs,
+          evalDir: runtimeSnapshot.evalDir,
+          cwd: engineCwd,
+          ...(execution.finalization === 'legacy-split'
+            ? {}
+            : { env: siblingTeacherEngineEnvironment(engineCwd) }),
+          fvScale: options.fvScale,
+          hashMb: options.hashMb,
+          timeoutMs: options.timeoutMs,
+          ...(options.testOnlyInitializationTimeoutMs === undefined
+            ? {}
+            : {
+                testOnlyInitializationTimeoutMs:
+                  options.testOnlyInitializationTimeoutMs,
+              }),
+        });
+        try {
+          await started.init();
+          return started;
+        } catch (error) {
+          try {
+            await started.quit();
+          } catch {
+            // Preserve the initialization failure; cleanup is best-effort.
+          }
+          throw error;
+        }
+      };
+      let engine: UsiTeacherEngine | null = null;
       try {
-        await engine.init();
+        engine = await startEngine();
         while (!failure) {
           const index = next++;
           const job = pending[index];
-          if (!job) break;
+          if (!job || !engine) break;
           try {
             const result = await labelSiblingParent(
               engine,
@@ -1804,13 +2064,58 @@ async function runSiblingTeacherDatasetCore(
               sealed,
               runFingerprint,
               parentMap,
-              0,
+              `runtime parent ${job.parent.parent_id}`,
               options.multipv,
-              options.limit
+              options.limit,
+              options.timeoutMs
             );
             await persist(validated);
           } catch (error) {
-            failure ??= firstError(error, job.parent.parent_id);
+            if (
+              execution.finalization !== 'legacy-split' &&
+              error instanceof SiblingTeacherSearchTimeoutError
+            ) {
+              try {
+                await engine.quit();
+                engine = null;
+                const searchmoves =
+                  error.phase === 'proposal'
+                    ? ([] as const)
+                    : ([requiredText(error.searchmoves[0], 'timed-out searchmove')] as const);
+                const sealed = sealWorkEntry({
+                  schema: SIBLING_TEACHER_WORK_SCHEMA,
+                  kind: 'skip',
+                  run_fingerprint: runFingerprint,
+                  parent_id: job.parent.parent_id,
+                  reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+                  legal_moves: job.legalMoves.length,
+                  timeout: {
+                    phase: error.phase,
+                    requested_multipv: error.requestedMultipv,
+                    requested_limit: error.requestedLimit,
+                    searchmoves,
+                    timeout_ms: error.timeoutMs,
+                  },
+                });
+                const validated = validateWorkEntry(
+                  sealed,
+                  runFingerprint,
+                  parentMap,
+                  `runtime timeout quarantine ${job.parent.parent_id}`,
+                  options.multipv,
+                  options.limit,
+                  options.timeoutMs
+                );
+                await persist(validated);
+                if (!failure && next < pending.length) {
+                  engine = await startEngine();
+                }
+              } catch (recoveryError) {
+                failure ??= firstError(recoveryError, job.parent.parent_id);
+              }
+            } else {
+              failure ??= firstError(error, job.parent.parent_id);
+            }
           }
         }
       } catch (error) {
@@ -1818,7 +2123,7 @@ async function runSiblingTeacherDatasetCore(
           `USI worker initialization failed: ${error instanceof Error ? error.message : error}`
         );
       } finally {
-        await engine.quit();
+        await engine?.quit();
       }
     });
     await Promise.all(workers);
@@ -1859,6 +2164,10 @@ async function runSiblingTeacherDatasetCore(
       if (!entry) throw new Error(`missing target prefix entry for ${parent.parent_id}`);
       return entry;
     });
+    const prefixForcedSkipReasons = forcedSkipReasonCounts(targetEntries);
+    const prefixForcedParentsSkipped =
+      prefixForcedSkipReasons.fewer_than_two_legal_moves +
+      prefixForcedSkipReasons.search_timeout_no_label;
     const canonicalTargetWork = serializeWork(header, targetEntries);
     const currentWork = await fileBinding(options.work);
     return {
@@ -1867,6 +2176,9 @@ async function runSiblingTeacherDatasetCore(
       target_parents: selected.length,
       completed_parents: selected.length,
       run_fingerprint: runFingerprint,
+      forced_parents_skipped: prefixForcedParentsSkipped,
+      forced_skip_reasons: prefixForcedSkipReasons,
+      emitted_parent_groups: selected.length - prefixForcedParentsSkipped,
       work: {
         path: path.basename(options.work),
         bytes: Buffer.byteLength(canonicalTargetWork),
@@ -1931,6 +2243,21 @@ async function runSiblingTeacherDatasetCore(
     const emittedParentIds = completionRows
       .filter((row) => !row.forced_parent_skipped)
       .map((row) => row.parent_id);
+    const forcedSkipReasons = forcedSkipReasonCounts(
+      selected.map((parent) => {
+        const entry = entryByParent.get(parent.parent_id);
+        if (!entry) throw new Error(`missing skip accounting for ${parent.parent_id}`);
+        return entry;
+      })
+    );
+    if (
+      forcedSkipReasons.fewer_than_two_legal_moves +
+        forcedSkipReasons.search_timeout_no_label !==
+        forcedParentIds.length ||
+      forcedSkipReasons.search_timeout_no_label > timeoutSkipLimit
+    ) {
+      throw new Error('forced skip reason accounting is inconsistent');
+    }
     const trainGameIds = new Set(trainingRecords.map((record) => record.game_id));
     const trainParentIds = new Set(trainingRecords.map((record) => record.parent_id));
     const trainPositionIds = new Set(
@@ -2034,6 +2361,7 @@ async function runSiblingTeacherDatasetCore(
         skipped_parents: skipped.length,
         sha256: sha256(canonicalWork),
       },
+      forced_skip_reasons: forcedSkipReasons,
       parent_completion: parentCompletion,
       outputs: { train },
       publication: {
@@ -2062,6 +2390,7 @@ async function runSiblingTeacherDatasetCore(
       input_parents: selected.length,
       completed_parents: workEntries.size,
       forced_parents_skipped: forcedParentIds.length,
+      forced_skip_reasons: forcedSkipReasons,
       emitted_parent_groups: emittedParentIds.length,
       work: {
         path: path.basename(options.work),
@@ -2245,6 +2574,16 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
   rawOptions: StrengthFirstSiblingTeacherOptions,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawOptions,
+      'testOnlyInitializationTimeoutMs'
+    )
+  ) {
+    throw new Error(
+      'strength-first production generation rejects testOnlyInitializationTimeoutMs'
+    );
+  }
   const capturedInput = captureAuthenticatedTeacherInput(input);
   if (capturedInput.parents.length !== 24_000 || capturedInput.binding.records !== 24_000) {
     throw new Error('strength-first production generation requires exactly 24000 parents');

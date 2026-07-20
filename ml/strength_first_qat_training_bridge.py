@@ -22,13 +22,13 @@ import fresh_qat_protocol as FRESH
 
 
 STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA = (
-    "shogi-floodgate-strength-first-qat-training-plan-v1"
+    "shogi-floodgate-strength-first-qat-training-plan-v2"
 )
 STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA = (
-    "shogi-floodgate-strength-first-qat-training-result-v1"
+    "shogi-floodgate-strength-first-qat-training-result-v2"
 )
 STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA = (
-    "shogi-floodgate-strength-first-qat-final-checkpoint-v1"
+    "shogi-floodgate-strength-first-qat-final-checkpoint-v2"
 )
 STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH = (
     "ml/protocols/" "floodgate-q1-2026-strength-first-qat-training-plan.json"
@@ -44,20 +44,29 @@ STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA = (
     "shogi-strength-first-sibling-teacher-manifest-v1"
 )
 STRENGTH_FIRST_TEACHER_RESULT_SCHEMA = (
-    "shogi-floodgate-strength-first-teacher-postflight-result-v1"
+    "shogi-floodgate-strength-first-teacher-postflight-result-v2"
 )
 STRENGTH_FIRST_TEACHER_RESULT_STATUS = "complete-training-only-postflight-bound"
+STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA = (
+    "shogi-floodgate-strength-first-v8-downstream-provenance-v1"
+)
+STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS = (
+    "verified-v8-teacher-source-ready-for-training-plan-review"
+)
+STRENGTH_FIRST_V8_MILESTONE_TARGETS = [100, 500]
 
-_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v7"
+_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8"
 _ROLE_BUNDLE_DIRECTORY = (
     ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
 )
 _SEALED_INPUT_DIRECTORY = ".codex/shogi-data/wcsc36-sealed-training-inputs"
 _TRAINING_PYTHON = ".codex/shogi-data/floodgate-training-venv/bin/python3"
+_V8_PROVENANCE_NODE = ".nvm/versions/node/v22.13.0/bin/node"
 _PLAN_FIELDS = {
     "schema",
     "status",
     "artifacts",
+    "teacher_provenance",
     "runtime",
     "training",
     "slots",
@@ -66,9 +75,7 @@ _PLAN_FIELDS = {
 _ARTIFACT_FIELDS = {
     "role_bundle_manifest",
     "input_training",
-    "teacher_manifest",
     "teacher_result",
-    "teacher_work",
     "parent_completion",
     "model_training",
     "replay_exclusion",
@@ -130,6 +137,25 @@ _BOUNDARY = {
     "candidate_selection_authorized": False,
     "production_weight_write_authorized": False,
 }
+_FORCED_SKIP_REASON_FIELDS = {
+    "fewer_than_two_legal_moves",
+    "search_timeout_no_label",
+}
+_TIMEOUT_SKIP_DIVISOR = 1_000
+_TEACHER_RESULT_FIELDS = {
+    "schema",
+    "status",
+    "claim_boundary",
+    "runner",
+    "production_asset_preflight",
+    "authenticated_input",
+    "consumer_postflight",
+    "teacher",
+    "milestones",
+    "completion",
+    "staged_outputs",
+    "publication",
+}
 _TEACHER_COMPLETION_FIELDS = {
     "input_parents",
     "completed_parents",
@@ -138,11 +164,11 @@ _TEACHER_COMPLETION_FIELDS = {
     "emitted_parent_groups",
     "run_fingerprint",
 }
-_FORCED_SKIP_REASON_FIELDS = {
-    "fewer_than_two_legal_moves",
-    "search_timeout_no_label",
+_TEACHER_MILESTONE_FIELDS = {
+    "targets",
+    "prefix_100",
+    "prefix_500",
 }
-_TIMEOUT_SKIP_DIVISOR = 1_000
 _TEACHER_STAGED_OUTPUT_FIELDS = {
     "work",
     "train",
@@ -150,6 +176,76 @@ _TEACHER_STAGED_OUTPUT_FIELDS = {
     "manifest",
     "staged_result",
 }
+_TEACHER_PROVENANCE_FIELDS = {
+    "schema",
+    "status",
+    "target_parents",
+    "emitted_parent_groups",
+    "forced_parents_skipped",
+    "fewer_than_two_legal_moves",
+    "search_timeout_no_label",
+    "train_records",
+    "milestone_targets",
+    "local_only",
+    "network_requests",
+    "cloud_services",
+    "live_weight_changes",
+    "training_only",
+    "private_identifiers_disclosed",
+    "private_digests_disclosed",
+}
+
+
+def _validate_teacher_provenance_summary(value: Any) -> dict[str, Any]:
+    """Validate the privacy-safe output of the sole TypeScript authority."""
+
+    summary = _exact(
+        value,
+        _TEACHER_PROVENANCE_FIELDS,
+        "strength-first v8 teacher provenance summary",
+    )
+    if (
+        summary["schema"] != STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA
+        or summary["status"] != STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS
+        or type(summary["target_parents"]) is not int
+        or summary["target_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
+        or type(summary["emitted_parent_groups"]) is not int
+        or summary["emitted_parent_groups"] < 1
+        or type(summary["forced_parents_skipped"]) is not int
+        or summary["forced_parents_skipped"] < 0
+        or summary["emitted_parent_groups"] + summary["forced_parents_skipped"]
+        != summary["target_parents"]
+        or type(summary["fewer_than_two_legal_moves"]) is not int
+        or summary["fewer_than_two_legal_moves"] < 0
+        or type(summary["search_timeout_no_label"]) is not int
+        or summary["search_timeout_no_label"] < 0
+        or summary["fewer_than_two_legal_moves"]
+        + summary["search_timeout_no_label"]
+        != summary["forced_parents_skipped"]
+        or summary["search_timeout_no_label"]
+        > (
+            summary["target_parents"] + _TIMEOUT_SKIP_DIVISOR - 1
+        )
+        // _TIMEOUT_SKIP_DIVISOR
+        or type(summary["train_records"]) is not int
+        or summary["train_records"] < summary["emitted_parent_groups"] * 2
+        or not _typed_equal(
+            summary["milestone_targets"],
+            STRENGTH_FIRST_V8_MILESTONE_TARGETS,
+        )
+        or summary["local_only"] is not True
+        or summary["network_requests"] != 0
+        or type(summary["network_requests"]) is not int
+        or summary["cloud_services"] != 0
+        or type(summary["cloud_services"]) is not int
+        or summary["live_weight_changes"] != 0
+        or type(summary["live_weight_changes"]) is not int
+        or summary["training_only"] is not True
+        or summary["private_identifiers_disclosed"] is not False
+        or summary["private_digests_disclosed"] is not False
+    ):
+        raise ValueError("strength-first v8 teacher provenance summary mismatch")
+    return summary
 
 
 def _exact(value: Any, fields: set[str], label: str) -> dict[str, Any]:
@@ -316,6 +412,7 @@ def _fixed_slots() -> list[dict[str, Any]]:
 def build_strength_first_qat_training_plan_data(
     *,
     artifacts: Mapping[str, Any],
+    teacher_provenance: Mapping[str, Any],
     runtime: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build and validate one exact training-only plan data object."""
@@ -324,6 +421,7 @@ def build_strength_first_qat_training_plan_data(
         "schema": STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
         "status": STRENGTH_FIRST_QAT_PLAN_STATUS,
         "artifacts": copy.deepcopy(artifacts),
+        "teacher_provenance": copy.deepcopy(teacher_provenance),
         "runtime": copy.deepcopy(runtime),
         "training": copy.deepcopy(FRESH.FRESH_QAT_REQUIRED_TRAINING),
         "slots": _fixed_slots(),
@@ -345,6 +443,9 @@ def validate_strength_first_qat_training_plan_data(
         or plan["status"] != STRENGTH_FIRST_QAT_PLAN_STATUS
     ):
         raise ValueError("strength-first plan schema/status mismatch")
+    teacher_provenance = _validate_teacher_provenance_summary(
+        plan["teacher_provenance"],
+    )
     artifacts = _exact(
         plan["artifacts"],
         _ARTIFACT_FIELDS,
@@ -356,19 +457,9 @@ def validate_strength_first_qat_training_plan_data(
         label="strength-first role-bundle manifest",
     )
     _file_identity(
-        artifacts["teacher_manifest"],
-        path="manifest.json",
-        label="strength-first teacher manifest",
-    )
-    _file_identity(
         artifacts["teacher_result"],
         path="result.json",
         label="strength-first teacher result",
-    )
-    _file_identity(
-        artifacts["teacher_work"],
-        path="work.jsonl",
-        label="strength-first teacher work",
     )
     if not _typed_equal(
         artifacts["input_training"],
@@ -428,7 +519,9 @@ def validate_strength_first_qat_training_plan_data(
         )
         or model["bytes"] < 1
         or model["parents"] != completion["emitted_parent_groups"]
+        or model["parents"] != teacher_provenance["emitted_parent_groups"]
         or model["records"] < model["parents"] * 2
+        or model["records"] != teacher_provenance["train_records"]
         or not 1 <= model["games"] <= ACCOUNTING.FRESH_QAT_INPUT_GAMES
         or model["semantic_position_ids_count"] < model["parents"]
     ):
@@ -440,6 +533,16 @@ def validate_strength_first_qat_training_plan_data(
         "semantic_position_ids_sha256",
     ):
         _sha256(model[field], f"strength-first model training {field}")
+    if (
+        completion["records"] != teacher_provenance["target_parents"]
+        or completion["forced_parents_skipped"]
+        != teacher_provenance["forced_parents_skipped"]
+        or completion["emitted_parent_groups"]
+        != teacher_provenance["emitted_parent_groups"]
+    ):
+        raise ValueError(
+            "strength-first plan artifacts differ from teacher provenance"
+        )
 
     exclusion = _exact(
         artifacts["replay_exclusion"],
@@ -546,6 +649,9 @@ def default_strength_first_local_paths(
         "teacher_manifest": str(teacher / "manifest.json"),
         "teacher_result": str(teacher / "result.json"),
         "teacher_work": str(teacher / "work.jsonl"),
+        "teacher_staged_result": str(teacher / "staged-result.json"),
+        "teacher_milestone_100": str(teacher / "milestone-100.json"),
+        "teacher_milestone_500": str(teacher / "milestone-500.json"),
         "parent_completion": str(teacher / "parent-completion.jsonl"),
         "model_training": str(teacher / "train.jsonl"),
         "role_bundle_manifest": str(role / "manifest.json"),
@@ -562,6 +668,7 @@ def default_strength_first_local_paths(
         "replay": str(sealed / "runOp1-train.jsonl"),
         "warm_initializer": str(sealed / "runOp1-best.pt"),
         "python": str(home_root / _TRAINING_PYTHON),
+        "v8_provenance_node": str(home_root / _V8_PROVENANCE_NODE),
     }
 
 
@@ -661,7 +768,17 @@ def _validate_teacher_documents(
     manifest: Any,
     result: Any,
     artifacts: Mapping[str, Any],
-) -> None:
+    teacher_provenance: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Recheck only the v8 envelope and hashes already proved by the TS core.
+
+    The TypeScript verifier is the sole row-semantic authority. Python keeps
+    this deliberately small: it binds the reviewed privacy-safe summary and
+    plan artifacts to the outer result, then returns the private file
+    identities that the caller must hash again immediately before training.
+    """
+
+    summary = _validate_teacher_provenance_summary(teacher_provenance)
     if (
         type(manifest) is not dict
         or manifest.get("schema") != STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA
@@ -689,14 +806,29 @@ def _validate_teacher_documents(
         label="strength-first teacher manifest forced skip reasons",
     )
 
+    result = _exact(
+        result,
+        _TEACHER_RESULT_FIELDS,
+        "strength-first teacher result",
+    )
     if (
-        type(result) is not dict
-        or result.get("schema") != STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
-        or result.get("status") != STRENGTH_FIRST_TEACHER_RESULT_STATUS
+        result["schema"] != STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
+        or result["status"] != STRENGTH_FIRST_TEACHER_RESULT_STATUS
     ):
         raise ValueError("strength-first teacher result schema/status mismatch")
+    runner = result["runner"]
+    if (
+        type(runner) is not dict
+        or runner.get("local_only") is not summary["local_only"]
+        or runner.get("network_requests") != summary["network_requests"]
+        or not _typed_equal(runner.get("cloud_services"), [])
+        or summary["cloud_services"] != 0
+        or runner.get("live_weight_changes")
+        != summary["live_weight_changes"]
+    ):
+        raise ValueError("strength-first teacher result execution boundary mismatch")
     completion = _exact(
-        result.get("completion"),
+        result["completion"],
         _TEACHER_COMPLETION_FIELDS,
         "strength-first teacher result completion",
     )
@@ -707,16 +839,20 @@ def _validate_teacher_documents(
         label="strength-first teacher result forced skip reasons",
     )
     if (
-        completion["input_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
-        or completion["completed_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
+        completion["input_parents"] != summary["target_parents"]
+        or completion["completed_parents"] != summary["target_parents"]
         or completion["forced_parents_skipped"]
-        != artifacts["parent_completion"]["forced_parents_skipped"]
+        != summary["forced_parents_skipped"]
         or not _typed_equal(
             completion["forced_skip_reasons"],
             manifest_skip_reasons,
         )
+        or completion["forced_skip_reasons"]["fewer_than_two_legal_moves"]
+        != summary["fewer_than_two_legal_moves"]
+        or completion["forced_skip_reasons"]["search_timeout_no_label"]
+        != summary["search_timeout_no_label"]
         or completion["emitted_parent_groups"]
-        != artifacts["parent_completion"]["emitted_parent_groups"]
+        != summary["emitted_parent_groups"]
         or completion["forced_parents_skipped"] + completion["emitted_parent_groups"]
         != completion["completed_parents"]
     ):
@@ -726,30 +862,75 @@ def _validate_teacher_documents(
         "strength-first teacher result run fingerprint",
     )
 
+    milestones = _exact(
+        result["milestones"],
+        _TEACHER_MILESTONE_FIELDS,
+        "strength-first teacher milestones",
+    )
+    if not _typed_equal(
+        milestones["targets"],
+        [
+            *summary["milestone_targets"],
+            summary["target_parents"],
+        ],
+    ):
+        raise ValueError("strength-first teacher milestone targets mismatch")
     staged = _exact(
-        result.get("staged_outputs"),
+        result["staged_outputs"],
         _TEACHER_STAGED_OUTPUT_FIELDS,
         "strength-first teacher staged outputs",
     )
-    expected = {
-        "work": artifacts["teacher_work"],
-        "train": artifacts["model_training"],
-        "parent_completion": artifacts["parent_completion"],
-        "manifest": artifacts["teacher_manifest"],
+    bindings = {
+        "teacher_milestone_100": _file_identity(
+            milestones["prefix_100"],
+            path="milestone-100.json",
+            label="strength-first teacher milestone 100",
+        ),
+        "teacher_milestone_500": _file_identity(
+            milestones["prefix_500"],
+            path="milestone-500.json",
+            label="strength-first teacher milestone 500",
+        ),
+        "teacher_work": _file_identity(
+            staged["work"],
+            path="work.jsonl",
+            label="strength-first teacher staged work",
+        ),
+        "model_training": _file_identity(
+            staged["train"],
+            path="train.jsonl",
+            label="strength-first teacher staged train",
+        ),
+        "parent_completion": _file_identity(
+            staged["parent_completion"],
+            path="parent-completion.jsonl",
+            label="strength-first teacher staged parent completion",
+        ),
+        "teacher_manifest": _file_identity(
+            staged["manifest"],
+            path="manifest.json",
+            label="strength-first teacher staged manifest",
+        ),
+        "teacher_staged_result": _file_identity(
+            staged["staged_result"],
+            path="staged-result.json",
+            label="strength-first teacher staged result",
+        ),
     }
-    for name, identity in expected.items():
-        binding = _file_identity(
-            staged[name],
-            path=identity["path"],
-            label=f"strength-first teacher staged {name}",
+    if (
+        not _typed_equal(
+            bindings["model_training"],
+            _identity_projection(artifacts["model_training"]),
         )
-        if not _typed_equal(binding, _identity_projection(identity)):
-            raise ValueError(f"strength-first teacher staged {name} binding mismatch")
-    _file_identity(
-        staged["staged_result"],
-        path="staged-result.json",
-        label="strength-first teacher staged result",
-    )
+        or not _typed_equal(
+            bindings["parent_completion"],
+            _identity_projection(artifacts["parent_completion"]),
+        )
+    ):
+        raise ValueError(
+            "strength-first teacher staged training artifacts differ from plan"
+        )
+    return bindings
 
 
 def validate_strength_first_qat_training_source_documents(
@@ -757,15 +938,17 @@ def validate_strength_first_qat_training_source_documents(
     role_manifest: Any,
     teacher_manifest: Any,
     teacher_result: Any,
+    teacher_provenance: Mapping[str, Any],
     artifacts: Mapping[str, Any],
-) -> None:
+) -> dict[str, dict[str, Any]]:
     """Cross-bind the label-free role and terminal teacher documents."""
 
     _validate_role_manifest(role_manifest, artifacts)
-    _validate_teacher_documents(
+    return _validate_teacher_documents(
         teacher_manifest,
         teacher_result,
         artifacts,
+        teacher_provenance,
     )
 
 
@@ -859,16 +1042,32 @@ def _verify_strength_first_qat_training_plan(
         ),
         artifacts,
     )
-    teacher_manifest_raw = _read_bound(
-        local_paths["teacher_manifest"],
-        artifacts["teacher_manifest"],
-        "teacher manifest",
-        artifact_reader,
-    )
     teacher_result_raw = _read_bound(
         local_paths["teacher_result"],
         artifacts["teacher_result"],
         "teacher result",
+        artifact_reader,
+    )
+    teacher_result = ACCOUNTING._strict_json_loads(
+        teacher_result_raw.decode("utf-8"),
+        "strength-first teacher result",
+    )
+    staged = (
+        teacher_result.get("staged_outputs")
+        if type(teacher_result) is dict
+        else None
+    )
+    if type(staged) is not dict:
+        raise ValueError("strength-first teacher staged outputs are absent")
+    teacher_manifest_identity = _file_identity(
+        staged.get("manifest"),
+        path="manifest.json",
+        label="strength-first teacher staged manifest",
+    )
+    teacher_manifest_raw = _read_bound(
+        local_paths["teacher_manifest"],
+        teacher_manifest_identity,
+        "teacher manifest",
         artifact_reader,
     )
     input_raw = _read_bound(
@@ -889,28 +1088,32 @@ def _verify_strength_first_qat_training_plan(
         "model training",
         artifact_reader,
     )
+    private_bindings = _validate_teacher_documents(
+        ACCOUNTING._strict_json_loads(
+            teacher_manifest_raw.decode("utf-8"),
+            "strength-first teacher manifest",
+        ),
+        teacher_result,
+        artifacts,
+        plan["teacher_provenance"],
+    )
     for name in (
         "teacher_work",
-        "replay_exclusion",
-        "replay",
-        "warm_initializer",
+        "teacher_staged_result",
+        "teacher_milestone_100",
+        "teacher_milestone_500",
     ):
+        fingerprint_verifier(
+            local_paths[name],
+            private_bindings[name],
+            name.replace("_", " "),
+        )
+    for name in ("replay_exclusion", "replay", "warm_initializer"):
         fingerprint_verifier(
             local_paths[name],
             artifacts[name],
             name.replace("_", " "),
         )
-    _validate_teacher_documents(
-        ACCOUNTING._strict_json_loads(
-            teacher_manifest_raw.decode("utf-8"),
-            "strength-first teacher manifest",
-        ),
-        ACCOUNTING._strict_json_loads(
-            teacher_result_raw.decode("utf-8"),
-            "strength-first teacher result",
-        ),
-        artifacts,
-    )
 
     accounting = scan_strength_first_training_artifacts_exact(
         input_raw,
@@ -951,9 +1154,9 @@ def _verify_strength_first_qat_training_plan(
             "schema": STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
             "slot_id": selected["id"],
             "slot_output": selected["output"],
-            "teacher_manifest_sha256": artifacts["teacher_manifest"]["sha256"],
             "teacher_result_sha256": artifacts["teacher_result"]["sha256"],
-            "teacher_work_sha256": artifacts["teacher_work"]["sha256"],
+            "teacher_provenance_schema": plan["teacher_provenance"]["schema"],
+            "teacher_provenance_status": plan["teacher_provenance"]["status"],
             "parent_completion_sha256": artifacts["parent_completion"]["sha256"],
             **accounting["parent_accounting"],
         },
@@ -994,6 +1197,9 @@ __all__ = [
     "STRENGTH_FIRST_TEACHER_RESULT_SCHEMA",
     "STRENGTH_FIRST_TEACHER_RESULT_STATUS",
     "STRENGTH_FIRST_TRAIN_FORMAT",
+    "STRENGTH_FIRST_V8_MILESTONE_TARGETS",
+    "STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA",
+    "STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS",
     "build_strength_first_qat_training_plan_data",
     "default_strength_first_local_paths",
     "load_strength_first_qat_training_plan",

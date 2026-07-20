@@ -21,6 +21,9 @@ import strength_first_qat_training_bridge as BRIDGE  # noqa: E402
 from ml.tests_stdlib.test_fresh_qat_parent_accounting_v2 import (  # noqa: E402
     make_artifacts,
 )
+from ml.tests_stdlib.test_strength_first_qat_training_bridge import (  # noqa: E402
+    provenance_summary,
+)
 
 
 def _runtime():
@@ -109,6 +112,9 @@ def _candidate_fixture():
     role_manifest["roles"]["training"]["raw_parents"].pop("parents")
     work_raw = b'{"schema":"synthetic-work"}\n'
     work_identity = _file_identity("work.jsonl", work_raw)
+    staged_result_raw = b"{}\n"
+    milestone_100_raw = b'{"target":100}\n'
+    milestone_500_raw = b'{"target":500}\n'
     teacher_manifest = {
         "schema": BRIDGE.STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA,
         "status": "complete-training-only",
@@ -127,6 +133,30 @@ def _candidate_fixture():
     teacher_result = {
         "schema": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
         "status": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_STATUS,
+        "claim_boundary": (
+            "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
+        ),
+        "runner": {
+            "local_only": True,
+            "network_requests": 0,
+            "cloud_services": [],
+            "live_weight_changes": 0,
+        },
+        "production_asset_preflight": {},
+        "authenticated_input": {},
+        "consumer_postflight": {},
+        "teacher": {},
+        "milestones": {
+            "targets": [100, 500, 4],
+            "prefix_100": _file_identity(
+                "milestone-100.json",
+                milestone_100_raw,
+            ),
+            "prefix_500": _file_identity(
+                "milestone-500.json",
+                milestone_500_raw,
+            ),
+        },
         "completion": {
             "input_parents": 4,
             "completed_parents": 4,
@@ -145,17 +175,20 @@ def _candidate_fixture():
                 key: completion_identity[key] for key in ("path", "bytes", "sha256")
             },
             "manifest": teacher_manifest_identity,
-            "staged_result": {
-                "path": "staged-result.json",
-                "bytes": 1,
-                "sha256": "e" * 64,
-            },
+            "staged_result": _file_identity(
+                "staged-result.json",
+                staged_result_raw,
+            ),
         },
+        "publication": {},
     }
     return {
         "role_bundle_manifest_raw": _json_bytes(role_manifest),
         "teacher_manifest_raw": teacher_manifest_raw,
         "teacher_result_raw": _json_bytes(teacher_result),
+        "teacher_staged_result_raw": staged_result_raw,
+        "teacher_milestone_100_raw": milestone_100_raw,
+        "teacher_milestone_500_raw": milestone_500_raw,
         "input_training_raw": source["input_raw"],
         "parent_completion_raw": source["completion_raw"],
         "model_training_raw": source["train_raw"],
@@ -173,6 +206,12 @@ def _candidate_fixture():
                 "sha256": FRESH.FRESH_QAT_WARM_INITIALIZER_SHA256,
             },
         },
+        "teacher_provenance": provenance_summary(
+            target=4,
+            forced=2,
+            emitted=2,
+            train_records=scan["model_training"]["records"],
+        ),
         "runtime": _runtime(),
         "input_identity": input_identity,
     }
@@ -395,7 +434,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             ) as snapshot:
                 with self.assertRaisesRegex(
                     ValueError,
-                    "terminal v7 artifact",
+                    "terminal v8 artifact",
                 ):
                     BUILDER.build_strength_first_qat_training_plan_candidate(
                         repo_root=root,
@@ -462,13 +501,17 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
 
             def derive(**_kwargs):
                 events.append("derive")
-                return {"synthetic": True}
+                return {"synthetic": True}, {"provenance": True}
+
+            def provenance_verifier(**_kwargs):
+                events.append("provenance")
+                return {"provenance": True}
 
             def runtime_probe(**_kwargs):
                 events.append("runtime")
                 return _runtime()
 
-            def assemble(_artifacts, _runtime_value):
+            def assemble(_artifacts, _provenance, _runtime_value):
                 events.append("assemble")
                 return {"candidate": True}
 
@@ -509,6 +552,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
                     repo_root=root,
                     home=root / "home",
                     runtime_probe=runtime_probe,
+                    provenance_verifier=provenance_verifier,
                     _candidate_consumer=consume,
                 )
             self.assertTrue(lock.exists())
@@ -522,7 +566,10 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
                 fcntl.flock(released_descriptor, fcntl.LOCK_UN)
                 os.close(released_descriptor)
         self.assertEqual(result, {"candidate": True})
-        self.assertEqual(events, ["derive", "runtime", "assemble", "emit"])
+        self.assertEqual(
+            events,
+            ["provenance", "derive", "runtime", "assemble", "emit"],
+        )
         expected_snapshot_paths = {
             paths[key]
             for key in (
@@ -539,6 +586,62 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
                 paths["policy_exposed_semantic_position_ids"],
             }
             & set(snapshot_paths)
+        )
+
+    def test_v8_provenance_subprocess_is_fixed_and_accepts_only_safe_summary(self):
+        safe_summary = provenance_summary()
+        completed = BUILDER.subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=(
+                json.dumps(
+                    safe_summary,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                + b"\n"
+            ),
+            stderr=b"",
+        )
+        with mock.patch.object(
+            BUILDER,
+            "_snapshot_fixed_training_interpreter",
+            return_value=("/fixed/node", {"stable": True}),
+        ), mock.patch.object(
+            BUILDER,
+            "_revalidate_fixed_training_interpreter",
+        ) as revalidate, mock.patch.object(
+            BUILDER.subprocess,
+            "run",
+            return_value=completed,
+        ) as run:
+            observed = BUILDER._verify_v8_downstream_provenance(
+                node_path="/fixed/node",
+                repo_root="/repo",
+                home="/home/user",
+            )
+        self.assertEqual(observed, safe_summary)
+        run.assert_called_once()
+        command = run.call_args.args[0]
+        options = run.call_args.kwargs
+        self.assertEqual(
+            command,
+            [
+                "/fixed/node",
+                "-r",
+                "tsx/cjs",
+                "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts",
+            ],
+        )
+        self.assertEqual(options["cwd"], "/repo")
+        self.assertEqual(options["env"]["HOME"], "/home/user")
+        self.assertEqual(options["timeout"], 300)
+        self.assertTrue(options["check"])
+        self.assertTrue(options["capture_output"])
+        self.assertFalse(options["text"])
+        revalidate.assert_called_once_with(
+            "/fixed/node",
+            {"stable": True},
         )
 
     def test_snapshot_rejects_permissive_mode_and_symbolic_link(self):

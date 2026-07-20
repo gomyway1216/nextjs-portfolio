@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Build one review-only strength-first QAT plan candidate on stdout.
+"""Build one review-only v8 strength-first QAT plan candidate on stdout.
 
-The production entry is argumentless and uses only the fixed local v7 teacher,
+The production entry is argumentless and uses only the fixed local v8 teacher,
 label-free role bundle, replay, initializer, and training interpreter.  It
 never writes the tracked plan. A candidate is emitted only after the retained
 teacher lock is acquired nonblockingly, every terminal artifact is stable,
-the exact 24,000-parent source accounting is recomputed, and the target
-training runtime is measured. A later reviewed commit is still required before
-training can use the candidate.
+the sole TypeScript provenance authority verifies the complete private v8
+dataset, the exact 24,000-parent source accounting is recomputed, and the
+target training runtime is measured. A later reviewed commit is still required
+before training can use the candidate.
 """
 
 from __future__ import annotations
@@ -33,11 +34,21 @@ import strength_first_qat_training_bridge as BRIDGE
 STRENGTH_FIRST_PLAN_CANDIDATE_COMMAND = (
     "python3 ml/build_strength_first_qat_training_plan_candidate.py"
 )
+STRENGTH_FIRST_V8_PROVENANCE_COMMAND = (
+    "node -r tsx/cjs "
+    "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts"
+)
 STRENGTH_FIRST_TEACHER_LOCK_FILENAME = ".strength-first-teacher.lock"
+_V8_PROVENANCE_ENTRY = (
+    "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts"
+)
 _PARSED_FILE_KEYS = (
     "role_bundle_manifest",
     "teacher_manifest",
     "teacher_result",
+    "teacher_staged_result",
+    "teacher_milestone_100",
+    "teacher_milestone_500",
     "input_training",
     "parent_completion",
     "model_training",
@@ -52,6 +63,9 @@ _TERMINAL_TEACHER_KEYS = (
     "teacher_result",
     "teacher_manifest",
     "teacher_work",
+    "teacher_staged_result",
+    "teacher_milestone_100",
+    "teacher_milestone_500",
     "parent_completion",
     "model_training",
 )
@@ -237,12 +251,16 @@ def _derive_strength_first_qat_training_artifacts(
     role_bundle_manifest_raw: bytes,
     teacher_manifest_raw: bytes,
     teacher_result_raw: bytes,
+    teacher_staged_result_raw: bytes,
+    teacher_milestone_100_raw: bytes,
+    teacher_milestone_500_raw: bytes,
     input_training_raw: bytes,
     parent_completion_raw: bytes,
     model_training_raw: bytes,
     replay_exclusion_raw: bytes,
     observed_fingerprints: Mapping[str, Mapping[str, Any]],
-) -> dict[str, Any]:
+    teacher_provenance: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if type(observed_fingerprints) is not dict or set(observed_fingerprints) != set(
         _FINGERPRINT_FILE_KEYS
     ):
@@ -303,15 +321,10 @@ def _derive_strength_first_qat_training_artifacts(
             role_bundle_manifest_raw,
         ),
         "input_training": copy.deepcopy(accounting["input_training"]),
-        "teacher_manifest": _identity(
-            "manifest.json",
-            teacher_manifest_raw,
-        ),
         "teacher_result": _identity(
             "result.json",
             teacher_result_raw,
         ),
-        "teacher_work": teacher_work,
         "parent_completion": copy.deepcopy(accounting["parent_completion"]),
         "model_training": {
             "path": "train.jsonl",
@@ -323,14 +336,41 @@ def _derive_strength_first_qat_training_artifacts(
         "warm_initializer": warm_initializer,
     }
     try:
-        BRIDGE.validate_strength_first_qat_training_source_documents(
-            role_manifest=role_manifest,
-            teacher_manifest=teacher_manifest,
-            teacher_result=teacher_result,
-            artifacts=artifacts,
+        private_bindings = (
+            BRIDGE.validate_strength_first_qat_training_source_documents(
+                role_manifest=role_manifest,
+                teacher_manifest=teacher_manifest,
+                teacher_result=teacher_result,
+                teacher_provenance=teacher_provenance,
+                artifacts=artifacts,
+            )
         )
     except (TypeError, ValueError) as error:
         raise StrengthFirstPlanCandidateError(str(error)) from error
+    actual_private = {
+        "teacher_work": teacher_work,
+        "teacher_manifest": _identity(
+            "manifest.json",
+            teacher_manifest_raw,
+        ),
+        "teacher_staged_result": _identity(
+            "staged-result.json",
+            teacher_staged_result_raw,
+        ),
+        "teacher_milestone_100": _identity(
+            "milestone-100.json",
+            teacher_milestone_100_raw,
+        ),
+        "teacher_milestone_500": _identity(
+            "milestone-500.json",
+            teacher_milestone_500_raw,
+        ),
+    }
+    for name, identity in actual_private.items():
+        if identity != private_bindings[name]:
+            raise StrengthFirstPlanCandidateError(
+                f"v8 outer result {name.replace('_', ' ')} binding differs"
+            )
 
     if (
         accounting["parent_accounting"]["input_parents"]
@@ -343,16 +383,18 @@ def _derive_strength_first_qat_training_artifacts(
         raise StrengthFirstPlanCandidateError(
             "strength-first source accounting is not exact"
         )
-    return copy.deepcopy(artifacts)
+    return copy.deepcopy(artifacts), copy.deepcopy(dict(teacher_provenance))
 
 
 def _assemble_strength_first_qat_training_plan(
     artifacts: Mapping[str, Any],
+    teacher_provenance: Mapping[str, Any],
     runtime: Mapping[str, Any],
 ) -> dict[str, Any]:
     try:
         plan = BRIDGE.build_strength_first_qat_training_plan_data(
             artifacts=artifacts,
+            teacher_provenance=teacher_provenance,
             runtime=_require_runtime(runtime),
         )
     except (TypeError, ValueError) as error:
@@ -365,11 +407,15 @@ def build_strength_first_qat_training_plan_candidate_data(
     role_bundle_manifest_raw: bytes,
     teacher_manifest_raw: bytes,
     teacher_result_raw: bytes,
+    teacher_staged_result_raw: bytes,
+    teacher_milestone_100_raw: bytes,
+    teacher_milestone_500_raw: bytes,
     input_training_raw: bytes,
     parent_completion_raw: bytes,
     model_training_raw: bytes,
     replay_exclusion_raw: bytes,
     observed_fingerprints: Mapping[str, Mapping[str, Any]],
+    teacher_provenance: Mapping[str, Any],
     runtime: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Recompute and return the exact plan object without writing it.
@@ -380,17 +426,25 @@ def build_strength_first_qat_training_plan_candidate_data(
     or live-weight side effects.
     """
 
-    artifacts = _derive_strength_first_qat_training_artifacts(
+    artifacts, verified_provenance = _derive_strength_first_qat_training_artifacts(
         role_bundle_manifest_raw=role_bundle_manifest_raw,
         teacher_manifest_raw=teacher_manifest_raw,
         teacher_result_raw=teacher_result_raw,
+        teacher_staged_result_raw=teacher_staged_result_raw,
+        teacher_milestone_100_raw=teacher_milestone_100_raw,
+        teacher_milestone_500_raw=teacher_milestone_500_raw,
         input_training_raw=input_training_raw,
         parent_completion_raw=parent_completion_raw,
         model_training_raw=model_training_raw,
         replay_exclusion_raw=replay_exclusion_raw,
         observed_fingerprints=observed_fingerprints,
+        teacher_provenance=teacher_provenance,
     )
-    return _assemble_strength_first_qat_training_plan(artifacts, runtime)
+    return _assemble_strength_first_qat_training_plan(
+        artifacts,
+        verified_provenance,
+        runtime,
+    )
 
 
 def _canonical_real_path(path: str, label: str) -> str:
@@ -539,7 +593,7 @@ def _path_exists_without_following(path: str) -> bool:
 def _acquire_teacher_run_lock(
     path: str,
 ) -> tuple[int, tuple[int, ...]]:
-    absolute = _canonical_real_path(path, "retained v7 teacher lock")
+    absolute = _canonical_real_path(path, "retained v8 teacher lock")
     flags = os.O_RDWR | os.O_NONBLOCK
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -547,7 +601,7 @@ def _acquire_teacher_run_lock(
         descriptor = os.open(absolute, flags)
     except OSError as error:
         raise StrengthFirstPlanCandidateError(
-            "retained v7 teacher lock is absent or cannot be opened"
+            "retained v8 teacher lock is absent or cannot be opened"
         ) from error
     stable_fields = (
         "st_dev",
@@ -569,13 +623,13 @@ def _acquire_teacher_run_lock(
             or stat.S_IMODE(before.st_mode) != 0o600
         ):
             raise StrengthFirstPlanCandidateError(
-                "retained v7 teacher lock identity is invalid"
+                "retained v8 teacher lock identity is invalid"
             )
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except (BlockingIOError, OSError) as error:
             raise StrengthFirstPlanCandidateError(
-                "the v7 teacher is still active"
+                "the v8 teacher is still active"
             ) from error
         current = os.lstat(absolute)
         stability = tuple(getattr(before, field) for field in stable_fields)
@@ -584,7 +638,7 @@ def _acquire_teacher_run_lock(
             or tuple(getattr(current, field) for field in stable_fields) != stability
         ):
             raise StrengthFirstPlanCandidateError(
-                "retained v7 teacher lock changed during acquisition"
+                "retained v8 teacher lock changed during acquisition"
             )
         return descriptor, stability
     except BaseException:
@@ -597,7 +651,7 @@ def _assert_teacher_run_lock(
     path: str,
     stability: tuple[int, ...],
 ) -> None:
-    absolute = _canonical_real_path(path, "retained v7 teacher lock")
+    absolute = _canonical_real_path(path, "retained v8 teacher lock")
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -612,14 +666,14 @@ def _assert_teacher_run_lock(
         current = os.lstat(absolute)
     except OSError as error:
         raise StrengthFirstPlanCandidateError(
-            "retained v7 teacher lock changed"
+            "retained v8 teacher lock changed"
         ) from error
     if (
         stat.S_ISLNK(current.st_mode)
         or tuple(getattr(handle, field) for field in stable_fields) != stability
         or tuple(getattr(current, field) for field in stable_fields) != stability
     ):
-        raise StrengthFirstPlanCandidateError("retained v7 teacher lock changed")
+        raise StrengthFirstPlanCandidateError("retained v8 teacher lock changed")
 
 
 def _release_teacher_run_lock(descriptor: int) -> None:
@@ -745,11 +799,73 @@ def _probe_fixed_training_runtime(
     )
 
 
+def _verify_v8_downstream_provenance(
+    *,
+    node_path: str,
+    repo_root: str,
+    home: str,
+) -> dict[str, Any]:
+    """Run the sole row-semantic authority and accept only its safe summary."""
+
+    node, interpreter_snapshot = _snapshot_fixed_training_interpreter(node_path)
+    environment = dict(_FIXED_RUNTIME_ENVIRONMENT)
+    environment["HOME"] = os.path.abspath(home)
+    temporary = os.environ.get("TMPDIR")
+    if temporary:
+        environment["TMPDIR"] = temporary
+    try:
+        completed = subprocess.run(
+            [
+                node,
+                "-r",
+                "tsx/cjs",
+                _V8_PROVENANCE_ENTRY,
+            ],
+            cwd=repo_root,
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=False,
+            timeout=300,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        raise StrengthFirstPlanCandidateError(
+            "v8 downstream provenance verification failed"
+        ) from error
+    finally:
+        _revalidate_fixed_training_interpreter(
+            node,
+            interpreter_snapshot,
+        )
+    if (
+        completed.stderr
+        or not completed.stdout
+        or len(completed.stdout) > 16_384
+        or completed.stdout.count(b"\n") != 1
+        or not completed.stdout.endswith(b"\n")
+    ):
+        raise StrengthFirstPlanCandidateError(
+            "v8 downstream provenance verifier output is invalid"
+        )
+    summary = _strict_json(
+        completed.stdout[:-1],
+        "v8 downstream provenance summary",
+    )
+    try:
+        BRIDGE._validate_teacher_provenance_summary(summary)
+    except (TypeError, ValueError) as error:
+        raise StrengthFirstPlanCandidateError(str(error)) from error
+    return copy.deepcopy(summary)
+
+
 def build_strength_first_qat_training_plan_candidate(
     *,
     repo_root: str | os.PathLike[str] | None = None,
     home: str | os.PathLike[str] | None = None,
     runtime_probe: Callable[..., Mapping[str, Any]] = (_probe_fixed_training_runtime),
+    provenance_verifier: Callable[..., Mapping[str, Any]] = (
+        _verify_v8_downstream_provenance
+    ),
     _candidate_consumer: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Inspect the fixed local run and return a non-persisted plan candidate.
@@ -762,9 +878,10 @@ def build_strength_first_qat_training_plan_candidate(
     root = Path(
         repo_root if repo_root is not None else Path(__file__).resolve().parent.parent
     ).resolve()
+    home_root = Path(home if home is not None else Path.home()).expanduser().resolve()
     paths = BRIDGE.default_strength_first_local_paths(
         repo_root=root,
-        home=home,
+        home=home_root,
     )
     plan_path = paths["experiment_plan"]
     teacher_root = os.path.dirname(paths["teacher_result"])
@@ -790,7 +907,7 @@ def build_strength_first_qat_training_plan_candidate(
         for key in _TERMINAL_TEACHER_KEYS:
             if not _path_exists_without_following(paths[key]):
                 raise StrengthFirstPlanCandidateError(
-                    f"terminal v7 artifact is absent: {key}"
+                    f"terminal v8 artifact is absent: {key}"
                 )
 
         parsed: dict[str, bytes] = {}
@@ -826,21 +943,34 @@ def build_strength_first_qat_training_plan_candidate(
             raise StrengthFirstPlanCandidateError(
                 "the tracked strength-first plan appeared during candidate construction"
             )
-        artifacts = _derive_strength_first_qat_training_artifacts(
+        teacher_provenance = provenance_verifier(
+            node_path=paths["v8_provenance_node"],
+            repo_root=str(root),
+            home=str(home_root),
+        )
+        artifacts, verified_provenance = _derive_strength_first_qat_training_artifacts(
             role_bundle_manifest_raw=parsed["role_bundle_manifest"],
             teacher_manifest_raw=parsed["teacher_manifest"],
             teacher_result_raw=parsed["teacher_result"],
+            teacher_staged_result_raw=parsed["teacher_staged_result"],
+            teacher_milestone_100_raw=parsed["teacher_milestone_100"],
+            teacher_milestone_500_raw=parsed["teacher_milestone_500"],
             input_training_raw=parsed["input_training"],
             parent_completion_raw=parsed["parent_completion"],
             model_training_raw=parsed["model_training"],
             replay_exclusion_raw=parsed["replay_exclusion"],
             observed_fingerprints=fingerprints,
+            teacher_provenance=teacher_provenance,
         )
         runtime = runtime_probe(
             python_path=paths["python"],
             repo_root=str(root),
         )
-        plan = _assemble_strength_first_qat_training_plan(artifacts, runtime)
+        plan = _assemble_strength_first_qat_training_plan(
+            artifacts,
+            verified_provenance,
+            runtime,
+        )
         for key, token in stability.items():
             _revalidate_snapshot(
                 paths[key],
@@ -924,6 +1054,7 @@ if __name__ == "__main__":
 
 __all__ = [
     "STRENGTH_FIRST_PLAN_CANDIDATE_COMMAND",
+    "STRENGTH_FIRST_V8_PROVENANCE_COMMAND",
     "StrengthFirstPlanCandidateError",
     "build_strength_first_qat_training_plan_candidate",
     "build_strength_first_qat_training_plan_candidate_data",

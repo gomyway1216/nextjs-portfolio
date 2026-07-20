@@ -348,7 +348,9 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
         self.assertEqual([run["seed"] for run in registry["runs"]], [42, 43, 44])
         self.assertTrue(
             all(
-                run[artifact]["bytes"] > 0
+                type(run[artifact]["bytes"]) is int
+                and run[artifact]["bytes"] > 0
+                and type(run[artifact]["sha256"]) is str
                 and COMMON._valid_sha256(run[artifact]["sha256"])
                 for run in registry["runs"]
                 for artifact in ("result", "checkpoint")

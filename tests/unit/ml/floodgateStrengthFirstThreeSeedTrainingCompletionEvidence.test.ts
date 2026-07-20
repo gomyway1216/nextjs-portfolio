@@ -178,7 +178,7 @@ describe("Floodgate strength-first three-seed training completion evidence", () 
       expect(publicRecord).toContain(marker);
     }
     expect(publicRecord).not.toMatch(
-      /(?:\/Users\/|\/private\/|parent_sfen|child_sfen|position_sfen)/u,
+      /(?:[\\/]Users[\\/]|[\\/]private[\\/]|parent_sfen|child_sfen|position_sfen)/ui,
     );
   });
 });

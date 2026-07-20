@@ -1,0 +1,154 @@
+{
+  "schema": "shogi-floodgate-raw-authentication-worker-production-evidence-v1",
+  "status": "production-raw-authentication-wired-and-real-full-pass-exactly-equivalent-formal-and-live-unchanged",
+  "recorded_at": "2026-07-20T05:00:00Z",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-raw-authentication-worker-production.md",
+    "english": "../blog-shogi-floodgate-raw-authentication-worker-production.en.md",
+    "foundation": "../blog-shogi-floodgate-raw-authentication-worker-foundation.md"
+  },
+  "scope": {
+    "goal": "use twelve local cores for independent raw-receipt authentication without changing canonical order, failure order, report bytes, formal teacher data, or live weights",
+    "production_raw_verifier_wired": true,
+    "production_workers": 12,
+    "formal_teacher_namespace_touched": false,
+    "teacher_generation_started_by_this_change": false,
+    "training_started_by_this_change": false,
+    "live_weight_changes": 0,
+    "runtime_network_used": false,
+    "aws_used": false,
+    "gcp_or_firebase_used": false,
+    "vercel_compute_used": false
+  },
+  "implementation_revision": "c4dc7454024ed726deb4025cb1b6364231c0710e",
+  "machine": {
+    "model": "Apple M4 Pro",
+    "cores": 14,
+    "performance_cores": 10,
+    "efficiency_cores": 4,
+    "memory_bytes": 51539607552,
+    "runtime": "node-v22.13.0",
+    "platform": "darwin-arm64"
+  },
+  "worker_source_closure": {
+    "bundle_schema": "shogi-floodgate-raw-verification-worker-bundle-v1",
+    "bundle_path": "ml/floodgate-raw-verification-worker.cjs",
+    "bundle_bytes": 54297,
+    "bundle_sha256": "21e96f036d663d4ffea2f90abf49d638958e7798950f0e72dfce7286fb525f09",
+    "transitive_sources": [
+      "ml/floodgate-raw-lock.ts",
+      "ml/floodgate-raw-verification-worker-protocol.ts",
+      "ml/floodgate-raw-verification-worker.ts",
+      "ml/floodgate-source.ts"
+    ],
+    "external_runtime_dependencies": "node-builtins-only",
+    "typescript_or_tsx_loaded_after_spawn": false,
+    "worker_started_from_verified_in_memory_source": true,
+    "worker_exec_argv": [],
+    "required_node_version": "v22.13.0",
+    "worker_binds_parent_node_v8_abi_executable_platform_and_architecture": true,
+    "bundle_file_descriptor_held_until_all_workers_exit": true,
+    "repository_and_bundle_parent_directory_descriptors_held_until_all_workers_exit": true,
+    "single_link_regular_current_user_owned_bundle_required": true,
+    "symlink_rejected": true,
+    "path_swap_rejected": true,
+    "in_place_mutation_and_restore_rejected": true,
+    "parent_directory_churn_rejected": true,
+    "loaded_source_exact_clean_revision_captured_before_spawn": true,
+    "same_loaded_source_revision_reverified_after_all_workers_exit": true,
+    "tracked_bundle_rebuild_checked_in_normal_unit_validation": true
+  },
+  "source_authority_separation": {
+    "historical_semantic_verifier_revision": "e8a9197608cb48b1160b6707d97b0c4f78f90a1d",
+    "historical_semantic_verifier_root_is_worker_source_root": false,
+    "worker_source_root": "the repository containing the currently loaded verifier module",
+    "worker_source_revision": "captured exact-clean current HEAD; never reinterpreted from the historical semantic verifier revision",
+    "distinct_root_and_revision_integration_test_passed": true
+  },
+  "worker_policy": {
+    "workers": 12,
+    "one_active_task_per_worker": true,
+    "input_ordered_result_merge": true,
+    "lowest_input_index_failure_wins": true,
+    "task_timeout_ms": 60000,
+    "shutdown_timeout_ms": 5000,
+    "forced_termination_after_timeout": true,
+    "per_worker_max_old_generation_mb": 384,
+    "aggregate_configured_old_generation_limit_mb": 4608,
+    "raw_bytes_cross_worker_boundary": false
+  },
+  "real_full_raw_pass": {
+    "clock": "process.hrtime.bigint",
+    "same_completed_raw_lock": true,
+    "tasks": 36349,
+    "order": ["serial", "source-closed-production-12-worker"],
+    "serial": {
+      "elapsed_ms": 31705.588459,
+      "observed_peak_rss_bytes": 355041280,
+      "report_status": "pass"
+    },
+    "production_12_worker": {
+      "elapsed_ms": 15679.927083,
+      "observed_peak_rss_bytes": 754171904,
+      "report_status": "pass",
+      "source_closure_included_in_elapsed_time": true
+    },
+    "speedup": 2.0220494834682516,
+    "saved_ms_per_pass": 16025.661375999998,
+    "observed_peak_rss_increase_bytes": 399130624,
+    "report_deep_strict_equality": true,
+    "candidate_manifest_serialization_equivalence": true,
+    "raw_manifest_bytes_unchanged": true,
+    "private_paths_urls_receipts_or_digests_published": false
+  },
+  "effect_on_historical_full_authentication": {
+    "historical_elapsed_ms": 1088743,
+    "raw_passes": 4,
+    "projected_saved_ms_if_all_four_passes_match_the_measured_production_gain": 64102.64550399999,
+    "projected_elapsed_ms": 1024640.354496,
+    "projected_elapsed_minutes": 17.0773392416,
+    "projection_not_a_measured_full_authentication": true,
+    "full_authentication_deliberately_not_duplicated": true,
+    "reason": "avoid duplicating the authentication required by the next formal run and avoid contention with twelve teacher engines",
+    "serial_floor_if_raw_verification_were_free_ms": 961920.646164,
+    "serial_floor_if_raw_verification_were_free_minutes": 16.0320107694,
+    "dominant_remaining_target": "immutable per-position role-replay preparation; canonical blocked-set commit remains ordered"
+  },
+  "excluded_measurements": [
+    {
+      "name": "reverse-order-inline-timer-attempt",
+      "operations_completed": true,
+      "report_deep_strict_equality": true,
+      "raw_manifest_bytes_unchanged": true,
+      "timings_accepted": false,
+      "reason": "the temporary inline timer evaluated elapsed time before awaiting the operation",
+      "reported_but_invalid_parallel_ms": 0.003042,
+      "reported_but_invalid_serial_ms": 0.005417
+    }
+  ],
+  "validation_at_implementation_revision": {
+    "focused_worker_and_raw_verifier": {
+      "files": 3,
+      "tests_passed": 25,
+      "tests_failed": 0
+    },
+    "role_lock_bundle_and_training_consumer": {
+      "files": 4,
+      "tests_passed": 110,
+      "tests_failed": 0
+    },
+    "targeted_eslint": "pass",
+    "tracked_bundle_rebuild": "pass",
+    "git_diff_check": "pass",
+    "independent_review": "pending"
+  },
+  "claim_boundary": {
+    "authentication_latency_improved": true,
+    "evaluation_function_changed": false,
+    "playing_strength_evidence": false,
+    "teacher_label_evidence": false,
+    "training_evidence": false,
+    "formal_ab_evidence": false,
+    "live_deployment_evidence": false
+  }
+}

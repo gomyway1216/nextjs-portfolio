@@ -28,11 +28,11 @@ The ABBA order reduces one-direction bias from temperature, caches, and backgrou
 
 Thirteen is recommended only if all three conditions hold:
 
-1. thirteen is at least one percent faster in the first pair;
-2. thirteen is at least one percent faster in the second pair; and
+1. thirteen is strictly faster in the first pair (a tie does not pass);
+2. thirteen is strictly faster in the second pair (a tie does not pass); and
 3. the median wall time of both thirteen-process trials is at least one percent faster than the median of both twelve-process trials.
 
-Passing the median while missing either pair retains twelve. Every trial must also complete exactly 42 of 42 parents, emit 42 groups, record 43 work rows including the header, and have zero forced skips. The two trials for the same process count must have the same internal work fingerprint, while the twelve- and thirteen-process fingerprints must differ. Fingerprints are never published.
+Passing the median while tying or losing either pair retains twelve. Every trial must also complete exactly 42 of 42 parents, emit 42 groups, record 43 work rows including the header, and have zero forced skips. The two trials for the same process count must have the same internal work fingerprint, while the twelve- and thirteen-process fingerprints must differ. Fingerprints are never published.
 
 ## Never competing with the active formal teacher
 
@@ -57,7 +57,7 @@ The result does not rewrite the shared policy. Even a passing thirteen-process r
 
 ## Current status
 
-Implementation and eight lightweight unit tests are complete. They cover the exact threshold, retaining twelve when only one pair misses, order/count/fingerprint drift, forbidden private fields, cleanup after a skip, and policy/platform/root/CLI drift.
+Implementation and ten lightweight unit tests are complete. They cover the exact median threshold, the approximately +0.5% / +1.5% paired boundary, retaining twelve when one pair ties, order/count/fingerprint drift, forbidden private fields, cleanup after a skip, input postflight, and policy/platform/root/CLI drift.
 
 The real comparison is intentionally pending, so this work does not yet claim whether twelve or thirteen is faster for MultiPV 6. It may run only after the active 24,000-position teacher finishes and this implementation is available from a clean merged revision.
 

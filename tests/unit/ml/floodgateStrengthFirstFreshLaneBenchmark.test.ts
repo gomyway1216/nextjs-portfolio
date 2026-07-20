@@ -10,6 +10,7 @@ import {
   assertFloodgateStrengthFirstFreshLaneBenchmarkCliArguments,
   assertFloodgateStrengthFirstFreshLaneBenchmarkPathsForTests,
   assertFloodgateStrengthFirstFreshLaneBenchmarkRuntimeForTests,
+  assertFloodgateStrengthFirstFreshLaneInputPostflightForTests,
   buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests,
   floodgateStrengthFirstFreshLaneBenchmarkPaths,
   runFloodgateStrengthFirstFreshLaneTrialCoreForTests,
@@ -105,29 +106,50 @@ describe("fresh-lane MultiPV 6 benchmark", () => {
       abba_pair_1_lane_13_speedup_ppm: 1_010_000,
       abba_pair_2_lane_13_speedup_ppm: 1_010_000,
       lane_13_median_speedup_ppm: 1_010_000,
+      abba_pair_favors_lane_13_boundary_ppm: 1_000_000,
       minimum_speedup_to_select_lane_13_ppm: 1_010_000,
-      abba_pair_1_passed: true,
-      abba_pair_2_passed: true,
+      abba_pair_1_favors_lane_13: true,
+      abba_pair_2_favors_lane_13: true,
       median_passed: true,
       selected_parallel_engines: 13,
     });
     expect(JSON.stringify(receipt)).not.toContain("run_fingerprint");
   });
 
-  it("retains 12 when the median passes but one ABBA pair does not", () => {
+  it("selects 13 when both pairs favor it and the median reaches 1 percent", () => {
     const receipt =
       buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests([
-        trial(1, 1_010),
-        trial(2, 1_001),
-        trial(3, 990),
-        trial(4, 1_010),
+        trial(1, 1_005),
+        trial(2, 1_000),
+        trial(3, 1_000),
+        trial(4, 1_015),
       ]);
     const comparison = receipt.comparison as Readonly<
       Record<string, unknown>
     >;
 
-    expect(comparison.abba_pair_1_passed).toBe(false);
-    expect(comparison.abba_pair_2_passed).toBe(true);
+    expect(comparison.abba_pair_1_lane_13_speedup_ppm).toBe(1_005_000);
+    expect(comparison.abba_pair_2_lane_13_speedup_ppm).toBe(1_015_000);
+    expect(comparison.abba_pair_1_favors_lane_13).toBe(true);
+    expect(comparison.abba_pair_2_favors_lane_13).toBe(true);
+    expect(comparison.median_passed).toBe(true);
+    expect(comparison.selected_parallel_engines).toBe(13);
+  });
+
+  it("retains 12 when one ABBA pair ties despite a passing median", () => {
+    const receipt =
+      buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests([
+        trial(1, 1_000),
+        trial(2, 1_000),
+        trial(3, 980),
+        trial(4, 1_020),
+      ]);
+    const comparison = receipt.comparison as Readonly<
+      Record<string, unknown>
+    >;
+
+    expect(comparison.abba_pair_1_favors_lane_13).toBe(false);
+    expect(comparison.abba_pair_2_favors_lane_13).toBe(true);
     expect(comparison.median_passed).toBe(true);
     expect(comparison.selected_parallel_engines).toBe(12);
   });
@@ -298,6 +320,45 @@ describe("fresh-lane MultiPV 6 benchmark", () => {
         12,
       ),
     ).toThrow(/exceeds this Mac|available parallelism/iu);
+  });
+
+  it("postflight compares public input identity without serializing rows", () => {
+    const publicInput = {
+      schema: "schema",
+      role: "training",
+      policy: "policy",
+      manifest: { bytes: 1, sha256: "a" },
+      source: { bytes: 2, sha256: "b", records: 24_000 },
+    };
+    const before = {
+      ...publicInput,
+      rows: Object.freeze([{ parent_id: "private-before" }]),
+    } as unknown as Parameters<
+      typeof assertFloodgateStrengthFirstFreshLaneInputPostflightForTests
+    >[0];
+    const samePublicAfter = {
+      ...publicInput,
+      rows: Object.freeze([{ parent_id: "private-after" }]),
+    } as unknown as Parameters<
+      typeof assertFloodgateStrengthFirstFreshLaneInputPostflightForTests
+    >[1];
+    expect(() =>
+      assertFloodgateStrengthFirstFreshLaneInputPostflightForTests(
+        before,
+        samePublicAfter,
+      ),
+    ).not.toThrow();
+
+    const changedSource = {
+      ...samePublicAfter,
+      source: { bytes: 2, sha256: "changed", records: 24_000 },
+    };
+    expect(() =>
+      assertFloodgateStrengthFirstFreshLaneInputPostflightForTests(
+        before,
+        changedSource,
+      ),
+    ).toThrow(/training input changed/iu);
   });
 
   it("rejects platform, fixed-root, and CLI-option drift before work", () => {

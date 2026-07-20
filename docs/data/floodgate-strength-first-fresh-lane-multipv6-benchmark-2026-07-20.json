@@ -22,8 +22,10 @@
     "trial_order": [12, 13, 13, 12],
     "trials": 4,
     "total_parent_slots": 168,
+    "pair_favors_13_boundary_ppm": 1000000,
+    "pair_comparison": "strictly-greater-than-boundary",
     "minimum_speedup_ppm": 1010000,
-    "selection_rule": "both-abba-pairs-and-median-must-pass",
+    "selection_rule": "both-abba-pairs-must-strictly-favor-13-and-median-must-reach-minimum-speedup",
     "required_completed_parents_per_trial": 42,
     "required_emitted_parent_groups_per_trial": 42,
     "required_forced_skips_per_trial": 0
@@ -38,6 +40,7 @@
     "formal_teacher_exclusion_before_engine_launch": true,
     "clean_revision_preflight_and_postflight": true,
     "pinned_policy_preflight_and_postflight": true,
+    "authenticated_training_input_preflight_and_postflight": true,
     "pinned_asset_preflight_and_postflight": true,
     "fixed_private_output_root": true,
     "disposable_stage_cleanup_before_and_after_each_trial": true,
@@ -52,7 +55,7 @@
     "benchmark": "ml/floodgate-strength-first-fresh-lane-benchmark.ts",
     "argumentless_entry": "ml/run-floodgate-strength-first-fresh-lane-benchmark.ts",
     "unit_test": "tests/unit/ml/floodgateStrengthFirstFreshLaneBenchmark.test.ts",
-    "unit_tests_passed": 8,
+    "unit_tests_passed": 10,
     "real_engine_processes_started_by_validation": 0
   }
 }

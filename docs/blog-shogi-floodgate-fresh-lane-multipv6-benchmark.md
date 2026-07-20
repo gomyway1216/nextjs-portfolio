@@ -28,11 +28,11 @@ fresh-selectionの固定条件はproposalがMultiPV 6 / depth 14、各候補の�
 
 13を推奨するには、次の3条件を全て満たす必要がある。
 
-1. 1組目で13が12より1%以上速い
-2. 2組目でも13が12より1%以上速い
+1. 1組目で13が12より少しでも速い（同率は不可）
+2. 2組目でも13が12より少しでも速い（同率は不可）
 3. 12の2回と13の2回のwall time中央値でも13が1%以上速い
 
-中央値だけが良くても、片方の組で閾値を下回れば12を維持する。さらに各trialは42 / 42完了、forced skip 0、emitted group 42、work record 43でなければ比較全体を失敗させる。同じprocess数の2 trialは内部work fingerprintが一致し、12と13では異なることも確認する。fingerprint自体は結果へ公開しない。
+中央値だけが良くても、片方の組が同率または13の方が遅ければ12を維持する。さらに各trialは42 / 42完了、forced skip 0、emitted group 42、work record 43でなければ比較全体を失敗させる。同じprocess数の2 trialは内部work fingerprintが一致し、12と13では異なることも確認する。fingerprint自体は結果へ公開しない。
 
 ## 稼働中の正式処理とは同時実行しない
 
@@ -57,7 +57,7 @@ privateな`receipt.json`に残すのは、process数、経過時間、throughput
 
 ## 現在地
 
-実装と8件の軽量単体テストは完了した。閾値ちょうどの採用、片方だけ失敗したときの12維持、順序・件数・fingerprint drift、private field、skip後cleanup、policy・platform・root・CLI driftを確認している。
+実装と10件の軽量単体テストは完了した。中央値閾値ちょうどの採用、両組が約0.5% / 1.5%速い境界、片方が同率のときの12維持、順序・件数・fingerprint drift、private field、skip後cleanup、入力postflight、policy・platform・root・CLI driftを確認している。
 
 実比較は意図的に未実行であり、12と13のどちらがMultiPV 6で速いかはまだ確定していない。24,000局面の正式処理が終了し、この実装がmergeされたclean revisionからだけABBA比較を実行する。
 

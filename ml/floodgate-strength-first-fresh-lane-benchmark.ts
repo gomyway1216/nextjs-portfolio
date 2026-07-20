@@ -19,6 +19,7 @@ import {
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
   loadFloodgateStrengthFirstFastTrainingInput,
   projectFloodgateStrengthFirstFastTrainingInputForTeacher,
+  type FloodgateStrengthFirstFastTrainingInput,
 } from "./floodgate-strength-first-fast-training-input";
 import {
   FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH,
@@ -50,6 +51,8 @@ export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_ORDER =
   Object.freeze([12, 13, 13, 12] as const);
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_MINIMUM_SPEEDUP_PPM =
   1_010_000 as const;
+export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_PAIR_FAVORS_13_BOUNDARY_PPM =
+  1_000_000 as const;
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_BYTES =
   1_349 as const;
 export const FLOODGATE_STRENGTH_FIRST_FRESH_LANE_SEARCH_POLICY_SHA256 =
@@ -121,6 +124,14 @@ export interface FloodgateStrengthFirstFreshLaneTrialDependencies {
     input: Readonly<AuthenticatedFloodgateTrainingRows>,
     options: AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions,
   ) => Promise<Readonly<PrefixOutcome>>;
+}
+
+export interface FloodgateStrengthFirstFreshLaneInputPublicIdentity {
+  readonly schema: string;
+  readonly role: string;
+  readonly policy: string;
+  readonly manifest: unknown;
+  readonly source: unknown;
 }
 
 const SHA256_RE = /^[0-9a-f]{64}$/u;
@@ -253,6 +264,32 @@ export function assertFloodgateStrengthFirstFreshLaneBenchmarkCliArguments(
   }
 }
 
+export function floodgateStrengthFirstFreshLaneInputPublicIdentityForTests(
+  input: Readonly<FloodgateStrengthFirstFastTrainingInput>,
+): Readonly<FloodgateStrengthFirstFreshLaneInputPublicIdentity> {
+  return Object.freeze({
+    schema: input.schema,
+    role: input.role,
+    policy: input.policy,
+    manifest: input.manifest,
+    source: input.source,
+  });
+}
+
+export function assertFloodgateStrengthFirstFreshLaneInputPostflightForTests(
+  before: Readonly<FloodgateStrengthFirstFastTrainingInput>,
+  after: Readonly<FloodgateStrengthFirstFastTrainingInput>,
+): void {
+  if (
+    !sameJson(
+      floodgateStrengthFirstFreshLaneInputPublicIdentityForTests(before),
+      floodgateStrengthFirstFreshLaneInputPublicIdentityForTests(after),
+    )
+  ) {
+    fail("authenticated training input changed during benchmark");
+  }
+}
+
 export function validateFloodgateStrengthFirstFreshLaneSearchPolicyForTests(
   file: string,
   repositoryRootInput: string,
@@ -373,13 +410,15 @@ export function buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests(
   const pair1 = speedupPpm(trials[0].elapsed_ms, trials[1].elapsed_ms);
   const pair2 = speedupPpm(trials[3].elapsed_ms, trials[2].elapsed_ms);
   const median = speedupPpm(median12, median13);
-  const pair1Pass =
-    pair1 >= FLOODGATE_STRENGTH_FIRST_FRESH_LANE_MINIMUM_SPEEDUP_PPM;
-  const pair2Pass =
-    pair2 >= FLOODGATE_STRENGTH_FIRST_FRESH_LANE_MINIMUM_SPEEDUP_PPM;
+  const pair1Favors13 =
+    pair1 >
+    FLOODGATE_STRENGTH_FIRST_FRESH_LANE_PAIR_FAVORS_13_BOUNDARY_PPM;
+  const pair2Favors13 =
+    pair2 >
+    FLOODGATE_STRENGTH_FIRST_FRESH_LANE_PAIR_FAVORS_13_BOUNDARY_PPM;
   const medianPass =
     median >= FLOODGATE_STRENGTH_FIRST_FRESH_LANE_MINIMUM_SPEEDUP_PPM;
-  const selected = pair1Pass && pair2Pass && medianPass ? 13 : 12;
+  const selected = pair1Favors13 && pair2Favors13 && medianPass ? 13 : 12;
 
   const receipt = Object.freeze({
     schema: FLOODGATE_STRENGTH_FIRST_FRESH_LANE_BENCHMARK_SCHEMA,
@@ -433,10 +472,12 @@ export function buildFloodgateStrengthFirstFreshLaneBenchmarkReceiptForTests(
       abba_pair_1_lane_13_speedup_ppm: pair1,
       abba_pair_2_lane_13_speedup_ppm: pair2,
       lane_13_median_speedup_ppm: median,
+      abba_pair_favors_lane_13_boundary_ppm:
+        FLOODGATE_STRENGTH_FIRST_FRESH_LANE_PAIR_FAVORS_13_BOUNDARY_PPM,
       minimum_speedup_to_select_lane_13_ppm:
         FLOODGATE_STRENGTH_FIRST_FRESH_LANE_MINIMUM_SPEEDUP_PPM,
-      abba_pair_1_passed: pair1Pass,
-      abba_pair_2_passed: pair2Pass,
+      abba_pair_1_favors_lane_13: pair1Favors13,
+      abba_pair_2_favors_lane_13: pair2Favors13,
       median_passed: medianPass,
       selected_parallel_engines: selected,
     }),
@@ -705,6 +746,13 @@ export async function runFloodgateStrengthFirstFreshLaneBenchmark(): Promise<
     if (!sameJson(postPolicy, policy)) {
       fail("search policy changed during benchmark");
     }
+    const postFast = await loadFloodgateStrengthFirstFastTrainingInput(
+      paths.home,
+    );
+    assertFloodgateStrengthFirstFreshLaneInputPostflightForTests(
+      fast,
+      postFast,
+    );
     await verifyPinnedFloodgateStrengthFirstV8TeacherAuthority();
 
     const receipt =

@@ -1,29 +1,13 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
-import { htmlToText } from 'html-to-text';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
-import { categoryLabel } from '@/lib/blog/categoryLabel';
-import { SITE_URL } from '@/lib/siteConfig';
+import { excerpt } from '@/lib/blog/postExcerpt';
+import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
 
 interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
-}
-
-function excerpt(body: string): string {
-  // Bodies are markdown; htmlToText only handles HTML, so markdown
-  // syntax (blockquote ">", headings, emphasis) leaked into meta
-  // descriptions verbatim. Drop fenced code blocks first (their contents
-  // are noise in a description), then strip the inline markers.
-  return htmlToText(body.replace(/```[\s\S]*?(```|$)/g, ' '), { wordwrap: false })
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^[>#\s*-]+/gm, ' ')
-    .replace(/[`*_~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
 }
 
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
@@ -50,11 +34,31 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const title = picked.translation.title;
   const description = excerpt(picked.translation.body);
   const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const jaPath = `/ja${canonicalPath}`;
+
+  // hreflang: with both translations, this URL is what a cookieless
+  // crawler reads in English, so it's the en + x-default alternate and
+  // the pinned /ja route carries Japanese. A ja-only post renders
+  // Japanese here too (pickTranslation fallback) — declaring it `en`
+  // would be wrong, so it instead canonicalizes onto the pinned ja URL.
+  const hasJa = post.availableLanguages.includes('ja');
+  const hasEn = post.availableLanguages.includes('en');
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalPath },
+    alternates: {
+      canonical: hasEn ? canonicalPath : jaPath,
+      ...(hasEn && hasJa
+        ? {
+            languages: {
+              en: canonicalPath,
+              ja: jaPath,
+              'x-default': canonicalPath,
+            },
+          }
+        : {}),
+    },
     openGraph: {
       type: 'article',
       title,
@@ -85,41 +89,15 @@ export default async function BlogPost({ params }: BlogPostParams) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
 
-  // BlogPosting + BreadcrumbList structured data for public posts, with
-  // the author pointing at the site-wide Person node from the root layout.
+  // BlogPosting + BreadcrumbList structured data for public posts, in the
+  // language the reader (and the cookieless crawler: en) receives.
   let jsonLd: object | null = null;
   if (initialPost) {
     const cookieStore = await cookies();
     const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
     const picked = pickTranslation(initialPost.translations, language);
     if (picked) {
-      const categoryUrl = `${SITE_URL}/blog/${encodeURIComponent(initialPost.category)}`;
-      const postUrl = `${categoryUrl}/${encodeURIComponent(initialPost.id)}`;
-      jsonLd = {
-        '@context': 'https://schema.org',
-        '@graph': [
-          {
-            '@type': 'BlogPosting',
-            headline: picked.translation.title,
-            description: excerpt(picked.translation.body),
-            url: postUrl,
-            mainEntityOfPage: postUrl,
-            datePublished: initialPost.created,
-            dateModified: initialPost.lastUpdated || initialPost.created,
-            inLanguage: picked.language,
-            ...(initialPost.image ? { image: initialPost.image } : {}),
-            author: { '@id': `${SITE_URL}/#person` },
-          },
-          {
-            '@type': 'BreadcrumbList',
-            itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Blog', item: `${SITE_URL}/blog` },
-              { '@type': 'ListItem', position: 2, name: categoryLabel(initialPost.category), item: categoryUrl },
-              { '@type': 'ListItem', position: 3, name: picked.translation.title, item: postUrl },
-            ],
-          },
-        ],
-      };
+      jsonLd = buildPostJsonLd(initialPost, picked.translation, picked.language);
     }
   }
 

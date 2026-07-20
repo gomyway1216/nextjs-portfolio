@@ -39,6 +39,23 @@
   transform: translateX(-2px);
 }
 
+.langSwitchLink {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 30px;
+  align-items: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.18s ease;
+}
+
+.langSwitchLink:hover,
+.langSwitchLink:focus-visible {
+  color: var(--foreground);
+}
+
 .categoryPill {
   flex: 0 1 auto;
   width: fit-content;

@@ -65,6 +65,11 @@ fresh finalは、3 seedから一つを選んだ**後**に初めて使う未見�
 14 coreをすべてengineに割り当てず、12 processで探索し、残りを入力供給、永続化、OSへ残す。
 これはcloud処理ではなくローカルMac上の実行で、AWS、Firebase/GCP、Vercelは使わない。
 
+ただし、既存の13-process優位の計測はMultiPV 12条件であり、このMultiPV 6方針の最適値を
+証明していない。最初の4,800 run前、現在の24,000 runがCPUを解放した後に、fresh finalではない
+公開局面を使って同じMultiPV 6条件の12対13を測る。13が実測で速い場合だけ、reviewed policyを
+変更する。このbenchmarkでもfresh-final holdout readは0のままにする。
+
 合法手が6手以下でtyped incomplete proposalになった場合だけ、partial rankを捨てて全合法手を
 個別に探索し直す。それ以外の不完全proposalやtimeoutはfatalで、部分的な`final.jsonl`や
 完了markerを公開しない。完走時に許すskipは`fewer_than_two_legal_moves`だけである。

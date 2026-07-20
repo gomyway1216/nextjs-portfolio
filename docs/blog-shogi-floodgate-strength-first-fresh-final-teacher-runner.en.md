@@ -72,6 +72,13 @@ Twelve of the 14 cores run engines; input supply, durable writes, and the OS
 retain the remaining capacity. This runs on the local Mac. It does not use AWS,
 Firebase/GCP, or Vercel.
 
+The existing measurement favoring 13 processes used MultiPV 12, so it does not
+establish the optimum for this MultiPV 6 policy. Before the first 4,800-parent
+run, after the active 24,000-parent run releases the CPU, we will benchmark 12
+versus 13 under the exact MultiPV 6 policy on public, non-holdout positions.
+The reviewed policy will change only if 13 is measured faster. That benchmark
+will keep fresh-final holdout reads at zero.
+
 Only a typed incomplete proposal with at most six legal moves may discard its
 partial ranks and retry every legal move separately. Any other incomplete
 proposal or timeout is fatal, and neither a partial `final.jsonl` nor a

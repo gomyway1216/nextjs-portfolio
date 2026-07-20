@@ -111,7 +111,13 @@ export interface ShogiAiEngineDiagnostics {
 }
 
 type WorkerRequest =
-  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
+  | {
+      type: 'bestMove';
+      id: number;
+      position: SerializedKyokumenImproved;
+      difficulty: Difficulty;
+      tesu: number;
+    }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
   | { type: 'ponderControl'; action: 'suspend' | 'resume' }
@@ -134,7 +140,11 @@ type WorkerResponse =
       depth?: number;
       searchPath: ShogiAiWorkerSearchPath;
     }
-  | { type: 'engineDiagnosticsResult'; id: number; diagnostics: ShogiAiEngineDiagnostics }
+  | {
+      type: 'engineDiagnosticsResult';
+      id: number;
+      diagnostics: ShogiAiEngineDiagnostics;
+    }
   | { type: 'error'; id: number; message: string };
 
 const ai = new ShogiAIImprovedV20();
@@ -267,15 +277,22 @@ async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {
   // unchanged. Successful loads already retain this exact buffer for helpers.
   if (!nnueFetchedWeightsIdentity && nnueWeightsBytes) {
     const acceptedWeights = nnueWeightsBytes;
-    nnueFetchedWeightsIdentityPromise ??= sha256Hex(acceptedWeights).then((sha256) => ({
-      bytes: acceptedWeights.byteLength,
-      sha256,
-    }));
+    const identityPromise =
+      nnueFetchedWeightsIdentityPromise ??
+      (nnueFetchedWeightsIdentityPromise = sha256Hex(acceptedWeights).then((sha256) => ({
+        bytes: acceptedWeights.byteLength,
+        sha256,
+      })));
     try {
-      nnueFetchedWeightsIdentity = await nnueFetchedWeightsIdentityPromise;
+      nnueFetchedWeightsIdentity = await identityPromise;
     } catch (identityError) {
+      if (nnueFetchedWeightsIdentityPromise === identityPromise) {
+        nnueFetchedWeightsIdentityPromise = null;
+      }
       // Identity collection must never demote a playable engine. The explicit
-      // null makes a parity gate fail closed while ordinary play continues.
+      // null makes this request's parity gate fail closed while ordinary play
+      // continues; clearing only this rejected promise lets a later explicit
+      // diagnostic retry after a transient Web Crypto failure.
       if (process.env.NODE_ENV === 'development') {
         console.info('[shogi-ai.worker] NNUE SHA-256 unavailable for diagnostics', identityError);
       }
@@ -327,7 +344,11 @@ function nextSmpGeneration(): number {
 function sendNnueWeightsToHelpers(): void {
   if (!nnueWeightsBytes) return;
   for (const port of smpPorts) {
-    const req: HelperRequest = { type: 'nnueWeights', bytes: nnueWeightsBytes, scaleK: NNUE_SCALE_K };
+    const req: HelperRequest = {
+      type: 'nnueWeights',
+      bytes: nnueWeightsBytes,
+      scaleK: NNUE_SCALE_K,
+    };
     port.postMessage(req);
   }
 }
@@ -456,7 +477,11 @@ function computeBestMove(
   if (shouldTryMateSolve(k)) {
     const mateStart = performance.now();
     const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
-    const mate = mateSolver.solve(k, { maxPlies: 9, maxNodes: 150_000, maxTimeMs: budgetMs });
+    const mate = mateSolver.solve(k, {
+      maxPlies: 9,
+      maxNodes: 150_000,
+      maxTimeMs: budgetMs,
+    });
     if (mate) {
       return {
         move: mate,

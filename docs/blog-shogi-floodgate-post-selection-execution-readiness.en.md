@@ -18,14 +18,14 @@ Real browser/Worker parity, formal A/B, and external strength calibration have n
 
 ## What was implemented
 
-| Path | Result in this change | Why it matters for strength |
-| --- | --- | --- |
-| candidate authorization | recomputes the three runs' gates, preflight hash, ranking/representative median, and family gate, then binds teacher identity/completion before issuing a single-use token | prevents evaluating the wrong checkpoint |
-| checkpoint → int16 | reproduces the candidate epoch-20 and stable epoch-27 production format and requires exact 1,185,988-byte outputs | proves training and play use the same weights |
-| final holdout | reuses the strict sibling loader and production int16 forward path | compares unseen pair/top-1 behavior with the same implementation |
-| retention | fail-closed loader for the real legacy general/opening JSONL format | detects broad and decisive-position regressions |
-| known regression | derives every child from the parent and move, then measures static rank and search with WASM NNUE | blocks recurrence of the observed `P*8f` failure |
-| Worker diagnostics | reports loaded-weight, embedded-WASM, and last search/evaluation-path identity only when explicitly requested | enables later proof that the browser really used NNUE/WASM |
+| Path                    | Result in this change                                                                                                                                                      | Why it matters for strength                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| candidate authorization | recomputes the three runs' gates, preflight hash, ranking/representative median, and family gate, then binds teacher identity/completion before issuing a single-use token | prevents evaluating the wrong checkpoint                         |
+| checkpoint → int16      | reproduces the candidate epoch-20 and stable epoch-27 production format and requires exact 1,185,988-byte outputs                                                          | proves training and play use the same weights                    |
+| final holdout           | reuses the strict sibling loader and production int16 forward path                                                                                                         | compares unseen pair/top-1 behavior with the same implementation |
+| retention               | fail-closed loader for the real legacy general/opening JSONL format                                                                                                        | detects broad and decisive-position regressions                  |
+| known regression        | derives every child from the parent and move, then measures static rank and search with WASM NNUE                                                                          | blocks recurrence of the observed `P*8f` failure                 |
+| Worker diagnostics      | reports loaded-weight, embedded-WASM, and last search/evaluation-path identity only when explicitly requested                                                              | enables later proof that the browser really used NNUE/WASM       |
 
 ## Important findings
 
@@ -63,6 +63,8 @@ The local runner therefore reports only `complete-local-wasm-module-probes`. It 
 - embedded WASM byte count and SHA-256; and
 - last search path `wasm` with evaluation path `nnue-wasm`.
 
+The client rejects contradictory fetch-status, weight-identity, loaded, and enabled fields fail-closed. If SHA-256 collection fails transiently, only that failed promise is discarded so a later explicit diagnostics request can retry. Ordinary best-move requests never trigger the retry and retain their existing response shape.
+
 ### 4. A caller-authored authorization path was closed
 
 Review found that an earlier API could accept a caller-authored registry and receipt together. A caller could make their internal hashes agree and mint a branded authorization.
@@ -73,14 +75,14 @@ Dependency injection remains only in a private test helper. A synthetic test reg
 
 ## Focused validation
 
-| Target | Result |
-| --- | --- |
-| downstream registry / authorization / receipt gates | 48 / 48 passed |
-| checkpoint export adapter | 6 / 6 passed |
-| Torch metric / legacy retention adapter | 3 / 3 passed |
-| exact fixture / local WASM probe | 12 / 12 passed |
-| Worker client / NNUE / ponder / diagnostics | 24 / 24 passed |
-| Python compile, Ruff, diff check, and TypeScript typecheck | passed |
+| Target                                                     | Result         |
+| ---------------------------------------------------------- | -------------- |
+| downstream registry / authorization / receipt gates        | 49 / 49 passed |
+| checkpoint export adapter                                  | 6 / 6 passed   |
+| Torch metric / legacy retention adapter                    | 3 / 3 passed   |
+| exact fixture / local WASM probe                           | 12 / 12 passed |
+| Worker client / NNUE / ponder / diagnostics                | 32 / 32 passed |
+| Python compile, Ruff, diff check, and TypeScript typecheck | passed         |
 
 The heavy real-WASM fixed-depth suite and full repository suites are left to remote PR CI so they do not compete with the formal teacher generation currently using the machine.
 

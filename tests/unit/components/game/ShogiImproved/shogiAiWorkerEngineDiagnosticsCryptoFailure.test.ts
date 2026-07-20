@@ -27,7 +27,12 @@ vi.mock('@/components/game/ShogiImproved/OpeningBookImproved', () => ({
 vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
   clearWasmTT: vi.fn(),
   enableSharedTT: vi.fn(() => false),
-  getLastWasmSearchStats: vi.fn(() => ({ score: 1, depth: 1, nodes: 1, leaves: 1 })),
+  getLastWasmSearchStats: vi.fn(() => ({
+    score: 1,
+    depth: 1,
+    nodes: 1,
+    leaves: 1,
+  })),
   isNnueEnabled: engine.enabled,
   isNnueWeightsLoaded: engine.loaded,
   isWasmEngineReady: vi.fn(() => true),
@@ -55,6 +60,7 @@ type PostedMessage = {
 };
 
 const posted: PostedMessage[] = [];
+let digestAttempts = 0;
 const scope = {
   postMessage: (message: PostedMessage) => posted.push(message),
   onmessage: null as ((event: { data: unknown }) => void) | null,
@@ -79,33 +85,31 @@ async function response(type: string, id: number): Promise<PostedMessage> {
 
 beforeAll(async () => {
   const acceptedBytes = Uint8Array.from([1, 2, 3, 4]);
-  vi.stubGlobal(
-    'crypto',
-    {
-      subtle: {
-        digest: vi.fn(async () => {
+  vi.stubGlobal('crypto', {
+    subtle: {
+      digest: vi.fn(async () => {
+        digestAttempts++;
+        if (digestAttempts <= 2) {
           throw new Error('forced SHA-256 failure');
-        }),
-      },
+        }
+        return new Uint8Array(32).buffer;
+      }),
     },
-  );
+  });
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => ({
       ok: true,
       arrayBuffer: async () =>
-        acceptedBytes.buffer.slice(
-          acceptedBytes.byteOffset,
-          acceptedBytes.byteOffset + acceptedBytes.byteLength,
-        ),
-    })),
+        acceptedBytes.buffer.slice(acceptedBytes.byteOffset, acceptedBytes.byteOffset + acceptedBytes.byteLength),
+    }))
   );
   vi.stubGlobal('self', scope);
   await import('@/components/game/ShogiImproved/shogi-ai.worker');
 });
 
 describe('shogi-ai.worker diagnostics crypto failure', () => {
-  it('fails only the opt-in diagnostic and keeps the ordinary bestMove shape and behavior', async () => {
+  it('retries a later opt-in diagnostic and keeps the ordinary bestMove shape and behavior', async () => {
     expect(scope.onmessage).toBeTypeOf('function');
     scope.onmessage!({ data: { type: 'engineDiagnostics', id: 971 } });
     expect(await response('error', 971)).toMatchObject({
@@ -125,5 +129,17 @@ describe('shogi-ai.worker diagnostics crypto failure', () => {
     const result = await response('bestMoveResult', 972);
     expect(Object.keys(result).sort()).toEqual(['depth', 'id', 'move', 'scoreCp', 'searchPath', 'type']);
     scope.onmessage!({ data: { type: 'clearTT' } });
+
+    scope.onmessage!({ data: { type: 'engineDiagnostics', id: 973 } });
+    expect(await response('engineDiagnosticsResult', 973)).toMatchObject({
+      diagnostics: {
+        nnue: {
+          fetchStatus: 'loaded',
+          fetchedWeights: { bytes: 4, sha256: '0'.repeat(64) },
+          loaded: true,
+          enabled: true,
+        },
+      },
+    });
   });
 });

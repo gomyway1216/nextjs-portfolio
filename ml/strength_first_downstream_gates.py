@@ -608,6 +608,16 @@ def _canonical_json_sha256(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
 
 
+def _remove_exactly_one_final_lf(raw: bytes, label: str) -> bytes:
+    if (
+        not raw.endswith(b"\n")
+        or raw.endswith(b"\n\n")
+        or raw.endswith(b"\r\n")
+    ):
+        raise ValueError(f"{label} must end with exactly one LF")
+    return raw.removesuffix(b"\n")
+
+
 def _registry_identity(raw: bytes) -> dict[str, Any]:
     return {
         "schema": DOWNSTREAM_REGISTRY_CANONICAL_IDENTITY_SCHEMA,
@@ -1014,9 +1024,11 @@ def _validate_enrolled_candidate_selection_receipt(
             for run in runs
         ],
     }
-    observed_preflight_sha256 = hashlib.sha256(
-        _canonical_json_bytes(preflight_projection)[:-1]
-    ).hexdigest()
+    preflight_raw = _remove_exactly_one_final_lf(
+        _canonical_json_bytes(preflight_projection),
+        "candidate-selection checkpoint preflight canonical JSON",
+    )
+    observed_preflight_sha256 = hashlib.sha256(preflight_raw).hexdigest()
     if observed_preflight_sha256 != checkpoint_preflight["sha256"]:
         raise ValueError(
             "candidate-selection checkpoint preflight is not recomputable"

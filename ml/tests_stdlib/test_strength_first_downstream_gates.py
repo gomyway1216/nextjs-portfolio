@@ -677,6 +677,26 @@ class StrengthFirstDownstreamCoreTests(unittest.TestCase):
                 **callbacks(registry, selected_seed=43),
             )
 
+    def test_preflight_hash_requires_exactly_one_final_lf(self):
+        self.assertEqual(
+            GATES._remove_exactly_one_final_lf(b'{"ok":true}\n', "preflight"),
+            b'{"ok":true}',
+        )
+        for malformed in (
+            b'{"ok":true}',
+            b'{"ok":true}\n\n',
+            b'{"ok":true}\r\n',
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "must end with exactly one LF",
+                ):
+                    GATES._remove_exactly_one_final_lf(
+                        malformed,
+                        "preflight",
+                    )
+
     def test_caller_authored_registry_and_receipt_cannot_mint_production_authority(
         self,
     ):

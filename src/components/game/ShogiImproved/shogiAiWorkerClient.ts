@@ -25,7 +25,13 @@ import type {
 import type { HelperInitMessage, MainThreadsInitMessage } from './smpProtocol';
 
 type WorkerRequest =
-  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
+  | {
+      type: 'bestMove';
+      id: number;
+      position: SerializedKyokumenImproved;
+      difficulty: Difficulty;
+      tesu: number;
+    }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
   | { type: 'ponderControl'; action: 'suspend' | 'resume' }
@@ -125,10 +131,11 @@ function normalizeEngineDiagnostics(value: unknown): ShogiAiEngineDiagnostics {
   ) {
     throw new Error('Invalid AI engine diagnostics');
   }
-  if (nnue.enabled && !nnue.loaded) {
+  const fetchedWeights = nnue.fetchedWeights === null ? null : sha256Identity(nnue.fetchedWeights);
+  const fetchLoaded = nnue.fetchStatus === 'loaded';
+  if ((fetchedWeights !== null) !== fetchLoaded || nnue.loaded !== fetchLoaded || (nnue.enabled && !nnue.loaded)) {
     throw new Error('Invalid AI engine diagnostics NNUE state');
   }
-  const fetchedWeights = nnue.fetchedWeights === null ? null : sha256Identity(nnue.fetchedWeights);
   const lastSearchRecord = diagnostics.lastSearch === null ? null : record(diagnostics.lastSearch);
   const lastSearchPath = lastSearchRecord ? normalizeSearchPath(lastSearchRecord.searchPath) : null;
   const lastEvaluationPath = lastSearchRecord ? normalizeEvaluationPath(lastSearchRecord.evaluationPath) : null;
@@ -244,7 +251,12 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
         });
         helpers.push(helper);
         const channel = new MessageChannel();
-        const init: HelperInitMessage = { type: 'smpInit', port: channel.port1, sab, helperId };
+        const init: HelperInitMessage = {
+          type: 'smpInit',
+          port: channel.port1,
+          sab,
+          helperId,
+        };
         helper.postMessage(init, [channel.port1]);
         mainPorts.push(channel.port2);
       }
@@ -255,7 +267,11 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
       return [];
     }
 
-    const init: MainThreadsInitMessage = { type: 'smpThreads', sab, ports: mainPorts };
+    const init: MainThreadsInitMessage = {
+      type: 'smpThreads',
+      sab,
+      ports: mainPorts,
+    };
     worker.postMessage(init, mainPorts);
     return helpers;
   } catch (e) {
@@ -268,7 +284,9 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   // The worker (and its SMP helpers) are mutable: the self-heal paths (hard
   // deadline, worker onerror) tear a wedged/broken set down and respawn a fresh
   // single-thread worker.
-  let worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+  let worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
+    type: 'module',
+  });
   let helpers = trySpawnSmpHelpers(worker);
   let disposed = false;
 
@@ -282,13 +300,13 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   let respawnDisabled = false;
 
   let nextId = 1;
-  const pending = new Map<
-    number,
-    { resolve: (info: BestMoveInfo) => void; reject: (err: Error) => void }
-  >();
+  const pending = new Map<number, { resolve: (info: BestMoveInfo) => void; reject: (err: Error) => void }>();
   const pendingDiagnostics = new Map<
     number,
-    { resolve: (diagnostics: ShogiAiEngineDiagnostics) => void; reject: (err: Error) => void }
+    {
+      resolve: (diagnostics: ShogiAiEngineDiagnostics) => void;
+      reject: (err: Error) => void;
+    }
   >();
 
   const rejectAll = (err: Error) => {
@@ -423,7 +441,9 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     console.warn(`[shogiAiWorkerClient] AI worker recovered (${reason}); respawning single-thread`);
 
     try {
-      worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
+        type: 'module',
+      });
       // After any failure, favor the rock-solid single-thread path (no SMP).
       attachWorkerHandlers(worker);
       syncVisibility();
@@ -432,9 +452,8 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       // let that throw escape an error/timeout callback and strand a Promise.
       respawnDisabled = true;
       console.error(
-        `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
-          'moves will use the main-thread engine',
-        e,
+        `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` + 'moves will use the main-thread engine',
+        e
       );
     }
   }
@@ -465,11 +484,23 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
         }
       }, hardDeadlineMs(difficulty));
       pending.set(id, {
-        resolve: (info) => { clearTimeout(timer); resolve(info); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
+        resolve: (info) => {
+          clearTimeout(timer);
+          resolve(info);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
       });
       try {
-        const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
+        const req: WorkerRequest = {
+          type: 'bestMove',
+          id,
+          position,
+          difficulty,
+          tesu: tesu | 0,
+        };
         worker.postMessage(req);
       } catch (err) {
         // postMessage can throw (worker already terminated, DataCloneError,

@@ -23,24 +23,10 @@
       }
     },
     "datasets": {
-      "final_roles": [
-        "fresh_final_holdout",
-        "legacy_final_holdout"
-      ],
-      "retention_roles": [
-        "general_retention",
-        "opening_retention"
-      ],
-      "legacy_retention_required_fields": [
-        "sfen",
-        "cp",
-        "ply",
-        "bestmove",
-        "depth"
-      ],
-      "legacy_retention_optional_fields": [
-        "mate"
-      ],
+      "final_roles": ["fresh_final_holdout", "legacy_final_holdout"],
+      "retention_roles": ["general_retention", "opening_retention"],
+      "legacy_retention_required_fields": ["sfen", "cp", "ply", "bestmove", "depth"],
+      "legacy_retention_optional_fields": ["mate"],
       "malformed_rows_skipped": 0,
       "retention_pair_count": 400000,
       "retention_pair_seed": 43,
@@ -52,10 +38,7 @@
       "stable_good_move": "3a4b",
       "search_optimized_legal_moves": 46,
       "rules_complete_legal_moves": 48,
-      "rules_complete_restored_moves": [
-        "2b7g",
-        "8e8g"
-      ],
+      "rules_complete_restored_moves": ["2b7g", "8e8g"],
       "child_sfen_derived_from_parent_and_move": true,
       "exact_sorted_legal_set_required": true,
       "local_wasm_result_status": "complete-local-wasm-module-probes",
@@ -72,13 +55,16 @@
       "reports_fetched_weight_identity": true,
       "reports_loaded_and_enabled_separately": true,
       "reports_embedded_wasm_identity": true,
-      "reports_last_search_and_evaluation_paths": true
+      "reports_last_search_and_evaluation_paths": true,
+      "inconsistent_state_rejected": true,
+      "transient_identity_failure_retryable_on_next_opt_in_request": true,
+      "ordinary_best_move_path_unchanged": true
     }
   },
   "focused_validation": [
     {
       "target": "downstream-gates-stdlib",
-      "passed": 48,
+      "passed": 49,
       "failed": 0
     },
     {
@@ -98,7 +84,7 @@
     },
     {
       "target": "worker-client-nnue-ponder-diagnostics",
-      "passed": 24,
+      "passed": 32,
       "failed": 0
     }
   ],

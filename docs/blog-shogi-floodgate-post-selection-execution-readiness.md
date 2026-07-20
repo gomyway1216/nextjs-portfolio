@@ -18,14 +18,14 @@
 
 ## 何が実装されたか
 
-| 経路 | 今回の結果 | 棋力との関係 |
-| --- | --- | --- |
-| candidate authorization | 全3 runのgate、preflight hash、順位/代表seed、family gateを再計算し、teacher identity/completionを照合してから一度限りの権限を作る | 間違ったcheckpointを評価する事故を防ぐ |
-| checkpoint → int16 | candidate epoch 20とstable epoch 27から本番形式を再生成し、各1,185,988 bytesの完全一致を要求 | 学習時の候補と実戦で読む重みを同一にする |
-| final holdout | 既存のstrict sibling loaderと本番int16 forwardを再利用 | 未見局面のpair/top1を同じ実装で比較する |
-| retention | 旧形式のgeneral/opening JSONLをfail-closedで読む | 全体精度や決定的局面を壊していないか確認する |
-| known regression | exact fixtureの全childを親局面から導出し、WASM NNUEでstatic順位と探索手を測る | 実際に起きた`P*8f`回帰の再発を止める |
-| Worker diagnostics | 読み込んだ重み、embedded WASM、最後の探索/eval経路を明示要求時だけ返す | 実ブラウザがNNUE/WASMを本当に通ったか後で証明する |
+| 経路                    | 今回の結果                                                                                                                         | 棋力との関係                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| candidate authorization | 全3 runのgate、preflight hash、順位/代表seed、family gateを再計算し、teacher identity/completionを照合してから一度限りの権限を作る | 間違ったcheckpointを評価する事故を防ぐ            |
+| checkpoint → int16      | candidate epoch 20とstable epoch 27から本番形式を再生成し、各1,185,988 bytesの完全一致を要求                                       | 学習時の候補と実戦で読む重みを同一にする          |
+| final holdout           | 既存のstrict sibling loaderと本番int16 forwardを再利用                                                                             | 未見局面のpair/top1を同じ実装で比較する           |
+| retention               | 旧形式のgeneral/opening JSONLをfail-closedで読む                                                                                   | 全体精度や決定的局面を壊していないか確認する      |
+| known regression        | exact fixtureの全childを親局面から導出し、WASM NNUEでstatic順位と探索手を測る                                                      | 実際に起きた`P*8f`回帰の再発を止める              |
+| Worker diagnostics      | 読み込んだ重み、embedded WASM、最後の探索/eval経路を明示要求時だけ返す                                                             | 実ブラウザがNNUE/WASMを本当に通ったか後で証明する |
 
 ## 実装中に見つかった重要な点
 
@@ -63,6 +63,8 @@ Node上でembedded WASMと同じ35,597 bytesを実行できても、それだけ
 - embedded WASMのbytesとSHA-256
 - 最後の探索が`wasm`、評価が`nnue-wasm`だったか
 
+診断応答は、fetch状態・重みidentity・loaded・enabledの組合せが矛盾すればfail-closedで拒否する。SHA-256取得が一時的に失敗した場合は、その失敗だけをキャッシュせず、次の明示的な診断要求で再試行できる。通常のbest-move経路はこの再試行を呼ばず、従来の応答形も変えない。
+
 ### 4. 自作した登録表から権限を作れる入口を閉じた
 
 途中レビューで、呼び出し側がregistryとreceiptを同時に自作し、内部hashを合わせればbranded authorizationを作れる入口が見つかった。
@@ -75,14 +77,14 @@ production入口は引数を受け取らない形へ変更した。trackedの固
 
 今回のfocused検証は次のとおり。
 
-| 対象 | 結果 |
-| --- | --- |
-| downstream registry / authorization / receipt gates | 48 / 48 pass |
-| checkpoint export adapter | 6 / 6 pass |
-| Torch metric / legacy retention adapter | 3 / 3 pass |
-| exact fixture / local WASM probe | 12 / 12 pass |
-| Worker client / NNUE / ponder / diagnostics | 24 / 24 pass |
-| Python compile、ruff、diff check、TypeScript typecheck | pass |
+| 対象                                                   | 結果         |
+| ------------------------------------------------------ | ------------ |
+| downstream registry / authorization / receipt gates    | 49 / 49 pass |
+| checkpoint export adapter                              | 6 / 6 pass   |
+| Torch metric / legacy retention adapter                | 3 / 3 pass   |
+| exact fixture / local WASM probe                       | 12 / 12 pass |
+| Worker client / NNUE / ponder / diagnostics            | 32 / 32 pass |
+| Python compile、ruff、diff check、TypeScript typecheck | pass         |
 
 重いreal-WASM固定深さsuiteと全体suiteは、進行中のteacher生成とCPUを奪い合わないようローカルでは追加実行せず、PRのremote CIへ回す。
 

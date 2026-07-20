@@ -49,8 +49,7 @@ function currentWorker(): WorkerStub {
 
 function bestMoveRequest(worker: WorkerStub): Required<Pick<PostedRequest, 'id' | 'type'>> {
   const request = worker.posted.find((message) => (message as PostedRequest).type === 'bestMove') as
-    | PostedRequest
-    | undefined;
+    PostedRequest | undefined;
   expect(request?.id).toEqual(expect.any(Number));
   return request as Required<Pick<PostedRequest, 'id' | 'type'>>;
 }
@@ -66,7 +65,7 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
   it('keeps the production game UI off the explicit diagnostic path', () => {
     const gameUi = readFileSync(
       join(process.cwd(), 'src', 'components', 'game', 'ShogiImproved', 'ShogiImproved.tsx'),
-      'utf8',
+      'utf8'
     );
     expect(gameUi).not.toContain('requestEngineDiagnostics');
   });
@@ -90,7 +89,12 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
       searchPath: 'worker-js',
     });
 
-    await expect(pending).resolves.toEqual({ move, scoreCp: -123, depth: 8, searchPath: 'worker-js' });
+    await expect(pending).resolves.toEqual({
+      move,
+      scoreCp: -123,
+      depth: 8,
+      searchPath: 'worker-js',
+    });
     client.terminate();
   });
 
@@ -104,7 +108,12 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
 
     const pending = client.requestBestMoveWithInfo(position, 'easy', 0);
     const request = bestMoveRequest(worker);
-    worker.emit({ type: 'bestMoveResult', id: request.id, move: null, searchPath });
+    worker.emit({
+      type: 'bestMoveResult',
+      id: request.id,
+      move: null,
+      searchPath,
+    });
 
     await expect(pending).resolves.toEqual({
       move: null,
@@ -122,8 +131,7 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
 
     const pending = client.requestEngineDiagnostics();
     const request = worker.posted.find((message) => (message as PostedRequest).type === 'engineDiagnostics') as
-      | PostedRequest
-      | undefined;
+      PostedRequest | undefined;
     expect(request?.id).toEqual(expect.any(Number));
     expect(Object.keys(request!).sort()).toEqual(['id', 'type']);
     const diagnostics = {
@@ -144,32 +152,112 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
         evaluationPath: 'nnue-wasm',
       },
     };
-    worker.emit({ type: 'engineDiagnosticsResult', id: request!.id, diagnostics });
+    worker.emit({
+      type: 'engineDiagnosticsResult',
+      id: request!.id,
+      diagnostics,
+    });
 
     await expect(pending).resolves.toEqual(diagnostics);
     client.terminate();
   });
 
-  it('rejects impossible enabled-without-loaded diagnostics', async () => {
+  it.each([
+    [
+      'pending fetch with a retained identity',
+      {
+        fetchStatus: 'pending',
+        fetchedWeights: { bytes: 17, sha256: 'a'.repeat(64) },
+        loaded: false,
+        enabled: false,
+      },
+    ],
+    [
+      'rejected fetch with a retained identity',
+      {
+        fetchStatus: 'rejected',
+        fetchedWeights: { bytes: 17, sha256: 'a'.repeat(64) },
+        loaded: false,
+        enabled: false,
+      },
+    ],
+    [
+      'unavailable fetch with a retained identity',
+      {
+        fetchStatus: 'unavailable',
+        fetchedWeights: { bytes: 17, sha256: 'a'.repeat(64) },
+        loaded: false,
+        enabled: false,
+      },
+    ],
+    [
+      'loaded fetch without a retained identity',
+      {
+        fetchStatus: 'loaded',
+        fetchedWeights: null,
+        loaded: true,
+        enabled: false,
+      },
+    ],
+    [
+      'pending fetch that claims to be loaded',
+      {
+        fetchStatus: 'pending',
+        fetchedWeights: null,
+        loaded: true,
+        enabled: false,
+      },
+    ],
+    [
+      'rejected fetch that claims to be loaded',
+      {
+        fetchStatus: 'rejected',
+        fetchedWeights: null,
+        loaded: true,
+        enabled: false,
+      },
+    ],
+    [
+      'unavailable fetch that claims to be loaded',
+      {
+        fetchStatus: 'unavailable',
+        fetchedWeights: null,
+        loaded: true,
+        enabled: false,
+      },
+    ],
+    [
+      'loaded fetch that claims not to be loaded',
+      {
+        fetchStatus: 'loaded',
+        fetchedWeights: { bytes: 17, sha256: 'a'.repeat(64) },
+        loaded: false,
+        enabled: false,
+      },
+    ],
+    [
+      'enabled evaluator without loaded weights',
+      {
+        fetchStatus: 'rejected',
+        fetchedWeights: null,
+        loaded: false,
+        enabled: true,
+      },
+    ],
+  ])('rejects inconsistent NNUE diagnostics: %s', async (_label, nnue) => {
     vi.stubGlobal('Worker', WorkerStub);
     const client = createShogiAiWorkerClient();
     const worker = currentWorker();
 
     const pending = client.requestEngineDiagnostics();
     const request = worker.posted.find((message) => (message as PostedRequest).type === 'engineDiagnostics') as
-      | PostedRequest
-      | undefined;
+      PostedRequest | undefined;
     worker.emit({
       type: 'engineDiagnosticsResult',
       id: request!.id,
       diagnostics: {
         schema: 'shogi-ai-engine-diagnostics-v1',
-        nnue: {
-          fetchStatus: 'rejected',
-          fetchedWeights: null,
-          loaded: false,
-          enabled: true,
-        },
+        nnue,
         wasm: {
           ready: true,
           embedded: { bytes: 35_597, sha256: 'b'.repeat(64) },

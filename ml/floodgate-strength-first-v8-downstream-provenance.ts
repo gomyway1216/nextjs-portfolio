@@ -606,6 +606,7 @@ function authenticatedInputFromRaw(
 function validateAuthenticatedInput(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   target: number,
+  generation: TeacherGeneration,
 ): ReadonlyMap<string, FloodgateTrainingParent> {
   exactRecord(input, ["schema", "role", "binding", "rows"], "input-shape");
   if (
@@ -623,8 +624,11 @@ function validateAuthenticatedInput(
   );
   if (
     binding.raw_format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT ||
-    binding.verifier_revision !==
-      FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION ||
+    (generation === "v8"
+      ? binding.verifier_revision !==
+        FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION
+      : typeof binding.verifier_revision !== "string" ||
+        !REVISION_RE.test(binding.verifier_revision)) ||
     !REVISION_RE.test(String(binding.bundle_producer_revision)) ||
     integer(binding.records, 1, "input-binding") !== target ||
     integer(binding.raw_bytes, 1, "input-binding") !== binding.raw_bytes ||
@@ -1607,7 +1611,7 @@ function validateManifest(
     pipeline.source_revision !== revision ||
     pipeline.tracked_tree_clean !== true ||
     authenticated.bundle_verifier_revision !==
-      FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION ||
+      input.binding.verifier_revision ||
     (generation === "v9" &&
       authenticated.runtime_policy !==
         FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY) ||
@@ -1732,6 +1736,7 @@ function validateStagedResult(
   staged: Record<string, unknown>,
   revision: string,
   fingerprint: string,
+  bundleVerifierRevision: string,
   target: number,
   resultOutputs: Record<string, unknown>,
   manifestBytes: Uint8Array,
@@ -1814,8 +1819,7 @@ function validateStagedResult(
     staged.status !== "complete-training-only" ||
     staged.run_fingerprint !== fingerprint ||
     staged.runner_revision !== revision ||
-    staged.bundle_verifier_revision !==
-      FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION ||
+    staged.bundle_verifier_revision !== bundleVerifierRevision ||
     staged.input_parents !== target ||
     staged.completed_parents !== target ||
     work.path !== "work.jsonl" ||
@@ -2539,7 +2543,7 @@ async function verifyCore(
         generation,
       )
     : (input.authenticatedInput as Readonly<AuthenticatedFloodgateTrainingRows>);
-  validateAuthenticatedInput(authenticated, target);
+  validateAuthenticatedInput(authenticated, target, generation);
   const inputProjection = authenticatedInputProjection(authenticated);
   const envelope = validateResultEnvelope(
     result,
@@ -2549,6 +2553,12 @@ async function verifyCore(
     milestones,
     generation,
   );
+  if (
+    generation === "v9" &&
+    authenticated.binding.verifier_revision !== envelope.revision
+  ) {
+    fail("input-runner-revision");
+  }
   const revisionVerified =
     generation === "v8"
       ? await (
@@ -2633,6 +2643,7 @@ async function verifyCore(
     staged,
     envelope.revision,
     envelope.fingerprint,
+    authenticated.binding.verifier_revision,
     target,
     envelope.stagedOutputs,
     input.manifest,

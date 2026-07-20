@@ -119,6 +119,20 @@ function prettyBytes(value: unknown): Buffer {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function v9VerifierBinding(value: Record<string, unknown>): {
+  verifier_revision: string;
+} {
+  return (
+    value as unknown as {
+      authenticated_input: {
+        generator_projection: {
+          binding: { verifier_revision: string };
+        };
+      };
+    }
+  ).authenticated_input.generator_projection.binding;
+}
+
 function fileBinding(file: string, bytes: Uint8Array) {
   return {
     path: file,
@@ -232,7 +246,10 @@ interface Fixture {
   readonly resultValue: Record<string, unknown>;
 }
 
-async function fixture(generation: "v8" | "v9" = "v8"): Promise<Fixture> {
+async function fixture(
+  generation: "v8" | "v9" = "v8",
+  verifierRevision?: string,
+): Promise<Fixture> {
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), `${generation}-provenance-`),
   );
@@ -290,7 +307,11 @@ async function fixture(generation: "v8" | "v9" = "v8"): Promise<Fixture> {
         bundle_manifest_bytes: 1,
         bundle_manifest_sha256: sha256("bundle-manifest"),
         bundle_producer_revision: "1".repeat(40),
-        verifier_revision: FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION,
+        verifier_revision:
+          verifierRevision ??
+          (generation === "v8"
+            ? FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION
+            : FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION),
         raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
         raw_bytes: raw.byteLength,
         raw_sha256: sha256(raw),
@@ -808,6 +829,9 @@ describe("strength-first v9 downstream provenance", () => {
     const data = await fixture("v9");
     const input =
       data.input as FloodgateStrengthFirstV9DownstreamProvenanceInput;
+    expect(v9VerifierBinding(data.resultValue).verifier_revision).toBe(
+      FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
+    );
     const summary = await verifyFloodgateStrengthFirstV9DownstreamProvenance(
       input,
     );
@@ -843,6 +867,29 @@ describe("strength-first v9 downstream provenance", () => {
         ...input,
         result: prettyBytes(weakenedRuntime),
       }),
+    ).rejects.toThrow(/^v9-downstream-provenance-verification-failed$/u);
+
+    const legacyVerifierRevision = structuredClone(data.resultValue) as Record<
+      string,
+      unknown
+    >;
+    v9VerifierBinding(legacyVerifierRevision).verifier_revision =
+      FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION;
+    await expect(
+      verifyFloodgateStrengthFirstV9DownstreamProvenance({
+        ...input,
+        result: prettyBytes(legacyVerifierRevision),
+      }),
+    ).rejects.toThrow(/^v9-downstream-provenance-verification-failed$/u);
+
+    const mismatchedInput = await fixture(
+      "v9",
+      FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION,
+    );
+    await expect(
+      verifyFloodgateStrengthFirstV9DownstreamProvenance(
+        mismatchedInput.input as FloodgateStrengthFirstV9DownstreamProvenanceInput,
+      ),
     ).rejects.toThrow(/^v9-downstream-provenance-verification-failed$/u);
   }, 30_000);
 });

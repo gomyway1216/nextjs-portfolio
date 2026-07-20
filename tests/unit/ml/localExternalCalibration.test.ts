@@ -366,6 +366,93 @@ describe("local external calibration paired harness", () => {
     ).toBe(true);
   });
 
+  it("makes the continuous checker lose on fourfold repetition", async () => {
+    const opening = "4k4/4R4/9/9/9/9/9/9/K8 w - 1";
+    const cycle = ["5a4a", "5b4b", "4a5a", "4b5b"] as const;
+    const receipt = await runLocalExternalCalibrationCoreForTests(
+      request({
+        openings: [
+          {
+            opening_id: localExternalCalibrationOpeningId(opening),
+            sfen: opening,
+          },
+        ],
+        max_plies: 20,
+      }),
+      dependencies(
+        counters(),
+        counters(),
+        (input) => cycle[input.ply % cycle.length],
+        (input) => cycle[input.ply % cycle.length],
+      ),
+    );
+
+    expect(
+      receipt.games.map((game) => ({
+        stable_color: game.stable_color,
+        termination: game.termination,
+        result_for_stable: game.result_for_stable,
+        plies: game.plies,
+      })),
+    ).toEqual([
+      {
+        stable_color: "sente",
+        termination: "perpetual-check",
+        result_for_stable: "loss",
+        plies: 12,
+      },
+      {
+        stable_color: "gote",
+        termination: "perpetual-check",
+        result_for_stable: "win",
+        plies: 12,
+      },
+    ]);
+  });
+
+  it("awards a win when a legal move leaves the opponent no legal reply", async () => {
+    const opening = "4k4/3R5/5G3/9/9/9/9/9/4K4 b - 16";
+    const receipt = await runLocalExternalCalibrationCoreForTests(
+      request({
+        openings: [
+          {
+            opening_id: localExternalCalibrationOpeningId(opening),
+            sfen: opening,
+          },
+        ],
+        max_plies: 4,
+      }),
+      dependencies(
+        counters(),
+        counters(),
+        () => "6b5b+",
+        () => "6b5b+",
+      ),
+    );
+
+    expect(
+      receipt.games.map((game) => ({
+        stable_color: game.stable_color,
+        termination: game.termination,
+        result_for_stable: game.result_for_stable,
+        plies: game.plies,
+      })),
+    ).toEqual([
+      {
+        stable_color: "sente",
+        termination: "no-legal-moves",
+        result_for_stable: "win",
+        plies: 1,
+      },
+      {
+        stable_color: "gote",
+        termination: "no-legal-moves",
+        result_for_stable: "loss",
+        plies: 1,
+      },
+    ]);
+  });
+
   it("rejects player authority expansion and closes both initialized players", async () => {
     const stableCounters = counters();
     const referenceCounters = counters();

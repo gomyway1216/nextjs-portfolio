@@ -86,15 +86,19 @@ initializerはstreaming hashとmetadata snapshotだけで、全体をmemoryへ�
 runtime probeは固定training Pythonをisolated modeで起動し、`train.py`の既存
 `configure_sealed_torch_runtime(2)`だけを呼ぶ。Torchはruntime測定のためにimportするが、
 dataset load、model作成、optimizer step、checkpoint writeは行わない。
+venvで必要な最終symlinkは許可する一方、その親path、通常fileの実体、owner、mode、link count、
+realpathとmetadataをprobe前後で固定する。directory targetや途中交換はsubprocess前または
+probe後の再検証で拒否する。
 
 ## validation
 
 synthetic 4-parent fixtureによるfocused testは、exact candidate、byte-identical serialization、
 active lock / missing resultのearly STOP、duplicate JSON、teacher / work / replay / initializer
 drift、canonical replay exclusion、runtime field / type drift、symlink、permissive mode、
-snapshot再検証、retained lockのpath / inode交換拒否とsuccess / error release、stdoutまでの
-lock保持、runtime probe順序、selection / holdout path access 0を確認した。既存bridgeとの
-combined focusedは20 / 20、ML stdlib全体は259 / 259（14.555秒）、builder publicationは
+snapshot再検証、retained lockとruntime interpreterのpath / inode交換拒否、success / error
+release、stdoutまでのlock保持、runtime probe順序、selection / holdout path access 0を
+確認した。既存bridgeとのcombined focusedは21 / 21、ML stdlib全体は260 / 260（14.185秒）、
+builder publicationは
 4 / 4、既存bridge publicationとの合計は9 / 9をPASSした。Python compile、changed-file
 Ruff、Prettier、diff checkもPASSした。full ML Ruffには今回変更していないfileの既存errorが
 7件あり、changed fileのerrorは0だった。

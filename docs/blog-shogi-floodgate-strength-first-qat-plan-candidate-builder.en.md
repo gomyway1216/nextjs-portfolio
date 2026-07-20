@@ -92,16 +92,19 @@ The candidate has the exact seven top-level fields of
 The runtime probe starts the fixed training Python in isolated mode and calls only the existing
 `train.py` `configure_sealed_torch_runtime(2)`. It imports Torch to measure the runtime, but
 does not load a dataset, construct a model, take an optimizer step, or write a checkpoint.
+The final symlink required by the venv is allowed, while its canonical parent, regular-file
+target, owner, mode, link count, real path, and metadata are fixed before and after the probe.
+Directory targets and mid-probe replacement are rejected.
 
 ## Validation
 
 Focused tests with a synthetic four-parent fixture cover an exact candidate, byte-identical
 serialization, early STOP on an active lock or missing result, duplicate JSON, teacher/work/
 replay/initializer drift, canonical replay exclusion, runtime field and type drift, symlinks,
-permissive modes, snapshot revalidation, retained-lock path/inode replacement rejection,
-success/error release, lock retention through stdout, runtime-probe ordering, and zero
-selection/holdout path access. The combined focused set passes 20/20; the full ML stdlib passes
-259/259 in 14.555 seconds; builder publication passes 4/4; and builder plus existing-bridge publication
+permissive modes, snapshot revalidation, retained-lock and runtime-interpreter path/inode
+replacement rejection, success/error release, lock retention through stdout, runtime-probe ordering,
+and zero selection/holdout path access. The combined focused set passes 21/21; the full ML stdlib
+passes 260/260 in 14.185 seconds; builder publication passes 4/4; and builder plus existing-bridge publication
 passes 9/9. Python compile, changed-file Ruff, Prettier, and the diff check also pass. Full ML
 Ruff still reports seven pre-existing errors in unchanged files and zero errors in changed
 files.

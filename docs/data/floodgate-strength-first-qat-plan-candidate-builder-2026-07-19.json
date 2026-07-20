@@ -74,6 +74,12 @@
     "runs_only_after_source_validation": true,
     "fixed_training_python": true,
     "isolated_python_mode": true,
+    "canonical_parent_required": true,
+    "regular_executable_target_required": true,
+    "safe_target_owner_mode_and_link_count_required": true,
+    "venv_final_symlink_allowed": true,
+    "entry_and_target_identity_revalidated_after_probe": true,
+    "directory_target_rejected_before_subprocess": true,
     "torch_threads": 2,
     "torch_interop_threads": 1,
     "deterministic_algorithms": true,
@@ -143,11 +149,11 @@
     "python_compile": "PASS",
     "builder_focused_stdlib": {
       "status": "PASS",
-      "tests": 12
+      "tests": 13
     },
     "builder_plus_existing_bridge_stdlib": {
       "status": "PASS",
-      "tests": 20
+      "tests": 21
     },
     "publication_evidence": {
       "status": "PASS",
@@ -159,8 +165,8 @@
     },
     "full_ml_stdlib": {
       "status": "PASS",
-      "tests": 259,
-      "elapsed_seconds": 14.555
+      "tests": 260,
+      "elapsed_seconds": 14.185
     },
     "scoped_ruff": "PASS",
     "full_ml_ruff": {

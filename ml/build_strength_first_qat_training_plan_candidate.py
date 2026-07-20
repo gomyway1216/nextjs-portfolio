@@ -89,6 +89,16 @@ _FIXED_RUNTIME_ENVIRONMENT = {
     "OPENBLAS_NUM_THREADS": "2",
     "VECLIB_MAXIMUM_THREADS": "2",
 }
+_INTERPRETER_STABLE_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_nlink",
+    "st_uid",
+    "st_size",
+    "st_mtime_ns",
+    "st_ctime_ns",
+)
 
 
 class StrengthFirstPlanCandidateError(ValueError):
@@ -619,18 +629,80 @@ def _release_teacher_run_lock(descriptor: int) -> None:
         os.close(descriptor)
 
 
+def _snapshot_fixed_training_interpreter(
+    path: str,
+) -> tuple[str, dict[str, Any]]:
+    python = os.path.abspath(path)
+    parent = os.path.dirname(python)
+    if os.path.realpath(parent) != parent:
+        raise StrengthFirstPlanCandidateError(
+            "fixed training interpreter parent contains a symbolic link"
+        )
+    try:
+        entry = os.lstat(python)
+        target = os.stat(python)
+    except OSError as error:
+        raise StrengthFirstPlanCandidateError(
+            "fixed training interpreter is absent or cannot be inspected"
+        ) from error
+    get_effective_uid = getattr(os, "geteuid", None)
+    effective_uid = get_effective_uid() if callable(get_effective_uid) else None
+    if (
+        effective_uid is None
+        or not (stat.S_ISREG(entry.st_mode) or stat.S_ISLNK(entry.st_mode))
+        or not stat.S_ISREG(target.st_mode)
+        or not os.path.isfile(python)
+        or not os.access(python, os.X_OK)
+        or entry.st_uid not in (0, effective_uid)
+        or target.st_uid not in (0, effective_uid)
+        or target.st_nlink != 1
+        or stat.S_IMODE(target.st_mode) & 0o022
+    ):
+        raise StrengthFirstPlanCandidateError(
+            "fixed training interpreter identity is invalid"
+        )
+    return (
+        python,
+        {
+            "entry": tuple(
+                getattr(entry, field) for field in _INTERPRETER_STABLE_FIELDS
+            ),
+            "target": tuple(
+                getattr(target, field) for field in _INTERPRETER_STABLE_FIELDS
+            ),
+            "realpath": os.path.realpath(python),
+        },
+    )
+
+
+def _revalidate_fixed_training_interpreter(
+    python: str,
+    snapshot: Mapping[str, Any],
+) -> None:
+    try:
+        entry = os.lstat(python)
+        target = os.stat(python)
+    except OSError as error:
+        raise StrengthFirstPlanCandidateError(
+            "fixed training interpreter changed during runtime probe"
+        ) from error
+    current = {
+        "entry": tuple(getattr(entry, field) for field in _INTERPRETER_STABLE_FIELDS),
+        "target": tuple(getattr(target, field) for field in _INTERPRETER_STABLE_FIELDS),
+        "realpath": os.path.realpath(python),
+    }
+    if type(snapshot) is not dict or current != snapshot:
+        raise StrengthFirstPlanCandidateError(
+            "fixed training interpreter changed during runtime probe"
+        )
+
+
 def _probe_fixed_training_runtime(
     *,
     python_path: str,
     repo_root: str,
 ) -> dict[str, Any]:
-    python = os.path.abspath(python_path)
-    if (
-        os.path.realpath(python) == python and not os.path.isfile(python)
-    ) or not os.access(python, os.X_OK):
-        raise StrengthFirstPlanCandidateError(
-            "fixed training interpreter is absent or not executable"
-        )
+    python, interpreter_snapshot = _snapshot_fixed_training_interpreter(python_path)
     ml_directory = os.path.join(os.path.abspath(repo_root), "ml")
     environment = dict(_FIXED_RUNTIME_ENVIRONMENT)
     temporary = os.environ.get("TMPDIR")
@@ -650,6 +722,11 @@ def _probe_fixed_training_runtime(
         raise StrengthFirstPlanCandidateError(
             "fixed training runtime probe failed"
         ) from error
+    finally:
+        _revalidate_fixed_training_interpreter(
+            python,
+            interpreter_snapshot,
+        )
     if (
         completed.stderr
         or not completed.stdout

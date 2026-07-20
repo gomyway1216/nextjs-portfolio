@@ -608,6 +608,45 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
                 fcntl.flock(displaced_descriptor, fcntl.LOCK_UN)
                 os.close(displaced_descriptor)
 
+    def test_runtime_interpreter_requires_stable_executable_file_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable = root / "python3.13"
+            executable.write_bytes(b"synthetic executable\n")
+            executable.chmod(0o755)
+            python = root / "python3"
+            python.symlink_to(executable.name)
+
+            normalized, snapshot = BUILDER._snapshot_fixed_training_interpreter(
+                str(python)
+            )
+            self.assertEqual(normalized, str(python))
+            BUILDER._revalidate_fixed_training_interpreter(
+                normalized,
+                snapshot,
+            )
+
+            replacement = root / "replacement"
+            replacement.write_bytes(b"different synthetic executable\n")
+            replacement.chmod(0o755)
+            python.unlink()
+            python.symlink_to(replacement.name)
+            with self.assertRaisesRegex(ValueError, "changed"):
+                BUILDER._revalidate_fixed_training_interpreter(
+                    normalized,
+                    snapshot,
+                )
+
+            python.unlink()
+            python.symlink_to(root, target_is_directory=True)
+            with mock.patch.object(BUILDER.subprocess, "run") as run:
+                with self.assertRaisesRegex(ValueError, "identity"):
+                    BUILDER._probe_fixed_training_runtime(
+                        python_path=str(python),
+                        repo_root=str(root),
+                    )
+            run.assert_not_called()
+
     def test_main_serializes_writes_and_flushes_inside_candidate_consumer(self):
         events = []
         serialized = b'{"candidate":true}\n'

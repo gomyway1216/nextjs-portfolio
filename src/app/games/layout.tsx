@@ -1,3 +1,21 @@
+import type { Metadata } from 'next';
+
+// The games index and individual game pages are client components, so they
+// can't export metadata themselves; this gives the whole subtree a real
+// title/description instead of the site-wide default.
+export const metadata: Metadata = {
+  title: 'Games & Interactive Demos',
+  description:
+    'Browser games and interactive probability demos built by Yudai Yaguchi — shogi with a from-scratch AI engine, tetris, othello, blackjack, and classic probability puzzles.',
+  alternates: { canonical: '/games' },
+  openGraph: {
+    title: 'Games & Interactive Demos | Yudai Yaguchi',
+    description:
+      'Browser games and interactive probability demos — shogi with a from-scratch AI engine, tetris, othello, blackjack, and classic probability puzzles.',
+    url: '/games',
+  },
+};
+
 // Inline first-paint colors for the /games subtree. Keep this route keyed to
 // the app's explicit theme class instead of forcing dark from OS preference.
 export default function GamesLayout({ children }: { children: React.ReactNode }) {

@@ -16,8 +16,13 @@ const eslintConfig = defineConfig([
     "node_modules/**",
     "coverage/**",
     ".claude/**",
-    // Deterministic generated artifact: validated by its exact-source bundle builder.
-    "ml/run-floodgate-stable-wasm-deadline-diagnostic.cjs",
+    // Standalone ML/shogi tooling and non-app directories: not part of the
+    // Next.js app; linting them slows every build without protecting shipped code.
+    "ml/**",
+    "tests/unit/ml/**",
+    "scripts/**",
+    "docs/**",
+    "native/**",
     // AssemblyScript sources (WASM engine): use AS decorators/syntax that the TS parser rejects.
     "wasm-spike/**",
   ]),

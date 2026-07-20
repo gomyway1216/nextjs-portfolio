@@ -105,7 +105,7 @@ An audit hunts for problems, but "no problem found" results deserve equal weight
 
 ## How the fixes were split into PRs
 
-Four PRs, each independently reviewable and revertable:
+Four PRs, each independently reviewable and revertible:
 
 1. **AI quality & correctness** (7 games, [#534](https://github.com/gomyway1216/nextjs-portfolio/pull/534)): the two freezes, Doubt Word recalibration, the Doubt exploit, both Shichinarabe issues, Blackjack soft 12, the Gambler's Ruin banner.
 2. **i18n/UX** ([#535](https://github.com/gomyway1216/nextjs-portfolio/pull/535)): the three shared-component leaks, Japanese localization of the Shogi setup screen, default names and error strings.

@@ -81,6 +81,7 @@ def fixture_protocol() -> dict:
     return dict(
         calibration.build_candidate_protocol(
             experiment_id=semantic_id(601),
+            preregistered_at_utc="2026-07-31T23:59:00Z",
             policy_identity=policy_identity,
             candidate=candidate,
             upstream=upstream,
@@ -206,6 +207,7 @@ class External81DojoCalibrationTest(unittest.TestCase):
             validated["candidate"]["runtime"],
             calibration.CANDIDATE_RUNTIME_CONTRACT,
         )
+        self.assertEqual(validated["preregistered_at_utc"], "2026-07-31T23:59:00Z")
         self.assertTrue(validated["upstream"]["all_internal_gates_passed"])
         self.assertTrue(validated["authorization"]["manual_relay_confirmed"])
         self.assertFalse(validated["authorization"]["external_server_or_ui_automation"])
@@ -259,6 +261,18 @@ class External81DojoCalibrationTest(unittest.TestCase):
         alternate = calibration.encode_ledger_entry(alternate_entry)
         with self.assertRaisesRegex(ValueError, "rewrote or removed"):
             calibration.verify_append_only_extension(first, alternate, self.protocol)
+
+    def test_first_game_must_be_after_candidate_preregistration(self):
+        observation = fixture_observation(1)
+        observation["played_at_utc"] = "2026-07-31T23:58:59Z"
+
+        with self.assertRaisesRegex(ValueError, "after protocol preregistration"):
+            calibration.build_game_entry(
+                self.protocol,
+                sequence=1,
+                previous_entry_sha256=None,
+                observation=observation,
+            )
 
     def test_local_append_uses_private_regular_file(self):
         with tempfile.TemporaryDirectory() as directory:

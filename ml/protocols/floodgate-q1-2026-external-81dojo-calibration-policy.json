@@ -38,18 +38,14 @@
     "max_depth": 32,
     "quiescence_depth_max": 12,
     "opening_book": true,
-    "required_assets": [
-      "weights",
-      "worker",
-      "wasm",
-      "opening_book"
-    ],
+    "required_assets": ["weights", "worker", "wasm", "opening_book"],
     "reference_hardware_binding": true,
     "exact_candidate_move_trace_required": true
   },
   "ledger_contract": {
     "format": "canonical-jsonl-utf8-lf-v1",
     "append_only": true,
+    "candidate_protocol_preregistered_before_game_1": true,
     "sha256_hash_chain": true,
     "sequence": "exactly-1-through-200-with-no-gaps",
     "candidate_rating_continuity": true,
@@ -63,10 +59,7 @@
   "primary_decision": {
     "authority": "primary",
     "required_games": 200,
-    "stability_window_games_inclusive": [
-      171,
-      200
-    ],
+    "stability_window_games_inclusive": [171, 200],
     "minimum_post_game_rating": 2050,
     "every_rating_in_window_must_pass": true,
     "missing_selected_or_faulted_game": "stop",
@@ -81,10 +74,7 @@
     "replicates": 100000,
     "confidence": "two-sided-95-percent",
     "cluster": "opponent-public-identity-sha256",
-    "windows": [
-      "games-1-through-200",
-      "games-171-through-200"
-    ],
+    "windows": ["games-1-through-200", "games-171-through-200"],
     "rank_conversion": false
   },
   "unresolved": {

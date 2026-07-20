@@ -41,8 +41,8 @@ POLICY_PATH = "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy
 # Filled from the checked-in file after formatting.  Keeping these constants in
 # the verifier prevents a later policy edit from silently changing an enrolled
 # candidate protocol.
-POLICY_BYTES = 3674
-POLICY_SHA256 = "74a1160d6547a250631b1fd36e67cf086ca25ff791acfee8bbefc23861f2a0ca"
+POLICY_BYTES = 3668
+POLICY_SHA256 = "b0c0f994eef66c47e3d574d4533b23600a891f66490ae7c63e4b60fd173d4cd0"
 
 CHECKED_DATE = "2026-07-20"
 GAME_COUNT = 200
@@ -113,6 +113,7 @@ CANDIDATE_RUNTIME_CONTRACT = {
 LEDGER_CONTRACT = {
     "format": "canonical-jsonl-utf8-lf-v1",
     "append_only": True,
+    "candidate_protocol_preregistered_before_game_1": True,
     "sha256_hash_chain": True,
     "sequence": "exactly-1-through-200-with-no-gaps",
     "candidate_rating_continuity": True,
@@ -174,6 +175,7 @@ PROTOCOL_FIELDS = frozenset(
         "schema",
         "status",
         "experiment_id",
+        "preregistered_at_utc",
         "policy",
         "candidate",
         "upstream",
@@ -679,12 +681,19 @@ def validate_candidate_protocol(protocol: Mapping) -> Mapping:
     if protocol["status"] != "preregistered-before-external-game-1":
         raise ValueError("candidate protocol was not preregistered")
     _semantic_id(protocol["experiment_id"], "protocol.experiment_id")
+    preregistered_at = _utc_second(
+        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
+    )
     _validate_policy_identity(protocol["policy"])
     _validate_candidate(protocol["candidate"])
     _validate_upstream(protocol["upstream"])
     _validate_environment(protocol["execution_environment"])
     _validate_account(protocol["account"])
-    _validate_authorization(protocol["authorization"])
+    authorization = _validate_authorization(protocol["authorization"])
+    if preregistered_at.date() < date.fromisoformat(
+        authorization["rules_reverified_date"]
+    ):
+        raise ValueError("candidate protocol predates its rules reverification")
     _exact_value(protocol["fixed_match"], FIXED_MATCH, "protocol.fixed_match")
     _exact_value(
         protocol["ledger_contract"], LEDGER_CONTRACT, "protocol.ledger_contract"
@@ -709,6 +718,7 @@ def validate_candidate_protocol(protocol: Mapping) -> Mapping:
 def build_candidate_protocol(
     *,
     experiment_id: str,
+    preregistered_at_utc: str,
     policy_identity: Mapping,
     candidate: Mapping,
     upstream: Mapping,
@@ -720,6 +730,7 @@ def build_candidate_protocol(
         "schema": PROTOCOL_SCHEMA,
         "status": "preregistered-before-external-game-1",
         "experiment_id": _capture_plain_json(experiment_id),
+        "preregistered_at_utc": _capture_plain_json(preregistered_at_utc),
         "policy": _capture_plain_json(policy_identity),
         "candidate": _capture_plain_json(candidate),
         "upstream": _capture_plain_json(upstream),
@@ -854,7 +865,12 @@ def validate_game_entry(entry: Mapping, protocol: Mapping) -> Mapping:
         or SERVER_GAME_ID_RE.fullmatch(entry["server_game_id"]) is None
     ):
         raise ValueError("server_game_id is not bounded canonical text")
-    _utc_second(entry["played_at_utc"], "game.played_at_utc")
+    played_at = _utc_second(entry["played_at_utc"], "game.played_at_utc")
+    preregistered_at = _utc_second(
+        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
+    )
+    if played_at <= preregistered_at:
+        raise ValueError("game timestamp is not after protocol preregistration")
     if entry["candidate_color"] not in ("sente", "gote"):
         raise ValueError("candidate_color is not sente or gote")
     for key in (
@@ -948,7 +964,9 @@ def parse_ledger(raw: bytes, protocol: Mapping) -> list[Mapping]:
         raise ValueError("ledger exceeds 200 games")
     games: list[Mapping] = []
     server_ids: set[str] = set()
-    previous_timestamp: datetime | None = None
+    previous_timestamp = _utc_second(
+        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
+    )
     expected_rating = protocol["account"]["rating_before_game_1"]
     expected_rated_games = protocol["account"]["rated_games_before_game_1"]
     previous_entry_sha256: str | None = None
@@ -970,7 +988,11 @@ def parse_ledger(raw: bytes, protocol: Mapping) -> list[Mapping]:
             raise ValueError("ledger repeats a server game ID")
         server_ids.add(entry["server_game_id"])
         timestamp = _utc_second(entry["played_at_utc"], "game.played_at_utc")
-        if previous_timestamp is not None and timestamp <= previous_timestamp:
+        if timestamp <= previous_timestamp:
+            if not games:
+                raise ValueError(
+                    "first ledger timestamp is not after protocol preregistration"
+                )
             raise ValueError("ledger timestamps are not strictly increasing")
         previous_timestamp = timestamp
         if entry["candidate_rating_before"] != expected_rating:

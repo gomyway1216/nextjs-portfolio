@@ -40,6 +40,27 @@ def identity(path: str, raw: bytes, schema: str) -> dict:
     }
 
 
+def synthetic_blocked_registry() -> dict:
+    """Project any checked-in lifecycle state back to an exact blocked fixture."""
+
+    registry = json.loads(
+        (
+            REPO_ROOT
+            / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
+        ).read_text(encoding="utf-8")
+    )
+    registry["status"] = evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS
+    for name in registry["implementation"]:
+        registry["implementation"][name] = None
+    for name in registry["enrollments"]:
+        registry["enrollments"][name] = None
+    registry["gates"] = copy.deepcopy(evaluator._BLOCKED_GATES)
+    registry["nonclaims"] = copy.deepcopy(evaluator._NONCLAIMS)
+    return dict(
+        evaluator.validate_strength_first_selection_evaluator_registry_data(registry)
+    )
+
+
 class ReadyHarness:
     def __init__(self, temporary: str):
         self.repo_root = REPO_ROOT
@@ -65,12 +86,7 @@ class ReadyHarness:
             "dataset_records": 9_598,
             "sealed": True,
         }
-        self.registry = json.loads(
-            (
-                REPO_ROOT
-                / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
-            ).read_text(encoding="utf-8")
-        )
+        self.registry = synthetic_blocked_registry()
         self._build_ready()
 
     @staticmethod
@@ -511,7 +527,7 @@ class ReadyHarness:
 
 
 class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
-    def test_checked_in_registry_is_closed_and_valid(self):
+    def test_checked_in_registry_is_a_valid_non_live_lifecycle_state(self):
         registry = json.loads(
             (
                 REPO_ROOT
@@ -521,21 +537,22 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
         validated = evaluator.validate_strength_first_selection_evaluator_registry_data(
             registry
         )
-        self.assertEqual(
+        self.assertIn(
             validated["status"],
-            evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS,
+            {
+                evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_BLOCKED_STATUS,
+                evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_READY_STATUS,
+                evaluator.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS,
+            },
         )
-        self.assertFalse(validated["gates"]["local_selection_evaluation_authorized"])
+        self.assertFalse(validated["gates"]["production_weight_write_authorized"])
+        self.assertFalse(validated["boundary"]["live_weight_write"])
+        self.assertFalse(validated["nonclaims"]["live_weights_changed"])
 
     def test_closed_path_stops_before_preflight_or_private_reads(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = ReadyHarness(temporary)
-            closed = json.loads(
-                (
-                    REPO_ROOT
-                    / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
-                ).read_text(encoding="utf-8")
-            )
+            closed = synthetic_blocked_registry()
             harness._put(
                 REPO_ROOT
                 / evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
@@ -738,7 +755,29 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             evidence["schema"],
             evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_EVIDENCE_SCHEMA,
         )
-        for artifact in evidence["implementation"].values():
+        historical_registry = evidence["implementation"]["closed_registry"]
+        self.assertEqual(
+            historical_registry["path"],
+            evaluator.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH,
+        )
+        historical_registry_raw = (
+            json.dumps(
+                synthetic_blocked_registry(),
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        self.assertEqual(historical_registry["bytes"], len(historical_registry_raw))
+        self.assertEqual(
+            historical_registry["sha256"],
+            hashlib.sha256(historical_registry_raw).hexdigest(),
+        )
+
+        for name, artifact in evidence["implementation"].items():
+            if name == "closed_registry":
+                continue
             raw = (REPO_ROOT / artifact["path"]).read_bytes()
             self.assertEqual(artifact["bytes"], len(raw))
             self.assertEqual(

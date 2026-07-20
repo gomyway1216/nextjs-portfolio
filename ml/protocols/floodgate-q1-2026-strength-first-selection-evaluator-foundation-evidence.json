@@ -20,8 +20,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_strength_first_qat_selection_evaluator.py",
-      "bytes": 35735,
-      "sha256": "300bcc988894a11723df24f19aaac5639f7559fa006d29a942404a98552390ce"
+      "bytes": 37342,
+      "sha256": "6d32021afe5ea88ca9cbfed96278db9eafbb4742dfebc632139945abcf6e26a3"
     },
     "article_ja": {
       "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.md",

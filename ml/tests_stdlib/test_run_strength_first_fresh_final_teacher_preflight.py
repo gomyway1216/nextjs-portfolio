@@ -22,6 +22,7 @@ import strength_first_qat_selection_evaluator as SELECTION  # noqa: E402
 from test_strength_first_qat_selection_evaluator import (  # noqa: E402
     ReadyHarness,
     canonical,
+    synthetic_blocked_registry,
 )
 
 
@@ -30,9 +31,7 @@ def enroll_publication(harness: ReadyHarness, result: dict) -> None:
     harness.registry["status"] = (
         SELECTION.STRENGTH_FIRST_SELECTION_PUBLICATION_ENROLLED_STATUS
     )
-    harness.registry["gates"] = copy.deepcopy(
-        SELECTION._PUBLICATION_ENROLLED_GATES
-    )
+    harness.registry["gates"] = copy.deepcopy(SELECTION._PUBLICATION_ENROLLED_GATES)
     harness.registry["nonclaims"] = copy.deepcopy(
         SELECTION._PUBLICATION_ENROLLED_NONCLAIMS
     )
@@ -44,19 +43,17 @@ def enroll_publication(harness: ReadyHarness, result: dict) -> None:
         result["evaluation_report"]
     )
     enrollments["selection_receipt"] = copy.deepcopy(result["publication"])
-    enrollments["selection_publication_result"] = copy.deepcopy(
-        result["completion"]
-    )
+    enrollments["selection_publication_result"] = copy.deepcopy(result["completion"])
     harness.refresh_registry_bytes()
 
 
 class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
-    def test_checked_in_closed_registry_stops_before_receipt_read(self):
+    def test_non_enrolled_registry_stops_before_receipt_read(self):
         registry_path = (
             REPO_ROOT
             / SELECTION.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
         )
-        registry_raw = registry_path.read_bytes()
+        registry_raw = canonical(synthetic_blocked_registry())
         reads = []
         private_reads = []
         tracked = []
@@ -99,8 +96,7 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
             receipt_raw = evaluator_result["publication"]["bytes"]
             self.assertGreater(receipt_raw, 0)
             downstream_registry_path = str(
-                REPO_ROOT
-                / "ml/protocols/"
+                REPO_ROOT / "ml/protocols/"
                 "floodgate-q1-2026-strength-first-downstream-gates-registry.json"
             )
             reads = []
@@ -111,17 +107,15 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                     self.fail("fresh-final preflight read the downstream registry")
                 return harness.read_bytes(path)
 
-            summary = (
-                SUBJECT.run_strength_first_fresh_final_teacher_preflight_core(
-                    repo_root=str(REPO_ROOT),
-                    home_root=temporary,
-                    dependencies=SUBJECT._Dependencies(
-                        read_bytes=read_bytes,
-                        verify_tracked=harness.verify_tracked,
-                        read_private_artifact=harness.read_bytes,
-                        replay_evaluation=harness.evaluate,
-                    ),
-                )
+            summary = SUBJECT.run_strength_first_fresh_final_teacher_preflight_core(
+                repo_root=str(REPO_ROOT),
+                home_root=temporary,
+                dependencies=SUBJECT._Dependencies(
+                    read_bytes=read_bytes,
+                    verify_tracked=harness.verify_tracked,
+                    read_private_artifact=harness.read_bytes,
+                    replay_evaluation=harness.evaluate,
+                ),
             )
             self.assertEqual(summary["status"], SUBJECT.SUMMARY_STATUS)
             self.assertEqual(summary["selected_seed"], 43)
@@ -176,9 +170,7 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                 "schema": SELECTION.PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_PREFLIGHT_SCHEMA,
                 "training_plan": copy.deepcopy(original_receipt["training_plan"]),
                 "training_pipeline": copy.deepcopy(
-                    original_receipt["checkpoint_preflight"][
-                        "training_pipeline"
-                    ]
+                    original_receipt["checkpoint_preflight"]["training_pipeline"]
                 ),
                 "runs": [
                     {
@@ -192,8 +184,7 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                         "checkpoint": copy.deepcopy(run["checkpoint"]),
                         "checkpoint_metadata": {
                             "schema": (
-                                SELECTION.BRIDGE
-                                .STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
+                                SELECTION.BRIDGE.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
                             ),
                             "epoch": 20,
                         },
@@ -245,9 +236,7 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
                 "selected_checkpoint": copy.deepcopy(
                     forged_receipt["selected"]["checkpoint"]
                 ),
-                "boundary": copy.deepcopy(
-                    SELECTION._PUBLICATION_RESULT_BOUNDARY
-                ),
+                "boundary": copy.deepcopy(SELECTION._PUBLICATION_RESULT_BOUNDARY),
             }
             publication_result_raw = canonical(publication_result)
             publication_result_identity = identity(
@@ -281,9 +270,9 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
             result = harness.run()
             enroll_publication(harness, result)
             forged = copy.deepcopy(harness.registry)
-            forged["enrollments"]["selection_evaluation_origin_registry"][
-                "sha256"
-            ] = hashlib.sha256(b"arbitrary-ready-origin").hexdigest()
+            forged["enrollments"]["selection_evaluation_origin_registry"]["sha256"] = (
+                hashlib.sha256(b"arbitrary-ready-origin").hexdigest()
+            )
             with self.assertRaisesRegex(ValueError, "exact READY preimage"):
                 SELECTION.validate_strength_first_selection_evaluator_registry_data(
                     forged

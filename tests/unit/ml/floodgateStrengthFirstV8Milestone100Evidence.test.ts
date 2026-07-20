@@ -27,11 +27,13 @@ const englishPath = path.join(
   "docs/blog-shogi-floodgate-strength-first-v8-milestone-100.en.md",
 );
 
+let cachedEvidence: Record<string, unknown> | undefined;
+
 function evidence(): Record<string, unknown> {
-  return JSON.parse(fs.readFileSync(evidencePath, "utf8")) as Record<
-    string,
-    unknown
-  >;
+  cachedEvidence ??= JSON.parse(
+    fs.readFileSync(evidencePath, "utf8"),
+  ) as Record<string, unknown>;
+  return cachedEvidence;
 }
 
 describe("Floodgate strength-first v8 milestone 100 evidence", () => {

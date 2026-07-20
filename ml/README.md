@@ -854,6 +854,26 @@ P0 / P1 / P2 = 0 / 0 / 0だった。詳細は
 [English bridge article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-three-seed-training-bridge-2026-07-19.json)を参照。
 
+3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
+final holdout、general / opening retention、known regression、production browser parityを
+5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。
+finalはint16 pair / top-1の両方がstable以上、retentionはvalue MAEがstableの1.05倍以下かつ
+pair系がstable-0.005以上、known regressionは`P*8f`をstatic / depth 11・12 /
+800・2000・4000ms各3回で拒否し、browser parityはexact candidate weight、production
+worker / WASM、全時間枠の合法手・時間内完了、console / runtime error 0を要求する。
+
+実candidate-selection receiptとartifact identityはまだないため、checked-in registryは全
+enrollment null / 全gate closedである。argumentless commandはexit 2のexpected STOPとなり、
+candidate authorization消費、final label read、実受領証、formal A/B、live変更は全て0。
+plain JSONではreaderを開けず、candidate-selection laneの一回限りbranded authorizationが
+必要である。test-only coreのsynthetic identityは実候補へ数えない。保存済みresultもexact
+registryとmetricから全受領証を再構成し、改ざんを拒否する。focused stdlibは18 / 18 PASS、
+full suiteと独立reviewはこのlaneでは未実施である。この検証はlocalのみで、AWS、GCP /
+Firebase、Vercel、networkを使わない。詳細は
+[日本語downstream記事](../docs/blog-shogi-floodgate-strength-first-downstream-gates.md) /
+[English downstream article](../docs/blog-shogi-floodgate-strength-first-downstream-gates.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-downstream-gates-2026-07-19.json)を参照。
+
 取得先はGit worktreeと交差しないcanonical absolute pathに限定する。PR #417以降の
 status確認と単一process取得は次のCLIを使う。
 

@@ -75,6 +75,12 @@ The implementation anchor is `70f9a6d0f1098dd37cb4024691ed92e8336582e9`. Indepen
 
 At pre-P2-fix revision `5ff1bb6d`, the complete ML unit suite ran for 212.26 seconds: 148 / 149 files passed, with 2,570 passes, two five-second timeout failures, and one skip. Both failures were in the existing, adapter-independent `siblingTeacherGenerator.test.ts`; its immediate isolated rerun passed 13 / 13 in 18.16 seconds. The record does not rewrite the full attempt as green, and the full suite has not been rerun after the final P2 fixes. The two changed code/test files introduce no new type errors. The repository has unrelated pre-existing TypeScript errors, so this evidence does not claim a passing whole-repository typecheck. ESLint, Prettier, and Git diff checks pass.
 
+## Preregistered 12-game pilot
+
+Before seeing any real-game result, the [pilot request](./data/shogi-local-external-calibration-pilot-request-2026-07-19.json) was fixed at 1,677 bytes and SHA-256 `37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca`. Six public standard opening positions—startpos, Yagura development, ranging-rook development, bishop exchange, double-wing pawn, and central-rook development—each produce one stable-sente and one stable-gote game. The fixed request therefore schedules 12 games at up to 12-way concurrency, stable depth 11, YaneuraOu depth 16, 600-second technical timeouts, and an eight-ply maximum.
+
+This is a technical pilot for proving that the adapter and exact assets complete under 12-way concurrency. With an eight-ply cap, all draws would be unsurprising; it is not a win-rate, Elo, rank, or high-dan experiment. No real engine starts until request review, exact-private-asset read-only preflight, and writer-closure verification all pass.
+
 ## Next gate
 
 No real YaneuraOu pilot starts until:

@@ -75,6 +75,12 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 
 P2修正前の`5ff1bb6d`でML unit suite全体を実行し、148 / 149 files、2,570 PASS、2 timeout FAIL、1 skip、212.26秒だった。失敗は今回のadapter外にある既存`siblingTeacherGenerator.test.ts`の5秒timeout 2件で、直後の同file単独再実行は13 / 13 PASS、18.16秒だった。途中結果を全greenへ書き換えず、P2修正後のfull suiteは未再実行と記録する。型検査では今回の2 fileに新規errorはない。repository全体には今回と無関係な既存TypeScript errorがあるため、全体typecheckをPASSとは記録しない。ESLint、Prettier、Git diff checkはPASSした。
 
+## 事前固定した12局pilot
+
+実対局結果を見る前に、[pilot request](./data/shogi-local-external-calibration-pilot-request-2026-07-19.json)を1,677 bytes、SHA-256 `37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca`で固定した。平手初期局面、矢倉系、振り飛車系、角交換、相掛かり系、中飛車系の公開標準手順から作った6局面を、それぞれstable先手 / 後手で1局ずつ、合計12局・最大12並列で実行する。探索条件はstable depth 11、YaneuraOu depth 16、各600秒technical timeout、最大8手で固定した。
+
+これはadapterと固定assetが12並列で完走できるかを見るtechnical pilotである。8手上限のため全局drawでも不思議ではなく、勝率・Elo・段位・高段を評価する実験ではない。request review、exact private assetのread-only preflight、writer閉鎖確認が揃うまで実engineは開始しない。
+
 ## 次のgate
 
 実YaneuraOu pilotは、次を満たすまで開始しない。

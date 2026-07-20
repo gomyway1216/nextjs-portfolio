@@ -91,6 +91,73 @@
     "holdout_reader_or_writer": false,
     "production_result_writer": false
   },
+  "pilot_preregistration": {
+    "status": "FIXED_BEFORE_RESULTS_PENDING_INDEPENDENT_REVIEW",
+    "request": {
+      "path": "docs/data/shogi-local-external-calibration-pilot-request-2026-07-19.json",
+      "bytes": 1677,
+      "sha256": "37cd8ba340566c0b797caf3ead6d95f0094d07d27932f1bc55b9984a2018dbca"
+    },
+    "run_id": "sha256:76dbf55c6c71b4c7fa790c9f94d34014ff4fe517800bfc519c5b390ae4b0abd3",
+    "opening_pairs": 6,
+    "games": 12,
+    "game_concurrency": 12,
+    "max_plies": 8,
+    "purpose": "technical-completion-pilot-not-strength-or-rank-evidence",
+    "opening_sources": [
+      {
+        "label": "startpos",
+        "moves": []
+      },
+      {
+        "label": "yagura-development",
+        "moves": [
+          "7g7f",
+          "8c8d",
+          "6i7h",
+          "3c3d",
+          "7i6h",
+          "7a6b",
+          "5i6i",
+          "5a4b"
+        ]
+      },
+      {
+        "label": "ranging-rook-development",
+        "moves": [
+          "7g7f",
+          "3c3d",
+          "6g6f",
+          "8c8d",
+          "2h6h",
+          "6a5b",
+          "5i4h",
+          "5a4b"
+        ]
+      },
+      {
+        "label": "bishop-exchange",
+        "moves": [
+          "7g7f",
+          "3c3d",
+          "2g2f",
+          "8c8d",
+          "2f2e",
+          "8d8e",
+          "8h2b+",
+          "3a2b"
+        ]
+      },
+      {
+        "label": "double-wing-pawn",
+        "moves": ["2g2f", "8c8d", "2f2e", "8d8e", "7g7f", "3c3d"]
+      },
+      {
+        "label": "central-rook-development",
+        "moves": ["7g7f", "3c3d", "5g5f", "8c8d", "2h5h", "5a4b"]
+      }
+    ]
+  },
   "validation": {
     "node": "v22.13.0",
     "focused_tests_passed": 14,

@@ -9,6 +9,8 @@ import {
   LOCAL_EXTERNAL_CALIBRATION_ADJUDICATION,
   LOCAL_EXTERNAL_CALIBRATION_MAX_CONCURRENCY,
   PINNED_LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL,
+  localExternalCalibrationOpeningId,
+  validatePinnedLocalExternalCalibrationRequestCoreForTests,
 } from "../../../ml/local-external-calibration";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY } from "../../../ml/floodgate-production-teacher-asset-authority";
 
@@ -17,6 +19,10 @@ const ROOT = path.resolve(HERE, "../../..");
 const EVIDENCE = path.join(
   ROOT,
   "docs/data/shogi-local-external-calibration-adapter-2026-07-19.json",
+);
+const PILOT_REQUEST = path.join(
+  ROOT,
+  "docs/data/shogi-local-external-calibration-pilot-request-2026-07-19.json",
 );
 const JAPANESE = path.join(
   ROOT,
@@ -53,6 +59,33 @@ describe("local external calibration publication evidence", () => {
       expect(bytes.byteLength).toBe(artifact.bytes);
       expect(sha256(bytes)).toBe(artifact.sha256);
     }
+    const pilotBytes = fs.readFileSync(PILOT_REQUEST);
+    expect(pilotBytes.byteLength).toBe(
+      evidence.pilot_preregistration.request.bytes,
+    );
+    expect(sha256(pilotBytes)).toBe(
+      evidence.pilot_preregistration.request.sha256,
+    );
+    const pilot = JSON.parse(pilotBytes.toString("utf8"));
+    validatePinnedLocalExternalCalibrationRequestCoreForTests(pilot);
+    expect(pilot.openings).toHaveLength(6);
+    expect(pilot.game_concurrency).toBe(12);
+    expect(pilot.max_plies).toBe(8);
+    expect(
+      pilot.openings.every(
+        (opening: { opening_id: string; sfen: string }) =>
+          opening.opening_id ===
+          localExternalCalibrationOpeningId(opening.sfen),
+      ),
+    ).toBe(true);
+    expect(evidence.pilot_preregistration).toMatchObject({
+      status: "FIXED_BEFORE_RESULTS_PENDING_INDEPENDENT_REVIEW",
+      run_id: pilot.run_id,
+      opening_pairs: 6,
+      games: 12,
+      game_concurrency: 12,
+      max_plies: 8,
+    });
   });
 
   it("matches the exact stable and pinned-reference runtime contracts", () => {

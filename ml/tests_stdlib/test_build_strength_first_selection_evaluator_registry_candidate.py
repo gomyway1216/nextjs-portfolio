@@ -16,12 +16,17 @@ from unittest import mock
 
 ML_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = ML_DIR.parent
-if str(ML_DIR) not in sys.path:
-    sys.path.insert(0, str(ML_DIR))
+TEST_DIR = Path(__file__).resolve().parent
+for directory in (ML_DIR, TEST_DIR):
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
 
 import build_strength_first_selection_evaluator_registry_candidate as SUBJECT  # noqa: E402
 import run_strength_first_selection_teacher_preflight as TEACHER_PREFLIGHT  # noqa: E402
 import strength_first_qat_selection_evaluator as EVALUATOR  # noqa: E402
+from test_strength_first_qat_selection_evaluator import (  # noqa: E402
+    synthetic_blocked_registry,
+)
 
 
 def pretty(value: object) -> bytes:
@@ -61,7 +66,7 @@ class CandidateHarness:
             EVALUATOR.STRENGTH_FIRST_SELECTION_EVALUATOR_REGISTRY_RELATIVE_PATH
         )
         self.registry_path = str(REPO_ROOT / registry_relative)
-        self.blocked_registry_raw = (REPO_ROOT / registry_relative).read_bytes()
+        self.blocked_registry_raw = pretty(synthetic_blocked_registry())
 
         self.plan_raw = pretty(
             {

@@ -1,0 +1,179 @@
+{
+  "schema": "shogi-floodgate-strength-first-v9-teacher-completion-evidence-v1",
+  "status": "formal-teacher-complete-corrected-verifier-full-scan-pass-thread-benchmark-selects-two-no-training-or-live-change",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-v9-teacher-completion.md",
+    "english": "../blog-shogi-floodgate-strength-first-v9-teacher-completion.en.md"
+  },
+  "formal_teacher": {
+    "result_schema": "shogi-floodgate-strength-first-v9-teacher-result-v1",
+    "result_status": "complete-training-only-fast-input-postflight-bound",
+    "runner_revision": "682e5a1dd8027519f2277ec311000bfedf4aced3",
+    "local_only": true,
+    "network_requests": 0,
+    "cloud_services": [],
+    "completion": {
+      "input_parents": 24000,
+      "completed_parents": 24000,
+      "emitted_parent_groups": 23980,
+      "forced_parents_skipped": 20,
+      "skip_reasons": {
+        "search_timeout_no_label": 15,
+        "proposal_incomplete_no_label": 5,
+        "fewer_than_two_legal_moves": 0
+      },
+      "training_rows": 278736
+    },
+    "runtime": {
+      "engine": "YaneuraOu",
+      "parallel_processes": 13,
+      "threads_per_process": 1,
+      "hash_mib_per_process": 512,
+      "proposal": {
+        "depth": 14,
+        "multipv": 12
+      },
+      "independent_rescore": {
+        "depth": 16,
+        "multipv": 1,
+        "searchmoves": "exactly-one-candidate"
+      },
+      "timeout_ms_per_search": 600000
+    },
+    "artifacts": {
+      "result.json": {
+        "bytes": 19911,
+        "sha256": "ccdefb750896471e8fca6740801e3b86d8d5a581d00edb0add34a16fa75e5d88"
+      },
+      "work.jsonl": {
+        "bytes": 331235047,
+        "lines": 24001,
+        "header_lines": 1,
+        "completed_parent_rows": 24000,
+        "sha256": "c215e3cbe8b25483a25b0aa8ae7a80a495a7b72b824a4f9313ddcdc607e7da61"
+      },
+      "train.jsonl": {
+        "bytes": 236990586,
+        "rows": 278736,
+        "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
+      },
+      "parent-completion.jsonl": {
+        "bytes": 13293512,
+        "rows": 24000,
+        "sha256": "b92df8b37287010cd1314df853a0e337881c5cde573f5c3a4be9b4391639444f"
+      },
+      "manifest.json": {
+        "bytes": 7248,
+        "sha256": "f75d38211ea9b65ae79db749f0bc240e40221ba367d70362f2d1e82b74d399e3"
+      },
+      "staged-result.json": {
+        "bytes": 2380,
+        "sha256": "36ae1ffe3ad2ed1a4af2364eec3f2cbfbe195ae918f70ac649e764acfe33dbf8"
+      }
+    }
+  },
+  "independent_audit_and_verifier": {
+    "review_findings_before_fix": {
+      "p0": 0,
+      "p1": 1,
+      "p2": 0
+    },
+    "p1_boundary": "downstream-verifier-revision-expectation-bug-not-teacher-artifact-corruption",
+    "pre_fix_observed_stop": "input-binding",
+    "root_cause": "three-v9-verifier-checks-reused-the-legacy-v8-verifier-revision-instead-of-the-v9-generation-revision",
+    "v9_aware_independent_full_scan": "PASS",
+    "corrected_production_verifier": {
+      "schema": "shogi-floodgate-strength-first-v9-downstream-provenance-v1",
+      "status": "verified-v9-teacher-source-ready-for-training-plan-review",
+      "focused_tests": {
+        "status": "PASS",
+        "tests": 6
+      },
+      "formal_artifact_full_scan": {
+        "status": "PASS",
+        "target_parents": 24000,
+        "emitted_parent_groups": 23980,
+        "skipped_parents": 20,
+        "training_rows": 278736,
+        "runtime_seconds": 50.74,
+        "maximum_rss_bytes": 898203648,
+        "swaps": 0
+      },
+      "fix_reviewed_and_merged_at_capture": false,
+      "exact_plan_issued": false
+    }
+  },
+  "training_thread_benchmark": {
+    "schema": "shogi-strength-first-training-thread-benchmark-v1",
+    "status": "complete-synthetic-training-only",
+    "receipt": {
+      "relative_private_path": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-training-thread-benchmark-v1/receipt.json",
+      "bytes": 30416,
+      "sha256": "4903916e4f1770947fad8986a9b0119ab41b5c63b94fffa259c796b46188ec9d"
+    },
+    "comparison": {
+      "seeds": [42, 43, 44],
+      "order": [2, 4, 4, 2],
+      "pair_speedups_ppm_for_four_threads": [1003031, 962423],
+      "median_speedup_ppm_for_four_threads": 982727,
+      "minimum_adoption_speedup_ppm": 1050000,
+      "selected_threads_per_seed": 2
+    },
+    "cross_revision_equivalence": {
+      "strict_main_receipt": false,
+      "execution_revision": "f0f943e5251bc8b511a050e614561eca3903f8ba",
+      "comparison_main_revision": "e9fed482e4d83a38feddaf6dabf3abd66d09aab9",
+      "execution_is_ancestor_of_comparison_main": true,
+      "intervening_change": "merge-pr-569-web-and-blog-only",
+      "benchmark_or_training_sources_changed": false,
+      "unchanged_sources": {
+        "ml/int16_forward.py": {
+          "bytes": 19231,
+          "sha256": "19e2aaf8f5ca920a0f3e4b15cc3cfb46293cd17a074f842e33c86a865e7e3c16"
+        },
+        "ml/run_strength_first_training_thread_benchmark.py": {
+          "bytes": 30522,
+          "sha256": "43d84fdec42ac00963d6ea3e8064c4278e483403f1b9245f6cb39ba4726ba0a5"
+        },
+        "ml/train.py": {
+          "bytes": 144780,
+          "sha256": "e3be3ff47fd2185784fbf6355bf01a03706a573390cf3b1bc99c2140ca9b613d"
+        },
+        "ml/build_strength_first_qat_training_plan_candidate.py": {
+          "bytes": 36373,
+          "sha256": "a3ad6dabd2a8fc4355d9e0bd40031eaaa20434c5493bea0b29649eef9710d0ec"
+        },
+        "ml/strength_first_qat_training_bridge.py": {
+          "bytes": 45777,
+          "sha256": "a94cb7aafca66f355cddf2eecad0900298881c0bc270544961d0121911882ad4"
+        },
+        "ml/run_strength_first_three_seed_training.py": {
+          "bytes": 12704,
+          "sha256": "9bcbcc82955d86dc8c667a0316277e3555d307ac5e5c841904eb7825535ce50e"
+        }
+      }
+    },
+    "teacher_or_plan_data_read": false,
+    "selection_labels_read": false,
+    "holdout_labels_read": false,
+    "live_weights_changed": false
+  },
+  "current_state": {
+    "teacher_complete": true,
+    "exact_training_plan_issued": false,
+    "real_training_processes_started": 0,
+    "trained_candidates": 0,
+    "candidate_selected": false,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "strength_claims": {
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "claim_boundary": "formal-v9-teacher-completion-integrity-corrected-downstream-scan-and-synthetic-training-thread-selection-not-model-training-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "review-and-merge-the-verifier-fix-enroll-the-exact-v9-plan-then-run-seeds-42-43-44-concurrently-at-two-threads-per-seed"
+}

@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-v9-proposal-rescue-evidence-v1",
-  "status": "implementation-and-local-diagnostics-complete-formal-v9-not-started",
+  "status": "formal-v9-in-progress-milestone-500-complete-final-incomplete",
   "date": "2026-07-20",
   "failed_v8_teacher": {
     "accounted_target_slots": 1388,
@@ -164,9 +164,61 @@
     "formal_v9_root_written_before_merge": false,
     "formal_launch_requires_clean_merged_revision": true
   },
+  "formal_v9_progress": {
+    "execution_revision": "682e5a1dd8027519f2277ec311000bfedf4aced3",
+    "state": "in-progress-final-24000-incomplete",
+    "started_at_epoch_seconds": 1784539512,
+    "milestones": {
+      "100": {
+        "observed_at_epoch_seconds": 1784539923,
+        "elapsed_seconds": 411
+      },
+      "500": {
+        "observed_at_epoch_seconds": 1784540513,
+        "elapsed_seconds": 1001,
+        "target": 500,
+        "completed": 500,
+        "emitted": 500,
+        "forced_skipped": 0,
+        "reasons": {
+          "fewer_than_two": 0,
+          "search_timeout": 0
+        }
+      }
+    },
+    "monitoring_sample": {
+      "formal_milestone": false,
+      "elapsed_seconds": 1705,
+      "durable_work_entries": 1003,
+      "independently_verified_final_labels": false
+    },
+    "runtime": {
+      "local_only": true,
+      "parallel_engines": 13,
+      "threads_per_engine": 1,
+      "hash_mib_per_engine": 512,
+      "cloud_services_used": 0,
+      "live_weight_changes": 0,
+      "observed_run_memory_gib_approx": 9,
+      "observed_free_memory_percent_approx": 50,
+      "observed_free_storage_gib_approx": 81
+    },
+    "eta": {
+      "overall_rate_remaining_hours_approx": 10.9,
+      "post_500_steady_rate_remaining_hours_approx": 8.9,
+      "provisional_remaining_hours_range": [
+        9,
+        11
+      ],
+      "refine_at_durable_work_entries": 2000,
+      "completion_time_guarantee": false
+    },
+    "final_result_complete": false,
+    "complete_teacher_dataset": false,
+    "playing_strength_claim": false
+  },
   "next_gates": [
-    "ready-pr-review-ci-and-regular-merge",
-    "clean-merged-revision-formal-24000-teacher",
+    "formal-24000-teacher-completion",
     "fixed-seed-42-43-44-retraining",
     "candidate-selection",
     "sealed-holdout-evaluation",
@@ -175,7 +227,7 @@
     "separately-authorized-live-promotion"
   ],
   "claims": {
-    "formal_v9_teacher_started": false,
+    "formal_v9_teacher_started": true,
     "complete_teacher_dataset": false,
     "training_completion": false,
     "playing_strength_gain": false,

@@ -1,6 +1,6 @@
 # v8停止からv9へ：提案をdepth 14、採点をdepth 16に分離した
 
-> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14・12対13並列の実測、v9 runner実装を記録する。正式v9教師生成、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
+> 2026年7月20日時点。正式v8教師生成の停止原因、実局面によるdepth比較、高速入力、12対14・12対13並列の実測、v9 runner実装と正式実行の進捗を記録する。正式v9はclean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3`からローカルで開始し、500 milestoneをexact完了した。24,000の最終結果、再学習、棋力向上、live反映はまだ完了していない。English version: [blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md](./blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md)
 
 ## 結論
 
@@ -69,19 +69,47 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 
 13並列の中央値throughputは12並列の109.2814%で、事前の選定閾値101%を超えた。wall time中央値では8.493%短い。2組の短いtrialなので棋力や24,000局面の所要時間を証明するものではなく、別run間の12並列の絶対時間も揺れている。それでも同一run内の比較では13が速く、別の12対14比較では14が遅かったため、測定した12・13・14の中からv9は13 enginesを採用する。
 
+## 正式v9は500をexact完了し、そのまま24,000へ進行中
+
+正式実行はclean merge revision `682e5a1dd8027519f2277ec311000bfedf4aced3`から開始した。時刻と経過時間は次のとおりである。
+
+| 観測点        | epoch      | 開始からの経過 |
+| ------------- | ---------: | -------------: |
+| 正式開始      | 1784539512 |              0 |
+| 100 milestone | 1784539923 |   411秒（6分51秒） |
+| 500 milestone | 1784540513 | 1,001秒（16分41秒） |
+
+500 milestoneではtarget / completedがexact 500 / 500、emitted 500、forced skip 0だった。`fewer-than-two`と`search-timeout`もともに0である。
+
+その後の監視時点では、開始から1,705秒でdurable work entryが1,003件まで増えていた。これは正式な追加milestoneでも、1,003件の最終labelを独立検証したという意味でもない。進行中のwork fileに耐久記録された件数を読むための監視sampleであり、正式runnerは同じrunのまま24,000へ進んでいる。
+
+| 実行資源                         | 観測値                    |
+| -------------------------------- | ------------------------- |
+| 場所                             | ローカルのみ              |
+| engine                           | 13並列                    |
+| Threads / engine                 | 1                         |
+| Hash / engine                    | 512 MiB                   |
+| run使用memory                    | 約9 GiB                   |
+| 空きmemory                       | 約50%                     |
+| 空きstorage                      | 約81 GiB                  |
+| cloud利用 / live weight変更      | 0 / 0                     |
+
+監視sampleまでの全体rateから外挿した残りは約10.9時間、500以降のsteady rateからは約8.9時間だった。この差を誤差として含め、現時点では**残り9〜11時間**を暫定範囲とする。完了時刻の保証ではなく、2,000 work entryの監視点で再計算する。
+
+24,000の最終結果はまだなく、教師dataも未完成である。したがって再学習、候補選抜、正式A/B、棋力向上のclaimはなく、live weightも変えていない。
+
 ## ここから本当に棋力へ進む
 
-今回追加したrunnerは、別のv9出力root、clean Git revision、fast input policy、depth 14 / 16分離、13 engines、Hash 512、型付きproposal隔離をrun fingerprintとresultへ固定する。旧v8 labelは混ぜない。未mergeコードで正式v9 rootは書いていない。
+今回追加したrunnerは、別のv9出力root、clean Git revision、fast input policy、depth 14 / 16分離、13 engines、Hash 512、型付きproposal隔離を正式resultへ固定する。旧v8 labelは混ぜない。正式v9 rootはmerge済みrevisionからだけ開始した。
 
 次の順番は以下である。
 
-1. ready PRのreviewとCIを通し、通常mergeする
-2. cleanなmerge SHAから`npx tsx ml/run-floodgate-strength-first-v9-teacher.ts`で24,000教師生成を開始する
-3. seed 42 / 43 / 44で再学習する
-4. 候補選抜とsealed holdoutを通す
-5. 正式paired A/Bと外部校正で棋力を測る
-6. 高段安定の証拠が揃った候補だけlive昇格する
+1. 同じ正式runを24,000まで継続し、2,000件でETAを更新する
+2. 最終集計と入力のpostflight検証が成功した後だけseed 42 / 43 / 44で再学習する
+3. 候補選抜とsealed holdoutを通す
+4. 正式paired A/Bと外部校正で棋力を測る
+5. 高段安定の証拠が揃った候補だけlive昇格する
 
-現時点の正確な結論は「v8の既知停止を回避し、長い直列入力確認を削り、最速と実測した13並列で正式v9を始められる実装ができた」である。「AIが高段になった」ではない。
+現時点の正確な結論は「v8の既知停止を回避し、長い直列入力確認を削り、最速と実測した13並列で正式v9を開始し、500件をskipなしでexact完了した」である。「AIが高段になった」ではない。
 
 機械可読の集計は[公開evidence](./data/floodgate-strength-first-v9-proposal-rescue-2026-07-20.json)に置いた。

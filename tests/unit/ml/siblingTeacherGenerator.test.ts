@@ -501,6 +501,7 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+    expect((await fs.promises.stat(stage.work)).mode & 0o777).toBe(0o600);
     expect(verifyRevision).toHaveBeenLastCalledWith(PIPELINE_REVISION);
     expect(verifyRevision).not.toHaveBeenCalledWith(bundleVerifierRevision);
     expect(verifyOutputPaths.mock.calls.map(([outputs]) => outputs)).toEqual([
@@ -1065,6 +1066,7 @@ describe('deterministic sibling teacher generator', () => {
       engineBin: process.execPath,
       engineArgs: [FAKE_ENGINE, '--incomplete-proposal'],
       engineReceipt: await writeEngineReceipt(root),
+      authenticatedInputPolicy: 'fast-held-fd-v1',
       multipv: 2,
       depth: 8,
       proposalDepth: 6,
@@ -1093,6 +1095,9 @@ describe('deterministic sibling teacher generator', () => {
         emitted_parent_groups: 0,
       },
       manifest: {
+        authenticated_input: {
+          runtime_policy: 'fast-held-fd-v1',
+        },
         search: {
           limit: { depth: 8 },
           proposal_limit: { depth: 6 },
@@ -1874,6 +1879,12 @@ describe('deterministic sibling teacher generator', () => {
       siblingTeacherRunFingerprint({
         ...legacy,
         proposal_limit: { depth: 14 },
+      })
+    ).not.toBe(siblingTeacherRunFingerprint(legacy));
+    expect(
+      siblingTeacherRunFingerprint({
+        ...legacy,
+        authenticated_input_policy: 'fast-held-fd-v1',
       })
     ).not.toBe(siblingTeacherRunFingerprint(legacy));
   });

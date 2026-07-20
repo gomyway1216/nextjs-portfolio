@@ -297,6 +297,13 @@ describe("Floodgate ordered raw-verification worker pool", () => {
       tasks: 0,
       peak_in_flight_tasks: 0,
     });
+    await expect(
+      mapFloodgateOrderedWorkersCoreForTests(
+        [0, 1, 2],
+        2,
+        async () => undefined,
+      ),
+    ).resolves.toEqual([undefined, undefined, undefined]);
     expect(() =>
       mapFloodgateOrderedWorkersCoreForTests([1], 0, async (value) => value),
     ).toThrow(/1 through 12/);

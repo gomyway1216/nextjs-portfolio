@@ -24,6 +24,17 @@ function evidence(): Record<string, unknown> {
   >;
 }
 
+function numericField(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): number {
+  const value = record[key];
+  if (typeof value !== "number") {
+    throw new Error(`expected evidence field ${key} to be numeric`);
+  }
+  return value;
+}
+
 describe("Floodgate raw-authentication worker-foundation evidence", () => {
   it("keeps the measured worker foundation out of production", () => {
     expect(evidence()).toMatchObject({
@@ -160,21 +171,26 @@ describe("Floodgate raw-authentication worker-foundation evidence", () => {
         string,
         unknown
       >;
-    const historicalSerial = historical.serial as Record<string, number>;
-    const historicalWorkers = historical.workers_4 as Record<string, number>;
-    expect(historical.wall_speedup).toBeCloseTo(
-      historicalSerial.elapsed_ms / historicalWorkers.elapsed_ms,
+    const historicalSerial = historical.serial as Record<string, unknown>;
+    const historicalWorkers = historical.workers_4 as Record<string, unknown>;
+    expect(numericField(historical, "wall_speedup")).toBeCloseTo(
+      numericField(historicalSerial, "elapsed_ms") /
+        numericField(historicalWorkers, "elapsed_ms"),
       12,
     );
     const full = record.current_source_production_shape_emulation as Record<
       string,
       unknown
     >;
-    const serial = full.serial_actual_production_path as Record<string, number>;
-    const measurements = full.measurements as Array<Record<string, number>>;
+    const serial = full.serial_actual_production_path as Record<
+      string,
+      unknown
+    >;
+    const measurements = full.measurements as Array<Record<string, unknown>>;
     for (const measurement of measurements) {
-      expect(measurement.speedup_over_serial).toBeCloseTo(
-        serial.elapsed_ms / measurement.median_elapsed_ms,
+      expect(numericField(measurement, "speedup_over_serial")).toBeCloseTo(
+        numericField(serial, "elapsed_ms") /
+          numericField(measurement, "median_elapsed_ms"),
         12,
       );
     }

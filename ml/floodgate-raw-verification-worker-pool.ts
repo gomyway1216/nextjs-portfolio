@@ -571,6 +571,7 @@ async function orderedMapWithBoundedWorkers<T, R>(
   }
 
   const results = new Array<R>(values.length);
+  const completed = new Uint8Array(values.length);
   const errors = new Map<number, Error>();
   let next = 0;
   let lowestFailure = Number.POSITIVE_INFINITY;
@@ -587,6 +588,7 @@ async function orderedMapWithBoundedWorkers<T, R>(
           ordinal,
           workerIndex,
         );
+        completed[ordinal] = 1;
       } catch (error) {
         const captured =
           error instanceof Error
@@ -608,7 +610,7 @@ async function orderedMapWithBoundedWorkers<T, R>(
       const first = [...errors].sort(([left], [right]) => left - right)[0];
       throw first[1];
     }
-    if (results.some((result) => result === undefined)) {
+    if (completed.some((value) => value === 0)) {
       fail("successful worker run did not return every ordered result");
     }
     return Object.freeze(results);

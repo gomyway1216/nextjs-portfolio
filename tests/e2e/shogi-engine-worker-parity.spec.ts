@@ -82,6 +82,8 @@ test("explicit local weights traverse the real browser Worker/WASM/NNUE path", a
     nonclaims: {
       candidate_enrollment_verified: false,
       real_selected_candidate_measured: false,
+      served_app_build_identity_verified: false,
+      standalone_result_is_formal_parity_evidence: false,
       formal_ab_ready: false,
       formal_ab_games: 0,
       strength_improved: false,

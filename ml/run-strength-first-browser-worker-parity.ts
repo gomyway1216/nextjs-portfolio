@@ -386,6 +386,8 @@ function buildAggregateResult(
     nonclaims: {
       candidate_enrollment_verified: false,
       real_selected_candidate_measured: false,
+      served_app_build_identity_verified: false,
+      standalone_result_is_formal_parity_evidence: false,
       formal_ab_ready: false,
       formal_ab_games: 0,
       external_calibration_games: 0,

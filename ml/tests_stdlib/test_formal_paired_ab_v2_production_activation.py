@@ -430,6 +430,18 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
                 same_weights
             )
 
+        same_weight_path = composition_fixture()
+        same_weight_path["stable_weights"]["path"] = same_weight_path[
+            "candidate_weights"
+        ]["path"]
+        with self.assertRaisesRegex(
+            activation.FormalAbV2ActivationError,
+            "candidate and stable",
+        ):
+            activation.compose_formal_ab_v2_activation_core_for_tests(
+                same_weight_path
+            )
+
         wrong_adapter = composition_fixture()
         wrong_adapter["match_adapter"]["schema"] = "wrong"
         with self.assertRaisesRegex(
@@ -462,6 +474,18 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
                 duplicate_receipt
             )
 
+        duplicate_receipt_path = composition_fixture()
+        duplicate_receipt_path["receipts"]["rollback_receipt"]["path"] = (
+            duplicate_receipt_path["receipts"]["result_receipt"]["path"]
+        )
+        with self.assertRaisesRegex(
+            activation.FormalAbV2ActivationError,
+            "receipt identities must be distinct",
+        ):
+            activation.compose_formal_ab_v2_activation_core_for_tests(
+                duplicate_receipt_path
+            )
+
     def test_extra_fields_subclasses_unsafe_paths_and_authority_fail_closed(self):
         extra = composition_fixture()
         extra["extra"] = None
@@ -477,6 +501,18 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
             "fields are not exact",
         ):
             activation.compose_formal_ab_v2_activation_core_for_tests(subclass)
+
+        nested_subclass = composition_fixture()
+        nested_subclass["time_control"]["payload"] = DictSubclass(
+            nested_subclass["time_control"]["payload"]
+        )
+        with self.assertRaisesRegex(
+            activation.FormalAbV2ActivationError,
+            "not plain JSON",
+        ):
+            activation.compose_formal_ab_v2_activation_core_for_tests(
+                nested_subclass
+            )
 
         unsafe = composition_fixture()
         unsafe["candidate_weights"]["path"] = "../candidate.bin"

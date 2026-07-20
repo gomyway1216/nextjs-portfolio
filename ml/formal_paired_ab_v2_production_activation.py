@@ -307,6 +307,22 @@ def _canonical_artifact_bytes(value: Mapping) -> bytes:
     return f"{_canonical_json(value)}\n".encode("utf-8")
 
 
+def _require_plain_json(value: Any, label: str) -> None:
+    if value is None or type(value) in (bool, int, float, str):
+        return
+    if type(value) is list:
+        for index, item in enumerate(value):
+            _require_plain_json(item, f"{label}[{index}]")
+        return
+    if type(value) is dict:
+        if any(type(key) is not str for key in value):
+            raise FormalAbV2ActivationError(f"{label} keys are not plain strings")
+        for key, item in value.items():
+            _require_plain_json(item, f"{label}.{key}")
+        return
+    raise FormalAbV2ActivationError(f"{label} is not plain JSON")
+
+
 def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -633,6 +649,7 @@ def _validate_content_record(
         expected_schema=expected_schema,
     )
     payload = record["payload"]
+    _require_plain_json(payload, f"{label}.payload")
     if type(payload) is not dict or payload.get("schema") != expected_schema:
         raise FormalAbV2ActivationError(f"{label}.payload schema differs")
     raw = _canonical_artifact_bytes(payload)
@@ -849,7 +866,10 @@ def compose_formal_ab_v2_activation_core_for_tests(
         "CoreForTests stable weights",
         expected_schema=WEIGHTS_SCHEMA,
     )
-    if candidate["sha256"] == stable["sha256"]:
+    if (
+        candidate["sha256"] == stable["sha256"]
+        or candidate["path"] == stable["path"]
+    ):
         raise FormalAbV2ActivationError(
             "CoreForTests candidate and stable weights must differ"
         )
@@ -903,7 +923,11 @@ def compose_formal_ab_v2_activation_core_for_tests(
     receipt_digests = [
         receipt["sha256"] for receipt in captured_receipts.values()
     ]
-    if len(set(receipt_digests)) != len(receipt_digests):
+    receipt_paths = [receipt["path"] for receipt in captured_receipts.values()]
+    if (
+        len(set(receipt_digests)) != len(receipt_digests)
+        or len(set(receipt_paths)) != len(receipt_paths)
+    ):
         raise FormalAbV2ActivationError(
             "CoreForTests receipt identities must be distinct"
         )

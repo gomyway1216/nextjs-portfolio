@@ -66,6 +66,6 @@ The receipt also reports an opponent-cluster bootstrap, so repeat games against 
 
 External games must not begin before a candidate passes the internal gates. After selection, the account, official client, reference hardware, current-rules recheck, and explicit user authorization still have to be bound into one protocol receipt before game 1. A person can then relay 200 games through the official client, and only the complete ledger can reach the final decision.
 
-AWS, GCP, Firebase, and Vercel are not used for this calibration. Training and internal evaluation remain local; external calibration uses the official 81Dojo client plus a local ledger. This implementation performed zero cloud operations, credential reads, external writes, and live deployments.
+AWS, GCP, Firebase, and Vercel are not used for this calibration. Training and internal evaluation remain local; external calibration uses the official 81Dojo client plus a local ledger. Calibration execution performed zero cloud operations, credential reads, external writes, and live deployments. After ready PR #567 was pushed, the repository's existing GitHub integration automatically triggered one normal Vercel preview build. That is delivery CI for the web change—not training, a game, or calibration execution—and it received no game data or credentials.
 
 The exact values and unresolved gates are recorded in the [machine-readable evidence](./data/shogi-external-81dojo-calibration-readiness-2026-07-20.json).

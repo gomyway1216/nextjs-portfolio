@@ -165,7 +165,7 @@
     "manually relay and append all 200 nonselected rated games through the official client",
     "verify the complete ledger and primary rating-stability rule"
   ],
-  "execution_counters": {
+  "calibration_execution_counters": {
     "81dojo_requests": 0,
     "81dojo_games": 0,
     "browser_automation_actions": 0,
@@ -176,6 +176,17 @@
     "vercel_operations": 0,
     "credential_reads": 0,
     "live_weight_changes": 0
+  },
+  "repository_delivery": {
+    "github_branch_pushes": 1,
+    "pull_request_created": true,
+    "pull_request_number": 567,
+    "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/567",
+    "pull_request_ready_for_review": true,
+    "automatic_vercel_preview_triggered_by_existing_repository_integration": true,
+    "vercel_preview_status_at_first_review": "PENDING",
+    "vercel_preview_is_calibration_execution": false,
+    "calibration_games_or_credentials_sent_to_preview": false
   },
   "nonclaims": {
     "external_games_executed": false,

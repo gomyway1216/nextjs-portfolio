@@ -131,8 +131,18 @@ describe("external 81Dojo calibration readiness publication", () => {
     const English = read(ENGLISH);
 
     expect(
-      Object.values(evidence.execution_counters).every((value) => value === 0),
+      Object.values(evidence.calibration_execution_counters).every(
+        (value) => value === 0,
+      ),
     ).toBe(true);
+    expect(evidence.repository_delivery).toMatchObject({
+      pull_request_created: true,
+      pull_request_number: 567,
+      pull_request_ready_for_review: true,
+      automatic_vercel_preview_triggered_by_existing_repository_integration: true,
+      vercel_preview_is_calibration_execution: false,
+      calibration_games_or_credentials_sent_to_preview: false,
+    });
     expect(
       Object.values(evidence.nonclaims).every((value) => value === false),
     ).toBe(true);

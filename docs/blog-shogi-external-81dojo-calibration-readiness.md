@@ -66,6 +66,6 @@
 
 候補が内部gateを通るまでは外部対局を始めない。候補確定後も、account、公式client、reference hardware、現在の規約再確認、userの明示許可をgame 1前に1つのprotocol receiptへ固定する必要がある。その後、公式clientを人が操作して200局を記録し、完全なledgerだけを最終判定へ渡す。
 
-AWS、GCP、Firebase、Vercelはこの校正には使わない。学習と内部評価はlocal、外部校正は81Dojo公式clientとlocal ledgerで行う。今回の実装が行ったcloud操作、credential読取、外部書込、live反映はいずれも0である。
+AWS、GCP、Firebase、Vercelはこの校正には使わない。学習と内部評価はlocal、外部校正は81Dojo公式clientとlocal ledgerで行う。校正処理によるcloud操作、credential読取、外部書込、live反映はいずれも0である。ただし、ready PR #567のpush後、repositoryに既設のGitHub連携がVercelの通常preview buildを1件自動起動した。これはweb変更を確認するdelivery CIであり、学習、対局、校正実行ではなく、対局dataやcredentialも渡していない。
 
 固定値と未解決条件は[機械可読evidence](./data/shogi-external-81dojo-calibration-readiness-2026-07-20.json)に記録した。

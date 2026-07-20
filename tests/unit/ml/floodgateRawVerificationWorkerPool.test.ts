@@ -31,7 +31,7 @@ import type {
 const temporaryRoots: string[] = [];
 const faultWorkerPath = path.join(
   repositoryRoot(),
-  "tests/fixtures/ml/floodgateRawVerificationFaultWorker.cjs",
+  "tests/fixtures/ml/floodgateRawVerificationFaultWorker.js",
 );
 
 function sha256(value: Uint8Array | string): string {

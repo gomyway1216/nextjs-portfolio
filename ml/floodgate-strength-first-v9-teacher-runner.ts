@@ -28,16 +28,12 @@ import {
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY,
   loadFloodgateStrengthFirstFastTrainingInput,
+  projectFloodgateStrengthFirstFastTrainingInputForTeacher,
   type FloodgateStrengthFirstFastTrainingInput,
 } from "./floodgate-strength-first-fast-training-input";
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
-import {
-  FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
-  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
-  FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES,
-  FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
-} from "./floodgate-role-bundle-result";
+import { FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY } from "./floodgate-role-bundle-result";
 import {
   FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
   captureFloodgateStrengthFirstV9TeacherAuthorityReceipt,
@@ -70,8 +66,6 @@ export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_NODE_VERSION =
   "v22.13.0" as const;
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_OUTPUT_DIRECTORY =
   "floodgate-q1-2026-strength-first-v9" as const;
-export const FLOODGATE_STRENGTH_FIRST_V9_HISTORIC_BUNDLE_VERIFIER_REVISION =
-  "e8a9197608cb48b1160b6707d97b0c4f78f90a1d" as const;
 
 type AssetReceipt = Readonly<
   FloodgateStrengthFirstV9TeacherAuthorityReceipt<"production-fixed-registry-and-deployment-root">
@@ -346,43 +340,6 @@ function captureFastInputBinding(
   });
 }
 
-const HISTORIC_GENERATOR_BINDING: Readonly<FloodgateTrainingInputBinding> =
-  Object.freeze({
-    result_receipt_bytes: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES,
-    result_receipt_sha256: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
-    bundle_manifest_bytes: FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY.bytes,
-    bundle_manifest_sha256: FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY.sha256,
-    bundle_producer_revision:
-      FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
-    verifier_revision:
-      FLOODGATE_STRENGTH_FIRST_V9_HISTORIC_BUNDLE_VERIFIER_REVISION,
-    raw_format: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.format,
-    raw_bytes: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.bytes,
-    raw_sha256: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.sha256,
-    records: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.records,
-    games: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.games,
-    game_ids_sha256:
-      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.game_ids_sha256,
-    parent_ids_sha256:
-      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.parent_ids_sha256,
-    position_ids_count:
-      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.position_ids_count,
-    position_ids_sha256:
-      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.position_ids_sha256,
-  });
-
-function projectFastInputForGenerator(
-  value: Readonly<FloodgateStrengthFirstFastTrainingInput>,
-): Readonly<AuthenticatedFloodgateTrainingRows> {
-  captureFastInputBinding(value);
-  return Object.freeze({
-    schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
-    role: "training",
-    binding: HISTORIC_GENERATOR_BINDING,
-    rows: value.rows,
-  });
-}
-
 function teacherOptions(
   paths: Readonly<FloodgateStrengthFirstV9TeacherPaths>,
   runnerRevision: string,
@@ -515,6 +472,7 @@ function assertFinal(
   value: StrengthFirstSiblingTeacherAdvance,
   revision: string,
   assets: AssetReceipt,
+  inputBinding: Readonly<FloodgateTrainingInputBinding>,
   fingerprint: string,
 ): asserts value is FinalOutcome {
   if (
@@ -536,7 +494,7 @@ function assertFinal(
     manifest.pipeline.tracked_tree_clean !== true ||
     manifest.authenticated_input.runtime_policy !==
       FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY ||
-    !sameJson(manifest.authenticated_input.binding, HISTORIC_GENERATOR_BINDING) ||
+    !sameJson(manifest.authenticated_input.binding, inputBinding) ||
     manifest.source.raw_sha256 !==
       FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.sha256 ||
     manifest.source.raw_records !== 24_000 ||
@@ -659,6 +617,7 @@ function buildResult(
   revision: string,
   assets: AssetReceipt,
   fastPostflight: Readonly<FloodgateStrengthFirstV9FastInputPostflight>,
+  generatorInput: Readonly<AuthenticatedFloodgateTrainingRows>,
   outcome: FinalOutcome,
   prefix100: FloodgateStrengthFirstTeacherFileBinding,
   prefix500: FloodgateStrengthFirstTeacherFileBinding,
@@ -686,7 +645,7 @@ function buildResult(
       generator_projection: Object.freeze({
         schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
         role: "training",
-        binding: HISTORIC_GENERATOR_BINDING,
+        binding: generatorInput.binding,
         historic_provenance_not_reverified_by_fast_path: true,
       }),
     }),
@@ -727,6 +686,7 @@ async function validateExistingResult(
   revision: string,
   assets: AssetReceipt,
   currentFast: Readonly<FloodgateStrengthFirstV9FastInputBinding>,
+  inputBinding: Readonly<FloodgateTrainingInputBinding>,
   stored: ReadPrivateJsonResult,
 ): Promise<Readonly<FloodgateStrengthFirstV9TeacherResultMarker>> {
   const marker =
@@ -743,7 +703,7 @@ async function validateExistingResult(
     !sameJson(runtime.postflight, currentFast) ||
     !sameJson(
       marker.authenticated_input?.generator_projection?.binding,
-      HISTORIC_GENERATOR_BINDING,
+      inputBinding,
     ) ||
     !sameJson(marker.teacher?.runtime, FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME) ||
     marker.completion?.input_parents !== 24_000 ||
@@ -823,6 +783,10 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
 
     const preflightInput = await dependencies.loadFastTrainingInput(paths.home);
     const preflight = captureFastInputBinding(preflightInput);
+    const input = projectFloodgateStrengthFirstFastTrainingInputForTeacher(
+      preflightInput,
+      revision,
+    );
     dependencies.reportProgress({ phase: "fast-input-preflight-complete" });
     const existing = await dependencies.readPrivateJson(
       paths.result,
@@ -836,6 +800,7 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
         revision,
         assets,
         preflight,
+        input.binding,
         existing,
       );
       dependencies.reportProgress({ phase: "existing-result-verified" });
@@ -849,7 +814,6 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
       });
     }
 
-    const input = projectFastInputForGenerator(preflightInput);
     const first = await dependencies.advanceTeacher(
       input,
       teacherOptions(paths, revision, 100),
@@ -887,7 +851,7 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
       input,
       teacherOptions(paths, revision, 24_000),
     );
-    assertFinal(final, revision, assets, fingerprint);
+    assertFinal(final, revision, assets, input.binding, fingerprint);
     dependencies.reportProgress({
       phase: "teacher-stage-complete",
       target_parents: 24_000,
@@ -910,6 +874,7 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
       revision,
       assets,
       fastPostflight,
+      input,
       final,
       prefix100,
       prefix500,

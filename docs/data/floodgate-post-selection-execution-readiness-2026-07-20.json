@@ -1,0 +1,145 @@
+{
+  "schema": "shogi-floodgate-post-selection-execution-readiness-evidence-v1",
+  "captured_on": "2026-07-20",
+  "status": "local-functional-slice-complete-formal-parity-pending",
+  "implemented": {
+    "candidate_selection_authorization": {
+      "production_entry": "fixed-tracked-code-pinned-registry-only",
+      "single_use": true,
+      "caller_supplied_registry_forbidden": true,
+      "recomputes_run_gates": true,
+      "recomputes_ranking_and_representative": true,
+      "binds_training_plan_preflight_teacher_and_dataset": true
+    },
+    "checkpoint_weight_export": {
+      "candidate_epoch": 20,
+      "stable_epoch": 27,
+      "weights_bytes": 1185988,
+      "byte_exact_required": true,
+      "exporter": {
+        "path": "ml/export-weights.py",
+        "bytes": 8794,
+        "sha256": "954844bf646932dae21a689c521ca68cf94f106b25f6340f4311bf4b28e797b0"
+      }
+    },
+    "datasets": {
+      "final_roles": [
+        "fresh_final_holdout",
+        "legacy_final_holdout"
+      ],
+      "retention_roles": [
+        "general_retention",
+        "opening_retention"
+      ],
+      "legacy_retention_required_fields": [
+        "sfen",
+        "cp",
+        "ply",
+        "bestmove",
+        "depth"
+      ],
+      "legacy_retention_optional_fields": [
+        "mate"
+      ],
+      "malformed_rows_skipped": 0,
+      "retention_pair_count": 400000,
+      "retention_pair_seed": 43,
+      "decisive_cp": 1500,
+      "decisive_pair_min_cp": 100
+    },
+    "known_regression": {
+      "bad_move": "P*8f",
+      "stable_good_move": "3a4b",
+      "search_optimized_legal_moves": 46,
+      "rules_complete_legal_moves": 48,
+      "rules_complete_restored_moves": [
+        "2b7g",
+        "8e8g"
+      ],
+      "child_sfen_derived_from_parent_and_move": true,
+      "exact_sorted_legal_set_required": true,
+      "local_wasm_result_status": "complete-local-wasm-module-probes",
+      "wasm": {
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c",
+        "embedded_byte_equality_required": true
+      }
+    },
+    "worker_diagnostics": {
+      "opt_in_only": true,
+      "ordinary_game_calls": 0,
+      "normal_best_move_message_shape_changed": false,
+      "reports_fetched_weight_identity": true,
+      "reports_loaded_and_enabled_separately": true,
+      "reports_embedded_wasm_identity": true,
+      "reports_last_search_and_evaluation_paths": true
+    }
+  },
+  "focused_validation": [
+    {
+      "target": "downstream-gates-stdlib",
+      "passed": 48,
+      "failed": 0
+    },
+    {
+      "target": "checkpoint-export-adapter-stdlib",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "target": "metric-and-legacy-retention-torch",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "target": "exact-fixture-local-wasm-probe",
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "target": "worker-client-nnue-ponder-diagnostics",
+      "passed": 24,
+      "failed": 0
+    }
+  ],
+  "static_validation": {
+    "python_compile": "pass",
+    "ruff": "pass",
+    "git_diff_check": "pass",
+    "typescript_no_emit": "pass",
+    "eslint": "changed-src-files-pass-ml-and-tests-ignored-by-repository-config"
+  },
+  "safety": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "firebase": false,
+    "live_weight_write": false
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "final_holdout_labels_read": 0,
+    "candidate_real_metrics_measured": false,
+    "real_browser_worker_parity": false,
+    "formal_ab_enrollment_ready": false,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  },
+  "next_required_sequence": [
+    "formal_teacher_completion",
+    "warm_three_seed_retraining",
+    "preregistered_candidate_selection",
+    "ready_registry_enrollment_and_code_pin",
+    "real_export_final_retention_and_local_wasm_execution",
+    "trusted_evidence_publisher",
+    "real_playwright_worker_browser_parity",
+    "formal_paired_ab",
+    "external_strength_calibration",
+    "separate_production_weight_promotion"
+  ]
+}

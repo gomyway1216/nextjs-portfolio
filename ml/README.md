@@ -854,6 +854,28 @@ P0 / P1 / P2 = 0 / 0 / 0だった。詳細は
 [English bridge article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-three-seed-training-bridge-2026-07-19.json)を参照。
 
+#### Floodgate v8 teacher → QAT provenance bridge（2026-07-19）
+
+上のv7記録は当時の履歴である。現在の学習候補builderは
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`だけを入力にし、最初に固定Node
+v22.13.0でargumentless
+`ml/verify-floodgate-strength-first-v8-downstream-provenance.ts`を実行する。検証器は認証済み
+24,000 raw親、outer result、manifest、staged result、100 / 500 milestone、全work entry、
+parent completion、train groupを一つの意味連鎖として確認する。workはstream処理し、成功時に
+出すのは親数・採用数・理由別skip数・train行数だけで、private identifier / digestは出さない。
+
+QAT plan / result / final-checkpoint schemaはv2である。planはprivacy-safe summaryとouter
+`result.json`のidentityだけを公開し、実学習入口はouter resultが束縛したprivate manifest /
+work / staged result / milestone / completion / trainを再hashする。plan候補は引き続き
+`python3 ml/build_strength_first_qat_training_plan_candidate.py`でstdoutへだけ出し、review済み
+planがない限り学習を開始しない。selection / holdout / production weight write権限も追加しない。
+
+正式v8 runは100 / 500 milestoneを完了し、500時点で499 emitted + 1
+`search-timeout-no-label`だったが、24,000完了、再学習、棋力向上、live変更はまだ0である。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-v8-downstream-provenance.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-v8-downstream-provenance.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-v8-downstream-provenance-2026-07-19.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

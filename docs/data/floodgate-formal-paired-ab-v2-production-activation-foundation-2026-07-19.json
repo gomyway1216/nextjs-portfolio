@@ -2,8 +2,8 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-foundation-evidence-v1",
   "recorded_date": "2026-07-19",
   "implementation_anchor": {
-    "revision": "6cdf145af77fa90db4feac100752d3ff3db328f1",
-    "tree": "0c27a4cc9b90223130eae098dac01659c2f9ce4c",
+    "revision": "297c9a9e3698b3736f4726b4ba9453e955b3645a",
+    "tree": "1eb9c004c56bf13b946929fb3f9e3220dc850fe5",
     "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
     "branch": "codex/formal-ab-v2-activation-foundation",
     "pushed": false,
@@ -22,8 +22,8 @@
   "implementation_artifacts": {
     "module": {
       "path": "ml/formal_paired_ab_v2_production_activation.py",
-      "bytes": 33261,
-      "sha256": "3ffbab29b75dcdc5021fe404885ab6da96def66878ea5ce8da6060ea0158a27b"
+      "bytes": 33811,
+      "sha256": "34aa2b80e5f652d38ffa36cefc0ff6691e54dbfba7b4dd3f1bd3190b310136df"
     },
     "registry": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
@@ -32,8 +32,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
-      "bytes": 19525,
-      "sha256": "db137852d3b71cd06eceefaee1269614171b1d55fcd6ec97bdbb4d8199fbece2"
+      "bytes": 22001,
+      "sha256": "395485e1fb1ac8b2fd1422d47b9cbd10cce1be90e0a9a886e8aefe35f3a7cbe4"
     }
   },
   "protocol_binding": {
@@ -63,7 +63,9 @@
     "candidate_gote_games": 384,
     "maximum_pair_workers": 6,
     "opening_id_domain_matches_existing_local_launcher": true,
-    "game_id_domain_matches_existing_local_launcher": true
+    "game_id_domain_matches_existing_local_launcher": true,
+    "opening_manifest_schema_matches_existing_local_launcher": true,
+    "unique_positive_signed_64_bit_seed_per_pair": true
   },
   "closed_registry": {
     "status": "closed-awaiting-reviewed-enrollments",
@@ -89,6 +91,7 @@
     "candidate_and_stable_must_differ": true,
     "candidate_and_stable_paths_must_differ": true,
     "canonical_openings_and_identity": true,
+    "activation_registry_identity": true,
     "candidate_colors": true,
     "time_control_content_identity": true,
     "pair_workers_integer_1_through_6": true,
@@ -98,6 +101,7 @@
     "rollback_receipt_identity": true,
     "receipt_paths_and_digests_must_be_distinct": true,
     "plain_json_only": true,
+    "canonical_relative_paths_only": true,
     "exact_768_game_accounting": true,
     "deterministic_binding_sha256": true,
     "opens_artifact_files": false,
@@ -137,6 +141,12 @@
     "related_tests_failed": 0,
     "publication_evidence_tests_passed": 5,
     "publication_evidence_tests_failed": 0,
+    "full_ml_stdlib_tests_passed": 204,
+    "full_ml_stdlib_tests_failed": 0,
+    "full_ml_stdlib_wall_seconds": 13.67,
+    "ruff": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS",
     "argumentless_command_status": "expected-STOP",
     "argumentless_command_exit_code": 2,
     "argumentless_games_started": 0,
@@ -146,11 +156,27 @@
     "network_used_by_tests": false
   },
   "review": {
-    "self_review": "pending-after-publication-evidence",
-    "independent_review": "pending",
-    "unresolved_p0": 0,
-    "unresolved_p1": 0,
-    "unresolved_p2": 0
+    "initial_independent_review": {
+      "p0": 0,
+      "p1": 2,
+      "p2": 1,
+      "safe_to_review": false,
+      "findings": [
+        "per-pair-execution-seed-not-bound",
+        "composition-hash-omitted-activation-registry-identity",
+        "noncanonical-relative-path-alias-could-bypass-distinct-path-check"
+      ]
+    },
+    "remediation_revision": "297c9a9e3698b3736f4726b4ba9453e955b3645a",
+    "remediations": [
+      "existing-launcher-compatible-unique-positive-signed-64-bit-pair-seeds",
+      "activation-registry-identity-added-to-composition-binding",
+      "pure-posix-exact-spelling-required-for-every-relative-path"
+    ],
+    "final_independent_rereview": "pending",
+    "unresolved_p0": null,
+    "unresolved_p1": null,
+    "unresolved_p2": null
   },
   "execution_counters": {
     "real_formal_attempts_started": 0,

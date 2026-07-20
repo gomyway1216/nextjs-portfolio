@@ -64,7 +64,7 @@ The test-only composition interface is not an execution API. It validates a synt
 | ------------------ | -------------------------------------------------------------------------------------- |
 | experiment / run   | distinct, nonzero semantic SHA-256 IDs                                                 |
 | candidate / stable | distinct exact weight-artifact identities                                              |
-| openings           | canonical SFEN / USI and 384 ordered unique openings                                   |
+| openings           | existing-launcher schema, canonical SFEN / USI, and 384 unique openings / seeds        |
 | colors             | candidate sente, then candidate gote, in every pair                                    |
 | time control       | exact content identity, nonnegative clocks, positive thinking time, fixed adjudication |
 | pair workers       | integer 1 through 6                                                                    |
@@ -73,7 +73,9 @@ The test-only composition interface is not an execution API. It validates a synt
 | retention receipt  | exact retention artifact identity                                                      |
 | rollback receipt   | exact rollback-readiness artifact identity                                             |
 
-Opening and game IDs are rederived with the same domain-separated rules as the existing local launcher. The interface validates two games in each of 384 pairs and refuses a composition unless the total is exactly 768: 384 candidate-sente games and 384 candidate-gote games.
+The opening manifest uses the existing local launcher's schema and field structure. Opening and game IDs are rederived with its same domain-separated rules, and every pair requires a unique positive signed-64-bit seed. The interface validates two games in each of 384 pairs and refuses a composition unless the total is exactly 768: 384 candidate-sente games and 384 candidate-gote games.
+
+The binding's protocol section includes the exact activation-registry identity as well as the source plan, amendment, and v2 registry. Replacing the closed registry with a future ready registry therefore cannot reuse the same binding hash or replay an old composition receipt.
 
 Returned authority is always:
 
@@ -90,25 +92,29 @@ Unit tests reject:
 - registry byte drift and an intermediate-directory symlink;
 - any argument to the production entry;
 - 383 pairs, a wrong color, and duplicate or wrong game IDs;
+- duplicate, boolean, or nonpositive opening seeds;
 - opening or time-control content that disagrees with its identity digest;
 - identical candidate and stable digests or paths;
 - boolean, zero, seven, and floating-point pair-worker values;
 - wrong adapter or receipt schemas and aliased receipt digests or paths;
-- unsafe relative paths, extra fields, and nested or top-level `dict` subclasses; and
+- unsafe relative paths, extra fields, and nested or top-level `dict` subclasses;
+- path aliases using `a//b`, `a/./b`, or a trailing slash; and
 - authority expansion such as `production_authority: true`.
 
 The same synthetic input with a different key order produces the same composition receipt. The returned value does not alias the input, and composition performs no filesystem open.
 
 ## Validation
 
-At implementation anchor `6cdf145af77fa90db4feac100752d3ff3db328f1`:
+The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 findings were the missing per-pair seed and the omitted activation-registry identity in the composition hash. The P2 finding was a noncanonical path alias that could bypass a distinct-path check. Implementation anchor `297c9a9e3698b3736f4726b4ba9453e955b3645a` fixes all three and adds a compatibility test that passes the same synthetic opening manifest through the existing launcher validator.
 
 | Check                                                            |                       Result |
 | ---------------------------------------------------------------- | ---------------------------: |
 | Python compile                                                   |                         PASS |
 | activation focused                                               |                 11 / 11 PASS |
 | related tests including the existing protocol and local launcher |                 48 / 48 PASS |
+| complete ML stdlib                                               |               204 / 204 PASS |
 | publication evidence                                             |                   5 / 5 PASS |
+| Ruff / Prettier / diff check                                     |                         PASS |
 | argumentless production entry                                    | expected STOP, 0 / 768 games |
 
 Machine-readable values are in the [production activation foundation evidence](./data/floodgate-formal-paired-ab-v2-production-activation-foundation-2026-07-19.json).

@@ -64,7 +64,7 @@ test-only compositionは実行APIではない。synthetic mappingを検査し、
 | ------------------ | ---------------------------------------------------------------------- |
 | experiment / run   | 別々のnonzero semantic SHA-256 ID                                      |
 | candidate / stable | 別々のexact weight artifact identity                                   |
-| openings           | canonical SFEN / USI、384 ordered unique openings                      |
+| openings           | 既存launcher schema、canonical SFEN / USI、384 unique opening / seed   |
 | colors             | 各pairでcandidate先手、その後candidate後手                             |
 | time control       | exact content identity、非負clock、正のthinking time、固定adjudication |
 | pair workers       | integer 1〜6                                                           |
@@ -73,7 +73,9 @@ test-only compositionは実行APIではない。synthetic mappingを検査し、
 | retention receipt  | exact retention artifact identity                                      |
 | rollback receipt   | exact rollback-readiness artifact identity                             |
 
-opening IDとgame IDは既存local launcherと同じdomain-separated ruleで内容から再導出する。384 pairの各2局を検査し、合計がexact 768、candidate先手384局、candidate後手384局でなければcomposition receiptを返さない。
+opening manifestは既存local launcherと同じschemaとfield構造を使う。opening IDとgame IDは同じdomain-separated ruleで内容から再導出し、各pairにunique positive signed-64-bit seedを要求する。384 pairの各2局を検査し、合計がexact 768、candidate先手384局、candidate後手384局でなければcomposition receiptを返さない。
+
+bindingのprotocol部分にはsource plan / amendment / v2 registryだけでなく、今回のexact activation-registry identityも含める。したがって将来closed registryをready registryへ置き換える場合、古いcomposition receiptと同じbinding hashを再利用できない。
 
 返すauthorityは常に次のとおりである。
 
@@ -90,25 +92,29 @@ unit testは次を拒否した。
 - registryのbyte driftと中間directory symlink
 - argument付きproduction entry
 - 383 pair、wrong color、duplicate / wrong game ID
+- duplicate / bool / nonpositive opening seed
 - opening / time-control contentとidentity digestの不一致
 - candidateとstableの同一digestまたは同一path
 - bool、0、7、floatのpair worker
 - wrong adapter / receipt schema、receipt digest / path alias
 - unsafe relative path、extra field、nestedを含む`dict` subclass
+- `a//b`、`a/./b`、trailing slashによるpath alias
 - `production_authority: true`などのauthority拡張
 
 同じsynthetic inputとkey順だけを変えたinputは同じcomposition receiptを作る。返却値はinputとaliasせず、composition中にfilesystem openを行わない。
 
 ## 検証
 
-実装anchor `6cdf145af77fa90db4feac100752d3ff3db328f1`で次を確認した。
+独立reviewは最初に`P0=0`、`P1=2`、`P2=1`を報告した。P1はpair seedの欠落とcomposition hashからactivation-registry identityが落ちていたこと、P2はnoncanonical path aliasでdistinct-path checkを回避できたことだった。実装anchor `297c9a9e3698b3736f4726b4ba9453e955b3645a`で3点を修正し、既存launcher validatorへ同じsynthetic opening manifestを通す互換testも追加した。
 
 | 検証                                        |                     結果 |
 | ------------------------------------------- | -----------------------: |
 | Python compile                              |                     PASS |
 | activation focused                          |             11 / 11 PASS |
 | 既存protocol / local launcherを含む関連test |             48 / 48 PASS |
+| ML stdlib全体                               |           204 / 204 PASS |
 | publication evidence                        |               5 / 5 PASS |
+| Ruff / Prettier / diff check                |                     PASS |
 | argumentless production entry               | expected STOP、0 / 768局 |
 
 機械可読値は[production activation foundation evidence](./data/floodgate-formal-paired-ab-v2-production-activation-foundation-2026-07-19.json)に記録した。

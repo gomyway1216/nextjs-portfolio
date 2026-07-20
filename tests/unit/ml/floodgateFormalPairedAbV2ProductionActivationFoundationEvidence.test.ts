@@ -68,6 +68,8 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       maximum_pair_workers: 6,
       opening_id_domain_matches_existing_local_launcher: true,
       game_id_domain_matches_existing_local_launcher: true,
+      opening_manifest_schema_matches_existing_local_launcher: true,
+      unique_positive_signed_64_bit_seed_per_pair: true,
     });
     expect(evidence.test_only_composition_binding).toMatchObject({
       candidate_weights_identity: true,
@@ -75,6 +77,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       candidate_and_stable_must_differ: true,
       candidate_and_stable_paths_must_differ: true,
       canonical_openings_and_identity: true,
+      activation_registry_identity: true,
       candidate_colors: true,
       time_control_content_identity: true,
       pair_workers_integer_1_through_6: true,
@@ -84,6 +87,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       rollback_receipt_identity: true,
       receipt_paths_and_digests_must_be_distinct: true,
       plain_json_only: true,
+      canonical_relative_paths_only: true,
       exact_768_game_accounting: true,
       deterministic_binding_sha256: true,
       opens_artifact_files: false,
@@ -143,6 +147,12 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       related_tests_failed: 0,
       publication_evidence_tests_passed: 5,
       publication_evidence_tests_failed: 0,
+      full_ml_stdlib_tests_passed: 204,
+      full_ml_stdlib_tests_failed: 0,
+      full_ml_stdlib_wall_seconds: 13.67,
+      ruff: "PASS",
+      prettier: "PASS",
+      diff_check: "PASS",
       argumentless_command_status: "expected-STOP",
       argumentless_command_exit_code: 2,
       argumentless_games_started: 0,
@@ -166,7 +176,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       expect(article).toContain("rollback");
       expect(article).toContain("time control");
       expect(article).toContain("STOP");
-      expect(article).toContain("6cdf145a");
+      expect(article).toContain("297c9a9e");
       expect(article).toMatch(/no-?follow/iu);
     }
     expect(japanese).toContain("0 / 768局");

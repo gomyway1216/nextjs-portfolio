@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -138,8 +139,25 @@ class FreshFinalTeacherSelectionPreflightTests(unittest.TestCase):
         value = json.loads(b"".join(output))
         self.assertEqual(value["status"], "STOP")
         self.assertEqual(value["reason"], "arguments-forbidden")
+        self.assertEqual(value["selection_evaluator_registry_reads"], 0)
         self.assertEqual(value["selection_receipt_reads"], 0)
         self.assertEqual(value["fresh_final_source_reads"], 0)
+
+        output.clear()
+        try:
+            sys.stdout = _Stdout()
+            with mock.patch.object(
+                SUBJECT,
+                "run_strength_first_fresh_final_teacher_preflight",
+                side_effect=SUBJECT.FreshFinalTeacherPreflightBlocked("closed"),
+            ):
+                self.assertEqual(SUBJECT.main([]), 2)
+        finally:
+            sys.stdout = original
+        value = json.loads(b"".join(output))
+        self.assertEqual(value["reason"], "selected-candidate-receipt-not-ready")
+        self.assertEqual(value["selection_evaluator_registry_reads"], 1)
+        self.assertEqual(value["selection_receipt_reads"], 0)
 
 
 if __name__ == "__main__":

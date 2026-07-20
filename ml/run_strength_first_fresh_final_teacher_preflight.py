@@ -322,12 +322,12 @@ def run_strength_first_fresh_final_teacher_preflight() -> dict[str, Any]:
     )
 
 
-def _stop(reason: str) -> dict[str, Any]:
+def _stop(reason: str, *, selection_evaluator_registry_reads: int) -> dict[str, Any]:
     return {
         "schema": CLI_SCHEMA,
         "status": "STOP",
         "reason": reason,
-        "selection_evaluator_registry_reads": 1,
+        "selection_evaluator_registry_reads": selection_evaluator_registry_reads,
         "selection_receipt_reads": 0,
         "selection_dataset_reads": 0,
         "fresh_final_source_reads": 0,
@@ -342,12 +342,18 @@ def _stop(reason: str) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments:
-        summary = _stop("arguments-forbidden")
+        summary = _stop(
+            "arguments-forbidden",
+            selection_evaluator_registry_reads=0,
+        )
     else:
         try:
             summary = run_strength_first_fresh_final_teacher_preflight()
         except FreshFinalTeacherPreflightBlocked:
-            summary = _stop("selected-candidate-receipt-not-ready")
+            summary = _stop(
+                "selected-candidate-receipt-not-ready",
+                selection_evaluator_registry_reads=1,
+            )
         except (OSError, ValueError) as error:
             print(f"[fresh-final-teacher-preflight] STOP: {error}", file=sys.stderr)
             return 1

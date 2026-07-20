@@ -402,6 +402,34 @@ describe("fresh-final teacher runner", () => {
     expect(() => child.emit("close", 0)).not.toThrow();
     await assertion;
     expect(spawnProcess).toHaveBeenCalledOnce();
+
+    const lyingChild = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    lyingChild.stdout = new EventEmitter();
+    lyingChild.stderr = new EventEmitter();
+    const lyingSpawn = vi.fn(() => lyingChild) as unknown as typeof spawn;
+    const lyingPromise = subprocessJsonCoreForTests(
+      "/python3",
+      [],
+      { cwd: "/", env: {} },
+      lyingSpawn,
+    );
+    const lyingAssertion = expect(lyingPromise).rejects.toThrow(
+      "STOP receipt is invalid",
+    );
+    lyingChild.stdout.emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({
+          ...blockedReceipt(),
+          selection_evaluator_registry_reads: 0,
+        }),
+      ),
+    );
+    lyingChild.emit("close", 2);
+    await lyingAssertion;
   });
 
   it("rejects every tampered existing-result binding instead of treating it as idempotent", async () => {

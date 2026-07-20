@@ -1167,6 +1167,7 @@ function subprocessJson(
             value.schema !== FRESH_FINAL_TEACHER_PREFLIGHT_CLI_SCHEMA ||
             value.status !== "STOP" ||
             value.reason !== "selected-candidate-receipt-not-ready" ||
+            value.selection_evaluator_registry_reads !== 1 ||
             value.selection_receipt_reads !== 0 ||
             value.selection_dataset_reads !== 0 ||
             value.fresh_final_source_reads !== 0 ||

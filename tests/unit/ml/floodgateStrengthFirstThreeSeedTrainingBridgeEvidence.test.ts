@@ -59,7 +59,7 @@ describe("Floodgate strength-first three-seed training bridge evidence", () => {
   it("binds the exact flat teacher source through result, manifest, and rescanning", () => {
     expect(evidence()).toMatchObject({
       fixed_teacher_source: {
-        root: "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6",
+        root: "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7",
         flat_root: true,
         files: {
           work: "work.jsonl",

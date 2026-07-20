@@ -121,6 +121,22 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
           passed: 76,
           failed: 0,
         },
+        selection_semantic_bridge_vitest: {
+          files: 5,
+          tests: 68,
+          passed: 68,
+          failed: 0,
+        },
+        selection_semantic_bridge_python_focused: {
+          tests: 33,
+          passed: 33,
+          failed: 0,
+        },
+        python_stdlib: {
+          tests: 400,
+          passed: 400,
+          failed: 0,
+        },
         semantic_timeout_cases: {
           timeout_quarantine_and_engine_restart: "PASS",
           partial_labels_from_timed_out_parent: 0,
@@ -128,8 +144,14 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
           proposal_incomplete_remains_fatal: "PASS",
           proposal_fallback_timeout_remains_fatal: "PASS",
           forbidden_resume_skip_rejected_before_engine_start: "PASS",
+          coherently_rehashed_nested_semantic_drift_fails_before_evaluation:
+            "PASS",
+          real_generator_fixture_validates_source_result_manifest_dataset_and_work:
+            "PASS",
         },
         typescript_compile: "PASS",
+        eslint: "PASS",
+        prettier: "PASS",
         git_diff_check: "PASS",
       },
       observed_claims: {

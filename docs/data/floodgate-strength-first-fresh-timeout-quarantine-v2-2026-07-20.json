@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-fresh-timeout-quarantine-evidence-v2",
-  "status": "v1-timeout-confirmed-v2-strict-artifacts-and-lane-13-validated-real-v2-run-pending",
+  "status": "v1-timeout-confirmed-v2-strict-artifacts-semantic-bridge-and-lane-13-validated-real-v2-run-pending",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md",
@@ -87,6 +87,8 @@
     "strict_runner_binding_commit": "4d67bef1",
     "strict_tamper_test_commit": "a2cbb495",
     "measured_lane_13_commit": "1f38bac0",
+    "read_only_semantic_validator_commit": "55ec3c60",
+    "python_semantic_fail_fast_bridge_commit": "66a4ad35",
     "selection_teacher_schema": "shogi-floodgate-strength-first-selection-teacher-result-v2",
     "fresh_final_teacher_schema": "shogi-floodgate-strength-first-fresh-final-teacher-result-v2",
     "selection_generation_fingerprint_recorded": true,
@@ -106,6 +108,22 @@
       "passed": 76,
       "failed": 0
     },
+    "selection_semantic_bridge_vitest": {
+      "files": 5,
+      "tests": 68,
+      "passed": 68,
+      "failed": 0
+    },
+    "selection_semantic_bridge_python_focused": {
+      "tests": 33,
+      "passed": 33,
+      "failed": 0
+    },
+    "python_stdlib": {
+      "tests": 400,
+      "passed": 400,
+      "failed": 0
+    },
     "semantic_timeout_cases": {
       "timeout_quarantine_and_engine_restart": "PASS",
       "partial_labels_from_timed_out_parent": 0,
@@ -116,11 +134,17 @@
       "new_and_idempotent_runs_share_the_same_strict_validator": "PASS",
       "result_present_with_missing_auxiliary_artifact_fails_closed": "PASS",
       "nested_search_or_record_drift_fails_closed": "PASS",
-      "source_order_and_game_count_recomputed": "PASS"
+      "source_order_and_game_count_recomputed": "PASS",
+      "coherently_rehashed_nested_semantic_drift_fails_before_evaluation": "PASS",
+      "real_generator_fixture_validates_source_result_manifest_dataset_and_work": "PASS",
+      "tracked_policy_and_code_clean_head_rechecked_at_terminal": "PASS",
+      "python_refingerprints_private_artifacts_before_publication": "PASS"
     },
     "typescript_compile": "PASS",
+    "eslint": "PASS",
+    "prettier": "PASS",
     "git_diff_check": "PASS",
-    "independent_review": "PASS-no-shared-validator-or-runner-blocker",
+    "independent_review": "PASS-no-semantic-validator-runner-or-python-bridge-blocker",
     "github_ci": "PENDING"
   },
   "execution": {
@@ -152,5 +176,5 @@
     "strength_improved": false,
     "high_dan_calibrated": false
   },
-  "next_step": "independent-review-ci-regular-merge-then-clean-argumentless-v2-fresh-selection-run"
+  "next_step": "ready-pr-ci-review-regular-merge-then-clean-argumentless-v2-fresh-selection-run"
 }

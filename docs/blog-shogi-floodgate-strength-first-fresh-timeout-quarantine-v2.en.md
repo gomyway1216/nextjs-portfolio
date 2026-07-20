@@ -95,6 +95,24 @@ work file is missing, the runner fails closed instead of treating it as a
 resume. Independent review found no blocker in this validator/runner boundary.
 Node 22 TypeScript compilation and the diff check also pass.
 
+A read-only semantic bridge now also runs immediately before candidate
+evaluation. It accepts no arguments and reads only the fixed source, result,
+manifest, dataset, and work under the operating-system account home, with
+explicit byte limits. It cross-checks the result against the real manifest,
+the dataset and work identities, completion, run fingerprint, and generation
+fingerprint before re-deriving every parent search, score, and child record.
+A fixture that coherently rewrites every artifact byte count and SHA-256 still
+fails on its nested semantic change before evaluation or registry-candidate
+emission. Tracked policy and implementation must have the same clean HEAD
+before and after validation; the downstream Python boundary re-fingerprints
+private artifacts again before publication.
+
+The semantic bridge and real-generator fixture pass 68 TypeScript tests across
+five files. The Python evaluator and builder pass 33 focused tests, and the
+full Python suite passes 400 tests. TypeScript compilation, ESLint, Prettier,
+and the diff check pass. Independent audit gave this semantic-only boundary a
+GO verdict.
+
 This is evidence for the v2 policy and runner, not for a completed v2 dataset,
 candidate selection, holdout, formal A/B, high-dan calibration, or live
 promotion. Live weight changes remain zero.

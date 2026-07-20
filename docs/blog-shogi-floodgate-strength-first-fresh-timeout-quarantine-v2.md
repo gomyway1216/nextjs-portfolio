@@ -81,6 +81,18 @@ manifest、authority、dataset、workのどれかが欠けていれば再開扱�
 独立レビューでこのvalidator / runner境界にblockerなしを確認し、Node v22のTypeScript
 compileとdiff checkもPASSした。
 
+さらに、候補評価の直前へ読み取り専用semantic bridgeを追加した。これは引数を受け取らず、
+OSの現在ユーザーhomeにある固定source / result / manifest / dataset / workだけを上限付きで読む。
+resultからmanifest実体、そのdataset / work identity、completion、run fingerprint、
+generation fingerprintを相互照合した後、各parentのsearch / score / child recordを再導出する。
+全artifactのbytesとSHA-256を整合するよう書き換えたfixtureでも、入れ子の意味改変は候補評価・
+registry候補出力より前に拒否された。tracked policyと実装は読取前後で同じclean HEADであることを
+確認し、private artifactは後段Pythonが公開前に再fingerprintする。
+
+このbridgeの実generator fixtureを含むTypeScriptは5 files / 68 tests、Pythonの評価・builder
+focused suiteは33 tests、Python全体は400 testsがPASSした。TypeScript compile、ESLint、
+Prettier、diff checkもPASSし、独立監査はこのsemantic-only境界をGOと判定した。
+
 これはv2 policyとrunnerの検証であり、v2の4,800親生成、候補選抜、holdout、正式A/B、
 高段校正、live変更の完了証拠ではない。live weight変更は0のままである。
 

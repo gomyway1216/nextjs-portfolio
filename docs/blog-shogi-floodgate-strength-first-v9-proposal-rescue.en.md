@@ -69,7 +69,7 @@ The new runner binds a separate v9 output root, clean Git revision, fast-input p
 The remaining path is direct:
 
 1. pass review and CI on a ready PR, then merge normally;
-2. launch the 24,000-parent teacher from the clean merge SHA;
+2. launch the 24,000-parent teacher from the clean merge SHA with `npx tsx ml/run-floodgate-strength-first-v9-teacher.ts`;
 3. retrain seeds 42, 43, and 44;
 4. run candidate selection and sealed holdout evaluation;
 5. measure formal paired A/B and external calibration; and

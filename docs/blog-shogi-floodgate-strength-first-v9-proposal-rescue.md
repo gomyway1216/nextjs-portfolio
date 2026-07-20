@@ -69,7 +69,7 @@ v8の5 timeout局面、停止した1局面、それらと合法手数が近い�
 次の順番は以下である。
 
 1. ready PRのreviewとCIを通し、通常mergeする
-2. cleanなmerge SHAから24,000教師生成を開始する
+2. cleanなmerge SHAから`npx tsx ml/run-floodgate-strength-first-v9-teacher.ts`で24,000教師生成を開始する
 3. seed 42 / 43 / 44で再学習する
 4. 候補選抜とsealed holdoutを通す
 5. 正式paired A/Bと外部校正で棋力を測る

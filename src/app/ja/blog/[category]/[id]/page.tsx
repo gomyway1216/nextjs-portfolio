@@ -33,7 +33,10 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
     return { robots: { index: false } };
   }
 
-  const translation = post.translations.ja!;
+  const translation = post.translations.ja;
+  if (!translation) {
+    return { robots: { index: false } };
+  }
   const title = translation.title;
   const description = excerpt(translation.body);
   const enPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;

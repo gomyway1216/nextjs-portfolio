@@ -107,7 +107,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
 
     const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
-    const alternates = { languages: { en: enUrl, ja: jaUrl } };
+    const alternates = { languages: { en: enUrl, ja: jaUrl, 'x-default': enUrl } };
     return [
       { url: enUrl, ...base, alternates },
       { url: jaUrl, ...base, alternates },

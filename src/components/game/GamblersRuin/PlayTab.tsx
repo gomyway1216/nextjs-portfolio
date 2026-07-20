@@ -154,10 +154,21 @@ export const PlayTab = ({ t }: { t: TFn }) => {
         </div>
 
         {result && (
-          <div className={`${styles.banner} ${result.outcome === 'ruined' ? styles.bannerRuin : styles.bannerReach}`} role="status">
+          <div
+            className={`${styles.banner} ${
+              result.outcome === 'ruined'
+                ? styles.bannerRuin
+                : result.outcome === 'reached'
+                  ? styles.bannerReach
+                  : styles.bannerCap
+            }`}
+            role="status"
+          >
             {result.outcome === 'ruined'
               ? `💥 ${t('ruinedMsg', { steps })}`
-              : `🏆 ${t('reachedMsg', { steps, target: config.target })}`}
+              : result.outcome === 'reached'
+                ? `🏆 ${t('reachedMsg', { steps, target: config.target })}`
+                : `⏱️ ${t('cappedMsg', { steps })}`}
           </div>
         )}
       </div>

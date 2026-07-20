@@ -254,6 +254,45 @@ describe('plausibility & AI reading', () => {
   });
 });
 
+describe('suspicion calibration (regression: truth-telling must not farm high tiers)', () => {
+  const truthful = (w: string) => ({
+    claimedFirst: w[0].toUpperCase(),
+    claimedLength: w.length,
+  });
+
+  it('keeps master doubt probability well below a coin flip for EVERY truthful signature', () => {
+    // Doubting the truth costs the challenger a life, so a master that doubts
+    // typical truths lets "always tell the truth" trivially win the match.
+    for (const w of WORD_POOL) {
+      expect(aiDoubtProbability(truthful(w), AI_PROFILES.master)).toBeLessThan(0.4);
+    }
+  });
+
+  it('master doubts truthful claims less than easy, and impossible claims more', () => {
+    for (const w of WORD_POOL) {
+      const m = aiDoubtProbability(truthful(w), AI_PROFILES.master);
+      const e = aiDoubtProbability(truthful(w), AI_PROFILES.easy);
+      expect(m).toBeLessThan(e);
+    }
+    const impossible = { claimedFirst: 'Q', claimedLength: 9 };
+    expect(aiDoubtProbability(impossible, AI_PROFILES.master))
+      .toBeGreaterThan(aiDoubtProbability(impossible, AI_PROFILES.easy));
+  });
+
+  it('master mostly believes even the rarest truthful signature', () => {
+    // (G,6) matches only 'galaxy' — the least-plausible kind of honest claim.
+    let believes = 0;
+    const trials = 200;
+    for (let i = 0; i < trials; i += 1) {
+      const rng = seq([((i * 29) % 100) / 100, ((i * 71) % 100) / 100, i / trials]);
+      if (aiReactToClaim({ claimedFirst: 'G', claimedLength: 6 }, 'master', rng) === 'believe') {
+        believes += 1;
+      }
+    }
+    expect(believes / trials).toBeGreaterThan(0.6);
+  });
+});
+
 describe('aiMakeClaim', () => {
   it('produces a valid claim about the given word', () => {
     for (const word of WORD_POOL.slice(0, 12)) {

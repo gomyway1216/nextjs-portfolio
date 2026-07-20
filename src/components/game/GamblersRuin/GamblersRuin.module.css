@@ -294,6 +294,11 @@
   border-color: var(--gr-reach);
   color: var(--gr-reach);
 }
+.bannerCap {
+  background: hsl(210 16% 50% / 0.14);
+  border-color: var(--gr-info);
+  color: var(--gr-info);
+}
 
 .caption {
   margin-top: 0.45rem;

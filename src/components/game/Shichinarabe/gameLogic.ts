@@ -310,9 +310,11 @@ export function applyAction(
     )).length;
 
     if (doneCount >= state.playerOrder.length) {
+      // Eliminated players rank below finishers, and among them surviving
+      // LONGER ranks better — hence the reverse of elimination order.
       const resultOrder = [
         ...nextStateBase.finishedOrder,
-        ...nextStateBase.eliminatedOrder,
+        ...[...nextStateBase.eliminatedOrder].reverse(),
         ...state.playerOrder.filter(pid => !nextStateBase.finishedOrder.includes(pid) && !nextStateBase.eliminatedOrder.includes(pid)),
       ];
       const ranks: Record<string, number> = {};
@@ -408,9 +410,11 @@ export function applyAction(
   )).length;
 
   if (doneCount >= state.playerOrder.length) {
+    // Eliminated players rank below finishers, and among them surviving LONGER
+    // ranks better — hence the reverse of elimination order.
     const resultOrder = [
       ...nextStateBase.finishedOrder,
-      ...nextStateBase.eliminatedOrder,
+      ...[...nextStateBase.eliminatedOrder].reverse(),
       ...state.playerOrder.filter(pid => !nextStateBase.finishedOrder.includes(pid) && !nextStateBase.eliminatedOrder.includes(pid)),
     ];
     const ranks: Record<string, number> = {};

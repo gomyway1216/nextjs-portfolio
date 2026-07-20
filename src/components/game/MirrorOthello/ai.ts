@@ -61,15 +61,23 @@ export interface AIConfig {
   randomness: number;
   /** Standard deviation of noise added to leaf scores (breaks ties, adds variety). */
   jitter: number;
+  /** Wall-clock cap on the search so the UI thread never freezes. */
+  timeBudgetMs: number;
 }
 
 export const AI_CONFIGS: Record<Difficulty, AIConfig> = {
-  easy: { depth: 1, randomness: 0.35, jitter: 40 },
-  medium: { depth: 3, randomness: 0.08, jitter: 18 },
-  hard: { depth: 5, randomness: 0, jitter: 6 },
-  expert: { depth: 7, randomness: 0, jitter: 0 },
-  master: { depth: 9, randomness: 0, jitter: 0 },
+  easy: { depth: 1, randomness: 0.35, jitter: 40, timeBudgetMs: 200 },
+  medium: { depth: 3, randomness: 0.08, jitter: 18, timeBudgetMs: 400 },
+  hard: { depth: 5, randomness: 0, jitter: 6, timeBudgetMs: 600 },
+  expert: { depth: 7, randomness: 0, jitter: 0, timeBudgetMs: 800 },
+  master: { depth: 9, randomness: 0, jitter: 0, timeBudgetMs: 950 },
 };
+
+// Deadline shared by the whole search tree. The search runs synchronously on
+// the main thread, so once the deadline passes we abort deepening and keep the
+// best move from the last fully-completed iteration.
+let searchDeadline = Infinity;
+let searchTimedOut = false;
 
 /** Count of a color's discs adjacent to at least one empty square (frontier). */
 const frontierCount = (board: Cell[][], color: Cell): number => {
@@ -172,6 +180,13 @@ const negamax = (
   alphaIn: number,
   beta: number,
 ): number => {
+  if (searchTimedOut || Date.now() > searchDeadline) {
+    searchTimedOut = true;
+    // The timed-out iteration is discarded by the caller, so skip the
+    // (expensive) leaf evaluation — any value works here.
+    return 0;
+  }
+
   const moves = getValidMoves(board, color);
 
   if (depth <= 0) {
@@ -275,44 +290,71 @@ export const chooseAIMove = (
   // Deepen the endgame: when few empties remain, exact search is cheap and
   // strong. Fill to the end once it's within reach of the tier's depth.
   const { empty } = countDiscs(board);
-  const depth = empty <= config.depth + 2 ? Math.max(config.depth, empty) : config.depth;
+  const targetDepth =
+    empty <= config.depth + 2 ? Math.max(config.depth, empty) : config.depth;
 
-  let best = moves[0];
-  let bestScore = -Infinity;
-  let alpha = -Infinity;
-  const beta = Infinity;
+  searchDeadline = Date.now() + config.timeBudgetMs;
+  searchTimedOut = false;
 
-  for (const move of orderMoves(moves)) {
-    const step = advance(board, move, AI, turnCount);
-    if (!step) continue;
+  // Iterative deepening up to targetDepth, keeping the best move of the last
+  // FULLY completed iteration. A timed-out iteration's scores are unreliable,
+  // so it is discarded. Completed iterations also re-order the root moves
+  // best-first, which sharpens pruning on the next, deeper pass.
+  const depths: number[] = [];
+  for (let d = 1; d < targetDepth; d += 2) depths.push(d);
+  depths.push(targetDepth);
 
-    let score: number;
-    if (step.gameOver) {
-      const { player, ai } = countDiscs(step.board);
-      const diff = ai - player;
-      score = diff > 0 ? WIN_SCORE + diff : diff < 0 ? -WIN_SCORE + diff : 0;
-    } else if (step.nextColor === AI) {
-      score = negamax(step.board, AI, step.turnCount, depth - 1, alpha, beta);
-    } else {
-      score = -negamax(
-        step.board,
-        step.nextColor,
-        step.turnCount,
-        depth - 1,
-        -beta,
-        -alpha,
-      );
+  let ordered = orderMoves(moves);
+  let best = ordered[0];
+
+  for (const depth of depths) {
+    const iteration: Array<{ move: Point; score: number }> = [];
+    let iterBest: Point | null = null;
+    let iterBestScore = -Infinity;
+    let alpha = -Infinity;
+    const beta = Infinity;
+
+    for (const move of ordered) {
+      const step = advance(board, move, AI, turnCount);
+      if (!step) continue;
+
+      let score: number;
+      if (step.gameOver) {
+        const { player, ai } = countDiscs(step.board);
+        const diff = ai - player;
+        score = diff > 0 ? WIN_SCORE + diff : diff < 0 ? -WIN_SCORE + diff : 0;
+      } else if (step.nextColor === AI) {
+        score = negamax(step.board, AI, step.turnCount, depth - 1, alpha, beta);
+      } else {
+        score = -negamax(
+          step.board,
+          step.nextColor,
+          step.turnCount,
+          depth - 1,
+          -beta,
+          -alpha,
+        );
+      }
+
+      if (searchTimedOut) break;
+
+      if (config.jitter > 0) {
+        score += (rng() - 0.5) * 2 * config.jitter;
+      }
+
+      iteration.push({ move, score });
+      if (score > iterBestScore) {
+        iterBestScore = score;
+        iterBest = move;
+      }
+      if (iterBestScore > alpha) alpha = iterBestScore;
     }
 
-    if (config.jitter > 0) {
-      score += (rng() - 0.5) * 2 * config.jitter;
-    }
+    if (searchTimedOut) break;
 
-    if (score > bestScore) {
-      bestScore = score;
-      best = move;
-    }
-    if (bestScore > alpha) alpha = bestScore;
+    if (iterBest) best = iterBest;
+    iteration.sort((a, b) => b.score - a.score);
+    ordered = iteration.map((s) => s.move);
   }
 
   return best;

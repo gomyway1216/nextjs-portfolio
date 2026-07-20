@@ -239,9 +239,14 @@ export function decidePlay(
 
   // Expert/hard: if the hand is tiny (<=4) time a bluff to go out by claiming them
   // all. Only attempt this high-risk bluff when the pile is small enough that being
-  // doubted (opponents guard going-out aggressively) would not be catastrophic.
+  // doubted (opponents guard going-out aggressively) would not be catastrophic, AND
+  // the claim is mostly truthful (at most one lie in it) or an occasional gamble —
+  // never deterministically, or a human who tracks hand counts can always doubt it.
   if (config.timesGoingOut && hand.length >= 1 && hand.length <= 4 && state.pile.length <= 8) {
-    return { type: 'play', cardIds: hand.map(c => c.id) };
+    const mostlyTruthful = matching.length >= hand.length - 1;
+    if (mostlyTruthful || rng() < 0.2) {
+      return { type: 'play', cardIds: hand.map(c => c.id) };
+    }
   }
 
   if (matching.length > 0) {

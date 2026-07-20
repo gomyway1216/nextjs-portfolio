@@ -309,17 +309,24 @@ const orderedMoves = (
 interface SearchConfig {
   depth: number;
   breadth: number; // max candidate moves considered per node
+  timeBudgetMs: number; // wall-clock cap so the UI thread never freezes
 }
 
 const DIFFICULTY_CONFIG: Record<Difficulty, SearchConfig> = {
-  easy: { depth: 2, breadth: 8 },
-  medium: { depth: 4, breadth: 10 },
-  hard: { depth: 6, breadth: 12 },
-  expert: { depth: 8, breadth: 12 },
-  master: { depth: 10, breadth: 14 },
+  easy: { depth: 2, breadth: 8, timeBudgetMs: 200 },
+  medium: { depth: 4, breadth: 10, timeBudgetMs: 400 },
+  hard: { depth: 6, breadth: 12, timeBudgetMs: 600 },
+  expert: { depth: 8, breadth: 12, timeBudgetMs: 800 },
+  master: { depth: 10, breadth: 14, timeBudgetMs: 950 },
 };
 
 const WIN_SCORE = SCORE.FIVE;
+
+// Deadline shared by the whole search tree. The search runs on the main
+// thread, so once the deadline passes we abort deepening and fall back to the
+// best move found by the last fully-completed iteration.
+let searchDeadline = Infinity;
+let searchTimedOut = false;
 
 /**
  * Negamax-style alpha-beta but expressed as explicit max/min for clarity.
@@ -340,6 +347,12 @@ const alphabeta = (
   lastCol?: number,
   lastPlayer?: Player
 ): number => {
+  if (searchTimedOut || Date.now() > searchDeadline) {
+    searchTimedOut = true;
+    // The timed-out iteration is discarded by the caller, so skip the
+    // (expensive) leaf evaluation — any value works here.
+    return 0;
+  }
   if (
     lastPlayer &&
     lastRow !== undefined &&
@@ -436,32 +449,57 @@ export const getBestMove = (
     return humanWins[0];
   }
 
-  const { depth, breadth } = DIFFICULTY_CONFIG[difficulty];
-  const candidates = orderedMoves(board, AI, breadth);
+  const { depth: maxDepth, breadth, timeBudgetMs } = DIFFICULTY_CONFIG[difficulty];
+  let candidates = orderedMoves(board, AI, breadth);
 
-  const scored: Array<{ move: Position; value: number }> = [];
-  let alpha = -Infinity;
-  const beta = Infinity;
+  searchDeadline = Date.now() + timeBudgetMs;
+  searchTimedOut = false;
 
-  for (const move of candidates) {
-    board[move.row][move.col] = AI;
-    const value = alphabeta(
-      board,
-      depth - 1,
-      alpha,
-      beta,
-      false,
-      breadth,
-      move.row,
-      move.col,
-      AI
-    );
-    board[move.row][move.col] = null;
-    scored.push({ move, value });
-    if (value > alpha) alpha = value;
+  // Iterative deepening: search depth 2, 4, ... up to the tier's max depth,
+  // keeping the result of the deepest FULLY completed iteration. When the time
+  // budget runs out mid-iteration we discard that partial pass (its values are
+  // unreliable) and return the previous iteration's best move. Each completed
+  // pass also re-orders the root candidates best-first, which sharpens pruning
+  // for the next, deeper pass.
+  let scored: Array<{ move: Position; value: number }> = [];
+  for (let depth = 2; depth <= maxDepth; depth += 2) {
+    const iteration: Array<{ move: Position; value: number }> = [];
+    let alpha = -Infinity;
+    const beta = Infinity;
+
+    for (const move of candidates) {
+      board[move.row][move.col] = AI;
+      const value = alphabeta(
+        board,
+        depth - 1,
+        alpha,
+        beta,
+        false,
+        breadth,
+        move.row,
+        move.col,
+        AI
+      );
+      board[move.row][move.col] = null;
+      if (searchTimedOut) break;
+      iteration.push({ move, value });
+      if (value > alpha) alpha = value;
+    }
+
+    if (searchTimedOut) break;
+
+    iteration.sort((a, b) => b.value - a.value);
+    scored = iteration;
+    candidates = iteration.map((s) => s.move);
+
+    // A forced win found at this depth cannot be improved — stop early.
+    if (scored[0] && scored[0].value >= WIN_SCORE) break;
   }
 
-  scored.sort((a, b) => b.value - a.value);
+  // If even the shallowest pass timed out, fall back to heuristic ordering.
+  if (scored.length === 0) {
+    scored = candidates.map((move) => ({ move, value: 0 }));
+  }
 
   // Easy tier: 35% of the time, take the second-best move so a beginner has a
   // fighting chance — but only when it's not much worse than the best (within

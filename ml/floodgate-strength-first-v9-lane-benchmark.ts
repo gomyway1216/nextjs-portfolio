@@ -1,5 +1,5 @@
 /**
- * Short, local-only 12-vs-14 lane throughput benchmark for the v9 teacher.
+ * Short, local-only 12-vs-13 lane throughput benchmark for the v9 teacher.
  *
  * Each trial regenerates the same 42-parent prefix in a disposable nonformal
  * stage. No teacher labels or parent identifiers are published in the receipt.
@@ -27,16 +27,16 @@ import {
 } from "./floodgate-strength-first-teacher-runner";
 
 export const FLOODGATE_STRENGTH_FIRST_V9_LANE_BENCHMARK_SCHEMA =
-  "shogi-floodgate-strength-first-v9-lane-benchmark-v1" as const;
+  "shogi-floodgate-strength-first-v9-lane13-benchmark-v1" as const;
 export const FLOODGATE_STRENGTH_FIRST_V9_LANE_BENCHMARK_OUTPUT_DIRECTORY =
-  "floodgate-q1-2026-strength-first-v9-lane-benchmark" as const;
+  "floodgate-q1-2026-strength-first-v9-lane13-benchmark" as const;
 const TARGET_PARENTS = 42;
-const LANE_ORDER = Object.freeze([12, 14, 14, 12] as const);
-const MINIMUM_14_LANE_SPEEDUP_PPM = 1_050_000;
+const LANE_ORDER = Object.freeze([12, 13, 13, 12] as const);
+const MINIMUM_13_LANE_SPEEDUP_PPM = 1_010_000;
 
 interface Trial {
   readonly ordinal: number;
-  readonly parallel_engines: 12 | 14;
+  readonly parallel_engines: 12 | 13;
   readonly elapsed_ms: number;
   readonly parents_per_second_ppm: number;
   readonly completed_parents: 42;
@@ -60,7 +60,7 @@ async function runTrial(
   revision: string,
   assetRoot: string,
   outputRoot: string,
-  lanes: 12 | 14,
+  lanes: 12 | 13,
   ordinal: number,
 ): Promise<Readonly<Trial>> {
   const stageRoot = path.join(outputRoot, `disposable-${ordinal}-${lanes}`);
@@ -172,13 +172,16 @@ export async function runFloodgateStrengthFirstV9LaneBenchmark(): Promise<
   const elapsed12 = trials
     .filter((trial) => trial.parallel_engines === 12)
     .map((trial) => trial.elapsed_ms);
-  const elapsed14 = trials
-    .filter((trial) => trial.parallel_engines === 14)
+  const elapsed13 = trials
+    .filter((trial) => trial.parallel_engines === 13)
     .map((trial) => trial.elapsed_ms);
   const median12 = median(elapsed12);
-  const median14 = median(elapsed14);
-  const speedupPpm = Math.round((median12 * 1_000_000) / median14);
-  const selected = speedupPpm >= MINIMUM_14_LANE_SPEEDUP_PPM ? 14 : 12;
+  const median13 = median(elapsed13);
+  if (median12 <= 0 || median13 <= 0) {
+    throw new Error("lane benchmark requires positive median elapsed times");
+  }
+  const speedupPpm = Math.round((median12 * 1_000_000) / median13);
+  const selected = speedupPpm >= MINIMUM_13_LANE_SPEEDUP_PPM ? 13 : 12;
   const receipt = Object.freeze({
     schema: FLOODGATE_STRENGTH_FIRST_V9_LANE_BENCHMARK_SCHEMA,
     status: "complete-aggregate-only",
@@ -213,10 +216,10 @@ export async function runFloodgateStrengthFirstV9LaneBenchmark(): Promise<
     comparison: Object.freeze({
       lane_12_elapsed_ms: Object.freeze(elapsed12),
       lane_12_median_elapsed_ms: median12,
-      lane_14_elapsed_ms: Object.freeze(elapsed14),
-      lane_14_median_elapsed_ms: median14,
-      lane_14_speedup_vs_lane_12_median_ppm: speedupPpm,
-      minimum_speedup_to_select_lane_14_ppm: MINIMUM_14_LANE_SPEEDUP_PPM,
+      lane_13_elapsed_ms: Object.freeze(elapsed13),
+      lane_13_median_elapsed_ms: median13,
+      lane_13_speedup_vs_lane_12_median_ppm: speedupPpm,
+      minimum_speedup_to_select_lane_13_ppm: MINIMUM_13_LANE_SPEEDUP_PPM,
       selected_parallel_engines: selected,
     }),
     private_payload_fields_emitted: 0,

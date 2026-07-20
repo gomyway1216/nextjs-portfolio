@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   advanceStrengthFirstSiblingTeacherDataset,
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
+  advanceStrengthFirstV9SiblingTeacherDataset,
   INDEPENDENT_EXACT_RESCORE_MODE,
   PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
   REMOVED_SIBLING_TEACHER_CLI_MESSAGE,
@@ -19,6 +20,7 @@ import {
   STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
   STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
   STRENGTH_FIRST_PRODUCTION_ENGINES,
+  STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
   STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
   STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
@@ -402,6 +404,7 @@ describe('deterministic sibling teacher generator', () => {
     const productionEngineIsFixed: ProductionEngineOption extends never ? true : false = true;
     expect(productionEngineIsFixed).toBe(true);
     expect(STRENGTH_FIRST_PRODUCTION_ENGINES).toBe(12);
+    expect(STRENGTH_FIRST_V9_PRODUCTION_ENGINES).toBe(13);
 
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-strength-first-'));
     const raw = path.join(root, 'training.raw.jsonl');
@@ -793,6 +796,22 @@ describe('deterministic sibling teacher generator', () => {
         input,
         {
           stageRoot: path.join(root, 'production-stage'),
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [FAKE_ENGINE],
+          engineReceipt: baseOptions.engineReceipt,
+          multipv: 2,
+          depth: 8,
+          targetParents: 100,
+        },
+        dependencies
+      )
+    ).rejects.toThrow(/exactly 24000 parents/);
+    await expect(
+      advanceStrengthFirstV9SiblingTeacherDataset(
+        input,
+        {
+          stageRoot: path.join(root, 'v9-production-stage'),
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
           engineArgs: [FAKE_ENGINE],

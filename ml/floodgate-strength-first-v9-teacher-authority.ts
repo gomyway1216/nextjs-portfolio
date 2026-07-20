@@ -10,6 +10,7 @@ import { types as nodeUtilTypes } from "node:util";
 
 import {
   PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+  STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
 } from "./generate-sibling-teacher";
 import {
@@ -31,7 +32,7 @@ export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY =
   "nested-v8-asset-provenance-and-v9-search-policy-not-engine-execution-teacher-completion-training-holdout-or-playing-strength-evidence" as const;
 
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME = Object.freeze({
-  parallel_engines: 12 as const,
+  parallel_engines: STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   threads_per_engine: 1 as const,
   hash_mb_per_engine: 512 as const,
   timeout_ms_per_search: 600_000 as const,

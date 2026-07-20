@@ -705,7 +705,7 @@ describe("Floodgate strength-first teacher runner", () => {
     const v8 = assetReceiptFixture();
     const v9 = bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests(v8, 501);
     expect(FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME).toMatchObject({
-      parallel_engines: 12,
+      parallel_engines: 13,
       hash_mb_per_engine: 512,
       proposal: { multipv: 12, depth: 14 },
       independent_rescore: { multipv: 1, depth: 16 },

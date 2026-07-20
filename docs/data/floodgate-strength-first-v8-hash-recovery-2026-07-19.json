@@ -1,0 +1,206 @@
+{
+  "schema": "shogi-floodgate-strength-first-v8-hash-recovery-evidence-v1",
+  "status": "implementation-candidate-under-review-formal-v8-not-started",
+  "date": "2026-07-19",
+  "base_revision": "20f867e1b10d094560e12082dc954f99ad38e80a",
+  "formal_v7_failure": {
+    "runner_revision": "31381c7abb03a8ae2f4ff6226dc831b31a770a7f",
+    "authentication_completed": true,
+    "authentication_elapsed_seconds_approx": 1230,
+    "milestone_100_completed": true,
+    "milestone_500_completed": false,
+    "final_result_published": false,
+    "saved_work": {
+      "records_including_header": 500,
+      "bytes": 6818743,
+      "header_records": 1,
+      "non_timeout_parent_entries": 498,
+      "timeout_skip_entries": 1
+    },
+    "target_500": {
+      "allowed_timeout_skips": 1,
+      "observed_timeout_searches": 2,
+      "second_timeout_entry_persisted": false,
+      "second_partial_label_persisted": false,
+      "failure": "search-timeout-skip-limit-exhausted"
+    },
+    "process_cleanup": {
+      "runner_processes_remaining": 0,
+      "engine_processes_remaining": 0,
+      "retained_lock_file_is_not_an_active-lock": true
+    },
+    "training_started": false,
+    "selection_started": false,
+    "formal_ab_started": false,
+    "live_weight_changes": 0
+  },
+  "measured_hash_diagnostics": {
+    "engine_and_eval": "same-exact-pinned-production-assets",
+    "proposal_depth": 16,
+    "independent_rescore_depth": 16,
+    "threads_per_process": 1,
+    "normal_nine_position_aggregate": {
+      "hash_256_elapsed_seconds": 212.208,
+      "hash_512_elapsed_seconds": 206.092,
+      "hash_512_reduction_percent": 2.882078
+    },
+    "first_formal_timeout_independent_rescore": {
+      "hash_64": {
+        "elapsed_seconds": 870.566,
+        "nodes": 707909200,
+        "formal_600_second_limit_would_timeout": true
+      },
+      "hash_256": {
+        "elapsed_seconds": 132.162,
+        "nodes": 130950979,
+        "within_formal_600_second_limit": true
+      },
+      "hash_512": {
+        "elapsed_seconds": 157.325,
+        "nodes": 162457860,
+        "within_formal_600_second_limit": true
+      }
+    },
+    "first_formal_timeout_fresh_full_label_hash_512": {
+      "total_elapsed_seconds": 51.379,
+      "candidate_count": 12,
+      "proposal_nodes": 37909321,
+      "aggregate_independent_rescore_nodes": 9745451,
+      "timeout_ms_per_search": 600000,
+      "completed": true,
+      "fresh_candidate_set_not_v7_migration": true
+    },
+    "second_formal_timeout_full_parent": {
+      "hash_64": {
+        "total_elapsed_seconds": 1007.432,
+        "independent_rescore_timed_out_at_seconds": 900,
+        "completed": false
+      },
+      "hash_256": {
+        "total_elapsed_seconds": 88.063,
+        "completed": true
+      },
+      "hash_512": {
+        "total_elapsed_seconds": 70.316,
+        "completed": true
+      }
+    },
+    "production_like_hash_512_load_test": {
+      "parallel_processes": 12,
+      "representative_normal_parents": 12,
+      "completed": 12,
+      "failures": 0,
+      "wall_elapsed_seconds": 47.557,
+      "parent_elapsed_seconds": {
+        "minimum": 11.894,
+        "maximum": 47.52
+      },
+      "peak_engine_rss_gib_approx": 8,
+      "system_memory_free_percent_at_peak": 45,
+      "pages_throttled": 0,
+      "post_test_engine_processes": 0,
+      "post_test_private_temporary_directories": 0,
+      "post_test_memory_free_percent": 49
+    },
+    "temporary_directory_cleanup_complete": true,
+    "diagnostic_engine_processes_remaining": 0
+  },
+  "decision": {
+    "selected_hash_mb_per_engine": 512,
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "configured_hash_total_mib": 6144,
+    "physical_memory_gib": 48,
+    "proposal_depth": 16,
+    "proposal_multipv": 12,
+    "independent_rescore_depth": 16,
+    "independent_rescore_multipv": 1,
+    "timeout_ms_per_search": 600000,
+    "timeout_skip_cap_changed": false,
+    "why_512": [
+      "both-exact-v7-timeout-cases-completed-fresh-full-labels-inside-600-seconds",
+      "faster-normal-nine-position-aggregate-than-256",
+      "fastest-complete-result-on-the-second-v7-timeout-parent",
+      "fits-12-process-local-memory-with-observed-headroom"
+    ],
+    "future_timeout_elimination_proven": false,
+    "playing_strength_gain_proven": false
+  },
+  "isolation": {
+    "new_output_root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+    "old_v7_output_modified": false,
+    "old_v7_work_or_labels_reused": false,
+    "full_24000_input_reauthentication_required": true,
+    "run_fingerprint_changes_with_hash_and-runner-revision": true,
+    "v8_runner_schema": "shogi-floodgate-strength-first-teacher-runner-v2",
+    "v8_postflight_result_schema": "shogi-floodgate-strength-first-teacher-postflight-result-v2",
+    "existing_downstream_bridge_root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7",
+    "existing_downstream_bridge_result_schema": "shogi-floodgate-strength-first-teacher-postflight-result-v1",
+    "existing_downstream_bridge_accepts_v8": false,
+    "separate_v8-downstream-provenance-pr-required": true
+  },
+  "execution_authority": {
+    "legacy_v1_asset_authority_modified": false,
+    "legacy_v1_asset_runtime_hash_mb_per_engine": 64,
+    "v8_authority_contract": "shogi-floodgate-strength-first-v8-teacher-authority-v1",
+    "v8_runtime_hash_mb_per_engine": 512,
+    "nested_legacy_asset_provenance_required": true,
+    "raw_v1_receipt_accepted_by-v8-runner": false,
+    "top_v8_policy_and-nested-v1-contract-runtime-validated": true,
+    "top_asset_aliases_must-match-nested-receipt": true,
+    "final_teacher_assets_match_nested-receipt": true,
+    "nested_assets_match_static-production-registry": true,
+    "nested_engine_metadata-and-postverification-pinned": true,
+    "proxy-accessor-symbol-hidden-and-custom-prototype-rejected": true,
+    "runner_uses_canonical-deep-frozen-captured-receipt": true
+  },
+  "resource_observation": {
+    "physical_cpu_count": 14,
+    "logical_cpu_count": 14,
+    "peak_diagnostic_processes": 15,
+    "peak_aggregate_cpu_percent": 1258,
+    "memory_free_percent": 47,
+    "pages_throttled": 0,
+    "free_disk_gib_approx": 92
+  },
+  "privacy": {
+    "public_record_scope": "aggregate-counts-bytes-timings-and-protocol-configuration-only",
+    "private_exact_receipt_scope": "parent-identities-private-work-and-prefix-digests-candidate-moves-and-exact-diagnostic-context",
+    "private_exact_receipt_required_mode": "0600",
+    "private_exact_receipt_tracked_in_git": false,
+    "private_parent_ids_published": false,
+    "private_positions_published": false,
+    "private_candidate_moves_published": false,
+    "private_work_or_prefix_digests_published": false
+  },
+  "validation_at_publication": {
+    "focused_v8_test_files": 3,
+    "focused_v8_tests_passed": 43,
+    "focused_v8_tests_failed": 0,
+    "scoped_eslint_passed": true,
+    "prettier_check_passed": true,
+    "formal_v8_teacher_invocations": 0
+  },
+  "independent_diagnostic_audit": {
+    "status": "PASS",
+    "scope": "v7-failure-artifacts-and-v8-search-configuration-only",
+    "implementation_security_review_complete": false,
+    "recommended_configuration_matches_candidate": true,
+    "confirmed_v7_saved_rows": {
+      "records_including_header": 500,
+      "header": 1,
+      "completed_parents": 498,
+      "timeout_skips": 1,
+      "valid_completed_checksums_and_ids": 499,
+      "second_timeout_parent_absent_entirely": true
+    },
+    "confirmed_no_v7_holder_or_engine_process": true
+  },
+  "claims": {
+    "teacher_completion": false,
+    "training_completion": false,
+    "candidate_selection": false,
+    "playing_strength_gain": false,
+    "live_promotion": false
+  }
+}

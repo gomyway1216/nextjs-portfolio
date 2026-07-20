@@ -40,6 +40,8 @@ resource監査中に実行した約2.5秒の固定venv probeでこの差を確�
 ## 修正とfallback
 
 Darwinだけが固定`/usr/sbin/sysctl -n machdep.cpu.brand_string`を呼ぶ。
+出力はlocaleに依存しないstrict UTF-8として読み、decodeできなければ推測値を
+採用せず既存fallbackへ戻る。
 非DarwinではDarwin固有commandを呼ばず、従来どおりprocessor、machine、最後に
 `unknown`の順でfallbackする。Darwinでもbinary不在、command失敗、空出力なら同じ
 fallbackを維持する。
@@ -48,12 +50,13 @@ fallbackを維持する。
 
 1. `PATH=/usr/bin:/bin`でもabsolute argvを使い、CPUモデルを取得する
 2. builder相当PATHとlauncher相当PATHが同じ`Apple M4 Pro`を返す
-3. 非Darwinでは`sysctl`を呼ばず、Darwinの不在・失敗時もfallbackする
+3. 非Darwinでは`sysctl`を呼ばず、Darwinの不在・失敗・decode失敗時もfallbackする
 
-focused 3 test、Python compile、Ruff、diff checkはPASSした。さらに固定venvで二つの
-実環境を連続probeし、Python 3.13.0、PyTorch 2.12.1、CPU 14 cores、Torch 2 threads、
-interop 1、deterministic mode、`Apple M4 Pro`を含むJSONのbyte equalityを確認した。
-これはruntime preflightであり、optimizer trainingや棋力評価ではない。
+focused 4 test、training全関連42 test、builder全関連16 test、Python compile、Ruff、
+diff checkはPASSした。さらに固定venvで二つの実環境を連続probeし、Python 3.13.0、
+PyTorch 2.12.1、CPU 14 cores、Torch 2 threads、interop 1、deterministic mode、
+`Apple M4 Pro`を含むJSONのbyte equalityを確認した。これはruntime preflightであり、
+optimizer trainingや棋力評価ではない。
 
 ## 既存planへの影響
 

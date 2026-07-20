@@ -868,6 +868,8 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="strict",
         )
         self.assertEqual(
             receipt,
@@ -923,6 +925,8 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                     check=True,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="strict",
                 ),
                 mock.call(
                     [
@@ -933,6 +937,8 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                     check=True,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="strict",
                 ),
             ],
         )
@@ -983,6 +989,28 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                     "arm64",
                 ),
                 "arm64",
+            )
+
+    def test_runtime_cpu_model_falls_back_after_unicode_decode_error(self):
+        invalid_utf8 = UnicodeDecodeError(
+            "utf-8",
+            b"\xff",
+            0,
+            1,
+            "invalid start byte",
+        )
+        with mock.patch.object(
+            train_module.subprocess,
+            "run",
+            side_effect=invalid_utf8,
+        ):
+            self.assertEqual(
+                train_module._runtime_cpu_model(
+                    "Darwin",
+                    "arm",
+                    "arm64",
+                ),
+                "arm",
             )
 
     def test_training_outputs_cannot_alias_any_input_or_each_other(self):

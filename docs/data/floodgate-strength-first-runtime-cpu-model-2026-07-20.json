@@ -26,9 +26,12 @@
     "darwin_executable": "/usr/sbin/sysctl",
     "darwin_argv": ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"],
     "path_independent": true,
+    "output_encoding": "utf-8",
+    "decode_errors": "strict",
+    "locale_independent_decoding": true,
     "non_darwin_sysctl_invoked": false,
     "fallback_order": ["processor", "machine", "unknown"],
-    "fallback_preserved_for_absent_failed_or_empty_darwin_lookup": true,
+    "fallback_preserved_for_absent_failed_decode_failed_or_empty_darwin_lookup": true,
     "training_arithmetic_changed": false,
     "data_or_gate_changed": false
   },
@@ -66,10 +69,19 @@
   "focused_validation": {
     "mock_runtime_tests": {
       "status": "PASS",
-      "tests": 3,
+      "tests": 4,
       "covers_absolute_darwin_argv": true,
       "covers_builder_and_launcher_path_equality": true,
+      "covers_locale_independent_safe_decoding": true,
       "covers_non_darwin_and_darwin_failure_fallback": true
+    },
+    "full_related_training_tests": {
+      "status": "PASS",
+      "tests": 42
+    },
+    "full_related_builder_tests": {
+      "status": "PASS",
+      "tests": 16
     },
     "python_compile": "PASS",
     "ruff": "PASS",

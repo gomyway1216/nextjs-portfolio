@@ -1794,9 +1794,11 @@ def _runtime_cpu_model(system: str, processor: str, machine: str) -> str:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="strict",
             )
             cpu_model = completed.stdout.strip()
-        except (OSError, subprocess.CalledProcessError):
+        except (OSError, subprocess.CalledProcessError, UnicodeError):
             pass
     if not cpu_model:
         cpu_model = processor or machine or "unknown"

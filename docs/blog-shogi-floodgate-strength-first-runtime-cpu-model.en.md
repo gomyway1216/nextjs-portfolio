@@ -46,22 +46,27 @@ failed training slot, partial checkpoint, or selection-data read.
 ## Fix and fallback behavior
 
 Only Darwin invokes the fixed
-`/usr/sbin/sysctl -n machdep.cpu.brand_string` command. Non-Darwin systems do
-not attempt the Darwin-specific command and retain the existing fallback
+`/usr/sbin/sysctl -n machdep.cpu.brand_string` command. Its output is read as
+locale-independent strict UTF-8. A decoding failure does not preserve a
+guessed partial value; it returns to the existing fallback. Non-Darwin systems
+do not attempt the Darwin-specific command and retain the existing fallback
 order: processor, machine, then `unknown`. Darwin also retains that fallback
-when the executable is absent, the command fails, or its output is empty.
+when the executable is absent, the command or decoding fails, or its output is
+empty.
 
 Mock regressions pin three properties:
 
 1. the restricted `PATH=/usr/bin:/bin` still uses the absolute executable;
 2. builder-like and launcher-like paths return the same `Apple M4 Pro` value;
-3. non-Darwin skips `sysctl`, while Darwin absence or failure falls back.
+3. non-Darwin skips `sysctl`, while Darwin absence, command failure, or decode
+   failure falls back.
 
-Three focused tests, Python compilation, Ruff, and the diff check passed. Two
-real probes in the fixed environment then produced byte-identical JSON with
-Python 3.13.0, PyTorch 2.12.1, a 14-core CPU, two Torch threads, one inter-op
-thread, deterministic mode, and `Apple M4 Pro`. This is runtime-preflight
-evidence, not optimizer training or playing-strength evidence.
+Four focused tests, all 42 related training tests, all 16 related builder
+tests, Python compilation, Ruff, and the diff check passed. Two real probes in
+the fixed environment then produced byte-identical JSON with Python 3.13.0,
+PyTorch 2.12.1, a 14-core CPU, two Torch threads, one inter-op thread,
+deterministic mode, and `Apple M4 Pro`. This is runtime-preflight evidence, not
+optimizer training or playing-strength evidence.
 
 ## Effect on existing plans
 

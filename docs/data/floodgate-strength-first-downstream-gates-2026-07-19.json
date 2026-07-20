@@ -157,7 +157,19 @@
     "full_suite": "NOT_RUN_SCOPED_LANE",
     "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0",
     "github_review_followup": "BLOCKED_REGISTRY_HOST_INDEPENDENT_ABSOLUTE_PATH_SINGLE_OBSERVATION_VALIDATION_AND_PORTABLE_COLON_PATH_FINDINGS_FIXED",
-    "github_copilot_review_remediation_revision": "4c1313859491f793584bf4935929c06a84b2129a"
+    "github_copilot_review_remediation_revision": "4c1313859491f793584bf4935929c06a84b2129a",
+    "github_copilot_review_threads": [
+      {
+        "thread_id": "PRRT_kwDOQbO82s6SIKkg",
+        "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/528#discussion_r3611783540",
+        "state": "resolved"
+      },
+      {
+        "thread_id": "PRRT_kwDOQbO82s6SIKkk",
+        "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/528#discussion_r3611783542",
+        "state": "resolved"
+      }
+    ]
   },
   "observed_real_counts": {
     "teacher_runs_started_by_this_lane": 0,

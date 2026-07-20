@@ -1,0 +1,126 @@
+{
+  "schema": "shogi-floodgate-strength-first-selection-evaluator-foundation-evidence-v1",
+  "status": "complete-synthetic-ready-path-tested-real-selection-unread",
+  "base_revision": "aefb0d3026f50ccb8e20df1ab992342b347ddcf5",
+  "implementation": {
+    "adapter": {
+      "path": "ml/strength_first_qat_selection_eval_adapter.py",
+      "bytes": 11185,
+      "sha256": "c5a301326d2a4c23e397edd249e55666dcf3f22493983577c479ff037629bea1"
+    },
+    "evaluator": {
+      "path": "ml/strength_first_qat_selection_evaluator.py",
+      "bytes": 62707,
+      "sha256": "0142a4cf427e1f0db89592be0fb28ad4538c90e90daff59c8575e605db1ee6da"
+    },
+    "closed_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
+      "bytes": 5044,
+      "sha256": "aa358086516c344d6ee36cbd9fcbbeeb87a18f77b277a07b9f9383b9829adcc7"
+    },
+    "tests": {
+      "path": "ml/tests_stdlib/test_strength_first_qat_selection_evaluator.py",
+      "bytes": 35106,
+      "sha256": "5088873e328dcb2fd98e85e382316cd6fe752c4d2fd2b2f8065150e791379c51"
+    },
+    "article_ja": {
+      "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.md",
+      "bytes": 5941,
+      "sha256": "6a772e2aeeeadc4d6c0f66412b66b8dc17ac18ecf6356e895ba83792ed9451e7"
+    },
+    "article_en": {
+      "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.en.md",
+      "bytes": 5501,
+      "sha256": "545878a63ded7c43d3da6a05639e0fb024257ca26d477dc0fe9fb8bdcd3291e3"
+    }
+  },
+  "validation": {
+    "focused_unittest": {
+      "command": "PYTHONPATH=ml python3 -m unittest -v ml.tests_stdlib.test_strength_first_qat_selection_evaluator",
+      "tests": 15,
+      "passed": 15,
+      "failed": 0,
+      "errors": 0
+    },
+    "existing_strength_first_preflight_unittest": {
+      "command": "PYTHONPATH=ml python3 -m unittest -v ml.tests_stdlib.test_strength_first_qat_selection_preflight",
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "errors": 0
+    },
+    "existing_downstream_contract_unittest": {
+      "command": "PYTHONPATH=ml python3 -m unittest -v ml.tests_stdlib.test_strength_first_downstream_gates",
+      "tests": 41,
+      "passed": 41,
+      "failed": 0,
+      "errors": 0
+    },
+    "py_compile": {
+      "files": 3,
+      "passed": true
+    },
+    "ruff": {
+      "files": 3,
+      "passed": true
+    },
+    "black_check": {
+      "files": 3,
+      "passed": true
+    },
+    "git_diff_check": {
+      "passed": true
+    }
+  },
+  "ready_path_coverage": {
+    "same_composition_as_production": true,
+    "three_checkpoint_one_shot_preflight_consumed": true,
+    "fixed_4800_parent_selection_source_bound": true,
+    "selection_teacher_authority_manifest_result_and_dataset_bound": true,
+    "stable_plus_three_candidates_evaluated": true,
+    "float_and_exact_int16_evaluated_once_per_model": true,
+    "fixed_metric_order_applied": true,
+    "four_per_seed_gates_recomputed": true,
+    "three_seed_family_gate_recomputed": true,
+    "privacy_safe_receipt_built": true,
+    "exclusive_0600_publication_tested": true,
+    "tracked_and_private_inputs_revalidated_after_evaluation": true
+  },
+  "adversarial_coverage": {
+    "closed_registry_sensitive_reads": 0,
+    "missing_candidate_rejected": true,
+    "extra_candidate_rejected": true,
+    "duplicate_candidate_rejected": true,
+    "reordered_candidate_rejected": true,
+    "plan_or_preflight_hash_drift_rejected": true,
+    "teacher_fingerprint_drift_rejected": true,
+    "incomplete_teacher_rejected": true,
+    "search_timeout_label_reason_allowed": false,
+    "partial_report_rejected": true,
+    "nonfinite_metric_rejected": true,
+    "family_gate_failure_publishes_receipts": 0,
+    "post_evaluation_dataset_drift_rejected": true,
+    "post_evaluation_tracked_plan_drift_rejected": true,
+    "one_shot_preflight_replay_rejected": true,
+    "existing_receipt_overwrite_rejected": true,
+    "all_zero_sha256_rejected": true
+  },
+  "resources": {
+    "registry_max_workers": 2,
+    "implemented_actual_workers": 1,
+    "dataset_loads_per_ready_run": 1,
+    "network_requests": 0
+  },
+  "real_execution": {
+    "selection_teacher_artifacts_read": 0,
+    "selection_labels_read": 0,
+    "candidate_checkpoints_evaluated": 0,
+    "selection_receipts_emitted": 0,
+    "final_holdout_label_reads": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false,
+    "strength_improved": false,
+    "high_dan_calibrated": false
+  }
+}

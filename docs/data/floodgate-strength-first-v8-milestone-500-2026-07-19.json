@@ -123,7 +123,7 @@
     "fixed-seed-42-43-44-retraining",
     "candidate-selection",
     "sealed-holdout-evaluation",
-    "formal-192-pair-384-game-ab",
+    "formal-384-pair-768-game-ab",
     "external-calibration",
     "separately-authorized-live-promotion"
   ],

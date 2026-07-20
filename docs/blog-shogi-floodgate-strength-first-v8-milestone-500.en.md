@@ -105,7 +105,7 @@ this publication also does not claim “all 500 targets are labeled” or “v8 
 timeouts.”
 
 This snapshot does not complete the 24,000-parent teacher dataset, fixed-seed 42 / 43 / 44
-optimizer runs, candidate selection, sealed holdouts, the formal 192-pair / 384-game A/B,
+optimizer runs, candidate selection, sealed holdouts, the formal 384-pair / 768-game A/B,
 external calibration, stable high-dan strength, or live promotion. Live weights remain
 unchanged.
 
@@ -114,7 +114,7 @@ unchanged.
 The runner automatically continues to 24,000 under the same run identity. The next material
 evidence is a complete teacher dataset that accounts for every one of the 24,000 target slots
 as either a labeled parent or a forced skip within the registered limits. Fixed-seed
-42 / 43 / 44 retraining, candidate selection, sealed holdouts, formal 192-pair / 384-game
+42 / 43 / 44 retraining, candidate selection, sealed holdouts, formal 384-pair / 768-game
 A/B, and external calibration then follow in order. Live weights remain unchanged until
 games demonstrate improvement and every safe promotion condition is met.
 

@@ -1,0 +1,129 @@
+{
+  "schema": "shogi-floodgate-strength-first-browser-worker-parity-harness-evidence-v1",
+  "captured_on": "2026-07-20",
+  "status": "implementation-complete-real-browser-execution-pending-remote-ci",
+  "base_revision": {
+    "sha": "0c0d9715e67bf89fe3080c85f8b454c80f1fa62a",
+    "description": "merged post-selection execution readiness"
+  },
+  "implemented": {
+    "diagnostics_route": {
+      "path": "/games/shogi/engine-parity",
+      "unlinked": true,
+      "exact_query_required": "__shogiEngineParity=browser-worker-nnue-v1",
+      "invalid_or_extra_query": "not-found",
+      "cross_origin_opener_policy": "same-origin",
+      "cross_origin_embedder_policy": "require-corp"
+    },
+    "ordinary_game_route": {
+      "path": "/games/shogi",
+      "imports_harness": false,
+      "reads_search_params": false,
+      "diagnostics_ui_mounted": false,
+      "static_delivery_contract_preserved": true
+    },
+    "fixed_fixture": {
+      "id": "bishop-handicap-gote-out-of-book-v1",
+      "side_to_move": "gote",
+      "tesu": 0,
+      "difficulty": "hard",
+      "curated_book_move": false,
+      "shipped_external_book_move": false,
+      "awaits_startup_diagnostics_before_search": true,
+      "raw_position_published": false
+    },
+    "runner": {
+      "request_schema": "shogi-floodgate-strength-first-browser-worker-parity-request-v1",
+      "result_schema": "shogi-floodgate-strength-first-browser-worker-parity-result-v1",
+      "fixed_origin": "http://127.0.0.1:3000",
+      "allowed_loopback_request_protocols": ["http", "ws"],
+      "allowed_loopback_host_and_port": "127.0.0.1:3000",
+      "intercepted_url": "http://127.0.0.1:3000/shogi-nnue-weights.bin",
+      "other_request_intercepts": 0,
+      "candidate_schema": "shogi-int16-nnue-weights-bin-v1",
+      "candidate_bytes": 1185988,
+      "production_wasm": {
+        "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "schema": "shogi-floodgate-strength-first-production-wasm-v1",
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      },
+      "requires": [
+        "candidate-bytes-and-sha256",
+        "runtime-wasm-bytes-and-sha256",
+        "cross-origin-isolated",
+        "shared-array-buffer",
+        "real-worker-response",
+        "legal-result",
+        "search-path-wasm",
+        "evaluation-path-nnue-wasm",
+        "nnue-loaded-and-enabled",
+        "wasm-ready",
+        "exactly-one-candidate-asset-intercept",
+        "zero-external-origins"
+      ],
+      "artifact_preflight_and_postflight": true,
+      "rejects_symlink_or_multi_link_artifacts": true,
+      "requires_prestarted_local_server": true,
+      "served_app_build_identity_verified_by_standalone_runner": false,
+      "writes_live_asset": false,
+      "publishes_raw_move_or_position": false
+    }
+  },
+  "local_validation": {
+    "focused_unit": {
+      "passed": 27,
+      "failed": 0,
+      "protocol_and_book_negative_passed": 3,
+      "runner_and_observation_contract_passed": 22,
+      "machine_evidence_binding_passed": 2
+    },
+    "typescript_no_emit": "pass",
+    "changed_file_eslint": "pass-with-ml-files-ignored-by-repository-config",
+    "git_diff_check": "pass",
+    "production_build": "not-run-to-avoid-contention-with-active-teacher",
+    "playwright": "not-run-to-avoid-contention-with-active-teacher",
+    "private_candidate_read_count": 0,
+    "browser_candidate_measurement_count": 0
+  },
+  "checked_in_shipped_fixture_identity": {
+    "purpose": "unit-authentication-and-future-remote-e2e-fixture-only",
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "is_new_selected_candidate": false
+  },
+  "safety": {
+    "local_source_changes_only": true,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "firebase": false,
+    "production_deployment": false,
+    "live_weight_write": false,
+    "live_weights_changed": false
+  },
+  "nonclaims": {
+    "real_selected_candidate_browser_parity": false,
+    "candidate_enrollment_verified": false,
+    "served_app_build_identity_verified": false,
+    "standalone_result_is_formal_parity_evidence": false,
+    "formal_ab_ready": false,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "stable_high_dan_achieved": false,
+    "live_weights_changed": false
+  },
+  "next_required_sequence": [
+    "complete-active-formal-teacher",
+    "finish-fresh-final-holdout",
+    "retrain-warm-seeds-42-43-44",
+    "select-and-enroll-real-candidate",
+    "run-real-candidate-browser-worker-parity",
+    "run-formal-paired-ab",
+    "run-external-strength-calibration",
+    "promote-live-weights-only-in-a-separate-evidence-backed-change"
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "schema": "shogi-external-81dojo-calibration-policy-v1",
+  "status": "blocked-before-candidate-account-and-manual-relay",
+  "recorded_date": "2026-07-20",
+  "official_sources": {
+    "checked_date": "2026-07-20",
+    "terms_url": "https://81dojo.com/jp/terms.html",
+    "rank_table_url": "https://system.81dojo.com/pages/ranks",
+    "rank_threshold_announcement_url": "https://81dojo.com/announcements/260411.html",
+    "rated_time_control_announcement_url": "https://81dojo.com/announcements/260517.html",
+    "rating_system_url": "https://81dojo.com/documents/Rating_System"
+  },
+  "fixed_match": {
+    "platform": "81Dojo",
+    "account_name_prefix": "COM_",
+    "official_client_only": true,
+    "external_server_or_ui_automation": false,
+    "relay_mode": "manual-official-client-only",
+    "rated": true,
+    "initial_position": "hirate",
+    "time_control": {
+      "main_minutes": 10,
+      "byoyomi_seconds": 30,
+      "split_time_seconds": 0,
+      "rating_coefficient_reference": "1.0"
+    },
+    "pairing": {
+      "mode": "official-auto-match",
+      "selected_opponents": false,
+      "settings_fixed_before_game_1": true
+    },
+    "games": 200
+  },
+  "candidate_runtime_contract": {
+    "runtime": "production-worker-wasm-nnue-master",
+    "difficulty": "master",
+    "max_time_ms_per_move": 5000,
+    "max_depth": 32,
+    "quiescence_depth_max": 12,
+    "opening_book": true,
+    "required_assets": [
+      "weights",
+      "worker",
+      "wasm",
+      "opening_book"
+    ],
+    "reference_hardware_binding": true,
+    "exact_candidate_move_trace_required": true
+  },
+  "ledger_contract": {
+    "format": "canonical-jsonl-utf8-lf-v1",
+    "append_only": true,
+    "sha256_hash_chain": true,
+    "sequence": "exactly-1-through-200-with-no-gaps",
+    "candidate_rating_continuity": true,
+    "account_rated_game_count_continuity": true,
+    "server_game_ids_unique": true,
+    "official_client_manual_export_identity_required": true,
+    "candidate_trace_identity_required": true,
+    "all_candidate_moves_match_server_record": true,
+    "credentials_or_chat_forbidden": true
+  },
+  "primary_decision": {
+    "authority": "primary",
+    "required_games": 200,
+    "stability_window_games_inclusive": [
+      171,
+      200
+    ],
+    "minimum_post_game_rating": 2050,
+    "every_rating_in_window_must_pass": true,
+    "missing_selected_or_faulted_game": "stop",
+    "candidate_trace_mismatch": "stop",
+    "claim": "81dojo-five-dan-threshold-maintained-for-games-171-through-200-under-this-protocol-only"
+  },
+  "auxiliary_statistics": {
+    "authority": "report-only-never-primary",
+    "method": "opponent-identity-cluster-percentile-bootstrap",
+    "score": "win-1-draw-0.5-loss-0",
+    "seed": 20260720,
+    "replicates": 100000,
+    "confidence": "two-sided-95-percent",
+    "cluster": "opponent-public-identity-sha256",
+    "windows": [
+      "games-1-through-200",
+      "games-171-through-200"
+    ],
+    "rank_conversion": false
+  },
+  "unresolved": {
+    "candidate_selected": false,
+    "candidate_runtime_bound": false,
+    "internal_gates_passed": false,
+    "official_com_account_ready": false,
+    "user_external_authorization_recorded": false,
+    "manual_relay_confirmed": false,
+    "official_client_bound": false,
+    "external_games_observed": 0
+  },
+  "authority": {
+    "execution_authorized": false,
+    "external_write_authorized": false,
+    "live_weight_write_authorized": false,
+    "promotion_authorized": false
+  },
+  "nonclaims": {
+    "external_games_executed": false,
+    "candidate_stronger": false,
+    "high_dan_calibrated": false,
+    "universal_human_rank_established": false,
+    "live_weights_changed": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "shogi-local-external-calibration-request-v1",
+  "run_id": "sha256:76dbf55c6c71b4c7fa790c9f94d34014ff4fe517800bfc519c5b390ae4b0abd3",
+  "openings": [
+    {
+      "opening_id": "sha256:79be4ac399ab70940c9c374dec76751c8b0a9062b9b7144b47be105d5c8026ad",
+      "sfen": "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+    },
+    {
+      "opening_id": "sha256:6be5c87c02c6bd791f3be1cfdd60ce4dc91a658e948a3640e08d71d3bcf14490",
+      "sfen": "ln1g1gsnl/1r1s1k1b1/p1pppp1pp/1p4p2/9/2P6/PP1PPPPPP/1BGS3R1/LN1K1GSNL b - 9"
+    },
+    {
+      "opening_id": "sha256:8681745eba9c0ffe2848d887c3cf6513e4d6f4dab53b29d1f2864d76d09138d5",
+      "sfen": "lns2gsnl/1r2gk1b1/p1pppp1pp/1p4p2/9/2PP5/PP2PPPPP/1B1R1K3/LNSG1GSNL b - 9"
+    },
+    {
+      "opening_id": "sha256:4096b16aa7588ccddc78cc35827ea5dc66538e4cce99ee42e280393b1427cc44",
+      "sfen": "lnsgkg1nl/1r5s1/p1pppp1pp/6p2/1p5P1/2P6/PP1PPPP1P/7R1/LNSGKGSNL b Bb 9"
+    },
+    {
+      "opening_id": "sha256:ea57d839d2189f391883f4f43e93a2289a9593765ecd1fdd039aac181660be2d",
+      "sfen": "lnsgkgsnl/1r5b1/p1pppp1pp/6p2/1p5P1/2P6/PP1PPPP1P/1B5R1/LNSGKGSNL b - 7"
+    },
+    {
+      "opening_id": "sha256:54ffe1f00bd32bd3e0eeb48feef2fa24847b45f94acfff9af1985cf124a0a355",
+      "sfen": "lnsg1gsnl/1r3k1b1/p1pppp1pp/1p4p2/9/2P1P4/PP1P1PPPP/1B2R4/LNSGKGSNL b - 7"
+    }
+  ],
+  "time_control": {
+    "mode": "fixed-depth-no-game-clock-v1",
+    "stable_depth": 11,
+    "reference_depth": 16,
+    "stable_timeout_ms": 600000,
+    "reference_timeout_ms": 600000
+  },
+  "adjudication": "legal-moves-fourfold-repetition-with-perpetual-check-loss-and-max-plies-draw-v1",
+  "max_plies": 8,
+  "game_concurrency": 12
+}

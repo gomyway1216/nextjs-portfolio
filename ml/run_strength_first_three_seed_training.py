@@ -44,6 +44,15 @@ FIXED_GIT_COMMAND_PREFIX = (
     "-c",
     "core.checkStat=default",
 )
+FIXED_TRAINING_PROCESS_ENVIRONMENT = {
+    "PYTHONHASHSEED": "0",
+    "OMP_NUM_THREADS": "2",
+    "MKL_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "VECLIB_MAXIMUM_THREADS": "2",
+    "OMP_DYNAMIC": "FALSE",
+    "MKL_DYNAMIC": "FALSE",
+}
 
 
 class StrengthFirstTrainingProcessFailed(RuntimeError):
@@ -307,15 +316,7 @@ def run_strength_first_three_seed_training(
             "the prior attempt before starting another"
         )
 
-    environment = dict(os.environ)
-    environment.update(
-        {
-            "OMP_NUM_THREADS": "2",
-            "MKL_NUM_THREADS": "2",
-            "OPENBLAS_NUM_THREADS": "2",
-            "VECLIB_MAXIMUM_THREADS": "2",
-        }
-    )
+    inherited_environment = dict(os.environ)
     processes: list[tuple[int, Any]] = []
     try:
         for seed, output in slot_outputs:
@@ -328,7 +329,10 @@ def run_strength_first_three_seed_training(
             process = popen_factory(
                 command,
                 cwd=paths["repo_root"],
-                env=environment,
+                env={
+                    **inherited_environment,
+                    **FIXED_TRAINING_PROCESS_ENVIRONMENT,
+                },
             )
             processes.append((seed, process))
     except BaseException:

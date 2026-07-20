@@ -12,6 +12,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -195,6 +196,9 @@ class ReadyHarness:
         self.evaluations: list[dict] = []
         self.publications: list[tuple[str, bytes]] = []
         self.accounting_validations: list[dict] = []
+        self.semantic_validations: list[dict] = []
+        self.semantic_error: Exception | None = None
+        self.semantic_receipt_mutator = None
         self.completion = {
             "input_games": 200,
             "input_parents": 4_800,
@@ -631,6 +635,34 @@ class ReadyHarness:
         self.accounting_validations.append(copy.deepcopy(kwargs))
         return copy.deepcopy(self.completion["parent_accounting"])
 
+    def validate_teacher_semantics(self, **kwargs):
+        self.semantic_validations.append(copy.deepcopy(kwargs))
+        if self.semantic_error is not None:
+            raise self.semantic_error
+        enrollment = self.registry["enrollments"]
+        receipt = {
+            "schema": (
+                evaluator.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_RECEIPT_SCHEMA
+            ),
+            "status": evaluator.STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_STATUS,
+            "run_fingerprint": enrollment["selection_teacher_run_fingerprint"],
+            "generation_run_fingerprint": self.generation_run_fingerprint,
+            "dataset": copy.deepcopy(enrollment["selection_dataset"]),
+            "work": copy.deepcopy(enrollment["selection_teacher_work"]),
+            "completion_sha256": hashlib.sha256(
+                evaluator._canonical_json_payload_bytes(self.completion)
+            ).hexdigest(),
+            "completed_parents": self.completion["completed_parents"],
+            "emitted_parent_groups": self.completion["emitted_parent_groups"],
+            "dataset_records": self.completion["dataset_records"],
+            "private_paths_emitted": False,
+            "labels_emitted": False,
+            "live_weight_changes": 0,
+        }
+        if self.semantic_receipt_mutator is not None:
+            self.semantic_receipt_mutator(receipt)
+        return receipt
+
     def publish(self, path: str, raw: bytes, schema: str) -> dict:
         self.publications.append((self._key(path), raw))
         self._put(path, raw)
@@ -661,6 +693,7 @@ class ReadyHarness:
             claim_preflight=self.claim_preflight,
             validate_plan=lambda _plan: None,
             validate_parent_accounting=self.validate_parent_accounting,
+            validate_teacher_semantics=self.validate_teacher_semantics,
             evaluate=self.evaluate,
             publish=self.publish,
         )
@@ -835,6 +868,14 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertEqual(len(receipt["runs"]), 3)
             self.assertEqual(len(harness.evaluations), 1)
             self.assertEqual(len(harness.accounting_validations), 1)
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(
+                harness.semantic_validations[0],
+                {
+                    "repo_root": str(REPO_ROOT),
+                    "home_root": str(harness.home_root),
+                },
+            )
             self.assertEqual(
                 harness.accounting_validations[0]["work_identity"],
                 harness.registry["enrollments"]["selection_teacher_work"],
@@ -864,6 +905,157 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertFalse(receipt["boundary"]["final_holdout_read"])
             self.assertFalse(receipt["boundary"]["production_promotion_authorized"])
             self.assertFalse(receipt["boundary"]["live_weight_write_authorized"])
+
+    def test_semantic_bridge_rejects_coherent_nested_invalid_before_evaluation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            harness.semantic_error = ValueError(
+                "coherently rehashed nested teacher work is semantically invalid"
+            )
+            with self.assertRaisesRegex(ValueError, "nested teacher work"):
+                harness.run()
+            self.assertEqual(len(harness.semantic_validations), 1)
+            self.assertEqual(harness.accounting_validations, [])
+            self.assertEqual(harness.evaluations, [])
+            self.assertEqual(harness.publications, [])
+
+    def test_semantic_bridge_receipt_must_match_enrolled_evidence(self):
+        mutations = {
+            "run": lambda receipt: receipt.__setitem__(
+                "run_fingerprint", digest("wrong-run")
+            ),
+            "generation": lambda receipt: receipt.__setitem__(
+                "generation_run_fingerprint", digest("wrong-generation")
+            ),
+            "completion": lambda receipt: receipt.__setitem__(
+                "completion_sha256", digest("wrong-completion")
+            ),
+            "dataset": lambda receipt: receipt["dataset"].__setitem__(
+                "sha256", digest("wrong-dataset")
+            ),
+            "work": lambda receipt: receipt["work"].__setitem__(
+                "sha256", digest("wrong-work")
+            ),
+            "privacy": lambda receipt: receipt.__setitem__(
+                "private_paths_emitted", True
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                harness = ReadyHarness(temporary)
+                harness.semantic_receipt_mutator = mutate
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "semantic validation receipt mismatch",
+                ):
+                    harness.run()
+                self.assertEqual(harness.accounting_validations, [])
+                self.assertEqual(harness.evaluations, [])
+                self.assertEqual(harness.publications, [])
+
+    def test_semantic_validator_subprocess_is_fixed_bounded_and_canonical(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            repo = base / "repo"
+            home = base / "home"
+            entry = repo / evaluator._SEMANTIC_VALIDATOR_SOURCE_PATH
+            node = home / evaluator._FIXED_NODE_RELATIVE_PATH
+            entry.parent.mkdir(parents=True)
+            node.parent.mkdir(parents=True)
+            entry.write_bytes(b"export {};\n")
+            node.write_bytes(b"synthetic-node\n")
+            node.chmod(0o700)
+            stdout = evaluator._canonical_json_bytes({"valid": True})
+            completed = SimpleNamespace(returncode=0, stdout=stdout, stderr=b"")
+            with mock.patch.object(
+                evaluator.subprocess,
+                "run",
+                return_value=completed,
+            ) as run:
+                receipt = evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: "a" * 40,
+                )
+            self.assertEqual(receipt, {"valid": True})
+            run.assert_called_once_with(
+                [str(node), "-r", "tsx/cjs", str(entry)],
+                cwd=str(repo),
+                env={
+                    "HOME": str(home),
+                    "PATH": "/usr/bin:/bin",
+                    "LANG": "C",
+                    "LC_ALL": "C",
+                    "TZ": "UTC",
+                },
+                check=False,
+                capture_output=True,
+                text=False,
+                timeout=120,
+            )
+
+            invalid_results = (
+                SimpleNamespace(returncode=1, stdout=b"", stderr=b"rejected"),
+                SimpleNamespace(returncode=0, stdout=b'{"valid": true}\n', stderr=b""),
+                SimpleNamespace(returncode=0, stdout=stdout + b"{}\n", stderr=b""),
+            )
+            for result in invalid_results:
+                with (
+                    self.subTest(result=result),
+                    mock.patch.object(
+                        evaluator.subprocess,
+                        "run",
+                        return_value=result,
+                    ),
+                    self.assertRaises(ValueError),
+                ):
+                    evaluator._run_selection_teacher_semantic_validator(
+                        repo_root=str(repo),
+                        home_root=str(home),
+                        expected_revision="a" * 40,
+                        _read_revision=lambda _root: "a" * 40,
+                    )
+            with (
+                mock.patch.object(
+                    evaluator.subprocess,
+                    "run",
+                    side_effect=subprocess.TimeoutExpired("node", 120),
+                ),
+                self.assertRaisesRegex(ValueError, "semantic validator failed"),
+            ):
+                evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: "a" * 40,
+                )
+
+            with mock.patch.object(evaluator.subprocess, "run") as forbidden:
+                with self.assertRaisesRegex(ValueError, "revision drifted"):
+                    evaluator._run_selection_teacher_semantic_validator(
+                        repo_root=str(repo),
+                        home_root=str(home),
+                        expected_revision="a" * 40,
+                        _read_revision=lambda _root: "b" * 40,
+                    )
+                forbidden.assert_not_called()
+
+            revisions = iter(("a" * 40, "b" * 40))
+            with (
+                mock.patch.object(
+                    evaluator.subprocess,
+                    "run",
+                    return_value=completed,
+                ),
+                self.assertRaisesRegex(ValueError, "runtime changed"),
+            ):
+                evaluator._run_selection_teacher_semantic_validator(
+                    repo_root=str(repo),
+                    home_root=str(home),
+                    expected_revision="a" * 40,
+                    _read_revision=lambda _root: next(revisions),
+                )
 
     def test_real_teacher_preflight_hash_is_accepted_by_ready_evaluator(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -3,11 +3,11 @@
 
 The production CLI is argumentless and writes exactly one pretty JSON
 candidate to stdout.  It never edits the tracked registry.  A candidate is
-emitted only after the five evaluator implementation sources are recomputed
-from exact HEAD, the public three-checkpoint preflight has actually run, and
-the fixed private selection-teacher artifacts plus stable checkpoint have
-been bound and revalidated.  Final-holdout and live-weight paths are not part
-of this builder.
+emitted only after the five evaluator implementation sources and the fixed
+TypeScript semantic validator are authenticated from exact HEAD, the public
+three-checkpoint preflight has actually run, and the private selection-teacher
+artifacts plus stable checkpoint have been bound and revalidated.  Final-
+holdout and live-weight paths are not part of this builder.
 """
 
 from __future__ import annotations
@@ -364,6 +364,9 @@ def build_strength_first_selection_evaluator_registry_candidate(
     _validate_parent_accounting: Callable[..., Mapping[str, Any]] = (
         EVALUATOR._validate_selection_parent_accounting
     ),
+    _validate_teacher_semantics: Callable[..., Mapping[str, Any]] = (
+        EVALUATOR._run_selection_teacher_semantic_validator
+    ),
     _run_checkpoint_preflight: Callable[
         [], Mapping[str, Any]
     ] = TEACHER_PREFLIGHT.run_strength_first_selection_teacher_preflight,
@@ -425,6 +428,16 @@ def build_strength_first_selection_evaluator_registry_candidate(
             schema=EVALUATOR._SOURCE_IDENTITY_SCHEMA,
             raw=raw,
         )
+    semantic_validator_path = str(root / EVALUATOR._SEMANTIC_VALIDATOR_SOURCE_PATH)
+    semantic_validator_raw = _tracked_snapshot(
+        root=root,
+        relative=EVALUATOR._SEMANTIC_VALIDATOR_SOURCE_PATH,
+        revision=revision,
+        label="selection teacher semantic validator",
+        read_tracked=_read_tracked,
+        verify_tracked=_verify_tracked,
+    )
+    tracked_snapshots[semantic_validator_path] = semantic_validator_raw
 
     try:
         preflight_value = _run_checkpoint_preflight()
@@ -603,6 +616,19 @@ def build_strength_first_selection_evaluator_registry_candidate(
         manifest=parsed_documents["selection_teacher_manifest"],
         result=parsed_documents["selection_teacher_result"],
         registry=validated,
+    )
+    semantic_receipt = _validate_teacher_semantics(
+        repo_root=str(root),
+        home_root=str(home),
+        expected_revision=revision,
+    )
+    EVALUATOR._validate_selection_teacher_semantic_receipt(
+        semantic_receipt,
+        run_fingerprint=run_fingerprint,
+        generation_run_fingerprint=generation_run_fingerprint,
+        dataset_identity=enrollments["selection_dataset"],
+        work_identity=enrollments["selection_teacher_work"],
+        completion=completion,
     )
     _validate_parent_accounting(
         source_raw=private_artifact_raw[

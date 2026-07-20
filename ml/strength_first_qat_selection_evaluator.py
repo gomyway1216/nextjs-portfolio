@@ -67,6 +67,12 @@ STRENGTH_FIRST_SELECTION_DATASET_SCHEMA = (
     "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
 )
 STRENGTH_FIRST_SELECTION_WORK_SCHEMA = "shogi-sibling-teacher-work-v2"
+STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_RECEIPT_SCHEMA = (
+    "shogi-floodgate-fresh-selection-semantic-validation-receipt-v1"
+)
+STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_STATUS = (
+    "strict-fixed-selection-artifacts-valid"
+)
 STRENGTH_FIRST_STABLE_CHECKPOINT_IDENTITY_SCHEMA = (
     "shogi-int16-aware-stable-checkpoint-v1"
 )
@@ -139,6 +145,8 @@ _ADAPTER_SOURCE_PATH = "ml/strength_first_qat_selection_eval_adapter.py"
 _PREFLIGHT_SOURCE_PATH = "ml/strength_first_qat_selection_preflight.py"
 _EVAL_CORE_SOURCE_PATH = "ml/eval-sibling.py"
 _GATE_SOURCE_PATH = "ml/sibling_selection_protocol.py"
+_SEMANTIC_VALIDATOR_SOURCE_PATH = "ml/validate-floodgate-fresh-selection-teacher.ts"
+_FIXED_NODE_RELATIVE_PATH = ".nvm/versions/node/v22.13.0/bin/node"
 _SOURCE_IDENTITY_SCHEMA = "shogi-reviewed-python-source-v1"
 _GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -358,6 +366,7 @@ class _SelectionDependencies:
     claim_preflight: Callable[[Callable[[Mapping[str, Any]], Any]], Any]
     validate_plan: Callable[[Mapping[str, Any]], Any]
     validate_parent_accounting: Callable[..., Any]
+    validate_teacher_semantics: Callable[..., Mapping[str, Any]]
     evaluate: Callable[..., Mapping[str, Any]]
     publish: Callable[[str, bytes, str], Mapping[str, Any]]
 
@@ -1256,6 +1265,62 @@ def _validate_selection_parent_accounting_paths(
     )
 
 
+def _validate_selection_teacher_semantic_receipt(
+    value: Mapping[str, Any],
+    *,
+    run_fingerprint: str,
+    generation_run_fingerprint: str,
+    dataset_identity: Mapping[str, Any],
+    work_identity: Mapping[str, Any],
+    completion: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind the fixed TypeScript semantic verdict to enrolled Python evidence."""
+
+    receipt = _exact_dict(
+        dict(value) if isinstance(value, Mapping) else value,
+        {
+            "schema",
+            "status",
+            "run_fingerprint",
+            "generation_run_fingerprint",
+            "dataset",
+            "work",
+            "completion_sha256",
+            "completed_parents",
+            "emitted_parent_groups",
+            "dataset_records",
+            "private_paths_emitted",
+            "labels_emitted",
+            "live_weight_changes",
+        },
+        "selection teacher semantic validation receipt",
+    )
+    expected_completion_sha256 = hashlib.sha256(
+        _canonical_json_payload_bytes(dict(completion))
+    ).hexdigest()
+    if (
+        receipt["schema"] != STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_RECEIPT_SCHEMA
+        or receipt["status"] != STRENGTH_FIRST_SELECTION_SEMANTIC_VALIDATION_STATUS
+        or receipt["run_fingerprint"] != run_fingerprint
+        or receipt["generation_run_fingerprint"] != generation_run_fingerprint
+        or not _typed_equal(receipt["dataset"], dict(dataset_identity))
+        or not _typed_equal(receipt["work"], dict(work_identity))
+        or receipt["completion_sha256"] != expected_completion_sha256
+        or receipt["completed_parents"] != completion["completed_parents"]
+        or type(receipt["completed_parents"]) is not int
+        or receipt["emitted_parent_groups"] != completion["emitted_parent_groups"]
+        or type(receipt["emitted_parent_groups"]) is not int
+        or receipt["dataset_records"] != completion["dataset_records"]
+        or type(receipt["dataset_records"]) is not int
+        or receipt["private_paths_emitted"] is not False
+        or receipt["labels_emitted"] is not False
+        or receipt["live_weight_changes"] != 0
+        or type(receipt["live_weight_changes"]) is not int
+    ):
+        raise ValueError("selection teacher semantic validation receipt mismatch")
+    return receipt
+
+
 def _validate_completion(value: Any) -> dict[str, Any]:
     completion = _exact_dict(
         value,
@@ -1841,6 +1906,25 @@ def _execute_ready_selection(
         result=_strict_json(result_raw, "selection teacher result"),
         registry=registry,
     )
+    semantic_validator_path = repo_root / _SEMANTIC_VALIDATOR_SOURCE_PATH
+    semantic_validator_raw = dependencies.read_bytes(str(semantic_validator_path))
+    dependencies.verify_tracked(
+        str(semantic_validator_path),
+        semantic_validator_raw,
+    )
+    tracked_snapshots.append((str(semantic_validator_path), semantic_validator_raw))
+    semantic_receipt = dependencies.validate_teacher_semantics(
+        repo_root=str(repo_root),
+        home_root=str(home_root),
+    )
+    _validate_selection_teacher_semantic_receipt(
+        semantic_receipt,
+        run_fingerprint=enrollment["selection_teacher_run_fingerprint"],
+        generation_run_fingerprint=generation_run_fingerprint,
+        dataset_identity=enrollment["selection_dataset"],
+        work_identity=enrollment["selection_teacher_work"],
+        completion=completion,
+    )
     dependencies.validate_parent_accounting(
         source_path=private_paths["selection_source"],
         source_identity=_SELECTION_SOURCE,
@@ -2238,6 +2322,122 @@ def _publish_receipt_exclusive(path: str, raw: bytes) -> dict[str, Any]:
     )
 
 
+_SEMANTIC_RUNTIME_STABLE_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+    "st_gid",
+    "st_size",
+    "st_mtime_ns",
+    "st_ctime_ns",
+    "st_nlink",
+)
+
+
+def _snapshot_selection_semantic_runtime_file(
+    path: str,
+    *,
+    executable: bool,
+) -> tuple[Any, ...]:
+    absolute = os.path.abspath(path)
+    try:
+        metadata = os.lstat(absolute)
+    except OSError as error:
+        raise ValueError(
+            "selection semantic validator runtime is unavailable"
+        ) from error
+    if (
+        os.path.realpath(absolute) != absolute
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or metadata.st_size < 1
+        or (metadata.st_mode & 0o022) != 0
+        or (executable and stat.S_IMODE(metadata.st_mode) & 0o111 == 0)
+    ):
+        raise ValueError("selection semantic validator runtime identity is invalid")
+    return tuple(
+        getattr(metadata, field) for field in _SEMANTIC_RUNTIME_STABLE_FIELDS
+    ) + (os.path.realpath(absolute),)
+
+
+def _run_selection_teacher_semantic_validator(
+    *,
+    repo_root: str,
+    home_root: str,
+    expected_revision: str,
+    _read_revision: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    """Execute the fixed read-only TypeScript validator and accept one safe receipt."""
+
+    if (
+        type(expected_revision) is not str
+        or _GIT_REVISION_RE.fullmatch(expected_revision) is None
+    ):
+        raise ValueError("selection semantic validator revision is invalid")
+    read_revision = _git_head if _read_revision is None else _read_revision
+    if read_revision(repo_root) != expected_revision:
+        raise ValueError("selection semantic validator revision drifted")
+    node = os.path.join(os.path.abspath(home_root), _FIXED_NODE_RELATIVE_PATH)
+    entry = os.path.join(
+        os.path.abspath(repo_root),
+        _SEMANTIC_VALIDATOR_SOURCE_PATH,
+    )
+    node_snapshot = _snapshot_selection_semantic_runtime_file(
+        node,
+        executable=True,
+    )
+    entry_snapshot = _snapshot_selection_semantic_runtime_file(
+        entry,
+        executable=False,
+    )
+    try:
+        completed = subprocess.run(
+            [node, "-r", "tsx/cjs", entry],
+            cwd=os.path.abspath(repo_root),
+            env={
+                "HOME": os.path.abspath(home_root),
+                "PATH": "/usr/bin:/bin",
+                "LANG": "C",
+                "LC_ALL": "C",
+                "TZ": "UTC",
+            },
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError("selection semantic validator failed") from error
+    finally:
+        if (
+            _snapshot_selection_semantic_runtime_file(node, executable=True)
+            != node_snapshot
+            or _snapshot_selection_semantic_runtime_file(entry, executable=False)
+            != entry_snapshot
+            or read_revision(repo_root) != expected_revision
+        ):
+            raise ValueError("selection semantic validator runtime changed")
+    if (
+        completed.returncode != 0
+        or completed.stderr
+        or not completed.stdout
+        or len(completed.stdout) > 16_384
+        or completed.stdout.count(b"\n") != 1
+        or not completed.stdout.endswith(b"\n")
+        or b"\r" in completed.stdout
+    ):
+        raise ValueError("selection semantic validator rejected the artifacts")
+    receipt = _strict_json(
+        completed.stdout[:-1],
+        "selection semantic validator receipt",
+    )
+    if _canonical_json_payload_bytes(receipt) + b"\n" != completed.stdout:
+        raise ValueError("selection semantic validator receipt is not canonical")
+    return receipt
+
+
 def _git_head(repo_root: str) -> str:
     try:
         raw = subprocess.run(
@@ -2303,6 +2503,12 @@ def run_strength_first_qat_selection_evaluator() -> dict[str, Any]:
         validate_parent_accounting=lambda **kwargs: (
             _validate_selection_parent_accounting_paths(
                 read_bytes=lambda path: Path(path).read_bytes(),
+                **kwargs,
+            )
+        ),
+        validate_teacher_semantics=lambda **kwargs: (
+            _run_selection_teacher_semantic_validator(
+                expected_revision=audit_revision,
                 **kwargs,
             )
         ),

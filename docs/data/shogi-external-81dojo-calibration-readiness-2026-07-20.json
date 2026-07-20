@@ -3,14 +3,15 @@
   "recorded_date": "2026-07-20",
   "status": "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
   "implementation_anchor": {
-    "revision": "5facc49a784510b04a360cf07ccfb8b524480047",
-    "tree": "0908921337c03a4512d14f1167089a93892ce0c9",
+    "revision": "3409905f010753bdc64bfc1e6b1bc50220062770",
+    "tree": "312eb39a7290bd9460ce313e4191ae11b51f47ac",
     "base_revision": "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
     "branch": "codex/shogi-81dojo-calibration-protocol",
     "policy_commit": "8a87081e46a5789e2876c9d040bb75ac86cc55f6",
     "verifier_commit": "c7535e777abceae5545302048b1daaebdb7b06c8",
     "lightweight_fixture_commit": "d2425e977cdb04bdf6667fbcefdfadaa32991631",
-    "preregistration_fix_commit": "5facc49a784510b04a360cf07ccfb8b524480047"
+    "preregistration_fix_commit": "5facc49a784510b04a360cf07ccfb8b524480047",
+    "review_feedback_commit": "3409905f010753bdc64bfc1e6b1bc50220062770"
   },
   "implementation_artifacts": {
     "policy": {
@@ -20,13 +21,13 @@
     },
     "offline_verifier": {
       "path": "ml/external_81dojo_calibration.py",
-      "bytes": 46714,
-      "sha256": "aa18098bd16ffc9fe6387c649a3545aacdf45a7d2332b08a15255331a5f7af09"
+      "bytes": 47157,
+      "sha256": "04c0831eda888dc239cd45fa0f29edbc2d3250dfb75d7d27b2335448cbfaca55"
     },
     "fixture_tests": {
       "path": "ml/tests_stdlib/test_external_81dojo_calibration.py",
-      "bytes": 13850,
-      "sha256": "eb26deb02ad738e2762cec4efb6c1760422204f14f64496fce57d3c6f111e45b"
+      "bytes": 14377,
+      "sha256": "f586762fddc956759aad9d2026b967850f6dbf5802be94e92069f8470005e360"
     }
   },
   "official_sources": {
@@ -69,6 +70,7 @@
   "ledger_and_receipt": {
     "format": "canonical-jsonl-utf8-lf-v1",
     "local_only": true,
+    "atomic_nofollow_required_for_local_append": true,
     "append_only_prefix_verification": true,
     "every_game_timestamp_after_candidate_preregistration": true,
     "sha256_hash_chain": true,
@@ -100,6 +102,7 @@
     "replicates": 100000,
     "confidence": "two-sided-95-percent",
     "windows": ["games-1-through-200", "games-171-through-200"],
+    "cluster_totals_and_sizes_precomputed": true,
     "rank_conversion": false,
     "can_override_primary_decision": false
   },
@@ -109,7 +112,7 @@
     "focused_fixture_test_file": "ml.tests_stdlib.test_external_81dojo_calibration",
     "focused_tests_passed": 9,
     "focused_tests_failed": 0,
-    "focused_duration_seconds": 1.215,
+    "focused_duration_seconds": 1.15,
     "fixture_bootstrap_replicates": 100,
     "production_bootstrap_replicates_unchanged": 100000,
     "node": "v22.13.0",
@@ -123,6 +126,7 @@
     "git_diff_check": "PASS",
     "full_suite_run": false,
     "production_build_run": false,
+    "review_threads_addressed": 4,
     "reason_for_focused_only": "teacher-generation-workload-was-active",
     "non_test_startup_attempts": [
       {

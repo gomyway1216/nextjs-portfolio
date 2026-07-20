@@ -33,7 +33,7 @@ The new verifier is offline-only. For each game manually observed through the of
 - the fixed candidate runtime's trace artifact and per-search receipts; and
 - whether the game counted as rated and whether a technical fault occurred.
 
-Every row names the SHA-256 of its predecessor, and the sequence must be exactly 1 through 200. The candidate protocol requires a preregistration timestamp, and even game 1 is rejected if its timestamp is not later. The verifier also checks uniqueness and continuity across game IDs, timestamps, ratings, and rated-game counts. Every candidate move in the runtime trace must match the same ply and USI move in the observed game record. Deleting, reordering, or rewriting a previously published prefix fails.
+Every row names the SHA-256 of its predecessor, and the sequence must be exactly 1 through 200. The candidate protocol requires a preregistration timestamp, and even game 1 is rejected if its timestamp is not later. The verifier also checks uniqueness and continuity across game IDs, timestamps, ratings, and rated-game counts. Every candidate move in the runtime trace must match the same ply and USI move in the observed game record. Deleting, reordering, or rewriting a previously published prefix fails. Local append requires an operating-system primitive that rejects symlinks atomically; if it is unavailable, the verifier stops instead of following an alternative path.
 
 This does not claim a cryptographic attestation from the official server. It fixes manual-export identities and a local hash chain so that the project has materially less room to select or replace results.
 
@@ -47,7 +47,7 @@ The primary decision passes only when all of the following hold:
 
 On the checked date, 2050 is the published 81Dojo five-dan threshold. The 200-game total and the requirement that all final 30 post-game ratings remain above it are project-specific preregistered stability rules, not an official 81Dojo certification. A pass would mean only that the exact candidate maintained that threshold under the bound account, hardware, client, time control, and pairing protocol.
 
-The receipt also reports an opponent-cluster bootstrap, so repeat games against one opponent are not treated as independent opponents. It uses seed `20260720`, 100,000 replicates, and a two-sided 95% interval. This statistic is report-only: it cannot override the primary decision or convert a score into a rank.
+The receipt also reports an opponent-cluster bootstrap, so repeat games against one opponent are not treated as independent opponents. It uses seed `20260720`, 100,000 replicates, and a two-sided 95% interval. After review, each cluster's score total and game count are computed once instead of rescanning its games in every replicate. This statistic is report-only: it cannot override the primary decision or convert a score into a rank.
 
 ## Current state and execution gate
 

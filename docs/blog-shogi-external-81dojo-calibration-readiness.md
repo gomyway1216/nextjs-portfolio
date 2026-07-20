@@ -33,7 +33,7 @@
 - 固定candidate runtimeのtrace artifactと各探索receipt
 - 対局がratingへ算入されたか、technical faultがなかったか
 
-各行は直前行のSHA-256を含み、1から200まで欠番を許さない。candidate protocolには事前登録時刻を必須化し、その時刻以前のgameはgame 1としても追加できない。game ID、時刻、rating、rating戦局数も連続性を検査する。candidate側の全手は公式棋譜の同じ手番・同じUSI指し手と一致しなければならない。既公開prefixの削除、並べ替え、書換えも失敗する。
+各行は直前行のSHA-256を含み、1から200まで欠番を許さない。candidate protocolには事前登録時刻を必須化し、その時刻以前のgameはgame 1としても追加できない。game ID、時刻、rating、rating戦局数も連続性を検査する。candidate側の全手は公式棋譜の同じ手番・同じUSI指し手と一致しなければならない。既公開prefixの削除、並べ替え、書換えも失敗する。local appendはsymlinkを原子的に拒否できるOS機能を必須とし、使えない環境では代替pathを追わず停止する。
 
 これは公式serverによる暗号署名を主張する仕組みではない。manual exportのidentityとlocal hash chainを固定し、少なくともproject側で結果を選び直す余地を減らす仕組みである。
 
@@ -47,7 +47,7 @@
 
 2050は確認日の81Dojo五段thresholdである。ただし「200局」「最後の30局をすべて2050以上」という受入規則は81Dojo公式認定ではなく、このprojectが結果を見る前に固定した安定性基準である。PASSしても主張範囲は「このcandidateが、このaccount・hardware・client・持時間・matching条件で、そのthresholdを維持した」に限られる。
 
-勝率には、同じ相手との複数局を独立標本とみなさないopponent単位cluster bootstrapも計算する。seedは`20260720`、100,000回、両側95%区間である。ただしこれは補助表示であり、primary判定を通したり、ratingを段位へ変換したりしない。
+勝率には、同じ相手との複数局を独立標本とみなさないopponent単位cluster bootstrapも計算する。seedは`20260720`、100,000回、両側95%区間である。review後はclusterごとの得点合計と局数を先に1回だけ計算し、各反復で棋譜全体を再集計しない。ただしこれは補助表示であり、primary判定を通したり、ratingを段位へ変換したりしない。
 
 ## 現在地と次の実行条件
 

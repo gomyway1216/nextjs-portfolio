@@ -42,8 +42,8 @@ describe("external 81Dojo calibration readiness publication", () => {
       recorded_date: "2026-07-20",
       status: "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
       implementation_anchor: {
-        revision: "5facc49a784510b04a360cf07ccfb8b524480047",
-        tree: "0908921337c03a4512d14f1167089a93892ce0c9",
+        revision: "3409905f010753bdc64bfc1e6b1bc50220062770",
+        tree: "312eb39a7290bd9460ce313e4191ae11b51f47ac",
         base_revision: "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
         branch: "codex/shogi-81dojo-calibration-protocol",
       },
@@ -102,6 +102,7 @@ describe("external 81Dojo calibration readiness publication", () => {
     });
     expect(evidence.ledger_and_receipt).toMatchObject({
       every_game_timestamp_after_candidate_preregistration: true,
+      atomic_nofollow_required_for_local_append: true,
     });
   });
 
@@ -125,6 +126,7 @@ describe("external 81Dojo calibration readiness publication", () => {
       seed: 20260720,
       replicates: 100000,
       confidence: "two-sided-95-percent",
+      cluster_totals_and_sizes_precomputed: true,
       rank_conversion: false,
       can_override_primary_decision: false,
     });
@@ -133,8 +135,8 @@ describe("external 81Dojo calibration readiness publication", () => {
   it("publishes zero external activity and no unsupported strength claim", () => {
     const evidence = JSON.parse(read(EVIDENCE));
     const verifier = read(VERIFIER);
-    const Japanese = read(JAPANESE);
-    const English = read(ENGLISH);
+    const japaneseText = read(JAPANESE);
+    const englishText = read(ENGLISH);
 
     expect(
       Object.values(evidence.calibration_execution_counters).every(
@@ -158,14 +160,14 @@ describe("external 81Dojo calibration readiness publication", () => {
     expect(verifier).not.toMatch(/\bsubprocess\b/u);
     expect(verifier).toContain("manual official-client relay");
     expect(verifier).toContain("O_NOFOLLOW");
-    expect(Japanese).toContain("外部対局0局、候補未選定、実行許可なし");
-    expect(Japanese).toContain(
+    expect(japaneseText).toContain("外部対局0局、候補未選定、実行許可なし");
+    expect(japaneseText).toContain(
       "AWS、GCP、Firebase、Vercelはこの校正には使わない",
     );
-    expect(English).toContain(
+    expect(englishText).toContain(
       "zero external games, no selected candidate, and no execution authorization",
     );
-    expect(English).toContain(
+    expect(englishText).toContain(
       "AWS, GCP, Firebase, and Vercel are not used for this calibration",
     );
   });

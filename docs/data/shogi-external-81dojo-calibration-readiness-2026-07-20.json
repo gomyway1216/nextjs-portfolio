@@ -3,31 +3,32 @@
   "recorded_date": "2026-07-20",
   "status": "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
   "implementation_anchor": {
-    "revision": "3409905f010753bdc64bfc1e6b1bc50220062770",
-    "tree": "312eb39a7290bd9460ce313e4191ae11b51f47ac",
+    "revision": "06ee2a14ffd1e56f3db2c65cd5f4984785ef336f",
+    "tree": "fc554c228c8d0f2d7f9760a0f223afa5045821a0",
     "base_revision": "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
     "branch": "codex/shogi-81dojo-calibration-protocol",
     "policy_commit": "8a87081e46a5789e2876c9d040bb75ac86cc55f6",
     "verifier_commit": "c7535e777abceae5545302048b1daaebdb7b06c8",
     "lightweight_fixture_commit": "d2425e977cdb04bdf6667fbcefdfadaa32991631",
     "preregistration_fix_commit": "5facc49a784510b04a360cf07ccfb8b524480047",
-    "review_feedback_commit": "3409905f010753bdc64bfc1e6b1bc50220062770"
+    "review_feedback_commit": "3409905f010753bdc64bfc1e6b1bc50220062770",
+    "independent_review_hardening_commit": "06ee2a14ffd1e56f3db2c65cd5f4984785ef336f"
   },
   "implementation_artifacts": {
     "policy": {
       "path": "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy.json",
-      "bytes": 3668,
-      "sha256": "b0c0f994eef66c47e3d574d4533b23600a891f66490ae7c63e4b60fd173d4cd0"
+      "bytes": 3997,
+      "sha256": "189d67b92b1b9160cb7506fe2ae020c58e5a270b1210f23c352bcc2185561c32"
     },
     "offline_verifier": {
       "path": "ml/external_81dojo_calibration.py",
-      "bytes": 47157,
-      "sha256": "04c0831eda888dc239cd45fa0f29edbc2d3250dfb75d7d27b2335448cbfaca55"
+      "bytes": 65655,
+      "sha256": "7b97b23b7872a635c296f6c2fc76ae49ba4afc2cab7a4763e7e1d3adc69af0e5"
     },
     "fixture_tests": {
       "path": "ml/tests_stdlib/test_external_81dojo_calibration.py",
-      "bytes": 14377,
-      "sha256": "f586762fddc956759aad9d2026b967850f6dbf5802be94e92069f8470005e360"
+      "bytes": 23673,
+      "sha256": "c24e5bb0258563c960c9dd9a4e51c6b8a1e30f2cb6f6e53d648fb3ef7cded221"
     }
   },
   "official_sources": {
@@ -63,23 +64,44 @@
     "opening_book": true,
     "exact_weights_worker_wasm_and_opening_book_required": true,
     "reference_hardware_and_official_client_required": true,
-    "preregistered_at_utc_required_before_game_1": true,
+    "public_merged_main_data_only_core_commitment_required_before_game_1": true,
+    "self_asserted_assembly_time_is_preregistration_proof": false,
     "all_candidate_moves_require_matching_trace_receipts": true,
+    "trace_binds_protocol_candidate_runtime_server_game_and_server_record": true,
     "all_internal_gate_receipts_required": true
   },
+  "preregistration_publication_contract": {
+    "protocol_core_schema": "shogi-external-81dojo-candidate-protocol-core-v1",
+    "data_only_document_schema": "shogi-external-81dojo-protocol-publication-document-v1",
+    "merged_main_binding_schema": "shogi-external-81dojo-merged-main-publication-binding-v1",
+    "repository_url": "https://github.com/gomyway1216/nextjs-portfolio",
+    "branch": "main",
+    "data_path_prefix": "docs/data/",
+    "document_binds_exact_protocol_core_sha256": true,
+    "binding_requires_document_bytes_sha256_revision_tree_and_merge_time": true,
+    "game_1_must_follow_merge_and_protocol_assembly": true,
+    "offline_verifier_independently_proves_remote_merge": false,
+    "independent_public_commit_check_required": true
+  },
   "ledger_and_receipt": {
-    "format": "canonical-jsonl-utf8-lf-v1",
+    "authoritative_storage": "immutable-entry-directory-v1",
+    "jsonl_role": "derived-view-only",
+    "derived_view_format": "canonical-jsonl-utf8-lf-v1",
     "local_only": true,
     "atomic_nofollow_required_for_local_append": true,
+    "every_existing_ancestor_symlink_rejected": true,
     "append_only_prefix_verification": true,
-    "every_game_timestamp_after_candidate_preregistration": true,
+    "whole_candidate_prefix_validated_before_any_temp_write": true,
+    "temp_fsync_exclusive_link_publish_directory_fsync": true,
+    "partial_temp_write_is_not_authoritative": true,
+    "every_game_timestamp_after_merged_publication_and_protocol_assembly": true,
     "sha256_hash_chain": true,
     "sequence_exactly_1_through_200": true,
     "unique_server_game_ids": true,
     "candidate_rating_continuity": true,
     "rated_game_count_continuity": true,
     "manual_export_artifact_identity": true,
-    "candidate_trace_artifact_identity": true,
+    "candidate_trace_protocol_and_content_binding": true,
     "credentials_or_chat_recorded": false,
     "complete_receipt_before_game_200": false
   },
@@ -110,9 +132,9 @@
     "python": "3.9.6",
     "python_compile": "PASS",
     "focused_fixture_test_file": "ml.tests_stdlib.test_external_81dojo_calibration",
-    "focused_tests_passed": 9,
+    "focused_tests_passed": 13,
     "focused_tests_failed": 0,
-    "focused_duration_seconds": 1.15,
+    "focused_duration_seconds": 2.421,
     "fixture_bootstrap_replicates": 100,
     "production_bootstrap_replicates_unchanged": 100000,
     "node": "v22.13.0",
@@ -120,13 +142,14 @@
     "publication_tests_passed": 4,
     "publication_tests_failed": 0,
     "publication_test_max_workers": 1,
-    "publication_duration_ms": 357,
+    "publication_duration_ms": 173,
     "ruff": "PASS",
     "black_check": "PASS",
     "git_diff_check": "PASS",
     "full_suite_run": false,
     "production_build_run": false,
     "review_threads_addressed": 4,
+    "independent_review_blockers_addressed": 5,
     "reason_for_focused_only": "teacher-generation-workload-was-active",
     "non_test_startup_attempts": [
       {
@@ -150,6 +173,8 @@
     "manual_relay_confirmed": false,
     "reference_hardware_bound": false,
     "official_client_bound": false,
+    "candidate_core_publication_merged_to_main": false,
+    "candidate_core_publication_independently_verified": false,
     "external_games_observed": 0,
     "ledger_entries": 0,
     "complete_receipts": 0
@@ -169,6 +194,7 @@
     "bind the exact candidate assets, production runtime, reference hardware, and official client",
     "prepare an established official COM_ account without exposing credentials",
     "record explicit user authorization and recheck the current 81Dojo rules",
+    "publish the exact candidate protocol core as a data-only main commit and independently verify its artifact, revision, tree, and merge time",
     "manually relay and append all 200 nonselected rated games through the official client",
     "verify the complete ledger and primary rating-stability rule"
   ],
@@ -185,13 +211,14 @@
     "live_weight_changes": 0
   },
   "repository_delivery": {
-    "github_branch_pushes": 1,
+    "github_branch_pushed": true,
+    "exact_push_count_claimed": false,
     "pull_request_created": true,
     "pull_request_number": 567,
     "pull_request_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/567",
     "pull_request_ready_for_review": true,
     "automatic_vercel_preview_triggered_by_existing_repository_integration": true,
-    "vercel_preview_status_at_first_review": "PENDING",
+    "vercel_preview_status_at_latest_review": "FAILED_FREE_DAILY_DEPLOYMENT_RATE_LIMIT",
     "vercel_preview_is_calibration_execution": false,
     "calibration_games_or_credentials_sent_to_preview": false
   },
@@ -199,6 +226,7 @@
     "external_games_executed": false,
     "candidate_stronger": false,
     "formal_ab_passed": false,
+    "public_candidate_protocol_core_committed": false,
     "81dojo_five_dan_calibrated": false,
     "high_dan_established": false,
     "universal_human_rank_established": false,

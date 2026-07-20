@@ -42,8 +42,8 @@ describe("external 81Dojo calibration readiness publication", () => {
       recorded_date: "2026-07-20",
       status: "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
       implementation_anchor: {
-        revision: "3409905f010753bdc64bfc1e6b1bc50220062770",
-        tree: "312eb39a7290bd9460ce313e4191ae11b51f47ac",
+        revision: "06ee2a14ffd1e56f3db2c65cd5f4984785ef336f",
+        tree: "fc554c228c8d0f2d7f9760a0f223afa5045821a0",
         base_revision: "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
         branch: "codex/shogi-81dojo-calibration-protocol",
       },
@@ -93,16 +93,43 @@ describe("external 81Dojo calibration readiness publication", () => {
       candidate_runtime_bound: false,
       internal_gates_passed: false,
       user_external_authorization_recorded: false,
+      candidate_core_publication_merged_to_main: false,
+      candidate_core_publication_independently_verified: false,
       external_games_observed: 0,
       ledger_entries: 0,
       complete_receipts: 0,
     });
     expect(evidence.candidate_runtime_binding).toMatchObject({
-      preregistered_at_utc_required_before_game_1: true,
+      public_merged_main_data_only_core_commitment_required_before_game_1: true,
+      self_asserted_assembly_time_is_preregistration_proof: false,
+      trace_binds_protocol_candidate_runtime_server_game_and_server_record: true,
+    });
+    expect(evidence.preregistration_publication_contract).toMatchObject({
+      protocol_core_schema: "shogi-external-81dojo-candidate-protocol-core-v1",
+      data_only_document_schema:
+        "shogi-external-81dojo-protocol-publication-document-v1",
+      merged_main_binding_schema:
+        "shogi-external-81dojo-merged-main-publication-binding-v1",
+      branch: "main",
+      document_binds_exact_protocol_core_sha256: true,
+      game_1_must_follow_merge_and_protocol_assembly: true,
+      offline_verifier_independently_proves_remote_merge: false,
+      independent_public_commit_check_required: true,
     });
     expect(evidence.ledger_and_receipt).toMatchObject({
-      every_game_timestamp_after_candidate_preregistration: true,
+      authoritative_storage: "immutable-entry-directory-v1",
+      jsonl_role: "derived-view-only",
+      every_game_timestamp_after_merged_publication_and_protocol_assembly: true,
       atomic_nofollow_required_for_local_append: true,
+      every_existing_ancestor_symlink_rejected: true,
+      whole_candidate_prefix_validated_before_any_temp_write: true,
+      temp_fsync_exclusive_link_publish_directory_fsync: true,
+      partial_temp_write_is_not_authoritative: true,
+    });
+    expect(policy.ledger_contract).toMatchObject({
+      authoritative_storage: "immutable-entry-directory-v1",
+      public_merged_main_protocol_commitment_before_game_1: true,
+      self_asserted_timestamp_is_not_preregistration_proof: true,
     });
   });
 
@@ -160,6 +187,9 @@ describe("external 81Dojo calibration readiness publication", () => {
     expect(verifier).not.toMatch(/\bsubprocess\b/u);
     expect(verifier).toContain("manual official-client relay");
     expect(verifier).toContain("O_NOFOLLOW");
+    expect(verifier).toContain("candidate_raw = raw + encoded");
+    expect(verifier).toContain("os.link(");
+    expect(verifier).not.toContain("O_APPEND");
     expect(japaneseText).toContain("外部対局0局、候補未選定、実行許可なし");
     expect(japaneseText).toContain(
       "AWS、GCP、Firebase、Vercelはこの校正には使わない",

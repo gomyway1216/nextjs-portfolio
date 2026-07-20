@@ -1,4 +1,4 @@
-# 将棋AI: 高段主張のための81Dojo外部校正を、実行前に固定した
+# 将棋AI: 81Dojo外部校正を、公開commitment後だけ実行できる形にした
 
 > 2026-07-20時点の実績は **外部対局0局、候補未選定、実行許可なし** である。今回の変更はAIを直接強くする学習ではなく、将来選ばれた候補が81Dojo五段相当のrating帯を安定して維持したかを、後から条件変更せず判定するための準備だけである。[English version](./blog-shogi-external-81dojo-calibration-readiness.en.md)
 
@@ -23,9 +23,15 @@
 
 81Dojoの[利用規約](https://81dojo.com/jp/terms.html)は、`COM_`名義のsoftware利用を扱う一方、外部toolやscriptによるserver accessを認めていない。そのため、このrepositoryには81Dojoへ接続するcode、browser操作、client自動操作を追加していない。2026-07-20に、[段級位対応表](https://system.81dojo.com/pages/ranks)、[rating基準の告知](https://81dojo.com/announcements/260411.html)、[持時間別係数の告知](https://81dojo.com/announcements/260517.html)、[rating system](https://81dojo.com/documents/Rating_System)も再確認した。
 
+## 自己申告時刻は事前登録の証拠にしない
+
+候補protocolに「この時刻に作った」と書くだけでは、対局結果を見た後に時刻を戻して作れてしまう。したがって、その時刻だけで事前登録済みとは主張しない。
+
+game 1前に、候補、runtime、内部gate receipt、account、持時間、matching、判定規則を含むprotocol coreのSHA-256 commitmentを、独立したdata-only JSONとしてpublic `main`へmergeする必要がある。最終protocolは、その公開fileのpath・bytes・SHA-256、`main` revision・tree、merge時刻を束縛する。offline verifierは構造とdigestの整合を検査するが、remote GitHubで本当にmergeされたことまでは単独で証明しない。人または独立processがpublic commitを確認してからgame 1へ進む。現在は候補未選定なので、この公開commitmentもまだ0件である。
+
 ## 200局を差し替えられない形で残す
 
-追加したverifierはofflineでしか動かない。人が公式clientから確認した各局について、次をlocal JSONLへ1行ずつ追加する。
+追加したverifierはofflineでしか動かない。authoritative dataは追記型JSONL fileではなく、private directory内のread-onlyな1局1fileである。JSONLは検証・最終receipt用にそこから生成するderived viewに限定した。人が公式clientから確認した各局について、次を1entryへ保存する。
 
 - 公式側game ID、対局時刻、先後、相手の公開identityのhash
 - 対局前後ratingとaccountのrating戦局数
@@ -33,9 +39,13 @@
 - 固定candidate runtimeのtrace artifactと各探索receipt
 - 対局がratingへ算入されたか、technical faultがなかったか
 
-各行は直前行のSHA-256を含み、1から200まで欠番を許さない。candidate protocolには事前登録時刻を必須化し、その時刻以前のgameはgame 1としても追加できない。game ID、時刻、rating、rating戦局数も連続性を検査する。candidate側の全手は公式棋譜の同じ手番・同じUSI指し手と一致しなければならない。既公開prefixの削除、並べ替え、書換えも失敗する。local appendはsymlinkを原子的に拒否できるOS機能を必須とし、使えない環境では代替pathを追わず停止する。
+candidate traceはprotocol SHA-256、candidate、runtime・hardware、server game ID、公式棋譜artifact、正規化指し手digestをすべて束縛する。同じ指し手列でも、別候補、別protocol、別game、別server recordへ流用できない。
 
-これは公式serverによる暗号署名を主張する仕組みではない。manual exportのidentityとlocal hash chainを固定し、少なくともproject側で結果を選び直す余地を減らす仕組みである。
+新entryをdiskへ書く前に、既存prefixと新entryを結合したderived JSONL全体を検査する。重複game ID、ratingまたはrating戦局数の不連続、時刻逆行、hash-chain不一致があればtemporary fileすら作らない。各entryは直前entryのSHA-256を含み、1から200まで欠番を許さない。game 1もpublic `main` mergeと最終protocol組立ての両方より後でなければならない。
+
+書込みはcomplete temporary file作成、file `fsync`、上書き不能なexclusive hard-link publish、directory `fsync`の順で行う。途中で停止したpartial temporary fileはauthoritative prefixに入らず、再起動後のderived viewも直前の完全prefixを返す。ledger pathの既存ancestorをすべて`lstat`し、leafだけでなく親directoryのsymlinkも拒否する。原子的no-follow機能がないOSでは停止する。
+
+これは公式serverによる暗号署名を主張する仕組みではない。public protocol-core commitment、manual exportのidentity、immutable local entry、hash chainを組み合わせ、project側で条件や結果を後から選び直す余地を減らす仕組みである。
 
 ## 主判定と補助統計を分離する
 
@@ -51,20 +61,21 @@
 
 ## 現在地と次の実行条件
 
-| 状態                                           | 2026-07-20 |
-| ---------------------------------------------- | ---------: |
-| 固定policy                                     |       完了 |
-| offline ledger / verifier                      |       完了 |
-| focused fixture                                | 9 / 9 PASS |
-| 記事・evidence整合test                         | 4 / 4 PASS |
-| candidate選定・runtime binding                 |       未完 |
-| internal formal A/B                            |       未完 |
-| 公式`COM_` account・client・reference hardware |     未準備 |
-| userの外部実行許可                             |       なし |
-| 81Dojo外部対局                                 |    0 / 200 |
-| live weights変更                               |          0 |
+| 状態                                           |   2026-07-20 |
+| ---------------------------------------------- | -----------: |
+| 固定policy                                     |         完了 |
+| offline ledger / verifier                      |         完了 |
+| focused fixture                                | 13 / 13 PASS |
+| 記事・evidence整合test                         |   4 / 4 PASS |
+| candidate選定・runtime binding                 |         未完 |
+| internal formal A/B                            |         未完 |
+| 公式`COM_` account・client・reference hardware |       未準備 |
+| userの外部実行許可                             |         なし |
+| candidate coreのpublic `main` commitment       |            0 |
+| 81Dojo外部対局                                 |      0 / 200 |
+| live weights変更                               |            0 |
 
-候補が内部gateを通るまでは外部対局を始めない。候補確定後も、account、公式client、reference hardware、現在の規約再確認、userの明示許可をgame 1前に1つのprotocol receiptへ固定する必要がある。その後、公式clientを人が操作して200局を記録し、完全なledgerだけを最終判定へ渡す。
+候補が内部gateを通るまでは外部対局を始めない。候補確定後も、account、公式client、reference hardware、現在の規約再確認、userの明示許可をprotocol coreへ固定し、そのdata-only commitmentをpublic `main`へmergeして独立確認する必要がある。確認後に最終protocolを組み立て、公式clientを人が操作して200局を記録し、完全なderived ledgerだけを最終判定へ渡す。
 
 AWS、GCP、Firebase、Vercelはこの校正には使わない。学習と内部評価はlocal、外部校正は81Dojo公式clientとlocal ledgerで行う。校正処理によるcloud操作、credential読取、外部書込、live反映はいずれも0である。ただし、ready PR #567のpush後、repositoryに既設のGitHub連携がVercelの通常preview buildを1件自動起動した。これはweb変更を確認するdelivery CIであり、学習、対局、校正実行ではなく、対局dataやcredentialも渡していない。
 

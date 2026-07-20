@@ -1,0 +1,80 @@
+{
+  "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-registry-v1",
+  "status": "closed-awaiting-reviewed-enrollments",
+  "reason": "candidate-stable-openings-time-control-adapter-and-required-receipts-not-enrolled",
+  "protocol": {
+    "source_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+      "bytes": 3480,
+      "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9",
+      "schema": "shogi-floodgate-formal-paired-ab-registry-v2"
+    },
+    "amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+      "bytes": 4459,
+      "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+      "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2"
+    },
+    "plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "pairs": 384,
+    "games_per_pair": 2,
+    "games": 768,
+    "colors": [
+      "sente",
+      "gote"
+    ],
+    "result_protocol": "candidate-perspective-win-draw-loss"
+  },
+  "enrollments": {
+    "experiment_id": null,
+    "run_id": null,
+    "candidate_weights": null,
+    "stable_weights": null,
+    "openings_manifest": null,
+    "time_control": null,
+    "pair_workers": null,
+    "match_adapter": null,
+    "result_receipt": null,
+    "retention_receipt": null,
+    "rollback_receipt": null
+  },
+  "gates": {
+    "candidate_and_stable_distinct": false,
+    "openings_verified": false,
+    "colors_verified": false,
+    "time_control_verified": false,
+    "pair_workers_verified": false,
+    "match_adapter_verified": false,
+    "result_receipt_verified": false,
+    "retention_receipt_verified": false,
+    "rollback_receipt_verified": false,
+    "exact_768_game_accounting_verified": false,
+    "execution_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "boundary": {
+    "argumentless_production_entry": true,
+    "caller_selected_registry": false,
+    "automatic_activation": false,
+    "engine_access": false,
+    "game_process_access": false,
+    "network_access": false,
+    "live_weight_access": false
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "formal_attempts_started": 0,
+    "pairs_started": 0,
+    "games_started": 0,
+    "engine_processes_started": 0,
+    "network_requests": 0,
+    "live_weight_changes": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false
+  }
+}

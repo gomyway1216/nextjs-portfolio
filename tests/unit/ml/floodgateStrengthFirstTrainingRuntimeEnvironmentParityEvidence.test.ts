@@ -74,7 +74,9 @@ describe("Floodgate strength-first training runtime environment parity evidence"
       OMP_DYNAMIC: "FALSE",
       MKL_DYNAMIC: "FALSE",
     })) {
-      expect(launcher).toContain(`"${key}": "${value}"`);
+      expect(launcher).toMatch(
+        new RegExp(`["']${key}["']\\s*:\\s*["']${value}["']`, "u"),
+      );
     }
   });
 

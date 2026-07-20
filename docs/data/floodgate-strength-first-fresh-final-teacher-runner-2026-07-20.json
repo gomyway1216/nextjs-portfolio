@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-fresh-final-teacher-runner-evidence-v1",
-  "status": "implementation-validated-selection-receipt-not-ready-fresh-final-unread-live-unchanged",
+  "status": "implementation-validated-publication-time-selection-receipt-not-ready-fresh-final-unread-live-unchanged",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.md",
@@ -14,7 +14,7 @@
     "fresh_final_only_finalization": true,
     "exact_dataset_filename": "final.jsonl"
   },
-  "current_selection_gate": {
+  "selection_gate_observed_at_publication": {
     "registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
     "registry_status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
     "selected_candidate_receipt_enrolled": false,

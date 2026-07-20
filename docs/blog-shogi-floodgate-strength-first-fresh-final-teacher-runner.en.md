@@ -2,14 +2,14 @@
 
 > On July 20, 2026, we implemented the local path that will generate
 > `final.jsonl` from the fixed 4,800-parent / 200-game fresh-final holdout.
-> There is no candidate-selection receipt yet, so the real command currently
-> stops without opening the source once. This is not evidence of stronger play,
+> At publication there was no candidate-selection receipt, so the real command
+> stopped without opening the source once. This is not evidence of stronger play,
 > high-dan calibration, or a live-weight change.
 > [日本語版](./blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.md)
 
 ## Bottom line
 
-| Item | Observed state |
+| Item | Publication-time observed state |
 | --- | --- |
 | Fresh-final generator / runner | Implemented; focused validation passed |
 | Selected candidate | None |
@@ -26,7 +26,7 @@ The fixed command accepts no arguments:
 npx tsx ml/run-floodgate-fresh-final-teacher.ts
 ```
 
-Today it exits 2 with `selected-candidate-receipt-not-ready`. The observed
+The publication-time run exited 2 with `selected-candidate-receipt-not-ready`. The observed
 counters were one selection-registry read and zero selection-receipt,
 selection-dataset, fresh-final source, fresh-final label, teacher-process,
 network, cloud, and live-write operations.
@@ -80,7 +80,7 @@ Firebase/GCP, or Vercel.
 
 The existing measurement favoring 13 processes used MultiPV 12, so it does not
 establish the optimum for this MultiPV 6 policy. Before the first 4,800-parent
-run, after the active 24,000-parent run releases the CPU, we will benchmark 12
+run, after the then-active 24,000-parent run releases the CPU, we will benchmark 12
 versus 13 under the exact MultiPV 6 policy on public, non-holdout positions.
 The reviewed policy will change only if 13 is measured faster. That benchmark
 will keep fresh-final holdout reads at zero.

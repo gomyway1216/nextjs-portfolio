@@ -2,11 +2,12 @@
 
 > On July 20, 2026, we implemented the local runner that generates YaneuraOu labels for the
 > fixed 4,800-parent / 200-game fresh selection only after strict-loading all three candidate
-> checkpoints. The checkpoint registry is still closed, so the real command currently stops
-> before opening the selection source. Real selection labels, candidate selections, and live
-> weight changes all remain zero. [日本語版](./blog-shogi-floodgate-strength-first-selection-teacher-runner.md)
+> checkpoints. At publication, the checkpoint registry was still closed, so the real command
+> stopped before opening the selection source. Real selection labels, candidate selections, and
+> live-weight changes were all zero at publication.
+> [日本語版](./blog-shogi-floodgate-strength-first-selection-teacher-runner.md)
 
-## Current state
+## Publication-time record
 
 | Item | State |
 | --- | --- |
@@ -45,8 +46,8 @@ also releases the already-held v8 lock. An active formal v8 or v9 run therefore 
 checkpoint, selection-source, or engine work. The runner does not change the process-wide
 `umask`.
 
-When preflight fails, neither the source reader nor the generator is called. The current tracked
-registry keeps the training plan and all three final result/checkpoint identities at `null`.
+When preflight fails, neither the source reader nor the generator is called. At publication, the
+tracked registry kept the training plan and all three final result/checkpoint identities at `null`.
 A direct preflight produced zero stdout bytes and exited 1 with “registry remains closed.”
 That STOP opened no selection source, Torch checkpoint, or YaneuraOu process.
 

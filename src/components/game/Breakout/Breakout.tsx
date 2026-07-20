@@ -145,12 +145,12 @@ const Breakout: React.FC = () => {
         togglePause();
         e.preventDefault();
       } else if (k === ' ' || k === 'Enter') {
-        // Only take over Space/Enter when a launch can actually happen; on the
-        // game-over/victory overlay (or with a button focused) let the browser
-        // activate the focused control instead.
+        // Only take over Space/Enter when a launch can actually happen (ball
+        // still held, game not over); otherwise let the browser activate a
+        // focused control (e.g. the game-over overlay buttons) instead.
         const activeEl = document.activeElement;
         const buttonFocused = activeEl instanceof HTMLElement && activeEl.tagName === 'BUTTON';
-        if (state && !state.gameOver && !state.victory && !buttonFocused) {
+        if (state && !state.launched && !state.gameOver && !state.victory && !buttonFocused) {
           launchBall(state);
           e.preventDefault();
         }
@@ -171,19 +171,39 @@ const Breakout: React.FC = () => {
   }, [screen, showInfo, togglePause]);
 
   // ------------------------------------------------------------------ render
-  const render = useCallback(
-    (ctx: CanvasRenderingContext2D, state: GameState) => {
-      // Size the backing store to the displayed rect × device pixel ratio so
-      // the canvas stays crisp on retina displays; logical coords unchanged.
-      const canvas = ctx.canvas;
-      const rect = canvas.getBoundingClientRect();
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size.
+  useEffect(() => {
+    if (screen !== 'playing') return; // canvas not mounted
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pw = Math.round(rect.width * dpr);
-      const ph = Math.round(rect.height * dpr);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
       if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
         canvas.width = pw;
         canvas.height = ph;
       }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [screen]);
+
+  const render = useCallback(
+    (ctx: CanvasRenderingContext2D, state: GameState) => {
+      // Map logical game coordinates onto the DPR-scaled backing store (sized
+      // by the ResizeObserver above); logical coordinates are unchanged.
+      const canvas = ctx.canvas;
       ctx.setTransform(canvas.width / CANVAS_WIDTH, 0, 0, canvas.height / CANVAS_HEIGHT, 0, 0);
 
       const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);

@@ -509,17 +509,9 @@ const JumpGame = () => {
     (ctx: CanvasRenderingContext2D, state: GameState) => {
       const copy = jumpCopyRef.current;
 
-      // Size the backing store to the displayed rect × device pixel ratio so
-      // the canvas stays crisp on retina displays; logical coords unchanged.
+      // Map logical game coordinates onto the DPR-scaled backing store (sized
+      // by the ResizeObserver effect); logical coordinates are unchanged.
       const canvas = ctx.canvas;
-      const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pw = Math.round(rect.width * dpr);
-      const ph = Math.round(rect.height * dpr);
-      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
-        canvas.width = pw;
-        canvas.height = ph;
-      }
       ctx.setTransform(canvas.width / CANVAS_SIZE, 0, 0, canvas.height / CANVAS_SIZE, 0, 0);
       ctx.imageSmoothingEnabled = true;
 
@@ -779,6 +771,33 @@ const JumpGame = () => {
   useEffect(() => {
     drawRef.current = draw;
   }, [draw]);
+
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size. Logical coords stay 480x480.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
 
   // The loop is fully stable: it reads all mutable state through refs, so it
   // never captures a stale closure and can safely re-schedule itself. It reads

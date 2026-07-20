@@ -397,17 +397,9 @@ const SpaceInvaders: React.FC = () => {
     myColor: string = '#22c55e',
     otherColor: string = '#3b82f6'
   ) => {
-    // Size the backing store to the displayed rect × device pixel ratio so the
-    // canvas stays crisp on retina displays; logical coordinates are unchanged.
+    // Map logical game coordinates onto the DPR-scaled backing store (sized by
+    // the ResizeObserver effect); logical coordinates are unchanged.
     const canvas = ctx.canvas;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const pw = Math.round(rect.width * dpr);
-    const ph = Math.round(rect.height * dpr);
-    if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
-      canvas.width = pw;
-      canvas.height = ph;
-    }
     ctx.setTransform(canvas.width / CANVAS_WIDTH, 0, 0, canvas.height / CANVAS_HEIGHT, 0, 0);
 
     ctx.fillStyle = '#05060c';
@@ -517,6 +509,34 @@ const SpaceInvaders: React.FC = () => {
       }
     }
   }, [t]);
+
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size.
+  useEffect(() => {
+    if (showStartScreen) return; // canvas not mounted
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [showStartScreen]);
 
   // Game loop — single RAF driven by refs (state syncs to React for the HUD).
   useEffect(() => {

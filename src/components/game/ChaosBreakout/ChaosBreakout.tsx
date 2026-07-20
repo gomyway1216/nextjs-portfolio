@@ -69,19 +69,39 @@ export const ChaosBreakout = () => {
     languageRef.current = language;
   }, [language]);
 
+  // Keep the canvas backing store sized to its displayed rect × device pixel
+  // ratio (capped at 2) so it stays crisp on retina displays. A ResizeObserver
+  // keeps the layout read out of the frame loop (no per-frame reflow); it
+  // fires once on observe() for the initial size.
+  useEffect(() => {
+    if (phase === 'menu') return; // canvas not mounted
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resize = (width: number, height: number) => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(width * dpr);
+      const ph = Math.round(height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+    };
+    // Size synchronously so the first frame renders at the right resolution.
+    const rect = canvas.getBoundingClientRect();
+    resize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      resize(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [phase]);
+
   // ---- Rendering ------------------------------------------------------------
   const draw = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
-    // Size the backing store to the displayed rect × device pixel ratio so the
-    // canvas stays crisp on retina displays; logical coordinates are unchanged.
+    // Map logical game coordinates onto the DPR-scaled backing store (sized by
+    // the ResizeObserver above); logical coordinates are unchanged.
     const canvas = ctx.canvas;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const pw = Math.round(rect.width * dpr);
-    const ph = Math.round(rect.height * dpr);
-    if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
-      canvas.width = pw;
-      canvas.height = ph;
-    }
     ctx.setTransform(canvas.width / WIDTH, 0, 0, canvas.height / HEIGHT, 0, 0);
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
 

@@ -936,19 +936,22 @@ async function createPlayers(
         result.status === "fulfilled",
     )
     .map((result) => result.value);
-  if (settled.some((result) => result.status === "rejected")) {
+  const initializationFailures = settled
+    .filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    )
+    .map((result) => result.reason);
+  if (initializationFailures.length > 0) {
     try {
       await settleCleanup(created, "close");
-    } catch {
-      // Initialization failure remains the primary STOP reason.
+    } catch (cleanupFailure) {
+      throw new AggregateError(
+        [...initializationFailures, cleanupFailure],
+        "player initialization and cleanup both failed",
+      );
     }
     throw new AggregateError(
-      settled
-        .filter(
-          (result): result is PromiseRejectedResult =>
-            result.status === "rejected",
-        )
-        .map((result) => result.reason),
+      initializationFailures,
       "player initialization failed",
     );
   }
@@ -986,6 +989,9 @@ async function runInternal(
   let request: Readonly<CapturedRequest>;
   try {
     request = captureRequest(requestValue);
+    if (executionBoundary === "pinned-local-production-assets") {
+      assertPinnedRequestContract(request);
+    }
     const factories = exactRecord(
       dependencies,
       ["createReferencePlayer", "createStablePlayer"],
@@ -1169,6 +1175,17 @@ async function runInternal(
             completed,
           );
         }
+        throw new LocalExternalCalibrationError(
+          operationFailure instanceof LocalExternalCalibrationError
+            ? operationFailure.phase
+            : "cleanup",
+          "operation failed and close cleanup also failed",
+          new AggregateError(
+            [operationFailure, cleanupFailure],
+            "calibration operation and close cleanup both failed",
+          ),
+          completed,
+        );
       }
     }
   }
@@ -1312,6 +1329,29 @@ export function choosePinnedReferenceMoveCoreForTests(
   runtime: Readonly<PinnedReferenceSearchRuntime>,
 ): Promise<Readonly<LocalExternalCalibrationMoveDecision>> {
   return choosePinnedReferenceMove(input, runtime);
+}
+
+function assertPinnedRequestContract(request: Readonly<CapturedRequest>): void {
+  const actual = request.time_control;
+  const expected = PINNED_LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL;
+  if (
+    actual.mode !== expected.mode ||
+    actual.stable_depth !== expected.stable_depth ||
+    actual.reference_depth !== expected.reference_depth ||
+    actual.stable_timeout_ms !== expected.stable_timeout_ms ||
+    actual.reference_timeout_ms !== expected.reference_timeout_ms
+  ) {
+    throw new Error(
+      "pinned calibration request time control differs from the exact production contract",
+    );
+  }
+}
+
+/** Test-only preflight; it creates no runtime and returns no authority. */
+export function validatePinnedLocalExternalCalibrationRequestCoreForTests(
+  request: LocalExternalCalibrationRequest,
+): void {
+  assertPinnedRequestContract(captureRequest(request));
 }
 
 /**

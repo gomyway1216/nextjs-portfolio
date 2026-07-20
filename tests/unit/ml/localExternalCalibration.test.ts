@@ -16,6 +16,7 @@ import {
   choosePinnedReferenceMoveCoreForTests,
   localExternalCalibrationOpeningId,
   runLocalExternalCalibrationCoreForTests,
+  validatePinnedLocalExternalCalibrationRequestCoreForTests,
   type LocalExternalCalibrationCoreDependencies,
   type LocalExternalCalibrationMoveInput,
   type LocalExternalCalibrationPlayer,
@@ -515,6 +516,94 @@ describe("local external calibration paired harness", () => {
     expect(referenceCounters.aborts).toBe(1);
   });
 
+  it("retains an operation failure together with secondary close failures", async () => {
+    const stableCounters = counters();
+    const referenceCounters = counters();
+    const failingClose = (
+      role: LocalExternalCalibrationRole,
+      playerCounters: PlayerCounters,
+      choose?: (
+        input: Readonly<LocalExternalCalibrationMoveInput>,
+      ) => string | Promise<string>,
+    ): LocalExternalCalibrationPlayer => {
+      const player = deterministicPlayer(role, playerCounters, choose);
+      return Object.freeze({
+        ...player,
+        close: async () => {
+          playerCounters.closes += 1;
+          throw new Error(`${role} close failed`);
+        },
+      });
+    };
+    let caught: unknown;
+    try {
+      await runLocalExternalCalibrationCoreForTests(
+        request(),
+        Object.freeze({
+          createStablePlayer: async () =>
+            failingClose("stable", stableCounters, () => "9z9z"),
+          createReferencePlayer: async () =>
+            failingClose("reference", referenceCounters),
+        }),
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(LocalExternalCalibrationError);
+    expect(caught).toMatchObject({
+      phase: "game",
+      receipt_issued: false,
+      partial_result_publishable: false,
+    });
+    const combined = (caught as LocalExternalCalibrationError).primary;
+    expect(combined).toBeInstanceOf(AggregateError);
+    const failures = (combined as AggregateError).errors;
+    expect(failures[0]).toBeInstanceOf(LocalExternalCalibrationError);
+    expect(failures[1]).toBeInstanceOf(AggregateError);
+    expect((failures[1] as AggregateError).errors).toHaveLength(2);
+    expect(stableCounters.closes).toBe(1);
+    expect(referenceCounters.closes).toBe(1);
+  });
+
+  it("retains initialization and cleanup failures without starting games", async () => {
+    const stableCounters = counters();
+    const stable = deterministicPlayer("stable", stableCounters);
+    const stableWithFailingClose = Object.freeze({
+      ...stable,
+      close: async () => {
+        stableCounters.closes += 1;
+        throw new Error("stable initialization cleanup failed");
+      },
+    });
+    let caught: unknown;
+    try {
+      await runLocalExternalCalibrationCoreForTests(
+        request(),
+        Object.freeze({
+          createStablePlayer: async () => stableWithFailingClose,
+          createReferencePlayer: async () => {
+            throw new Error("reference initialization failed");
+          },
+        }),
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(LocalExternalCalibrationError);
+    expect(caught).toMatchObject({
+      phase: "initialization",
+      receipt_issued: false,
+      completed_games_discarded: 0,
+    });
+    const combined = (caught as LocalExternalCalibrationError).primary;
+    expect(combined).toBeInstanceOf(AggregateError);
+    expect((combined as AggregateError).errors).toHaveLength(2);
+    expect(stableCounters.inputs).toHaveLength(0);
+    expect(stableCounters.closes).toBe(1);
+  });
+
   it("runs a small subprocess fake-USI E2E with reset before every search", async () => {
     const root = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "local-external-calibration-"),
@@ -628,7 +717,7 @@ describe("local external calibration paired harness", () => {
     expect(decision.search_receipt_sha256).toMatch(/^[0-9a-f]{64}$/u);
   });
 
-  it("binds the explicit pinned depth/timeout contract without running it", () => {
+  it("preflights the explicit pinned depth/timeout contract without a runtime", () => {
     expect(PINNED_LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL).toEqual({
       mode: "fixed-depth-no-game-clock-v1",
       stable_depth: 11,
@@ -636,5 +725,20 @@ describe("local external calibration paired harness", () => {
       stable_timeout_ms: 600_000,
       reference_timeout_ms: 600_000,
     });
+    const pinned = request({
+      time_control: PINNED_LOCAL_EXTERNAL_CALIBRATION_TIME_CONTROL,
+    });
+    expect(() =>
+      validatePinnedLocalExternalCalibrationRequestCoreForTests(pinned),
+    ).not.toThrow();
+    expect(() =>
+      validatePinnedLocalExternalCalibrationRequestCoreForTests({
+        ...pinned,
+        time_control: {
+          ...pinned.time_control,
+          reference_depth: 15,
+        },
+      }),
+    ).toThrow(/differs from the exact production contract/);
   });
 });

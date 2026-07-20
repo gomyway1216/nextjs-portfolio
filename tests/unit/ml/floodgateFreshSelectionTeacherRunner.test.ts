@@ -30,6 +30,7 @@ import {
 } from "../../../ml/floodgate-fresh-selection-teacher-runner";
 import { runFreshSelectionTeacherCliCore } from "../../../ml/run-floodgate-fresh-selection-teacher";
 import {
+  parseAuthenticatedFloodgateFreshFinalRows,
   parseAuthenticatedFloodgateFreshSelectionRows,
   parseAuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
@@ -225,8 +226,19 @@ describe("fresh-selection teacher runner", () => {
       position_ids_sha256: floodgateIdentifierDigest([positionId]),
     };
     expect(parseAuthenticatedFloodgateFreshSelectionRows(bytes, identity)).toHaveLength(1);
+    const finalIdentity = {
+      ...identity,
+      path: "fresh-final-holdout.raw.jsonl" as const,
+    };
+    expect(parseAuthenticatedFloodgateFreshFinalRows(bytes, finalIdentity)).toHaveLength(1);
     expect(() =>
       parseAuthenticatedFloodgateTrainingRows(bytes, identity),
+    ).toThrow(/path or format is not fixed/);
+    expect(() =>
+      parseAuthenticatedFloodgateFreshFinalRows(bytes, identity),
+    ).toThrow(/path or format is not fixed/);
+    expect(() =>
+      parseAuthenticatedFloodgateFreshSelectionRows(bytes, finalIdentity),
     ).toThrow(/path or format is not fixed/);
     expect(() =>
       parseAuthenticatedFloodgateFreshSelectionRows(

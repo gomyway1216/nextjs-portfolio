@@ -201,6 +201,18 @@ export const AI_PROFILES: Record<Difficulty, AiProfile> = {
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 
 /**
+ * Plausibility of the rarest still-truthful signature (a signature matching
+ * exactly one pool word) — the reference point for "this could be an honest
+ * claim". Every truthful claim matches at least its own word, so every truth
+ * scores at or above this baseline; only signatures matching NOTHING in the
+ * pool fall below it. Calibrating suspicion against this (instead of raw
+ * rarity) keeps ordinary truths from reading as bluffs.
+ */
+export const TRUTHFUL_BASELINE: number = Math.min(
+  ...WORD_POOL.map((w) => plausibility(w[0], w.length)),
+);
+
+/**
  * Probability the AI *should* doubt a given claim, before noise. Combines the
  * plausibility read (implausible => doubt) with the AI's read skill: a low-skill
  * AI barely reacts to plausibility and hovers near a coin flip.
@@ -210,8 +222,12 @@ export const aiDoubtProbability = (
   profile: AiProfile,
 ): number => {
   const p = plausibility(claim.claimedFirst, claim.claimedLength);
-  // Map plausibility (~0..~4) to a suspicion score in [0,1]: rare => suspicious.
-  const suspicion = clamp01(1 - p / 1.6);
+  // Suspicion is calibrated against the truthful baseline: a signature exactly
+  // as plausible as a typical honest claim sits slightly BELOW neutral (doubting
+  // truth costs the challenger a life, so believing is the safe default), while
+  // signatures matching nothing in the pool push suspicion toward 1.
+  const ratio = p / TRUTHFUL_BASELINE;
+  const suspicion = clamp01(0.35 - 0.45 * Math.log2(ratio));
   // Blend toward 0.5 based on how much the AI trusts its read.
   const informed = 0.5 + (suspicion - 0.5) * profile.aggression;
   return clamp01(0.5 + (informed - 0.5) * profile.readSkill);

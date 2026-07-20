@@ -7,6 +7,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -37,6 +38,8 @@ export const GET = withActivityLog('next_api.post.related.GET', async (request: 
       ...ids.map((id) => db.collection(POSTS_COLLECTION).doc(id))
     );
 
+    const slugById = await getSlugMapSafe();
+
     const posts = docs.flatMap((doc) => {
       if (!doc.exists) return [];
       const data = doc.data()!;
@@ -48,6 +51,7 @@ export const GET = withActivityLog('next_api.post.related.GET', async (request: 
 
       return [{
         id: doc.id,
+        slug: slugById.get(doc.id) ?? doc.id,
         title: picked.translation.title,
         language: picked.language,
         category: typeof data.category === 'string' ? data.category : 'all',

@@ -9,6 +9,7 @@ import styles from './HomeBlogSection.module.css';
 
 export interface HomeBlogPost {
   id: string;
+  slug?: string;
   title: string;
   body: string;
   isPublic: boolean;
@@ -50,6 +51,7 @@ export default function HomeBlogSection({ posts }: HomeBlogSectionProps) {
               <PostListItem
                 key={post.id}
                 id={post.id}
+                slug={post.slug}
                 title={post.title}
                 body={post.body}
                 isPublic={post.isPublic}

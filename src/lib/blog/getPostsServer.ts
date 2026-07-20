@@ -9,10 +9,12 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 
 export interface ServerPost {
   id: string;
+  slug: string;
   title: string;
   body: string;
   isPublic: boolean;
@@ -52,6 +54,8 @@ async function fetchPostsPage(
     return { posts: [], lastVisibleTimestamp: null, hasMore: false };
   }
 
+  const slugById = await getSlugMapSafe();
+
   const posts: ServerPost[] = snapshot.docs.flatMap((doc): ServerPost[] => {
     const data = doc.data();
     const translations = (data.translations || {}) as PostTranslations;
@@ -59,6 +63,7 @@ async function fetchPostsPage(
     if (!picked) return [];
     return [{
       id: doc.id,
+      slug: slugById.get(doc.id) ?? doc.id,
       title: picked.translation.title,
       body: picked.translation.body,
       isPublic: data.isPublic,

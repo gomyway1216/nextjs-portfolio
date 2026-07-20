@@ -4,6 +4,7 @@ import { POSTS_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
 import { getProjectPath } from '@/lib/projectRoutes';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { SITE_URL } from '@/lib/siteConfig';
 
 // Render per request. With ISR (`revalidate`) this route was emitted as a
@@ -58,9 +59,10 @@ async function getPublicProjects() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [posts, projects] = await Promise.all([
+  const [posts, projects, slugById] = await Promise.all([
     getPublicPosts(),
     getPublicProjects(),
+    getSlugMapSafe(),
   ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -97,10 +99,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Bare post URLs are the English/default entries; posts with a Japanese
   // translation also get their language-pinned /ja URL, and both carry
   // hreflang alternates pointing at each other. A ja-only post lists only
-  // its /ja URL — its bare URL canonicalizes there.
+  // its /ja URL — its bare URL canonicalizes there. Both URL forms use
+  // the canonical slug (falling back to the id).
   const postRoutes: MetadataRoute.Sitemap = posts.flatMap((post) => {
-    const enUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
-    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+    const slug = slugById.get(post.id) ?? post.id;
+    const enUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug)}`;
+    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug)}`;
     const base = {
       lastModified: post.lastUpdated,
       changeFrequency: 'monthly' as const,

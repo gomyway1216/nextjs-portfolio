@@ -17,7 +17,7 @@ from collections.abc import Mapping
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import stat
 import sys
@@ -70,7 +70,7 @@ ACTIVATION_COMPOSITION_RECEIPT_SCHEMA = (
     "shogi-floodgate-formal-paired-ab-v2-test-composition-receipt-v1"
 )
 OPENING_SCHEDULE_SCHEMA = (
-    "shogi-floodgate-formal-paired-ab-v2-opening-schedule-v1"
+    "shogi-floodgate-formal-paired-ab-local-openings-manifest-v1"
 )
 TIME_CONTROL_SCHEMA = "shogi-floodgate-formal-paired-ab-v2-time-control-v1"
 WEIGHTS_SCHEMA = "shogi-int16-nnue-weights-bin-v1"
@@ -119,7 +119,7 @@ _COMPOSITION_FIELDS = frozenset(
 _CONTENT_RECORD_FIELDS = frozenset({"identity", "payload"})
 _OPENINGS_FIELDS = frozenset({"schema", "pairs"})
 _PAIR_FIELDS = frozenset(
-    {"pair_index", "opening_id", "opening", "games"}
+    {"pair_index", "opening_id", "opening", "seed", "games"}
 )
 _OPENING_FIELDS = frozenset({"sfen", "usi_moves"})
 _GAME_FIELDS = frozenset(
@@ -367,14 +367,15 @@ def _safe_relative_path(value: Any, label: str) -> str:
         or "\\" in value
     ):
         raise FormalAbV2ActivationError(f"{label}.path is invalid")
-    path = Path(value)
+    path = PurePosixPath(value)
     if (
         path.is_absolute()
         or not path.parts
         or any(part in ("", ".", "..") for part in path.parts)
+        or str(path) != value
     ):
         raise FormalAbV2ActivationError(
-            f"{label}.path must be a safe relative path"
+            f"{label}.path must be one canonical safe relative path"
         )
     return value
 
@@ -454,7 +455,7 @@ def _open_repository_file(
             raise FormalAbV2ActivationError(
                 f"{label} repository root is not a current-user directory"
             )
-        parts = Path(relative_path).parts
+        parts = PurePosixPath(relative_path).parts
         for component in parts[:-1]:
             current = os.open(
                 component,
@@ -681,6 +682,7 @@ def _validate_openings(value: Any) -> tuple[dict, dict]:
         )
     opening_ids: set[str] = set()
     game_ids: set[str] = set()
+    seeds: set[int] = set()
     for pair_index, raw_pair in enumerate(pairs):
         pair = _exact_dict(
             raw_pair,
@@ -744,6 +746,18 @@ def _validate_openings(value: Any) -> tuple[dict, dict]:
                 "CoreForTests opening IDs must be unique"
             )
         opening_ids.add(opening_id)
+        seed = pair["seed"]
+        if (
+            type(seed) is not int
+            or seed < 1
+            or seed > (1 << 63) - 1
+            or seed in seeds
+        ):
+            raise FormalAbV2ActivationError(
+                "CoreForTests opening seeds must be unique positive "
+                "signed 64-bit integers"
+            )
+        seeds.add(seed)
         games = pair["games"]
         if type(games) is not list or len(games) != GAMES_PER_PAIR:
             raise FormalAbV2ActivationError(
@@ -940,6 +954,7 @@ def compose_formal_ab_v2_activation_core_for_tests(
 
     binding = {
         "protocol": {
+            "activation_registry": _ACTIVATION_REGISTRY_IDENTITY,
             "source_registry": _SOURCE_REGISTRY_IDENTITY,
             "amendment": _AMENDMENT_IDENTITY,
             "plan": _PLAN_IDENTITY,

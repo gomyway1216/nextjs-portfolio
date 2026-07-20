@@ -17,6 +17,9 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 import formal_paired_ab_v2_production_activation as activation  # noqa: E402
+from formal_paired_ab_local_launcher import (  # noqa: E402
+    _validate_openings_manifest as validate_existing_openings_manifest,
+)
 
 
 def digest(number):
@@ -42,6 +45,10 @@ def content_record(path, payload):
         "identity": artifact_identity(path, raw, payload["schema"]),
         "payload": payload,
     }
+
+
+def rebind_content_record(record):
+    return content_record(record["identity"]["path"], record["payload"])
 
 
 def opening_schedule():
@@ -74,6 +81,7 @@ def opening_schedule():
                 "pair_index": pair_index,
                 "opening_id": opening_id,
                 "opening": opening,
+                "seed": 90_000 + pair_index,
                 "games": games,
             }
         )
@@ -307,6 +315,10 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
             first["binding"]["candidate_colors"],
             ["sente", "gote"],
         )
+        self.assertEqual(
+            first["binding"]["protocol"]["activation_registry"],
+            activation._ACTIVATION_REGISTRY_IDENTITY,
+        )
         self.assertEqual(first["binding"]["pair_workers"], 6)
         self.assertEqual(
             first["binding"]["candidate_weights"],
@@ -323,6 +335,14 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
         self.assertEqual(
             first["binding"]["receipts"],
             fixture["receipts"],
+        )
+        self.assertEqual(
+            len(
+                validate_existing_openings_manifest(
+                    fixture["openings_manifest"]["payload"]
+                )
+            ),
+            activation.PAIR_COUNT,
         )
         self.assertTrue(
             all(value is False for value in first["authority"].values())
@@ -350,12 +370,18 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
 
         missing_pair = composition_fixture()
         missing_pair["openings_manifest"]["payload"]["pairs"].pop()
+        missing_pair["openings_manifest"] = rebind_content_record(
+            missing_pair["openings_manifest"]
+        )
         probes.append(missing_pair)
 
         wrong_color = composition_fixture()
         wrong_color["openings_manifest"]["payload"]["pairs"][0]["games"][0][
             "candidate_color"
         ] = "gote"
+        wrong_color["openings_manifest"] = rebind_content_record(
+            wrong_color["openings_manifest"]
+        )
         probes.append(wrong_color)
 
         duplicate_game = composition_fixture()
@@ -364,11 +390,23 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
         ] = duplicate_game["openings_manifest"]["payload"]["pairs"][0][
             "games"
         ][0]["game_id"]
+        duplicate_game["openings_manifest"] = rebind_content_record(
+            duplicate_game["openings_manifest"]
+        )
         probes.append(duplicate_game)
 
         wrong_colors = composition_fixture()
         wrong_colors["colors"] = ["gote", "sente"]
         probes.append(wrong_colors)
+
+        duplicate_seed = composition_fixture()
+        duplicate_seed["openings_manifest"]["payload"]["pairs"][1]["seed"] = (
+            duplicate_seed["openings_manifest"]["payload"]["pairs"][0]["seed"]
+        )
+        duplicate_seed["openings_manifest"] = rebind_content_record(
+            duplicate_seed["openings_manifest"]
+        )
+        probes.append(duplicate_seed)
 
         for probe in probes:
             with self.subTest(probe=len(probe["openings_manifest"]["payload"]["pairs"])):
@@ -521,6 +559,34 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
             "safe relative path",
         ):
             activation.compose_formal_ab_v2_activation_core_for_tests(unsafe)
+
+        for path_alias in (
+            "synthetic//candidate.bin",
+            "synthetic/./candidate.bin",
+            "synthetic/candidate.bin/",
+        ):
+            alias = composition_fixture()
+            alias["candidate_weights"]["path"] = path_alias
+            with self.subTest(path_alias=path_alias):
+                with self.assertRaisesRegex(
+                    activation.FormalAbV2ActivationError,
+                    "canonical safe relative path",
+                ):
+                    activation.compose_formal_ab_v2_activation_core_for_tests(
+                        alias
+                    )
+
+        aliased_weight_path = composition_fixture()
+        aliased_weight_path["stable_weights"]["path"] = (
+            "synthetic/./candidate.bin"
+        )
+        with self.assertRaisesRegex(
+            activation.FormalAbV2ActivationError,
+            "canonical safe relative path",
+        ):
+            activation.compose_formal_ab_v2_activation_core_for_tests(
+                aliased_weight_path
+            )
 
         authority = composition_fixture()
         authority["safety"]["production_authority"] = True

@@ -32,6 +32,11 @@ import {
   verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
 } from "../../../ml/floodgate-strength-first-v8-teacher-authority";
 import {
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+  bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests,
+  captureFloodgateStrengthFirstV9TeacherAuthorityReceipt,
+} from "../../../ml/floodgate-strength-first-v9-teacher-authority";
+import {
   FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
   FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
@@ -694,6 +699,40 @@ describe("Floodgate strength-first teacher runner", () => {
     const receipt = assetReceiptFixture();
     expect(receipt.runtime.hash_mb_per_engine).toBe(512);
     expect(receipt.asset_authority.runtime.hash_mb_per_engine).toBe(64);
+  });
+
+  it("appends the measured v9 depth-14 proposal policy without changing v8 assets", () => {
+    const v8 = assetReceiptFixture();
+    const v9 = bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests(v8, 501);
+    expect(FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME).toMatchObject({
+      parallel_engines: 12,
+      hash_mb_per_engine: 512,
+      proposal: { multipv: 12, depth: 14 },
+      independent_rescore: { multipv: 1, depth: 16 },
+      proposal_incomplete: {
+        phase: "proposal-only",
+        disposition: "typed-skip-with-no-label",
+        exact_rescore_incomplete: "fatal",
+        shared_recoverable_search_skip_divisor: 1_000,
+      },
+    });
+    expect(v9.asset_authority).toEqual(v8);
+    expect(v9.assets).toBe(v9.asset_authority.assets);
+    expect(v9.runtime.proposal.depth).toBe(14);
+    expect(v9.asset_authority.runtime.proposal.depth).toBe(16);
+    expect(() =>
+      captureFloodgateStrengthFirstV9TeacherAuthorityReceipt(
+        {
+          ...v9,
+          runtime: {
+            ...v9.runtime,
+            proposal: { multipv: 12, depth: 15 },
+          },
+        },
+        "production-fixed-registry-and-deployment-root",
+        501,
+      ),
+    ).toThrow("invalid strength-first v9 teacher authority receipt");
   });
 
   it("rejects a non-POSIX runtime before reading production assets", async () => {

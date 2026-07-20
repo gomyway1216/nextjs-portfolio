@@ -41,6 +41,7 @@ import {
 } from './usi-engine';
 import {
   MAX_NON_MATE_CP,
+  UsiFixedDepthRanksIncompleteError,
   mateToCp,
   type UsiMultiPvResult,
   type UsiSearchLimit,
@@ -63,6 +64,10 @@ export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500,
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR = 1_000 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_REASON = 'search-timeout-no-label' as const;
+export const STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON =
+  'proposal-incomplete-no-label' as const;
+export const PROPOSAL_INCOMPLETE_QUARANTINE_POLICY =
+  'proposal-only-typed-fixed-depth-incomplete-ranks-no-label-v1' as const;
 export const SIBLING_TEACHER_LABEL_POLICY =
   'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v7-timeout-quarantine' as const;
 export const INDEPENDENT_EXACT_RESCORE_MODE = 'independent-single-move' as const;
@@ -142,10 +147,13 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   engineBin: string;
   engineArgs?: readonly string[];
   engineReceipt: string;
+  authenticatedInputPolicy?: string;
   evalDir?: string;
   multipv?: number;
   nodes?: number;
   depth?: number;
+  proposalNodes?: number;
+  proposalDepth?: number;
   engines?: number;
   seed?: string | number;
   valRatio?: number;
@@ -161,9 +169,11 @@ interface NormalizedOptions {
   runnerRevision: string;
   engineArgs: readonly string[];
   engineReceipt: string;
+  authenticatedInputPolicy?: string;
   evalDir?: string;
   multipv: number;
   limit: UsiSearchLimit;
+  proposalLimit: UsiSearchLimit;
   engines: number;
   seed: string;
   valRatio: number;
@@ -265,9 +275,29 @@ export interface SearchTimeoutSkippedWorkEntry {
   }>;
 }
 
+export interface ProposalIncompleteSkippedWorkEntry {
+  schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+  kind: 'skip';
+  run_fingerprint: string;
+  payload_sha256: string;
+  parent_id: string;
+  reason: typeof STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON;
+  legal_moves: number;
+  incomplete: Readonly<{
+    phase: 'proposal';
+    requested_multipv: number;
+    requested_limit: { depth: number };
+    final_exact_ranks: number;
+    final_cp_ranks: number;
+    final_mate_ranks: number;
+    missing_or_non_exact_ranks: number;
+  }>;
+}
+
 export type SkippedWorkEntry =
   | ForcedLegalMoveSkippedWorkEntry
-  | SearchTimeoutSkippedWorkEntry;
+  | SearchTimeoutSkippedWorkEntry
+  | ProposalIncompleteSkippedWorkEntry;
 export type WorkEntry = CompletedWorkEntry | SkippedWorkEntry;
 
 export interface SiblingTeacherManifest {
@@ -299,6 +329,8 @@ export interface SiblingTeacherManifest {
   search: {
     multipv: number;
     limit: { nodes: number } | { depth: number };
+    proposal_limit?: { nodes: number } | { depth: number };
+    proposal_incomplete_quarantine_policy?: typeof PROPOSAL_INCOMPLETE_QUARANTINE_POLICY;
     parallel_engines: number;
     fv_scale: number;
     hash_mb_per_engine: number;
@@ -350,6 +382,7 @@ interface StrengthFirstFileBinding {
 export interface StrengthFirstForcedSkipReasonCounts {
   readonly fewer_than_two_legal_moves: number;
   readonly search_timeout_no_label: number;
+  readonly proposal_incomplete_no_label?: number;
 }
 
 function forcedSkipReasonCounts(
@@ -357,12 +390,15 @@ function forcedSkipReasonCounts(
 ): Readonly<StrengthFirstForcedSkipReasonCounts> {
   let fewerThanTwoLegalMoves = 0;
   let searchTimeoutNoLabel = 0;
+  let proposalIncompleteNoLabel = 0;
   for (const entry of entries) {
     if (entry.kind !== 'skip') continue;
     if (entry.reason === 'fewer-than-two-legal-moves') {
       fewerThanTwoLegalMoves += 1;
     } else if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
       searchTimeoutNoLabel += 1;
+    } else if (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+      proposalIncompleteNoLabel += 1;
     } else {
       throw new Error('unsupported forced skip reason');
     }
@@ -370,6 +406,9 @@ function forcedSkipReasonCounts(
   return Object.freeze({
     fewer_than_two_legal_moves: fewerThanTwoLegalMoves,
     search_timeout_no_label: searchTimeoutNoLabel,
+    ...(proposalIncompleteNoLabel === 0
+      ? {}
+      : { proposal_incomplete_no_label: proposalIncompleteNoLabel }),
   });
 }
 
@@ -402,6 +441,7 @@ export interface StrengthFirstSiblingTeacherManifest {
   readonly authenticated_input: Readonly<{
     readonly bundle_verifier_revision: string;
     readonly binding: Readonly<FloodgateTrainingInputBinding>;
+    readonly runtime_policy?: string;
   }>;
   readonly source: Readonly<{
     readonly raw_sha256: string;
@@ -549,11 +589,13 @@ export interface SiblingTeacherRunFingerprintInput {
   readonly eval_sha256: string | null;
   readonly multipv: number;
   readonly limit: UsiSearchLimit;
+  readonly proposal_limit?: UsiSearchLimit;
   readonly engine_environment?: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
   readonly parallel_engines: number;
   readonly fv_scale: number;
   readonly hash_mb_per_engine: number;
   readonly timeout_ms: number;
+  readonly authenticated_input_policy?: string;
   readonly test_only_engine_initialization_timeout_ms?: number;
 }
 
@@ -569,6 +611,11 @@ export function siblingTeacherRunFingerprint(
     canonicalJson({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
       authenticated_training_binding: input.authenticated_training_binding,
+      ...(input.authenticated_input_policy === undefined
+        ? {}
+        : {
+            authenticated_input_policy: input.authenticated_input_policy,
+          }),
       source_raw_sha256: input.source_raw_sha256,
       selected_parent_ids_sha256: input.selected_parent_ids_sha256,
       label_policy: SIBLING_TEACHER_LABEL_POLICY,
@@ -581,6 +628,13 @@ export function siblingTeacherRunFingerprint(
       eval_sha256: input.eval_sha256,
       multipv: input.multipv,
       limit: input.limit,
+      ...(input.proposal_limit === undefined
+        ? {}
+        : {
+            proposal_limit: input.proposal_limit,
+            proposal_incomplete_quarantine_policy:
+              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+          }),
       exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
       candidate_execution_order: 'utf8-bytewise-ascending',
       synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
@@ -732,6 +786,29 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   const hasNodes = options.nodes !== undefined;
   const hasDepth = options.depth !== undefined;
   if (hasNodes === hasDepth) throw new Error('exactly one of nodes or depth must be specified');
+  const limit: UsiSearchLimit = hasNodes
+    ? { nodes: positiveInteger(options.nodes as number, 'nodes') }
+    : { depth: positiveInteger(options.depth as number, 'depth') };
+  const hasProposalNodes = options.proposalNodes !== undefined;
+  const hasProposalDepth = options.proposalDepth !== undefined;
+  if (hasProposalNodes && hasProposalDepth) {
+    throw new Error('at most one of proposalNodes or proposalDepth may be specified');
+  }
+  const proposalLimit: UsiSearchLimit = hasProposalNodes
+    ? {
+        nodes: positiveInteger(
+          options.proposalNodes as number,
+          'proposalNodes'
+        ),
+      }
+    : hasProposalDepth
+      ? {
+          depth: positiveInteger(
+            options.proposalDepth as number,
+            'proposalDepth'
+          ),
+        }
+      : limit;
   const valRatio = options.valRatio ?? 0.1;
   if (!(valRatio > 0 && valRatio < 1)) {
     throw new Error(`valRatio must be between 0 and 1 (got ${valRatio})`);
@@ -743,10 +820,17 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     runnerRevision: requiredText(options.runnerRevision, 'runnerRevision'),
     engineArgs: [...(options.engineArgs ?? [])],
     engineReceipt: path.resolve(requiredText(options.engineReceipt, 'engineReceipt')),
+    ...(options.authenticatedInputPolicy === undefined
+      ? {}
+      : {
+          authenticatedInputPolicy: requiredText(
+            options.authenticatedInputPolicy,
+            'authenticatedInputPolicy'
+          ),
+        }),
     multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
-    limit: hasNodes
-      ? { nodes: positiveInteger(options.nodes as number, 'nodes') }
-      : { depth: positiveInteger(options.depth as number, 'depth') },
+    limit,
+    proposalLimit,
     engines: positiveInteger(options.engines ?? 1, 'engines'),
     seed: String(options.seed ?? '42'),
     valRatio,
@@ -1099,6 +1183,10 @@ function normalizedSearchLimit(limit: UsiSearchLimit): { nodes: number } | { dep
   return limit.nodes !== undefined ? { nodes: limit.nodes } : { depth: limit.depth as number };
 }
 
+function sameSearchLimit(left: UsiSearchLimit, right: UsiSearchLimit): boolean {
+  return canonicalJson(normalizedSearchLimit(left)) === canonicalJson(normalizedSearchLimit(right));
+}
+
 function searchMetadata(result: UsiMultiPvResult, limit: UsiSearchLimit): SearchMetadata {
   return {
     requested_multipv: result.lines.length,
@@ -1367,6 +1455,37 @@ class SiblingTeacherSearchTimeoutError extends Error {
   }
 }
 
+class SiblingTeacherProposalIncompleteError extends Error {
+  readonly requestedMultipv: number;
+  readonly requestedLimit: { depth: number };
+  readonly finalExactRanks: number;
+  readonly finalCpRanks: number;
+  readonly finalMateRanks: number;
+  readonly missingOrNonExactRanks: number;
+
+  constructor(
+    cause: UsiFixedDepthRanksIncompleteError,
+    requestedMultipv: number,
+    requestedLimit: UsiSearchLimit
+  ) {
+    super(cause.message, { cause });
+    this.name = 'SiblingTeacherProposalIncompleteError';
+    if (
+      requestedLimit.depth === undefined ||
+      requestedLimit.depth !== cause.requiredDepth ||
+      requestedMultipv !== cause.requestedRanks
+    ) {
+      throw new Error('typed proposal-incomplete metadata disagrees with its request');
+    }
+    this.requestedMultipv = requestedMultipv;
+    this.requestedLimit = { depth: requestedLimit.depth };
+    this.finalExactRanks = cause.finalExactRanks;
+    this.finalCpRanks = cause.finalCpRanks;
+    this.finalMateRanks = cause.finalMateRanks;
+    this.missingOrNonExactRanks = cause.missingOrNonExactRanks;
+  }
+}
+
 async function searchWithTimeoutContext(
   engine: UsiTeacherEngine,
   parent: RawParentOccurrence,
@@ -1387,6 +1506,16 @@ async function searchWithTimeoutContext(
         searchmoves
       );
     }
+    if (
+      phase === 'proposal' &&
+      error instanceof UsiFixedDepthRanksIncompleteError
+    ) {
+      throw new SiblingTeacherProposalIncompleteError(
+        error,
+        multipv,
+        limit
+      );
+    }
     throw error;
   }
 }
@@ -1397,7 +1526,8 @@ export async function labelSiblingParent(
   parent: RawParentOccurrence,
   multipv: number,
   limit: UsiSearchLimit,
-  legalMoves = legalMovesForParent(parent)
+  legalMoves = legalMovesForParent(parent),
+  proposalLimit: UsiSearchLimit = limit
 ): Promise<CompletedWorkEntry> {
   if (legalMoves.length < 2) {
     throw new Error(`parent ${parent.parent_id} has fewer than two legal moves`);
@@ -1410,7 +1540,7 @@ export async function labelSiblingParent(
     engine,
     parent,
     initialMultiPv,
-    limit,
+    proposalLimit,
     [],
     'proposal'
   );
@@ -1509,7 +1639,7 @@ export async function labelSiblingParent(
     parent_id: parent.parent_id,
     candidate_set_sha256: candidateSetSha256(candidateMoves),
     candidate_moves: candidateMoves,
-    initial_search: searchMetadata(initial, limit),
+    initial_search: searchMetadata(initial, proposalLimit),
     exact_search: exactSearch,
     records,
   };
@@ -1522,7 +1652,8 @@ export function validateWorkEntry(
   source: number | string,
   expectedMultipv: number,
   expectedLimit: UsiSearchLimit,
-  expectedTimeoutMs: number
+  expectedTimeoutMs: number,
+  expectedProposalLimit: UsiSearchLimit = expectedLimit
 ): WorkEntry {
   const context = typeof source === 'number' ? `work line ${source}` : source;
   if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
@@ -1550,6 +1681,67 @@ export function validateWorkEntry(
       }
       if (entry.legal_moves !== actualLegalMoves) {
         throw new Error(`${context} skip legal_moves does not match its raw parent`);
+      }
+      return entry;
+    }
+    if (row.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+      const entry = row as ProposalIncompleteSkippedWorkEntry;
+      const incomplete = entry.incomplete;
+      const expectedInitialMultipv = Math.min(expectedMultipv, actualLegalMoves);
+      const normalizedProposalLimit = normalizedSearchLimit(expectedProposalLimit);
+      if (
+        Object.keys(entry).sort().join('\0') !==
+          [
+            'incomplete',
+            'kind',
+            'legal_moves',
+            'parent_id',
+            'payload_sha256',
+            'reason',
+            'run_fingerprint',
+            'schema',
+          ]
+            .sort()
+            .join('\0') ||
+        !Number.isSafeInteger(entry.legal_moves) ||
+        entry.legal_moves < 2 ||
+        entry.legal_moves !== actualLegalMoves ||
+        !incomplete ||
+        typeof incomplete !== 'object' ||
+        incomplete.phase !== 'proposal' ||
+        incomplete.requested_multipv !== expectedInitialMultipv ||
+        !('depth' in normalizedProposalLimit) ||
+        canonicalJson(incomplete.requested_limit) !==
+          canonicalJson(normalizedProposalLimit) ||
+        !Number.isSafeInteger(incomplete.final_exact_ranks) ||
+        incomplete.final_exact_ranks < 0 ||
+        incomplete.final_exact_ranks >= expectedInitialMultipv ||
+        !Number.isSafeInteger(incomplete.final_cp_ranks) ||
+        incomplete.final_cp_ranks < 0 ||
+        !Number.isSafeInteger(incomplete.final_mate_ranks) ||
+        incomplete.final_mate_ranks < 0 ||
+        incomplete.final_cp_ranks + incomplete.final_mate_ranks !==
+          incomplete.final_exact_ranks ||
+        !Number.isSafeInteger(incomplete.missing_or_non_exact_ranks) ||
+        incomplete.missing_or_non_exact_ranks !==
+          expectedInitialMultipv - incomplete.final_exact_ranks ||
+        Object.keys(incomplete).sort().join('\0') !==
+          [
+            'final_cp_ranks',
+            'final_exact_ranks',
+            'final_mate_ranks',
+            'missing_or_non_exact_ranks',
+            'phase',
+            'requested_limit',
+            'requested_multipv',
+          ]
+            .sort()
+            .join('\0')
+      ) {
+        throw new Error(`${context} has invalid proposal-incomplete skip metadata`);
+      }
+      if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
+        throw new Error(`${context} payload checksum mismatch`);
       }
       return entry;
     }
@@ -1584,7 +1776,11 @@ export function validateWorkEntry(
       !Number.isSafeInteger(timeout.timeout_ms) ||
       timeout.timeout_ms !== expectedTimeoutMs ||
       canonicalJson(timeout.requested_limit) !==
-        canonicalJson(normalizedSearchLimit(expectedLimit))
+        canonicalJson(
+          normalizedSearchLimit(
+            timeout.phase === 'proposal' ? expectedProposalLimit : expectedLimit
+          )
+        )
     ) {
       throw new Error(`${context} has invalid search-timeout skip metadata`);
     }
@@ -1642,13 +1838,16 @@ export function validateWorkEntry(
   const legalMoves = legalMovesForParent(parent);
   const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
   const normalizedExpectedLimit = normalizedSearchLimit(expectedLimit);
+  const normalizedExpectedProposalLimit =
+    normalizedSearchLimit(expectedProposalLimit);
   const expectedCandidates = canonicalSortedMoves(
     new Set([...initialSearch.moves, parent.played_move])
   );
   const canonicalCandidates = canonicalSortedMoves(candidates);
   if (
     initialSearch.requested_multipv !== expectedInitialMultipv ||
-    canonicalJson(initialSearch.requested_limit) !== canonicalJson(normalizedExpectedLimit) ||
+    canonicalJson(initialSearch.requested_limit) !==
+      canonicalJson(normalizedExpectedProposalLimit) ||
     new Set(candidates).size !== candidates.length ||
     candidates.some((move, index) => move !== canonicalCandidates[index]) ||
     moves.length !== candidates.length ||
@@ -1720,7 +1919,8 @@ async function loadWork(
   parents: ReadonlyMap<string, RawParentOccurrence>,
   expectedMultipv: number,
   expectedLimit: UsiSearchLimit,
-  expectedTimeoutMs: number
+  expectedTimeoutMs: number,
+  expectedProposalLimit: UsiSearchLimit = expectedLimit
 ): Promise<Map<string, WorkEntry>> {
   let text = '';
   try {
@@ -1770,7 +1970,8 @@ async function loadWork(
         index + 1,
         expectedMultipv,
         expectedLimit,
-        expectedTimeoutMs
+        expectedTimeoutMs,
+        expectedProposalLimit
       );
       if (entries.has(entry.parent_id)) {
         throw new Error(`duplicate parent in work checkpoint: ${entry.parent_id}`);
@@ -1935,6 +2136,11 @@ async function runSiblingTeacherDatasetCore(
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint = siblingTeacherRunFingerprint({
     authenticated_training_binding: capturedInput.binding,
+    ...(options.authenticatedInputPolicy === undefined
+      ? {}
+      : {
+          authenticated_input_policy: options.authenticatedInputPolicy,
+        }),
     source_raw_sha256: sourceRawSha256,
     selected_parent_ids_sha256: selectedParentIdsSha256,
     pipeline,
@@ -1946,6 +2152,9 @@ async function runSiblingTeacherDatasetCore(
     eval_sha256: evalSha256,
     multipv: options.multipv,
     limit: options.limit,
+    ...(sameSearchLimit(options.proposalLimit, options.limit)
+      ? {}
+      : { proposal_limit: options.proposalLimit }),
     ...(execution.finalization === 'legacy-split'
       ? {}
       : {
@@ -1977,22 +2186,24 @@ async function runSiblingTeacherDatasetCore(
     parentMap,
     options.multipv,
     options.limit,
-    options.timeoutMs
+    options.timeoutMs,
+    options.proposalLimit
   );
-  const timeoutSkipLimit =
+  const recoverableSearchSkipLimit =
     execution.finalization === 'legacy-split'
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
   const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
-  let timeoutSkipCount = [...workEntries.values()].filter(
+  let recoverableSearchSkipCount = [...workEntries.values()].filter(
     (entry) =>
       selectedParentIdSet.has(entry.parent_id) &&
       entry.kind === 'skip' &&
-      entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+      (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
+        entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON)
   ).length;
-  if (timeoutSkipCount > timeoutSkipLimit) {
+  if (recoverableSearchSkipCount > recoverableSearchSkipLimit) {
     throw new Error(
-      `search-timeout skip count ${timeoutSkipCount} exceeds target ${selected.length} limit ${timeoutSkipLimit}`
+      `recoverable search skip count ${recoverableSearchSkipCount} exceeds target ${selected.length} limit ${recoverableSearchSkipLimit}`
     );
   }
   const runtimeSnapshot = await createRuntimeSnapshot(
@@ -2003,7 +2214,7 @@ async function runSiblingTeacherDatasetCore(
   );
   let workHandle: fs.promises.FileHandle;
   try {
-    workHandle = await fs.promises.open(options.work, 'a');
+    workHandle = await fs.promises.open(options.work, 'a', 0o600);
   } catch (error) {
     await fs.promises.rm(runtimeSnapshot.root, {
       recursive: true,
@@ -2018,11 +2229,12 @@ async function runSiblingTeacherDatasetCore(
       if (checkpointFailure) throw checkpointFailure;
       if (
         entry.kind === 'skip' &&
-        entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
-        timeoutSkipCount >= timeoutSkipLimit
+        (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
+          entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) &&
+        recoverableSearchSkipCount >= recoverableSearchSkipLimit
       ) {
         checkpointFailure = new Error(
-          `search-timeout skip limit ${timeoutSkipLimit} exhausted for target ${selected.length}`
+          `recoverable search skip limit ${recoverableSearchSkipLimit} exhausted for target ${selected.length}`
         );
         throw checkpointFailure;
       }
@@ -2033,8 +2245,12 @@ async function runSiblingTeacherDatasetCore(
         throw checkpointFailure;
       }
       workEntries.set(entry.parent_id, entry);
-      if (entry.kind === 'skip' && entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
-        timeoutSkipCount += 1;
+      if (
+        entry.kind === 'skip' &&
+        (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
+          entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON)
+      ) {
+        recoverableSearchSkipCount += 1;
       }
     });
     appendTail = operation.catch(() => undefined);
@@ -2116,7 +2332,8 @@ async function runSiblingTeacherDatasetCore(
               job.parent,
               options.multipv,
               options.limit,
-              job.legalMoves
+              job.legalMoves,
+              options.proposalLimit
             );
             result.run_fingerprint = runFingerprint;
             const sealed = sealWorkEntry(result as unknown as Record<string, unknown>);
@@ -2127,44 +2344,74 @@ async function runSiblingTeacherDatasetCore(
               `runtime parent ${job.parent.parent_id}`,
               options.multipv,
               options.limit,
-              options.timeoutMs
+              options.timeoutMs,
+              options.proposalLimit
             );
             await persist(validated);
           } catch (error) {
             if (
               execution.finalization !== 'legacy-split' &&
-              error instanceof SiblingTeacherSearchTimeoutError
+              (error instanceof SiblingTeacherSearchTimeoutError ||
+                error instanceof SiblingTeacherProposalIncompleteError)
             ) {
               try {
                 await engine.quit();
                 engine = null;
-                const searchmoves =
-                  error.phase === 'proposal'
-                    ? ([] as const)
-                    : ([requiredText(error.searchmoves[0], 'timed-out searchmove')] as const);
-                const sealed = sealWorkEntry({
-                  schema: SIBLING_TEACHER_WORK_SCHEMA,
-                  kind: 'skip',
-                  run_fingerprint: runFingerprint,
-                  parent_id: job.parent.parent_id,
-                  reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
-                  legal_moves: job.legalMoves.length,
-                  timeout: {
-                    phase: error.phase,
-                    requested_multipv: error.requestedMultipv,
-                    requested_limit: error.requestedLimit,
-                    searchmoves,
-                    timeout_ms: error.timeoutMs,
-                  },
-                });
+                const sealed =
+                  error instanceof SiblingTeacherSearchTimeoutError
+                    ? (() => {
+                        const searchmoves =
+                          error.phase === 'proposal'
+                            ? ([] as const)
+                            : ([
+                                requiredText(
+                                  error.searchmoves[0],
+                                  'timed-out searchmove'
+                                ),
+                              ] as const);
+                        return sealWorkEntry({
+                          schema: SIBLING_TEACHER_WORK_SCHEMA,
+                          kind: 'skip',
+                          run_fingerprint: runFingerprint,
+                          parent_id: job.parent.parent_id,
+                          reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+                          legal_moves: job.legalMoves.length,
+                          timeout: {
+                            phase: error.phase,
+                            requested_multipv: error.requestedMultipv,
+                            requested_limit: error.requestedLimit,
+                            searchmoves,
+                            timeout_ms: error.timeoutMs,
+                          },
+                        });
+                      })()
+                    : sealWorkEntry({
+                        schema: SIBLING_TEACHER_WORK_SCHEMA,
+                        kind: 'skip',
+                        run_fingerprint: runFingerprint,
+                        parent_id: job.parent.parent_id,
+                        reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
+                        legal_moves: job.legalMoves.length,
+                        incomplete: {
+                          phase: 'proposal',
+                          requested_multipv: error.requestedMultipv,
+                          requested_limit: error.requestedLimit,
+                          final_exact_ranks: error.finalExactRanks,
+                          final_cp_ranks: error.finalCpRanks,
+                          final_mate_ranks: error.finalMateRanks,
+                          missing_or_non_exact_ranks:
+                            error.missingOrNonExactRanks,
+                        },
+                      });
                 const validated = validateWorkEntry(
                   sealed,
                   runFingerprint,
                   parentMap,
-                  `runtime timeout quarantine ${job.parent.parent_id}`,
+                  `runtime recoverable search quarantine ${job.parent.parent_id}`,
                   options.multipv,
                   options.limit,
-                  options.timeoutMs
+                  options.timeoutMs,
+                  options.proposalLimit
                 );
                 await persist(validated);
                 if (!failure && next < pending.length) {
@@ -2227,7 +2474,8 @@ async function runSiblingTeacherDatasetCore(
     const prefixForcedSkipReasons = forcedSkipReasonCounts(targetEntries);
     const prefixForcedParentsSkipped =
       prefixForcedSkipReasons.fewer_than_two_legal_moves +
-      prefixForcedSkipReasons.search_timeout_no_label;
+      prefixForcedSkipReasons.search_timeout_no_label +
+      (prefixForcedSkipReasons.proposal_incomplete_no_label ?? 0);
     const canonicalTargetWork = serializeWork(header, targetEntries);
     const currentWork = await fileBinding(options.work);
     return {
@@ -2312,9 +2560,12 @@ async function runSiblingTeacherDatasetCore(
     );
     if (
       forcedSkipReasons.fewer_than_two_legal_moves +
-        forcedSkipReasons.search_timeout_no_label !==
+        forcedSkipReasons.search_timeout_no_label +
+        (forcedSkipReasons.proposal_incomplete_no_label ?? 0) !==
         forcedParentIds.length ||
-      forcedSkipReasons.search_timeout_no_label > timeoutSkipLimit
+      forcedSkipReasons.search_timeout_no_label +
+        (forcedSkipReasons.proposal_incomplete_no_label ?? 0) >
+        recoverableSearchSkipLimit
     ) {
       throw new Error('forced skip reason accounting is inconsistent');
     }
@@ -2363,6 +2614,9 @@ async function runSiblingTeacherDatasetCore(
       authenticated_input: {
         bundle_verifier_revision: capturedInput.binding.verifier_revision,
         binding: capturedInput.binding,
+        ...(options.authenticatedInputPolicy === undefined
+          ? {}
+          : { runtime_policy: options.authenticatedInputPolicy }),
       },
       source: {
         raw_sha256: sourceRawSha256,
@@ -2391,6 +2645,13 @@ async function runSiblingTeacherDatasetCore(
           'nodes' in options.limit
             ? { nodes: options.limit.nodes as number }
             : { depth: options.limit.depth as number },
+        ...(sameSearchLimit(options.proposalLimit, options.limit)
+          ? {}
+          : {
+              proposal_limit: normalizedSearchLimit(options.proposalLimit),
+              proposal_incomplete_quarantine_policy:
+                PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+            }),
         parallel_engines: options.engines,
         fv_scale: options.fvScale,
         hash_mb_per_engine: options.hashMb,
@@ -2526,6 +2787,13 @@ async function runSiblingTeacherDatasetCore(
         'nodes' in options.limit
           ? { nodes: options.limit.nodes as number }
           : { depth: options.limit.depth as number },
+      ...(sameSearchLimit(options.proposalLimit, options.limit)
+        ? {}
+        : {
+            proposal_limit: normalizedSearchLimit(options.proposalLimit),
+            proposal_incomplete_quarantine_policy:
+              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+          }),
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,

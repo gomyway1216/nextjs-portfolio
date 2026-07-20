@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { UsiMultiPvAccumulator, buildGo, parseUsiInfoLine } from '../../../ml/usi-multipv';
+import {
+  UsiFixedDepthRanksIncompleteError,
+  UsiMultiPvAccumulator,
+  buildGo,
+  parseUsiInfoLine,
+} from '../../../ml/usi-multipv';
 
 describe('USI MultiPV parsing', () => {
   it('parses exact cp and mate PV records and excludes bounds', () => {
@@ -149,6 +154,34 @@ describe('USI MultiPV parsing', () => {
       ].join('\n'),
     );
     expect(() => accumulator.finish()).toThrow(/did not end with exact updates/);
+  });
+
+  it('reports fixed-depth rank incompleteness as typed aggregate metadata', () => {
+    const accumulator = new UsiMultiPvAccumulator({
+      multipv: 2,
+      requiredDepth: 14,
+    });
+    accumulator.push(
+      [
+        'info depth 14 multipv 1 score cp 20 nodes 200 pv 7g7f',
+        'bestmove 7g7f',
+      ].join('\n')
+    );
+    let failure: unknown;
+    try {
+      accumulator.finish();
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(UsiFixedDepthRanksIncompleteError);
+    expect(failure).toMatchObject({
+      requestedRanks: 2,
+      requiredDepth: 14,
+      finalExactRanks: 1,
+      finalCpRanks: 1,
+      finalMateRanks: 0,
+      missingOrNonExactRanks: 1,
+    });
   });
 
   it('never assembles a mixed-depth result', () => {

@@ -7,6 +7,23 @@ This repository contains two shogi implementations:
 
 The main `/games/shogi` page now uses the opening book early and then delegates search to the fast engine for much better performance and strength.
 
+## Current training status (2026-07-20)
+
+The formal v8 teacher stopped safely after accounting 1,388 / 24,000
+training parents; it did not produce a complete dataset or stronger live
+weights. The v9 recovery keeps exact candidate scoring at depth 16 while
+reducing only MultiPV proposal discovery to depth 14. Real diagnostics
+completed all five former proposal timeouts, retained the independently
+rescored best move in 6 / 6 references, and selected 12 rather than 14 local
+engines after a counterbalanced full-label throughput benchmark.
+
+The fast pinned-input path validates all 24,000 training rows in about 3.7
+seconds before and after teacher work, without opening holdout or selection
+files. Formal v9 starts only from the clean merged revision. Retraining,
+candidate selection, formal paired A/B, external calibration, and any live
+promotion remain pending. See the [v9 proposal-rescue evidence and
+explanation](docs/blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md).
+
 ---
 
 ## 1) What Changed (High Level)

@@ -183,7 +183,9 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
         revision: "35d0ca71bd5d60747667c3dad4e804b270cb3551",
         regression_probes: ["null", "integer", "list"],
         local_validation: "PASS",
-        thread_state: "pending-push-reply-and-resolution",
+        reply_url:
+          "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611694906",
+        thread_state: "resolved",
       },
     });
   });

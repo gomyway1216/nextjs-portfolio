@@ -73,6 +73,18 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
 
   const router = useRouter();
 
+  // Server-side the /ja route redirects posts without a Japanese
+  // translation, but the client-fetch fallback (private posts, or a
+  // failed server fetch) can still land one here — and pickTranslation
+  // would quietly render English under the ja URL. Enforce the route
+  // contract on the client too.
+  useEffect(() => {
+    if (forcedLanguage !== 'ja' || !post) return;
+    if (!post.availableLanguages.includes('ja')) {
+      router.replace(`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`);
+    }
+  }, [forcedLanguage, post, router]);
+
   // On the language-pinned /ja route the article ignores the global
   // language toggle by design — but when the reader actively flips the
   // toggle to English, honor the gesture by navigating to the English

@@ -17,6 +17,7 @@ interface BlogEntry {
   category: string;
   lastUpdated?: Date;
   hasJa: boolean;
+  hasEn: boolean;
 }
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
@@ -29,6 +30,7 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
     return snapshot.docs.map((doc) => {
       const data = doc.data();
       const ja = data.translations?.ja;
+      const en = data.translations?.en;
       return {
         id: doc.id,
         // Empty string would render /blog//{id}; treat it like missing.
@@ -37,6 +39,7 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
         // Mirrors availableLanguages(): a translation counts when it has
         // a non-empty title or body.
         hasJa: !!ja && (!!ja.title?.trim() || !!ja.body?.trim()),
+        hasEn: !!en && (!!en.title?.trim() || !!en.body?.trim()),
       };
     });
   } catch (error) {
@@ -93,9 +96,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Bare post URLs are the English/default entries; posts with a Japanese
   // translation also get their language-pinned /ja URL, and both carry
-  // hreflang alternates pointing at each other.
+  // hreflang alternates pointing at each other. A ja-only post lists only
+  // its /ja URL — its bare URL canonicalizes there.
   const postRoutes: MetadataRoute.Sitemap = posts.flatMap((post) => {
     const enUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
     const base = {
       lastModified: post.lastUpdated,
       changeFrequency: 'monthly' as const,
@@ -105,8 +110,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (!post.hasJa) {
       return [{ url: enUrl, ...base }];
     }
+    if (!post.hasEn) {
+      return [{ url: jaUrl, ...base }];
+    }
 
-    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
     const alternates = { languages: { en: enUrl, ja: jaUrl, 'x-default': enUrl } };
     return [
       { url: enUrl, ...base, alternates },

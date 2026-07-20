@@ -34,22 +34,26 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const title = picked.translation.title;
   const description = excerpt(picked.translation.body);
   const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const jaPath = `/ja${canonicalPath}`;
 
-  // hreflang: this URL is what a cookieless crawler sees in English, so it
-  // is the en + x-default alternate; the language-pinned /ja route carries
-  // the Japanese version. Only declared when a ja translation exists.
+  // hreflang: with both translations, this URL is what a cookieless
+  // crawler reads in English, so it's the en + x-default alternate and
+  // the pinned /ja route carries Japanese. A ja-only post renders
+  // Japanese here too (pickTranslation fallback) — declaring it `en`
+  // would be wrong, so it instead canonicalizes onto the pinned ja URL.
   const hasJa = post.availableLanguages.includes('ja');
+  const hasEn = post.availableLanguages.includes('en');
 
   return {
     title,
     description,
     alternates: {
-      canonical: canonicalPath,
-      ...(hasJa
+      canonical: hasEn ? canonicalPath : jaPath,
+      ...(hasEn && hasJa
         ? {
             languages: {
               en: canonicalPath,
-              ja: `/ja${canonicalPath}`,
+              ja: jaPath,
               'x-default': canonicalPath,
             },
           }

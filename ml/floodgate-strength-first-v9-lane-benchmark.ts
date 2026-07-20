@@ -33,7 +33,7 @@ export const FLOODGATE_STRENGTH_FIRST_V9_LANE_BENCHMARK_SCHEMA =
 export const FLOODGATE_STRENGTH_FIRST_V9_LANE_BENCHMARK_OUTPUT_DIRECTORY =
   "floodgate-q1-2026-strength-first-v9-lane-benchmark" as const;
 const TARGET_PARENTS = 42;
-const LANE_ORDER = Object.freeze([12, 14, 12] as const);
+const LANE_ORDER = Object.freeze([12, 14, 14, 12] as const);
 const MINIMUM_14_LANE_SPEEDUP_PPM = 1_050_000;
 
 interface Trial {
@@ -49,7 +49,10 @@ interface Trial {
 
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.floor(sorted.length / 2)];
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[middle - 1] + sorted[middle]) / 2)
+    : sorted[middle];
 }
 
 async function runTrial(

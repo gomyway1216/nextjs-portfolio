@@ -876,6 +876,23 @@ planがない限り学習を開始しない。selection / holdout / production w
 [English article](../docs/blog-shogi-floodgate-strength-first-v8-downstream-provenance.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-v8-downstream-provenance-2026-07-19.json)を参照。
 
+#### Floodgate v9 teacher → 3-seed training bridge（2026-07-20）
+
+現在の学習候補builderはv9の固定local rootとargumentless semantic verifierを使う。
+v9 verifierはfast-input preflight / postflight、v9→v8→固定asset authority、d14 proposal /
+d16 independent rescore、13 engines、3種類のskip理由、manifest fingerprint、全work row、
+100 / 500 prefix、parent completion、全train groupを再検証する。成功出力はaggregateだけで、
+private identifier / digestを出さない。hash一致だけで意味検証を省く経路はない。
+
+v8由来planのv2検証は維持し、v9由来planはgeneration取り違え防止のためv3とした。
+training result / final checkpointはv2のままで、seed 42 / 43 / 44、warm model-only、
+lr `1e-4`、20 epochs、batch 256、fixed-final-epoch policyも不変である。正式v9教師は記録時点で
+稼働中、final resultとexact planは未作成のため、実学習・選抜・live変更は0である。
+focused Python 31 testとv8/v9 semantic TypeScript 6 testを通した。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-v9-training-bridge-2026-07-20.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

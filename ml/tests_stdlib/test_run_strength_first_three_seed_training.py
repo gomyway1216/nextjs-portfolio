@@ -46,6 +46,7 @@ def prepare_local_files(repo, home):
     paths = BRIDGE.default_strength_first_local_paths(
         repo_root=repo,
         home=home,
+        teacher_generation="v9",
     )
     (repo / "ml").mkdir(parents=True, exist_ok=True)
     (repo / "ml" / "train.py").write_text("# injected smoke\n")

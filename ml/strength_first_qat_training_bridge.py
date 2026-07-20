@@ -21,8 +21,11 @@ import fresh_qat_parent_accounting_v2 as ACCOUNTING
 import fresh_qat_protocol as FRESH
 
 
-STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA = (
+STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA = (
     "shogi-floodgate-strength-first-qat-training-plan-v2"
+)
+STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA = (
+    "shogi-floodgate-strength-first-qat-training-plan-v3"
 )
 STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA = (
     "shogi-floodgate-strength-first-qat-training-result-v2"
@@ -47,21 +50,36 @@ STRENGTH_FIRST_TEACHER_RESULT_SCHEMA = (
     "shogi-floodgate-strength-first-teacher-postflight-result-v2"
 )
 STRENGTH_FIRST_TEACHER_RESULT_STATUS = "complete-training-only-postflight-bound"
+STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA = (
+    "shogi-floodgate-strength-first-v9-teacher-result-v1"
+)
+STRENGTH_FIRST_V9_TEACHER_RESULT_STATUS = (
+    "complete-training-only-fast-input-postflight-bound"
+)
 STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA = (
     "shogi-floodgate-strength-first-v8-downstream-provenance-v1"
 )
 STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS = (
     "verified-v8-teacher-source-ready-for-training-plan-review"
 )
+STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA = (
+    "shogi-floodgate-strength-first-v9-downstream-provenance-v1"
+)
+STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_STATUS = (
+    "verified-v9-teacher-source-ready-for-training-plan-review"
+)
 STRENGTH_FIRST_V8_MILESTONE_TARGETS = [100, 500]
 
-_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8"
+_TEACHER_RUN_DIRECTORIES = {
+    "v8": ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+    "v9": ".codex/shogi-runs/floodgate-q1-2026-strength-first-v9",
+}
 _ROLE_BUNDLE_DIRECTORY = (
     ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
 )
 _SEALED_INPUT_DIRECTORY = ".codex/shogi-data/wcsc36-sealed-training-inputs"
 _TRAINING_PYTHON = ".codex/shogi-data/floodgate-training-venv/bin/python3"
-_V8_PROVENANCE_NODE = ".nvm/versions/node/v22.13.0/bin/node"
+_PROVENANCE_NODE = ".nvm/versions/node/v22.13.0/bin/node"
 _PLAN_FIELDS = {
     "schema",
     "status",
@@ -141,8 +159,9 @@ _FORCED_SKIP_REASON_FIELDS = {
     "fewer_than_two_legal_moves",
     "search_timeout_no_label",
 }
+_V9_FORCED_SKIP_REASON_FIELD = "proposal_incomplete_no_label"
 _TIMEOUT_SKIP_DIVISOR = 1_000
-_TEACHER_RESULT_FIELDS = {
+_V8_TEACHER_RESULT_FIELDS = {
     "schema",
     "status",
     "claim_boundary",
@@ -156,6 +175,7 @@ _TEACHER_RESULT_FIELDS = {
     "staged_outputs",
     "publication",
 }
+_V9_TEACHER_RESULT_FIELDS = _V8_TEACHER_RESULT_FIELDS - {"consumer_postflight"}
 _TEACHER_COMPLETION_FIELDS = {
     "input_parents",
     "completed_parents",
@@ -194,20 +214,38 @@ _TEACHER_PROVENANCE_FIELDS = {
     "private_identifiers_disclosed",
     "private_digests_disclosed",
 }
+_V9_TEACHER_PROVENANCE_FIELDS = (
+    _TEACHER_PROVENANCE_FIELDS | {_V9_FORCED_SKIP_REASON_FIELD}
+)
 
 
 def _validate_teacher_provenance_summary(value: Any) -> dict[str, Any]:
     """Validate the privacy-safe output of the sole TypeScript authority."""
 
+    if type(value) is not dict:
+        raise ValueError("strength-first teacher provenance summary mismatch")
+    if (
+        value.get("schema") == STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA
+        and value.get("status") == STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS
+    ):
+        generation = "v8"
+        fields = _TEACHER_PROVENANCE_FIELDS
+    elif (
+        value.get("schema") == STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA
+        and value.get("status") == STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_STATUS
+    ):
+        generation = "v9"
+        fields = _V9_TEACHER_PROVENANCE_FIELDS
+    else:
+        raise ValueError("strength-first teacher provenance summary mismatch")
     summary = _exact(
         value,
-        _TEACHER_PROVENANCE_FIELDS,
-        "strength-first v8 teacher provenance summary",
+        fields,
+        f"strength-first {generation} teacher provenance summary",
     )
+    proposal_incomplete = summary.get(_V9_FORCED_SKIP_REASON_FIELD, 0)
     if (
-        summary["schema"] != STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA
-        or summary["status"] != STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS
-        or type(summary["target_parents"]) is not int
+        type(summary["target_parents"]) is not int
         or summary["target_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
         or type(summary["emitted_parent_groups"]) is not int
         or summary["emitted_parent_groups"] < 1
@@ -219,10 +257,13 @@ def _validate_teacher_provenance_summary(value: Any) -> dict[str, Any]:
         or summary["fewer_than_two_legal_moves"] < 0
         or type(summary["search_timeout_no_label"]) is not int
         or summary["search_timeout_no_label"] < 0
+        or type(proposal_incomplete) is not int
+        or proposal_incomplete < 0
         or summary["fewer_than_two_legal_moves"]
         + summary["search_timeout_no_label"]
+        + proposal_incomplete
         != summary["forced_parents_skipped"]
-        or summary["search_timeout_no_label"]
+        or summary["search_timeout_no_label"] + proposal_incomplete
         > (
             summary["target_parents"] + _TIMEOUT_SKIP_DIVISOR - 1
         )
@@ -244,8 +285,17 @@ def _validate_teacher_provenance_summary(value: Any) -> dict[str, Any]:
         or summary["private_identifiers_disclosed"] is not False
         or summary["private_digests_disclosed"] is not False
     ):
-        raise ValueError("strength-first v8 teacher provenance summary mismatch")
+        raise ValueError("strength-first teacher provenance summary mismatch")
     return summary
+
+
+def _teacher_generation(summary: Mapping[str, Any]) -> str:
+    validated = _validate_teacher_provenance_summary(summary)
+    return (
+        "v9"
+        if validated["schema"] == STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA
+        else "v8"
+    )
 
 
 def _exact(value: Any, fields: set[str], label: str) -> dict[str, Any]:
@@ -284,16 +334,26 @@ def _validate_forced_skip_reasons(
     forced_parents_skipped: int,
     target_parents: int,
     label: str,
+    teacher_generation: str = "v8",
 ) -> dict[str, int]:
-    reasons = _exact(value, _FORCED_SKIP_REASON_FIELDS, label)
+    allowed_fields = _FORCED_SKIP_REASON_FIELDS
     if (
-        type(target_parents) is not int
+        teacher_generation == "v9"
+        and type(value) is dict
+        and _V9_FORCED_SKIP_REASON_FIELD in value
+    ):
+        allowed_fields = allowed_fields | {_V9_FORCED_SKIP_REASON_FIELD}
+    reasons = _exact(value, allowed_fields, label)
+    proposal_incomplete = reasons.get(_V9_FORCED_SKIP_REASON_FIELD, 0)
+    if (
+        teacher_generation not in {"v8", "v9"}
+        or type(target_parents) is not int
         or target_parents <= 0
         or type(forced_parents_skipped) is not int
         or forced_parents_skipped < 0
         or any(type(count) is not int or count < 0 for count in reasons.values())
         or sum(reasons.values()) != forced_parents_skipped
-        or reasons["search_timeout_no_label"]
+        or reasons["search_timeout_no_label"] + proposal_incomplete
         > (target_parents + _TIMEOUT_SKIP_DIVISOR - 1) // _TIMEOUT_SKIP_DIVISOR
     ):
         raise ValueError(f"{label} accounting mismatch")
@@ -417,8 +477,13 @@ def build_strength_first_qat_training_plan_data(
 ) -> dict[str, Any]:
     """Build and validate one exact training-only plan data object."""
 
+    generation = _teacher_generation(teacher_provenance)
     plan = {
-        "schema": STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+        "schema": (
+            STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
+            if generation == "v9"
+            else STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA
+        ),
         "status": STRENGTH_FIRST_QAT_PLAN_STATUS,
         "artifacts": copy.deepcopy(artifacts),
         "teacher_provenance": copy.deepcopy(teacher_provenance),
@@ -438,14 +503,19 @@ def validate_strength_first_qat_training_plan_data(
 
     plan = _exact(plan, _PLAN_FIELDS, "strength-first plan")
     ACCOUNTING._require_plain_json(plan, "strength-first plan")
-    if (
-        plan["schema"] != STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
-        or plan["status"] != STRENGTH_FIRST_QAT_PLAN_STATUS
-    ):
+    if plan["status"] != STRENGTH_FIRST_QAT_PLAN_STATUS:
         raise ValueError("strength-first plan schema/status mismatch")
     teacher_provenance = _validate_teacher_provenance_summary(
         plan["teacher_provenance"],
     )
+    generation = _teacher_generation(teacher_provenance)
+    expected_plan_schema = (
+        STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
+        if generation == "v9"
+        else STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA
+    )
+    if plan["schema"] != expected_plan_schema:
+        raise ValueError("strength-first plan schema/source mismatch")
     artifacts = _exact(
         plan["artifacts"],
         _ARTIFACT_FIELDS,
@@ -633,14 +703,17 @@ def default_strength_first_local_paths(
     *,
     repo_root: str | os.PathLike[str] | None = None,
     home: str | os.PathLike[str] | None = None,
+    teacher_generation: str = "v8",
 ) -> dict[str, str]:
     """Resolve every fixed path used by the argumentless local launcher."""
 
+    if teacher_generation not in _TEACHER_RUN_DIRECTORIES:
+        raise ValueError("strength-first teacher generation is unsupported")
     root = Path(
         repo_root if repo_root is not None else Path(__file__).resolve().parent.parent
     ).resolve()
     home_root = Path(home if home is not None else Path.home()).expanduser()
-    teacher = home_root / _TEACHER_RUN_DIRECTORY
+    teacher = home_root / _TEACHER_RUN_DIRECTORIES[teacher_generation]
     role = home_root / _ROLE_BUNDLE_DIRECTORY
     sealed = home_root / _SEALED_INPUT_DIRECTORY
     return {
@@ -668,7 +741,8 @@ def default_strength_first_local_paths(
         "replay": str(sealed / "runOp1-train.jsonl"),
         "warm_initializer": str(sealed / "runOp1-best.pt"),
         "python": str(home_root / _TRAINING_PYTHON),
-        "v8_provenance_node": str(home_root / _V8_PROVENANCE_NODE),
+        "provenance_node": str(home_root / _PROVENANCE_NODE),
+        "v8_provenance_node": str(home_root / _PROVENANCE_NODE),
     }
 
 
@@ -770,7 +844,7 @@ def _validate_teacher_documents(
     artifacts: Mapping[str, Any],
     teacher_provenance: Mapping[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """Recheck only the v8 envelope and hashes already proved by the TS core.
+    """Recheck the versioned envelope and hashes proved by the TS core.
 
     The TypeScript verifier is the sole row-semantic authority. Python keeps
     this deliberately small: it binds the reviewed privacy-safe summary and
@@ -779,6 +853,7 @@ def _validate_teacher_documents(
     """
 
     summary = _validate_teacher_provenance_summary(teacher_provenance)
+    generation = _teacher_generation(summary)
     if (
         type(manifest) is not dict
         or manifest.get("schema") != STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA
@@ -804,16 +879,31 @@ def _validate_teacher_documents(
         forced_parents_skipped=artifacts["parent_completion"]["forced_parents_skipped"],
         target_parents=artifacts["parent_completion"]["records"],
         label="strength-first teacher manifest forced skip reasons",
+        teacher_generation=generation,
     )
 
     result = _exact(
         result,
-        _TEACHER_RESULT_FIELDS,
+        (
+            _V9_TEACHER_RESULT_FIELDS
+            if generation == "v9"
+            else _V8_TEACHER_RESULT_FIELDS
+        ),
         "strength-first teacher result",
     )
+    expected_result_schema = (
+        STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA
+        if generation == "v9"
+        else STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
+    )
+    expected_result_status = (
+        STRENGTH_FIRST_V9_TEACHER_RESULT_STATUS
+        if generation == "v9"
+        else STRENGTH_FIRST_TEACHER_RESULT_STATUS
+    )
     if (
-        result["schema"] != STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
-        or result["status"] != STRENGTH_FIRST_TEACHER_RESULT_STATUS
+        result["schema"] != expected_result_schema
+        or result["status"] != expected_result_status
     ):
         raise ValueError("strength-first teacher result schema/status mismatch")
     runner = result["runner"]
@@ -837,6 +927,7 @@ def _validate_teacher_documents(
         forced_parents_skipped=completion["forced_parents_skipped"],
         target_parents=completion["completed_parents"],
         label="strength-first teacher result forced skip reasons",
+        teacher_generation=generation,
     )
     if (
         completion["input_parents"] != summary["target_parents"]
@@ -851,6 +942,11 @@ def _validate_teacher_documents(
         != summary["fewer_than_two_legal_moves"]
         or completion["forced_skip_reasons"]["search_timeout_no_label"]
         != summary["search_timeout_no_label"]
+        or completion["forced_skip_reasons"].get(
+            _V9_FORCED_SKIP_REASON_FIELD,
+            0,
+        )
+        != summary.get(_V9_FORCED_SKIP_REASON_FIELD, 0)
         or completion["emitted_parent_groups"]
         != summary["emitted_parent_groups"]
         or completion["forced_parents_skipped"] + completion["emitted_parent_groups"]
@@ -1151,7 +1247,7 @@ def _verify_strength_first_qat_training_plan(
             "path": expected_plan,
             "bytes": len(plan_raw),
             "sha256": hashlib.sha256(plan_raw).hexdigest(),
-            "schema": STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+            "schema": plan["schema"],
             "slot_id": selected["id"],
             "slot_output": selected["output"],
             "teacher_result_sha256": artifacts["teacher_result"]["sha256"],
@@ -1175,12 +1271,21 @@ def verify_strength_first_qat_training_plan(
     """Verify the fixed local artifacts and issue one training-only binding."""
 
     root = os.path.realpath(Path(__file__).resolve().parent.parent)
+    plan_path = os.path.join(
+        root,
+        *STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH.split("/"),
+    )
+    plan = load_strength_first_qat_training_plan(plan_path)
+    generation = _teacher_generation(plan["teacher_provenance"])
     return _verify_strength_first_qat_training_plan(
         args,
         training_runtime,
         tracking_verifier=tracking_verifier,
         repo_root=root,
-        local_paths=default_strength_first_local_paths(repo_root=root),
+        local_paths=default_strength_first_local_paths(
+            repo_root=root,
+            teacher_generation=generation,
+        ),
         artifact_reader=lambda path: Path(path).read_bytes(),
         fingerprint_verifier=_verify_fingerprint,
     )
@@ -1189,6 +1294,7 @@ def verify_strength_first_qat_training_plan(
 __all__ = [
     "STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH",
     "STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA",
+    "STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA",
     "STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA",
     "STRENGTH_FIRST_QAT_PLAN_STATUS",
     "STRENGTH_FIRST_QAT_RUN_ROOT",
@@ -1196,10 +1302,14 @@ __all__ = [
     "STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA",
     "STRENGTH_FIRST_TEACHER_RESULT_SCHEMA",
     "STRENGTH_FIRST_TEACHER_RESULT_STATUS",
+    "STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA",
+    "STRENGTH_FIRST_V9_TEACHER_RESULT_STATUS",
     "STRENGTH_FIRST_TRAIN_FORMAT",
     "STRENGTH_FIRST_V8_MILESTONE_TARGETS",
     "STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA",
     "STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS",
+    "STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA",
+    "STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_STATUS",
     "build_strength_first_qat_training_plan_data",
     "default_strength_first_local_paths",
     "load_strength_first_qat_training_plan",

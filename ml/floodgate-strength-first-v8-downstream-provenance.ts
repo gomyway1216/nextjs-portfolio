@@ -12,15 +12,18 @@ import { createHash, type Hash } from "node:crypto";
 import { FLOODGATE_PRODUCTION_TEACHER_RUNTIME } from "./floodgate-production-teacher-asset-authority";
 import {
   INDEPENDENT_EXACT_RESCORE_MODE,
+  PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
   SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
   SIBLING_TEACHER_LABEL_POLICY,
   SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
   SIBLING_TEACHER_WORK_SCHEMA,
   STRENGTH_FIRST_PARENT_COMPLETION_FORMAT,
   STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
+  STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
   STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
   STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
   STRENGTH_FIRST_TRAIN_FORMAT,
+  STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   siblingTeacherRunFingerprint,
   strengthFirstTimeoutSkipLimit,
   validateWorkEntry,
@@ -42,6 +45,24 @@ import {
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_STATUS,
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
 } from "./floodgate-strength-first-v8-teacher-authority";
+import {
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+} from "./floodgate-strength-first-v9-teacher-authority";
+import {
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY,
+} from "./floodgate-strength-first-fast-training-input";
+import {
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_MILESTONE_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_NODE_VERSION,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA,
+} from "./floodgate-strength-first-v9-teacher-runner";
+import { FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY } from "./floodgate-role-bundle-result";
 import {
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM,
@@ -67,6 +88,14 @@ export const FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS =
   "verified-v8-teacher-source-ready-for-training-plan-review" as const;
 export const FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION =
   "400d3e33e8414cf071cbe3cc053e345bdc668ade" as const;
+export const FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_SCHEMA =
+  "shogi-floodgate-strength-first-v9-downstream-provenance-v1" as const;
+export const FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS =
+  "verified-v9-teacher-source-ready-for-training-plan-review" as const;
+export const FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION =
+  "682e5a1dd8027519f2277ec311000bfedf4aced3" as const;
+
+type TeacherGeneration = "v8" | "v9";
 
 type SerializedBytesSource = Uint8Array | AsyncIterable<Uint8Array>;
 
@@ -115,6 +144,37 @@ export interface FloodgateStrengthFirstV8DownstreamProvenanceSummary {
   readonly private_digests_disclosed: false;
 }
 
+export interface FloodgateStrengthFirstV9DownstreamProvenanceInput
+  extends Omit<
+    FloodgateStrengthFirstV8DownstreamProvenanceInput,
+    "verifyRevisionDescendant"
+  > {
+  readonly verifyRevisionDescendant: (
+    revision: string,
+    minimumRevision: typeof FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
+  ) => boolean | Promise<boolean>;
+}
+
+export interface FloodgateStrengthFirstV9DownstreamProvenanceSummary {
+  readonly schema: typeof FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_SCHEMA;
+  readonly status: typeof FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS;
+  readonly target_parents: number;
+  readonly emitted_parent_groups: number;
+  readonly forced_parents_skipped: number;
+  readonly fewer_than_two_legal_moves: number;
+  readonly search_timeout_no_label: number;
+  readonly proposal_incomplete_no_label: number;
+  readonly train_records: number;
+  readonly milestone_targets: readonly [number, number];
+  readonly local_only: true;
+  readonly network_requests: 0;
+  readonly cloud_services: 0;
+  readonly live_weight_changes: 0;
+  readonly training_only: true;
+  readonly private_identifiers_disclosed: false;
+  readonly private_digests_disclosed: false;
+}
+
 interface JsonlLine {
   readonly text: string;
   readonly raw: Buffer;
@@ -143,7 +203,7 @@ interface Reader {
 
 const SHA256_RE = /^[0-9a-f]{64}$/u;
 const REVISION_RE = /^[0-9a-f]{40}$/u;
-const RESULT_KEYS = [
+const V8_RESULT_KEYS = [
   "schema",
   "status",
   "claim_boundary",
@@ -157,6 +217,9 @@ const RESULT_KEYS = [
   "staged_outputs",
   "publication",
 ] as const;
+const V9_RESULT_KEYS = V8_RESULT_KEYS.filter(
+  (key) => key !== "consumer_postflight",
+);
 const INPUT_BINDING_KEYS = [
   "result_receipt_bytes",
   "result_receipt_sha256",
@@ -486,12 +549,35 @@ function authenticatedInputProjection(
 function authenticatedInputFromRaw(
   result: Record<string, unknown>,
   raw: Uint8Array,
+  generation: TeacherGeneration,
 ): Readonly<AuthenticatedFloodgateTrainingRows> {
-  const input = exactRecord(
-    result.authenticated_input,
-    ["schema", "role", "binding"],
-    "raw-input-receipt",
-  );
+  const input =
+    generation === "v8"
+      ? exactRecord(
+          result.authenticated_input,
+          ["schema", "role", "binding"],
+          "raw-input-receipt",
+        )
+      : exactRecord(
+          exactRecord(
+            result.authenticated_input,
+            ["runtime", "generator_projection"],
+            "raw-fast-input-envelope",
+          ).generator_projection,
+          [
+            "schema",
+            "role",
+            "binding",
+            "historic_provenance_not_reverified_by_fast_path",
+          ],
+          "raw-fast-input-projection",
+        );
+  if (
+    generation === "v9" &&
+    input.historic_provenance_not_reverified_by_fast_path !== true
+  ) {
+    fail("raw-fast-input-projection");
+  }
   const binding = exactRecord(
     input.binding,
     INPUT_BINDING_KEYS,
@@ -712,6 +798,63 @@ function validateAssetAuthority(
   return authority;
 }
 
+function validateV9AssetAuthority(
+  value: unknown,
+  expected: unknown,
+): Record<string, unknown> {
+  requireSame(value, expected, "v9-asset-authority-expected");
+  const authority = exactRecord(
+    value,
+    [
+      "contract",
+      "status",
+      "claim_boundary",
+      "execution_boundary",
+      "asset_authority",
+      "assets",
+      "engine",
+      "postverification",
+      "runtime",
+    ],
+    "v9-asset-authority-shape",
+  );
+  if (
+    authority.contract !==
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT ||
+    authority.status !==
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS ||
+    authority.claim_boundary !==
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY ||
+    authority.execution_boundary !==
+      "production-fixed-registry-and-deployment-root" ||
+    !sameJson(authority.runtime, FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME)
+  ) {
+    fail("v9-asset-authority-contract");
+  }
+  const v8 = validateAssetAuthority(
+    authority.asset_authority,
+    authority.asset_authority,
+  );
+  if (
+    !sameJson(authority.assets, v8.assets) ||
+    !sameJson(authority.engine, v8.engine) ||
+    !sameJson(authority.postverification, v8.postverification)
+  ) {
+    fail("v9-asset-authority-alias");
+  }
+  return authority;
+}
+
+function validateExpectedAssetAuthority(
+  value: unknown,
+  expected: unknown,
+  generation: TeacherGeneration,
+): Record<string, unknown> {
+  return generation === "v8"
+    ? validateAssetAuthority(value, expected)
+    : validateV9AssetAuthority(value, expected);
+}
+
 function validateInputBinding(
   value: unknown,
   expected: unknown,
@@ -772,25 +915,162 @@ function validatePostflight(value: unknown, expectedInput: unknown): void {
   }
 }
 
+function validateFastInputBinding(
+  value: unknown,
+  expectedInput: Readonly<Record<string, unknown>>,
+  code: string,
+): void {
+  const fast = exactRecord(
+    value,
+    ["schema", "role", "policy", "manifest", "source"],
+    code,
+  );
+  if (
+    fast.schema !== FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA ||
+    fast.role !== "training" ||
+    fast.policy !== FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY
+  ) {
+    fail(code);
+  }
+  const manifest = fileBinding(fast.manifest, "manifest.json", code);
+  const source = exactRecord(
+    fast.source,
+    [
+      "path",
+      "format",
+      "bytes",
+      "sha256",
+      "records",
+      "games",
+      "game_ids_sha256",
+      "parent_ids_sha256",
+      "position_ids_count",
+      "position_ids_sha256",
+    ],
+    code,
+  );
+  const inputBinding = exactRecord(
+    expectedInput.binding,
+    INPUT_BINDING_KEYS,
+    code,
+  );
+  const inputRecords = integer(inputBinding.records, 1, code);
+  if (
+    source.path !== "training.raw.jsonl" ||
+    source.format !== inputBinding.raw_format ||
+    source.bytes !== inputBinding.raw_bytes ||
+    source.sha256 !== inputBinding.raw_sha256 ||
+    source.records !== inputRecords ||
+    source.games !== inputBinding.games ||
+    source.game_ids_sha256 !== inputBinding.game_ids_sha256 ||
+    source.parent_ids_sha256 !== inputBinding.parent_ids_sha256 ||
+    source.position_ids_count !== inputBinding.position_ids_count ||
+    source.position_ids_sha256 !== inputBinding.position_ids_sha256 ||
+    manifest.bytes !== inputBinding.bundle_manifest_bytes ||
+    manifest.sha256 !== inputBinding.bundle_manifest_sha256
+  ) {
+    fail(code);
+  }
+  if (
+    inputRecords === 24_000 &&
+    (!sameJson(source, FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY) ||
+      !sameJson(manifest, FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY))
+  ) {
+    fail(code);
+  }
+}
+
+function validateV9AuthenticatedInput(
+  value: unknown,
+  expectedInput: Readonly<Record<string, unknown>>,
+  target: number,
+): void {
+  const authenticated = exactRecord(
+    value,
+    ["runtime", "generator_projection"],
+    "v9-result-input",
+  );
+  const projection = exactRecord(
+    authenticated.generator_projection,
+    [
+      "schema",
+      "role",
+      "binding",
+      "historic_provenance_not_reverified_by_fast_path",
+    ],
+    "v9-result-input-projection",
+  );
+  if (
+    projection.historic_provenance_not_reverified_by_fast_path !== true
+  ) {
+    fail("v9-result-input-projection");
+  }
+  validateInputBinding(
+    {
+      schema: projection.schema,
+      role: projection.role,
+      binding: projection.binding,
+    },
+    expectedInput,
+    "v9-result-input-projection",
+  );
+  if (
+    !isRecord(expectedInput.binding) ||
+    expectedInput.binding.records !== target
+  ) {
+    fail("v9-result-input-projection");
+  }
+  const runtime = exactRecord(
+    authenticated.runtime,
+    ["preflight", "postflight", "equal"],
+    "v9-result-fast-input-runtime",
+  );
+  if (runtime.equal !== true || !sameJson(runtime.preflight, runtime.postflight)) {
+    fail("v9-result-fast-input-runtime");
+  }
+  validateFastInputBinding(
+    runtime.preflight,
+    expectedInput,
+    "v9-result-fast-input-preflight",
+  );
+  validateFastInputBinding(
+    runtime.postflight,
+    expectedInput,
+    "v9-result-fast-input-postflight",
+  );
+}
+
 function validateResultEnvelope(
   result: Record<string, unknown>,
   expectedAuthority: unknown,
   expectedInput: unknown,
   target: number,
   milestoneTargets: readonly [number, number],
+  generation: TeacherGeneration,
 ): {
   readonly revision: string;
   readonly fingerprint: string;
   readonly completion: Record<string, unknown>;
   readonly stagedOutputs: Record<string, unknown>;
 } {
-  exactRecord(result, RESULT_KEYS, "result-shape");
-  if (
-    result.schema !== FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA ||
-    result.status !== "complete-training-only-postflight-bound" ||
-    result.claim_boundary !==
-      "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
-  ) {
+  exactRecord(
+    result,
+    generation === "v8" ? V8_RESULT_KEYS : V9_RESULT_KEYS,
+    "result-shape",
+  );
+  const validResultContract =
+    generation === "v8"
+      ? result.schema === FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA &&
+        result.status === "complete-training-only-postflight-bound" &&
+        result.claim_boundary ===
+          "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
+      : result.schema ===
+          FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA &&
+        result.status ===
+          "complete-training-only-fast-input-postflight-bound" &&
+        result.claim_boundary ===
+          "fast-input-and-staged-output-integrity-not-playing-strength-evidence";
+  if (!validResultContract) {
     fail("result-contract");
   }
   const runner = exactRecord(
@@ -809,10 +1089,18 @@ function validateResultEnvelope(
     "runner-shape",
   );
   const revision = text(runner.revision, "runner-revision");
+  const expectedRunnerSchema =
+    generation === "v8"
+      ? FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA
+      : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA;
+  const expectedNodeVersion =
+    generation === "v8"
+      ? FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION
+      : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_NODE_VERSION;
   if (
-    runner.schema !== FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA ||
+    runner.schema !== expectedRunnerSchema ||
     !REVISION_RE.test(revision) ||
-    runner.node !== FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION ||
+    runner.node !== expectedNodeVersion ||
     runner.platform !== "darwin" ||
     runner.architecture !== "arm64" ||
     runner.local_only !== true ||
@@ -823,42 +1111,72 @@ function validateResultEnvelope(
   ) {
     fail("runner-contract");
   }
-  validateAssetAuthority(result.production_asset_preflight, expectedAuthority);
-  validateInputBinding(
-    result.authenticated_input,
-    expectedInput,
-    "result-input",
+  validateExpectedAssetAuthority(
+    result.production_asset_preflight,
+    expectedAuthority,
+    generation,
   );
-  validatePostflight(result.consumer_postflight, expectedInput);
-  const teacher = exactRecord(
-    result.teacher,
-    [
-      "engine",
-      "parallel_engines",
-      "threads_per_engine",
-      "proposal",
-      "independent_rescore",
-      "hash_mb_per_engine",
-      "timeout_ms_per_search",
-      "engine_environment",
-      "stable_assets_verified",
-      "stable_engine_or_policy_executions",
-    ],
-    "result-teacher",
-  );
+  if (generation === "v8") {
+    validateInputBinding(
+      result.authenticated_input,
+      expectedInput,
+      "result-input",
+    );
+    validatePostflight(result.consumer_postflight, expectedInput);
+  } else {
+    validateV9AuthenticatedInput(
+      result.authenticated_input,
+      expectedInput as Readonly<Record<string, unknown>>,
+      target,
+    );
+  }
+  const teacher =
+    generation === "v8"
+      ? exactRecord(
+          result.teacher,
+          [
+            "engine",
+            "parallel_engines",
+            "threads_per_engine",
+            "proposal",
+            "independent_rescore",
+            "hash_mb_per_engine",
+            "timeout_ms_per_search",
+            "engine_environment",
+            "stable_assets_verified",
+            "stable_engine_or_policy_executions",
+          ],
+          "result-teacher",
+        )
+      : exactRecord(
+          result.teacher,
+          [
+            "engine",
+            "runtime",
+            "engine_environment",
+            "stable_assets_verified",
+            "stable_engine_or_policy_executions",
+          ],
+          "result-teacher",
+        );
+  const validTeacher =
+    generation === "v8"
+      ? teacher.engine === "YaneuraOu" &&
+        teacher.parallel_engines === 12 &&
+        teacher.threads_per_engine === 1 &&
+        sameJson(teacher.proposal, { multipv: 12, depth: 16 }) &&
+        sameJson(teacher.independent_rescore, {
+          multipv: 1,
+          searchmoves: "exactly-one-candidate",
+          depth: 16,
+        }) &&
+        teacher.hash_mb_per_engine ===
+          FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE &&
+        teacher.timeout_ms_per_search === 600_000
+      : teacher.engine === "YaneuraOu" &&
+        sameJson(teacher.runtime, FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME);
   if (
-    teacher.engine !== "YaneuraOu" ||
-    teacher.parallel_engines !== 12 ||
-    teacher.threads_per_engine !== 1 ||
-    !sameJson(teacher.proposal, { multipv: 12, depth: 16 }) ||
-    !sameJson(teacher.independent_rescore, {
-      multipv: 1,
-      searchmoves: "exactly-one-candidate",
-      depth: 16,
-    }) ||
-    teacher.hash_mb_per_engine !==
-      FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
-    teacher.timeout_ms_per_search !== 600_000 ||
+    !validTeacher ||
     !sameJson(
       teacher.engine_environment,
       SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
@@ -923,15 +1241,23 @@ function validateResultEnvelope(
   }
   const publication = exactRecord(
     result.publication,
-    [
-      "stage_root_private_0700",
-      "stage_files_private_0600",
-      "staged_inside_single_authenticated_callback",
-      "postflight_exact_receipt_claimed_before_result_commit",
-      "result_file_sync_before_rename",
-      "result_same_directory_rename",
-      "result_directory_sync_after_rename",
-    ],
+    generation === "v8"
+      ? [
+          "stage_root_private_0700",
+          "stage_files_private_0600",
+          "staged_inside_single_authenticated_callback",
+          "postflight_exact_receipt_claimed_before_result_commit",
+          "result_file_sync_before_rename",
+          "result_same_directory_rename",
+          "result_directory_sync_after_rename",
+        ]
+      : [
+          "stage_root_private_0700",
+          "stage_files_private_0600",
+          "fast_input_reauthenticated_after_teacher",
+          "postflight_equal_before_result_commit",
+          "result_committed_last",
+        ],
     "result-publication",
   );
   if (Object.values(publication).some((value) => value !== true)) {
@@ -943,7 +1269,10 @@ function validateResultEnvelope(
 interface WorkProjection {
   readonly payloadSha256: string;
   readonly forced: boolean;
-  readonly reason?: "fewer-than-two-legal-moves" | "search-timeout-no-label";
+  readonly reason?:
+    | "fewer-than-two-legal-moves"
+    | "search-timeout-no-label"
+    | "proposal-incomplete-no-label";
   readonly trainRecords: number;
   readonly trainSha256: string | null;
 }
@@ -953,6 +1282,7 @@ interface WorkScan {
   readonly completed: number;
   readonly fewerThanTwo: number;
   readonly timedOut: number;
+  readonly proposalIncomplete: number;
   readonly trainRecords: number;
   readonly candidateParents: number;
   readonly candidateCount: number;
@@ -965,6 +1295,7 @@ interface WorkScan {
       readonly forced: number;
       readonly fewerThanTwo: number;
       readonly timedOut: number;
+      readonly proposalIncomplete: number;
       readonly emitted: number;
       readonly bytes: number;
       readonly sha256: string;
@@ -987,21 +1318,64 @@ function forcedReasons(
   target: number,
   forced: number,
   code: string,
-): Readonly<{ fewer: number; timedOut: number }> {
-  const reasons = exactRecord(
+  generation: TeacherGeneration = "v8",
+): Readonly<{
+  fewer: number;
+  timedOut: number;
+  proposalIncomplete: number;
+}> {
+  const expectedKeys = [
+    "fewer_than_two_legal_moves",
+    "search_timeout_no_label",
+  ];
+  const candidate = exactRecord(
     value,
-    ["fewer_than_two_legal_moves", "search_timeout_no_label"],
+    generation === "v9" &&
+      isRecord(value) &&
+      Object.prototype.hasOwnProperty.call(
+        value,
+        "proposal_incomplete_no_label",
+      )
+      ? [...expectedKeys, "proposal_incomplete_no_label"]
+      : expectedKeys,
     code,
   );
+  const reasons = candidate;
   const fewer = integer(reasons.fewer_than_two_legal_moves, 0, code);
   const timedOut = integer(reasons.search_timeout_no_label, 0, code);
+  const proposalIncomplete =
+    generation === "v9" &&
+    Object.prototype.hasOwnProperty.call(
+      reasons,
+      "proposal_incomplete_no_label",
+    )
+      ? integer(reasons.proposal_incomplete_no_label, 0, code)
+      : 0;
   if (
-    fewer + timedOut !== forced ||
-    timedOut > strengthFirstTimeoutSkipLimit(target)
+    fewer + timedOut + proposalIncomplete !== forced ||
+    timedOut + proposalIncomplete > strengthFirstTimeoutSkipLimit(target)
   ) {
     fail(code);
   }
-  return { fewer, timedOut };
+  return { fewer, timedOut, proposalIncomplete };
+}
+
+export function validateFloodgateStrengthFirstV9ForcedReasonsForTests(
+  value: unknown,
+  target: number,
+  forced: number,
+): Readonly<{
+  fewer: number;
+  timedOut: number;
+  proposalIncomplete: number;
+}> {
+  return forcedReasons(
+    value,
+    target,
+    forced,
+    "v9-forced-reasons-test",
+    "v9",
+  );
 }
 
 function fileDigest(value: unknown, code: string): Record<string, unknown> {
@@ -1019,6 +1393,7 @@ function validateManifest(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   expectedAuthority: unknown,
   target: number,
+  generation: TeacherGeneration,
 ): Readonly<{
   teacher: Record<string, unknown>;
   search: Record<string, unknown>;
@@ -1055,7 +1430,9 @@ function validateManifest(
   );
   const authenticated = exactRecord(
     manifest.authenticated_input,
-    ["bundle_verifier_revision", "binding"],
+    generation === "v8"
+      ? ["bundle_verifier_revision", "binding"]
+      : ["bundle_verifier_revision", "binding", "runtime_policy"],
     "manifest-input",
   );
   const source = exactRecord(
@@ -1088,6 +1465,12 @@ function validateManifest(
     [
       "multipv",
       "limit",
+      ...(generation === "v9"
+        ? [
+            "proposal_limit",
+            "proposal_incomplete_quarantine_policy",
+          ]
+        : []),
       "parallel_engines",
       "fv_scale",
       "hash_mb_per_engine",
@@ -1167,9 +1550,10 @@ function validateManifest(
     ["staged_inside_authenticated_callback", "consumer_postflight_bound"],
     "manifest-publication",
   );
-  const authority = validateAssetAuthority(
+  const authority = validateExpectedAssetAuthority(
     expectedAuthority,
     expectedAuthority,
+    generation,
   );
   const assets = exactRecord(
     authority.assets,
@@ -1224,6 +1608,9 @@ function validateManifest(
     pipeline.tracked_tree_clean !== true ||
     authenticated.bundle_verifier_revision !==
       FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION ||
+    (generation === "v9" &&
+      authenticated.runtime_policy !==
+        FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY) ||
     !sameJson(authenticated.binding, input.binding) ||
     source.raw_sha256 !== input.binding.raw_sha256 ||
     source.raw_records !== target ||
@@ -1243,7 +1630,12 @@ function validateManifest(
     ) ||
     search.multipv !== 12 ||
     !sameJson(search.limit, { depth: 16 }) ||
-    search.parallel_engines !== 12 ||
+    (generation === "v9" &&
+      (!sameJson(search.proposal_limit, { depth: 14 }) ||
+        search.proposal_incomplete_quarantine_policy !==
+          PROPOSAL_INCOMPLETE_QUARANTINE_POLICY)) ||
+    search.parallel_engines !==
+      (generation === "v8" ? 12 : STRENGTH_FIRST_V9_PRODUCTION_ENGINES) ||
     search.hash_mb_per_engine !==
       FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
     search.timeout_ms !== 600_000 ||
@@ -1312,6 +1704,12 @@ function validateManifest(
     eval_sha256: teacher.eval_sha256 as string,
     multipv: search.multipv as number,
     limit: search.limit as { depth: number },
+    ...(generation === "v9"
+      ? {
+          proposal_limit: search.proposal_limit as { depth: number },
+          authenticated_input_policy: authenticated.runtime_policy as string,
+        }
+      : {}),
     engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
     parallel_engines: search.parallel_engines as number,
     fv_scale: search.fv_scale as number,
@@ -1449,51 +1847,78 @@ function validateMilestoneDocument(
   revision: string,
   fingerprint: string,
   inputProjection: Readonly<Record<string, unknown>>,
+  generation: TeacherGeneration,
 ): Readonly<{
   work: Record<string, unknown>;
   forced: number;
   fewer: number;
   timedOut: number;
+  proposalIncomplete: number;
   emitted: number;
 }> {
   exactRecord(
     value,
-    [
-      "schema",
-      "status",
-      "authentication_receipt",
-      "playing_strength_evidence",
-      "target_parents",
-      "completed_parents",
-      "runner_revision",
-      "authenticated_input",
-      "stage",
-      "progress",
-    ],
+    generation === "v8"
+      ? [
+          "schema",
+          "status",
+          "authentication_receipt",
+          "playing_strength_evidence",
+          "target_parents",
+          "completed_parents",
+          "runner_revision",
+          "authenticated_input",
+          "stage",
+          "progress",
+        ]
+      : [
+          "schema",
+          "status",
+          "authentication_receipt",
+          "playing_strength_evidence",
+          "target_parents",
+          "completed_parents",
+          "runner_revision",
+          "fast_input_preflight",
+          "progress",
+        ],
     "milestone-shape",
   );
-  const stage = exactRecord(
-    value.stage,
-    [
-      "root",
-      "same_stage_for_all_targets",
-      "automatically_continue_to_next_target",
-    ],
-    "milestone-stage",
-  );
+  const stage =
+    generation === "v8"
+      ? exactRecord(
+          value.stage,
+          [
+            "root",
+            "same_stage_for_all_targets",
+            "automatically_continue_to_next_target",
+          ],
+          "milestone-stage",
+        )
+      : undefined;
   const progress = exactRecord(
     value.progress,
-    [
-      "status",
-      "authentication_receipt",
-      "target_parents",
-      "completed_parents",
-      "run_fingerprint",
-      "forced_parents_skipped",
-      "forced_skip_reasons",
-      "emitted_parent_groups",
-      "work",
-    ],
+    generation === "v8"
+      ? [
+          "status",
+          "authentication_receipt",
+          "target_parents",
+          "completed_parents",
+          "run_fingerprint",
+          "forced_parents_skipped",
+          "forced_skip_reasons",
+          "emitted_parent_groups",
+          "work",
+        ]
+      : [
+          "status",
+          "authentication_receipt",
+          "run_fingerprint",
+          "forced_parents_skipped",
+          "forced_skip_reasons",
+          "emitted_parent_groups",
+          "work",
+        ],
     "milestone-progress",
   );
   const work = exactRecord(
@@ -1511,6 +1936,7 @@ function validateMilestoneDocument(
     target,
     forced,
     "milestone-reasons",
+    generation,
   );
   const emitted = integer(
     progress.emitted_parent_groups,
@@ -1518,7 +1944,10 @@ function validateMilestoneDocument(
     "milestone-progress",
   );
   if (
-    value.schema !== FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA ||
+    value.schema !==
+      (generation === "v8"
+        ? FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA
+        : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_MILESTONE_SCHEMA) ||
     value.status !==
       "local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt" ||
     value.authentication_receipt !== false ||
@@ -1526,15 +1955,17 @@ function validateMilestoneDocument(
     value.target_parents !== target ||
     value.completed_parents !== target ||
     value.runner_revision !== revision ||
-    !sameJson(value.authenticated_input, inputProjection) ||
-    stage.root !== "." ||
-    stage.same_stage_for_all_targets !== true ||
-    stage.automatically_continue_to_next_target !== true ||
+    (generation === "v8" &&
+      (!sameJson(value.authenticated_input, inputProjection) ||
+        stage?.root !== "." ||
+        stage?.same_stage_for_all_targets !== true ||
+        stage?.automatically_continue_to_next_target !== true)) ||
     progress.status !==
       "local-work-prefix-complete-not-an-authentication-receipt" ||
     progress.authentication_receipt !== false ||
-    progress.target_parents !== target ||
-    progress.completed_parents !== target ||
+    (generation === "v8" &&
+      (progress.target_parents !== target ||
+        progress.completed_parents !== target)) ||
     progress.run_fingerprint !== fingerprint ||
     forced + emitted !== target ||
     work.path !== "work.jsonl" ||
@@ -1544,11 +1975,19 @@ function validateMilestoneDocument(
   ) {
     fail("milestone-contract");
   }
+  if (generation === "v9") {
+    validateFastInputBinding(
+      value.fast_input_preflight,
+      inputProjection,
+      "v9-milestone-fast-input",
+    );
+  }
   return {
     work,
     forced,
     fewer: reasons.fewer,
     timedOut: reasons.timedOut,
+    proposalIncomplete: reasons.proposalIncomplete,
     emitted,
   };
 }
@@ -1561,6 +2000,7 @@ async function scanWork(
   target: number,
   milestoneTargets: readonly [number, number],
   expectedBinding: Record<string, unknown>,
+  generation: TeacherGeneration,
 ): Promise<WorkScan> {
   const reader = createJsonlReader(source, {
     code: "work-jsonl",
@@ -1600,7 +2040,13 @@ async function scanWork(
   const prefixMutable = new Map(
     milestoneTargets.map((value) => [
       value,
-      { forced: 0, fewerThanTwo: 0, timedOut: 0, emitted: 0 },
+      {
+        forced: 0,
+        fewerThanTwo: 0,
+        timedOut: 0,
+        proposalIncomplete: 0,
+        emitted: 0,
+      },
     ]),
   );
   const candidateHash = createHash("sha256");
@@ -1609,6 +2055,7 @@ async function scanWork(
   let completed = 0;
   let fewerThanTwo = 0;
   let timedOut = 0;
+  let proposalIncomplete = 0;
   let trainRecords = 0;
   let candidateCount = 0;
   let minimumCandidates = Number.POSITIVE_INFINITY;
@@ -1631,6 +2078,7 @@ async function scanWork(
         12,
         { depth: 16 },
         600_000,
+        generation === "v8" ? { depth: 16 } : { depth: 14 },
       );
     } catch {
       fail("work-entry");
@@ -1639,7 +2087,14 @@ async function scanWork(
     let projection: WorkProjection;
     if (entry.kind === "skip") {
       if (entry.reason === "fewer-than-two-legal-moves") fewerThanTwo += 1;
-      else timedOut += 1;
+      else if (entry.reason === "search-timeout-no-label") timedOut += 1;
+      else if (
+        entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON
+      ) {
+        proposalIncomplete += 1;
+      } else {
+        fail("work-entry-reason");
+      }
       projection = {
         payloadSha256: entry.payload_sha256,
         forced: true,
@@ -1675,8 +2130,10 @@ async function scanWork(
         counts.forced += 1;
         if (projection.reason === "fewer-than-two-legal-moves") {
           counts.fewerThanTwo += 1;
-        } else {
+        } else if (projection.reason === "search-timeout-no-label") {
           counts.timedOut += 1;
+        } else {
+          counts.proposalIncomplete += 1;
         }
       } else {
         counts.emitted += 1;
@@ -1698,6 +2155,7 @@ async function scanWork(
       forced: number;
       fewerThanTwo: number;
       timedOut: number;
+      proposalIncomplete: number;
       emitted: number;
       bytes: number;
       sha256: string;
@@ -1718,6 +2176,7 @@ async function scanWork(
     completed,
     fewerThanTwo,
     timedOut,
+    proposalIncomplete,
     trainRecords,
     candidateParents: candidateLines,
     candidateCount,
@@ -1905,8 +2364,10 @@ function validateWorkAggregates(
   target: number,
   fingerprint: string,
   workBinding: Record<string, unknown>,
+  generation: TeacherGeneration,
 ): Readonly<{ forced: number; emitted: number }> {
-  const forced = work.fewerThanTwo + work.timedOut;
+  const forced =
+    work.fewerThanTwo + work.timedOut + work.proposalIncomplete;
   const emitted = target - forced;
   const candidateSets = manifestParts.candidateSets;
   const progress = manifestParts.progress;
@@ -1915,11 +2376,13 @@ function validateWorkAggregates(
     target,
     forced,
     "manifest-reasons",
+    generation,
   );
   void reasons;
   if (
     reasons.fewer !== work.fewerThanTwo ||
     reasons.timedOut !== work.timedOut ||
+    reasons.proposalIncomplete !== work.proposalIncomplete ||
     candidateSets.sha256 !== work.candidateSetsSha256 ||
     candidateSets.parents !== work.candidateParents ||
     candidateSets.candidates !== work.candidateCount ||
@@ -1947,6 +2410,7 @@ function validateAggregateBindings(
   completionBinding: Readonly<Record<string, unknown>>,
   trainBinding: Readonly<Record<string, unknown>>,
   target: number,
+  generation: TeacherGeneration,
 ): void {
   const stagedForced = integer(
     staged.forced_parents_skipped,
@@ -1973,12 +2437,14 @@ function validateAggregateBindings(
     target,
     outerForced,
     "result-reasons",
+    generation,
   );
   const stagedReasons = forcedReasons(
     staged.forced_skip_reasons,
     target,
     stagedForced,
     "staged-reasons",
+    generation,
   );
   if (
     aggregates.forced !== outerForced ||
@@ -1988,8 +2454,10 @@ function validateAggregateBindings(
     outerForced + outerEmitted !== target ||
     outerReasons.fewer !== work.fewerThanTwo ||
     outerReasons.timedOut !== work.timedOut ||
+    outerReasons.proposalIncomplete !== work.proposalIncomplete ||
     stagedReasons.fewer !== work.fewerThanTwo ||
     stagedReasons.timedOut !== work.timedOut ||
+    stagedReasons.proposalIncomplete !== work.proposalIncomplete ||
     !sameJson(manifest.completion, completionBinding) ||
     !sameJson(manifest.train, trainBinding)
   ) {
@@ -2005,6 +2473,7 @@ function validateMilestoneAgainstWork(
     milestone.forced !== prefix.forced ||
     milestone.fewer !== prefix.fewerThanTwo ||
     milestone.timedOut !== prefix.timedOut ||
+    milestone.proposalIncomplete !== prefix.proposalIncomplete ||
     milestone.emitted !== prefix.emitted ||
     milestone.work.bytes !== prefix.bytes ||
     milestone.work.sha256 !== prefix.sha256
@@ -2014,7 +2483,9 @@ function validateMilestoneAgainstWork(
 }
 
 function contract(
-  value: FloodgateStrengthFirstV8DownstreamProvenanceInput["testOnlyContract"],
+  value:
+    | FloodgateStrengthFirstV8DownstreamProvenanceInput["testOnlyContract"]
+    | FloodgateStrengthFirstV9DownstreamProvenanceInput["testOnlyContract"],
 ): Readonly<{
   target: number;
   milestones: readonly [number, number];
@@ -2036,8 +2507,14 @@ function contract(
 }
 
 async function verifyCore(
-  input: FloodgateStrengthFirstV8DownstreamProvenanceInput,
-): Promise<FloodgateStrengthFirstV8DownstreamProvenanceSummary> {
+  input:
+    | FloodgateStrengthFirstV8DownstreamProvenanceInput
+    | FloodgateStrengthFirstV9DownstreamProvenanceInput,
+  generation: TeacherGeneration,
+): Promise<
+  | FloodgateStrengthFirstV8DownstreamProvenanceSummary
+  | FloodgateStrengthFirstV9DownstreamProvenanceSummary
+> {
   if (!isRecord(input)) fail("input-shape");
   const { target, milestones } = contract(input.testOnlyContract);
   for (const value of [
@@ -2059,6 +2536,7 @@ async function verifyCore(
     ? authenticatedInputFromRaw(
         result,
         input.authenticatedInputRaw as Uint8Array,
+        generation,
       )
     : (input.authenticatedInput as Readonly<AuthenticatedFloodgateTrainingRows>);
   validateAuthenticatedInput(authenticated, target);
@@ -2069,13 +2547,25 @@ async function verifyCore(
     inputProjection,
     target,
     milestones,
+    generation,
   );
+  const revisionVerified =
+    generation === "v8"
+      ? await (
+          input as FloodgateStrengthFirstV8DownstreamProvenanceInput
+        ).verifyRevisionDescendant(
+          envelope.revision,
+          FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
+        )
+      : await (
+          input as FloodgateStrengthFirstV9DownstreamProvenanceInput
+        ).verifyRevisionDescendant(
+          envelope.revision,
+          FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
+        );
   if (
     typeof input.verifyRevisionDescendant !== "function" ||
-    (await input.verifyRevisionDescendant(
-      envelope.revision,
-      FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
-    )) !== true
+    revisionVerified !== true
   ) {
     fail("runner-revision-ancestry");
   }
@@ -2137,6 +2627,7 @@ async function verifyCore(
     authenticated,
     input.expectedAssetAuthority,
     target,
+    generation,
   );
   const stagedParts = validateStagedResult(
     staged,
@@ -2152,6 +2643,7 @@ async function verifyCore(
     envelope.revision,
     envelope.fingerprint,
     inputProjection,
+    generation,
   );
   const secondMilestone = validateMilestoneDocument(
     milestoneSecondValue,
@@ -2159,6 +2651,7 @@ async function verifyCore(
     envelope.revision,
     envelope.fingerprint,
     inputProjection,
+    generation,
   );
   const work = await scanWork(
     input.work,
@@ -2168,6 +2661,7 @@ async function verifyCore(
     target,
     milestones,
     stagedParts.work,
+    generation,
   );
   const aggregates = validateWorkAggregates(
     work,
@@ -2175,6 +2669,7 @@ async function verifyCore(
     target,
     envelope.fingerprint,
     stagedParts.work,
+    generation,
   );
   const firstPrefix = work.prefixes.get(milestones[0]);
   const secondPrefix = work.prefixes.get(milestones[1]);
@@ -2202,10 +2697,9 @@ async function verifyCore(
     completion.binding,
     train,
     target,
+    generation,
   );
-  return Object.freeze({
-    schema: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
-    status: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
+  const common = {
     target_parents: target,
     emitted_parent_groups: aggregates.emitted,
     forced_parents_skipped: aggregates.forced,
@@ -2223,15 +2717,43 @@ async function verifyCore(
     training_only: true,
     private_identifiers_disclosed: false,
     private_digests_disclosed: false,
-  });
+  } as const;
+  return generation === "v8"
+    ? Object.freeze({
+        schema: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
+        status: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
+        ...common,
+      })
+    : Object.freeze({
+        schema: FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_SCHEMA,
+        status: FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS,
+        ...common,
+        proposal_incomplete_no_label: work.proposalIncomplete,
+      });
 }
 
 export async function verifyFloodgateStrengthFirstV8DownstreamProvenance(
   input: FloodgateStrengthFirstV8DownstreamProvenanceInput,
 ): Promise<FloodgateStrengthFirstV8DownstreamProvenanceSummary> {
   try {
-    return await verifyCore(input);
+    return (await verifyCore(
+      input,
+      "v8",
+    )) as FloodgateStrengthFirstV8DownstreamProvenanceSummary;
   } catch {
     throw new Error("v8-downstream-provenance-verification-failed");
+  }
+}
+
+export async function verifyFloodgateStrengthFirstV9DownstreamProvenance(
+  input: FloodgateStrengthFirstV9DownstreamProvenanceInput,
+): Promise<FloodgateStrengthFirstV9DownstreamProvenanceSummary> {
+  try {
+    return (await verifyCore(
+      input,
+      "v9",
+    )) as FloodgateStrengthFirstV9DownstreamProvenanceSummary;
+  } catch {
+    throw new Error("v9-downstream-provenance-verification-failed");
   }
 }

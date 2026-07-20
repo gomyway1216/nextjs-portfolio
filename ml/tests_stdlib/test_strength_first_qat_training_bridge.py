@@ -32,14 +32,24 @@ def provenance_summary(
     emitted=23_000,
     train_records=46_000,
     milestones=(100, 500),
+    generation="v8",
+    proposal_incomplete=0,
 ):
-    return {
-        "schema": BRIDGE.STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA,
-        "status": BRIDGE.STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS,
+    summary = {
+        "schema": (
+            BRIDGE.STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA
+            if generation == "v9"
+            else BRIDGE.STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_SCHEMA
+        ),
+        "status": (
+            BRIDGE.STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_STATUS
+            if generation == "v9"
+            else BRIDGE.STRENGTH_FIRST_V8_PROVENANCE_SUMMARY_STATUS
+        ),
         "target_parents": target,
         "emitted_parent_groups": emitted,
         "forced_parents_skipped": forced,
-        "fewer_than_two_legal_moves": forced,
+        "fewer_than_two_legal_moves": forced - proposal_incomplete,
         "search_timeout_no_label": 0,
         "train_records": train_records,
         "milestone_targets": list(milestones),
@@ -51,9 +61,12 @@ def provenance_summary(
         "private_identifiers_disclosed": False,
         "private_digests_disclosed": False,
     }
+    if generation == "v9":
+        summary["proposal_incomplete_no_label"] = proposal_incomplete
+    return summary
 
 
-def complete_plan():
+def complete_plan(*, generation="v8"):
     completion = {
         "path": "parent-completion.jsonl",
         "format": ACCOUNTING.FRESH_QAT_PARENT_COMPLETION_FORMAT,
@@ -84,7 +97,11 @@ def complete_plan():
         "semantic_position_ids_sha256": "9" * 64,
     }
     return {
-        "schema": BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+        "schema": (
+            BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA
+            if generation == "v9"
+            else BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA
+        ),
         "status": BRIDGE.STRENGTH_FIRST_QAT_PLAN_STATUS,
         "artifacts": {
             "role_bundle_manifest": file_identity("manifest.json", "1" * 64),
@@ -113,7 +130,7 @@ def complete_plan():
                 "sha256": FRESH.FRESH_QAT_WARM_INITIALIZER_SHA256,
             },
         },
-        "teacher_provenance": provenance_summary(),
+        "teacher_provenance": provenance_summary(generation=generation),
         "runtime": {
             "platform": "synthetic-platform",
             "system": "Darwin",
@@ -154,6 +171,12 @@ def complete_plan():
 
 def teacher_documents(plan):
     artifacts = plan["artifacts"]
+    generation = (
+        "v9"
+        if plan["teacher_provenance"]["schema"]
+        == BRIDGE.STRENGTH_FIRST_V9_PROVENANCE_SUMMARY_SCHEMA
+        else "v8"
+    )
 
     def projection(identity):
         return {
@@ -168,6 +191,11 @@ def teacher_documents(plan):
                 "forced_parents_skipped"
             ],
             "search_timeout_no_label": 0,
+            **(
+                {"proposal_incomplete_no_label": 0}
+                if generation == "v9"
+                else {}
+            ),
         },
         "parent_completion": copy.deepcopy(
             artifacts["parent_completion"]
@@ -177,10 +205,20 @@ def teacher_documents(plan):
         },
     }
     result = {
-        "schema": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
-        "status": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_STATUS,
+        "schema": (
+            BRIDGE.STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA
+            if generation == "v9"
+            else BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
+        ),
+        "status": (
+            BRIDGE.STRENGTH_FIRST_V9_TEACHER_RESULT_STATUS
+            if generation == "v9"
+            else BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_STATUS
+        ),
         "claim_boundary": (
-            "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
+            "fast-input-and-staged-output-integrity-not-playing-strength-evidence"
+            if generation == "v9"
+            else "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
         ),
         "runner": {
             "local_only": True,
@@ -190,7 +228,7 @@ def teacher_documents(plan):
         },
         "production_asset_preflight": {},
         "authenticated_input": {},
-        "consumer_postflight": {},
+        **({"consumer_postflight": {}} if generation == "v8" else {}),
         "teacher": {},
         "milestones": {
             "targets": [100, 500, ACCOUNTING.FRESH_QAT_INPUT_PARENTS],
@@ -366,6 +404,20 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
                 if key != "training_only"
             )
         )
+        self.assertEqual(
+            plan["schema"],
+            BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA,
+        )
+
+        v9_plan = complete_plan(generation="v9")
+        BRIDGE.validate_strength_first_qat_training_plan_data(v9_plan)
+        self.assertEqual(
+            v9_plan["schema"],
+            BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+        )
+        with self.assertRaisesRegex(ValueError, "schema/source"):
+            v9_plan["schema"] = BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_V2_SCHEMA
+            BRIDGE.validate_strength_first_qat_training_plan_data(v9_plan)
 
     def test_default_teacher_paths_follow_the_v8_root(self):
         paths = BRIDGE.default_strength_first_local_paths(
@@ -377,6 +429,18 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             (
                 "/home/tester/.codex/shogi-runs/"
                 "floodgate-q1-2026-strength-first-v8/result.json"
+            ),
+        )
+        v9_paths = BRIDGE.default_strength_first_local_paths(
+            repo_root="/repo",
+            home="/home/tester",
+            teacher_generation="v9",
+        )
+        self.assertEqual(
+            v9_paths["teacher_result"],
+            (
+                "/home/tester/.codex/shogi-runs/"
+                "floodgate-q1-2026-strength-first-v9/result.json"
             ),
         )
 
@@ -470,6 +534,87 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
                         plan["artifacts"],
                         plan["teacher_provenance"],
                     )
+
+        v9_plan = complete_plan(generation="v9")
+        v9_manifest, v9_result = teacher_documents(v9_plan)
+        BRIDGE._validate_teacher_documents(
+            v9_manifest,
+            v9_result,
+            v9_plan["artifacts"],
+            v9_plan["teacher_provenance"],
+        )
+        missing_manifest, missing_result = teacher_documents(v9_plan)
+        del missing_manifest["forced_skip_reasons"][
+            "proposal_incomplete_no_label"
+        ]
+        del missing_result["completion"]["forced_skip_reasons"][
+            "proposal_incomplete_no_label"
+        ]
+        BRIDGE._validate_teacher_documents(
+            missing_manifest,
+            missing_result,
+            v9_plan["artifacts"],
+            v9_plan["teacher_provenance"],
+        )
+        for label in ("manifest", "result"):
+            with self.subTest(v9_asymmetric_reason_presence=label):
+                asymmetric_manifest, asymmetric_result = teacher_documents(
+                    v9_plan
+                )
+                asymmetric_target = (
+                    asymmetric_manifest["forced_skip_reasons"]
+                    if label == "manifest"
+                    else asymmetric_result["completion"][
+                        "forced_skip_reasons"
+                    ]
+                )
+                del asymmetric_target["proposal_incomplete_no_label"]
+                with self.assertRaisesRegex(ValueError, "completion mismatch"):
+                    BRIDGE._validate_teacher_documents(
+                        asymmetric_manifest,
+                        asymmetric_result,
+                        v9_plan["artifacts"],
+                        v9_plan["teacher_provenance"],
+                    )
+        positive_plan = complete_plan(generation="v9")
+        positive_plan["teacher_provenance"] = provenance_summary(
+            generation="v9",
+            proposal_incomplete=1,
+        )
+        positive_manifest, positive_result = teacher_documents(positive_plan)
+        for reasons in (
+            positive_manifest["forced_skip_reasons"],
+            positive_result["completion"]["forced_skip_reasons"],
+        ):
+            reasons["fewer_than_two_legal_moves"] = 999
+            reasons["proposal_incomplete_no_label"] = 1
+        BRIDGE._validate_teacher_documents(
+            positive_manifest,
+            positive_result,
+            positive_plan["artifacts"],
+            positive_plan["teacher_provenance"],
+        )
+        extra_manifest, extra_result = teacher_documents(v9_plan)
+        extra_manifest["forced_skip_reasons"]["unexpected"] = 0
+        with self.assertRaisesRegex(ValueError, "fields are not exact"):
+            BRIDGE._validate_teacher_documents(
+                extra_manifest,
+                extra_result,
+                v9_plan["artifacts"],
+                v9_plan["teacher_provenance"],
+            )
+        v9_result["completion"]["forced_skip_reasons"] = {
+            "fewer_than_two_legal_moves": 999,
+            "search_timeout_no_label": 0,
+            "proposal_incomplete_no_label": 1,
+        }
+        with self.assertRaisesRegex(ValueError, "completion mismatch"):
+            BRIDGE._validate_teacher_documents(
+                v9_manifest,
+                v9_result,
+                v9_plan["artifacts"],
+                v9_plan["teacher_provenance"],
+            )
 
     def test_teacher_work_fingerprint_detects_flat_root_byte_drift(self):
         with tempfile.TemporaryDirectory() as directory:

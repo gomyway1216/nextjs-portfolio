@@ -267,6 +267,7 @@ def run_strength_first_three_seed_training(
     paths = BRIDGE.default_strength_first_local_paths(
         repo_root=repo_root,
         home=home,
+        teacher_generation="v9",
     )
     plan = plan_loader(paths["experiment_plan"])
     expected_slots = [

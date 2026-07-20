@@ -15,8 +15,10 @@ from collections.abc import Mapping
 import hashlib
 import importlib.util
 import math
+import os
 from pathlib import Path
 import re
+import stat
 import sys
 from types import ModuleType
 from typing import Any
@@ -105,13 +107,50 @@ def _read_exact_file(
     identity: Mapping[str, Any],
     label: str,
 ) -> bytes:
+    descriptor = -1
     try:
-        value = Path(path).read_bytes()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size != identity["bytes"]
+        ):
+            raise ValueError(f"{label} identity mismatch")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            value = source.read(identity["bytes"] + 1)
+        after = os.fstat(descriptor)
+        current_path = os.stat(path, follow_symlinks=False)
     except OSError as error:
         raise ValueError(f"{label} cannot be read") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     if (
         len(value) != identity["bytes"]
         or hashlib.sha256(value).hexdigest() != identity["sha256"]
+        or (
+            before.st_dev,
+            before.st_ino,
+            before.st_nlink,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        != (
+            after.st_dev,
+            after.st_ino,
+            after.st_nlink,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        or not stat.S_ISREG(current_path.st_mode)
+        or current_path.st_nlink != 1
+        or current_path.st_size != identity["bytes"]
+        or (current_path.st_dev, current_path.st_ino)
+        != (after.st_dev, after.st_ino)
     ):
         raise ValueError(f"{label} identity mismatch")
     return value

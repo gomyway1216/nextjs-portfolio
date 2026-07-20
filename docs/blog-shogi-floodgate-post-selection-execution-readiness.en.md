@@ -76,9 +76,9 @@ Dependency injection remains only in a private test helper. A synthetic test reg
 | Target | Result |
 | --- | --- |
 | downstream registry / authorization / receipt gates | 48 / 48 passed |
-| checkpoint export adapter | 4 / 4 passed |
+| checkpoint export adapter | 6 / 6 passed |
 | Torch metric / legacy retention adapter | 3 / 3 passed |
-| exact fixture / local WASM probe | 11 / 11 passed |
+| exact fixture / local WASM probe | 12 / 12 passed |
 | Worker client / NNUE / ponder / diagnostics | 24 / 24 passed |
 | Python compile, Ruff, diff check, and TypeScript typecheck | passed |
 

@@ -78,9 +78,9 @@ production入口は引数を受け取らない形へ変更した。trackedの固
 | 対象 | 結果 |
 | --- | --- |
 | downstream registry / authorization / receipt gates | 48 / 48 pass |
-| checkpoint export adapter | 4 / 4 pass |
+| checkpoint export adapter | 6 / 6 pass |
 | Torch metric / legacy retention adapter | 3 / 3 pass |
-| exact fixture / local WASM probe | 11 / 11 pass |
+| exact fixture / local WASM probe | 12 / 12 pass |
 | Worker client / NNUE / ponder / diagnostics | 24 / 24 pass |
 | Python compile、ruff、diff check、TypeScript typecheck | pass |
 

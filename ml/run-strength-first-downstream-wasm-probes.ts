@@ -278,6 +278,25 @@ export function validateRegressionFixtureForTests(
   return validateFixture(value);
 }
 
+function retainSensitiveBufferOnSuccess<T>(
+  bytes: Buffer,
+  authenticateRemainingArtifacts: () => T,
+): T {
+  try {
+    return authenticateRemainingArtifacts();
+  } catch (error) {
+    bytes.fill(0);
+    throw error;
+  }
+}
+
+export function retainSensitiveBufferOnSuccessForTests<T>(
+  bytes: Buffer,
+  authenticateRemainingArtifacts: () => T,
+): T {
+  return retainSensitiveBufferOnSuccess(bytes, authenticateRemainingArtifacts);
+}
+
 function authenticateRequest(
   repoRoot: string,
   value: unknown,
@@ -329,37 +348,39 @@ function authenticateRequest(
     fail("WASM probe artifact schema or size differs");
   }
   const weights = readIdentity(repoRoot, candidateWeights, "candidate weights");
-  const wasm = readIdentity(repoRoot, wasmIdentity, "production WASM");
-  const embeddedWasm = Buffer.from(SHOGI_WASM_BASE64, "base64");
-  if (
-    wasm.byteLength !== WASM_BYTES ||
-    digest(wasm) !== WASM_SHA256 ||
-    !wasm.equals(embeddedWasm) ||
-    !WebAssembly.validate(wasm)
-  ) {
-    fail("production WASM differs from the embedded browser engine");
-  }
-  const fixtureRaw = readIdentity(
-    repoRoot,
-    fixtureIdentity,
-    "known-regression fixture",
-  );
-  const fixtureText = fixtureRaw.toString("utf8");
-  const fixtureValue = JSON.parse(fixtureText) as unknown;
-  if (`${canonicalJson(fixtureValue)}\n` !== fixtureText) {
-    fail("known-regression fixture is not canonical JSON");
-  }
-  return {
-    request: {
-      schema: REQUEST_SCHEMA,
-      candidate_weights: candidateWeights,
-      known_regression_fixture: fixtureIdentity,
-      production_wasm: wasmIdentity,
-      search_time_budgets_ms: request.search_time_budgets_ms as number[],
-    },
-    fixture: validateFixture(fixtureValue),
-    weights,
-  };
+  return retainSensitiveBufferOnSuccess(weights, () => {
+    const wasm = readIdentity(repoRoot, wasmIdentity, "production WASM");
+    const embeddedWasm = Buffer.from(SHOGI_WASM_BASE64, "base64");
+    if (
+      wasm.byteLength !== WASM_BYTES ||
+      digest(wasm) !== WASM_SHA256 ||
+      !wasm.equals(embeddedWasm) ||
+      !WebAssembly.validate(wasm)
+    ) {
+      fail("production WASM differs from the embedded browser engine");
+    }
+    const fixtureRaw = readIdentity(
+      repoRoot,
+      fixtureIdentity,
+      "known-regression fixture",
+    );
+    const fixtureText = fixtureRaw.toString("utf8");
+    const fixtureValue = JSON.parse(fixtureText) as unknown;
+    if (`${canonicalJson(fixtureValue)}\n` !== fixtureText) {
+      fail("known-regression fixture is not canonical JSON");
+    }
+    return {
+      request: {
+        schema: REQUEST_SCHEMA,
+        candidate_weights: candidateWeights,
+        known_regression_fixture: fixtureIdentity,
+        production_wasm: wasmIdentity,
+        search_time_budgets_ms: request.search_time_budgets_ms as number[],
+      },
+      fixture: validateFixture(fixtureValue),
+      weights,
+    };
+  });
 }
 
 function realSearch(
@@ -517,7 +538,7 @@ async function main(): Promise<number> {
   const text = input.subarray(0, input.byteLength - 1).toString("utf8");
   const value = JSON.parse(text) as unknown;
   if (canonicalJson(value) !== text) fail("stdin is not canonical JSON");
-  const authenticated = authenticateRequest(process.cwd(), value);
+  const authenticated = authenticateRequest(resolve(__dirname, ".."), value);
   let consoleErrors = 0;
   const originalConsoleError = console.error;
   console.error = (...values: unknown[]) => {

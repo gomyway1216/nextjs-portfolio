@@ -61,6 +61,53 @@ class StrengthFirstDownstreamExportTests(unittest.TestCase):
         )
         self.assertFalse(hasattr(ADAPTER, "evaluate_known_regression_static"))
 
+    def test_exact_reader_rejects_wrong_size_before_allocating_file_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "artifact.bin"
+            path.write_bytes(b"registered")
+            enrolled = file_identity(path, "test-artifact-v1")
+            enrolled["bytes"] += 1
+
+            with mock.patch.object(
+                ADAPTER.os,
+                "fdopen",
+                side_effect=AssertionError("content read must not start"),
+            ) as content_reader:
+                with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    ADAPTER._read_exact_file(
+                        str(path),
+                        enrolled,
+                        "test artifact",
+                    )
+
+            content_reader.assert_not_called()
+
+    def test_exact_reader_rejects_a_path_swap_after_descriptor_open(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "artifact.bin"
+            replacement = root / "replacement.bin"
+            path.write_bytes(b"registered")
+            replacement.write_bytes(b"substitute")
+            enrolled = file_identity(path, "test-artifact-v1")
+            real_fdopen = ADAPTER.os.fdopen
+
+            def swap_path_then_read(descriptor, *args, **kwargs):
+                replacement.replace(path)
+                return real_fdopen(descriptor, *args, **kwargs)
+
+            with mock.patch.object(
+                ADAPTER.os,
+                "fdopen",
+                side_effect=swap_path_then_read,
+            ):
+                with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    ADAPTER._read_exact_file(
+                        str(path),
+                        enrolled,
+                        "test artifact",
+                    )
+
     def prepared(self, directory: str):
         root = Path(directory)
         candidate_checkpoint = root / "candidate.pt"

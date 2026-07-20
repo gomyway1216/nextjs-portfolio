@@ -83,7 +83,7 @@
     },
     {
       "target": "checkpoint-export-adapter-stdlib",
-      "passed": 4,
+      "passed": 6,
       "failed": 0
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "target": "exact-fixture-local-wasm-probe",
-      "passed": 11,
+      "passed": 12,
       "failed": 0
     },
     {

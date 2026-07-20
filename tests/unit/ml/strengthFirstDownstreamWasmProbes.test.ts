@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   REQUEST_SCHEMA,
   RESULT_SCHEMA,
+  retainSensitiveBufferOnSuccessForTests,
   runProbeCoreForTests,
   validateRegressionFixtureForTests,
 } from "../../../ml/run-strength-first-downstream-wasm-probes";
@@ -165,6 +166,17 @@ describe("strength-first downstream WASM probe schedule", () => {
         evaluateChildCp: (child) => (child === "good-child" ? 0 : 100),
       }),
     ).toThrow(/result is invalid/);
+  });
+
+  it("zeroes sensitive weights when later artifact authentication fails", () => {
+    const weights = Buffer.from([7, 8, 9, 10]);
+
+    expect(() =>
+      retainSensitiveBufferOnSuccessForTests(weights, () => {
+        throw new Error("later fixture authentication failed");
+      }),
+    ).toThrow(/later fixture authentication failed/);
+    expect([...weights]).toEqual([0, 0, 0, 0]);
   });
 
   it("authenticates the exact rules-complete known-regression fixture", () => {

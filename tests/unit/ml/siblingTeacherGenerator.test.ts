@@ -10,7 +10,9 @@ import {
   advanceStrengthFirstSiblingTeacherDataset,
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
   advanceStrengthFirstV9SiblingTeacherDataset,
+  FRESH_FINAL_TEACHER_INPUT_SCHEMA,
   FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
+  generateFreshFinalSiblingTeacherDataset,
   INDEPENDENT_EXACT_RESCORE_MODE,
   labelSiblingParent,
   PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
@@ -33,6 +35,7 @@ import {
   strengthFirstTimeoutSkipLimit,
   validateWorkEntry,
   type GenerateSiblingTeacherDependencies,
+  type AuthenticatedFloodgateFreshFinalRows,
   type StageSiblingTeacherCoreForTestsOptions,
   type StrengthFirstSiblingTeacherOptions,
 } from '../../../ml/generate-sibling-teacher';
@@ -1906,6 +1909,112 @@ describe('deterministic sibling teacher generator', () => {
         authenticated_input_policy: 'fast-held-fd-v1',
       })
     ).not.toBe(siblingTeacherRunFingerprint(legacy));
+  });
+
+  it('binds fresh-final provenance separately and reserves the exact final.jsonl stage path', () => {
+    const stage = siblingTeacherStagePaths('/tmp/fresh-final-stage');
+    expect(path.basename(stage.final)).toBe('final.jsonl');
+    expect(new Set(Object.values(stage)).size).toBe(Object.values(stage).length);
+
+    const finalOnly = {
+      source_raw_sha256: '1'.repeat(64),
+      selected_parent_ids_sha256: '2'.repeat(64),
+      authenticated_fresh_final_binding: {
+        schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+        role: 'fresh_final_holdout' as const,
+        source: {
+          path: 'fresh-final-holdout.raw.jsonl' as const,
+          format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+          bytes: 1,
+          sha256: '1'.repeat(64),
+          records: 4_800,
+          games: 200,
+          game_ids_sha256: '3'.repeat(64),
+          parent_ids_sha256: '4'.repeat(64),
+          position_ids_count: 4_800,
+          position_ids_sha256: '5'.repeat(64),
+        },
+      },
+      pipeline: {
+        source_revision: '6'.repeat(40),
+        tracked_tree_clean: true,
+      },
+      engine_bin_sha256: '7'.repeat(64),
+      engine_args: [],
+      engine_arg_files: [],
+      engine_receipt_sha256: '8'.repeat(64),
+      engine_receipt: { schema: 'fixture' },
+      eval_sha256: null,
+      multipv: 12,
+      limit: { depth: 16 },
+      parallel_engines: 12,
+      fv_scale: 20,
+      hash_mb_per_engine: 512,
+      timeout_ms: 600_000,
+    } satisfies Parameters<typeof siblingTeacherRunFingerprint>[0];
+
+    expect(siblingTeacherRunFingerprint(finalOnly)).toMatch(/^[0-9a-f]{64}$/);
+    expect(() =>
+      siblingTeacherRunFingerprint({
+        ...finalOnly,
+        authenticated_training_binding: {
+          result_receipt_bytes: 1,
+          result_receipt_sha256: '9'.repeat(64),
+          bundle_manifest_bytes: 1,
+          bundle_manifest_sha256: 'a'.repeat(64),
+          bundle_producer_revision: 'b'.repeat(40),
+          verifier_revision: 'c'.repeat(40),
+          raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+          raw_bytes: 1,
+          raw_sha256: 'd'.repeat(64),
+          records: 1,
+          games: 1,
+          game_ids_sha256: 'e'.repeat(64),
+          parent_ids_sha256: 'f'.repeat(64),
+          position_ids_count: 1,
+          position_ids_sha256: '0'.repeat(64),
+        },
+      })
+    ).toThrow(/exactly one authenticated role binding/);
+  });
+
+  it('rejects a non-4,800 fresh-final input before reading engine assets or creating output', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'fresh-final-generator-cardinality-')
+    );
+    const row = rawParent('parent-final') as unknown as FloodgateTrainingParent;
+    const input: AuthenticatedFloodgateFreshFinalRows = Object.freeze({
+      schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+      role: 'fresh_final_holdout',
+      source: Object.freeze({
+        path: 'fresh-final-holdout.raw.jsonl',
+        format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+        bytes: 1,
+        sha256: '1'.repeat(64),
+        records: 1,
+        games: 1,
+        game_ids_sha256: floodgateIdentifierDigest([row.game_id]),
+        parent_ids_sha256: floodgateIdentifierDigest([row.parent_id]),
+        position_ids_count: 1,
+        position_ids_sha256: floodgateIdentifierDigest([row.position_id]),
+      }),
+      rows: Object.freeze([Object.freeze(row)]),
+    });
+
+    await expect(
+      generateFreshFinalSiblingTeacherDataset(input, {
+        stageRoot: path.join(root, 'stage'),
+        runnerRevision: PIPELINE_REVISION,
+        engineBin: path.join(root, 'must-not-be-read'),
+        engineReceipt: path.join(root, 'must-not-be-read-receipt'),
+        multipv: 2,
+        depth: 8,
+        proposalIncompleteAllLegalFallbackMaxMoves: 2,
+        engines: 1,
+      })
+    ).rejects.toThrow(/requires exactly 4800 parents and 200 games/);
+    await expect(fs.promises.access(path.join(root, 'stage'))).rejects.toThrow();
+    expect(await fs.promises.readdir(root)).toEqual([]);
   });
 
   it('uses the split proposal limit while retaining the independent-rescore limit', async () => {

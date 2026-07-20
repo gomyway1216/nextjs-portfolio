@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   USI_TEACHER_ENGINE_CONTRACT,
+  UsiSearchTimeoutError,
   UsiTeacherEngine,
   fixedUsiOptionCommands,
 } from '../../../ml/usi-engine';
@@ -64,6 +65,33 @@ describe('USI teacher engine subprocess contract', () => {
         ['7g7f']
       );
       expect(result.bestmove).toBe('7g7f');
+    } finally {
+      await engine.quit();
+    }
+  });
+
+  it('rejects the configured search deadline with a typed timeout signal', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--hang-go'],
+      timeoutMs: 25,
+    });
+    try {
+      await engine.init();
+      const failure = await engine
+        .search(
+          'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1',
+          1,
+          { depth: 8 },
+          ['7g7f']
+        )
+        .catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(UsiSearchTimeoutError);
+      expect(failure).toMatchObject({
+        name: 'UsiSearchTimeoutError',
+        timeoutMs: 25,
+        message: 'USI search timeout after 25ms',
+      });
     } finally {
       await engine.quit();
     }

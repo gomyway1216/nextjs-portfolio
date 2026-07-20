@@ -7,6 +7,13 @@ const tracePath = traceIndex >= 0 ? process.argv[traceIndex + 1] : null;
 const environmentTraceIndex = process.argv.indexOf('--environment-trace');
 const environmentTracePath =
   environmentTraceIndex >= 0 ? process.argv[environmentTraceIndex + 1] : null;
+const hangSearchmoveIndex = process.argv.indexOf('--hang-searchmove');
+const hangSearchmove =
+  hangSearchmoveIndex >= 0 ? process.argv[hangSearchmoveIndex + 1] : null;
+const hangOnceMarkerIndex = process.argv.indexOf('--hang-once-marker');
+const hangOnceMarkerPath =
+  hangOnceMarkerIndex >= 0 ? process.argv[hangOnceMarkerIndex + 1] : null;
+const hangEveryGo = process.argv.includes('--hang-go');
 if (environmentTracePath) {
   fs.appendFileSync(
     environmentTracePath,
@@ -75,6 +82,16 @@ rl.on('line', (line) => {
   }
 
   const searchmoves = line.match(/\bsearchmoves (.+)$/)?.[1].trim().split(/\s+/) ?? [];
+  const shouldHangOnce =
+    hangSearchmove !== null &&
+    searchmoves.includes(hangSearchmove) &&
+    (hangOnceMarkerPath === null || !fs.existsSync(hangOnceMarkerPath));
+  if (hangEveryGo || shouldHangOnce) {
+    if (shouldHangOnce && hangOnceMarkerPath !== null) {
+      fs.writeFileSync(hangOnceMarkerPath, 'hung\n', { flag: 'wx' });
+    }
+    return;
+  }
   const requested = searchmoves.length > 0 ? searchmoves : [
     '7g7f',
     '2g2f',

@@ -28,6 +28,17 @@ export const USI_TEACHER_ENGINE_CONTRACT = {
   search_state_reset_trigger: 'isready',
 } as const;
 
+/** Exact, machine-readable signal for the configured wall-clock search bound. */
+export class UsiSearchTimeoutError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`USI search timeout after ${timeoutMs}ms`);
+    this.name = 'UsiSearchTimeoutError';
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 /** Build the exact fixed option transcript from the recorded contract. */
 export function fixedUsiOptionCommands(): string[] {
   return [
@@ -205,7 +216,7 @@ export class UsiTeacherEngine {
       const timer = setTimeout(() => {
         this.lineHandler = null;
         this.abortPending = null;
-        reject(new Error(`USI search timeout after ${timeoutMs}ms`));
+        reject(new UsiSearchTimeoutError(timeoutMs));
       }, timeoutMs);
       this.abortPending = (error) => {
         clearTimeout(timer);

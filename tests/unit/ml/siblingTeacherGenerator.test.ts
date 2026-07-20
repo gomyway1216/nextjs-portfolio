@@ -19,8 +19,11 @@ import {
   STRENGTH_FIRST_PRODUCTION_ENGINES,
   STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
   STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
+  STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
+  STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
   siblingTeacherStagePaths,
   stageSiblingTeacherDatasetCoreForTests,
+  strengthFirstTimeoutSkipLimit,
   type GenerateSiblingTeacherDependencies,
   type StageSiblingTeacherCoreForTestsOptions,
   type StrengthFirstSiblingTeacherOptions,
@@ -415,6 +418,12 @@ describe('deterministic sibling teacher generator', () => {
       authentication_receipt: false,
       target_parents: 1,
       completed_parents: 1,
+      forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 1,
+        search_timeout_no_label: 0,
+      },
+      emitted_parent_groups: 0,
       work: {
         path: 'work.jsonl',
         schema: SIBLING_TEACHER_WORK_SCHEMA,
@@ -470,6 +479,10 @@ describe('deterministic sibling teacher generator', () => {
       progress_checkpoint: {
         entries: 2,
       },
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 1,
+        search_timeout_no_label: 0,
+      },
       parent_completion: {
         path: 'parent-completion.jsonl',
         records: 2,
@@ -510,6 +523,10 @@ describe('deterministic sibling teacher generator', () => {
       input_parents: 2,
       completed_parents: 2,
       forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 1,
+        search_timeout_no_label: 0,
+      },
       emitted_parent_groups: 1,
       work: {
         path: 'work.jsonl',
@@ -688,6 +705,10 @@ describe('deterministic sibling teacher generator', () => {
           max_candidates: 0,
           skipped_parents: 1,
         },
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 1,
+          search_timeout_no_label: 0,
+        },
         parent_completion: {
           records: 1,
           forced_parents_skipped: 1,
@@ -730,6 +751,280 @@ describe('deterministic sibling teacher generator', () => {
         dependencies
       )
     ).rejects.toThrow(/exactly 24000 parents/);
+  }, 15_000);
+
+  it('quarantines one typed search timeout without labels, replaces the engine, and binds exact accounting', async () => {
+    expect(STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR).toBe(1_000);
+    expect(strengthFirstTimeoutSkipLimit(100)).toBe(1);
+    expect(strengthFirstTimeoutSkipLimit(500)).toBe(1);
+    expect(strengthFirstTimeoutSkipLimit(24_000)).toBe(24);
+
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-timeout-skip-'));
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+    );
+    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const dependencies = {
+      verifyRevision: async (revision: string) => ({
+        source_revision: revision,
+        tracked_tree_clean: true as const,
+      }),
+      verifyOutputPaths: async () => undefined,
+    };
+    const options = {
+      stageRoot,
+      runnerRevision: PIPELINE_REVISION,
+      engineBin: process.execPath,
+      engineArgs: [
+        FAKE_ENGINE,
+        '--environment-trace',
+        environmentTrace,
+        '--hang-searchmove',
+        '2g2f',
+        '--hang-once-marker',
+        hangOnceMarker,
+      ],
+      engineReceipt: await writeEngineReceipt(root),
+      multipv: 2,
+      depth: 8,
+      engines: 1,
+      timeoutMs: 25,
+      targetParents: 2,
+      finalize: true,
+    };
+
+    const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      options,
+      dependencies
+    );
+    if (outcome.status !== 'complete-training-only') {
+      throw new Error('expected timeout-quarantined completion');
+    }
+    expect(outcome).toMatchObject({
+      completed_parents: 2,
+      staged_result: {
+        forced_parents_skipped: 1,
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 1,
+        },
+        emitted_parent_groups: 1,
+      },
+      manifest: {
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 1,
+        },
+        parent_completion: {
+          records: 2,
+          forced_parents_skipped: 1,
+          emitted_parent_groups: 1,
+        },
+      },
+    });
+
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    const timeoutSkip = workRows.find(
+      (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+    );
+    expect(timeoutSkip).toMatchObject({
+      schema: SIBLING_TEACHER_WORK_SCHEMA,
+      kind: 'skip',
+      parent_id: 'parent-a',
+      reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      timeout: {
+        phase: 'independent-rescore',
+        requested_multipv: 1,
+        requested_limit: { depth: 8 },
+        searchmoves: ['2g2f'],
+        timeout_ms: 25,
+      },
+    });
+    expect(timeoutSkip).not.toHaveProperty('records');
+    expect(timeoutSkip).not.toHaveProperty('initial_search');
+    expect(timeoutSkip).not.toHaveProperty('exact_search');
+    expect(timeoutSkip?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+
+    const completionRows = parseJsonl<{
+      parent_id: string;
+      forced_parent_skipped: boolean;
+      train_group_records: number;
+      train_group_sha256: string | null;
+    }>(await fs.promises.readFile(stage.parentCompletion, 'utf8'));
+    expect(completionRows).toEqual([
+      expect.objectContaining({
+        parent_id: 'parent-a',
+        forced_parent_skipped: true,
+        train_group_records: 0,
+        train_group_sha256: null,
+      }),
+      expect.objectContaining({
+        parent_id: 'parent-b',
+        forced_parent_skipped: false,
+      }),
+    ]);
+    const trainRows = parseJsonl<SiblingRecord>(
+      await fs.promises.readFile(stage.train, 'utf8')
+    );
+    expect(new Set(trainRows.map((row) => row.parent_id))).toEqual(new Set(['parent-b']));
+    const replacementEnvironments = parseJsonl<{ cwd: string }>(
+      await fs.promises.readFile(environmentTrace, 'utf8')
+    );
+    expect(replacementEnvironments).toHaveLength(2);
+    expect(replacementEnvironments.map((entry) => entry.cwd)).toEqual([
+      expect.stringMatching(/\/cwd\/worker-0\/engine-0$/),
+      expect.stringMatching(/\/cwd\/worker-0\/engine-1$/),
+    ]);
+
+    const tamperedRows = workRows.map((row) => ({ ...row }));
+    const tamperedSkip = tamperedRows.find(
+      (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+    ) as Record<string, unknown>;
+    tamperedSkip.timeout = {
+      ...(tamperedSkip.timeout as Record<string, unknown>),
+      timeout_ms: 26,
+    };
+    resealWorkEntry(tamperedSkip);
+    await fs.promises.writeFile(
+      stage.work,
+      `${tamperedRows.map((row) => JSON.stringify(row)).join('\n')}\n`
+    );
+    await fs.promises.rm(environmentTrace, { force: true });
+    await fs.promises.rm(hangOnceMarker, { force: true });
+    await expect(
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(input, options, dependencies)
+    ).rejects.toThrow(/invalid search-timeout skip metadata/);
+  }, 15_000);
+
+  it('records proposal-timeout context without emitting any partial label', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-proposal-timeout-'));
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
+    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      {
+        stageRoot,
+        runnerRevision: PIPELINE_REVISION,
+        engineBin: process.execPath,
+        engineArgs: [FAKE_ENGINE, '--hang-go'],
+        engineReceipt: await writeEngineReceipt(root),
+        multipv: 2,
+        depth: 8,
+        engines: 1,
+        timeoutMs: 25,
+        targetParents: 1,
+        finalize: true,
+      },
+      {
+        verifyRevision: async (revision) => ({
+          source_revision: revision,
+          tracked_tree_clean: true,
+        }),
+        verifyOutputPaths: async () => undefined,
+      }
+    );
+    if (outcome.status !== 'complete-training-only') {
+      throw new Error('expected proposal-timeout quarantine completion');
+    }
+    expect(outcome).toMatchObject({
+      completed_parents: 1,
+      staged_result: {
+        forced_parents_skipped: 1,
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 1,
+        },
+        emitted_parent_groups: 0,
+      },
+      manifest: {
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 1,
+        },
+        parent_completion: {
+          forced_parents_skipped: 1,
+          emitted_parent_groups: 0,
+        },
+      },
+    });
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(stage.work, 'utf8')
+    );
+    expect(workRows).toHaveLength(2);
+    expect(workRows[1]).toMatchObject({
+      kind: 'skip',
+      parent_id: 'parent-a',
+      reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      timeout: {
+        phase: 'proposal',
+        requested_multipv: 2,
+        requested_limit: { depth: 8 },
+        searchmoves: [],
+        timeout_ms: 25,
+      },
+    });
+    expect(workRows[1]).not.toHaveProperty('records');
+    expect(await fs.promises.readFile(stage.train, 'utf8')).toBe('');
+  }, 15_000);
+
+  it('fails closed before recording a search timeout beyond the bounded prefix budget', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-timeout-cap-'));
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+    );
+    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    await expect(
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        {
+          stageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [FAKE_ENGINE, '--hang-searchmove', '2g2f'],
+          engineReceipt: await writeEngineReceipt(root),
+          multipv: 2,
+          depth: 8,
+          engines: 1,
+          timeoutMs: 25,
+          targetParents: 2,
+          finalize: true,
+        },
+        {
+          verifyRevision: async (revision) => ({
+            source_revision: revision,
+            tracked_tree_clean: true,
+          }),
+          verifyOutputPaths: async () => undefined,
+        }
+      )
+    ).rejects.toThrow(/search-timeout skip limit 1 exhausted/);
+
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(siblingTeacherStagePaths(stageRoot).work, 'utf8')
+    );
+    expect(
+      workRows.filter(
+        (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+      )
+    ).toHaveLength(1);
+    await expect(
+      fs.promises.access(siblingTeacherStagePaths(stageRoot).stagedResult)
+    ).rejects.toThrow();
   }, 15_000);
 
   it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {
@@ -1549,7 +1844,7 @@ rl.on('line', (line) => {
     for (const field of ['engine_bin', 'engine_script', 'score_file', 'eval_dir', 'cwd'] as const) {
       expect(events[0][field]).toContain('shogi-teacher-runtime-');
     }
-    expect(events[0].cwd).toMatch(/\/cwd\/worker-0$/);
+    expect(events[0].cwd).toMatch(/\/cwd\/worker-0\/engine-0$/);
     expect(events[0].write_bits).toEqual([0, 0, 0, 0]);
     await expect(fs.promises.access(events[0].engine_bin)).rejects.toThrow();
     const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));

@@ -1,0 +1,189 @@
+{
+  "schema": "shogi-external-81dojo-calibration-readiness-evidence-v1",
+  "recorded_date": "2026-07-20",
+  "status": "READY_FOR_CANDIDATE_BINDING_NOT_EXTERNAL_EXECUTION",
+  "implementation_anchor": {
+    "revision": "d2425e977cdb04bdf6667fbcefdfadaa32991631",
+    "tree": "ce238bfada9be66ca255e20b4f3954cbd7bab3ff",
+    "base_revision": "5ce9efb34613a86b5f881ae97d182b1e69cfca59",
+    "branch": "codex/shogi-81dojo-calibration-protocol",
+    "policy_commit": "8a87081e46a5789e2876c9d040bb75ac86cc55f6",
+    "verifier_commit": "c7535e777abceae5545302048b1daaebdb7b06c8",
+    "lightweight_fixture_commit": "d2425e977cdb04bdf6667fbcefdfadaa32991631"
+  },
+  "implementation_artifacts": {
+    "policy": {
+      "path": "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy.json",
+      "bytes": 3674,
+      "sha256": "74a1160d6547a250631b1fd36e67cf086ca25ff791acfee8bbefc23861f2a0ca"
+    },
+    "offline_verifier": {
+      "path": "ml/external_81dojo_calibration.py",
+      "bytes": 45752,
+      "sha256": "196f1e89899642f73a8fb7ab0a141c538430bf53f348c498f913a0400285d301"
+    },
+    "fixture_tests": {
+      "path": "ml/tests_stdlib/test_external_81dojo_calibration.py",
+      "bytes": 13246,
+      "sha256": "f65a47269f240c5076160f44f7b3e5ba9a9292c3155e4efa230dc8b5bf30a18a"
+    }
+  },
+  "official_sources": {
+    "checked_date": "2026-07-20",
+    "terms_url": "https://81dojo.com/jp/terms.html",
+    "rank_table_url": "https://system.81dojo.com/pages/ranks",
+    "rank_threshold_announcement_url": "https://81dojo.com/announcements/260411.html",
+    "rated_time_control_announcement_url": "https://81dojo.com/announcements/260517.html",
+    "rating_system_url": "https://81dojo.com/documents/Rating_System"
+  },
+  "fixed_external_protocol": {
+    "platform": "81Dojo",
+    "official_com_account_prefix": "COM_",
+    "official_client_only": true,
+    "relay": "manual-official-client-only",
+    "external_server_or_ui_automation": false,
+    "rated": true,
+    "initial_position": "hirate",
+    "main_minutes": 10,
+    "byoyomi_seconds": 30,
+    "split_time_seconds": 0,
+    "rating_coefficient_reference": "1.0",
+    "pairing": "official-auto-match",
+    "selected_opponents": false,
+    "games": 200
+  },
+  "candidate_runtime_binding": {
+    "runtime": "production-worker-wasm-nnue-master",
+    "difficulty": "master",
+    "max_time_ms_per_move": 5000,
+    "max_depth": 32,
+    "quiescence_depth_max": 12,
+    "opening_book": true,
+    "exact_weights_worker_wasm_and_opening_book_required": true,
+    "reference_hardware_and_official_client_required": true,
+    "all_candidate_moves_require_matching_trace_receipts": true,
+    "all_internal_gate_receipts_required": true
+  },
+  "ledger_and_receipt": {
+    "format": "canonical-jsonl-utf8-lf-v1",
+    "local_only": true,
+    "append_only_prefix_verification": true,
+    "sha256_hash_chain": true,
+    "sequence_exactly_1_through_200": true,
+    "unique_server_game_ids": true,
+    "candidate_rating_continuity": true,
+    "rated_game_count_continuity": true,
+    "manual_export_artifact_identity": true,
+    "candidate_trace_artifact_identity": true,
+    "credentials_or_chat_recorded": false,
+    "complete_receipt_before_game_200": false
+  },
+  "primary_decision": {
+    "authority": "primary",
+    "required_games": 200,
+    "stability_window_games_inclusive": [171, 200],
+    "minimum_post_game_rating": 2050,
+    "every_post_game_rating_in_window_must_pass": true,
+    "missing_game": "STOP",
+    "selected_opponent": "STOP",
+    "technical_fault": "STOP",
+    "candidate_trace_mismatch": "STOP",
+    "claim_boundary": "81Dojo-five-dan-threshold-maintained-for-games-171-through-200-under-this-exact-protocol-only"
+  },
+  "auxiliary_statistics": {
+    "authority": "report-only-never-primary",
+    "method": "opponent-identity-cluster-percentile-bootstrap",
+    "seed": 20260720,
+    "replicates": 100000,
+    "confidence": "two-sided-95-percent",
+    "windows": ["games-1-through-200", "games-171-through-200"],
+    "rank_conversion": false,
+    "can_override_primary_decision": false
+  },
+  "validation": {
+    "python": "3.9.6",
+    "python_compile": "PASS",
+    "focused_fixture_test_file": "ml.tests_stdlib.test_external_81dojo_calibration",
+    "focused_tests_passed": 8,
+    "focused_tests_failed": 0,
+    "focused_duration_seconds": 1.142,
+    "fixture_bootstrap_replicates": 100,
+    "production_bootstrap_replicates_unchanged": 100000,
+    "node": "v22.13.0",
+    "publication_test_file": "tests/unit/ml/external81DojoCalibrationReadinessEvidence.test.ts",
+    "publication_tests_passed": 4,
+    "publication_tests_failed": 0,
+    "publication_test_max_workers": 1,
+    "publication_duration_ms": 357,
+    "ruff": "PASS",
+    "black_check": "PASS",
+    "git_diff_check": "PASS",
+    "full_suite_run": false,
+    "production_build_run": false,
+    "reason_for_focused_only": "teacher-generation-workload-was-active",
+    "non_test_startup_attempts": [
+      {
+        "status": "NO_TESTS_RUN",
+        "runtime": "default-node",
+        "reason": "runtime-did-not-export-node-util-styleText"
+      },
+      {
+        "status": "NO_TESTS_RUN",
+        "runtime": "node-v22.13.0-with-external-vitest-binary",
+        "reason": "worktree-config-could-not-resolve-vitest-without-root-config"
+      }
+    ]
+  },
+  "current_state": {
+    "candidate_selected": false,
+    "candidate_runtime_bound": false,
+    "internal_gates_passed": false,
+    "official_com_account_ready": false,
+    "user_external_authorization_recorded": false,
+    "manual_relay_confirmed": false,
+    "reference_hardware_bound": false,
+    "official_client_bound": false,
+    "external_games_observed": 0,
+    "ledger_entries": 0,
+    "complete_receipts": 0
+  },
+  "authorization_boundary": {
+    "external_execution_authorized": false,
+    "external_write_authorized": false,
+    "server_api_access_authorized": false,
+    "browser_or_ui_automation_authorized": false,
+    "credential_access_authorized": false,
+    "manual_official_client_relay_authorized": false,
+    "live_weight_write_authorized": false,
+    "promotion_authorized": false
+  },
+  "remaining_gates": [
+    "select one candidate after all internal selection and formal A/B gates pass",
+    "bind the exact candidate assets, production runtime, reference hardware, and official client",
+    "prepare an established official COM_ account without exposing credentials",
+    "record explicit user authorization and recheck the current 81Dojo rules",
+    "manually relay and append all 200 nonselected rated games through the official client",
+    "verify the complete ledger and primary rating-stability rule"
+  ],
+  "execution_counters": {
+    "81dojo_requests": 0,
+    "81dojo_games": 0,
+    "browser_automation_actions": 0,
+    "official_client_automation_actions": 0,
+    "aws_operations": 0,
+    "gcp_operations": 0,
+    "firebase_operations": 0,
+    "vercel_operations": 0,
+    "credential_reads": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "external_games_executed": false,
+    "candidate_stronger": false,
+    "formal_ab_passed": false,
+    "81dojo_five_dan_calibrated": false,
+    "high_dan_established": false,
+    "universal_human_rank_established": false,
+    "live_weights_changed": false
+  }
+}

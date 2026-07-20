@@ -1,0 +1,78 @@
+{
+  "schema": "shogi-strength-first-training-thread-benchmark-implementation-status-v1",
+  "status": "implemented-not-executed-formal-teacher-active",
+  "date": "2026-07-20",
+  "claim_boundary": "synthetic-benchmark-foundation-and-lightweight-tests-only-no-throughput-training-selection-strength-or-live-evidence",
+  "implementation": {
+    "argumentless_outer_and_private_worker": "ml/run_strength_first_training_thread_benchmark.py",
+    "real_loss_callable": "ml/train.py:int16_aware_dual_task_loss",
+    "real_fixed_point_callable": "ml/int16_forward.py:int16_forward_ste",
+    "optimizer": "torch.optim.AdamW",
+    "source_files_bound_by_bytes_and_sha256": [
+      "ml/run_strength_first_training_thread_benchmark.py",
+      "ml/train.py",
+      "ml/int16_forward.py"
+    ],
+    "clean_exact_git_revision_required_before_and_after": true
+  },
+  "planned_comparison": {
+    "seeds": [42, 43, 44],
+    "all_seed_workers_concurrent": true,
+    "shared_start_barrier": true,
+    "thread_order": [2, 4, 4, 2],
+    "threads_are_per_seed_process": true,
+    "batch_count": 12,
+    "batch_rows": 256,
+    "initializer_and_rng_reset_each_trial": true,
+    "inputs": "fixed-synthetic-training-only-tensors",
+    "timing_scope": "loss-forward-backward-adamw-step-only",
+    "same_setting_model_and_probe_hash_equality_required": true,
+    "cross_setting_model_and_probe_hash_equality_required": true,
+    "mismatch_action": "STOP-without-selection",
+    "both_pairs_must_strictly_favor_four": true,
+    "minimum_median_speedup_ppm": 1050000,
+    "fallback_threads_per_seed": 2
+  },
+  "execution_status": {
+    "real_benchmark_started": false,
+    "reason": "formal-24000-position-teacher-active",
+    "required_order": "after-formal-teacher-before-exact-qat-plan-candidate",
+    "torch_workers_started_by_validation": 0,
+    "optimizer_steps_run_by_validation": 0,
+    "measured_elapsed_ns": null,
+    "selected_threads_per_seed": null
+  },
+  "focused_validation": {
+    "pure_stdlib_unit_tests": {
+      "status": "PASS",
+      "tests": 7
+    },
+    "python_compile": "PASS",
+    "ruff": "PASS",
+    "diff_check": "PASS"
+  },
+  "authority": {
+    "teacher_or_plan_data_read": false,
+    "selection_label_read": false,
+    "holdout_label_read": false,
+    "candidate_selection_authorized": false,
+    "production_training_contract_changed": false,
+    "production_weight_write_authorized": false,
+    "live_promotion_authorized": false
+  },
+  "handoff": {
+    "if_two_selected": "proceed-with-current-contract-to-plan-candidate",
+    "if_four_selected": "review-and-merge-separate-production-contract-pr-before-building-plan-candidate",
+    "builder_stdout_destination": "separate-temporary-candidate-file",
+    "redirect_builder_stdout_directly_to_tracked_plan": false,
+    "reason": "precreated-tracked-plan-file-causes-safe-stop"
+  },
+  "strength_claims": {
+    "model_retrained": false,
+    "candidate_selected": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "next_step": "run-the-short-real-abba-benchmark-after-the-formal-teacher-releases-the-cpu-and-before-building-the-exact-qat-plan-candidate"
+}

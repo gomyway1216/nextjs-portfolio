@@ -213,7 +213,12 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
             fixture = ReadyFixture(temporary)
             fixture.registry["pair_workers"] = 4
             fixture.write_registry()
-            barrier = threading.Barrier(fixture.registry["pair_workers"])
+            captured = legacy.validate_ready_local_run_registry_core_for_tests(
+                fixture.root,
+                fixture.registry_path,
+            )
+            captured["registry"]["pair_workers"] = launcher.MAX_PAIR_WORKERS
+            barrier = threading.Barrier(launcher.MAX_PAIR_WORKERS)
             lock = threading.Lock()
             active = 0
             maximum_active = 0
@@ -225,19 +230,19 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                     active += 1
                     maximum_active = max(maximum_active, active)
                     requests.append(copy.deepcopy(request))
-                if request["pair_index"] < fixture.registry["pair_workers"]:
+                if request["pair_index"] < launcher.MAX_PAIR_WORKERS:
                     barrier.wait(timeout=5)
                 with lock:
                     active -= 1
                 return passing_pair_receipt(request)
 
-            result = launcher.run_ready_wasm_pairs_core_for_tests(
-                fixture.root,
-                fixture.registry_path,
+            result = launcher._run_captured(
+                captured,
                 fixture.receipts,
                 execute_pair,
+                lambda: captured,
             )
-            self.assertEqual(maximum_active, fixture.registry["pair_workers"])
+            self.assertEqual(maximum_active, launcher.MAX_PAIR_WORKERS)
             self.assertEqual(len(requests), launcher.PAIR_COUNT)
             self.assertEqual(len(result["pairs"]), launcher.PAIR_COUNT)
             self.assertEqual(

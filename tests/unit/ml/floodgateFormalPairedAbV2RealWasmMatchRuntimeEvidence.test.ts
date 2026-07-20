@@ -32,17 +32,47 @@ function bytesAndSha256(relativePath: string): {
 }
 
 describe("formal paired A/B v2 real WASM match runtime evidence", () => {
-  it("content-addresses the executable runtime without changing historical publication files", () => {
+  it("preserves the published runtime snapshot without treating it as current source", () => {
     const evidence = JSON.parse(read(evidenceRelative));
 
-    for (const artifact of Object.values(
-      evidence.implementation_artifacts,
-    ) as Array<{ path: string; bytes: number; sha256: string }>) {
-      expect(bytesAndSha256(artifact.path)).toEqual({
-        bytes: artifact.bytes,
-        sha256: artifact.sha256,
-      });
-    }
+    expect(evidence.implementation_artifacts).toEqual({
+      pair_adapter: {
+        path: "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
+        bytes: 49_802,
+        sha256:
+          "ce78e7f19afcdb63caa4da54d3f918dc9ffbe972d2d48b961cf987dc2174d759",
+      },
+      isolated_player: {
+        path: "ml/formal-paired-ab-v2-wasm-player-child.ts",
+        bytes: 11_569,
+        sha256:
+          "c8f06ea4c01d322821cbff787d383a6b57d53b7930e286c7278673f6816eeab5",
+      },
+      canonical_pair_entry: {
+        path: "ml/run-formal-paired-ab-v2-wasm-pair.ts",
+        bytes: 3_358,
+        sha256:
+          "4c6791d197c08f2f4f97b2884857af18c5317f3ba5c6c2f13b0dfbbc03860bf0",
+      },
+      formal_launcher: {
+        path: "ml/formal_paired_ab_v2_wasm_match_launcher.py",
+        bytes: 30_193,
+        sha256:
+          "837e40f1caf227b5d5ed82377001975e1c0f58b7d17840448139a9caea877e5a",
+      },
+      pair_adapter_tests: {
+        path: "tests/unit/ml/formalPairedAbV2WasmMatchAdapter.test.ts",
+        bytes: 19_314,
+        sha256:
+          "1a937290ad7fe5569915c2784af2a5aee47889c2ef5e0e21f6cf0d3b60e4938d",
+      },
+      formal_launcher_tests: {
+        path: "ml/tests_stdlib/test_formal_paired_ab_v2_wasm_match_launcher.py",
+        bytes: 12_645,
+        sha256:
+          "b64fbb19abb87355f2dc134d475acc8d6af8a7854afd8f70168470b134d07b63",
+      },
+    });
     for (const artifact of Object.values(
       evidence.historical_publication_preserved,
     ) as Array<{ path?: string; bytes?: number; sha256?: string } | boolean>) {

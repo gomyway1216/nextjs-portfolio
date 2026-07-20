@@ -225,8 +225,7 @@ function fixture(postflightMutation = false) {
     });
     if (target !== 24_000) {
       return Object.freeze({
-        status:
-          "local-work-prefix-complete-not-an-authentication-receipt",
+        status: "local-work-prefix-complete-not-an-authentication-receipt",
         authentication_receipt: false,
         target_parents: target,
         completed_parents: target,
@@ -251,7 +250,11 @@ function fixture(postflightMutation = false) {
       records: 24_001,
     });
     const train = Object.freeze({
-      ...binding(paths.stageRoot + "/train.jsonl", paths.outputRoot, trainBytes),
+      ...binding(
+        paths.stageRoot + "/train.jsonl",
+        paths.outputRoot,
+        trainBytes,
+      ),
       format: "shogi-sibling-jsonl-v1",
       records: 24_000,
       parents: 23_999,

@@ -8,13 +8,13 @@ V8 did not finish 24,000 positions. At 1,388 accounted slots it had 1,383 labele
 
 V9 separates candidate discovery from exact candidate scoring.
 
-| Work | v8 | v9 |
-| --- | ---: | ---: |
-| Candidate proposal | MultiPV 12 / depth 16 | MultiPV 12 / **depth 14** |
-| Independent score for each candidate | depth 16 | **still depth 16** |
-| Parallelism | 12 engines | 12 engines |
-| Hash | 512 MiB / engine | 512 MiB / engine |
-| Per-search bound | 600 seconds | 600 seconds |
+| Work                                 |                    v8 |                        v9 |
+| ------------------------------------ | --------------------: | ------------------------: |
+| Candidate proposal                   | MultiPV 12 / depth 16 | MultiPV 12 / **depth 14** |
+| Independent score for each candidate |              depth 16 |        **still depth 16** |
+| Parallelism                          |            12 engines |                12 engines |
+| Hash                                 |      512 MiB / engine |          512 MiB / engine |
+| Per-search bound                     |           600 seconds |               600 seconds |
 
 This does not reduce the depth used for training scores. Only the first search that builds the candidate set becomes shallower. Every proposed candidate is still rescored independently at depth 16.
 
@@ -22,13 +22,13 @@ This does not reduce the depth used for training scores. Only the first search t
 
 We privately reran the five v8 timeout positions, the position that stopped v8, and six completed positions with similar legal-move counts. No position, parent identity, or move is public.
 
-| Diagnostic | depth 14 | depth 15 |
-| --- | ---: | ---: |
-| Completed | 11 / 12 | 11 / 12 |
-| Timeouts | 0 | 0 |
-| Incomplete MultiPV | 1 | 1 |
-| Median old depth-16 top-12 recall on six references | 91.667% | 91.667% |
-| Median proposal nodes relative to old depth 16 | 31.411% | 51.278% |
+| Diagnostic                                          | depth 14 | depth 15 |
+| --------------------------------------------------- | -------: | -------: |
+| Completed                                           |  11 / 12 |  11 / 12 |
+| Timeouts                                            |        0 |        0 |
+| Incomplete MultiPV                                  |        1 |        1 |
+| Median old depth-16 top-12 recall on six references |  91.667% |  91.667% |
+| Median proposal nodes relative to old depth 16      |  31.411% |  51.278% |
 
 Both depths completed all five former timeout cases. The remaining case returned only five of six exact ranks at both depths, so merely spending longer did not repair that failure class.
 
@@ -55,10 +55,10 @@ The real 24,000-row load took about 3.70 seconds. The runner does not keep a fil
 
 We measured rather than assuming that fourteen physical cores imply fourteen engines. Every trial fully labeled the same 42-position prefix using depth-14 proposals and depth-16 independent rescoring. The counterbalanced order was 12 → 14 → 14 → 12, for 168 labels and zero forced skips.
 
-| Parallelism | Measured wall times | Median |
-| --- | --- | ---: |
-| 12 engines | 59.672 s, 87.004 s | 73.338 s |
-| 14 engines | 73.295 s, 86.510 s | 79.903 s |
+| Parallelism | Measured wall times |   Median |
+| ----------- | ------------------- | -------: |
+| 12 engines  | 59.672 s, 87.004 s  | 73.338 s |
+| 14 engines  | 73.295 s, 86.510 s  | 79.903 s |
 
 Fourteen-lane throughput was 91.784% of twelve-lane throughput, or about 8.216% slower. The extra hash memory, memory-bandwidth pressure, and scheduling contention did not pay back, so v9 keeps twelve engines. Cleanup left zero engines, zero disposable directories, zero throttled pages, and no thermal or performance warning.
 

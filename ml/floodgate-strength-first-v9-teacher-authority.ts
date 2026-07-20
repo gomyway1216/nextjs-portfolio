@@ -6,29 +6,29 @@
  * never executes an engine or reads training data.
  */
 
-import { types as nodeUtilTypes } from 'node:util';
+import { types as nodeUtilTypes } from "node:util";
 
 import {
   PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
   STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
-} from './generate-sibling-teacher';
+} from "./generate-sibling-teacher";
 import {
   bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests,
   captureFloodgateStrengthFirstV8TeacherAuthorityReceipt,
   verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
   type FloodgateStrengthFirstV8TeacherAuthorityReceipt,
-} from './floodgate-strength-first-v8-teacher-authority';
+} from "./floodgate-strength-first-v8-teacher-authority";
 import type {
   FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
   FloodgateProductionTeacherAssetAuthorityReceipt,
-} from './floodgate-production-teacher-asset-authority';
+} from "./floodgate-production-teacher-asset-authority";
 
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT =
-  'shogi-floodgate-strength-first-v9-teacher-authority-v1' as const;
+  "shogi-floodgate-strength-first-v9-teacher-authority-v1" as const;
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS =
-  'verified-pinned-v8-assets-and-measured-strength-first-v9-proposal-rescue-policy' as const;
+  "verified-pinned-v8-assets-and-measured-strength-first-v9-proposal-rescue-policy" as const;
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY =
-  'nested-v8-asset-provenance-and-v9-search-policy-not-engine-execution-teacher-completion-training-holdout-or-playing-strength-evidence' as const;
+  "nested-v8-asset-provenance-and-v9-search-policy-not-engine-execution-teacher-completion-training-holdout-or-playing-strength-evidence" as const;
 
 export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME = Object.freeze({
   parallel_engines: 12 as const,
@@ -38,23 +38,21 @@ export const FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME = Object.freeze({
   proposal: Object.freeze({ multipv: 12 as const, depth: 14 as const }),
   independent_rescore: Object.freeze({
     multipv: 1 as const,
-    searchmoves: 'exactly-one-candidate' as const,
+    searchmoves: "exactly-one-candidate" as const,
     depth: 16 as const,
   }),
   proposal_incomplete: Object.freeze({
     policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
-    phase: 'proposal-only' as const,
-    disposition: 'typed-skip-with-no-label' as const,
-    exact_rescore_incomplete: 'fatal' as const,
-    shared_recoverable_search_skip_divisor:
-      STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
+    phase: "proposal-only" as const,
+    disposition: "typed-skip-with-no-label" as const,
+    exact_rescore_incomplete: "fatal" as const,
+    shared_recoverable_search_skip_divisor: STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR,
   }),
 });
 
 export interface FloodgateStrengthFirstV9TeacherAuthorityReceipt<
   TExecutionBoundary extends
-    FloodgateProductionTeacherAssetAuthorityExecutionBoundary =
-    FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary = FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
 > {
   readonly contract: typeof FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT;
   readonly status: typeof FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS;
@@ -64,33 +62,33 @@ export interface FloodgateStrengthFirstV9TeacherAuthorityReceipt<
     FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>
   >;
   readonly assets: Readonly<
-    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>['assets']
+    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>["assets"]
   >;
   readonly engine: Readonly<
-    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>['engine']
+    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>["engine"]
   >;
   readonly postverification: Readonly<
-    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>['postverification']
+    FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>["postverification"]
   >;
   readonly runtime: typeof FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME;
 }
 
 const RECEIPT_FIELDS = new Set([
-  'contract',
-  'status',
-  'claim_boundary',
-  'execution_boundary',
-  'asset_authority',
-  'assets',
-  'engine',
-  'postverification',
-  'runtime',
+  "contract",
+  "status",
+  "claim_boundary",
+  "execution_boundary",
+  "asset_authority",
+  "assets",
+  "engine",
+  "postverification",
+  "runtime",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (
     value === null ||
-    typeof value !== 'object' ||
+    typeof value !== "object" ||
     Array.isArray(value) ||
     nodeUtilTypes.isProxy(value)
   ) {
@@ -104,16 +102,16 @@ function capturePlainData(
   value: unknown,
   label: string,
   memo = new WeakMap<object, unknown>(),
-  active = new WeakSet<object>()
+  active = new WeakSet<object>(),
 ): unknown {
   if (
     value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
+    typeof value === "string" ||
+    typeof value === "boolean"
   ) {
     return value;
   }
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     if (!Number.isFinite(value)) {
       throw new Error(`${label} contains a non-finite number`);
     }
@@ -128,7 +126,7 @@ function capturePlainData(
   active.add(value);
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const keys = Reflect.ownKeys(descriptors);
-  if (keys.some((key) => typeof key !== 'string')) {
+  if (keys.some((key) => typeof key !== "string")) {
     throw new Error(`${label} must not contain symbol keys`);
   }
   const output = Object.create(null) as Record<string, unknown>;
@@ -137,18 +135,18 @@ function capturePlainData(
     const descriptor = descriptors[key];
     if (
       descriptor === undefined ||
-      !('value' in descriptor) ||
+      !("value" in descriptor) ||
       descriptor.enumerable !== true
     ) {
       throw new Error(
-        `${label}.${key} must be an enumerable own data property`
+        `${label}.${key} must be an enumerable own data property`,
       );
     }
     output[key] = capturePlainData(
       descriptor.value,
       `${label}.${key}`,
       memo,
-      active
+      active,
     );
   }
   active.delete(value);
@@ -157,7 +155,7 @@ function capturePlainData(
 
 function hasExactFields(
   value: Record<string, unknown>,
-  expected: ReadonlySet<string>
+  expected: ReadonlySet<string>,
 ): boolean {
   return (
     Object.keys(value).length === expected.size &&
@@ -172,11 +170,11 @@ function sameJson(left: unknown, right: unknown): boolean {
 export function captureFloodgateStrengthFirstV9TeacherAuthorityReceipt(
   receipt: unknown,
   expectedExecutionBoundary: FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
-  expectedOwnerUid: number
+  expectedOwnerUid: number,
 ): Readonly<FloodgateStrengthFirstV9TeacherAuthorityReceipt> {
   const captured = capturePlainData(
     receipt,
-    'strength-first v9 teacher authority receipt'
+    "strength-first v9 teacher authority receipt",
   ) as Record<string, unknown>;
   if (
     !hasExactFields(captured, RECEIPT_FIELDS) ||
@@ -188,12 +186,12 @@ export function captureFloodgateStrengthFirstV9TeacherAuthorityReceipt(
     captured.execution_boundary !== expectedExecutionBoundary ||
     !sameJson(captured.runtime, FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME)
   ) {
-    throw new Error('invalid strength-first v9 teacher authority receipt');
+    throw new Error("invalid strength-first v9 teacher authority receipt");
   }
   const v8 = captureFloodgateStrengthFirstV8TeacherAuthorityReceipt(
     captured.asset_authority,
     expectedExecutionBoundary,
-    expectedOwnerUid
+    expectedOwnerUid,
   );
   if (
     captured.assets !==
@@ -204,7 +202,7 @@ export function captureFloodgateStrengthFirstV9TeacherAuthorityReceipt(
       (captured.asset_authority as Record<string, unknown>).postverification
   ) {
     throw new Error(
-      'strength-first v9 execution policy is not bound to its v8 asset receipt'
+      "strength-first v9 execution policy is not bound to its v8 asset receipt",
     );
   }
   return Object.freeze({
@@ -228,14 +226,14 @@ export function bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests<
   v8: Readonly<
     FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>
   >,
-  expectedOwnerUid: number
+  expectedOwnerUid: number,
 ): Readonly<
   FloodgateStrengthFirstV9TeacherAuthorityReceipt<TExecutionBoundary>
 > {
   const capturedV8 = captureFloodgateStrengthFirstV8TeacherAuthorityReceipt(
     v8,
     v8.execution_boundary,
-    expectedOwnerUid
+    expectedOwnerUid,
   ) as Readonly<
     FloodgateStrengthFirstV8TeacherAuthorityReceipt<TExecutionBoundary>
   >;
@@ -253,7 +251,7 @@ export function bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests<
       runtime: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
     }),
     capturedV8.execution_boundary,
-    expectedOwnerUid
+    expectedOwnerUid,
   ) as Readonly<
     FloodgateStrengthFirstV9TeacherAuthorityReceipt<TExecutionBoundary>
   >;
@@ -262,17 +260,17 @@ export function bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests<
 /** Verify the pinned v8 asset authority, then append the measured v9 policy. */
 export async function verifyPinnedFloodgateStrengthFirstV9TeacherAuthority(): Promise<
   Readonly<
-    FloodgateStrengthFirstV9TeacherAuthorityReceipt<'production-fixed-registry-and-deployment-root'>
+    FloodgateStrengthFirstV9TeacherAuthorityReceipt<"production-fixed-registry-and-deployment-root">
   >
 > {
-  if (typeof process.geteuid !== 'function') {
+  if (typeof process.geteuid !== "function") {
     throw new Error(
-      'strength-first v9 teacher requires POSIX process.geteuid() before production asset verification'
+      "strength-first v9 teacher requires POSIX process.geteuid() before production asset verification",
     );
   }
   return bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests(
     await verifyPinnedFloodgateStrengthFirstV8TeacherAuthority(),
-    process.geteuid()
+    process.geteuid(),
   );
 }
 
@@ -287,15 +285,15 @@ export function bindFloodgateStrengthFirstV9FromLegacyAuthorityCoreForTests<
   legacy: Readonly<
     FloodgateProductionTeacherAssetAuthorityReceipt<TExecutionBoundary>
   >,
-  expectedOwnerUid: number
+  expectedOwnerUid: number,
 ): Readonly<
   FloodgateStrengthFirstV9TeacherAuthorityReceipt<TExecutionBoundary>
 > {
   return bindFloodgateStrengthFirstV9TeacherAuthorityCoreForTests(
     bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests(
       legacy,
-      expectedOwnerUid
+      expectedOwnerUid,
     ),
-    expectedOwnerUid
+    expectedOwnerUid,
   );
 }

@@ -104,7 +104,9 @@ export interface FloodgateStrengthFirstV9FastInputBinding {
     readonly bytes: number;
     readonly sha256: string;
   }>;
-  readonly source: Readonly<typeof FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY>;
+  readonly source: Readonly<
+    typeof FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY
+  >;
 }
 
 export interface FloodgateStrengthFirstV9FastInputPostflight {
@@ -185,10 +187,19 @@ export interface FloodgateStrengthFirstV9TeacherPublicReceipt {
 
 export type FloodgateStrengthFirstV9TeacherProgressEvent =
   | Readonly<{ readonly phase: "asset-preflight-complete" }>
-  | Readonly<{ readonly phase: "runner-revision-verified"; readonly revision: string }>
+  | Readonly<{
+      readonly phase: "runner-revision-verified";
+      readonly revision: string;
+    }>
   | Readonly<{ readonly phase: "fast-input-preflight-complete" }>
-  | Readonly<{ readonly phase: "milestone-complete"; readonly target_parents: 100 | 500 }>
-  | Readonly<{ readonly phase: "teacher-stage-complete"; readonly target_parents: 24_000 }>
+  | Readonly<{
+      readonly phase: "milestone-complete";
+      readonly target_parents: 100 | 500;
+    }>
+  | Readonly<{
+      readonly phase: "teacher-stage-complete";
+      readonly target_parents: 24_000;
+    }>
   | Readonly<{ readonly phase: "fast-input-postflight-equal" }>
   | Readonly<{ readonly phase: "existing-result-verified" }>
   | Readonly<{ readonly phase: "result-committed" }>;
@@ -206,10 +217,18 @@ export interface FloodgateStrengthFirstV9TeacherRunnerDependencies {
   readonly architecture: string;
   readonly effectiveUserId: number;
   readonly setUmask: (mode: number) => number;
-  readonly ensurePrivateDirectory: (directory: string, effectiveUserId: number) => Promise<void>;
-  readonly acquireRunLock: (outputRoot: string, effectiveUserId: number) => Promise<RunLockRelease>;
+  readonly ensurePrivateDirectory: (
+    directory: string,
+    effectiveUserId: number,
+  ) => Promise<void>;
+  readonly acquireRunLock: (
+    outputRoot: string,
+    effectiveUserId: number,
+  ) => Promise<RunLockRelease>;
   readonly verifyProductionAssets: () => Promise<AssetReceipt>;
-  readonly captureExactCleanRevision: (repositoryRoot: string) => Promise<string>;
+  readonly captureExactCleanRevision: (
+    repositoryRoot: string,
+  ) => Promise<string>;
   readonly loadFastTrainingInput: (
     home: string,
   ) => Promise<Readonly<FloodgateStrengthFirstFastTrainingInput>>;
@@ -320,7 +339,10 @@ function captureFastInputBinding(
     value.role !== "training" ||
     value.policy !== FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY ||
     !sameJson(value.manifest, FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY) ||
-    !sameJson(value.source, FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY) ||
+    !sameJson(
+      value.source,
+      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY,
+    ) ||
     !Array.isArray(value.rows) ||
     value.rows.length !== 24_000 ||
     !Object.isFrozen(value.rows)
@@ -355,13 +377,11 @@ function teacherOptions(
       FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
     evalDir: paths.evalDir,
     multipv: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.multipv,
-    proposalDepth:
-      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.depth,
+    proposalDepth: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.depth,
     depth:
       FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.independent_rescore.depth,
     fvScale: 20,
-    hashMb:
-      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.hash_mb_per_engine,
+    hashMb: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.hash_mb_per_engine,
     timeoutMs:
       FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.timeout_ms_per_search,
     targetParents,
@@ -449,11 +469,17 @@ function assertPrefix(
   }
 }
 
-function assertTeacherAssets(manifest: FinalOutcome["manifest"], assets: AssetReceipt): void {
+function assertTeacherAssets(
+  manifest: FinalOutcome["manifest"],
+  assets: AssetReceipt,
+): void {
   const receipt = manifest.teacher.engine_receipt?.file;
-  const evalNn = manifest.teacher.eval_files.find((file) => file.path === "nn.bin");
+  const evalNn = manifest.teacher.eval_files.find(
+    (file) => file.path === "nn.bin",
+  );
   if (
-    manifest.teacher.engine_bin_bytes !== assets.assets.engine.yaneuraou.bytes ||
+    manifest.teacher.engine_bin_bytes !==
+      assets.assets.engine.yaneuraou.bytes ||
     manifest.teacher.engine_bin_sha256 !==
       assets.assets.engine.yaneuraou.sha256 ||
     receipt?.bytes !== assets.assets.engine.receipt.bytes ||
@@ -696,7 +722,8 @@ async function validateExistingResult(
     marker.schema !== FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA ||
     marker.status !== "complete-training-only-fast-input-postflight-bound" ||
     marker.runner?.revision !== revision ||
-    marker.runner.schema !== FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA ||
+    marker.runner.schema !==
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA ||
     !sameJson(marker.production_asset_preflight, assets) ||
     runtime?.equal !== true ||
     !sameJson(runtime.preflight, currentFast) ||
@@ -705,7 +732,10 @@ async function validateExistingResult(
       marker.authenticated_input?.generator_projection?.binding,
       inputBinding,
     ) ||
-    !sameJson(marker.teacher?.runtime, FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME) ||
+    !sameJson(
+      marker.teacher?.runtime,
+      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+    ) ||
     marker.completion?.input_parents !== 24_000 ||
     marker.completion.completed_parents !== 24_000 ||
     !/^[0-9a-f]{64}$/u.test(marker.completion.run_fingerprint) ||
@@ -717,7 +747,9 @@ async function validateExistingResult(
     !marker.milestones ||
     !marker.staged_outputs
   ) {
-    throw new Error("existing strength-first v9 result does not match this run");
+    throw new Error(
+      "existing strength-first v9 result does not match this run",
+    );
   }
   const stage = siblingTeacherStagePaths(paths.stageRoot);
   const expected = [
@@ -857,7 +889,9 @@ export async function runFloodgateStrengthFirstV9TeacherCore(
       target_parents: 24_000,
     });
 
-    const postflightInput = await dependencies.loadFastTrainingInput(paths.home);
+    const postflightInput = await dependencies.loadFastTrainingInput(
+      paths.home,
+    );
     const postflight = captureFastInputBinding(postflightInput);
     if (!sameJson(preflight, postflight)) {
       throw new Error("fast training input changed during v9 teacher work");
@@ -920,8 +954,7 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstV9TeacherRunnerDependencies
     architecture: process.arch,
     effectiveUserId: productionEffectiveUserId(),
     setUmask: (mode: number) => process.umask(mode),
-    ensurePrivateDirectory:
-      ensureFloodgateStrengthFirstTeacherPrivateDirectory,
+    ensurePrivateDirectory: ensureFloodgateStrengthFirstTeacherPrivateDirectory,
     acquireRunLock: (outputRoot: string, effectiveUserId: number) =>
       acquireFloodgateStrengthFirstTeacherRunLock(outputRoot, effectiveUserId, {
         lockfExecutable: "/usr/bin/lockf",
@@ -935,9 +968,7 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstV9TeacherRunnerDependencies
     readPrivateJson: readFloodgateStrengthFirstTeacherPrivateJson,
     digestPrivateFile: digestFloodgateStrengthFirstTeacherPrivateFile,
     commitPrivateJson: commitFloodgateStrengthFirstTeacherPrivateJson,
-    reportProgress: (
-      event: FloodgateStrengthFirstV9TeacherProgressEvent,
-    ) => {
+    reportProgress: (event: FloodgateStrengthFirstV9TeacherProgressEvent) => {
       process.stderr.write(
         `${JSON.stringify({
           schema: "shogi-floodgate-strength-first-v9-teacher-progress-v1",

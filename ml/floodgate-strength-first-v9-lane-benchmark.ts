@@ -9,9 +9,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import {
-  advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
-} from "./generate-sibling-teacher";
+import { advanceStrengthFirstSiblingTeacherDatasetCoreForTests } from "./generate-sibling-teacher";
 import {
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
   loadFloodgateStrengthFirstFastTrainingInput,
@@ -72,37 +70,30 @@ async function runTrial(
     runnerRevision: revision,
     engineBin: path.join(assetRoot, "engine", "yaneuraou"),
     engineArgs: Object.freeze([]),
-    engineReceipt: path.join(
-      assetRoot,
-      "engine",
-      "yaneuraou-receipt.json",
-    ),
+    engineReceipt: path.join(assetRoot, "engine", "yaneuraou-receipt.json"),
     authenticatedInputPolicy:
       FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
     evalDir: path.join(assetRoot, "eval"),
     multipv: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.multipv,
-    proposalDepth:
-      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.depth,
+    proposalDepth: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.proposal.depth,
     depth:
       FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.independent_rescore.depth,
     fvScale: 20,
-    hashMb:
-      FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.hash_mb_per_engine,
+    hashMb: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.hash_mb_per_engine,
     timeoutMs:
       FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME.timeout_ms_per_search,
   };
   const started = performance.now();
   try {
-    const outcome =
-      await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-        input,
-        {
-          ...options,
-          engines: lanes,
-          targetParents: TARGET_PARENTS,
-          finalize: false,
-        },
-      );
+    const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      input,
+      {
+        ...options,
+        engines: lanes,
+        targetParents: TARGET_PARENTS,
+        finalize: false,
+      },
+    );
     const elapsedMs = Math.round(performance.now() - started);
     if (
       outcome.status !==
@@ -175,14 +166,7 @@ export async function runFloodgateStrengthFirstV9LaneBenchmark(): Promise<
   const trials: Readonly<Trial>[] = [];
   for (const [index, lanes] of LANE_ORDER.entries()) {
     trials.push(
-      await runTrial(
-        input,
-        revision,
-        assetRoot,
-        outputRoot,
-        lanes,
-        index + 1,
-      ),
+      await runTrial(input, revision, assetRoot, outputRoot, lanes, index + 1),
     );
   }
   const elapsed12 = trials
@@ -232,8 +216,7 @@ export async function runFloodgateStrengthFirstV9LaneBenchmark(): Promise<
       lane_14_elapsed_ms: Object.freeze(elapsed14),
       lane_14_median_elapsed_ms: median14,
       lane_14_speedup_vs_lane_12_median_ppm: speedupPpm,
-      minimum_speedup_to_select_lane_14_ppm:
-        MINIMUM_14_LANE_SPEEDUP_PPM,
+      minimum_speedup_to_select_lane_14_ppm: MINIMUM_14_LANE_SPEEDUP_PPM,
       selected_parallel_engines: selected,
     }),
     private_payload_fields_emitted: 0,

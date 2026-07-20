@@ -46,39 +46,48 @@ This keeps the existing UI logic (and opening book) intact, but replaces the slo
 `src/components/game/ShogiImproved/OpeningBookImproved.ts` provides a small curated set of opening lines (戦法/定跡).
 
 The AI now tries a safe book move before searching:
+
 - UI: `src/components/game/ShogiImproved/ShogiImproved.tsx`
 - Worker (Lv4/Lv5): `src/components/game/ShogiImproved/shogi-ai.worker.ts`
 
 The book is guarded by:
+
 - an opening-phase proxy (`hand` totals small)
 - a “do not use book while in check” rule
 - a simple 1-ply static-eval threshold vs the best legal move (difficulty-dependent)
 
 V14 updates:
+
 - Expanded the curated book with more “shape” lines and better balance of 居飛車/振り飛車.
 - Made book validation faster/cheaper by using `KyokumenImproved.evaluateForOpeningBook()` (omits expensive activity scans).
 - Reduced per-call allocations in the book (pooled move generation + small caches).
 
 V15 updates:
+
 - New “fast + strong” engine that combines V11’s speed with V12’s “under pressure” opening-order gating.
 - Uses `OpeningBookImproved` first inside the engine (book move → search fallback).
 
 V16 updates:
+
 - Improves drop move ordering (attack/defense proximity + anti-random far drops) to reduce ineffective drops.
 - Adds small repetition contempt + conservative quiescence delta pruning on Level 4/5 for better practical results.
 
 OpeningBookImproved updates:
+
 - Adds a lightweight “resync” fallback move when the current position is not in the curated book (keeps openings coherent after deviations).
 - Adds more curated branching lines (e.g. 相振り飛車 / 右四間飛車).
 
 V17 updates (experimental):
+
 - Adds lightweight SEE-ish ordering with a per-node cached attack scan to reduce obviously hanging drops/captures.
 - Enables bounded check extensions + limited quiet-check probing in quiescence for Expert/Master.
 
 V18 updates (experimental, conservative):
+
 - Keeps V16 search behavior but adds a per-node cached attack scan and a cheap “hanging drop” ordering at all plies (high-value drops only).
 
 Anti climbing-silver (対棒銀) updates:
+
 - Reproduced the "primitive 棒銀 always beats the AI" complaint with `scripts/shogi-bogin-repro.ts`
   (scripted ▲2六歩→2五歩→3八銀→2七銀→2六銀→1五銀/2四歩 attack vs the real `/games/shogi` AI path).
 - Eval (`KyokumenImproved`):
@@ -101,6 +110,7 @@ Anti climbing-silver (対棒銀) updates:
   (△1四歩→歩で銀取り / 数の受け) and the AI goes on to win.
 
 V20 updates (current default — unified brain):
+
 - ONE unified search configuration for every difficulty: all techniques (LMR, null-move, futility,
   reverse-futility, LMP, aspiration, delta pruning, SEE-lite, check extensions, quiescence checks,
   countermoves, IID) are always on; difficulty ONLY changes the time budget.
@@ -114,10 +124,11 @@ V20 updates (current default — unified brain):
     Internal Iterative Deepening at deep TT-miss nodes; bigger eval cache (2^18).
 - Hanging-piece threat eval term (engine-side, v3 mode): charges each side ~1/3 of its most valuable
   attacked-and-undefended piece (silver and up), fixing the "ignores attacks on its own pieces" behavior.
-- Self-play vs V18 at *production* budgets (V18 keeps its old, longer budgets):
+- Self-play vs V18 at _production_ budgets (V18 keeps its old, longer budgets):
   easy 7-2-3 (equal 250ms) / medium 13-2-1 / hard 10-0-2 (equal time) / expert 6-2-2 (4s vs old 5s) / master 5-2-1 at HALF the old time.
 
 V19 updates:
+
 - Futility pruning at frontier nodes (depth ≤ 2): skips quiet moves when stand-pat + margin cannot reach alpha,
   guarded so long-range piece moves and moves near the enemy king are never skipped (hard+).
 - SEE-lite losing-capture pruning in quiescence using the cached attack scans (hard+).
@@ -140,10 +151,12 @@ The improved engine relies on Zobrist hashing to make the TT work.
 `src/components/game/ShogiImproved/KyokumenImproved.ts` now generates Zobrist seeds using a deterministic 32-bit PRNG.
 
 Why this mattered:
+
 - a previous 48-bit Java-style LCG approach can silently collapse in JS because bitwise operations are 32-bit,
   which can produce all-zero seeds → **every position hashes to the same value** → TT becomes useless.
 
 Additionally, the TT key now includes **side-to-move (`teban`)**:
+
 - `HashVal = BanHash ^ HandHash ^ TebanHashSeed(when GOTE to move)`
 - Without this, the same board+hand state for SENTE and GOTE would collide and corrupt TT cutoffs / best-move ordering.
 
@@ -154,6 +167,7 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV20.ts`.
 
 The original “base” implementation is still available as:
+
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
 
 ### Core loop
@@ -164,8 +178,8 @@ The original “base” implementation is still available as:
 - **Aspiration windows (Hard+)**: narrow alpha/beta window around the previous iteration’s score, with full-window fallback
 - **Check extension**: extend depth by +1 when side-to-move is in check (tactically sharp positions)
 - **Quiescence search** at depth 0:
-  - when *not* in check: expand only captures/promotions to reduce horizon effect
-  - when *in* check: expand all legal evasion moves (otherwise you miss mates)
+  - when _not_ in check: expand only captures/promotions to reduce horizon effect
+  - when _in_ check: expand all legal evasion moves (otherwise you miss mates)
 - **Late Move Reductions (Lv4/Lv5)**: late quiet non-drop moves are searched at reduced depth first
 
 ### Move ordering (critical for strength)
@@ -190,6 +204,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
+
 - `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
@@ -212,9 +227,9 @@ Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV4.ts`.
 
 This keeps the same public API as V2/V3 and adds:
 
-- **Repetition draw contempt**: discourages repeating when ahead, accepts when behind *(currently disabled by default in code until tuned)*
-- **Check extensions**: improves tactical accuracy on forcing lines *(currently disabled by default in code until tuned)*
-- **Quiescence delta pruning**: speeds up capture/promotion-only search so main search can go deeper *(currently disabled by default in code until tuned)*
+- **Repetition draw contempt**: discourages repeating when ahead, accepts when behind _(currently disabled by default in code until tuned)_
+- **Check extensions**: improves tactical accuracy on forcing lines _(currently disabled by default in code until tuned)_
+- **Quiescence delta pruning**: speeds up capture/promotion-only search so main search can go deeper _(currently disabled by default in code until tuned)_
 - **Root fallback move**: always returns a legal move even with very small time budgets
 
 This variant is also not wired into the UI by default; use self-play to compare.
@@ -246,6 +261,7 @@ Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV20.ts`.
 
 Notes:
+
 - Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.
 - V11 is kept as a stable baseline for A/B testing (`src/components/game/ShogiImproved/ShogiAIImprovedV11.ts`).
 
@@ -269,9 +285,10 @@ Implemented in `src/components/game/ShogiImproved/MateSolverImproved.ts`, integr
 `ShogiAIImprovedV20.getNextTe()` as a pre-search probe.
 
 What it is:
+
 - A **checks-only AND/OR search** (連続王手の詰み探索) with **iterative deepening over the mate
   length** (1, 3, 5, ... plies, up to 9). The attacker only plays checking moves; the defender tries
-  *every* legal reply. This proves/refutes “mate in N” exactly, which the heavily pruned main search
+  _every_ legal reply. This proves/refutes “mate in N” exactly, which the heavily pruned main search
   (futility/LMR/null-move) cannot guarantee for deep sacrifice mates.
 - **Rule-correct**: 打ち歩詰め (pawn-drop mate) is excluded (the pooled generator filters it via
   `isUtiFuDume`), self-check is filtered lazily after make, and positions already on the current
@@ -282,6 +299,7 @@ What it is:
   check (drops never give discovered check), which matters because drops dominate endgame move lists.
 
 Integration policy in V20 (`tryMateSolve`):
+
 - **Gate (endgame-only)**: runs only when at least one own non-king piece is within Chebyshev
   distance 3 of the enemy king and (near pieces + own hand pieces) >= 2. In the opening/midgame the
   gate is off and costs nothing.
@@ -298,6 +316,7 @@ engine `v20base` in `scripts/shogi-ai-match.ts` for regression matches.
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV13.ts`.
 
 Notes:
+
 - This is an experimental branch used for testing more aggressive search ideas.
 - In self-play it has been **less stable / weaker** than V11/V12, so it is **not** wired into the UI defaults.
 
@@ -314,6 +333,7 @@ Notes:
 - **promotion threats** heuristics
 
 Additional lightweight terms:
+
 - **king safety** (defenders around king + basic shelter)
 - **castle shapes (囲い)** (small bonuses for coherent king safety plans like 美濃/矢倉/穴熊)
 - **major piece activity** (rook/bishop mobility + lines toward enemy king)
@@ -321,6 +341,7 @@ Additional lightweight terms:
 ### Opening-book evaluation (fast)
 
 `KyokumenImproved.evaluateForOpeningBook()` exists only to make opening-book safety validation fast:
+
 - matches the tuned `evaluateV3()` structure/weights
 - intentionally omits expensive mobility-style terms (major piece activity)
 
@@ -356,6 +377,7 @@ Search must do:
 ### Don’t assign `teban` directly (hash consistency)
 
 Because `HashVal` includes side-to-move, prefer:
+
 - `k.setTeban(SENTE | GOTE)` when forcing a specific side
 - `k.toggleTeban()` inside search
 
@@ -371,6 +393,7 @@ Move generation fills it, but legality checks also enforce it before doing move/
 In the improved move generator, **bishop/rook (角/飛) promotions are forced when promotion is legal**.
 
 Rationale:
+
 - `角→馬` and `飛→竜` are strictly stronger (same moves + extra king-like steps), so keeping them unpromoted
   never increases your options.
 - Pruning the non-promote variant reduces branching factor → deeper search for the same time budget.
@@ -409,6 +432,7 @@ npm run shogi:match -- --engineA v2 --engineB v5 --difficulty master --games 10 
 ```
 
 `--graph true` writes:
+
 - `.svg` (high quality)
 - `.png` (preview-friendly)
 - `.csv` (data you can plot elsewhere)
@@ -500,7 +524,7 @@ node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts
 
 - `env.now` (`performance.now`) and `env.abort` must be provided at instantiation.
 - Position load is `clearBoard → setSquare× → setHand× → setSideToMove →
-  finalizePosition`, re-synced from the JS position every move (defensive).
+finalizePosition`, re-synced from the JS position every move (defensive).
 - `searchBestMove` return value `0` means "no legal move" (mate/stalemate) — mapped
   to `null` and confirmed by the JS fallback.
 - The search is synchronous: never call `wasmSearchBestMove` on the main thread.

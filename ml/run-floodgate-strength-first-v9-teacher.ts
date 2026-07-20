@@ -27,19 +27,16 @@ export async function runFloodgateStrengthFirstV9TeacherCliCore(
     `${JSON.stringify({
       schema: "shogi-floodgate-strength-first-v9-teacher-cli-output-v1",
       status: receipt.status,
-      receipt_schema:
-        FLOODGATE_STRENGTH_FIRST_V9_TEACHER_PUBLIC_RECEIPT_SCHEMA,
+      receipt_schema: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_PUBLIC_RECEIPT_SCHEMA,
       idempotent_existing_result: receipt.idempotent_existing_result,
       result_path: receipt.result_path,
       result_file: receipt.result_file,
       runner_revision: receipt.result.runner.revision,
       completed_parents: receipt.result.completion.completed_parents,
-      proposal_depth:
-        receipt.result.teacher.runtime.proposal.depth,
+      proposal_depth: receipt.result.teacher.runtime.proposal.depth,
       exact_rescore_depth:
         receipt.result.teacher.runtime.independent_rescore.depth,
-      teacher_parallel_engines:
-        receipt.result.teacher.runtime.parallel_engines,
+      teacher_parallel_engines: receipt.result.teacher.runtime.parallel_engines,
       live_weight_changes: receipt.result.runner.live_weight_changes,
     })}\n`,
   );

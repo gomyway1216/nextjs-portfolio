@@ -92,7 +92,7 @@ unit testは次を拒否した。
 - registryのbyte driftと中間directory symlink
 - argument付きproduction entry
 - 383 pair、wrong color、duplicate / wrong game ID
-- duplicate / bool / nonpositive opening seed
+- duplicate / bool / nonpositive / signed-64-bit超過のopening seed
 - opening / time-control contentとidentity digestの不一致
 - candidateとstableの同一digestまたは同一path
 - bool、0、7、floatのpair worker
@@ -105,7 +105,7 @@ unit testは次を拒否した。
 
 ## 検証
 
-独立reviewは最初に`P0=0`、`P1=2`、`P2=1`を報告した。P1はpair seedの欠落とcomposition hashからactivation-registry identityが落ちていたこと、P2はnoncanonical path aliasでdistinct-path checkを回避できたことだった。実装anchor `297c9a9e3698b3736f4726b4ba9453e955b3645a`で3点を修正し、既存launcher validatorへ同じsynthetic opening manifestを通す互換testも追加した。
+独立reviewは最初に`P0=0`、`P1=2`、`P2=1`を報告した。P1はpair seedの欠落とcomposition hashからactivation-registry identityが落ちていたこと、P2はnoncanonical path aliasでdistinct-path checkを回避できたことだった。実装anchor `651359df6a56a36379d834cd092b77cbac15a076`で3点を修正し、既存launcher validatorへ同じsynthetic opening manifestを通す互換testと、duplicate / bool / 0 / negative / signed-64-bit overflow seedの各probeも追加した。
 
 | 検証                                        |                     結果 |
 | ------------------------------------------- | -----------------------: |

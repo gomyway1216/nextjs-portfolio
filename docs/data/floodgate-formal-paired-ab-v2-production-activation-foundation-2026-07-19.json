@@ -2,8 +2,8 @@
   "schema": "shogi-floodgate-formal-paired-ab-v2-production-activation-foundation-evidence-v1",
   "recorded_date": "2026-07-19",
   "implementation_anchor": {
-    "revision": "297c9a9e3698b3736f4726b4ba9453e955b3645a",
-    "tree": "1eb9c004c56bf13b946929fb3f9e3220dc850fe5",
+    "revision": "651359df6a56a36379d834cd092b77cbac15a076",
+    "tree": "d79b9697e07ebb9905a626b1db2123af9e29a257",
     "base_revision": "f5f49c2bea0c6de1ba5d28696281b9002426308a",
     "branch": "codex/formal-ab-v2-activation-foundation",
     "pushed": false,
@@ -32,8 +32,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
-      "bytes": 22001,
-      "sha256": "395485e1fb1ac8b2fd1422d47b9cbd10cce1be90e0a9a886e8aefe35f3a7cbe4"
+      "bytes": 22745,
+      "sha256": "6d98cdc7d9c5a5e95f64380ab4d4fb6f131d7cc728703f6440a6022d89191d45"
     }
   },
   "protocol_binding": {
@@ -102,6 +102,13 @@
     "receipt_paths_and_digests_must_be_distinct": true,
     "plain_json_only": true,
     "canonical_relative_paths_only": true,
+    "seed_boundary_probes": [
+      "duplicate",
+      "boolean",
+      "zero",
+      "negative",
+      "signed-64-bit-overflow"
+    ],
     "exact_768_game_accounting": true,
     "deterministic_binding_sha256": true,
     "opens_artifact_files": false,
@@ -143,7 +150,7 @@
     "publication_evidence_tests_failed": 0,
     "full_ml_stdlib_tests_passed": 204,
     "full_ml_stdlib_tests_failed": 0,
-    "full_ml_stdlib_wall_seconds": 13.67,
+    "full_ml_stdlib_wall_seconds": 14.06,
     "ruff": "PASS",
     "prettier": "PASS",
     "diff_check": "PASS",
@@ -173,6 +180,13 @@
       "activation-registry-identity-added-to-composition-binding",
       "pure-posix-exact-spelling-required-for-every-relative-path"
     ],
+    "intermediate_rereview": {
+      "p0": 0,
+      "p1": 0,
+      "p2": 1,
+      "finding": "seed-boundary-article-claim-needed-explicit-probes"
+    },
+    "evidence_correction_revision": "651359df6a56a36379d834cd092b77cbac15a076",
     "final_independent_rereview": "pending",
     "unresolved_p0": null,
     "unresolved_p1": null,

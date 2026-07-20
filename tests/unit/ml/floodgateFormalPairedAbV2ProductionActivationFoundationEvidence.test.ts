@@ -88,6 +88,13 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       receipt_paths_and_digests_must_be_distinct: true,
       plain_json_only: true,
       canonical_relative_paths_only: true,
+      seed_boundary_probes: [
+        "duplicate",
+        "boolean",
+        "zero",
+        "negative",
+        "signed-64-bit-overflow",
+      ],
       exact_768_game_accounting: true,
       deterministic_binding_sha256: true,
       opens_artifact_files: false,
@@ -149,7 +156,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       publication_evidence_tests_failed: 0,
       full_ml_stdlib_tests_passed: 204,
       full_ml_stdlib_tests_failed: 0,
-      full_ml_stdlib_wall_seconds: 13.67,
+      full_ml_stdlib_wall_seconds: 14.06,
       ruff: "PASS",
       prettier: "PASS",
       diff_check: "PASS",
@@ -176,7 +183,7 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       expect(article).toContain("rollback");
       expect(article).toContain("time control");
       expect(article).toContain("STOP");
-      expect(article).toContain("297c9a9e");
+      expect(article).toContain("651359df");
       expect(article).toMatch(/no-?follow/iu);
     }
     expect(japanese).toContain("0 / 768局");

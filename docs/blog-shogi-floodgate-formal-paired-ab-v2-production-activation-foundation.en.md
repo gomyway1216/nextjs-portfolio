@@ -92,7 +92,7 @@ Unit tests reject:
 - registry byte drift and an intermediate-directory symlink;
 - any argument to the production entry;
 - 383 pairs, a wrong color, and duplicate or wrong game IDs;
-- duplicate, boolean, or nonpositive opening seeds;
+- duplicate, boolean, nonpositive, or signed-64-bit-overflow opening seeds;
 - opening or time-control content that disagrees with its identity digest;
 - identical candidate and stable digests or paths;
 - boolean, zero, seven, and floating-point pair-worker values;
@@ -105,7 +105,7 @@ The same synthetic input with a different key order produces the same compositio
 
 ## Validation
 
-The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 findings were the missing per-pair seed and the omitted activation-registry identity in the composition hash. The P2 finding was a noncanonical path alias that could bypass a distinct-path check. Implementation anchor `297c9a9e3698b3736f4726b4ba9453e955b3645a` fixes all three and adds a compatibility test that passes the same synthetic opening manifest through the existing launcher validator.
+The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 findings were the missing per-pair seed and the omitted activation-registry identity in the composition hash. The P2 finding was a noncanonical path alias that could bypass a distinct-path check. Implementation anchor `651359df6a56a36379d834cd092b77cbac15a076` fixes all three, adds a compatibility test that passes the same synthetic opening manifest through the existing launcher validator, and explicitly probes duplicate, boolean, zero, negative, and signed-64-bit-overflow seeds.
 
 | Check                                                            |                       Result |
 | ---------------------------------------------------------------- | ---------------------------: |

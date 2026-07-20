@@ -431,10 +431,11 @@ const stepBall = (
   ball: Ball,
   config: DifficultyConfig,
   rng: Rng,
+  dt: number,
 ): { broke: boolean; lost: boolean } => {
   const g = gravityVector(state.gravity, config.gravityStrength);
-  ball.vx += g.gx;
-  ball.vy += g.gy;
+  ball.vx += g.gx * dt;
+  ball.vy += g.gy * dt;
 
   // Keep the ball inside a fair speed band (prevents gravity from either
   // stalling it or launching it into an unplayable blur).
@@ -443,8 +444,8 @@ const stepBall = (
   if (m > speedCap) setSpeed(ball, speedCap);
   if (m < config.baseSpeed * 0.6) setSpeed(ball, config.baseSpeed * 0.6);
 
-  ball.x += ball.vx;
-  ball.y += ball.vy;
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
 
   let broke = false;
 
@@ -513,7 +514,9 @@ const stepBall = (
 };
 
 /**
- * Advance the whole game one frame. Pure w.r.t. the injected RNG.
+ * Advance the whole game one tick. Pure w.r.t. the injected RNG.
+ * `dt` is a frames-equivalent delta (1 = one 60fps frame) so the simulation
+ * runs at the same real-time speed on any refresh rate.
  * Returns a summary of notable events for the component to react to (sfx, stats).
  */
 export const step = (
@@ -521,6 +524,7 @@ export const step = (
   input: StepInput,
   difficulty: Difficulty,
   rng: Rng = Math.random,
+  dt = 1,
 ): StepEvents => {
   const events: StepEvents = {
     brickBroken: false,
@@ -541,25 +545,28 @@ export const step = (
       WIDTH - state.paddle.width,
     );
   } else {
-    if (input.left) state.paddle.x -= PADDLE_KEY_SPEED;
-    if (input.right) state.paddle.x += PADDLE_KEY_SPEED;
+    if (input.left) state.paddle.x -= PADDLE_KEY_SPEED * dt;
+    if (input.right) state.paddle.x += PADDLE_KEY_SPEED * dt;
     state.paddle.x = clamp(state.paddle.x, 0, WIDTH - state.paddle.width);
   }
 
-  // Effects timers
-  if (state.flash > 0) state.flash -= 1;
-  if (state.gravityFlash > 0) state.gravityFlash -= 1;
+  // Effects timers (frame-equivalent counters, decremented by dt)
+  if (state.flash > 0) state.flash = Math.max(0, state.flash - dt);
+  if (state.gravityFlash > 0) state.gravityFlash = Math.max(0, state.gravityFlash - dt);
   if (state.banner) {
-    state.banner.timer -= 1;
+    state.banner.timer -= dt;
     if (state.banner.timer <= 0) state.banner = null;
   }
   if (state.comboTimer > 0) {
-    state.comboTimer -= 1;
-    if (state.comboTimer === 0) state.combo = 0;
+    state.comboTimer -= dt;
+    if (state.comboTimer <= 0) {
+      state.comboTimer = 0;
+      state.combo = 0;
+    }
   }
 
   // Chaos pulse
-  state.chaosTimer -= 1;
+  state.chaosTimer -= dt;
   if (state.chaosTimer <= 0) {
     events.chaos = applyChaos(state, config, rng);
     state.chaosTimer = state.chaosInterval;
@@ -567,18 +574,18 @@ export const step = (
 
   // Particles
   for (const pt of state.particles) {
-    pt.x += pt.vx;
-    pt.y += pt.vy;
-    pt.vy += 0.05;
-    pt.vx *= 0.97;
-    pt.life -= 0.025;
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+    pt.vy += 0.05 * dt;
+    pt.vx *= 0.97 ** dt;
+    pt.life -= 0.025 * dt;
   }
   state.particles = state.particles.filter((pt) => pt.life > 0);
 
   // Balls
   const survivors: Ball[] = [];
   for (const ball of state.balls) {
-    const res = stepBall(state, ball, config, rng);
+    const res = stepBall(state, ball, config, rng, dt);
     if (res.broke) events.brickBroken = true;
     if (!res.lost) survivors.push(ball);
   }

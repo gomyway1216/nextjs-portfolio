@@ -165,6 +165,10 @@ export const ReverseJump = () => {
         }
         return;
       }
+      // On menu/gameover, let a focused button (difficulty, start, retry…)
+      // handle Space/Enter natively instead of hijacking it to start a game.
+      const activeEl = document.activeElement;
+      const buttonFocused = activeEl instanceof HTMLElement && activeEl.tagName === 'BUTTON';
       // Only swallow the browser's default (page scroll) for keys we actually
       // consume, so idle screens still scroll normally with the keyboard.
       if (phaseRef.current === 'playing') {
@@ -172,14 +176,14 @@ export const ReverseJump = () => {
           e.preventDefault();
         }
       } else if (phaseRef.current === 'menu' || phaseRef.current === 'gameover') {
-        if (e.code === 'Space' || e.code === 'Enter') {
+        if ((e.code === 'Space' || e.code === 'Enter') && !buttonFocused) {
           e.preventDefault();
         }
       }
       if (e.repeat) return;
 
       if (phaseRef.current === 'menu' || phaseRef.current === 'gameover') {
-        if (e.code === 'Space' || e.code === 'Enter') {
+        if ((e.code === 'Space' || e.code === 'Enter') && !buttonFocused) {
           startGame();
         }
         return;

@@ -508,6 +508,19 @@ const JumpGame = () => {
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, state: GameState) => {
       const copy = jumpCopyRef.current;
+
+      // Size the backing store to the displayed rect × device pixel ratio so
+      // the canvas stays crisp on retina displays; logical coords unchanged.
+      const canvas = ctx.canvas;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(rect.width * dpr);
+      const ph = Math.round(rect.height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+      ctx.setTransform(canvas.width / CANVAS_SIZE, 0, 0, canvas.height / CANVAS_SIZE, 0, 0);
       ctx.imageSmoothingEnabled = true;
 
       drawBackground(ctx, state);

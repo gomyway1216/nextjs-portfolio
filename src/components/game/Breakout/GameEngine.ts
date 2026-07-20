@@ -151,8 +151,8 @@ const LEVEL_LAYOUTS: string[][] = [
   ['5.4.3.2.1.', '.5.4.3.2.1', '5.4.3.2.1.', '.5.4.3.2.1', '5.4.3.2.1.', '.5.4.3.2.1'],
   // 4 — fortress (steel frame)
   ['SSSSSSSSSS', 'S44444444S', 'S3.....3.S', 'S3.SS..3.S', 'S22222222S', 'S00000000S'],
-  // 5 — diamonds
-  ['..3....3..', '.323..323.', '32123.32123'.slice(0, 10), '.323..323.', '..3....3..', '4444444444'],
+  // 5 — diamonds (middle row is the widest slice of both diamonds; palindromic)
+  ['..3....3..', '.323..323.', '3212332123', '.323..323.', '..3....3..', '4444444444'],
   // 6 — gauntlet (lots of steel)
   ['S5S5S5S5S5', '5S5S5S5S5S', 'SS4444SS44'.slice(0, 10), '3333333333', 'S2S2S2S2S2', '1111111111'],
 ];
@@ -299,12 +299,11 @@ function spawnPowerUp(state: GameState, brick: Brick): PowerUp | null {
 }
 
 function applyPowerUp(state: GameState, powerUp: PowerUp): void {
-  const now = Date.now();
   const setEffect = (type: PowerUpType, duration?: number) => {
     if (!duration) return;
     // Refresh existing effect of same type rather than stacking.
     state.activeEffects = state.activeEffects.filter((e) => e.type !== type);
-    state.activeEffects.push({ type, endTime: now + duration });
+    state.activeEffects.push({ type, remainingMs: duration });
   };
 
   switch (powerUp.type) {
@@ -356,12 +355,14 @@ function applyPowerUp(state: GameState, powerUp: PowerUp): void {
   }
 }
 
-function updateEffects(state: GameState): void {
-  const now = Date.now();
+function updateEffects(state: GameState, deltaMs: number): void {
+  // Effects run on simulated time (decremented only while the game advances),
+  // so power-up durations freeze during pause / tab-hide instead of expiring.
   let paddleReset = false;
   let speedReset = false;
   for (const effect of state.activeEffects) {
-    if (effect.endTime > now) continue;
+    effect.remainingMs -= deltaMs;
+    if (effect.remainingMs > 0) continue;
     if (effect.type === PowerUpType.EXPAND_PADDLE || effect.type === PowerUpType.SHRINK_PADDLE) {
       paddleReset = true;
     }
@@ -379,7 +380,7 @@ function updateEffects(state: GameState): void {
       setBallSpeed(ball, state.config.ballSpeed);
     }
   }
-  state.activeEffects = state.activeEffects.filter((e) => e.endTime > now);
+  state.activeEffects = state.activeEffects.filter((e) => e.remainingMs > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -425,7 +426,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
 
   const dt = deltaTime / 16.67; // Normalize to ~60fps
 
-  updateEffects(state);
+  updateEffects(state, deltaTime);
   if (state.flash > 0) state.flash = Math.max(0, state.flash - 0.08 * dt);
 
   // Move paddle: pointer control takes precedence, else keyboard.

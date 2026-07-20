@@ -159,7 +159,8 @@ export interface PowerUp {
 
 export interface ActiveEffect {
   type: PowerUpType;
-  endTime: number;
+  /** Remaining duration in simulated ms — frozen while the game is paused. */
+  remainingMs: number;
 }
 
 export interface Particle {

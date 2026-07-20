@@ -139,13 +139,21 @@ const Breakout: React.FC = () => {
         inputRef.current.pointerX = null;
         e.preventDefault();
       } else if (k === 'p' || k === 'P' || k === 'Escape') {
+        // While the info modal is open, Escape belongs to the modal (which
+        // closes itself) — don't also toggle pause in the same keypress.
+        if (k === 'Escape' && showInfo) return;
         togglePause();
         e.preventDefault();
       } else if (k === ' ' || k === 'Enter') {
-        if (state && !state.gameOver && !state.victory) {
+        // Only take over Space/Enter when a launch can actually happen; on the
+        // game-over/victory overlay (or with a button focused) let the browser
+        // activate the focused control instead.
+        const activeEl = document.activeElement;
+        const buttonFocused = activeEl instanceof HTMLElement && activeEl.tagName === 'BUTTON';
+        if (state && !state.gameOver && !state.victory && !buttonFocused) {
           launchBall(state);
+          e.preventDefault();
         }
-        e.preventDefault();
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -160,11 +168,24 @@ const Breakout: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [screen, togglePause]);
+  }, [screen, showInfo, togglePause]);
 
   // ------------------------------------------------------------------ render
   const render = useCallback(
     (ctx: CanvasRenderingContext2D, state: GameState) => {
+      // Size the backing store to the displayed rect × device pixel ratio so
+      // the canvas stays crisp on retina displays; logical coords unchanged.
+      const canvas = ctx.canvas;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pw = Math.round(rect.width * dpr);
+      const ph = Math.round(rect.height * dpr);
+      if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
+        canvas.width = pw;
+        canvas.height = ph;
+      }
+      ctx.setTransform(canvas.width / CANVAS_WIDTH, 0, 0, canvas.height / CANVAS_HEIGHT, 0, 0);
+
       const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
       bg.addColorStop(0, '#0b1220');
       bg.addColorStop(1, '#1e293b');

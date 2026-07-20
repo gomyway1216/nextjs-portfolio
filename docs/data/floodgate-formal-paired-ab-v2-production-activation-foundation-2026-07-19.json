@@ -22,8 +22,8 @@
   "implementation_artifacts": {
     "module": {
       "path": "ml/formal_paired_ab_v2_production_activation.py",
-      "bytes": 33922,
-      "sha256": "3825ab3e0d222f757b295dc186d3a1ae5498b9a2ded3f17a0de43c85d3f372d3"
+      "bytes": 34422,
+      "sha256": "7cf49a1872fce4b822c453d88d6b3cd75824f777c31794d33025b6817bac6464"
     },
     "registry": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json",
@@ -32,8 +32,8 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_production_activation.py",
-      "bytes": 23499,
-      "sha256": "a01489d628041e7d8e69df45943c60db2bb84673736fa972f5c79532d5b4a156"
+      "bytes": 24010,
+      "sha256": "9d587f30ece722e09f68df6517a9983bcf586f8251122cf3a71e1ac6fa67922a"
     }
   },
   "protocol_binding": {
@@ -143,15 +143,15 @@
   },
   "validation": {
     "python_compile": "PASS",
-    "focused_tests_passed": 11,
+    "focused_tests_passed": 12,
     "focused_tests_failed": 0,
-    "related_tests_passed": 48,
+    "related_tests_passed": 61,
     "related_tests_failed": 0,
     "publication_evidence_tests_passed": 5,
     "publication_evidence_tests_failed": 0,
-    "full_ml_stdlib_tests_passed": 204,
+    "full_ml_stdlib_tests_passed": 205,
     "full_ml_stdlib_tests_failed": 0,
-    "full_ml_stdlib_wall_seconds": 13.89,
+    "full_ml_stdlib_wall_seconds": 13.974,
     "ruff": "PASS",
     "prettier": "PASS",
     "diff_check": "PASS",
@@ -203,6 +203,21 @@
       "local_validation": "PASS",
       "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/529#discussion_r3611694906",
       "thread_state": "resolved"
+    },
+    "github_copilot_review_remediation": {
+      "thread_ids": [
+        "PRRT_kwDOQbO82s6SIYpw",
+        "PRRT_kwDOQbO82s6SIYp2",
+        "PRRT_kwDOQbO82s6SIYp8"
+      ],
+      "revision": "eb444083b0f98a7da56a1af7f9c84ed08168257c",
+      "fixes": [
+        "explicit-fail-closed-when-effective-user-support-is-unavailable",
+        "pair-and-worker-diagnostics-derived-from-contract-constants",
+        "forbidden-runtime-import-detection-covers-from-submodule-alias-and-multi-import-forms"
+      ],
+      "local_validation": "PASS",
+      "thread_state": "pending-reply-and-resolution"
     }
   },
   "execution_counters": {

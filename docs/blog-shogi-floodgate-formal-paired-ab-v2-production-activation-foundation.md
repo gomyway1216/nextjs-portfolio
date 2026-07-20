@@ -109,12 +109,14 @@ unit testは次を拒否した。
 
 PR reviewでは、non-string SFENを`_normalized_sfen`へ渡すと明示型checkより先にraw `TypeError` / `AttributeError`が漏れ得る指摘も受けた。現行実装anchor `35d0ca71bd5d60747667c3dad4e804b270cb3551`はtype checkをnormalization前へ移し、`null`、integer、listがすべて`FormalAbV2ActivationError`としてfail closedになる回帰probeを追加した。
 
+後続reviewの3点は実装anchor `eb444083b0f98a7da56a1af7f9c84ed08168257c`で修正した。`os.geteuid`がない環境はraw `AttributeError`ではなく明示的にfail closedし、pair数とworker上限の診断は固定値ではなくcontract定数から生成する。publication testの禁止import検出は`from subprocess import Popen`、`import urllib.request`、alias、複数importも検出する回帰例で固定した。
+
 | 検証                                        |                     結果 |
 | ------------------------------------------- | -----------------------: |
 | Python compile                              |                     PASS |
-| activation focused                          |             11 / 11 PASS |
-| 既存protocol / local launcherを含む関連test |             48 / 48 PASS |
-| ML stdlib全体                               |           204 / 204 PASS |
+| activation focused                          |             12 / 12 PASS |
+| 既存protocol / local launcherを含む関連test |             61 / 61 PASS |
+| ML stdlib全体                               |           205 / 205 PASS |
 | publication evidence                        |               5 / 5 PASS |
 | Ruff / Prettier / diff check                |                     PASS |
 | argumentless production entry               | expected STOP、0 / 768局 |

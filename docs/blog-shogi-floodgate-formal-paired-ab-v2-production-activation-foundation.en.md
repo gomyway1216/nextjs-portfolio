@@ -109,12 +109,14 @@ The first independent review reported `P0=0`, `P1=2`, and `P2=1`. The P1 finding
 
 PR review then noted that a non-string SFEN could reach `_normalized_sfen` and leak a raw `TypeError` or `AttributeError` before the explicit type check. Current implementation anchor `35d0ca71bd5d60747667c3dad4e804b270cb3551` moves the type check before normalization and adds regression probes proving that `null`, integer, and list values all fail closed as `FormalAbV2ActivationError`.
 
+A later review's three findings are fixed at implementation anchor `eb444083b0f98a7da56a1af7f9c84ed08168257c`. A platform without `os.geteuid` now fails closed explicitly instead of leaking `AttributeError`; pair-count and worker-limit diagnostics are derived from the contract constants rather than duplicated literals. The publication test's forbidden-import detector now includes regression examples for `from subprocess import Popen`, `import urllib.request`, aliases, and multi-import statements.
+
 | Check                                                            |                       Result |
 | ---------------------------------------------------------------- | ---------------------------: |
 | Python compile                                                   |                         PASS |
-| activation focused                                               |                 11 / 11 PASS |
-| related tests including the existing protocol and local launcher |                 48 / 48 PASS |
-| complete ML stdlib                                               |               204 / 204 PASS |
+| activation focused                                               |                 12 / 12 PASS |
+| related tests including the existing protocol and local launcher |                 61 / 61 PASS |
+| complete ML stdlib                                               |               205 / 205 PASS |
 | publication evidence                                             |                   5 / 5 PASS |
 | Ruff / Prettier / diff check                                     |                         PASS |
 | argumentless production entry                                    | expected STOP, 0 / 768 games |

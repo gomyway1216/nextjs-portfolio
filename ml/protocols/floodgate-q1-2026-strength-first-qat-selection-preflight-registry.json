@@ -3,7 +3,7 @@
   "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
   "training_plan": {
     "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-    "schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
+    "schema": "shogi-floodgate-strength-first-qat-training-plan-v2",
     "bytes": null,
     "sha256": null
   },
@@ -15,13 +15,13 @@
       "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42",
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/result.json",
-        "schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
         "bytes": null,
         "sha256": null
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/final.pt",
-        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
         "bytes": null,
         "sha256": null
       }
@@ -32,13 +32,13 @@
       "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43",
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/result.json",
-        "schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
         "bytes": null,
         "sha256": null
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/final.pt",
-        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
         "bytes": null,
         "sha256": null
       }
@@ -49,13 +49,13 @@
       "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44",
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/result.json",
-        "schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
         "bytes": null,
         "sha256": null
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/final.pt",
-        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
         "bytes": null,
         "sha256": null
       }

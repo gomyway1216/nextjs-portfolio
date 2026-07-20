@@ -13,13 +13,19 @@
       "bytes": 5123,
       "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e",
       "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
+    },
+    "strength_first_v8_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-v8-hash-recovery-amendment.json",
+      "bytes": 7583,
+      "sha256": "cbfd73205e017673f64ef39bb95c7925ed7bf7a4fb9b061969ed85939d09d5a5",
+      "schema": "shogi-floodgate-q1-2026-strength-first-v8-hash-recovery-amendment-v1"
     }
   },
   "candidate_selection_contract": {
     "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
-    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
-    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v1",
-    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v2",
+    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
     "series": "warm",
     "seeds": [42, 43, 44],
     "run_count": 3,

@@ -179,7 +179,7 @@ interface NormalizedOptions {
   testOnlyInitializationTimeoutMs?: number;
 }
 
-interface FileDigest {
+export interface FileDigest {
   path: string;
   bytes: number;
   sha256: string;
@@ -215,7 +215,7 @@ interface IndependentExactSearchMetadata {
   total_observed_nodes: number;
 }
 
-interface WorkHeader {
+export interface WorkHeader {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'header';
   run_fingerprint: string;
@@ -225,7 +225,7 @@ interface WorkHeader {
   pipeline: PipelineProvenance;
 }
 
-interface CompletedWorkEntry {
+export interface CompletedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'parent';
   run_fingerprint: string;
@@ -238,7 +238,7 @@ interface CompletedWorkEntry {
   records: SiblingRecord[];
 }
 
-interface ForcedLegalMoveSkippedWorkEntry {
+export interface ForcedLegalMoveSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'skip';
   run_fingerprint: string;
@@ -248,7 +248,7 @@ interface ForcedLegalMoveSkippedWorkEntry {
   legal_moves: number;
 }
 
-interface SearchTimeoutSkippedWorkEntry {
+export interface SearchTimeoutSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'skip';
   run_fingerprint: string;
@@ -265,8 +265,10 @@ interface SearchTimeoutSkippedWorkEntry {
   }>;
 }
 
-type SkippedWorkEntry = ForcedLegalMoveSkippedWorkEntry | SearchTimeoutSkippedWorkEntry;
-type WorkEntry = CompletedWorkEntry | SkippedWorkEntry;
+export type SkippedWorkEntry =
+  | ForcedLegalMoveSkippedWorkEntry
+  | SearchTimeoutSkippedWorkEntry;
+export type WorkEntry = CompletedWorkEntry | SkippedWorkEntry;
 
 export interface SiblingTeacherManifest {
   schema: typeof SIBLING_TEACHER_MANIFEST_SCHEMA;
@@ -532,6 +534,74 @@ function canonicalJson(value: unknown): string {
       .join(',')}}`;
   }
   throw new Error(`cannot canonicalize ${typeof value}`);
+}
+
+export interface SiblingTeacherRunFingerprintInput {
+  readonly authenticated_training_binding: Readonly<FloodgateTrainingInputBinding>;
+  readonly source_raw_sha256: string;
+  readonly selected_parent_ids_sha256: string;
+  readonly pipeline: Readonly<PipelineProvenance>;
+  readonly engine_bin_sha256: string;
+  readonly engine_args: readonly string[];
+  readonly engine_arg_files: readonly FileDigest[];
+  readonly engine_receipt_sha256: string;
+  readonly engine_receipt: Readonly<Record<string, unknown>>;
+  readonly eval_sha256: string | null;
+  readonly multipv: number;
+  readonly limit: UsiSearchLimit;
+  readonly engine_environment?: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
+  readonly parallel_engines: number;
+  readonly fv_scale: number;
+  readonly hash_mb_per_engine: number;
+  readonly timeout_ms: number;
+  readonly test_only_engine_initialization_timeout_ms?: number;
+}
+
+/**
+ * Pure, shared identity calculation for a sibling-teacher run. Callers must
+ * validate the supplied fields before treating the returned digest as
+ * provenance.
+ */
+export function siblingTeacherRunFingerprint(
+  input: Readonly<SiblingTeacherRunFingerprintInput>
+): string {
+  return sha256(
+    canonicalJson({
+      schema: SIBLING_TEACHER_WORK_SCHEMA,
+      authenticated_training_binding: input.authenticated_training_binding,
+      source_raw_sha256: input.source_raw_sha256,
+      selected_parent_ids_sha256: input.selected_parent_ids_sha256,
+      label_policy: SIBLING_TEACHER_LABEL_POLICY,
+      pipeline: input.pipeline,
+      engine_bin_sha256: input.engine_bin_sha256,
+      engine_args: input.engine_args,
+      engine_arg_files: input.engine_arg_files,
+      engine_receipt_sha256: input.engine_receipt_sha256,
+      engine_receipt: input.engine_receipt,
+      eval_sha256: input.eval_sha256,
+      multipv: input.multipv,
+      limit: input.limit,
+      exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
+      candidate_execution_order: 'utf8-bytewise-ascending',
+      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+      search_state_reset: 'isready',
+      runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
+      ...(input.engine_environment === undefined
+        ? {}
+        : { engine_environment: input.engine_environment }),
+      parallel_engines: input.parallel_engines,
+      fv_scale: input.fv_scale,
+      hash_mb_per_engine: input.hash_mb_per_engine,
+      timeout_ms: input.timeout_ms,
+      ...(input.test_only_engine_initialization_timeout_ms === undefined
+        ? {}
+        : {
+            test_only_engine_initialization_timeout_ms:
+              input.test_only_engine_initialization_timeout_ms,
+          }),
+      engine_options: USI_TEACHER_ENGINE_CONTRACT,
+    })
+  );
 }
 
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
@@ -1445,7 +1515,7 @@ export async function labelSiblingParent(
   };
 }
 
-function validateWorkEntry(
+export function validateWorkEntry(
   value: unknown,
   fingerprint: string,
   parents: ReadonlyMap<string, RawParentOccurrence>,
@@ -1863,45 +1933,35 @@ async function runSiblingTeacherDatasetCore(
           ]
         : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
-  const runFingerprint = sha256(
-    canonicalJson({
-      schema: SIBLING_TEACHER_WORK_SCHEMA,
-      authenticated_training_binding: capturedInput.binding,
-      source_raw_sha256: sourceRawSha256,
-      selected_parent_ids_sha256: selectedParentIdsSha256,
-      label_policy: SIBLING_TEACHER_LABEL_POLICY,
-      pipeline,
-      engine_bin_sha256: engineDigest.sha256,
-      engine_args: options.engineArgs,
-      engine_arg_files: engineArgFiles,
-      engine_receipt_sha256: engineReceipt.file.sha256,
-      engine_receipt: engineReceipt.content,
-      eval_sha256: evalSha256,
-      multipv: options.multipv,
-      limit: options.limit,
-      exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
-      candidate_execution_order: 'utf8-bytewise-ascending',
-      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
-      search_state_reset: 'isready',
-      runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
-      ...(execution.finalization === 'legacy-split'
-        ? {}
-        : {
-            engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
-          }),
-      parallel_engines: options.engines,
-      fv_scale: options.fvScale,
-      hash_mb_per_engine: options.hashMb,
-      timeout_ms: options.timeoutMs,
-      ...(options.testOnlyInitializationTimeoutMs === undefined
-        ? {}
-        : {
-            test_only_engine_initialization_timeout_ms:
-              options.testOnlyInitializationTimeoutMs,
-          }),
-      engine_options: USI_TEACHER_ENGINE_CONTRACT,
-    })
-  );
+  const runFingerprint = siblingTeacherRunFingerprint({
+    authenticated_training_binding: capturedInput.binding,
+    source_raw_sha256: sourceRawSha256,
+    selected_parent_ids_sha256: selectedParentIdsSha256,
+    pipeline,
+    engine_bin_sha256: engineDigest.sha256,
+    engine_args: options.engineArgs,
+    engine_arg_files: engineArgFiles,
+    engine_receipt_sha256: engineReceipt.file.sha256,
+    engine_receipt: engineReceipt.content,
+    eval_sha256: evalSha256,
+    multipv: options.multipv,
+    limit: options.limit,
+    ...(execution.finalization === 'legacy-split'
+      ? {}
+      : {
+          engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+        }),
+    parallel_engines: options.engines,
+    fv_scale: options.fvScale,
+    hash_mb_per_engine: options.hashMb,
+    timeout_ms: options.timeoutMs,
+    ...(options.testOnlyInitializationTimeoutMs === undefined
+      ? {}
+      : {
+          test_only_engine_initialization_timeout_ms:
+            options.testOnlyInitializationTimeoutMs,
+        }),
+  });
   const header: WorkHeader = {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
     kind: 'header',

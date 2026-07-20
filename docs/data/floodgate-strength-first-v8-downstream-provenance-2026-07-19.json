@@ -1,0 +1,96 @@
+{
+  "schema": "shogi-floodgate-strength-first-v8-downstream-provenance-evidence-v1",
+  "status": "bridge-implementation-validated-formal-v8-teacher-still-running",
+  "capture_date": "2026-07-19",
+  "purpose": "admit-only-one-complete-v8-teacher-source-into-reviewed-training-plan",
+  "formal_teacher_observation": {
+    "target_parents": 24000,
+    "milestone_100_complete": true,
+    "milestone_500_complete": true,
+    "milestone_500": {
+      "completed_parents": 500,
+      "emitted_parent_groups": 499,
+      "fewer_than_two_legal_moves": 0,
+      "search_timeout_no_label": 1,
+      "partial_timeout_label_persisted": false
+    },
+    "observed_progress_at_capture": 690,
+    "final_result_exists": false,
+    "training_plan_exists": false,
+    "training_started": false,
+    "candidate_selection_started": false,
+    "formal_ab_started": false,
+    "live_weight_changes": 0
+  },
+  "implementation": {
+    "typescript_semantic_authority": "ml/floodgate-strength-first-v8-downstream-provenance.ts",
+    "argumentless_cli": "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts",
+    "plan_builder": "ml/build_strength_first_qat_training_plan_candidate.py",
+    "training_bridge": "ml/strength_first_qat_training_bridge.py",
+    "teacher_source_root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+    "production_parent_target": 24000,
+    "milestone_targets": [
+      100,
+      500
+    ],
+    "work_jsonl_streamed": true,
+    "network_requests": 0,
+    "cloud_services": 0,
+    "live_weight_changes": 0
+  },
+  "semantic_authority": {
+    "authenticated_raw_rows_reparsed": true,
+    "runner_revision_floor_checked": true,
+    "production_asset_authority_checked": true,
+    "result_manifest_staged_and_milestones_cross_bound": true,
+    "every_work_entry_revalidated_with_shared_teacher_validator": true,
+    "forced_skip_reasons_recounted": true,
+    "timeout_quarantine_cap_rechecked": true,
+    "parent_completion_recomputed": true,
+    "training_groups_recomputed": true,
+    "success_output_contains_only_aggregate_counts": true,
+    "private_identifiers_or_digests_in_success_output": false
+  },
+  "training_plan_v2": {
+    "pins_outer_teacher_result_identity": true,
+    "pins_privacy_safe_teacher_summary": true,
+    "publishes_private_inner_file_digests": false,
+    "runtime_rehashes_every_outer_bound_private_inner_file": true,
+    "reviewed_plan_required_before_training": true,
+    "selection_or_holdout_read_authorized": false,
+    "production_weight_write_authorized": false
+  },
+  "validation": {
+    "typescript_full_typecheck": "PASS",
+    "typescript_core_and_cli_tests": {
+      "status": "PASS",
+      "tests": 2,
+      "max_workers": 2
+    },
+    "shared_generator_regression": {
+      "status": "PASS",
+      "tests": 2
+    },
+    "python_focused": {
+      "status": "PASS",
+      "tests": 89
+    },
+    "cli_argument_rejection": "PASS",
+    "diff_check": "PASS",
+    "full_suite_run_while_formal_teacher_active": false
+  },
+  "strength_claims": {
+    "teacher_complete": false,
+    "model_retrained": false,
+    "candidate_selected": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "privacy": {
+    "private_absolute_paths_published": false,
+    "training_positions_published": false,
+    "parent_or_game_identifiers_published": false,
+    "private_file_digests_published": false
+  }
+}

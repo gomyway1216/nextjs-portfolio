@@ -186,7 +186,7 @@ describe("Floodgate strength-first v8 hash recovery evidence", () => {
     });
   });
 
-  it("keeps v8 code/protocol aligned while downstream remains closed", () => {
+  it("keeps the historical v8 amendment immutable while the separate bridge advances", () => {
     expect(FLOODGATE_PRODUCTION_TEACHER_RUNTIME.hash_mb_per_engine).toBe(64);
     expect(FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME.hash_mb_per_engine).toBe(
       512,
@@ -259,16 +259,16 @@ describe("Floodgate strength-first v8 hash recovery evidence", () => {
 
     const bridge = fs.readFileSync(bridgePath, "utf8");
     expect(bridge).toContain(
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+    );
+    expect(bridge).toContain(
+      "shogi-floodgate-strength-first-teacher-postflight-result-v2",
+    );
+    expect(bridge).not.toContain(
       ".codex/shogi-runs/floodgate-q1-2026-strength-first-v7",
     );
     expect(bridge).toContain(
-      "shogi-floodgate-strength-first-teacher-postflight-result-v1",
-    );
-    expect(bridge).not.toContain(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
-    );
-    expect(bridge).not.toContain(
-      "shogi-floodgate-strength-first-teacher-postflight-result-v2",
+      "shogi-floodgate-strength-first-v8-downstream-provenance-v1",
     );
   });
 

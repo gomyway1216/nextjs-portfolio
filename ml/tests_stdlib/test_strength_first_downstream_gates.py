@@ -42,6 +42,9 @@ def ready_registry() -> dict:
             "strength_first_amendment": copy.deepcopy(
                 GATES._STRENGTH_FIRST_AMENDMENT_IDENTITY
             ),
+            "strength_first_v8_amendment": copy.deepcopy(
+                GATES._STRENGTH_FIRST_V8_AMENDMENT_IDENTITY
+            ),
         },
         "candidate_selection_contract": copy.deepcopy(
             GATES._CANDIDATE_SELECTION_CONTRACT
@@ -358,6 +361,7 @@ class StrengthFirstDownstreamRegistryTests(unittest.TestCase):
                 GATES.DOWNSTREAM_REGISTRY_RELATIVE_PATH,
                 GATES._BASE_PLAN_IDENTITY["path"],
                 GATES._STRENGTH_FIRST_AMENDMENT_IDENTITY["path"],
+                GATES._STRENGTH_FIRST_V8_AMENDMENT_IDENTITY["path"],
             )
             for relative in relative_paths:
                 target = isolated / relative

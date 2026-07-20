@@ -118,6 +118,19 @@ _STRENGTH_FIRST_AMENDMENT_IDENTITY = {
     ),
     "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1",
 }
+_STRENGTH_FIRST_V8_AMENDMENT_IDENTITY = {
+    "path": (
+        "ml/protocols/"
+        "floodgate-q1-2026-strength-first-v8-hash-recovery-amendment.json"
+    ),
+    "bytes": 7_583,
+    "sha256": (
+        "cbfd73205e017673f64ef39bb95c7925ed7bf7a4fb9b061969ed85939d09d5a5"
+    ),
+    "schema": (
+        "shogi-floodgate-q1-2026-strength-first-v8-hash-recovery-amendment-v1"
+    ),
+}
 _BASE_PLAN_IDENTITY = {
     "path": FRESH_SIBLING_PLAN_PATH,
     "bytes": FRESH_SIBLING_PLAN_BYTES,
@@ -425,7 +438,11 @@ def validate_downstream_registry_data(
         raise ValueError("downstream registry schema mismatch")
     protocol = _exact_dict(
         registry["protocol"],
-        {"base_plan", "strength_first_amendment"},
+        {
+            "base_plan",
+            "strength_first_amendment",
+            "strength_first_v8_amendment",
+        },
         "downstream protocol",
     )
     if not _typed_equal(protocol["base_plan"], _BASE_PLAN_IDENTITY):
@@ -435,6 +452,11 @@ def validate_downstream_registry_data(
         _STRENGTH_FIRST_AMENDMENT_IDENTITY,
     ):
         raise ValueError("downstream strength-first amendment identity mismatch")
+    if not _typed_equal(
+        protocol["strength_first_v8_amendment"],
+        _STRENGTH_FIRST_V8_AMENDMENT_IDENTITY,
+    ):
+        raise ValueError("downstream strength-first v8 amendment identity mismatch")
     if not _typed_equal(
         registry["candidate_selection_contract"],
         _CANDIDATE_SELECTION_CONTRACT,

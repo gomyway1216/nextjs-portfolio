@@ -440,7 +440,7 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
             registered = fixture["registry"]["runs"][0]
             result_path = fixture["root"] / registered["result"]["path"]
             result = copy.deepcopy(fixture["results"][42])
-            result["experiment_plan"]["teacher_work_sha256"] = "0" * 64
+            result["experiment_plan"]["teacher_result_sha256"] = "0" * 64
             result_path.write_bytes(json_bytes(result))
             registered["result"].update(identity_bytes(result_path.read_bytes()))
             write_registry(fixture)

@@ -195,6 +195,12 @@ describe("local external calibration paired harness", () => {
 
   it("rejects malformed openings, aliases, types, and time-control drift before players start", async () => {
     const base = request();
+    const invalidOpeningSfens = [
+      "9/9/9/9/9/9/9/9/4K4 b R 1",
+      "4k4/9/9/9/9/9/9/4K4/4K4 b - 1",
+      "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P 1",
+      "9/9/9/9/4k4/4K4/9/9/9 b - 1",
+    ] as const;
     const symbolRequest = { ...base } as LocalExternalCalibrationRequest & {
       [key: symbol]: unknown;
     };
@@ -221,6 +227,10 @@ describe("local external calibration paired harness", () => {
         ...base,
         openings: [{ ...base.openings[0], sfen: ` ${START_SFEN}` }],
       },
+      ...invalidOpeningSfens.map((sfen) => ({
+        ...base,
+        openings: [{ opening_id: `sha256:${"0".repeat(64)}`, sfen }],
+      })),
       {
         ...base,
         time_control: { ...base.time_control, stable_depth: 0 },
@@ -246,6 +256,9 @@ describe("local external calibration paired harness", () => {
       });
       expect(stable.closes).toBe(0);
       expect(reference.closes).toBe(0);
+    }
+    for (const sfen of invalidOpeningSfens) {
+      expect(() => localExternalCalibrationOpeningId(sfen)).toThrow();
     }
   });
 

@@ -12,7 +12,14 @@ import { types as nodeUtilTypes } from "node:util";
 
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import {
+  FU,
+  GI,
   GOTE,
+  HI,
+  KA,
+  KE,
+  KI,
+  KY,
   OU,
   SENTE,
   getKomashu,
@@ -63,6 +70,15 @@ const DECISION_DIGEST_DOMAIN = "shogi-local-external-calibration-decision-v1\0";
 const GAME_TRANSCRIPT_DIGEST_DOMAIN =
   "shogi-local-external-calibration-game-transcript-v1\0";
 const RECEIPT_DIGEST_DOMAIN = "shogi-local-external-calibration-receipt-v1\0";
+const PHYSICAL_PIECE_LIMITS = Object.freeze([
+  Object.freeze([FU, 18] as const),
+  Object.freeze([KY, 4] as const),
+  Object.freeze([KE, 4] as const),
+  Object.freeze([GI, 4] as const),
+  Object.freeze([KI, 4] as const),
+  Object.freeze([KA, 2] as const),
+  Object.freeze([HI, 2] as const),
+] as const);
 
 export type LocalExternalCalibrationColor = "sente" | "gote";
 export type LocalExternalCalibrationRole = "stable" | "reference";
@@ -381,6 +397,60 @@ function positiveInteger(
   return value;
 }
 
+function basePieceKind(piece: number): number {
+  const kind = getKomashu(piece);
+  return kind === OU ? OU : kind & 0x07;
+}
+
+function assertStructurallyLegalOpening(
+  position: ReturnType<typeof positionFromSfen>["position"],
+  label: string,
+): void {
+  const pieceCounts = new Map<number, number>();
+  let senteKings = 0;
+  let goteKings = 0;
+
+  for (let file = 1; file <= 9; file += 1) {
+    for (let rank = 1; rank <= 9; rank += 1) {
+      const piece = position.ban[(file << 4) + rank];
+      if (piece === 0) continue;
+      const kind = basePieceKind(piece);
+      pieceCounts.set(kind, (pieceCounts.get(kind) ?? 0) + 1);
+      if (kind === OU) {
+        if ((piece & SENTE) !== 0) senteKings += 1;
+        if ((piece & GOTE) !== 0) goteKings += 1;
+      }
+    }
+  }
+
+  if (senteKings !== 1 || goteKings !== 1) {
+    throw new Error(`${label} must contain exactly one king for each side`);
+  }
+
+  for (const [kind, maximum] of PHYSICAL_PIECE_LIMITS) {
+    const total =
+      (pieceCounts.get(kind) ?? 0) +
+      (position.hand[SENTE + kind] ?? 0) +
+      (position.hand[GOTE + kind] ?? 0);
+    if (total > maximum) {
+      throw new Error(`${label} exceeds the physical limit for piece ${kind}`);
+    }
+  }
+
+  const senteInCheck = GenerateMovesImproved.isKingInCheck(position, SENTE);
+  const goteInCheck = GenerateMovesImproved.isKingInCheck(position, GOTE);
+  if (senteInCheck && goteInCheck) {
+    throw new Error(`${label} has both kings in check`);
+  }
+  const nonMovingSide = position.teban === SENTE ? GOTE : SENTE;
+  if (
+    (nonMovingSide === SENTE && senteInCheck) ||
+    (nonMovingSide === GOTE && goteInCheck)
+  ) {
+    throw new Error(`${label} leaves the non-moving king in check`);
+  }
+}
+
 function canonicalSfen(value: unknown, label: string): string {
   if (
     typeof value !== "string" ||
@@ -394,6 +464,7 @@ function canonicalSfen(value: unknown, label: string): string {
   if (toSfen(parsed.position, parsed.moveNumber) !== value) {
     throw new Error(`${label} is not canonical SFEN`);
   }
+  assertStructurallyLegalOpening(parsed.position, label);
   const legal = rulesCompleteLegalMoves(parsed.position);
   if (legal.length === 0) throw new Error(`${label} is already terminal`);
   if (legal.some((entry) => getKomashu(entry.move.capture) === OU)) {

@@ -13,7 +13,12 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY } from "./floodgate-role-bundle-result";
+import {
+  FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
+  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
+  FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES,
+  FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
+} from "./floodgate-role-bundle-result";
 import {
   FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
   type FloodgateRoleBundleRawIdentity,
@@ -22,6 +27,11 @@ import {
   parseAuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
 } from "./floodgate-training-row-validation";
+import {
+  FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+  type AuthenticatedFloodgateTrainingRows,
+  type FloodgateTrainingInputBinding,
+} from "./floodgate-training-row-consumer";
 
 export const FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA =
   "shogi-floodgate-strength-first-fast-training-input-v1" as const;
@@ -48,6 +58,7 @@ export const FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY =
 
 const FILE_MODE = 0o600;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
+const REVISION_RE = /^[0-9a-f]{40}$/u;
 
 export interface FloodgateStrengthFirstFastFileIdentity {
   readonly path: string;
@@ -370,4 +381,58 @@ export async function loadFloodgateStrengthFirstFastTrainingInputCoreForTests(
   dependencies: Readonly<FloodgateStrengthFirstFastTrainingInputDependenciesForTests>,
 ): Promise<Readonly<FloodgateStrengthFirstFastTrainingInput>> {
   return loadWithContract(home, contract, dependencies);
+}
+
+/**
+ * Project the fast snapshot into the structural input consumed by the teacher.
+ *
+ * The historical result identity remains provenance metadata; the current
+ * runner revision and explicit fast-input policy distinguish this path from
+ * the legacy full-reconstruction verifier in the generator fingerprint.
+ */
+export function projectFloodgateStrengthFirstFastTrainingInputForTeacher(
+  input: Readonly<FloodgateStrengthFirstFastTrainingInput>,
+  runnerRevision: string,
+): Readonly<AuthenticatedFloodgateTrainingRows> {
+  if (
+    !REVISION_RE.test(runnerRevision) ||
+    input.schema !== FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA ||
+    input.role !== "training" ||
+    input.policy !== FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY ||
+    JSON.stringify(input.manifest) !==
+      JSON.stringify(FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY) ||
+    JSON.stringify(input.source) !==
+      JSON.stringify(FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY) ||
+    !Array.isArray(input.rows) ||
+    input.rows.length !==
+      FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.records ||
+    !Object.isFrozen(input.rows)
+  ) {
+    fail("teacher projection requires the exact loaded production input");
+  }
+  const source = input.source;
+  const binding: Readonly<FloodgateTrainingInputBinding> = Object.freeze({
+    result_receipt_bytes: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES,
+    result_receipt_sha256: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
+    bundle_manifest_bytes: input.manifest.bytes,
+    bundle_manifest_sha256: input.manifest.sha256,
+    bundle_producer_revision:
+      FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
+    verifier_revision: runnerRevision,
+    raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+    raw_bytes: source.bytes,
+    raw_sha256: source.sha256,
+    records: source.records,
+    games: source.games,
+    game_ids_sha256: source.game_ids_sha256,
+    parent_ids_sha256: source.parent_ids_sha256,
+    position_ids_count: source.position_ids_count,
+    position_ids_sha256: source.position_ids_sha256,
+  });
+  return Object.freeze({
+    schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+    role: "training",
+    binding,
+    rows: input.rows,
+  });
 }

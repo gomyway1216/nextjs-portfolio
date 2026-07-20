@@ -6,11 +6,19 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY,
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
   FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
   loadFloodgateStrengthFirstFastTrainingInputCoreForTests,
+  projectFloodgateStrengthFirstFastTrainingInputForTeacher,
+  type FloodgateStrengthFirstFastTrainingInput,
   type FloodgateStrengthFirstFastTrainingInputContractForTests,
 } from "../../../ml/floodgate-strength-first-fast-training-input";
+import {
+  FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
+  FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
+  FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
+} from "../../../ml/floodgate-role-bundle-result";
 import {
   FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
   type FloodgateRoleBundleRawIdentity,
@@ -258,5 +266,54 @@ describe("strength-first fast training input", () => {
         },
       ),
     ).rejects.toThrow("training is not the expected private regular file");
+  });
+
+  it("projects only the exact frozen production snapshot into teacher input", () => {
+    const row = Object.freeze({
+      schema_version: 1 as const,
+      game_id: "fixture",
+      parent_id: "sha256:fixture",
+      parent_sfen: START_SFEN,
+      played_move: "7g7f",
+      ply: 0,
+      position_id: positionKeyFromSfen(START_SFEN),
+    });
+    const rows = Object.freeze(
+      Array.from(
+        { length: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.records },
+        () => row,
+      ),
+    );
+    const input: Readonly<FloodgateStrengthFirstFastTrainingInput> =
+      Object.freeze({
+        schema: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
+        role: "training",
+        policy: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
+        manifest: FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY,
+        source: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY,
+        rows,
+      });
+    const revision = "a".repeat(40);
+    const projected = projectFloodgateStrengthFirstFastTrainingInputForTeacher(
+      input,
+      revision,
+    );
+
+    expect(projected.schema).toBe(
+      "shogi-authenticated-floodgate-training-rows-v1",
+    );
+    expect(projected.role).toBe("training");
+    expect(projected.rows).toBe(rows);
+    expect(projected.binding).toMatchObject({
+      result_receipt_sha256: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
+      bundle_manifest_sha256: FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY.sha256,
+      bundle_producer_revision:
+        FLOODGATE_ROLE_BUNDLE_INDEPENDENT_VERIFIER_REVISION,
+      verifier_revision: revision,
+      raw_sha256: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_RAW_IDENTITY.sha256,
+      records: 24_000,
+    });
+    expect(Object.isFrozen(projected)).toBe(true);
+    expect(Object.isFrozen(projected.binding)).toBe(true);
   });
 });

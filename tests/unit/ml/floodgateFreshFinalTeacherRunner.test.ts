@@ -50,8 +50,21 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function writeSyntheticWork(file: string) {
-  const bytes = '{"schema":"synthetic-work"}\n';
+async function writeValidatorOwnedWorkHandoff(file: string) {
+  const bytes = `${[
+    JSON.stringify({
+      schema: "shogi-sibling-teacher-work-v2",
+      kind: "header",
+      test_scope: "runner-handoff-semantic-validation-is-injected",
+    }),
+    ...Array.from({ length: 4_800 }, (_, index) =>
+      JSON.stringify({
+        schema: "shogi-sibling-teacher-work-v2",
+        kind: "runner-handoff",
+        sequence: index,
+      }),
+    ),
+  ].join("\n")}\n`;
   await fs.promises.writeFile(file, bytes, { mode: 0o600 });
   return {
     path: "work.jsonl" as const,
@@ -302,7 +315,7 @@ async function dependencies(
         mode: 0o600,
       });
       await fs.promises.chmod(request.datasetPath, 0o600);
-      const work = await writeSyntheticWork(request.workPath);
+      const work = await writeValidatorOwnedWorkHandoff(request.workPath);
       return {
         status: "complete-fresh-final-only",
         generation_run_fingerprint: sha256("fresh-final-generation"),
@@ -324,6 +337,7 @@ async function dependencies(
     computeGenerationFingerprint: vi.fn(async () =>
       sha256("fresh-final-generation"),
     ),
+    validateArtifacts: vi.fn(),
     reportProgress: vi.fn(),
     ...overrides,
   };
@@ -397,7 +411,7 @@ describe("fresh-final teacher runner", () => {
           validDatasetBytes(),
           { mode: 0o600 },
         );
-        const work = await writeSyntheticWork(request.workPath);
+        const work = await writeValidatorOwnedWorkHandoff(request.workPath);
         return {
           status: "complete-fresh-final-only",
           generation_run_fingerprint: sha256("fresh-final-generation"),
@@ -480,6 +494,16 @@ describe("fresh-final teacher runner", () => {
     ]) {
       expect((await fs.promises.lstat(file)).mode & 0o7777).toBe(0o600);
     }
+    expect(wrapped.validateArtifacts).toHaveBeenCalledTimes(1);
+    expect(wrapped.validateArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputGames: 200,
+        inputParents: 4_800,
+        sourceRawSha256: FRESH_FINAL_TEACHER_SOURCE.sha256,
+        expectedGenerationRunFingerprint: sha256("fresh-final-generation"),
+        expectedRevision: REVISION,
+      }),
+    );
   });
 
   it("binds exact preflight paths and generator final/work outputs", () => {
@@ -778,6 +802,14 @@ describe("fresh-final teacher runner", () => {
         },
       },
       {
+        label: "work byte",
+        mutate: async (
+          paths: ReturnType<typeof freshFinalTeacherPaths>,
+        ): Promise<void> => {
+          await fs.promises.appendFile(paths.work, "tampered\n");
+        },
+      },
+      {
         label: "authority",
         mutate: async (
           paths: ReturnType<typeof freshFinalTeacherPaths>,
@@ -843,6 +875,37 @@ describe("fresh-final teacher runner", () => {
     }
   });
 
+  it("fails closed when a result exists but any bound auxiliary artifact is missing", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-final-partial-commit-"),
+    );
+    const base = await dependencies(home);
+    await runFreshFinalTeacherCore(base);
+    const paths = freshFinalTeacherPaths(home, base.repositoryRoot);
+    for (const file of [paths.manifest, paths.authority, paths.dataset, paths.work]) {
+      const bytes = await fs.promises.readFile(file);
+      await fs.promises.unlink(file);
+      await expect(runFreshFinalTeacherCore(base), path.basename(file)).rejects.toThrow();
+      expect(base.generate).toHaveBeenCalledTimes(1);
+      await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+    }
+  });
+
+  it("resumes generation when the result marker itself is absent", async () => {
+    const home = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "fresh-final-resume-"),
+    );
+    const base = await dependencies(home);
+    await runFreshFinalTeacherCore(base);
+    const paths = freshFinalTeacherPaths(home, base.repositoryRoot);
+    await fs.promises.unlink(paths.result);
+
+    const resumed = await runFreshFinalTeacherCore(base);
+    expect(resumed.idempotent_existing_result).toBe(false);
+    expect(base.generate).toHaveBeenCalledTimes(2);
+    await expect(fs.promises.access(paths.result)).resolves.toBeUndefined();
+  });
+
   it("recomputes existing-result revision, asset, and generation fingerprints", async () => {
     for (const stale of ["revision", "asset", "generation"] as const) {
       const home = await fs.promises.mkdtemp(
@@ -852,6 +915,7 @@ describe("fresh-final teacher runner", () => {
       await runFreshFinalTeacherCore(base);
       const reused = await runFreshFinalTeacherCore(base);
       expect(reused.idempotent_existing_result).toBe(true);
+      expect(base.validateArtifacts).toHaveBeenCalledTimes(2);
       if (stale === "revision") {
         vi.mocked(base.captureExactCleanRevision).mockResolvedValue(
           "2".repeat(40),

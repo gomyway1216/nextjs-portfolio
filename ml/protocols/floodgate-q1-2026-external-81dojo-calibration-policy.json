@@ -43,9 +43,14 @@
     "exact_candidate_move_trace_required": true
   },
   "ledger_contract": {
-    "format": "canonical-jsonl-utf8-lf-v1",
+    "authoritative_storage": "immutable-entry-directory-v1",
+    "derived_view_format": "canonical-jsonl-utf8-lf-v1",
     "append_only": true,
-    "candidate_protocol_preregistered_before_game_1": true,
+    "public_merged_main_protocol_commitment_before_game_1": true,
+    "self_asserted_timestamp_is_not_preregistration_proof": true,
+    "validate_complete_candidate_prefix_before_publish": true,
+    "atomic_temp_fsync_exclusive_publish_directory_fsync": true,
+    "reject_symlink_in_every_existing_ancestor": true,
     "sha256_hash_chain": true,
     "sequence": "exactly-1-through-200-with-no-gaps",
     "candidate_rating_continuity": true,

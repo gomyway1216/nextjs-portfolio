@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 import random
 import re
+import secrets
 import stat
 import sys
 from typing import Any
@@ -36,13 +37,16 @@ GAME_SCHEMA = "shogi-external-81dojo-game-ledger-entry-v1"
 SERVER_RECORD_SCHEMA = "shogi-external-81dojo-manual-server-record-v1"
 TRACE_SCHEMA = "shogi-external-81dojo-candidate-trace-v1"
 RECEIPT_SCHEMA = "shogi-external-81dojo-calibration-receipt-v1"
+PROTOCOL_CORE_SCHEMA = "shogi-external-81dojo-candidate-protocol-core-v1"
+PUBLICATION_DOCUMENT_SCHEMA = "shogi-external-81dojo-protocol-publication-document-v1"
+PUBLICATION_BINDING_SCHEMA = "shogi-external-81dojo-merged-main-publication-binding-v1"
 
 POLICY_PATH = "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy.json"
 # Filled from the checked-in file after formatting.  Keeping these constants in
 # the verifier prevents a later policy edit from silently changing an enrolled
 # candidate protocol.
-POLICY_BYTES = 3668
-POLICY_SHA256 = "b0c0f994eef66c47e3d574d4533b23600a891f66490ae7c63e4b60fd173d4cd0"
+POLICY_BYTES = 3997
+POLICY_SHA256 = "189d67b92b1b9160cb7506fe2ae020c58e5a270b1210f23c352bcc2185561c32"
 
 CHECKED_DATE = "2026-07-20"
 GAME_COUNT = 200
@@ -111,9 +115,14 @@ CANDIDATE_RUNTIME_CONTRACT = {
 }
 
 LEDGER_CONTRACT = {
-    "format": "canonical-jsonl-utf8-lf-v1",
+    "authoritative_storage": "immutable-entry-directory-v1",
+    "derived_view_format": "canonical-jsonl-utf8-lf-v1",
     "append_only": True,
-    "candidate_protocol_preregistered_before_game_1": True,
+    "public_merged_main_protocol_commitment_before_game_1": True,
+    "self_asserted_timestamp_is_not_preregistration_proof": True,
+    "validate_complete_candidate_prefix_before_publish": True,
+    "atomic_temp_fsync_exclusive_publish_directory_fsync": True,
+    "reject_symlink_in_every_existing_ancestor": True,
     "sha256_hash_chain": True,
     "sequence": "exactly-1-through-200-with-no-gaps",
     "candidate_rating_continuity": True,
@@ -175,7 +184,8 @@ PROTOCOL_FIELDS = frozenset(
         "schema",
         "status",
         "experiment_id",
-        "preregistered_at_utc",
+        "assembled_at_utc",
+        "preregistration_publication",
         "policy",
         "candidate",
         "upstream",
@@ -187,6 +197,45 @@ PROTOCOL_FIELDS = frozenset(
         "primary_decision",
         "auxiliary_statistics",
         "protocol_sha256",
+    }
+)
+PROTOCOL_CORE_FIELDS = frozenset(
+    {
+        "schema",
+        "experiment_id",
+        "policy",
+        "candidate",
+        "upstream",
+        "execution_environment",
+        "account",
+        "authorization",
+        "fixed_match",
+        "ledger_contract",
+        "primary_decision",
+        "auxiliary_statistics",
+    }
+)
+PUBLICATION_DOCUMENT_FIELDS = frozenset(
+    {
+        "schema",
+        "status",
+        "recorded_at_utc",
+        "protocol_core_sha256",
+        "authority",
+        "nonclaims",
+    }
+)
+PUBLICATION_BINDING_FIELDS = frozenset(
+    {
+        "schema",
+        "repository_url",
+        "branch",
+        "data_path",
+        "artifact",
+        "document",
+        "merged_main_revision",
+        "merged_main_tree",
+        "merged_at_utc",
     }
 )
 CANDIDATE_FIELDS = frozenset(
@@ -306,6 +355,12 @@ SERVER_RECORD_FIELDS = frozenset(
 TRACE_FIELDS = frozenset(
     {
         "schema",
+        "protocol_sha256",
+        "server_game_id",
+        "candidate_binding_sha256",
+        "runtime_binding_sha256",
+        "server_record_artifact",
+        "server_normalized_moves_sha256",
         "artifact",
         "runtime_receipt_sha256",
         "decisions",
@@ -314,6 +369,10 @@ TRACE_FIELDS = frozenset(
 )
 TRACE_DECISION_FIELDS = frozenset({"ply", "usi", "decision_receipt_sha256"})
 FAULT_FIELDS = frozenset({"kind", "evidence_sha256"})
+PUBLIC_REPOSITORY_URL = "https://github.com/gomyway1216/nextjs-portfolio"
+PUBLICATION_DATA_PATH_RE = re.compile(r"^docs/data/[a-z0-9][a-z0-9._-]{1,180}\.json$")
+ENTRY_FILE_RE = re.compile(r"^(\d{6})\.json$")
+TEMP_ENTRY_FILE_RE = re.compile(r"^\.tmp-[0-9]+-[0-9a-f]{32}$")
 
 
 def _reject_nonfinite_constant(value: str):
@@ -674,38 +733,225 @@ def _protocol_body(protocol: Mapping) -> dict:
     }
 
 
+def _protocol_core_body(protocol: Mapping) -> dict:
+    return {
+        "schema": PROTOCOL_CORE_SCHEMA,
+        **{
+            key: copy.deepcopy(protocol[key])
+            for key in PROTOCOL_CORE_FIELDS
+            if key != "schema"
+        },
+    }
+
+
+def validate_candidate_protocol_core(core: Mapping) -> Mapping:
+    core = _exact_dict(core, PROTOCOL_CORE_FIELDS, "81Dojo candidate protocol core")
+    if core["schema"] != PROTOCOL_CORE_SCHEMA:
+        raise ValueError("candidate protocol core schema differs")
+    _semantic_id(core["experiment_id"], "protocol.experiment_id")
+    _validate_policy_identity(core["policy"])
+    _validate_candidate(core["candidate"])
+    _validate_upstream(core["upstream"])
+    _validate_environment(core["execution_environment"])
+    _validate_account(core["account"])
+    _validate_authorization(core["authorization"])
+    _exact_value(core["fixed_match"], FIXED_MATCH, "protocol.fixed_match")
+    _exact_value(core["ledger_contract"], LEDGER_CONTRACT, "protocol.ledger_contract")
+    _exact_value(
+        core["primary_decision"], PRIMARY_DECISION, "protocol.primary_decision"
+    )
+    _exact_value(
+        core["auxiliary_statistics"],
+        AUXILIARY_STATISTICS,
+        "protocol.auxiliary_statistics",
+    )
+    return core
+
+
+def protocol_core_sha256(core: Mapping) -> str:
+    validate_candidate_protocol_core(core)
+    return _semantic_body_digest(
+        "shogi-external-81dojo-candidate-protocol-core-v1\0", core
+    )
+
+
+def build_candidate_protocol_core(
+    *,
+    experiment_id: str,
+    policy_identity: Mapping,
+    candidate: Mapping,
+    upstream: Mapping,
+    execution_environment: Mapping,
+    account: Mapping,
+    authorization: Mapping,
+) -> Mapping:
+    core = {
+        "schema": PROTOCOL_CORE_SCHEMA,
+        "experiment_id": _capture_plain_json(experiment_id),
+        "policy": _capture_plain_json(policy_identity),
+        "candidate": _capture_plain_json(candidate),
+        "upstream": _capture_plain_json(upstream),
+        "execution_environment": _capture_plain_json(execution_environment),
+        "account": _capture_plain_json(account),
+        "authorization": _capture_plain_json(authorization),
+        "fixed_match": copy.deepcopy(FIXED_MATCH),
+        "ledger_contract": copy.deepcopy(LEDGER_CONTRACT),
+        "primary_decision": copy.deepcopy(PRIMARY_DECISION),
+        "auxiliary_statistics": copy.deepcopy(AUXILIARY_STATISTICS),
+    }
+    validate_candidate_protocol_core(core)
+    return core
+
+
+def build_preregistration_publication_document(
+    core: Mapping, *, recorded_at_utc: str
+) -> Mapping:
+    validate_candidate_protocol_core(core)
+    recorded_at = _utc_second(recorded_at_utc, "publication.recorded_at_utc")
+    rules_date = date.fromisoformat(core["authorization"]["rules_reverified_date"])
+    if recorded_at.date() < rules_date:
+        raise ValueError("publication document predates rules reverification")
+    return {
+        "schema": PUBLICATION_DOCUMENT_SCHEMA,
+        "status": "public-pre-game-protocol-core-commitment",
+        "recorded_at_utc": recorded_at_utc,
+        "protocol_core_sha256": protocol_core_sha256(core),
+        "authority": "data-only-no-execution-authority",
+        "nonclaims": {
+            "external_games_executed": False,
+            "candidate_high_dan_established": False,
+            "live_weights_changed": False,
+        },
+    }
+
+
+def encode_preregistration_publication_document(document: Mapping) -> bytes:
+    _validate_publication_document(document)
+    return canonical_json_bytes(document) + b"\n"
+
+
+def bind_merged_main_publication(
+    document: Mapping,
+    *,
+    data_path: str,
+    merged_main_revision: str,
+    merged_main_tree: str,
+    merged_at_utc: str,
+) -> Mapping:
+    document = _capture_plain_json(document, "publication document")
+    _validate_publication_document(document)
+    if (
+        type(data_path) is not str
+        or PUBLICATION_DATA_PATH_RE.fullmatch(data_path) is None
+    ):
+        raise ValueError("publication data path is not a data-only JSON path")
+    merged_at = _utc_second(merged_at_utc, "publication.merged_at_utc")
+    recorded_at = _utc_second(
+        document["recorded_at_utc"], "publication.document.recorded_at_utc"
+    )
+    if merged_at < recorded_at:
+        raise ValueError("merged-main publication predates its document")
+    raw = encode_preregistration_publication_document(document)
+    binding = {
+        "schema": PUBLICATION_BINDING_SCHEMA,
+        "repository_url": PUBLIC_REPOSITORY_URL,
+        "branch": "main",
+        "data_path": data_path,
+        "artifact": {
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        },
+        "document": document,
+        "merged_main_revision": merged_main_revision,
+        "merged_main_tree": merged_main_tree,
+        "merged_at_utc": merged_at_utc,
+    }
+    _validate_publication_binding(binding, document["protocol_core_sha256"])
+    return binding
+
+
+def _validate_publication_document(value: Any) -> dict:
+    document = _exact_dict(
+        value, PUBLICATION_DOCUMENT_FIELDS, "protocol publication document"
+    )
+    if document["schema"] != PUBLICATION_DOCUMENT_SCHEMA:
+        raise ValueError("publication document schema differs")
+    if document["status"] != "public-pre-game-protocol-core-commitment":
+        raise ValueError("publication document status differs")
+    _utc_second(document["recorded_at_utc"], "publication.document.recorded_at_utc")
+    _semantic_id(
+        document["protocol_core_sha256"],
+        "publication.document.protocol_core_sha256",
+    )
+    if document["authority"] != "data-only-no-execution-authority":
+        raise ValueError("publication document authority differs")
+    _exact_value(
+        document["nonclaims"],
+        {
+            "external_games_executed": False,
+            "candidate_high_dan_established": False,
+            "live_weights_changed": False,
+        },
+        "publication.document.nonclaims",
+    )
+    return document
+
+
+def _validate_publication_binding(value: Any, expected_core_sha256: str) -> dict:
+    binding = _exact_dict(
+        value, PUBLICATION_BINDING_FIELDS, "protocol.preregistration_publication"
+    )
+    if binding["schema"] != PUBLICATION_BINDING_SCHEMA:
+        raise ValueError("publication binding schema differs")
+    if binding["repository_url"] != PUBLIC_REPOSITORY_URL:
+        raise ValueError("publication repository differs")
+    if binding["branch"] != "main":
+        raise ValueError("protocol commitment was not published on main")
+    if (
+        type(binding["data_path"]) is not str
+        or PUBLICATION_DATA_PATH_RE.fullmatch(binding["data_path"]) is None
+    ):
+        raise ValueError("publication data path is not a data-only JSON path")
+    document = _validate_publication_document(binding["document"])
+    if document["protocol_core_sha256"] != expected_core_sha256:
+        raise ValueError("publication belongs to another protocol core")
+    raw = encode_preregistration_publication_document(document)
+    _exact_value(
+        binding["artifact"],
+        {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()},
+        "publication.artifact",
+    )
+    _git_id(binding["merged_main_revision"], "publication.merged_main_revision")
+    _git_id(binding["merged_main_tree"], "publication.merged_main_tree")
+    merged_at = _utc_second(binding["merged_at_utc"], "publication.merged_at_utc")
+    recorded_at = _utc_second(
+        document["recorded_at_utc"], "publication.document.recorded_at_utc"
+    )
+    if merged_at < recorded_at:
+        raise ValueError("merged-main publication predates its document")
+    return binding
+
+
 def validate_candidate_protocol(protocol: Mapping) -> Mapping:
     protocol = _exact_dict(protocol, PROTOCOL_FIELDS, "81Dojo candidate protocol")
     if protocol["schema"] != PROTOCOL_SCHEMA:
         raise ValueError("candidate protocol schema differs")
-    if protocol["status"] != "preregistered-before-external-game-1":
-        raise ValueError("candidate protocol was not preregistered")
-    _semantic_id(protocol["experiment_id"], "protocol.experiment_id")
-    preregistered_at = _utc_second(
-        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
-    )
-    _validate_policy_identity(protocol["policy"])
-    _validate_candidate(protocol["candidate"])
-    _validate_upstream(protocol["upstream"])
-    _validate_environment(protocol["execution_environment"])
-    _validate_account(protocol["account"])
-    authorization = _validate_authorization(protocol["authorization"])
-    if preregistered_at.date() < date.fromisoformat(
-        authorization["rules_reverified_date"]
+    if (
+        protocol["status"]
+        != "requires-public-merged-main-commitment-before-external-game-1"
     ):
-        raise ValueError("candidate protocol predates its rules reverification")
-    _exact_value(protocol["fixed_match"], FIXED_MATCH, "protocol.fixed_match")
-    _exact_value(
-        protocol["ledger_contract"], LEDGER_CONTRACT, "protocol.ledger_contract"
+        raise ValueError("candidate protocol publication requirement differs")
+    assembled_at = _utc_second(
+        protocol["assembled_at_utc"], "protocol.assembled_at_utc"
     )
-    _exact_value(
-        protocol["primary_decision"], PRIMARY_DECISION, "protocol.primary_decision"
+    core = _protocol_core_body(protocol)
+    validate_candidate_protocol_core(core)
+    publication = _validate_publication_binding(
+        protocol["preregistration_publication"], protocol_core_sha256(core)
     )
-    _exact_value(
-        protocol["auxiliary_statistics"],
-        AUXILIARY_STATISTICS,
-        "protocol.auxiliary_statistics",
-    )
+    merged_at = _utc_second(publication["merged_at_utc"], "publication.merged_at_utc")
+    if assembled_at < merged_at:
+        raise ValueError("candidate protocol assembly predates merged publication")
     expected = _body_digest(
         "shogi-external-81dojo-candidate-protocol-v1\0",
         _protocol_body(protocol),
@@ -717,30 +963,18 @@ def validate_candidate_protocol(protocol: Mapping) -> Mapping:
 
 def build_candidate_protocol(
     *,
-    experiment_id: str,
-    preregistered_at_utc: str,
-    policy_identity: Mapping,
-    candidate: Mapping,
-    upstream: Mapping,
-    execution_environment: Mapping,
-    account: Mapping,
-    authorization: Mapping,
+    core: Mapping,
+    assembled_at_utc: str,
+    preregistration_publication: Mapping,
 ) -> Mapping:
+    core = _capture_plain_json(core, "candidate protocol core")
+    validate_candidate_protocol_core(core)
     body = {
         "schema": PROTOCOL_SCHEMA,
-        "status": "preregistered-before-external-game-1",
-        "experiment_id": _capture_plain_json(experiment_id),
-        "preregistered_at_utc": _capture_plain_json(preregistered_at_utc),
-        "policy": _capture_plain_json(policy_identity),
-        "candidate": _capture_plain_json(candidate),
-        "upstream": _capture_plain_json(upstream),
-        "execution_environment": _capture_plain_json(execution_environment),
-        "account": _capture_plain_json(account),
-        "authorization": _capture_plain_json(authorization),
-        "fixed_match": copy.deepcopy(FIXED_MATCH),
-        "ledger_contract": copy.deepcopy(LEDGER_CONTRACT),
-        "primary_decision": copy.deepcopy(PRIMARY_DECISION),
-        "auxiliary_statistics": copy.deepcopy(AUXILIARY_STATISTICS),
+        "status": ("requires-public-merged-main-commitment-before-external-game-1"),
+        "assembled_at_utc": _capture_plain_json(assembled_at_utc),
+        "preregistration_publication": _capture_plain_json(preregistration_publication),
+        **{key: copy.deepcopy(core[key]) for key in core if key != "schema"},
     }
     protocol = {
         **body,
@@ -773,6 +1007,23 @@ def trace_decisions_sha256(decisions: Sequence[Mapping]) -> str:
     )
 
 
+def candidate_binding_sha256(protocol: Mapping) -> str:
+    return _semantic_body_digest(
+        "shogi-external-81dojo-candidate-binding-v1\0",
+        protocol["candidate"],
+    )
+
+
+def runtime_binding_sha256(protocol: Mapping) -> str:
+    return _semantic_body_digest(
+        "shogi-external-81dojo-runtime-binding-v1\0",
+        {
+            "candidate": protocol["candidate"],
+            "execution_environment": protocol["execution_environment"],
+        },
+    )
+
+
 def _validate_server_record(value: Any) -> dict:
     record = _exact_dict(value, SERVER_RECORD_FIELDS, "game.server_record")
     if record["schema"] != SERVER_RECORD_SCHEMA:
@@ -791,10 +1042,33 @@ def _validate_server_record(value: Any) -> dict:
     return record
 
 
-def _validate_trace(value: Any) -> dict:
+def _validate_trace(
+    value: Any,
+    protocol: Mapping,
+    server_game_id: str,
+    server_record: Mapping,
+) -> dict:
     trace = _exact_dict(value, TRACE_FIELDS, "game.candidate_trace")
     if trace["schema"] != TRACE_SCHEMA:
         raise ValueError("candidate trace schema differs")
+    if trace["protocol_sha256"] != protocol["protocol_sha256"]:
+        raise ValueError("candidate trace belongs to another protocol")
+    if trace["server_game_id"] != server_game_id:
+        raise ValueError("candidate trace belongs to another server game")
+    if trace["candidate_binding_sha256"] != candidate_binding_sha256(protocol):
+        raise ValueError("candidate trace belongs to another candidate")
+    if trace["runtime_binding_sha256"] != runtime_binding_sha256(protocol):
+        raise ValueError("candidate trace belongs to another runtime")
+    _exact_value(
+        trace["server_record_artifact"],
+        server_record["artifact"],
+        "candidate_trace.server_record_artifact",
+    )
+    if (
+        trace["server_normalized_moves_sha256"]
+        != server_record["normalized_moves_sha256"]
+    ):
+        raise ValueError("candidate trace belongs to another server record")
     _asset(trace["artifact"], "candidate_trace.artifact")
     _sha256(trace["runtime_receipt_sha256"], "candidate_trace.runtime_receipt_sha256")
     decisions = trace["decisions"]
@@ -847,6 +1121,17 @@ def _game_body(entry: Mapping) -> dict:
     return {key: copy.deepcopy(entry[key]) for key in entry if key != "entry_sha256"}
 
 
+def _protocol_game_boundary(protocol: Mapping) -> datetime:
+    assembled_at = _utc_second(
+        protocol["assembled_at_utc"], "protocol.assembled_at_utc"
+    )
+    merged_at = _utc_second(
+        protocol["preregistration_publication"]["merged_at_utc"],
+        "publication.merged_at_utc",
+    )
+    return max(assembled_at, merged_at)
+
+
 def validate_game_entry(entry: Mapping, protocol: Mapping) -> Mapping:
     validate_candidate_protocol(protocol)
     entry = _exact_dict(entry, GAME_FIELDS, "81Dojo game ledger entry")
@@ -866,11 +1151,10 @@ def validate_game_entry(entry: Mapping, protocol: Mapping) -> Mapping:
     ):
         raise ValueError("server_game_id is not bounded canonical text")
     played_at = _utc_second(entry["played_at_utc"], "game.played_at_utc")
-    preregistered_at = _utc_second(
-        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
-    )
-    if played_at <= preregistered_at:
-        raise ValueError("game timestamp is not after protocol preregistration")
+    if played_at <= _protocol_game_boundary(protocol):
+        raise ValueError(
+            "game timestamp is not after merged publication and protocol assembly"
+        )
     if entry["candidate_color"] not in ("sente", "gote"):
         raise ValueError("candidate_color is not sente or gote")
     for key in (
@@ -903,7 +1187,12 @@ def validate_game_entry(entry: Mapping, protocol: Mapping) -> Mapping:
         raise ValueError("game.selected_opponent is not boolean")
     _validate_fault(entry["technical_fault"])
     server_record = _validate_server_record(entry["server_record"])
-    trace = _validate_trace(entry["candidate_trace"])
+    trace = _validate_trace(
+        entry["candidate_trace"],
+        protocol,
+        entry["server_game_id"],
+        server_record,
+    )
     _validate_trace_matches_server(entry["candidate_color"], server_record, trace)
     expected = _body_digest(
         "shogi-external-81dojo-game-ledger-entry-v1\0", _game_body(entry)
@@ -964,9 +1253,7 @@ def parse_ledger(raw: bytes, protocol: Mapping) -> list[Mapping]:
         raise ValueError("ledger exceeds 200 games")
     games: list[Mapping] = []
     server_ids: set[str] = set()
-    previous_timestamp = _utc_second(
-        protocol["preregistered_at_utc"], "protocol.preregistered_at_utc"
-    )
+    previous_timestamp = _protocol_game_boundary(protocol)
     expected_rating = protocol["account"]["rating_before_game_1"]
     expected_rated_games = protocol["account"]["rated_games_before_game_1"]
     previous_entry_sha256: str | None = None
@@ -991,7 +1278,7 @@ def parse_ledger(raw: bytes, protocol: Mapping) -> list[Mapping]:
         if timestamp <= previous_timestamp:
             if not games:
                 raise ValueError(
-                    "first ledger timestamp is not after protocol preregistration"
+                    "first ledger timestamp is not after merged publication"
                 )
             raise ValueError("ledger timestamps are not strictly increasing")
         previous_timestamp = timestamp
@@ -1025,53 +1312,212 @@ def verify_append_only_extension(
     }
 
 
-def append_local_game(
-    ledger_path: str | Path, protocol: Mapping, observation: Mapping
-) -> Mapping:
-    """Append one local observation under an exclusive lock.
+def _absolute_ledger_directory(path: str | Path) -> Path:
+    raw = os.fspath(path)
+    if type(raw) is not str or not raw or "\0" in raw:
+        raise ValueError("ledger directory path is invalid")
+    return Path(os.path.abspath(raw))
 
-    This function has no network or engine surface.  It refuses symlinks,
-    non-regular files, foreign owners, multiple hard links, and non-0600 files.
+
+def _reject_existing_symlink_ancestors(path: Path) -> None:
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            return
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError(f"ledger path has a symlink component: {current}")
+
+
+def _require_atomic_directory_primitives() -> tuple[int, int]:
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if type(no_follow) is not int or type(directory) is not int:
+        raise OSError("platform lacks atomic symlink-safe directory primitives")
+    return no_follow, directory
+
+
+def _verify_private_directory(info: os.stat_result, label: str) -> None:
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError(f"{label} is not a directory")
+    if info.st_uid != os.geteuid():
+        raise ValueError(f"{label} owner differs")
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        raise ValueError(f"{label} mode must be exactly 0700")
+
+
+def _verify_private_file(info: os.stat_result, label: str) -> None:
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"{label} is not a regular file")
+    if info.st_uid != os.geteuid() or info.st_nlink != 1:
+        raise ValueError(f"{label} owner or link count differs")
+    if stat.S_IMODE(info.st_mode) != 0o600:
+        raise ValueError(f"{label} mode must be exactly 0600")
+
+
+def _open_authoritative_storage(
+    ledger_directory: str | Path, *, create: bool, exclusive: bool
+) -> tuple[Path, int, int, int]:
+    path = _absolute_ledger_directory(ledger_directory)
+    _reject_existing_symlink_ancestors(path)
+    no_follow, directory_flag = _require_atomic_directory_primitives()
+    if not path.parent.is_dir():
+        raise ValueError("ledger directory parent must already exist")
+    if create:
+        try:
+            os.mkdir(path, 0o700)
+        except FileExistsError:
+            pass
+    _reject_existing_symlink_ancestors(path)
+    root_flags = os.O_RDONLY | no_follow | directory_flag
+    if hasattr(os, "O_CLOEXEC"):
+        root_flags |= os.O_CLOEXEC
+    root_fd = os.open(path, root_flags)
+    lock_fd = -1
+    entries_fd = -1
+    try:
+        _verify_private_directory(os.fstat(root_fd), "ledger directory")
+        if create:
+            try:
+                os.mkdir("entries", 0o700, dir_fd=root_fd)
+            except FileExistsError:
+                pass
+        lock_flags = os.O_RDWR | no_follow
+        if create:
+            lock_flags |= os.O_CREAT
+        if hasattr(os, "O_CLOEXEC"):
+            lock_flags |= os.O_CLOEXEC
+        lock_fd = os.open(".lock", lock_flags, 0o600, dir_fd=root_fd)
+        _verify_private_file(os.fstat(lock_fd), "ledger lock")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        entries_fd = os.open("entries", root_flags, dir_fd=root_fd)
+        _verify_private_directory(os.fstat(entries_fd), "ledger entries directory")
+        return path, root_fd, lock_fd, entries_fd
+    except BaseException:
+        if entries_fd >= 0:
+            os.close(entries_fd)
+        if lock_fd >= 0:
+            os.close(lock_fd)
+        os.close(root_fd)
+        raise
+
+
+def _close_authoritative_storage(root_fd: int, lock_fd: int, entries_fd: int) -> None:
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(entries_fd)
+        os.close(lock_fd)
+        os.close(root_fd)
+
+
+def _read_exact_file(fd: int, size: int, label: str) -> bytes:
+    if size < 0 or size > MAX_LEDGER_BYTES:
+        raise ValueError(f"{label} exceeds the local size bound")
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = os.read(fd, min(remaining, 1024 * 1024))
+        if not chunk:
+            raise ValueError(f"{label} short read")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    if os.read(fd, 1):
+        raise ValueError(f"{label} grew while being read")
+    return b"".join(chunks)
+
+
+def _read_authoritative_entries(entries_fd: int, no_follow: int) -> bytes:
+    final_names: list[tuple[int, str]] = []
+    for name in os.listdir(entries_fd):
+        match = ENTRY_FILE_RE.fullmatch(name)
+        if match is not None:
+            final_names.append((int(match.group(1)), name))
+            continue
+        if TEMP_ENTRY_FILE_RE.fullmatch(name) is not None:
+            info = os.stat(name, dir_fd=entries_fd, follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
+                raise ValueError("ledger temporary entry is not a private file")
+            continue
+        raise ValueError(f"ledger entries directory has unknown member: {name}")
+    final_names.sort()
+    rows = bytearray()
+    for expected_sequence, (sequence, name) in enumerate(final_names, start=1):
+        if sequence != expected_sequence:
+            raise ValueError("authoritative ledger entry filenames have a gap")
+        flags = os.O_RDONLY | no_follow
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        fd = os.open(name, flags, dir_fd=entries_fd)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError(f"ledger entry {name} is not a regular file")
+            if info.st_uid != os.geteuid() or info.st_nlink not in (1, 2):
+                raise ValueError(f"ledger entry {name} owner or link count differs")
+            if stat.S_IMODE(info.st_mode) != 0o400:
+                raise ValueError(f"ledger entry {name} mode must be exactly 0400")
+            row = _read_exact_file(fd, info.st_size, f"ledger entry {name}")
+        finally:
+            os.close(fd)
+        if row.count(b"\n") != 1 or not row.endswith(b"\n"):
+            raise ValueError(f"ledger entry {name} is not one canonical JSONL row")
+        rows.extend(row)
+        if len(rows) > MAX_LEDGER_BYTES:
+            raise ValueError("ledger exceeds the local size bound")
+    return bytes(rows)
+
+
+def authoritative_ledger_jsonl(
+    ledger_directory: str | Path, protocol: Mapping
+) -> bytes:
+    """Return the canonical JSONL derived view of immutable authoritative files."""
+
+    validate_candidate_protocol(protocol)
+    _, root_fd, lock_fd, entries_fd = _open_authoritative_storage(
+        ledger_directory, create=False, exclusive=False
+    )
+    try:
+        no_follow, _ = _require_atomic_directory_primitives()
+        raw = _read_authoritative_entries(entries_fd, no_follow)
+        parse_ledger(raw, protocol)
+        return raw
+    finally:
+        _close_authoritative_storage(root_fd, lock_fd, entries_fd)
+
+
+def _write_complete_temp_file(fd: int, encoded: bytes) -> None:
+    written = 0
+    while written < len(encoded):
+        count = os.write(fd, encoded[written:])
+        if count <= 0:
+            raise OSError("temporary ledger entry write made no progress")
+        written += count
+    os.fchmod(fd, 0o400)
+    os.fsync(fd)
+
+
+def append_local_game(
+    ledger_directory: str | Path, protocol: Mapping, observation: Mapping
+) -> Mapping:
+    """Atomically publish one validated immutable local entry.
+
+    Authoritative state is a private directory of one-file-per-game entries.
+    JSONL is only a derived view.  A candidate prefix is fully validated before
+    any temporary file is created; a complete fsynced temporary file is then
+    hard-linked to its final name without overwrite and the directory is
+    fsynced.  No network, engine, credential, or live-weight surface exists.
     """
 
     validate_candidate_protocol(protocol)
-    path = Path(ledger_path)
-    no_follow = getattr(os, "O_NOFOLLOW", None)
-    if no_follow is None:
-        try:
-            path_info = os.lstat(path)
-        except FileNotFoundError:
-            path_info = None
-        if path_info is not None and stat.S_ISLNK(path_info.st_mode):
-            raise ValueError("ledger path is a symlink")
-        raise OSError("platform lacks atomic symlink-safe ledger open")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    flags = os.O_RDWR | os.O_APPEND | os.O_CREAT
-    if hasattr(os, "O_CLOEXEC"):
-        flags |= os.O_CLOEXEC
-    flags |= no_follow
-    fd = os.open(path, flags, 0o600)
+    _, root_fd, lock_fd, entries_fd = _open_authoritative_storage(
+        ledger_directory, create=True, exclusive=True
+    )
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode):
-            raise ValueError("ledger is not a regular file")
-        if info.st_uid != os.geteuid() or info.st_nlink != 1:
-            raise ValueError("ledger owner or link count differs")
-        if stat.S_IMODE(info.st_mode) != 0o600:
-            raise ValueError("ledger mode must be exactly 0600")
-        if info.st_size > MAX_LEDGER_BYTES:
-            raise ValueError("ledger exceeds the local size bound")
-        os.lseek(fd, 0, os.SEEK_SET)
-        chunks = []
-        remaining = info.st_size
-        while remaining:
-            chunk = os.read(fd, min(remaining, 1024 * 1024))
-            if not chunk:
-                raise ValueError("ledger short read")
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        raw = b"".join(chunks)
+        no_follow, _ = _require_atomic_directory_primitives()
+        raw = _read_authoritative_entries(entries_fd, no_follow)
         games = parse_ledger(raw, protocol)
         if len(games) >= GAME_COUNT:
             raise ValueError("ledger already contains all 200 games")
@@ -1082,19 +1528,32 @@ def append_local_game(
             observation=observation,
         )
         encoded = encode_ledger_entry(entry)
-        written = 0
-        while written < len(encoded):
-            count = os.write(fd, encoded[written:])
-            if count <= 0:
-                raise OSError("ledger append made no progress")
-            written += count
-        os.fsync(fd)
+        candidate_raw = raw + encoded
+        parse_ledger(candidate_raw, protocol)
+
+        temp_name = f".tmp-{os.getpid()}-{secrets.token_hex(16)}"
+        final_name = f"{entry['sequence']:06d}.json"
+        temp_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
+        if hasattr(os, "O_CLOEXEC"):
+            temp_flags |= os.O_CLOEXEC
+        temp_fd = os.open(temp_name, temp_flags, 0o600, dir_fd=entries_fd)
+        try:
+            _write_complete_temp_file(temp_fd, encoded)
+        finally:
+            os.close(temp_fd)
+        os.link(
+            temp_name,
+            final_name,
+            src_dir_fd=entries_fd,
+            dst_dir_fd=entries_fd,
+            follow_symlinks=False,
+        )
+        os.fsync(entries_fd)
+        os.unlink(temp_name, dir_fd=entries_fd)
+        os.fsync(entries_fd)
         return entry
     finally:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        finally:
-            os.close(fd)
+        _close_authoritative_storage(root_fd, lock_fd, entries_fd)
 
 
 def _score_units(game: Mapping) -> int:
@@ -1187,6 +1646,24 @@ def finalize_calibration(protocol: Mapping, ledger_raw: bytes) -> Mapping:
         "execution_environment": copy.deepcopy(protocol["execution_environment"]),
         "account_public_id_sha256": protocol["account"]["public_account_id_sha256"],
         "rules_reverified_date": protocol["authorization"]["rules_reverified_date"],
+        "preregistration_boundary": {
+            "authority": (
+                "requires-independent-public-merged-main-verification-" "before-game-1"
+            ),
+            "repository_url": protocol["preregistration_publication"]["repository_url"],
+            "branch": protocol["preregistration_publication"]["branch"],
+            "data_path": protocol["preregistration_publication"]["data_path"],
+            "artifact": copy.deepcopy(
+                protocol["preregistration_publication"]["artifact"]
+            ),
+            "merged_main_revision": protocol["preregistration_publication"][
+                "merged_main_revision"
+            ],
+            "merged_main_tree": protocol["preregistration_publication"][
+                "merged_main_tree"
+            ],
+            "merged_at_utc": protocol["preregistration_publication"]["merged_at_utc"],
+        },
         "ledger": {
             "bytes": len(ledger_raw),
             "sha256": hashlib.sha256(ledger_raw).hexdigest(),
@@ -1224,6 +1701,8 @@ def finalize_calibration(protocol: Mapping, ledger_raw: bytes) -> Mapping:
             "universal_human_rank_established": False,
             "other_platform_rank_established": False,
             "official_server_cryptographic_attestation": False,
+            "offline_verifier_independently_proves_remote_merge": False,
+            "self_asserted_timestamp_is_preregistration_proof": False,
             "live_weight_change": False,
         },
     }
@@ -1267,8 +1746,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     append = subparsers.add_parser("append-local")
     append.add_argument("--protocol", required=True)
-    append.add_argument("--ledger", required=True)
+    append.add_argument(
+        "--ledger-directory", "--ledger", dest="ledger_directory", required=True
+    )
     append.add_argument("--observation", required=True)
+
+    derive = subparsers.add_parser("derive-local-jsonl")
+    derive.add_argument("--protocol", required=True)
+    derive.add_argument("--ledger-directory", required=True)
 
     args = parser.parse_args(argv)
     protocol = load_protocol_file(args.protocol)
@@ -1287,7 +1772,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "append-local":
         observation_raw = Path(args.observation).read_text(encoding="utf-8")
         observation = strict_json_loads(observation_raw)
-        _print_json(append_local_game(args.ledger, protocol, observation))
+        _print_json(append_local_game(args.ledger_directory, protocol, observation))
+        return 0
+    if args.command == "derive-local-jsonl":
+        sys.stdout.buffer.write(
+            authoritative_ledger_jsonl(args.ledger_directory, protocol)
+        )
         return 0
     raise AssertionError("unreachable command")
 

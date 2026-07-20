@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime, timedelta, timezone
+import hashlib
 from pathlib import Path
 import stat
 import sys
@@ -30,15 +31,15 @@ def asset(number: int) -> dict:
     return {"bytes": 1000 + number, "sha256": digest(number)}
 
 
-def fixture_protocol() -> dict:
+def fixture_protocol(identity_offset: int = 0) -> dict:
     _, policy_identity = calibration.load_checked_in_policy(REPO_ROOT)
     candidate = {
-        "repository_revision": "1" * 40,
-        "repository_tree": "2" * 40,
-        "weights": asset(101),
-        "worker": asset(102),
-        "wasm": asset(103),
-        "opening_book": asset(104),
+        "repository_revision": f"{identity_offset + 1:x}" * 40,
+        "repository_tree": f"{identity_offset + 2:x}" * 40,
+        "weights": asset(101 + identity_offset * 10),
+        "worker": asset(102 + identity_offset * 10),
+        "wasm": asset(103 + identity_offset * 10),
+        "opening_book": asset(104 + identity_offset * 10),
         "runtime": copy.deepcopy(calibration.CANDIDATE_RUNTIME_CONTRACT),
     }
     upstream = {
@@ -78,21 +79,38 @@ def fixture_protocol() -> dict:
         "external_server_or_ui_automation": False,
         "execution_authorized": True,
     }
+    core = calibration.build_candidate_protocol_core(
+        experiment_id=semantic_id(601 + identity_offset),
+        policy_identity=policy_identity,
+        candidate=candidate,
+        upstream=upstream,
+        execution_environment=execution_environment,
+        account=account,
+        authorization=authorization,
+    )
+    document = calibration.build_preregistration_publication_document(
+        core, recorded_at_utc="2026-07-30T12:00:00Z"
+    )
+    publication = calibration.bind_merged_main_publication(
+        document,
+        data_path=(
+            "docs/data/shogi-81dojo-fixture-protocol-" f"{601 + identity_offset}.json"
+        ),
+        merged_main_revision="3" * 40,
+        merged_main_tree="4" * 40,
+        merged_at_utc="2026-07-31T12:00:00Z",
+    )
     return dict(
         calibration.build_candidate_protocol(
-            experiment_id=semantic_id(601),
-            preregistered_at_utc="2026-07-31T23:59:00Z",
-            policy_identity=policy_identity,
-            candidate=candidate,
-            upstream=upstream,
-            execution_environment=execution_environment,
-            account=account,
-            authorization=authorization,
+            core=core,
+            assembled_at_utc="2026-07-31T12:01:00Z",
+            preregistration_publication=publication,
         )
     )
 
 
 def fixture_observation(
+    protocol: dict,
     sequence: int,
     *,
     rating_before: int = 2100,
@@ -112,8 +130,16 @@ def fixture_observation(
         for ply in range(first_ply, len(moves) + 1, 2)
     ]
     played_at = datetime(2026, 8, 1, tzinfo=timezone.utc) + timedelta(seconds=sequence)
+    server_game_id = f"81dojo-fixture-{sequence:03d}"
+    server_record = {
+        "schema": calibration.SERVER_RECORD_SCHEMA,
+        "artifact": asset(20_000 + sequence),
+        "normalized_moves": moves,
+        "normalized_moves_sha256": calibration.normalized_moves_sha256(moves),
+        "manual_export_attestation_sha256": digest(30_000 + sequence),
+    }
     return {
-        "server_game_id": f"81dojo-fixture-{sequence:03d}",
+        "server_game_id": server_game_id,
         "played_at_utc": played_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "candidate_color": color,
         "candidate_rating_before": rating_before,
@@ -127,15 +153,15 @@ def fixture_observation(
         "rating_counted": True,
         "selected_opponent": selected_opponent,
         "technical_fault": technical_fault,
-        "server_record": {
-            "schema": calibration.SERVER_RECORD_SCHEMA,
-            "artifact": asset(20_000 + sequence),
-            "normalized_moves": moves,
-            "normalized_moves_sha256": calibration.normalized_moves_sha256(moves),
-            "manual_export_attestation_sha256": digest(30_000 + sequence),
-        },
+        "server_record": server_record,
         "candidate_trace": {
             "schema": calibration.TRACE_SCHEMA,
+            "protocol_sha256": protocol["protocol_sha256"],
+            "server_game_id": server_game_id,
+            "candidate_binding_sha256": calibration.candidate_binding_sha256(protocol),
+            "runtime_binding_sha256": calibration.runtime_binding_sha256(protocol),
+            "server_record_artifact": copy.deepcopy(server_record["artifact"]),
+            "server_normalized_moves_sha256": server_record["normalized_moves_sha256"],
             "artifact": asset(40_000 + sequence),
             "runtime_receipt_sha256": digest(50_000 + sequence),
             "decisions": decisions,
@@ -164,6 +190,7 @@ def fixture_ledger(
                 "evidence_sha256": digest(60_000 + sequence),
             }
         observation = fixture_observation(
+            protocol,
             sequence,
             rating_before=rating,
             rating_after=rating_after,
@@ -199,15 +226,45 @@ class External81DojoCalibrationTest(unittest.TestCase):
         self.assertFalse(policy["authority"]["execution_authorized"])
         self.assertFalse(policy["authority"]["external_write_authorized"])
         self.assertEqual(policy["unresolved"]["external_games_observed"], 0)
+        self.assertTrue(
+            policy["ledger_contract"][
+                "public_merged_main_protocol_commitment_before_game_1"
+            ]
+        )
+        self.assertTrue(
+            policy["ledger_contract"][
+                "self_asserted_timestamp_is_not_preregistration_proof"
+            ]
+        )
 
     def test_protocol_binds_candidate_runtime_environment_and_authorization(self):
         validated = calibration.validate_candidate_protocol(self.protocol)
 
         self.assertEqual(
+            validated["status"],
+            "requires-public-merged-main-commitment-before-external-game-1",
+        )
+        self.assertEqual(
             validated["candidate"]["runtime"],
             calibration.CANDIDATE_RUNTIME_CONTRACT,
         )
-        self.assertEqual(validated["preregistered_at_utc"], "2026-07-31T23:59:00Z")
+        self.assertEqual(validated["assembled_at_utc"], "2026-07-31T12:01:00Z")
+        publication = validated["preregistration_publication"]
+        self.assertEqual(publication["branch"], "main")
+        publication_bytes = calibration.encode_preregistration_publication_document(
+            publication["document"]
+        )
+        self.assertEqual(len(publication_bytes), publication["artifact"]["bytes"])
+        self.assertEqual(
+            hashlib.sha256(publication_bytes).hexdigest(),
+            publication["artifact"]["sha256"],
+        )
+        self.assertEqual(
+            publication["document"]["protocol_core_sha256"],
+            calibration.protocol_core_sha256(
+                calibration._protocol_core_body(validated)
+            ),
+        )
         self.assertTrue(validated["upstream"]["all_internal_gates_passed"])
         self.assertTrue(validated["authorization"]["manual_relay_confirmed"])
         self.assertFalse(validated["authorization"]["external_server_or_ui_automation"])
@@ -222,8 +279,16 @@ class External81DojoCalibrationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fixed policy"):
             calibration.validate_candidate_protocol(wrong_runtime)
 
+        another_protocol = fixture_protocol(1)
+        wrong_publication = copy.deepcopy(self.protocol)
+        wrong_publication["preregistration_publication"] = copy.deepcopy(
+            another_protocol["preregistration_publication"]
+        )
+        with self.assertRaisesRegex(ValueError, "another protocol core"):
+            calibration.validate_candidate_protocol(wrong_publication)
+
     def test_candidate_trace_must_match_every_server_move(self):
-        observation = fixture_observation(1)
+        observation = fixture_observation(self.protocol, 1)
         observation["candidate_trace"]["decisions"][0]["usi"] = "2g2f"
         observation["candidate_trace"]["decisions_sha256"] = (
             calibration.trace_decisions_sha256(
@@ -239,6 +304,28 @@ class External81DojoCalibrationTest(unittest.TestCase):
                 observation=observation,
             )
 
+    def test_candidate_trace_cannot_cross_protocols_or_server_records(self):
+        another_protocol = fixture_protocol(1)
+        observation = fixture_observation(self.protocol, 1)
+
+        with self.assertRaisesRegex(ValueError, "another protocol"):
+            calibration.build_game_entry(
+                another_protocol,
+                sequence=1,
+                previous_entry_sha256=None,
+                observation=observation,
+            )
+
+        wrong_record = fixture_observation(self.protocol, 1)
+        wrong_record["server_record"]["artifact"] = asset(99_999)
+        with self.assertRaisesRegex(ValueError, "server_record_artifact"):
+            calibration.build_game_entry(
+                self.protocol,
+                sequence=1,
+                previous_entry_sha256=None,
+                observation=wrong_record,
+            )
+
     def test_ledger_is_canonical_chained_continuous_and_append_only(self):
         first = fixture_ledger(self.protocol, 1)
         first_two = fixture_ledger(self.protocol, 2)
@@ -250,8 +337,11 @@ class External81DojoCalibrationTest(unittest.TestCase):
         self.assertTrue(receipt["prefix_exact"])
         self.assertEqual(len(calibration.parse_ledger(first_two, self.protocol)), 2)
 
-        alternate_observation = fixture_observation(1)
+        alternate_observation = fixture_observation(self.protocol, 1)
         alternate_observation["server_game_id"] = "81dojo-fixture-alternate"
+        alternate_observation["candidate_trace"][
+            "server_game_id"
+        ] = "81dojo-fixture-alternate"
         alternate_entry = calibration.build_game_entry(
             self.protocol,
             sequence=1,
@@ -262,11 +352,11 @@ class External81DojoCalibrationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rewrote or removed"):
             calibration.verify_append_only_extension(first, alternate, self.protocol)
 
-    def test_first_game_must_be_after_candidate_preregistration(self):
-        observation = fixture_observation(1)
-        observation["played_at_utc"] = "2026-07-31T23:58:59Z"
+    def test_first_game_must_be_after_public_merged_main_commitment(self):
+        observation = fixture_observation(self.protocol, 1)
+        observation["played_at_utc"] = "2026-07-31T11:59:59Z"
 
-        with self.assertRaisesRegex(ValueError, "after protocol preregistration"):
+        with self.assertRaisesRegex(ValueError, "after merged publication"):
             calibration.build_game_entry(
                 self.protocol,
                 sequence=1,
@@ -274,26 +364,151 @@ class External81DojoCalibrationTest(unittest.TestCase):
                 observation=observation,
             )
 
-    def test_local_append_uses_private_regular_file(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "ledger.jsonl"
+    def test_local_append_uses_immutable_authoritative_entry_files(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT) as directory:
+            path = Path(directory) / "ledger"
             first = calibration.append_local_game(
-                path, self.protocol, fixture_observation(1)
+                path, self.protocol, fixture_observation(self.protocol, 1)
             )
-            calibration.append_local_game(path, self.protocol, fixture_observation(2))
+            calibration.append_local_game(
+                path, self.protocol, fixture_observation(self.protocol, 2)
+            )
 
-            games = calibration.parse_ledger(path.read_bytes(), self.protocol)
+            raw = calibration.authoritative_ledger_jsonl(path, self.protocol)
+            games = calibration.parse_ledger(raw, self.protocol)
             self.assertEqual(len(games), 2)
             self.assertEqual(games[1]["previous_entry_sha256"], first["entry_sha256"])
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700)
+            self.assertEqual(
+                sorted(member.name for member in (path / "entries").iterdir()),
+                ["000001.json", "000002.json"],
+            )
+            self.assertTrue(
+                all(
+                    stat.S_IMODE(member.stat().st_mode) == 0o400
+                    for member in (path / "entries").iterdir()
+                )
+            )
 
-            symlink = Path(directory) / "ledger-link.jsonl"
+            symlink = Path(directory) / "ledger-link"
             symlink.symlink_to(path)
             with mock.patch.object(calibration.os, "O_NOFOLLOW", None):
-                with self.assertRaisesRegex(ValueError, "path is a symlink"):
+                with self.assertRaisesRegex(ValueError, "symlink component"):
                     calibration.append_local_game(
-                        symlink, self.protocol, fixture_observation(3)
+                        symlink,
+                        self.protocol,
+                        fixture_observation(self.protocol, 3),
                     )
+
+    def test_invalid_cross_entry_append_changes_zero_authoritative_bytes(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT) as directory:
+            path = Path(directory) / "ledger"
+            calibration.append_local_game(
+                path, self.protocol, fixture_observation(self.protocol, 1)
+            )
+            before = calibration.authoritative_ledger_jsonl(path, self.protocol)
+            before_files = {
+                member.name: member.read_bytes()
+                for member in (path / "entries").iterdir()
+            }
+
+            duplicate = fixture_observation(self.protocol, 2)
+            duplicate["server_game_id"] = "81dojo-fixture-001"
+            duplicate["candidate_trace"]["server_game_id"] = "81dojo-fixture-001"
+            rating_drift = fixture_observation(self.protocol, 2)
+            rating_drift["candidate_rating_before"] = 2099
+            count_drift = fixture_observation(self.protocol, 2)
+            count_drift["account_rated_games_before"] = 999
+            count_drift["account_rated_games_after"] = 1000
+            timestamp_drift = fixture_observation(self.protocol, 2)
+            timestamp_drift["played_at_utc"] = "2026-08-01T00:00:01Z"
+
+            for observation, message in (
+                (duplicate, "repeats a server game ID"),
+                (rating_drift, "rating continuity"),
+                (count_drift, "rated-game count continuity"),
+                (timestamp_drift, "timestamps are not strictly increasing"),
+            ):
+                with self.subTest(message=message):
+                    with self.assertRaisesRegex(ValueError, message):
+                        calibration.append_local_game(path, self.protocol, observation)
+                    self.assertEqual(
+                        calibration.authoritative_ledger_jsonl(path, self.protocol),
+                        before,
+                    )
+                    self.assertEqual(
+                        {
+                            member.name: member.read_bytes()
+                            for member in (path / "entries").iterdir()
+                        },
+                        before_files,
+                    )
+
+    def test_partial_temp_write_does_not_poison_authoritative_prefix(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT) as directory:
+            path = Path(directory) / "ledger"
+            calibration.append_local_game(
+                path, self.protocol, fixture_observation(self.protocol, 1)
+            )
+            before = calibration.authoritative_ledger_jsonl(path, self.protocol)
+
+            def partial_write(fd: int, encoded: bytes):
+                calibration.os.write(fd, encoded[:17])
+                calibration.os.fsync(fd)
+                raise OSError("simulated crash during temporary write")
+
+            with mock.patch.object(
+                calibration,
+                "_write_complete_temp_file",
+                side_effect=partial_write,
+            ):
+                with self.assertRaisesRegex(OSError, "simulated crash"):
+                    calibration.append_local_game(
+                        path,
+                        self.protocol,
+                        fixture_observation(self.protocol, 2),
+                    )
+
+            self.assertEqual(
+                calibration.authoritative_ledger_jsonl(path, self.protocol),
+                before,
+            )
+            self.assertEqual(
+                [
+                    member.name
+                    for member in (path / "entries").iterdir()
+                    if calibration.ENTRY_FILE_RE.fullmatch(member.name)
+                ],
+                ["000001.json"],
+            )
+            calibration.append_local_game(
+                path, self.protocol, fixture_observation(self.protocol, 2)
+            )
+            self.assertEqual(
+                len(
+                    calibration.parse_ledger(
+                        calibration.authoritative_ledger_jsonl(path, self.protocol),
+                        self.protocol,
+                    )
+                ),
+                2,
+            )
+
+    def test_symlink_parent_is_rejected_without_target_write(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT) as directory:
+            base = Path(directory)
+            real_parent = base / "real-parent"
+            real_parent.mkdir(mode=0o700)
+            linked_parent = base / "linked-parent"
+            linked_parent.symlink_to(real_parent, target_is_directory=True)
+
+            with self.assertRaisesRegex(ValueError, "symlink component"):
+                calibration.append_local_game(
+                    linked_parent / "ledger",
+                    self.protocol,
+                    fixture_observation(self.protocol, 1),
+                )
+            self.assertEqual(list(real_parent.iterdir()), [])
 
     def test_complete_receipt_keeps_primary_decision_separate_from_bootstrap(self):
         with mock.patch.object(calibration, "BOOTSTRAP_REPLICATES", 100):

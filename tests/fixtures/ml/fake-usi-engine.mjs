@@ -18,6 +18,8 @@ const hangUsiAfterMarkerPath =
   hangUsiAfterMarkerIndex >= 0 ? process.argv[hangUsiAfterMarkerIndex + 1] : null;
 const hangUsi = process.argv.includes('--hang-usi');
 const hangEveryGo = process.argv.includes('--hang-go');
+const incompleteProposal = process.argv.includes('--incomplete-proposal');
+const incompleteRescore = process.argv.includes('--incomplete-rescore');
 if (environmentTracePath) {
   fs.appendFileSync(
     environmentTracePath,
@@ -109,12 +111,18 @@ rl.on('line', (line) => {
     '5g5f',
     '3g3f',
   ];
-  const moves = [...requested].sort(compareMoves).slice(0, multipv);
+  const requestedRanks =
+    incompleteProposal && searchmoves.length === 0
+      ? Math.max(1, multipv - 1)
+      : multipv;
+  const moves = [...requested].sort(compareMoves).slice(0, requestedRanks);
   const depth = Number.parseInt(line.match(/\bdepth (\d+)/)?.[1] ?? '8', 10);
+  const emittedDepth =
+    incompleteRescore && searchmoves.length === 1 ? depth - 1 : depth;
   trace({ event: 'search', multipv, searchmoves, moves, depth });
   for (let rank = moves.length; rank >= 1; rank--) {
     console.log(
-      `info depth ${depth} multipv ${rank} score cp ${scoreFor(moves[rank - 1])} nodes 64 pv ${moves[rank - 1]}`
+      `info depth ${emittedDepth} multipv ${rank} score cp ${scoreFor(moves[rank - 1])} nodes 64 pv ${moves[rank - 1]}`
     );
   }
   console.log(`bestmove ${moves[0]}`);

@@ -762,8 +762,12 @@ def _execute_pair_subprocess(repo_root: Path, request: Mapping) -> dict:
         or completed.stdout.count("\n") != 1
         or len(completed.stdout.encode("utf-8")) > 4 * 1024 * 1024
     ):
+        stderr_bytes = completed.stderr.encode("utf-8")
         raise FormalAbV2WasmMatchTechnicalFault(
-            "local WASM pair subprocess reported a technical fault"
+            "local WASM pair subprocess reported a technical fault "
+            f"(code={completed.returncode}, "
+            f"stderr_bytes={len(stderr_bytes)}, "
+            f"stderr_sha256={legacy._sha256_bytes(stderr_bytes)})"
         )
     try:
         receipt = legacy._strict_json_loads(completed.stdout[:-1])

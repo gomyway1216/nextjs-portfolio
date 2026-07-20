@@ -665,6 +665,74 @@ interface PendingIpc {
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
+interface CloseEventSource {
+  once(event: "close", listener: () => void): unknown;
+  removeListener(event: "close", listener: () => void): unknown;
+}
+
+function waitForChildClose(
+  child: CloseEventSource,
+  isClosed: () => boolean,
+  markClosed: () => void,
+  timeoutMs: number,
+  timeoutMessage: string,
+  onTimeout?: () => void,
+): Promise<void> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = (): void => {
+      if (timer !== undefined) clearTimeout(timer);
+      child.removeListener("close", onClose);
+    };
+    const onClose = (): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      markClosed();
+      resolvePromise();
+    };
+    child.once("close", onClose);
+    // Listener-first plus recheck covers both an already-observed close and a
+    // close delivered synchronously by a test/future event source.
+    if (isClosed()) {
+      onClose();
+      return;
+    }
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        onTimeout?.();
+      } catch (error) {
+        rejectPromise(
+          error instanceof Error
+            ? error
+            : new Error("child timeout cleanup failed"),
+        );
+        return;
+      }
+      rejectPromise(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+}
+
+/** Test seam for the listener-first/recheck close-wait primitive. */
+export function waitForFormalPairedAbV2ChildCloseCoreForTests(
+  child: CloseEventSource,
+  isClosed: () => boolean,
+  timeoutMs: number,
+): Promise<void> {
+  return waitForChildClose(
+    child,
+    isClosed,
+    () => undefined,
+    timeoutMs,
+    "test child did not close",
+  );
+}
+
 class IsolatedWasmPlayer implements FormalPairedAbV2Player {
   readonly binding: FormalPairedAbV2Player["binding"];
   private readonly child: ChildProcess;
@@ -903,26 +971,22 @@ class IsolatedWasmPlayer implements FormalPairedAbV2Player {
 
   readonly abortAndReap = (): Promise<void> => {
     if (this.stopPromise !== undefined) return this.stopPromise;
-    this.stopPromise = new Promise((resolvePromise, rejectPromise) => {
-      if (this.closed) {
-        resolvePromise();
-        return;
-      }
-      const timer = setTimeout(() => {
-        this.child.removeListener("close", onClose);
-        this.child.kill("SIGKILL");
-        rejectPromise(
-          new Error("isolated player did not reap after forced termination"),
-        );
-      }, FORMAL_PAIRED_AB_V2_CLEANUP_TIMEOUT_MS);
-      const onClose = (): void => {
-        clearTimeout(timer);
-        this.closed = true;
-        resolvePromise();
-      };
-      this.child.once("close", onClose);
-      this.child.kill("SIGKILL");
-    });
+    this.stopPromise = (async () => {
+      const reaped = waitForChildClose(
+        this.child,
+        () => this.closed,
+        () => {
+          this.closed = true;
+        },
+        FORMAL_PAIRED_AB_V2_CLEANUP_TIMEOUT_MS,
+        "isolated player did not reap after forced termination",
+        () => {
+          this.child.kill("SIGKILL");
+        },
+      );
+      if (!this.closed) this.child.kill("SIGKILL");
+      await reaped;
+    })();
     return this.stopPromise;
   };
 
@@ -952,20 +1016,15 @@ class IsolatedWasmPlayer implements FormalPairedAbV2Player {
         ) {
           throw new Error("isolated player cleanup receipt is invalid");
         }
-        if (!this.closed) {
-          await new Promise<void>((resolvePromise, rejectPromise) => {
-            const timer = setTimeout(() => {
-              rejectPromise(
-                new Error("isolated player did not reap after quit"),
-              );
-            }, FORMAL_PAIRED_AB_V2_CLEANUP_TIMEOUT_MS);
-            this.child.once("close", () => {
-              clearTimeout(timer);
-              this.closed = true;
-              resolvePromise();
-            });
-          });
-        }
+        await waitForChildClose(
+          this.child,
+          () => this.closed,
+          () => {
+            this.closed = true;
+          },
+          FORMAL_PAIRED_AB_V2_CLEANUP_TIMEOUT_MS,
+          "isolated player did not reap after quit",
+        );
         this.stopPromise = Promise.resolve();
       } catch (primary) {
         try {

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 
 ML_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -297,6 +298,30 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
                     execute,
                 )
             self.assertEqual(calls, 0)
+
+    def test_subprocess_fault_reports_sanitized_diagnostic_not_raw_stderr(self):
+        sensitive_stderr = "private path: /tmp/operator-secret\n"
+        completed = launcher.subprocess.CompletedProcess(
+            args=[],
+            returncode=7,
+            stdout="",
+            stderr=sensitive_stderr,
+        )
+        with mock.patch.object(launcher.subprocess, "run", return_value=completed):
+            with self.assertRaises(
+                launcher.FormalAbV2WasmMatchTechnicalFault
+            ) as raised:
+                launcher._execute_pair_subprocess(Path(ML_DIR).parent, {})
+        diagnostic = str(raised.exception)
+        stderr_bytes = sensitive_stderr.encode("utf-8")
+        self.assertIn("code=7", diagnostic)
+        self.assertIn(f"stderr_bytes={len(stderr_bytes)}", diagnostic)
+        self.assertIn(
+            f"stderr_sha256={legacy._sha256_bytes(stderr_bytes)}",
+            diagnostic,
+        )
+        self.assertNotIn(sensitive_stderr.strip(), diagnostic)
+        self.assertNotIn("/tmp/operator-secret", diagnostic)
 
 
 if __name__ == "__main__":

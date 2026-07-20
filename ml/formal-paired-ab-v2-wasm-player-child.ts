@@ -36,7 +36,7 @@ const NNUE_SCALE_K = 600;
 const WASM_BYTES = 35_597;
 const WASM_SHA256 =
   "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c";
-const WINNING_MATE_SCORE_MIN = 89_990_000;
+const MATE_SCORE_ABS_MIN = 89_990_000;
 const MAX_SEARCH_SCORE = 90_000_000;
 const MAX_IPC_TEXT_BYTES = 512 * 1024;
 
@@ -306,7 +306,10 @@ function search(
     stats.leaves < 0 ||
     stats.nodes + stats.leaves === 0 ||
     (stats.depth !== SEARCH_DEPTH &&
-      !(stats.depth < SEARCH_DEPTH && stats.score >= WINNING_MATE_SCORE_MIN))
+      !(
+        stats.depth < SEARCH_DEPTH &&
+        Math.abs(stats.score) >= MATE_SCORE_ABS_MIN
+      ))
   ) {
     fail("WASM search result differs from the registered depth/mate contract");
   }

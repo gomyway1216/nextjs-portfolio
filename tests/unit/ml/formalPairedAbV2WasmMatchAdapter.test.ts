@@ -20,6 +20,7 @@ import {
   runAuthenticatedFormalPairedAbV2WasmPair,
   runFormalPairedAbV2WasmPairCoreForTests,
   validateFormalPairedAbV2ExactAccounting,
+  waitForFormalPairedAbV2ChildCloseCoreForTests,
   type FormalPairedAbV2ArtifactIdentity,
   type FormalPairedAbV2CoreDependencies,
   type FormalPairedAbV2MoveInput,
@@ -340,6 +341,49 @@ describe("formal paired A/B v2 executable WASM match adapter", () => {
     expect(stableState.closes).toBe(1);
   });
 
+  it("registers close listeners before rechecking already-closed children", async () => {
+    let closed = false;
+    const synchronousClose = {
+      once: (_event: "close", listener: () => void) => {
+        closed = true;
+        listener();
+        return synchronousClose;
+      },
+      removeListener: (_event: "close", _listener: () => void) =>
+        synchronousClose,
+    };
+    await expect(
+      waitForFormalPairedAbV2ChildCloseCoreForTests(
+        synchronousClose,
+        () => closed,
+        50,
+      ),
+    ).resolves.toBeUndefined();
+
+    const order: string[] = [];
+    const alreadyClosed = {
+      once: (_event: "close", _listener: () => void) => {
+        order.push("listener");
+        return alreadyClosed;
+      },
+      removeListener: (_event: "close", _listener: () => void) => {
+        order.push("removed");
+        return alreadyClosed;
+      },
+    };
+    await expect(
+      waitForFormalPairedAbV2ChildCloseCoreForTests(
+        alreadyClosed,
+        () => {
+          order.push("recheck");
+          return true;
+        },
+        50,
+      ),
+    ).resolves.toBeUndefined();
+    expect(order).toEqual(["listener", "recheck", "removed"]);
+  });
+
   it("rejects same-weight loads and forged execution capabilities before games", async () => {
     const same = request(MATE_IN_ONE_SFEN, [], {
       stable_weights: { ...CANDIDATE },
@@ -504,6 +548,20 @@ describe("formal paired A/B v2 executable WASM match adapter", () => {
       candidate_closed_and_reaped: true,
       stable_closed_and_reaped: true,
       assets_revalidated_after_games: true,
+    });
+
+    const oversized = spawnSync(process.execPath, ["-r", tsx, cli], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: Buffer.alloc(128 * 1024 + 1, 0x20),
+      maxBuffer: 1024 * 1024,
+    });
+    expect(oversized.status).toBe(2);
+    expect(oversized.stdout).toBe("");
+    expect(JSON.parse(oversized.stderr)).toMatchObject({
+      status: "STOP",
+      reason: "formal-pair-technical-fault",
+      message: "stdin exceeds the hard byte limit",
     });
   }, 30_000);
 

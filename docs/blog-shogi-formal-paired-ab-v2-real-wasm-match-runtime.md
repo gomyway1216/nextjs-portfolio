@@ -32,7 +32,7 @@ code-pinned ready registryはまだ未登録なので、実candidateは未登録
 
 親processが読んだweight identityをそのまま信用するのではない。各child processも自分で対象fileを読み直し、byte countとSHA-256を確認してからWASM memoryへコピーする。candidateとstableはmodule global、WASM memory、TT、NNUE bytesを共有しない。
 
-各着手ではbrowser側の完全合法手集合とchild側の合法手集合が一致しなければ停止する。WASMが返した手が合法手集合にない場合、depth 11まで完了していない場合、または許可された早期勝ち詰みbandでない場合も、そのpairの結果は発行しない。
+各着手ではbrowser側の完全合法手集合とchild側の合法手集合が一致しなければ停止する。WASMが返した手が合法手集合にない場合、depth 11まで完了していない場合、または絶対値`89,990,000..90,000,000`の許可された早期詰みbandでない場合も、そのpairの結果は発行しない。
 
 ## 色替えと結果の向き
 

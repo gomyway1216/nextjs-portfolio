@@ -8,6 +8,8 @@ const repositoryRoot = path.resolve(__dirname, "../../..");
 const evidenceRelative =
   "docs/data/floodgate-formal-paired-ab-v2-real-wasm-match-runtime-2026-07-20.json";
 const adapterRelative = "ml/formal-paired-ab-v2-wasm-match-adapter.ts";
+const childRelative = "ml/formal-paired-ab-v2-wasm-player-child.ts";
+const pairEntryRelative = "ml/run-formal-paired-ab-v2-wasm-pair.ts";
 const launcherRelative = "ml/formal_paired_ab_v2_wasm_match_launcher.py";
 const japaneseArticleRelative =
   "docs/blog-shogi-formal-paired-ab-v2-real-wasm-match-runtime.md";
@@ -87,6 +89,8 @@ describe("formal paired A/B v2 real WASM match runtime evidence", () => {
       nnue_scale_k: 600,
       fixed_depth: 11,
       quiescence_depth: 10,
+      early_mate_absolute_score_min: 89_990_000,
+      early_mate_absolute_score_max: 90_000_000,
       private_tt_cleared_before_every_decision: true,
       opening_book: false,
       fallback: false,
@@ -104,6 +108,10 @@ describe("formal paired A/B v2 real WASM match runtime evidence", () => {
       child_independent_exact_bytes_and_sha256_before_wasm_load: true,
       inode_metadata_and_content_revalidated_after_both_games: true,
       both_children_closed_and_reaped_before_receipt: true,
+      listener_first_close_wait_with_recheck: true,
+      incremental_stdin_hard_cap_bytes: 131_072,
+      subprocess_fault_diagnostic:
+        "returncode-stderr-bytes-sha256-no-raw-stderr",
       receipt_on_partial_or_cleanup_failure: false,
     });
     expect(evidence.journal_and_resume).toMatchObject({
@@ -122,6 +130,14 @@ describe("formal paired A/B v2 real WASM match runtime evidence", () => {
     expect(adapter).toContain(
       "export function validateFormalPairedAbV2ExactAccounting(",
     );
+    expect(adapter).toContain('child.once("close", onClose);');
+    expect(adapter).toContain("if (isClosed())");
+    expect(read(childRelative)).toContain(
+      "Math.abs(stats.score) >= MATE_SCORE_ABS_MIN",
+    );
+    const pairEntry = read(pairEntryRelative);
+    expect(pairEntry).toContain("for await (const value of process.stdin)");
+    expect(pairEntry).not.toContain("readFileSync(0)");
   });
 
   it("separates real dual-WASM execution tests from synthetic full accounting", () => {
@@ -133,6 +149,9 @@ describe("formal paired A/B v2 real WASM match runtime evidence", () => {
       production_browser_wasm_search_executed: true,
       same_opening_color_swap_executed: true,
       canonical_stdin_pair_entry_executed: true,
+      oversized_stdin_rejected_incrementally: true,
+      close_event_ordering_race_tested: true,
+      sanitized_subprocess_fault_diagnostic_tested: true,
       cleanup_verified: true,
       formal_strength_result: false,
     });
@@ -149,15 +168,15 @@ describe("formal paired A/B v2 real WASM match runtime evidence", () => {
     });
     expect(evidence.validation).toMatchObject({
       typescript_no_emit: "PASS",
-      pair_adapter_tests_passed: 9,
+      pair_adapter_tests_passed: 10,
       pair_adapter_tests_failed: 0,
-      formal_launcher_tests_passed: 3,
+      formal_launcher_tests_passed: 4,
       formal_launcher_tests_failed: 0,
-      selected_related_tests_passed: 32,
+      selected_related_tests_passed: 33,
       selected_related_tests_failed: 0,
       runtime_publication_evidence_tests_passed: 4,
       runtime_publication_evidence_tests_failed: 0,
-      full_ml_stdlib_tests_passed: 287,
+      full_ml_stdlib_tests_passed: 288,
       full_ml_stdlib_tests_failed: 0,
       ruff: "PASS",
       prettier: "PASS",

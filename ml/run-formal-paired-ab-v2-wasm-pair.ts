@@ -7,8 +7,6 @@
  * receipt after both isolated players have closed and the assets revalidated.
  */
 
-import * as fs from "node:fs";
-
 import {
   FORMAL_PAIRED_AB_V2_WASM_PAIR_REQUEST_SCHEMA,
   authenticateFormalPairedAbV2WasmPair,
@@ -17,6 +15,20 @@ import {
 } from "./formal-paired-ab-v2-wasm-match-adapter";
 
 const MAX_STDIN_BYTES = 128 * 1024;
+
+async function readBoundedStdin(): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const value of process.stdin) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    total += chunk.byteLength;
+    if (total > MAX_STDIN_BYTES) {
+      throw new Error("stdin exceeds the hard byte limit");
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, total);
+}
 
 function canonicalJson(value: unknown): string {
   if (value === null) return "null";
@@ -53,7 +65,7 @@ async function main(): Promise<number> {
     );
     return 2;
   }
-  const bytes = fs.readFileSync(0);
+  const bytes = await readBoundedStdin();
   if (
     bytes.byteLength === 0 ||
     bytes.byteLength > MAX_STDIN_BYTES ||

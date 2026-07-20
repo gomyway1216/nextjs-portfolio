@@ -32,7 +32,7 @@ No code-pinned ready registry is enrolled yet, so no real candidate is enrolled 
 
 The child does not trust only the identity captured by its parent. Each child independently rereads its weight file, verifies the exact byte count and SHA-256, and then copies it into its own WASM memory. Candidate and stable share no module globals, WASM memory, TT, or NNUE bytes.
 
-For every decision, the browser-side complete legal-move vector must exactly match the child-side vector. A move outside that set, a search that does not complete depth 11, or a shallow result outside the permitted early winning-mate band withholds the pair receipt.
+For every decision, the browser-side complete legal-move vector must exactly match the child-side vector. A move outside that set, a search that does not complete depth 11, or a shallow result outside the permitted absolute-score mate band `89,990,000..90,000,000` withholds the pair receipt.
 
 ## Color swap and result direction
 

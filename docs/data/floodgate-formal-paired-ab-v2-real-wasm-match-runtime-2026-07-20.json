@@ -18,33 +18,33 @@
   "implementation_artifacts": {
     "pair_adapter": {
       "path": "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
-      "bytes": 48461,
-      "sha256": "0590a6597eac50c813ed5c33fc421f3fba2a2367fbab1c784c73d3b965a122ce"
+      "bytes": 49802,
+      "sha256": "ce78e7f19afcdb63caa4da54d3f918dc9ffbe972d2d48b961cf987dc2174d759"
     },
     "isolated_player": {
       "path": "ml/formal-paired-ab-v2-wasm-player-child.ts",
-      "bytes": 11543,
-      "sha256": "ffd76f6a0824bd9b1e4c2d1f0e95a485ce349fd8d257db3cc809cc2fb09efe93"
+      "bytes": 11569,
+      "sha256": "c8f06ea4c01d322821cbff787d383a6b57d53b7930e286c7278673f6816eeab5"
     },
     "canonical_pair_entry": {
       "path": "ml/run-formal-paired-ab-v2-wasm-pair.ts",
-      "bytes": 2965,
-      "sha256": "10db8484bdc2473b71dcf0f33729682d58c0e17b2eee37855f95667fb28a9715"
+      "bytes": 3358,
+      "sha256": "4c6791d197c08f2f4f97b2884857af18c5317f3ba5c6c2f13b0dfbbc03860bf0"
     },
     "formal_launcher": {
       "path": "ml/formal_paired_ab_v2_wasm_match_launcher.py",
-      "bytes": 29973,
-      "sha256": "de5ffebebfedb8f18b18dcd00368f859e6886f43c31e1b99456cc8edf602c3ae"
+      "bytes": 30193,
+      "sha256": "837e40f1caf227b5d5ed82377001975e1c0f58b7d17840448139a9caea877e5a"
     },
     "pair_adapter_tests": {
       "path": "tests/unit/ml/formalPairedAbV2WasmMatchAdapter.test.ts",
-      "bytes": 17603,
-      "sha256": "aa0fc7de5a80a5aa311207acb22332135e856fbd726ccd3dee42b9ebd18e98c6"
+      "bytes": 19314,
+      "sha256": "1a937290ad7fe5569915c2784af2a5aee47889c2ef5e0e21f6cf0d3b60e4938d"
     },
     "formal_launcher_tests": {
       "path": "ml/tests_stdlib/test_formal_paired_ab_v2_wasm_match_launcher.py",
-      "bytes": 11196,
-      "sha256": "8348750266a688e20924f40508e5d09ecef55e9b93e5420114de78420156a5e6"
+      "bytes": 12286,
+      "sha256": "dbbe7684d6503827d28e325d0347e07b57decd680bcf360e9304583387f5d882"
     }
   },
   "historical_publication_preserved": {
@@ -78,6 +78,8 @@
     "nnue_scale_k": 600,
     "fixed_depth": 11,
     "quiescence_depth": 10,
+    "early_mate_absolute_score_min": 89990000,
+    "early_mate_absolute_score_max": 90000000,
     "private_tt_cleared_before_every_decision": true,
     "opening_book": false,
     "fallback": false,
@@ -101,6 +103,9 @@
     "child_independent_exact_bytes_and_sha256_before_wasm_load": true,
     "inode_metadata_and_content_revalidated_after_both_games": true,
     "both_children_closed_and_reaped_before_receipt": true,
+    "listener_first_close_wait_with_recheck": true,
+    "incremental_stdin_hard_cap_bytes": 131072,
+    "subprocess_fault_diagnostic": "returncode-stderr-bytes-sha256-no-raw-stderr",
     "receipt_on_partial_or_cleanup_failure": false
   },
   "journal_and_resume": {
@@ -130,6 +135,9 @@
       "production_browser_wasm_search_executed": true,
       "same_opening_color_swap_executed": true,
       "canonical_stdin_pair_entry_executed": true,
+      "oversized_stdin_rejected_incrementally": true,
+      "close_event_ordering_race_tested": true,
+      "sanitized_subprocess_fault_diagnostic_tested": true,
       "cleanup_verified": true,
       "formal_strength_result": false
     },
@@ -158,19 +166,19 @@
   },
   "validation": {
     "typescript_no_emit": "PASS",
-    "pair_adapter_tests_passed": 9,
+    "pair_adapter_tests_passed": 10,
     "pair_adapter_tests_failed": 0,
-    "formal_launcher_tests_passed": 3,
+    "formal_launcher_tests_passed": 4,
     "formal_launcher_tests_failed": 0,
-    "selected_related_tests_passed": 32,
+    "selected_related_tests_passed": 33,
     "selected_related_tests_failed": 0,
     "runtime_publication_evidence_tests_passed": 4,
     "runtime_publication_evidence_tests_failed": 0,
     "historical_publication_tests_passed": 5,
     "historical_publication_tests_failed": 0,
-    "full_ml_stdlib_tests_passed": 287,
+    "full_ml_stdlib_tests_passed": 288,
     "full_ml_stdlib_tests_failed": 0,
-    "full_ml_stdlib_wall_seconds": 13.636,
+    "full_ml_stdlib_wall_seconds": 13.657,
     "ruff": "PASS",
     "prettier": "PASS",
     "diff_check": "PASS"

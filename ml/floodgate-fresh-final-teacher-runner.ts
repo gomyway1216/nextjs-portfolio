@@ -36,6 +36,7 @@ import {
   validateParentGroups,
   type SiblingRecord,
 } from "./sibling-data";
+import { floodgateIdentifierDigest } from "./floodgate-roles";
 import {
   childSfenAfterUsi,
   positionFromSfen,
@@ -241,7 +242,7 @@ export interface FreshFinalTeacherGeneratorOutcome {
     readonly parent_ids_sha256: string;
     readonly forced_parent_ids_sha256: string;
     readonly emitted_parent_ids_sha256: string;
-    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
     readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
@@ -615,7 +616,7 @@ function completionFromOutcome(
     accounting.parent_ids_sha256 !== FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256 ||
     !SHA256_RE.test(accounting.forced_parent_ids_sha256) ||
     !SHA256_RE.test(accounting.emitted_parent_ids_sha256) ||
-    !SHA256_RE.test(accounting.fewer_than_two_legal_move_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.fewer_than_two_legal_moves_parent_ids_sha256) ||
     !SHA256_RE.test(accounting.search_timeout_parent_ids_sha256) ||
     !Number.isSafeInteger(outcome.emitted_parent_groups) ||
     outcome.emitted_parent_groups < 1 ||
@@ -685,7 +686,7 @@ function validateStoredCompletion(value: unknown): Readonly<Record<string, unkno
       "parent_ids_sha256",
       "forced_parent_ids_sha256",
       "emitted_parent_ids_sha256",
-      "fewer_than_two_legal_move_parent_ids_sha256",
+      "fewer_than_two_legal_moves_parent_ids_sha256",
       "search_timeout_parent_ids_sha256",
     ],
     "fresh-final stored parent accounting",
@@ -951,15 +952,32 @@ export function validateFreshFinalDatasetBytesCoreForTests(
   if (missing.length !== completion.forced_parents_skipped) {
     throw new Error("fresh-final dataset source accounting is incomplete");
   }
+  const fewerThanTwoLegalMoveParentIds: string[] = [];
+  const searchTimeoutParentIds: string[] = [];
   for (const row of missing) {
     const legalMoves = rulesCompleteLegalMoves(
       positionFromSfen(row.parent_sfen).position,
     );
-    if (legalMoves.length >= 2) {
-      throw new Error(
-        "fresh-final dataset omitted a parent that is not a forced-move skip",
-      );
-    }
+    (legalMoves.length < 2
+      ? fewerThanTwoLegalMoveParentIds
+      : searchTimeoutParentIds
+    ).push(row.parent_id);
+  }
+  const reasons = completion.forced_skip_reasons as Record<string, number>;
+  const accounting = completion.parent_accounting as Record<string, string>;
+  if (
+    fewerThanTwoLegalMoveParentIds.length !==
+      reasons.fewer_than_two_legal_moves ||
+    searchTimeoutParentIds.length !== reasons.search_timeout_no_label ||
+    floodgateIdentifierDigest(missing.map((row) => row.parent_id)) !==
+      accounting.forced_parent_ids_sha256 ||
+    floodgateIdentifierDigest(emitted) !== accounting.emitted_parent_ids_sha256 ||
+    floodgateIdentifierDigest(fewerThanTwoLegalMoveParentIds) !==
+      accounting.fewer_than_two_legal_moves_parent_ids_sha256 ||
+    floodgateIdentifierDigest(searchTimeoutParentIds) !==
+      accounting.search_timeout_parent_ids_sha256
+  ) {
+    throw new Error("fresh-final dataset reason-specific parent accounting drifted");
   }
   return Object.freeze(records.map((record) => Object.freeze(record)));
 }

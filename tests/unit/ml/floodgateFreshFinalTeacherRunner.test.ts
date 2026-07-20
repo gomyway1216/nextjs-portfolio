@@ -37,6 +37,7 @@ import {
 } from "../../../ml/floodgate-fresh-selection-teacher-runner";
 import { runFreshFinalTeacherCliCore } from "../../../ml/run-floodgate-fresh-final-teacher";
 import type { FloodgateTrainingParent } from "../../../ml/floodgate-training-row-validation";
+import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
 import {
   buildSiblingGroup,
   positionKeyFromSfen,
@@ -61,12 +62,15 @@ async function writeSyntheticWork(file: string) {
   };
 }
 
-function parentAccounting(parentIdsSha256: string) {
+function parentAccounting(
+  parentIdsSha256: string,
+  emittedParentIdsSha256 = parentIdsSha256,
+) {
   return {
     parent_ids_sha256: parentIdsSha256,
     forced_parent_ids_sha256: sha256(""),
-    emitted_parent_ids_sha256: parentIdsSha256,
-    fewer_than_two_legal_move_parent_ids_sha256: sha256(""),
+    emitted_parent_ids_sha256: emittedParentIdsSha256,
+    fewer_than_two_legal_moves_parent_ids_sha256: sha256(""),
     search_timeout_parent_ids_sha256: sha256(""),
   };
 }
@@ -311,6 +315,7 @@ async function dependencies(
         work,
         parent_accounting: parentAccounting(
           FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+          floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
         ),
         emitted_parent_groups: 4_800,
         dataset_records: 9_600,
@@ -405,6 +410,7 @@ describe("fresh-final teacher runner", () => {
           work,
           parent_accounting: parentAccounting(
             FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+            floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
           ),
           emitted_parent_groups: 4_800,
           dataset_records: 9_600,
@@ -577,6 +583,7 @@ describe("fresh-final teacher runner", () => {
       },
       parent_accounting: parentAccounting(
         FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+        floodgateIdentifierDigest(SOURCE_ROWS.map((row) => row.parent_id)),
       ),
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
@@ -591,6 +598,52 @@ describe("fresh-final teacher runner", () => {
     ).not.toThrow();
 
     const lines = validDatasetBytes().toString("utf8").trimEnd().split("\n");
+    const timeoutParentId = SOURCE_ROWS[0].parent_id;
+    const timeoutRecords = lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((record) => record.parent_id !== timeoutParentId);
+    const timeoutBytes = Buffer.from(
+      `${timeoutRecords.map(canonicalJson).join("\n")}\n`,
+      "utf8",
+    );
+    const timeoutCompletion = {
+      ...completion,
+      forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 1,
+      },
+      parent_accounting: {
+        parent_ids_sha256: FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+        forced_parent_ids_sha256: floodgateIdentifierDigest([timeoutParentId]),
+        emitted_parent_ids_sha256: floodgateIdentifierDigest(
+          SOURCE_ROWS.slice(1).map((row) => row.parent_id),
+        ),
+        fewer_than_two_legal_moves_parent_ids_sha256:
+          floodgateIdentifierDigest([]),
+        search_timeout_parent_ids_sha256:
+          floodgateIdentifierDigest([timeoutParentId]),
+      },
+      emitted_parent_groups: 4_799,
+      dataset_records: 9_598,
+    };
+    expect(() =>
+      validateFreshFinalDatasetBytesCoreForTests(
+        timeoutBytes,
+        SOURCE_ROWS,
+        timeoutCompletion,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateFreshFinalDatasetBytesCoreForTests(timeoutBytes, SOURCE_ROWS, {
+        ...timeoutCompletion,
+        parent_accounting: {
+          ...timeoutCompletion.parent_accounting,
+          search_timeout_parent_ids_sha256: sha256("wrong-timeout-parent"),
+        },
+      }),
+    ).toThrow(/reason-specific parent accounting/);
+
     const rewrite = (
       mutate: (records: Record<string, unknown>[]) => void,
     ): Buffer => {

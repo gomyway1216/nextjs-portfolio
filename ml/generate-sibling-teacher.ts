@@ -2622,7 +2622,7 @@ interface SiblingTeacherExecution {
     | 'timeout-only';
 }
 
-interface StrengthFirstCorePrefixProgress {
+export interface StrengthFirstCorePrefixProgress {
   readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
   readonly authentication_receipt: false;
   readonly target_parents: number;
@@ -2672,7 +2672,7 @@ export interface FreshSelectionSiblingTeacherOutcome {
     readonly parent_ids_sha256: string;
     readonly forced_parent_ids_sha256: string;
     readonly emitted_parent_ids_sha256: string;
-    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
     readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
@@ -2699,7 +2699,7 @@ export interface FreshFinalSiblingTeacherOutcome {
     readonly parent_ids_sha256: string;
     readonly forced_parent_ids_sha256: string;
     readonly emitted_parent_ids_sha256: string;
-    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
     readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
@@ -2957,13 +2957,34 @@ async function runSiblingTeacherDatasetCore(
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
   const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
-  let recoverableSearchSkipCount = [...workEntries.values()].filter(
+  const existingTimeoutSkipCount = [...workEntries.values()].filter(
     (entry) =>
       selectedParentIdSet.has(entry.parent_id) &&
       entry.kind === 'skip' &&
-      (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
-        entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON)
+      entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
   ).length;
+  const existingProposalIncompleteSkipCount = [...workEntries.values()].filter(
+    (entry) =>
+      selectedParentIdSet.has(entry.parent_id) &&
+      entry.kind === 'skip' &&
+      entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON
+  ).length;
+  if (
+    (execution.recoverableSearchFailures === 'none' &&
+      (existingTimeoutSkipCount !== 0 ||
+        existingProposalIncompleteSkipCount !== 0)) ||
+    (execution.recoverableSearchFailures === 'timeout-only' &&
+      existingProposalIncompleteSkipCount !== 0)
+  ) {
+    throw new Error(
+      `work checkpoint contains a skip reason forbidden by ${execution.recoverableSearchFailures}`
+    );
+  }
+  let recoverableSearchSkipCount =
+    existingTimeoutSkipCount +
+    (execution.recoverableSearchFailures === 'timeout-and-proposal-incomplete'
+      ? existingProposalIncompleteSkipCount
+      : 0);
   if (recoverableSearchSkipCount > recoverableSearchSkipLimit) {
     throw new Error(
       `recoverable search skip count ${recoverableSearchSkipCount} exceeds target ${selected.length} limit ${recoverableSearchSkipLimit}`
@@ -2990,6 +3011,19 @@ async function runSiblingTeacherDatasetCore(
   const persist = async (entry: WorkEntry): Promise<void> => {
     const operation = appendTail.then(async () => {
       if (checkpointFailure) throw checkpointFailure;
+      if (
+        entry.kind === 'skip' &&
+        ((entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
+          execution.recoverableSearchFailures === 'none') ||
+          (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON &&
+            execution.recoverableSearchFailures !==
+              'timeout-and-proposal-incomplete'))
+      ) {
+        checkpointFailure = new Error(
+          `skip reason ${entry.reason} is forbidden by ${execution.recoverableSearchFailures}`
+        );
+        throw checkpointFailure;
+      }
       if (
         entry.kind === 'skip' &&
         (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
@@ -3304,7 +3338,7 @@ async function runSiblingTeacherDatasetCore(
       ),
       forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
       emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
-      fewer_than_two_legal_move_parent_ids_sha256: floodgateIdentifierDigest(
+      fewer_than_two_legal_moves_parent_ids_sha256: floodgateIdentifierDigest(
         fewerThanTwoLegalMoveParentIds
       ),
       search_timeout_parent_ids_sha256: floodgateIdentifierDigest(
@@ -3736,18 +3770,18 @@ export async function stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreFo
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
   dependencies: GenerateSiblingTeacherDependencies = {}
-): Promise<SiblingTeacherManifest> {
+): Promise<StrengthFirstCorePrefixProgress> {
   const targetParents = Array.isArray(input.rows) ? input.rows.length : 0;
   return (await runSiblingTeacherDatasetCore(
     input,
     rawOptions,
     {
       targetParents,
-      finalization: 'legacy-split',
+      finalization: 'none',
       recoverableSearchFailures: 'timeout-only',
     },
     dependencies
-  )) as SiblingTeacherManifest;
+  )) as StrengthFirstCorePrefixProgress;
 }
 
 export interface AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions extends StageSiblingTeacherCoreForTestsOptions {

@@ -212,7 +212,7 @@ export interface FreshSelectionTeacherGeneratorOutcome {
     readonly parent_ids_sha256: string;
     readonly forced_parent_ids_sha256: string;
     readonly emitted_parent_ids_sha256: string;
-    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_moves_parent_ids_sha256: string;
     readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
@@ -573,7 +573,7 @@ function completionFromOutcome(
     accounting.parent_ids_sha256 !== FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256 ||
     !SHA256_RE.test(accounting.forced_parent_ids_sha256) ||
     !SHA256_RE.test(accounting.emitted_parent_ids_sha256) ||
-    !SHA256_RE.test(accounting.fewer_than_two_legal_move_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.fewer_than_two_legal_moves_parent_ids_sha256) ||
     !SHA256_RE.test(accounting.search_timeout_parent_ids_sha256) ||
     !Number.isSafeInteger(outcome.emitted_parent_groups) ||
     outcome.emitted_parent_groups < 1 ||

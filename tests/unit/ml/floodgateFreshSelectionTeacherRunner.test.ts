@@ -61,7 +61,7 @@ function parentAccounting(parentIdsSha256: string) {
     parent_ids_sha256: parentIdsSha256,
     forced_parent_ids_sha256: sha256(""),
     emitted_parent_ids_sha256: parentIdsSha256,
-    fewer_than_two_legal_move_parent_ids_sha256: sha256(""),
+    fewer_than_two_legal_moves_parent_ids_sha256: sha256(""),
     search_timeout_parent_ids_sha256: sha256(""),
   };
 }

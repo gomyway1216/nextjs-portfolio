@@ -1,0 +1,195 @@
+{
+  "schema": "shogi-formal-paired-ab-v2-real-wasm-match-runtime-evidence-v1",
+  "recorded_date": "2026-07-20",
+  "implementation": {
+    "pair_adapter": "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
+    "isolated_player": "ml/formal-paired-ab-v2-wasm-player-child.ts",
+    "canonical_pair_entry": "ml/run-formal-paired-ab-v2-wasm-pair.ts",
+    "formal_launcher": "ml/formal_paired_ab_v2_wasm_match_launcher.py",
+    "production_callable": "run_pinned_ready_wasm_pairs",
+    "actual_match_execution_api": true,
+    "stop_only_protocol": false,
+    "caller_selected_ready_registry": false,
+    "code_pinned_ready_registry": null,
+    "production_route_status": "closed-no-code-pinned-ready-registry",
+    "automatic_execution": false,
+    "live_weight_write_api": false
+  },
+  "implementation_artifacts": {
+    "pair_adapter": {
+      "path": "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
+      "bytes": 48461,
+      "sha256": "0590a6597eac50c813ed5c33fc421f3fba2a2367fbab1c784c73d3b965a122ce"
+    },
+    "isolated_player": {
+      "path": "ml/formal-paired-ab-v2-wasm-player-child.ts",
+      "bytes": 11543,
+      "sha256": "ffd76f6a0824bd9b1e4c2d1f0e95a485ce349fd8d257db3cc809cc2fb09efe93"
+    },
+    "canonical_pair_entry": {
+      "path": "ml/run-formal-paired-ab-v2-wasm-pair.ts",
+      "bytes": 2965,
+      "sha256": "10db8484bdc2473b71dcf0f33729682d58c0e17b2eee37855f95667fb28a9715"
+    },
+    "formal_launcher": {
+      "path": "ml/formal_paired_ab_v2_wasm_match_launcher.py",
+      "bytes": 29973,
+      "sha256": "de5ffebebfedb8f18b18dcd00368f859e6886f43c31e1b99456cc8edf602c3ae"
+    },
+    "pair_adapter_tests": {
+      "path": "tests/unit/ml/formalPairedAbV2WasmMatchAdapter.test.ts",
+      "bytes": 17603,
+      "sha256": "aa0fc7de5a80a5aa311207acb22332135e856fbd726ccd3dee42b9ebd18e98c6"
+    },
+    "formal_launcher_tests": {
+      "path": "ml/tests_stdlib/test_formal_paired_ab_v2_wasm_match_launcher.py",
+      "bytes": 11196,
+      "sha256": "8348750266a688e20924f40508e5d09ecef55e9b93e5420114de78420156a5e6"
+    }
+  },
+  "historical_publication_preserved": {
+    "launcher": {
+      "path": "ml/formal_paired_ab_local_launcher.py",
+      "bytes": 54526,
+      "sha256": "d47b193c79ee64d6a7f43c05f68d33269d626c50662303101384489cd2f94266"
+    },
+    "tests": {
+      "path": "ml/tests_stdlib/test_formal_paired_ab_local_launcher.py",
+      "bytes": 42332,
+      "sha256": "b3f8d0e46b761c59d3eb153d5a003e334cf9d06f6057a71b627869ede4bb1bb2"
+    },
+    "modified": false
+  },
+  "runtime_contract": {
+    "pairs": 384,
+    "games_per_pair": 2,
+    "games": 768,
+    "candidate_sente_games": 384,
+    "candidate_gote_games": 384,
+    "maximum_pair_workers": 2,
+    "maximum_concurrent_engine_processes": 4,
+    "engine": "production-browser-wasm-v20",
+    "wasm_bytes": 35597,
+    "wasm_sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c",
+    "weights_bytes_each": 1185988,
+    "candidate_and_stable_paths_distinct": true,
+    "candidate_and_stable_sha256_distinct": true,
+    "isolated_candidate_and_stable_processes": true,
+    "nnue_scale_k": 600,
+    "fixed_depth": 11,
+    "quiescence_depth": 10,
+    "private_tt_cleared_before_every_decision": true,
+    "opening_book": false,
+    "fallback": false,
+    "maximum_plies": 512,
+    "adjudication": [
+      "no-legal-moves",
+      "fourfold-repetition",
+      "perpetual-check",
+      "max-plies"
+    ]
+  },
+  "authentication_and_cleanup": {
+    "plain_object_execution_authority": false,
+    "unforgeable_in_process_capability": true,
+    "capability_one_shot": true,
+    "repository_relative_weight_paths": true,
+    "no_final_or_parent_symlink_alias": true,
+    "current_user_owned_regular_file": true,
+    "single_link_required": true,
+    "parent_exact_bytes_and_sha256_before_spawn": true,
+    "child_independent_exact_bytes_and_sha256_before_wasm_load": true,
+    "inode_metadata_and_content_revalidated_after_both_games": true,
+    "both_children_closed_and_reaped_before_receipt": true,
+    "receipt_on_partial_or_cleanup_failure": false
+  },
+  "journal_and_resume": {
+    "private_receipt_directory_mode": "0700",
+    "private_artifact_mode": "0600",
+    "canonical_jsonl_hash_chain": true,
+    "events_per_complete_pair": 4,
+    "events": [
+      "pair-started",
+      "game-completed",
+      "game-completed",
+      "pair-completed"
+    ],
+    "canonical_full_pair_sidecar": true,
+    "transcript_sha256_bound": true,
+    "cleanup_sha256_bound": true,
+    "completed_contiguous_prefix_reauthenticated_on_resume": true,
+    "completed_pair_replayed": false,
+    "partial_or_technical_fault_replayed": false,
+    "sidecar_or_artifact_drift_accepted": false,
+    "authoritative_v2_decoder_reused": true
+  },
+  "test_scope": {
+    "real_dual_process_wasm_test": {
+      "two_distinct_1185988_byte_files_loaded": true,
+      "independent_candidate_and_stable_children": true,
+      "production_browser_wasm_search_executed": true,
+      "same_opening_color_swap_executed": true,
+      "canonical_stdin_pair_entry_executed": true,
+      "cleanup_verified": true,
+      "formal_strength_result": false
+    },
+    "full_384_pair_accounting_test": {
+      "pairs": 384,
+      "games": 768,
+      "receipt_source": "fast-injected-test-receipts",
+      "real_wasm_games": false,
+      "maximum_two_concurrent_pair_callbacks_verified": true,
+      "all_journals_and_sidecars_verified": true,
+      "zero_callback_resume_verified": true,
+      "terminal_crash_verified": true,
+      "sidecar_drift_rejection_verified": true
+    }
+  },
+  "safety": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "firebase": false,
+    "cloud": false,
+    "external_match_site": false,
+    "live_weight_write": false
+  },
+  "validation": {
+    "typescript_no_emit": "PASS",
+    "pair_adapter_tests_passed": 9,
+    "pair_adapter_tests_failed": 0,
+    "formal_launcher_tests_passed": 3,
+    "formal_launcher_tests_failed": 0,
+    "selected_related_tests_passed": 32,
+    "selected_related_tests_failed": 0,
+    "runtime_publication_evidence_tests_passed": 4,
+    "runtime_publication_evidence_tests_failed": 0,
+    "historical_publication_tests_passed": 5,
+    "historical_publication_tests_failed": 0,
+    "full_ml_stdlib_tests_passed": 287,
+    "full_ml_stdlib_tests_failed": 0,
+    "full_ml_stdlib_wall_seconds": 13.636,
+    "ruff": "PASS",
+    "prettier": "PASS",
+    "diff_check": "PASS"
+  },
+  "execution_counters": {
+    "real_formal_attempts_started": 0,
+    "real_formal_pairs_started": 0,
+    "real_formal_games_started": 0,
+    "formal_result_receipts": 0,
+    "network_requests": 0,
+    "cloud_jobs": 0,
+    "live_weight_changes": 0
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "formal_ab_executed": false,
+    "candidate_stronger": false,
+    "high_dan_calibrated": false,
+    "promotion_authorized": false,
+    "live_weights_changed": false
+  }
+}

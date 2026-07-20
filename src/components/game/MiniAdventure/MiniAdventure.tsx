@@ -56,14 +56,26 @@ const MiniAdventure: React.FC = () => {
   const [difficulty, setDifficulty] = useState<MiniAdventureDifficulty>('normal');
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
+  // gameStateRef mirrors gameState synchronously so rapid dispatches (key
+  // repeat before React commits a re-render) act on the latest snapshot
+  // instead of a stale render-time closure. It is written eagerly at every
+  // point that replaces gameState; the effect covers any other path.
+  const gameStateRef = useRef<GameState | null>(null);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const startNewGame = useCallback((diff: MiniAdventureDifficulty = difficulty) => {
-    setGameState(createGameState(diff));
+    const fresh = createGameState(diff);
+    gameStateRef.current = fresh;
+    setGameState(fresh);
     setShowStartScreen(false);
     setShowInventory(false);
     setSelectedItemIndex(null);
   }, [difficulty]);
 
   const returnToMenu = useCallback(() => {
+    gameStateRef.current = null;
     setGameState(null);
     setShowStartScreen(true);
     setShowInventory(false);
@@ -71,19 +83,31 @@ const MiniAdventure: React.FC = () => {
   }, []);
 
   // ---- Action dispatch helpers (shared by keyboard + touch) ----
+  // processAction (which rolls Math.random) runs OUTSIDE the setState updater:
+  // updaters must stay pure and Strict Mode runs them twice in dev.
   const dispatch = useCallback((action: Parameters<typeof processAction>[1]) => {
-    setGameState(prev => {
-      if (!prev || prev.gameOver) return prev;
-      const next = processAction(prev, action);
-      // Record the result exactly once, at the moment the run transitions to over.
-      if (next.gameOver && !prev.gameOver) {
-        setStats(s => next.victory
-          ? { ...s, wins: s.wins + 1 }
-          : { ...s, losses: s.losses + 1 });
-      }
-      return next;
-    });
+    const current = gameStateRef.current;
+    if (!current || current.gameOver) return;
+    const next = processAction(current, action);
+    gameStateRef.current = next;
+    setGameState(next);
   }, []);
+
+  // Record win/loss as a side effect of the run finishing, not inside a state
+  // updater. hasRecordedRef keeps this idempotent so the double-invoked effect
+  // in dev Strict Mode can't double-count.
+  const hasRecordedRef = useRef(false);
+  useEffect(() => {
+    if (!gameState || !gameState.gameOver) {
+      hasRecordedRef.current = false;
+      return;
+    }
+    if (hasRecordedRef.current) return;
+    hasRecordedRef.current = true;
+    setStats(s => gameState.victory
+      ? { ...s, wins: s.wins + 1 }
+      : { ...s, losses: s.losses + 1 });
+  }, [gameState]);
 
   const move = useCallback((direction: Direction) => dispatch({ type: ActionType.MOVE, direction }), [dispatch]);
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Info, Pause, Play } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useHighScore } from '@/hooks/useHighScore';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { InfoModal } from '../common';
 import { getStrings } from './i18n';
@@ -33,6 +34,7 @@ export const GhostTetris = () => {
   const [game, setGame] = useState<GameState>(createGame);
   const [now, setNow] = useState(() => Date.now());
   const [infoOpen, setInfoOpen] = useState(false);
+  const [highScore, updateHighScore] = useHighScore('ghost-tetris');
   // Bumped every time a line clears so a keyed flash overlay re-mounts and its
   // animation replays. Keyed off the count (not stale row indices) so it fires
   // correctly on the compacted board and on consecutive clears.
@@ -77,6 +79,24 @@ export const GhostTetris = () => {
       return prev;
     });
   }, []);
+
+  // Persist the best score once a run ends.
+  useEffect(() => {
+    if (game.phase === 'gameover') updateHighScore(game.score);
+  }, [game.phase, game.score, updateHighScore]);
+
+  // Auto-pause when the tab is hidden so the ghost fade (wall-clock) and
+  // gravity can't silently destroy a run in the background; the existing
+  // pause path already compensates the lockedAt timestamps on resume.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden && phaseRef.current === 'playing') {
+        togglePause();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [togglePause]);
 
   // Clock for the ghost fade. A modest 90ms cadence keeps the fade smooth
   // without hammering React; it only drives cell opacity.
@@ -286,6 +306,10 @@ export const GhostTetris = () => {
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>{t.score}</span>
                   <span className={styles.statValue}>{game.score}</span>
+                </div>
+                <div className={styles.stat}>
+                  <span className={styles.statLabel}>{t.best}</span>
+                  <span className={styles.statValue}>{Math.max(highScore, game.score)}</span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>{t.level}</span>

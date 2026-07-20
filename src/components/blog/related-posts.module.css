@@ -1,0 +1,59 @@
+.related {
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.heading {
+  margin: 0 0 16px;
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  text-decoration: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: color-mix(in srgb, var(--foreground) 26%, var(--border));
+  background: var(--card);
+  transform: translateY(-1px);
+}
+
+.cardCategory {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.cardTitle {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .related {
+    margin-top: 38px;
+  }
+}

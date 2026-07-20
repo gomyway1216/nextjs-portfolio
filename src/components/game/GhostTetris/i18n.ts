@@ -4,6 +4,7 @@ export interface GhostTetrisStrings {
   title: string;
   tagline: string;
   score: string;
+  best: string;
   lines: string;
   level: string;
   speed: string;
@@ -36,6 +37,7 @@ const en: GhostTetrisStrings = {
   title: 'Ghost Tetris',
   tagline: 'Landed blocks fade to ghosts after a moment. Clear lines from memory.',
   score: 'Score',
+  best: 'Best',
   lines: 'Lines',
   level: 'Level',
   speed: 'Speed',
@@ -73,6 +75,7 @@ const ja: GhostTetrisStrings = {
   title: 'ゴーストテトリス',
   tagline: '着地したブロックは少し経つと透けて消える。記憶を頼りにラインを消そう。',
   score: 'スコア',
+  best: 'ベスト',
   lines: 'ライン',
   level: 'レベル',
   speed: '速度',

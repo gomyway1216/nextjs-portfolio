@@ -11,6 +11,7 @@ export interface CreatePostData {
   translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
+  relatedPostIds?: string[];
 }
 
 export interface UpdatePostData {
@@ -19,6 +20,7 @@ export interface UpdatePostData {
   tags?: string[];
   isPublic?: boolean;
   image?: string;
+  relatedPostIds?: string[];
 }
 
 export interface GetPostsParams {

@@ -1,6 +1,10 @@
 import * as path from "node:path";
 import { Worker } from "node:worker_threads";
 
+import {
+  assertFloodgateGitExactCleanRevision,
+  captureFloodgateGitExactCleanRevision,
+} from "./floodgate-git";
 import { validateFloodgateRawReceipt } from "./floodgate-raw-lock";
 import {
   FLOODGATE_RAW_VERIFICATION_WORKER_CONTROL_SCHEMA,
@@ -14,7 +18,12 @@ import {
   type FloodgateRawVerificationWorkerResult,
   type FloodgateRawVerificationWorkerTask,
 } from "./floodgate-raw-verification-worker-protocol";
+import {
+  capturePinnedFloodgateRawVerificationWorkerBundle,
+  type FloodgateRawVerificationWorkerBundleLease,
+} from "./floodgate-raw-verification-worker-source";
 
+export const FLOODGATE_RAW_VERIFICATION_PRODUCTION_WORKER_COUNT = 12 as const;
 export const FLOODGATE_RAW_VERIFICATION_WORKER_MAX_OLD_GENERATION_MB =
   384 as const;
 export const FLOODGATE_RAW_VERIFICATION_WORKER_MAX_YOUNG_GENERATION_MB =
@@ -51,7 +60,8 @@ interface PendingTask {
 
 interface FloodgateRawVerificationWorkerEndpointOptions {
   readonly index: number;
-  readonly workerPath: string;
+  readonly workerPath?: string;
+  readonly workerSource?: string;
   readonly execArgv: readonly string[];
   readonly workerData: unknown;
   readonly taskTimeoutMs: number;
@@ -359,18 +369,28 @@ class FloodgateRawVerificationWorkerEndpoint {
       options.shutdownTimeoutMs,
       "shutdown timeout",
     );
-    this.#worker = new Worker(options.workerPath, {
-      execArgv: [...options.execArgv],
-      name: `floodgate-raw-verifier-${options.index + 1}`,
-      resourceLimits: {
-        maxOldGenerationSizeMb:
-          FLOODGATE_RAW_VERIFICATION_WORKER_MAX_OLD_GENERATION_MB,
-        maxYoungGenerationSizeMb:
-          FLOODGATE_RAW_VERIFICATION_WORKER_MAX_YOUNG_GENERATION_MB,
-        stackSizeMb: FLOODGATE_RAW_VERIFICATION_WORKER_STACK_MB,
+    if (
+      (options.workerPath === undefined) ===
+      (options.workerSource === undefined)
+    ) {
+      fail("worker endpoint requires exactly one path or source");
+    }
+    this.#worker = new Worker(
+      options.workerSource ?? (options.workerPath as string),
+      {
+        eval: options.workerSource !== undefined,
+        execArgv: [...options.execArgv],
+        name: `floodgate-raw-verifier-${options.index + 1}`,
+        resourceLimits: {
+          maxOldGenerationSizeMb:
+            FLOODGATE_RAW_VERIFICATION_WORKER_MAX_OLD_GENERATION_MB,
+          maxYoungGenerationSizeMb:
+            FLOODGATE_RAW_VERIFICATION_WORKER_MAX_YOUNG_GENERATION_MB,
+          stackSizeMb: FLOODGATE_RAW_VERIFICATION_WORKER_STACK_MB,
+        },
+        workerData: options.workerData,
       },
-      workerData: options.workerData,
-    });
+    );
     activeWorkerEndpointsForTests += 1;
     this.#exit = new Promise((resolve) => {
       this.#worker.once("exit", (code) => {
@@ -666,6 +686,14 @@ async function verifyFloodgateRawReceiptsWithOrderedWorkersNonProduction(
         workerData: Object.freeze({
           schema: FLOODGATE_RAW_VERIFICATION_WORKER_DATA_SCHEMA,
           lock_root: lockRoot,
+          runtime: Object.freeze({
+            node_version: process.version,
+            v8_version: process.versions.v8,
+            modules_abi: process.versions.modules,
+            executable_path: process.execPath,
+            platform: process.platform,
+            architecture: process.arch,
+          }),
         }),
         taskTimeoutMs: FLOODGATE_RAW_VERIFICATION_WORKER_TASK_TIMEOUT_MS,
         shutdownTimeoutMs:
@@ -706,6 +734,179 @@ async function verifyFloodgateRawReceiptsWithOrderedWorkersNonProduction(
       if (primaryError === undefined) throw closeError;
     }
   }
+}
+
+export interface FloodgateRawVerificationProductionDependencies {
+  readonly captureExactCleanRevision: (
+    repositoryRoot: string,
+  ) => Promise<string>;
+  readonly assertExactCleanRevision: (
+    repositoryRoot: string,
+    expectedRevision: string,
+  ) => Promise<void>;
+  readonly captureBundle: (
+    repositoryRoot: string,
+  ) => FloodgateRawVerificationWorkerBundleLease;
+  readonly runWorkers?: (
+    lockRoot: string,
+    tasks: readonly FloodgateRawVerificationTaskInput[],
+    bundle: FloodgateRawVerificationWorkerBundleLease,
+    observeMetrics?: (
+      metrics: Readonly<FloodgateRawVerificationWorkerMetrics>,
+    ) => void,
+  ) => Promise<readonly FloodgateRawVerificationTaskResult[]>;
+}
+
+function productionSourceRoot(repositoryRoot: string): string {
+  if (
+    typeof repositoryRoot !== "string" ||
+    repositoryRoot.length === 0 ||
+    path.resolve(repositoryRoot) !== repositoryRoot
+  ) {
+    fail("production repository root must be an absolute normalized path");
+  }
+  return repositoryRoot;
+}
+
+function productionWorkerData(
+  lockRoot: string,
+  bundle: FloodgateRawVerificationWorkerBundleLease,
+): unknown {
+  return Object.freeze({
+    schema: FLOODGATE_RAW_VERIFICATION_WORKER_DATA_SCHEMA,
+    lock_root: lockRoot,
+    runtime: Object.freeze({ ...bundle.identity.runtime }),
+  });
+}
+
+async function runPinnedProductionWorkers(
+  lockRoot: string,
+  tasks: readonly FloodgateRawVerificationTaskInput[],
+  bundle: FloodgateRawVerificationWorkerBundleLease,
+  observeMetrics?: (
+    metrics: Readonly<FloodgateRawVerificationWorkerMetrics>,
+  ) => void,
+): Promise<readonly FloodgateRawVerificationTaskResult[]> {
+  return verifyFloodgateRawReceiptsWithOrderedWorkersNonProduction(
+    lockRoot,
+    tasks,
+    FLOODGATE_RAW_VERIFICATION_PRODUCTION_WORKER_COUNT,
+    observeMetrics,
+    (index) =>
+      new FloodgateRawVerificationWorkerEndpoint({
+        index,
+        workerSource: `(function () {\n${bundle.source}\n})();`,
+        execArgv: [],
+        workerData: productionWorkerData(lockRoot, bundle),
+        taskTimeoutMs: FLOODGATE_RAW_VERIFICATION_WORKER_TASK_TIMEOUT_MS,
+        shutdownTimeoutMs:
+          FLOODGATE_RAW_VERIFICATION_WORKER_SHUTDOWN_TIMEOUT_MS,
+      }),
+  );
+}
+
+async function verifyWithProductionSourceClosure(
+  repositoryRootInput: string,
+  lockRoot: string,
+  tasks: readonly FloodgateRawVerificationTaskInput[],
+  observeMetrics:
+    | ((metrics: Readonly<FloodgateRawVerificationWorkerMetrics>) => void)
+    | undefined,
+  dependencies: FloodgateRawVerificationProductionDependencies,
+): Promise<readonly FloodgateRawVerificationTaskResult[]> {
+  const repositoryRoot = productionSourceRoot(repositoryRootInput);
+  const bundle = dependencies.captureBundle(repositoryRoot);
+  let primary: unknown;
+  let result: readonly FloodgateRawVerificationTaskResult[] | undefined;
+  let spawned = false;
+  let sourceRevision: string | undefined;
+  try {
+    sourceRevision =
+      await dependencies.captureExactCleanRevision(repositoryRoot);
+    if (!/^[0-9a-f]{40}$/u.test(sourceRevision)) {
+      fail("captured production source revision is not a 40-hex commit");
+    }
+    spawned = true;
+    result = await (dependencies.runWorkers ?? runPinnedProductionWorkers)(
+      lockRoot,
+      tasks,
+      bundle,
+      observeMetrics,
+    );
+  } catch (error) {
+    primary = error;
+  }
+
+  let closureFailure: unknown;
+  try {
+    bundle.assertUnchangedAndClose();
+  } catch (error) {
+    closureFailure = error;
+  }
+  if (spawned) {
+    try {
+      await dependencies.assertExactCleanRevision(
+        repositoryRoot,
+        sourceRevision as string,
+      );
+    } catch (error) {
+      closureFailure ??= error;
+    }
+  }
+  if (closureFailure !== undefined) {
+    throw new AggregateError(
+      primary === undefined ? [closureFailure] : [primary, closureFailure],
+      "Floodgate raw-verification production source closure failed",
+    );
+  }
+  if (primary !== undefined) throw primary;
+  if (result === undefined) fail("production workers returned no result");
+  return result;
+}
+
+/**
+ * Production-only raw verification.
+ *
+ * Exactly twelve workers receive an in-memory, SHA-256-pinned, self-contained
+ * CJS source. The exact Git revision is checked immediately before spawn and
+ * again only after every endpoint has exited. The bundle inode and its parent
+ * directories remain held throughout that interval.
+ */
+export function verifyFloodgateRawReceiptsWithPinnedOrderedWorkers(
+  lockRoot: string,
+  tasks: readonly FloodgateRawVerificationTaskInput[],
+  observeMetrics?: (
+    metrics: Readonly<FloodgateRawVerificationWorkerMetrics>,
+  ) => void,
+): Promise<readonly FloodgateRawVerificationTaskResult[]> {
+  const repositoryRoot = path.resolve(__dirname, "..");
+  return verifyWithProductionSourceClosure(
+    repositoryRoot,
+    lockRoot,
+    tasks,
+    observeMetrics,
+    {
+      captureExactCleanRevision: captureFloodgateGitExactCleanRevision,
+      assertExactCleanRevision: assertFloodgateGitExactCleanRevision,
+      captureBundle: capturePinnedFloodgateRawVerificationWorkerBundle,
+    },
+  );
+}
+
+/** Composition seam for source-closure ordering and fail-closed tests. */
+export function verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+  repositoryRoot: string,
+  lockRoot: string,
+  tasks: readonly FloodgateRawVerificationTaskInput[],
+  dependencies: FloodgateRawVerificationProductionDependencies,
+): Promise<readonly FloodgateRawVerificationTaskResult[]> {
+  return verifyWithProductionSourceClosure(
+    repositoryRoot,
+    lockRoot,
+    tasks,
+    undefined,
+    dependencies,
+  );
 }
 
 /**

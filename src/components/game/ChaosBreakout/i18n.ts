@@ -134,6 +134,12 @@ const GRAVITY_LABELS: Record<GameLanguage, Record<GravityDirection, string>> = {
   ja: { down: '↓ 下', up: '↑ 上', left: '← 左', right: '→ 右' },
 };
 
+/** Localized "↓ DOWN" / "↓ 下" style label for the gravity HUD stat. */
+export const getGravityLabel = (
+  direction: GravityDirection,
+  language: GameLanguage,
+): string => GRAVITY_LABELS[language][direction];
+
 /** Localize a structured chaos banner for on-canvas display. */
 export const getBannerText = (banner: ChaosBanner, language: GameLanguage): string => {
   const ja = language === 'ja';

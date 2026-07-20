@@ -1,5 +1,7 @@
 # How much of the 24,000-position authentication can use the whole machine?
 
+> 2026-07-19 update: this document is the historical non-production foundation. See the [production follow-up](./blog-shogi-floodgate-raw-authentication-worker-production.en.md) for the source-closed twelve-worker wiring and real full-pass result.
+
 The short answer is: **some of it can be parallelized**. The earlier statement that the process was inherently almost serial was too strong. Reading 36,349 receipts and checking their stored objects are independent operations. Multiple cores can perform that work as long as the results are merged back in canonical input order.
 
 The complete 24,000-position authentication cannot become fourteen times faster, however. Role allocation incorporates positions used earlier in the canonical sequence. Running that state transition out of order could produce a different training / holdout split from the same input. A faster implementation that changes the proof is not acceptable.

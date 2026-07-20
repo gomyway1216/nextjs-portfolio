@@ -262,7 +262,12 @@ const generateOddOneOut = (tier: QuestionTier): Question => {
       en: `Only ${oddItem} is odd; the rest are even.`,
     };
   } else if (variant === 'square') {
-    const squares = shuffle([4, 9, 16, 25, 36, 49, 64, 81, 100]).slice(0, 3);
+    // All three squares share one parity so a lone odd/even square can never
+    // become a second defensible answer (only the non-square may stand out).
+    const sqParity = pick([0, 1]);
+    const squares = shuffle(
+      [4, 9, 16, 25, 36, 49, 64, 81, 100].filter((s) => s % 2 === sqParity),
+    ).slice(0, 3);
     const sqSet = new Set([1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144]);
     do {
       oddItem = randInt(5, 99);
@@ -275,17 +280,22 @@ const generateOddOneOut = (tier: QuestionTier): Question => {
   } else if (variant === 'multiple') {
     const base = pick([3, 4, 5, 6, 7]);
     const multPool = Array.from({ length: 10 }, (_, i) => base * (i + 2));
-    const mults = shuffle(multPool).slice(0, 3);
+    // Keep every item on one parity so "the only odd/even number" can never be
+    // a second defensible answer (e.g. [6, 9, 12, 10] where 9 is the only odd).
+    const parity = base % 2 === 0 ? 0 : pick([0, 1]);
+    const mults = shuffle(multPool.filter((m) => m % 2 === parity)).slice(0, 3);
     do {
       oddItem = randInt(base * 2, base * 12);
-    } while (oddItem % base === 0 || mults.includes(oddItem));
+    } while (oddItem % base === 0 || oddItem % 2 !== parity || mults.includes(oddItem));
     items = [...mults, oddItem];
     explanation = {
       ja: `${oddItem} だけが ${base} の倍数ではない。`,
       en: `Only ${oddItem} is not a multiple of ${base}.`,
     };
   } else {
-    const primesPool = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
+    // 2 is excluded: with it, "the only even number" would be a second
+    // defensible answer (e.g. [2, 3, 5, 33]). All primes shown are odd.
+    const primesPool = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
     const primes = shuffle(primesPool).slice(0, 3);
     do {
       oddItem = randInt(4, 35);

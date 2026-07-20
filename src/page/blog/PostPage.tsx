@@ -1,6 +1,9 @@
 'use client';
 
+import PostLikeButton from '@/components/blog/PostLikeButton';
+import RelatedPosts from '@/components/blog/RelatedPosts';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
+import { usePostViewBeacon } from '@/hooks/usePostViewBeacon';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import type { DetailPost } from '@/services/postsService';
@@ -57,6 +60,10 @@ const PostPage = ({ initialPost }: PostPageProps) => {
       cancelled = true;
     };
   }, [id, initialPost]);
+
+  // Count anonymous reads of public posts only — the admin previewing
+  // their own writing shouldn't move the number.
+  usePostViewBeacon(post?.id, !!post && post.isPublic && !isAdmin);
 
   const view = useMemo(() => {
     if (!post) return null;
@@ -116,6 +123,8 @@ const PostPage = ({ initialPost }: PostPageProps) => {
             image: post.image || '',
           }}
         />
+        <PostLikeButton postId={post.id} enabled={post.isPublic} />
+        <RelatedPosts ids={post.relatedPostIds} />
         {isAdmin && (
           <div className={styles.adminActions}>
             <Link href="/admin#posts" className={styles.adminEditLink}>

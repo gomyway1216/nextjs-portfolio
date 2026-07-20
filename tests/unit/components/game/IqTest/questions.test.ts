@@ -66,6 +66,26 @@ describe('IqTest question generation', () => {
       expect(Number.isNaN(nums[q.answerIndex])).toBe(false);
     }
   });
+
+  it('odd-one-out is never parity-ambiguous: a unique odd/even item must be the answer', () => {
+    // If exactly one of the four items has a minority parity (e.g. the only odd
+    // number), "it has a different parity" is a defensible rule — so that item
+    // must coincide with the intended answer. Otherwise two different answers
+    // would both be justifiable (e.g. [6, 9, 12, 10] or [2, 3, 5, 33]).
+    for (const tier of TIERS) {
+      for (let i = 0; i < 4000; i += 1) {
+        const q = generateQuestionForTier(tier);
+        if (q.type !== 'odd-one-out') continue;
+        const nums = q.options.map(Number);
+        const odds = nums.filter((n) => Math.abs(n) % 2 === 1);
+        const evens = nums.filter((n) => Math.abs(n) % 2 === 0);
+        const minority = odds.length === 1 ? odds : evens.length === 1 ? evens : null;
+        if (minority) {
+          expect(minority[0]).toBe(nums[q.answerIndex]);
+        }
+      }
+    }
+  });
 });
 
 describe('arithmetic / geometric correctness', () => {

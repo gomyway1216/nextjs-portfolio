@@ -39,6 +39,8 @@ export interface ListingPost {
   image?: string;
   language: PostLanguage;
   availableLanguages: PostLanguage[];
+  viewCount?: number;
+  likeCount?: number;
   created: string;
   lastUpdated: string;
 }
@@ -53,8 +55,20 @@ export interface DetailPost {
   image?: string;
   translations: PostTranslations;
   availableLanguages: PostLanguage[];
+  relatedPostIds?: string[];
+  viewCount?: number;
   created: string;
   lastUpdated: string;
+}
+
+// Flattened summary used by the related-posts strip under an article.
+export interface RelatedPostSummary {
+  id: string;
+  title: string;
+  language: PostLanguage;
+  category: string;
+  image?: string;
+  created: string;
 }
 
 // Backwards-compatible alias for code that imports `Post`. Treat it as a
@@ -205,6 +219,69 @@ export async function getPostById(id: string): Promise<DetailPost> {
   return data.post;
 }
 
+export async function getPostLikeCount(id: string): Promise<number> {
+  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const data = await response.json();
+  return typeof data.likeCount === 'number' ? data.likeCount : 0;
+}
+
+export async function setPostLike(id: string, action: 'like' | 'unlike'): Promise<number> {
+  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const data = await response.json();
+  return typeof data.likeCount === 'number' ? data.likeCount : 0;
+}
+
+export async function getRelatedPosts(
+  ids: string[],
+  language?: PostLanguage,
+): Promise<RelatedPostSummary[]> {
+  if (ids.length === 0) return [];
+
+  const queryParams = new URLSearchParams({ ids: ids.join(',') });
+  if (language) queryParams.append('language', language);
+
+  const response = await fetch(`/api/post/related?${queryParams}`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  const data = await response.json();
+  return data.posts as RelatedPostSummary[];
+}
+
+// Fire-and-forget view beacon. sendBeacon survives page unloads and never
+// throws; the fetch fallback swallows errors — losing a view is fine,
+// breaking the reading experience is not.
+export function recordPostView(id: string): void {
+  const url = `/api/post/${encodeURIComponent(id)}/view`;
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      navigator.sendBeacon(url);
+      return;
+    }
+  } catch {
+    // fall through to fetch
+  }
+  void fetch(url, { method: 'POST', keepalive: true }).catch(() => {});
+}
+
 export async function getPostCategories(): Promise<string[]> {
   const response = await fetch('/api/post/categories', {
     headers: {
@@ -309,6 +386,7 @@ export async function createPost(post: {
   translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
+  relatedPostIds?: string[];
 }): Promise<string> {
   const headers = await getAuthHeaders();
 
@@ -337,6 +415,7 @@ export async function updatePost(
     tags?: string[];
     isPublic?: boolean;
     image?: string;
+    relatedPostIds?: string[];
   }
 ): Promise<void> {
   const headers = await getAuthHeaders();

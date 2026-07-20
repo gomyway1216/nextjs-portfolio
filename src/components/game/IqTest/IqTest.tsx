@@ -130,6 +130,13 @@ export const IqTest = () => {
 
   // Fingerprints used this session to prevent repeats.
   const usedRef = useRef<Set<string>>(new Set());
+  // Blocks re-entrant next() calls (Enter key repeat / double-click) so a
+  // single feedback screen can't generate multiple questions and desync
+  // usedRef from the question index. Cleared when the transition commits.
+  const advancingRef = useRef(false);
+  useEffect(() => {
+    advancingRef.current = false;
+  });
 
   const makeQuestion = useCallback(
     (index: number): Question =>
@@ -165,20 +172,26 @@ export const IqTest = () => {
   }, []);
 
   const next = useCallback(() => {
-    setState((prev) => {
-      if (prev.questionIndex >= TOTAL_QUESTIONS) {
-        return { ...prev, phase: 'gameover' };
-      }
-      return {
+    // makeQuestion rolls Math.random and mutates usedRef, so it must run
+    // outside the setState updater (updaters stay pure; Strict Mode runs them
+    // twice in dev) — same as start(). Only advance from feedback, and only
+    // once per feedback screen (advancingRef) until the transition commits.
+    if (state.phase !== 'feedback' || advancingRef.current) return;
+    advancingRef.current = true;
+    if (state.questionIndex >= TOTAL_QUESTIONS) {
+      setState((prev) => ({ ...prev, phase: 'gameover' }));
+    } else {
+      const question = makeQuestion(state.questionIndex);
+      setState((prev) => ({
         ...prev,
         phase: 'question',
         questionIndex: prev.questionIndex + 1,
-        question: makeQuestion(prev.questionIndex),
+        question,
         selected: null,
-      };
-    });
+      }));
+    }
     setTimeLeft(TIME_PER_QUESTION);
-  }, [makeQuestion]);
+  }, [makeQuestion, state.phase, state.questionIndex]);
 
   const reset = useCallback(() => {
     usedRef.current = new Set();
@@ -204,6 +217,8 @@ export const IqTest = () => {
   // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The How-to-play modal pauses the game — don't let keys answer through it.
+      if (showInfo) return;
       if (state.phase === 'question') {
         const num = Number(e.key);
         if (Number.isInteger(num) && num >= 1 && num <= 4) {
@@ -219,7 +234,7 @@ export const IqTest = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.phase, choose, next]);
+  }, [state.phase, choose, next, showInfo]);
 
   const q = state.question;
   const correctCount = state.history.filter((h) => h.correct).length;

@@ -82,6 +82,9 @@ def _runtime_snapshot(torch: Any, train: Any, threads: int) -> dict[str, Any]:
         or debug_mode != 2
     ):
         raise BenchmarkStop("verified Torch runtime settings drifted")
+    logical_cpu_count = os.cpu_count()
+    if type(logical_cpu_count) is not int or logical_cpu_count < 12:
+        raise BenchmarkStop("benchmark requires at least 12 logical CPUs")
     system = platform.system()
     machine = platform.machine()
     processor = platform.processor()
@@ -94,7 +97,7 @@ def _runtime_snapshot(torch: Any, train: Any, threads: int) -> dict[str, Any]:
         "machine": machine,
         "processor": processor,
         "cpu_model": train._runtime_cpu_model(system, processor, machine),
-        "logical_cpu_count": os.cpu_count(),
+        "logical_cpu_count": logical_cpu_count,
         "python": {
             "implementation": platform.python_implementation(),
             "version": platform.python_version(),
@@ -215,10 +218,15 @@ def _capture_clean_revision(
         type(raw) is not bytes
         or len(raw) != 41
         or raw[-1:] != b"\n"
-        or not REVISION_RE.fullmatch(raw[:40].decode("ascii", "ignore"))
     ):
         raise BenchmarkStop("Git revision is not canonical")
-    return raw[:40].decode("ascii")
+    try:
+        decoded = raw[:40].decode("ascii")
+    except UnicodeDecodeError as error:
+        raise BenchmarkStop("Git revision is not canonical") from error
+    if not REVISION_RE.fullmatch(decoded):
+        raise BenchmarkStop("Git revision is not canonical")
+    return decoded
 
 
 def _write_json_exclusive(path: Path, value: Mapping[str, Any]) -> None:
@@ -234,6 +242,15 @@ def _write_json_exclusive(path: Path, value: Mapping[str, Any]) -> None:
             os.close(descriptor)
         except OSError:
             pass
+        raise
+
+
+def _open_worker_log(path: Path) -> Any:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        return os.fdopen(descriptor, "wb")
+    except BaseException:
+        os.close(descriptor)
         raise
 
 
@@ -390,12 +407,7 @@ def _run_trial(
                 }
             )
             log_path = trial_root / f"worker-{request['seed']}.stderr.log"
-            log_descriptor = os.open(
-                log_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-            )
-            worker_log = os.fdopen(log_descriptor, "wb")
+            worker_log = _open_worker_log(log_path)
             worker_logs.append(worker_log)
             processes.append(
                 popen_factory(

@@ -64,7 +64,7 @@
   "focused_validation": {
     "pure_stdlib_unit_tests": {
       "status": "PASS",
-      "tests": 12
+      "tests": 14
     },
     "python_compile": "PASS",
     "ruff": "PASS",
@@ -72,8 +72,8 @@
   },
   "authority": {
     "teacher_or_plan_data_read": false,
-    "selection_label_read": false,
-    "holdout_label_read": false,
+    "selection_labels_read": false,
+    "holdout_labels_read": false,
     "candidate_selection_authorized": false,
     "production_training_contract_changed": false,
     "production_weight_write_authorized": false,

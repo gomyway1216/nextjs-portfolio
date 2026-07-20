@@ -66,9 +66,10 @@ builderのstdoutをtracked planへ直接redirectしてはいけない。builder�
 
 ## 現在地
 
-pure-stdlib unit test 12件とPython compile、Ruff、diff checkはPASSした。testはprocess
+pure-stdlib unit test 14件とPython compile、Ruff、diff checkはPASSした。testはprocess
 dispatch、3-seed barrier、ABBA順、5% gate、同設定の決定性STOP、設定間parity STOP、
-runtime照合、finite STOP、optimizer state hash、training-only境界を検証し、Torch workerも
+runtime照合、logical CPU fail-closed、Git revisionのstrict decode、worker log descriptorの
+cleanup、finite STOP、optimizer state hash、training-only境界を検証し、Torch workerも
 optimizer trainingも起動していない。
 
 正式24,000局面教師がCPUを使用中なので、実ベンチマークは教師完了後かつplan candidate

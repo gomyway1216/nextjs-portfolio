@@ -78,11 +78,13 @@ to a separate temporary file and use the reviewed enrollment step.
 
 ## Current state
 
-Twelve pure-stdlib unit tests, Python compilation, Ruff, and the diff check pass.
+Fourteen pure-stdlib unit tests, Python compilation, Ruff, and the diff check pass.
 They cover process dispatch, the three-seed barrier, ABBA order, the 5% gate,
 same-setting determinism stops, cross-setting parity stops, runtime matching,
-finite-value stops, optimizer-state hashing, and the training-only boundary.
-They launch no Torch worker and perform no optimizer training.
+fail-closed logical-CPU discovery, strict Git-revision decoding, worker-log
+descriptor cleanup, finite-value stops, optimizer-state hashing, and the
+training-only boundary. They launch no Torch worker and perform no optimizer
+training.
 
 The real benchmark is deferred until the active formal 24,000-position teacher
 finishes and must run before the plan candidate is built. There is currently no

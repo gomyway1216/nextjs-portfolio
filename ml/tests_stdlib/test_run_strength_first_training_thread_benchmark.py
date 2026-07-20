@@ -382,6 +382,24 @@ class StrengthFirstTrainingThreadBenchmarkTests(unittest.TestCase):
         self.assertEqual(first, same_logical)
         self.assertNotEqual(first, different_logical)
 
+    def test_runtime_snapshot_stops_when_logical_cpu_count_is_unavailable(self):
+        torch = SimpleNamespace(
+            get_num_threads=lambda: 2,
+            get_num_interop_threads=lambda: 1,
+            are_deterministic_algorithms_enabled=lambda: True,
+            get_deterministic_debug_mode=lambda: 2,
+        )
+        cpu_count = mock.Mock(return_value=None)
+        with (
+            mock.patch.object(BENCHMARK.os, "cpu_count", cpu_count),
+            self.assertRaisesRegex(
+                BENCHMARK.BenchmarkStop,
+                "requires at least 12 logical CPUs",
+            ),
+        ):
+            BENCHMARK._runtime_snapshot(torch, SimpleNamespace(), 2)
+        cpu_count.assert_called_once_with()
+
     def test_clean_revision_reader_rejects_dirty_or_noncanonical_git(self):
         clean_runner = mock.Mock(
             side_effect=[
@@ -407,7 +425,12 @@ class StrengthFirstTrainingThreadBenchmarkTests(unittest.TestCase):
         with self.assertRaisesRegex(BENCHMARK.BenchmarkStop, "not exactly clean"):
             BENCHMARK._capture_clean_revision(Path("/repo"), dirty_runner)
 
-        for malformed in (b"1" * 40, b"A" * 40 + b"\n", b"1" * 39 + b"\n"):
+        for malformed in (
+            b"1" * 40,
+            b"A" * 40 + b"\n",
+            b"1" * 39 + b"\n",
+            b"1" * 39 + b"\xff\n",
+        ):
             with self.subTest(malformed=malformed):
                 runner = mock.Mock(
                     side_effect=[
@@ -434,6 +457,26 @@ class StrengthFirstTrainingThreadBenchmarkTests(unittest.TestCase):
                         Path("/repo"),
                         mock.Mock(side_effect=failure),
                     )
+
+    def test_worker_log_closes_raw_descriptor_when_fdopen_fails(self):
+        raw_open = mock.Mock(return_value=17)
+        stream_open = mock.Mock(side_effect=OSError("fdopen failed"))
+        raw_close = mock.Mock()
+        path = Path("/run/worker-42.stderr.log")
+        with (
+            mock.patch.object(BENCHMARK.os, "open", raw_open),
+            mock.patch.object(BENCHMARK.os, "fdopen", stream_open),
+            mock.patch.object(BENCHMARK.os, "close", raw_close),
+            self.assertRaisesRegex(OSError, "fdopen failed"),
+        ):
+            BENCHMARK._open_worker_log(path)
+        raw_open.assert_called_once_with(
+            path,
+            BENCHMARK.os.O_WRONLY | BENCHMARK.os.O_CREAT | BENCHMARK.os.O_EXCL,
+            0o600,
+        )
+        stream_open.assert_called_once_with(17, "wb")
+        raw_close.assert_called_once_with(17)
 
     def test_trial_launches_all_three_argumentless_workers_before_release(self):
         with tempfile.TemporaryDirectory() as directory:

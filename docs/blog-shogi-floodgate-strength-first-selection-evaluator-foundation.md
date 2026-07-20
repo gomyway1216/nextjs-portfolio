@@ -44,6 +44,12 @@ registryの`max_workers = 2`は上限である。今回の実adapterはdataset�
 
 selection datasetをprocessごとに複製してメモリとI/Oを増やすより、まずexactな実経路を固定した。将来2-process化する場合は、同じ評価を二重実行しないことと、各processが同じdataset fingerprintを使うことを別のreviewed changeで証明する必要がある。
 
+## checkpoint preflight hashの接続修正（2026年7月20日）
+
+selection teacher preflightは、`checkpoint_preflight_sha256`をcanonical UTF-8 JSON payloadそのもの、つまり末尾LFなしのbytesから作る。evaluatorは以前、受領証file用の末尾LF付きserializerをこの再計算にも使っていたため、実teacher authorityとREADY registryを同時に満たすhashが存在しなかった。
+
+evaluatorのpayload hashとfile serializationを分離し、producerと同じ末尾LFなしの契約へ統一した。実teacher-preflight builderのsummaryをREADY evaluatorへ渡すcross-interface regressionも追加した。受領証fileの末尾LFは維持し、registryの`null`値、private artifact、実selection、ライブweightは変更していない。
+
 ## 現在の閉じた状態
 
 引数なしcommandは次である。

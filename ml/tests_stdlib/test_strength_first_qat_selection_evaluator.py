@@ -18,6 +18,7 @@ REPO_ROOT = ML_DIR.parent
 if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
+import run_strength_first_selection_teacher_preflight as teacher_preflight  # noqa: E402
 import strength_first_qat_selection_eval_adapter as adapter  # noqa: E402
 import strength_first_qat_selection_evaluator as evaluator  # noqa: E402
 
@@ -201,43 +202,13 @@ class ReadyHarness:
             "final_holdout": "not_opened_by_this_preflight",
             "production_promotion_authorized": False,
         }
-        portable_runs = []
-        for run in runs:
-            result_relative = f"{run['output']}/result.json"
-            checkpoint_relative = f"{run['output']}/final.pt"
-            portable_runs.append(
-                {
-                    "slot_id": run["slot_id"],
-                    "seed": run["seed"],
-                    "output": run["output"],
-                    "result": {
-                        "path": result_relative,
-                        "bytes": run["result"]["bytes"],
-                        "sha256": run["result"]["sha256"],
-                        "schema": (
-                            evaluator.BRIDGE.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA
-                        ),
-                    },
-                    "checkpoint": {
-                        "path": checkpoint_relative,
-                        "bytes": run["checkpoint"]["bytes"],
-                        "sha256": run["checkpoint"]["sha256"],
-                        "schema": (
-                            evaluator.BRIDGE.STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA
-                        ),
-                    },
-                    "checkpoint_metadata": copy.deepcopy(run["checkpoint_metadata"]),
-                }
+        self.teacher_preflight_summary = (
+            teacher_preflight.build_strength_first_selection_teacher_preflight_summary(
+                self.preflight,
+                registry_raw=preflight_registry_raw,
             )
-        preflight_projection = {
-            "schema": (
-                evaluator.PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_PREFLIGHT_SCHEMA
-            ),
-            "training_plan": plan_identity,
-            "training_pipeline": pipeline,
-            "runs": portable_runs,
-        }
-        preflight_sha256 = evaluator._canonical_json_sha256(preflight_projection)
+        )
+        preflight_sha256 = self.teacher_preflight_summary["checkpoint_preflight_sha256"]
 
         dataset_raw = b"synthetic-selection-dataset\n"
         dataset_identity = identity(
@@ -593,6 +564,16 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
             self.assertFalse(receipt["boundary"]["final_holdout_read"])
             self.assertFalse(receipt["boundary"]["production_promotion_authorized"])
             self.assertFalse(receipt["boundary"]["live_weight_write_authorized"])
+
+    def test_real_teacher_preflight_hash_is_accepted_by_ready_evaluator(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = ReadyHarness(temporary)
+            self.assertEqual(
+                harness.registry["enrollments"]["checkpoint_preflight_sha256"],
+                harness.teacher_preflight_summary["checkpoint_preflight_sha256"],
+            )
+            result = harness.run()
+            self.assertEqual(result["receipt"]["selected"]["seed"], 43)
 
     def test_missing_extra_duplicate_or_reordered_candidate_fails(self):
         mutations = {

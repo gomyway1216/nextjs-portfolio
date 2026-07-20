@@ -10,8 +10,8 @@
     },
     "evaluator": {
       "path": "ml/strength_first_qat_selection_evaluator.py",
-      "bytes": 62707,
-      "sha256": "0142a4cf427e1f0db89592be0fb28ad4538c90e90daff59c8575e605db1ee6da"
+      "bytes": 62893,
+      "sha256": "2bd15585f50935c9fc689a7b89b9408e4552a263dd6ff586a008cadda3ac223b"
     },
     "closed_registry": {
       "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
@@ -20,25 +20,25 @@
     },
     "tests": {
       "path": "ml/tests_stdlib/test_strength_first_qat_selection_evaluator.py",
-      "bytes": 35106,
-      "sha256": "5088873e328dcb2fd98e85e382316cd6fe752c4d2fd2b2f8065150e791379c51"
+      "bytes": 34417,
+      "sha256": "4e1419050c366a31fac7b7bebd276011e01b404df636ea2a2c29fc51f2c88695"
     },
     "article_ja": {
       "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.md",
-      "bytes": 5941,
-      "sha256": "6a772e2aeeeadc4d6c0f66412b66b8dc17ac18ecf6356e895ba83792ed9451e7"
+      "bytes": 6732,
+      "sha256": "496b3f46a311ea5fafa36a54e8a45240195b11eea0f8866b1d53269352040176"
     },
     "article_en": {
       "path": "docs/blog-shogi-floodgate-strength-first-selection-evaluator-foundation.en.md",
-      "bytes": 5501,
-      "sha256": "545878a63ded7c43d3da6a05639e0fb024257ca26d477dc0fe9fb8bdcd3291e3"
+      "bytes": 6232,
+      "sha256": "3a07c9e8fbce35491dd65fe1fd3446f66983bbfcdfef8eb3d60fe6157dee81c5"
     }
   },
   "validation": {
     "focused_unittest": {
       "command": "PYTHONPATH=ml python3 -m unittest -v ml.tests_stdlib.test_strength_first_qat_selection_evaluator",
-      "tests": 15,
-      "passed": 15,
+      "tests": 16,
+      "passed": 16,
       "failed": 0,
       "errors": 0
     },
@@ -74,6 +74,7 @@
   },
   "ready_path_coverage": {
     "same_composition_as_production": true,
+    "teacher_preflight_hash_contract_cross_checked": true,
     "three_checkpoint_one_shot_preflight_consumed": true,
     "fixed_4800_parent_selection_source_bound": true,
     "selection_teacher_authority_manifest_result_and_dataset_bound": true,

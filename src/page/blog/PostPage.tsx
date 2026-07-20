@@ -10,7 +10,7 @@ import type { DetailPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
 import { ArrowLeft, Edit3 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import BlogPostSkeleton from './BlogPostSkeleton';
@@ -70,6 +70,32 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   // Count anonymous reads of public posts only — the admin previewing
   // their own writing shouldn't move the number.
   usePostViewBeacon(post?.id, !!post && post.isPublic && !isAdmin);
+
+  const router = useRouter();
+
+  // On the language-pinned /ja route the article ignores the global
+  // language toggle by design — but when the reader actively flips the
+  // toggle to English, honor the gesture by navigating to the English
+  // URL. Listening to the change event (not the current value) matters:
+  // someone landing here from search with an 'en' cookie must NOT be
+  // bounced off the Japanese page they chose.
+  useEffect(() => {
+    if (forcedLanguage !== 'ja') return;
+
+    const handleLanguageChanged = (lng: string) => {
+      if (
+        normalizeLanguage(lng) === 'en' &&
+        post?.availableLanguages.includes('en')
+      ) {
+        router.push(`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`);
+      }
+    };
+
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, [forcedLanguage, i18n, post, router]);
 
   const view = useMemo(() => {
     if (!post) return null;

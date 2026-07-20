@@ -10,8 +10,8 @@
     },
     "evaluator": {
       "path": "ml/strength_first_qat_selection_evaluator.py",
-      "bytes": 62905,
-      "sha256": "9cb7eaae37b9983b4a326f487ee729521df0b48d331097928b1fad51dce048bf"
+      "bytes": 62893,
+      "sha256": "2bd15585f50935c9fc689a7b89b9408e4552a263dd6ff586a008cadda3ac223b"
     },
     "closed_registry": {
       "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",

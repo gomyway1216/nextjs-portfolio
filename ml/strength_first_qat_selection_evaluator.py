@@ -399,9 +399,9 @@ def _strict_json(raw: bytes, label: str) -> dict[str, Any]:
     return value
 
 
-def _canonical_json_payload_bytes(value: Mapping[str, Any]) -> bytes:
+def _canonical_json_payload_bytes(value: dict[str, Any]) -> bytes:
     if type(value) is not dict:
-        raise ValueError("canonical receipt root must be an exact object")
+        raise ValueError("canonical JSON root must be an exact object")
     return json.dumps(
         value,
         ensure_ascii=False,
@@ -411,11 +411,11 @@ def _canonical_json_payload_bytes(value: Mapping[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+def _canonical_json_bytes(value: dict[str, Any]) -> bytes:
     return _canonical_json_payload_bytes(value) + b"\n"
 
 
-def _checkpoint_preflight_sha256(value: Mapping[str, Any]) -> str:
+def _checkpoint_preflight_sha256(value: dict[str, Any]) -> str:
     """Match the teacher preflight's canonical payload hash without file LF."""
 
     return hashlib.sha256(_canonical_json_payload_bytes(value)).hexdigest()

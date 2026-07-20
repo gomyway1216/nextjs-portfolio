@@ -1,0 +1,91 @@
+{
+  "schema": "shogi-floodgate-strength-first-selection-publication-registry-candidate-evidence-v1",
+  "status": "terminal-candidate-builder-implemented-synthetic-replay-validated-real-publication-unread-live-unchanged",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-selection-publication-registry-candidate.md",
+    "english": "../blog-shogi-floodgate-strength-first-selection-publication-registry-candidate.en.md"
+  },
+  "implementation": {
+    "source": {
+      "path": "ml/build_strength_first_selection_publication_registry_candidate.py",
+      "bytes": 14926,
+      "sha256": "bab9f0afa48886697b1734ba5cbfdabcceb5e6fc3cd8fc4ff2f78ad5d604028d",
+      "schema": "shogi-reviewed-python-source-v1"
+    },
+    "argumentless_command": "~/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/build_strength_first_selection_publication_registry_candidate.py",
+    "accepts_arguments_or_path_overrides": false,
+    "writes_tracked_registry": false,
+    "candidate_destination": "stdout-only",
+    "terminal_status": "candidate-selected-publication-enrolled"
+  },
+  "binding_contract": {
+    "ready_preimage_identity_recomputed": true,
+    "publication_identities": [
+      "selection-evaluation-report.json",
+      "selection-receipt.json",
+      "selection-publication-result.json"
+    ],
+    "publication_result_committed_last": true,
+    "publication_result_binds_ready_report_receipt_and_selected_checkpoint": true,
+    "deterministic_replay_models": [
+      "stable",
+      "seed-42",
+      "seed-43",
+      "seed-44"
+    ],
+    "tracked_and_private_inputs_reread_before_stdout": true,
+    "terminal_recomputation_idempotent": true
+  },
+  "fail_closed_negatives": [
+    "tampered-report",
+    "swapped-report-and-receipt",
+    "deterministic-four-model-replay-mismatch",
+    "terminal-publication-identity-replay-mismatch",
+    "arguments-or-path-overrides"
+  ],
+  "boundary": {
+    "fresh_final_source_reads": 0,
+    "fresh_final_label_reads": 0,
+    "downstream_registry_reads": 0,
+    "network_requests": 0,
+    "cloud_requests": 0,
+    "live_weight_writes": 0
+  },
+  "local_validation": {
+    "python_compile": "PASS",
+    "new_builder_stdlib": {
+      "status": "PASS",
+      "tests": 6
+    },
+    "focused_builder_evaluator_and_fresh_final_preflight": {
+      "status": "PASS",
+      "tests": 28
+    },
+    "git_diff_check": "PASS",
+    "independent_review": "PENDING",
+    "github_ci": "PENDING"
+  },
+  "observed_real_counts_at_publication": {
+    "terminal_builder_invocations": 0,
+    "selection_publication_artifacts_read": 0,
+    "selection_checkpoint_evaluations": 0,
+    "fresh_final_source_reads": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "privacy": {
+    "private_absolute_home_path_published": false,
+    "selection_positions_or_labels_published": false,
+    "checkpoint_bytes_published": false
+  },
+  "nonclaims": {
+    "real_candidate_selected": false,
+    "fresh_final_evaluated": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  },
+  "next_step": "after-real-three-seed-training-and-fresh-selection-publication-review-the-stdout-candidate-in-a-normal-pr-before-fresh-final"
+}

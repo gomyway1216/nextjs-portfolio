@@ -893,6 +893,24 @@ focused Python 31 testとv8/v9 semantic TypeScript 6 testを通した。詳細�
 [English article](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-v9-training-bridge-2026-07-20.json)を参照。
 
+#### Floodgate strength-first正式3-seed学習完了（2026-07-20）
+
+正式v9教師の278,736行と固定replayを使い、seed 42 / 43 / 44を2 threadsずつ同時に
+20 epochs学習した。3 processは1,814.38秒で全てexit 0となり、3つの`final.pt`を生成した。
+学習後のregistry builderは3結果と3 checkpointをstrict loadし、独立2回の出力が
+2,965 bytes / SHA-256
+`0526b1633364db4c6e715a612823b1fc2d5375610329f017aff20d810fda88c1`
+でbyte-for-byte一致したため、そのexact identityをselection preflight registryへ登録した。
+focused Python 20 / 20、full Python 391 / 391、公開関連Vitest 13 / 13、TypeScript、
+ESLint、diff checkはPASSした。
+
+これは3候補の作成とselection入口の登録であり、棋力向上、高段校正、候補選抜、holdout、
+formal A/B、live変更の証拠ではない。live weightは0変更のまま、次は未使用fresh-selection
+4,800局面を生成してstableと3候補を同一条件で評価する。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-three-seed-training-completion-2026-07-20.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

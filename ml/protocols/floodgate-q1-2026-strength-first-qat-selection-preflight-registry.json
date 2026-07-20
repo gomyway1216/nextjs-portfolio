@@ -1,13 +1,13 @@
 {
   "schema": "shogi-floodgate-strength-first-qat-selection-preflight-registry-v1",
-  "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
+  "status": "exact-strength-first-plan-and-three-final-run-identities-ready",
   "training_plan": {
     "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
     "schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
-    "bytes": null,
-    "sha256": null
+    "bytes": 6242,
+    "sha256": "ab5264f14e2ccde65c2aa4a17e21c3dd20839edd268d6c4aa345291f38c5178c"
   },
-  "training_pipeline_revision": null,
+  "training_pipeline_revision": "ba52b872599356063d1c4790a59564bf758cddcc",
   "runs": [
     {
       "slot_id": "floodgate-strength-first-int16-aware-seed-42",
@@ -16,14 +16,14 @@
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/result.json",
         "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 7700,
+        "sha256": "c68c99eadf5081fee9370023dde2d7bd8c3430ba15d28fc0715c8a2a90809763"
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/final.pt",
         "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 2383633,
+        "sha256": "84ab533c7bf36183b83228c5dab5817dd730fcfae5d81be645569f45b5622a6a"
       }
     },
     {
@@ -33,14 +33,14 @@
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/result.json",
         "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 7698,
+        "sha256": "e9681e76bd1859ebf4af9e7dbb10b2269e5c024c0d58de0e195d2ef0021cc4b6"
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/final.pt",
         "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 2383633,
+        "sha256": "6665c7de16c8f9b6b7eb9c3fccc29db58ae12271e548301b25b9233508c4bbb0"
       }
     },
     {
@@ -50,17 +50,17 @@
       "result": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/result.json",
         "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 7700,
+        "sha256": "65b0df3892c0d86446d7febe896fb4e59bbb086223a7030ccdf8ec1f8c0a5c30"
       },
       "checkpoint": {
         "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/final.pt",
         "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
-        "bytes": null,
-        "sha256": null
+        "bytes": 2383633,
+        "sha256": "00b074439f404c1d95e77ed4d0318ab34c85106d4a18c7a18f394e21f6aabcd5"
       }
     }
   ],
-  "artifact_identities_registered": false,
-  "selection_preflight_ready": false
+  "artifact_identities_registered": true,
+  "selection_preflight_ready": true
 }

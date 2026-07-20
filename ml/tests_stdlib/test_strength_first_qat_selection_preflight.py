@@ -331,29 +331,79 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
         )
         return validated, events
 
-    def test_checked_in_registry_stops_before_plan_artifact_or_torch(self):
+    def test_checked_in_registry_enrolls_exact_three_run_identities(self):
+        registry_path = (
+            REPO_ROOT
+            / PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_REGISTRY_RELATIVE_PATH
+        )
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(PREFLIGHT._validate_registry(registry))
+        self.assertEqual(
+            registry["status"],
+            PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_READY_STATUS,
+        )
+        self.assertTrue(registry["artifact_identities_registered"])
+        self.assertTrue(registry["selection_preflight_ready"])
+        self.assertEqual([run["seed"] for run in registry["runs"]], [42, 43, 44])
+        self.assertTrue(
+            all(
+                run[artifact]["bytes"] > 0
+                and COMMON._valid_sha256(run[artifact]["sha256"])
+                for run in registry["runs"]
+                for artifact in ("result", "checkpoint")
+            )
+        )
+
+    def test_blocked_registry_stops_before_plan_artifact_or_torch(self):
+        registry = {
+            "schema": PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_REGISTRY_SCHEMA,
+            "status": PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_BLOCKED_STATUS,
+            "training_plan": {
+                "path": BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH,
+                "schema": BRIDGE.STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+                "bytes": None,
+                "sha256": None,
+            },
+            "training_pipeline_revision": None,
+            "runs": copy.deepcopy(PREFLIGHT._expected_registry_runs()),
+            "artifact_identities_registered": False,
+            "selection_preflight_ready": False,
+        }
+        for run in registry["runs"]:
+            for artifact in ("result", "checkpoint"):
+                run[artifact]["bytes"] = None
+                run[artifact]["sha256"] = None
+
         loader = mock.Mock()
         model_validator = mock.Mock()
         snapshot = mock.Mock(
             side_effect=AssertionError("closed registry touched an artifact")
         )
         tracked = []
-        with mock.patch.object(
-            COMMON,
-            "_sha256_file_snapshot",
-            snapshot,
-        ), self.assertRaisesRegex(ValueError, "data-only blocked"):
-            PREFLIGHT._preflight_strength_first_qat_selection(
-                repo_root=str(REPO_ROOT),
-                tracking_verifier=lambda path, _raw: tracked.append(path),
-                checkpoint_loader=loader,
-                strict_model_validator=model_validator,
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            write_bytes(
+                root,
+                PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_REGISTRY_RELATIVE_PATH,
+                json_bytes(registry),
             )
+            with mock.patch.object(
+                COMMON,
+                "_sha256_file_snapshot",
+                snapshot,
+            ), self.assertRaisesRegex(ValueError, "data-only blocked"):
+                PREFLIGHT._preflight_strength_first_qat_selection(
+                    repo_root=str(root),
+                    tracking_verifier=lambda path, _raw: tracked.append(path),
+                    checkpoint_loader=loader,
+                    strict_model_validator=model_validator,
+                )
         self.assertEqual(
             tracked,
             [
                 str(
-                    REPO_ROOT
+                    root
                     / PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_REGISTRY_RELATIVE_PATH
                 )
             ],

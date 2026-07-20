@@ -29,6 +29,11 @@ export interface FloodgateTrainingRawIdentity {
   readonly sha256: string;
 }
 
+export interface FloodgateFreshSelectionRawIdentity
+  extends Omit<FloodgateTrainingRawIdentity, "path"> {
+  readonly path: "fresh-selection.raw.jsonl";
+}
+
 export interface FloodgateTrainingParent {
   readonly schema_version: 1;
   readonly game_id: string;
@@ -334,19 +339,22 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
-export function captureFloodgateTrainingRawIdentity(
+function captureFloodgateRawIdentity<Path extends
+  | "training.raw.jsonl"
+  | "fresh-selection.raw.jsonl">(
   value: unknown,
-): Readonly<FloodgateTrainingRawIdentity> {
+  expectedPath: Path,
+): Readonly<Omit<FloodgateTrainingRawIdentity, "path"> & { readonly path: Path }> {
   const identity = exactDataRecord(
     value,
     RAW_IDENTITY_KEYS,
-    "training raw identity",
+    "Floodgate raw identity",
   );
   if (
-    identity.path !== "training.raw.jsonl" ||
+    identity.path !== expectedPath ||
     identity.format !== FLOODGATE_TRAINING_RAW_PARENT_FORMAT
   ) {
-    fail("training raw path or format is not fixed");
+    fail("raw path or format is not fixed");
   }
   for (const key of [
     "bytes",
@@ -358,11 +366,11 @@ export function captureFloodgateTrainingRawIdentity(
       !Number.isSafeInteger(identity[key]) ||
       (identity[key] as number) <= 0
     ) {
-      fail(`training raw ${key} is not a positive safe integer`);
+      fail(`raw ${key} is not a positive safe integer`);
     }
   }
   if ((identity.bytes as number) > FLOODGATE_TRAINING_RAW_MAX_BYTES) {
-    fail("training raw identity exceeds the fixed size bound");
+    fail("raw identity exceeds the fixed size bound");
   }
   for (const key of [
     "sha256",
@@ -371,7 +379,7 @@ export function captureFloodgateTrainingRawIdentity(
     "position_ids_sha256",
   ] as const) {
     if (typeof identity[key] !== "string" || !SHA256_RE.test(identity[key])) {
-      fail(`training raw ${key} is not a SHA-256 digest`);
+      fail(`raw ${key} is not a SHA-256 digest`);
     }
   }
   return Object.freeze({
@@ -380,12 +388,24 @@ export function captureFloodgateTrainingRawIdentity(
     game_ids_sha256: identity.game_ids_sha256 as string,
     games: identity.games as number,
     parent_ids_sha256: identity.parent_ids_sha256 as string,
-    path: "training.raw.jsonl" as const,
+    path: expectedPath,
     position_ids_count: identity.position_ids_count as number,
     position_ids_sha256: identity.position_ids_sha256 as string,
     records: identity.records as number,
     sha256: identity.sha256 as string,
   });
+}
+
+export function captureFloodgateTrainingRawIdentity(
+  value: unknown,
+): Readonly<FloodgateTrainingRawIdentity> {
+  return captureFloodgateRawIdentity(value, "training.raw.jsonl");
+}
+
+export function captureFloodgateFreshSelectionRawIdentity(
+  value: unknown,
+): Readonly<FloodgateFreshSelectionRawIdentity> {
+  return captureFloodgateRawIdentity(value, "fresh-selection.raw.jsonl");
 }
 
 function parseRawParent(
@@ -490,15 +510,17 @@ function parseRawParent(
   });
 }
 
-export function parseAuthenticatedFloodgateTrainingRows(
+function parseAuthenticatedFloodgateRows(
   bytes: Uint8Array,
   expectedIdentityInput: unknown,
+  expectedPath: "training.raw.jsonl" | "fresh-selection.raw.jsonl",
 ): readonly Readonly<FloodgateTrainingParent>[] {
   if (!(bytes instanceof Uint8Array) || nodeUtilTypes.isProxy(bytes)) {
     fail("training raw snapshot must be a non-Proxy Uint8Array");
   }
-  const expectedIdentity = captureFloodgateTrainingRawIdentity(
+  const expectedIdentity = captureFloodgateRawIdentity(
     expectedIdentityInput,
+    expectedPath,
   );
   if (
     bytes.byteLength !== expectedIdentity.bytes ||
@@ -585,4 +607,26 @@ export function parseAuthenticatedFloodgateTrainingRows(
     fail("training aggregate identity does not match the manifest");
   }
   return Object.freeze(rows);
+}
+
+export function parseAuthenticatedFloodgateTrainingRows(
+  bytes: Uint8Array,
+  expectedIdentityInput: unknown,
+): readonly Readonly<FloodgateTrainingParent>[] {
+  return parseAuthenticatedFloodgateRows(
+    bytes,
+    expectedIdentityInput,
+    "training.raw.jsonl",
+  );
+}
+
+export function parseAuthenticatedFloodgateFreshSelectionRows(
+  bytes: Uint8Array,
+  expectedIdentityInput: unknown,
+): readonly Readonly<FloodgateTrainingParent>[] {
+  return parseAuthenticatedFloodgateRows(
+    bytes,
+    expectedIdentityInput,
+    "fresh-selection.raw.jsonl",
+  );
 }

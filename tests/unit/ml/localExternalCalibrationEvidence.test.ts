@@ -124,6 +124,12 @@ describe("local external calibration publication evidence", () => {
       related_files_passed: 5,
       related_tests_passed: 76,
       related_tests_failed: 0,
+      full_ml_test_files_passed: 149,
+      full_ml_test_files_failed: 0,
+      full_ml_tests_passed: 2569,
+      full_ml_tests_failed: 0,
+      full_ml_tests_skipped: 1,
+      full_ml_duration_seconds: 200.2,
       fake_usi_subprocess_games: 2,
       illegal_move_completed_games_discarded: 1,
       illegal_move_receipts_issued: 0,
@@ -151,6 +157,9 @@ describe("local external calibration publication evidence", () => {
       expect(article).toContain("2f32cf36");
       expect(article).toContain("9 / 9 PASS");
       expect(article).toContain("76 / 76 PASS");
+      expect(article).toMatch(/149 \/ 149 files/iu);
+      expect(article).toContain("2,569 PASS");
+      expect(article).toContain("200.20");
       expect(article).toContain(
         "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
       );

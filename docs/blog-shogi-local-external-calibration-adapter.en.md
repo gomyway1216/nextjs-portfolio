@@ -60,6 +60,7 @@ The implementation anchor is `2f32cf36b2d8fa2e40d24523a3d1b892571398d3`.
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------: |
 | adapter focused                                                                        |                                                  9 / 9 PASS |
 | related SFEN, lightweight USI, production stable, and production Yaneura runtime tests |                                                76 / 76 PASS |
+| complete ML unit suite                                                                 |                    149 / 149 files, 2,569 PASS, one skipped |
 | fake-USI subprocess match                                                              |         one opening pair / two games, four plies each, PASS |
 | reset trace                                                                            | one initialization ready + four pre-reference-search resets |
 | partial discard after illegal move                                                     |                   one earlier game discarded, zero receipts |
@@ -69,7 +70,7 @@ The implementation anchor is `2f32cf36b2d8fa2e40d24523a3d1b892571398d3`.
 | network / AWS / GCP / Firebase / Vercel                                                |                                                        zero |
 | live / holdout / production-result writes                                              |                                                        zero |
 
-The two changed code/test files introduce no new type errors. The repository has unrelated pre-existing TypeScript errors, so this evidence does not claim a passing whole-repository typecheck. ESLint, Prettier, and Git diff checks pass.
+The complete ML unit suite ran against fixed source for 200.20 seconds with zero failures. The two changed code/test files introduce no new type errors. The repository has unrelated pre-existing TypeScript errors, so this evidence does not claim a passing whole-repository typecheck. ESLint, Prettier, and Git diff checks pass.
 
 ## Next gate
 

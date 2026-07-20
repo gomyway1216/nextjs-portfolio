@@ -60,6 +60,7 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 | -------------------------------------------------------------------------- | ------------------------------------: |
 | adapter focused                                                            |                            9 / 9 PASS |
 | SFEN、軽量USI、production stable、production Yaneura runtimeを含む関連test |                          76 / 76 PASS |
+| ML unit suite全体                                                          |   149 / 149 files、2,569 PASS、1 skip |
 | fake USI subprocess対局                                                    |     1 opening pair / 2局、各4手、PASS |
 | reset trace                                                                | 初期ready 1回 + reference search前4回 |
 | illegal move後のpartial discard                                            |              先行1局を破棄、receipt 0 |
@@ -69,7 +70,7 @@ callerは片側の色だけを省略したり、別openingへ差し替えたり�
 | network / AWS / GCP / Firebase / Vercel                                    |                                     0 |
 | live / holdout / production-result write                                   |                                     0 |
 
-型検査では今回の2 fileに新規errorはない。repository全体には今回と無関係な既存TypeScript errorがあるため、全体typecheckをPASSとは記録しない。ESLint、Prettier、Git diff checkはPASSした。
+ML unit suite全体は固定したsourceで200.20秒かけて実行し、失敗0だった。型検査では今回の2 fileに新規errorはない。repository全体には今回と無関係な既存TypeScript errorがあるため、全体typecheckをPASSとは記録しない。ESLint、Prettier、Git diff checkはPASSした。
 
 ## 次のgate
 

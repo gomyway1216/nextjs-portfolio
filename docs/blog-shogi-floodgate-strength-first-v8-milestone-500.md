@@ -98,7 +98,7 @@ milestone自身は`authentication_receipt=false`かつ`playing_strength_evidence
 timeoutを1件含むため「500件すべてlabel済み」「v8がtimeoutを完全に解消した」とも主張しない。
 
 このsnapshotで完了していないものは、24,000 teacher dataset、seed 42 / 43 / 44のoptimizer、
-候補選抜、sealed holdout、192 pair / 384 gameの正式A/B、外部校正、高段安定、live昇格である。
+候補選抜、sealed holdout、384 pair / 768 gameの正式A/B、外部校正、高段安定、live昇格である。
 live weightは変更していない。
 
 ## 次の強さゲート
@@ -106,7 +106,7 @@ live weightは変更していない。
 runnerは同じrun identityのまま24,000へ自動継続する。次の重要な実証拠は、全24,000枠を
 label済みparentまたは登録範囲内のforced skipへ1対1 accountingしたcomplete teacher
 datasetである。その後、固定seed 42 / 43 / 44の再学習、候補選抜、sealed holdout、正式
-192 pair / 384 game A/B、外部校正を順に通す。対局で改善を確認し、安全な昇格条件が
+384 pair / 768 game A/B、外部校正を順に通す。対局で改善を確認し、安全な昇格条件が
 揃うまでlive weightは変えない。
 
 機械可読記録:

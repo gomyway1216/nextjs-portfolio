@@ -147,6 +147,8 @@ describe("Floodgate strength-first v8 milestone 100 evidence", () => {
         live_promotion: false,
       },
     });
+    expect(evidence().next_gates).toContain("formal-384-pair-768-game-ab");
+    expect(evidence().next_gates).not.toContain("formal-192-pair-384-game-ab");
   });
 
   it("keeps both articles aligned and publishes no private payload or path", () => {

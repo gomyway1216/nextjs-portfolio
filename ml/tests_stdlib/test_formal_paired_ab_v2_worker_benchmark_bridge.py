@@ -281,6 +281,18 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 candidate["implementation"]["formal_production_runner"]["path"],
                 "ml/formal_paired_ab_v2_benchmark_bound_runner.py",
             )
+            self.assertEqual(
+                candidate["implementation"]["local_launcher"]["path"],
+                "ml/formal_paired_ab_local_launcher.py",
+            )
+            self.assertEqual(
+                candidate["implementation"]["sfen_runtime"]["path"],
+                "ml/shogi-sfen.ts",
+            )
+            self.assertEqual(
+                candidate["implementation"]["wasm_engine"]["path"],
+                "src/components/game/ShogiImproved/wasmEngine.ts",
+            )
             self.assertNotIn("authority", candidate["implementation"])
             self.assertTrue(candidate["gates"]["benchmark_execution_authorized"])
             self.assertFalse(candidate["gates"]["formal_execution_authorized"])
@@ -298,6 +310,33 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     _enrollment=wrong_path,
                     _git_head=lambda _root: fixture.revision,
                 )
+
+    def test_capture_rejects_drift_in_transitive_runtime_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            fixture.capture_ready()
+            for name in (
+                "local_launcher",
+                "formal_protocol_v2",
+                "sfen_runtime",
+                "wasm_engine",
+            ):
+                with self.subTest(name=name):
+                    source = fixture.root / benchmark._IMPLEMENTATION_PATHS[name]
+                    original = source.read_bytes()
+                    try:
+                        source.write_bytes(original + b"\n")
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            f"worker benchmark implementation {name}",
+                        ):
+                            benchmark.capture_ready_worker_benchmark_registry(
+                                fixture.root,
+                                benchmark.BENCHMARK_REGISTRY_PATH,
+                                expected_revision=fixture.revision,
+                            )
+                    finally:
+                        source.write_bytes(original)
 
     def test_real_schedule_receipt_is_bound_before_formal_ready_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -646,6 +685,52 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     fixture.root, temporary
                 )
             publish.assert_not_called()
+
+    def test_postflight_transitive_source_drift_blocks_receipt_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            captured = fixture.capture_ready()
+            clock = iter(range(len(benchmark.BENCHMARK_SEQUENCE) * 2))
+            receipt = benchmark.run_captured_worker_benchmark(
+                fixture.root,
+                captured,
+                execute_round=synthetic_round,
+                monotonic_ns=lambda: next(clock),
+            )
+            source = fixture.root / benchmark._IMPLEMENTATION_PATHS["sfen_runtime"]
+            original = source.read_bytes()
+
+            def drift_after_rounds(_repo_root, _captured):
+                source.write_bytes(original + b"\n")
+                return receipt
+
+            try:
+                with (
+                    mock.patch.object(
+                        benchmark,
+                        "_PINNED_BENCHMARK_REGISTRY_IDENTITY",
+                        captured["registry_identity"],
+                    ),
+                    mock.patch.object(benchmark, "_require_revision_ancestor"),
+                    mock.patch.object(
+                        benchmark,
+                        "run_captured_worker_benchmark",
+                        side_effect=drift_after_rounds,
+                    ),
+                    mock.patch.object(
+                        benchmark, "publish_bound_worker_benchmark_receipt"
+                    ) as publish,
+                    self.assertRaisesRegex(
+                        ValueError,
+                        "worker benchmark implementation sfen_runtime",
+                    ),
+                ):
+                    benchmark._run_pinned_worker_benchmark_core_for_tests(
+                        fixture.root, temporary
+                    )
+                publish.assert_not_called()
+            finally:
+                source.write_bytes(original)
 
     def test_formal_production_pin_stays_closed_until_real_receipt_is_reviewed(self):
         self.assertIsNone(benchmark._PINNED_FORMAL_READY_REGISTRY_IDENTITY)

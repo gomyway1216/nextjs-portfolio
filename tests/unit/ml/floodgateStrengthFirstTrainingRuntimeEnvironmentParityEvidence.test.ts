@@ -38,7 +38,8 @@ describe("Floodgate strength-first training runtime environment parity evidence"
         "implementation-and-focused-validation-pass-no-training-selection-or-live-change",
       implementation: {
         seeds: [42, 43, 44],
-        children_started_by_validation: 0,
+        real_training_children_started_by_validation: 0,
+        injected_smoke_subprocesses_started_by_validation: 3,
         parent_environment_copied_before_fixed_overrides: true,
         independent_environment_map_per_child: true,
         fixed_child_environment: {

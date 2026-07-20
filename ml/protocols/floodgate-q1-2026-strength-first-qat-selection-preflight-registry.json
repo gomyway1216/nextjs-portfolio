@@ -3,7 +3,7 @@
   "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
   "training_plan": {
     "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-    "schema": "shogi-floodgate-strength-first-qat-training-plan-v2",
+    "schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
     "bytes": null,
     "sha256": null
   },

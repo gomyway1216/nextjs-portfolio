@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+  STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
   siblingTeacherStagePaths,
 } from "../../../ml/generate-sibling-teacher";
@@ -21,10 +22,19 @@ import {
   FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_STATUS,
   FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
+  FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS,
+  FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
   parseFloodgateStrengthFirstV8PrettyJsonForTests,
   verifyFloodgateStrengthFirstV8DownstreamProvenance,
+  verifyFloodgateStrengthFirstV9DownstreamProvenance,
   type FloodgateStrengthFirstV8DownstreamProvenanceInput,
+  type FloodgateStrengthFirstV9DownstreamProvenanceInput,
 } from "../../../ml/floodgate-strength-first-v8-downstream-provenance";
+import {
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
+  FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
+} from "../../../ml/floodgate-strength-first-fast-training-input";
 import {
   FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
   FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA,
@@ -39,7 +49,20 @@ import {
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_STATUS,
   FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
 } from "../../../ml/floodgate-strength-first-v8-teacher-authority";
+import {
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+} from "../../../ml/floodgate-strength-first-v9-teacher-authority";
+import {
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_MILESTONE_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_NODE_VERSION,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA,
+  FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA,
+} from "../../../ml/floodgate-strength-first-v9-teacher-runner";
 import { runFloodgateStrengthFirstV8DownstreamProvenanceCli } from "../../../ml/verify-floodgate-strength-first-v8-downstream-provenance";
+import { runFloodgateStrengthFirstV9DownstreamProvenanceCli } from "../../../ml/verify-floodgate-strength-first-v9-downstream-provenance";
 import {
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM,
@@ -172,10 +195,11 @@ rl.on('line', (line) => {
   if (multi) { multipv = Number(multi[1]); return; }
   if (line === 'quit') { process.exit(0); return; }
   if (!line.startsWith('go ')) return;
+  const depth = Number(line.match(/\\bdepth (\\d+)/)?.[1] ?? 16);
   const searchmoves = line.match(/\\bsearchmoves (.+)$/)?.[1].trim().split(/\\s+/) ?? [];
   const moves = (searchmoves.length === 0 ? proposal : searchmoves).slice(0, multipv);
   for (let rank = moves.length; rank >= 1; rank -= 1) {
-    console.log(\`info depth 16 multipv \${rank} score cp \${500 - rank} nodes 64 pv \${moves[rank - 1]}\`);
+    console.log(\`info depth \${depth} multipv \${rank} score cp \${500 - rank} nodes 64 pv \${moves[rank - 1]}\`);
   }
   console.log(\`bestmove \${moves[0]}\`);
 });
@@ -201,13 +225,15 @@ function evidence(
 }
 
 interface Fixture {
-  readonly input: FloodgateStrengthFirstV8DownstreamProvenanceInput;
+  readonly input:
+    | FloodgateStrengthFirstV8DownstreamProvenanceInput
+    | FloodgateStrengthFirstV9DownstreamProvenanceInput;
   readonly resultValue: Record<string, unknown>;
 }
 
-async function fixture(): Promise<Fixture> {
+async function fixture(generation: "v8" | "v9" = "v8"): Promise<Fixture> {
   const root = await fs.promises.mkdtemp(
-    path.join(os.tmpdir(), "v8-provenance-"),
+    path.join(os.tmpdir(), `${generation}-provenance-`),
   );
   roots.push(root);
   const stageRoot = path.join(root, "stage");
@@ -278,16 +304,27 @@ async function fixture(): Promise<Fixture> {
     });
   const baseOptions = {
     stageRoot,
-    runnerRevision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
+    runnerRevision:
+      generation === "v8"
+        ? FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION
+        : FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
     engineBin: process.execPath,
     engineArgs: [await writeFixtureEngine(root)],
     engineReceipt: await writeEngineReceipt(root),
     evalDir,
     multipv: 12,
     depth: 16,
-    engines: 12,
+    engines:
+      generation === "v8" ? 12 : STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
     hashMb: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
     timeoutMs: 600_000,
+    ...(generation === "v8"
+      ? {}
+      : {
+          proposalDepth: 14,
+          authenticatedInputPolicy:
+            FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
+        }),
   };
   const dependencies = {
     verifyRevision: async (revision: string) => ({
@@ -397,7 +434,7 @@ async function fixture(): Promise<Fixture> {
     runtime: FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
     postverification,
   };
-  const authority = {
+  const v8Authority = {
     contract: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_CONTRACT,
     status: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_AUTHORITY_STATUS,
     claim_boundary:
@@ -409,38 +446,93 @@ async function fixture(): Promise<Fixture> {
     postverification,
     runtime: FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
   };
+  const authority =
+    generation === "v8"
+      ? v8Authority
+      : {
+          contract: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CONTRACT,
+          status: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_STATUS,
+          claim_boundary:
+            FLOODGATE_STRENGTH_FIRST_V9_TEACHER_AUTHORITY_CLAIM_BOUNDARY,
+          execution_boundary:
+            "production-fixed-registry-and-deployment-root",
+          asset_authority: v8Authority,
+          assets,
+          engine,
+          postverification,
+          runtime: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+        };
   const inputProjection = {
     schema: authenticated.schema,
     role: authenticated.role,
     binding: authenticated.binding,
   };
-  const milestone = (progress: typeof first) => ({
-    schema: FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA,
-    status:
-      "local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt",
-    authentication_receipt: false,
-    playing_strength_evidence: false,
-    target_parents: progress.target_parents,
-    completed_parents: progress.completed_parents,
-    runner_revision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
-    authenticated_input: inputProjection,
-    stage: {
-      root: ".",
-      same_stage_for_all_targets: true,
-      automatically_continue_to_next_target: true,
+  const fastInputBinding = {
+    schema: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_SCHEMA,
+    role: "training",
+    policy: FLOODGATE_STRENGTH_FIRST_FAST_TRAINING_INPUT_POLICY,
+    manifest: {
+      path: "manifest.json",
+      bytes: authenticated.binding.bundle_manifest_bytes,
+      sha256: authenticated.binding.bundle_manifest_sha256,
     },
-    progress: {
+    source: {
+      path: "training.raw.jsonl",
+      format: authenticated.binding.raw_format,
+      bytes: authenticated.binding.raw_bytes,
+      sha256: authenticated.binding.raw_sha256,
+      records: authenticated.binding.records,
+      games: authenticated.binding.games,
+      game_ids_sha256: authenticated.binding.game_ids_sha256,
+      parent_ids_sha256: authenticated.binding.parent_ids_sha256,
+      position_ids_count: authenticated.binding.position_ids_count,
+      position_ids_sha256: authenticated.binding.position_ids_sha256,
+    },
+  };
+  const milestone = (progress: typeof first) => {
+    const progressValue = {
       status: progress.status,
       authentication_receipt: progress.authentication_receipt,
-      target_parents: progress.target_parents,
-      completed_parents: progress.completed_parents,
+      ...(generation === "v8"
+        ? {
+            target_parents: progress.target_parents,
+            completed_parents: progress.completed_parents,
+          }
+        : {}),
       run_fingerprint: progress.run_fingerprint,
       forced_parents_skipped: progress.forced_parents_skipped,
       forced_skip_reasons: progress.forced_skip_reasons,
       emitted_parent_groups: progress.emitted_parent_groups,
       work: progress.work,
-    },
-  });
+    };
+    return {
+      schema:
+        generation === "v8"
+          ? FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA
+          : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_MILESTONE_SCHEMA,
+      status:
+        "local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt",
+      authentication_receipt: false,
+      playing_strength_evidence: false,
+      target_parents: progress.target_parents,
+      completed_parents: progress.completed_parents,
+      runner_revision:
+        generation === "v8"
+          ? FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION
+          : FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
+      ...(generation === "v8"
+        ? {
+            authenticated_input: inputProjection,
+            stage: {
+              root: ".",
+              same_stage_for_all_targets: true,
+              automatically_continue_to_next_target: true,
+            },
+          }
+        : { fast_input_preflight: fastInputBinding }),
+      progress: progressValue,
+    };
+  };
   const milestone100 = prettyBytes(milestone(first));
   const milestone500 = prettyBytes(milestone(second as typeof first));
   const postflight = {
@@ -457,14 +549,31 @@ async function fixture(): Promise<Fixture> {
     },
   };
   const resultValue = {
-    schema: FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
-    status: "complete-training-only-postflight-bound",
+    schema:
+      generation === "v8"
+        ? FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA
+        : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA,
+    status:
+      generation === "v8"
+        ? "complete-training-only-postflight-bound"
+        : "complete-training-only-fast-input-postflight-bound",
     claim_boundary:
-      "postflight-input-and-staged-output-integrity-not-playing-strength-evidence",
+      generation === "v8"
+        ? "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
+        : "fast-input-and-staged-output-integrity-not-playing-strength-evidence",
     runner: {
-      schema: FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA,
-      revision: FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION,
-      node: FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION,
+      schema:
+        generation === "v8"
+          ? FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA
+          : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNNER_SCHEMA,
+      revision:
+        generation === "v8"
+          ? FLOODGATE_STRENGTH_FIRST_V8_MERGE_REVISION
+          : FLOODGATE_STRENGTH_FIRST_V9_MERGE_REVISION,
+      node:
+        generation === "v8"
+          ? FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION
+          : FLOODGATE_STRENGTH_FIRST_V9_TEACHER_NODE_VERSION,
       platform: "darwin",
       architecture: "arm64",
       local_only: true,
@@ -473,24 +582,47 @@ async function fixture(): Promise<Fixture> {
       live_weight_changes: 0,
     },
     production_asset_preflight: authority,
-    authenticated_input: inputProjection,
-    consumer_postflight: postflight,
-    teacher: {
-      engine: "YaneuraOu",
-      parallel_engines: 12,
-      threads_per_engine: 1,
-      proposal: { multipv: 12, depth: 16 },
-      independent_rescore: {
-        multipv: 1,
-        searchmoves: "exactly-one-candidate",
-        depth: 16,
-      },
-      hash_mb_per_engine: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
-      timeout_ms_per_search: 600_000,
-      engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
-      stable_assets_verified: true,
-      stable_engine_or_policy_executions: 0,
-    },
+    authenticated_input:
+      generation === "v8"
+        ? inputProjection
+        : {
+            runtime: {
+              preflight: fastInputBinding,
+              postflight: fastInputBinding,
+              equal: true,
+            },
+            generator_projection: {
+              ...inputProjection,
+              historic_provenance_not_reverified_by_fast_path: true,
+            },
+          },
+    ...(generation === "v8" ? { consumer_postflight: postflight } : {}),
+    teacher:
+      generation === "v8"
+        ? {
+            engine: "YaneuraOu",
+            parallel_engines: 12,
+            threads_per_engine: 1,
+            proposal: { multipv: 12, depth: 16 },
+            independent_rescore: {
+              multipv: 1,
+              searchmoves: "exactly-one-candidate",
+              depth: 16,
+            },
+            hash_mb_per_engine:
+              FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
+            timeout_ms_per_search: 600_000,
+            engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+            stable_assets_verified: true,
+            stable_engine_or_policy_executions: 0,
+          }
+        : {
+            engine: "YaneuraOu",
+            runtime: FLOODGATE_STRENGTH_FIRST_V9_TEACHER_RUNTIME,
+            engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+            stable_assets_verified: true,
+            stable_engine_or_policy_executions: 0,
+          },
     milestones: {
       targets: [1, 2, 3],
       prefix_100: fileBinding("milestone-1.json", milestone100),
@@ -511,15 +643,24 @@ async function fixture(): Promise<Fixture> {
       manifest: fileBinding("manifest.json", manifest),
       staged_result: fileBinding("staged-result.json", stagedResult),
     },
-    publication: {
-      stage_root_private_0700: true,
-      stage_files_private_0600: true,
-      staged_inside_single_authenticated_callback: true,
-      postflight_exact_receipt_claimed_before_result_commit: true,
-      result_file_sync_before_rename: true,
-      result_same_directory_rename: true,
-      result_directory_sync_after_rename: true,
-    },
+    publication:
+      generation === "v8"
+        ? {
+            stage_root_private_0700: true,
+            stage_files_private_0600: true,
+            staged_inside_single_authenticated_callback: true,
+            postflight_exact_receipt_claimed_before_result_commit: true,
+            result_file_sync_before_rename: true,
+            result_same_directory_rename: true,
+            result_directory_sync_after_rename: true,
+          }
+        : {
+            stage_root_private_0700: true,
+            stage_files_private_0600: true,
+            fast_input_reauthenticated_after_teacher: true,
+            postflight_equal_before_result_commit: true,
+            result_committed_last: true,
+          },
   };
   return {
     resultValue,
@@ -555,8 +696,10 @@ describe("strength-first v8 downstream provenance", () => {
 
   it("accepts the complete row-semantic chain, emits only safe aggregates, and fails closed", async () => {
     const data = await fixture();
+    const input =
+      data.input as FloodgateStrengthFirstV8DownstreamProvenanceInput;
     const summary = await verifyFloodgateStrengthFirstV8DownstreamProvenance(
-      data.input,
+      input,
     );
     expect(summary).toMatchObject({
       schema: FLOODGATE_STRENGTH_FIRST_V8_DOWNSTREAM_PROVENANCE_SCHEMA,
@@ -588,14 +731,14 @@ describe("strength-first v8 downstream provenance", () => {
       search_timeout_no_label: 1,
     };
     const failures: FloodgateStrengthFirstV8DownstreamProvenanceInput[] = [
-      { ...data.input, result: prettyBytes(timeoutMiscount) },
+      { ...input, result: prettyBytes(timeoutMiscount) },
       {
-        ...data.input,
-        work: Buffer.concat([data.input.work as Uint8Array, Buffer.from("x")]),
+        ...input,
+        work: Buffer.concat([input.work as Uint8Array, Buffer.from("x")]),
       },
-      { ...data.input, verifyRevisionDescendant: async () => false },
+      { ...input, verifyRevisionDescendant: async () => false },
       {
-        ...data.input,
+        ...input,
         authenticatedInput: {} as AuthenticatedFloodgateTrainingRows,
       },
     ];
@@ -604,5 +747,55 @@ describe("strength-first v8 downstream provenance", () => {
         verifyFloodgateStrengthFirstV8DownstreamProvenance(invalid),
       ).rejects.toThrow(/^v8-downstream-provenance-verification-failed$/u);
     }
+  }, 30_000);
+});
+
+describe("strength-first v9 downstream provenance", () => {
+  it("keeps the production CLI argumentless", async () => {
+    await expect(
+      runFloodgateStrengthFirstV9DownstreamProvenanceCli(["path-override"]),
+    ).rejects.toThrow("unsupported-invocation");
+  });
+
+  it("accepts the d14/d16 row-semantic chain and rejects a weakened runtime claim", async () => {
+    const data = await fixture("v9");
+    const input =
+      data.input as FloodgateStrengthFirstV9DownstreamProvenanceInput;
+    const summary = await verifyFloodgateStrengthFirstV9DownstreamProvenance(
+      input,
+    );
+    expect(summary).toMatchObject({
+      schema: FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_SCHEMA,
+      status: FLOODGATE_STRENGTH_FIRST_V9_DOWNSTREAM_PROVENANCE_STATUS,
+      target_parents: 3,
+      forced_parents_skipped: 1,
+      emitted_parent_groups: 2,
+      fewer_than_two_legal_moves: 1,
+      search_timeout_no_label: 0,
+      proposal_incomplete_no_label: 0,
+      milestone_targets: [1, 2],
+      local_only: true,
+      network_requests: 0,
+      cloud_services: 0,
+      live_weight_changes: 0,
+      training_only: true,
+      private_identifiers_disclosed: false,
+      private_digests_disclosed: false,
+    });
+    const publicText = JSON.stringify(summary);
+    expect(publicText).not.toMatch(/sha256:/u);
+    expect(publicText).not.toMatch(/[0-9a-f]{64}/u);
+
+    const weakenedRuntime = structuredClone(data.resultValue) as Record<
+      string,
+      any
+    >;
+    weakenedRuntime.teacher.runtime.proposal.depth = 13;
+    await expect(
+      verifyFloodgateStrengthFirstV9DownstreamProvenance({
+        ...input,
+        result: prettyBytes(weakenedRuntime),
+      }),
+    ).rejects.toThrow(/^v9-downstream-provenance-verification-failed$/u);
   }, 30_000);
 });

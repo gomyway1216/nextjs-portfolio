@@ -23,7 +23,7 @@
   },
   "candidate_selection_contract": {
     "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
-    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v2",
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
     "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v2",
     "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
     "series": "warm",

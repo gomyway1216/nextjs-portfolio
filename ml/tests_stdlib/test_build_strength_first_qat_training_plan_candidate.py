@@ -121,6 +121,7 @@ def _candidate_fixture():
         "forced_skip_reasons": {
             "fewer_than_two_legal_moves": 2,
             "search_timeout_no_label": 0,
+            "proposal_incomplete_no_label": 0,
         },
         "parent_completion": completion_identity,
         "outputs": {"train": model_identity},
@@ -131,10 +132,10 @@ def _candidate_fixture():
         teacher_manifest_raw,
     )
     teacher_result = {
-        "schema": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
-        "status": BRIDGE.STRENGTH_FIRST_TEACHER_RESULT_STATUS,
+        "schema": BRIDGE.STRENGTH_FIRST_V9_TEACHER_RESULT_SCHEMA,
+        "status": BRIDGE.STRENGTH_FIRST_V9_TEACHER_RESULT_STATUS,
         "claim_boundary": (
-            "postflight-input-and-staged-output-integrity-not-playing-strength-evidence"
+            "fast-input-and-staged-output-integrity-not-playing-strength-evidence"
         ),
         "runner": {
             "local_only": True,
@@ -144,7 +145,6 @@ def _candidate_fixture():
         },
         "production_asset_preflight": {},
         "authenticated_input": {},
-        "consumer_postflight": {},
         "teacher": {},
         "milestones": {
             "targets": [100, 500, 4],
@@ -164,6 +164,7 @@ def _candidate_fixture():
             "forced_skip_reasons": {
                 "fewer_than_two_legal_moves": 2,
                 "search_timeout_no_label": 0,
+                "proposal_incomplete_no_label": 0,
             },
             "emitted_parent_groups": 2,
             "run_fingerprint": "f" * 64,
@@ -211,6 +212,7 @@ def _candidate_fixture():
             forced=2,
             emitted=2,
             train_records=scan["model_training"]["records"],
+            generation="v9",
         ),
         "runtime": _runtime(),
         "input_identity": input_identity,
@@ -382,6 +384,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             paths = BRIDGE.default_strength_first_local_paths(
                 repo_root=root,
                 home=root / "home",
+                teacher_generation="v9",
             )
             lock = (
                 Path(paths["teacher_result"]).parent
@@ -419,6 +422,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             paths = BRIDGE.default_strength_first_local_paths(
                 repo_root=root,
                 home=root / "home",
+                teacher_generation="v9",
             )
             lock = (
                 Path(paths["teacher_result"]).parent
@@ -434,7 +438,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             ) as snapshot:
                 with self.assertRaisesRegex(
                     ValueError,
-                    "terminal v8 artifact",
+                    "terminal v9 artifact",
                 ):
                     BUILDER.build_strength_first_qat_training_plan_candidate(
                         repo_root=root,
@@ -459,6 +463,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             paths = BRIDGE.default_strength_first_local_paths(
                 repo_root=root,
                 home=root / "home",
+                teacher_generation="v9",
             )
             events = []
             snapshot_paths = []
@@ -588,8 +593,8 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             & set(snapshot_paths)
         )
 
-    def test_v8_provenance_subprocess_is_fixed_and_accepts_only_safe_summary(self):
-        safe_summary = provenance_summary()
+    def test_v9_provenance_subprocess_is_fixed_and_accepts_only_safe_summary(self):
+        safe_summary = provenance_summary(generation="v9")
         completed = BUILDER.subprocess.CompletedProcess(
             args=[],
             returncode=0,
@@ -615,7 +620,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             "run",
             return_value=completed,
         ) as run:
-            observed = BUILDER._verify_v8_downstream_provenance(
+            observed = BUILDER._verify_v9_downstream_provenance(
                 node_path="/fixed/node",
                 repo_root="/repo",
                 home="/home/user",
@@ -630,7 +635,7 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
                 "/fixed/node",
                 "-r",
                 "tsx/cjs",
-                "ml/verify-floodgate-strength-first-v8-downstream-provenance.ts",
+                "ml/verify-floodgate-strength-first-v9-downstream-provenance.ts",
             ],
         )
         self.assertEqual(options["cwd"], "/repo")
@@ -644,11 +649,11 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             {"stable": True},
         )
 
-    def test_v8_provenance_subprocess_reports_generic_stderr_on_failure(self):
+    def test_v9_provenance_subprocess_reports_generic_stderr_on_failure(self):
         failure = BUILDER.subprocess.CalledProcessError(
             returncode=1,
             cmd=["/fixed/node"],
-            stderr=b"v8 downstream provenance verification failed\n",
+            stderr=b"v9 downstream provenance verification failed\n",
         )
         with mock.patch.object(
             BUILDER,
@@ -665,11 +670,11 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 BUILDER.StrengthFirstPlanCandidateError,
                 (
-                    "v8 downstream provenance verification failed: "
-                    "v8 downstream provenance verification failed"
+                    "v9 downstream provenance verification failed: "
+                    "v9 downstream provenance verification failed"
                 ),
             ):
-                BUILDER._verify_v8_downstream_provenance(
+                BUILDER._verify_v9_downstream_provenance(
                     node_path="/fixed/node",
                     repo_root="/repo",
                     home="/home/user",
@@ -678,6 +683,42 @@ class StrengthFirstQatTrainingPlanCandidateTests(unittest.TestCase):
             "/fixed/node",
             {"stable": True},
         )
+
+    def test_v9_provenance_subprocess_rejects_a_valid_v8_summary(self):
+        completed = BUILDER.subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=(
+                json.dumps(
+                    provenance_summary(generation="v8"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                + b"\n"
+            ),
+            stderr=b"",
+        )
+        with mock.patch.object(
+            BUILDER,
+            "_snapshot_fixed_training_interpreter",
+            return_value=("/fixed/node", {"stable": True}),
+        ), mock.patch.object(
+            BUILDER,
+            "_revalidate_fixed_training_interpreter",
+        ), mock.patch.object(
+            BUILDER.subprocess,
+            "run",
+            return_value=completed,
+        ):
+            with self.assertRaisesRegex(
+                BUILDER.StrengthFirstPlanCandidateError,
+                "generation mismatch",
+            ):
+                BUILDER._verify_v9_downstream_provenance(
+                    node_path="/fixed/node",
+                    repo_root="/repo",
+                    home="/home/user",
+                )
 
     def test_snapshot_rejects_permissive_mode_and_symbolic_link(self):
         with tempfile.TemporaryDirectory() as directory:

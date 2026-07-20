@@ -528,7 +528,7 @@ describe("fresh-selection teacher runner", () => {
     const reused = await runFreshSelectionTeacherCore(wrapped);
     expect(reused).toMatchObject({
       idempotent_existing_result: true,
-      parallel_engines: 12,
+      parallel_engines: 13,
     });
     expect(wrapped.generate).toHaveBeenCalledTimes(1);
     expect(wrapped.validateArtifacts).toHaveBeenCalledTimes(2);

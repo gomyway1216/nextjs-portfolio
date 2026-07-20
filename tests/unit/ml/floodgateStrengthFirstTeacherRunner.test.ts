@@ -22,6 +22,7 @@ import {
   FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
 } from "../../../ml/floodgate-production-teacher-asset-authority";
 import {
+  FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
   FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RUN_LOCK_FILENAME,
@@ -272,7 +273,8 @@ function fixture(failTarget?: 100 | 500 | 24_000): Fixture {
       multipv: 12,
       limit: { depth: 16 },
       parallel_engines: 12,
-      hash_mb_per_engine: 64,
+      hash_mb_per_engine:
+        FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       timeout_ms: 600_000,
     },
     candidate_sets: {},
@@ -618,8 +620,8 @@ describe("Floodgate strength-first teacher runner", () => {
       assetRoot: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1`,
       engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
       evalDir: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/eval`,
-      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
-      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
+      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
     });
   });
 
@@ -631,7 +633,7 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(receipt.idempotent_existing_result).toBe(false);
     expect(run.calls.assets).toHaveBeenCalledTimes(1);
     expect(run.calls.lock).toHaveBeenCalledWith(
-      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
       501,
     );
     expect(run.calls.revision).toHaveBeenCalledWith(REPOSITORY_ROOT);
@@ -661,7 +663,7 @@ describe("Floodgate strength-first teacher runner", () => {
     );
     for (const [index, options] of run.options.entries()) {
       expect(options).toMatchObject({
-        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
         runnerRevision: RUNNER_REVISION,
         engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
         engineReceipt: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou-receipt.json`,
@@ -670,7 +672,7 @@ describe("Floodgate strength-first teacher runner", () => {
         multipv: 12,
         depth: 16,
         fvScale: 20,
-        hashMb: 64,
+        hashMb: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
         timeoutMs: 600_000,
         targetParents: [100, 500, 24_000][index],
       });
@@ -680,6 +682,8 @@ describe("Floodgate strength-first teacher runner", () => {
     }
     expect(receipt.result.teacher).toMatchObject({
       parallel_engines: 12,
+      hash_mb_per_engine:
+        FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       proposal: { multipv: 12, depth: 16 },
       independent_rescore: {
         multipv: 1,
@@ -1044,6 +1048,30 @@ describe("Floodgate strength-first teacher runner", () => {
         ...((resultFile as StoredFile).value as Record<string, unknown>),
         status: "tampered",
       },
+    });
+    const consumeCalls = run.calls.consume.mock.calls.length;
+    await expect(
+      runFloodgateStrengthFirstTeacherCore(run.dependencies),
+    ).rejects.toThrow(/existing result marker/i);
+    expect(run.calls.consume).toHaveBeenCalledTimes(consumeCalls);
+  });
+
+  it("rejects a digest-consistent v1 result marker in the isolated v8 root", async () => {
+    const run = fixture();
+    const first = await runFloodgateStrengthFirstTeacherCore(run.dependencies);
+    const resultFile = run.storage.get(first.result_path) as StoredFile;
+    const oldMarker = resultFile.value as Record<string, unknown>;
+    const marker = {
+      ...oldMarker,
+      schema: "shogi-floodgate-strength-first-teacher-postflight-result-v1",
+    };
+    run.storage.set(first.result_path, {
+      value: marker,
+      binding: bindingForBytes(
+        first.result_path,
+        floodgateStrengthFirstTeacherPaths(HOME, REPOSITORY_ROOT).outputRoot,
+        jsonBytes(marker),
+      ),
     });
     const consumeCalls = run.calls.consume.mock.calls.length;
     await expect(

@@ -49,19 +49,21 @@ import {
 } from "./floodgate-training-row-consumer";
 
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-runner-v1" as const;
+  "shogi-floodgate-strength-first-teacher-runner-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-milestone-v1" as const;
+  "shogi-floodgate-strength-first-teacher-milestone-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-postflight-result-v1" as const;
+  "shogi-floodgate-strength-first-teacher-postflight-result-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_PUBLIC_RECEIPT_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-public-receipt-v1" as const;
+  "shogi-floodgate-strength-first-teacher-public-receipt-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION =
   "v22.13.0" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION =
   "e8a9197608cb48b1160b6707d97b0c4f78f90a1d" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_OUTPUT_DIRECTORY =
-  "floodgate-q1-2026-strength-first-v7" as const;
+  "floodgate-q1-2026-strength-first-v8" as const;
+export const FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE =
+  512 as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RUN_LOCK_FILENAME =
   ".strength-first-teacher.lock" as const;
 
@@ -138,7 +140,7 @@ export interface FloodgateStrengthFirstTeacherResultMarker {
       readonly searchmoves: "exactly-one-candidate";
       readonly depth: 16;
     }>;
-    readonly hash_mb_per_engine: 64;
+    readonly hash_mb_per_engine: typeof FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE;
     readonly timeout_ms_per_search: 600_000;
     readonly engine_environment: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
     readonly stable_assets_verified: true;
@@ -432,7 +434,7 @@ function teacherOptions(
     multipv: 12,
     depth: 16,
     fvScale: 20,
-    hashMb: 64,
+    hashMb: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
     timeoutMs: 600_000,
     targetParents,
   });
@@ -622,7 +624,8 @@ function assertFinalArtifactSemantics(
     manifest.search?.multipv !== 12 ||
     !sameJson(manifest.search.limit, { depth: 16 }) ||
     manifest.search.parallel_engines !== 12 ||
-    manifest.search.hash_mb_per_engine !== 64 ||
+    manifest.search.hash_mb_per_engine !==
+      FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
     manifest.search.timeout_ms !== 600_000 ||
     result.parent_completion.parent_ids_sha256 !==
       inputBinding.parent_ids_sha256 ||
@@ -799,7 +802,8 @@ function buildResult(
         searchmoves: "exactly-one-candidate",
         depth: 16,
       }),
-      hash_mb_per_engine: 64,
+      hash_mb_per_engine:
+        FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       timeout_ms_per_search: 600_000,
       engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
       stable_assets_verified: true,
@@ -959,7 +963,8 @@ async function validateExistingResult(
       searchmoves: "exactly-one-candidate",
       depth: 16,
     }) ||
-    teacher.hash_mb_per_engine !== 64 ||
+    teacher.hash_mb_per_engine !==
+      FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
     teacher.timeout_ms_per_search !== 600_000 ||
     !sameJson(
       teacher.engine_environment,

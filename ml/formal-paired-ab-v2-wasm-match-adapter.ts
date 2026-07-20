@@ -50,7 +50,10 @@ export const FORMAL_PAIRED_AB_V2_WASM_IPC_SCHEMA =
 export const FORMAL_PAIRED_AB_V2_WASM_STATUS = "complete" as const;
 export const FORMAL_PAIRED_AB_V2_WASM_ADJUDICATION =
   "legal-moves-fourfold-repetition-with-perpetual-check-loss-and-max-plies-draw-v1" as const;
-export const FORMAL_PAIRED_AB_V2_MAX_PAIR_WORKERS = 2 as const;
+export const FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES = Object.freeze([
+  2, 4, 8, 12,
+] as const);
+export const FORMAL_PAIRED_AB_V2_MAX_PAIR_WORKERS = 12 as const;
 export const FORMAL_PAIRED_AB_V2_GAMES_PER_PAIR = 2 as const;
 export const FORMAL_PAIRED_AB_V2_PAIR_COUNT = 384 as const;
 export const FORMAL_PAIRED_AB_V2_GAME_COUNT = 768 as const;
@@ -1514,12 +1517,13 @@ export function validateFormalPairedAbV2ExactAccounting(
     games !== FORMAL_PAIRED_AB_V2_GAME_COUNT ||
     games !== pairs * FORMAL_PAIRED_AB_V2_GAMES_PER_PAIR ||
     !Number.isSafeInteger(pairWorkers) ||
-    pairWorkers < 1 ||
-    pairWorkers > FORMAL_PAIRED_AB_V2_MAX_PAIR_WORKERS
+    !FORMAL_PAIRED_AB_V2_PAIR_WORKER_CANDIDATES.some(
+      (candidate) => candidate === pairWorkers,
+    )
   ) {
     throw new FormalPairedAbV2WasmMatchError(
       "capture",
-      "formal schedule must be exactly 384 pairs/768 games with at most two pair workers",
+      "formal schedule must be exactly 384 pairs/768 games with a benchmark-eligible 2, 4, 8, or 12 pair workers",
     );
   }
 }

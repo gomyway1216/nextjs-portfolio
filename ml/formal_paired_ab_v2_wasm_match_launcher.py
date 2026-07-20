@@ -20,17 +20,22 @@ import subprocess
 from typing import Any
 
 import formal_paired_ab_local_launcher as legacy
+import formal_paired_ab_v2_wasm_contract as formal_contract
 
 
 PAIR_COUNT = legacy.PAIR_COUNT
 GAME_COUNT = legacy.GAME_COUNT
-MAX_PAIR_WORKERS = 2
+PAIR_WORKER_CANDIDATES = formal_contract.PAIR_WORKER_CANDIDATES
+MAX_PAIR_WORKERS = formal_contract.MAX_PAIR_WORKERS
 NNUE_BYTES = 1_185_988
 MAX_PLIES = 512
 PAIR_REQUEST_SCHEMA = "shogi-formal-paired-ab-v2-wasm-pair-request-v1"
 PAIR_RECEIPT_SCHEMA = "shogi-formal-paired-ab-v2-wasm-pair-receipt-v1"
 PAIR_RECEIPT_FILE_SUFFIX = ".receipt.json"
 PAIR_ENTRY_PATH = "ml/run-formal-paired-ab-v2-wasm-pair.ts"
+OPENINGS_PREFLIGHT_ENTRY_PATH = (
+    "ml/run-formal-paired-ab-v2-openings-preflight.ts"
+)
 NODE_RELATIVE_PATH = ".nvm/versions/node/v22.13.0/bin/node"
 WASM_BYTES = 35_597
 WASM_SHA256 = "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
@@ -607,13 +612,32 @@ def _run_captured(
     execute_pair: Callable[[Mapping], Mapping],
     recapture: Callable[[], Mapping],
 ) -> dict:
+    attempt_index = captured["registry"]["attempt_index"]
+    if type(attempt_index) is not int or attempt_index != 0:
+        raise FormalAbV2WasmMatchLauncherError(
+            "formal WASM execution is attempt-zero only"
+        )
+    for pair in captured["pairs"]:
+        seed = pair["seed"]
+        if (
+            type(seed) is not int
+            or seed < 1
+            or seed > formal_contract.MAX_SAFE_SEED
+        ):
+            raise FormalAbV2WasmMatchLauncherError(
+                "all pair seeds must be integers from 1 through "
+                "Number.MAX_SAFE_INTEGER"
+            )
+
+    workers = captured["registry"]["pair_workers"]
+    if type(workers) is not int or workers not in PAIR_WORKER_CANDIDATES:
+        raise FormalAbV2WasmMatchLauncherError(
+            "real WASM runner requires a benchmark-eligible 2, 4, 8, or 12 "
+            "pair workers"
+        )
+
     receipt_dir = legacy._safe_receipt_directory(receipt_directory, create=True)
     completed = _load_completed_prefix(receipt_dir, captured)
-    workers = captured["registry"]["pair_workers"]
-    if type(workers) is not int or workers < 1 or workers > MAX_PAIR_WORKERS:
-        raise FormalAbV2WasmMatchLauncherError(
-            "real WASM runner permits one or two pair workers"
-        )
 
     next_pair = len(completed)
     while next_pair < PAIR_COUNT:
@@ -780,6 +804,91 @@ def _execute_pair_subprocess(repo_root: Path, request: Mapping) -> dict:
             "local WASM pair subprocess receipt is not canonical JSON"
         )
     return receipt
+
+
+def _execute_openings_preflight_subprocess(
+    repo_root: Path,
+    manifest: Mapping,
+) -> dict:
+    node = Path.home() / NODE_RELATIVE_PATH
+    entry = repo_root / OPENINGS_PREFLIGHT_ENTRY_PATH
+    try:
+        node_metadata = node.stat()
+        entry_metadata = entry.stat()
+    except OSError as error:
+        raise FormalAbV2WasmMatchLauncherError(
+            "fixed local Node or openings preflight entry is unavailable"
+        ) from error
+    if (
+        not stat.S_ISREG(node_metadata.st_mode)
+        or node_metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(node_metadata.st_mode) & 0o111 == 0
+        or not stat.S_ISREG(entry_metadata.st_mode)
+        or entry_metadata.st_uid != os.geteuid()
+    ):
+        raise FormalAbV2WasmMatchLauncherError(
+            "fixed local Node or openings preflight entry identity is invalid"
+        )
+    completed = subprocess.run(
+        [
+            os.fspath(node),
+            "-r",
+            "tsx/cjs",
+            os.fspath(entry),
+        ],
+        cwd=repo_root,
+        env={"PATH": "/usr/bin:/bin"},
+        input=f"{legacy._canonical_json(manifest)}\n",
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if (
+        completed.returncode != 0
+        or not completed.stdout.endswith("\n")
+        or completed.stdout.startswith("\n")
+        or completed.stdout.count("\n") != 1
+        or len(completed.stdout.encode("utf-8")) > 16 * 1024
+    ):
+        stderr_bytes = completed.stderr.encode("utf-8")
+        raise FormalAbV2WasmMatchLauncherError(
+            "local openings preflight subprocess failed "
+            f"(code={completed.returncode}, "
+            f"stderr_bytes={len(stderr_bytes)}, "
+            f"stderr_sha256={legacy._sha256_bytes(stderr_bytes)})"
+        )
+    try:
+        receipt = legacy._strict_json_loads(completed.stdout[:-1])
+    except ValueError as error:
+        raise FormalAbV2WasmMatchLauncherError(
+            "local openings preflight receipt is invalid"
+        ) from error
+    if f"{legacy._canonical_json(receipt)}\n" != completed.stdout:
+        raise FormalAbV2WasmMatchLauncherError(
+            "local openings preflight receipt is not canonical JSON"
+        )
+    return receipt
+
+
+def preflight_formal_wasm_openings(
+    repo_root: str | Path,
+    manifest: Mapping,
+) -> dict:
+    """Apply every opening with production rules before journals may exist."""
+
+    root = Path(repo_root).resolve(strict=True)
+    captured_manifest = formal_contract.validate_formal_wasm_openings_manifest(
+        manifest
+    )
+    receipt = formal_contract.validate_formal_wasm_openings_preflight_receipt(
+        captured_manifest,
+        _execute_openings_preflight_subprocess(root, captured_manifest),
+    )
+    return {
+        "manifest": captured_manifest,
+        "preflight_receipt": receipt,
+    }
 
 
 def run_pinned_ready_wasm_pairs(

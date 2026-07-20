@@ -132,6 +132,43 @@ def passing_pair_receipt(request, results=("win", "loss")):
 
 
 class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
+    def test_attempt_or_unsafe_seed_is_rejected_before_journal_creation(self):
+        mutations = (
+            ("attempt", "attempt_index", 1),
+            ("zero-seed", "seed", 0),
+            ("unsafe-seed", "seed", (1 << 53)),
+        )
+        for label, field, value in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                fixture = ReadyFixture(temporary)
+                captured = legacy.validate_ready_local_run_registry_core_for_tests(
+                    fixture.root,
+                    fixture.registry_path,
+                )
+                if field == "attempt_index":
+                    captured["registry"][field] = value
+                else:
+                    captured["pairs"][0][field] = value
+                calls = 0
+
+                def must_not_execute(_request):
+                    nonlocal calls
+                    calls += 1
+                    return {}
+
+                with self.assertRaisesRegex(
+                    launcher.FormalAbV2WasmMatchLauncherError,
+                    "attempt-zero only|Number.MAX_SAFE_INTEGER",
+                ):
+                    launcher._run_captured(
+                        captured,
+                        fixture.receipts,
+                        must_not_execute,
+                        lambda: captured,
+                    )
+                self.assertEqual(calls, 0)
+                self.assertFalse(fixture.receipts.exists())
+
     def test_exact_384_pair_768_game_run_journals_receipts_and_resumes(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)

@@ -8,6 +8,8 @@ This change implements the connection between a measured worker-benchmark receip
 
 The checked-in registry is deliberately still `BLOCKED`. No real candidate weight, dedicated opening set, or production-rules preflight has been enrolled yet, so the argumentless production entry stops before starting one benchmark round. Zero here prevents a pre-selection workload from being mixed into the later measurement.
 
+The production entry is invoked directly as `python3 ml/run_formal_paired_ab_v2_worker_benchmark.py`, without adding a script to the shared `package.json`. This preserves the package identity pinned by earlier stages while running only the reviewed argumentless CLI.
+
 ## Selecting full-machine power safely
 
 Eligible settings are `[2, 4, 8, 12]` pair workers. Each pair contains one candidate-as-sente game and one candidate-as-gote game. The 12-pair-worker maximum can therefore use as many as 24 engine processes.

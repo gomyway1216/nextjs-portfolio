@@ -61,6 +61,11 @@ describe("formal paired A/B v2 worker benchmark bridge evidence", () => {
     });
     expect(evidence.authority).toMatchObject({
       production_entry_argumentless: true,
+      production_command: [
+        "python3",
+        "ml/run_formal_paired_ab_v2_worker_benchmark.py",
+      ],
+      package_script_required: false,
       caller_selected_registry: false,
       runtime_source_identities_required: 26,
       post_run_source_revalidation_required: true,
@@ -111,6 +116,9 @@ describe("formal paired A/B v2 worker benchmark bridge evidence", () => {
       expect(article).toContain("0 / 8");
       expect(article).toContain("0 / 768");
       expect(article).toContain("[2, 4, 8, 12]");
+      expect(article).toContain(
+        "python3 ml/run_formal_paired_ab_v2_worker_benchmark.py",
+      );
       expect(article).toContain(
         "floodgate-formal-paired-ab-v2-worker-benchmark-bridge-2026-07-20.json",
       );

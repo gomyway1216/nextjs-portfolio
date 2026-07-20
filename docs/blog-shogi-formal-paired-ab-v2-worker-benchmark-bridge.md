@@ -8,6 +8,8 @@
 
 ただし、現在のchecked-in registryは意図的に`BLOCKED`である。実候補weight、専用opening、production rules preflightがまだ登録されていないため、argumentless production entryを実行してもbenchmarkを1 roundも開始せず停止する。ここで0なのは遅延ではなく、候補選抜前の対局を測定値として混ぜないための境界である。
 
+production entryは共有`package.json`へ新しいscriptを追加せず、`python3 ml/run_formal_paired_ab_v2_worker_benchmark.py`で直接起動する。これにより、過去工程が固定したpackage identityを変えずに、レビュー済みのargumentless CLIだけを実行できる。
+
 ## パソコンのフルパワーを安全に選ぶ
 
 候補は`[2, 4, 8, 12]` pair workerで、各pairはcandidateとstableの2局を同時ではなく同一pair単位で実行する。最大12 pair workerでは、最大24 engine processが動く。

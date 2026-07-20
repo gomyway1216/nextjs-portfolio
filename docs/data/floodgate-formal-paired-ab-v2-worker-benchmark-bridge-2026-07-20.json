@@ -31,6 +31,11 @@
   },
   "authority": {
     "production_entry_argumentless": true,
+    "production_command": [
+      "python3",
+      "ml/run_formal_paired_ab_v2_worker_benchmark.py"
+    ],
+    "package_script_required": false,
     "caller_selected_registry": false,
     "registry_identity": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json",

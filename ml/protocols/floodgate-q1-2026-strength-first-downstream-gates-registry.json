@@ -1,0 +1,99 @@
+{
+  "schema": "shogi-floodgate-strength-first-downstream-gates-registry-v1",
+  "status": "awaiting-branded-candidate-selection-and-exact-downstream-inputs",
+  "protocol": {
+    "base_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "strength_first_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-teacher-amendment.json",
+      "bytes": 5123,
+      "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e",
+      "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
+    }
+  },
+  "candidate_selection_contract": {
+    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
+    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v1",
+    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+    "series": "warm",
+    "seeds": [42, 43, 44],
+    "run_count": 3,
+    "candidate_artifact": "final.pt",
+    "selection": {
+      "precondition": "all-three-final-checkpoints-and-results-strict-load-before-first-selection-label-read",
+      "stable_recomputed_on_same_fresh_selection": true,
+      "metric_order": [
+        "int16-pair-accuracy:max",
+        "int16-teacher-top1:max",
+        "int16-value-mae-cp:min",
+        "seed:ascending",
+        "checkpoint-sha256:ascending"
+      ],
+      "representative": "median-ranked-seed",
+      "per_seed_gates": [
+        "int16-pair-accuracy-strictly-above-stable",
+        "int16-top1-at-least-stable",
+        "absolute-float-to-int16-pair-delta-at-most-0.002",
+        "absolute-float-to-int16-top1-delta-at-most-0.005"
+      ],
+      "family_gate": {
+        "representative_passes_all_four": true,
+        "minimum_seeds_passing_all_four": 2,
+        "all_seeds_pass_both_quantization_delta_gates": true
+      },
+      "evaluations_per_checkpoint": 1,
+      "used_wcsc36_selection_reopened": false
+    },
+    "warm_only": true,
+    "wcsc36_six_run_receipt_compatible": false
+  },
+  "enrollments": {
+    "candidate_selection_receipt": null,
+    "candidate_checkpoint": null,
+    "stable_checkpoint": null,
+    "candidate_weights": null,
+    "stable_weights": null,
+    "fresh_final_holdout": null,
+    "legacy_final_holdout": null,
+    "general_retention": null,
+    "opening_retention": null,
+    "known_regression_fixture": null,
+    "production_worker": null,
+    "production_wasm": null,
+    "browser_time_budgets_ms": null
+  },
+  "gates": {
+    "candidate_selection_receipt_enrolled": false,
+    "candidate_selection_authorization_adapter_pinned": false,
+    "exact_downstream_inputs_enrolled": false,
+    "final_holdout_label_read_authorized": false,
+    "downstream_evaluation_authorized": false,
+    "all_downstream_receipts_verified": false,
+    "formal_ab_enrollment_ready": false,
+    "production_weight_write_authorized": false
+  },
+  "boundary": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "external_calibration": false,
+    "live_weight_write": false
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "final_holdout_label_reads": 0,
+    "downstream_receipts_emitted": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

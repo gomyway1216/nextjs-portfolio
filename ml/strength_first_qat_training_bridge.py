@@ -58,7 +58,7 @@ STRENGTH_FIRST_TEACHER_RESULT_STATUS = (
 )
 
 _TEACHER_RUN_DIRECTORY = (
-    ".codex/shogi-runs/floodgate-q1-2026-strength-first-v6"
+    ".codex/shogi-runs/floodgate-q1-2026-strength-first-v7"
 )
 _ROLE_BUNDLE_DIRECTORY = (
     ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
@@ -149,9 +149,15 @@ _TEACHER_COMPLETION_FIELDS = {
     "input_parents",
     "completed_parents",
     "forced_parents_skipped",
+    "forced_skip_reasons",
     "emitted_parent_groups",
     "run_fingerprint",
 }
+_FORCED_SKIP_REASON_FIELDS = {
+    "fewer_than_two_legal_moves",
+    "search_timeout_no_label",
+}
+_TIMEOUT_SKIP_DIVISOR = 1_000
 _TEACHER_STAGED_OUTPUT_FIELDS = {
     "work",
     "train",
@@ -190,6 +196,29 @@ def _typed_equal(value: Any, expected: Any) -> bool:
             for left, right in zip(value, expected)
         )
     return value == expected
+
+
+def _validate_forced_skip_reasons(
+    value: Any,
+    *,
+    forced_parents_skipped: int,
+    target_parents: int,
+    label: str,
+) -> dict[str, int]:
+    reasons = _exact(value, _FORCED_SKIP_REASON_FIELDS, label)
+    if (
+        type(target_parents) is not int
+        or target_parents <= 0
+        or type(forced_parents_skipped) is not int
+        or forced_parents_skipped < 0
+        or any(type(count) is not int or count < 0 for count in reasons.values())
+        or sum(reasons.values()) != forced_parents_skipped
+        or reasons["search_timeout_no_label"]
+        > (target_parents + _TIMEOUT_SKIP_DIVISOR - 1)
+        // _TIMEOUT_SKIP_DIVISOR
+    ):
+        raise ValueError(f"{label} accounting mismatch")
+    return reasons
 
 
 def scan_strength_first_training_artifacts_exact(
@@ -676,6 +705,14 @@ def _validate_teacher_documents(
         raise ValueError(
             "strength-first teacher manifest output binding mismatch"
         )
+    manifest_skip_reasons = _validate_forced_skip_reasons(
+        manifest.get("forced_skip_reasons"),
+        forced_parents_skipped=artifacts["parent_completion"][
+            "forced_parents_skipped"
+        ],
+        target_parents=artifacts["parent_completion"]["records"],
+        label="strength-first teacher manifest forced skip reasons",
+    )
 
     if (
         type(result) is not dict
@@ -688,12 +725,22 @@ def _validate_teacher_documents(
         _TEACHER_COMPLETION_FIELDS,
         "strength-first teacher result completion",
     )
+    _validate_forced_skip_reasons(
+        completion["forced_skip_reasons"],
+        forced_parents_skipped=completion["forced_parents_skipped"],
+        target_parents=completion["completed_parents"],
+        label="strength-first teacher result forced skip reasons",
+    )
     if (
         completion["input_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
         or completion["completed_parents"]
         != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
         or completion["forced_parents_skipped"]
         != artifacts["parent_completion"]["forced_parents_skipped"]
+        or not _typed_equal(
+            completion["forced_skip_reasons"],
+            manifest_skip_reasons,
+        )
         or completion["emitted_parent_groups"]
         != artifacts["parent_completion"]["emitted_parent_groups"]
         or completion["forced_parents_skipped"]

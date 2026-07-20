@@ -136,6 +136,12 @@ def teacher_documents(plan):
     manifest = {
         "schema": BRIDGE.STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA,
         "status": "complete-training-only",
+        "forced_skip_reasons": {
+            "fewer_than_two_legal_moves": artifacts["parent_completion"][
+                "forced_parents_skipped"
+            ],
+            "search_timeout_no_label": 0,
+        },
         "parent_completion": copy.deepcopy(
             artifacts["parent_completion"]
         ),
@@ -152,6 +158,9 @@ def teacher_documents(plan):
             "forced_parents_skipped": artifacts["parent_completion"][
                 "forced_parents_skipped"
             ],
+            "forced_skip_reasons": copy.deepcopy(
+                manifest["forced_skip_reasons"]
+            ),
             "emitted_parent_groups": artifacts["parent_completion"][
                 "emitted_parent_groups"
             ],
@@ -312,6 +321,19 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             )
         )
 
+    def test_default_teacher_paths_follow_the_timeout_recovery_v7_root(self):
+        paths = BRIDGE.default_strength_first_local_paths(
+            repo_root="/repo",
+            home="/home/tester",
+        )
+        self.assertEqual(
+            paths["teacher_result"],
+            (
+                "/home/tester/.codex/shogi-runs/"
+                "floodgate-q1-2026-strength-first-v7/result.json"
+            ),
+        )
+
     def test_plan_rejects_selection_holdout_live_or_training_drift(self):
         mutations = {
             "selection authority": lambda plan: plan["boundary"].__setitem__(
@@ -362,6 +384,24 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             "completion count": lambda manifest, result: result[
                 "completion"
             ].__setitem__("completed_parents", 23_999),
+            "completion timeout reasons": lambda manifest, result: result[
+                "completion"
+            ]["forced_skip_reasons"].update(
+                {
+                    "fewer_than_two_legal_moves": 975,
+                    "search_timeout_no_label": 25,
+                }
+            ),
+            "manifest/result reason mismatch": (
+                lambda manifest, result: manifest[
+                    "forced_skip_reasons"
+                ].update(
+                    {
+                        "fewer_than_two_legal_moves": 999,
+                        "search_timeout_no_label": 1,
+                    }
+                )
+            ),
             "work binding": lambda manifest, result: result[
                 "staged_outputs"
             ]["work"].__setitem__("sha256", "0" * 64),
@@ -481,6 +521,10 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
             teacher_manifest = {
                 "schema": BRIDGE.STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA,
                 "status": "complete-training-only",
+                "forced_skip_reasons": {
+                    "fewer_than_two_legal_moves": 2,
+                    "search_timeout_no_label": 0,
+                },
                 "parent_completion": completion_identity,
                 "outputs": {"train": model_training_identity},
             }
@@ -501,6 +545,10 @@ class StrengthFirstQATTrainingBridgeTests(unittest.TestCase):
                     "input_parents": 4,
                     "completed_parents": 4,
                     "forced_parents_skipped": 2,
+                    "forced_skip_reasons": {
+                        "fewer_than_two_legal_moves": 2,
+                        "search_timeout_no_label": 0,
+                    },
                     "emitted_parent_groups": 2,
                     "run_fingerprint": "f" * 64,
                 },

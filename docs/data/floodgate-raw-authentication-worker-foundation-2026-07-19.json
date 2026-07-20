@@ -1,0 +1,427 @@
+{
+  "schema": "shogi-floodgate-raw-authentication-worker-foundation-evidence-v1",
+  "status": "non-production-foundation-measured-production-formal-v7-and-live-unchanged",
+  "recorded_at": "2026-07-20T01:46:49.807Z",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-raw-authentication-worker-foundation.md",
+    "english": "../blog-shogi-floodgate-raw-authentication-worker-foundation.en.md"
+  },
+  "scope": {
+    "goal": "reduce wall time of independent raw-receipt authentication without changing proof order or receipt bytes",
+    "production_wiring": false,
+    "formal_v7_waited_for_this_foundation": false,
+    "formal_v7_modified": false,
+    "teacher_modified": false,
+    "training_modified": false,
+    "live_weight_changes": 0,
+    "aws_used": false,
+    "gcp_or_firebase_used": false,
+    "vercel_compute_used": false,
+    "runtime_network_used": false
+  },
+  "machine": {
+    "model": "Apple M4 Pro",
+    "physical_cpus": 14,
+    "logical_cpus": 14,
+    "available_parallelism": 14,
+    "memory_bytes": 51539607552,
+    "available_storage_kib_at_audit": 100624528,
+    "runtime": "node-v22.13.0",
+    "platform": "darwin-arm64"
+  },
+  "bottleneck_audit": {
+    "original_claim_that_the_whole_authentication_was_inherently_serial": false,
+    "raw_receipts_per_ordered_pass": 36349,
+    "ordered_raw_verifier_passes_per_full_authentication": 4,
+    "raw_receipt_validations_per_full_authentication": 145396,
+    "independent_raw_receipt_work_can_be_parallel": true,
+    "training_row_parse_is_primary_bottleneck": false,
+    "training_row_parse_microbenchmark_ms": [
+      {
+        "rows": 100,
+        "elapsed_ms": 31
+      },
+      {
+        "rows": 500,
+        "elapsed_ms": 82
+      },
+      {
+        "rows": 1000,
+        "elapsed_ms": 159
+      }
+    ],
+    "cached_json_read_microbenchmark": {
+      "files": 4000,
+      "serial_elapsed_ms_range": [185, 201],
+      "async_concurrency_16_elapsed_ms_range": [62, 75],
+      "observed_speedup_range": [2.7, 3.2]
+    },
+    "in_process_receipt_and_content_address_validation_microbenchmark": {
+      "receipts": 2000,
+      "serial_elapsed_ms_range": [734, 914],
+      "async_concurrency_4_through_32_elapsed_ms_range": [411, 441],
+      "observed_saturation_workers_approx": 4
+    },
+    "serial_floor": {
+      "stored_input_pure_role_replay_elapsed_ms": 191860,
+      "pure_role_replays_per_full_bundle": 2,
+      "reason": "global blocked-set and role allocation commit depend on canonical input order"
+    },
+    "storage_observation": {
+      "historical_full_authentication_block_input_operations": 0,
+      "historical_full_authentication_block_output_operations": 0,
+      "interpretation": "the raw lock was page-cached; allocating more storage does not remove the CPU and ordered-semantic floor"
+    },
+    "duplicate_full_processes_recommended": false,
+    "eight_duplicate_processes_estimated_peak_rss_gb": 45.0
+  },
+  "implementation": {
+    "default_workers": 4,
+    "maximum_workers": 12,
+    "one_active_task_per_worker": true,
+    "input_ordered_result_merge": true,
+    "lowest_input_index_failure_wins": true,
+    "canonical_receipt_byte_equivalence_tested": true,
+    "per_worker_max_old_generation_mb": 384,
+    "per_worker_max_young_generation_mb": 64,
+    "per_worker_stack_mb": 4,
+    "v8_heap_limits_are_process_rss_limits": false,
+    "compact_worker_result_only": true,
+    "raw_bytes_cross_worker_boundary": false,
+    "task_response_timeout_ms": 60000,
+    "shutdown_timeout_ms": 5000,
+    "shutdown_timeout_forces_worker_termination": true,
+    "protocol_violation_forces_worker_termination": true,
+    "abnormal_real_worker_tests": [
+      "startup error",
+      "later worker constructor failure after an earlier worker was created",
+      "task hang",
+      "shutdown hang",
+      "malformed response",
+      "unsolicited extra message",
+      "lower-index delayed failure",
+      "lower-index timeout after higher-index failure"
+    ],
+    "abnormal_real_worker_tests_passed": true,
+    "active_workers_after_each_abnormal_test": 0,
+    "production_entrypoint_imports_worker_pool": false,
+    "source_dependency_closure_complete": false,
+    "source_dependency_closure_gap": "the worker TypeScript entry and transitive tsx runtime are loaded after spawn and are not yet code-pinned and rechecked across completion",
+    "required_before_production": [
+      "exact-clean revision before spawn and after all workers finish",
+      "code-pinned worker entry and transitive runtime dependency manifest",
+      "reject symlink or path swap, dirty tree, and mid-run source mutation",
+      "repeat end-to-end exact-output, failure-order, and memory validation after source closure"
+    ]
+  },
+  "historical_pre_response_capture_full_raw_pass_measurement": {
+    "tasks": 36349,
+    "same_completed_raw_lock": true,
+    "source_stage": "foundation-before-parent-side-response-capture-hardening",
+    "superseded_by_current_source_remeasurement": true,
+    "serial": {
+      "elapsed_ms": 33290,
+      "maximum_rss_bytes": 606666752,
+      "peak_footprint_bytes": 623181872,
+      "reconstruction_status": "pass"
+    },
+    "workers_4": {
+      "elapsed_ms": 20140,
+      "maximum_rss_bytes": 727515136,
+      "peak_footprint_bytes": 641995552,
+      "reconstruction_status": "pass"
+    },
+    "wall_speedup": 1.6529294935451837,
+    "wall_saved_ms": 13150,
+    "maximum_rss_increase_bytes": 120848384
+  },
+  "current_source_worker_component_diagnostic": {
+    "tasks": 36349,
+    "same_completed_raw_lock": true,
+    "clock": "process.hrtime.bigint from worker verification through test-core reconstruction",
+    "process_maximum_rss_source": "macos /usr/bin/time -l",
+    "serial_production_path_reference_not_directly_comparable": {
+      "elapsed_ms": 35008.12825,
+      "external_process_real_seconds": 37.96,
+      "maximum_rss_bytes": 679804928,
+      "peak_footprint_bytes": 605486696,
+      "reconstruction_status": "pass"
+    },
+    "worker_component_4": {
+      "elapsed_ms": 11755.669208,
+      "external_process_real_seconds": 14.67,
+      "maximum_rss_bytes": 589725696,
+      "peak_footprint_bytes": 526035640,
+      "reconstruction_status": "pass"
+    },
+    "worker_component_8": {
+      "elapsed_ms": 10634.754459,
+      "external_process_real_seconds": 13.86,
+      "maximum_rss_bytes": 766705664,
+      "peak_footprint_bytes": 699475232,
+      "reconstruction_status": "pass"
+    },
+    "worker_component_12": {
+      "elapsed_ms": 9437.927583,
+      "external_process_real_seconds": 12.33,
+      "maximum_rss_bytes": 866992128,
+      "peak_footprint_bytes": 792514672,
+      "reconstruction_status": "pass"
+    },
+    "accepted_as_production_shape_speed_comparison": false,
+    "reason": "the serial reference includes candidate revalidation and manifest serialization comparison that the worker component timing omitted",
+    "all_runs_swaps": 0,
+    "all_runs_block_input_operations": 0,
+    "all_runs_block_output_operations": 0
+  },
+  "current_source_production_shape_emulation": {
+    "tasks": 36349,
+    "same_completed_raw_lock": true,
+    "clock": "process.hrtime.bigint",
+    "serial_actual_production_path": {
+      "elapsed_ms": 35008.12825,
+      "maximum_rss_bytes": 679804928,
+      "reconstruction_status": "pass"
+    },
+    "worker_method": {
+      "candidate_revalidation_included": true,
+      "worker_verification_included": true,
+      "test_core_reconstruction_and_deep_equality_included": true,
+      "two_manifest_serializations_included": true,
+      "test_core_deep_equality_is_conservative_extra_work": true,
+      "actual_production_wiring_used": false
+    },
+    "round_orders": [
+      [4, 8, 12],
+      [12, 8, 4]
+    ],
+    "measurements": [
+      {
+        "workers": 4,
+        "elapsed_ms": [15765.243083, 15571.458167],
+        "observed_peak_rss_bytes": [663584768, 750256128],
+        "median_elapsed_ms": 15668.350625,
+        "speedup_over_serial": 2.234321217840375
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": [13860.855167, 13721.354292],
+        "observed_peak_rss_bytes": [769507328, 824819712],
+        "median_elapsed_ms": 13791.104729499999,
+        "speedup_over_serial": 2.538457138615989
+      },
+      {
+        "workers": 12,
+        "elapsed_ms": [12502.513583, 12333.698125],
+        "observed_peak_rss_bytes": [910360576, 755744768],
+        "median_elapsed_ms": 12418.105854000001,
+        "speedup_over_serial": 2.8191198127630326
+      }
+    ],
+    "eight_to_twelve_wall_improvement_fraction": 0.09955684496855939,
+    "observed_rss_is_reused_process_level_not_a_per_worker_allocation_bound": true,
+    "all_six_runs_reconstructed_receipts": 36349,
+    "all_six_runs_reconstruction_status": "pass",
+    "rejected_or_superseded_attempts": [
+      {
+        "workers": 12,
+        "elapsed_ms": 14534.9045,
+        "reason": "single preliminary production-shape emulation before the quiet two-round protocol"
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": 28445.717583,
+        "reason": "concurrent heavy repository tests contaminated wall time"
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": 18754.257292,
+        "reason": "concurrent heavy repository tests contaminated wall time"
+      }
+    ]
+  },
+  "current_source_full_exact_equivalence": {
+    "tasks": 36349,
+    "worker_count": 12,
+    "same_process_serial_elapsed_ms": 25691.884792,
+    "same_process_worker_elapsed_ms": 8316.558292,
+    "deep_ordered_result_equivalence": true,
+    "canonical_receipt_bytes_equivalence": true,
+    "all_four_receipt_kinds_exercised": true,
+    "reconstruction_receipts": 36349,
+    "reconstruction_status": "pass",
+    "process_maximum_rss_bytes": 689340416,
+    "peak_footprint_bytes": 699090200,
+    "swaps": 0,
+    "block_input_operations": 0,
+    "block_output_operations": 0,
+    "private_paths_urls_receipts_or_digests_published": false
+  },
+  "real_mixed_kind_equivalence_check": {
+    "tasks": 205,
+    "daily_listings": 90,
+    "daily_ratings": 90,
+    "period_end_inventories": 1,
+    "csa_receipts": 24,
+    "worker_counts": [1, 4, 8, 12],
+    "all_results_exactly_equal_to_serial": true,
+    "all_four_receipt_kinds_exercised": true,
+    "private_paths_urls_receipts_or_digests_published": false
+  },
+  "real_4000_receipt_benchmark": {
+    "schema": "shogi-floodgate-raw-verification-worker-benchmark-v1",
+    "fixture": "same fixed canonical prefix of existing CSA receipts",
+    "tasks": 4000,
+    "samples_per_worker_count": 3,
+    "private_paths_urls_receipts_or_digests_published": false,
+    "serial_reference": {
+      "elapsed_ms": 2087.962209,
+      "observed_peak_rss_bytes": 315392000
+    },
+    "raw_elapsed_ms_samples": [
+      {
+        "workers": 1,
+        "elapsed_ms": [2524.757583, 2559.349, 2659.194417]
+      },
+      {
+        "workers": 4,
+        "elapsed_ms": [1093.782125, 1212.337791, 1124.1435]
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": [836.344167, 859.821667, 946.364708]
+      },
+      {
+        "workers": 12,
+        "elapsed_ms": [787.087542, 741.991375, 775.077042]
+      }
+    ],
+    "medians": [
+      {
+        "workers": 1,
+        "elapsed_ms": 2559.349,
+        "speedup_over_serial_reference": 0.8158176977817405,
+        "observed_peak_rss_bytes": 354451456,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 4,
+        "elapsed_ms": 1124.1435,
+        "speedup_over_serial_reference": 1.8573804936825236,
+        "observed_peak_rss_bytes": 403161088,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": 859.821667,
+        "speedup_over_serial_reference": 2.4283665894174304,
+        "observed_peak_rss_bytes": 468123648,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 12,
+        "elapsed_ms": 775.077042,
+        "speedup_over_serial_reference": 2.693876990101843,
+        "observed_peak_rss_bytes": 532398080,
+        "exact_ordered_equivalence": true
+      }
+    ],
+    "all_worker_counts_exactly_equal_to_serial_in_input_order": true,
+    "eight_to_twelve_wall_improvement_fraction": 0.09856069956422724,
+    "superseded_pre_response_capture_hardening_medians_ms": {
+      "serial": 2320.569083,
+      "workers_1": 2684.481333,
+      "workers_4": 1205.6685,
+      "workers_8": 931.034292,
+      "workers_12": 892.567708
+    }
+  },
+  "post_deadline_hardening_real_4000_receipt_check": {
+    "recorded_at": "2026-07-20T02:49:07.554Z",
+    "tasks": 4000,
+    "samples_per_worker_count": 1,
+    "serial_reference_elapsed_ms": 2141.96125,
+    "measurements": [
+      {
+        "workers": 1,
+        "elapsed_ms": 2579.260125,
+        "speedup_over_serial_reference": 0.8304556912420766,
+        "observed_peak_rss_bytes": 329842688,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 4,
+        "elapsed_ms": 1113.318,
+        "speedup_over_serial_reference": 1.923943787848575,
+        "observed_peak_rss_bytes": 382812160,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 8,
+        "elapsed_ms": 885.380292,
+        "speedup_over_serial_reference": 2.4192556230967015,
+        "observed_peak_rss_bytes": 454328320,
+        "exact_ordered_equivalence": true
+      },
+      {
+        "workers": 12,
+        "elapsed_ms": 793.612584,
+        "speedup_over_serial_reference": 2.6990011161415755,
+        "observed_peak_rss_bytes": 527695872,
+        "exact_ordered_equivalence": true
+      }
+    ],
+    "all_worker_counts_exactly_equal_to_serial_in_input_order": true,
+    "interpretation": "the deadline hardening caused no material small-scale regression; this is not a replacement for the post-source-closure full end-to-end rerun"
+  },
+  "effect_on_historical_full_authentication": {
+    "historical_elapsed_ms": 1088743,
+    "historical_elapsed_minutes": 18.145716666666665,
+    "raw_passes": 4,
+    "projected_saved_ms_if_all_four_passes_match_the_production_shape_twelve_worker_gain": 90360.089584,
+    "projected_elapsed_ms": 998382.910416,
+    "projected_elapsed_minutes": 16.639715173600003,
+    "projection_not_a_measured_full_authentication": true,
+    "conclusion": "raw receipt workers help, but deeper role-semantic preparation must be parallelized to materially reduce the full authentication"
+  },
+  "independent_review": {
+    "initial": {
+      "p0_findings": 0,
+      "p1_findings": 0,
+      "p2_findings": 1,
+      "p2": "task response and shutdown or exit had no deadline, so a live non-responsive worker could wait forever",
+      "current_production_or_live_impact": false,
+      "ordered_merge_lowest_index_failure_response_binding_and_production_disconnection_reviewed": true
+    },
+    "p2_resolution": {
+      "status": "implemented-and-focused-tests-passed",
+      "task_response_timeout_ms": 60000,
+      "shutdown_timeout_ms": 5000,
+      "forced_termination_after_timeout": true,
+      "real_worker_fault_scenarios": 8,
+      "focused_test_files": 2,
+      "focused_tests_passed": 17,
+      "focused_tests_failed": 0,
+      "active_workers_after_each_abnormal_test": 0
+    },
+    "re_review": {
+      "status": "pass",
+      "p0_findings": 0,
+      "p1_findings": 0,
+      "p2_findings": 0,
+      "focused_tests_passed": 17,
+      "targeted_typescript": "pass",
+      "scoped_eslint": "pass",
+      "fault_fixture_node_check": "pass",
+      "prettier_and_diff_check": "pass",
+      "production_worker_imports": 0
+    }
+  },
+  "decision": {
+    "recommended_nonproduction_raw_pass_worker_count": 12,
+    "reason": "the quiet production-shape emulation median was 9.96 percent faster at 12 than at 8 workers and all observed process RSS samples remained below 1 GB",
+    "restart_running_formal_v7_for_this_foundation": false,
+    "connect_to_production_now": false,
+    "next": "pin a self-contained worker runtime and exact-clean source closure, independently review that boundary, then measure end-to-end 12-worker authentication before making any production connection"
+  }
+}

@@ -277,6 +277,10 @@ function fixture(failTarget?: 100 | 500 | 24_000): Fixture {
     },
     candidate_sets: {},
     progress_checkpoint: {},
+    forced_skip_reasons: {
+      fewer_than_two_legal_moves: 0,
+      search_timeout_no_label: 0,
+    },
     parent_completion: completion,
     outputs: { train },
     publication: {
@@ -304,6 +308,10 @@ function fixture(failTarget?: 100 | 500 | 24_000): Fixture {
     input_parents: 24_000,
     completed_parents: 24_000,
     forced_parents_skipped: 0,
+    forced_skip_reasons: {
+      fewer_than_two_legal_moves: 0,
+      search_timeout_no_label: 0,
+    },
     emitted_parent_groups: 24_000,
     work: {
       ...work,
@@ -371,6 +379,12 @@ function fixture(failTarget?: 100 | 500 | 24_000): Fixture {
           target_parents: target,
           completed_parents: target,
           run_fingerprint: RUN_FINGERPRINT,
+          forced_parents_skipped: 0,
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 0,
+          },
+          emitted_parent_groups: target,
           work: {
             path: "work.jsonl",
             bytes: target,
@@ -604,8 +618,8 @@ describe("Floodgate strength-first teacher runner", () => {
       assetRoot: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1`,
       engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
       evalDir: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/eval`,
-      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`,
-      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`,
+      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
     });
   });
 
@@ -617,7 +631,7 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(receipt.idempotent_existing_result).toBe(false);
     expect(run.calls.assets).toHaveBeenCalledTimes(1);
     expect(run.calls.lock).toHaveBeenCalledWith(
-      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`,
+      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
       501,
     );
     expect(run.calls.revision).toHaveBeenCalledWith(REPOSITORY_ROOT);
@@ -647,7 +661,7 @@ describe("Floodgate strength-first teacher runner", () => {
     );
     for (const [index, options] of run.options.entries()) {
       expect(options).toMatchObject({
-        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v6`,
+        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
         runnerRevision: RUNNER_REVISION,
         engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
         engineReceipt: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou-receipt.json`,
@@ -684,6 +698,14 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(receipt.result.schema).toBe(
       FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
     );
+    expect(receipt.result.completion).toMatchObject({
+      forced_parents_skipped: 0,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 0,
+      },
+      emitted_parent_groups: 24_000,
+    });
   });
 
   it("rejects a malformed canonical prefix before committing its milestone", async () => {
@@ -731,6 +753,32 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(run.calls.claimPostflight).not.toHaveBeenCalled();
     expect(run.events).not.toContain("commit-result");
     expect(run.events).toContain("lock-released");
+  });
+
+  it("rejects a prefix whose explicit timeout skip count exceeds its fixed budget", async () => {
+    const run = fixture();
+    const advance = run.dependencies.advanceTeacher;
+    await expect(
+      runFloodgateStrengthFirstTeacherCore({
+        ...run.dependencies,
+        advanceTeacher: async (input, options) => {
+          const outcome = await advance(input, options);
+          if (outcome.target_parents !== 100) return outcome;
+          return {
+            ...outcome,
+            forced_parents_skipped: 2,
+            forced_skip_reasons: {
+              fewer_than_two_legal_moves: 0,
+              search_timeout_no_label: 2,
+            },
+            emitted_parent_groups: 98,
+          };
+        },
+      }),
+    ).rejects.toThrow(/invalid teacher milestone 100/i);
+    expect(run.targets).toEqual([100]);
+    expect(run.calls.claimPostflight).not.toHaveBeenCalled();
+    expect(run.events).not.toContain("commit-result");
   });
 
   it("rejects inconsistent initial source metadata before claiming postflight or publishing", async () => {
@@ -995,6 +1043,33 @@ describe("Floodgate strength-first teacher runner", () => {
       value: {
         ...((resultFile as StoredFile).value as Record<string, unknown>),
         status: "tampered",
+      },
+    });
+    const consumeCalls = run.calls.consume.mock.calls.length;
+    await expect(
+      runFloodgateStrengthFirstTeacherCore(run.dependencies),
+    ).rejects.toThrow(/existing result marker/i);
+    expect(run.calls.consume).toHaveBeenCalledTimes(consumeCalls);
+  });
+
+  it("rejects a public completion marker above the exact timeout-skip cap", async () => {
+    const run = fixture();
+    const first = await runFloodgateStrengthFirstTeacherCore(run.dependencies);
+    const resultFile = run.storage.get(first.result_path) as StoredFile;
+    const marker = resultFile.value as Record<string, unknown>;
+    run.storage.set(first.result_path, {
+      binding: resultFile.binding,
+      value: {
+        ...marker,
+        completion: {
+          ...(marker.completion as Record<string, unknown>),
+          forced_parents_skipped: 25,
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 25,
+          },
+          emitted_parent_groups: 23_975,
+        },
       },
     });
     const consumeCalls = run.calls.consume.mock.calls.length;

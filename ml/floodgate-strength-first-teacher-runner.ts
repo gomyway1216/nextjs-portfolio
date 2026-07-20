@@ -20,6 +20,8 @@ import {
   STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
   advanceStrengthFirstSiblingTeacherDataset,
   siblingTeacherStagePaths,
+  strengthFirstTimeoutSkipLimit,
+  type StrengthFirstForcedSkipReasonCounts,
   type StrengthFirstSiblingTeacherAdvance,
   type StrengthFirstSiblingTeacherOptions,
 } from "./generate-sibling-teacher";
@@ -59,7 +61,7 @@ export const FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION =
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION =
   "e8a9197608cb48b1160b6707d97b0c4f78f90a1d" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_OUTPUT_DIRECTORY =
-  "floodgate-q1-2026-strength-first-v6" as const;
+  "floodgate-q1-2026-strength-first-v7" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RUN_LOCK_FILENAME =
   ".strength-first-teacher.lock" as const;
 
@@ -151,6 +153,7 @@ export interface FloodgateStrengthFirstTeacherResultMarker {
     readonly input_parents: 24_000;
     readonly completed_parents: 24_000;
     readonly forced_parents_skipped: number;
+    readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
     readonly emitted_parent_groups: number;
     readonly run_fingerprint: string;
   }>;
@@ -435,6 +438,30 @@ function teacherOptions(
   });
 }
 
+function hasValidForcedSkipReasonCounts(
+  value: unknown,
+  targetParents: number,
+  forcedParentsSkipped: number,
+): value is StrengthFirstForcedSkipReasonCounts {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const counts = value as Partial<StrengthFirstForcedSkipReasonCounts>;
+  const keys = Object.keys(value).sort();
+  return (
+    keys.length === 2 &&
+    keys[0] === "fewer_than_two_legal_moves" &&
+    keys[1] === "search_timeout_no_label" &&
+    Number.isSafeInteger(counts.fewer_than_two_legal_moves) &&
+    (counts.fewer_than_two_legal_moves as number) >= 0 &&
+    Number.isSafeInteger(counts.search_timeout_no_label) &&
+    (counts.search_timeout_no_label as number) >= 0 &&
+    (counts.fewer_than_two_legal_moves as number) +
+      (counts.search_timeout_no_label as number) ===
+      forcedParentsSkipped &&
+    (counts.search_timeout_no_label as number) <=
+      strengthFirstTimeoutSkipLimit(targetParents)
+  );
+}
+
 function assertPrefix(
   outcome: StrengthFirstSiblingTeacherAdvance,
   target: 100 | 500,
@@ -448,6 +475,16 @@ function assertPrefix(
     outcome.completed_parents !== target ||
     !/^[0-9a-f]{64}$/.test(outcome.run_fingerprint) ||
     (fingerprint !== undefined && outcome.run_fingerprint !== fingerprint) ||
+    !Number.isSafeInteger(outcome.forced_parents_skipped) ||
+    outcome.forced_parents_skipped < 0 ||
+    !Number.isSafeInteger(outcome.emitted_parent_groups) ||
+    outcome.emitted_parent_groups < 0 ||
+    outcome.forced_parents_skipped + outcome.emitted_parent_groups !== target ||
+    !hasValidForcedSkipReasonCounts(
+      outcome.forced_skip_reasons,
+      target,
+      outcome.forced_parents_skipped,
+    ) ||
     !isBinding(outcome.work) ||
     outcome.work.path !== "work.jsonl" ||
     outcome.work.schema !== SIBLING_TEACHER_WORK_SCHEMA ||
@@ -547,6 +584,11 @@ function assertFinalArtifactSemantics(
     result.parent_completion.records !== 24_000 ||
     !Number.isSafeInteger(result.forced_parents_skipped) ||
     result.forced_parents_skipped < 0 ||
+    !hasValidForcedSkipReasonCounts(
+      result.forced_skip_reasons,
+      24_000,
+      result.forced_parents_skipped,
+    ) ||
     !Number.isSafeInteger(result.emitted_parent_groups) ||
     result.emitted_parent_groups < 0 ||
     result.forced_parents_skipped !==
@@ -564,6 +606,12 @@ function assertFinalArtifactSemantics(
     manifest.source.raw_records !== inputBinding.records ||
     manifest.source.selected_parent_ids_sha256 !==
       inputBinding.parent_ids_sha256 ||
+    !hasValidForcedSkipReasonCounts(
+      manifest.forced_skip_reasons,
+      24_000,
+      result.forced_parents_skipped,
+    ) ||
+    !sameJson(result.forced_skip_reasons, manifest.forced_skip_reasons) ||
     manifest.authenticated_input?.bundle_verifier_revision !==
       FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION ||
     !sameJson(manifest.authenticated_input.binding, inputBinding) ||
@@ -642,6 +690,9 @@ function milestone(
       target_parents: progress.target_parents,
       completed_parents: progress.completed_parents,
       run_fingerprint: progress.run_fingerprint,
+      forced_parents_skipped: progress.forced_parents_skipped,
+      forced_skip_reasons: progress.forced_skip_reasons,
+      emitted_parent_groups: progress.emitted_parent_groups,
       work: progress.work,
     }),
   });
@@ -763,6 +814,7 @@ function buildResult(
       input_parents: 24_000,
       completed_parents: 24_000,
       forced_parents_skipped: outcome.staged_result.forced_parents_skipped,
+      forced_skip_reasons: outcome.staged_result.forced_skip_reasons,
       emitted_parent_groups: outcome.staged_result.emitted_parent_groups,
       run_fingerprint: outcome.run_fingerprint,
     }),
@@ -821,10 +873,18 @@ function assertExistingArtifactContents(
   if (
     manifest.parent_completion.forced_parents_skipped !==
       marker.completion.forced_parents_skipped ||
+    !sameJson(
+      manifest.forced_skip_reasons,
+      marker.completion.forced_skip_reasons,
+    ) ||
     manifest.parent_completion.emitted_parent_groups !==
       marker.completion.emitted_parent_groups ||
     staged.forced_parents_skipped !==
       marker.completion.forced_parents_skipped ||
+    !sameJson(
+      staged.forced_skip_reasons,
+      marker.completion.forced_skip_reasons,
+    ) ||
     staged.emitted_parent_groups !== marker.completion.emitted_parent_groups
   ) {
     throw new Error(
@@ -914,6 +974,11 @@ async function validateExistingResult(
     !Number.isSafeInteger(completion.emitted_parent_groups) ||
     completion.forced_parents_skipped < 0 ||
     completion.emitted_parent_groups < 0 ||
+    !hasValidForcedSkipReasonCounts(
+      completion.forced_skip_reasons,
+      24_000,
+      completion.forced_parents_skipped,
+    ) ||
     completion.forced_parents_skipped + completion.emitted_parent_groups !==
       24_000 ||
     !/^[0-9a-f]{64}$/.test(completion.run_fingerprint) ||

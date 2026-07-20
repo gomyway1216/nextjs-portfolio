@@ -324,7 +324,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
         self.assertEqual(receipt["reason"], "arguments-forbidden")
         self.assertEqual(receipt["games_started"], 0)
 
-    def test_exact_384_pair_run_uses_p0_worker_candidates_and_validates_result(self):
+    def test_exact_384_pair_run_uses_at_most_six_workers_and_validates_result(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
             lock = threading.Lock()
@@ -394,7 +394,7 @@ class FormalPairedAbLocalLauncherTest(unittest.TestCase):
             self.assertEqual(resumed_calls, 0)
             self.assertEqual(resumed, result)
 
-    def test_parallel_pair_workers_reach_p0_safe_maximum(self):
+    def test_parallel_pair_workers_never_exceed_six(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReadyFixture(temporary)
             barrier = threading.Barrier(launcher.MAX_PAIR_WORKERS)

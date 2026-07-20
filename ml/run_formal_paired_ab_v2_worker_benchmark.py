@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping
 
-import formal_paired_ab_v2_worker_benchmark as benchmark
+import formal_paired_ab_v2_worker_benchmark_bridge as benchmark
 
 
 CLI_RECEIPT_SCHEMA = "shogi-formal-paired-ab-v2-worker-benchmark-cli-receipt-v1"

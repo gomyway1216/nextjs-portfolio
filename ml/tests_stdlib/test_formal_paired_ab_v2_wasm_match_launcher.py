@@ -19,7 +19,6 @@ if TEST_DIR not in sys.path:
 import formal_paired_ab_local_launcher as legacy  # noqa: E402
 import formal_paired_ab_v2_wasm_contract as contract  # noqa: E402
 import formal_paired_ab_v2_wasm_match_launcher as launcher  # noqa: E402
-import formal_paired_ab_v2_worker_benchmark as benchmark  # noqa: E402
 from test_formal_paired_ab_local_launcher import ReadyFixture  # noqa: E402
 from test_formal_paired_ab_v2_wasm_contract import openings_manifest  # noqa: E402
 
@@ -356,8 +355,8 @@ class FormalPairedAbV2WasmMatchLauncherTest(unittest.TestCase):
     def test_real_runner_is_code_pinned_closed_and_requires_benchmark_workers(self):
         self.assertTrue(callable(launcher.run_pinned_ready_wasm_pairs))
         with self.assertRaisesRegex(
-            benchmark.FormalAbV2WorkerBenchmarkBlocked,
-            "no code-pinned benchmark-bound formal READY registry",
+            legacy.FormalAbLocalLauncherBlocked,
+            "no code-pinned checked-in ready registry",
         ):
             launcher.run_pinned_ready_wasm_pairs(
                 Path(ML_DIR).parent, Path(ML_DIR).parent / "unused"

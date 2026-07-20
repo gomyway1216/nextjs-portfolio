@@ -3,6 +3,9 @@
   "status": "BLOCKED",
   "reason": "dedicated-benchmark-enrollment-not-reviewed",
   "implementation": {
+    "benchmark_orchestrator": null,
+    "benchmark_production_runner": null,
+    "formal_production_runner": null,
     "wasm_contract": null,
     "wasm_match_launcher": null,
     "pair_entry": null,

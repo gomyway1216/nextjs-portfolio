@@ -18,7 +18,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import formal_paired_ab_local_launcher as legacy
 import formal_paired_ab_v2_wasm_contract as formal_contract
-import formal_paired_ab_v2_worker_benchmark as benchmark
+import formal_paired_ab_v2_worker_benchmark_bridge as benchmark
 
 
 BENCHMARK_ENROLLMENT_PATH = (

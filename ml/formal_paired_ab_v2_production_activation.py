@@ -90,8 +90,7 @@ ROLLBACK_RECEIPT_SCHEMA = (
 PAIR_COUNT = 384
 GAMES_PER_PAIR = 2
 GAME_COUNT = 768
-PAIR_WORKER_CANDIDATES = (2, 4, 8, 12)
-MAX_PAIR_WORKERS = max(PAIR_WORKER_CANDIDATES)
+MAX_PAIR_WORKERS = 6
 COLORS = ["sente", "gote"]
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -911,9 +910,14 @@ def compose_formal_ab_v2_activation_core_for_tests(
         composition["time_control"]
     )
     workers = composition["pair_workers"]
-    if type(workers) is not int or workers not in PAIR_WORKER_CANDIDATES:
+    if (
+        type(workers) is not int
+        or workers < 1
+        or workers > MAX_PAIR_WORKERS
+    ):
         raise FormalAbV2ActivationError(
-            "CoreForTests pair_workers must be exactly 2, 4, 8, or 12"
+            "CoreForTests pair_workers must be an integer from "
+            f"1 through {MAX_PAIR_WORKERS}"
         )
     adapter = _validate_identity(
         composition["match_adapter"],

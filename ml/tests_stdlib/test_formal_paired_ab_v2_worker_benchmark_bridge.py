@@ -20,7 +20,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 import build_formal_paired_ab_v2_worker_benchmark_registry_candidate as builder  # noqa: E402
 import formal_paired_ab_local_launcher as legacy  # noqa: E402
 import formal_paired_ab_v2_wasm_contract as contract  # noqa: E402
-import formal_paired_ab_v2_worker_benchmark as benchmark  # noqa: E402
+import formal_paired_ab_v2_worker_benchmark_bridge as benchmark  # noqa: E402
 import run_formal_paired_ab_v2_worker_benchmark as runner  # noqa: E402
 from test_formal_paired_ab_v2_wasm_contract import openings_manifest  # noqa: E402
 
@@ -179,6 +179,70 @@ def synthetic_round(_workers, _round_index):
     }
 
 
+def write_formal_ready_fixture(fixture, captured, receipt, suffix):
+    receipt_path = f"ml/protocols/{suffix}-worker-benchmark-receipt.json"
+    write_json(fixture.root / receipt_path, receipt)
+    receipt_identity = identity(
+        fixture.root, receipt_path, benchmark.BOUND_BENCHMARK_RECEIPT_SCHEMA
+    )
+    formal_manifest = openings_manifest()
+    formal_manifest["source_manifest_sha256"] = "f" * 64
+    openings_path = f"ml/protocols/{suffix}-formal-openings.json"
+    write_json(fixture.root / openings_path, formal_manifest)
+    openings_identity = identity(
+        fixture.root,
+        openings_path,
+        contract.FORMAL_WASM_OPENINGS_MANIFEST_SCHEMA,
+    )
+    preflight_path = f"ml/protocols/{suffix}-formal-preflight.json"
+    write_json(
+        fixture.root / preflight_path,
+        preflight_receipt(formal_manifest, 980),
+    )
+    preflight_identity = identity(
+        fixture.root,
+        preflight_path,
+        contract.FORMAL_WASM_OPENINGS_PREFLIGHT_SCHEMA,
+    )
+    experiment_id = "sha256:" + "5" * 64
+    run_id = "sha256:" + "6" * 64
+    ledger_path = f"ml/protocols/{suffix}-formal-attempt-ledger.json"
+    write_json(
+        fixture.root / ledger_path,
+        {
+            "schema": benchmark.FORMAL_ATTEMPT_LEDGER_SCHEMA,
+            "experiment_id": experiment_id,
+            "candidate_weights_sha256": captured["assets"]["candidate_weights"][
+                "sha256"
+            ],
+            "stable_weights_sha256": captured["assets"]["stable_weights"]["sha256"],
+            "openings_manifest_sha256": openings_identity["sha256"],
+            "match_binding_sha256": fixture.binding_identity["sha256"],
+            "worker_benchmark_receipt_sha256": receipt_identity["sha256"],
+            "attempts": [],
+        },
+    )
+    registry = benchmark.build_formal_ready_registry_candidate(
+        {
+            "experiment_id": experiment_id,
+            "run_id": run_id,
+            "attempt_ledger": identity(
+                fixture.root,
+                ledger_path,
+                benchmark.FORMAL_ATTEMPT_LEDGER_SCHEMA,
+            ),
+            "openings_manifest": openings_identity,
+            "openings_preflight_receipt": preflight_identity,
+            "match_binding": fixture.binding_identity,
+            "worker_benchmark_receipt": receipt_identity,
+            "pair_workers": receipt["selection"]["selected_pair_workers"],
+        }
+    )
+    registry_path = f"ml/protocols/{suffix}-formal-ready-registry.json"
+    write_json(fixture.root / registry_path, registry)
+    return registry_path
+
+
 class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
     def test_checked_in_registry_and_argumentless_cli_remain_blocked(self):
         registry = benchmark.validate_worker_benchmark_registry_data(
@@ -205,6 +269,19 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 candidate["contract"]["round_sequence"],
                 [2, 4, 8, 12, 12, 8, 4, 2],
             )
+            self.assertEqual(
+                candidate["implementation"]["benchmark_orchestrator"]["path"],
+                "ml/formal_paired_ab_v2_worker_benchmark_bridge.py",
+            )
+            self.assertEqual(
+                candidate["implementation"]["benchmark_production_runner"]["path"],
+                "ml/run_formal_paired_ab_v2_worker_benchmark.py",
+            )
+            self.assertEqual(
+                candidate["implementation"]["formal_production_runner"]["path"],
+                "ml/formal_paired_ab_v2_benchmark_bound_runner.py",
+            )
+            self.assertNotIn("authority", candidate["implementation"])
             self.assertTrue(candidate["gates"]["benchmark_execution_authorized"])
             self.assertFalse(candidate["gates"]["formal_execution_authorized"])
             self.assertFalse(candidate["gates"]["production_weight_write_authorized"])
@@ -305,19 +382,92 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
             )
             registry_path = "ml/protocols/formal-reviewed-ready-registry.json"
             write_json(fixture.root / registry_path, registry)
-            formal = benchmark.capture_formal_ready_registry(
-                fixture.root, registry_path
-            )
-            self.assertEqual(formal["registry"]["pair_workers"], 2)
-            self.assertEqual(len(formal["pairs"]), 384)
-
-            mismatched = copy.deepcopy(registry)
-            mismatched["pair_workers"] = 4
-            write_json(fixture.root / registry_path, mismatched)
-            with self.assertRaisesRegex(
-                ValueError, "differs from its benchmark receipt"
+            with (
+                mock.patch.object(
+                    benchmark,
+                    "_PINNED_BENCHMARK_REGISTRY_IDENTITY",
+                    captured["registry_identity"],
+                ),
+                mock.patch.object(benchmark, "_require_revision_ancestor"),
             ):
-                benchmark.capture_formal_ready_registry(fixture.root, registry_path)
+                formal = benchmark.capture_formal_ready_registry(
+                    fixture.root, registry_path
+                )
+                self.assertEqual(formal["registry"]["pair_workers"], 2)
+                self.assertEqual(len(formal["pairs"]), 384)
+
+                mismatched = copy.deepcopy(registry)
+                mismatched["pair_workers"] = 4
+                write_json(fixture.root / registry_path, mismatched)
+                with self.assertRaisesRegex(
+                    ValueError, "differs from its benchmark receipt"
+                ):
+                    benchmark.capture_formal_ready_registry(fixture.root, registry_path)
+
+    def test_fake_recalculated_benchmark_registry_cannot_cross_trust_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            captured = fixture.capture_ready()
+            clock = iter(range(len(benchmark.BENCHMARK_SEQUENCE) * 2))
+            selection = benchmark.run_formal_ab_v2_worker_benchmark_core_for_tests(
+                synthetic_round,
+                monotonic_ns=lambda: next(clock),
+            )
+            fake_registry_path = "ml/protocols/fake-worker-benchmark-registry.json"
+            write_json(fixture.root / fake_registry_path, captured["registry"])
+            fake_captured = copy.deepcopy(captured)
+            fake_captured["registry_identity"] = identity(
+                fixture.root,
+                fake_registry_path,
+                benchmark.BENCHMARK_REGISTRY_SCHEMA,
+            )
+            forged_receipt = benchmark.compose_bound_worker_benchmark_receipt(
+                fake_captured, selection
+            )
+            formal_path = write_formal_ready_fixture(
+                fixture, captured, forged_receipt, "fake-trust-root"
+            )
+            with (
+                mock.patch.object(
+                    benchmark,
+                    "_PINNED_BENCHMARK_REGISTRY_IDENTITY",
+                    captured["registry_identity"],
+                ),
+                mock.patch.object(benchmark, "_require_revision_ancestor"),
+                self.assertRaisesRegex(ValueError, "benchmark trust root"),
+            ):
+                benchmark.capture_formal_ready_registry(fixture.root, formal_path)
+
+    def test_bound_receipt_validator_directly_rejects_fake_registry_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            captured = fixture.capture_ready()
+            clock = iter(range(len(benchmark.BENCHMARK_SEQUENCE) * 2))
+            receipt = benchmark.run_captured_worker_benchmark(
+                fixture.root,
+                captured,
+                execute_round=synthetic_round,
+                monotonic_ns=lambda: next(clock),
+            )
+            forged = copy.deepcopy(receipt)
+            forged["benchmark_registry"] = {
+                **forged["benchmark_registry"],
+                "path": "ml/protocols/fake-worker-benchmark-registry.json",
+            }
+            forged_body = {
+                key: value for key, value in forged.items() if key != "receipt_sha256"
+            }
+            forged["receipt_sha256"] = benchmark._domain_digest(
+                "shogi-formal-paired-ab-v2-bound-worker-benchmark-receipt-v1",
+                forged_body,
+            )
+
+            with self.assertRaisesRegex(ValueError, "benchmark trust root"):
+                benchmark.validate_bound_worker_benchmark_receipt(
+                    forged,
+                    expected_registry=captured["registry"],
+                    expected_registry_identity=captured["registry_identity"],
+                )
 
     def test_output_is_reserved_before_games_and_fault_is_a_rerun_tombstone(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -359,6 +509,47 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 ):
                     benchmark.run_pinned_worker_benchmark(fixture.root, temporary)
             self.assertEqual(calls, 1)
+
+    def test_postflight_registry_drift_blocks_receipt_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = BenchmarkFixture(temporary)
+            captured = fixture.capture_ready()
+            clock = iter(range(len(benchmark.BENCHMARK_SEQUENCE) * 2))
+            receipt = benchmark.run_captured_worker_benchmark(
+                fixture.root,
+                captured,
+                execute_round=synthetic_round,
+                monotonic_ns=lambda: next(clock),
+            )
+
+            def drift_after_rounds(_repo_root, _captured):
+                shutil.copyfile(
+                    REPO_ROOT / benchmark.BENCHMARK_REGISTRY_PATH,
+                    fixture.root / benchmark.BENCHMARK_REGISTRY_PATH,
+                )
+                return receipt
+
+            with (
+                mock.patch.object(
+                    benchmark,
+                    "_PINNED_BENCHMARK_REGISTRY_IDENTITY",
+                    captured["registry_identity"],
+                ),
+                mock.patch.object(benchmark, "_require_revision_ancestor"),
+                mock.patch.object(
+                    benchmark,
+                    "run_captured_worker_benchmark",
+                    side_effect=drift_after_rounds,
+                ),
+                mock.patch.object(
+                    benchmark, "publish_bound_worker_benchmark_receipt"
+                ) as publish,
+                self.assertRaisesRegex(
+                    ValueError, "pinned worker benchmark registry identity differs"
+                ),
+            ):
+                benchmark.run_pinned_worker_benchmark(fixture.root, temporary)
+            publish.assert_not_called()
 
     def test_formal_production_pin_stays_closed_until_real_receipt_is_reviewed(self):
         self.assertIsNone(benchmark._PINNED_FORMAL_READY_REGISTRY_IDENTITY)

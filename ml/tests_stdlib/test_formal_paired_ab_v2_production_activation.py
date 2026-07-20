@@ -130,7 +130,7 @@ def composition_fixture():
             "synthetic/time-control.json",
             time_control,
         ),
-        "pair_workers": 12,
+        "pair_workers": 6,
         "match_adapter": artifact_identity(
             "synthetic/match-adapter.bin",
             adapter_raw,
@@ -333,7 +333,7 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
             first["binding"]["protocol"]["activation_registry"],
             activation._ACTIVATION_REGISTRY_IDENTITY,
         )
-        self.assertEqual(first["binding"]["pair_workers"], 12)
+        self.assertEqual(first["binding"]["pair_workers"], 6)
         self.assertEqual(
             first["binding"]["candidate_weights"],
             fixture["candidate_weights"],
@@ -474,7 +474,7 @@ class FormalPairedAbV2ProductionActivationTest(unittest.TestCase):
                 time_drift
             )
 
-        for workers in (True, 0, 3, 6, 7, 1.0):
+        for workers in (True, 0, 7, 1.0):
             probe = composition_fixture()
             probe["pair_workers"] = workers
             with self.subTest(workers=workers):

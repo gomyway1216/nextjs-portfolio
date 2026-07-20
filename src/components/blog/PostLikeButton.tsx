@@ -92,6 +92,8 @@ const PostLikeButton = ({ postId, enabled }: PostLikeButtonProps) => {
     <button
       type="button"
       onClick={toggle}
+      disabled={busy}
+      aria-busy={busy}
       aria-pressed={liked}
       aria-label={liked ? t('blogPage.post.unlike') : t('blogPage.post.like')}
       className={`${styles.likeButton} ${liked ? styles.liked : ''}`}

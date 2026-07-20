@@ -220,7 +220,9 @@ export async function getPostById(id: string): Promise<DetailPost> {
 }
 
 export async function getPostLikeCount(id: string): Promise<number> {
-  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`);
+  const response = await fetch(`/api/post/${encodeURIComponent(id)}/like`, {
+    cache: 'no-store',
+  });
   if (!response.ok) {
     await throwApiError(response);
   }

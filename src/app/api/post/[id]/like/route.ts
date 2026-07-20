@@ -44,13 +44,14 @@ export async function POST(request: NextRequest,
       // Same shape for missing and private: don't confirm draft existence.
       if (!doc.exists || !data?.isPublic) return null;
 
-      const current = typeof data.likeCount === 'number' ? data.likeCount : 0;
+      // Clamp a legacy/malformed negative value so it can't leak out or
+      // sink further below zero.
+      const current = Math.max(0, typeof data.likeCount === 'number' ? data.likeCount : 0);
       if (action === 'unlike' && current <= 0) return 0;
 
-      tx.update(docRef, {
-        likeCount: FieldValue.increment(action === 'like' ? 1 : -1),
-      });
-      return current + (action === 'like' ? 1 : -1);
+      const next = current + (action === 'like' ? 1 : -1);
+      tx.update(docRef, { likeCount: next });
+      return next;
     });
 
     if (likeCount === null) {
@@ -83,8 +84,13 @@ export async function GET(_request: NextRequest,
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const likeCount = typeof data.likeCount === 'number' ? data.likeCount : 0;
-    return NextResponse.json({ likeCount });
+    const likeCount = Math.max(0, typeof data.likeCount === 'number' ? data.likeCount : 0);
+    return NextResponse.json(
+      { likeCount },
+      // The whole point of this GET is a live number — keep every
+      // intermediate cache out of the way.
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     console.error('Error fetching post likes:', error);
     return NextResponse.json({ error: 'Failed to fetch likes' }, { status: 500 });

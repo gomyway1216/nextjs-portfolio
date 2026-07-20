@@ -1,0 +1,176 @@
+{
+  "schema": "shogi-floodgate-strength-first-v9-proposal-rescue-evidence-v1",
+  "status": "implementation-and-local-diagnostics-complete-formal-v9-not-started",
+  "date": "2026-07-20",
+  "failed_v8_teacher": {
+    "accounted_target_slots": 1388,
+    "labeled_parents": 1383,
+    "search_timeout_no_label": 5,
+    "fatal_unlabeled_parent": 1,
+    "fatal_phase": "proposal",
+    "fatal_requested_multipv_ranks": 6,
+    "fatal_final_exact_ranks": 5,
+    "fatal_missing_or_nonexact_ranks": 1,
+    "final_dataset_published": false,
+    "training_started": false,
+    "live_weight_changes": 0
+  },
+  "proposal_depth_diagnostic": {
+    "local_only": true,
+    "parallel_parent_lanes": 12,
+    "threads_per_engine": 1,
+    "hash_mib_per_engine": 512,
+    "timeout_ms_per_search": 600000,
+    "primary": {
+      "parents": 12,
+      "searches": 24,
+      "wall_elapsed_ms": 360586,
+      "depth_14": {
+        "completed": 11,
+        "timeouts": 0,
+        "incomplete_fixed_depth_ranks": 1,
+        "completed_reference_top12_recall": {
+          "count": 6,
+          "minimum_ppm": 750000,
+          "median_ppm": 916667,
+          "mean_ppm": 875000
+        },
+        "proposal_nodes_vs_depth_16": {
+          "count": 6,
+          "minimum_ppm": 175481,
+          "median_ppm": 314108,
+          "maximum_ppm": 378702
+        }
+      },
+      "depth_15": {
+        "completed": 11,
+        "timeouts": 0,
+        "incomplete_fixed_depth_ranks": 1,
+        "completed_reference_top12_recall": {
+          "count": 6,
+          "minimum_ppm": 750000,
+          "median_ppm": 916667,
+          "mean_ppm": 902778
+        },
+        "proposal_nodes_vs_depth_16": {
+          "count": 6,
+          "minimum_ppm": 420780,
+          "median_ppm": 512778,
+          "maximum_ppm": 618628
+        }
+      },
+      "depth_15_vs_depth_14_nodes_median_ppm": 1884298,
+      "private_receipt": {
+        "bytes": 4295,
+        "sha256": "49c6366fa245ef92e29b477907ee0b7d4cb29af5d36cf883c24dce24a2300cfd"
+      }
+    },
+    "independent_rescore_reference_followup": {
+      "parents": 6,
+      "searches": 12,
+      "wall_elapsed_ms": 21055,
+      "depth_14_proposal_contains_depth_16_rescored_rank1": {
+        "contained": 6,
+        "eligible": 6,
+        "containment_ppm": 1000000
+      },
+      "depth_15_proposal_contains_depth_16_rescored_rank1": {
+        "contained": 6,
+        "eligible": 6,
+        "containment_ppm": 1000000
+      },
+      "private_receipt": {
+        "bytes": 4167,
+        "sha256": "3e3275db1daec3c27faa735010ce7587896edd7d6126089767b676b2a523db30"
+      }
+    }
+  },
+  "fast_training_input": {
+    "schema": "shogi-floodgate-strength-first-fast-training-input-v1",
+    "policy": "pinned-manifest-and-held-training-fd-semantic-validation-v1",
+    "parents": 24000,
+    "games": 1000,
+    "real_load_elapsed_seconds_approx": 3.7,
+    "opens_holdout_or_selection_files": false,
+    "held_nofollow_descriptors": true,
+    "semantic_row_and_sfen_validation": true,
+    "teacher_runner_loads_before_and_after_teacher_work": true,
+    "preflight_and_postflight_identity_must_equal": true,
+    "result_committed_only_after_equality": true
+  },
+  "lane_benchmark": {
+    "schema": "shogi-floodgate-strength-first-v9-lane-benchmark-v1",
+    "runner_revision": "bdc4937e94a47dc25d07fb8093f96879e5f71562",
+    "local_only": true,
+    "process_nice": 10,
+    "trial_lane_order": [12, 14, 14, 12],
+    "parents_per_trial": 42,
+    "total_parent_labels": 168,
+    "forced_skips": 0,
+    "proposal": {
+      "multipv": 12,
+      "depth": 14
+    },
+    "independent_rescore": {
+      "multipv": 1,
+      "depth": 16
+    },
+    "hash_mib_per_engine": 512,
+    "lane_12_elapsed_ms": [59672, 87004],
+    "lane_12_median_elapsed_ms": 73338,
+    "lane_14_elapsed_ms": [73295, 86510],
+    "lane_14_median_elapsed_ms": 79903,
+    "lane_14_throughput_vs_lane_12_ppm": 917838,
+    "selected_parallel_engines": 12,
+    "post_benchmark_engine_processes": 0,
+    "post_benchmark_disposable_directories": 0,
+    "pages_throttled": 0,
+    "thermal_warning": false,
+    "performance_warning": false,
+    "post_benchmark_memory_free_percent": 50,
+    "private_receipt": {
+      "bytes": 5987,
+      "sha256": "f33b6bd58ad828eb2cb067f18f376997313b64f6e1e01ab1f922dcfe5d1d2be6"
+    }
+  },
+  "v9_decision": {
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "hash_mib_per_engine": 512,
+    "proposal_multipv": 12,
+    "proposal_depth": 14,
+    "independent_rescore_depth": 16,
+    "timeout_ms_per_search": 600000,
+    "proposal_incomplete_policy": "proposal-only-typed-fixed-depth-incomplete-ranks-no-label-v1",
+    "exact_rescore_incomplete_is_fatal": true,
+    "recoverable_search_skip_cap_relaxed": false,
+    "v8_labels_reused": false,
+    "new_output_root_required": true
+  },
+  "implementation": {
+    "fast_input_module": "ml/floodgate-strength-first-fast-training-input.ts",
+    "teacher_authority": "ml/floodgate-strength-first-v9-teacher-authority.ts",
+    "teacher_runner": "ml/floodgate-strength-first-v9-teacher-runner.ts",
+    "argumentless_entry": "ml/run-floodgate-strength-first-v9-teacher.ts",
+    "formal_v9_root_written_before_merge": false,
+    "formal_launch_requires_clean_merged_revision": true
+  },
+  "next_gates": [
+    "ready-pr-review-ci-and-regular-merge",
+    "clean-merged-revision-formal-24000-teacher",
+    "fixed-seed-42-43-44-retraining",
+    "candidate-selection",
+    "sealed-holdout-evaluation",
+    "formal-paired-ab",
+    "external-calibration",
+    "separately-authorized-live-promotion"
+  ],
+  "claims": {
+    "formal_v9_teacher_started": false,
+    "complete_teacher_dataset": false,
+    "training_completion": false,
+    "playing_strength_gain": false,
+    "stable_high_dan_strength": false,
+    "live_promotion": false
+  }
+}

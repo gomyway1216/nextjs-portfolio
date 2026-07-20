@@ -396,6 +396,7 @@ describe("fresh-selection teacher runner", () => {
         "checkpoint_preflight_sha256",
         "artifacts",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ].sort(),
@@ -409,6 +410,7 @@ describe("fresh-selection teacher runner", () => {
         "dataset",
         "work",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "boundary",
       ].sort(),
@@ -422,6 +424,7 @@ describe("fresh-selection teacher runner", () => {
         "dataset",
         "work",
         "completion",
+        "generation_run_fingerprint",
         "run_fingerprint",
         "postflight_complete",
         "boundary",
@@ -430,6 +433,9 @@ describe("fresh-selection teacher runner", () => {
     expect(authority.schema).toBe(FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA);
     expect(manifest.schema).toBe(FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA);
     expect(result.schema).toBe(FRESH_SELECTION_TEACHER_RESULT_SCHEMA);
+    expect(authority.generation_run_fingerprint).toBe(sha256("generation"));
+    expect(manifest.generation_run_fingerprint).toBe(sha256("generation"));
+    expect(result.generation_run_fingerprint).toBe(sha256("generation"));
     expect((result.dataset as Record<string, unknown>).schema).toBe(
       FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
     );

@@ -355,7 +355,7 @@ export function validateFreshFinalTeacherSelectionPreflight(
     !validArtifactIdentity(
       value.selection_evaluator_registry,
       FRESH_FINAL_TEACHER_SELECTION_REGISTRY_PATH,
-      "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+      "shogi-floodgate-strength-first-selection-evaluator-registry-v2",
     ) ||
     !validArtifactIdentity(
       value.selection_evaluation_report,
@@ -365,12 +365,12 @@ export function validateFreshFinalTeacherSelectionPreflight(
     !validArtifactIdentity(
       value.selection_receipt,
       FRESH_FINAL_TEACHER_SELECTION_RECEIPT_RELATIVE_PATH,
-      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
     ) ||
     !validArtifactIdentity(
       value.selection_publication_result,
       FRESH_FINAL_TEACHER_SELECTION_PUBLICATION_RESULT_RELATIVE_PATH,
-      "shogi-floodgate-strength-first-selection-publication-result-v1",
+      "shogi-floodgate-strength-first-selection-publication-result-v2",
     ) ||
     !SELECTED_SEEDS.includes(value.selected_seed) ||
     !validArtifactIdentity(

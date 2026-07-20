@@ -93,7 +93,7 @@ function preflight(): FreshFinalTeacherSelectionPreflight {
     status: "selected-candidate-receipt-recomputed",
     selection_evaluator_registry: artifact(
       "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
-      "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+      "shogi-floodgate-strength-first-selection-evaluator-registry-v2",
     ),
     selection_evaluation_report: artifact(
       ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-evaluation-report.json",
@@ -101,11 +101,11 @@ function preflight(): FreshFinalTeacherSelectionPreflight {
     ),
     selection_receipt: artifact(
       ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-receipt.json",
-      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+      "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
     ),
     selection_publication_result: artifact(
       ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json",
-      "shogi-floodgate-strength-first-selection-publication-result-v1",
+      "shogi-floodgate-strength-first-selection-publication-result-v2",
     ),
     selected_seed: 43,
     selected_checkpoint: artifact(
@@ -488,7 +488,7 @@ describe("fresh-final teacher runner", () => {
         ...preflight(),
         selection_receipt: artifact(
           "/tmp/forged-receipt.json",
-          "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+          "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
         ),
       }),
     ).toThrow(/preflight is incomplete/);

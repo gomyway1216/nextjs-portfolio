@@ -828,6 +828,7 @@ export async function runFreshSelectionTeacherCore(
       dataset,
       work,
       completion,
+      generation_run_fingerprint: outcome.generation_run_fingerprint,
       run_fingerprint: runFingerprint,
       boundary: FRESH_SELECTION_TEACHER_BOUNDARY,
     };
@@ -845,6 +846,7 @@ export async function runFreshSelectionTeacherCore(
       dataset,
       work,
       completion,
+      generation_run_fingerprint: outcome.generation_run_fingerprint,
       run_fingerprint: runFingerprint,
       postflight_complete: true,
       boundary: FRESH_SELECTION_TEACHER_BOUNDARY,
@@ -872,6 +874,7 @@ export async function runFreshSelectionTeacherCore(
         work,
       },
       completion,
+      generation_run_fingerprint: outcome.generation_run_fingerprint,
       run_fingerprint: runFingerprint,
       boundary: FRESH_SELECTION_TEACHER_BOUNDARY,
     };

@@ -1,64 +1,68 @@
 # Measuring 12 versus 13 MultiPV-6 lanes on the same 42 positions
 
-> Status on July 20, 2026. A local-only tool now compares twelve and thirteen YaneuraOu processes under the real fresh-selection search settings. The comparison itself has not run because the formal 24,000-position teacher is active. No model, live weight, or shared search policy has changed. [日本語版](./blog-shogi-floodgate-fresh-lane-multipv6-benchmark.md)
+> Status on July 20, 2026. I measured twelve and thirteen local YaneuraOu processes under the fresh-selection teacher's exact search settings. The preregistered gate passed, so **thirteen processes are selected for this workload**. No model, live weight, or shared search policy changed. [日本語版](./blog-shogi-floodgate-fresh-lane-multipv6-benchmark.md)
 
 ## Conclusion
 
-More processes are not automatically faster. A search within one position is largely serial, while separate positions can be assigned to separate engine processes. Past a useful limit, however, CPU contention, per-process hash memory, and memory bandwidth can reduce throughput. In the earlier MultiPV-12 measurement, fourteen processes were slower than twelve.
+The same 42 positions ran in the ABBA order `12 → 13 → 13 → 12`:
 
-The fixed fresh-selection policy uses a MultiPV-6 depth-14 proposal followed by an independent depth-16 rescore of every candidate. A different candidate count can change the best process count, so the earlier MultiPV-12 result for twelve versus thirteen is not inherited. The new tool measures this exact workload:
+| Trial | Processes | Time for 42 positions | Forced skips |
+| ----: | --------: | --------------------: | -----------: |
+|     1 |        12 |        35.430 seconds |            0 |
+|     2 |        13 |        32.941 seconds |            0 |
+|     3 |        13 |        31.332 seconds |            0 |
+|     4 |        12 |        31.376 seconds |            0 |
 
-| Item | Fixed value |
-| --- | ---: |
-| Authenticated training prefix | the same 42 positions |
-| Execution order | 12 → 13 → 13 → 12 |
-| Trials / total parent slots | 4 / 168 |
-| Proposal | MultiPV 6 / depth 14 |
+The median was 33.403 seconds at twelve processes and 32.137 seconds at thirteen. The same-workload speed ratio was 1.039394, or about 3.94% higher throughput at thirteen. Expressed as wall-time reduction, it was about 3.79%.
+
+The paired speed ratios were 1.075559 and 1.001404. The second pair was close, but thirteen was strictly faster in both pairs and cleared the preregistered one-percent median threshold. The resulting selection is thirteen.
+
+This is not a playing-strength result. It changes only the parallel process count for teacher-label generation; MultiPV, search depths, hash size, and threads per engine remain fixed.
+
+## Fixed comparison conditions
+
+A search within one position is largely serial, while separate positions can be assigned to separate processes. Too many processes can still lose time to CPU contention, per-process hash memory, and memory bandwidth, so the lane count was selected by measurement.
+
+| Item                               |                                           Fixed value |
+| ---------------------------------- | ----------------------------------------------------: |
+| Authenticated training prefix      |                                 the same 42 positions |
+| Execution order                    |                                     12 → 13 → 13 → 12 |
+| Trials / total parent slots        |                                               4 / 168 |
+| Proposal                           |                                  MultiPV 6 / depth 14 |
 | Exact incomplete-proposal fallback | search every legal move only when there are at most 6 |
-| Independent rescore | MultiPV 1 / depth 16 |
-| Threads | 1 per engine |
-| Hash | 512 MiB per engine |
-| Per-search bound | 600 seconds |
+| Independent rescore                |                                  MultiPV 1 / depth 16 |
+| Threads                            |                                          1 per engine |
+| Hash                               |                                    512 MiB per engine |
+| Per-search bound                   |                                           600 seconds |
 
-This is a teacher-label throughput comparison, not a playing-strength test.
+All four trials completed 42 of 42 positions, for 168 of 168 in total. There were zero forced skips and 168 emitted groups. Each trial had exactly 43 work records including its header.
 
-## The gate for selecting thirteen
+## The rule for selecting thirteen
 
 The ABBA order reduces one-direction bias from temperature, caches, and background load. The paired comparisons are trial 1 at twelve versus trial 2 at thirteen, then trial 4 at twelve versus trial 3 at thirteen.
 
-Thirteen is recommended only if all three conditions hold:
+Thirteen is selected only if all three conditions hold:
 
 1. thirteen is strictly faster in the first pair (a tie does not pass);
 2. thirteen is strictly faster in the second pair (a tie does not pass); and
-3. the median wall time of both thirteen-process trials is at least one percent faster than the median of both twelve-process trials.
+3. the median wall time of the two thirteen-process trials is at least one percent faster than the median of the two twelve-process trials.
 
-Passing the median while tying or losing either pair retains twelve. Every trial must also complete exactly 42 of 42 parents, emit 42 groups, record 43 work rows including the header, and have zero forced skips. The two trials for the same process count must have the same internal work fingerprint, while the twelve- and thirteen-process fingerprints must differ. Fingerprints are never published.
+This run passed all three. The decision therefore applies the rule fixed before execution rather than selecting whichever summary happened to look favorable afterward.
 
-## Never competing with the active formal teacher
+## Runtime and resource use
 
-The comparison acquires the formal v8/v9 teacher exclusion locks before it can launch an engine. If the 24,000-position teacher is active, the tool fails before starting any engine. It therefore cannot take CPU or roughly 6.0 GiB versus 6.5 GiB of engine hash from the current run.
+The complete benchmark measured 140.28 seconds wall time, 1002.86 seconds user time, 30.16 seconds system time, and zero process swaps. The trial search times sum to 131.079 seconds; the remainder includes authentication, preflight and postflight checks, exclusion, and disposable-stage cleanup.
 
-It also validates:
+The benchmark acquires the formal v8/v9 teacher exclusion locks before launching an engine, so it cannot compete with a formal teacher for CPU or engine hash memory. It also revalidated one clean Git revision, the tracked search policy, the authenticated training input, and pinned YaneuraOu and evaluation assets before and after execution. Every disposable trial stage was removed before the trial and again after success.
 
-- macOS arm64, Node v22.13.0, and at least thirteen available logical CPUs;
-- one clean Git revision before and after the run;
-- the exact tracked 1,349-byte search policy and its SHA-256;
-- pinned YaneuraOu and evaluation assets;
-- fixed home, repository, asset, and private output roots; and
-- an argumentless production entry point.
+## Information that remains private
 
-Each disposable stage is removed before a trial and again after either success or failure. A skip, count mismatch, policy change, source change, or asset change prevents receipt commitment.
+The private receipt was read-only verified as a current-user regular file with mode 0600 and one hard link. Its schema, status, four trials, selection rule, and aggregate values matched, and it emitted zero private payload fields.
 
-## What the result includes
+The public evidence contains no private path, receipt digest, internal work fingerprint, position, game, move, SFEN, label, or score. It publishes only process counts, timings, throughput, completion counts, and the selection outcome.
 
-The private `receipt.json` includes only process count, elapsed time, throughput, counts, both pair ratios, the median ratio, and the resulting twelve-or-thirteen recommendation. It excludes positions, games, moves, SFEN, labels, paths, hashes, and internal fingerprints.
+## What changes next
 
-The result does not rewrite the shared policy. Even a passing thirteen-process result is only a recommendation for a separately reviewed change. The tool has no model or live-weight write path.
+This result is measured support for using thirteen processes in the MultiPV-6 fresh-teacher workload. It does not rewrite the shared search policy automatically, and it did not modify any model or live weight. Adopting thirteen in shared policy remains a separate reviewed change.
 
-## Current status
-
-Implementation and eleven lightweight unit tests are complete. They cover the exact median threshold, the approximately +0.5% / +1.5% paired boundary, retaining twelve when one pair ties, order/count/fingerprint drift, forbidden private fields, cleanup after a skip, input postflight, and policy/platform/root/CLI drift.
-
-The real comparison is intentionally pending, so this work does not yet claim whether twelve or thirteen is faster for MultiPV 6. It may run only after the active 24,000-position teacher finishes and this implementation is available from a clean merged revision.
-
-The machine-readable implementation status is [here](./data/floodgate-strength-first-fresh-lane-multipv6-benchmark-2026-07-20.json).
+In addition to the existing eleven benchmark unit tests, a new evidence test freezes the published measurements, selection arithmetic, 168-of-168 completion, and privacy boundary. The machine-readable measured evidence is [here](./data/floodgate-strength-first-fresh-lane-multipv6-benchmark-2026-07-20.json).

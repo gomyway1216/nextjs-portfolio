@@ -50,17 +50,46 @@ function isPlainExactRecord(
 }
 
 function captureWorkerData(value: unknown): FloodgateRawVerificationWorkerData {
+  const runtime =
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+      ? (value as Readonly<Record<string, unknown>>).runtime
+      : undefined;
   if (
-    !isPlainExactRecord(value, ["lock_root", "schema"]) ||
+    !isPlainExactRecord(value, ["lock_root", "runtime", "schema"]) ||
     value.schema !== FLOODGATE_RAW_VERIFICATION_WORKER_DATA_SCHEMA ||
     typeof value.lock_root !== "string" ||
-    value.lock_root.length === 0
+    value.lock_root.length === 0 ||
+    !isPlainExactRecord(runtime, [
+      "architecture",
+      "executable_path",
+      "modules_abi",
+      "node_version",
+      "platform",
+      "v8_version",
+    ]) ||
+    runtime.node_version !== process.version ||
+    runtime.v8_version !== process.versions.v8 ||
+    runtime.modules_abi !== process.versions.modules ||
+    runtime.executable_path !== process.execPath ||
+    runtime.platform !== process.platform ||
+    runtime.architecture !== process.arch
   ) {
     fail("worker data is invalid");
   }
   return Object.freeze({
     schema: FLOODGATE_RAW_VERIFICATION_WORKER_DATA_SCHEMA,
     lock_root: value.lock_root,
+    runtime: Object.freeze({
+      node_version: process.version,
+      v8_version: process.versions.v8,
+      modules_abi: process.versions.modules,
+      executable_path: process.execPath,
+      platform: process.platform,
+      architecture: process.arch,
+    }),
   });
 }
 

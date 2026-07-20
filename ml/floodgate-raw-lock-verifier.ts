@@ -32,6 +32,11 @@ import {
   type FloodgateRawReceiptIndexEntry,
   type FloodgateRawReceiptKind,
 } from "./floodgate-raw-lock";
+import { verifyFloodgateRawReceiptsWithPinnedOrderedWorkers } from "./floodgate-raw-verification-worker-pool";
+import type {
+  FloodgateRawVerificationTaskInput,
+  FloodgateRawVerificationTaskResult,
+} from "./floodgate-raw-verification-worker-protocol";
 import {
   FLOODGATE_ORIGIN,
   FLOODGATE_PERIOD_END_INVENTORY_URL,
@@ -655,11 +660,105 @@ async function collectVerifiedFacts(
   };
 }
 
+function resultKind<
+  K extends FloodgateRawVerificationTaskResult["receipt_kind"],
+>(
+  result: FloodgateRawVerificationTaskResult,
+  expected: K,
+  ordinal: number,
+): Extract<FloodgateRawVerificationTaskResult, { receipt_kind: K }> {
+  if (result.receipt_kind !== expected) {
+    fail(`parallel result ${ordinal} has the wrong receipt kind`);
+  }
+  return result as Extract<
+    FloodgateRawVerificationTaskResult,
+    { receipt_kind: K }
+  >;
+}
+
+async function collectVerifiedFactsWithPinnedWorkers(
+  lockRoot: string,
+  input: FloodgateRawLockReconstructionInput,
+): Promise<VerifiedFacts> {
+  const listingUrls = sortedUnique(input.listing_urls, "listing URLs");
+  const dailyRatingUrls = sortedUnique(
+    input.daily_rating_urls,
+    "daily rating URLs",
+  );
+  const csaUrls = sortedUnique(input.csa_urls, "CSA URLs");
+  const tasks: FloodgateRawVerificationTaskInput[] = [
+    ...listingUrls.map((url) => ({
+      receipt_kind: "daily_listing" as const,
+      url,
+    })),
+    ...dailyRatingUrls.map((url) => ({
+      receipt_kind: "daily_rating" as const,
+      url,
+    })),
+    {
+      receipt_kind: "period_end_inventory" as const,
+      url: FLOODGATE_PERIOD_END_INVENTORY_URL,
+    },
+    ...csaUrls.map((url) => ({ receipt_kind: "csa" as const, url })),
+  ];
+  const results = await verifyFloodgateRawReceiptsWithPinnedOrderedWorkers(
+    lockRoot,
+    tasks,
+  );
+  if (results.length !== tasks.length) {
+    fail("parallel raw verification did not return every result");
+  }
+
+  let cursor = 0;
+  const listings = listingUrls.map(() => {
+    const result = resultKind(results[cursor], "daily_listing", cursor);
+    cursor += 1;
+    return Object.freeze({
+      receipt: result.receipt,
+      evidence: result.evidence,
+    });
+  });
+  const dailyRatings = dailyRatingUrls.map(() => {
+    const result = resultKind(results[cursor], "daily_rating", cursor);
+    cursor += 1;
+    return result.receipt;
+  });
+  const period = resultKind(results[cursor], "period_end_inventory", cursor);
+  cursor += 1;
+  const csa = csaUrls.map(() => {
+    const result = resultKind(results[cursor], "csa", cursor);
+    cursor += 1;
+    return result.receipt;
+  });
+  if (cursor !== results.length) {
+    fail("parallel raw verification returned trailing results");
+  }
+  return Object.freeze({
+    listings: Object.freeze(listings),
+    dailyRatings: Object.freeze(dailyRatings),
+    periodInventory: Object.freeze({
+      receipt: period.receipt,
+      evidence: period.evidence,
+    }),
+    csa: Object.freeze(csa),
+  });
+}
+
 async function reconstructWithReport(
   lockRoot: string,
   input: FloodgateRawLockReconstructionInput,
 ): Promise<CollectedReconstructionResult> {
   const facts = await collectVerifiedFacts(lockRoot, input);
+  const reconstructed = reconstructFromFacts(input.source, facts);
+  const manifest = validateFloodgateRawLockManifest(reconstructed.manifest);
+  return { manifest, report: reconstructed.report, facts };
+}
+
+async function reconstructWithPinnedWorkerReport(
+  lockRoot: string,
+  input: FloodgateRawLockReconstructionInput,
+): Promise<CollectedReconstructionResult> {
+  const facts = await collectVerifiedFactsWithPinnedWorkers(lockRoot, input);
   const reconstructed = reconstructFromFacts(input.source, facts);
   const manifest = validateFloodgateRawLockManifest(reconstructed.manifest);
   return { manifest, report: reconstructed.report, facts };
@@ -680,6 +779,32 @@ export async function verifyFloodgateRawLockCandidate(
 ): Promise<Readonly<FloodgateRawOfflineVerificationReport>> {
   const candidate = validateFloodgateRawLockManifest(manifestInput);
   const reconstructed = await reconstructWithReport(lockRoot, {
+    source: candidate.source,
+    listing_urls: candidate.listings.map((entry) => entry.url),
+    daily_rating_urls: candidate.daily_ratings.map((entry) => entry.url),
+    csa_urls: candidate.csa_index.map((entry) => entry.url),
+  });
+  assertFactsMatchCandidate(candidate, reconstructed.facts);
+  if (
+    serializeFloodgateRawLockManifest(reconstructed.manifest) !==
+    serializeFloodgateRawLockManifest(candidate)
+  ) {
+    fail("candidate manifest does not reproduce verified offline artifacts");
+  }
+  return reconstructed.report;
+}
+
+/**
+ * Production authentication route. It is byte- and failure-order-equivalent
+ * to `verifyFloodgateRawLockCandidate`, but its independent receipt reads use
+ * the fixed twelve-worker source-closed pool.
+ */
+export async function verifyFloodgateRawLockCandidateWithPinnedWorkers(
+  lockRoot: string,
+  manifestInput: unknown,
+): Promise<Readonly<FloodgateRawOfflineVerificationReport>> {
+  const candidate = validateFloodgateRawLockManifest(manifestInput);
+  const reconstructed = await reconstructWithPinnedWorkerReport(lockRoot, {
     source: candidate.source,
     listing_urls: candidate.listings.map((entry) => entry.url),
     daily_rating_urls: candidate.daily_ratings.map((entry) => entry.url),

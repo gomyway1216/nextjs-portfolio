@@ -16,13 +16,20 @@ import {
   type FloodgateRawReceipt,
 } from "../../../ml/floodgate-raw-lock";
 import {
+  FLOODGATE_RAW_VERIFICATION_PRODUCTION_WORKER_COUNT,
   FLOODGATE_RAW_VERIFICATION_WORKER_MAX_OLD_GENERATION_MB,
   floodgateRawVerificationActiveWorkerCountCoreForTests,
   mapFloodgateOrderedWorkersCoreForTests,
   verifyFloodgateRawReceiptsWithInjectedWorkerCoreForTests,
   verifyFloodgateRawReceiptsWithOrderedWorkersCoreForTests,
+  verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests,
   type FloodgateRawVerificationWorkerMetrics,
+  type FloodgateRawVerificationProductionDependencies,
 } from "../../../ml/floodgate-raw-verification-worker-pool";
+import {
+  capturePinnedFloodgateRawVerificationWorkerBundle,
+  type FloodgateRawVerificationWorkerBundleLease,
+} from "../../../ml/floodgate-raw-verification-worker-source";
 import type {
   FloodgateRawVerificationTaskInput,
   FloodgateRawVerificationTaskResult,
@@ -174,7 +181,7 @@ afterEach(async () => {
 });
 
 describe("Floodgate ordered raw-verification worker pool", () => {
-  it("stays disconnected from the production verifier until source closure exists", () => {
+  it("connects production only through the fixed pinned-worker entrypoint", () => {
     const productionVerifier = fs.readFileSync(
       path.join(repositoryRoot(), "ml/floodgate-raw-lock-verifier.ts"),
       "utf8",
@@ -186,13 +193,213 @@ describe("Floodgate ordered raw-verification worker pool", () => {
       ),
       "utf8",
     );
-    expect(productionVerifier).not.toContain(
-      "floodgate-raw-verification-worker",
+    const roleLock = fs.readFileSync(
+      path.join(repositoryRoot(), "ml/floodgate-role-lock.ts"),
+      "utf8",
     );
-    expect(workerPool).toContain("Non-production test/benchmark seam");
-    expect(workerPool).not.toMatch(
-      /export\s+async\s+function\s+verifyFloodgateRawReceiptsWithOrderedWorkers\s*\(/,
+    expect(productionVerifier).toContain(
+      "verifyFloodgateRawReceiptsWithPinnedOrderedWorkers",
     );
+    expect(roleLock).toContain(
+      "verifyFloodgateRawLockCandidateWithPinnedWorkers",
+    );
+    expect(roleLock).not.toMatch(
+      /import\s*\{\s*verifyFloodgateRawLockCandidate\s*\}/u,
+    );
+    expect(workerPool).toContain(
+      "workerSource: `(function () {\\n${bundle.source}\\n})();`",
+    );
+    expect(workerPool).toContain("assertExactCleanRevision");
+    expect(FLOODGATE_RAW_VERIFICATION_PRODUCTION_WORKER_COUNT).toBe(12);
+  });
+
+  it("keeps the current loaded worker source distinct from the historical semantic verifier", async () => {
+    const runnerRoot = repositoryRoot();
+    const historicalVerifierRoot = path.join(
+      os.homedir(),
+      ".codex/worktrees/shogi-floodgate-role-bundle",
+    );
+    const historicalRevision = "e8a9197608cb48b1160b6707d97b0c4f78f90a1d";
+    const currentRunnerRevision = "f".repeat(40);
+    expect(runnerRoot).not.toBe(historicalVerifierRoot);
+    expect(currentRunnerRevision).not.toBe(historicalRevision);
+
+    const strengthFirstRunner = fs.readFileSync(
+      path.join(runnerRoot, "ml/floodgate-strength-first-teacher-runner.ts"),
+      "utf8",
+    );
+    const roleLock = fs.readFileSync(
+      path.join(runnerRoot, "ml/floodgate-role-lock.ts"),
+      "utf8",
+    );
+    const workerPool = fs.readFileSync(
+      path.join(runnerRoot, "ml/floodgate-raw-verification-worker-pool.ts"),
+      "utf8",
+    );
+    expect(strengthFirstRunner).toContain(historicalRevision);
+    expect(strengthFirstRunner).toContain(
+      '".codex",\n    "worktrees",\n    "shogi-floodgate-role-bundle"',
+    );
+    expect(roleLock).toContain(
+      "await assertVerifierGitClosure(\n    repositoryRoot,\n    verifierRevision,",
+    );
+    expect(workerPool).toContain(
+      'const repositoryRoot = path.resolve(__dirname, "..");',
+    );
+
+    const roots: string[] = [];
+    await verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+      runnerRoot,
+      runnerRoot,
+      [],
+      {
+        captureBundle: (root) => {
+          roots.push(`bundle:${root}`);
+          return {
+            source: '"use strict";',
+            identity: { runtime: {} },
+            assertUnchangedAndClose: () => undefined,
+          } as unknown as FloodgateRawVerificationWorkerBundleLease;
+        },
+        captureExactCleanRevision: async (root) => {
+          roots.push(`capture:${root}`);
+          return currentRunnerRevision;
+        },
+        assertExactCleanRevision: async (root, revision) => {
+          roots.push(`post:${root}:${revision}`);
+        },
+        runWorkers: async () => [],
+      },
+    );
+    expect(roots).toEqual([
+      `bundle:${runnerRoot}`,
+      `capture:${runnerRoot}`,
+      `post:${runnerRoot}:${currentRunnerRevision}`,
+    ]);
+    expect(roots.join("\n")).not.toContain(historicalVerifierRoot);
+    expect(roots.join("\n")).not.toContain(historicalRevision);
+  });
+
+  it("orders source closure around the complete worker lifetime", async () => {
+    const events: string[] = [];
+    const result = Object.freeze(
+      [],
+    ) as readonly FloodgateRawVerificationTaskResult[];
+    const bundle = Object.freeze({
+      source: '"use strict";',
+      identity: Object.freeze({
+        runtime: Object.freeze({
+          node_version: process.version,
+          v8_version: process.versions.v8,
+          modules_abi: process.versions.modules,
+          executable_path: process.execPath,
+          platform: process.platform,
+          architecture: process.arch,
+        }),
+      }),
+      assertUnchangedAndClose: () => {
+        events.push("bundle-postflight");
+      },
+    }) as unknown as FloodgateRawVerificationWorkerBundleLease;
+    const dependencies: FloodgateRawVerificationProductionDependencies = {
+      captureBundle: () => {
+        events.push("bundle-capture");
+        return bundle;
+      },
+      captureExactCleanRevision: async () => {
+        events.push("git-preflight");
+        return "a".repeat(40);
+      },
+      assertExactCleanRevision: async (_root, revision) => {
+        expect(revision).toBe("a".repeat(40));
+        events.push("git-postflight");
+      },
+      runWorkers: async () => {
+        events.push("workers-spawned");
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        events.push("workers-drained");
+        return result;
+      },
+    };
+    await expect(
+      verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+        repositoryRoot(),
+        repositoryRoot(),
+        [],
+        dependencies,
+      ),
+    ).resolves.toBe(result);
+    expect(events).toEqual([
+      "bundle-capture",
+      "git-preflight",
+      "workers-spawned",
+      "workers-drained",
+      "bundle-postflight",
+      "git-postflight",
+    ]);
+  });
+
+  it("never spawns on a dirty preflight and still closes the held bundle", async () => {
+    const events: string[] = [];
+    const dependencies: FloodgateRawVerificationProductionDependencies = {
+      captureBundle: () =>
+        ({
+          source: '"use strict";',
+          identity: { runtime: {} },
+          assertUnchangedAndClose: () => {
+            events.push("bundle-closed");
+          },
+        }) as unknown as FloodgateRawVerificationWorkerBundleLease,
+      captureExactCleanRevision: async () => {
+        events.push("dirty-rejected");
+        throw new Error("dirty tree");
+      },
+      assertExactCleanRevision: async () => undefined,
+      runWorkers: async () => {
+        events.push("workers-spawned");
+        return [];
+      },
+    };
+    await expect(
+      verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+        repositoryRoot(),
+        repositoryRoot(),
+        [],
+        dependencies,
+      ),
+    ).rejects.toThrow("dirty tree");
+    expect(events).toEqual(["dirty-rejected", "bundle-closed"]);
+  });
+
+  it("rejects source mutation after drain even when receipt work succeeded", async () => {
+    let gitChecks = 0;
+    const dependencies: FloodgateRawVerificationProductionDependencies = {
+      captureBundle: () =>
+        ({
+          source: '"use strict";',
+          identity: { runtime: {} },
+          assertUnchangedAndClose: () => {
+            throw new Error("mid-run source mutation");
+          },
+        }) as unknown as FloodgateRawVerificationWorkerBundleLease,
+      captureExactCleanRevision: async () => {
+        gitChecks += 1;
+        return "c".repeat(40);
+      },
+      assertExactCleanRevision: async () => {
+        gitChecks += 1;
+      },
+      runWorkers: async () => [],
+    };
+    await expect(
+      verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+        repositoryRoot(),
+        repositoryRoot(),
+        [],
+        dependencies,
+      ),
+    ).rejects.toThrow("production source closure failed");
+    expect(gitChecks).toBe(2);
   });
 
   it("keeps exact ordered receipt results for 1, 4, 8, and 12 workers", async () => {
@@ -222,6 +429,36 @@ describe("Floodgate ordered raw-verification worker pool", () => {
         tasks.map((task) => task.url),
       );
     }
+  }, 30_000);
+
+  it("runs the pinned in-memory production bundle with twelve workers", async () => {
+    const { root, tasks } = await fixture(24);
+    const expected = await serialResults(root, tasks);
+    let gitChecks = 0;
+    const actual =
+      await verifyFloodgateRawReceiptsWithPinnedWorkersCoreForTests(
+        repositoryRoot(),
+        root,
+        tasks,
+        {
+          captureBundle: capturePinnedFloodgateRawVerificationWorkerBundle,
+          captureExactCleanRevision: async () => {
+            gitChecks += 1;
+            return "d".repeat(40);
+          },
+          assertExactCleanRevision: async () => {
+            gitChecks += 1;
+          },
+          runWorkers: undefined,
+        },
+      );
+    expect(actual).toEqual(expected);
+    expect(
+      actual.map((result) => serializeFloodgateRawReceipt(result.receipt)),
+    ).toEqual(
+      expected.map((result) => serializeFloodgateRawReceipt(result.receipt)),
+    );
+    expect(gitChecks).toBe(2);
   }, 30_000);
 
   it("reports the lowest input-order failure, not the first timed failure", async () => {

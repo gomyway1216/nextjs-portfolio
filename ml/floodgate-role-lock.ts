@@ -33,7 +33,7 @@ import {
   type FloodgateRawLockManifest,
   type FloodgateRawReceiptIndexEntry,
 } from "./floodgate-raw-lock";
-import { verifyFloodgateRawLockCandidate } from "./floodgate-raw-lock-verifier";
+import { verifyFloodgateRawLockCandidateWithPinnedWorkers } from "./floodgate-raw-lock-verifier";
 import {
   DEFAULT_FLOODGATE_GAME_RANK_DOMAINS,
   DEFAULT_FLOODGATE_PARENT_RANK_DOMAINS,
@@ -4078,7 +4078,7 @@ async function revalidateProductionSourceClosure(
   if (serializeFloodgateRawLockManifest(before) !== expectedRawManifestText) {
     fail("raw manifest changed during role locking");
   }
-  await verifyFloodgateRawLockCandidate(rawLockRoot, before);
+  await verifyFloodgateRawLockCandidateWithPinnedWorkers(rawLockRoot, before);
   const after = await readExistingFloodgateRawLockManifestFile(rawLockRoot);
   if (serializeFloodgateRawLockManifest(after) !== expectedRawManifestText) {
     fail("raw manifest changed during final referential verification");
@@ -4556,7 +4556,10 @@ export async function createFloodgateRoleLock(
   await assertGitRevision(repositoryRoot, pipelineRevision);
   const rawManifest =
     await readExistingFloodgateRawLockManifestFile(rawLockRoot);
-  await verifyFloodgateRawLockCandidate(rawLockRoot, rawManifest);
+  await verifyFloodgateRawLockCandidateWithPinnedWorkers(
+    rawLockRoot,
+    rawManifest,
+  );
   const rawManifestText = serializeFloodgateRawLockManifest(rawManifest);
   const legacy = await readPinnedLegacyPositionIds(legacyPath);
   const core = await buildProductionRoleLockCore(
@@ -4662,7 +4665,10 @@ export async function verifyExistingFloodgateRoleLock(
   const rawManifest =
     await readExistingFloodgateRawLockManifestFile(rawLockRoot);
   const rawManifestText = serializeFloodgateRawLockManifest(rawManifest);
-  await verifyFloodgateRawLockCandidate(rawLockRoot, rawManifest);
+  await verifyFloodgateRawLockCandidateWithPinnedWorkers(
+    rawLockRoot,
+    rawManifest,
+  );
   const legacy = await readPinnedLegacyPositionIds(legacyPath);
   const core = await buildProductionRoleLockCore(
     rawLockRoot,
@@ -4704,7 +4710,7 @@ export async function verifyExistingFloodgateRoleLock(
   ) {
     fail("raw manifest changed during role-lock verification");
   }
-  await verifyFloodgateRawLockCandidate(
+  await verifyFloodgateRawLockCandidateWithPinnedWorkers(
     rawLockRoot,
     rawBeforeFinalVerification,
   );

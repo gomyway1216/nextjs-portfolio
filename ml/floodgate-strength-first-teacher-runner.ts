@@ -1247,7 +1247,7 @@ export async function runFloodgateStrengthFirstTeacherCore(
   }
 }
 
-async function ensurePrivateDirectory(
+export async function ensureFloodgateStrengthFirstTeacherPrivateDirectory(
   directory: string,
   effectiveUserId: number,
 ): Promise<void> {
@@ -1291,7 +1291,7 @@ async function assertPrivateFile(
   return stat;
 }
 
-async function digestPrivateFile(
+export async function digestFloodgateStrengthFirstTeacherPrivateFile(
   file: string,
   root: string,
   effectiveUserId: number,
@@ -1321,7 +1321,7 @@ async function digestPrivateFile(
   });
 }
 
-async function readPrivateJson(
+export async function readFloodgateStrengthFirstTeacherPrivateJson(
   file: string,
   root: string,
   effectiveUserId: number,
@@ -1332,7 +1332,11 @@ async function readPrivateJson(
       throw new Error(`private JSON is too large: ${file}`);
     }
     const bytes = await fs.promises.readFile(file);
-    const binding = await digestPrivateFile(file, root, effectiveUserId);
+    const binding = await digestFloodgateStrengthFirstTeacherPrivateFile(
+      file,
+      root,
+      effectiveUserId,
+    );
     return Object.freeze({
       value: JSON.parse(bytes.toString("utf8")) as unknown,
       binding,
@@ -1456,7 +1460,7 @@ function waitForRunLockHelper(
   });
 }
 
-async function acquireFloodgateStrengthFirstTeacherRunLock(
+export async function acquireFloodgateStrengthFirstTeacherRunLock(
   outputRoot: string,
   effectiveUserId: number,
   dependencies: FloodgateStrengthFirstTeacherRunLockDependencies,
@@ -1519,7 +1523,7 @@ export function acquireFloodgateStrengthFirstTeacherRunLockCoreForTests(
   );
 }
 
-async function commitPrivateJson(
+export async function commitFloodgateStrengthFirstTeacherPrivateJson(
   file: string,
   root: string,
   effectiveUserId: number,
@@ -1531,7 +1535,11 @@ async function commitPrivateJson(
     bytes: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex"),
   };
-  const existing = await readPrivateJson(file, root, effectiveUserId);
+  const existing = await readFloodgateStrengthFirstTeacherPrivateJson(
+    file,
+    root,
+    effectiveUserId,
+  );
   if (existing) {
     assertBinding(existing.binding, expected, "existing JSON");
     if (!sameJson(existing.value, value)) {
@@ -1558,7 +1566,11 @@ async function commitPrivateJson(
     await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
     throw error;
   }
-  const committed = await digestPrivateFile(file, root, effectiveUserId);
+  const committed = await digestFloodgateStrengthFirstTeacherPrivateFile(
+    file,
+    root,
+    effectiveUserId,
+  );
   assertBinding(committed, expected, "committed JSON");
   return committed;
 }
@@ -1579,7 +1591,7 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstTeacherRunnerDependencies =
     architecture: process.arch,
     effectiveUserId: productionEffectiveUserId(),
     setUmask: (mode: number) => process.umask(mode),
-    ensurePrivateDirectory,
+    ensurePrivateDirectory: ensureFloodgateStrengthFirstTeacherPrivateDirectory,
     acquireRunLock: (outputRoot: string, effectiveUserId: number) =>
       acquireFloodgateStrengthFirstTeacherRunLock(outputRoot, effectiveUserId, {
         lockfExecutable: "/usr/bin/lockf",
@@ -1592,9 +1604,9 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstTeacherRunnerDependencies =
     claimTrainingInput: claimActiveVerifiedPinnedFloodgateTrainingRows,
     claimPostflight: claimVerifiedFloodgateTrainingConsumerPostflight,
     advanceTeacher: advanceStrengthFirstSiblingTeacherDataset,
-    readPrivateJson,
-    digestPrivateFile,
-    commitPrivateJson,
+    readPrivateJson: readFloodgateStrengthFirstTeacherPrivateJson,
+    digestPrivateFile: digestFloodgateStrengthFirstTeacherPrivateFile,
+    commitPrivateJson: commitFloodgateStrengthFirstTeacherPrivateJson,
     reportProgress: (event: FloodgateStrengthFirstTeacherProgressEvent) => {
       process.stderr.write(
         `${JSON.stringify({

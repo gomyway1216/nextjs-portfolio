@@ -403,6 +403,19 @@ function buildAggregateResult(
   };
 }
 
+function isAllowedLoopbackRequestUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "ws:") &&
+      url.hostname === "127.0.0.1" &&
+      url.port === "3000"
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function runAuthenticatedInPage(
   page: Page,
   authenticated: AuthenticatedBrowserWorkerParityRequest,
@@ -413,9 +426,9 @@ async function runAuthenticatedInPage(
     const url = request.url();
     if (url.startsWith("blob:") || url.startsWith("data:")) return;
     try {
-      const origin = new URL(url).origin;
-      if (origin !== BROWSER_WORKER_PARITY_ORIGIN) {
-        externalOrigins.add(origin);
+      const parsed = new URL(url);
+      if (!isAllowedLoopbackRequestUrl(url)) {
+        externalOrigins.add(parsed.origin);
       }
     } catch {
       externalOrigins.add("invalid-url");
@@ -533,6 +546,12 @@ export function validateBrowserWorkerHarnessObservationForTests(
   wasm: BrowserWorkerParityArtifactIdentity,
 ): ShogiEngineParityHarnessResult {
   return validateHarnessObservation(value, candidate, wasm);
+}
+
+export function isBrowserWorkerParityLoopbackUrlForTests(
+  value: string,
+): boolean {
+  return isAllowedLoopbackRequestUrl(value);
 }
 
 export async function runBrowserWorkerParityWithPageForTests(

@@ -4,6 +4,7 @@ import {
   authenticateBrowserWorkerParityRequestForTests,
   BROWSER_WORKER_PARITY_REQUEST_SCHEMA,
   CANDIDATE_WEIGHTS_SCHEMA,
+  isBrowserWorkerParityLoopbackUrlForTests,
   NNUE_WEIGHTS_BYTES,
   PRODUCTION_WASM_BYTES,
   PRODUCTION_WASM_PATH,
@@ -78,6 +79,24 @@ function observation(): Record<string, unknown> {
 }
 
 describe("strength-first browser Worker parity request", () => {
+  it("allows only the fixed loopback HTTP and same-host WebSocket boundary", () => {
+    expect(
+      isBrowserWorkerParityLoopbackUrlForTests("http://127.0.0.1:3000/a"),
+    ).toBe(true);
+    expect(
+      isBrowserWorkerParityLoopbackUrlForTests("ws://127.0.0.1:3000/_next/webpack-hmr"),
+    ).toBe(true);
+    expect(
+      isBrowserWorkerParityLoopbackUrlForTests("http://localhost:3000/a"),
+    ).toBe(false);
+    expect(
+      isBrowserWorkerParityLoopbackUrlForTests("http://127.0.0.1:3001/a"),
+    ).toBe(false);
+    expect(
+      isBrowserWorkerParityLoopbackUrlForTests("https://127.0.0.1:3000/a"),
+    ).toBe(false);
+  });
+
   it("authenticates the explicit local artifact and exact production WASM", () => {
     expect(
       authenticateBrowserWorkerParityRequestForTests(

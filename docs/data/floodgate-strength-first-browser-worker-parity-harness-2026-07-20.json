@@ -35,6 +35,8 @@
       "request_schema": "shogi-floodgate-strength-first-browser-worker-parity-request-v1",
       "result_schema": "shogi-floodgate-strength-first-browser-worker-parity-result-v1",
       "fixed_origin": "http://127.0.0.1:3000",
+      "allowed_loopback_request_protocols": ["http", "ws"],
+      "allowed_loopback_host_and_port": "127.0.0.1:3000",
       "intercepted_url": "http://127.0.0.1:3000/shogi-nnue-weights.bin",
       "other_request_intercepts": 0,
       "candidate_schema": "shogi-int16-nnue-weights-bin-v1",
@@ -69,10 +71,10 @@
   },
   "local_validation": {
     "focused_unit": {
-      "passed": 26,
+      "passed": 27,
       "failed": 0,
       "protocol_and_book_negative_passed": 3,
-      "runner_and_observation_contract_passed": 21,
+      "runner_and_observation_contract_passed": 22,
       "machine_evidence_binding_passed": 2
     },
     "typescript_no_emit": "pass",

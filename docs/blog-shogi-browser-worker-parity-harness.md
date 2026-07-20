@@ -42,6 +42,8 @@ runnerは候補ファイルをrepository内のread-only入力として認証す�
 
 standalone runnerの前提として、`127.0.0.1:3000`で対象sourceからbuildしたserverを先に起動しておく必要がある。runner自身は、そこに待機しているserverがどのcommitからbuildされたかまでは認証しない。そのためstandalone結果は常に`served_app_build_identity_verified: false`、`standalone_result_is_formal_parity_evidence: false`を含み、単独では正式なparity証拠にならない。GitHub CI上ではcheckoutされたcommitと同じjobのbuild/E2Eを結び付けるが、実candidateの正式証拠には別途trusted evidence publisherが必要である。
 
+network境界は固定host/portのHTTPに加え、同じhost/portの開発用WebSocketだけをlocalとして扱う。`localhost`という別名、別port、HTTPS、外部originは許可しない。
+
 ## 通常の将棋ページへの影響
 
 最初の実装案では `/games/shogi` 自体がqueryを読む形だった。この形は通常routeをdynamic化し、既存の静的配信・cache特性を変える可能性があったため採用しなかった。
@@ -55,7 +57,7 @@ standalone runnerの前提として、`127.0.0.1:3000`で対象sourceからbuild
 | 対象 | 結果 |
 | --- | --- |
 | exact query、通常route非依存、定跡外固定局面 | 3 / 3 pass |
-| 入力認証とブラウザ観測の負の契約 | 21 / 21 pass |
+| 入力認証、loopback境界、ブラウザ観測の負の契約 | 22 / 22 pass |
 | machine evidenceと日英記事のbinding | 2 / 2 pass |
 | TypeScript no-emit | pass |
 | 変更対象lint、差分検査 | pass |

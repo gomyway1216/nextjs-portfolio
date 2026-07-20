@@ -42,6 +42,8 @@ This lets a future selected candidate exercise the production URL contract befor
 
 The standalone runner requires a server built from the target source to be listening on `127.0.0.1:3000` before it starts. The runner does not itself authenticate which commit produced that already-running server. Its aggregate result therefore always includes `served_app_build_identity_verified: false` and `standalone_result_is_formal_parity_evidence: false`; the standalone output is not formal parity evidence. GitHub CI binds checkout, build, and E2E within the same job, but a trusted evidence publisher is still required for a selected real candidate.
 
+The network boundary treats only HTTP and a development WebSocket on the fixed host and port as local. The `localhost` alias, any other port, HTTPS, and every external origin remain rejected.
+
 ## No ordinary-game delivery regression
 
 The first design considered reading the diagnostics query from `/games/shogi` itself. That could make the ordinary route dynamic and change its existing static delivery or cache behavior, so the design was revised.
@@ -55,7 +57,7 @@ Only light local validation ran so it would not contend with the active 13-engin
 | Target | Result |
 | --- | --- |
 | exact query, ordinary-route isolation, out-of-book fixture | 3 / 3 passed |
-| request authentication and negative observation contracts | 21 / 21 passed |
+| request authentication, loopback boundary, and negative observation contracts | 22 / 22 passed |
 | machine-evidence and bilingual-article binding | 2 / 2 passed |
 | TypeScript no-emit | passed |
 | changed-file lint and diff check | passed |

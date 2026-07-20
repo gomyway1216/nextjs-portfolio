@@ -24,10 +24,7 @@
     "pairs": 384,
     "games_per_pair": 2,
     "games": 768,
-    "colors": [
-      "sente",
-      "gote"
-    ],
+    "colors": ["sente", "gote"],
     "result_protocol": "candidate-perspective-win-draw-loss"
   },
   "enrollments": {

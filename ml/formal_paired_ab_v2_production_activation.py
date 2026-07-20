@@ -56,9 +56,9 @@ ACTIVATION_REGISTRY_PATH = (
     "ml/protocols/"
     "floodgate-q1-2026-formal-paired-ab-v2-production-activation-registry.json"
 )
-ACTIVATION_REGISTRY_BYTES = 2_622
+ACTIVATION_REGISTRY_BYTES = 2_604
 ACTIVATION_REGISTRY_SHA256 = (
-    "0266b79f33b19a1532fed5aefba0667b523ffe781810447209c40f3dd18db7a2"
+    "90749b092a16b800ed909ba53235b5bf8eda0d330330ada5386790b33fad14f1"
 )
 ACTIVATION_CLI_RECEIPT_SCHEMA = (
     "shogi-floodgate-formal-paired-ab-v2-production-activation-cli-receipt-v1"

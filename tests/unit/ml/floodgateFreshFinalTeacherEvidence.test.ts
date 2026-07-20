@@ -151,9 +151,9 @@ describe("Floodgate strength-first fresh-final teacher evidence", () => {
     expect(readJson(evidencePath)).toMatchObject({
       local_validation: {
         typescript_compile: "PASS",
-        focused_runtime_vitest: { status: "PASS", files: 3, tests: 19 },
+        focused_runtime_vitest: { status: "PASS", files: 3, tests: 20 },
         publication_evidence_vitest: { status: "PASS", files: 1, tests: 4 },
-        combined_focused_vitest: { status: "PASS", files: 4, tests: 23 },
+        combined_focused_vitest: { status: "PASS", files: 4, tests: 24 },
         python_receipt_preflight: { status: "PASS", tests: 4 },
         production_stop_command: "PASS",
         git_diff_check: "PASS",

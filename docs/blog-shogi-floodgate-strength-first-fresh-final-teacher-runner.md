@@ -90,7 +90,7 @@ dataset 1 byte、manifest、authority、completion型、selected checkpointの�
 ## validationと次工程
 
 Node v22で、fresh-final generator、fresh-selection既存runner、fresh-final runnerのfocused
-19 tests、Python receipt preflight 4 tests、TypeScript compile、diff checkがPASSした。
+20 tests、Python receipt preflight 4 tests、TypeScript compile、diff checkがPASSした。
 実commandのSTOPも上記の全0 counterで確認した。元の4,800局面は開いておらず、重いteacher runも
 開始していない。
 

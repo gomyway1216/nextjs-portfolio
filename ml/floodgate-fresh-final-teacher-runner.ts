@@ -433,6 +433,23 @@ interface PrivateArtifactSnapshot {
   readonly identity: FreshSelectionTeacherArtifactIdentity;
 }
 
+export function freshFinalPrivateArtifactRelativePathCoreForTests(
+  file: string,
+  root: string,
+): string {
+  const absolute = path.resolve(file);
+  const relative = path.relative(root, absolute);
+  if (
+    absolute !== file ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`fresh-final artifact is outside its root: ${path.basename(file)}`);
+  }
+  return relative;
+}
+
 async function readPrivateArtifact(
   file: string,
   root: string,
@@ -440,15 +457,15 @@ async function readPrivateArtifact(
   schema: string,
 ): Promise<Readonly<PrivateArtifactSnapshot>> {
   const absolute = path.resolve(file);
-  const relative = path.relative(root, absolute);
+  const relative = freshFinalPrivateArtifactRelativePathCoreForTests(
+    file,
+    root,
+  );
   const canonicalFromRoot = path.join(
     await fs.promises.realpath(root),
     relative,
   );
   if (
-    absolute !== file ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative) ||
     (await fs.promises.realpath(file)) !== canonicalFromRoot
   ) {
     throw new Error(`fresh-final artifact path is not canonical: ${path.basename(file)}`);
@@ -1114,9 +1131,21 @@ function subprocessJson(
   executable: string,
   arguments_: readonly string[],
   options: Readonly<{ cwd: string; env: NodeJS.ProcessEnv }>,
+  spawnProcess: typeof spawn = spawn,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [...arguments_], {
+    let settled = false;
+    const safeResolve = (value: unknown): void => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const safeReject = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const child = spawnProcess(executable, [...arguments_], {
       cwd: options.cwd,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -1125,8 +1154,9 @@ function subprocessJson(
     const stderr: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-    child.once("error", reject);
+    child.once("error", safeReject);
     child.once("close", (code) => {
+      if (settled) return;
       const stdoutBytes = Buffer.concat(stdout);
       if (code === 2) {
         try {
@@ -1148,14 +1178,14 @@ function subprocessJson(
           ) {
             throw new Error("fresh-final preflight STOP receipt is invalid");
           }
-          reject(new FreshFinalTeacherBlocked(Object.freeze(value)));
+          safeReject(new FreshFinalTeacherBlocked(Object.freeze(value)));
         } catch (error) {
-          reject(error);
+          safeReject(error);
         }
         return;
       }
       if (code !== 0) {
-        reject(
+        safeReject(
           new Error(
             `fresh-final selection preflight failed: ${Buffer.concat(stderr)
               .toString("utf8")
@@ -1165,12 +1195,23 @@ function subprocessJson(
         return;
       }
       try {
-        resolve(JSON.parse(stdoutBytes.toString("utf8")) as unknown);
+        safeResolve(JSON.parse(stdoutBytes.toString("utf8")) as unknown);
       } catch {
-        reject(new Error("fresh-final selection preflight returned invalid JSON"));
+        safeReject(
+          new Error("fresh-final selection preflight returned invalid JSON"),
+        );
       }
     });
   });
+}
+
+export function subprocessJsonCoreForTests(
+  executable: string,
+  arguments_: readonly string[],
+  options: Readonly<{ cwd: string; env: NodeJS.ProcessEnv }>,
+  spawnProcess: typeof spawn,
+): Promise<unknown> {
+  return subprocessJson(executable, arguments_, options, spawnProcess);
 }
 
 async function selectionPreflight(

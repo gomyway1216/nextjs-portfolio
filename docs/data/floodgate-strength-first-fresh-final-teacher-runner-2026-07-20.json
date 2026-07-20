@@ -135,7 +135,7 @@
     "focused_runtime_vitest": {
       "status": "PASS",
       "files": 3,
-      "tests": 19
+      "tests": 20
     },
     "publication_evidence_vitest": {
       "status": "PASS",
@@ -145,7 +145,7 @@
     "combined_focused_vitest": {
       "status": "PASS",
       "files": 4,
-      "tests": 23
+      "tests": 24
     },
     "python_receipt_preflight": {
       "status": "PASS",

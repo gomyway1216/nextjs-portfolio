@@ -101,7 +101,7 @@ completion type, and selected checkpoint.
 
 ## Validation and next step
 
-Under Node v22, 19 focused tests covering the fresh-final generator, existing
+Under Node v22, 20 focused tests covering the fresh-final generator, existing
 fresh-selection runner, and fresh-final runner passed. The Python receipt
 preflight passed 4 tests, and TypeScript compilation plus the diff check
 passed. The real STOP command also produced the all-zero sensitive-operation

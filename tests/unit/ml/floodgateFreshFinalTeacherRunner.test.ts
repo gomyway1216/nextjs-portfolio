@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -17,7 +19,9 @@ import {
   FreshFinalTeacherBlocked,
   assertFreshFinalTeacherGeneratorOutputPathsCoreForTests,
   freshFinalTeacherPaths,
+  freshFinalPrivateArtifactRelativePathCoreForTests,
   runFreshFinalTeacherCore,
+  subprocessJsonCoreForTests,
   validateFreshFinalTeacherSelectionPreflight,
   type FreshFinalTeacherBlockedReceipt,
   type FreshFinalTeacherRunnerDependencies,
@@ -364,6 +368,40 @@ describe("fresh-final teacher runner", () => {
         paths.work,
       ),
     ).toThrow(/output paths drifted/);
+  });
+
+  it("rejects the exact parent-directory boundary and settles subprocess failure once", async () => {
+    expect(
+      freshFinalPrivateArtifactRelativePathCoreForTests(
+        "/private/root/artifact.json",
+        "/private/root",
+      ),
+    ).toBe("artifact.json");
+    expect(() =>
+      freshFinalPrivateArtifactRelativePathCoreForTests(
+        "/private",
+        "/private/root",
+      ),
+    ).toThrow(/outside its root/);
+
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    const spawnProcess = vi.fn(() => child) as unknown as typeof spawn;
+    const promise = subprocessJsonCoreForTests(
+      "/missing/python3",
+      [],
+      { cwd: "/", env: {} },
+      spawnProcess,
+    );
+    const assertion = expect(promise).rejects.toThrow("spawn failed");
+    child.emit("error", new Error("spawn failed"));
+    expect(() => child.emit("close", 0)).not.toThrow();
+    await assertion;
+    expect(spawnProcess).toHaveBeenCalledOnce();
   });
 
   it("rejects every tampered existing-result binding instead of treating it as idempotent", async () => {

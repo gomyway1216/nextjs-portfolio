@@ -9,6 +9,7 @@ import type { Difficulty } from '../common/types';
 export interface DoubtWordStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   difficultyTitle: string;
   startLabel: string;
   difficultyOptions: Record<Difficulty, { label: string; description: string }>;
@@ -73,6 +74,7 @@ export interface DoubtWordStrings {
 const en: DoubtWordStrings = {
   title: 'Doubt Word',
   subtitle: 'A bluffing duel of first-letters and word length. Read the AI, or fool it.',
+  gameSetup: 'Game setup',
   difficultyTitle: 'Choose your opponent',
   startLabel: 'Start Duel',
   difficultyOptions: {
@@ -145,6 +147,7 @@ const en: DoubtWordStrings = {
 const ja: DoubtWordStrings = {
   title: 'Doubt Word',
   subtitle: '「頭文字」と「文字数」で仕掛けるブラフ勝負。AIの宣言を読み切れ。',
+  gameSetup: 'ゲーム設定',
   difficultyTitle: '相手を選ぶ',
   startLabel: '対戦開始',
   difficultyOptions: {

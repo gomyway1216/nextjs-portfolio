@@ -169,7 +169,10 @@ function shouldStrategicPass(
 
   const passesUsed = state.passCounts[meId] ?? 0;
   const passesLeft = state.maxPasses - passesUsed;
-  if (passesLeft <= 1) return false; // keep our last pass as a lifeline
+  // Elimination fires when passCount REACHES maxPasses, so spending a pass at
+  // passesLeft === 2 would leave exactly one — and the next forced pass kills
+  // us. Keep at least two in reserve so one forced pass is always survivable.
+  if (passesLeft <= 2) return false;
 
   const myHand = state.hands[meId] ?? [];
   // If we're close to winning, just play — racing beats blocking.
@@ -198,7 +201,7 @@ function shouldStrategicPass(
   // and none is a safe play — so the remaining options all gift opponents. Otherwise
   // we'd waste a pass when we could progress harmlessly. Scaled by aggression and how
   // many rivals gate: expert (blockAggression 1) holds when >=2 rivals wait behind a
-  // card; master (blockAggression 1.6) will hold even for a single gated rival.
+  // card; master (blockAggression 2) will hold even for a single gated rival.
   if (!bestBenefitsMe && !hasSafePlay && maxGift >= 1) {
     return maxGift * cfg.blockAggression >= 2;
   }

@@ -112,7 +112,9 @@ export const MirrorOthello = () => {
         triggerFlipAnim();
       }
       if (step.passed) {
-        msg += ` ${step.nextColor === PLAYER ? t.youPass : t.aiPass}`;
+        // `passed` means the mover's OPPONENT had no move, so nextColor is back
+        // to the mover: nextColor === PLAYER implies the AI is the one passing.
+        msg += ` ${step.nextColor === PLAYER ? t.aiPass : t.youPass}`;
       }
 
       if (step.gameOver) {
@@ -230,6 +232,7 @@ export const MirrorOthello = () => {
             onStart={start}
             difficultyTitle={t.selectDifficulty}
             startLabel={t.start}
+            kickerLabel={t.gameSetup}
           />
         ) : (
           <>

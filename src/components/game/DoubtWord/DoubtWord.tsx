@@ -224,6 +224,7 @@ export const DoubtWord = () => {
             onStart={beginMatch}
             difficultyTitle={t.difficultyTitle}
             startLabel={t.startLabel}
+            kickerLabel={t.gameSetup}
             summaryContent={
               <span
                 className={styles.difficultyBadge}

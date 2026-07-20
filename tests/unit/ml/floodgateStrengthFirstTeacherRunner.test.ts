@@ -17,11 +17,22 @@ import {
   type StrengthFirstSiblingTeacherOptions,
 } from "../../../ml/generate-sibling-teacher";
 import {
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CLAIM_BOUNDARY,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_TRUST_BOUNDARY,
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY,
   FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
+  type FloodgateProductionTeacherAssetAuthorityReceipt,
 } from "../../../ml/floodgate-production-teacher-asset-authority";
 import {
+  FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME,
+  bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests,
+  captureFloodgateStrengthFirstV8TeacherAuthorityReceipt,
+  verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
+} from "../../../ml/floodgate-strength-first-v8-teacher-authority";
+import {
+  FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
   FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA,
   FLOODGATE_STRENGTH_FIRST_TEACHER_RUN_LOCK_FILENAME,
@@ -46,21 +57,13 @@ const HOME = "/Users/floodgate-test";
 const REPOSITORY_ROOT = "/Users/floodgate-test/source";
 const RUNNER_REVISION = "1".repeat(40);
 const RUN_FINGERPRINT = "2".repeat(64);
-const ENGINE_ASSET = Object.freeze({ bytes: 101, sha256: "a".repeat(64) });
-const ENGINE_RECEIPT_ASSET = Object.freeze({
-  bytes: 202,
-  sha256: "b".repeat(64),
-});
-const EVAL_NN_ASSET = Object.freeze({ bytes: 303, sha256: "c".repeat(64) });
-const EVAL_TREE_SHA256 = createHash("sha256")
-  .update(
-    `eval-tree-v1\0${JSON.stringify({
-      bytes: EVAL_NN_ASSET.bytes,
-      path: "nn.bin",
-      sha256: EVAL_NN_ASSET.sha256,
-    })}`,
-  )
-  .digest("hex");
+const ENGINE_ASSET =
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.engine.yaneuraou;
+const ENGINE_RECEIPT_ASSET =
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.engine.receipt;
+const EVAL_NN_ASSET = FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.eval.nn;
+const EVAL_TREE_SHA256 =
+  FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.eval.treeSha256;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
@@ -143,27 +146,106 @@ function postflightFixture(
   });
 }
 
+function assetEvidence(
+  relativePath: string,
+  identity: Readonly<{ readonly bytes: number; readonly sha256: string }>,
+  mode: "0600" | "0700",
+  inode: number,
+) {
+  return Object.freeze({
+    relative_path: relativePath,
+    bytes: identity.bytes,
+    sha256: identity.sha256,
+    mode,
+    identity: Object.freeze({ dev: "1", ino: String(inode) }),
+  });
+}
+
+function legacyAssetReceiptFixture(): Readonly<
+  FloodgateProductionTeacherAssetAuthorityReceipt<"production-fixed-registry-and-deployment-root">
+> {
+  return Object.freeze({
+    contract: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
+    status: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
+    claim_boundary: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CLAIM_BOUNDARY,
+    trust_boundary: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_TRUST_BOUNDARY,
+    execution_boundary: "production-fixed-registry-and-deployment-root",
+    runtime: FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
+    deployment: {
+      layout: "fixed-per-user-application-support-v1",
+      owner_uid: 501,
+      exact_tree: true,
+      private_directories: true,
+    },
+    assets: {
+      engine: {
+        yaneuraou: assetEvidence("engine/yaneuraou", ENGINE_ASSET, "0700", 1),
+        receipt: assetEvidence(
+          "engine/yaneuraou-receipt.json",
+          ENGINE_RECEIPT_ASSET,
+          "0600",
+          2,
+        ),
+      },
+      eval: {
+        nn: assetEvidence("eval/nn.bin", EVAL_NN_ASSET, "0600", 3),
+        tree_sha256: EVAL_TREE_SHA256,
+      },
+      stable: {
+        plan: assetEvidence(
+          "stable/floodgate-plan.json",
+          FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.plan,
+          "0600",
+          4,
+        ),
+        wasm: assetEvidence(
+          "stable/shogi.wasm",
+          FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.wasm,
+          "0600",
+          5,
+        ),
+        weights: assetEvidence(
+          "stable/shogi-nnue-weights.bin",
+          FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.weights,
+          "0600",
+          6,
+        ),
+        worker: assetEvidence(
+          "stable/floodgate-stable-wasm-worker.mjs",
+          FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY.stable.worker,
+          "0600",
+          7,
+        ),
+      },
+    },
+    engine: {
+      receipt_schema: "shogi-teacher-engine-receipt-v1",
+      source_repository: "https://github.com/yaneurao/YaneuraOu.git",
+      source_commit: "9133c527791c8b2f5f378a32df29a5e3752bd41b",
+      source_commit_date: "2026-07-02T13:41:06+09:00",
+      engine_id: "YaneuraOu NNUE 9.60git 64APPLEM1",
+      binary_cross_bound: true,
+    },
+    postverification: {
+      embedded_wasm_exactly_equal: true,
+      exact_entries_revalidated: true,
+      identities_revalidated: true,
+      contents_stably_read: true,
+    },
+  }) as unknown as Readonly<
+    FloodgateProductionTeacherAssetAuthorityReceipt<"production-fixed-registry-and-deployment-root">
+  >;
+}
+
 function assetReceiptFixture(): Awaited<
   ReturnType<
     FloodgateStrengthFirstTeacherRunnerDependencies["verifyProductionAssets"]
   >
 > {
-  return Object.freeze({
-    contract: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
-    status: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
-    execution_boundary: "production-fixed-registry-and-deployment-root",
-    runtime: FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
-    assets: {
-      engine: {
-        yaneuraou: ENGINE_ASSET,
-        receipt: ENGINE_RECEIPT_ASSET,
-      },
-      eval: {
-        nn: EVAL_NN_ASSET,
-        tree_sha256: EVAL_TREE_SHA256,
-      },
-    },
-  }) as Awaited<
+  return bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests(
+    legacyAssetReceiptFixture(),
+    501,
+  ) as Awaited<
     ReturnType<
       FloodgateStrengthFirstTeacherRunnerDependencies["verifyProductionAssets"]
     >
@@ -272,7 +354,7 @@ function fixture(failTarget?: 100 | 500 | 24_000): Fixture {
       multipv: 12,
       limit: { depth: 16 },
       parallel_engines: 12,
-      hash_mb_per_engine: 64,
+      hash_mb_per_engine: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       timeout_ms: 600_000,
     },
     candidate_sets: {},
@@ -578,9 +660,7 @@ function rewriteStagedResultWithConsistentBindings(
   const paths = floodgateStrengthFirstTeacherPaths(HOME, REPOSITORY_ROOT);
   const stagedPath = path.join(paths.outputRoot, "staged-result.json");
   const stagedStored = run.storage.get(stagedPath) as StoredFile;
-  const changedStaged = mutate(
-    stagedStored.value as Record<string, unknown>,
-  );
+  const changedStaged = mutate(stagedStored.value as Record<string, unknown>);
   const stagedBinding = bindingForBytes(
     stagedPath,
     paths.outputRoot,
@@ -606,6 +686,45 @@ function rewriteStagedResultWithConsistentBindings(
 }
 
 describe("Floodgate strength-first teacher runner", () => {
+  it("keeps legacy v1 at Hash 64 while issuing a distinct Hash 512 v8 authority", () => {
+    expect(FLOODGATE_PRODUCTION_TEACHER_RUNTIME.hash_mb_per_engine).toBe(64);
+    expect(FLOODGATE_STRENGTH_FIRST_V8_TEACHER_RUNTIME.hash_mb_per_engine).toBe(
+      512,
+    );
+    const receipt = assetReceiptFixture();
+    expect(receipt.runtime.hash_mb_per_engine).toBe(512);
+    expect(receipt.asset_authority.runtime.hash_mb_per_engine).toBe(64);
+  });
+
+  it("rejects a non-POSIX runtime before reading production assets", async () => {
+    const geteuidDescriptor = Object.getOwnPropertyDescriptor(
+      process,
+      "geteuid",
+    );
+    const realpath = vi.spyOn(fs.promises, "realpath");
+    try {
+      Object.defineProperty(process, "geteuid", {
+        configurable: true,
+        enumerable: geteuidDescriptor?.enumerable ?? true,
+        value: undefined,
+        writable: true,
+      });
+      await expect(
+        verifyPinnedFloodgateStrengthFirstV8TeacherAuthority(),
+      ).rejects.toThrow(
+        "strength-first v8 teacher requires POSIX process.geteuid() before production asset verification",
+      );
+      expect(realpath).not.toHaveBeenCalled();
+    } finally {
+      realpath.mockRestore();
+      if (geteuidDescriptor === undefined) {
+        Reflect.deleteProperty(process, "geteuid");
+      } else {
+        Object.defineProperty(process, "geteuid", geteuidDescriptor);
+      }
+    }
+  });
+
   it("derives every private production input, asset, and output path from the user home", () => {
     const paths = floodgateStrengthFirstTeacherPaths(HOME, REPOSITORY_ROOT);
     expect(paths).toMatchObject({
@@ -618,8 +737,8 @@ describe("Floodgate strength-first teacher runner", () => {
       assetRoot: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1`,
       engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
       evalDir: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/eval`,
-      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
-      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+      outputRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
+      stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
     });
   });
 
@@ -631,7 +750,7 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(receipt.idempotent_existing_result).toBe(false);
     expect(run.calls.assets).toHaveBeenCalledTimes(1);
     expect(run.calls.lock).toHaveBeenCalledWith(
-      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+      `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
       501,
     );
     expect(run.calls.revision).toHaveBeenCalledWith(REPOSITORY_ROOT);
@@ -661,7 +780,7 @@ describe("Floodgate strength-first teacher runner", () => {
     );
     for (const [index, options] of run.options.entries()) {
       expect(options).toMatchObject({
-        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v7`,
+        stageRoot: `${HOME}/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`,
         runnerRevision: RUNNER_REVISION,
         engineBin: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou`,
         engineReceipt: `${HOME}/Library/Application Support/nextjs-portfolio/shogi-production-teacher-assets-v1/engine/yaneuraou-receipt.json`,
@@ -670,7 +789,7 @@ describe("Floodgate strength-first teacher runner", () => {
         multipv: 12,
         depth: 16,
         fvScale: 20,
-        hashMb: 64,
+        hashMb: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
         timeoutMs: 600_000,
         targetParents: [100, 500, 24_000][index],
       });
@@ -680,6 +799,7 @@ describe("Floodgate strength-first teacher runner", () => {
     }
     expect(receipt.result.teacher).toMatchObject({
       parallel_engines: 12,
+      hash_mb_per_engine: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       proposal: { multipv: 12, depth: 16 },
       independent_rescore: {
         multipv: 1,
@@ -810,7 +930,7 @@ describe("Floodgate strength-first teacher runner", () => {
     expect(run.events).toContain("lock-released");
   });
 
-  it("rejects a core manifest whose teacher bytes do not match the real asset preflight", async () => {
+  it("rejects a v8 policy/nested asset mismatch before authentication", async () => {
     const run = fixture();
     run.calls.assets.mockImplementationOnce(async () => {
       const receipt = assetReceiptFixture();
@@ -831,10 +951,285 @@ describe("Floodgate strength-first teacher runner", () => {
     await expect(
       runFloodgateStrengthFirstTeacherCore(run.dependencies),
     ).rejects.toThrow(/production asset preflight/i);
-    expect(run.targets).toEqual([100, 500, 24_000]);
+    expect(run.targets).toEqual([]);
+    expect(run.calls.consume).not.toHaveBeenCalled();
     expect(run.calls.claimPostflight).not.toHaveBeenCalled();
     expect(run.events).not.toContain("commit-result");
     expect(run.events).toContain("lock-released");
+  });
+
+  it("refuses to bind a legacy receipt whose pinned asset tree drifted", () => {
+    const legacy = legacyAssetReceiptFixture();
+    const changedLegacy = {
+      ...legacy,
+      assets: {
+        ...legacy.assets,
+        engine: {
+          ...legacy.assets.engine,
+          yaneuraou: {
+            ...legacy.assets.engine.yaneuraou,
+            sha256: "e".repeat(64),
+          },
+        },
+      },
+    } as typeof legacy;
+    expect(() =>
+      bindFloodgateStrengthFirstV8TeacherAuthorityCoreForTests(
+        changedLegacy,
+        501,
+      ),
+    ).toThrow(/pinned v1 asset identity/i);
+  });
+
+  it("rejects a raw legacy v1 Hash 64 preflight before v8 authentication or engine work", async () => {
+    const run = fixture();
+    run.calls.assets.mockResolvedValueOnce(
+      legacyAssetReceiptFixture() as unknown as Awaited<
+        ReturnType<
+          FloodgateStrengthFirstTeacherRunnerDependencies["verifyProductionAssets"]
+        >
+      >,
+    );
+    await expect(
+      runFloodgateStrengthFirstTeacherCore(run.dependencies),
+    ).rejects.toThrow(/production asset preflight/i);
+    expect(run.targets).toEqual([]);
+    expect(run.calls.consume).not.toHaveBeenCalled();
+    expect(run.calls.advance).not.toHaveBeenCalled();
+    expect(run.events).not.toContain("commit-result");
+  });
+
+  it.each([64, 256, 1024])(
+    "rejects top-level Hash %i before v8 authentication or engine work",
+    async (hashMb) => {
+      const run = fixture();
+      const receipt = assetReceiptFixture();
+      run.calls.assets.mockResolvedValueOnce({
+        ...receipt,
+        runtime: {
+          ...receipt.runtime,
+          hash_mb_per_engine: hashMb,
+        },
+      } as typeof receipt);
+      await expect(
+        runFloodgateStrengthFirstTeacherCore(run.dependencies),
+      ).rejects.toThrow(/production asset preflight/i);
+      expect(run.targets).toEqual([]);
+      expect(run.calls.consume).not.toHaveBeenCalled();
+      expect(run.calls.advance).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects altered top-level schema, status, or claim boundary", async () => {
+    const mutations = [
+      { contract: "wrong-v8-contract" },
+      { status: "wrong-v8-status" },
+      { claim_boundary: "wrong-v8-claim" },
+    ];
+    for (const mutation of mutations) {
+      const run = fixture();
+      const receipt = assetReceiptFixture();
+      run.calls.assets.mockResolvedValueOnce({
+        ...receipt,
+        ...mutation,
+      } as unknown as typeof receipt);
+      await expect(
+        runFloodgateStrengthFirstTeacherCore(run.dependencies),
+      ).rejects.toThrow(/production asset preflight/i);
+      expect(run.targets).toEqual([]);
+      expect(run.calls.consume).not.toHaveBeenCalled();
+      expect(run.calls.advance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects nested legacy schema, boundary, runtime, or asset tampering", async () => {
+    const mutations: Array<
+      (
+        legacy: ReturnType<typeof legacyAssetReceiptFixture>,
+      ) => Record<string, unknown>
+    > = [
+      (legacy) => ({ ...legacy, contract: "wrong-v1-contract" }),
+      (legacy) => ({ ...legacy, status: "wrong-v1-status" }),
+      (legacy) => ({ ...legacy, claim_boundary: "wrong-v1-claim" }),
+      (legacy) => ({ ...legacy, trust_boundary: "wrong-v1-trust" }),
+      (legacy) => ({
+        ...legacy,
+        runtime: {
+          ...legacy.runtime,
+          hash_mb_per_engine: 512,
+        },
+      }),
+      (legacy) => ({
+        ...legacy,
+        assets: {
+          ...legacy.assets,
+          eval: {
+            ...legacy.assets.eval,
+            tree_sha256: "e".repeat(64),
+          },
+        },
+      }),
+    ];
+    for (const mutate of mutations) {
+      const run = fixture();
+      const receipt = assetReceiptFixture();
+      run.calls.assets.mockResolvedValueOnce({
+        ...receipt,
+        asset_authority: mutate(receipt.asset_authority),
+      } as unknown as typeof receipt);
+      await expect(
+        runFloodgateStrengthFirstTeacherCore(run.dependencies),
+      ).rejects.toThrow(/production asset preflight/i);
+      expect(run.targets).toEqual([]);
+      expect(run.calls.consume).not.toHaveBeenCalled();
+      expect(run.calls.advance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects synchronized nested and top-level legacy forgeries", async () => {
+    const mutations: Array<
+      (
+        receipt: ReturnType<typeof assetReceiptFixture>,
+      ) => Record<string, unknown>
+    > = [
+      (receipt) => {
+        const assets = {
+          ...receipt.asset_authority.assets,
+          eval: {
+            ...receipt.asset_authority.assets.eval,
+            tree_sha256: "e".repeat(64),
+          },
+        };
+        return {
+          ...receipt,
+          asset_authority: {
+            ...receipt.asset_authority,
+            assets,
+          },
+          assets,
+        };
+      },
+      (receipt) => ({
+        ...receipt,
+        asset_authority: {
+          ...receipt.asset_authority,
+          deployment: {
+            ...receipt.asset_authority.deployment,
+            owner_uid: 502,
+          },
+        },
+      }),
+      (receipt) => {
+        const engine = {
+          ...receipt.asset_authority.engine,
+          source_commit: "f".repeat(40),
+        };
+        return {
+          ...receipt,
+          asset_authority: {
+            ...receipt.asset_authority,
+            engine,
+          },
+          engine,
+        };
+      },
+      (receipt) => {
+        const postverification = {
+          ...receipt.asset_authority.postverification,
+          contents_stably_read: false,
+        };
+        return {
+          ...receipt,
+          asset_authority: {
+            ...receipt.asset_authority,
+            postverification,
+          },
+          postverification,
+        };
+      },
+    ];
+    for (const mutate of mutations) {
+      const run = fixture();
+      run.calls.assets.mockResolvedValueOnce(
+        mutate(assetReceiptFixture()) as unknown as ReturnType<
+          typeof assetReceiptFixture
+        >,
+      );
+      await expect(
+        runFloodgateStrengthFirstTeacherCore(run.dependencies),
+      ).rejects.toThrow(/production asset preflight/i);
+      expect(run.targets).toEqual([]);
+      expect(run.calls.consume).not.toHaveBeenCalled();
+      expect(run.calls.advance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects proxy, accessor, symbol, hidden, and prototype legacy receipts", () => {
+    const receipt = assetReceiptFixture();
+    const capture = (assetAuthority: unknown) =>
+      captureFloodgateStrengthFirstV8TeacherAuthorityReceipt(
+        {
+          ...receipt,
+          asset_authority: assetAuthority,
+        },
+        "production-fixed-registry-and-deployment-root",
+        501,
+      );
+
+    expect(() => capture(new Proxy(receipt.asset_authority, {}))).toThrow(
+      /plain non-Proxy/i,
+    );
+
+    const getter = vi.fn(() => receipt.asset_authority.runtime);
+    const accessor = { ...receipt.asset_authority };
+    Object.defineProperty(accessor, "runtime", {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+    });
+    expect(() => capture(accessor)).toThrow(/data property/i);
+    expect(getter).not.toHaveBeenCalled();
+
+    expect(() =>
+      capture({
+        ...receipt.asset_authority,
+        [Symbol("forged")]: true,
+      }),
+    ).toThrow(/symbol/i);
+
+    const hidden = { ...receipt.asset_authority };
+    Object.defineProperty(hidden, "forged", {
+      enumerable: false,
+      value: true,
+    });
+    expect(() => capture(hidden)).toThrow(/data property/i);
+
+    const customPrototype = Object.assign(
+      Object.create({ forged: true }),
+      receipt.asset_authority,
+    );
+    expect(() => capture(customPrototype)).toThrow(/plain non-Proxy/i);
+  });
+
+  it("uses a canonical deep-frozen copy after authority validation", () => {
+    const receipt = assetReceiptFixture();
+    const runtime = { ...receipt.runtime };
+    const mutable = { ...receipt, runtime };
+    const captured = captureFloodgateStrengthFirstV8TeacherAuthorityReceipt(
+      mutable,
+      "production-fixed-registry-and-deployment-root",
+      501,
+    );
+    (runtime as { hash_mb_per_engine: number }).hash_mb_per_engine = 64;
+    expect(captured.runtime.hash_mb_per_engine).toBe(512);
+    expect(Object.isFrozen(captured)).toBe(true);
+    expect(Object.isFrozen(captured.runtime)).toBe(true);
+    expect(Object.isFrozen(captured.asset_authority.assets.engine)).toBe(true);
+    expect(captured.assets).toBe(captured.asset_authority.assets);
+    expect(captured.engine).toBe(captured.asset_authority.engine);
+    expect(captured.postverification).toBe(
+      captured.asset_authority.postverification,
+    );
   });
 
   it("validates a completed result before authentication and skips all repeated engine work", async () => {
@@ -928,11 +1323,7 @@ describe("Floodgate strength-first teacher runner", () => {
       const first = await runFloodgateStrengthFirstTeacherCore(
         run.dependencies,
       );
-      rewriteManifestWithConsistentBindings(
-        run,
-        first.result_path,
-        mutate,
-      );
+      rewriteManifestWithConsistentBindings(run, first.result_path, mutate);
       const consumeCalls = run.calls.consume.mock.calls.length;
       const advanceCalls = run.calls.advance.mock.calls.length;
       await expect(
@@ -973,11 +1364,7 @@ describe("Floodgate strength-first teacher runner", () => {
       const first = await runFloodgateStrengthFirstTeacherCore(
         run.dependencies,
       );
-      rewriteStagedResultWithConsistentBindings(
-        run,
-        first.result_path,
-        mutate,
-      );
+      rewriteStagedResultWithConsistentBindings(run, first.result_path, mutate);
       const consumeCalls = run.calls.consume.mock.calls.length;
       const advanceCalls = run.calls.advance.mock.calls.length;
       await expect(
@@ -1044,6 +1431,30 @@ describe("Floodgate strength-first teacher runner", () => {
         ...((resultFile as StoredFile).value as Record<string, unknown>),
         status: "tampered",
       },
+    });
+    const consumeCalls = run.calls.consume.mock.calls.length;
+    await expect(
+      runFloodgateStrengthFirstTeacherCore(run.dependencies),
+    ).rejects.toThrow(/existing result marker/i);
+    expect(run.calls.consume).toHaveBeenCalledTimes(consumeCalls);
+  });
+
+  it("rejects a digest-consistent v1 result marker in the isolated v8 root", async () => {
+    const run = fixture();
+    const first = await runFloodgateStrengthFirstTeacherCore(run.dependencies);
+    const resultFile = run.storage.get(first.result_path) as StoredFile;
+    const oldMarker = resultFile.value as Record<string, unknown>;
+    const marker = {
+      ...oldMarker,
+      schema: "shogi-floodgate-strength-first-teacher-postflight-result-v1",
+    };
+    run.storage.set(first.result_path, {
+      value: marker,
+      binding: bindingForBytes(
+        first.result_path,
+        floodgateStrengthFirstTeacherPaths(HOME, REPOSITORY_ROOT).outputRoot,
+        jsonBytes(marker),
+      ),
     });
     const consumeCalls = run.calls.consume.mock.calls.length;
     await expect(

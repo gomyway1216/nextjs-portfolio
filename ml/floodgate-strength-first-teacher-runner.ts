@@ -25,14 +25,12 @@ import {
   type StrengthFirstSiblingTeacherAdvance,
   type StrengthFirstSiblingTeacherOptions,
 } from "./generate-sibling-teacher";
+import { FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS } from "./floodgate-production-teacher-asset-authority";
 import {
-  FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
-  FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
-  FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
-  FLOODGATE_PRODUCTION_TEACHER_RUNTIME,
-  verifyPinnedFloodgateProductionTeacherAssets,
-  type FloodgateProductionTeacherAssetAuthorityReceipt,
-} from "./floodgate-production-teacher-asset-authority";
+  captureFloodgateStrengthFirstV8TeacherAuthorityReceipt,
+  verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
+  type FloodgateStrengthFirstV8TeacherAuthorityReceipt,
+} from "./floodgate-strength-first-v8-teacher-authority";
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 import {
   FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
@@ -49,19 +47,20 @@ import {
 } from "./floodgate-training-row-consumer";
 
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RUNNER_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-runner-v1" as const;
+  "shogi-floodgate-strength-first-teacher-runner-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_MILESTONE_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-milestone-v1" as const;
+  "shogi-floodgate-strength-first-teacher-milestone-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RESULT_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-postflight-result-v1" as const;
+  "shogi-floodgate-strength-first-teacher-postflight-result-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_PUBLIC_RECEIPT_SCHEMA =
-  "shogi-floodgate-strength-first-teacher-public-receipt-v1" as const;
+  "shogi-floodgate-strength-first-teacher-public-receipt-v2" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_NODE_VERSION =
   "v22.13.0" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_VERIFIER_REVISION =
   "e8a9197608cb48b1160b6707d97b0c4f78f90a1d" as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_OUTPUT_DIRECTORY =
-  "floodgate-q1-2026-strength-first-v7" as const;
+  "floodgate-q1-2026-strength-first-v8" as const;
+export const FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE = 512 as const;
 export const FLOODGATE_STRENGTH_FIRST_TEACHER_RUN_LOCK_FILENAME =
   ".strength-first-teacher.lock" as const;
 
@@ -70,7 +69,7 @@ const FILE_MODE = 0o600;
 const MAX_RESULT_JSON_BYTES = 16 * 1024 * 1024;
 
 type AssetReceipt = Readonly<
-  FloodgateProductionTeacherAssetAuthorityReceipt<"production-fixed-registry-and-deployment-root">
+  FloodgateStrengthFirstV8TeacherAuthorityReceipt<"production-fixed-registry-and-deployment-root">
 >;
 type FinalOutcome = Extract<
   StrengthFirstSiblingTeacherAdvance,
@@ -138,7 +137,7 @@ export interface FloodgateStrengthFirstTeacherResultMarker {
       readonly searchmoves: "exactly-one-candidate";
       readonly depth: 16;
     }>;
-    readonly hash_mb_per_engine: 64;
+    readonly hash_mb_per_engine: typeof FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE;
     readonly timeout_ms_per_search: 600_000;
     readonly engine_environment: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
     readonly stable_assets_verified: true;
@@ -366,15 +365,17 @@ function assertRuntime(
   }
 }
 
-function assertAssets(receipt: AssetReceipt): void {
-  if (
-    receipt.contract !==
-      FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT ||
-    receipt.status !== FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS ||
-    receipt.execution_boundary !==
-      "production-fixed-registry-and-deployment-root" ||
-    !sameJson(receipt.runtime, FLOODGATE_PRODUCTION_TEACHER_RUNTIME)
-  ) {
+function assertAssets(
+  receipt: AssetReceipt,
+  effectiveUserId: number,
+): AssetReceipt {
+  try {
+    return captureFloodgateStrengthFirstV8TeacherAuthorityReceipt(
+      receipt,
+      "production-fixed-registry-and-deployment-root",
+      effectiveUserId,
+    );
+  } catch {
     throw new Error("invalid production asset preflight receipt");
   }
 }
@@ -432,7 +433,7 @@ function teacherOptions(
     multipv: 12,
     depth: 16,
     fvScale: 20,
-    hashMb: 64,
+    hashMb: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
     timeoutMs: 600_000,
     targetParents,
   });
@@ -511,6 +512,7 @@ function assertTeacherAssetBindings(
     );
   }
   const teacher = teacherValue as FinalOutcome["manifest"]["teacher"];
+  const pinnedAssets = assets.asset_authority.assets;
   const receiptFile = teacher.engine_receipt?.file;
   if (!Array.isArray(teacher.eval_files)) {
     throw new Error(
@@ -519,15 +521,15 @@ function assertTeacherAssetBindings(
   }
   const evalNn = teacher.eval_files.find((file) => file.path === "nn.bin");
   if (
-    teacher.engine_bin_bytes !== assets.assets.engine.yaneuraou.bytes ||
-    teacher.engine_bin_sha256 !== assets.assets.engine.yaneuraou.sha256 ||
-    receiptFile?.bytes !== assets.assets.engine.receipt.bytes ||
-    receiptFile?.sha256 !== assets.assets.engine.receipt.sha256 ||
+    teacher.engine_bin_bytes !== pinnedAssets.engine.yaneuraou.bytes ||
+    teacher.engine_bin_sha256 !== pinnedAssets.engine.yaneuraou.sha256 ||
+    receiptFile?.bytes !== pinnedAssets.engine.receipt.bytes ||
+    receiptFile?.sha256 !== pinnedAssets.engine.receipt.sha256 ||
     teacher.eval_files.length !== 1 ||
     !evalNn ||
-    evalNn.bytes !== assets.assets.eval.nn.bytes ||
-    evalNn.sha256 !== assets.assets.eval.nn.sha256 ||
-    teacher.eval_sha256 !== assets.assets.eval.tree_sha256
+    evalNn.bytes !== pinnedAssets.eval.nn.bytes ||
+    evalNn.sha256 !== pinnedAssets.eval.nn.sha256 ||
+    teacher.eval_sha256 !== pinnedAssets.eval.tree_sha256
   ) {
     throw new Error(
       "teacher manifest does not match the production asset preflight",
@@ -579,8 +581,7 @@ function assertFinalArtifactSemantics(
     result.train.path !== "train.jsonl" ||
     result.parent_completion.path !== "parent-completion.jsonl" ||
     result.manifest.path !== "manifest.json" ||
-    result.manifest.schema !==
-      STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA ||
+    result.manifest.schema !== STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA ||
     result.parent_completion.records !== 24_000 ||
     !Number.isSafeInteger(result.forced_parents_skipped) ||
     result.forced_parents_skipped < 0 ||
@@ -622,7 +623,8 @@ function assertFinalArtifactSemantics(
     manifest.search?.multipv !== 12 ||
     !sameJson(manifest.search.limit, { depth: 16 }) ||
     manifest.search.parallel_engines !== 12 ||
-    manifest.search.hash_mb_per_engine !== 64 ||
+    manifest.search.hash_mb_per_engine !==
+      FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
     manifest.search.timeout_ms !== 600_000 ||
     result.parent_completion.parent_ids_sha256 !==
       inputBinding.parent_ids_sha256 ||
@@ -799,7 +801,7 @@ function buildResult(
         searchmoves: "exactly-one-candidate",
         depth: 16,
       }),
-      hash_mb_per_engine: 64,
+      hash_mb_per_engine: FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE,
       timeout_ms_per_search: 600_000,
       engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
       stable_assets_verified: true,
@@ -959,7 +961,8 @@ async function validateExistingResult(
       searchmoves: "exactly-one-candidate",
       depth: 16,
     }) ||
-    teacher.hash_mb_per_engine !== 64 ||
+    teacher.hash_mb_per_engine !==
+      FLOODGATE_STRENGTH_FIRST_TEACHER_HASH_MB_PER_ENGINE ||
     teacher.timeout_ms_per_search !== 600_000 ||
     !sameJson(
       teacher.engine_environment,
@@ -1090,8 +1093,10 @@ export async function runFloodgateStrengthFirstTeacherCore(
       dependencies.effectiveUserId,
     );
 
-    const assets = await dependencies.verifyProductionAssets();
-    assertAssets(assets);
+    const assets = assertAssets(
+      await dependencies.verifyProductionAssets(),
+      dependencies.effectiveUserId,
+    );
     dependencies.reportProgress({ phase: "asset-preflight-complete" });
     const revision = await dependencies.captureExactCleanRevision(
       paths.runnerRepositoryRoot,
@@ -1580,7 +1585,8 @@ const PRODUCTION_DEPENDENCIES: FloodgateStrengthFirstTeacherRunnerDependencies =
         lockfExecutable: "/usr/bin/lockf",
         acquisitionTimeoutMs: 10_000,
       }),
-    verifyProductionAssets: verifyPinnedFloodgateProductionTeacherAssets,
+    verifyProductionAssets:
+      verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
     captureExactCleanRevision: captureFloodgateGitExactCleanRevision,
     consumeTrainingRows: withVerifiedPinnedFloodgateTrainingRowsAndPostflight,
     claimTrainingInput: claimActiveVerifiedPinnedFloodgateTrainingRows,

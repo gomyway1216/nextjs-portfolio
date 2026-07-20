@@ -162,8 +162,63 @@ describe('Shichinarabe gameLogic', () => {
     if (result.ok) {
       expect(result.state.finished).toBe(true);
       expect(result.state.winnerId).toBeNull();
-      expect(result.state.resultOrder).toEqual(['p2', 'p1']);
-      expect(result.state.ranks).toEqual({ p2: 1, p1: 2 });
+      // p1 survived longer than the already-eliminated p2, so p1 ranks better.
+      expect(result.state.resultOrder).toEqual(['p1', 'p2']);
+      expect(result.state.ranks).toEqual({ p1: 1, p2: 2 });
+    }
+  });
+
+  it('ranks later eliminations above earlier ones (pass path)', () => {
+    // p2 was eliminated first; p1 survives longer before passing out at the
+    // limit, so p1 must outrank p2 among the eliminated. p3 already finished.
+    const state = {
+      ...stateForHand([card('s6', 'S', 6)]),
+      playerOrder: ['p1', 'p2', 'p3'],
+      maxPasses: 1,
+      finishedOrder: ['p3'],
+      eliminatedOrder: ['p2'],
+      hands: { p1: [card('s6', 'S', 6)], p2: [], p3: [] },
+      passCounts: { p1: 0, p2: 1, p3: 0 },
+    };
+
+    const result = applyAction(state, {
+      actionId: 'x',
+      type: 'pass',
+      playerId: 'p1',
+      timestamp: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.state.eliminatedOrder).toEqual(['p2', 'p1']);
+      expect(result.state.resultOrder).toEqual(['p3', 'p1', 'p2']);
+      expect(result.state.ranks).toEqual({ p3: 1, p1: 2, p2: 3 });
+    }
+  });
+
+  it('ranks later eliminations above earlier ones (play path)', () => {
+    // p2 then p3 were eliminated; p1's final play ends the game. p3 survived
+    // longer than p2 and must rank above it.
+    const state = {
+      ...stateForHand([card('s6', 'S', 6)]),
+      playerOrder: ['p1', 'p2', 'p3'],
+      eliminatedOrder: ['p2', 'p3'],
+      hands: { p1: [card('s6', 'S', 6)], p2: [], p3: [] },
+      passCounts: { p1: 0, p2: 3, p3: 3 },
+    };
+
+    const result = applyAction(state, {
+      actionId: 'x',
+      type: 'play',
+      playerId: 'p1',
+      cardId: 's6',
+      timestamp: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.state.resultOrder).toEqual(['p1', 'p3', 'p2']);
+      expect(result.state.ranks).toEqual({ p1: 1, p3: 2, p2: 3 });
     }
   });
 
@@ -385,6 +440,22 @@ describe('Shichinarabe AI difficulty tiers', () => {
     });
     const decision = decideShichinarabeAction(state, 'ai', 'expert');
     expect(decision).toEqual({ type: 'pass' });
+  });
+
+  it('never spends a strategic pass that would leave only the fatal last pass', () => {
+    // Same blocking pressure as the strategic-pass case, but the AI has already
+    // used one of its three passes. Elimination fires when passCount REACHES
+    // maxPasses, so a voluntary pass here would leave exactly one — and the next
+    // forced pass would eliminate it. Expert and master must play instead.
+    const base = multiState({
+      ai: [card('s6', 'S', 6), card('c2', 'C', 2), card('c3', 'C', 3), card('c4', 'C', 4), card('c5', 'C', 5)],
+      opp1: [card('s5a', 'S', 5)],
+      opp2: [card('s5b', 'S', 5)],
+    });
+    const state = { ...base, passCounts: { ...base.passCounts, ai: 1 } };
+    for (const d of ['expert', 'master'] as const) {
+      expect(decideShichinarabeAction(state, 'ai', d).type).toBe('play');
+    }
   });
 
   it('expert plays instead of blocking when it is close to going out', () => {

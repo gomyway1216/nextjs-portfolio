@@ -36,6 +36,7 @@ const STRINGS = {
   bankrollTrend: { ja: '資金の推移', en: 'Bankroll path' },
   ruinedMsg: { ja: '破産 — {steps} ステップで $0', en: 'Ruined — hit $0 in {steps} steps' },
   reachedMsg: { ja: '目標達成 — {steps} ステップで ${target}', en: 'Reached ${target} in {steps} steps' },
+  cappedMsg: { ja: '未決着 — {steps} ステップの上限に到達', en: 'Undecided — stopped after {steps} steps (cap reached)' },
 
   // sim
   run: { ja: 'シミュレーション実行', en: 'Run simulation' },

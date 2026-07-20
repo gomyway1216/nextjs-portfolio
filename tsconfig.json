@@ -24,11 +24,20 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "middleware.ts",
+    "next.config.ts",
+    "playwright.config.ts",
+    "vitest.config.mts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  // tests/unit/ml pulls the standalone ml/ tooling (116 TS files) into the
+  // program; keeping it out of the app project keeps `next build` typechecks
+  // scoped to code that actually ships. ml/ and scripts/ run via tsx and have
+  // their own configs (tsconfig.seed.json for scripts/).
+  "exclude": ["node_modules", "tests/unit/ml/**", "ml/**", "scripts/**", "wasm-spike/**", "native/**", "docs/**"]
 }

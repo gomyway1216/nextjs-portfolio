@@ -113,6 +113,16 @@ describe('basic strategy — soft totals (S17)', () => {
     expect(basicStrategyDecision(hand('A', '6'), up('2'), true)).toBe('hit');
   });
 
+  it('always hits soft 12 (A,A when splitting is unavailable)', () => {
+    // Regression: soft 12 used to fall through to HARD_TABLE[12], wrongly
+    // advising Stand vs dealer 4-6. Basic strategy always hits soft 12.
+    for (const d of ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'A'] as Rank[]) {
+      expect(basicStrategyDecision(hand('A', 'A'), up(d), true, false)).toBe('hit');
+    }
+    // With splitting available, A,A is still always a split.
+    expect(basicStrategyDecision(hand('A', 'A'), up('5'), true, true)).toBe('split');
+  });
+
   it('doubles soft 19 (A,8) only vs 6 under S17, else stands', () => {
     expect(basicStrategyDecision(hand('A', '8'), up('6'), true)).toBe('double');
     expect(basicStrategyDecision(hand('A', '8'), up('5'), true)).toBe('stand');

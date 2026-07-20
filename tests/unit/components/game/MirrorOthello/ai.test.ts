@@ -34,6 +34,19 @@ describe('MirrorOthello AI — sanity', () => {
     }
   });
 
+  it('answers within its time budget even at the deepest tier (no UI freeze)', () => {
+    // Regression: master used to run a fixed depth-9 search (~20s on the main
+    // thread). With iterative deepening + a deadline it must answer promptly.
+    setAIRandom(() => 0.99);
+    const b = createInitialBoard();
+    const t0 = Date.now();
+    const move = chooseAIMove(b, 'master', 1);
+    const elapsed = Date.now() - t0;
+    expect(move).not.toBeNull();
+    // Generous CI margin over the configured budget.
+    expect(elapsed).toBeLessThan(AI_CONFIGS.master.timeBudgetMs + 2000);
+  });
+
   it('returns null when there is no legal move', () => {
     const b = empty();
     b[0][0] = AI; // isolated, nothing to flip anywhere

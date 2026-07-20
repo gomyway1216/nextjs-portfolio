@@ -30,6 +30,10 @@ export interface UITranslations {
   features: string;
   viewAllGames: string;
   clickToPlay: string;
+  closeDialog: string;
+  winShort: string;
+  lossShort: string;
+  drawShort: string;
 }
 
 export type JumpGameDifficulty = 'easy' | 'medium' | 'hard';
@@ -81,6 +85,10 @@ export const uiTranslations: Record<GameLanguage, UITranslations> = {
     features: 'Features',
     viewAllGames: 'View All Games',
     clickToPlay: 'Click to Play',
+    closeDialog: 'Close dialog',
+    winShort: 'W',
+    lossShort: 'L',
+    drawShort: 'D',
   },
   ja: {
     gamesCollection: 'ゲームコレクション',
@@ -100,6 +108,10 @@ export const uiTranslations: Record<GameLanguage, UITranslations> = {
     features: '特徴',
     viewAllGames: '全てのゲームを見る',
     clickToPlay: 'クリックでプレイ',
+    closeDialog: '閉じる',
+    winShort: '勝',
+    lossShort: '敗',
+    drawShort: '分',
   },
 };
 

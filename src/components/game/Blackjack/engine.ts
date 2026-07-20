@@ -133,9 +133,10 @@ const HARD_TABLE: Record<number, readonly Action[]> = {
   21: [S, S, S, S, S, S, S, S, S, S],
 };
 
-// Soft totals 13 (A,2) .. 20 (A,9). S17, DAS.
+// Soft totals 12 (A,A when splitting is unavailable) .. 20 (A,9). S17, DAS.
 const SOFT_TABLE: Record<number, readonly Action[]> = {
   // dealer:        2  3  4  5  6  7  8  9  T  A
+  12: [H, H, H, H, H, H, H, H, H, H], // soft 12 always hits
   13: [H, H, H, D, D, H, H, H, H, H],
   14: [H, H, H, D, D, H, H, H, H, H],
   15: [H, H, D, D, D, H, H, H, H, H],
@@ -192,7 +193,7 @@ export function basicStrategyDecision(
 
   const v = handValue(playerHand);
   let raw: Action;
-  if (v.soft && v.total >= 13 && v.total <= 20) {
+  if (v.soft && v.total >= 12 && v.total <= 20) {
     raw = SOFT_TABLE[v.total][di];
   } else if (v.total >= 5 && v.total <= 21) {
     raw = HARD_TABLE[v.total][di];
@@ -352,20 +353,16 @@ export function playRound(
 
   let totalNet = 0;
   let totalWager = 0;
-  let anyWin = false;
-  let anyLoss = false;
   for (const h of hands) {
     const { net } = settleHand(h.cards, dealer, h.wager);
     totalNet += net;
     totalWager += h.wager;
-    if (net > 0) anyWin = true;
-    if (net < 0) anyLoss = true;
   }
 
   let outcome: Outcome;
   if (totalNet > 0) outcome = 'win';
   else if (totalNet < 0) outcome = 'lose';
-  else outcome = anyWin || anyLoss ? 'push' : 'push';
+  else outcome = 'push';
 
   return {
     player: hands[0].cards,

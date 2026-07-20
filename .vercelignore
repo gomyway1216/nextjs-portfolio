@@ -1,0 +1,9 @@
+# Directories not needed to build or serve the Next.js app.
+# They are still tracked in git; this only keeps them out of the
+# build context uploaded to Vercel on every deploy (~13 MB combined).
+ml/
+docs/
+native/
+wasm-spike/
+tests/
+scripts/

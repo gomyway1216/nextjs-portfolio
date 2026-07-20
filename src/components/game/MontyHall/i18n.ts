@@ -13,6 +13,7 @@ export interface MontyHallStrings {
   // Play tab
   doors: string;
   doorLabel: (n: number) => string;
+  pickedSuffix: string;
   pickPrompt: string;
   hostRevealed: (door: number) => string;
   hostRevealedMulti: (doors: string) => string;
@@ -62,6 +63,7 @@ const en: MontyHallStrings = {
   howToPlay: 'How it works',
   doors: 'Doors',
   doorLabel: (n) => `Door ${n}`,
+  pickedSuffix: ' (picked)',
   pickPrompt: 'One door hides a prize 🎁, the rest hide goats 🐐. Pick a door to begin.',
   hostRevealed: (door) => `The host opened Door ${door} to reveal a 🐐. Switch to the other door, or stay?`,
   hostRevealedMulti: (doors) => `The host opened ${doors} to reveal 🐐. Switch to one of the remaining doors, or stay?`,
@@ -113,6 +115,7 @@ const ja: MontyHallStrings = {
   howToPlay: '仕組み',
   doors: 'ドア',
   doorLabel: (n) => `ドア${n}`,
+  pickedSuffix: '（選択中）',
   pickPrompt: '1つのドアの後ろに🎁、残りに🐐がいます。まずは1つ選んでください。',
   hostRevealed: (door) => `ホストがドア${door}を開けて🐐を見せました。別のドアに変えますか、そのままにしますか？`,
   hostRevealedMulti: (doors) => `ホストが${doors}を開けて🐐を見せました。残りのドアに変えますか、そのままにしますか？`,

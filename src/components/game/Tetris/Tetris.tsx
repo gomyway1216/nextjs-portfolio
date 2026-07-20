@@ -622,6 +622,7 @@ const Tetris = () => {
             onStart={startGame}
             difficultyTitle={t.selectDifficulty}
             startLabel={t.start}
+            kickerLabel={t.gameSetup}
           />
         ) : (
           <div className={styles.game}>

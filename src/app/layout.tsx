@@ -164,12 +164,15 @@ export default async function RootLayout({
     <html lang={initialLang} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd) }}
-        />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+        {/* In <body>, not <head>: streaming re-parents <head> scripts and
+            emitted this block twice, producing duplicate Person/Organization
+            nodes. Crawlers read JSON-LD anywhere in the document. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd).replace(/</g, '\\u003c') }}
+        />
         <ThemeProvider>
           <RouteScrollBehaviorFix />
           <Toaster />

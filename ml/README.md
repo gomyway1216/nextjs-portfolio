@@ -866,9 +866,13 @@ worker / WASM、全時間枠の合法手・時間内完了、console / runtime e
 enrollment null / 全gate closedである。argumentless commandはexit 2のexpected STOPとなり、
 candidate authorization消費、final label read、実受領証、formal A/B、live変更は全て0。
 plain JSONではreaderを開けず、candidate-selection laneの一回限りbranded authorizationが
-必要である。test-only coreのsynthetic identityは実候補へ数えない。保存済みresultもexact
-registryとmetricから全受領証を再構成し、改ざんを拒否する。focused stdlibは18 / 18 PASS、
-full suiteと独立reviewはこのlaneでは未実施である。この検証はlocalのみで、AWS、GCP /
+必要である。ready registryは全roleのexact schemaと12 identityのpairwise-distinct path /
+SHA-256を要求する。evaluatorもplain metricを返せず、integer seed、実測した全input identity、
+content-addressed evidenceを持つ一回限りobservationが必要である。test-only coreのsynthetic
+identityは実候補へ数えない。保存済みmetricや`path_verified=true`から権限を再生成せず、
+別に再認証したregistry-bound evidence bundleだけから全受領証を再構成する。production
+evidence issuerは未実装なので自己申告resultは通らない。focused stdlibは29 / 29 PASS、
+full suiteと独立rereviewはこのlaneでは未実施である。この検証はlocalのみで、AWS、GCP /
 Firebase、Vercel、networkを使わない。詳細は
 [日本語downstream記事](../docs/blog-shogi-floodgate-strength-first-downstream-gates.md) /
 [English downstream article](../docs/blog-shogi-floodgate-strength-first-downstream-gates.en.md) /

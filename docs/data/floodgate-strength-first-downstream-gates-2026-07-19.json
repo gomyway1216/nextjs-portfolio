@@ -13,13 +13,18 @@
     "arbitrary_registry_argument_allowed": false,
     "receipt_file_writer_included": false,
     "canonical_in_memory_receipt_identity_included": true,
-    "stored_result_reconstruction_included": true
+    "stored_result_reconstruction_included": true,
+    "stored_metrics_used_as_revalidation_authority": false,
+    "production_evidence_issuer_included": false
   },
   "checked_in_registry": {
     "status": "awaiting-branded-candidate-selection-and-exact-downstream-inputs",
     "real_enrollments": 0,
     "all_enrollments_null": true,
     "all_operational_gates_closed": true,
+    "future_ready_role_schemas_exact": true,
+    "future_ready_role_paths_pairwise_distinct": true,
+    "future_ready_role_sha256_values_pairwise_distinct": true,
     "production_weight_write_authorized": false,
     "live_weight_write_authorized": false,
     "placeholder_or_invented_real_identities_allowed": false
@@ -40,6 +45,15 @@
     "typed_one_shot_authorization_required": true,
     "production_adapter_landed": false,
     "ready_registry_identity_code_pinned": false,
+    "test_only_issuer_counted_as_real": false
+  },
+  "evaluator_authority": {
+    "plain_metric_mapping_accepted": false,
+    "typed_one_shot_observation_required": true,
+    "exact_integer_selected_seed_required": true,
+    "all_measured_input_identities_bound": true,
+    "role_specific_content_addressed_evidence_bound": true,
+    "production_observation_or_evidence_issuer_landed": false,
     "test_only_issuer_counted_as_real": false
   },
   "receipt_contracts": {
@@ -67,6 +81,7 @@
       "fixed_depths": [11, 12],
       "timed_budgets_ms": [800, 2000, 4000],
       "runs_per_budget": 3,
+      "nonempty_usi_bestmove_grammar_required": true,
       "one_failure_stops_later_readers": true
     },
     "production_parity": {
@@ -79,11 +94,20 @@
     }
   },
   "stored_result_validation": {
-    "all_receipts_reconstructed_from_registry_and_metrics": true,
+    "all_receipts_reconstructed_from_registry_and_separately_verified_evidence": true,
+    "all_receipts_reconstructed_from_stored_metrics": false,
+    "branded_registry_bound_evidence_bundle_required": true,
+    "candidate_selection_authorization_consumed_by_evidence_bundle": true,
+    "cross_registry_evidence_bundle_rejected": true,
+    "stored_path_verified_true_synthesized": false,
+    "evaluation_evidence_identity_bound_in_each_receipt": true,
+    "measured_inputs_digest_bound_in_each_receipt": true,
     "exact_typed_comparison": true,
     "tampered_gate_text_rejected": true,
     "tampered_weight_digest_rejected": true,
     "tampered_metric_rejected": true,
+    "tampered_evidence_content_rejected": true,
+    "false_worker_path_verification_rejected": true,
     "tampered_weight_authority_rejected": true,
     "canonical_relative_receipt_path_required": true,
     "parent_traversal_rejected": true
@@ -92,13 +116,13 @@
     "focused_stdlib": {
       "command": "python3 -m unittest ml.tests_stdlib.test_strength_first_downstream_gates",
       "status": "PASS",
-      "tests": 18,
-      "elapsed_seconds_reported_by_unittest": 0.006
+      "tests": 29,
+      "elapsed_seconds_reported_by_unittest": 0.035
     },
     "python_compile": "PASS",
     "diff_check": "PASS",
     "full_suite": "NOT_RUN_SCOPED_LANE",
-    "independent_review": "PENDING"
+    "independent_review": "P1_IDENTITY_AND_PROVENANCE_FINDINGS_FIXED_REREVIEW_PENDING"
   },
   "observed_real_counts": {
     "teacher_runs_started_by_this_lane": 0,
@@ -125,6 +149,6 @@
     "purpose": "reject-post-training-regressions-and-runtime-mismatch-before-formal-ab"
   },
   "claim_boundary": "validated-test-only-receipt-contracts-and-production-closed-stop-not-real-candidate-holdout-formal-ab-strength-or-live-evidence",
-  "blocking_dependency": "production-branded-candidate-selection-authorization-adapter-and-real-exact-enrollments",
-  "next_step": "connect-lane1-authorization-then-enroll-real-artifacts-and-run-five-gates-before-formal-ab"
+  "blocking_dependency": "production-branded-candidate-selection-adapter-production-evidence-issuer-and-real-exact-enrollments",
+  "next_step": "connect-lane1-authorization-and-real-evidence-io-then-enroll-artifacts-and-run-five-gates-before-formal-ab"
 }

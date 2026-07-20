@@ -2,7 +2,7 @@
 
 > On July 19, 2026, we implemented contracts for the final-holdout, retention,
 > known-regression, and production-browser-parity receipts used after three-seed training
-> and candidate selection. Eighteen focused tests passed. **This is not a training result.
+> and candidate selection. Twenty-nine focused tests passed. **This is not a training result.
 > It is the downstream decision boundary that prevents a weaker candidate from being called
 > stronger and entering formal A/B.** Real candidate-selection receipts and artifact
 > identities do not exist yet, so the production entry stops before opening holdout labels
@@ -14,15 +14,15 @@
 | Item | State |
 | --- | --- |
 | five downstream receipt contracts | implemented |
-| stored-result reconstruction and tamper rejection | implemented |
+| stored-result reconstruction | contract implemented; separately verified evidence required |
 | production registry | closed with no enrolled identities |
 | argumentless production command | exit 2 / expected STOP |
 | real candidate authorizations consumed | 0 |
 | final-holdout label reads | 0 |
 | real downstream receipts / formal A/B games | 0 / 0 |
 | production / live-weight changes | 0 / 0 |
-| focused unit tests | 18/18 PASS in 0.006 seconds |
-| full suite / independent review | not run / pending |
+| focused unit tests | 29/29 PASS in 0.035 seconds |
+| full suite / independent rereview | not run / pending |
 
 The entry point verifies the fixed registry and the bytes of the existing protocols it
 references. The registry currently contains no identity for a candidate-selection receipt,
@@ -77,41 +77,62 @@ A future ready registry must enroll all of the following exact identities togeth
   known-regression fixture; and
 - the production worker and WASM actually used by the site, plus fixed browser budgets.
 
+Every role requires its exact schema: the selection receipt, strength-first candidate
+checkpoint, stable checkpoint, int16 weights, each final/retention dataset, fixture, worker,
+and WASM cannot merely have the same four-field shape. Paths and SHA-256 values across all
+12 identities must also be pairwise distinct, preventing one dataset or binary from being
+relabelled as another role.
+
 A plain JSON mapping still cannot open a reader. The future production adapter must consume
 a typed one-shot authorization issued only when candidate selection succeeds. That adapter
 has not landed yet, so rewriting only the registry into a ready-looking shape would still
-STOP. Synthetic identities and callbacks used by the test-only core are contract fixtures,
-not real candidates, holdout evaluations, or receipts.
+STOP. An evaluator also cannot return a plain metric mapping. Its one-shot verified
+observation binds an exact integer selected seed, selection receipt, candidate/stable
+checkpoints and weights, and the dataset, fixture, worker/WASM, or browser budgets actually
+measured. Any difference from the registry stops before a receipt. The observation body is
+bound to a role-specific content-addressed evidence identity. The synthetic test-only issuer
+is a contract fixture, not a real candidate, holdout evaluation, or receipt.
 
 ## Revalidating receipts after storage
 
 Every receipt binds the candidate-selection receipt and both candidate/stable checkpoint and
-weight digests. Stored aggregate results are not trusted as assertions. The validator
-reconstructs all five receipts from the exact registry enrollments and stored metrics, then
-requires exact fields, types, gate text, dataset identities, metrics, and weight authority.
+weight digests, plus the evaluation-evidence identity and measured-input digest. Stored
+metrics and stored `path_verified=true` values are never reused as authority. Revalidation
+also consumes candidate-selection authorization and requires a registry-bound one-shot
+bundle issued after production evidence IO separately rereads the original evidence. Only a
+test issuer exists now; there is no production path that can validate a self-asserted stored
+result.
 
-Tests reject changes to retention gate text, the candidate-weight digest, a metric, or the
-top-level weight authority. A future receipt destination must also be a canonical relative
-path; absolute paths, parent traversal, and backslash aliases are rejected. The current
-module produces canonical bytes and an in-memory identity only. It writes no receipt file.
+All five receipts are rebuilt from that separately verified bundle. Tests reject changes to
+retention gate text, the candidate-weight digest, a stored metric, or top-level weight
+authority. If the bundle says worker-path verification failed, the validator fails parity
+instead of synthesizing true from the stored result. Changing evidence content without
+changing its identity also breaks the content binding. A future receipt destination must be
+a canonical relative path; absolute paths, parent traversal, and backslash aliases are
+rejected. The current module produces canonical bytes and an in-memory identity only. It
+writes no receipt file.
 
 ## Validation and non-claims
 
-The focused stdlib suite passed 18/18 in 0.006 seconds. Python compilation and the diff check
-also passed. Coverage includes the closed registry, protocol-byte drift, plain-mapping
-authority forgery, one-shot tokens, each gate boundary, early stop, all five receipts,
-stored-result tampering, canonical paths, and the argumentless STOP. This lane did not run
-the resource-wide full suite, and independent review remains pending.
+The focused stdlib suite passed 29/29 in 0.035 seconds. Python compilation and the diff check
+also passed. Coverage includes the closed registry, wrong role schemas and reused identities,
+protocol-byte drift, plain candidate/evaluator/stored-evidence mappings, one-shot tokens, a
+different measured dataset, changed stored metrics, false browser-path verification,
+evidence-content tampering, float seeds, empty or malformed USI bestmoves, each gate
+boundary, early stop, all five receipts, canonical paths, and the argumentless STOP. The
+identity/provenance findings from the first independent review are fixed; resource-wide
+tests and independent rereview remain pending.
 
 This change used local tests only. It used no AWS, GCP/Firebase, Vercel, or network service.
 It is not evidence of teacher generation, three-seed training, candidate selection, holdout
 evaluation, formal A/B, external calibration, improved playing strength, high-dan strength,
 or a live-weight change.
 
-The next step is to connect the branded authorization interface from the candidate-selection
-lane and enroll only identities produced by the real teacher, three-seed training, and
-selection. These five gates then run on real data, their stored receipts are revalidated,
-and only then may the candidate enter formal A/B.
+The next step is to connect both the branded authorization from the candidate-selection lane
+and a production issuer that reauthenticates evaluator evidence from real files. Only
+identities produced by real teacher work, three-seed training, and selection are then
+enrolled. These five gates run on real data, stored receipts are revalidated against separate
+evidence, and only then may the candidate enter formal A/B.
 
 Machine-readable record:
 [floodgate-strength-first-downstream-gates-2026-07-19.json](./data/floodgate-strength-first-downstream-gates-2026-07-19.json)

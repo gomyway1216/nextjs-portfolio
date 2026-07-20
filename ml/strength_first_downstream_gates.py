@@ -8,7 +8,9 @@ browser reader can run.
 The deterministic core in this module is explicitly test-only.  It defines the
 five receipt contracts that a later production composition may issue only
 after consuming the branded authorization supplied by the candidate-selection
-lane.  No plain JSON selection receipt can unlock these gates.
+lane and one-shot observations supplied by evidence-verifying evaluators.
+Stored receipts can be reconstructed only from a separately branded,
+registry-bound evidence bundle. No plain JSON claim can unlock these gates.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import math
 import os
 from pathlib import Path
 from pathlib import PurePosixPath
+import re
 import sys
 import threading
 import weakref
@@ -31,6 +34,11 @@ from formal_paired_ab_protocol import (
     FRESH_SIBLING_PLAN_PATH,
     FRESH_SIBLING_PLAN_SCHEMA,
     FRESH_SIBLING_PLAN_SHA256,
+)
+from qat_protocol import QAT_FINAL_CHECKPOINT_SCHEMA
+from sibling_selection_protocol import CANDIDATE_SELECTION_RECEIPT_SCHEMA
+from strength_first_qat_training_bridge import (
+    STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
 )
 
 
@@ -64,6 +72,31 @@ DOWNSTREAM_RESULT_SCHEMA = (
 )
 DOWNSTREAM_CLI_RECEIPT_SCHEMA = (
     "shogi-floodgate-strength-first-downstream-gates-cli-receipt-v1"
+)
+DOWNSTREAM_EVIDENCE_BUNDLE_SCHEMA = (
+    "shogi-floodgate-strength-first-verified-evidence-bundle-v1"
+)
+INT16_WEIGHTS_IDENTITY_SCHEMA = "shogi-int16-nnue-weights-bin-v1"
+FRESH_FINAL_HOLDOUT_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-fresh-final-holdout-v1"
+)
+LEGACY_FINAL_HOLDOUT_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-legacy-final-holdout-v1"
+)
+GENERAL_RETENTION_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-general-retention-v1"
+)
+OPENING_RETENTION_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-opening-retention-v1"
+)
+KNOWN_REGRESSION_FIXTURE_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-known-regression-fixture-v1"
+)
+PRODUCTION_WORKER_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-production-worker-javascript-v1"
+)
+PRODUCTION_WASM_IDENTITY_SCHEMA = (
+    "shogi-floodgate-strength-first-production-wasm-v1"
 )
 
 _STRENGTH_FIRST_AMENDMENT_IDENTITY = {
@@ -156,12 +189,62 @@ _REGISTRY_FIELDS = {
     "boundary",
     "nonclaims",
 }
+_EVALUATION_ROLES = (
+    "fresh_final_holdout",
+    "legacy_final_holdout",
+    "retention",
+    "known_regression",
+    "production_parity",
+)
+_ROLE_IDENTITY_SCHEMAS = {
+    "candidate_selection_receipt": CANDIDATE_SELECTION_RECEIPT_SCHEMA,
+    "candidate_checkpoint": STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA,
+    "stable_checkpoint": QAT_FINAL_CHECKPOINT_SCHEMA,
+    "candidate_weights": INT16_WEIGHTS_IDENTITY_SCHEMA,
+    "stable_weights": INT16_WEIGHTS_IDENTITY_SCHEMA,
+    "fresh_final_holdout": FRESH_FINAL_HOLDOUT_IDENTITY_SCHEMA,
+    "legacy_final_holdout": LEGACY_FINAL_HOLDOUT_IDENTITY_SCHEMA,
+    "general_retention": GENERAL_RETENTION_IDENTITY_SCHEMA,
+    "opening_retention": OPENING_RETENTION_IDENTITY_SCHEMA,
+    "known_regression_fixture": KNOWN_REGRESSION_FIXTURE_IDENTITY_SCHEMA,
+    "production_worker": PRODUCTION_WORKER_IDENTITY_SCHEMA,
+    "production_wasm": PRODUCTION_WASM_IDENTITY_SCHEMA,
+}
+_OBSERVATION_SCHEMAS = {
+    role: f"shogi-floodgate-strength-first-{role.replace('_', '-')}-observation-v1"
+    for role in _EVALUATION_ROLES
+}
+_EVIDENCE_SCHEMAS = {
+    role: f"shogi-floodgate-strength-first-{role.replace('_', '-')}-evidence-v1"
+    for role in _EVALUATION_ROLES
+}
+_OBSERVATION_BODY_FIELDS = {
+    "schema",
+    "role",
+    "selected_seed",
+    "measured_inputs",
+    "result",
+}
+_OBSERVATION_FIELDS = _OBSERVATION_BODY_FIELDS | {"evidence"}
+_USI_BESTMOVE_RE = re.compile(
+    r"(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])\Z"
+)
 _PINNED_READY_REGISTRY_IDENTITY: dict[str, Any] | None = None
 _CANDIDATE_AUTHORIZATION_MARKER = object()
 _CANDIDATE_AUTHORIZATIONS: weakref.WeakKeyDictionary[
     CandidateSelectionAuthorization, dict[str, Any]
 ] = weakref.WeakKeyDictionary()
 _CANDIDATE_AUTHORIZATION_LOCK = threading.Lock()
+_EVALUATION_OBSERVATION_MARKER = object()
+_EVALUATION_OBSERVATIONS: weakref.WeakKeyDictionary[
+    VerifiedEvaluationObservation, bytes
+] = weakref.WeakKeyDictionary()
+_EVALUATION_OBSERVATION_LOCK = threading.Lock()
+_EVIDENCE_BUNDLE_MARKER = object()
+_EVIDENCE_BUNDLES: weakref.WeakKeyDictionary[
+    VerifiedDownstreamEvidenceBundle, tuple[str, bytes, bytes]
+] = weakref.WeakKeyDictionary()
+_EVIDENCE_BUNDLE_LOCK = threading.Lock()
 
 
 class DownstreamGatesBlocked(RuntimeError):
@@ -186,6 +269,48 @@ class CandidateSelectionAuthorization:
             raise TypeError(
                 "candidate-selection authorization cannot be constructed externally"
             )
+
+
+class VerifiedEvaluationObservation:
+    """One-shot evaluator output; production issuance belongs to its verifier."""
+
+    __slots__ = ("__weakref__",)
+
+    def __init__(self, marker: object):
+        if marker is not _EVALUATION_OBSERVATION_MARKER:
+            raise TypeError(
+                "verified evaluation observation cannot be constructed externally"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        with _EVALUATION_OBSERVATION_LOCK:
+            raw = _EVALUATION_OBSERVATIONS.get(self)
+        if raw is None:
+            raise ValueError(
+                "verified evaluation observation is invalid or already consumed"
+            )
+        return _strict_json_loads(raw, "verified evaluation observation")
+
+
+class VerifiedDownstreamEvidenceBundle:
+    """One-shot revalidation input; production issuance belongs to evidence IO."""
+
+    __slots__ = ("__weakref__",)
+
+    def __init__(self, marker: object):
+        if marker is not _EVIDENCE_BUNDLE_MARKER:
+            raise TypeError(
+                "verified downstream evidence bundle cannot be constructed externally"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        with _EVIDENCE_BUNDLE_LOCK:
+            state = _EVIDENCE_BUNDLES.get(self)
+        if state is None:
+            raise ValueError(
+                "verified downstream evidence bundle is invalid or already consumed"
+            )
+        return _strict_json_loads(state[2], "verified downstream evidence bundle")
 
 
 def _exact_dict(value: Any, fields: set[str], label: str) -> dict[str, Any]:
@@ -304,8 +429,26 @@ def validate_downstream_registry_data(
         return registry
     if registry["status"] != DOWNSTREAM_READY_STATUS:
         raise ValueError("downstream registry status mismatch")
-    for name in _ENROLLMENT_FIELDS - {"browser_time_budgets_ms"}:
-        _identity(enrollments[name], f"downstream {name}")
+    enrolled_identities = {}
+    for name, expected_schema in _ROLE_IDENTITY_SCHEMAS.items():
+        identity = _identity(enrollments[name], f"downstream {name}")
+        if identity["schema"] != expected_schema:
+            raise ValueError(f"downstream {name} schema mismatch")
+        enrolled_identities[name] = identity
+    enrolled_paths = [
+        identity["path"] for identity in enrolled_identities.values()
+    ]
+    enrolled_hashes = [
+        identity["sha256"] for identity in enrolled_identities.values()
+    ]
+    if (
+        len(set(enrolled_paths)) != len(enrolled_paths)
+        or len(set(enrolled_hashes)) != len(enrolled_hashes)
+    ):
+        raise ValueError(
+            "downstream role identities must have pairwise-distinct paths "
+            "and SHA-256 values"
+        )
     budgets = enrollments["browser_time_budgets_ms"]
     if (
         type(budgets) is not list
@@ -314,13 +457,6 @@ def validate_downstream_registry_data(
         or budgets != sorted(set(budgets))
     ):
         raise ValueError("downstream browser time budgets are not canonical")
-    if (
-        enrollments["candidate_checkpoint"]["sha256"]
-        == enrollments["stable_checkpoint"]["sha256"]
-        or enrollments["candidate_weights"]["sha256"]
-        == enrollments["stable_weights"]["sha256"]
-    ):
-        raise ValueError("candidate and stable identities must differ")
     if not _typed_equal(gates, _READY_GATES):
         raise ValueError("ready downstream registry gates mismatch")
     return registry
@@ -349,6 +485,25 @@ def _strict_json_loads(raw: bytes, label: str) -> dict[str, Any]:
     if type(value) is not dict:
         raise ValueError(f"{label} root must be an object")
     return value
+
+
+def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    if type(value) is not dict:
+        raise ValueError("canonical JSON root must be an exact object")
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _canonical_json_sha256(value: Mapping[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
 
 
 def _load_fixed_registry(repo_root: Path) -> tuple[dict[str, Any], bytes]:
@@ -408,7 +563,7 @@ def _issue_candidate_selection_authorization_for_tests(
     validate_downstream_registry_data(registry)
     if registry["status"] != DOWNSTREAM_READY_STATUS:
         raise ValueError("test authorization requires a ready synthetic registry")
-    if selected_seed not in (42, 43, 44):
+    if type(selected_seed) is not int or selected_seed not in (42, 43, 44):
         raise ValueError("selected seed is outside the preregistered grid")
     payload = _authorization_projection(registry)
     payload["selected_seed"] = selected_seed
@@ -436,6 +591,312 @@ def _consume_candidate_selection_authorization(
     return payload
 
 
+def _expected_measured_inputs(
+    registry: Mapping[str, Any],
+    role: str,
+) -> dict[str, Any]:
+    enrollments = registry["enrollments"]
+    common = {
+        "candidate_selection_receipt": copy.deepcopy(
+            enrollments["candidate_selection_receipt"]
+        ),
+        "candidate_checkpoint": copy.deepcopy(
+            enrollments["candidate_checkpoint"]
+        ),
+        "stable_checkpoint": copy.deepcopy(enrollments["stable_checkpoint"]),
+        "candidate_weights": copy.deepcopy(enrollments["candidate_weights"]),
+        "stable_weights": copy.deepcopy(enrollments["stable_weights"]),
+    }
+    if role == "fresh_final_holdout":
+        return {
+            **common,
+            "dataset": copy.deepcopy(enrollments["fresh_final_holdout"]),
+        }
+    if role == "legacy_final_holdout":
+        return {
+            **common,
+            "dataset": copy.deepcopy(enrollments["legacy_final_holdout"]),
+        }
+    if role == "retention":
+        return {
+            **common,
+            "datasets": {
+                "general": copy.deepcopy(enrollments["general_retention"]),
+                "opening": copy.deepcopy(enrollments["opening_retention"]),
+            },
+        }
+    if role == "known_regression":
+        return {
+            **common,
+            "fixture": copy.deepcopy(
+                enrollments["known_regression_fixture"]
+            ),
+        }
+    if role == "production_parity":
+        return {
+            **common,
+            "production_worker": copy.deepcopy(
+                enrollments["production_worker"]
+            ),
+            "production_wasm": copy.deepcopy(enrollments["production_wasm"]),
+            "browser_time_budgets_ms": copy.deepcopy(
+                enrollments["browser_time_budgets_ms"]
+            ),
+        }
+    raise ValueError("downstream evaluation role is invalid")
+
+
+def _issue_verified_evaluation_observation_for_tests(
+    *,
+    role: str,
+    selected_seed: int,
+    measured_inputs: Mapping[str, Any],
+    result: Mapping[str, Any],
+    evidence_path: str | None = None,
+) -> VerifiedEvaluationObservation:
+    """Test-only issuer; production must verify durable evaluator evidence."""
+
+    if role not in _EVALUATION_ROLES:
+        raise ValueError("test evaluation role is invalid")
+    if type(selected_seed) is not int or selected_seed not in (42, 43, 44):
+        raise ValueError("test evaluation seed is invalid")
+    if type(measured_inputs) is not dict or type(result) is not dict:
+        raise ValueError("test evaluation payload must contain exact objects")
+    body = {
+        "schema": _OBSERVATION_SCHEMAS[role],
+        "role": role,
+        "selected_seed": selected_seed,
+        "measured_inputs": copy.deepcopy(measured_inputs),
+        "result": copy.deepcopy(result),
+    }
+    body_raw = _canonical_json_bytes(body)
+    path = evidence_path or f"evidence/{role}.json"
+    evidence = {
+        "path": path,
+        "bytes": len(body_raw),
+        "sha256": hashlib.sha256(body_raw).hexdigest(),
+        "schema": _EVIDENCE_SCHEMAS[role],
+    }
+    _identity(evidence, f"test {role} evidence")
+    observation = {**body, "evidence": evidence}
+    raw = _canonical_json_bytes(observation)
+    token = VerifiedEvaluationObservation(_EVALUATION_OBSERVATION_MARKER)
+    with _EVALUATION_OBSERVATION_LOCK:
+        _EVALUATION_OBSERVATIONS[token] = raw
+    return token
+
+
+def _consume_verified_evaluation_observation(
+    observation: VerifiedEvaluationObservation,
+) -> dict[str, Any]:
+    if type(observation) is not VerifiedEvaluationObservation:
+        raise ValueError(
+            "downstream evaluator must return a branded verified observation"
+        )
+    with _EVALUATION_OBSERVATION_LOCK:
+        raw = _EVALUATION_OBSERVATIONS.pop(observation, None)
+    if raw is None:
+        raise ValueError(
+            "verified evaluation observation is invalid or already consumed"
+        )
+    return _strict_json_loads(raw, "verified evaluation observation")
+
+
+def _validate_observation_data(
+    observation: Mapping[str, Any],
+    *,
+    role: str,
+    registry: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> dict[str, Any]:
+    observation = _exact_dict(
+        observation,
+        _OBSERVATION_FIELDS,
+        f"{role} observation",
+    )
+    if (
+        observation["schema"] != _OBSERVATION_SCHEMAS[role]
+        or observation["role"] != role
+    ):
+        raise ValueError(f"{role} observation schema/role mismatch")
+    selected_seed = observation["selected_seed"]
+    if (
+        type(selected_seed) is not int
+        or selected_seed not in (42, 43, 44)
+        or selected_seed != candidate["selected_seed"]
+    ):
+        raise ValueError(f"{role} observation selected seed mismatch")
+    expected_inputs = _expected_measured_inputs(registry, role)
+    if not _typed_equal(observation["measured_inputs"], expected_inputs):
+        raise ValueError(f"{role} measured input identity mismatch")
+    if type(observation["result"]) is not dict:
+        raise ValueError(f"{role} observation result is not an exact object")
+    evidence = _identity(
+        observation["evidence"],
+        f"{role} observation evidence",
+    )
+    if evidence["schema"] != _EVIDENCE_SCHEMAS[role]:
+        raise ValueError(f"{role} observation evidence schema mismatch")
+    body = {
+        field: copy.deepcopy(observation[field])
+        for field in _OBSERVATION_BODY_FIELDS
+    }
+    body_raw = _canonical_json_bytes(body)
+    if (
+        evidence["bytes"] != len(body_raw)
+        or evidence["sha256"] != hashlib.sha256(body_raw).hexdigest()
+    ):
+        raise ValueError(f"{role} observation evidence identity mismatch")
+    enrolled = registry["enrollments"]
+    enrolled_paths = {
+        enrolled[name]["path"] for name in _ROLE_IDENTITY_SCHEMAS
+    }
+    enrolled_hashes = {
+        enrolled[name]["sha256"] for name in _ROLE_IDENTITY_SCHEMAS
+    }
+    if (
+        evidence["path"] in enrolled_paths
+        or evidence["sha256"] in enrolled_hashes
+    ):
+        raise ValueError(
+            f"{role} evidence identity collides with an enrolled input"
+        )
+    return observation
+
+
+def _validate_evidence_bundle_data(
+    bundle: Mapping[str, Any],
+    *,
+    registry: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    bundle = _exact_dict(
+        bundle,
+        {"schema", "observations"},
+        "downstream evidence bundle",
+    )
+    if bundle["schema"] != DOWNSTREAM_EVIDENCE_BUNDLE_SCHEMA:
+        raise ValueError("downstream evidence bundle schema mismatch")
+    observations = _exact_dict(
+        bundle["observations"],
+        set(_EVALUATION_ROLES),
+        "downstream evidence observations",
+    )
+    selected_seed = candidate.get("selected_seed")
+    if type(selected_seed) is not int or selected_seed not in (42, 43, 44):
+        raise ValueError("downstream evidence candidate seed is invalid")
+    expected_candidate = _authorization_projection(registry)
+    expected_candidate["selected_seed"] = selected_seed
+    if not _typed_equal(candidate, expected_candidate):
+        raise ValueError("downstream evidence candidate differs from registry")
+    for role in _EVALUATION_ROLES:
+        observation = observations[role]
+        if type(observation) is not dict:
+            raise ValueError(f"{role} evidence observation is not an object")
+        seed = observation.get("selected_seed")
+        if type(seed) is not int or seed != selected_seed:
+            raise ValueError(f"{role} evidence selected seed mismatch")
+    validated = {
+        role: _validate_observation_data(
+            observations[role],
+            role=role,
+            registry=registry,
+            candidate=candidate,
+        )
+        for role in _EVALUATION_ROLES
+    }
+    evidence_paths = [
+        observation["evidence"]["path"]
+        for observation in validated.values()
+    ]
+    evidence_hashes = [
+        observation["evidence"]["sha256"]
+        for observation in validated.values()
+    ]
+    if (
+        len(set(evidence_paths)) != len(evidence_paths)
+        or len(set(evidence_hashes)) != len(evidence_hashes)
+    ):
+        raise ValueError(
+            "downstream evidence identities must be pairwise distinct"
+        )
+    return validated, candidate
+
+
+def _issue_verified_downstream_evidence_bundle_for_tests(
+    *,
+    registry: Mapping[str, Any],
+    authorization: CandidateSelectionAuthorization,
+    observations: Mapping[str, Any],
+) -> VerifiedDownstreamEvidenceBundle:
+    """Test-only issuer; production must re-read and authenticate evidence."""
+
+    validate_downstream_registry_data(registry)
+    if registry["status"] != DOWNSTREAM_READY_STATUS:
+        raise ValueError("test evidence bundle requires a ready registry")
+    candidate = _consume_candidate_selection_authorization(authorization)
+    bundle = {
+        "schema": DOWNSTREAM_EVIDENCE_BUNDLE_SCHEMA,
+        "observations": copy.deepcopy(observations),
+    }
+    _validate_evidence_bundle_data(
+        bundle,
+        registry=registry,
+        candidate=candidate,
+    )
+    raw = _canonical_json_bytes(bundle)
+    candidate_raw = _canonical_json_bytes(candidate)
+    token = VerifiedDownstreamEvidenceBundle(_EVIDENCE_BUNDLE_MARKER)
+    with _EVIDENCE_BUNDLE_LOCK:
+        _EVIDENCE_BUNDLES[token] = (
+            _canonical_json_sha256(dict(registry)),
+            candidate_raw,
+            raw,
+        )
+    return token
+
+
+def _consume_verified_downstream_evidence_bundle(
+    bundle: VerifiedDownstreamEvidenceBundle,
+    *,
+    registry: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    if type(bundle) is not VerifiedDownstreamEvidenceBundle:
+        raise ValueError(
+            "stored downstream result requires branded verified evidence"
+        )
+    with _EVIDENCE_BUNDLE_LOCK:
+        state = _EVIDENCE_BUNDLES.pop(bundle, None)
+    if state is None:
+        raise ValueError(
+            "verified downstream evidence bundle is invalid or already consumed"
+        )
+    registry_sha256, candidate_raw, raw = state
+    if registry_sha256 != _canonical_json_sha256(dict(registry)):
+        raise ValueError("verified evidence registry binding mismatch")
+    candidate = _strict_json_loads(
+        candidate_raw,
+        "verified evidence candidate authorization",
+    )
+    data = _strict_json_loads(raw, "verified downstream evidence bundle")
+    return _validate_evidence_bundle_data(
+        data,
+        registry=registry,
+        candidate=candidate,
+    )
+
+
+def _receipt_provenance(
+    observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "evaluation_evidence": copy.deepcopy(observation["evidence"]),
+        "measured_inputs_sha256": _canonical_json_sha256(
+            observation["measured_inputs"]
+        ),
+    }
+
+
 def _common_receipt(
     schema: str,
     authorization: Mapping[str, Any],
@@ -458,10 +919,17 @@ def _common_receipt(
 
 def _final_holdout_receipt(
     role: str,
-    dataset: Mapping[str, Any],
-    metrics: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
+    observation = _validate_observation_data(
+        observation,
+        role=role,
+        registry=registry,
+        candidate=authorization,
+    )
+    metrics = observation["result"]
     metrics = _exact_dict(
         metrics,
         {
@@ -493,8 +961,11 @@ def _final_holdout_receipt(
         raise DownstreamGateFailed(role)
     return {
         **_common_receipt(FINAL_HOLDOUT_RECEIPT_SCHEMA, authorization),
+        **_receipt_provenance(observation),
         "role": role,
-        "dataset": copy.deepcopy(dataset),
+        "dataset": copy.deepcopy(
+            observation["measured_inputs"]["dataset"]
+        ),
         "metrics": {
             "candidate_int16_pair_accuracy": candidate_pair,
             "stable_int16_pair_accuracy": stable_pair,
@@ -508,10 +979,17 @@ def _final_holdout_receipt(
 
 
 def _retention_receipt(
-    datasets: Mapping[str, Any],
-    metrics: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
+    observation = _validate_observation_data(
+        observation,
+        role="retention",
+        registry=registry,
+        candidate=authorization,
+    )
+    metrics = observation["result"]
     metrics = _exact_dict(
         metrics,
         {"general", "opening"},
@@ -573,7 +1051,10 @@ def _retention_receipt(
         }
     return {
         **_common_receipt(RETENTION_RECEIPT_SCHEMA, authorization),
-        "datasets": copy.deepcopy(datasets),
+        **_receipt_provenance(observation),
+        "datasets": copy.deepcopy(
+            observation["measured_inputs"]["datasets"]
+        ),
         "metrics": normalized,
         "gates": {
             "value_mae_cp": "candidate-at-most-1.05-times-stable",
@@ -586,17 +1067,23 @@ def _retention_receipt(
 
 
 def _known_regression_receipt(
-    fixture: Mapping[str, Any],
+    registry: Mapping[str, Any],
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    observation = _exact_dict(
+    verified = _validate_observation_data(
         observation,
+        role="known_regression",
+        registry=registry,
+        candidate=authorization,
+    )
+    result = _exact_dict(
+        verified["result"],
         {"static_ranks", "fixed_depth_bestmoves", "timed_bestmoves"},
         "known-regression observation",
     )
     ranks = _exact_dict(
-        observation["static_ranks"],
+        result["static_ranks"],
         {"P*8f", "3a4b"},
         "known-regression static ranks",
     )
@@ -611,16 +1098,18 @@ def _known_regression_receipt(
     ):
         raise DownstreamGateFailed("known_regression_static")
     depths = _exact_dict(
-        observation["fixed_depth_bestmoves"],
+        result["fixed_depth_bestmoves"],
         {"11", "12"},
         "known-regression fixed depths",
     )
     if any(
-        type(depths[key]) is not str or depths[key] == "P*8f"
+        type(depths[key]) is not str
+        or _USI_BESTMOVE_RE.fullmatch(depths[key]) is None
+        or depths[key] == "P*8f"
         for key in ("11", "12")
     ):
         raise DownstreamGateFailed("known_regression_fixed_depth")
-    timed = observation["timed_bestmoves"]
+    timed = result["timed_bestmoves"]
     expected = [
         (time_ms, run)
         for time_ms in (800, 2_000, 4_000)
@@ -641,13 +1130,17 @@ def _known_regression_receipt(
             or type(value["run"]) is not int
             or value["run"] != run
             or type(value["bestmove"]) is not str
+            or _USI_BESTMOVE_RE.fullmatch(value["bestmove"]) is None
             or value["bestmove"] == "P*8f"
         ):
             raise DownstreamGateFailed("known_regression_timed")
         normalized_timed.append(dict(value))
     return {
         **_common_receipt(KNOWN_REGRESSION_RECEIPT_SCHEMA, authorization),
-        "fixture": copy.deepcopy(fixture),
+        **_receipt_provenance(verified),
+        "fixture": copy.deepcopy(
+            verified["measured_inputs"]["fixture"]
+        ),
         "bad_move": "P*8f",
         "stable_good_move": "3a4b",
         "static_ranks": {"P*8f": bad_rank, "3a4b": good_rank},
@@ -662,8 +1155,14 @@ def _production_parity_receipt(
     observation: Mapping[str, Any],
     authorization: Mapping[str, Any],
 ) -> dict[str, Any]:
-    observation = _exact_dict(
+    verified = _validate_observation_data(
         observation,
+        role="production_parity",
+        registry=registry,
+        candidate=authorization,
+    )
+    result = _exact_dict(
+        verified["result"],
         {
             "loaded_weights_sha256",
             "production_worker_path_verified",
@@ -675,18 +1174,18 @@ def _production_parity_receipt(
         "production parity observation",
     )
     if (
-        observation["loaded_weights_sha256"]
+        result["loaded_weights_sha256"]
         != authorization["candidate_weights"]["sha256"]
-        or observation["production_worker_path_verified"] is not True
-        or observation["production_wasm_path_verified"] is not True
-        or type(observation["console_errors"]) is not int
-        or observation["console_errors"] != 0
-        or type(observation["runtime_errors"]) is not int
-        or observation["runtime_errors"] != 0
+        or result["production_worker_path_verified"] is not True
+        or result["production_wasm_path_verified"] is not True
+        or type(result["console_errors"]) is not int
+        or result["console_errors"] != 0
+        or type(result["runtime_errors"]) is not int
+        or result["runtime_errors"] != 0
     ):
         raise DownstreamGateFailed("production_parity")
-    budgets = registry["enrollments"]["browser_time_budgets_ms"]
-    runs = observation["budget_runs"]
+    budgets = verified["measured_inputs"]["browser_time_budgets_ms"]
+    runs = result["budget_runs"]
     if type(runs) is not list or len(runs) != len(budgets):
         raise ValueError("production parity budget observations are not exact")
     normalized_runs = []
@@ -706,13 +1205,14 @@ def _production_parity_receipt(
         normalized_runs.append(dict(value))
     return {
         **_common_receipt(PRODUCTION_PARITY_RECEIPT_SCHEMA, authorization),
+        **_receipt_provenance(verified),
         "production_worker": copy.deepcopy(
-            registry["enrollments"]["production_worker"]
+            verified["measured_inputs"]["production_worker"]
         ),
         "production_wasm": copy.deepcopy(
-            registry["enrollments"]["production_wasm"]
+            verified["measured_inputs"]["production_wasm"]
         ),
-        "loaded_weights_sha256": observation["loaded_weights_sha256"],
+        "loaded_weights_sha256": result["loaded_weights_sha256"],
         "budget_runs": normalized_runs,
         "console_errors": 0,
         "runtime_errors": 0,
@@ -724,14 +1224,20 @@ def run_strength_first_downstream_gates_core_for_tests(
     *,
     registry: Mapping[str, Any],
     authorization: CandidateSelectionAuthorization,
-    evaluate_fresh_final: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    evaluate_legacy_final: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    evaluate_retention: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+    evaluate_fresh_final: Callable[
+        [Mapping[str, Any]], VerifiedEvaluationObservation
+    ],
+    evaluate_legacy_final: Callable[
+        [Mapping[str, Any]], VerifiedEvaluationObservation
+    ],
+    evaluate_retention: Callable[
+        [Mapping[str, Any]], VerifiedEvaluationObservation
+    ],
     evaluate_known_regression: Callable[
-        [Mapping[str, Any]], Mapping[str, Any]
+        [Mapping[str, Any]], VerifiedEvaluationObservation
     ],
     evaluate_production_parity: Callable[
-        [Mapping[str, Any]], Mapping[str, Any]
+        [Mapping[str, Any]], VerifiedEvaluationObservation
     ],
 ) -> dict[str, Any]:
     """Test-only composition for the exact five post-selection receipts."""
@@ -749,39 +1255,56 @@ def run_strength_first_downstream_gates_core_for_tests(
     if any(not callable(callback) for callback in callbacks):
         raise TypeError("every downstream evaluator must be callable")
     candidate = _consume_candidate_selection_authorization(authorization)
+    if (
+        type(candidate.get("selected_seed")) is not int
+        or candidate["selected_seed"] not in (42, 43, 44)
+    ):
+        raise ValueError("candidate-selection authorization seed is invalid")
     expected = _authorization_projection(registry)
     expected["selected_seed"] = candidate["selected_seed"]
     if not _typed_equal(candidate, expected):
         raise ValueError("candidate-selection authorization differs from registry")
     context = copy.deepcopy(candidate)
+    fresh_observation = _consume_verified_evaluation_observation(
+        evaluate_fresh_final(copy.deepcopy(context))
+    )
     fresh = _final_holdout_receipt(
         "fresh_final_holdout",
-        registry["enrollments"]["fresh_final_holdout"],
-        evaluate_fresh_final(copy.deepcopy(context)),
+        registry,
+        fresh_observation,
         candidate,
+    )
+    legacy_observation = _consume_verified_evaluation_observation(
+        evaluate_legacy_final(copy.deepcopy(context))
     )
     legacy = _final_holdout_receipt(
         "legacy_final_holdout",
-        registry["enrollments"]["legacy_final_holdout"],
-        evaluate_legacy_final(copy.deepcopy(context)),
+        registry,
+        legacy_observation,
         candidate,
+    )
+    retention_observation = _consume_verified_evaluation_observation(
+        evaluate_retention(copy.deepcopy(context))
     )
     retention = _retention_receipt(
-        {
-            "general": registry["enrollments"]["general_retention"],
-            "opening": registry["enrollments"]["opening_retention"],
-        },
-        evaluate_retention(copy.deepcopy(context)),
+        registry,
+        retention_observation,
         candidate,
     )
+    known_observation = _consume_verified_evaluation_observation(
+        evaluate_known_regression(copy.deepcopy(context))
+    )
     known = _known_regression_receipt(
-        registry["enrollments"]["known_regression_fixture"],
-        evaluate_known_regression(copy.deepcopy(context)),
+        registry,
+        known_observation,
         candidate,
+    )
+    parity_observation = _consume_verified_evaluation_observation(
+        evaluate_production_parity(copy.deepcopy(context))
     )
     parity = _production_parity_receipt(
         registry,
-        evaluate_production_parity(copy.deepcopy(context)),
+        parity_observation,
         candidate,
     )
     return {
@@ -812,8 +1335,9 @@ def validate_downstream_result_data(
     result: Mapping[str, Any],
     *,
     registry: Mapping[str, Any],
+    verified_evidence: VerifiedDownstreamEvidenceBundle,
 ) -> Mapping[str, Any]:
-    """Reconstruct every receipt from stored metrics and exact enrollments."""
+    """Rebuild receipts only from separately reverified evaluator evidence."""
 
     validate_downstream_registry_data(registry)
     if registry["status"] != DOWNSTREAM_READY_STATUS:
@@ -836,145 +1360,37 @@ def validate_downstream_result_data(
         },
         "downstream result",
     )
-    selected_seed = result["selected_seed"]
-    if selected_seed not in (42, 43, 44):
-        raise ValueError("downstream result selected seed is invalid")
-    candidate = _authorization_projection(registry)
-    candidate["selected_seed"] = selected_seed
-    receipts = _exact_dict(
-        result["receipts"],
-        {
-            "fresh_final_holdout",
-            "legacy_final_holdout",
-            "retention",
-            "known_regression",
-            "production_parity",
-        },
-        "downstream result receipts",
-    )
-    fresh = _exact_dict(
-        receipts["fresh_final_holdout"],
-        {
-            "schema",
-            "status",
-            "candidate_selection_receipt_sha256",
-            "candidate_checkpoint_sha256",
-            "stable_checkpoint_sha256",
-            "candidate_weights_sha256",
-            "stable_weights_sha256",
-            "production_weight_write_authorized",
-            "role",
-            "dataset",
-            "metrics",
-            "gate",
-        },
-        "fresh final receipt",
-    )
-    legacy = _exact_dict(
-        receipts["legacy_final_holdout"],
-        set(fresh),
-        "legacy final receipt",
-    )
-    retention = _exact_dict(
-        receipts["retention"],
-        {
-            "schema",
-            "status",
-            "candidate_selection_receipt_sha256",
-            "candidate_checkpoint_sha256",
-            "stable_checkpoint_sha256",
-            "candidate_weights_sha256",
-            "stable_weights_sha256",
-            "production_weight_write_authorized",
-            "datasets",
-            "metrics",
-            "gates",
-        },
-        "retention receipt",
-    )
-    known = _exact_dict(
-        receipts["known_regression"],
-        {
-            "schema",
-            "status",
-            "candidate_selection_receipt_sha256",
-            "candidate_checkpoint_sha256",
-            "stable_checkpoint_sha256",
-            "candidate_weights_sha256",
-            "stable_weights_sha256",
-            "production_weight_write_authorized",
-            "fixture",
-            "bad_move",
-            "stable_good_move",
-            "static_ranks",
-            "fixed_depth_bestmoves",
-            "timed_bestmoves",
-            "gate",
-        },
-        "known-regression receipt",
-    )
-    parity = _exact_dict(
-        receipts["production_parity"],
-        {
-            "schema",
-            "status",
-            "candidate_selection_receipt_sha256",
-            "candidate_checkpoint_sha256",
-            "stable_checkpoint_sha256",
-            "candidate_weights_sha256",
-            "stable_weights_sha256",
-            "production_weight_write_authorized",
-            "production_worker",
-            "production_wasm",
-            "loaded_weights_sha256",
-            "budget_runs",
-            "console_errors",
-            "runtime_errors",
-            "gate",
-        },
-        "production parity receipt",
+    observations, candidate = _consume_verified_downstream_evidence_bundle(
+        verified_evidence,
+        registry=registry,
     )
     try:
         expected_receipts = {
             "fresh_final_holdout": _final_holdout_receipt(
                 "fresh_final_holdout",
-                registry["enrollments"]["fresh_final_holdout"],
-                fresh["metrics"],
+                registry,
+                observations["fresh_final_holdout"],
                 candidate,
             ),
             "legacy_final_holdout": _final_holdout_receipt(
                 "legacy_final_holdout",
-                registry["enrollments"]["legacy_final_holdout"],
-                legacy["metrics"],
+                registry,
+                observations["legacy_final_holdout"],
                 candidate,
             ),
             "retention": _retention_receipt(
-                {
-                    "general": registry["enrollments"]["general_retention"],
-                    "opening": registry["enrollments"]["opening_retention"],
-                },
-                retention["metrics"],
+                registry,
+                observations["retention"],
                 candidate,
             ),
             "known_regression": _known_regression_receipt(
-                registry["enrollments"]["known_regression_fixture"],
-                {
-                    "static_ranks": known["static_ranks"],
-                    "fixed_depth_bestmoves": known["fixed_depth_bestmoves"],
-                    "timed_bestmoves": known["timed_bestmoves"],
-                },
+                registry,
+                observations["known_regression"],
                 candidate,
             ),
             "production_parity": _production_parity_receipt(
                 registry,
-                {
-                    "loaded_weights_sha256": parity["loaded_weights_sha256"],
-                    "production_worker_path_verified": True,
-                    "production_wasm_path_verified": True,
-                    "budget_runs": parity["budget_runs"],
-                    "console_errors": parity["console_errors"],
-                    "runtime_errors": parity["runtime_errors"],
-                },
+                observations["production_parity"],
                 candidate,
             ),
         }
@@ -985,7 +1401,7 @@ def validate_downstream_result_data(
     expected = {
         "schema": DOWNSTREAM_RESULT_SCHEMA,
         "status": "complete-all-downstream-gates-pass",
-        "selected_seed": selected_seed,
+        "selected_seed": candidate["selected_seed"],
         "candidate_selection_receipt": copy.deepcopy(
             candidate["selection_receipt"]
         ),
@@ -1006,16 +1422,7 @@ def validate_downstream_result_data(
 def canonical_receipt_bytes(receipt: Mapping[str, Any]) -> bytes:
     """Canonical serialization for a later durable publisher."""
 
-    return (
-        json.dumps(
-            receipt,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
-        + "\n"
-    ).encode("utf-8")
+    return _canonical_json_bytes(receipt)
 
 
 def receipt_identity(
@@ -1118,8 +1525,11 @@ __all__ = [
     "DOWNSTREAM_REGISTRY_RELATIVE_PATH",
     "DOWNSTREAM_REGISTRY_SCHEMA",
     "DOWNSTREAM_RESULT_SCHEMA",
+    "DOWNSTREAM_EVIDENCE_BUNDLE_SCHEMA",
     "DownstreamGateFailed",
     "DownstreamGatesBlocked",
+    "VerifiedDownstreamEvidenceBundle",
+    "VerifiedEvaluationObservation",
     "canonical_receipt_bytes",
     "receipt_identity",
     "run_strength_first_downstream_gates",

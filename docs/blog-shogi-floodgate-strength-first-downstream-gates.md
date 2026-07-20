@@ -1,7 +1,7 @@
 # Strength-first候補の下流棋力ゲートを準備
 
 > 2026年7月19日、3-seed学習と候補選抜の後に使う、final holdout・retention・
-> known regression・本番browser parityの受領証contractを実装し、18件のfocused testで
+> known regression・本番browser parityの受領証contractを実装し、29件のfocused testで
 > 検証した。**これは評価関数を学習した結果ではなく、弱い候補を「強くなった」と誤認して
 > formal A/Bへ進めないための下流判定である。** 実候補選抜受領証と実artifact identityは
 > まだ存在しないため、production入口はholdout labelや評価器を開く前にexpected STOPとなる。
@@ -13,15 +13,15 @@
 | 項目 | 状態 |
 | --- | --- |
 | 5種類の下流受領証contract | 実装済み |
-| 保存結果の再構成・改ざん検知 | 実装済み |
+| 保存結果の再構成 | 別認証済みevidence必須のcontractを実装 |
 | production registry | identity未登録のclosed状態 |
 | argumentless production command | exit 2 / expected STOP |
 | 実候補authorization消費 | 0 |
 | final holdout label read | 0 |
 | 実下流受領証 / formal A/B | 0 / 0 |
 | production / live weight変更 | 0 / 0 |
-| focused unit test | 18 / 18 PASS（0.006秒） |
-| full suite / 独立review | 未実施 / pending |
+| focused unit test | 29 / 29 PASS（0.035秒） |
+| full suite / 独立rereview | 未実施 / pending |
 
 実行入口は固定registryと、そのregistryが参照する既存protocolのbytesを確認する。現在の
 registryにはcandidate selection receipt、candidate / stable checkpoint、candidate / stable
@@ -71,38 +71,55 @@ falseでなければvalidationに失敗する。
 - fresh / legacy final、general / opening retention、known-regression fixture
 - サイトが実際に使うproduction worker / WASMと固定browser時間枠
 
+各roleはcandidate-selection receipt、strength-first candidate checkpoint、stable checkpoint、
+int16 weight、fresh / legacy / retention dataset、fixture、worker、WASMそれぞれのexact schemaを
+要求する。全12 identityのpathとSHA-256もpairwise distinctでなければならず、fresh datasetを
+legacyやretentionとして再利用したり、workerとWASMを同じidentityで登録したりできない。
+
 さらに、普通のJSON mappingでは下流readerを開けない。candidate-selection laneが成功時だけ
 発行する、型付きの一回限りauthorizationをproduction adapterが消費する必要がある。この
 adapterはまだ未完成なので、仮にregistryだけをready形へ書き換えてもproduction入口はSTOPする。
-今回のtest-only coreが使うsynthetic identityとcallbackはcontract test専用であり、実候補、
-実holdout評価、実受領証には数えていない。
+各evaluatorもplain metric mappingを返せず、一回限りのverified observationが必要である。
+observationはintegerのselected seed、candidate-selection receipt、candidate / stableの
+checkpoint / weight、対象dataset / fixture / worker / WASM / browser時間枠を明示し、registryの
+exact identityと一致しなければ受領証を作らない。observation bodyはrole-specific schemaの
+content-addressed evidence identityへ結び付く。今回のtest-only issuerはcontract test専用で、
+実候補、実holdout評価、実受領証には数えていない。
 
 ## 受領証を保存後にも再検証
 
 各受領証はcandidate selection receipt、candidate / stable checkpoint、candidate / stable
-weightのdigestを共通に持つ。保存済みのaggregate resultを読むときは、その文字列を信頼せず、
-registryのexact enrollmentと保存metricから5受領証をすべて再構成し、field・型・gate文言・
-dataset identity・metric・weight authorityを完全一致で照合する。
+weightのdigestに加え、評価evidence identityとmeasured-input digestを持つ。保存済みaggregate
+resultのmetricや`path_verified=true`を権限として再利用しない。再検証にはcandidate-selection
+authorizationも消費し、production evidence IOが元evidenceを別に読み直して発行する
+registry-boundの一回限りbundleが必要である。現在はtest-only issuerだけでproduction issuerは
+未実装なので、実保存結果を自己申告だけで通す経路はない。
 
-保存後にretention gate文言、candidate weight digest、metric、top-level weight authorityの
-いずれかを変えたtestはすべて拒否された。受領証の将来の保存先もcanonical relative pathだけを
-許し、absolute path、parent traversal、backslash aliasを拒否する。現在のmoduleはcanonical
-bytesとidentityをmemory上で作るだけで、受領証fileを書かない。
+別認証済みbundleから5受領証を再構成し、保存後にretention gate文言、candidate weight digest、
+metric、top-level weight authorityのいずれかを変えた場合は完全一致に失敗する。bundle側で
+worker path verificationがfalseなら、保存結果のtrueを合成せずparity gateを落とす。evidence
+bodyだけを変えてidentityを据え置く改ざんもcontent bindingで拒否する。受領証の将来の保存先は
+canonical relative pathだけを許し、absolute path、parent traversal、backslash aliasを拒否する。
+現在のmoduleはcanonical bytesとidentityをmemory上で作るだけで、受領証fileを書かない。
 
 ## validationと非主張
 
-focused stdlib 18 / 18を0.006秒でPASSし、Python compile checkとdiff checkもPASSした。
-対象はclosed registry、protocol byte drift、plain mappingによる権限偽装、一回限りtoken、
-各gateの境界値、早期停止、全5受領証、保存結果改ざん、canonical path、argumentless STOPを
-含む。今回のlaneではresourceを広く使うfull suiteは実行しておらず、独立reviewもpendingである。
+focused stdlib 29 / 29を0.035秒でPASSし、Python compile checkとdiff checkもPASSした。
+対象はclosed registry、role schema / identity再利用、protocol byte drift、plain candidate /
+evaluator / stored-evidence mappingによる権限偽装、一回限りtoken、別dataset計測、保存metric改ざん、
+偽のbrowser path verification、evidence content改ざん、float seed、空または不正なUSI bestmove、
+各gateの境界値、早期停止、全5受領証、canonical path、argumentless STOPを含む。最初の独立reviewで
+見つかったidentity / provenanceの指摘は修正したが、rereviewとresourceを広く使うfull suiteは
+pendingである。
 
 この変更はlocal testだけで完結し、AWS、GCP / Firebase、Vercel、networkを使っていない。
 teacher生成、3-seed学習、candidate selection、holdout評価、formal A/B、外部校正、棋力向上、
 高段到達、live weight変更の証拠ではない。
 
-次はcandidate-selection laneのbranded authorization interfaceを接続し、実teacher完了後の
-3-seed学習と選抜で得たidentityだけをdata-only registryへ登録する。その後にこの5 gateを
-実データで順に通し、保存受領証を再検証してからformal A/Bへ進む。
+次はcandidate-selection laneのbranded authorizationと、evaluator evidenceを実fileから
+再認証するproduction issuerを接続し、実teacher完了後の3-seed学習と選抜で得たidentityだけを
+data-only registryへ登録する。その後にこの5 gateを実データで順に通し、保存受領証を
+別evidenceから再検証してからformal A/Bへ進む。
 
 機械可読記録:
 [floodgate-strength-first-downstream-gates-2026-07-19.json](./data/floodgate-strength-first-downstream-gates-2026-07-19.json)

@@ -31,6 +31,14 @@ export interface FloodgateRawVerificationWorkerTask extends FloodgateRawVerifica
 export interface FloodgateRawVerificationWorkerData {
   readonly schema: typeof FLOODGATE_RAW_VERIFICATION_WORKER_DATA_SCHEMA;
   readonly lock_root: string;
+  readonly runtime: Readonly<{
+    readonly node_version: string;
+    readonly v8_version: string;
+    readonly modules_abi: string;
+    readonly executable_path: string;
+    readonly platform: NodeJS.Platform;
+    readonly architecture: string;
+  }>;
 }
 
 export interface FloodgateRawVerificationListingResult {

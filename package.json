@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:shogi-floodgate-raw-verification-worker-bundle": "node ml/build-floodgate-raw-verification-worker-bundle.mjs --write",
     "build:shogi-floodgate-stable-wasm-deadline-diagnostic-bundle": "node ml/build-floodgate-stable-wasm-deadline-diagnostic-bundle.mjs --write",
     "start": "next start",
     "lint": "eslint",

@@ -31,21 +31,14 @@ STRENGTH_FIRST_QAT_FINAL_CHECKPOINT_SCHEMA = (
     "shogi-floodgate-strength-first-qat-final-checkpoint-v1"
 )
 STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH = (
-    "ml/protocols/"
-    "floodgate-q1-2026-strength-first-qat-training-plan.json"
+    "ml/protocols/" "floodgate-q1-2026-strength-first-qat-training-plan.json"
 )
 STRENGTH_FIRST_QAT_PLAN_STATUS = (
     "exact-24000-teacher-artifacts-ready-for-three-seed-training"
 )
-STRENGTH_FIRST_QAT_RUN_ROOT = (
-    "ml/runs/floodgate-q1-2026-strength-first-int16-aware"
-)
-STRENGTH_FIRST_TRAIN_FORMAT = (
-    "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
-)
-STRENGTH_FIRST_ROLE_BUNDLE_SCHEMA = (
-    "shogi-floodgate-label-free-role-bundle-v2"
-)
+STRENGTH_FIRST_QAT_RUN_ROOT = "ml/runs/floodgate-q1-2026-strength-first-int16-aware"
+STRENGTH_FIRST_TRAIN_FORMAT = "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+STRENGTH_FIRST_ROLE_BUNDLE_SCHEMA = "shogi-floodgate-label-free-role-bundle-v2"
 STRENGTH_FIRST_ROLE_BUNDLE_STATUS = "complete-label-free-role-bundle"
 STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA = (
     "shogi-strength-first-sibling-teacher-manifest-v1"
@@ -53,22 +46,14 @@ STRENGTH_FIRST_TEACHER_MANIFEST_SCHEMA = (
 STRENGTH_FIRST_TEACHER_RESULT_SCHEMA = (
     "shogi-floodgate-strength-first-teacher-postflight-result-v2"
 )
-STRENGTH_FIRST_TEACHER_RESULT_STATUS = (
-    "complete-training-only-postflight-bound"
-)
+STRENGTH_FIRST_TEACHER_RESULT_STATUS = "complete-training-only-postflight-bound"
 
-_TEACHER_RUN_DIRECTORY = (
-    ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8"
-)
+_TEACHER_RUN_DIRECTORY = ".codex/shogi-runs/floodgate-q1-2026-strength-first-v8"
 _ROLE_BUNDLE_DIRECTORY = (
     ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2"
 )
-_SEALED_INPUT_DIRECTORY = (
-    ".codex/shogi-data/wcsc36-sealed-training-inputs"
-)
-_TRAINING_PYTHON = (
-    ".codex/shogi-data/floodgate-training-venv/bin/python3"
-)
+_SEALED_INPUT_DIRECTORY = ".codex/shogi-data/wcsc36-sealed-training-inputs"
+_TRAINING_PYTHON = ".codex/shogi-data/floodgate-training-venv/bin/python3"
 _PLAN_FIELDS = {
     "schema",
     "status",
@@ -192,8 +177,7 @@ def _typed_equal(value: Any, expected: Any) -> bool:
         )
     if type(expected) is list:
         return len(value) == len(expected) and all(
-            _typed_equal(left, right)
-            for left, right in zip(value, expected)
+            _typed_equal(left, right) for left, right in zip(value, expected)
         )
     return value == expected
 
@@ -214,8 +198,7 @@ def _validate_forced_skip_reasons(
         or any(type(count) is not int or count < 0 for count in reasons.values())
         or sum(reasons.values()) != forced_parents_skipped
         or reasons["search_timeout_no_label"]
-        > (target_parents + _TIMEOUT_SKIP_DIVISOR - 1)
-        // _TIMEOUT_SKIP_DIVISOR
+        > (target_parents + _TIMEOUT_SKIP_DIVISOR - 1) // _TIMEOUT_SKIP_DIVISOR
     ):
         raise ValueError(f"{label} accounting mismatch")
     return reasons
@@ -235,8 +218,8 @@ def scan_strength_first_training_artifacts_exact(
     completion_binding = ACCOUNTING._normalize_completion_binding(
         expected_completion_binding
     )
-    input_order, input_metadata, input_summary = (
-        ACCOUNTING._scan_input_bytes(input_raw, binding)
+    input_order, input_metadata, input_summary = ACCOUNTING._scan_input_bytes(
+        input_raw, binding
     )
     (
         completion,
@@ -270,14 +253,10 @@ def scan_strength_first_training_artifacts_exact(
                 "fresh QAT non-forced completion is missing its train group"
             )
         if (
-            train_group["records"]
-            != completion_record["train_group_records"]
-            or train_group["sha256"]
-            != completion_record["train_group_sha256"]
+            train_group["records"] != completion_record["train_group_records"]
+            or train_group["sha256"] != completion_record["train_group_sha256"]
         ):
-            raise ValueError(
-                "fresh QAT train group differs from completion evidence"
-            )
+            raise ValueError("fresh QAT train group differs from completion evidence")
 
     input_count = len(input_order)
     forced_count = len(forced_order)
@@ -334,6 +313,26 @@ def _fixed_slots() -> list[dict[str, Any]]:
     ]
 
 
+def build_strength_first_qat_training_plan_data(
+    *,
+    artifacts: Mapping[str, Any],
+    runtime: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build and validate one exact training-only plan data object."""
+
+    plan = {
+        "schema": STRENGTH_FIRST_QAT_EXECUTION_PLAN_SCHEMA,
+        "status": STRENGTH_FIRST_QAT_PLAN_STATUS,
+        "artifacts": copy.deepcopy(artifacts),
+        "runtime": copy.deepcopy(runtime),
+        "training": copy.deepcopy(FRESH.FRESH_QAT_REQUIRED_TRAINING),
+        "slots": _fixed_slots(),
+        "boundary": copy.deepcopy(_BOUNDARY),
+    }
+    validate_strength_first_qat_training_plan_data(plan)
+    return plan
+
+
 def validate_strength_first_qat_training_plan_data(
     plan: Mapping[str, Any],
 ) -> Mapping[str, Any]:
@@ -375,9 +374,7 @@ def validate_strength_first_qat_training_plan_data(
         artifacts["input_training"],
         ACCOUNTING.PRODUCTION_INPUT_TRAINING_BINDING,
     ):
-        raise ValueError(
-            "strength-first input differs from the fixed role bundle"
-        )
+        raise ValueError("strength-first input differs from the fixed role bundle")
 
     completion = _exact(
         artifacts["parent_completion"],
@@ -386,8 +383,7 @@ def validate_strength_first_qat_training_plan_data(
     )
     if (
         completion["path"] != "parent-completion.jsonl"
-        or completion["format"]
-        != ACCOUNTING.FRESH_QAT_PARENT_COMPLETION_FORMAT
+        or completion["format"] != ACCOUNTING.FRESH_QAT_PARENT_COMPLETION_FORMAT
         or any(
             type(completion[field]) is not int or completion[field] < 0
             for field in (
@@ -399,8 +395,7 @@ def validate_strength_first_qat_training_plan_data(
         )
         or completion["bytes"] < 1
         or completion["records"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
-        or completion["forced_parents_skipped"]
-        + completion["emitted_parent_groups"]
+        or completion["forced_parents_skipped"] + completion["emitted_parent_groups"]
         != completion["records"]
         or completion["emitted_parent_groups"] < 1
     ):
@@ -539,9 +534,7 @@ def default_strength_first_local_paths(
     """Resolve every fixed path used by the argumentless local launcher."""
 
     root = Path(
-        repo_root
-        if repo_root is not None
-        else Path(__file__).resolve().parent.parent
+        repo_root if repo_root is not None else Path(__file__).resolve().parent.parent
     ).resolve()
     home_root = Path(home if home is not None else Path.home()).expanduser()
     teacher = home_root / _TEACHER_RUN_DIRECTORY
@@ -549,9 +542,7 @@ def default_strength_first_local_paths(
     sealed = home_root / _SEALED_INPUT_DIRECTORY
     return {
         "repo_root": str(root),
-        "experiment_plan": str(
-            root / STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH
-        ),
+        "experiment_plan": str(root / STRENGTH_FIRST_QAT_EXECUTION_PLAN_RELATIVE_PATH),
         "teacher_manifest": str(teacher / "manifest.json"),
         "teacher_result": str(teacher / "result.json"),
         "teacher_work": str(teacher / "work.jsonl"),
@@ -562,18 +553,12 @@ def default_strength_first_local_paths(
         "holdout_protected_position_ids": str(
             role / "fresh-final-holdout.protected-position-ids.txt"
         ),
-        "policy_exposure_receipt": str(
-            role / "replay-exclusion-receipt.json"
-        ),
-        "policy_exposed_parent_ids": str(
-            role / "training.protected-position-ids.txt"
-        ),
+        "policy_exposure_receipt": str(role / "replay-exclusion-receipt.json"),
+        "policy_exposed_parent_ids": str(role / "training.protected-position-ids.txt"),
         "policy_exposed_semantic_position_ids": str(
             role / "fresh-selection.protected-position-ids.txt"
         ),
-        "replay_exclusion": str(
-            role / "replay-excluded-position-ids.txt"
-        ),
+        "replay_exclusion": str(role / "replay-excluded-position-ids.txt"),
         "replay": str(sealed / "runOp1-train.jsonl"),
         "warm_initializer": str(sealed / "runOp1-best.pt"),
         "python": str(home_root / _TRAINING_PYTHON),
@@ -647,11 +632,7 @@ def _validate_role_manifest(
     expected_input["records"] = expected_input.pop("parents")
     roles = manifest.get("roles")
     training = roles.get("training") if type(roles) is dict else None
-    raw_parents = (
-        training.get("raw_parents")
-        if type(training) is dict
-        else None
-    )
+    raw_parents = training.get("raw_parents") if type(training) is dict else None
     if not _typed_equal(
         raw_parents,
         expected_input,
@@ -659,9 +640,7 @@ def _validate_role_manifest(
         raise ValueError("strength-first role-bundle input differs")
     replay_exclusion = manifest.get("replay_exclusion")
     identifiers = (
-        replay_exclusion.get("identifiers")
-        if type(replay_exclusion) is dict
-        else None
+        replay_exclusion.get("identifiers") if type(replay_exclusion) is dict else None
     )
     if not _typed_equal(
         identifiers,
@@ -702,14 +681,10 @@ def _validate_teacher_documents(
             artifacts["parent_completion"],
         )
     ):
-        raise ValueError(
-            "strength-first teacher manifest output binding mismatch"
-        )
+        raise ValueError("strength-first teacher manifest output binding mismatch")
     manifest_skip_reasons = _validate_forced_skip_reasons(
         manifest.get("forced_skip_reasons"),
-        forced_parents_skipped=artifacts["parent_completion"][
-            "forced_parents_skipped"
-        ],
+        forced_parents_skipped=artifacts["parent_completion"]["forced_parents_skipped"],
         target_parents=artifacts["parent_completion"]["records"],
         label="strength-first teacher manifest forced skip reasons",
     )
@@ -733,8 +708,7 @@ def _validate_teacher_documents(
     )
     if (
         completion["input_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
-        or completion["completed_parents"]
-        != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
+        or completion["completed_parents"] != ACCOUNTING.FRESH_QAT_INPUT_PARENTS
         or completion["forced_parents_skipped"]
         != artifacts["parent_completion"]["forced_parents_skipped"]
         or not _typed_equal(
@@ -743,8 +717,7 @@ def _validate_teacher_documents(
         )
         or completion["emitted_parent_groups"]
         != artifacts["parent_completion"]["emitted_parent_groups"]
-        or completion["forced_parents_skipped"]
-        + completion["emitted_parent_groups"]
+        or completion["forced_parents_skipped"] + completion["emitted_parent_groups"]
         != completion["completed_parents"]
     ):
         raise ValueError("strength-first teacher result completion mismatch")
@@ -771,13 +744,28 @@ def _validate_teacher_documents(
             label=f"strength-first teacher staged {name}",
         )
         if not _typed_equal(binding, _identity_projection(identity)):
-            raise ValueError(
-                f"strength-first teacher staged {name} binding mismatch"
-            )
+            raise ValueError(f"strength-first teacher staged {name} binding mismatch")
     _file_identity(
         staged["staged_result"],
         path="staged-result.json",
         label="strength-first teacher staged result",
+    )
+
+
+def validate_strength_first_qat_training_source_documents(
+    *,
+    role_manifest: Any,
+    teacher_manifest: Any,
+    teacher_result: Any,
+    artifacts: Mapping[str, Any],
+) -> None:
+    """Cross-bind the label-free role and terminal teacher documents."""
+
+    _validate_role_manifest(role_manifest, artifacts)
+    _validate_teacher_documents(
+        teacher_manifest,
+        teacher_result,
+        artifacts,
     )
 
 
@@ -789,9 +777,7 @@ def _verify_strength_first_qat_training_plan(
     repo_root: str,
     local_paths: Mapping[str, str],
     artifact_reader: Callable[[str], bytes],
-    fingerprint_verifier: Callable[
-        [str, Mapping[str, Any], str], None
-    ],
+    fingerprint_verifier: Callable[[str, Mapping[str, Any], str], None],
 ) -> dict[str, Any]:
     root = os.path.realpath(repo_root)
     expected_plan = os.path.join(
@@ -968,9 +954,7 @@ def _verify_strength_first_qat_training_plan(
             "teacher_manifest_sha256": artifacts["teacher_manifest"]["sha256"],
             "teacher_result_sha256": artifacts["teacher_result"]["sha256"],
             "teacher_work_sha256": artifacts["teacher_work"]["sha256"],
-            "parent_completion_sha256": artifacts["parent_completion"][
-                "sha256"
-            ],
+            "parent_completion_sha256": artifacts["parent_completion"]["sha256"],
             **accounting["parent_accounting"],
         },
         "contract": contract,
@@ -1010,8 +994,10 @@ __all__ = [
     "STRENGTH_FIRST_TEACHER_RESULT_SCHEMA",
     "STRENGTH_FIRST_TEACHER_RESULT_STATUS",
     "STRENGTH_FIRST_TRAIN_FORMAT",
+    "build_strength_first_qat_training_plan_data",
     "default_strength_first_local_paths",
     "load_strength_first_qat_training_plan",
     "validate_strength_first_qat_training_plan_data",
+    "validate_strength_first_qat_training_source_documents",
     "verify_strength_first_qat_training_plan",
 ]

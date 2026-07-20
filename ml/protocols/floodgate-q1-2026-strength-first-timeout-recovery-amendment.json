@@ -50,7 +50,9 @@
       "process_disposition": "quit-then-bounded-force-kill-and-wait-for-close",
       "run_disposition": "fatal",
       "recorded_as_timeout_skip": false,
-      "result_published": false
+      "result_published": false,
+      "production_handshake_timeouts_overridable": false,
+      "test_only_timeout_own_property_disposition": "reject-before-input-capture-engine-spawn-or-output"
     },
     "non_timeout_error_disposition": "fatal",
     "timeout_skip_limit": {

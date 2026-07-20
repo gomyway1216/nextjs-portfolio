@@ -284,6 +284,38 @@ describe('deterministic sibling teacher generator', () => {
     expect(await fs.promises.readdir(root)).toEqual(['train.jsonl']);
   });
 
+  it('rejects a runtime test-only initialization timeout at the production seam before spawn', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-production-test-timeout-rejection-')
+    );
+    const raw = path.join(root, 'training.raw.jsonl');
+    const stageRoot = path.join(root, 'stage');
+    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
+    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const unsafeRuntimeOptions = {
+      stageRoot,
+      runnerRevision: PIPELINE_REVISION,
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--environment-trace', environmentTrace],
+      engineReceipt: path.join(root, 'must-not-be-read.json'),
+      multipv: 2,
+      depth: 8,
+      timeoutMs: 25,
+      targetParents: 100,
+      testOnlyEngineInitializationTimeoutMs: 25,
+    } as unknown as StrengthFirstSiblingTeacherOptions;
+
+    await expect(
+      advanceStrengthFirstSiblingTeacherDataset(input, unsafeRuntimeOptions)
+    ).rejects.toThrow(
+      'strength-first production generation rejects testOnlyEngineInitializationTimeoutMs'
+    );
+    await expect(fs.promises.access(environmentTrace)).rejects.toThrow();
+    await expect(fs.promises.access(stageRoot)).rejects.toThrow();
+    expect((await fs.promises.readdir(root)).sort()).toEqual(['training.raw.jsonl']);
+  });
+
   it('stages from authenticated rows without retaining a raw pathname and binds every receipt field', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-pathless-'));
     const raw = path.join(root, 'source.raw.jsonl');

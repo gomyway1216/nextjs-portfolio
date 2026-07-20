@@ -2567,6 +2567,16 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
   rawOptions: StrengthFirstSiblingTeacherOptions,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawOptions,
+      'testOnlyEngineInitializationTimeoutMs'
+    )
+  ) {
+    throw new Error(
+      'strength-first production generation rejects testOnlyEngineInitializationTimeoutMs'
+    );
+  }
   const capturedInput = captureAuthenticatedTeacherInput(input);
   if (capturedInput.parents.length !== 24_000 || capturedInput.binding.records !== 24_000) {
     throw new Error('strength-first production generation requires exactly 24000 parents');

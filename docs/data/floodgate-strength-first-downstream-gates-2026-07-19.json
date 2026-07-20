@@ -1,0 +1,201 @@
+{
+  "schema": "shogi-floodgate-strength-first-downstream-gates-evidence-v1",
+  "status": "contracts-focused-tests-pass-production-remains-closed-real-evaluations-all-zero",
+  "recorded_date": "2026-07-19",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-downstream-gates.md",
+    "english": "../blog-shogi-floodgate-strength-first-downstream-gates.en.md"
+  },
+  "implementation": {
+    "module": "ml/strength_first_downstream_gates.py",
+    "registry": "ml/protocols/floodgate-q1-2026-strength-first-downstream-gates-registry.json",
+    "argumentless_production_entry": true,
+    "arbitrary_registry_argument_allowed": false,
+    "receipt_file_writer_included": false,
+    "canonical_in_memory_receipt_identity_included": true,
+    "stored_result_reconstruction_included": true,
+    "stored_metrics_used_as_revalidation_authority": false,
+    "production_evidence_issuer_included": false
+  },
+  "checked_in_registry": {
+    "status": "awaiting-branded-candidate-selection-and-exact-downstream-inputs",
+    "real_enrollments": 0,
+    "all_enrollments_null": true,
+    "all_operational_gates_closed": true,
+    "future_ready_role_schemas_exact": true,
+    "future_ready_role_paths_pairwise_distinct": true,
+    "future_ready_role_sha256_values_pairwise_distinct": true,
+    "exact_candidate_selection_contract_required": true,
+    "production_weight_write_authorized": false,
+    "live_weight_write_authorized": false,
+    "placeholder_or_invented_real_identities_allowed": false
+  },
+  "production_stop": {
+    "command": "python3 ml/strength_first_downstream_gates.py",
+    "observed_exit_code": 2,
+    "observed_status": "STOP",
+    "reason": "candidate-selection-and-downstream-inputs-not-ready",
+    "candidate_selection_authorizations_consumed": 0,
+    "final_holdout_label_reads": 0,
+    "downstream_receipts_emitted": 0,
+    "formal_ab_games": 0,
+    "live_weights_changed": false
+  },
+  "candidate_authority": {
+    "plain_mapping_accepted": false,
+    "typed_one_shot_authorization_required": true,
+    "entire_registry_canonical_identity_bound": true,
+    "all_roles_budgets_and_contract_bound": true,
+    "immutable_captured_snapshot_used_by_callbacks_and_receipts": true,
+    "role_specific_expected_inputs_passed_to_callbacks": true,
+    "cross_registry_token_rejected_before_reader": true,
+    "caller_registry_toctou_mutation_cannot_change_result": true,
+    "production_adapter_landed": false,
+    "ready_registry_identity_code_pinned": false,
+    "test_only_issuer_counted_as_real": false
+  },
+  "candidate_selection_contract": {
+    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
+    "legacy_wcsc36_receipt_schema": "shogi-sibling-candidate-selection-receipt-v1",
+    "legacy_wcsc36_six_run_receipt_compatible": false,
+    "series": "warm",
+    "seeds": [42, 43, 44],
+    "run_count": 3,
+    "candidate_artifact": "final.pt",
+    "strength_first_training_plan_result_and_checkpoint_schemas_bound": true,
+    "full_fresh_qat_required_selection_contract_bound": true,
+    "same_fresh_selection_stable_recompute_required": true,
+    "four_per_seed_gates_required": true,
+    "median_ranked_seed_required": true,
+    "minimum_seeds_passing_all_four": 2,
+    "all_seeds_pass_both_quantization_delta_gates": true,
+    "evaluations_per_checkpoint": 1,
+    "used_wcsc36_selection_reopened": false
+  },
+  "evaluator_authority": {
+    "plain_metric_mapping_accepted": false,
+    "typed_one_shot_observation_required": true,
+    "exact_integer_selected_seed_required": true,
+    "all_measured_input_identities_bound": true,
+    "role_specific_content_addressed_evidence_bound": true,
+    "all_five_observations_authenticated_before_any_receipt": true,
+    "live_evidence_paths_pairwise_distinct": true,
+    "live_evidence_sha256_values_pairwise_distinct": true,
+    "production_observation_or_evidence_issuer_landed": false,
+    "test_only_issuer_counted_as_real": false
+  },
+  "receipt_contracts": {
+    "count": 5,
+    "names": [
+      "fresh_final_holdout",
+      "legacy_final_holdout",
+      "retention",
+      "known_regression",
+      "production_parity"
+    ],
+    "fresh_and_legacy_final": {
+      "candidate_int16_pair_accuracy_at_least_stable": true,
+      "candidate_int16_top1_accuracy_at_least_stable": true
+    },
+    "retention": {
+      "roles": ["general", "opening"],
+      "candidate_value_mae_at_most_stable_multiplier": 1.05,
+      "candidate_pair_accuracy_minimum_delta_from_stable": -0.005,
+      "candidate_decisive_pair_accuracy_minimum_delta_from_stable": -0.005
+    },
+    "known_regression": {
+      "bad_move": "P*8f",
+      "stable_good_move": "3a4b",
+      "fixed_depths": [11, 12],
+      "timed_budgets_ms": [800, 2000, 4000],
+      "runs_per_budget": 3,
+      "nonempty_usi_bestmove_grammar_required": true,
+      "one_failure_stops_later_receipts_and_formal_readiness": true,
+      "one_failure_stops_phase_one_evidence_readers": false
+    },
+    "production_parity": {
+      "exact_candidate_weight_required": true,
+      "production_worker_and_wasm_required": true,
+      "every_enrolled_budget_requires_legal_move": true,
+      "every_enrolled_budget_requires_in_budget_completion": true,
+      "console_errors_required": 0,
+      "runtime_errors_required": 0
+    }
+  },
+  "stored_result_validation": {
+    "all_receipts_reconstructed_from_registry_and_separately_verified_evidence": true,
+    "all_receipts_reconstructed_from_stored_metrics": false,
+    "branded_registry_bound_evidence_bundle_required": true,
+    "candidate_selection_authorization_consumed_by_evidence_bundle": true,
+    "cross_registry_evidence_bundle_issuance_rejected": true,
+    "cross_registry_evidence_bundle_rejected": true,
+    "stored_path_verified_true_synthesized": false,
+    "evaluation_evidence_identity_bound_in_each_receipt": true,
+    "measured_inputs_digest_bound_in_each_receipt": true,
+    "exact_typed_comparison": true,
+    "tampered_gate_text_rejected": true,
+    "tampered_weight_digest_rejected": true,
+    "tampered_metric_rejected": true,
+    "tampered_evidence_content_rejected": true,
+    "false_worker_path_verification_rejected": true,
+    "tampered_weight_authority_rejected": true,
+    "canonical_relative_receipt_path_required": true,
+    "parent_traversal_rejected": true,
+    "posix_absolute_receipt_path_rejected_on_every_host": true,
+    "blocked_registry_observation_rejected_before_enrollment_access": true
+  },
+  "validation": {
+    "focused_stdlib": {
+      "command": "python3 -m unittest ml.tests_stdlib.test_strength_first_downstream_gates",
+      "status": "PASS",
+      "tests": 41,
+      "elapsed_seconds_reported_by_unittest": 0.088
+    },
+    "python_compile": "PASS",
+    "registry_json": "PASS",
+    "diff_check": "PASS",
+    "full_suite": "NOT_RUN_SCOPED_LANE",
+    "independent_review": "SECOND_REREVIEW_FINDINGS_FIXED_FINAL_REREVIEW_PASS_P0_P1_P2_0",
+    "github_review_followup": "BLOCKED_REGISTRY_HOST_INDEPENDENT_ABSOLUTE_PATH_SINGLE_OBSERVATION_VALIDATION_AND_PORTABLE_COLON_PATH_FINDINGS_FIXED",
+    "github_copilot_review_remediation_revision": "4c1313859491f793584bf4935929c06a84b2129a",
+    "github_copilot_review_threads": [
+      {
+        "thread_id": "PRRT_kwDOQbO82s6SIKkg",
+        "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/528#discussion_r3611783540",
+        "state": "resolved"
+      },
+      {
+        "thread_id": "PRRT_kwDOQbO82s6SIKkk",
+        "reply_url": "https://github.com/gomyway1216/nextjs-portfolio/pull/528#discussion_r3611783542",
+        "state": "resolved"
+      }
+    ]
+  },
+  "observed_real_counts": {
+    "teacher_runs_started_by_this_lane": 0,
+    "three_seed_training_runs_started_by_this_lane": 0,
+    "candidate_selections": 0,
+    "holdout_evaluations": 0,
+    "downstream_receipts": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "production_weight_writes": 0,
+    "live_weight_changes": 0
+  },
+  "infrastructure": {
+    "execution": "local-tests-only",
+    "aws_used": false,
+    "gcp_or_firebase_used": false,
+    "vercel_used": false,
+    "network_used": false
+  },
+  "strength_claims": {
+    "direct_playing_strength_gain_from_this_change": 0,
+    "candidate_stronger_claimed": false,
+    "high_dan_calibrated_claimed": false,
+    "purpose": "reject-post-training-regressions-and-runtime-mismatch-before-formal-ab"
+  },
+  "claim_boundary": "validated-test-only-receipt-contracts-and-production-closed-stop-not-real-candidate-holdout-formal-ab-strength-or-live-evidence",
+  "blocking_dependency": "production-branded-candidate-selection-adapter-production-evidence-issuer-and-real-exact-enrollments",
+  "next_step": "connect-lane1-authorization-and-real-evidence-io-then-enroll-artifacts-and-run-five-gates-before-formal-ab"
+}

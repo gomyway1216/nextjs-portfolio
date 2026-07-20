@@ -111,8 +111,10 @@ compilation and the diff check also passed. No heavy selection run was started b
 checkpoints do not exist.
 
 The generator includes the same change as strength-first v9 proposal-rescue commit
-`a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe`. The PR must state that dependency and confirm a
-non-duplicated final diff before publication.
+`a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe`. That exact commit is also a second parent of a
+dependency merge in this branch. If this PR merges first, a later v9 PR shares the commit through
+Git ancestry instead of applying the patch to main again. The dependency order and final diff
+must still be rechecked before publication.
 
 Machine-readable record:
 [floodgate-strength-first-selection-teacher-runner-2026-07-20.json](./data/floodgate-strength-first-selection-teacher-runner-2026-07-20.json)

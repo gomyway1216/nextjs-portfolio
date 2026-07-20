@@ -112,7 +112,9 @@ TypeScript compileとdiff checkもPASSした。
 
 generator coreはstrength-first v9 proposal rescue commit
 `a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe`と同じ変更を先に取り込んでいる。
-publication前にv9側との依存順をPRへ明記し、重複しない最終diffを確認する。
+さらに、そのexact commit自体をdependency mergeの第2 parentとしてbranch historyへ含めた。
+このPRが先に通常mergeされれば、後続v9 PRは同じcommitをGit ancestryで共有し、同じpatchを
+もう一度mainへ加えない。publication前にv9側との依存順と最終diffを再確認する。
 
 機械可読記録:
 [floodgate-strength-first-selection-teacher-runner-2026-07-20.json](./data/floodgate-strength-first-selection-teacher-runner-2026-07-20.json)

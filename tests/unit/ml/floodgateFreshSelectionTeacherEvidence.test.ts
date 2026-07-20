@@ -159,6 +159,10 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
         strength_first_v9_proposal_rescue_source_commit:
           "a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe",
         same_change_present_in_local_cherry_pick: true,
+        exact_source_commit_present_in_branch_ancestry: true,
+        dependency_merge_commit:
+          "34c643cda934a262ceab06b5dc9cabcf6ff4d70f",
+        dependency_merge_tree_matches_premerge_head: true,
         dependency_must_be_declared_before_merge: true,
         nonduplicated_final_diff_must_be_confirmed: true,
       },

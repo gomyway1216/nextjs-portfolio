@@ -1,0 +1,121 @@
+{
+  "schema": "shogi-floodgate-strength-first-v8-milestone-100-evidence-v1",
+  "status": "real-formal-v8-milestone-100-complete-auto-continuing-no-strength-claim",
+  "event_date_local": "2026-07-19",
+  "publication_scope": "privacy-safe-aggregate-counts-timings-and-immutable-prefix-bindings-only",
+  "formal_run": {
+    "runner_revision": "400d3e33e8414cf071cbe3cc053e345bdc668ade",
+    "runner_schema": "shogi-floodgate-strength-first-teacher-runner-v2",
+    "milestone_schema": "shogi-floodgate-strength-first-teacher-milestone-v2",
+    "local_compute_only": true,
+    "runtime_cloud_services": [],
+    "launch": {
+      "local": "2026-07-19T22:59:48-07:00",
+      "utc": "2026-07-20T05:59:48Z"
+    },
+    "targets_in_order": [100, 500, 24000],
+    "automatic_continuation_without_operator_pause": true
+  },
+  "authenticated_input": {
+    "schema": "shogi-authenticated-floodgate-training-rows-v1",
+    "role": "training",
+    "parents": 24000,
+    "games": 1000,
+    "authentication_phase": {
+      "status": "complete-before-teacher-engines-started",
+      "elapsed_seconds_approx": 1225,
+      "ended_local_approx": "2026-07-19T23:20:13-07:00",
+      "ended_utc_approx": "2026-07-20T06:20:13Z"
+    }
+  },
+  "teacher_runtime_observation": {
+    "engine": "YaneuraOu",
+    "parallel_engines": 12,
+    "threads_per_engine": 1,
+    "hash_mib_per_engine": 512,
+    "configured_hash_total_mib": 6144,
+    "engines_started_local_approx": "2026-07-19T23:20:13-07:00",
+    "engines_started_utc_approx": "2026-07-20T06:20:13Z",
+    "aggregate_engine_rss_gib_peak_approx": 8.17,
+    "host_cpu_busy_percent_snapshot": 99.88,
+    "pages_throttled_observed": 0,
+    "power_source": "AC Power"
+  },
+  "milestone_100": {
+    "progress_emitted_local_approx": "2026-07-19T23:26:33-07:00",
+    "progress_emitted_utc_approx": "2026-07-20T06:26:33Z",
+    "elapsed_from_launch_seconds_approx": 1605,
+    "elapsed_from_engine_start_seconds_approx": 380,
+    "status": "local-work-prefix-complete-not-an-authentication-or-playing-strength-receipt",
+    "authentication_receipt": false,
+    "playing_strength_evidence": false,
+    "checkpoint": {
+      "schema": "shogi-floodgate-strength-first-teacher-milestone-v2",
+      "bytes": 2338,
+      "sha256": "a4442d8c12d459d1769ed86e4f44e3c0247ee1e66983609be151668e0fd556c5"
+    },
+    "canonical_prefix": {
+      "binding_scope": "canonical-target-prefix-projection",
+      "schema": "shogi-sibling-teacher-work-v2",
+      "bytes": 1362695,
+      "sha256": "80b5605869994692b38f50cb56482f77a9e2374a50aebfbe77e7a216509cfb85",
+      "jsonl_lines": 101,
+      "header_lines": 1,
+      "parent_groups": 100,
+      "unique_parent_ids_count": 100,
+      "child_record_groups": 1144,
+      "forced_parent_skips": 0,
+      "search_timeout_skips": 0,
+      "run_fingerprint": "7c6a2fadb362bd40a015f76df2849e71dff24650472999599f91b5f67dac9628"
+    }
+  },
+  "state_at_milestone_snapshot": {
+    "milestone_100_evidenced": true,
+    "milestone_500_evidenced_by_this_snapshot": false,
+    "final_24000_evidenced_by_this_snapshot": false,
+    "complete_teacher_dataset_evidenced": false,
+    "optimizer_runs": 0,
+    "candidate_selections": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "next_gates": [
+    "verified-milestone-500",
+    "complete-24000-parent-teacher-dataset",
+    "fixed-seed-42-43-44-retraining",
+    "candidate-selection",
+    "sealed-holdout-evaluation",
+    "formal-192-pair-384-game-ab",
+    "external-calibration",
+    "separately-authorized-live-promotion"
+  ],
+  "privacy": {
+    "raw_positions_published": false,
+    "raw_parent_ids_published": false,
+    "candidate_moves_published": false,
+    "absolute_private_paths_published": false,
+    "secrets_or_keys_published": false,
+    "canonical_101_line_prefix_digest_published": true,
+    "mutable_whole_work_file_digest_published": false,
+    "private_checkpoint_payload_published": false
+  },
+  "claims": {
+    "authentication_receipt": false,
+    "complete_teacher_dataset": false,
+    "training_completion": false,
+    "candidate_selection_completion": false,
+    "playing_strength_gain": false,
+    "stable_high_dan_strength": false,
+    "live_promotion": false
+  },
+  "validation_at_publication": {
+    "publication_evidence_tests": {
+      "status": "PASS",
+      "tests": 5
+    },
+    "scoped_eslint": "PASS",
+    "prettier": "PASS",
+    "git_diff_check": "PASS"
+  }
+}

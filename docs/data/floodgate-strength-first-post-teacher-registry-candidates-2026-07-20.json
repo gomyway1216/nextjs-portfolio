@@ -1,0 +1,207 @@
+{
+  "schema": "shogi-floodgate-strength-first-post-teacher-registry-candidates-evidence-v1",
+  "status": "implementation-validated-prerequisites-absent-production-stops-no-enrollment-or-live-change",
+  "recorded_date": "2026-07-20",
+  "base_revision": "919becefb1abef8bd452a8ec347558beda13f733",
+  "implementation_revision": "51d69d6377b03dd2efac2ebc5f5ad71dead57ce8",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-post-teacher-registry-candidates.md",
+    "english": "../blog-shogi-floodgate-strength-first-post-teacher-registry-candidates.en.md"
+  },
+  "scope": {
+    "manual_handoffs_removed": 2,
+    "teacher_generation_implemented_here": false,
+    "training_implemented_here": false,
+    "selection_evaluation_implemented_here": false,
+    "tracked_registry_write_implemented": false,
+    "candidate_output": "one-pretty-json-document-plus-lf-on-stdout-after-all-gates",
+    "candidate_becomes_authority_automatically": false,
+    "separate_data_only_review_ci_regular_merge_required": true
+  },
+  "preflight_registry_candidate_builder": {
+    "path": "ml/build_strength_first_selection_preflight_registry_candidate.py",
+    "command": "python3 ml/build_strength_first_selection_preflight_registry_candidate.py",
+    "argumentless": true,
+    "output_schema": "shogi-floodgate-strength-first-qat-selection-preflight-registry-v1",
+    "tracked_inputs_bound_to_exact_head": true,
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
+    "seeds": [42, 43, 44],
+    "result_files_required": 3,
+    "final_checkpoint_files_required": 3,
+    "shared_clean_training_revision_required": true,
+    "shared_runtime_required": true,
+    "existing_result_plan_and_contract_validation_reused": true,
+    "strict_checkpoint_loads_required": 3,
+    "canonical_regular_file_required": true,
+    "single_link_required": true,
+    "nofollow_descriptor_open": true,
+    "opened_descriptor_identity_checked_before_first_byte": true,
+    "open_time_substitution_bytes_read": 0,
+    "inputs_revalidated_before_return": true,
+    "ready_registry_idempotent_recomputation_only": true,
+    "selection_source_reads": 0,
+    "selection_label_reads": 0,
+    "final_holdout_reads": 0,
+    "live_weight_path_reads": 0,
+    "tracked_writes": 0
+  },
+  "evaluator_registry_candidate_builder": {
+    "path": "ml/build_strength_first_selection_evaluator_registry_candidate.py",
+    "command": "python3 ml/build_strength_first_selection_evaluator_registry_candidate.py",
+    "argumentless": true,
+    "output_schema": "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
+    "tracked_inputs_bound_to_exact_head": true,
+    "public_checkpoint_preflight_executed_before_private_reads": true,
+    "strict_loaded_seeds": [42, 43, 44],
+    "implementation_sources_recomputed": [
+      "ml/strength_first_qat_selection_evaluator.py",
+      "ml/strength_first_qat_selection_eval_adapter.py",
+      "ml/strength_first_qat_selection_preflight.py",
+      "ml/eval-sibling.py",
+      "ml/sibling_selection_protocol.py"
+    ],
+    "private_teacher_documents_required": [
+      "selection-teacher-authority",
+      "selection-teacher-manifest",
+      "selection-teacher-result"
+    ],
+    "large_artifacts_required": ["selection-dataset", "stable-checkpoint"],
+    "checkpoint_preflight_hash_excludes_trailing_lf": true,
+    "teacher_documents_cross_bound": true,
+    "selection_dataset_cross_bound": true,
+    "stable_checkpoint_cross_bound_to_authenticated_plan_warm_initializer": {
+      "exact_path": true,
+      "exact_bytes": true,
+      "exact_sha256": true,
+      "fixed_stable_schema": "shogi-int16-aware-stable-checkpoint-v1"
+    },
+    "canonical_regular_file_required": true,
+    "single_link_required": true,
+    "nofollow_descriptor_open": true,
+    "opened_descriptor_identity_checked_before_first_byte": true,
+    "open_time_substitution_bytes_read": 0,
+    "private_read_paths_match_exact_allowed_multiset": true,
+    "tracked_private_and_large_inputs_revalidated_before_stdout": true,
+    "ready_registry_idempotent_recomputation_only": true,
+    "fresh_selection_raw_source_reads": 0,
+    "selection_receipt_reads": 0,
+    "final_holdout_reads": 0,
+    "live_weight_path_reads": 0,
+    "final_holdout_read_authorized": false,
+    "production_weight_write_authorized": false,
+    "tracked_writes": 0
+  },
+  "observed_repository_state": {
+    "exact_training_plan_exists": false,
+    "preflight_registry_status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
+    "evaluator_registry_status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher"
+  },
+  "observed_production_cli": {
+    "revision": "51d69d6377b03dd2efac2ebc5f5ad71dead57ce8",
+    "preflight_registry_candidate": {
+      "exit_code": 1,
+      "stdout_bytes": 0,
+      "reason_category": "exact-training-plan-absent",
+      "candidates_emitted": 0,
+      "tracked_writes": 0,
+      "live_weight_changes": 0
+    },
+    "evaluator_registry_candidate": {
+      "exit_code": 1,
+      "stdout_bytes": 0,
+      "reason_category": "plan-and-three-final-identities-absent-public-preflight-closed",
+      "candidates_emitted": 0,
+      "private_selection_teacher_artifacts_read": false,
+      "tracked_writes": 0,
+      "live_weight_changes": 0
+    }
+  },
+  "validation": {
+    "builder_a_focused_stdlib": {
+      "status": "PASS",
+      "tests": 9
+    },
+    "builder_b_focused_stdlib": {
+      "status": "PASS",
+      "tests": 10
+    },
+    "builders_combined_stdlib": {
+      "status": "PASS",
+      "tests": 19,
+      "elapsed_seconds": 0.147
+    },
+    "related_pipeline_focused_stdlib": {
+      "status": "PASS",
+      "tests": 68,
+      "elapsed_seconds": 0.387
+    },
+    "full_ml_stdlib": {
+      "status": "PASS",
+      "tests": 312,
+      "elapsed_seconds": 21.658
+    },
+    "python_compile": "PASS",
+    "changed_file_ruff": "PASS",
+    "changed_file_black": "PASS",
+    "diff_check": "PASS",
+    "negative_coverage": {
+      "tracked_input_drift": true,
+      "checkpoint_strict_load_failure": true,
+      "mixed_training_revision": true,
+      "ready_registry_drift": true,
+      "symlink_or_noncanonical_file": true,
+      "hard_link_count_greater_than_one": true,
+      "open_time_path_substitution_before_any_byte_read": true,
+      "teacher_document_binding_mismatch": true,
+      "dataset_authority_cross_binding_drift": true,
+      "stable_checkpoint_warm_initializer_same_size_different_sha": true,
+      "stable_checkpoint_fingerprint_drift": true,
+      "final_holdout_or_live_access": true
+    }
+  },
+  "execution_environment": {
+    "local_mac_only": true,
+    "network_requests": 0,
+    "aws_requests": 0,
+    "firebase_gcp_requests": 0,
+    "vercel_requests": 0,
+    "cloud_compute_required": false
+  },
+  "persistent_training_worktree": {
+    "required": true,
+    "reason": "ml-runs-is-git-ignored-and-worktree-local",
+    "head_changes_during_training_allowed": false,
+    "git_clean_fdx_allowed": false,
+    "partial_seed_directory_policy": "stop-and-manually-inspect-without-delete-overwrite-or-rerun"
+  },
+  "production_counts_at_publication": {
+    "exact_training_plans_enrolled": 0,
+    "real_three_seed_training_processes_started": 0,
+    "real_training_results_enrolled": 0,
+    "real_fresh_selection_teacher_runs": 0,
+    "preflight_registry_candidates_emitted": 0,
+    "evaluator_registry_candidates_emitted": 0,
+    "candidate_selections": 0,
+    "final_holdout_evaluations": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "tracked_registry_writes": 0,
+    "live_weight_changes": 0
+  },
+  "privacy": {
+    "private_absolute_paths_published": false,
+    "private_position_identifiers_published": false,
+    "private_file_digests_published": false,
+    "aggregate_only": true
+  },
+  "next_steps": [
+    "complete-and-verify-the-upstream-teacher",
+    "build-review-ci-and-regular-merge-the-exact-plan-in-a-separate-data-only-pr",
+    "run-three-seed-training-in-one-persistent-worktree",
+    "build-review-ci-and-regular-merge-the-preflight-registry-candidate",
+    "run-the-local-fresh-selection-teacher",
+    "build-review-ci-and-regular-merge-the-evaluator-registry-candidate",
+    "run-selection-then-sealed-final-regression-parity-formal-ab-and-external-calibration"
+  ],
+  "claim_boundary": "two-stdout-only-registry-candidate-builders-and-synthetic-validation-plus-observed-prerequisite-stops-only-not-teacher-completion-training-candidate-selection-final-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence"
+}

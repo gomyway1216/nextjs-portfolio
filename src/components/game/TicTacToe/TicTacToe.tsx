@@ -182,6 +182,7 @@ const TicTacToe = () => {
           onStart={startGame}
           difficultyTitle={copy.selectDifficulty}
           startLabel={copy.start}
+          kickerLabel={copy.gameSetup}
           extraContent={firstMoveToggle}
         />
       ) : (
@@ -201,7 +202,7 @@ const TicTacToe = () => {
               const isWin = winningLine?.includes(index);
               const playable = isPlayerTurn && cell === null && gameStatus === 'playing';
               const label =
-                cell === 'X' ? copy.youAre : cell === 'O' ? copy.aiIs : `${copy.yourTurn} ${index + 1}`;
+                cell === 'X' ? copy.youAre : cell === 'O' ? copy.aiIs : copy.cellLabel(index + 1);
               return (
                 <button
                   key={index}

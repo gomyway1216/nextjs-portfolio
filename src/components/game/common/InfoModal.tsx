@@ -4,11 +4,14 @@
 
 import { useEffect, useId, useState } from 'react';
 import { X as XIcon } from 'lucide-react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getUITranslation } from '../constants/gameTranslations';
 
 interface InfoModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  closeLabel?: string;
   children: React.ReactNode;
 }
 
@@ -16,9 +19,11 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   isOpen,
   onClose,
   title,
+  closeLabel,
   children
 }) => {
   const titleId = useId();
+  const { language } = useGameLanguage();
   const [isCloseHovered, setIsCloseHovered] = useState(false);
 
   useEffect(() => {
@@ -74,7 +79,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close dialog"
+          aria-label={closeLabel ?? getUITranslation(language).closeDialog}
           style={{
             position: 'absolute',
             top: '0.875rem',

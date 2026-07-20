@@ -9,6 +9,7 @@ import type { Difficulty } from '../common/types';
 export interface GomokuStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
   yourTurn: string;
@@ -42,6 +43,7 @@ export interface GomokuStrings {
 const en: GomokuStrings = {
   title: 'Gomoku',
   subtitle: 'Five in a Row — outsmart the AI on a 15×15 board.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Select Difficulty',
   start: 'Start Game',
   yourTurn: 'Your Turn',
@@ -87,6 +89,7 @@ const en: GomokuStrings = {
 const ja: GomokuStrings = {
   title: '五目並べ',
   subtitle: '15×15の盤面でAIと五目並べ。先に5つ並べよう。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '難易度を選択',
   start: 'ゲーム開始',
   yourTurn: 'あなたの番',

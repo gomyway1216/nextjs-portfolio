@@ -11,6 +11,8 @@ import { RotateCcw } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
 import startShellStyles from '../common/GameStartShell.module.css';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getShogiImprovedCopy } from './i18n';
 import { ShogiPiece } from '../Shogi/ShogiPiece';
 import { ShogiTypefaceSelector } from '../Shogi/ShogiTypefaceSelector';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
@@ -27,13 +29,8 @@ import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiSearchPath,
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
 
-const DIFFICULTY_OPTIONS = [
-  { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms)' },
-  { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~1s)' },
-  { label: 'Level 3 (Hard)', value: 'hard' as Difficulty, description: 'Strong (~2s)' },
-  { label: 'Level 4 (Expert)', value: 'expert' as Difficulty, description: 'Very strong (~4s)' },
-  { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~5s)' },
-];
+const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
 
 // Handicap games (駒落ち). The AI is the 上手 (handicap giver) on the Gote side,
 // so its pieces are the ones removed. Per shogi rules the 上手 always moves first,
@@ -268,6 +265,13 @@ function replayButtonStyle(disabled: boolean): React.CSSProperties {
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
   const { currentUser } = useAuth();
+  const { language } = useGameLanguage();
+  const copy = getShogiImprovedCopy(language);
+  const difficultyOptions = DIFFICULTY_ORDER.map((value) => ({
+    value,
+    label: copy.difficulties[value].label,
+    description: copy.difficulties[value].description,
+  }));
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
@@ -1152,14 +1156,15 @@ const ShogiImproved = () => {
     return (
       <div className={startShellStyles.shell}>
         <DifficultySelector
-          title="Shogi Improved"
-          subtitle="Fast-engine Japanese chess with worker search, saved games, and stronger opening play."
+          title={copy.title}
+          subtitle={copy.subtitle}
           icon="☗"
           selectedDifficulty={difficulty}
           onSelectDifficulty={setDifficulty}
-          options={DIFFICULTY_OPTIONS}
-          difficultyTitle="Choose engine strength"
-          startLabel="Start Game"
+          options={difficultyOptions}
+          difficultyTitle={copy.chooseStrength}
+          startLabel={copy.start}
+          kickerLabel={copy.gameSetup}
           onStart={startGame}
           extraContent={
             <>
@@ -1213,11 +1218,13 @@ const ShogiImproved = () => {
                     cursor: 'pointer',
                   }}
                 >
-                  Resume saved game (move {savedGame.ply}, {savedGame.difficulty}
-                  {savedGame.handicap && savedGame.handicap !== 'none'
-                    ? `, ${HANDICAP_OPTIONS.find((o) => o.value === savedGame.handicap)?.label}`
-                    : ''}
-                  )
+                  {copy.resumeSavedGame(
+                    savedGame.ply,
+                    copy.difficulties[savedGame.difficulty]?.label ?? savedGame.difficulty,
+                    savedGame.handicap && savedGame.handicap !== 'none'
+                      ? HANDICAP_OPTIONS.find((o) => o.value === savedGame.handicap)?.label ?? ''
+                      : ''
+                  )}
                 </button>
               ) : null}
             </>
@@ -1260,7 +1267,7 @@ const ShogiImproved = () => {
               <button
                 onClick={handleSaveGame}
                 disabled={!canSaveGame || saveStatus === 'saving'}
-                title={canSaveGame ? 'Save and continue later' : 'Saving is available on your turn'}
+                title={canSaveGame ? copy.saveTitleEnabled : copy.saveTitleDisabled}
                 style={{
                   padding: '6px 14px',
                   borderRadius: '6px',
@@ -1276,7 +1283,7 @@ const ShogiImproved = () => {
                   minWidth: '104px',
                 }}
               >
-                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Save failed' : 'Save game'}
+                {saveStatus === 'saving' ? copy.saving : saveStatus === 'saved' ? copy.saved : saveStatus === 'error' ? copy.saveFailed : copy.saveGame}
               </button>
             )}
           </div>
@@ -1429,7 +1436,7 @@ const ShogiImproved = () => {
         </div>
         {/* Gote Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
-          <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>
+          <h3 style={{ marginBottom: '10px' }}>{copy.aiPieces}</h3>
           <div
             style={{
               display: 'flex',
@@ -1585,7 +1592,7 @@ const ShogiImproved = () => {
 
         {/* Sente Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
-          <h3 style={{ marginBottom: '10px' }}>Your Pieces (先手)</h3>
+          <h3 style={{ marginBottom: '10px' }}>{copy.yourPieces}</h3>
           <div
             style={{
               display: 'flex',
@@ -1812,10 +1819,10 @@ const ShogiImproved = () => {
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <h2 style={{ fontSize: '2rem', marginBottom: '20px' }}>
             {engineFailed
-              ? 'AI engine unavailable'
+              ? copy.engineUnavailable
               : gameState.winner === SENTE
-                ? '🎉 You Win!'
-                : '😔 AI Wins!'}
+                ? copy.youWin
+                : copy.aiWins}
           </h2>
           <button
             data-testid={engineFailed ? 'shogi-engine-retry' : undefined}
@@ -1834,7 +1841,7 @@ const ShogiImproved = () => {
             }}
           >
             <RotateCcw size={20} />
-            {engineFailed ? 'Retry Game' : 'Play Again'}
+            {engineFailed ? copy.retryGame : copy.playAgain}
           </button>
         </div>
       )}
@@ -1860,7 +1867,7 @@ const ShogiImproved = () => {
               textAlign: 'center',
             }}
           >
-            <h3 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>Promote Piece?</h3>
+            <h3 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>{copy.promoteTitle}</h3>
             <div style={{ display: 'flex', gap: '20px' }}>
               <button
                 onClick={() => pendingMove && executeMove(pendingMove, true)}
@@ -1874,7 +1881,7 @@ const ShogiImproved = () => {
                   fontSize: '1rem',
                 }}
               >
-                Promote
+                {copy.promote}
               </button>
               <button
                 onClick={() => pendingMove && executeMove(pendingMove, false)}
@@ -1888,7 +1895,7 @@ const ShogiImproved = () => {
                   fontSize: '1rem',
                 }}
               >
-                Keep Original
+                {copy.keepOriginal}
               </button>
             </div>
           </div>
@@ -1896,28 +1903,26 @@ const ShogiImproved = () => {
       )}
 
       {/* Info Modal */}
-      <InfoModal isOpen={showInfoModal} onClose={() => setShowInfoModal(false)} title="How to Play Shogi">
+      <InfoModal isOpen={showInfoModal} onClose={() => setShowInfoModal(false)} title={copy.howToPlayTitle}>
         <div style={{ lineHeight: '1.6' }}>
           <p>
-            <strong>Objective:</strong> Capture the opponent&apos;s King (王/玉)
+            <strong>{copy.objectiveLabel}</strong> {copy.objectiveBody}
           </p>
           <p>
-            <strong>Basic Rules:</strong>
+            <strong>{copy.basicRulesLabel}</strong>
           </p>
           <ul>
-            <li>Each piece has unique movement patterns</li>
-            <li>Pieces can be promoted when entering or within enemy territory (top 3 rows)</li>
-            <li>Captured pieces can be dropped back on the board as your own</li>
-            <li>Cannot drop pawns for checkmate or have two unpromoted pawns in same column</li>
+            {copy.basicRules.map((rule, i) => (
+              <li key={i}>{rule}</li>
+            ))}
           </ul>
           <p>
-            <strong>Controls:</strong>
+            <strong>{copy.controlsLabel}</strong>
           </p>
           <ul>
-            <li>Click a piece to select it</li>
-            <li>Click a highlighted square to move</li>
-            <li>Click captured pieces to drop them</li>
-            <li>Choose to promote when entering promotion zone</li>
+            {copy.controls.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
           </ul>
         </div>
       </InfoModal>

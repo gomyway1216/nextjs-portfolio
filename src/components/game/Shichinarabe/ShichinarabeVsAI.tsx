@@ -87,8 +87,8 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
   }, [draggingCardId, myHand]);
 
   const canPlaySelected = useMemo(() => {
-    if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
-    if (!selectedCardId) return { ok: false, error: 'Select a card' };
+    if (!gameState || !isMyTurn) return { ok: false, error: t.notYourTurn };
+    if (!selectedCardId) return { ok: false, error: t.selectCardFirst };
     const probe: ShichinarabeAction = {
       actionId: 'probe',
       type: 'play',
@@ -98,7 +98,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
     };
     const result = applyAction(gameState, probe);
     return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
-  }, [gameState, humanId, isMyTurn, selectedCardId]);
+  }, [gameState, humanId, isMyTurn, selectedCardId, t]);
 
   const playerSummaries = useMemo(() => {
     if (!gameState) return [];
@@ -135,7 +135,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
     const clampedAI = Math.max(2, Math.min(5, aiCount));
     const totalPlayers = clampedAI + 1;
     if (totalPlayers < 3 || totalPlayers > 6) {
-      setLocalError('Total players must be between 3 and 6.');
+      setLocalError(t.playerCountError);
       return;
     }
 

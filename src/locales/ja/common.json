@@ -814,6 +814,11 @@
           "players": "人",
           "you": "あなた"
         },
+        "errors": {
+          "notYourTurn": "あなたの番ではありません",
+          "selectCards": "カードを選んでください",
+          "playerCount": "合計人数は3〜6人にしてください。"
+        },
         "menu": {
           "chooseMode": "モードを選んでプレイ開始",
           "vsAIMode": "AI対戦 (3〜6人)",

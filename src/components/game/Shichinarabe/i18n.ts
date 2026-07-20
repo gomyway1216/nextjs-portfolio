@@ -40,6 +40,9 @@ export interface ShichinarabeStrings {
   you: string;
   noLegalMove: string;
   legalHint: string;
+  notYourTurn: string;
+  selectCardFirst: string;
+  playerCountError: string;
   aiThinking: (name: string) => string;
   // Log verbs
   logPlayed: (name: string, card: string) => string;
@@ -102,6 +105,9 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     you: 'You',
     noLegalMove: 'No legal move — you must pass',
     legalHint: 'Green cards are legal to play',
+    notYourTurn: 'Not your turn',
+    selectCardFirst: 'Select a card',
+    playerCountError: 'Total players must be between 3 and 6.',
     aiThinking: (name) => `${name} is thinking…`,
     logPlayed: (name, card) => `${name} played ${card}`,
     logPassed: (name, used, max) => `${name} passed (${used}/${max})`,
@@ -172,6 +178,9 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     you: 'あなた',
     noLegalMove: '出せるカードがありません。パスしてください',
     legalHint: '緑のカードが出せます',
+    notYourTurn: 'あなたの番ではありません',
+    selectCardFirst: 'カードを選んでください',
+    playerCountError: '合計人数は3〜6人にしてください。',
     aiThinking: (name) => `${name} が考えています…`,
     logPlayed: (name, card) => `${name} が ${card} を出しました`,
     logPassed: (name, used, max) => `${name} がパス（${used}/${max}）`,

@@ -9,6 +9,7 @@ import type { Difficulty } from '../common/types';
 export interface MemoryMazeStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
   restart: string;
@@ -48,6 +49,7 @@ export interface MemoryMazeStrings {
 const en: MemoryMazeStrings = {
   title: 'Memory Maze',
   subtitle: 'Memorize the maze while it flashes, then navigate to the goal from memory.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Select Difficulty',
   start: 'Start',
   restart: 'Restart',
@@ -93,6 +95,7 @@ const en: MemoryMazeStrings = {
 const ja: MemoryMazeStrings = {
   title: 'メモリーメイズ',
   subtitle: '一瞬だけ表示される迷路を記憶し、暗闇の中で記憶を頼りにゴールを目指す。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '難易度を選択',
   start: 'スタート',
   restart: 'リスタート',

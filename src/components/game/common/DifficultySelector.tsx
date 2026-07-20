@@ -18,6 +18,8 @@ interface DifficultySelectorProps {
   onStart: () => void;
   difficultyTitle?: string;
   startLabel?: string;
+  kickerLabel?: string;
+  setupAriaLabel?: string;
   setupContent?: ReactNode;
   summaryContent?: ReactNode;
   extraContent?: ReactNode;
@@ -33,12 +35,14 @@ export const DifficultySelector: FC<DifficultySelectorProps> = ({
   onStart,
   difficultyTitle = 'Select Difficulty',
   startLabel = 'Start Game',
+  kickerLabel = 'Game setup',
+  setupAriaLabel,
   setupContent,
   summaryContent,
   extraContent
 }) => {
   return (
-    <section className={styles.selector} aria-label={`${title} setup`}>
+    <section className={styles.selector} aria-label={setupAriaLabel ?? `${title} — ${kickerLabel}`}>
       <div className={styles.header}>
         {icon && <div className={styles.iconSlot}>{icon}</div>}
         <div>
@@ -55,7 +59,7 @@ export const DifficultySelector: FC<DifficultySelectorProps> = ({
       {setupContent && <div className={styles.setupContent}>{setupContent}</div>}
 
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionKicker}>Game setup</span>
+        <span className={styles.sectionKicker}>{kickerLabel}</span>
         <h2 className={styles.sectionTitle}>{difficultyTitle}</h2>
       </div>
 

@@ -821,6 +821,11 @@
           "players": "players",
           "you": "You"
         },
+        "errors": {
+          "notYourTurn": "Not your turn",
+          "selectCards": "Select cards",
+          "playerCount": "Total players must be between 3 and 6."
+        },
         "menu": {
           "chooseMode": "Choose a mode to start playing.",
           "vsAIMode": "Play vs AI (3–6 players)",

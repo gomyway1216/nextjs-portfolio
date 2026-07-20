@@ -9,6 +9,7 @@ import type { Difficulty, DifficultyOption } from '../common';
 export interface MirrorOthelloStrings {
   title: string;
   subtitle: string;
+  gameSetup: string;
   selectDifficulty: string;
   start: string;
   restart: string;
@@ -36,6 +37,7 @@ export interface MirrorOthelloStrings {
 const en: MirrorOthelloStrings = {
   title: 'Mirror Othello',
   subtitle: 'Othello where the board flips left-right every 4 moves — corner plans keep collapsing.',
+  gameSetup: 'Game setup',
   selectDifficulty: 'Select difficulty',
   start: 'Start Game',
   restart: 'Restart',
@@ -75,6 +77,7 @@ const en: MirrorOthelloStrings = {
 const ja: MirrorOthelloStrings = {
   title: 'ミラーオセロ',
   subtitle: '4手ごとに盤面が左右反転するオセロ。角取り戦略が突然崩れる。',
+  gameSetup: 'ゲーム設定',
   selectDifficulty: '難易度を選択',
   start: 'ゲーム開始',
   restart: 'リスタート',

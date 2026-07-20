@@ -175,7 +175,7 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
                 className={cls}
                 onClick={() => (phase === 'pick' ? pick(i) : isSwitchCandidate ? chooseSwitchDoor(i) : undefined)}
                 disabled={!clickable}
-                aria-label={`${t.doorLabel(i + 1)}${picked ? ' (picked)' : ''}${
+                aria-label={`${t.doorLabel(i + 1)}${picked ? t.pickedSuffix : ''}${
                   state === 'prize' ? ' 🎁' : state === 'goat' ? ' 🐐' : ''
                 }`}
                 style={isSwitchCandidate ? { borderColor: '#22c55e', boxShadow: '0 0 0 3px rgba(34,197,94,0.35)' } : undefined}

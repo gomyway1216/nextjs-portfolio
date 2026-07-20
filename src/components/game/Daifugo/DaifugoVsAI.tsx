@@ -117,7 +117,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const isJa = (translate('games.daifugo.title') || '').match(/[぀-ヿ一-鿿]/) !== null
     || (typeof window !== 'undefined' && (document?.documentElement?.lang ?? '').startsWith('ja'));
 
-  const [playerName, setPlayerName] = useState('You');
+  const [playerName, setPlayerName] = useState('');
   const [aiCount, setAiCount] = useState<number>(2); // total players = aiCount + 1 (min 3, max 6)
   const [difficulty, setDifficulty] = useState<DaifugoDifficulty>('medium');
 
@@ -163,8 +163,8 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const selectedShape = useMemo(() => getPlayShape(selectedCards), [selectedCards]);
 
   const canPlaySelected = useMemo(() => {
-    if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
-    if (!selectedShape) return { ok: false, error: 'Select cards' };
+    if (!gameState || !isMyTurn) return { ok: false, error: translate('games.daifugo.ui.errors.notYourTurn') };
+    if (!selectedShape) return { ok: false, error: translate('games.daifugo.ui.errors.selectCards') };
     const probe: DaifugoAction = {
       actionId: 'probe',
       type: 'play',
@@ -174,7 +174,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     };
     const result = applyAction(gameState, probe);
     return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
-  }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, humanId]);
+  }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, humanId, translate]);
 
   const playerSummaries = useMemo(() => {
     if (!gameState) return [];
@@ -308,11 +308,11 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     const clampedAI = Math.max(2, Math.min(5, aiCount));
     const totalPlayers = clampedAI + 1;
     if (totalPlayers < 3 || totalPlayers > 6) {
-      setLocalError('Total players must be between 3 and 6.');
+      setLocalError(translate('games.daifugo.ui.errors.playerCount'));
       return;
     }
 
-    const trimmedName = playerName.trim() || 'You';
+    const trimmedName = playerName.trim() || d.you;
     const aiIds = Array.from({ length: clampedAI }, (_, i) => createLocalId(`ai${i + 1}`));
     const playerOrder = [humanId, ...aiIds];
 

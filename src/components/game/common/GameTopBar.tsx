@@ -38,7 +38,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         <div className={styles.statsPill} aria-label={statsLabel} title={statsLabel}>
           <Trophy className={styles.statsIcon} />
           <span className={styles.statsText}>
-            {stats.wins}W - {stats.losses}L - {stats.draws}D
+            {stats.wins}{ui.winShort} - {stats.losses}{ui.lossShort} - {stats.draws}{ui.drawShort}
           </span>
         </div>
       ),
@@ -55,7 +55,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
       )
     });
     return () => setContent(null);
-  }, [stats, statsLabel, onInfoClick, additionalContent, setContent, ui.howToPlay]);
+  }, [stats, statsLabel, onInfoClick, additionalContent, setContent, ui.howToPlay, ui.winShort, ui.lossShort, ui.drawShort]);
 
   return null;
 };

@@ -1,0 +1,62 @@
+{
+  "schema": "shogi-floodgate-strength-first-downstream-gates-registry-v1",
+  "status": "awaiting-branded-candidate-selection-and-exact-downstream-inputs",
+  "protocol": {
+    "base_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
+      "bytes": 10890,
+      "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
+      "schema": "shogi-floodgate-fresh-sibling-plan-v1"
+    },
+    "strength_first_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-teacher-amendment.json",
+      "bytes": 5123,
+      "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e",
+      "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
+    }
+  },
+  "enrollments": {
+    "candidate_selection_receipt": null,
+    "candidate_checkpoint": null,
+    "stable_checkpoint": null,
+    "candidate_weights": null,
+    "stable_weights": null,
+    "fresh_final_holdout": null,
+    "legacy_final_holdout": null,
+    "general_retention": null,
+    "opening_retention": null,
+    "known_regression_fixture": null,
+    "production_worker": null,
+    "production_wasm": null,
+    "browser_time_budgets_ms": null
+  },
+  "gates": {
+    "candidate_selection_receipt_enrolled": false,
+    "candidate_selection_authorization_adapter_pinned": false,
+    "exact_downstream_inputs_enrolled": false,
+    "final_holdout_label_read_authorized": false,
+    "downstream_evaluation_authorized": false,
+    "all_downstream_receipts_verified": false,
+    "formal_ab_enrollment_ready": false,
+    "production_weight_write_authorized": false
+  },
+  "boundary": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "vercel": false,
+    "external_calibration": false,
+    "live_weight_write": false
+  },
+  "nonclaims": {
+    "candidate_selected": false,
+    "final_holdout_label_reads": 0,
+    "downstream_receipts_emitted": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_weights_changed": false
+  }
+}

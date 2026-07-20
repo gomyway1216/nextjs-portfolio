@@ -26,6 +26,7 @@ import {
   type FloodgateTrainingInputBinding,
   type FloodgateTrainingParent,
 } from './floodgate-training-row-consumer';
+import type { FloodgateFreshSelectionRawIdentity } from './floodgate-training-row-validation';
 import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from './floodgate-role-bundle';
 import { floodgateIdentifierDigest } from './floodgate-roles';
 import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from './shogi-sfen';
@@ -60,6 +61,14 @@ export const STRENGTH_FIRST_PARENT_COMPLETION_FORMAT =
   'shogi-floodgate-fresh-qat-parent-completion-jsonl-v2' as const;
 export const STRENGTH_FIRST_TRAIN_FORMAT =
   'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+export const FRESH_SELECTION_TEACHER_INPUT_SCHEMA =
+  'shogi-authenticated-floodgate-fresh-selection-rows-v1' as const;
+export const FRESH_SELECTION_TEACHER_DATASET_SCHEMA =
+  'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
+export const FRESH_SELECTION_TEACHER_GAME_COUNT = 200 as const;
+export const FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE =
+  'typed-incomplete-then-all-legal-single-move-proposals-v1' as const;
 export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR = 1_000 as const;
@@ -112,6 +121,7 @@ type RawParentOccurrence = FloodgateTrainingParent;
 export const SIBLING_TEACHER_STAGE_FILENAMES = Object.freeze({
   train: 'train.jsonl',
   val: 'val.jsonl',
+  selection: 'selection.jsonl',
   manifest: 'manifest.json',
   work: 'work.jsonl',
   parentCompletion: 'parent-completion.jsonl',
@@ -122,6 +132,7 @@ export interface SiblingTeacherStagePaths {
   readonly root: string;
   readonly train: string;
   readonly val: string;
+  readonly selection: string;
   readonly manifest: string;
   readonly work: string;
   readonly parentCompletion: string;
@@ -134,6 +145,7 @@ export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTea
     root,
     train: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.train),
     val: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.val),
+    selection: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.selection),
     manifest: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.manifest),
     work: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.work),
     parentCompletion: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.parentCompletion),
@@ -153,6 +165,7 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   depth?: number;
   proposalNodes?: number;
   proposalDepth?: number;
+  proposalIncompleteAllLegalFallbackMaxMoves?: number;
   engines?: number;
   seed?: string | number;
   valRatio?: number;
@@ -160,6 +173,13 @@ export interface StageSiblingTeacherCoreForTestsOptions {
   hashMb?: number;
   timeoutMs?: number;
   testOnlyInitializationTimeoutMs?: number;
+}
+
+export interface AuthenticatedFloodgateFreshSelectionRows {
+  readonly schema: typeof FRESH_SELECTION_TEACHER_INPUT_SCHEMA;
+  readonly role: 'fresh_selection';
+  readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
+  readonly rows: readonly Readonly<FloodgateTrainingParent>[];
 }
 
 interface NormalizedOptions {
@@ -172,11 +192,13 @@ interface NormalizedOptions {
   multipv: number;
   limit: UsiSearchLimit;
   proposalLimit: UsiSearchLimit;
+  proposalIncompleteAllLegalFallbackMaxMoves?: number;
   engines: number;
   seed: string;
   valRatio: number;
   outTrain: string;
   outVal: string;
+  outSelection: string;
   manifest: string;
   work: string;
   parentCompletion: string;
@@ -223,6 +245,21 @@ interface IndependentExactSearchMetadata {
   total_observed_nodes: number;
 }
 
+interface AllLegalProposalFallbackMetadata {
+  readonly mode: typeof FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE;
+  readonly trigger: Readonly<{
+    readonly requested_multipv: number;
+    readonly requested_limit: { depth: number };
+    readonly final_exact_ranks: number;
+    readonly final_cp_ranks: number;
+    readonly final_mate_ranks: number;
+    readonly missing_or_non_exact_ranks: number;
+  }>;
+  readonly legal_moves: readonly string[];
+  readonly searches: readonly SearchMetadata[];
+  readonly synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move';
+}
+
 export interface WorkHeader {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
   kind: 'header';
@@ -242,6 +279,7 @@ export interface CompletedWorkEntry {
   candidate_set_sha256: string;
   candidate_moves: string[];
   initial_search: SearchMetadata;
+  proposal_fallback?: AllLegalProposalFallbackMetadata;
   exact_search: IndependentExactSearchMetadata;
   records: SiblingRecord[];
 }
@@ -526,7 +564,11 @@ export type StrengthFirstSiblingTeacherAdvance =
 
 export interface StrengthFirstSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'engines' | 'seed' | 'testOnlyInitializationTimeoutMs' | 'valRatio'
+  | 'engines'
+  | 'proposalIncompleteAllLegalFallbackMaxMoves'
+  | 'seed'
+  | 'testOnlyInitializationTimeoutMs'
+  | 'valRatio'
 > {
   readonly targetParents: StrengthFirstProductionParentTarget;
 }
@@ -574,7 +616,12 @@ function canonicalJson(value: unknown): string {
 }
 
 export interface SiblingTeacherRunFingerprintInput {
-  readonly authenticated_training_binding: Readonly<FloodgateTrainingInputBinding>;
+  readonly authenticated_training_binding?: Readonly<FloodgateTrainingInputBinding>;
+  readonly authenticated_fresh_selection_binding?: Readonly<{
+    readonly schema: typeof FRESH_SELECTION_TEACHER_INPUT_SCHEMA;
+    readonly role: 'fresh_selection';
+    readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
+  }>;
   readonly source_raw_sha256: string;
   readonly selected_parent_ids_sha256: string;
   readonly pipeline: Readonly<PipelineProvenance>;
@@ -587,6 +634,7 @@ export interface SiblingTeacherRunFingerprintInput {
   readonly multipv: number;
   readonly limit: UsiSearchLimit;
   readonly proposal_limit?: UsiSearchLimit;
+  readonly proposal_incomplete_all_legal_fallback_max_moves?: number;
   readonly engine_environment?: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
   readonly parallel_engines: number;
   readonly fv_scale: number;
@@ -603,10 +651,26 @@ export interface SiblingTeacherRunFingerprintInput {
 export function siblingTeacherRunFingerprint(
   input: Readonly<SiblingTeacherRunFingerprintInput>
 ): string {
+  if (
+    (input.authenticated_training_binding === undefined) ===
+    (input.authenticated_fresh_selection_binding === undefined)
+  ) {
+    throw new Error(
+      'sibling teacher fingerprint requires exactly one authenticated role binding'
+    );
+  }
   return sha256(
     canonicalJson({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
-      authenticated_training_binding: input.authenticated_training_binding,
+      ...(input.authenticated_training_binding === undefined
+        ? {
+            authenticated_fresh_selection_binding:
+              input.authenticated_fresh_selection_binding,
+          }
+        : {
+            authenticated_training_binding:
+              input.authenticated_training_binding,
+          }),
       source_raw_sha256: input.source_raw_sha256,
       selected_parent_ids_sha256: input.selected_parent_ids_sha256,
       label_policy: SIBLING_TEACHER_LABEL_POLICY,
@@ -625,6 +689,14 @@ export function siblingTeacherRunFingerprint(
             proposal_limit: input.proposal_limit,
             proposal_incomplete_quarantine_policy:
               PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+          }),
+      ...(input.proposal_incomplete_all_legal_fallback_max_moves === undefined
+        ? {}
+        : {
+            proposal_incomplete_all_legal_fallback_max_moves:
+              input.proposal_incomplete_all_legal_fallback_max_moves,
+            proposal_incomplete_all_legal_fallback_mode:
+              FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
           }),
       exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
       candidate_execution_order: 'utf8-bytewise-ascending',
@@ -800,6 +872,13 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
           ),
         }
       : limit;
+  const proposalIncompleteAllLegalFallbackMaxMoves =
+    options.proposalIncompleteAllLegalFallbackMaxMoves === undefined
+      ? undefined
+      : positiveInteger(
+          options.proposalIncompleteAllLegalFallbackMaxMoves,
+          'proposalIncompleteAllLegalFallbackMaxMoves'
+        );
   const valRatio = options.valRatio ?? 0.1;
   if (!(valRatio > 0 && valRatio < 1)) {
     throw new Error(`valRatio must be between 0 and 1 (got ${valRatio})`);
@@ -814,11 +893,15 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
     limit,
     proposalLimit,
+    ...(proposalIncompleteAllLegalFallbackMaxMoves === undefined
+      ? {}
+      : { proposalIncompleteAllLegalFallbackMaxMoves }),
     engines: positiveInteger(options.engines ?? 1, 'engines'),
     seed: String(options.seed ?? '42'),
     valRatio,
     outTrain: stage.train,
     outVal: stage.val,
+    outSelection: stage.selection,
     manifest: stage.manifest,
     work: stage.work,
     parentCompletion: stage.parentCompletion,
@@ -841,6 +924,7 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   const outputPaths = [
     normalized.outTrain,
     normalized.outVal,
+    normalized.outSelection,
     normalized.manifest,
     normalized.work,
     normalized.parentCompletion,
@@ -848,7 +932,7 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   ];
   if (new Set(outputPaths).size !== outputPaths.length) {
     throw new Error(
-      'train, val, manifest, work, parent-completion, and result output paths must all be different'
+      'train, val, selection, manifest, work, parent-completion, and result output paths must all be different'
     );
   }
   const inputPaths = [normalized.engineBin, normalized.engineReceipt];
@@ -885,14 +969,25 @@ function validateRawParent(value: unknown, line: number): RawParentOccurrence {
   };
 }
 
-interface CapturedTeacherInput {
+interface CapturedTrainingTeacherInput {
+  readonly role: 'training';
   readonly binding: Readonly<FloodgateTrainingInputBinding>;
   readonly parents: readonly RawParentOccurrence[];
 }
 
-function captureAuthenticatedTeacherInput(
+interface CapturedFreshSelectionTeacherInput {
+  readonly role: 'fresh_selection';
+  readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
+  readonly parents: readonly RawParentOccurrence[];
+}
+
+type CapturedTeacherInput =
+  | CapturedTrainingTeacherInput
+  | CapturedFreshSelectionTeacherInput;
+
+function captureAuthenticatedTrainingTeacherInput(
   input: Readonly<AuthenticatedFloodgateTrainingRows>
-): Readonly<CapturedTeacherInput> {
+): Readonly<CapturedTrainingTeacherInput> {
   if (!input || typeof input !== 'object') {
     throw new Error('authenticated training input must be an object');
   }
@@ -981,7 +1076,115 @@ function captureAuthenticatedTeacherInput(
   ) {
     throw new Error('authenticated training rows do not match their aggregate binding');
   }
-  return Object.freeze({ binding, parents: Object.freeze(parents) });
+  return Object.freeze({
+    role: 'training',
+    binding,
+    parents: Object.freeze(parents),
+  });
+}
+
+function captureAuthenticatedFreshSelectionTeacherInput(
+  input: Readonly<AuthenticatedFloodgateFreshSelectionRows>
+): Readonly<CapturedFreshSelectionTeacherInput> {
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    input.schema !== FRESH_SELECTION_TEACHER_INPUT_SCHEMA ||
+    input.role !== 'fresh_selection' ||
+    !input.source ||
+    typeof input.source !== 'object'
+  ) {
+    throw new Error('authenticated fresh-selection input is invalid');
+  }
+  const source = input.source;
+  const positiveIntegerField = (value: unknown, name: string): number => {
+    if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+      throw new Error(`fresh-selection source ${name} must be a positive safe integer`);
+    }
+    return value as number;
+  };
+  const digestField = (value: unknown, name: string): string => {
+    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+      throw new Error(`fresh-selection source ${name} must be a SHA-256`);
+    }
+    return value;
+  };
+  if (
+    source.path !== 'fresh-selection.raw.jsonl' ||
+    source.format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT
+  ) {
+    throw new Error('fresh-selection source path or format is invalid');
+  }
+  const capturedSource: FloodgateFreshSelectionRawIdentity = Object.freeze({
+    path: 'fresh-selection.raw.jsonl',
+    format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+    bytes: positiveIntegerField(source.bytes, 'bytes'),
+    sha256: digestField(source.sha256, 'sha256'),
+    records: positiveIntegerField(source.records, 'records'),
+    games: positiveIntegerField(source.games, 'games'),
+    game_ids_sha256: digestField(source.game_ids_sha256, 'game_ids_sha256'),
+    parent_ids_sha256: digestField(source.parent_ids_sha256, 'parent_ids_sha256'),
+    position_ids_count: positiveIntegerField(
+      source.position_ids_count,
+      'position_ids_count'
+    ),
+    position_ids_sha256: digestField(
+      source.position_ids_sha256,
+      'position_ids_sha256'
+    ),
+  });
+  if (!Array.isArray(input.rows) || input.rows.length === 0) {
+    throw new Error('fresh-selection rows must be a non-empty array');
+  }
+  const parents = input.rows.map((row, index) => validateRawParent(row, index + 1));
+  const gameIds = new Set<string>();
+  const parentIds = new Set<string>();
+  const positionIds = new Set<string>();
+  let previousParentId: string | undefined;
+  for (const parent of parents) {
+    if (
+      previousParentId !== undefined &&
+      compareBytewise(previousParentId, parent.parent_id) >= 0
+    ) {
+      throw new Error('fresh-selection rows are not in strict parent_id byte order');
+    }
+    previousParentId = parent.parent_id;
+    if (positionIds.has(parent.position_id)) {
+      throw new Error(`duplicate fresh-selection position_id: ${parent.position_id}`);
+    }
+    gameIds.add(parent.game_id);
+    parentIds.add(parent.parent_id);
+    positionIds.add(parent.position_id);
+  }
+  if (
+    parents.length !== capturedSource.records ||
+    gameIds.size !== capturedSource.games ||
+    parentIds.size !== capturedSource.records ||
+    positionIds.size !== capturedSource.position_ids_count ||
+    floodgateIdentifierDigest(gameIds) !== capturedSource.game_ids_sha256 ||
+    floodgateIdentifierDigest(parentIds) !== capturedSource.parent_ids_sha256 ||
+    floodgateIdentifierDigest(positionIds) !==
+      capturedSource.position_ids_sha256
+  ) {
+    throw new Error('fresh-selection rows do not match their aggregate source');
+  }
+  return Object.freeze({
+    role: 'fresh_selection',
+    source: capturedSource,
+    parents: Object.freeze(parents),
+  });
+}
+
+function captureAuthenticatedTeacherInput(
+  input:
+    | Readonly<AuthenticatedFloodgateTrainingRows>
+    | Readonly<AuthenticatedFloodgateFreshSelectionRows>
+): Readonly<CapturedTeacherInput> {
+  return input.role === 'fresh_selection'
+    ? captureAuthenticatedFreshSelectionTeacherInput(input)
+    : captureAuthenticatedTrainingTeacherInput(
+        input as Readonly<AuthenticatedFloodgateTrainingRows>
+      );
 }
 
 async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
@@ -1415,7 +1618,7 @@ function legalMovesForParent(parent: RawParentOccurrence): string[] {
 }
 
 class SiblingTeacherSearchTimeoutError extends Error {
-  readonly phase: 'proposal' | 'independent-rescore';
+  readonly phase: 'proposal' | 'proposal-fallback' | 'independent-rescore';
   readonly requestedMultipv: number;
   readonly requestedLimit: { nodes: number } | { depth: number };
   readonly searchmoves: readonly string[];
@@ -1423,7 +1626,7 @@ class SiblingTeacherSearchTimeoutError extends Error {
 
   constructor(
     cause: UsiSearchTimeoutError,
-    phase: 'proposal' | 'independent-rescore',
+    phase: 'proposal' | 'proposal-fallback' | 'independent-rescore',
     requestedMultipv: number,
     requestedLimit: UsiSearchLimit,
     searchmoves: readonly string[]
@@ -1475,7 +1678,7 @@ async function searchWithTimeoutContext(
   multipv: number,
   limit: UsiSearchLimit,
   searchmoves: readonly string[],
-  phase: 'proposal' | 'independent-rescore'
+  phase: 'proposal' | 'proposal-fallback' | 'independent-rescore'
 ): Promise<UsiMultiPvResult> {
   try {
     return await engine.search(parent.parent_sfen, multipv, limit, searchmoves);
@@ -1510,7 +1713,8 @@ export async function labelSiblingParent(
   multipv: number,
   limit: UsiSearchLimit,
   legalMoves = legalMovesForParent(parent),
-  proposalLimit: UsiSearchLimit = limit
+  proposalLimit: UsiSearchLimit = limit,
+  proposalIncompleteAllLegalFallbackMaxMoves?: number
 ): Promise<CompletedWorkEntry> {
   if (legalMoves.length < 2) {
     throw new Error(`parent ${parent.parent_id} has fewer than two legal moves`);
@@ -1519,14 +1723,88 @@ export async function labelSiblingParent(
   // independent of worker assignment and resume history.
   await engine.resetForParent();
   const initialMultiPv = Math.min(multipv, legalMoves.length);
-  const initial = await searchWithTimeoutContext(
-    engine,
-    parent,
-    initialMultiPv,
-    proposalLimit,
-    [],
-    'proposal'
-  );
+  let initial: UsiMultiPvResult;
+  let proposalFallback: AllLegalProposalFallbackMetadata | undefined;
+  try {
+    initial = await searchWithTimeoutContext(
+      engine,
+      parent,
+      initialMultiPv,
+      proposalLimit,
+      [],
+      'proposal'
+    );
+  } catch (error) {
+    if (
+      !(error instanceof SiblingTeacherProposalIncompleteError) ||
+      proposalIncompleteAllLegalFallbackMaxMoves === undefined ||
+      legalMoves.length > multipv ||
+      legalMoves.length > proposalIncompleteAllLegalFallbackMaxMoves
+    ) {
+      throw error;
+    }
+    const canonicalLegalMoves = canonicalSortedMoves(legalMoves);
+    const fallbackResults: UsiMultiPvResult[] = [];
+    const fallbackSearches: SearchMetadata[] = [];
+    for (const move of canonicalLegalMoves) {
+      await engine.resetForParent();
+      const result = await searchWithTimeoutContext(
+        engine,
+        parent,
+        1,
+        proposalLimit,
+        [move],
+        'proposal-fallback'
+      );
+      if (
+        result.lines.length !== 1 ||
+        result.bestmove !== move ||
+        result.lines[0].multipv !== 1 ||
+        result.lines[0].move !== move
+      ) {
+        throw new Error(
+          `all-legal proposal fallback did not return exactly ${move} for ${parent.parent_id}`
+        );
+      }
+      fallbackResults.push(result);
+      fallbackSearches.push(
+        validateSearchMetadata(
+          searchMetadata(result, proposalLimit),
+          `parent ${parent.parent_id} fallback proposal ${move}`,
+          true
+        )
+      );
+    }
+    const rankedFallbackLines = fallbackResults
+      .map((result) => result.lines[0])
+      .sort((left, right) => right.cp - left.cp || compareBytewise(left.move, right.move))
+      .map((line, index) => ({ ...line, multipv: index + 1 }));
+    initial = {
+      depth:
+        proposalLimit.depth ??
+        Math.min(...fallbackResults.map((result) => result.depth)),
+      lines: rankedFallbackLines,
+      bestmove: rankedFallbackLines[0].move,
+      observedNodes: fallbackResults.reduce(
+        (sum, result) => sum + result.observedNodes,
+        0
+      ),
+    };
+    proposalFallback = {
+      mode: FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
+      trigger: {
+        requested_multipv: error.requestedMultipv,
+        requested_limit: error.requestedLimit,
+        final_exact_ranks: error.finalExactRanks,
+        final_cp_ranks: error.finalCpRanks,
+        final_mate_ranks: error.finalMateRanks,
+        missing_or_non_exact_ranks: error.missingOrNonExactRanks,
+      },
+      legal_moves: canonicalLegalMoves,
+      searches: fallbackSearches,
+      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+    };
+  }
   const initialMoves = initial.lines.map((line) => line.move);
   const legalMoveSet = new Set(legalMoves);
   for (const move of initialMoves) {
@@ -1623,6 +1901,9 @@ export async function labelSiblingParent(
     candidate_set_sha256: candidateSetSha256(candidateMoves),
     candidate_moves: candidateMoves,
     initial_search: searchMetadata(initial, proposalLimit),
+    ...(proposalFallback === undefined
+      ? {}
+      : { proposal_fallback: proposalFallback }),
     exact_search: exactSearch,
     records,
   };
@@ -1636,7 +1917,8 @@ export function validateWorkEntry(
   expectedMultipv: number,
   expectedLimit: UsiSearchLimit,
   expectedTimeoutMs: number,
-  expectedProposalLimit: UsiSearchLimit = expectedLimit
+  expectedProposalLimit: UsiSearchLimit = expectedLimit,
+  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number
 ): WorkEntry {
   const context = typeof source === 'number' ? `work line ${source}` : source;
   if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
@@ -1823,12 +2105,118 @@ export function validateWorkEntry(
   const normalizedExpectedLimit = normalizedSearchLimit(expectedLimit);
   const normalizedExpectedProposalLimit =
     normalizedSearchLimit(expectedProposalLimit);
-  const expectedCandidates = canonicalSortedMoves(
-    new Set([...initialSearch.moves, parent.played_move])
-  );
+  const fallbackValue = entry.proposal_fallback;
+  let expectedCandidates: string[];
+  if (fallbackValue === undefined) {
+    expectedCandidates = canonicalSortedMoves(
+      new Set([...initialSearch.moves, parent.played_move])
+    );
+  } else {
+    const fallback = fallbackValue as AllLegalProposalFallbackMetadata;
+    const fallbackMoves = canonicalSortedMoves(legalMoves);
+    if (
+      Object.keys(fallback).sort().join('\0') !==
+        [
+          'legal_moves',
+          'mode',
+          'searches',
+          'synthesized_rank_order',
+          'trigger',
+        ].sort().join('\0') ||
+      !fallback.trigger ||
+      Object.keys(fallback.trigger).sort().join('\0') !==
+        [
+          'final_cp_ranks',
+          'final_exact_ranks',
+          'final_mate_ranks',
+          'missing_or_non_exact_ranks',
+          'requested_limit',
+          'requested_multipv',
+        ].sort().join('\0') ||
+      expectedProposalIncompleteAllLegalFallbackMaxMoves === undefined ||
+      legalMoves.length > expectedMultipv ||
+      legalMoves.length > expectedProposalIncompleteAllLegalFallbackMaxMoves ||
+      fallback.mode !== FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE ||
+      fallback.synthesized_rank_order !==
+        'cp-descending-then-utf8-bytewise-move' ||
+      canonicalJson(fallback.legal_moves) !== canonicalJson(fallbackMoves) ||
+      !Array.isArray(fallback.searches) ||
+      fallback.searches.length !== fallbackMoves.length ||
+      fallback.trigger?.requested_multipv !== expectedInitialMultipv ||
+      canonicalJson(fallback.trigger.requested_limit) !==
+        canonicalJson(normalizedExpectedProposalLimit) ||
+      !Number.isSafeInteger(fallback.trigger.final_exact_ranks) ||
+      fallback.trigger.final_exact_ranks < 0 ||
+      fallback.trigger.final_exact_ranks >= expectedInitialMultipv ||
+      !Number.isSafeInteger(fallback.trigger.final_cp_ranks) ||
+      fallback.trigger.final_cp_ranks < 0 ||
+      !Number.isSafeInteger(fallback.trigger.final_mate_ranks) ||
+      fallback.trigger.final_mate_ranks < 0 ||
+      fallback.trigger.final_cp_ranks + fallback.trigger.final_mate_ranks !==
+        fallback.trigger.final_exact_ranks ||
+      !Number.isSafeInteger(
+        fallback.trigger.missing_or_non_exact_ranks
+      ) ||
+      fallback.trigger.missing_or_non_exact_ranks < 1 ||
+      fallback.trigger.missing_or_non_exact_ranks !==
+        expectedInitialMultipv - fallback.trigger.final_exact_ranks
+    ) {
+      throw new Error(`${context} has invalid all-legal proposal fallback metadata`);
+    }
+    const fallbackSearches = fallback.searches.map((search, index) =>
+      validateSearchMetadata(
+        search,
+        `${context} fallback proposal ${index + 1}`,
+        true
+      )
+    );
+    for (let index = 0; index < fallbackSearches.length; index++) {
+      const search = fallbackSearches[index];
+      const move = fallbackMoves[index];
+      if (
+        search.requested_multipv !== 1 ||
+        canonicalJson(search.requested_limit) !==
+          canonicalJson(normalizedExpectedProposalLimit) ||
+        search.moves.length !== 1 ||
+        search.moves[0] !== move ||
+        search.bestmove !== move
+      ) {
+        throw new Error(`${context} all-legal proposal fallback search drifted`);
+      }
+    }
+    const synthesizedScores = fallbackSearches
+      .map((search) => search.scores[0])
+      .sort(compareRankedScores);
+    if (
+      initialSearch.requested_multipv !== fallbackMoves.length ||
+      initialSearch.moves.some(
+        (move, index) => move !== synthesizedScores[index]?.move
+      ) ||
+      initialSearch.scores.some((score, index) => {
+        const expected = synthesizedScores[index];
+        return (
+          expected === undefined ||
+          score.move !== expected.move ||
+          score.cp !== expected.cp ||
+          score.score_kind !== expected.score_kind ||
+          score.mate !== expected.mate ||
+          score.mate_sign !== expected.mate_sign
+        );
+      }) ||
+      initialSearch.observed_nodes !==
+        sumObservedNodes(
+          fallbackSearches,
+          `${context} all-legal proposal fallback`
+        )
+    ) {
+      throw new Error(`${context} all-legal proposal synthesis drifted`);
+    }
+    expectedCandidates = fallbackMoves;
+  }
   const canonicalCandidates = canonicalSortedMoves(candidates);
   if (
-    initialSearch.requested_multipv !== expectedInitialMultipv ||
+    (fallbackValue === undefined &&
+      initialSearch.requested_multipv !== expectedInitialMultipv) ||
     canonicalJson(initialSearch.requested_limit) !==
       canonicalJson(normalizedExpectedProposalLimit) ||
     new Set(candidates).size !== candidates.length ||
@@ -1903,7 +2291,8 @@ async function loadWork(
   expectedMultipv: number,
   expectedLimit: UsiSearchLimit,
   expectedTimeoutMs: number,
-  expectedProposalLimit: UsiSearchLimit = expectedLimit
+  expectedProposalLimit: UsiSearchLimit = expectedLimit,
+  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number
 ): Promise<Map<string, WorkEntry>> {
   let text = '';
   try {
@@ -1954,7 +2343,8 @@ async function loadWork(
         expectedMultipv,
         expectedLimit,
         expectedTimeoutMs,
-        expectedProposalLimit
+        expectedProposalLimit,
+        expectedProposalIncompleteAllLegalFallbackMaxMoves
       );
       if (entries.has(entry.parent_id)) {
         throw new Error(`duplicate parent in work checkpoint: ${entry.parent_id}`);
@@ -1979,7 +2369,11 @@ function firstError(error: unknown, parentId: string): Error {
 
 interface SiblingTeacherExecution {
   readonly targetParents: number;
-  readonly finalization: 'legacy-split' | 'none' | 'strength-first-training-only';
+  readonly finalization:
+    | 'legacy-split'
+    | 'none'
+    | 'strength-first-training-only'
+    | 'fresh-selection-only';
 }
 
 interface StrengthFirstCorePrefixProgress {
@@ -2012,6 +2406,18 @@ interface StrengthFirstCoreFinal {
   readonly staged_result: StrengthFirstSiblingTeacherResult;
 }
 
+export interface FreshSelectionSiblingTeacherOutcome {
+  readonly status: 'complete-fresh-selection-only';
+  readonly generation_run_fingerprint: string;
+  readonly completed_parents: 4_800;
+  readonly forced_parents_skipped: number;
+  readonly forced_skip_reasons: Readonly<{
+    readonly fewer_than_two_legal_moves: number;
+  }>;
+  readonly emitted_parent_groups: number;
+  readonly dataset_records: number;
+}
+
 /**
  * Non-production seam for tests and runner development.
  *
@@ -2020,11 +2426,18 @@ interface StrengthFirstCoreFinal {
  * production entry point.
  */
 async function runSiblingTeacherDatasetCore(
-  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  input:
+    | Readonly<AuthenticatedFloodgateTrainingRows>
+    | Readonly<AuthenticatedFloodgateFreshSelectionRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
   execution: Readonly<SiblingTeacherExecution>,
   dependencies: GenerateSiblingTeacherDependencies = {}
-): Promise<SiblingTeacherManifest | StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal> {
+): Promise<
+  | SiblingTeacherManifest
+  | StrengthFirstCorePrefixProgress
+  | StrengthFirstCoreFinal
+  | FreshSelectionSiblingTeacherOutcome
+> {
   const capturedInput = captureAuthenticatedTeacherInput(input);
   const options = normalizeOptions(rawOptions);
   const repositoryDirectory = path.resolve(__dirname, '..');
@@ -2054,6 +2467,23 @@ async function runSiblingTeacherDatasetCore(
     execution.targetParents !== allParents.length
   ) {
     throw new Error('strength-first finalization requires every authenticated parent');
+  }
+  if (
+    execution.finalization === 'strength-first-training-only' &&
+    capturedInput.role !== 'training'
+  ) {
+    throw new Error('strength-first training finalization requires the training role');
+  }
+  if (
+    execution.finalization === 'fresh-selection-only' &&
+    (capturedInput.role !== 'fresh_selection' ||
+      execution.targetParents !== allParents.length ||
+      capturedInput.source.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
+      capturedInput.source.games !== FRESH_SELECTION_TEACHER_GAME_COUNT)
+  ) {
+    throw new Error(
+      'fresh-selection finalization requires every authenticated fresh-selection parent'
+    );
   }
   const selected = allParents.slice(0, execution.targetParents);
   const selectedParentIdsSha256 = sha256(allParents.map((parent) => parent.parent_id).join('\n'));
@@ -2095,7 +2525,10 @@ async function runSiblingTeacherDatasetCore(
   const evalSha256 = options.evalDir
     ? sha256(`eval-tree-v1\0${evalFiles.map((file) => canonicalJson(file)).join('\n')}`)
     : null;
-  const sourceRawSha256 = capturedInput.binding.raw_sha256;
+  const sourceRawSha256 =
+    capturedInput.role === 'training'
+      ? capturedInput.binding.raw_sha256
+      : capturedInput.source.sha256;
   const protectedInputPaths = [
     options.engineBin,
     options.engineReceipt,
@@ -2115,10 +2548,20 @@ async function runSiblingTeacherDatasetCore(
             options.manifest,
             options.stagedResult,
           ]
+        : execution.finalization === 'fresh-selection-only'
+          ? [options.work, options.outSelection]
         : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint = siblingTeacherRunFingerprint({
-    authenticated_training_binding: capturedInput.binding,
+    ...(capturedInput.role === 'training'
+      ? { authenticated_training_binding: capturedInput.binding }
+      : {
+          authenticated_fresh_selection_binding: {
+            schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+            role: 'fresh_selection' as const,
+            source: capturedInput.source,
+          },
+        }),
     source_raw_sha256: sourceRawSha256,
     selected_parent_ids_sha256: selectedParentIdsSha256,
     pipeline,
@@ -2133,6 +2576,12 @@ async function runSiblingTeacherDatasetCore(
     ...(sameSearchLimit(options.proposalLimit, options.limit)
       ? {}
       : { proposal_limit: options.proposalLimit }),
+    ...(options.proposalIncompleteAllLegalFallbackMaxMoves === undefined
+      ? {}
+      : {
+          proposal_incomplete_all_legal_fallback_max_moves:
+            options.proposalIncompleteAllLegalFallbackMaxMoves,
+        }),
     ...(execution.finalization === 'legacy-split'
       ? {}
       : {
@@ -2165,10 +2614,12 @@ async function runSiblingTeacherDatasetCore(
     options.multipv,
     options.limit,
     options.timeoutMs,
-    options.proposalLimit
+    options.proposalLimit,
+    options.proposalIncompleteAllLegalFallbackMaxMoves
   );
   const recoverableSearchSkipLimit =
-    execution.finalization === 'legacy-split'
+    execution.finalization === 'legacy-split' ||
+    execution.finalization === 'fresh-selection-only'
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
   const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
@@ -2311,7 +2762,8 @@ async function runSiblingTeacherDatasetCore(
               options.multipv,
               options.limit,
               job.legalMoves,
-              options.proposalLimit
+              options.proposalLimit,
+              options.proposalIncompleteAllLegalFallbackMaxMoves
             );
             result.run_fingerprint = runFingerprint;
             const sealed = sealWorkEntry(result as unknown as Record<string, unknown>);
@@ -2323,12 +2775,14 @@ async function runSiblingTeacherDatasetCore(
               options.multipv,
               options.limit,
               options.timeoutMs,
-              options.proposalLimit
+              options.proposalLimit,
+              options.proposalIncompleteAllLegalFallbackMaxMoves
             );
             await persist(validated);
           } catch (error) {
             if (
               execution.finalization !== 'legacy-split' &&
+              execution.finalization !== 'fresh-selection-only' &&
               (error instanceof SiblingTeacherSearchTimeoutError ||
                 error instanceof SiblingTeacherProposalIncompleteError)
             ) {
@@ -2389,7 +2843,8 @@ async function runSiblingTeacherDatasetCore(
                   options.multipv,
                   options.limit,
                   options.timeoutMs,
-                  options.proposalLimit
+                  options.proposalLimit,
+                  options.proposalIncompleteAllLegalFallbackMaxMoves
                 );
                 await persist(validated);
                 if (!failure && next < pending.length) {
@@ -2482,7 +2937,44 @@ async function runSiblingTeacherDatasetCore(
   }
   const records = completed.flatMap((entry) => entry.records);
   validateParentGroups(records);
+  if (execution.finalization === 'fresh-selection-only') {
+    const skipReasons = forcedSkipReasonCounts(workEntries.values());
+    const forcedParentsSkipped = skipped.length;
+    if (
+      skipReasons.search_timeout_no_label !== 0 ||
+      (skipReasons.proposal_incomplete_no_label ?? 0) !== 0 ||
+      skipReasons.fewer_than_two_legal_moves !== forcedParentsSkipped ||
+      completed.length + forcedParentsSkipped !== selected.length ||
+      records.length < 2 * completed.length ||
+      completed.length < 1
+    ) {
+      throw new Error(
+        'fresh-selection completion permits only fewer-than-two-legal-moves skips'
+      );
+    }
+    const datasetJsonl = serializeCanonicalJsonl(records);
+    const finalPipeline = await revisionVerifier(options.runnerRevision);
+    if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
+      throw new Error('pipeline provenance changed during fresh-selection generation');
+    }
+    await outputVerifier(outputPaths, protectedInputPaths);
+    await atomicWrite(options.outSelection, datasetJsonl);
+    return {
+      status: 'complete-fresh-selection-only',
+      generation_run_fingerprint: runFingerprint,
+      completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+      forced_parents_skipped: forcedParentsSkipped,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: forcedParentsSkipped,
+      },
+      emitted_parent_groups: completed.length,
+      dataset_records: records.length,
+    };
+  }
   if (execution.finalization === 'strength-first-training-only') {
+    if (capturedInput.role !== 'training') {
+      throw new Error('strength-first training input role changed before finalization');
+    }
     const entryByParent = new Map(
       [...workEntries.values()].map((entry) => [entry.parent_id, entry] as const)
     );
@@ -2887,6 +3379,16 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
       'strength-first production generation rejects testOnlyInitializationTimeoutMs'
     );
   }
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawOptions,
+      'proposalIncompleteAllLegalFallbackMaxMoves'
+    )
+  ) {
+    throw new Error(
+      'strength-first training generation rejects the fresh-selection proposal fallback'
+    );
+  }
   const capturedInput = captureAuthenticatedTeacherInput(input);
   if (capturedInput.parents.length !== 24_000 || capturedInput.binding.records !== 24_000) {
     throw new Error('strength-first production generation requires exactly 24000 parents');
@@ -2908,6 +3410,63 @@ export async function advanceStrengthFirstSiblingTeacherDataset(
     dependencies
   );
   return outcome as StrengthFirstSiblingTeacherAdvance;
+}
+
+export interface FreshSelectionSiblingTeacherOptions extends Omit<
+  StageSiblingTeacherCoreForTestsOptions,
+  'seed' | 'testOnlyInitializationTimeoutMs' | 'valRatio'
+> {
+  readonly engines: number;
+  readonly proposalIncompleteAllLegalFallbackMaxMoves: number;
+}
+
+/**
+ * Production generator seam for the already-authenticated 4,800-parent
+ * fresh-selection role. It emits only selection.jsonl plus resumable private
+ * work. Any timeout or non-rescuable incomplete proposal is fatal.
+ */
+export async function generateFreshSelectionSiblingTeacherDataset(
+  input: Readonly<AuthenticatedFloodgateFreshSelectionRows>,
+  options: Readonly<FreshSelectionSiblingTeacherOptions>,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+): Promise<Readonly<FreshSelectionSiblingTeacherOutcome>> {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      options,
+      'testOnlyInitializationTimeoutMs'
+    )
+  ) {
+    throw new Error(
+      'fresh-selection production generation rejects testOnlyInitializationTimeoutMs'
+    );
+  }
+  const captured = captureAuthenticatedFreshSelectionTeacherInput(input);
+  if (
+    captured.parents.length !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
+    captured.source.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
+    captured.source.games !== FRESH_SELECTION_TEACHER_GAME_COUNT
+  ) {
+    throw new Error(
+      'fresh-selection production generation requires exactly 4800 parents and 200 games'
+    );
+  }
+  if (
+    options.proposalIncompleteAllLegalFallbackMaxMoves !== options.multipv ||
+    options.engines > Math.min(32, os.availableParallelism())
+  ) {
+    throw new Error(
+      'fresh-selection fallback must equal MultiPV and engines must fit local parallelism'
+    );
+  }
+  return (await runSiblingTeacherDatasetCore(
+    input,
+    options,
+    {
+      targetParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
+      finalization: 'fresh-selection-only',
+    },
+    dependencies
+  )) as FreshSelectionSiblingTeacherOutcome;
 }
 
 export const REMOVED_SIBLING_TEACHER_CLI_MESSAGE =

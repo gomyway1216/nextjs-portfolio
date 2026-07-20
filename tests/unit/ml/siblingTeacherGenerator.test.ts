@@ -9,7 +9,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   advanceStrengthFirstSiblingTeacherDataset,
   advanceStrengthFirstSiblingTeacherDatasetCoreForTests,
+  FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
   INDEPENDENT_EXACT_RESCORE_MODE,
+  labelSiblingParent,
   PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
   REMOVED_SIBLING_TEACHER_CLI_MESSAGE,
   SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
@@ -27,10 +29,12 @@ import {
   siblingTeacherRunFingerprint,
   stageSiblingTeacherDatasetCoreForTests,
   strengthFirstTimeoutSkipLimit,
+  validateWorkEntry,
   type GenerateSiblingTeacherDependencies,
   type StageSiblingTeacherCoreForTestsOptions,
   type StrengthFirstSiblingTeacherOptions,
 } from '../../../ml/generate-sibling-teacher';
+import { UsiTeacherEngine } from '../../../ml/usi-engine';
 import {
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
   type AuthenticatedFloodgateTrainingRows,
@@ -259,6 +263,14 @@ describe('deterministic sibling teacher generator', () => {
     const testOverrideExcludedFromProduction: ProductionTestOnlyKeys extends never ? true : false =
       true;
     expect(testOverrideExcludedFromProduction).toBe(true);
+    type ProductionFreshFallbackKeys = Extract<
+      keyof StrengthFirstSiblingTeacherOptions,
+      'proposalIncompleteAllLegalFallbackMaxMoves'
+    >;
+    const freshFallbackExcludedFromTraining: ProductionFreshFallbackKeys extends never
+      ? true
+      : false = true;
+    expect(freshFallbackExcludedFromTraining).toBe(true);
 
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cli-tombstone-'));
     const sentinel = path.join(root, 'train.jsonl');
@@ -1915,6 +1927,146 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
   });
+
+  it('replaces typed incomplete proposal ranks with all-legal d14 searches before exact d16 rescoring', async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-all-legal-proposal-fallback-')
+    );
+    const trace = path.join(root, 'engine-trace.jsonl');
+    const parent: FloodgateTrainingParent = {
+      schema_version: 1,
+      game_id: 'game-fallback',
+      parent_id: 'parent-fallback',
+      position_id: positionKeyFromSfen(TWO_LEGAL),
+      parent_sfen: TWO_LEGAL,
+      ply: 118,
+      played_move: '8h7i',
+    };
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--trace', trace],
+      hashMb: 64,
+      timeoutMs: 5_000,
+    });
+    await engine.init();
+    let labeled;
+    try {
+      labeled = await labelSiblingParent(
+        engine,
+        parent,
+        6,
+        { depth: 16 },
+        undefined,
+        { depth: 14 },
+        6
+      );
+    } finally {
+      await engine.quit();
+    }
+
+    expect(labeled.candidate_moves).toEqual(['8h7i', '8h8g']);
+    expect(labeled.proposal_fallback).toMatchObject({
+      mode: FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
+      trigger: {
+        requested_multipv: 2,
+        requested_limit: { depth: 14 },
+        final_exact_ranks: 1,
+        final_cp_ranks: 1,
+        final_mate_ranks: 0,
+        missing_or_non_exact_ranks: 1,
+      },
+      legal_moves: ['8h7i', '8h8g'],
+      searches: [
+        {
+          requested_multipv: 1,
+          requested_limit: { depth: 14 },
+          moves: ['8h7i'],
+        },
+        {
+          requested_multipv: 1,
+          requested_limit: { depth: 14 },
+          moves: ['8h8g'],
+        },
+      ],
+    });
+    expect(labeled.initial_search.moves).toHaveLength(2);
+    expect(labeled.exact_search).toMatchObject({
+      candidate_count: 2,
+      searches: [
+        {
+          requested_multipv: 1,
+          requested_limit: { depth: 16 },
+          moves: ['8h7i'],
+        },
+        {
+          requested_multipv: 1,
+          requested_limit: { depth: 16 },
+          moves: ['8h8g'],
+        },
+      ],
+    });
+    const searches = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(trace, 'utf8')
+    ).filter((event) => event.event === 'search');
+    expect(searches).toHaveLength(5);
+    expect(searches[0]).toMatchObject({
+      multipv: 2,
+      depth: 14,
+      searchmoves: [],
+    });
+    expect(searches.slice(1, 3)).toMatchObject([
+      { multipv: 1, depth: 14, searchmoves: ['8h7i'] },
+      { multipv: 1, depth: 14, searchmoves: ['8h8g'] },
+    ]);
+    expect(searches.slice(3)).toMatchObject([
+      { multipv: 1, depth: 16, searchmoves: ['8h7i'] },
+      { multipv: 1, depth: 16, searchmoves: ['8h8g'] },
+    ]);
+
+    const fingerprint = 'f'.repeat(64);
+    const sealed = {
+      ...labeled,
+      run_fingerprint: fingerprint,
+    } as unknown as Record<string, unknown>;
+    resealWorkEntry(sealed);
+    expect(
+      validateWorkEntry(
+        sealed,
+        fingerprint,
+        new Map([[parent.parent_id, parent]]),
+        'fresh fallback receipt',
+        6,
+        { depth: 16 },
+        5_000,
+        { depth: 14 },
+        6
+      )
+    ).toMatchObject({
+      parent_id: parent.parent_id,
+      candidate_moves: ['8h7i', '8h8g'],
+    });
+
+    const tampered = structuredClone(sealed);
+    const fallback = tampered.proposal_fallback as Record<string, unknown>;
+    fallback.trigger = {
+      ...(fallback.trigger as Record<string, unknown>),
+      unexpected: 0,
+    };
+    resealWorkEntry(tampered);
+    expect(() =>
+      validateWorkEntry(
+        tampered,
+        fingerprint,
+        new Map([[parent.parent_id, parent]]),
+        'tampered fresh fallback receipt',
+        6,
+        { depth: 16 },
+        5_000,
+        { depth: 14 },
+        6
+      )
+    ).toThrow(/invalid all-legal proposal fallback metadata/);
+  }, 15_000);
 
   it('caps initial MultiPV to legal moves, resets TT at the parent boundary, and skips forced moves', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cap-'));

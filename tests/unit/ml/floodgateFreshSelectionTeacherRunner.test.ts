@@ -110,7 +110,7 @@ function policy(
     runtime: {
       parallel_engines: 12,
       threads_per_engine: 1,
-      hash_mb_per_engine: 64,
+      hash_mb_per_engine: 512,
       timeout_ms_per_search: 600_000,
       network: false,
       ...overrides,
@@ -379,6 +379,12 @@ describe("fresh-selection teacher runner", () => {
         14,
       ),
     ).toThrow(/exceeds this Mac/);
+    expect(() =>
+      validateFreshSelectionTeacherSearchPolicy(
+        policy({ hash_mb_per_engine: 64 }),
+        14,
+      ),
+    ).toThrow(/invalid/);
     const mixedRanks = policy();
     mixedRanks.teacher.typed_incomplete_proposal_fallback.mixed_partial_and_fallback_ranks_accepted =
       true;

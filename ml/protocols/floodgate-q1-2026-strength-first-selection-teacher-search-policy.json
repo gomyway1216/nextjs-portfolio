@@ -32,7 +32,7 @@
   "runtime": {
     "parallel_engines": 12,
     "threads_per_engine": 1,
-    "hash_mb_per_engine": 64,
+    "hash_mb_per_engine": 512,
     "timeout_ms_per_search": 600000,
     "network": false
   },

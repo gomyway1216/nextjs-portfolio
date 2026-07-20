@@ -19,8 +19,14 @@ import {
 } from "./floodgate-role-bundle";
 import {
   parseAuthenticatedFloodgateFreshSelectionRows,
+  type FloodgateFreshSelectionRawIdentity,
   type FloodgateTrainingParent,
 } from "./floodgate-training-row-validation";
+import {
+  FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+  generateFreshSelectionSiblingTeacherDataset,
+  siblingTeacherStagePaths,
+} from "./generate-sibling-teacher";
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
 } from "./floodgate-production-teacher-asset-authority";
@@ -58,6 +64,8 @@ export const FRESH_SELECTION_TEACHER_SOURCE_RELATIVE_PATH =
   ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl" as const;
 export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_SELECTION_TEACHER_GAME_COUNT = 200 as const;
+export const FRESH_SELECTION_TEACHER_PARALLEL_ENGINES = 12 as const;
+export const FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE = 512 as const;
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -372,10 +380,10 @@ export function validateFreshSelectionTeacherSearchPolicy(
     rescore.candidate_execution_order !== "utf8-bytewise-ascending" ||
     runtime?.threads_per_engine !== 1 ||
     !Number.isSafeInteger(runtime.parallel_engines) ||
-    runtime.parallel_engines < 1 ||
+    runtime.parallel_engines !== FRESH_SELECTION_TEACHER_PARALLEL_ENGINES ||
     runtime.parallel_engines > Math.min(32, availableParallelism) ||
-    !Number.isSafeInteger(runtime.hash_mb_per_engine) ||
-    runtime.hash_mb_per_engine < 16 ||
+    runtime.hash_mb_per_engine !==
+      FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE ||
     !Number.isSafeInteger(runtime.timeout_ms_per_search) ||
     runtime.timeout_ms_per_search < 1_000 ||
     runtime.network !== false ||
@@ -883,10 +891,46 @@ async function checkpointPreflight(
   )) as Readonly<FreshSelectionTeacherCheckpointPreflight>;
 }
 
-async function unavailableGenerator(): Promise<never> {
-  throw new Error(
-    "fresh-selection generator adapter is not integrated with the sibling teacher core",
+async function generateFreshSelectionTeacher(
+  request: Readonly<FreshSelectionTeacherGeneratorRequest>,
+): Promise<Readonly<FreshSelectionTeacherGeneratorOutcome>> {
+  const source: FloodgateFreshSelectionRawIdentity = Object.freeze({
+    ...request.source,
+    path: "fresh-selection.raw.jsonl",
+  });
+  const outcome = await generateFreshSelectionSiblingTeacherDataset(
+    Object.freeze({
+      schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+      role: "fresh_selection",
+      source,
+      rows: request.rows,
+    }),
+    Object.freeze({
+      stageRoot: request.outputRoot,
+      runnerRevision: request.runnerRevision,
+      engineBin: request.engineBin,
+      engineArgs: Object.freeze([]),
+      engineReceipt: request.engineReceipt,
+      evalDir: request.evalDir,
+      multipv: request.searchPolicy.teacher.proposal.multipv,
+      proposalDepth: request.searchPolicy.teacher.proposal.depth,
+      depth: request.searchPolicy.teacher.independent_rescore.depth,
+      engines: request.searchPolicy.runtime.parallel_engines,
+      hashMb: request.searchPolicy.runtime.hash_mb_per_engine,
+      timeoutMs: request.searchPolicy.runtime.timeout_ms_per_search,
+      proposalIncompleteAllLegalFallbackMaxMoves:
+        request.searchPolicy.teacher.typed_incomplete_proposal_fallback
+          .allowed_only_when_legal_moves_at_most,
+    }),
   );
+  const generatedPaths = siblingTeacherStagePaths(request.outputRoot);
+  if (
+    generatedPaths.dataset !== path.resolve(request.datasetPath) ||
+    generatedPaths.work !== path.resolve(request.workPath)
+  ) {
+    throw new Error("fresh-selection generator output paths drifted");
+  }
+  return outcome;
 }
 
 async function assertFormalTeacherIdle(): Promise<void> {
@@ -926,7 +970,7 @@ const PRODUCTION_DEPENDENCIES: FreshSelectionTeacherRunnerDependencies =
     verifyAssets: verifyPinnedFloodgateStrengthFirstV8TeacherAuthority,
     readSearchPolicy,
     readSource,
-    generate: unavailableGenerator,
+    generate: generateFreshSelectionTeacher,
     reportProgress: (phase: string) => {
       process.stderr.write(
         `${JSON.stringify({

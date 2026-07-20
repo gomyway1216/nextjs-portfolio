@@ -16,8 +16,8 @@ PINNED_BENCHMARK_REGISTRY_IDENTITY = {
         "ml/protocols/"
         "floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json"
     ),
-    "bytes": 2_383,
-    "sha256": "15b47424a14f7464a45950adc6537ea62ab7f91fcb997b2c9e4e146392785fc6",
+    "bytes": 2_421,
+    "sha256": "585efc2105219f97aed9391a3d57a330c0b42c90719e6568a4bc357a73e62984",
     "schema": "shogi-formal-paired-ab-v2-worker-benchmark-registry-v1",
 }
 

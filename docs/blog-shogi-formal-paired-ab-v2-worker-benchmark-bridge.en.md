@@ -32,8 +32,8 @@ The authority therefore comes from the setting that is actually fastest on this 
 The initial implementation still allowed gaps around caller-supplied registry state, source drift during execution, and redirection to another output root. Independent review closed those boundaries:
 
 1. The production CLI accepts no arguments and reads only a registry pinned in source.
-2. An external authority source pins the registry at 2,383 bytes and one SHA-256.
-3. Before benchmarking, the bridge verifies 25 Python, TypeScript, and WASM source identities reachable by the real runner.
+2. An external authority source pins the registry at 2,421 bytes and one SHA-256.
+3. Before benchmarking, the bridge verifies 26 Python, TypeScript, and WASM source identities reachable by the real runner.
 4. It verifies that the enrolled source revision is in current history, then recaptures registry, opening, asset, and source identity after execution.
 5. Output is derived from the operating-system account record rather than caller-controlled `HOME`; only current-user-owned 0700 directories and a 0600 single-link receipt are accepted.
 6. The receipt binds the registry, opening preflight, candidate and stable weights, every round transcript, and the selected worker count under one digest.
@@ -49,7 +49,7 @@ The independent re-audit closed five pre-execution issues:
 - content-pin the benchmark registry from an external source;
 - derive production output from the OS account home, not caller `HOME`;
 - remove path and registry parameters from production APIs and the CLI;
-- pin the Python import closure and the TypeScript/WASM closure used by the real pair adapter and player, for 25 source identities in total; and
+- pin the Python import closure and the TypeScript/WASM closure used by the real pair adapter and player, for 26 source identities in total; and
 - reject publication if any covered source drifts after the run.
 
 These changes do not improve playing strength. They are a one-time guard against having to discard and repeat a 192-game benchmark or 768-game formal test because its conditions changed.
@@ -58,9 +58,9 @@ These changes do not improve playing strength. They are a one-time guard against
 
 | Item | Result |
 | --- | ---: |
-| Full Python suite | 406 pass / 0 fail |
-| Formal-related TypeScript | 37 pass / 0 fail |
-| Independent focused audit | 15 pass / 0 fail |
+| Full Python suite | 407 pass / 0 fail |
+| Formal-related TypeScript | 41 pass / 0 fail |
+| Independent focused audit | 21 pass / 0 fail |
 | Real worker benchmark | 0 / 8 rounds |
 | Real benchmark pairs / games | 0 / 0 |
 | Real formal pairs / games | 0 / 0 |

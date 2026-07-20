@@ -62,7 +62,7 @@ describe("formal paired A/B v2 worker benchmark bridge evidence", () => {
     expect(evidence.authority).toMatchObject({
       production_entry_argumentless: true,
       caller_selected_registry: false,
-      runtime_source_identities_required: 25,
+      runtime_source_identities_required: 26,
       post_run_source_revalidation_required: true,
       os_account_home_required: true,
       caller_home_override_allowed: false,

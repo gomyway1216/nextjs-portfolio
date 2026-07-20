@@ -55,7 +55,7 @@ def _main_core_for_tests(
     """Injected CLI seam; production authority and output remain argumentless."""
 
     if arguments:
-        print(_canonical_json(_stop("arguments-forbidden")), file=sys.stderr)
+        print(_canonical_json(_stop("arguments-forbidden")))
         return 2
     try:
         receipt, receipt_path = run()
@@ -78,7 +78,7 @@ def _main_core_for_tests(
         benchmark.FormalAbV2WorkerBenchmarkError,
         ValueError,
     ):
-        print(_canonical_json(_stop("benchmark-failed-closed")), file=sys.stderr)
+        print(_canonical_json(_stop("benchmark-failed-closed")))
         return 2
     print(_canonical_json(validated))
     return 0

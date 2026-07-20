@@ -32,8 +32,8 @@
 最初の実装だけでは、呼び出し側が用意したregistryやreceiptを渡せる余地、実行中にソースが変わる余地、別ユーザーの出力先へ誘導される余地が残っていた。独立レビューで見つかった境界を閉じ、production経路を次の形にした。
 
 1. production CLIはargumentlessで、コードに固定されたregistryだけを読む。
-2. registryは2,383 bytesとSHA-256で外側のauthority sourceに固定する。
-3. benchmark開始前に、実runnerが到達するPython/TypeScript/WASMの25 source identityを検証する。
+2. registryは2,421 bytesとSHA-256で外側のauthority sourceに固定する。
+3. benchmark開始前に、実runnerが到達するPython/TypeScript/WASMの26 source identityを検証する。
 4. source revisionが現在の履歴に含まれることを確認し、実行後にも同じregistry、opening、asset、source identityを再確認する。
 5. 出力先は環境変数`HOME`ではなくOSの現在ユーザー情報から決め、current-user-owned 0700 directoryと0600 single-link receiptだけを許す。
 6. benchmark receiptはregistry、opening preflight、candidate/stable weight、全round transcript、選ばれたworker数を一つのdigestへ結ぶ。
@@ -49,7 +49,7 @@
 - benchmark registryそのものを外部sourceからcontent-pinする
 - production outputをcallerの`HOME`ではなくOS account homeへ固定する
 - production APIとCLIからpathやregistry引数を除く
-- Python import closureと、実pair adapter/playerが読むTypeScript/WASM closureを25 sourceまで固定する
+- Python import closureと、実pair adapter/playerが読むTypeScript/WASM closureを26 sourceまで固定する
 - 実行後のsource driftでもreceipt公開を拒否する
 
 これは棋力を上げる処理ではないが、192局のbenchmarkや768局のformal A/Bを条件違いでやり直す事故を防ぐため、実対局開始前に一度だけ必要な修正である。
@@ -58,9 +58,9 @@
 
 | 項目 | 結果 |
 | --- | ---: |
-| Python全体 | 406 pass / 0 fail |
-| formal関連TypeScript | 37 pass / 0 fail |
-| 独立focused監査 | 15 pass / 0 fail |
+| Python全体 | 407 pass / 0 fail |
+| formal関連TypeScript | 41 pass / 0 fail |
+| 独立focused監査 | 21 pass / 0 fail |
 | 実worker benchmark | 0 / 8 round |
 | 実benchmark pair / game | 0 / 0 |
 | 実formal pair / game | 0 / 0 |

@@ -274,6 +274,10 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                 "ml/formal_paired_ab_v2_worker_benchmark_bridge.py",
             )
             self.assertEqual(
+                candidate["implementation"]["benchmark_selection_core"]["path"],
+                "ml/formal_paired_ab_v2_worker_benchmark.py",
+            )
+            self.assertEqual(
                 candidate["implementation"]["benchmark_production_runner"]["path"],
                 "ml/run_formal_paired_ab_v2_worker_benchmark.py",
             )
@@ -550,7 +554,7 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     "validate_pinned_worker_benchmark_registry",
                     return_value=captured,
                 ),
-                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+                mock.patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
                 self.assertEqual(
                     runner._main_core_for_tests(
@@ -561,8 +565,23 @@ class FormalPairedAbV2WorkerBenchmarkBridgeTest(unittest.TestCase):
                     2,
                 )
             self.assertEqual(
-                json.loads(stderr.getvalue())["reason"], "benchmark-failed-closed"
+                json.loads(stdout.getvalue())["reason"], "benchmark-failed-closed"
             )
+
+    def test_output_reservation_close_is_idempotent(self):
+        reservation = {
+            "run_descriptor": 41,
+            "parent_descriptor": 42,
+        }
+        with mock.patch.object(benchmark.os, "close") as close:
+            benchmark._close_private_run_output_reservation(reservation)
+            benchmark._close_private_run_output_reservation(reservation)
+        self.assertEqual(
+            [call.args[0] for call in close.call_args_list],
+            [41, 42],
+        )
+        self.assertIsNone(reservation["run_descriptor"])
+        self.assertIsNone(reservation["parent_descriptor"])
 
     def test_output_is_reserved_before_games_and_fault_is_a_rerun_tombstone(self):
         with tempfile.TemporaryDirectory() as temporary:

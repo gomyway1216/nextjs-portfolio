@@ -34,11 +34,11 @@
     "caller_selected_registry": false,
     "registry_identity": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json",
-      "bytes": 2383,
-      "sha256": "15b47424a14f7464a45950adc6537ea62ab7f91fcb997b2c9e4e146392785fc6",
+      "bytes": 2421,
+      "sha256": "585efc2105219f97aed9391a3d57a330c0b42c90719e6568a4bc357a73e62984",
       "schema": "shogi-formal-paired-ab-v2-worker-benchmark-registry-v1"
     },
-    "runtime_source_identities_required": 25,
+    "runtime_source_identities_required": 26,
     "source_revision_ancestry_required": true,
     "post_run_source_revalidation_required": true,
     "os_account_home_required": true,
@@ -56,6 +56,11 @@
       "bytes": 11022,
       "sha256": "b6c9cc0eea6a6128160ae8e2cd43a0dd209ddccc42a2f1222b3a1d14f5392404"
     },
+    "benchmark_selection_core": {
+      "path": "ml/formal_paired_ab_v2_worker_benchmark.py",
+      "bytes": 9631,
+      "sha256": "e894e1e0bfa171dc84f7f5b8f63a6d9bc22009c3bc68151c4921bdf447cb1b88"
+    },
     "benchmark_bound_runner": {
       "path": "ml/formal_paired_ab_v2_benchmark_bound_runner.py",
       "bytes": 12301,
@@ -64,30 +69,30 @@
     "benchmark_authority": {
       "path": "ml/formal_paired_ab_v2_worker_benchmark_authority.py",
       "bytes": 990,
-      "sha256": "da8426c894d3922808544d645b2faeef92e47bd0dc04239748e8d65a13a8d667"
+      "sha256": "9f7b671cd10f21fa28503f938dbcfbcf2953ce1759502f06b10f78035aa3f479"
     },
     "benchmark_bridge": {
       "path": "ml/formal_paired_ab_v2_worker_benchmark_bridge.py",
-      "bytes": 73100,
-      "sha256": "73db9db46034f446fa6e1e3dfde014d0cc84d3345fd8003b3c061d4ae16925f5"
+      "bytes": 65495,
+      "sha256": "3748b168b3f8db5a19d8e50357ccfaaabb7b255bd710bed4e52f8230354d5e2e"
     },
     "benchmark_registry": {
       "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-worker-benchmark-registry.json",
-      "bytes": 2383,
-      "sha256": "15b47424a14f7464a45950adc6537ea62ab7f91fcb997b2c9e4e146392785fc6"
+      "bytes": 2421,
+      "sha256": "585efc2105219f97aed9391a3d57a330c0b42c90719e6568a4bc357a73e62984"
     },
     "production_cli": {
       "path": "ml/run_formal_paired_ab_v2_worker_benchmark.py",
-      "bytes": 2953,
-      "sha256": "21aae85b59611fac37e5a9895454824e8bbad24dfd4c9ab34b0024071bc4ca99"
+      "bytes": 2919,
+      "sha256": "15c0489a39f15e37ebbb251860902228f9de6fd1f27b080e122cf9d44db6cbcd"
     }
   },
   "validation": {
-    "python_full_tests_passed": 406,
+    "python_full_tests_passed": 407,
     "python_full_tests_failed": 0,
-    "formal_typescript_tests_passed": 37,
+    "formal_typescript_tests_passed": 41,
     "formal_typescript_tests_failed": 0,
-    "independent_focused_tests_passed": 15,
+    "independent_focused_tests_passed": 21,
     "independent_focused_tests_failed": 0,
     "initial_python_source_drift_rejected": true,
     "initial_typescript_source_drift_rejected": true,

@@ -168,6 +168,15 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       real_weight_used_by_tests: false,
       network_used_by_tests: false,
     });
+    expect(evidence.review).toMatchObject({
+      final_independent_rereview: "PASS-P0-0-P1-0-P2-0",
+      final_review_head: "ea56f82b44234a41243545fbb8e6960bb9b06010",
+      final_review_tree: "a879fb9597320b83234d645cc9822c116e5e3e51",
+      safe_to_review: true,
+      unresolved_p0: 0,
+      unresolved_p1: 0,
+      unresolved_p2: 0,
+    });
   });
 
   it("keeps the Japanese and English explanations aligned", () => {
@@ -184,6 +193,9 @@ describe("formal paired A/B v2 production activation foundation evidence", () =>
       expect(article).toContain("time control");
       expect(article).toContain("STOP");
       expect(article).toContain("651359df");
+      expect(article).toContain("P0=0");
+      expect(article).toContain("P1=0");
+      expect(article).toContain("P2=0");
       expect(article).toMatch(/no-?follow/iu);
     }
     expect(japanese).toContain("0 / 768局");

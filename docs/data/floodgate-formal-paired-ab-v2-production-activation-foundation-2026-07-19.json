@@ -187,10 +187,13 @@
       "finding": "seed-boundary-article-claim-needed-explicit-probes"
     },
     "evidence_correction_revision": "651359df6a56a36379d834cd092b77cbac15a076",
-    "final_independent_rereview": "pending",
-    "unresolved_p0": null,
-    "unresolved_p1": null,
-    "unresolved_p2": null
+    "final_independent_rereview": "PASS-P0-0-P1-0-P2-0",
+    "final_review_head": "ea56f82b44234a41243545fbb8e6960bb9b06010",
+    "final_review_tree": "a879fb9597320b83234d645cc9822c116e5e3e51",
+    "safe_to_review": true,
+    "unresolved_p0": 0,
+    "unresolved_p1": 0,
+    "unresolved_p2": 0
   },
   "execution_counters": {
     "real_formal_attempts_started": 0,

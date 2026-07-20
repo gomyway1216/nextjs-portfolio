@@ -78,14 +78,6 @@ export const FRESH_FINAL_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_FINAL_TEACHER_GAME_COUNT = 200 as const;
 export const FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE =
   'typed-incomplete-then-all-legal-single-move-proposals-v1' as const;
-export const FRESH_ROLE_TIMEOUT_QUARANTINE_POLICY = Object.freeze({
-  reason: 'search-timeout-no-label',
-  skip_limit_divisor: 1_000,
-  maximum_skips_for_4_800_parents: 5,
-  partial_parent_labels_accepted: false,
-  proposal_fallback_timeout: 'fatal-no-publication',
-  proposal_incomplete_without_exact_fallback: 'fatal-no-publication',
-} as const);
 export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const STRENGTH_FIRST_V9_PRODUCTION_ENGINES = 13 as const;

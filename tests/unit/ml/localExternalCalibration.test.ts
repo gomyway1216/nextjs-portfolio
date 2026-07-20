@@ -194,6 +194,19 @@ describe("local external calibration paired harness", () => {
 
   it("rejects malformed openings, aliases, types, and time-control drift before players start", async () => {
     const base = request();
+    const symbolRequest = { ...base } as LocalExternalCalibrationRequest & {
+      [key: symbol]: unknown;
+    };
+    symbolRequest[Symbol("hidden")] = true;
+    const accessorTimeControl = { ...base.time_control };
+    Object.defineProperty(accessorTimeControl, "stable_depth", {
+      enumerable: true,
+      get: () => 8,
+    });
+    const extraOpeningArray = [...base.openings] as Array<
+      (typeof base.openings)[number]
+    > & { extra?: boolean };
+    extraOpeningArray.extra = true;
     const probes: unknown[] = [
       { ...base, game_concurrency: true },
       {
@@ -211,6 +224,9 @@ describe("local external calibration paired harness", () => {
         ...base,
         time_control: { ...base.time_control, stable_depth: 0 },
       },
+      { ...base, time_control: accessorTimeControl },
+      { ...base, openings: extraOpeningArray },
+      symbolRequest,
       { ...base, unexpected: true },
     ];
 
@@ -358,6 +374,39 @@ describe("local external calibration paired harness", () => {
     });
     expect(stableCounters.closes).toBe(1);
     expect(referenceCounters.closes).toBe(1);
+  });
+
+  it("rejects extra move-decision authority and returns no receipt", async () => {
+    const stableCounters = counters();
+    const referenceCounters = counters();
+    const stable = deterministicPlayer("stable", stableCounters);
+    const expandedStable = Object.freeze({
+      ...stable,
+      chooseMove: async (
+        input: Readonly<LocalExternalCalibrationMoveInput>,
+      ) => ({
+        usi: input.legal_moves[0],
+        search_receipt_sha256: "5".repeat(64),
+        result_writer: true,
+      }),
+    });
+
+    await expect(
+      runLocalExternalCalibrationCoreForTests(
+        request(),
+        Object.freeze({
+          createStablePlayer: async () => expandedStable,
+          createReferencePlayer: async () =>
+            deterministicPlayer("reference", referenceCounters),
+        }),
+      ),
+    ).rejects.toMatchObject({
+      phase: "game",
+      receipt_issued: false,
+      partial_result_publishable: false,
+    });
+    expect(stableCounters.aborts).toBe(1);
+    expect(referenceCounters.aborts).toBe(1);
   });
 
   it("runs a small subprocess fake-USI E2E with reset before every search", async () => {

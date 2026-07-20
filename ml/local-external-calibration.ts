@@ -299,7 +299,11 @@ function exactRecord(
   label: string,
 ): Readonly<Record<string, unknown>> {
   if (!isPlainRecord(value)) throw new Error(`${label} must be a plain record`);
-  const actual = Object.keys(value).sort();
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some((key) => typeof key !== "string")) {
+    throw new Error(`${label} must not contain symbol fields`);
+  }
+  const actual = (ownKeys as string[]).sort();
   const expected = [...keys].sort();
   if (
     actual.length !== expected.length ||
@@ -307,7 +311,58 @@ function exactRecord(
   ) {
     throw new Error(`${label} has an unexpected field set`);
   }
-  return value;
+  const captured = Object.create(null) as Record<string, unknown>;
+  for (const key of expected) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined ||
+      !descriptor.enumerable ||
+      !("value" in descriptor)
+    ) {
+      throw new Error(`${label}.${key} must be an enumerable data field`);
+    }
+    captured[key] = descriptor.value;
+  }
+  return Object.freeze(captured);
+}
+
+function exactArray(
+  value: unknown,
+  maximumLength: number,
+  label: string,
+): readonly unknown[] {
+  if (
+    !Array.isArray(value) ||
+    nodeUtilTypes.isProxy(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    throw new Error(`${label} must be a plain non-Proxy array`);
+  }
+  const length = value.length;
+  if (length < 1 || length > maximumLength) {
+    throw new Error(`${label} length must be 1 through ${maximumLength}`);
+  }
+  const expectedKeys = Array.from({ length }, (_, index) => String(index));
+  const ownKeys = Reflect.ownKeys(value);
+  if (
+    ownKeys.length !== expectedKeys.length + 1 ||
+    ownKeys[ownKeys.length - 1] !== "length" ||
+    expectedKeys.some((key, index) => ownKeys[index] !== key)
+  ) {
+    throw new Error(`${label} must be dense and contain no extra fields`);
+  }
+  const captured = expectedKeys.map((key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined ||
+      !descriptor.enumerable ||
+      !("value" in descriptor)
+    ) {
+      throw new Error(`${label}[${key}] must be an enumerable data field`);
+    }
+    return descriptor.value;
+  });
+  return Object.freeze(captured);
 }
 
 function positiveInteger(
@@ -417,14 +472,9 @@ function captureRequest(value: unknown): Readonly<CapturedRequest> {
       "reference_timeout_ms",
     ),
   });
-  if (!Array.isArray(request.openings) || request.openings.length < 1) {
-    throw new Error("request.openings must be a nonempty array");
-  }
-  if (request.openings.length > 512) {
-    throw new Error("request.openings exceeds 512");
-  }
+  const openingValues = exactArray(request.openings, 512, "request.openings");
   const seen = new Set<string>();
-  const openings = request.openings.map((value, index) => {
+  const openings = openingValues.map((value, index) => {
     const opening = exactRecord(
       value,
       ["opening_id", "sfen"],
@@ -677,13 +727,17 @@ async function playGame(
       sfen,
       legal_moves: legalMoves,
     });
-    const decision = await moveTimeout(
+    const decisionValue = await moveTimeout(
       Promise.resolve().then(() => player.chooseMove(input)),
       player.binding.per_move_timeout_ms,
       role,
     );
+    const decision = exactRecord(
+      decisionValue,
+      ["search_receipt_sha256", "usi"],
+      `${role} move decision`,
+    );
     if (
-      !isPlainRecord(decision) ||
       typeof decision.usi !== "string" ||
       !CANONICAL_USI_RE.test(decision.usi) ||
       !legalMoves.includes(decision.usi) ||
@@ -842,12 +896,16 @@ async function runInternal(
   let request: Readonly<CapturedRequest>;
   try {
     request = captureRequest(requestValue);
+    const factories = exactRecord(
+      dependencies,
+      ["createReferencePlayer", "createStablePlayer"],
+      "player factories",
+    );
     if (
-      !isPlainRecord(dependencies) ||
-      typeof dependencies.createStablePlayer !== "function" ||
-      nodeUtilTypes.isProxy(dependencies.createStablePlayer) ||
-      typeof dependencies.createReferencePlayer !== "function" ||
-      nodeUtilTypes.isProxy(dependencies.createReferencePlayer)
+      typeof factories.createStablePlayer !== "function" ||
+      nodeUtilTypes.isProxy(factories.createStablePlayer) ||
+      typeof factories.createReferencePlayer !== "function" ||
+      nodeUtilTypes.isProxy(factories.createReferencePlayer)
     ) {
       throw new Error("player factories must be direct functions");
     }

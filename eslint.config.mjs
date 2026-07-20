@@ -19,6 +19,7 @@ const eslintConfig = defineConfig([
     // Standalone ML/shogi tooling and non-app directories: not part of the
     // Next.js app; linting them slows every build without protecting shipped code.
     "ml/**",
+    "tests/unit/ml/**",
     "scripts/**",
     "docs/**",
     "native/**",

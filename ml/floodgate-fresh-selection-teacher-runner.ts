@@ -24,8 +24,10 @@ import {
 } from "./floodgate-training-row-validation";
 import {
   FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+  SIBLING_TEACHER_WORK_SCHEMA,
   generateFreshSelectionSiblingTeacherDataset,
   siblingTeacherStagePaths,
+  strengthFirstTimeoutSkipLimit,
 } from "./generate-sibling-teacher";
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
@@ -42,25 +44,25 @@ import { resolveFloodgateStrengthFirstTrainingPython } from "./floodgate-strengt
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 
 export const FRESH_SELECTION_TEACHER_AUTHORITY_SCHEMA =
-  "shogi-floodgate-strength-first-selection-teacher-authority-v1" as const;
+  "shogi-floodgate-strength-first-selection-teacher-authority-v2" as const;
 export const FRESH_SELECTION_TEACHER_MANIFEST_SCHEMA =
-  "shogi-floodgate-strength-first-selection-teacher-manifest-v1" as const;
+  "shogi-floodgate-strength-first-selection-teacher-manifest-v2" as const;
 export const FRESH_SELECTION_TEACHER_RESULT_SCHEMA =
-  "shogi-floodgate-strength-first-selection-teacher-result-v1" as const;
+  "shogi-floodgate-strength-first-selection-teacher-result-v2" as const;
 export const FRESH_SELECTION_TEACHER_DATASET_SCHEMA =
   "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const FRESH_SELECTION_TEACHER_STATUS =
   "complete-fresh-selection-only-postflight-bound" as const;
 export const FRESH_SELECTION_TEACHER_RUNNER_SCHEMA =
-  "shogi-floodgate-strength-first-selection-teacher-runner-v1" as const;
+  "shogi-floodgate-strength-first-selection-teacher-runner-v2" as const;
 export const FRESH_SELECTION_TEACHER_PREFLIGHT_SCHEMA =
   "shogi-floodgate-strength-first-selection-teacher-preflight-v1" as const;
 export const FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA =
-  "shogi-floodgate-fresh-selection-teacher-search-policy-v1" as const;
+  "shogi-floodgate-fresh-role-teacher-search-policy-v2" as const;
 export const FRESH_SELECTION_TEACHER_SEARCH_POLICY_PATH =
-  "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json" as const;
+  "ml/protocols/floodgate-q1-2026-strength-first-fresh-role-teacher-search-policy-v2.json" as const;
 export const FRESH_SELECTION_TEACHER_OUTPUT_RELATIVE_ROOT =
-  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1" as const;
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2" as const;
 export const FRESH_SELECTION_TEACHER_SOURCE_RELATIVE_PATH =
   ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl" as const;
 export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
@@ -124,7 +126,7 @@ export interface FreshSelectionTeacherCheckpointPreflight {
 export interface FreshSelectionTeacherSearchPolicy {
   readonly schema: typeof FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA;
   readonly status: "ready-for-post-checkpoint-local-teacher";
-  readonly role: "fresh_selection";
+  readonly role: "fresh_selection_and_fresh_final";
   readonly teacher: Readonly<{
     readonly engine: "YaneuraOu";
     readonly threads_per_engine: 1;
@@ -159,8 +161,18 @@ export interface FreshSelectionTeacherSearchPolicy {
   readonly completion: Readonly<{
     readonly input_parents: 4_800;
     readonly input_games: 200;
-    readonly timeout_or_incomplete_without_exact_fallback: "fatal-no-publication";
-    readonly allowed_forced_skip_reason: "fewer_than_two_legal_moves";
+    readonly search_timeout_no_label: Readonly<{
+      readonly disposition: "forced-parent-skip-no-label";
+      readonly skip_limit_divisor: 1_000;
+      readonly maximum_skips: 5;
+      readonly partial_parent_labels_accepted: false;
+    }>;
+    readonly proposal_fallback_timeout: "fatal-no-publication";
+    readonly proposal_incomplete_without_exact_fallback: "fatal-no-publication";
+    readonly allowed_forced_skip_reasons: readonly [
+      "fewer_than_two_legal_moves",
+      "search-timeout-no-label",
+    ];
     readonly partial_publication: false;
   }>;
 }
@@ -187,6 +199,21 @@ export interface FreshSelectionTeacherGeneratorOutcome {
   readonly forced_parents_skipped: number;
   readonly forced_skip_reasons: Readonly<{
     readonly fewer_than_two_legal_moves: number;
+    readonly search_timeout_no_label: number;
+  }>;
+  readonly work: Readonly<{
+    readonly path: "work.jsonl";
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: 4_801;
+  }>;
+  readonly parent_accounting: Readonly<{
+    readonly parent_ids_sha256: string;
+    readonly forced_parent_ids_sha256: string;
+    readonly emitted_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
   readonly dataset_records: number;
@@ -374,7 +401,7 @@ export function validateFreshSelectionTeacherSearchPolicy(
   if (
     value.schema !== FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA ||
     value.status !== "ready-for-post-checkpoint-local-teacher" ||
-    value.role !== "fresh_selection" ||
+    value.role !== "fresh_selection_and_fresh_final" ||
     teacher?.engine !== "YaneuraOu" ||
     teacher.threads_per_engine !== 1 ||
     !Number.isSafeInteger(proposal?.multipv) ||
@@ -409,10 +436,20 @@ export function validateFreshSelectionTeacherSearchPolicy(
     runtime.network !== false ||
     value.completion?.input_parents !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
     value.completion.input_games !== FRESH_SELECTION_TEACHER_GAME_COUNT ||
-    value.completion.timeout_or_incomplete_without_exact_fallback !==
+    value.completion.search_timeout_no_label?.disposition !==
+      "forced-parent-skip-no-label" ||
+    value.completion.search_timeout_no_label.skip_limit_divisor !== 1_000 ||
+    value.completion.search_timeout_no_label.maximum_skips !==
+      strengthFirstTimeoutSkipLimit(FRESH_SELECTION_TEACHER_PARENT_COUNT) ||
+    value.completion.search_timeout_no_label.partial_parent_labels_accepted !==
+      false ||
+    value.completion.proposal_fallback_timeout !== "fatal-no-publication" ||
+    value.completion.proposal_incomplete_without_exact_fallback !==
       "fatal-no-publication" ||
-    value.completion.allowed_forced_skip_reason !==
-      "fewer_than_two_legal_moves" ||
+    !sameJson(value.completion.allowed_forced_skip_reasons, [
+      "fewer_than_two_legal_moves",
+      "search-timeout-no-label",
+    ]) ||
     value.completion.partial_publication !== false
   ) {
     throw new Error("fresh-selection search policy is invalid or exceeds this Mac");
@@ -513,12 +550,31 @@ function completionFromOutcome(
   outcome: Readonly<FreshSelectionTeacherGeneratorOutcome>,
 ): Readonly<Record<string, unknown>> {
   const forced = outcome.forced_parents_skipped;
+  const forcedMove = outcome.forced_skip_reasons.fewer_than_two_legal_moves;
+  const timeout = outcome.forced_skip_reasons.search_timeout_no_label;
+  const accounting = outcome.parent_accounting;
   if (
     outcome.status !== "complete-fresh-selection-only" ||
     outcome.completed_parents !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
     !Number.isSafeInteger(forced) ||
     forced < 0 ||
-    outcome.forced_skip_reasons.fewer_than_two_legal_moves !== forced ||
+    !Number.isSafeInteger(forcedMove) ||
+    forcedMove < 0 ||
+    !Number.isSafeInteger(timeout) ||
+    timeout < 0 ||
+    timeout > strengthFirstTimeoutSkipLimit(FRESH_SELECTION_TEACHER_PARENT_COUNT) ||
+    forcedMove + timeout !== forced ||
+    outcome.work.path !== "work.jsonl" ||
+    outcome.work.schema !== SIBLING_TEACHER_WORK_SCHEMA ||
+    outcome.work.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT + 1 ||
+    !Number.isSafeInteger(outcome.work.bytes) ||
+    outcome.work.bytes < 1 ||
+    !SHA256_RE.test(outcome.work.sha256) ||
+    accounting.parent_ids_sha256 !== FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256 ||
+    !SHA256_RE.test(accounting.forced_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.emitted_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.fewer_than_two_legal_move_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.search_timeout_parent_ids_sha256) ||
     !Number.isSafeInteger(outcome.emitted_parent_groups) ||
     outcome.emitted_parent_groups < 1 ||
     outcome.emitted_parent_groups + forced !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
@@ -534,8 +590,10 @@ function completionFromOutcome(
     completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
     forced_parents_skipped: forced,
     forced_skip_reasons: Object.freeze({
-      fewer_than_two_legal_moves: forced,
+      fewer_than_two_legal_moves: forcedMove,
+      search_timeout_no_label: timeout,
     }),
+    parent_accounting: Object.freeze({ ...accounting }),
     emitted_parent_groups: outcome.emitted_parent_groups,
     dataset_records: outcome.dataset_records,
     sealed: true,
@@ -603,6 +661,12 @@ async function verifyExistingResult(
         paths.outputRoot,
         effectiveUserId,
         FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
+      ),
+      digestPrivateFile(
+        paths.work,
+        paths.outputRoot,
+        effectiveUserId,
+        SIBLING_TEACHER_WORK_SCHEMA,
       ),
     ]);
     return {
@@ -736,6 +800,19 @@ export async function runFreshSelectionTeacherCore(
       dependencies.effectiveUserId,
       FRESH_SELECTION_TEACHER_DATASET_SCHEMA,
     );
+    const work = await digestPrivateFile(
+      paths.work,
+      paths.outputRoot,
+      dependencies.effectiveUserId,
+      SIBLING_TEACHER_WORK_SCHEMA,
+    );
+    if (
+      work.bytes !== outcome.work.bytes ||
+      work.sha256 !== outcome.work.sha256 ||
+      outcome.work.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT + 1
+    ) {
+      throw new Error("fresh-selection work identity drifted after generation");
+    }
     const runFingerprint = buildRunFingerprint(
       revision,
       beforePreflight,
@@ -749,6 +826,7 @@ export async function runFreshSelectionTeacherCore(
       role: "fresh_selection",
       source: FRESH_SELECTION_TEACHER_SOURCE,
       dataset,
+      work,
       completion,
       run_fingerprint: runFingerprint,
       boundary: FRESH_SELECTION_TEACHER_BOUNDARY,
@@ -765,6 +843,7 @@ export async function runFreshSelectionTeacherCore(
       role: "fresh_selection",
       manifest: manifestIdentity,
       dataset,
+      work,
       completion,
       run_fingerprint: runFingerprint,
       postflight_complete: true,
@@ -790,6 +869,7 @@ export async function runFreshSelectionTeacherCore(
         manifest: manifestIdentity,
         result: resultIdentity,
         dataset,
+        work,
       },
       completion,
       run_fingerprint: runFingerprint,

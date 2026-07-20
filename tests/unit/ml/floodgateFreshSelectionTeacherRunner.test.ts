@@ -44,6 +44,28 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+async function writeSyntheticWork(file: string) {
+  const bytes = '{"schema":"synthetic-work"}\n';
+  await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+  return {
+    path: "work.jsonl" as const,
+    bytes: Buffer.byteLength(bytes),
+    sha256: sha256(bytes),
+    schema: "shogi-sibling-teacher-work-v2" as const,
+    records: 4_801 as const,
+  };
+}
+
+function parentAccounting(parentIdsSha256: string) {
+  return {
+    parent_ids_sha256: parentIdsSha256,
+    forced_parent_ids_sha256: sha256(""),
+    emitted_parent_ids_sha256: parentIdsSha256,
+    fewer_than_two_legal_move_parent_ids_sha256: sha256(""),
+    search_timeout_parent_ids_sha256: sha256(""),
+  };
+}
+
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -87,7 +109,7 @@ function policy(
   return {
     schema: FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
     status: "ready-for-post-checkpoint-local-teacher",
-    role: "fresh_selection",
+    role: "fresh_selection_and_fresh_final",
     teacher: {
       engine: "YaneuraOu",
       threads_per_engine: 1,
@@ -123,8 +145,18 @@ function policy(
     completion: {
       input_parents: 4_800,
       input_games: 200,
-      timeout_or_incomplete_without_exact_fallback: "fatal-no-publication",
-      allowed_forced_skip_reason: "fewer_than_two_legal_moves",
+      search_timeout_no_label: {
+        disposition: "forced-parent-skip-no-label",
+        skip_limit_divisor: 1_000,
+        maximum_skips: 5,
+        partial_parent_labels_accepted: false,
+      },
+      proposal_fallback_timeout: "fatal-no-publication",
+      proposal_incomplete_without_exact_fallback: "fatal-no-publication",
+      allowed_forced_skip_reasons: [
+        "fewer_than_two_legal_moves",
+        "search-timeout-no-label",
+      ],
       partial_publication: false,
     },
   };
@@ -175,12 +207,20 @@ async function dependencies(
     generate: vi.fn(async (request) => {
       await fs.promises.writeFile(request.datasetPath, "{}\n", { mode: 0o600 });
       await fs.promises.chmod(request.datasetPath, 0o600);
+      const work = await writeSyntheticWork(request.workPath);
       return {
         status: "complete-fresh-selection-only",
         generation_run_fingerprint: sha256("generation"),
         completed_parents: 4_800,
         forced_parents_skipped: 0,
-        forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 0,
+        },
+        work,
+        parent_accounting: parentAccounting(
+          FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+        ),
         emitted_parent_groups: 4_800,
         dataset_records: 9_600,
       };
@@ -293,12 +333,20 @@ describe("fresh-selection teacher runner", () => {
         });
         expect(request.searchPolicy.teacher.independent_rescore.depth).toBe(16);
         await fs.promises.writeFile(request.datasetPath, "{}\n", { mode: 0o600 });
+        const work = await writeSyntheticWork(request.workPath);
         return {
           status: "complete-fresh-selection-only",
           generation_run_fingerprint: sha256("generation"),
           completed_parents: 4_800,
           forced_parents_skipped: 0,
-          forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 0,
+          },
+          work,
+          parent_accounting: parentAccounting(
+            FRESH_SELECTION_TEACHER_SOURCE.parent_ids_sha256,
+          ),
           emitted_parent_groups: 4_800,
           dataset_records: 9_600,
         };
@@ -359,6 +407,7 @@ describe("fresh-selection teacher runner", () => {
         "role",
         "source",
         "dataset",
+        "work",
         "completion",
         "run_fingerprint",
         "boundary",
@@ -371,6 +420,7 @@ describe("fresh-selection teacher runner", () => {
         "role",
         "manifest",
         "dataset",
+        "work",
         "completion",
         "run_fingerprint",
         "postflight_complete",
@@ -385,6 +435,7 @@ describe("fresh-selection teacher runner", () => {
     );
     expect((result.completion as Record<string, unknown>).forced_skip_reasons).toEqual({
       fewer_than_two_legal_moves: 0,
+      search_timeout_no_label: 0,
     });
     expect(result.postflight_complete).toBe(true);
     for (const file of [
@@ -392,6 +443,7 @@ describe("fresh-selection teacher runner", () => {
       paths.manifest,
       paths.result,
       paths.dataset,
+      paths.work,
     ]) {
       expect((await fs.promises.lstat(file)).mode & 0o7777).toBe(0o600);
     }

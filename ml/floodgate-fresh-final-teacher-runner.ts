@@ -25,9 +25,11 @@ import {
 } from "./floodgate-training-row-validation";
 import {
   FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+  SIBLING_TEACHER_WORK_SCHEMA,
   freshFinalSiblingTeacherRunFingerprintFromEvidence,
   generateFreshFinalSiblingTeacherDataset,
   siblingTeacherStagePaths,
+  strengthFirstTimeoutSkipLimit,
 } from "./generate-sibling-teacher";
 import {
   compareBytewise,
@@ -59,13 +61,13 @@ import { resolveFloodgateStrengthFirstTrainingPython } from "./floodgate-strengt
 import { captureFloodgateGitExactCleanRevision } from "./floodgate-git";
 
 export const FRESH_FINAL_TEACHER_AUTHORITY_SCHEMA =
-  "shogi-floodgate-strength-first-fresh-final-teacher-authority-v1" as const;
+  "shogi-floodgate-strength-first-fresh-final-teacher-authority-v2" as const;
 export const FRESH_FINAL_TEACHER_MANIFEST_SCHEMA =
-  "shogi-floodgate-strength-first-fresh-final-teacher-manifest-v1" as const;
+  "shogi-floodgate-strength-first-fresh-final-teacher-manifest-v2" as const;
 export const FRESH_FINAL_TEACHER_RESULT_SCHEMA =
-  "shogi-floodgate-strength-first-fresh-final-teacher-result-v1" as const;
+  "shogi-floodgate-strength-first-fresh-final-teacher-result-v2" as const;
 export const FRESH_FINAL_TEACHER_RUNNER_SCHEMA =
-  "shogi-floodgate-strength-first-fresh-final-teacher-runner-v1" as const;
+  "shogi-floodgate-strength-first-fresh-final-teacher-runner-v2" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_PREFLIGHT_SCHEMA =
   "shogi-floodgate-strength-first-fresh-final-teacher-selection-preflight-v1" as const;
 export const FRESH_FINAL_TEACHER_PREFLIGHT_CLI_SCHEMA =
@@ -75,15 +77,15 @@ export const FRESH_FINAL_TEACHER_STATUS =
 export const FRESH_FINAL_TEACHER_DATASET_SCHEMA =
   "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const FRESH_FINAL_TEACHER_OUTPUT_RELATIVE_ROOT =
-  ".codex/shogi-runs/floodgate-q1-2026-strength-first-fresh-final-teacher-v1" as const;
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-fresh-final-teacher-v2" as const;
 export const FRESH_FINAL_TEACHER_SOURCE_RELATIVE_PATH =
   ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_RECEIPT_RELATIVE_PATH =
-  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json" as const;
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-receipt.json" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_EVALUATION_REPORT_RELATIVE_PATH =
-  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json" as const;
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-evaluation-report.json" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_PUBLICATION_RESULT_RELATIVE_PATH =
-  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json" as const;
+  ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json" as const;
 export const FRESH_FINAL_TEACHER_SELECTION_REGISTRY_PATH =
   "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json" as const;
 export const FRESH_FINAL_TEACHER_PARENT_COUNT = 4_800 as const;
@@ -226,6 +228,21 @@ export interface FreshFinalTeacherGeneratorOutcome {
   readonly forced_parents_skipped: number;
   readonly forced_skip_reasons: Readonly<{
     readonly fewer_than_two_legal_moves: number;
+    readonly search_timeout_no_label: number;
+  }>;
+  readonly work: Readonly<{
+    readonly path: "work.jsonl";
+    readonly bytes: number;
+    readonly sha256: string;
+    readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
+    readonly records: 4_801;
+  }>;
+  readonly parent_accounting: Readonly<{
+    readonly parent_ids_sha256: string;
+    readonly forced_parent_ids_sha256: string;
+    readonly emitted_parent_ids_sha256: string;
+    readonly fewer_than_two_legal_move_parent_ids_sha256: string;
+    readonly search_timeout_parent_ids_sha256: string;
   }>;
   readonly emitted_parent_groups: number;
   readonly dataset_records: number;
@@ -575,12 +592,31 @@ function completionFromOutcome(
   outcome: Readonly<FreshFinalTeacherGeneratorOutcome>,
 ): Readonly<Record<string, unknown>> {
   const forced = outcome.forced_parents_skipped;
+  const forcedMove = outcome.forced_skip_reasons.fewer_than_two_legal_moves;
+  const timeout = outcome.forced_skip_reasons.search_timeout_no_label;
+  const accounting = outcome.parent_accounting;
   if (
     outcome.status !== "complete-fresh-final-only" ||
     outcome.completed_parents !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
     !Number.isSafeInteger(forced) ||
     forced < 0 ||
-    outcome.forced_skip_reasons.fewer_than_two_legal_moves !== forced ||
+    !Number.isSafeInteger(forcedMove) ||
+    forcedMove < 0 ||
+    !Number.isSafeInteger(timeout) ||
+    timeout < 0 ||
+    timeout > strengthFirstTimeoutSkipLimit(FRESH_FINAL_TEACHER_PARENT_COUNT) ||
+    forcedMove + timeout !== forced ||
+    outcome.work.path !== "work.jsonl" ||
+    outcome.work.schema !== SIBLING_TEACHER_WORK_SCHEMA ||
+    outcome.work.records !== FRESH_FINAL_TEACHER_PARENT_COUNT + 1 ||
+    !Number.isSafeInteger(outcome.work.bytes) ||
+    outcome.work.bytes < 1 ||
+    !SHA256_RE.test(outcome.work.sha256) ||
+    accounting.parent_ids_sha256 !== FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256 ||
+    !SHA256_RE.test(accounting.forced_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.emitted_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.fewer_than_two_legal_move_parent_ids_sha256) ||
+    !SHA256_RE.test(accounting.search_timeout_parent_ids_sha256) ||
     !Number.isSafeInteger(outcome.emitted_parent_groups) ||
     outcome.emitted_parent_groups < 1 ||
     outcome.emitted_parent_groups + forced !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
@@ -596,8 +632,10 @@ function completionFromOutcome(
     completed_parents: FRESH_FINAL_TEACHER_PARENT_COUNT,
     forced_parents_skipped: forced,
     forced_skip_reasons: Object.freeze({
-      fewer_than_two_legal_moves: forced,
+      fewer_than_two_legal_moves: forcedMove,
+      search_timeout_no_label: timeout,
     }),
+    parent_accounting: Object.freeze({ ...accounting }),
     emitted_parent_groups: outcome.emitted_parent_groups,
     dataset_records: outcome.dataset_records,
     sealed: true,
@@ -629,6 +667,7 @@ function validateStoredCompletion(value: unknown): Readonly<Record<string, unkno
       "completed_parents",
       "forced_parents_skipped",
       "forced_skip_reasons",
+      "parent_accounting",
       "emitted_parent_groups",
       "dataset_records",
       "sealed",
@@ -637,8 +676,19 @@ function validateStoredCompletion(value: unknown): Readonly<Record<string, unkno
   );
   const reasons = exactObject(
     completion.forced_skip_reasons,
-    ["fewer_than_two_legal_moves"],
+    ["fewer_than_two_legal_moves", "search_timeout_no_label"],
     "fresh-final stored skip reasons",
+  );
+  const accounting = exactObject(
+    completion.parent_accounting,
+    [
+      "parent_ids_sha256",
+      "forced_parent_ids_sha256",
+      "emitted_parent_ids_sha256",
+      "fewer_than_two_legal_move_parent_ids_sha256",
+      "search_timeout_parent_ids_sha256",
+    ],
+    "fresh-final stored parent accounting",
   );
   const forced = completion.forced_parents_skipped;
   const emitted = completion.emitted_parent_groups;
@@ -649,7 +699,17 @@ function validateStoredCompletion(value: unknown): Readonly<Record<string, unkno
     completion.completed_parents !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
     !Number.isSafeInteger(forced) ||
     (forced as number) < 0 ||
-    reasons.fewer_than_two_legal_moves !== forced ||
+    !Number.isSafeInteger(reasons.fewer_than_two_legal_moves) ||
+    !Number.isSafeInteger(reasons.search_timeout_no_label) ||
+    (reasons.search_timeout_no_label as number) >
+      strengthFirstTimeoutSkipLimit(FRESH_FINAL_TEACHER_PARENT_COUNT) ||
+    (reasons.fewer_than_two_legal_moves as number) +
+        (reasons.search_timeout_no_label as number) !==
+      forced ||
+    accounting.parent_ids_sha256 !== FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256 ||
+    Object.values(accounting).some(
+      (digest) => typeof digest !== "string" || !SHA256_RE.test(digest),
+    ) ||
     !Number.isSafeInteger(emitted) ||
     (emitted as number) < 1 ||
     (emitted as number) + (forced as number) !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
@@ -983,7 +1043,13 @@ async function verifyExistingResult(
       expectedGenerationRunFingerprint,
       assets,
     );
-    const [authoritySnapshot, manifestSnapshot, resultSnapshot, datasetSnapshot] =
+    const [
+      authoritySnapshot,
+      manifestSnapshot,
+      resultSnapshot,
+      datasetSnapshot,
+      workSnapshot,
+    ] =
       await Promise.all([
         readPrivateArtifact(
           paths.authority,
@@ -1009,6 +1075,12 @@ async function verifyExistingResult(
           effectiveUserId,
           FRESH_FINAL_TEACHER_DATASET_SCHEMA,
         ),
+        readPrivateArtifact(
+          paths.work,
+          paths.outputRoot,
+          effectiveUserId,
+          SIBLING_TEACHER_WORK_SCHEMA,
+        ),
       ]);
     const result = exactObject(
       parseCanonicalPrivateJson(resultSnapshot, "fresh-final result"),
@@ -1021,6 +1093,7 @@ async function verifyExistingResult(
         "selection_receipt",
         "manifest",
         "dataset",
+        "work",
         "completion",
         "runner_revision",
         "generation_run_fingerprint",
@@ -1061,6 +1134,11 @@ async function verifyExistingResult(
       datasetSnapshot.identity,
       "fresh-final result dataset identity",
     );
+    validateStoredIdentity(
+      result.work,
+      workSnapshot.identity,
+      "fresh-final result work identity",
+    );
 
     const manifest = exactObject(
       parseCanonicalPrivateJson(manifestSnapshot, "fresh-final manifest"),
@@ -1073,6 +1151,7 @@ async function verifyExistingResult(
         "selected_checkpoint",
         "selection_receipt",
         "dataset",
+        "work",
         "completion",
         "runner_revision",
         "generation_run_fingerprint",
@@ -1103,6 +1182,11 @@ async function verifyExistingResult(
       datasetSnapshot.identity,
       "fresh-final manifest dataset identity",
     );
+    validateStoredIdentity(
+      manifest.work,
+      workSnapshot.identity,
+      "fresh-final manifest work identity",
+    );
 
     const authority = exactObject(
       parseCanonicalPrivateJson(authoritySnapshot, "fresh-final authority"),
@@ -1130,7 +1214,7 @@ async function verifyExistingResult(
     );
     const artifacts = exactObject(
       authority.artifacts,
-      ["manifest", "result", "dataset"],
+      ["manifest", "result", "dataset", "work"],
       "fresh-final authority artifacts",
     );
     if (
@@ -1181,6 +1265,11 @@ async function verifyExistingResult(
       artifacts.dataset,
       datasetSnapshot.identity,
       "fresh-final authority dataset identity",
+    );
+    validateStoredIdentity(
+      artifacts.work,
+      workSnapshot.identity,
+      "fresh-final authority work identity",
     );
     return {
       schema: FRESH_FINAL_TEACHER_RUNNER_SCHEMA,
@@ -1368,12 +1457,26 @@ export async function runFreshFinalTeacherCore(
       dependencies.effectiveUserId,
       FRESH_FINAL_TEACHER_DATASET_SCHEMA,
     );
+    const workSnapshot = await readPrivateArtifact(
+      paths.work,
+      paths.outputRoot,
+      dependencies.effectiveUserId,
+      SIBLING_TEACHER_WORK_SCHEMA,
+    );
+    if (
+      workSnapshot.identity.bytes !== outcome.work.bytes ||
+      workSnapshot.identity.sha256 !== outcome.work.sha256 ||
+      outcome.work.records !== FRESH_FINAL_TEACHER_PARENT_COUNT + 1
+    ) {
+      throw new Error("fresh-final work identity drifted after generation");
+    }
     validateFreshFinalDatasetBytesCoreForTests(
       datasetSnapshot.bytes,
       beforeSource.rows,
       completion,
     );
     const dataset = datasetSnapshot.identity;
+    const work = workSnapshot.identity;
     const runFingerprint = buildRunFingerprint(
       revision,
       beforePreflight,
@@ -1390,6 +1493,7 @@ export async function runFreshFinalTeacherCore(
       selected_checkpoint: beforePreflight.selected_checkpoint,
       selection_receipt: beforePreflight.selection_receipt,
       dataset,
+      work,
       completion,
       runner_revision: revision,
       generation_run_fingerprint: expectedGenerationRunFingerprint,
@@ -1411,6 +1515,7 @@ export async function runFreshFinalTeacherCore(
       selection_receipt: beforePreflight.selection_receipt,
       manifest: manifestIdentity,
       dataset,
+      work,
       completion,
       runner_revision: revision,
       generation_run_fingerprint: expectedGenerationRunFingerprint,
@@ -1444,6 +1549,7 @@ export async function runFreshFinalTeacherCore(
         manifest: manifestIdentity,
         result: resultIdentity,
         dataset,
+        work,
       },
       completion,
       runner_revision: revision,

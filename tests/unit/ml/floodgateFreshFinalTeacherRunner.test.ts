@@ -49,6 +49,28 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+async function writeSyntheticWork(file: string) {
+  const bytes = '{"schema":"synthetic-work"}\n';
+  await fs.promises.writeFile(file, bytes, { mode: 0o600 });
+  return {
+    path: "work.jsonl" as const,
+    bytes: Buffer.byteLength(bytes),
+    sha256: sha256(bytes),
+    schema: "shogi-sibling-teacher-work-v2" as const,
+    records: 4_801 as const,
+  };
+}
+
+function parentAccounting(parentIdsSha256: string) {
+  return {
+    parent_ids_sha256: parentIdsSha256,
+    forced_parent_ids_sha256: sha256(""),
+    emitted_parent_ids_sha256: parentIdsSha256,
+    fewer_than_two_legal_move_parent_ids_sha256: sha256(""),
+    search_timeout_parent_ids_sha256: sha256(""),
+  };
+}
+
 function artifact(
   pathname: string,
   schema: string,
@@ -70,15 +92,15 @@ function preflight(): FreshFinalTeacherSelectionPreflight {
       "shogi-floodgate-strength-first-selection-evaluator-registry-v1",
     ),
     selection_evaluation_report: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-evaluation-report.json",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-evaluation-report.json",
       "shogi-floodgate-strength-first-selection-evaluation-report-v1",
     ),
     selection_receipt: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-receipt.json",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-receipt.json",
       "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
     ),
     selection_publication_result: artifact(
-      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1/selection-publication-result.json",
+      ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json",
       "shogi-floodgate-strength-first-selection-publication-result-v1",
     ),
     selected_seed: 43,
@@ -121,7 +143,7 @@ function policy(): FreshSelectionTeacherSearchPolicy {
   return {
     schema: FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
     status: "ready-for-post-checkpoint-local-teacher",
-    role: "fresh_selection",
+    role: "fresh_selection_and_fresh_final",
     teacher: {
       engine: "YaneuraOu",
       threads_per_engine: 1,
@@ -156,8 +178,18 @@ function policy(): FreshSelectionTeacherSearchPolicy {
     completion: {
       input_parents: 4_800,
       input_games: 200,
-      timeout_or_incomplete_without_exact_fallback: "fatal-no-publication",
-      allowed_forced_skip_reason: "fewer_than_two_legal_moves",
+      search_timeout_no_label: {
+        disposition: "forced-parent-skip-no-label",
+        skip_limit_divisor: 1_000,
+        maximum_skips: 5,
+        partial_parent_labels_accepted: false,
+      },
+      proposal_fallback_timeout: "fatal-no-publication",
+      proposal_incomplete_without_exact_fallback: "fatal-no-publication",
+      allowed_forced_skip_reasons: [
+        "fewer_than_two_legal_moves",
+        "search-timeout-no-label",
+      ],
       partial_publication: false,
     },
   };
@@ -266,12 +298,20 @@ async function dependencies(
         mode: 0o600,
       });
       await fs.promises.chmod(request.datasetPath, 0o600);
+      const work = await writeSyntheticWork(request.workPath);
       return {
         status: "complete-fresh-final-only",
         generation_run_fingerprint: sha256("fresh-final-generation"),
         completed_parents: 4_800,
         forced_parents_skipped: 0,
-        forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 0,
+        },
+        work,
+        parent_accounting: parentAccounting(
+          FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+        ),
         emitted_parent_groups: 4_800,
         dataset_records: 9_600,
       };
@@ -352,12 +392,20 @@ describe("fresh-final teacher runner", () => {
           validDatasetBytes(),
           { mode: 0o600 },
         );
+        const work = await writeSyntheticWork(request.workPath);
         return {
           status: "complete-fresh-final-only",
           generation_run_fingerprint: sha256("fresh-final-generation"),
           completed_parents: 4_800,
           forced_parents_skipped: 0,
-          forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+          forced_skip_reasons: {
+            fewer_than_two_legal_moves: 0,
+            search_timeout_no_label: 0,
+          },
+          work,
+          parent_accounting: parentAccounting(
+            FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+          ),
           emitted_parent_groups: 4_800,
           dataset_records: 9_600,
         };
@@ -411,6 +459,7 @@ describe("fresh-final teacher runner", () => {
         "final.jsonl",
         "manifest.json",
         "result.json",
+        "work.jsonl",
       ]),
     );
     await expect(
@@ -421,6 +470,7 @@ describe("fresh-final teacher runner", () => {
       paths.manifest,
       paths.result,
       paths.dataset,
+      paths.work,
     ]) {
       expect((await fs.promises.lstat(file)).mode & 0o7777).toBe(0o600);
     }
@@ -521,7 +571,13 @@ describe("fresh-final teacher runner", () => {
       input_parents: 4_800,
       completed_parents: 4_800,
       forced_parents_skipped: 0,
-      forced_skip_reasons: { fewer_than_two_legal_moves: 0 },
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 0,
+      },
+      parent_accounting: parentAccounting(
+        FRESH_FINAL_TEACHER_SOURCE.parent_ids_sha256,
+      ),
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
       sealed: true,

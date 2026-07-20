@@ -8,6 +8,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
+import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
 import { BLOG_POST_LIST_CACHE_TAG, blogPostDetailCacheTag } from '@/lib/blog/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -52,6 +53,8 @@ export const GET = withActivityLog('next_api.post.id.GET', async (request: NextR
       image: data.image,
       translations,
       availableLanguages: availableLanguages(translations),
+      relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds),
+      viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
       created: data.created?.toDate?.()?.toISOString() || data.created,
       lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
     };
@@ -82,12 +85,13 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
 
     const { id } = await params;
     const body = await request.json();
-    const { category, isPublic, image, tags, translations } = body as {
+    const { category, isPublic, image, tags, translations, relatedPostIds } = body as {
       category?: string;
       isPublic?: boolean;
       image?: string;
       tags?: unknown;
       translations?: PostTranslations;
+      relatedPostIds?: unknown;
     };
 
     if (!translations) {
@@ -132,6 +136,9 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
     }
     if (tags !== undefined) {
       update.tags = normalizePostTags(tags);
+    }
+    if (relatedPostIds !== undefined) {
+      update.relatedPostIds = normalizeRelatedPostIds(relatedPostIds, id);
     }
 
     await docRef.update(update);

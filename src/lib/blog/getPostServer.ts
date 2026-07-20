@@ -4,6 +4,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { availableLanguages, type PostTranslations } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
 import { blogPostDetailCacheTag } from '@/lib/blog/cacheTags';
 import type { DetailPost } from '@/services/postsService';
 
@@ -26,6 +27,7 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
     image: typeof data.image === 'string' ? data.image : undefined,
     translations,
     availableLanguages: availableLanguages(translations),
+    relatedPostIds: normalizeRelatedPostIds(data.relatedPostIds),
     created: data.created?.toDate?.()?.toISOString() || data.created || '',
     lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated || '',
   };

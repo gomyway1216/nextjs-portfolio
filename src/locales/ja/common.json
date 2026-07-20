@@ -179,7 +179,8 @@
       "notFoundTitle": "記事が見つかりません",
       "notFoundText": "この記事は利用できないか、まだ公開されていません。",
       "backToBlog": "ブログへ戻る",
-      "edit": "編集"
+      "edit": "編集",
+      "related": "関連記事"
     }
   },
   "study": {

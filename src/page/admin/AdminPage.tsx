@@ -7,6 +7,7 @@ import RichContentRenderer from '@/components/common/RichContentRenderer';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { normalizePostCategory, normalizePostTag, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
+import { MAX_RELATED_POSTS } from '@/lib/blog/relatedPosts';
 import { normalizeTranslationsForMarkdownEditing } from '@/lib/markdownHtml';
 import { getEducationDegreeTitle,getEducationInstituteName,getEducationPassingYear } from '@/lib/resumeEducation';
 import { useAuth } from '@/providers/AuthProvider';
@@ -626,6 +627,7 @@ const PostsTable = memo(function PostsTable({
             <th style={styles.th}>Title</th>
             <th style={styles.th}>Category</th>
             <th style={styles.th}>Status</th>
+            <th style={{ ...styles.th, textAlign: 'right' }}>Views</th>
             <th style={styles.th}>Updated</th>
             <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
           </tr>
@@ -674,6 +676,9 @@ const PostsTable = memo(function PostsTable({
                   </span>
                 )}
               </td>
+              <td style={{ ...styles.td, textAlign: 'right', color: adminColors.textMuted, fontSize: '14px', fontVariantNumeric: 'tabular-nums' }}>
+                {(post.viewCount ?? 0).toLocaleString()}
+              </td>
               <td style={{ ...styles.td, color: adminColors.textMuted, fontSize: '14px' }} suppressHydrationWarning>
                 {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
               </td>
@@ -704,7 +709,7 @@ const PostsTable = memo(function PostsTable({
           ))}
           {posts.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
+              <td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
                 No posts yet. Click &quot;Add Post&quot; to create one.
               </td>
             </tr>
@@ -1124,13 +1129,16 @@ const AdminPage = () => {
     isPublic: boolean;
     image: string;
     translations: PostTranslations;
+    relatedPostIds: string[];
   }>({
     category: '',
     isPublic: true,
     image: '',
     translations: {},
+    relatedPostIds: [],
   });
   const [postTagsInput, setPostTagsInput] = useState('');
+  const [relatedPostFilter, setRelatedPostFilter] = useState('');
 
   const setTranslationField = (lang: PostLanguage, field: 'title' | 'body', value: string) => {
     setPostForm((prev) => ({
@@ -1508,6 +1516,7 @@ const AdminPage = () => {
           isPublic: detail.isPublic,
           image: detail.image || '',
           translations: normalizeTranslationsForMarkdownEditing(detail.translations),
+          relatedPostIds: detail.relatedPostIds || [],
         });
         setPostTagsInput((detail.tags || []).join(', '));
       } catch (error) {
@@ -1521,9 +1530,11 @@ const AdminPage = () => {
         isPublic: true,
         image: '',
         translations: {},
+        relatedPostIds: [],
       });
       setPostTagsInput('');
     }
+    setRelatedPostFilter('');
     setShowPostModal(true);
   }, [defaultPostCategory, showMessage]);
 
@@ -1587,6 +1598,19 @@ const AdminPage = () => {
     setPostTagsInput(next.join(', '));
   };
 
+  const toggleRelatedPost = (id: string) => {
+    setPostForm((prev) => {
+      if (prev.relatedPostIds.includes(id)) {
+        return { ...prev, relatedPostIds: prev.relatedPostIds.filter((x) => x !== id) };
+      }
+      if (prev.relatedPostIds.length >= MAX_RELATED_POSTS) {
+        showMessage('error', `Up to ${MAX_RELATED_POSTS} related posts.`);
+        return prev;
+      }
+      return { ...prev, relatedPostIds: [...prev.relatedPostIds, id] };
+    });
+  };
+
   const handleSavePost = async () => {
     // Strip out translations where both title and body are empty so we
     // never persist a useless { title: '', body: '' } record.
@@ -1618,6 +1642,7 @@ const AdminPage = () => {
           translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
+          relatedPostIds: postForm.relatedPostIds,
         });
         showMessage('success', 'Post updated successfully!');
       } else {
@@ -1627,6 +1652,7 @@ const AdminPage = () => {
           translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
+          relatedPostIds: postForm.relatedPostIds,
         });
         showMessage('success', 'Post created successfully!');
       }
@@ -3668,6 +3694,78 @@ const AdminPage = () => {
                     style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                   />
                   <label htmlFor="post-public" style={{ color: adminColors.textSoft, cursor: 'pointer' }}>Public</label>
+                </div>
+                <div>
+                  <label style={styles.label}>
+                    Related posts ({postForm.relatedPostIds.length}/{MAX_RELATED_POSTS})
+                  </label>
+                  <p style={{ color: adminColors.textMuted, fontSize: '12px', margin: '0 0 8px' }}>
+                    Shown as a &quot;Related posts&quot; section under the article. Only public
+                    posts render for readers; a private pick stays hidden until published.
+                  </p>
+                  <input
+                    value={relatedPostFilter}
+                    onChange={(e) => setRelatedPostFilter(e.target.value)}
+                    placeholder="Filter by title or category"
+                    style={styles.input}
+                  />
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      maxHeight: '180px',
+                      overflowY: 'auto',
+                      border: `1px solid ${adminColors.border}`,
+                      borderRadius: '8px',
+                      padding: '6px',
+                      display: 'grid',
+                      gap: '4px',
+                    }}
+                  >
+                    {posts
+                      .filter((p) => p.id !== editingPost?.id)
+                      .filter((p) => {
+                        const q = relatedPostFilter.trim().toLowerCase();
+                        if (!q) return true;
+                        return p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+                      })
+                      .map((p) => {
+                        const selected = postForm.relatedPostIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => toggleRelatedPost(p.id)}
+                            style={{
+                              ...styles.ghostButton,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              width: '100%',
+                              textAlign: 'left',
+                              border: `1px solid ${selected ? adminColors.accent : 'transparent'}`,
+                              borderRadius: '8px',
+                              padding: '7px 10px',
+                              backgroundColor: selected ? adminColors.accentSoft : 'transparent',
+                              color: selected ? adminColors.accent : adminColors.textSoft,
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.title}
+                            </span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontSize: '12px', color: adminColors.textMuted }}>
+                              {p.category}
+                              {!p.isPublic && <EyeOff size={12} aria-label="Private" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    {posts.filter((p) => p.id !== editingPost?.id).length === 0 && (
+                      <p style={{ color: adminColors.textSubtle, fontSize: '13px', margin: '6px', textAlign: 'center' }}>
+                        No other posts to link yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label style={styles.label}>Cover image</label>

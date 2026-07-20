@@ -186,7 +186,7 @@ function policy(): FreshSelectionTeacherSearchPolicy {
       },
     },
     runtime: {
-      parallel_engines: 12,
+      parallel_engines: 13,
       threads_per_engine: 1,
       hash_mb_per_engine: 512,
       timeout_ms_per_search: 600_000,
@@ -441,7 +441,7 @@ describe("fresh-final teacher runner", () => {
       completed_parents: 4_800,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0,
     });
     expect(events).toEqual([

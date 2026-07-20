@@ -152,7 +152,7 @@ function policy(
       },
     },
     runtime: {
-      parallel_engines: 12,
+      parallel_engines: 13,
       threads_per_engine: 1,
       hash_mb_per_engine: 512,
       timeout_ms_per_search: 600_000,
@@ -422,7 +422,7 @@ describe("fresh-selection teacher runner", () => {
       completed_parents: 4_800,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0,
     });
     expect(events).toEqual([
@@ -902,7 +902,7 @@ describe("fresh-selection teacher runner", () => {
       completed_parents: 4_800 as const,
       emitted_parent_groups: 4_800,
       dataset_records: 9_600,
-      parallel_engines: 12,
+      parallel_engines: 13,
       live_weight_changes: 0 as const,
     }));
     await expect(
@@ -918,7 +918,7 @@ describe("fresh-selection teacher runner", () => {
     const output = JSON.parse(writeStdout.mock.calls[0][0]) as Record<string, unknown>;
     expect(output).toMatchObject({
       completed_parents: 4_800,
-      parallel_engines: 12,
+      parallel_engines: 13,
       private_paths_emitted: false,
       labels_emitted: false,
       live_weight_changes: 0,

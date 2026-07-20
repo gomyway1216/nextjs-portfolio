@@ -77,7 +77,7 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
     });
   });
 
-  it("binds the exact source and the measured 12-by-512 local policy", () => {
+  it("preserves the historical 12-by-512 evidence while the current runner uses measured 13", () => {
     const policy = readJson(policyPath);
     expect(policy).toMatchObject({
       teacher: {
@@ -92,7 +92,7 @@ describe("Floodgate strength-first fresh-selection teacher evidence", () => {
         network: false,
       },
     });
-    expect(FRESH_SELECTION_TEACHER_PARALLEL_ENGINES).toBe(12);
+    expect(FRESH_SELECTION_TEACHER_PARALLEL_ENGINES).toBe(13);
     expect(FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE).toBe(512);
     expect(readJson(evidencePath)).toMatchObject({
       fixed_source: {

@@ -77,7 +77,7 @@ export const FRESH_SELECTION_TEACHER_SOURCE_RELATIVE_PATH =
   ".codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl" as const;
 export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_SELECTION_TEACHER_GAME_COUNT = 200 as const;
-export const FRESH_SELECTION_TEACHER_PARALLEL_ENGINES = 12 as const;
+export const FRESH_SELECTION_TEACHER_PARALLEL_ENGINES = 13 as const;
 export const FRESH_SELECTION_TEACHER_HASH_MB_PER_ENGINE = 512 as const;
 export const FRESH_SELECTION_FORMAL_V9_OUTPUT_DIRECTORY =
   "floodgate-q1-2026-strength-first-v9" as const;

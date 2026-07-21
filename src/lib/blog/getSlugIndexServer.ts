@@ -72,3 +72,14 @@ export async function resolvePostParam(param: string): Promise<SlugEntry | null>
     null
   );
 }
+
+// Never-throwing variant for page routes: on index failure the param is
+// treated as a raw document id (the legacy flow) instead of erroring.
+export async function resolvePostParamSafe(param: string): Promise<SlugEntry | null> {
+  try {
+    return await resolvePostParam(param);
+  } catch (error) {
+    console.error('[blog] slug resolution failed, treating param as id:', error);
+    return null;
+  }
+}

@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { permanentRedirect } from 'next/navigation';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
-import { resolvePostParam, type SlugEntry } from '@/lib/blog/getSlugIndexServer';
+import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
@@ -14,21 +14,9 @@ interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
 }
 
-// Slug-or-id lookup against the cached public-post index. Null for
-// private/unknown posts or when the index is unreachable — callers then
-// treat the param as a raw document id (the legacy flow).
-async function safeResolve(param: string): Promise<SlugEntry | null> {
-  try {
-    return await resolvePostParam(param);
-  } catch (error) {
-    console.error('[blog] slug resolution failed, treating param as id:', error);
-    return null;
-  }
-}
-
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
   const { id: param } = await params;
-  const resolved = await safeResolve(param);
+  const resolved = await resolvePostParamSafe(param);
 
   let post = null;
   try {
@@ -98,7 +86,7 @@ export default async function BlogPost({ params }: BlogPostParams) {
 
   // Legacy id URLs (and wrong-category URLs) permanently redirect to the
   // canonical slug URL so search engines consolidate onto one address.
-  const resolved = await safeResolve(param);
+  const resolved = await resolvePostParamSafe(param);
   if (resolved && (param !== resolved.slug || rawCategory !== resolved.category)) {
     permanentRedirect(
       `/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,

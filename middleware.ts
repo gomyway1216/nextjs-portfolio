@@ -53,6 +53,9 @@ export async function middleware(request: NextRequest) {
     const verifyUrl = new URL('/api/auth/verify', request.url);
     const res = await fetch(verifyUrl, {
       headers: { Cookie: `${SESSION_COOKIE_NAME}=${sessionCookie}` },
+      // Never reuse a cached verdict across requests/users (matches the
+      // client-side verify call in AuthProvider).
+      cache: 'no-store',
     });
 
     if (!res.ok) {

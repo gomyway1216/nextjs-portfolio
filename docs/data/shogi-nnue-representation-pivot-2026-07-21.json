@@ -562,7 +562,7 @@
       "smoke_parents": 3,
       "smoke_legal_moves": 239,
       "legal_set_matches": 239,
-      "child_sfen_matches": 239,
+      "derived_child_position_matches": 239,
       "perspective_sign_matches": 239,
       "deterministic_rerun_byte_exact": true,
       "depth12_measured_legal_moves": 82,

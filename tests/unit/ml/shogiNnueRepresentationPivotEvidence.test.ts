@@ -19,7 +19,7 @@ describe("shogi NNUE representation pivot evidence", () => {
     const evidence = JSON.parse(read(evidencePath));
     expect(evidence).toMatchObject({
       schema: "shogi-nnue-representation-pivot-evidence-v1",
-      status: "halfkp81-early-checkpoints-rejected-live-unchanged",
+      status: "halfkp81-alpha-0.5-screen-passed-independent96-running-live-unchanged",
       live_baseline: {
         bytes: 1185988,
         sha256:
@@ -178,12 +178,20 @@ describe("shogi NNUE representation pivot evidence", () => {
     });
   });
 
-  it("records dual perspective only as the next exact-lift experiment", () => {
+  it("records rejected dual-perspective experiments and the isolated alpha confirmation", () => {
     const evidence = JSON.parse(read(evidencePath));
+    expect(evidence.dual_perspective_experiments).toMatchObject({
+      status: "custom-and-bonapiece-dual-rejected",
+      custom_halfkp: {
+        runtime_format: 82,
+      },
+      bonapiece_halfkp: {
+        weight_format: 83,
+      },
+    });
     expect(evidence.next_experiment).toMatchObject({
-      status: "planned-not-strength-validated",
-      representation: "shared dual-perspective HalfKP feature transformer",
-      topology: "[256 us, 256 them] -> 32 -> 32 -> 1",
+      status: "short-screen-passed-independent-confirmation-running",
+      representation: "single-perspective HalfKP81 alpha-0.5 parameter interpolation",
       uses_published_nnue_weights: false,
       strength_claimed_before_direct_play: false,
     });

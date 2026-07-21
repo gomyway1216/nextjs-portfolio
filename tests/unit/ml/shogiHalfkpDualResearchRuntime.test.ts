@@ -68,8 +68,8 @@ describe('dual-perspective HalfKP research runtime', () => {
       sha256: 'e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c',
     });
     expect(identity(dualPatch)).toEqual({
-      bytes: 8_058,
-      sha256: '6c70aa74cac54d6524c763a1b8b6c4a890a3addd6b6cf6afdb4f04d4deb9c428',
+      bytes: 8_051,
+      sha256: '1387986b8e94883c88e499a7f2e8b0ef5403c10bec2023b79dcb98c882136d59',
     });
     expect(identity(dualWasm)).toEqual({
       bytes: 37_733,

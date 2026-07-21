@@ -109,7 +109,7 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
   it("records the completed real v2 selection teacher without hiding timeout skips", () => {
     expect(readJson(dataPath)).toMatchObject({
       status:
-        "real-v2-fresh-selection-complete-timeout-quarantine-within-cap-no-live-write",
+        "real-v2-fresh-selection-complete-first-selection-invocation-safely-stopped-no-live-write",
       observed_v2_selection_run: {
         terminal_status: "complete-fresh-selection-only-postflight-bound",
         fixed_parent_target: 4_800,
@@ -156,6 +156,56 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         gcp_or_firebase_training_jobs: 0,
         vercel_training_jobs: 0,
       },
+    });
+  });
+
+  it("records the first real selection invocation as a pre-evaluation safety stop", () => {
+    expect(readJson(dataPath)).toMatchObject({
+      observed_first_selection_invocation: {
+        ready_registry_pull_request: 579,
+        ready_registry_regular_merged: true,
+        elapsed_seconds_approx: 4,
+        terminal_status:
+          "pre-model-evaluation-safety-stop-training-plan-receipt-shape-mismatch",
+        raw_preflight_training_plan_fields: ["path", "bytes", "sha256"],
+        evaluator_required_fields_before_fix: [
+          "path",
+          "bytes",
+          "sha256",
+          "schema",
+        ],
+        candidate_checkpoint_strict_loads: 3,
+        stopped_before_selection_dataset_read: true,
+        selection_metric_model_evaluations: 0,
+        selection_outputs: 0,
+        fresh_final_holdout_reads: 0,
+        live_weight_writes: 0,
+        fix: {
+          status: "implemented-awaiting-review-and-regular-merge",
+          accepted_preflight_training_plan_fields: [
+            "path",
+            "bytes",
+            "sha256",
+          ],
+          schema_source: "ready-registry-enrolled-training-plan-identity",
+          teacher_artifact_identities_changed: false,
+          checkpoint_preflight_sha256_changed: false,
+        },
+      },
+      observed_claims: {
+        selection_evaluator_invocations: 1,
+        selection_preflight_safety_stops: 1,
+        candidate_checkpoint_strict_loads: 3,
+        selection_metric_model_evaluations: 0,
+        selection_outputs: 0,
+        candidate_selections: 0,
+        fresh_final_holdout_reads: 0,
+        live_weight_changes: 0,
+        strength_improved: false,
+        high_dan_calibrated: false,
+      },
+      next_step:
+        "review-and-regular-merge-selection-preflight-receipt-fix-then-rerun-fixed-local-selection-evaluator",
     });
   });
 

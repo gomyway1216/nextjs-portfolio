@@ -5,8 +5,10 @@
 > policy that permits at most five no-label timeout quarantines. A clean
 > 13-process v2 run then completed in about 57 minutes and 30 seconds, accounting
 > for all 4,800 parents and producing 4,798 parent groups and 28,518 records
-> with two timeout skips and zero partial labels. This is not evidence of
-> candidate selection, stronger play, high-dan strength, or a live-weight change. 日本語版:
+> with two timeout skips and zero partial labels. A later real evaluation
+> completed all four models: every candidate beat stable on int16 pair and
+> top1, but the fixed family gate failed. This is not evidence of candidate
+> selection, high-dan strength, or a live-weight change. 日本語版:
 > [blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md](./blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md)
 
 ## What happened
@@ -171,15 +173,60 @@ remained zero, as did metric evaluations, selection outputs, fresh-final
 holdout reads, and live-weight writes. The second stop was therefore not a
 candidate result or a playing-strength measurement.
 
-The adapter-only fix on the same branch projects only records with a missing
-`split` to `val` in a private `0600` temporary file and rejects the input if any
-record already has a `split`. It preserves original identity, order, features,
-CP values, and ranks, deletes the temporary file on success or error, and does
-not change the teacher artifacts. The next step is to review and regular-merge
-this adapter-only fix, then rerun stable and seeds 42 / 43 / 44 on the same
-fixed dataset. Candidate selection, holdouts, formal A/B, and external
-calibration remain incomplete. This does not establish stronger or high-dan
-play. Live-weight changes remain zero.
+The adapter-only fix projects only records with a missing `split` to `val` in a
+private `0600` temporary file and rejects the input if any record already has a
+`split`. It preserves original identity, order, features, CP values, and ranks,
+deletes the temporary file on success or error, and does not change the teacher
+artifacts. The fix was reviewed and regular-merged in PR #583.
+
+## The third invocation completed four models but failed the fixed family gate
+
+After PR #583 merged, stable and seeds 42 / 43 / 44 were evaluated on the same
+fixed dataset. After computing all four models, the formal CLI returned the
+fixed family-gate failure and stopped with exit code 2. Its exact wall time was
+not durably recorded, so no approximate CLI duration is used as evidence. The
+STOP payload's `candidate_evaluations: 0` is a generic fail-closed field fixed
+for every STOP reason, not an internal-work counter. Four metric evaluations—
+stable once and the three candidates once each—did complete before the gate
+decision. A subsequent read-only aggregate diagnostic reproduced the same computation
+without publishing outputs: it processed 49,692 eligible pairs in 72.525
+seconds and peaked at 452.2 MiB RSS. Accuracies in the table are fractions and
+MAE is in centipawns; these are the reproduced measurements preserved by the
+machine-readable record.
+
+| Model   |         Float pair |         Int16 pair |         Float top1 |         Int16 top1 |          Float MAE |          Int16 MAE |
+| ------- | -----------------: | -----------------: | -----------------: | -----------------: | -----------------: | -----------------: |
+| Stable  | 0.5927513483055623 | 0.5915841584158416 | 0.3040850354314298 | 0.3034597749062109 |  525.0306201407702 |  526.6006381934217 |
+| Seed 42 |   0.60363841262175 | 0.6013040328423086 | 0.3186744476865361 | 0.3153397248853689 |  405.6228289329656 |  405.9221193632092 |
+| Seed 43 |  0.602511470659261 | 0.6019882476052484 | 0.3186744476865361 | 0.3161734055856607 |   405.502088185782 |  402.7880987446525 |
+| Seed 44 | 0.6018071319327055 | 0.6000563470981245 | 0.3238849520633597 | 0.3186744476865361 | 405.48167040083933 | 405.71302335367136 |
+
+A positive gate margin is remaining pass headroom; a negative margin is the
+amount beyond the threshold. Stable is the comparison reference and therefore
+does not itself receive the four candidate gates.
+
+| Seed |          Int16 pair > stable |         Int16 top1 >= stable |        Abs float/int16 pair delta |         Abs float/int16 top1 delta | All four |
+| ---- | ---------------------------: | ---------------------------: | --------------------------------: | ---------------------------------: | -------: |
+| 42   | PASS `+0.009719874426467046` | PASS `+0.011879949979157978` | **FAIL `-0.0003343797794413978`** |      PASS `+0.0016652771988327998` |     FAIL |
+| 43   | PASS `+0.010404089189406829` | PASS `+0.012713630679449806` |     PASS `+0.0014767769459873552` |      PASS `+0.0024989578991246276` | **PASS** |
+| 44   | PASS `+0.008472188682282944` | PASS `+0.015214672780325178` |     PASS `+0.0002492151654189794` | **FAIL `-0.00021050437682363244`** |     FAIL |
+
+The fixed ranking was `43 -> 42 -> 44`, making seed 42 the median-ranked
+representative. Seed 42 missed the pair quantization-delta gate, while seed 44
+missed the top1 quantization-delta gate. Only seed 43 passed all four, so the
+family failed all three aggregate requirements: the representative did not pass
+all four, fewer than two seeds passed all four, and not every seed passed both
+quantization-delta gates.
+
+Every candidate's int16 pair accuracy, top1 accuracy, and MAE improved over
+stable on this fresh-selection dataset. That is promising static evidence, but
+it is not a selected candidate or evidence of playing strength or high-dan
+calibration. Evaluation-report, receipt, and publication-result outputs remain
+zero, as do fresh-final holdout reads, formal A/B games, external calibration,
+and live-weight writes. The next step is a quantization-alignment fine-tune that
+directly reduces the seed 42 / 44 float-to-int16 gaps without relaxing any
+preregistered gate, followed by a new candidate evaluation through the same
+protocol.
 
 Machine-readable record:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

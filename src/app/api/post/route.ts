@@ -13,6 +13,7 @@ import {
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
 import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
 
@@ -79,7 +80,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
 
     query = query.limit(limitNumber);
 
-    const snapshot = await query.get();
+    const [snapshot, slugById] = await Promise.all([query.get(), getSlugMapSafe()]);
 
     if (snapshot.empty) {
       return NextResponse.json({ posts: [], lastVisibleTimestamp: null });
@@ -92,6 +93,8 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
       if (!picked) return [];
       return [{
         id: doc.id,
+        // Private posts are not in the public slug index; they keep id URLs.
+        slug: slugById.get(doc.id) ?? doc.id,
         category: data.category,
         tags: normalizePostTags(data.tags),
         isPublic: data.isPublic,

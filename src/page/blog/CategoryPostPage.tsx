@@ -243,6 +243,7 @@ const CategoryPostPage = ({
                 key={item.id}
                 ref={isLoadMoreAnchor ? ref : undefined}
                 id={item.id}
+                slug={item.slug}
                 title={item.title}
                 body={item.body}
                 isPublic={item.isPublic}

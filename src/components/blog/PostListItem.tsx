@@ -8,6 +8,7 @@ import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
   id: string;
+  slug?: string;
   title: string;
   body: string;
   isPublic?: boolean;
@@ -69,7 +70,7 @@ const markdownToPlainText = (value: string) => value
   .trim();
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, title, body, lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
+  ({ id, slug, title, body, lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
     const { t } = useTranslation();
     const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
     const bodyText = markdownToPlainText(rawBodyText);
@@ -88,7 +89,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
         className={styles.card}
       >
         <Link
-          href={`/blog/${category}/${id}`}
+          href={`/blog/${category}/${slug ?? id}`}
           className={styles.cardButton}
           onClick={handleClick}
           aria-label={openLabel}

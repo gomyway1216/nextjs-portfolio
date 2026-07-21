@@ -1,21 +1,26 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { permanentRedirect } from 'next/navigation';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
+import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
 
 interface BlogPostParams {
+  // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
+  // to the slug); private posts have no public slug and stay id-addressed.
   params: Promise<{ category: string; id: string }>;
 }
 
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
-  const { id } = await params;
+  const { id: param } = await params;
+  const resolved = await resolvePostParamSafe(param);
 
   let post = null;
   try {
-    post = await getPublicPostCached(id);
+    post = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] generateMetadata fetch failed:', error);
   }
@@ -33,7 +38,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 
   const title = picked.translation.title;
   const description = excerpt(picked.translation.body);
-  const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${canonicalPath}`;
 
   // hreflang: with both translations, this URL is what a cookieless
@@ -77,14 +82,23 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 }
 
 export default async function BlogPost({ params }: BlogPostParams) {
-  const { id } = await params;
+  const { category: rawCategory, id: param } = await params;
+
+  // Legacy id URLs (and wrong-category URLs) permanently redirect to the
+  // canonical slug URL so search engines consolidate onto one address.
+  const resolved = await resolvePostParamSafe(param);
+  if (resolved && (param !== resolved.slug || rawCategory !== resolved.category)) {
+    permanentRedirect(
+      `/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,
+    );
+  }
 
   // Public posts arrive server-side (no spinner, crawlable shell);
   // private posts fall back to PostPage's client fetch which carries the
   // admin's auth token.
   let initialPost = null;
   try {
-    initialPost = await getPublicPostCached(id);
+    initialPost = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
@@ -97,12 +111,12 @@ export default async function BlogPost({ params }: BlogPostParams) {
     const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
     const picked = pickTranslation(initialPost.translations, language);
     if (picked) {
-      jsonLd = buildPostJsonLd(initialPost, picked.translation, picked.language);
+      jsonLd = buildPostJsonLd(initialPost, picked.translation, picked.language, '', resolved?.slug);
     }
   }
 
-  // Key by id: client-side navigation between posts reuses the component
-  // instance, and PostPage seeds its state from initialPost on mount.
+  // Key by URL param: client-side navigation between posts reuses the
+  // component instance, and PostPage seeds its state from initialPost.
   return (
     <>
       {jsonLd && (
@@ -111,7 +125,7 @@ export default async function BlogPost({ params }: BlogPostParams) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
-      <PostPage key={id} initialPost={initialPost} />
+      <PostPage key={param} initialPost={initialPost} />
     </>
   );
 }

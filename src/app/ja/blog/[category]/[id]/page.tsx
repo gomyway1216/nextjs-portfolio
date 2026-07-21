@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { permanentRedirect, redirect } from 'next/navigation';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
+import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
 
@@ -19,11 +20,12 @@ interface BlogPostParams {
  * bare route cross-references via hreflang.
  */
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
-  const { id } = await params;
+  const { id: param } = await params;
+  const resolved = await resolvePostParamSafe(param);
 
   let post = null;
   try {
-    post = await getPublicPostCached(id);
+    post = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog/ja] generateMetadata fetch failed:', error);
   }
@@ -39,7 +41,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   }
   const title = translation.title;
   const description = excerpt(translation.body);
-  const enPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const enPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${enPath}`;
   const hasEn = post.availableLanguages.includes('en');
 
@@ -74,11 +76,20 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 }
 
 export default async function BlogPostJa({ params }: BlogPostParams) {
-  const { id } = await params;
+  const { category: rawCategory, id: param } = await params;
+
+  // Legacy id URLs (and wrong-category URLs) permanently redirect to the
+  // canonical slug URL, mirroring the bare route.
+  const resolved = await resolvePostParamSafe(param);
+  if (resolved && (param !== resolved.slug || rawCategory !== resolved.category)) {
+    permanentRedirect(
+      `/ja/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,
+    );
+  }
 
   let initialPost = null;
   try {
-    initialPost = await getPublicPostCached(id);
+    initialPost = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog/ja] server-side post fetch failed, falling back to client:', error);
   }
@@ -87,14 +98,16 @@ export default async function BlogPostJa({ params }: BlogPostParams) {
   // English under a ja path — soft duplicate content that undermines
   // hreflang. Send it to the real (English) URL instead.
   if (initialPost && !initialPost.availableLanguages.includes('ja')) {
-    redirect(`/blog/${encodeURIComponent(initialPost.category)}/${encodeURIComponent(initialPost.id)}`);
+    redirect(
+      `/blog/${encodeURIComponent(initialPost.category)}/${encodeURIComponent(resolved?.slug ?? initialPost.id)}`,
+    );
   }
 
   let jsonLd: object | null = null;
   if (initialPost) {
     const translation = initialPost.translations.ja;
     if (translation) {
-      jsonLd = buildPostJsonLd(initialPost, translation, 'ja', '/ja');
+      jsonLd = buildPostJsonLd(initialPost, translation, 'ja', '/ja', resolved?.slug);
     }
   }
 
@@ -106,7 +119,7 @@ export default async function BlogPostJa({ params }: BlogPostParams) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
-      <PostPage key={id} initialPost={initialPost} forcedLanguage="ja" />
+      <PostPage key={param} initialPost={initialPost} forcedLanguage="ja" />
     </>
   );
 }

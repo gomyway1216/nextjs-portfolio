@@ -8,6 +8,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { getOptionalAdmin } from '@/lib/auth-utils';
 import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
 
@@ -31,11 +32,14 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     const language = normalizeLanguage(request.nextUrl.searchParams.get('language'));
     const db = getFirestore();
 
-    const snapshot = await db.collection(POSTS_COLLECTION)
-      .where('isPublic', '==', true)
-      .orderBy('lastUpdated', 'desc')
-      .limit(8) // small over-fetch in case some docs lack any translation
-      .get();
+    const [snapshot, slugById] = await Promise.all([
+      db.collection(POSTS_COLLECTION)
+        .where('isPublic', '==', true)
+        .orderBy('lastUpdated', 'desc')
+        .limit(8) // small over-fetch in case some docs lack any translation
+        .get(),
+      getSlugMapSafe(),
+    ]);
 
     const posts = snapshot.docs.flatMap((doc) => {
       const data = doc.data();
@@ -44,6 +48,7 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
       if (!picked) return [];
       return [{
         id: doc.id,
+        slug: slugById.get(doc.id) ?? doc.id,
         category: data.category,
         tags: normalizePostTags(data.tags),
         isPublic: data.isPublic,

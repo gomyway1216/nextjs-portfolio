@@ -18,9 +18,11 @@ export function buildPostJsonLd(
   translation: Translation,
   language: PostLanguage,
   pathPrefix: '' | '/ja' = '',
+  // Canonical URL slug when known; defaults to the id (legacy URL form).
+  slug?: string,
 ): object {
   const categoryUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}`;
-  const postUrl = `${SITE_URL}${pathPrefix}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const postUrl = `${SITE_URL}${pathPrefix}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug ?? post.id)}`;
 
   return {
     '@context': 'https://schema.org',

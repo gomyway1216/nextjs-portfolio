@@ -115,6 +115,8 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         fixed_parent_target: 4_800,
         completed_parents: 4_800,
         emitted_parent_groups: 4_798,
+        wall_seconds_approx: 3_450,
+        wall_time_approx: "00:57:30",
         forced_parents_skipped: 2,
         forced_skip_reasons: {
           fewer_than_two_legal_moves: 0,
@@ -127,11 +129,13 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         timeout_skip_cap: 5,
         partial_labels_from_timeout_parents: 0,
         dataset: {
+          artifact: "selection.jsonl",
           bytes: 23_800_461,
           sha256:
             "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
         },
         work: {
+          artifact: "work.jsonl",
           bytes: 35_630_716,
           sha256:
             "64f1548ff8abc0481aed3993bfe8b0f7ccb1f5b323ba6937bdc2467438f80365",
@@ -145,6 +149,7 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         complete_selection_dataset_published: true,
         result_published: true,
         candidate_selection_completed: false,
+        local_mac_only: true,
         network_requests: 0,
         live_weight_writes: 0,
         aws_training_jobs: 0,

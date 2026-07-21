@@ -27,7 +27,7 @@ MultiPV 6、独立rescore depth 16、1 searchあたり600,000 msを使った。
 
 その後のクリーンv2 runは13 engineで4,800親を完了した。timeoutした2親は上限5件の範囲で
 `search-timeout-no-label`として隔離し、途中のrank、score、recordをdatasetへ1件も残していない。
-`4,798 emitted parent group + 2 timeout skip = 4,800 completed parent`であり、timeout以外のskipは
+`4,798 emitted parent groups + 2 timeout skips = 4,800 completed parents`であり、timeout以外のskipは
 0件である。4,798親から28,518 recordを生成し、完了datasetとresultを保存した。AWS、GCP /
 Firebase、Vercelのtraining computeは0で、live weight writeも0である。
 

@@ -3,7 +3,7 @@
 > On July 20, 2026, the old 12-process v1 fresh-selection run stopped twice on
 > the same private parent. Based on that measurement, we preregistered a v2
 > policy that permits at most five no-label timeout quarantines. A clean
-> 13-process v2 run then completed in about 57 minutes 30 seconds, accounting
+> 13-process v2 run then completed in about 57 minutes and 30 seconds, accounting
 > for all 4,800 parents and producing 4,798 parent groups and 28,518 records
 > with two timeout skips and zero partial labels. This is not evidence of
 > candidate selection, stronger play, high-dan strength, or a live-weight change. 日本語版:
@@ -95,7 +95,7 @@ fingerprint. We did not rewrite its header or re-label its 2,669 entries as v2.
 It remains private diagnostic evidence, while v2 was generated cleanly in a
 new fixed output root.
 
-The recomputation took about 57 minutes 30 seconds and preserved reproducible
+The recomputation took about 57 minutes and 30 seconds and preserved reproducible
 provenance without mixing labels produced under different contracts.
 
 ## Validation and current boundary

@@ -84,6 +84,16 @@ interface LabelManifest {
   output: string;
 }
 
+interface LabelFailure {
+  position_id: string;
+  error: string;
+}
+
+interface LabelFailureReport {
+  schema: "shogi-floodgate-scratch-warm-label-failures-v1";
+  failures: LabelFailure[];
+}
+
 interface PrepareOptions {
   rawLock: string;
   outDir: string;
@@ -275,6 +285,45 @@ async function atomicWrite(file: string, data: string): Promise<void> {
   } finally {
     await fs.promises.rm(temporary, { force: true });
   }
+}
+
+/** Read the atomically rewritten failure ledger and bind every id to input. */
+export function readLabelFailures(
+  file: string,
+  input: readonly PilotParentRow[],
+): LabelFailure[] {
+  if (!fs.existsSync(file)) return [];
+  const report = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<LabelFailureReport>;
+  if (
+    report.schema !== "shogi-floodgate-scratch-warm-label-failures-v1" ||
+    !Array.isArray(report.failures)
+  )
+    throw new Error("invalid teacher failure ledger");
+  const inputIds = new Set(input.map((row) => row.position_id));
+  const seen = new Set<string>();
+  for (const failure of report.failures) {
+    if (
+      !failure ||
+      typeof failure.position_id !== "string" ||
+      typeof failure.error !== "string" ||
+      !inputIds.has(failure.position_id) ||
+      seen.has(failure.position_id)
+    )
+      throw new Error("teacher failure ledger is not bound to unique input ids");
+    seen.add(failure.position_id);
+  }
+  return report.failures;
+}
+
+async function writeLabelFailures(
+  file: string,
+  failures: readonly LabelFailure[],
+): Promise<void> {
+  const report: LabelFailureReport = {
+    schema: "shogi-floodgate-scratch-warm-label-failures-v1",
+    failures: [...failures],
+  };
+  await atomicWrite(file, `${JSON.stringify(report, null, 2)}\n`);
 }
 
 function fileIdentity(file: string): FileIdentity {
@@ -641,13 +690,18 @@ async function labelSplit(options: {
     labelManifest,
   );
   const input = readJsonl(options.input);
+  const failurePath = `${options.output}.failures.json`;
+  const failures = readLabelFailures(failurePath, input);
   const existing = recoverAndReadTeacherRows(
     options.output,
     input,
     options.depth,
   );
   const completed = new Set(existing.map((row) => row.position_id));
-  const pending = input.filter((row) => !completed.has(row.position_id));
+  const failed = new Set(failures.map((row) => row.position_id));
+  const pending = input.filter(
+    (row) => !completed.has(row.position_id) && !failed.has(row.position_id),
+  );
   if (pending.length === 0) return;
   await fs.promises.mkdir(path.dirname(options.output), { recursive: true });
   const pool = Array.from(
@@ -668,6 +722,7 @@ async function labelSplit(options: {
       const results: Array<{
         row: PilotParentRow;
         result: Awaited<ReturnType<UsiEngine["evaluate"]>>;
+        error?: string;
       }> = new Array(chunk.length);
       let cursor = 0;
       await Promise.all(
@@ -682,17 +737,30 @@ async function labelSplit(options: {
                 result: await engine.evaluate(row.sfen, options.depth),
               };
             } catch {
-              await engine.restart();
-              results[index] = {
-                row,
-                result: await engine.evaluate(row.sfen, options.depth),
-              };
+              try {
+                await engine.restart();
+                results[index] = {
+                  row,
+                  result: await engine.evaluate(row.sfen, options.depth),
+                };
+              } catch (error) {
+                results[index] = {
+                  row,
+                  result: null,
+                  error: (error as Error).message,
+                };
+              }
             }
           }
         }),
       );
       const output: TeacherRow[] = [];
-      for (const { row, result } of results) {
+      const windowFailures: LabelFailure[] = [];
+      for (const { row, result, error } of results) {
+        if (error) {
+          windowFailures.push({ position_id: row.position_id, error });
+          continue;
+        }
         if (
           !result ||
           result.bestmove === "resign" ||
@@ -712,8 +780,14 @@ async function labelSplit(options: {
         fs.writeSync(fd, canonicalJsonl(output));
         fs.fsyncSync(fd);
       }
+      if (windowFailures.length > 0) {
+        failures.push(...windowFailures);
+        await writeLabelFailures(failurePath, failures);
+      }
       process.stdout.write(
-        `[label] ${path.basename(options.input)} ${Math.min(offset + chunk.length, pending.length)}/${pending.length}\n`,
+        `[label] ${path.basename(options.input)} ${Math.min(offset + chunk.length, pending.length)}/${pending.length}` +
+          (failures.length > 0 ? ` failures=${failures.length}` : "") +
+          "\n",
       );
     }
   } finally {

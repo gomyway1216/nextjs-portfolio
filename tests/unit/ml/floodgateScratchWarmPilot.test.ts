@@ -10,6 +10,7 @@ import {
   main,
   parseLabelSplits,
   parsePrepareTargets,
+  readLabelFailures,
   recoverAndReadTeacherRows,
   selectParentsFromGame,
   splitForId,
@@ -199,6 +200,42 @@ describe("Floodgate scratch/warm pilot preparation", () => {
           input: { ...base.input, sha256: "d".repeat(64) },
         }),
       ).rejects.toThrow(/manifest mismatch/);
+    } finally {
+      await fs.promises.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("binds the atomic teacher failure ledger to unique input positions", async () => {
+    const directory = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "scratch-warm-failures-"),
+    );
+    try {
+      const file = path.join(directory, "train.teacher.jsonl.failures.json");
+      const parent = row(
+        "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1",
+        "train",
+      );
+      await fs.promises.writeFile(
+        file,
+        `${JSON.stringify({
+          schema: "shogi-floodgate-scratch-warm-label-failures-v1",
+          failures: [{ position_id: parent.position_id, error: "timeout" }],
+        })}\n`,
+      );
+      expect(readLabelFailures(file, [parent])).toEqual([
+        { position_id: parent.position_id, error: "timeout" },
+      ]);
+      await fs.promises.writeFile(
+        file,
+        `${JSON.stringify({
+          schema: "shogi-floodgate-scratch-warm-label-failures-v1",
+          failures: [
+            { position_id: parent.position_id, error: "timeout" },
+            { position_id: parent.position_id, error: "duplicate" },
+          ],
+        })}\n`,
+      );
+      expect(() => readLabelFailures(file, [parent])).toThrow(/unique input ids/);
     } finally {
       await fs.promises.rm(directory, { recursive: true, force: true });
     }

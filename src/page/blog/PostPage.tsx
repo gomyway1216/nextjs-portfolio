@@ -91,19 +91,26 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   // translation exists). Listening to the change event (not the current
   // value) matters: someone landing on either URL from search with the
   // "other" cookie must NOT be bounced off the page they chose.
+  //
+  // `replace`, not `push`: a language toggle refines the current view, it
+  // doesn't visit a new place. Pushing would inject a history entry that
+  // renders identically to the previous one (the bare URL is cookie-driven,
+  // so after a toggle its content matches the /ja twin), making Back appear
+  // to do nothing. Replacing keeps the history stack made of real
+  // navigations only, so Back/Forward always move between distinct pages.
   const syncUrlToLanguage = useCallback(
     (language: PostLanguage, target: DetailPost) => {
       const barePath = `/blog/${encodeURIComponent(target.category)}/${encodeURIComponent(target.id)}`;
 
       if (forcedLanguage === 'ja') {
         if (language === 'en' && target.availableLanguages.includes('en')) {
-          router.push(barePath);
+          router.replace(barePath);
         }
         return;
       }
 
       if (language === 'ja' && target.availableLanguages.includes('ja')) {
-        router.push(`/ja${barePath}`);
+        router.replace(`/ja${barePath}`);
       }
     },
     [forcedLanguage, router],

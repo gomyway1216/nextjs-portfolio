@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-selection-evaluator-registry-v2",
-  "status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
+  "status": "exact-plan-three-checkpoints-and-selection-teacher-ready",
   "protocol": {
     "base_plan": {
       "path": "ml/protocols/floodgate-q1-2026-fresh-sibling-plan.json",
@@ -73,34 +73,99 @@
     "selection_publication_result": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection-publication-result.json"
   },
   "implementation": {
-    "evaluator": null,
-    "adapter": null,
-    "preflight": null,
-    "real_eval_core": null,
-    "metric_gates": null
+    "evaluator": {
+      "path": "ml/strength_first_qat_selection_evaluator.py",
+      "bytes": 96647,
+      "sha256": "022eda639207d4ba2a5a7d851a201c0e782f1ace064ee50badd63ad2603c7b0b",
+      "schema": "shogi-reviewed-python-source-v1"
+    },
+    "adapter": {
+      "path": "ml/strength_first_qat_selection_eval_adapter.py",
+      "bytes": 11185,
+      "sha256": "c5a301326d2a4c23e397edd249e55666dcf3f22493983577c479ff037629bea1",
+      "schema": "shogi-reviewed-python-source-v1"
+    },
+    "preflight": {
+      "path": "ml/strength_first_qat_selection_preflight.py",
+      "bytes": 20758,
+      "sha256": "398b36187cea7a056700706a403c74fe975d4172eee9ade3653dfc0cc9231bbc",
+      "schema": "shogi-reviewed-python-source-v1"
+    },
+    "real_eval_core": {
+      "path": "ml/eval-sibling.py",
+      "bytes": 69676,
+      "sha256": "766d2fd1df7c4214a51d3fb961afeea1bcb4df4a7a45f1e4522cd3c85b330055",
+      "schema": "shogi-reviewed-python-source-v1"
+    },
+    "metric_gates": {
+      "path": "ml/sibling_selection_protocol.py",
+      "bytes": 20759,
+      "sha256": "4545994f5c66c2fa1b2f63e6de8a9fe360e3f41d5b2a85c0ddd4e0ab279ca063",
+      "schema": "shogi-reviewed-python-source-v1"
+    }
   },
   "enrollments": {
-    "training_plan": null,
-    "selection_preflight_registry": null,
-    "checkpoint_preflight_sha256": null,
-    "selection_teacher_run_fingerprint": null,
-    "selection_teacher_authority": null,
-    "selection_teacher_manifest": null,
-    "selection_teacher_result": null,
-    "selection_teacher_work": null,
-    "selection_dataset": null,
-    "stable_checkpoint": null,
+    "training_plan": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
+      "bytes": 6242,
+      "sha256": "ab5264f14e2ccde65c2aa4a17e21c3dd20839edd268d6c4aa345291f38c5178c",
+      "schema": "shogi-floodgate-strength-first-qat-training-plan-v3"
+    },
+    "selection_preflight_registry": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
+      "bytes": 2965,
+      "sha256": "0526b1633364db4c6e715a612823b1fc2d5375610329f017aff20d810fda88c1",
+      "schema": "shogi-floodgate-strength-first-qat-selection-preflight-registry-v1"
+    },
+    "checkpoint_preflight_sha256": "80f160f2b34502c8441e11bf70a5107bddde4c0a1e054a02ed2d9897aa7c58cc",
+    "selection_teacher_run_fingerprint": "ea8bb3b8c166928b6806acf9b2db92cad7543e254087ce9f50299e114380ab13",
+    "selection_teacher_authority": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/authority.json",
+      "bytes": 4089,
+      "sha256": "11df7dbc25569f9a0bedb0685128bc0c2da22899c8e9581b98093afa45a0d0c5",
+      "schema": "shogi-floodgate-strength-first-selection-teacher-authority-v2"
+    },
+    "selection_teacher_manifest": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/manifest.json",
+      "bytes": 2737,
+      "sha256": "1e62fc2ffc7e957941a4ce41e14e0bfb7c5473c4867468578a96374f87b36902",
+      "schema": "shogi-floodgate-strength-first-selection-teacher-manifest-v2"
+    },
+    "selection_teacher_result": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/result.json",
+      "bytes": 2416,
+      "sha256": "b3eb08041d362899ec0902da5506e78132f39810346675213e76adb628d44e26",
+      "schema": "shogi-floodgate-strength-first-selection-teacher-result-v2"
+    },
+    "selection_teacher_work": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/work.jsonl",
+      "bytes": 35630716,
+      "sha256": "64f1548ff8abc0481aed3993bfe8b0f7ccb1f5b323ba6937bdc2467438f80365",
+      "schema": "shogi-sibling-teacher-work-v2"
+    },
+    "selection_dataset": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+      "schema": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+    },
+    "stable_checkpoint": {
+      "path": ".codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
+      "bytes": 2375274,
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+      "schema": "shogi-int16-aware-stable-checkpoint-v1"
+    },
     "selection_evaluation_origin_registry": null,
     "selection_evaluation_report": null,
     "selection_receipt": null,
     "selection_publication_result": null
   },
   "gates": {
-    "implementation_sources_enrolled": false,
-    "training_plan_enrolled": false,
-    "three_checkpoint_preflight_enrolled": false,
-    "selection_teacher_enrolled": false,
-    "local_selection_evaluation_authorized": false,
+    "implementation_sources_enrolled": true,
+    "training_plan_enrolled": true,
+    "three_checkpoint_preflight_enrolled": true,
+    "selection_teacher_enrolled": true,
+    "local_selection_evaluation_authorized": true,
     "candidate_selected_publication_enrolled": false,
     "deterministic_selection_evaluation_replay_required": false,
     "final_holdout_read_authorized": false,

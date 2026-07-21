@@ -1,19 +1,21 @@
 # Replacing the zero-timeout fresh-teacher premise with measured bounds
 
-> On July 20, 2026, the 4,800-parent fresh-selection teacher stopped twice on the
-> same private parent at the 600-second search limit. The 2,669 durable v1
-> parents remain intact, but v1 did not complete. Before opening any fresh-final
-> labels, we fixed a shared v2 policy that permits at most five typed
-> `search-timeout-no-label` quarantines for both fresh-selection and
-> fresh-final. 日本語版:
+> On July 20, 2026, the old 12-process v1 fresh-selection run stopped twice on
+> the same private parent. Based on that measurement, we preregistered a v2
+> policy that permits at most five no-label timeout quarantines. A clean
+> 13-process v2 run then completed in about 57 minutes 30 seconds, accounting
+> for all 4,800 parents and producing 4,798 parent groups and 28,518 records
+> with two timeout skips and zero partial labels. This is not evidence of
+> candidate selection, stronger play, high-dan strength, or a live-weight change. 日本語版:
 > [blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md](./blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md)
 
 ## What happened
 
-| Run | Wall time | Durable parents | Newly saved | Complete dataset / result |
+| Run | Wall time | Durable parents | Emitted groups / records | Complete dataset / result |
 | --- | ---: | ---: | ---: | ---: |
-| Initial v1 run | 1,194.49 s | 1,678 / 4,800 | 1,678 | 0 / 0 |
-| Exact-condition resume | 784.54 s | 2,669 / 4,800 | 991 | 0 / 0 |
+| Initial v1 run | 1,194.49 s | 1,678 / 4,800 | 1,678 / 9,993 | 0 / 0 |
+| Exact-condition resume | 784.54 s | 2,669 / 4,800 | 2,669 / 15,884 | 0 / 0 |
+| Clean v2 run | About 3,450 s | 4,800 / 4,800 | 4,798 / 28,518 | 1 / 1 |
 
 Both runs used 12 YaneuraOu processes, one thread and 512 MiB Hash per process,
 depth-14 MultiPV-6 proposals, independent depth-16 rescoring, and a 600,000 ms
@@ -24,6 +26,23 @@ The private checkpoint contains one header and 2,669 unique completed parents,
 zero skips, and 15,884 completed label records. No `selection.jsonl`,
 `manifest.json`, `authority.json`, or `result.json` was published. No partial
 dataset reached candidate evaluation, and no live weight changed.
+
+The later clean v2 run completed all 4,800 parents with 13 engines. It
+quarantined two timed-out parents as `search-timeout-no-label`, within the cap
+of five, and retained no partial rank, score, or record from either parent. The
+accounting is exactly 4,798 emitted parent groups plus two timeout skips equals
+4,800 completed parents, with zero other skips. Those 4,798 parents produced
+28,518 records and a complete dataset and result. AWS, GCP / Firebase, and
+Vercel training compute remained zero, as did live-weight writes.
+
+| Completed v2 artifact | Bytes |
+| --- | ---: |
+| Selection dataset | 23,800,461 |
+| Canonical work | 35,630,716 |
+
+The machine-readable record at the end preserves the complete dataset, work,
+completion, generation, and run identities. No private parent identifier,
+SFEN, move, teacher score, or absolute path is published.
 
 ## Why another identical retry is not the answer
 
@@ -72,12 +91,12 @@ not change.
 ## No silent v1-to-v2 migration
 
 The v1 checkpoint is bound to its runner revision, search policy, and run
-fingerprint. We will not rewrite its header or re-label its 2,669 entries as v2.
-It remains private diagnostic evidence, while v2 starts clean in a new fixed
-output root.
+fingerprint. We did not rewrite its header or re-label its 2,669 entries as v2.
+It remains private diagnostic evidence, while v2 was generated cleanly in a
+new fixed output root.
 
-This costs roughly one hour of recomputation, but preserves reproducible
-provenance instead of mixing labels produced under different contracts.
+The recomputation took about 57 minutes 30 seconds and preserved reproducible
+provenance without mixing labels produced under different contracts.
 
 ## Validation and current boundary
 
@@ -109,13 +128,19 @@ private artifacts again before publication.
 
 The semantic bridge and real-generator fixture pass 68 TypeScript tests across
 five files. The Python evaluator and builder pass 33 focused tests, and the
-full Python suite passes 400 tests. TypeScript compilation, ESLint, Prettier,
+full Python suite passes 416 tests. TypeScript compilation, ESLint, Prettier,
 and the diff check pass. Independent audit gave this semantic-only boundary a
 GO verdict.
 
-This is evidence for the v2 policy and runner, not for a completed v2 dataset,
-candidate selection, holdout, formal A/B, high-dan calibration, or live
-promotion. Live weight changes remain zero.
+The real v2 run completed fresh-selection teacher generation with all 4,800
+parents accounted for, 4,798 groups, 28,518 records, two timeout quarantines,
+and zero partial labels. Read-only semantic validation also passed, and the
+selection-evaluator registry generated from the measured identities matches
+the tracked registry byte for byte. The next step is to review and merge that
+READY registration, then evaluate stable and seeds 42, 43, and 44 on the same
+dataset. Candidate selection, holdouts, formal A/B, and external calibration
+remain incomplete. This does not establish stronger or high-dan play. Live
+weight changes remain zero.
 
 Machine-readable record:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

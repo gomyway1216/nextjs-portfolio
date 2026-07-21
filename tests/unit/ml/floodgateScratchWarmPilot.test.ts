@@ -9,6 +9,7 @@ import {
   ensureLabelManifest,
   main,
   parseLabelSplits,
+  parsePrepareTargets,
   recoverAndReadTeacherRows,
   selectParentsFromGame,
   splitForId,
@@ -138,6 +139,42 @@ describe("Floodgate scratch/warm pilot preparation", () => {
     await expect(main(["prepare", "--target", "10001"])).rejects.toThrow(
       /requires explicit --allow-large/,
     );
+  });
+
+  it("supports fixed small holdouts for a large scratch corpus", () => {
+    expect(
+      parsePrepareTargets([
+        "prepare",
+        "--train-target",
+        "800000",
+        "--val-target",
+        "5000",
+        "--test-target",
+        "5000",
+      ]),
+    ).toEqual({ train: 800000, val: 5000, test: 5000 });
+    expect(() =>
+      parsePrepareTargets([
+        "prepare",
+        "--target",
+        "10000",
+        "--train-target",
+        "9000",
+        "--val-target",
+        "500",
+        "--test-target",
+        "500",
+      ]),
+    ).toThrow(/cannot be combined/);
+    expect(() =>
+      parsePrepareTargets([
+        "prepare",
+        "--train-target",
+        "800000",
+        "--val-target",
+        "5000",
+      ]),
+    ).toThrow(/must be provided together/);
   });
 
   it("refuses to resume labels after an input fingerprint changes", async () => {

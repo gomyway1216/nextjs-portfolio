@@ -87,7 +87,7 @@ interface LabelManifest {
 interface PrepareOptions {
   rawLock: string;
   outDir: string;
-  target: number;
+  targets: Record<ScratchWarmSplit, number>;
   seed: string;
   minRating: number;
   minPly: number;
@@ -230,6 +230,36 @@ function quotas(target: number): Record<ScratchWarmSplit, number> {
   return { train: target - val - test, val, test };
 }
 
+/** Resolve either the bounded pilot total or explicit large-run split sizes. */
+export function parsePrepareTargets(
+  argv: readonly string[],
+): Record<ScratchWarmSplit, number> {
+  const explicitNames = ["train-target", "val-target", "test-target"] as const;
+  const present = explicitNames.filter((name) => argv.includes(`--${name}`));
+  if (present.length > 0) {
+    if (argv.includes("--target"))
+      throw new Error("--target cannot be combined with explicit split targets");
+    if (present.length !== explicitNames.length)
+      throw new Error(
+        "--train-target, --val-target, and --test-target must be provided together",
+      );
+    return {
+      train: parsePositiveInteger(
+        cliValue(argv, "train-target"),
+        "--train-target",
+      ),
+      val: parsePositiveInteger(cliValue(argv, "val-target"), "--val-target"),
+      test: parsePositiveInteger(
+        cliValue(argv, "test-target"),
+        "--test-target",
+      ),
+    };
+  }
+  return quotas(
+    parsePositiveInteger(cliValue(argv, "target", "10000"), "--target"),
+  );
+}
+
 function canonicalJsonl(rows: readonly unknown[]): string {
   return rows.length === 0
     ? ""
@@ -324,7 +354,7 @@ async function prepare(options: PrepareOptions): Promise<void> {
     return a < b ? -1 : a > b ? 1 : 0;
   });
 
-  const wanted = quotas(options.target);
+  const wanted = options.targets;
   const rows: Record<ScratchWarmSplit, PilotParentRow[]> = {
     train: [],
     val: [],
@@ -412,7 +442,8 @@ async function prepare(options: PrepareOptions): Promise<void> {
     seed: options.seed,
     source_manifest: manifestPath,
     source_manifest_sha256: sha256(await fs.promises.readFile(manifestPath)),
-    target: options.target,
+    target: SPLITS.reduce((sum, split) => sum + wanted[split], 0),
+    split_targets: wanted,
     split_rows: Object.fromEntries(
       SPLITS.map((split) => [split, rows[split].length]),
     ),
@@ -627,22 +658,36 @@ async function labelSplit(options: {
   await Promise.all(pool.map((engine) => engine.init()));
   const fd = fs.openSync(options.output, "a");
   try {
-    for (let offset = 0; offset < pending.length; offset += options.engines) {
-      const chunk = pending.slice(offset, offset + options.engines);
-      const results = await Promise.all(
-        chunk.map(async (row, index) => {
-          const engine = pool[index];
-          try {
-            return {
-              row,
-              result: await engine.evaluate(row.sfen, options.depth),
-            };
-          } catch {
-            await engine.restart();
-            return {
-              row,
-              result: await engine.evaluate(row.sfen, options.depth),
-            };
+    // A one-position-per-engine Promise.all makes every engine wait for the
+    // slowest position in each tiny batch. Use a larger deterministic window
+    // with a shared cursor so idle engines immediately take the next position;
+    // write only after the whole window completes to preserve input order.
+    const windowSize = options.engines * 16;
+    for (let offset = 0; offset < pending.length; offset += windowSize) {
+      const chunk = pending.slice(offset, offset + windowSize);
+      const results: Array<{
+        row: PilotParentRow;
+        result: Awaited<ReturnType<UsiEngine["evaluate"]>>;
+      }> = new Array(chunk.length);
+      let cursor = 0;
+      await Promise.all(
+        pool.map(async (engine) => {
+          for (;;) {
+            const index = cursor++;
+            if (index >= chunk.length) return;
+            const row = chunk[index];
+            try {
+              results[index] = {
+                row,
+                result: await engine.evaluate(row.sfen, options.depth),
+              };
+            } catch {
+              await engine.restart();
+              results[index] = {
+                row,
+                result: await engine.evaluate(row.sfen, options.depth),
+              };
+            }
           }
         }),
       );
@@ -743,12 +788,12 @@ export async function main(
 ): Promise<void> {
   const command = argv[0];
   if (command === "prepare") {
-    const target = parsePositiveInteger(
-      cliValue(argv, "target", "10000"),
-      "--target",
-    );
-    if (target > 10_000 && !argv.includes("--allow-large")) {
-      throw new Error("--target above 10000 requires explicit --allow-large");
+    const targets = parsePrepareTargets(argv);
+    const totalTarget = SPLITS.reduce((sum, split) => sum + targets[split], 0);
+    if (!Number.isSafeInteger(totalTarget))
+      throw new Error("combined split target exceeds the safe integer range");
+    if (totalTarget > 10_000 && !argv.includes("--allow-large")) {
+      throw new Error("target above 10000 requires explicit --allow-large");
     }
     const minPly = parsePositiveInteger(
       cliValue(argv, "min-ply", "12"),
@@ -762,7 +807,7 @@ export async function main(
     await prepare({
       rawLock: path.resolve(cliValue(argv, "raw-lock")),
       outDir: path.resolve(cliValue(argv, "out-dir")),
-      target,
+      targets,
       seed: cliValue(argv, "seed", "scratch-warm-v1"),
       minRating: parseFiniteNumber(
         cliValue(argv, "min-rating", "3000"),

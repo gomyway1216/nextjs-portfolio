@@ -187,15 +187,24 @@ export interface EvalResult {
   mate?: number;
 }
 
+export interface UsiEngineOptions {
+  engineBin?: string;
+  evalDir?: string;
+}
+
 export class UsiEngine {
   private proc!: ChildProcessWithoutNullStreams;
   private buf = '';
   private lineHandler: ((line: string) => void) | null = null;
   private alive = false;
+  private readonly engineBin: string;
+  private readonly evalDir: string;
   /** 進行中の waitFor/evaluate をプロセス死亡時に即座に reject するためのフック */
   private pendingAbort: ((e: Error) => void) | null = null;
 
-  constructor() {
+  constructor(options: UsiEngineOptions = {}) {
+    this.engineBin = options.engineBin ?? ENGINE_BIN;
+    this.evalDir = options.evalDir ?? EVAL_DIR;
     this.spawnProc();
   }
 
@@ -211,7 +220,7 @@ export class UsiEngine {
     this.buf = '';
     this.lineHandler = null;
     this.pendingAbort = null;
-    const proc = spawn(ENGINE_BIN, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const proc = spawn(this.engineBin, [], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc = proc;
     this.alive = true;
     // 注意: 各ハンドラは restart() 後に旧プロセスから遅れて発火し得るため、
@@ -284,7 +293,7 @@ export class UsiEngine {
   async init(): Promise<void> {
     this.send('usi');
     await this.waitFor((l) => l === 'usiok', 15000);
-    this.send(`setoption name EvalDir value ${EVAL_DIR}`);
+    this.send(`setoption name EvalDir value ${this.evalDir}`);
     this.send('setoption name FV_SCALE value 20'); // Háo 推奨値
     this.send('setoption name Threads value 1');
     this.send('setoption name USI_Hash value 128');

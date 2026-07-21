@@ -27,8 +27,47 @@ function isAdminRoute(pathname: string): boolean {
   return ADMIN_ROUTES.some((route) => pathname.startsWith(route));
 }
 
+// Legacy blog post URL: /blog/<category>/<20-char Firestore id> (optionally
+// /ja-prefixed). Slugs are title-derived and effectively always contain a
+// hyphen; a rare hyphenless 20-char slug resolves to itself and is not
+// redirected, so a false match costs one cached lookup, never a wrong URL.
+const LEGACY_POST_URL = /^(\/ja)?\/blog\/([^/]+)\/([A-Za-z0-9]{20})$/;
+
+// Real HTTP 308 for legacy id URLs. The page/layout tree can't produce
+// one: loading.tsx streams the shell first, committing a 200, and the
+// in-tree redirect downgrades to a meta refresh. Fails open — on any
+// error the request proceeds and that meta-refresh fallback still runs.
+async function legacyBlogRedirect(request: NextRequest, pathname: string) {
+  const match = pathname.match(LEGACY_POST_URL);
+  if (!match) return null;
+  const [, jaPrefix = '', , param] = match;
+
+  try {
+    const resolveUrl = new URL('/api/blog/resolve-slug', request.url);
+    resolveUrl.searchParams.set('param', param);
+    const res = await fetch(resolveUrl);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { slug?: string; category?: string };
+    if (!data.slug || !data.category || data.slug === param) return null;
+    return NextResponse.redirect(
+      new URL(
+        `${jaPrefix}/blog/${encodeURIComponent(data.category)}/${encodeURIComponent(data.slug)}`,
+        request.url,
+      ),
+      308,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const blogRedirect = await legacyBlogRedirect(request, pathname);
+  if (blogRedirect) {
+    return blogRedirect;
+  }
 
   if (!isAuthRequired(pathname) && !isAdminRoute(pathname)) {
     return NextResponse.next();

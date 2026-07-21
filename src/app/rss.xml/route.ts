@@ -1,3 +1,4 @@
+import { htmlToText } from 'html-to-text';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { pickTranslation, type PostTranslations } from '@/lib/blog/postTranslations';
@@ -22,16 +23,22 @@ function xmlEscape(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function toRfc822(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? new Date().toUTCString() : date.toUTCString();
+// First parseable value wins; null omits <pubDate> entirely. Never falls
+// back to "now": an unstable pubDate makes readers re-deliver old items.
+function pubDate(...candidates: Array<string | undefined>): string | null {
+  for (const value of candidates) {
+    if (!value) continue;
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toUTCString();
+  }
+  return null;
 }
 
-// Plain-text excerpt from a markdown body, mirroring the meta-description
-// cleanup on the post page (fenced code dropped, markers stripped).
+// Plain-text excerpt mirroring the meta-description cleanup on the post
+// page: fenced code dropped, HTML flattened (bodies can be markdown or
+// HTML), then markdown markers stripped.
 function excerpt(body: string): string {
-  return body
-    .replace(/```[\s\S]*?(```|$)/g, ' ')
+  return htmlToText(body.replace(/```[\s\S]*?(```|$)/g, ' '), { wordwrap: false })
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/^[>#\s*-]+/gm, ' ')
@@ -64,7 +71,10 @@ export async function GET() {
       const category = typeof data.category === 'string' && data.category ? data.category : 'all';
       const slug = slugById.get(doc.id) ?? doc.id;
       const url = `${SITE_URL}/blog/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
-      const created = data.created?.toDate?.()?.toISOString() || data.created || '';
+      const published = pubDate(
+        data.created?.toDate?.()?.toISOString() || data.created,
+        data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+      );
 
       return [
         [
@@ -72,7 +82,7 @@ export async function GET() {
           `<title>${xmlEscape(picked.translation.title)}</title>`,
           `<link>${xmlEscape(url)}</link>`,
           `<guid isPermaLink="false">${xmlEscape(doc.id)}</guid>`,
-          `<pubDate>${toRfc822(created)}</pubDate>`,
+          published ? `<pubDate>${published}</pubDate>` : '',
           `<category>${xmlEscape(category)}</category>`,
           `<description>${xmlEscape(excerpt(picked.translation.body))}</description>`,
           '</item>',

@@ -75,6 +75,9 @@ export const metadata: Metadata = {
       'en-US': '/',
       'ja-JP': '/',
     },
+    types: {
+      'application/rss+xml': '/rss.xml',
+    },
   },
   openGraph: {
     type: 'website',

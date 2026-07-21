@@ -22,7 +22,8 @@
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
  * from that file (direct NNUE-vs-NNUE A/B; side A = first positional arg,
  * side B = --vs). Original 1,185,988 B, reduced-KP 7,027,908 B, and the
- * 94,656,708 B HalfKP research format are auto-detected independently.
+ * HalfKP research formats, including 64,216,260 B BonaPiece format84, are
+ * auto-detected independently.
  *
  * --scale-numer/--scale-denom rescale the NNUE cp output before it enters the
  * search (setNnueOutputScale). Use 37/10 to map true centipawns onto the
@@ -30,6 +31,7 @@
  * (Applies to side A, and to side B when --vs is given.)
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
@@ -80,6 +82,11 @@ const SCALE_K = argNum('--k', 600);
 const SCALE_NUMER = argNum('--scale-numer', 1);
 const SCALE_DENOM = argNum('--scale-denom', 1);
 const WASM_PATH = argStr('--wasm-path') ?? undefined;
+const BUCKETS_A = argNum('--buckets-a', 0);
+const BUCKETS_B = argNum('--buckets-b', 0);
+const EXPECTED_SHA_A = argStr('--sha-a');
+const EXPECTED_SHA_B = argStr('--sha-b');
+const EXPECTED_WASM_SHA = argStr('--wasm-sha');
 // Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
 // never masquerade as a 1/1 run.
 if (SCALE_NUMER < 1 || SCALE_DENOM < 1 || SCALE_NUMER > 1_000_000 || SCALE_DENOM > 1_000_000) {
@@ -136,6 +143,14 @@ function buildOpeningLine(pairIndex: number): Te[] {
     k.toggleTeban();
   }
   return line;
+}
+
+function openingFingerprint(openingMoves: readonly Te[]): string {
+  const canonical = openingMoves.map((move) => [move.koma, move.from, move.to, move.promote ? 1 : 0]);
+  return createHash('sha256')
+    .update('shogi-nnue-fixed-time-opening-v1\0')
+    .update(JSON.stringify(canonical))
+    .digest('hex');
 }
 
 // ---------------------------------------------------------------------------
@@ -228,9 +243,21 @@ function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, ope
 // ---------------------------------------------------------------------------
 
 /** Load a weights.bin (either format, auto-detected) into a WASM instance and enable NNUE. */
-function setupNnueInstance(wasm: ShogiNnueSearchWasm, path: string, label: string): number {
+function setupNnueInstance(
+  wasm: ShogiNnueSearchWasm,
+  path: string,
+  label: string,
+  bucketOverride: number,
+  expectedSha256: string | null
+): number {
   const weightsBin = readFileSync(path);
-  const buckets = bucketsForByteLength(weightsBin.byteLength); // throws on unknown sizes
+  if (expectedSha256 !== null && createHash('sha256').update(weightsBin).digest('hex') !== expectedSha256) {
+    throw new Error(`${label}: weights SHA-256 differs from the preregistered asset`);
+  }
+  const buckets = bucketOverride > 0 ? bucketOverride : bucketsForByteLength(weightsBin.byteLength);
+  if (!Number.isInteger(buckets) || buckets < 1 || buckets > 65_535) {
+    throw new Error(`${label}: bucket selector must be an integer from 1 through 65535`);
+  }
   wasm.setNnueBuckets(buckets);
   if (weightsBin.byteLength !== wasm.getNnueWeightsSize()) {
     console.error(
@@ -246,15 +273,22 @@ function setupNnueInstance(wasm: ShogiNnueSearchWasm, path: string, label: strin
 }
 
 function main(): void {
+  if (
+    WASM_PATH !== undefined &&
+    EXPECTED_WASM_SHA !== null &&
+    createHash('sha256').update(readFileSync(WASM_PATH)).digest('hex') !== EXPECTED_WASM_SHA
+  ) {
+    throw new Error('research WASM SHA-256 differs from the preregistered asset');
+  }
   // Instance A: NNUE with real trained weights.
   const wasmA = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
-  const bucketsA = setupNnueInstance(wasmA, weightsPath, 'A');
+  const bucketsA = setupNnueInstance(wasmA, weightsPath, 'A', BUCKETS_A, EXPECTED_SHA_A);
 
   // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
   const wasmB = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
   let opponentName = 'V3';
   if (weightsPathB) {
-    const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B');
+    const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B', BUCKETS_B, EXPECTED_SHA_B);
     opponentName = `NNUE-B(buckets=${bucketsB})`;
   }
 
@@ -269,12 +303,14 @@ function main(): void {
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
       `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : 'WASM+V3'} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
-      `runtime=${WASM_PATH ?? 'production'} ===`
+      `runtime=${WASM_PATH ?? 'production'}, fixed-time-ms=${MOVE_MS}, ` +
+      `tt=clear-before-each-game-retain-within-game ===`
   );
 
   for (let game = 0; game < GAMES; game++) {
     const nnueIsSente = game % 2 === 0;
     const openingMoves = buildOpeningLine(game >> 1); // same opening for the color-swapped pair
+    const opening = openingFingerprint(openingMoves);
     nnuePlayer.newGame();
     v3Player.newGame();
 
@@ -293,7 +329,7 @@ function main(): void {
       summary = `DRAW (${result.reason})`;
     }
     console.log(
-      `game ${game + 1}/${GAMES}: NNUE=${nnueIsSente ? 'SENTE' : 'GOTE'} => ${summary} plies=${result.plies} time=${elapsed}s`
+      `game ${game + 1}/${GAMES}: NNUE=${nnueIsSente ? 'SENTE' : 'GOTE'} opening=${opening} => ${summary} plies=${result.plies} time=${elapsed}s`
     );
   }
 

@@ -1,0 +1,197 @@
+--- index.ts
++++ index.ts
+@@ -1631,6 +1631,9 @@
+ // king square. This is a research format until it passes memory, speed, and
+ // direct-match gates; the existing 1/6-bucket formats stay byte-compatible.
+ const NNUE_HALFKP_BUCKETS: i32 = 81;
++// Distinct runtime selector for shared-W1 dual-perspective HalfKP. The actual
++// king-table count remains 81; 82 only disambiguates the weight layout.
++const NNUE_HALFKP_DUAL_FORMAT: i32 = 82;
+
+ // Byte offsets into the weights blob (weights.bin layout). The layout shape is
+ // identical for both formats — only the w1 table sizes scale with the bucket
+@@ -1644,17 +1647,29 @@
+ let nnueB2Off: i32 = 0;
+ let nnueW3Off: i32 = 0;
+ let nnueB3Off: i32 = 0;
++let nnueW4Off: i32 = 0;
++let nnueB4Off: i32 = 0;
+ let nnueTotalBytes: i32 = 0;
+
+ function nnueComputeLayout(buckets: i32): void {
+   nnueBuckets = buckets;
+-  nnueW1hOff = NNUE_W1B_OFF + buckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+-  nnueB1Off = nnueW1hOff + buckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
++  const kingBuckets = buckets == NNUE_HALFKP_DUAL_FORMAT ? NNUE_HALFKP_BUCKETS : buckets;
++  nnueW1hOff = NNUE_W1B_OFF + kingBuckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
++  nnueB1Off = nnueW1hOff + kingBuckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
+   nnueW2Off = nnueB1Off + NNUE_H1 * 4;
+-  nnueB2Off = nnueW2Off + NNUE_H2 * NNUE_H1 * 2;
++  nnueB2Off = nnueW2Off + NNUE_H2 * NNUE_H1 * (buckets == NNUE_HALFKP_DUAL_FORMAT ? 4 : 2);
+   nnueW3Off = nnueB2Off + NNUE_H2 * 4;
+-  nnueB3Off = nnueW3Off + NNUE_H2 * 2;
+-  nnueTotalBytes = nnueB3Off + 4;
++  if (buckets == NNUE_HALFKP_DUAL_FORMAT) {
++    nnueB3Off = nnueW3Off + NNUE_H2 * NNUE_H2 * 2;
++    nnueW4Off = nnueB3Off + NNUE_H2 * 4;
++    nnueB4Off = nnueW4Off + NNUE_H2 * 2;
++    nnueTotalBytes = nnueB4Off + 4;
++  } else {
++    nnueB3Off = nnueW3Off + NNUE_H2 * 2;
++    nnueW4Off = 0;
++    nnueB4Off = 0;
++    nnueTotalBytes = nnueB3Off + 4;
++  }
+ }
+ nnueComputeLayout(1);
+
+@@ -1667,6 +1682,10 @@
+ const NNUE_HALFKP_TOTAL_BYTES: i32 =
+   NNUE_HALFKP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
+   NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 94,656,708
++const NNUE_HALFKP_DUAL_TOTAL_BYTES: i32 =
++  NNUE_HALFKP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
++  NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 4 + NNUE_H2 * 4 +
++  NNUE_H2 * NNUE_H2 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 94,675,268
+ const NNUE_STATIC_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
+ let NNUE_WEIGHTS: usize = NNUE_STATIC_WEIGHTS;
+ let nnueHalfkpWeights: usize = 0;
+@@ -1751,7 +1770,9 @@
+  *   d<=7: 5 / d==8: s<=4 -> 3, s>=5 -> 4 / d==9: s==5 -> 0, s<=4 -> 1, s>=6 -> 2
+  */
+ function nnueKpBucket(s: i32, d: i32): i32 {
+-  if (nnueBuckets == NNUE_HALFKP_BUCKETS) return (s - 1) * 9 + (d - 1);
++  if (nnueBuckets == NNUE_HALFKP_BUCKETS || nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++    return (s - 1) * 9 + (d - 1);
++  }
+   if (d <= 7) return 5;
+   if (d == 8) return s <= 4 ? 3 : 4;
+   if (s == 5) return 0;
+@@ -1822,6 +1843,10 @@
+ const NNUE_W2T: usize = memory.data(NNUE_H1 * NNUE_H2 * 2, 16);
+ // h1 packed to i16 lanes for the dense layer-2 dot products (nnueLayers23).
+ const NNUE_H1_I16: usize = memory.data(NNUE_H1 * 2, 16);
++// Dual-perspective 32-wide hidden-layer scratch. These are only used by
++// format 82; legacy 1/6/81 execution stays on its existing SIMD paths.
++const nnueDualH2 = new StaticArray<i32>(NNUE_H2);
++const nnueDualH3 = new StaticArray<i32>(NNUE_H2);
+
+ /** Pointer to the weight region; memcpy weights.bin here (layout-identical). */
+ export function getNnueWeightsPtr(): usize {
+@@ -1846,7 +1871,8 @@
+ /**
+  * Select the weights.bin format: 1 = original board one-hot (default,
+  * 1,185,988 B), 6 = reduced KP (7,027,908 B), 81 = full own-king-square
+- * HalfKP-style tables (94,656,708 B). Call BEFORE memcpying the
++ * single-perspective HalfKP (94,656,708 B), 82 = shared-W1 dual-perspective
++ * HalfKP (94,675,268 B). Call BEFORE memcpying the
+  * weights (the layout offsets change), then load the blob returned size.
+  * Invalid bucket counts are ignored. Clears the eval cache; rebuilds the
+  * accumulators if NNUE is enabled.
+@@ -1855,12 +1881,13 @@
+   if (
+     buckets != 1 &&
+     buckets != NNUE_KP_BUCKETS &&
+-    buckets != NNUE_HALFKP_BUCKETS
++    buckets != NNUE_HALFKP_BUCKETS &&
++    buckets != NNUE_HALFKP_DUAL_FORMAT
+   ) return;
+   if (nnueBuckets == buckets) return;
+-  if (buckets == NNUE_HALFKP_BUCKETS) {
++  if (buckets == NNUE_HALFKP_BUCKETS || buckets == NNUE_HALFKP_DUAL_FORMAT) {
+     if (nnueHalfkpWeights == 0) {
+-      const pages = (NNUE_HALFKP_TOTAL_BYTES + 65535) >> 16;
++      const pages = (NNUE_HALFKP_DUAL_TOTAL_BYTES + 65535) >> 16;
+       const oldPages = memory.grow(pages);
+       if (oldPages < 0) return;
+       nnueHalfkpWeights = <usize>oldPages << 16;
+@@ -1874,7 +1901,7 @@
+   initEvalCache();
+ }
+
+-/** Current weights format bucket count (1 = original, 6 = reduced KP, 81 = HalfKP). */
++/** Current format selector (1/6/81 legacy-compatible; 82 = dual HalfKP). */
+ export function getNnueBuckets(): i32 {
+   return nnueBuckets;
+ }
+@@ -2205,6 +2232,7 @@
+
+ /** w2t[j][i] = w2[i][j] (column-major copy for the sparse layer-2 path). */
+ function nnueBuildW2T(): void {
++  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) return;
+   for (let i = 0; i < NNUE_H2; i++) {
+     const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + (i << 9));
+     for (let j = 0; j < NNUE_H1; j++) {
+@@ -2299,6 +2327,45 @@
+     if (unchecked(nnueChkG[j]) != unchecked(nnueAccG[j])) bad++;
+   }
+   return bad;
++}
++
++function nnueClamp127(value: i32): i32 {
++  if (value < 0) return 0;
++  if (value > 127) return 127;
++  return value;
++}
++
++/** Shared-W1 `[256 us, 256 them] -> 32 -> 32 -> 1` integer tail. */
++function nnueDualLayers234(us: StaticArray<i32>, them: StaticArray<i32>): i32 {
++  nnueEvalCount++;
++  for (let i = 0; i < NNUE_H2; i++) {
++    let value = load<i32>(NNUE_WEIGHTS + <usize>(nnueB2Off + (i << 2)));
++    const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + i * NNUE_H1 * 4);
++    for (let j = 0; j < NNUE_H1; j++) {
++      value += <i32>load<i16>(rowBase + <usize>(j << 1)) * nnueClamp127(unchecked(us[j]));
++      value +=
++        <i32>load<i16>(rowBase + <usize>((NNUE_H1 + j) << 1)) *
++        nnueClamp127(unchecked(them[j]));
++    }
++    unchecked(nnueDualH2[i] = nnueClamp127(value >> 6));
++  }
++
++  for (let i = 0; i < NNUE_H2; i++) {
++    let value = load<i32>(NNUE_WEIGHTS + <usize>(nnueB3Off + (i << 2)));
++    const rowBase = NNUE_WEIGHTS + <usize>(nnueW3Off + i * NNUE_H2 * 2);
++    for (let j = 0; j < NNUE_H2; j++) {
++      value += <i32>load<i16>(rowBase + <usize>(j << 1)) * unchecked(nnueDualH2[j]);
++    }
++    unchecked(nnueDualH3[i] = nnueClamp127(value >> 6));
++  }
++
++  let outQ = load<i32>(NNUE_WEIGHTS + <usize>nnueB4Off);
++  for (let i = 0; i < NNUE_H2; i++) {
++    outQ +=
++      <i32>load<i16>(NNUE_WEIGHTS + <usize>(nnueW4Off + (i << 1))) *
++      unchecked(nnueDualH3[i]);
++  }
++  return outQ;
+ }
+
+ function nnueAddFeature(feat: i32): void {
+@@ -2325,6 +2392,13 @@
+  * to ml/export-weights.py int_forward on the same position. Read-only.
+  */
+ export function nnueEvaluate(): i32 {
++  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++    nnueBuildAccS(nnueChkS);
++    nnueBuildAccG(nnueChkG);
++    return teban == SENTE
++      ? nnueDualLayers234(nnueChkS, nnueChkG)
++      : nnueDualLayers234(nnueChkG, nnueChkS);
++  }
+   // Layer 1 accumulator: b1 + board features + hand features.
+   for (let j = 0; j < NNUE_H1; j++) {
+     unchecked(nnueAcc[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
+@@ -2407,6 +2481,12 @@
+  * products of nnueLayers23()/int_forward.
+  */
+ export function nnueEvaluateFast(): i32 {
++  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++    if (!nnueApplyPendingS() || !nnueApplyPendingG()) return nnueEvaluate();
++    return teban == SENTE
++      ? nnueDualLayers234(nnueAccS, nnueAccG)
++      : nnueDualLayers234(nnueAccG, nnueAccS);
++  }
+   if (teban == SENTE) {
+     if (!nnueApplyPendingS()) return nnueEvaluate();
+   } else {

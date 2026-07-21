@@ -1,0 +1,109 @@
+{
+  "schema": "shogi-bonapiece-halfkp-format84-runtime-evidence-v1",
+  "runtime_selector": 84,
+  "topology": "single-perspective-side-to-move",
+  "layout": {
+    "endianness": "little",
+    "headerless": true,
+    "components": [
+      "w1:i16[125388,256]:feature-major",
+      "b1:i32[256]",
+      "w2:i16[32,256]:row-major",
+      "b2:i32[32]",
+      "w3:i16[32]",
+      "b3:i32[1]"
+    ],
+    "total_bytes": 64216260
+  },
+  "identities": {
+    "candidate_weights": {
+      "bytes": 64216260,
+      "sha256": "758055815f3ed94470d783cae33d93773be080224036aea4283d73be5caa0ab5"
+    },
+    "candidate_metadata": {
+      "bytes": 2811,
+      "sha256": "22eb7452d6e9804bb8473f8c63d02372a910d7db9d9d687bb730bf547b68827f"
+    },
+    "torch_reference_64": {
+      "bytes": 57550,
+      "sha256": "8225b8b178aa1bc3b7055bc2a1a1fd4750b20ead14df31012d825608e86c6723"
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-bonapiece-halfkp-research.wasm",
+      "bytes": 39516,
+      "sha256": "da093d0e6f6c2f046072784ba757de30aa2f41bae11270b7b90c5209c22fafdb"
+    },
+    "production_assembly_source": {
+      "path": "wasm-spike/assembly/index.ts",
+      "bytes": 139447,
+      "sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c"
+    },
+    "production_wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "stable_live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "fixed_time_match_harness": {
+      "path": "wasm-spike/match-nnue-vs-v3.ts",
+      "bytes": 13996,
+      "sha256": "37138d1d50bfceee4f485b85cb893b205f3740a02d75a41224c7d4b1c2ceb1bc"
+    }
+  },
+  "parity": {
+    "actual_trainer_weights": {
+      "positions": 64,
+      "sente_to_move": 32,
+      "gote_to_move": 32,
+      "torch_ts_wasm_static_incremental_bit_exact": true,
+      "accumulator_mismatches": 0
+    },
+    "synthetic_incremental": {
+      "positions": 360,
+      "legal_moves_checked": 19171,
+      "captures": 72,
+      "drops": 60,
+      "king_moves": 69,
+      "promotions": 21,
+      "sente_to_move": 180,
+      "gote_to_move": 180,
+      "king_buckets_observed": 16,
+      "ts_wasm_static_incremental_bit_exact": true,
+      "accumulator_mismatches": 0
+    }
+  },
+  "fixed_time_match_smoke": {
+    "status": "pass",
+    "milliseconds_per_move": 1,
+    "games": 2,
+    "seed": 840001,
+    "candidate_selector_auto_detected": 84,
+    "stable_selector_auto_detected": 1,
+    "color_swapped_same_opening": true,
+    "legal_moves": 268,
+    "technical_faults": 0,
+    "strength_evidence": false
+  },
+  "runtime_g1": {
+    "status": "pass",
+    "strength_evidence": false,
+    "search_comparison": "fixed-depth-identical-tree-synthetic-constant-network",
+    "search_cases": 20,
+    "live_median_ms": 32.192916,
+    "format84_median_ms": 33.731916,
+    "search_median_slowdown_percent": 4.780555,
+    "maximum_search_median_slowdown_percent": 8,
+    "raw_eval_iterations": 100000,
+    "raw_eval_repeats": 9,
+    "synthetic_raw_eval_slowdown_percent": -0.635807,
+    "actual_weights_raw_eval_slowdown_percent": -6.749531,
+    "maximum_raw_eval_median_slowdown_percent": 5
+  },
+  "production_changed": false,
+  "promotion_authorized": false,
+  "live_weight_write_authorized": false
+}

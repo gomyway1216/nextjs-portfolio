@@ -35,6 +35,14 @@ export const NNUE_HAND_FEATS = 14;
 export const NNUE_KP_BUCKETS = 6;
 /** Full normalized own-king-square buckets (HalfKP-style research format). */
 export const NNUE_HALFKP_BUCKETS = 81;
+/** Runtime selector for the 81-bucket dual-perspective HalfKP research format. */
+export const NNUE_HALFKP_DUAL_FORMAT = 82;
+/** Research-only selector for the default YaneuraOu BonaPiece HalfKP input. */
+export const NNUE_BONAPIECE_HALFKP_FORMAT = 83;
+/** Research-only single-perspective BonaPiece HalfKP trainer/runtime contract. */
+export const NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT = 84;
+export const NNUE_BONAPIECE_FE_END = 1548;
+export const NNUE_BONAPIECE_ACTIVE = 38;
 
 export interface NnueLayout {
   buckets: number;
@@ -85,13 +93,130 @@ export const NNUE_LAYOUT = layoutFor(1); // totalBytes 1,185,988
 export const NNUE_KP_LAYOUT = layoutFor(NNUE_KP_BUCKETS); // totalBytes 7,027,908
 export const NNUE_HALFKP_LAYOUT = layoutFor(NNUE_HALFKP_BUCKETS); // totalBytes 94,656,708
 
+export interface NnueDualLayout {
+  format: typeof NNUE_HALFKP_DUAL_FORMAT;
+  buckets: typeof NNUE_HALFKP_BUCKETS;
+  w1BoardOff: number;
+  w1HandOff: number;
+  b1Off: number;
+  w2Off: number;
+  b2Off: number;
+  w3Off: number;
+  b3Off: number;
+  w4Off: number;
+  b4Off: number;
+  totalBytes: number;
+}
+
+/**
+ * Dual HalfKP layout. W1 is shared by both king perspectives; the two 256
+ * accumulators are concatenated before 512 -> 32 -> 32 -> 1.
+ */
+export const NNUE_HALFKP_DUAL_LAYOUT: NnueDualLayout = (() => {
+  const w1BoardOff = 0;
+  const w1HandOff = NNUE_HALFKP_BUCKETS * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+  const b1Off = w1HandOff + NNUE_HALFKP_BUCKETS * NNUE_HAND_FEATS * NNUE_H1 * 2;
+  const w2Off = b1Off + NNUE_H1 * 4;
+  const b2Off = w2Off + NNUE_H2 * (NNUE_H1 * 2) * 2;
+  const w3Off = b2Off + NNUE_H2 * 4;
+  const b3Off = w3Off + NNUE_H2 * NNUE_H2 * 2;
+  const w4Off = b3Off + NNUE_H2 * 4;
+  const b4Off = w4Off + NNUE_H2 * 2;
+  return {
+    format: NNUE_HALFKP_DUAL_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1BoardOff,
+    w1HandOff,
+    b1Off,
+    w2Off,
+    b2Off,
+    w3Off,
+    b3Off,
+    w4Off,
+    b4Off,
+    totalBytes: b4Off + 4,
+  };
+})(); // totalBytes 94,675,268
+
+/**
+ * Headerless research export produced by train_bonapiece_halfkp.py.  Unlike
+ * the custom format above, w1 is one official BonaPiece table:
+ * `(kingSquare * 1548 + bonaPiece) * 256`.
+ */
+export const NNUE_BONAPIECE_HALFKP_LAYOUT: NnueDualLayout = (() => {
+  const w1BoardOff = 0;
+  const w1HandOff = 81 * NNUE_BONAPIECE_FE_END * NNUE_H1 * 2;
+  const b1Off = w1HandOff;
+  const w2Off = b1Off + NNUE_H1 * 4;
+  const b2Off = w2Off + NNUE_H2 * (NNUE_H1 * 2) * 2;
+  const w3Off = b2Off + NNUE_H2 * 4;
+  const b3Off = w3Off + NNUE_H2 * NNUE_H2 * 2;
+  const w4Off = b3Off + NNUE_H2 * 4;
+  const b4Off = w4Off + NNUE_H2 * 2;
+  return {
+    format: NNUE_BONAPIECE_HALFKP_FORMAT as typeof NNUE_HALFKP_DUAL_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1BoardOff,
+    w1HandOff,
+    b1Off,
+    w2Off,
+    b2Off,
+    w3Off,
+    b3Off,
+    w4Off,
+    b4Off,
+    totalBytes: b4Off + 4,
+  };
+})(); // totalBytes 64,234,820
+
+export interface NnueBonaPieceHalfkpSingleLayout {
+  format: typeof NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT;
+  buckets: typeof NNUE_HALFKP_BUCKETS;
+  w1BoardOff: number;
+  w1HandOff: number;
+  b1Off: number;
+  w2Off: number;
+  b2Off: number;
+  w3Off: number;
+  b3Off: number;
+  totalBytes: number;
+}
+
+/** Headerless LE `125388x256 -> 256 -> 32 -> 1` format84 layout. */
+export const NNUE_BONAPIECE_HALFKP_SINGLE_LAYOUT: NnueBonaPieceHalfkpSingleLayout = (() => {
+  const w1BoardOff = 0;
+  const w1HandOff = NNUE_HALFKP_BUCKETS * NNUE_BONAPIECE_FE_END * NNUE_H1 * 2;
+  const b1Off = w1HandOff;
+  const w2Off = b1Off + NNUE_H1 * 4;
+  const b2Off = w2Off + NNUE_H2 * NNUE_H1 * 2;
+  const w3Off = b2Off + NNUE_H2 * 4;
+  const b3Off = w3Off + NNUE_H2 * 2;
+  return {
+    format: NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1BoardOff,
+    w1HandOff,
+    b1Off,
+    w2Off,
+    b2Off,
+    w3Off,
+    b3Off,
+    totalBytes: b3Off + 4,
+  };
+})(); // totalBytes 64,216,260
+
 /** Infer the bucket count of a weights.bin blob from its byte length. */
 export function bucketsForByteLength(byteLength: number): number {
   if (byteLength === NNUE_LAYOUT.totalBytes) return 1;
   if (byteLength === NNUE_KP_LAYOUT.totalBytes) return NNUE_KP_BUCKETS;
   if (byteLength === NNUE_HALFKP_LAYOUT.totalBytes) return NNUE_HALFKP_BUCKETS;
+  if (byteLength === NNUE_HALFKP_DUAL_LAYOUT.totalBytes) return NNUE_HALFKP_DUAL_FORMAT;
+  if (byteLength === NNUE_BONAPIECE_HALFKP_LAYOUT.totalBytes) return NNUE_BONAPIECE_HALFKP_FORMAT;
+  if (byteLength === NNUE_BONAPIECE_HALFKP_SINGLE_LAYOUT.totalBytes) {
+    return NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT;
+  }
   throw new Error(
-    `unrecognized weights.bin size ${byteLength} (expected ${NNUE_LAYOUT.totalBytes}, ${NNUE_KP_LAYOUT.totalBytes}, or ${NNUE_HALFKP_LAYOUT.totalBytes})`
+    `unrecognized weights.bin size ${byteLength} (expected ${NNUE_LAYOUT.totalBytes}, ${NNUE_KP_LAYOUT.totalBytes}, ${NNUE_HALFKP_LAYOUT.totalBytes}, ${NNUE_HALFKP_DUAL_LAYOUT.totalBytes}, ${NNUE_BONAPIECE_HALFKP_LAYOUT.totalBytes}, or ${NNUE_BONAPIECE_HALFKP_SINGLE_LAYOUT.totalBytes})`
   );
 }
 
@@ -108,7 +233,14 @@ export function kpBucket(s: number, d: number): number {
 
 /** Bucket for the selected model format from an stm-normalized king square. */
 export function kingBucket(s: number, d: number, buckets: number): number {
-  if (buckets === NNUE_HALFKP_BUCKETS) return (s - 1) * 9 + (d - 1);
+  if (
+    buckets === NNUE_HALFKP_BUCKETS ||
+    buckets === NNUE_HALFKP_DUAL_FORMAT ||
+    buckets === NNUE_BONAPIECE_HALFKP_FORMAT ||
+    buckets === NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT
+  ) {
+    return (s - 1) * 9 + (d - 1);
+  }
   if (buckets === NNUE_KP_BUCKETS) return kpBucket(s, d);
   if (buckets === 1) return 0;
   throw new Error(`unsupported NNUE king bucket count ${buckets}`);
@@ -125,8 +257,50 @@ export interface NnueWeights {
   b3: Int32Array; // (1,)
 }
 
+export interface NnueDualWeights {
+  format: number;
+  buckets: typeof NNUE_HALFKP_BUCKETS;
+  w1Board: Int16Array; // (81*2268, 256), shared by both perspectives
+  w1Hand: Int16Array; // (81*14, 256), shared by both perspectives
+  b1: Int32Array; // (256,), shared by both accumulators
+  w2: Int16Array; // (32, 512) [us, them]
+  b2: Int32Array; // (32,)
+  w3: Int16Array; // (32, 32)
+  b3: Int32Array; // (32,)
+  w4: Int16Array; // (32,)
+  b4: Int32Array; // (1,)
+}
+
+export interface NnueBonaPieceHalfkpWeights extends NnueDualWeights {
+  format: typeof NNUE_BONAPIECE_HALFKP_FORMAT;
+  /** [81*1548, 256], feature-major; kings are not active features. */
+  w1Board: Int16Array;
+  /** BonaPiece has no separate linear hand table. */
+  w1Hand: Int16Array;
+}
+
+export interface NnueBonaPieceHalfkpSingleWeights {
+  format: typeof NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT;
+  buckets: typeof NNUE_HALFKP_BUCKETS;
+  /** [81*1548, 256], feature-major; kings are not active features. */
+  w1Board: Int16Array;
+  b1: Int32Array;
+  /** [32, 256], row-major. */
+  w2: Int16Array;
+  b2: Int32Array;
+  w3: Int16Array;
+  b3: Int32Array;
+}
+
 /** View a weights.bin-compatible buffer as typed arrays (no copy). */
 export function weightsFromBuffer(buf: ArrayBufferLike, byteOffset = 0, buckets = 1): NnueWeights {
+  if (
+    buckets === NNUE_HALFKP_DUAL_FORMAT ||
+    buckets === NNUE_BONAPIECE_HALFKP_FORMAT ||
+    buckets === NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT
+  ) {
+    throw new Error('weightsFromBuffer: use the format-specific HalfKP reader');
+  }
   const L = layoutFor(buckets);
   return {
     buckets,
@@ -138,6 +312,112 @@ export function weightsFromBuffer(buf: ArrayBufferLike, byteOffset = 0, buckets 
     w3: new Int16Array(buf, byteOffset + L.w3Off, NNUE_H2),
     b3: new Int32Array(buf, byteOffset + L.b3Off, 1),
   };
+}
+
+/** View a dual-HalfKP weights buffer as typed arrays without copying. */
+export function dualWeightsFromBuffer(buf: ArrayBufferLike, byteOffset = 0): NnueDualWeights {
+  const L = NNUE_HALFKP_DUAL_LAYOUT;
+  return {
+    format: NNUE_HALFKP_DUAL_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1Board: new Int16Array(
+      buf,
+      byteOffset + L.w1BoardOff,
+      NNUE_HALFKP_BUCKETS * NNUE_BOARD_FEATS * NNUE_H1,
+    ),
+    w1Hand: new Int16Array(
+      buf,
+      byteOffset + L.w1HandOff,
+      NNUE_HALFKP_BUCKETS * NNUE_HAND_FEATS * NNUE_H1,
+    ),
+    b1: new Int32Array(buf, byteOffset + L.b1Off, NNUE_H1),
+    w2: new Int16Array(buf, byteOffset + L.w2Off, NNUE_H2 * NNUE_H1 * 2),
+    b2: new Int32Array(buf, byteOffset + L.b2Off, NNUE_H2),
+    w3: new Int16Array(buf, byteOffset + L.w3Off, NNUE_H2 * NNUE_H2),
+    b3: new Int32Array(buf, byteOffset + L.b3Off, NNUE_H2),
+    w4: new Int16Array(buf, byteOffset + L.w4Off, NNUE_H2),
+    b4: new Int32Array(buf, byteOffset + L.b4Off, 1),
+  };
+}
+
+/** View a research-only standard BonaPiece HalfKP export without copying. */
+export function bonaPieceHalfkpWeightsFromBuffer(
+  buf: ArrayBufferLike,
+  byteOffset = 0,
+): NnueBonaPieceHalfkpWeights {
+  const L = NNUE_BONAPIECE_HALFKP_LAYOUT;
+  return {
+    format: NNUE_BONAPIECE_HALFKP_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1Board: new Int16Array(
+      buf,
+      byteOffset + L.w1BoardOff,
+      NNUE_HALFKP_BUCKETS * NNUE_BONAPIECE_FE_END * NNUE_H1,
+    ),
+    w1Hand: new Int16Array(buf, byteOffset + L.w1HandOff, 0),
+    b1: new Int32Array(buf, byteOffset + L.b1Off, NNUE_H1),
+    w2: new Int16Array(buf, byteOffset + L.w2Off, NNUE_H2 * NNUE_H1 * 2),
+    b2: new Int32Array(buf, byteOffset + L.b2Off, NNUE_H2),
+    w3: new Int16Array(buf, byteOffset + L.w3Off, NNUE_H2 * NNUE_H2),
+    b3: new Int32Array(buf, byteOffset + L.b3Off, NNUE_H2),
+    w4: new Int16Array(buf, byteOffset + L.w4Off, NNUE_H2),
+    b4: new Int32Array(buf, byteOffset + L.b4Off, 1),
+  };
+}
+
+/** View a format84 single-perspective BonaPiece export without copying. */
+export function bonaPieceHalfkpSingleWeightsFromBuffer(
+  buf: ArrayBufferLike,
+  byteOffset = 0,
+): NnueBonaPieceHalfkpSingleWeights {
+  const L = NNUE_BONAPIECE_HALFKP_SINGLE_LAYOUT;
+  return {
+    format: NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT,
+    buckets: NNUE_HALFKP_BUCKETS,
+    w1Board: new Int16Array(
+      buf,
+      byteOffset + L.w1BoardOff,
+      NNUE_HALFKP_BUCKETS * NNUE_BONAPIECE_FE_END * NNUE_H1,
+    ),
+    b1: new Int32Array(buf, byteOffset + L.b1Off, NNUE_H1),
+    w2: new Int16Array(buf, byteOffset + L.w2Off, NNUE_H2 * NNUE_H1),
+    b2: new Int32Array(buf, byteOffset + L.b2Off, NNUE_H2),
+    w3: new Int16Array(buf, byteOffset + L.w3Off, NNUE_H2),
+    b3: new Int32Array(buf, byteOffset + L.b3Off, 1),
+  };
+}
+
+/**
+ * Epoch-0 exact lift from the byte-compatible one-perspective network.
+ * W1 is repeated into every king bucket, W2 ignores the `them` half, and the
+ * added 32 -> 32 layer is an exact ClippedReLU identity (64 * I before >> 6).
+ */
+export function liftLegacyWeightsToDualHalfkp(sourceBytes: Uint8Array): Uint8Array {
+  if (sourceBytes.byteLength !== NNUE_LAYOUT.totalBytes) {
+    throw new Error(
+      `dual exact lift requires ${NNUE_LAYOUT.totalBytes} legacy bytes, got ${sourceBytes.byteLength}`,
+    );
+  }
+  const source = weightsFromBuffer(sourceBytes.buffer, sourceBytes.byteOffset, 1);
+  const output = new Uint8Array(NNUE_HALFKP_DUAL_LAYOUT.totalBytes);
+  const dual = dualWeightsFromBuffer(output.buffer, output.byteOffset);
+
+  for (let bucket = 0; bucket < NNUE_HALFKP_BUCKETS; bucket++) {
+    dual.w1Board.set(source.w1Board, bucket * source.w1Board.length);
+    dual.w1Hand.set(source.w1Hand, bucket * source.w1Hand.length);
+  }
+  dual.b1.set(source.b1);
+  for (let row = 0; row < NNUE_H2; row++) {
+    dual.w2.set(
+      source.w2.subarray(row * NNUE_H1, (row + 1) * NNUE_H1),
+      row * NNUE_H1 * 2,
+    );
+    dual.w3[row * NNUE_H2 + row] = 64;
+  }
+  dual.b2.set(source.b2);
+  dual.w4.set(source.w3);
+  dual.b4[0] = source.b3[0];
+  return output;
 }
 
 /** Seeded deterministic RNG (Mulberry32), same as the other harnesses. */
@@ -260,6 +540,88 @@ export interface NnueFeatures {
   bucket: number; // own-king KP bucket (0 when buckets === 1)
 }
 
+export interface NnueDualFeatures {
+  /** Side-to-move perspective, bucketed by the side-to-move king. */
+  us: NnueFeatures;
+  /** Opponent perspective, bucketed by the opponent king. */
+  them: NnueFeatures;
+}
+
+export interface NnueBonaPieceHalfkpFeatures {
+  /** Exactly 38 HalfKP indices for the side-to-move king perspective. */
+  us: number[];
+  /** Exactly 38 HalfKP indices for the opponent king perspective. */
+  them: number[];
+}
+
+// Default YaneuraOu BonaPiece enum values with DISTINGUISH_GOLDS disabled.
+// Indexed by engine komashu (koma & 0x0f); kings/unused slots are -1.
+const BONA_BOARD_FRIEND = [
+  -1, 90, 252, 414, 576, 738, 900, 1224, -1, 738, 738, 738, 738, -1, 1062, 1386,
+];
+const BONA_BOARD_ENEMY = [
+  -1, 171, 333, 495, 657, 819, 981, 1305, -1, 819, 819, 819, 819, -1, 1143, 1467,
+];
+const BONA_HAND_FRIEND = [-1, 1, 39, 49, 59, 69, 79, 85];
+const BONA_HAND_ENEMY = [-1, 20, 44, 54, 64, 74, 82, 88];
+const BONA_INVENTORY = [0, 18, 4, 4, 4, 4, 2, 2];
+// Promoted minors count against their original inventories; horse/dragon
+// count against bishop/rook. Kings are excluded from the 38-piece EvalList.
+const BONA_INVENTORY_KIND = [-1, 1, 2, 3, 4, 5, 6, 7, -1, 1, 2, 3, 4, -1, 6, 7];
+
+function bonaPiecePerspective(
+  pos: NnuePosition,
+  perspectiveSente: boolean,
+  kingSquare: number,
+): number[] {
+  const bona: number[] = [];
+  const inventory = new Array<number>(8).fill(0);
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const koma = pos.ban[(suji << 4) + dan] | 0;
+      if (koma === EMPTY) continue;
+      const kind = koma & 0x0f;
+      if (kind === 8) continue; // kings condition the table but are not features
+      const inventoryKind = BONA_INVENTORY_KIND[kind];
+      if (inventoryKind < 1) throw new Error(`unsupported engine piece kind ${kind}`);
+      inventory[inventoryKind]++;
+      const friend = ((koma & SENTE) !== 0) === perspectiveSente;
+      const base = (friend ? BONA_BOARD_FRIEND : BONA_BOARD_ENEMY)[kind];
+      if (base < 0) throw new Error(`unsupported BonaPiece board kind ${kind}`);
+      const square = perspectiveSente
+        ? (suji - 1) * 9 + (dan - 1)
+        : (9 - suji) * 9 + (9 - dan);
+      bona.push(base + square);
+    }
+  }
+
+  for (const ownerSente of [true, false]) {
+    const side = ownerSente ? SENTE : GOTE;
+    for (let type = FU; type <= HI; type++) {
+      const count = pos.hand[side | type] | 0;
+      if (count < 0) throw new Error('negative hand count');
+      inventory[type] += count;
+      const friend = ownerSente === perspectiveSente;
+      const base = (friend ? BONA_HAND_FRIEND : BONA_HAND_ENEMY)[type];
+      for (let slot = 0; slot < count; slot++) bona.push(base + slot);
+    }
+  }
+
+  let missing = 0;
+  for (let type = FU; type <= HI; type++) {
+    if (inventory[type] > BONA_INVENTORY[type]) {
+      throw new Error(`BonaPiece inventory overflow for type ${type}`);
+    }
+    missing += BONA_INVENTORY[type] - inventory[type];
+  }
+  while (missing-- > 0) bona.push(0); // EvalList::clear() handicap sentinel
+  if (bona.length !== NNUE_BONAPIECE_ACTIVE) {
+    throw new Error(`BonaPiece feature count ${bona.length}, expected ${NNUE_BONAPIECE_ACTIVE}`);
+  }
+  bona.sort((a, b) => a - b);
+  return bona.map((piece) => kingSquare * NNUE_BONAPIECE_FE_END + piece);
+}
+
 /**
  * Extract stm-normalized features. With buckets > 1 (reduced KP) every board
  * feature is offset by bucket*2268 where bucket = kpBucket(own king square in
@@ -321,6 +683,44 @@ export function extractFeatures(pos: NnuePosition, buckets = 1): NnueFeatures {
   return { boardFeats, hands, bucket };
 }
 
+/** Extract both king perspectives in `[us, them]` network order. */
+export function extractDualFeatures(pos: NnuePosition): NnueDualFeatures {
+  const us = extractFeatures(pos, NNUE_HALFKP_DUAL_FORMAT);
+  const them = extractFeatures(
+    {
+      ban: pos.ban,
+      hand: pos.hand,
+      teban: pos.teban === SENTE ? GOTE : SENTE,
+    },
+    NNUE_HALFKP_DUAL_FORMAT,
+  );
+  return { us, them };
+}
+
+/** Exact default BonaPiece HalfKP semantics pinned by the research trainer. */
+export function extractBonaPieceHalfkpFeatures(pos: NnuePosition): NnueBonaPieceHalfkpFeatures {
+  let kingS = -1;
+  let kingG = -1;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const koma = pos.ban[(suji << 4) + dan] | 0;
+      if ((koma & 0x0f) !== 8) continue;
+      const squareS = (suji - 1) * 9 + (dan - 1);
+      if ((koma & SENTE) !== 0) {
+        if (kingS >= 0) throw new Error('multiple SENTE kings');
+        kingS = squareS;
+      } else {
+        if (kingG >= 0) throw new Error('multiple GOTE kings');
+        kingG = 80 - squareS;
+      }
+    }
+  }
+  if (kingS < 0 || kingG < 0) throw new Error('BonaPiece HalfKP requires both kings');
+  const sente = bonaPiecePerspective(pos, true, kingS);
+  const gote = bonaPiecePerspective(pos, false, kingG);
+  return pos.teban === SENTE ? { us: sente, them: gote } : { us: gote, them: sente };
+}
+
 // ---------------------------------------------------------------------------
 // Integer forward pass (== ml/export-weights.py int_forward)
 // ---------------------------------------------------------------------------
@@ -363,6 +763,133 @@ export function intForward(w: NnueWeights, feats: NnueFeatures): number {
     if (h2 < 0) h2 = 0;
     else if (h2 > 127) h2 = 127;
     outQ = (outQ + w.w3[i] * h2) | 0;
+  }
+  return outQ;
+}
+
+function dualAccumulator(w: NnueDualWeights, feats: NnueFeatures): Int32Array {
+  const acc = new Int32Array(NNUE_H1);
+  acc.set(w.b1);
+  for (const feature of feats.boardFeats) {
+    const base = feature * NNUE_H1;
+    for (let j = 0; j < NNUE_H1; j++) {
+      acc[j] = (acc[j] + w.w1Board[base + j]) | 0;
+    }
+  }
+  const handRow0 = feats.bucket * NNUE_HAND_FEATS;
+  for (let i = 0; i < NNUE_HAND_FEATS; i++) {
+    const count = feats.hands[i] | 0;
+    if (count === 0) continue;
+    const base = (handRow0 + i) * NNUE_H1;
+    for (let j = 0; j < NNUE_H1; j++) {
+      acc[j] = (acc[j] + w.w1Hand[base + j] * count) | 0;
+    }
+  }
+  for (let j = 0; j < NNUE_H1; j++) {
+    if (acc[j] < 0) acc[j] = 0;
+    else if (acc[j] > 127) acc[j] = 127;
+  }
+  return acc;
+}
+
+/** Exact integer reference for shared-W1 `[256 us, 256 them] -> 32 -> 32 -> 1`. */
+export function intForwardDual(w: NnueDualWeights, feats: NnueDualFeatures): number {
+  const us = dualAccumulator(w, feats.us);
+  const them = dualAccumulator(w, feats.them);
+  const h2 = new Int32Array(NNUE_H2);
+  for (let row = 0; row < NNUE_H2; row++) {
+    let value = w.b2[row] | 0;
+    const base = row * NNUE_H1 * 2;
+    for (let j = 0; j < NNUE_H1; j++) {
+      value = (value + w.w2[base + j] * us[j]) | 0;
+      value = (value + w.w2[base + NNUE_H1 + j] * them[j]) | 0;
+    }
+    value >>= 6;
+    h2[row] = value < 0 ? 0 : value > 127 ? 127 : value;
+  }
+
+  const h3 = new Int32Array(NNUE_H2);
+  for (let row = 0; row < NNUE_H2; row++) {
+    let value = w.b3[row] | 0;
+    const base = row * NNUE_H2;
+    for (let j = 0; j < NNUE_H2; j++) {
+      value = (value + w.w3[base + j] * h2[j]) | 0;
+    }
+    value >>= 6;
+    h3[row] = value < 0 ? 0 : value > 127 ? 127 : value;
+  }
+
+  let outQ = w.b4[0] | 0;
+  for (let i = 0; i < NNUE_H2; i++) outQ = (outQ + w.w4[i] * h3[i]) | 0;
+  return outQ;
+}
+
+function bonaPieceAccumulator(
+  w: Pick<NnueBonaPieceHalfkpWeights, 'b1' | 'w1Board'>,
+  features: number[],
+): Int32Array {
+  const acc = new Int32Array(NNUE_H1);
+  acc.set(w.b1);
+  for (const feature of features) {
+    const base = feature * NNUE_H1;
+    for (let j = 0; j < NNUE_H1; j++) {
+      acc[j] = (acc[j] + w.w1Board[base + j]) | 0;
+    }
+  }
+  for (let j = 0; j < NNUE_H1; j++) {
+    if (acc[j] < 0) acc[j] = 0;
+    else if (acc[j] > 127) acc[j] = 127;
+  }
+  return acc;
+}
+
+/** Headerless BonaPiece research export integer simulation. */
+export function intForwardBonaPieceHalfkp(
+  w: NnueBonaPieceHalfkpWeights,
+  feats: NnueBonaPieceHalfkpFeatures,
+): number {
+  const us = bonaPieceAccumulator(w, feats.us);
+  const them = bonaPieceAccumulator(w, feats.them);
+  const h2 = new Int32Array(NNUE_H2);
+  for (let row = 0; row < NNUE_H2; row++) {
+    let value = w.b2[row] | 0;
+    const base = row * NNUE_H1 * 2;
+    for (let j = 0; j < NNUE_H1; j++) {
+      value = (value + w.w2[base + j] * us[j]) | 0;
+      value = (value + w.w2[base + NNUE_H1 + j] * them[j]) | 0;
+    }
+    value >>= 6;
+    h2[row] = value < 0 ? 0 : value > 127 ? 127 : value;
+  }
+  const h3 = new Int32Array(NNUE_H2);
+  for (let row = 0; row < NNUE_H2; row++) {
+    let value = w.b3[row] | 0;
+    const base = row * NNUE_H2;
+    for (let j = 0; j < NNUE_H2; j++) value = (value + w.w3[base + j] * h2[j]) | 0;
+    value >>= 6;
+    h3[row] = value < 0 ? 0 : value > 127 ? 127 : value;
+  }
+  let outQ = w.b4[0] | 0;
+  for (let i = 0; i < NNUE_H2; i++) outQ = (outQ + w.w4[i] * h3[i]) | 0;
+  return outQ;
+}
+
+/** Exact format84 integer simulation using only the side-to-move HalfKP view. */
+export function intForwardBonaPieceHalfkpSingle(
+  w: NnueBonaPieceHalfkpSingleWeights,
+  feats: NnueBonaPieceHalfkpFeatures,
+): number {
+  const h1 = bonaPieceAccumulator(w, feats.us);
+  let outQ = w.b3[0] | 0;
+  for (let row = 0; row < NNUE_H2; row++) {
+    let value = w.b2[row] | 0;
+    const base = row * NNUE_H1;
+    for (let j = 0; j < NNUE_H1; j++) {
+      value = (value + w.w2[base + j] * h1[j]) | 0;
+    }
+    value >>= 6;
+    const h2 = value < 0 ? 0 : value > 127 ? 127 : value;
+    outQ = (outQ + w.w3[row] * h2) | 0;
   }
   return outQ;
 }

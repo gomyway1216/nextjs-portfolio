@@ -1,0 +1,579 @@
+--- index.ts
++++ index.ts
+@@ -308,7 +308,20 @@
+   if (nnueEnabled) {
+     // Lazy NNUE accumulator update: just record the move; the delta is applied
+     // only if an evaluation happens below this node (see nnueApplyPending).
+-    if (nnuePendLen < NNUE_PEND_CAP) unchecked(nnuePendStack[nnuePendLen] = m);
++    if (nnuePendLen < NNUE_PEND_CAP) {
++      unchecked(nnuePendStack[nnuePendLen] = m);
++      let handKoma = 0;
++      let handSlot = -1;
++      if (from == 0) {
++        handKoma = koma;
++        handSlot = unchecked(hand[koma]); // post-drop count == removed slot
++      } else if (capture != EMPTY) {
++        handKoma = (capture & 0x07) | ((capture & SENTE) != 0 ? GOTE : SENTE);
++        handSlot = unchecked(hand[handKoma]) - 1; // newly activated slot
++      }
++      unchecked(nnuePendHandKoma[nnuePendLen] = handKoma);
++      unchecked(nnuePendHandSlot[nnuePendLen] = handSlot);
++    }
+     nnuePendLen++;
+   }
+ }
+@@ -373,12 +386,20 @@
+     nnuePendLen--;
+     if (nnuePendAppliedS > nnuePendLen) {
+       if (nnueAccSDirty || nnueMoveCrossesS(m)) nnueAccSDirty = true;
+-      else nnueAccApplyUnmakeS(m);
++      else nnueAccApplyUnmakeS(
++        m,
++        unchecked(nnuePendHandKoma[nnuePendLen]),
++        unchecked(nnuePendHandSlot[nnuePendLen])
++      );
+       nnuePendAppliedS = nnuePendLen;
+     }
+     if (nnuePendAppliedG > nnuePendLen) {
+       if (nnueAccGDirty || nnueMoveCrossesG(m)) nnueAccGDirty = true;
+-      else nnueAccApplyUnmakeG(m);
++      else nnueAccApplyUnmakeG(
++        m,
++        unchecked(nnuePendHandKoma[nnuePendLen]),
++        unchecked(nnuePendHandSlot[nnuePendLen])
++      );
+       nnuePendAppliedG = nnuePendLen;
+     }
+   }
+@@ -1634,6 +1655,16 @@
+ // Distinct runtime selector for shared-W1 dual-perspective HalfKP. The actual
+ // king-table count remains 81; 82 only disambiguates the weight layout.
+ const NNUE_HALFKP_DUAL_FORMAT: i32 = 82;
++// Default YaneuraOu BonaPiece HalfKP research selectors (dual 83, single 84).
++// isolated from every production/live layout and is not a YaneuraOu .nnue.
++const NNUE_BONAPIECE_HALFKP_FORMAT: i32 = 83;
++const NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT: i32 = 84;
++const NNUE_BONAPIECE_FE_END: i32 = 1548;
++const NNUE_BONAPIECE_ACTIVE: i32 = 38;
++@inline function nnueIsDualFormat(): bool {
++  return nnueBuckets == NNUE_HALFKP_DUAL_FORMAT || nnueBuckets == NNUE_BONAPIECE_HALFKP_FORMAT;
++}
++@inline function nnueIsBonaFormat(): bool { return nnueBuckets == NNUE_BONAPIECE_HALFKP_FORMAT || nnueBuckets == NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT; }
+
+ // Byte offsets into the weights blob (weights.bin layout). The layout shape is
+ // identical for both formats — only the w1 table sizes scale with the bucket
+@@ -1654,12 +1685,18 @@
+ function nnueComputeLayout(buckets: i32): void {
+   nnueBuckets = buckets;
+   const kingBuckets = buckets == NNUE_HALFKP_DUAL_FORMAT ? NNUE_HALFKP_BUCKETS : buckets;
+-  nnueW1hOff = NNUE_W1B_OFF + kingBuckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+-  nnueB1Off = nnueW1hOff + kingBuckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
++  if (buckets == NNUE_BONAPIECE_HALFKP_FORMAT || buckets == NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT) {
++    nnueW1hOff = NNUE_W1B_OFF + NNUE_HALFKP_BUCKETS * NNUE_BONAPIECE_FE_END * NNUE_H1 * 2;
++    nnueB1Off = nnueW1hOff; // BonaPiece hands are sparse slot features in w1.
++  } else {
++    nnueW1hOff = NNUE_W1B_OFF + kingBuckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
++    nnueB1Off = nnueW1hOff + kingBuckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
++  }
+   nnueW2Off = nnueB1Off + NNUE_H1 * 4;
+-  nnueB2Off = nnueW2Off + NNUE_H2 * NNUE_H1 * (buckets == NNUE_HALFKP_DUAL_FORMAT ? 4 : 2);
++  nnueB2Off = nnueW2Off + NNUE_H2 * NNUE_H1 *
++    (buckets == NNUE_HALFKP_DUAL_FORMAT || buckets == NNUE_BONAPIECE_HALFKP_FORMAT ? 4 : 2);
+   nnueW3Off = nnueB2Off + NNUE_H2 * 4;
+-  if (buckets == NNUE_HALFKP_DUAL_FORMAT) {
++  if (buckets == NNUE_HALFKP_DUAL_FORMAT || buckets == NNUE_BONAPIECE_HALFKP_FORMAT) {
+     nnueB3Off = nnueW3Off + NNUE_H2 * NNUE_H2 * 2;
+     nnueW4Off = nnueB3Off + NNUE_H2 * 4;
+     nnueB4Off = nnueW4Off + NNUE_H2 * 2;
+@@ -1686,6 +1723,10 @@
+   NNUE_HALFKP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
+   NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 4 + NNUE_H2 * 4 +
+   NNUE_H2 * NNUE_H2 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 94,675,268
++const NNUE_BONAPIECE_HALFKP_SINGLE_TOTAL_BYTES: i32 =
++  NNUE_HALFKP_BUCKETS * NNUE_BONAPIECE_FE_END * NNUE_H1 * 2 +
++  NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 +
++  NNUE_H2 * 2 + 4; // 64,216,260
+ const NNUE_STATIC_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
+ let NNUE_WEIGHTS: usize = NNUE_STATIC_WEIGHTS;
+ let nnueHalfkpWeights: usize = 0;
+@@ -1770,7 +1811,11 @@
+  *   d<=7: 5 / d==8: s<=4 -> 3, s>=5 -> 4 / d==9: s==5 -> 0, s<=4 -> 1, s>=6 -> 2
+  */
+ function nnueKpBucket(s: i32, d: i32): i32 {
+-  if (nnueBuckets == NNUE_HALFKP_BUCKETS || nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++  if (
++    nnueBuckets == NNUE_HALFKP_BUCKETS ||
++    nnueBuckets == NNUE_HALFKP_DUAL_FORMAT ||
++    nnueIsBonaFormat()
++  ) {
+     return (s - 1) * 9 + (d - 1);
+   }
+   if (d <= 7) return 5;
+@@ -1810,12 +1855,16 @@
+ /** Refresh the cached bucket byte offsets from the live king positions. */
+ function nnueUpdateBucketS(): void {
+   const b = nnueBuckets > 1 && kingS > 0 ? nnueKpBucketS(kingS) : 0;
+-  nnueBktBoardOffS = b * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+-  nnueBktHandOffS = b * NNUE_HAND_FEATS * NNUE_H1 * 2;
++  const rowCount = nnueIsBonaFormat() ? NNUE_BONAPIECE_FE_END : NNUE_BOARD_FEATS;
++  nnueBktBoardOffS = b * rowCount * NNUE_H1 * 2;
++  nnueBktHandOffS = nnueIsBonaFormat()
++    ? nnueBktBoardOffS : b * NNUE_HAND_FEATS * NNUE_H1 * 2;
+ }
+
+ function nnueUpdateBucketG(): void {
+   const b = nnueBuckets > 1 && kingG > 0 ? nnueKpBucketG(kingG) : 0;
+-  nnueBktBoardOffG = b * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+-  nnueBktHandOffG = b * NNUE_HAND_FEATS * NNUE_H1 * 2;
++  const rowCount = nnueIsBonaFormat() ? NNUE_BONAPIECE_FE_END : NNUE_BOARD_FEATS;
++  nnueBktBoardOffG = b * rowCount * NNUE_H1 * 2;
++  nnueBktHandOffG = nnueIsBonaFormat()
++    ? nnueBktBoardOffG : b * NNUE_HAND_FEATS * NNUE_H1 * 2;
+ }
+@@ -1829,6 +1878,11 @@
+ // until (and unless) it is actually needed.
+ const NNUE_PEND_CAP: i32 = 256;
+ const nnuePendStack = new StaticArray<i32>(NNUE_PEND_CAP);
++// BonaPiece hand slot changed by each pending move. Captured piece adds the
++// old-count slot; a drop removes the post-count slot. Recording this at make
++// time keeps lazy application exact without rebuilding all 38 active rows.
++const nnuePendHandKoma = new StaticArray<i32>(NNUE_PEND_CAP);
++const nnuePendHandSlot = new StaticArray<i32>(NNUE_PEND_CAP);
+ let nnuePendLen: i32 = 0; // moves made since the last rebuild (path depth)
+ let nnuePendAppliedS: i32 = 0; // prefix of the path folded into nnueAccS
+ let nnuePendAppliedG: i32 = 0; // prefix of the path folded into nnueAccG
+@@ -1872,7 +1922,8 @@
+  * Select the weights.bin format: 1 = original board one-hot (default,
+  * 1,185,988 B), 6 = reduced KP (7,027,908 B), 81 = full own-king-square
+  * single-perspective HalfKP (94,656,708 B), 82 = shared-W1 dual-perspective
+- * HalfKP (94,675,268 B). Call BEFORE memcpying the
++ * HalfKP (94,675,268 B), 83/84 = dual/single BonaPiece research exports
++ * (64,234,820 / 64,216,260 B). Call BEFORE memcpying the
+  * weights (the layout offsets change), then load the blob returned size.
+  * Invalid bucket counts are ignored. Clears the eval cache; rebuilds the
+  * accumulators if NNUE is enabled.
+@@ -1882,10 +1933,15 @@
+     buckets != 1 &&
+     buckets != NNUE_KP_BUCKETS &&
+     buckets != NNUE_HALFKP_BUCKETS &&
+-    buckets != NNUE_HALFKP_DUAL_FORMAT
++    buckets != NNUE_HALFKP_DUAL_FORMAT &&
++    buckets != NNUE_BONAPIECE_HALFKP_FORMAT && buckets != NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT
+   ) return;
+   if (nnueBuckets == buckets) return;
+-  if (buckets == NNUE_HALFKP_BUCKETS || buckets == NNUE_HALFKP_DUAL_FORMAT) {
++  if (
++    buckets == NNUE_HALFKP_BUCKETS ||
++    buckets == NNUE_HALFKP_DUAL_FORMAT ||
++    buckets == NNUE_BONAPIECE_HALFKP_FORMAT || buckets == NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT
++  ) {
+     if (nnueHalfkpWeights == 0) {
+       const pages = (NNUE_HALFKP_DUAL_TOTAL_BYTES + 65535) >> 16;
+       const oldPages = memory.grow(pages);
+@@ -1901,7 +1957,7 @@
+   initEvalCache();
+ }
+
+-/** Current format selector (1/6/81 legacy-compatible; 82 = dual HalfKP). */
++/** Current selector (1/6/81 legacy; 82 custom dual; 83/84 BonaPiece). */
+ export function getNnueBuckets(): i32 {
+   return nnueBuckets;
+ }
+@@ -1979,8 +2035,32 @@
+
+ // --- w1 row addressing (row = 256 int16 weights = 512 bytes) -----------------
+
++// Default YaneuraOu BonaPiece values with DISTINGUISH_GOLDS disabled. Indexed
++// by engine komashu. Promoted P/L/N/S share the gold board feature; kings are
++// deliberately excluded. Horse/dragon keep their distinct features.
++const NNUE_BONA_BOARD_FRIEND = StaticArray.fromArray<i32>([
++  -1, 90, 252, 414, 576, 738, 900, 1224, -1, 738, 738, 738, 738, -1, 1062, 1386,
++]);
++const NNUE_BONA_BOARD_ENEMY = StaticArray.fromArray<i32>([
++  -1, 171, 333, 495, 657, 819, 981, 1305, -1, 819, 819, 819, 819, -1, 1143, 1467,
++]);
++const NNUE_BONA_HAND_FRIEND = StaticArray.fromArray<i32>([-1, 1, 39, 49, 59, 69, 79, 85]);
++const NNUE_BONA_HAND_ENEMY = StaticArray.fromArray<i32>([-1, 20, 44, 54, 64, 74, 82, 88]);
++
++@inline function nnueBonaRow(kingBucket: i32, bonaPiece: i32): usize {
++  const feature = kingBucket * NNUE_BONAPIECE_FE_END + bonaPiece;
++  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + (feature << 9));
++}
++
+ /** Byte base of the w1 board-feature row for `koma` on `pos`, SENTE view. */
+ function nnueBoardRowS(koma: i32, pos: i32): usize {
++  if (nnueIsBonaFormat()) {
++    const kind = koma & 0x0f;
++    const friend = (koma & SENTE) != 0;
++    const base = unchecked((friend ? NNUE_BONA_BOARD_FRIEND : NNUE_BONA_BOARD_ENEMY)[kind]);
++    const square = ((pos >> 4) - 1) * 9 + ((pos & 0x0f) - 1);
++    return NNUE_WEIGHTS + <usize>(nnueBktBoardOffS + ((base + square) << 9));
++  }
+   const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+   const plane = (koma & SENTE) != 0 ? kind : kind + 14;
+   const feat = plane * 81 + ((pos >> 4) - 1) * 9 + ((pos & 0x0f) - 1);
+@@ -1989,6 +2069,13 @@
+
+ /** Same, GOTE view (board rotated 180°, colors swapped): s→10-s, d→10-d. */
+ function nnueBoardRowG(koma: i32, pos: i32): usize {
++  if (nnueIsBonaFormat()) {
++    const kind = koma & 0x0f;
++    const friend = (koma & GOTE) != 0;
++    const base = unchecked((friend ? NNUE_BONA_BOARD_FRIEND : NNUE_BONA_BOARD_ENEMY)[kind]);
++    const square = (9 - (pos >> 4)) * 9 + (9 - (pos & 0x0f));
++    return NNUE_WEIGHTS + <usize>(nnueBktBoardOffG + ((base + square) << 9));
++  }
+   const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+   const plane = (koma & GOTE) != 0 ? kind : kind + 14;
+   const feat = plane * 81 + (9 - (pos >> 4)) * 9 + (9 - (pos & 0x0f));
+@@ -2006,6 +2093,14 @@
+   return NNUE_WEIGHTS + <usize>(nnueW1hOff + nnueBktHandOffS + (idx << 9));
+ }
+
++/** BonaPiece hand count c activates consecutive slots base..base+c-1. */
++function nnueBonaHandRowS(handKoma: i32, slot: i32): usize {
++  const type = handKoma & 0x0f;
++  const friend = (handKoma & SENTE) != 0;
++  const base = unchecked((friend ? NNUE_BONA_HAND_FRIEND : NNUE_BONA_HAND_ENEMY)[type]);
++  return NNUE_WEIGHTS + <usize>(nnueBktHandOffS + ((base + slot) << 9));
++}
++
+ /** Same, GOTE view (GOTE hand = "mine"). */
+ function nnueHandRowG(handKoma: i32): usize {
+   const type = handKoma & 0x0f;
+@@ -2013,6 +2108,13 @@
+   return NNUE_WEIGHTS + <usize>(nnueW1hOff + nnueBktHandOffG + (idx << 9));
+ }
+
++function nnueBonaHandRowG(handKoma: i32, slot: i32): usize {
++  const type = handKoma & 0x0f;
++  const friend = (handKoma & GOTE) != 0;
++  const base = unchecked((friend ? NNUE_BONA_HAND_FRIEND : NNUE_BONA_HAND_ENEMY)[type]);
++  return NNUE_WEIGHTS + <usize>(nnueBktHandOffG + ((base + slot) << 9));
++}
++
+ /**
+  * acc += (row at addBase) - (row at subBase), one fused SIMD pass: 8 i16
+  * weights per iteration, sign-extended to 2x i32x4 lanes. Element-wise i32
+@@ -2077,26 +2179,39 @@
+ // The S and G variants are duplicated on purpose: an evaluation only needs
+ // the side-to-move perspective, so they are applied independently.
+
+-function nnueAccApplyMakeS(m: i32): void {
++function nnueAccApplyMakeS(m: i32, handKoma: i32, handSlot: i32): void {
+   const to = m & 0xff;
+   const from = (m >> 8) & 0xff;
+   const koma = (m >> 16) & 0x7f;
+   const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+   const capture = (m >> 24) & 0x7f;
+
++  const bonaKing = nnueIsBonaFormat() && (koma & 0x0f) == OU;
++
+   if (from == 0) {
+     // Drop: hand count -1, board feature +1 (drops never promote/capture).
+-    nnueRowSubAdd(nnueAccS, nnueHandRowS(koma), nnueBoardRowS(koma, to));
++    nnueRowSubAdd(
++      nnueAccS,
++      nnueIsBonaFormat()
++        ? nnueBonaHandRowS(handKoma, handSlot)
++        : nnueHandRowS(koma),
++      nnueBoardRowS(koma, to)
++    );
+     return;
+   }
+
+-  nnueRowSubAdd(nnueAccS, nnueBoardRowS(koma, from), nnueBoardRowS(placed, to));
++  if (!bonaKing) nnueRowSubAdd(nnueAccS, nnueBoardRowS(koma, from), nnueBoardRowS(placed, to));
+
+   if (capture != EMPTY) {
+     const capType = capture & 0x07;
+     if (capType != 0) {
+-      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+-      nnueRowSubAdd(nnueAccS, nnueBoardRowS(capture, to), nnueHandRowS(handKoma));
++      nnueRowSubAdd(
++        nnueAccS,
++        nnueBoardRowS(capture, to),
++        nnueIsBonaFormat()
++          ? nnueBonaHandRowS(handKoma, handSlot)
++          : nnueHandRowS(handKoma)
++      );
+     } else {
+       // King capture — unreachable from legal positions, but keep the board
+       // side of the accumulator consistent anyway (no hand feature exists).
+@@ -2105,25 +2220,38 @@
+   }
+ }
+
+-function nnueAccApplyMakeG(m: i32): void {
++function nnueAccApplyMakeG(m: i32, handKoma: i32, handSlot: i32): void {
+   const to = m & 0xff;
+   const from = (m >> 8) & 0xff;
+   const koma = (m >> 16) & 0x7f;
+   const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+   const capture = (m >> 24) & 0x7f;
+
++  const bonaKing = nnueIsBonaFormat() && (koma & 0x0f) == OU;
++
+   if (from == 0) {
+-    nnueRowSubAdd(nnueAccG, nnueHandRowG(koma), nnueBoardRowG(koma, to));
++    nnueRowSubAdd(
++      nnueAccG,
++      nnueIsBonaFormat()
++        ? nnueBonaHandRowG(handKoma, handSlot)
++        : nnueHandRowG(koma),
++      nnueBoardRowG(koma, to)
++    );
+     return;
+   }
+
+-  nnueRowSubAdd(nnueAccG, nnueBoardRowG(koma, from), nnueBoardRowG(placed, to));
++  if (!bonaKing) nnueRowSubAdd(nnueAccG, nnueBoardRowG(koma, from), nnueBoardRowG(placed, to));
+
+   if (capture != EMPTY) {
+     const capType = capture & 0x07;
+     if (capType != 0) {
+-      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+-      nnueRowSubAdd(nnueAccG, nnueBoardRowG(capture, to), nnueHandRowG(handKoma));
++      nnueRowSubAdd(
++        nnueAccG,
++        nnueBoardRowG(capture, to),
++        nnueIsBonaFormat()
++          ? nnueBonaHandRowG(handKoma, handSlot)
++          : nnueHandRowG(handKoma)
++      );
+     } else {
+       nnueRowAddScaled(nnueAccG, nnueBoardRowG(capture, to), -1);
+     }
+@@ -2131,25 +2259,38 @@
+ }
+
+ /** Exact inverse of nnueAccApplyMakeS (sub/add swapped). */
+-function nnueAccApplyUnmakeS(m: i32): void {
++function nnueAccApplyUnmakeS(m: i32, handKoma: i32, handSlot: i32): void {
+   const to = m & 0xff;
+   const from = (m >> 8) & 0xff;
+   const koma = (m >> 16) & 0x7f;
+   const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+   const capture = (m >> 24) & 0x7f;
+
++  const bonaKing = nnueIsBonaFormat() && (koma & 0x0f) == OU;
++
+   if (from == 0) {
+-    nnueRowSubAdd(nnueAccS, nnueBoardRowS(koma, to), nnueHandRowS(koma));
++    nnueRowSubAdd(
++      nnueAccS,
++      nnueBoardRowS(koma, to),
++      nnueIsBonaFormat()
++        ? nnueBonaHandRowS(handKoma, handSlot)
++        : nnueHandRowS(koma)
++    );
+     return;
+   }
+
+-  nnueRowSubAdd(nnueAccS, nnueBoardRowS(placed, to), nnueBoardRowS(koma, from));
++  if (!bonaKing) nnueRowSubAdd(nnueAccS, nnueBoardRowS(placed, to), nnueBoardRowS(koma, from));
+
+   if (capture != EMPTY) {
+     const capType = capture & 0x07;
+     if (capType != 0) {
+-      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+-      nnueRowSubAdd(nnueAccS, nnueHandRowS(handKoma), nnueBoardRowS(capture, to));
++      nnueRowSubAdd(
++        nnueAccS,
++        nnueIsBonaFormat()
++          ? nnueBonaHandRowS(handKoma, handSlot)
++          : nnueHandRowS(handKoma),
++        nnueBoardRowS(capture, to)
++      );
+     } else {
+       nnueRowAddScaled(nnueAccS, nnueBoardRowS(capture, to), 1);
+     }
+@@ -2157,25 +2298,38 @@
+ }
+
+ /** Exact inverse of nnueAccApplyMakeG (sub/add swapped). */
+-function nnueAccApplyUnmakeG(m: i32): void {
++function nnueAccApplyUnmakeG(m: i32, handKoma: i32, handSlot: i32): void {
+   const to = m & 0xff;
+   const from = (m >> 8) & 0xff;
+   const koma = (m >> 16) & 0x7f;
+   const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+   const capture = (m >> 24) & 0x7f;
+
++  const bonaKing = nnueIsBonaFormat() && (koma & 0x0f) == OU;
++
+   if (from == 0) {
+-    nnueRowSubAdd(nnueAccG, nnueBoardRowG(koma, to), nnueHandRowG(koma));
++    nnueRowSubAdd(
++      nnueAccG,
++      nnueBoardRowG(koma, to),
++      nnueIsBonaFormat()
++        ? nnueBonaHandRowG(handKoma, handSlot)
++        : nnueHandRowG(koma)
++    );
+     return;
+   }
+
+-  nnueRowSubAdd(nnueAccG, nnueBoardRowG(placed, to), nnueBoardRowG(koma, from));
++  if (!bonaKing) nnueRowSubAdd(nnueAccG, nnueBoardRowG(placed, to), nnueBoardRowG(koma, from));
+
+   if (capture != EMPTY) {
+     const capType = capture & 0x07;
+     if (capType != 0) {
+-      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+-      nnueRowSubAdd(nnueAccG, nnueHandRowG(handKoma), nnueBoardRowG(capture, to));
++      nnueRowSubAdd(
++        nnueAccG,
++        nnueIsBonaFormat()
++          ? nnueBonaHandRowG(handKoma, handSlot)
++          : nnueHandRowG(handKoma),
++        nnueBoardRowG(capture, to)
++      );
+     } else {
+       nnueRowAddScaled(nnueAccG, nnueBoardRowG(capture, to), 1);
+     }
+@@ -2189,6 +2343,7 @@
+  */
+ function nnueBuildAccS(accS: StaticArray<i32>): void {
+   nnueUpdateBucketS();
++  let active = 0;
+   for (let j = 0; j < NNUE_H1; j++) {
+     unchecked(accS[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
+   }
+@@ -2197,20 +2352,36 @@
+       const pos = (suji << 4) + dan;
+       const koma = unchecked(ban[pos]);
+       if (koma == EMPTY) continue;
++      if (nnueIsBonaFormat() && (koma & 0x0f) == OU) continue;
+       nnueRowAddScaled(accS, nnueBoardRowS(koma, pos), 1);
++      active++;
+     }
+   }
+   for (let type = FU; type <= HI; type++) {
+     const cS = unchecked(hand[SENTE | type]);
+-    if (cS > 0) nnueRowAddScaled(accS, nnueHandRowS(SENTE | type), cS);
++    if (cS > 0) {
++      if (nnueIsBonaFormat()) {
++        for (let slot = 0; slot < cS; slot++) nnueRowAddScaled(accS, nnueBonaHandRowS(SENTE | type, slot), 1);
++      } else nnueRowAddScaled(accS, nnueHandRowS(SENTE | type), cS);
++      active += cS;
++    }
+     const cG = unchecked(hand[GOTE | type]);
+-    if (cG > 0) nnueRowAddScaled(accS, nnueHandRowS(GOTE | type), cG);
++    if (cG > 0) {
++      if (nnueIsBonaFormat()) {
++        for (let slot = 0; slot < cG; slot++) nnueRowAddScaled(accS, nnueBonaHandRowS(GOTE | type, slot), 1);
++      } else nnueRowAddScaled(accS, nnueHandRowS(GOTE | type), cG);
++      active += cG;
++    }
+   }
++  if (nnueIsBonaFormat() && active < NNUE_BONAPIECE_ACTIVE) {
++    nnueRowAddScaled(accS, NNUE_WEIGHTS + <usize>nnueBktBoardOffS, NNUE_BONAPIECE_ACTIVE - active);
++  }
+ }
+
+ /** Same for the GOTE perspective. */
+ function nnueBuildAccG(accG: StaticArray<i32>): void {
+   nnueUpdateBucketG();
++  let active = 0;
+   for (let j = 0; j < NNUE_H1; j++) {
+     unchecked(accG[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
+   }
+@@ -2219,20 +2390,35 @@
+       const pos = (suji << 4) + dan;
+       const koma = unchecked(ban[pos]);
+       if (koma == EMPTY) continue;
++      if (nnueIsBonaFormat() && (koma & 0x0f) == OU) continue;
+       nnueRowAddScaled(accG, nnueBoardRowG(koma, pos), 1);
++      active++;
+     }
+   }
+   for (let type = FU; type <= HI; type++) {
+     const cS = unchecked(hand[SENTE | type]);
+-    if (cS > 0) nnueRowAddScaled(accG, nnueHandRowG(SENTE | type), cS);
++    if (cS > 0) {
++      if (nnueIsBonaFormat()) {
++        for (let slot = 0; slot < cS; slot++) nnueRowAddScaled(accG, nnueBonaHandRowG(SENTE | type, slot), 1);
++      } else nnueRowAddScaled(accG, nnueHandRowG(SENTE | type), cS);
++      active += cS;
++    }
+     const cG = unchecked(hand[GOTE | type]);
+-    if (cG > 0) nnueRowAddScaled(accG, nnueHandRowG(GOTE | type), cG);
++    if (cG > 0) {
++      if (nnueIsBonaFormat()) {
++        for (let slot = 0; slot < cG; slot++) nnueRowAddScaled(accG, nnueBonaHandRowG(GOTE | type, slot), 1);
++      } else nnueRowAddScaled(accG, nnueHandRowG(GOTE | type), cG);
++      active += cG;
++    }
+   }
++  if (nnueIsBonaFormat() && active < NNUE_BONAPIECE_ACTIVE) {
++    nnueRowAddScaled(accG, NNUE_WEIGHTS + <usize>nnueBktBoardOffG, NNUE_BONAPIECE_ACTIVE - active);
++  }
+ }
+
+ /** w2t[j][i] = w2[i][j] (column-major copy for the sparse layer-2 path). */
+ function nnueBuildW2T(): void {
+-  const inputs = nnueBuckets == NNUE_HALFKP_DUAL_FORMAT ? NNUE_H1 * 2 : NNUE_H1;
++  const inputs = nnueIsDualFormat() ? NNUE_H1 * 2 : NNUE_H1;
+   for (let i = 0; i < NNUE_H2; i++) {
+     const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + i * inputs * 2);
+     for (let j = 0; j < inputs; j++) {
+@@ -2278,7 +2464,11 @@
+         nnueAccSDirty = true;
+         break;
+       }
+-      nnueAccApplyMakeS(m);
++      nnueAccApplyMakeS(
++        m,
++        unchecked(nnuePendHandKoma[nnuePendAppliedS]),
++        unchecked(nnuePendHandSlot[nnuePendAppliedS])
++      );
+       nnuePendAppliedS++;
+     }
+   }
+@@ -2300,7 +2490,11 @@
+         nnueAccGDirty = true;
+         break;
+       }
+-      nnueAccApplyMakeG(m);
++      nnueAccApplyMakeG(
++        m,
++        unchecked(nnuePendHandKoma[nnuePendAppliedG]),
++        unchecked(nnuePendHandSlot[nnuePendAppliedG])
++      );
+       nnuePendAppliedG++;
+     }
+   }
+@@ -2392,11 +2586,23 @@
+  * to ml/export-weights.py int_forward on the same position. Read-only.
+  */
+ export function nnueEvaluate(): i32 {
+-  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++  if (nnueIsDualFormat()) {
+     nnueBuildAccS(nnueChkS);
+     nnueBuildAccG(nnueChkG);
+     return teban == SENTE
+       ? nnueDualLayers234(nnueChkS, nnueChkG)
+       : nnueDualLayers234(nnueChkG, nnueChkS);
+   }
++  if (nnueBuckets == NNUE_BONAPIECE_HALFKP_SINGLE_FORMAT) {
++    if (teban == SENTE) nnueBuildAccS(nnueAcc);
++    else nnueBuildAccG(nnueAcc);
++    const accBase = changetype<usize>(nnueAcc);
++    const zero = i32x4.splat(0);
++    const cap = i32x4.splat(127);
++    for (let j = 0; j < NNUE_H1; j += 4) {
++      const off = <usize>(j << 2);
++      v128.store(accBase + off, i32x4.min_s(i32x4.max_s(v128.load(accBase + off), zero), cap));
++    }
++    return nnueLayers23();
++  }
+   // Layer 1 accumulator: b1 + board features + hand features.
+@@ -2481,7 +2675,7 @@
+  * products of nnueLayers23()/int_forward.
+  */
+ export function nnueEvaluateFast(): i32 {
+-  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
++  if (nnueIsDualFormat()) {
+     if (!nnueApplyPendingS() || !nnueApplyPendingG()) return nnueEvaluate();
+     nnueEvalCount++;

@@ -7,7 +7,7 @@
  *
  * Usage:
  *   node -r tsx/cjs wasm-spike/halfkp-g1-gate.ts \
- *     --wasm-path wasm-spike/artifacts/shogi-halfkp81-research.wasm \
+ *     --wasm-path wasm-spike/artifacts/shogi-halfkp81-dual-research.wasm \
  *     --live public/shogi-nnue-weights.bin --lift /path/to/halfkp-lift.bin \
  *     [--threshold-pct 5] [--json /path/to/g1.json]
  */
@@ -19,7 +19,12 @@ import { dirname, resolve } from 'node:path';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { OU, getKomashu } from '../src/components/game/ShogiImproved/types';
-import { NNUE_HALFKP_BUCKETS, bucketsForByteLength, mulberry32 } from './nnue-ref';
+import {
+  NNUE_HALFKP_BUCKETS,
+  NNUE_HALFKP_DUAL_FORMAT,
+  bucketsForByteLength,
+  mulberry32,
+} from './nnue-ref';
 import { loadShogiWasm, syncWasm, type ShogiSearchWasm } from './search-driver';
 
 interface NnueWasm extends ShogiSearchWasm {
@@ -253,11 +258,15 @@ function main(): void {
     sha256: sha256(wasmBytes),
     scope: 'single-instance research gate; not the browser production runtime',
   };
+  const liftFormat = bucketsForByteLength(readFileSync(liftPath).byteLength);
+  if (liftFormat !== NNUE_HALFKP_BUCKETS && liftFormat !== NNUE_HALFKP_DUAL_FORMAT) {
+    throw new Error(`${liftPath}: expected single or dual 81-bucket HalfKP exact lift`);
+  }
   const live = loadModel(livePath, 1, wasmPath);
-  const lift = loadModel(liftPath, NNUE_HALFKP_BUCKETS, wasmPath);
+  const lift = loadModel(liftPath, liftFormat, wasmPath);
   console.log(
     `loaded research WASM ${runtime.bytes} bytes sha256=${runtime.sha256}; ` +
-      `live (1 bucket) and exact lift (${NNUE_HALFKP_BUCKETS} buckets)`
+      `live (1 bucket) and exact lift (${liftFormat === NNUE_HALFKP_DUAL_FORMAT ? 'dual-81' : 'single-81'})`
   );
 
   const corpus = buildPositions(positionCount);
@@ -351,10 +360,21 @@ function main(): void {
 
   const report = {
     schemaVersion: 2,
-    gate: 'halfkp-exact-lift-g1',
+    gate: liftFormat === NNUE_HALFKP_DUAL_FORMAT ? 'halfkp-dual-exact-lift-g1' : 'halfkp-exact-lift-g1',
     status: passed ? 'pass' : 'fail',
     runtime,
-    config: { positionCount, searchCases, depth, qDepth: 8, reps, minimumTimingMs, thresholdPct, scaleK: 600 },
+    config: {
+      positionCount,
+      searchCases,
+      depth,
+      qDepth: 8,
+      reps,
+      minimumTimingMs,
+      thresholdPct,
+      scaleK: 600,
+      liftFormat,
+      dualPerspective: liftFormat === NNUE_HALFKP_DUAL_FORMAT,
+    },
     models: { live: live.report, lift: lift.report },
     corpus: { positions: corpus.positions.length, generatingKingMoves: corpus.kingMoves },
     staticEvaluation: { compared: positionCount, mismatches: staticMismatches, examples: staticMismatchExamples },

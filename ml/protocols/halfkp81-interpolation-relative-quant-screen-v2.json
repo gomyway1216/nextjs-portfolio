@@ -1,0 +1,69 @@
+{
+  "schema": "halfkp81-interpolation-relative-quant-screen-v2",
+  "created_before_match": true,
+  "purpose": "Prospectively authorize one direct screen after the v1 absolute quantization cap proved miscalibrated against its own alpha=0 baseline.",
+  "relation_to_v1": {
+    "v1_selection_sha256": "f23cf330f3d021927ed89e868686ce7ce381c240048e6292a962855e40350884",
+    "v1_result": "no-preregistered-candidate-selected",
+    "v1_result_is_not_reclassified": true,
+    "new_rule_is_prospective_only": true
+  },
+  "candidate_selection": {
+    "alpha": 0.5,
+    "selection_count": 1,
+    "match_outcomes_used": 0,
+    "reason": "Best loss and MAE on both frozen validation distributions, with pair accuracy no worse than alpha=0 on either distribution.",
+    "candidate_checkpoint_sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+    "candidate_weights_sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c"
+  },
+  "frozen_metrics": {
+    "legacy_validation": {
+      "alpha0_loss": 0.01062938291579485,
+      "candidate_loss": 0.010278412140905857,
+      "alpha0_mae_cp": 373.86572265625,
+      "candidate_mae_cp": 369.0392150878906,
+      "alpha0_pair_accuracy": 0.9338366389274597,
+      "candidate_pair_accuracy": 0.9354791045188904
+    },
+    "wdl3k_validation": {
+      "alpha0_loss": 0.07926148921251297,
+      "candidate_loss": 0.07877674698829651,
+      "alpha0_mae_cp": 600.023193359375,
+      "candidate_mae_cp": 596.4231567382812,
+      "alpha0_pair_accuracy": 0.6293625831604004,
+      "candidate_pair_accuracy": 0.6301409006118774,
+      "alpha0_quant_mean_abs_cp_delta": 29.057533264160156,
+      "candidate_quant_mean_abs_cp_delta": 29.550046920776367,
+      "alpha0_quant_max_abs_cp_delta": 207.62921142578125,
+      "candidate_quant_max_abs_cp_delta": 209.0003662109375
+    }
+  },
+  "relative_quantization_rule": {
+    "mean_abs_cp_delta_candidate_over_alpha0_max_ratio": 1.05,
+    "max_abs_cp_delta_candidate_over_alpha0_max_ratio": 1.05,
+    "observed_mean_ratio": 1.016949603124904,
+    "observed_max_ratio": 1.0066038626055582,
+    "candidate_passed": true
+  },
+  "direct_gate": {
+    "milliseconds_per_move": 1500,
+    "screen": {
+      "games": 56,
+      "paired_color_swaps": true,
+      "seed_start": 640001,
+      "pass_halfpoints": 62,
+      "futility_stop": true
+    },
+    "independent": {
+      "games": 96,
+      "seed_start": 740001,
+      "required": "paired one-sided bootstrap lower bound above 50%"
+    },
+    "formal": {
+      "games": 768,
+      "seed_start": 840001,
+      "required": "formal paired A/B v2 pass"
+    }
+  },
+  "promotion_policy": "No live write unless screen, independent, formal, runtime parity, and external calibration all pass."
+}

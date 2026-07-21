@@ -85,21 +85,27 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
     }
   }, [forcedLanguage, post, router]);
 
-  // On the language-pinned /ja route the article ignores the global
-  // language toggle by design — but when the reader actively flips the
-  // toggle to English, honor the gesture by navigating to the English
-  // URL. Listening to the change event (not the current value) matters:
-  // someone landing here from search with an 'en' cookie must NOT be
-  // bounced off the Japanese page they chose.
+  // Keep the URL and the displayed language in sync when the reader
+  // actively flips the global toggle: /ja → bare URL on switching to
+  // English, bare URL → /ja on switching to Japanese (when a Japanese
+  // translation exists). Listening to the change event (not the current
+  // value) matters: someone landing on either URL from search with the
+  // "other" cookie must NOT be bounced off the page they chose.
   useEffect(() => {
-    if (forcedLanguage !== 'ja') return;
-
     const handleLanguageChanged = (lng: string) => {
-      if (
-        normalizeLanguage(lng) === 'en' &&
-        post?.availableLanguages.includes('en')
-      ) {
-        router.push(`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`);
+      if (!post) return;
+      const language = normalizeLanguage(lng);
+      const barePath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+
+      if (forcedLanguage === 'ja') {
+        if (language === 'en' && post.availableLanguages.includes('en')) {
+          router.push(barePath);
+        }
+        return;
+      }
+
+      if (language === 'ja' && post.availableLanguages.includes('ja')) {
+        router.push(`/ja${barePath}`);
       }
     };
 

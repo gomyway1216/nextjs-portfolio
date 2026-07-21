@@ -189,16 +189,22 @@ export const DEFAULT_HARD_OPTIONS: HardOptions = {
 };
 
 /**
- * Persistent memo for exact sub-game values, keyed by the rule/solver variant.
- * Values depend only on (hands, score context, rules, interior iterations), so
- * they are safe to reuse across decisions and matches; this makes every exact
- * lookahead after the first nearly free.
+ * Persistent memo for sub-game values, keyed by the full rule/solver variant.
+ * Cached values depend on the rules and on every HardOptions field that can
+ * shape a value: interior iterations always, and — for depth-limited entries
+ * reachable when heuristicDepth ≥ 2 — the leaf weights, exactMaxCards and
+ * heuristicDepth too. Keying on the complete variant keeps concurrent A/B
+ * agents in one process from ever sharing a cache, while still making every
+ * lookahead after the first nearly free for a given variant.
  */
 const memoCache = new Map<string, Map<string, number>>();
 const MEMO_CACHE_MAX_STATES = 300000;
 
 function memoFor(rules: BiggerNumberRules, opts: HardOptions): Map<string, number> {
-  const key = `${rules.dragonRule}|${rules.tieRule}|${rules.winsToWin}|${rules.totalRounds}|${opts.interiorIterations}`;
+  const key =
+    `${rules.dragonRule}|${rules.tieRule}|${rules.winsToWin}|${rules.totalRounds}|` +
+    `${opts.interiorIterations}|${opts.exactMaxCards}|${opts.heuristicDepth}|` +
+    `${opts.leafScoreWeight}|${opts.leafEdgeWeight}`;
   let memo = memoCache.get(key);
   if (!memo) {
     memo = new Map();

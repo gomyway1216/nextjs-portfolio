@@ -252,7 +252,7 @@ describe('solver exactness (best-response gap)', () => {
 });
 
 describe('opponent model', () => {
-  it('buckets the extremes of a hand correctly (dragon strongest under loses-to-1)', () => {
+  it('buckets hand extremes: 1 lowest; 9 and dragon top-bucket (the model ranks the dragon high because it beats 8 of 9 tiles, even though 1 beats it under loses-to-1)', () => {
     const hand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
     expect(bucketOfCard(rules, hand, 1)).toBe(0);
     expect(bucketOfCard(rules, hand, 'dragon')).toBe(OPPONENT_MODEL_BUCKETS - 1);

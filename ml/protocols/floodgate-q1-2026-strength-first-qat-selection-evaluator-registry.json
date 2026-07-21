@@ -75,8 +75,8 @@
   "implementation": {
     "evaluator": {
       "path": "ml/strength_first_qat_selection_evaluator.py",
-      "bytes": 96647,
-      "sha256": "022eda639207d4ba2a5a7d851a201c0e782f1ace064ee50badd63ad2603c7b0b",
+      "bytes": 96660,
+      "sha256": "c6e31992d702c6c4133df868d477a063029e10a5cba519418a162cf3a390d956",
       "schema": "shogi-reviewed-python-source-v1"
     },
     "adapter": {

@@ -424,6 +424,14 @@ class StrengthFirstQatSelectionPreflightTests(unittest.TestCase):
             PREFLIGHT.STRENGTH_FIRST_QAT_SELECTION_PREFLIGHT_SCHEMA,
         )
         self.assertEqual(
+            validated["training_plan"],
+            {
+                "path": str(fixture["plan_path"]),
+                "bytes": fixture["registry"]["training_plan"]["bytes"],
+                "sha256": fixture["registry"]["training_plan"]["sha256"],
+            },
+        )
+        self.assertEqual(
             [run["seed"] for run in validated["runs"]],
             [42, 43, 44],
         )

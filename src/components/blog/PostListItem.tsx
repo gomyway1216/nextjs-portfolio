@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolvePostCover } from '@/lib/blog/postCover';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -82,6 +83,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
     const openLabel = t('blogPage.index.openPost', { title });
     const noSummaryLabel = t('blogPage.index.noSummary');
     const postTagsLabel = t('blogPage.index.postTags');
+    const coverImage = resolvePostCover(image, slug ?? id);
 
     return (
       <article
@@ -120,10 +122,10 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
             </div>
           </div>
 
-          {image ? (
+          {coverImage ? (
             <span className={styles.thumbnail}>
               <Image
-                src={image}
+                src={coverImage}
                 alt=""
                 width={128}
                 height={128}

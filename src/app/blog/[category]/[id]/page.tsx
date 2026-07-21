@@ -6,6 +6,7 @@ import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
+import { resolvePostCover } from '@/lib/blog/postCover';
 
 interface BlogPostParams {
   // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
@@ -39,6 +40,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const description = excerpt(picked.translation.body);
   const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${canonicalPath}`;
+  const coverImage = resolvePostCover(post.image, resolved?.slug ?? param);
 
   // hreflang: with both translations, this URL is what a cookieless
   // crawler reads in English, so it's the en + x-default alternate and
@@ -70,10 +72,10 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
       url: canonicalPath,
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
-      ...(post.image ? { images: [post.image] } : {}),
+      ...(coverImage ? { images: [coverImage] } : {}),
     },
     twitter: {
-      card: post.image ? 'summary_large_image' : 'summary',
+      card: coverImage ? 'summary_large_image' : 'summary',
       title,
       description,
     },

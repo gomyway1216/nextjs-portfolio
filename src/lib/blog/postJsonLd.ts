@@ -3,6 +3,7 @@ import { categoryLabel } from '@/lib/blog/categoryLabel';
 import type { DetailPost } from '@/services/postsService';
 import type { PostLanguage, Translation } from './postTranslations';
 import { excerpt } from './postExcerpt';
+import { resolvePostCover } from './postCover';
 
 /**
  * BlogPosting + BreadcrumbList structured data for a post page, with the
@@ -23,6 +24,8 @@ export function buildPostJsonLd(
 ): object {
   const categoryUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}`;
   const postUrl = `${SITE_URL}${pathPrefix}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug ?? post.id)}`;
+  const coverImage = resolvePostCover(post.image, slug ?? post.id);
+  const absoluteCoverImage = coverImage?.startsWith('/') ? `${SITE_URL}${coverImage}` : coverImage;
 
   return {
     '@context': 'https://schema.org',
@@ -36,7 +39,7 @@ export function buildPostJsonLd(
         datePublished: post.created,
         dateModified: post.lastUpdated || post.created,
         inLanguage: language,
-        ...(post.image ? { image: post.image } : {}),
+        ...(absoluteCoverImage ? { image: absoluteCoverImage } : {}),
         author: { '@id': `${SITE_URL}/#person` },
       },
       {

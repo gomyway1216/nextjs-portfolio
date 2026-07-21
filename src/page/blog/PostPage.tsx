@@ -5,6 +5,7 @@ import RelatedPosts from '@/components/blog/RelatedPosts';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
 import { usePostViewBeacon } from '@/hooks/usePostViewBeacon';
 import { normalizeLanguage, pickTranslation, type PostLanguage } from '@/lib/blog/postTranslations';
+import { resolvePostCover } from '@/lib/blog/postCover';
 import { useAuth } from '@/providers/AuthProvider';
 import type { DetailPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
@@ -171,6 +172,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
 
   const backCategory = post.category || _category || 'all';
   const categoryLabel = post.category ? post.category.replace(/-/g, ' ') : '';
+  const coverImage = resolvePostCover(post.image, id);
 
   // Cross-link to the same article's other-language URL when that
   // translation exists. The label is deliberately written in the target
@@ -210,7 +212,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
             lastUpdated: post.lastUpdated,
             category: post.category,
             tags: post.tags,
-            image: post.image || '',
+            image: coverImage || '',
           }}
         />
         <PostLikeButton postId={post.id} enabled={post.isPublic} />

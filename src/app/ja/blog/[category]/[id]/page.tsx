@@ -5,6 +5,7 @@ import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
+import { resolvePostCover } from '@/lib/blog/postCover';
 
 interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
@@ -44,6 +45,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const enPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${enPath}`;
   const hasEn = post.availableLanguages.includes('en');
+  const coverImage = resolvePostCover(post.image, resolved?.slug ?? param);
 
   return {
     title,
@@ -65,10 +67,10 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
       locale: 'ja_JP',
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
-      ...(post.image ? { images: [post.image] } : {}),
+      ...(coverImage ? { images: [coverImage] } : {}),
     },
     twitter: {
-      card: post.image ? 'summary_large_image' : 'summary',
+      card: coverImage ? 'summary_large_image' : 'summary',
       title,
       description,
     },

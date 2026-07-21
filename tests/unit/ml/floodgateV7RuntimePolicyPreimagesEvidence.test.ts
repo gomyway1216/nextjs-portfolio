@@ -596,9 +596,11 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
       "for symbol_graph_file in symbol_graph_files:",
     );
     expect(productionLauncherTest).toContain("retryableParentSignal");
-    expect(productionLauncherTest).toContain(
-      'firstSignal === "SIGABRT" || firstSignal === "SIGKILL"',
-    );
+    for (const retryableSignal of ["SIGABRT", "SIGKILL", "SIGPIPE"]) {
+      expect(productionLauncherTest).toContain(
+        `firstSignal === "${retryableSignal}"`,
+      );
+    }
     expect(productionLauncherTest).toContain(
       "[floodgate-v7-test] retrying DYLD rejection",
     );

@@ -17,12 +17,12 @@
  * Usage:
  *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
- *     [--scale-numer 1] [--scale-denom 1]
+ *     [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm]
  *
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
  * from that file (direct NNUE-vs-NNUE A/B; side A = first positional arg,
- * side B = --vs). Both formats (original 1,185,988 B / reduced-KP 7,027,908 B)
- * are auto-detected from the file size, independently per side.
+ * side B = --vs). Original 1,185,988 B, reduced-KP 7,027,908 B, and the
+ * 94,656,708 B HalfKP research format are auto-detected independently.
  *
  * --scale-numer/--scale-denom rescale the NNUE cp output before it enters the
  * search (setNnueOutputScale). Use 37/10 to map true centipawns onto the
@@ -68,7 +68,7 @@ function argStr(flag: string): string | null {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith('--')) {
   console.error(
-    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1]'
+    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm]'
   );
   process.exit(2);
 }
@@ -79,6 +79,7 @@ const SEED_BASE = argNum('--seed', 1);
 const SCALE_K = argNum('--k', 600);
 const SCALE_NUMER = argNum('--scale-numer', 1);
 const SCALE_DENOM = argNum('--scale-denom', 1);
+const WASM_PATH = argStr('--wasm-path') ?? undefined;
 // Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
 // never masquerade as a 1/1 run.
 if (SCALE_NUMER < 1 || SCALE_DENOM < 1 || SCALE_NUMER > 1_000_000 || SCALE_DENOM > 1_000_000) {
@@ -246,11 +247,11 @@ function setupNnueInstance(wasm: ShogiNnueSearchWasm, path: string, label: strin
 
 function main(): void {
   // Instance A: NNUE with real trained weights.
-  const wasmA = loadShogiWasm() as ShogiNnueSearchWasm;
+  const wasmA = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
   const bucketsA = setupNnueInstance(wasmA, weightsPath, 'A');
 
   // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
-  const wasmB = loadShogiWasm() as ShogiNnueSearchWasm;
+  const wasmB = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
   let opponentName = 'V3';
   if (weightsPathB) {
     const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B');
@@ -267,7 +268,8 @@ function main(): void {
   console.log(
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
       `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : 'WASM+V3'} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
-      `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver ===`
+      `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
+      `runtime=${WASM_PATH ?? 'production'} ===`
   );
 
   for (let game = 0; game < GAMES; game++) {

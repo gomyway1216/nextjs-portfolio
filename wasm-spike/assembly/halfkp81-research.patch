@@ -1,0 +1,84 @@
+--- index.ts
++++ index.ts
+@@ -1627,6 +1627,10 @@
+ // Reduced-KP (King-Piece) feature set: the board/hand tables are repeated per
+ // own-king bucket (6 coarse king zones, see nnueKpBucket). weights.bin v2.
+ const NNUE_KP_BUCKETS: i32 = 6;
++// Full own-king-square conditioning (HalfKP-style): one table per normalized
++// king square. This is a research format until it passes memory, speed, and
++// direct-match gates; the existing 1/6-bucket formats stay byte-compatible.
++const NNUE_HALFKP_BUCKETS: i32 = 81;
+ 
+ // Byte offsets into the weights blob (weights.bin layout). The layout shape is
+ // identical for both formats — only the w1 table sizes scale with the bucket
+@@ -1654,13 +1658,18 @@
+ }
+ nnueComputeLayout(1);
+ 
+-// Static, zero-initialized weight region sized for the LARGER (KP) format
+-// (memory.data only reserves zeroed memory — no data segment is emitted, so
+-// the .wasm binary does not grow). The host memcpys weights.bin here.
++// Keep the existing live 1/6-bucket formats on the historical ~7MB static
++// allocation. The 81-bucket research format grows memory only when explicitly
++// selected, so merely shipping this engine does not add ~95MB per worker.
+ const NNUE_KP_TOTAL_BYTES: i32 =
+   NNUE_KP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
+   NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 7,027,908
+-const NNUE_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
++const NNUE_HALFKP_TOTAL_BYTES: i32 =
++  NNUE_HALFKP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
++  NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 94,656,708
++const NNUE_STATIC_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
++let NNUE_WEIGHTS: usize = NNUE_STATIC_WEIGHTS;
++let nnueHalfkpWeights: usize = 0;
+ 
+ // Engine komashu (koma & 0x0f) -> train.py piece kind (0..13):
+ // [FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY]; slots 0 and 13 (unused) = -1.
+@@ -1742,6 +1751,7 @@
+  *   d<=7: 5 / d==8: s<=4 -> 3, s>=5 -> 4 / d==9: s==5 -> 0, s<=4 -> 1, s>=6 -> 2
+  */
+ function nnueKpBucket(s: i32, d: i32): i32 {
++  if (nnueBuckets == NNUE_HALFKP_BUCKETS) return (s - 1) * 9 + (d - 1);
+   if (d <= 7) return 5;
+   if (d == 8) return s <= 4 ? 3 : 4;
+   if (s == 5) return 0;
+@@ -1835,20 +1845,36 @@
+ 
+ /**
+  * Select the weights.bin format: 1 = original board one-hot (default,
+- * 1,185,988 B), 6 = reduced KP (7,027,908 B). Call BEFORE memcpying the
++ * 1,185,988 B), 6 = reduced KP (7,027,908 B), 81 = full own-king-square
++ * HalfKP-style tables (94,656,708 B). Call BEFORE memcpying the
+  * weights (the layout offsets change), then load the blob returned size.
+  * Invalid bucket counts are ignored. Clears the eval cache; rebuilds the
+  * accumulators if NNUE is enabled.
+  */
+ export function setNnueBuckets(buckets: i32): void {
+-  if (buckets != 1 && buckets != NNUE_KP_BUCKETS) return;
++  if (
++    buckets != 1 &&
++    buckets != NNUE_KP_BUCKETS &&
++    buckets != NNUE_HALFKP_BUCKETS
++  ) return;
+   if (nnueBuckets == buckets) return;
++  if (buckets == NNUE_HALFKP_BUCKETS) {
++    if (nnueHalfkpWeights == 0) {
++      const pages = (NNUE_HALFKP_TOTAL_BYTES + 65535) >> 16;
++      const oldPages = memory.grow(pages);
++      if (oldPages < 0) return;
++      nnueHalfkpWeights = <usize>oldPages << 16;
++    }
++    NNUE_WEIGHTS = nnueHalfkpWeights;
++  } else {
++    NNUE_WEIGHTS = NNUE_STATIC_WEIGHTS;
++  }
+   nnueComputeLayout(buckets);
+   if (nnueEnabled) nnueRefreshAccumulators();
+   initEvalCache();
+ }
+ 
+-/** Current weights format bucket count (1 = original, 6 = reduced KP). */
++/** Current weights format bucket count (1 = original, 6 = reduced KP, 81 = HalfKP). */
+ export function getNnueBuckets(): i32 {
+   return nnueBuckets;
+ }

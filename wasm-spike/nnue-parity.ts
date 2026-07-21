@@ -1,9 +1,10 @@
 /**
  * nnue-parity.ts — AS ⇄ TS parity harness for the NNUE-style evaluation.
  *
- * The full suite runs TWICE: once for the original board one-hot format
- * (buckets=1) and once for the reduced-KP format (buckets=6, own-king
- * bucketed tables + bucket-crossing king-move refresh).
+ * The production runtime suite covers the original board one-hot format
+ * (buckets=1) and the reduced-KP format (buckets=6, own-king bucketed tables
+ * + bucket-crossing king-move refresh). Passing an explicit research runtime
+ * also runs the full own-king-square format (buckets=81).
  *
  * Loads seeded random weights (weights.bin-compatible buffer from
  * nnue-ref.makeDummyWeights) into the WASM module's weight region, then plays
@@ -29,20 +30,23 @@
  *      the search's make/unmake storm
  *
  * Usage: node -r tsx/cjs wasm-spike/nnue-parity.ts
+ *        node -r tsx/cjs wasm-spike/nnue-parity.ts \
+ *          --wasm-path wasm-spike/artifacts/shogi-halfkp81-research.wasm
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { GHI, GOTE, GOU, SFU, SOU } from '../src/components/game/ShogiImproved/types';
 
 import {
+  NNUE_HALFKP_BUCKETS,
   NNUE_KP_BUCKETS,
   extractFeatures,
   intForward,
-  kpBucket,
+  kingBucket,
   layoutFor,
   makeDummyWeights,
   mulberry32,
@@ -88,9 +92,15 @@ interface ShogiNnueWasm {
   getSearchLeaves(): number;
 }
 
-const wasmBytes = readFileSync(
-  join(__dirname, '..', 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi.wasm')
-);
+const wasmPathIndex = process.argv.indexOf('--wasm-path');
+const explicitWasmPath = wasmPathIndex >= 0 ? process.argv[wasmPathIndex + 1] : null;
+if (wasmPathIndex >= 0 && (!explicitWasmPath || explicitWasmPath.startsWith('--'))) {
+  throw new Error('--wasm-path requires a file path');
+}
+const wasmPath = explicitWasmPath
+  ? resolve(explicitWasmPath)
+  : join(__dirname, '..', 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi.wasm');
+const wasmBytes = readFileSync(wasmPath);
 const instance = new WebAssembly.Instance(new WebAssembly.Module(wasmBytes), {
   env: {
     abort(_msg: number, _file: number, line: number, col: number) {
@@ -122,14 +132,15 @@ function syncWasm(k: KyokumenImproved): void {
 }
 
 /** Does this JS move relocate either king across a KP bucket boundary? */
-function moveCrossesKpBucket(koma: number, from: number, to: number): boolean {
+function moveCrossesKpBucket(koma: number, from: number, to: number, buckets: number): boolean {
   if (from === 0) return false;
   if (koma === SOU) {
-    return kpBucket(from >> 4, from & 0x0f) !== kpBucket(to >> 4, to & 0x0f);
+    return kingBucket(from >> 4, from & 0x0f, buckets) !== kingBucket(to >> 4, to & 0x0f, buckets);
   }
   if (koma === GOU) {
     return (
-      kpBucket(10 - (from >> 4), 10 - (from & 0x0f)) !== kpBucket(10 - (to >> 4), 10 - (to & 0x0f))
+      kingBucket(10 - (from >> 4), 10 - (from & 0x0f), buckets) !==
+      kingBucket(10 - (to >> 4), 10 - (to & 0x0f), buckets)
     );
   }
   return false;
@@ -425,7 +436,7 @@ function runSuite(buckets: number): void {
       if (te.promote) diffPromos++;
       if (k.teban === GOTE) diffGote++;
       if (te.koma === SOU || te.koma === GOU) diffKingMoves++;
-      if (moveCrossesKpBucket(te.koma, te.from, te.to)) diffBucketCross++;
+      if (moveCrossesKpBucket(te.koma, te.from, te.to, buckets)) diffBucketCross++;
       if (diffCompared >= TARGET_DIFF) break outerDiff;
     }
   }
@@ -526,5 +537,9 @@ function runSuite(buckets: number): void {
 
 runSuite(1);
 runSuite(NNUE_KP_BUCKETS);
-
-console.log('\nALL FORMATS PASSED (buckets=1 original, buckets=6 reduced KP)');
+if (explicitWasmPath) {
+  runSuite(NNUE_HALFKP_BUCKETS);
+  console.log('\nALL RESEARCH FORMATS PASSED (buckets=1 original, buckets=6 reduced KP, buckets=81 HalfKP)');
+} else {
+  console.log('\nALL PRODUCTION FORMATS PASSED (buckets=1 original, buckets=6 reduced KP)');
+}

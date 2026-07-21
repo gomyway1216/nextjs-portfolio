@@ -14,10 +14,14 @@ artifact revalidation to ``strength_first_qat_selection_evaluator``.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import hashlib
 import importlib.util
+import json
 import math
 import os
 from pathlib import Path
+import stat
+import tempfile
 from types import ModuleType
 from typing import Any
 
@@ -150,6 +154,244 @@ def _metric_set(value: Any, label: str) -> dict[str, float]:
     return normalized
 
 
+def _canonical_json_payload(value: dict[str, Any]) -> bytes:
+    if type(value) is not dict:
+        raise ValueError("fresh-selection row root must be an exact object")
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _strict_json_object(raw: bytes, label: str) -> dict[str, Any]:
+    def object_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"{label} contains a duplicate JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value):
+        raise ValueError(f"{label} contains a non-finite value: {value}")
+
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not strict UTF-8 JSON") from error
+    if type(value) is not dict:
+        raise ValueError(f"{label} root must be an exact object")
+    return value
+
+
+def _stable_stat_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        metadata.st_nlink,
+        metadata.st_uid,
+    )
+
+
+def _private_regular_source(metadata: os.stat_result) -> None:
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise ValueError(
+            "fresh-selection dataset must be a private current-user regular file"
+        )
+
+
+def _load_splitless_fresh_selection_as_validation(
+    *,
+    evaluator: ModuleType,
+    data_path: str,
+    dataset_bytes: int,
+    dataset_sha256: str,
+    expected_records: int,
+) -> tuple[Any, ...]:
+    """Project the role-bound splitless artifact to a private ``val`` view.
+
+    Fresh-selection role ownership is bound by its outer manifest/result, so
+    its exact canonical rows intentionally have no ``split`` field.  The
+    historical metric loader accepts only already-partitioned sibling rows.
+    This projection supplies that loader-only compatibility field without
+    changing, republishing, or reporting the registered source artifact.
+    """
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        source_descriptor = os.open(data_path, flags)
+    except OSError as error:
+        raise ValueError("fresh-selection dataset cannot be opened safely") from error
+
+    try:
+        with os.fdopen(source_descriptor, "rb") as source:
+            source_descriptor = -1
+            source_before = os.fstat(source.fileno())
+            path_before = os.lstat(data_path)
+            _private_regular_source(source_before)
+            if _stable_stat_identity(source_before) != _stable_stat_identity(
+                path_before
+            ):
+                raise ValueError("fresh-selection dataset path changed before read")
+
+            with tempfile.TemporaryDirectory(
+                prefix="shogi-strength-first-selection-"
+            ) as temporary_directory:
+                os.chmod(temporary_directory, 0o700)
+                if stat.S_IMODE(os.stat(temporary_directory).st_mode) != 0o700:
+                    raise ValueError(
+                        "fresh-selection projection directory is not private 0700"
+                    )
+                projected_path = os.path.join(
+                    temporary_directory,
+                    "selection-val.jsonl",
+                )
+                projection_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                projection_flags |= getattr(os, "O_CLOEXEC", 0)
+                projected_descriptor = -1
+                try:
+                    projected_descriptor = os.open(
+                        projected_path,
+                        projection_flags,
+                        0o600,
+                    )
+                    os.fchmod(projected_descriptor, 0o600)
+                    projection = os.fdopen(projected_descriptor, "wb")
+                    projected_descriptor = -1
+
+                    source_digest = hashlib.sha256()
+                    projected_digest = hashlib.sha256()
+                    source_size = 0
+                    projected_size = 0
+                    records = 0
+                    with projection:
+                        for line in source:
+                            records += 1
+                            source_size += len(line)
+                            source_digest.update(line)
+                            if (
+                                source_size > dataset_bytes
+                                or records > expected_records
+                            ):
+                                raise ValueError(
+                                    "fresh-selection dataset exceeds its "
+                                    "registered identity"
+                                )
+                            if line == b"\n" or not line.endswith(b"\n"):
+                                raise ValueError(
+                                    "fresh-selection dataset row "
+                                    f"{records} is not one-LF JSONL"
+                                )
+                            payload = line[:-1]
+                            row = _strict_json_object(
+                                payload,
+                                f"fresh-selection dataset row {records}",
+                            )
+                            if payload != _canonical_json_payload(row):
+                                raise ValueError(
+                                    "fresh-selection dataset row "
+                                    f"{records} is not canonical JSON"
+                                )
+                            if "split" in row:
+                                raise ValueError(
+                                    "fresh-selection dataset row "
+                                    f"{records} must not declare split"
+                                )
+                            projected_line = (
+                                _canonical_json_payload({**row, "split": "val"}) + b"\n"
+                            )
+                            projection.write(projected_line)
+                            projected_digest.update(projected_line)
+                            projected_size += len(projected_line)
+
+                        source_after = os.fstat(source.fileno())
+                        if _stable_stat_identity(
+                            source_before
+                        ) != _stable_stat_identity(source_after):
+                            raise ValueError(
+                                "fresh-selection dataset changed while projected"
+                            )
+                        projection.flush()
+                        os.fsync(projection.fileno())
+                        if stat.S_IMODE(os.fstat(projection.fileno()).st_mode) != 0o600:
+                            raise ValueError(
+                                "fresh-selection projection is not private 0600"
+                            )
+                finally:
+                    if projected_descriptor >= 0:
+                        os.close(projected_descriptor)
+
+                original_identity = {
+                    "bytes": source_size,
+                    "sha256": source_digest.hexdigest(),
+                }
+                if (
+                    records != expected_records
+                    or original_identity["bytes"] != dataset_bytes
+                    or original_identity["sha256"] != dataset_sha256
+                ):
+                    raise ValueError(
+                        "fresh-selection dataset identity or row count mismatch "
+                        "during projection"
+                    )
+                projected_identity = {
+                    "bytes": projected_size,
+                    "sha256": projected_digest.hexdigest(),
+                }
+
+                loaded = evaluator.load_validation_data(
+                    projected_path,
+                    STRENGTH_FIRST_SELECTION_CP_CLAMP,
+                )
+                if type(loaded) is not tuple or len(loaded) != 8:
+                    raise ValueError("fresh-selection metric loader result is invalid")
+                projected_fingerprint = loaded[7]
+                if (
+                    type(projected_fingerprint) is not dict
+                    or set(projected_fingerprint) != {"bytes", "sha256"}
+                    or projected_fingerprint != projected_identity
+                ):
+                    raise ValueError(
+                        "fresh-selection metric loader read a different projection"
+                    )
+                try:
+                    path_after = os.lstat(data_path)
+                except OSError as error:
+                    raise ValueError(
+                        "fresh-selection dataset path changed after projection"
+                    ) from error
+                if _stable_stat_identity(source_before) != _stable_stat_identity(
+                    os.fstat(source.fileno())
+                ) or _stable_stat_identity(path_before) != _stable_stat_identity(
+                    path_after
+                ):
+                    raise ValueError(
+                        "fresh-selection dataset path changed during metric load"
+                    )
+                return (*loaded[:7], original_identity)
+    finally:
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
+
+
 def evaluate_strength_first_selection(
     *,
     data_path: str,
@@ -194,9 +436,12 @@ def evaluate_strength_first_selection(
         metadata,
         groups,
         data_fingerprint,
-    ) = evaluator.load_validation_data(
-        data_path,
-        STRENGTH_FIRST_SELECTION_CP_CLAMP,
+    ) = _load_splitless_fresh_selection_as_validation(
+        evaluator=evaluator,
+        data_path=data_path,
+        dataset_bytes=dataset_identity["bytes"],
+        dataset_sha256=expected_dataset_sha256,
+        expected_records=expected_records,
     )
     if (
         type(data_fingerprint) is not dict

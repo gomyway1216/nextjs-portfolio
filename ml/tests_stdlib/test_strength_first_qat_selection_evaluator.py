@@ -48,6 +48,13 @@ def jsonl(rows: list[dict]) -> bytes:
     )
 
 
+def write_private_jsonl(path: Path, rows: list[dict]) -> bytes:
+    raw = jsonl(rows)
+    path.write_bytes(raw)
+    path.chmod(0o600)
+    return raw
+
+
 def accounting_fixture() -> dict:
     run_fingerprint = digest("accounting-run")
     source_rows = [
@@ -1379,7 +1386,13 @@ class StrengthFirstSelectionEvaluatorTest(unittest.TestCase):
 
 class StrengthFirstSelectionEvalAdapterTest(unittest.TestCase):
     def test_adapter_reuses_real_metric_interface_once_per_model(self):
-        calls = {"load": [], "float": 0, "quantized": 0, "metrics": 0}
+        calls = {
+            "load": [],
+            "projection": [],
+            "float": 0,
+            "quantized": 0,
+            "metrics": 0,
+        }
         specs = []
         fingerprints = {}
         for index, name in enumerate(adapter.STRENGTH_FIRST_SELECTION_MODEL_ORDER):
@@ -1395,16 +1408,32 @@ class StrengthFirstSelectionEvalAdapterTest(unittest.TestCase):
             specs.append(value)
             fingerprints[path] = value
 
-        def load_validation_data(_path, _clamp):
+        def load_validation_data(path, cp_clamp):
+            projected_path = Path(path)
+            projected_raw = projected_path.read_bytes()
+            projected_rows = [json.loads(line) for line in projected_raw.splitlines()]
+            calls["projection"].append(path)
+            self.assertEqual(cp_clamp, adapter.STRENGTH_FIRST_SELECTION_CP_CLAMP)
+            self.assertEqual(
+                projected_rows,
+                [
+                    {"record": 1, "split": "val"},
+                    {"record": 2, "split": "val"},
+                ],
+            )
+            self.assertEqual(stat.S_IMODE(projected_path.stat().st_mode), 0o600)
             return (
                 "board",
                 "hands",
                 "bucket",
                 "clamped",
                 "raw",
-                [{"row": 1}, {"row": 2}],
+                projected_rows,
                 [[0, 1]],
-                {"bytes": 7, "sha256": digest("dataset")},
+                {
+                    "bytes": len(projected_raw),
+                    "sha256": hashlib.sha256(projected_raw).hexdigest(),
+                },
             )
 
         def load_model(path):
@@ -1443,24 +1472,169 @@ class StrengthFirstSelectionEvalAdapterTest(unittest.TestCase):
             quantized_predictions=quantized_predictions,
             calculate_metrics=calculate_metrics,
         )
-        report = adapter.evaluate_strength_first_selection(
-            data_path="/synthetic/selection.jsonl",
-            dataset_identity={"bytes": 7, "sha256": digest("dataset")},
-            checkpoint_specs=specs,
-            expected_records=2,
-            expected_parents=1,
-            max_workers=2,
-            eval_module=fake,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = write_private_jsonl(
+                data_path,
+                [{"record": 1}, {"record": 2}],
+            )
+            source_identity = {
+                "bytes": len(source_raw),
+                "sha256": hashlib.sha256(source_raw).hexdigest(),
+            }
+            report = adapter.evaluate_strength_first_selection(
+                data_path=str(data_path),
+                dataset_identity=source_identity,
+                checkpoint_specs=specs,
+                expected_records=2,
+                expected_parents=1,
+                max_workers=2,
+                eval_module=fake,
+            )
         self.assertEqual(
             report["status"],
             adapter.STRENGTH_FIRST_SELECTION_EVALUATION_STATUS,
         )
+        self.assertEqual(
+            {field: report["data"][field] for field in ("bytes", "sha256")},
+            source_identity,
+        )
+        self.assertEqual(len(calls["projection"]), 1)
+        self.assertFalse(Path(calls["projection"][0]).exists())
+        self.assertFalse(Path(calls["projection"][0]).parent.exists())
         self.assertEqual(calls["load"], [spec["path"] for spec in specs])
         self.assertEqual(calls["float"], 4)
         self.assertEqual(calls["quantized"], 4)
         self.assertEqual(calls["metrics"], 8)
         self.assertEqual(report["execution"]["actual_workers"], 1)
+
+    def test_splitless_projection_rejects_an_existing_split(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = write_private_jsonl(
+                data_path,
+                [{"record": 1, "split": "val"}, {"record": 2}],
+            )
+            fake = SimpleNamespace(load_validation_data=mock.Mock())
+            with self.assertRaisesRegex(ValueError, "must not declare split"):
+                adapter._load_splitless_fresh_selection_as_validation(
+                    evaluator=fake,
+                    data_path=str(data_path),
+                    dataset_bytes=len(source_raw),
+                    dataset_sha256=hashlib.sha256(source_raw).hexdigest(),
+                    expected_records=2,
+                )
+        fake.load_validation_data.assert_not_called()
+
+    def test_splitless_projection_cleans_up_after_loader_failure(self):
+        projected_paths = []
+
+        def fail_after_capture(path, _cp_clamp):
+            projected_paths.append(path)
+            self.assertTrue(Path(path).is_file())
+            self.assertEqual(stat.S_IMODE(Path(path).stat().st_mode), 0o600)
+            raise RuntimeError("synthetic loader failure")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = write_private_jsonl(
+                data_path,
+                [{"record": 1}, {"record": 2}],
+            )
+            with self.assertRaisesRegex(RuntimeError, "synthetic loader failure"):
+                adapter._load_splitless_fresh_selection_as_validation(
+                    evaluator=SimpleNamespace(
+                        load_validation_data=fail_after_capture,
+                    ),
+                    data_path=str(data_path),
+                    dataset_bytes=len(source_raw),
+                    dataset_sha256=hashlib.sha256(source_raw).hexdigest(),
+                    expected_records=2,
+                )
+        self.assertEqual(len(projected_paths), 1)
+        self.assertFalse(Path(projected_paths[0]).exists())
+        self.assertFalse(Path(projected_paths[0]).parent.exists())
+
+    def test_splitless_projection_rejects_loader_fingerprint_drift(self):
+        projected_paths = []
+
+        def load_with_wrong_fingerprint(path, _cp_clamp):
+            projected_paths.append(path)
+            return (
+                "board",
+                "hands",
+                "bucket",
+                "clamped",
+                "raw",
+                [{"record": 1}, {"record": 2}],
+                [[0, 1]],
+                {"bytes": 1, "sha256": digest("wrong-projection")},
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = write_private_jsonl(
+                data_path,
+                [{"record": 1}, {"record": 2}],
+            )
+            with self.assertRaisesRegex(ValueError, "different projection"):
+                adapter._load_splitless_fresh_selection_as_validation(
+                    evaluator=SimpleNamespace(
+                        load_validation_data=load_with_wrong_fingerprint,
+                    ),
+                    data_path=str(data_path),
+                    dataset_bytes=len(source_raw),
+                    dataset_sha256=hashlib.sha256(source_raw).hexdigest(),
+                    expected_records=2,
+                )
+        self.assertEqual(len(projected_paths), 1)
+        self.assertFalse(Path(projected_paths[0]).exists())
+
+    def test_splitless_projection_rejects_noncanonical_source_rows(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = b'{"record": 1}\n{"record":2}\n'
+            data_path.write_bytes(source_raw)
+            data_path.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, "not canonical JSON"):
+                adapter._load_splitless_fresh_selection_as_validation(
+                    evaluator=SimpleNamespace(load_validation_data=mock.Mock()),
+                    data_path=str(data_path),
+                    dataset_bytes=len(source_raw),
+                    dataset_sha256=hashlib.sha256(source_raw).hexdigest(),
+                    expected_records=2,
+                )
+
+    def test_splitless_projection_rejects_source_identity_or_count_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            data_path = Path(temporary).resolve() / "selection.jsonl"
+            source_raw = write_private_jsonl(
+                data_path,
+                [{"record": 1}, {"record": 2}],
+            )
+            source_sha256 = hashlib.sha256(source_raw).hexdigest()
+            cases = {
+                "bytes": (len(source_raw) + 1, source_sha256, 2),
+                "sha256": (len(source_raw), digest("different-source"), 2),
+                "records": (len(source_raw), source_sha256, 3),
+            }
+            for label, (bytes_count, sha256, records) in cases.items():
+                with self.subTest(label=label):
+                    loader = mock.Mock()
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "identity or row count mismatch",
+                    ):
+                        adapter._load_splitless_fresh_selection_as_validation(
+                            evaluator=SimpleNamespace(
+                                load_validation_data=loader,
+                            ),
+                            data_path=str(data_path),
+                            dataset_bytes=bytes_count,
+                            dataset_sha256=sha256,
+                            expected_records=records,
+                        )
+                    loader.assert_not_called()
 
     def test_adapter_rejects_more_than_two_workers(self):
         with self.assertRaisesRegex(ValueError, "max_workers"):

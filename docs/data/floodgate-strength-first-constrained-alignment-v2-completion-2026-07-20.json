@@ -1,0 +1,419 @@
+{
+  "articles": {
+    "english": "../blog-shogi-floodgate-strength-first-constrained-alignment-v2-completion.en.md",
+    "japanese": "../blog-shogi-floodgate-strength-first-constrained-alignment-v2-completion.md"
+  },
+  "boundaries": {
+    "candidate_selected": false,
+    "external_calibration_games": 0,
+    "final_holdout_labels_read": false,
+    "formal_ab_games": 0,
+    "live_weights_changed": false,
+    "local_only": true,
+    "network_requests": 0,
+    "replay_rows_read": 0,
+    "selection_evaluations": 0,
+    "selection_labels_read": false
+  },
+  "claim_boundary": "representation-alignment-and-exact-parent-integer-identity-only-not-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "claims": {
+    "exact_parent_integer_tensors_preserved": true,
+    "high_dan_calibrated": false,
+    "live_model_changed": false,
+    "playing_strength_improved": false,
+    "representation_alignment_completed": true
+  },
+  "live_production_observation": {
+    "bytes": 1185988,
+    "changed_by_alignment": false,
+    "git_clean": true,
+    "path": "public/shogi-nnue-weights.bin",
+    "provenance": "operator-observed-not-authenticated-by-result-registry-builder",
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "next_step": "spent-selection-representation-check-then-untouched-fresh-final-and-formal-ab",
+  "pipeline_revision": "a6fefc3f41543e35b9745da7f22fc8c7f2f6112f",
+  "recorded_date": "2026-07-20",
+  "registry": {
+    "builder_command": "$HOME/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/build_strength_first_qat_constrained_alignment_v2_result_registry_candidate.py",
+    "bytes": 26117,
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-constrained-alignment-v2-result-registry.json",
+    "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-registry-v1",
+    "sha256": "a90da54d6c66ea78710c3ac8d54519810f4df12990f4cc0eb7650af4cd023e6b"
+  },
+  "reproducible_builder_verification": {
+    "parent_and_candidate_checkpoints_strict_loaded": true,
+    "quantized_tensor_comparisons": 21,
+    "quantized_tensor_equalities": 21,
+    "result_and_checkpoint_identities_authenticated": true,
+    "result_parent_exactly_matches_loaded_plan": true,
+    "run_timing_and_resources_authenticated_by_builder": false
+  },
+  "run_observation": {
+    "authenticated_by_builder": false,
+    "command": "python3 ml/run_strength_first_three_seed_constrained_alignment_v2.py",
+    "concurrent_processes": 3,
+    "maximum_resident_set_size_bytes": 1860321280,
+    "provenance": "operator-transcribed-from-terminal-time-output-not-authenticated-by-result-registry-builder",
+    "returncodes": {
+      "42": 0,
+      "43": 0,
+      "44": 0
+    },
+    "seeds": [42, 43, 44],
+    "swaps": 0,
+    "system_cpu_seconds": 63.9,
+    "threads_per_process": 2,
+    "user_cpu_seconds": 263.29,
+    "wall_seconds": 92.69
+  },
+  "runs": [
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-42/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "5140b3fb30bb028e9e035b2a9326a5b00d7c261a4d42ba4233e49ab76061fd88"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.743706458713859,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "84ab533c7bf36183b83228c5dab5817dd730fcfae5d81be645569f45b5622a6a"
+        },
+        "result": {
+          "bytes": 7700,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "c68c99eadf5081fee9370023dde2d7bd8c3430ba15d28fc0715c8a2a90809763"
+        },
+        "seed": 42,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-42"
+      },
+      "quantized_equality": {
+        "aggregate_sha256": "4d1a3d7ea308ada49b5e796b6bf053fc165ee49a08fece1ee90128005a6dc5f5",
+        "all_equal": true,
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "tensor_names": ["w1_board", "w1_hand", "b1", "w2", "b2", "w3", "b3"],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8306,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-42/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "3cce48e80a7f05a75d1495a1c9fb6f0badea5820b84bd3783ce7afb78baa402b"
+      },
+      "seed": 42,
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 21,
+          "huber": 0.005862803966353373,
+          "learning_rate": 1e-5,
+          "local_epoch": 1,
+          "loss": 0.005972371423101067,
+          "parent_policy_kl": 0.00043826982699077515,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 48218,
+          "rows": 278736,
+          "seconds": 11.226000785827637,
+          "total_restored_coordinates": 332634
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 22,
+          "huber": 0.003129027975921563,
+          "learning_rate": 8.535533905932739e-6,
+          "local_epoch": 2,
+          "loss": 0.0031964031085702895,
+          "parent_policy_kl": 0.00026950053059490595,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 23217,
+          "rows": 278736,
+          "seconds": 11.272429943084717,
+          "total_restored_coordinates": 307633
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 23,
+          "huber": 0.002162692998752109,
+          "learning_rate": 5e-6,
+          "local_epoch": 3,
+          "loss": 0.002213906076088319,
+          "parent_policy_kl": 0.0002048523093448401,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 9917,
+          "rows": 278736,
+          "seconds": 11.338193893432617,
+          "total_restored_coordinates": 294077
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 24,
+          "huber": 0.0017398061452821325,
+          "learning_rate": 1.4644660940672628e-6,
+          "local_epoch": 4,
+          "loss": 0.001783607707862519,
+          "parent_policy_kl": 0.00017520625032154655,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1896,
+          "rows": 278736,
+          "seconds": 11.406322002410889,
+          "total_restored_coordinates": 286056
+        }
+      ]
+    },
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-43/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "649898e87f4ae897aa698d74f8a163dcd97fcd98048dd3a0726065f255186af9"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.786614208947867,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "6665c7de16c8f9b6b7eb9c3fccc29db58ae12271e548301b25b9233508c4bbb0"
+        },
+        "result": {
+          "bytes": 7698,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "e9681e76bd1859ebf4af9e7dbb10b2269e5c024c0d58de0e195d2ef0021cc4b6"
+        },
+        "seed": 43,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-43"
+      },
+      "quantized_equality": {
+        "aggregate_sha256": "53cea0d9d1039b8f31354b23257fc2e41749ac58aacf3aa2102dda1040c6a02e",
+        "all_equal": true,
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "tensor_names": ["w1_board", "w1_hand", "b1", "w2", "b2", "w3", "b3"],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8307,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-43/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "1dda7687d193ab35369eff6bf447ae76da1db9917620dbf25a1f31749665cd68"
+      },
+      "seed": 43,
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 21,
+          "huber": 0.005765641824246303,
+          "learning_rate": 1e-5,
+          "local_epoch": 1,
+          "loss": 0.005871146599311712,
+          "parent_policy_kl": 0.000422019100261636,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 47824,
+          "rows": 278736,
+          "seconds": 11.490975379943848,
+          "total_restored_coordinates": 332240
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 22,
+          "huber": 0.0031021540227893643,
+          "learning_rate": 8.535533905932739e-6,
+          "local_epoch": 2,
+          "loss": 0.0031672351102025004,
+          "parent_policy_kl": 0.0002603243496525436,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 24196,
+          "rows": 278736,
+          "seconds": 11.530225992202759,
+          "total_restored_coordinates": 308356
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 23,
+          "huber": 0.0021540126009292684,
+          "learning_rate": 5e-6,
+          "local_epoch": 3,
+          "loss": 0.0022037255334414222,
+          "parent_policy_kl": 0.0001988517300486151,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 10309,
+          "rows": 278736,
+          "seconds": 11.523626327514648,
+          "total_restored_coordinates": 294469
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 24,
+          "huber": 0.0017428135298270522,
+          "learning_rate": 1.4644660940672628e-6,
+          "local_epoch": 4,
+          "loss": 0.001785641430170119,
+          "parent_policy_kl": 0.00017131160137226722,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1844,
+          "rows": 278736,
+          "seconds": 11.533054113388062,
+          "total_restored_coordinates": 286260
+        }
+      ]
+    },
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-44/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "a3e894b46de041ab3316e7f865aa16c662e7db1f510eeb88a9b3bc5e290c02ae"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.641101833898574,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "00b074439f404c1d95e77ed4d0318ab34c85106d4a18c7a18f394e21f6aabcd5"
+        },
+        "result": {
+          "bytes": 7700,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "65b0df3892c0d86446d7febe896fb4e59bbb086223a7030ccdf8ec1f8c0a5c30"
+        },
+        "seed": 44,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-44"
+      },
+      "quantized_equality": {
+        "aggregate_sha256": "77ca8000c2d29fb731ec4b169d197d54a351caa1a1222509cd7241fe3eb321e4",
+        "all_equal": true,
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "tensor_names": ["w1_board", "w1_hand", "b1", "w2", "b2", "w3", "b3"],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8308,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-44/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "ce5f354a9eab1c70fd4da94115afb36658a082743d47e2165b779034e35a246d"
+      },
+      "seed": 44,
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 21,
+          "huber": 0.006098501453098577,
+          "learning_rate": 1e-5,
+          "local_epoch": 1,
+          "loss": 0.006209366102588231,
+          "parent_policy_kl": 0.000443458597958619,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 48596,
+          "rows": 278736,
+          "seconds": 11.431639909744263,
+          "total_restored_coordinates": 332756
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 22,
+          "huber": 0.0032640275017452123,
+          "learning_rate": 8.535533905932739e-6,
+          "local_epoch": 2,
+          "loss": 0.0033325380370853985,
+          "parent_policy_kl": 0.00027404214136074397,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 24037,
+          "rows": 278736,
+          "seconds": 11.595307111740112,
+          "total_restored_coordinates": 308197
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 23,
+          "huber": 0.002262880152100549,
+          "learning_rate": 5e-6,
+          "local_epoch": 3,
+          "loss": 0.0023152330061643493,
+          "parent_policy_kl": 0.00020941141625520202,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 10208,
+          "rows": 278736,
+          "seconds": 11.486187934875488,
+          "total_restored_coordinates": 294624
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 24,
+          "huber": 0.0018264991056793816,
+          "learning_rate": 1.4644660940672628e-6,
+          "local_epoch": 4,
+          "loss": 0.0018715131025184985,
+          "parent_policy_kl": 0.00018005598735646732,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1800,
+          "rows": 278736,
+          "seconds": 11.50236701965332,
+          "total_restored_coordinates": 286216
+        }
+      ]
+    }
+  ],
+  "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-completion-evidence-v1",
+  "status": "complete-representation-alignment-only-no-playing-strength-or-live-claim"
+}

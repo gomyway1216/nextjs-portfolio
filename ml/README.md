@@ -911,6 +911,33 @@ formal A/B、live変更の証拠ではない。live weightは0変更のまま、
 [English article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-three-seed-training-completion-2026-07-20.json)を参照。
 
+#### constrained alignment v2実行完了（2026-07-20）
+
+前段selectionで残ったfloat / int16表現差だけを直すため、seed 42 / 43 / 44の親から
+元の278,736行を4 epoch学習した。operatorがterminalから転記した参考観測では、
+3 process × 各2 threadsの実runは92.69秒、最大RSS 1,860,321,280 bytes、swap 0で完了した。
+この時間・資源値はregistry builderの認証対象ではない。各seedの整数target cacheは約6.6〜6.8秒で一度だけ
+作り、4 epochで再利用した。独立strict reload後の3 seed × 7整数tensorは全て親と
+`torch.equal`で一致した。
+
+これは同じ整数評価をfloat側がより忠実に表すためのalignmentで、整数棋力そのものを
+変える工程ではない。selection / final holdoutは未読、候補選抜・formal A/B・外部校正・
+live変更は0である。production weightも1,185,988 bytes / SHA-256
+`e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のまま変えていない。
+
+完了済みprivate出力がある同じworktreeでは、次のargumentless builderが3結果と親/v2
+checkpointを再認証し、review用registry候補だけをstdoutへ出す。
+
+```sh
+$HOME/.codex/shogi-data/floodgate-training-venv/bin/python3 \
+  ml/build_strength_first_qat_constrained_alignment_v2_result_registry_candidate.py
+```
+
+詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-constrained-alignment-v2-completion.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-constrained-alignment-v2-completion.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-constrained-alignment-v2-completion-2026-07-20.json)を参照。
+
 #### fresh-selection / fresh-final timeout quarantine v2（2026-07-20）
 
 4,800-parent fresh-selection teacherは12 enginesで1,678親まで進んだ後、1親の600秒timeoutで

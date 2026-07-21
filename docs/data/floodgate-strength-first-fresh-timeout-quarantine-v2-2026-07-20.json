@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-fresh-timeout-quarantine-evidence-v2",
-  "status": "real-v2-fresh-selection-complete-timeout-quarantine-within-cap-no-live-write",
+  "status": "real-v2-fresh-selection-complete-first-selection-invocation-safely-stopped-no-live-write",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md",
@@ -74,6 +74,40 @@
     "aws_training_jobs": 0,
     "gcp_or_firebase_training_jobs": 0,
     "vercel_training_jobs": 0
+  },
+  "observed_first_selection_invocation": {
+    "ready_registry_pull_request": 579,
+    "ready_registry_regular_merged": true,
+    "elapsed_seconds_approx": 4,
+    "terminal_status": "pre-model-evaluation-safety-stop-training-plan-receipt-shape-mismatch",
+    "raw_preflight_training_plan_fields": [
+      "path",
+      "bytes",
+      "sha256"
+    ],
+    "evaluator_required_fields_before_fix": [
+      "path",
+      "bytes",
+      "sha256",
+      "schema"
+    ],
+    "candidate_checkpoint_strict_loads": 3,
+    "stopped_before_selection_dataset_read": true,
+    "selection_metric_model_evaluations": 0,
+    "selection_outputs": 0,
+    "fresh_final_holdout_reads": 0,
+    "live_weight_writes": 0,
+    "fix": {
+      "status": "implemented-awaiting-review-and-regular-merge",
+      "accepted_preflight_training_plan_fields": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "schema_source": "ready-registry-enrolled-training-plan-identity",
+      "teacher_artifact_identities_changed": false,
+      "checkpoint_preflight_sha256_changed": false
+    }
   },
   "measured_rate_basis": {
     "training_teacher_parents": 24000,
@@ -213,6 +247,11 @@
     "real_v2_parent_labels": 4798,
     "real_v2_label_records": 28518,
     "complete_v2_selection_datasets": 1,
+    "selection_evaluator_invocations": 1,
+    "selection_preflight_safety_stops": 1,
+    "candidate_checkpoint_strict_loads": 3,
+    "selection_metric_model_evaluations": 0,
+    "selection_outputs": 0,
     "candidate_selections": 0,
     "fresh_final_holdout_reads": 0,
     "formal_ab_games": 0,
@@ -221,5 +260,5 @@
     "strength_improved": false,
     "high_dan_calibrated": false
   },
-  "next_step": "review-and-regular-merge-byte-exact-ready-registry-then-run-fixed-local-selection-evaluator"
+  "next_step": "review-and-regular-merge-selection-preflight-receipt-fix-then-rerun-fixed-local-selection-evaluator"
 }

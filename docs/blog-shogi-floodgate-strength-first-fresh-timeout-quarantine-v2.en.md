@@ -136,11 +136,28 @@ The real v2 run completed fresh-selection teacher generation with all 4,800
 parents accounted for, 4,798 groups, 28,518 records, two timeout quarantines,
 and zero partial labels. Read-only semantic validation also passed, and the
 selection-evaluator registry generated from the measured identities matches
-the tracked registry byte for byte. The next step is to review and merge that
-READY registration, then evaluate stable and seeds 42, 43, and 44 on the same
-dataset. Candidate selection, holdouts, formal A/B, and external calibration
-remain incomplete. This does not establish stronger or high-dan play. Live
-weight changes remain zero.
+the tracked registry byte for byte. That READY registration was reviewed and
+regular-merged in PR #579.
+
+## The first real selection invocation stopped safely before evaluation
+
+After the READY merge, the first invocation of the fixed local evaluator
+strict-loaded all three candidate checkpoints, then failed closed in about
+four seconds before reading the selection dataset or running selection-metric
+inference. The raw preflight receipt's `training_plan` had the established
+three fields, `path`, `bytes`, and `sha256`, while the evaluator alone required
+a fourth `schema` field. Selection-metric evaluations, selection outputs,
+fresh-final holdout reads, and live-weight writes all remained zero. This was
+therefore neither a candidate result nor a playing-strength measurement.
+
+The fix on the same branch accepts the established three-field preflight
+receipt and obtains the schema from the training-plan identity already enrolled
+in the READY registry. Teacher-artifact identities and the checkpoint-preflight
+binding are unchanged. The next step is to review and regular-merge this narrow
+fix, then rerun the stable and seed 42 / 43 / 44 selection evaluation on the
+same fixed dataset. Candidate selection, holdouts, formal A/B, and external
+calibration remain incomplete. This does not establish stronger or high-dan
+play. Live-weight changes remain zero.
 
 Machine-readable record:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

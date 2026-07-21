@@ -818,7 +818,7 @@ def _validate_preflight(
     enrollment = registry["enrollments"]
     plan = _exact_dict(
         preflight["training_plan"],
-        {"path", "bytes", "sha256", "schema"},
+        {"path", "bytes", "sha256"},
         "strength-first selection preflight plan",
     )
     plan_path = str(repo_root / _FIXED_PATHS["training_plan"])
@@ -829,7 +829,7 @@ def _validate_preflight(
             "path": _FIXED_PATHS["training_plan"],
             "bytes": plan["bytes"],
             "sha256": plan["sha256"],
-            "schema": plan["schema"],
+            "schema": enrollment["training_plan"]["schema"],
         },
         enrollment["training_plan"],
     ):

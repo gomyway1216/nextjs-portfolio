@@ -344,7 +344,6 @@ class ReadyHarness:
                 "path": str(plan_path),
                 "bytes": plan_identity["bytes"],
                 "sha256": plan_identity["sha256"],
-                "schema": plan_identity["schema"],
             },
             "training_pipeline": pipeline,
             "runs": runs,

@@ -111,10 +111,24 @@ Prettier、diff checkもPASSし、独立監査はこのsemantic-only境界をGO�
 
 実v2 runは4,800親のaccounting、4,798 group / 28,518 record、timeout隔離2件、部分label 0件で
 fresh-selection教師生成を完了した。read-only semantic validationもPASSし、実identityから生成した
-selection evaluator registry候補と追跡対象registryがbyte-exactで一致した。次はこのREADY登録を
-review・mergeし、stableとseed 42 / 43 / 44を同一datasetで選抜評価する。候補選抜、holdout、
-正式A/B、外部校正はまだ完了しておらず、強くなった、高段へ到達したという証拠ではない。
-live weight変更は0のままである。
+selection evaluator registry候補と追跡対象registryがbyte-exactで一致し、そのREADY登録は
+PR #579でreview後に通常mergeした。
+
+## 最初の実選抜呼び出しは評価前に安全停止した
+
+READY登録のmerge後、固定local evaluatorを初めて実行したところ、候補checkpoint 3本のstrict loadは
+完了したが、約4秒でselection dataset読込・selection metric推論より前にfail-closeした。
+生のpreflight receiptにある`training_plan`は確立済み契約どおり
+`path` / `bytes` / `sha256`の3 fieldだったが、evaluator側だけが追加の`schema`を含む4 fieldを
+要求していたためである。selection metric評価は0件、selection outputは0件、
+fresh-final holdout readは0件、live weight writeは0件だった。したがって、これは候補の勝敗でも
+棋力測定でもない。
+
+同じbranchの修正では、preflight receiptの既存3-field形をそのまま受理し、schemaはREADY registryへ
+enroll済みのtraining plan identityから取得する。教師artifactのidentityとcheckpoint preflightの
+bindingは変更していない。次はこの限定修正をreview・通常mergeしてから、stableとseed 42 / 43 / 44の
+選抜評価を同じ固定datasetで再実行する。候補選抜、holdout、正式A/B、外部校正はまだ完了しておらず、
+強くなった、高段へ到達したという証拠ではない。live weight変更は0のままである。
 
 機械可読記録:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

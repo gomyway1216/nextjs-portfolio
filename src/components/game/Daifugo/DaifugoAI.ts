@@ -36,8 +36,10 @@ interface TierConfig {
    * Own-hand shape planning (weakened subset of `planning`, no hidden-card
    * inference): hand-partition go-out shaping, forbidden-finish (あがり禁止)
    * avoidance, and finish detection through 7渡し/10捨て side effects.
-   * Implied by `planning`; set explicitly to give a mid tier hand-planning
-   * without card counting / guaranteed-finish search.
+   * Implied by `planning` — enforced by the normalization loop below the TIER
+   * table, so a tier can never have full planning without this subset. Set it
+   * explicitly to give a mid tier hand-planning without card counting /
+   * guaranteed-finish search.
    */
   handPlanning: boolean;
   /**
@@ -55,6 +57,13 @@ const TIER: Record<DaifugoDifficulty, TierConfig> = {
   expert: { blunderRate: 0.04, passDiscipline: true, tactical: true, opponentAware: true, handPlanning: true, planning: true },
   master: { blunderRate: 0, passDiscipline: true, tactical: true, opponentAware: true, handPlanning: true, planning: true },
 };
+
+// Invariant: full `planning` implies its own-hand subset `handPlanning`.
+// Normalized here so a future TIER edit cannot enable planning without the
+// subset the planning code paths assume.
+for (const config of Object.values(TIER)) {
+  if (config.planning) config.handPlanning = true;
+}
 
 // ---------------------------------------------------------------------------
 // Move generation
@@ -646,7 +655,7 @@ export function decideDaifugoAction(
     }
   }
 
-  // 1.5) Guaranteed finish lines (planning tiers): play a trick-winning move
+  // 1.5) Guaranteed finish lines (full-planning tiers): play a trick-winning move
   //      now — an 8切り clears the table immediately, an unbeatable play wins
   //      the trick once everyone passes — and keep the lead until the hand
   //      can be emptied with a legal, non-forbidden final play.
@@ -675,15 +684,16 @@ export function decideDaifugoAction(
     // hoard. (For opponentAware tiers this is the same condition as before —
     // the flag is implied — so expert/master decisions are unchanged.)
     const mustDefend = oppMin <= 2;
-    // Non-planning tiers (hard): spending a control (2/joker) to seize the
-    // lead is exactly how a short hand goes out. Only hoard controls while the
-    // hand is still big. Without this, hard NEVER plays 2/joker as a follower
-    // (mustDefend used to require opponentAware) and hoards them forever —
-    // A/B-measured at −20pp vs medium.
+    // Tiers without full `planning` (hard, which has only the handPlanning
+    // subset): spending a control (2/joker) to seize the lead is exactly how a
+    // short hand goes out. Only hoard controls while the hand is still big.
+    // Without this, hard NEVER played 2/joker as a follower (mustDefend used
+    // to require opponentAware) and hoarded them forever — A/B-measured at
+    // −20pp vs medium.
     const nearOut = !tier.planning && hand.length <= 5;
     const cheapMoves = tier.planning
-      // Planning tiers: a response is only worth a card if it is cheap AND
-      // actually shortens the go-out path (does not just break up a combo).
+      // Full-planning tiers: a response is only worth a card if it is cheap
+      // AND actually shortens the go-out path (does not just break up a combo).
       ? legalMoves.filter(m =>
         m.score < 60 &&
         estimateTurnsToGo(remainingAfterPlay(state, playerId, m)) < estimateTurnsToGo(hand)
@@ -727,7 +737,7 @@ interface RankContext {
   handSize: number;
   state: DaifugoNetworkState;
   playerId: string;
-  /** estimateTurnsToGo(hand) for planning tiers, 0 otherwise. */
+  /** estimateTurnsToGo(hand) for hand-planning tiers, 0 otherwise. */
   handTurns: number;
 }
 
@@ -735,7 +745,7 @@ function rankMoves(moves: ScoredMove[], ctx: RankContext): ScoredMove[] {
   const scored = moves.map((m) => {
     let priority = m.score; // lower = play first
 
-    // Planning tiers: never *choose* a forbidden finish (あがり禁止) if any
+    // Hand-planning tiers: never *choose* a forbidden finish (あがり禁止) if any
     // alternative exists — finishing with joker/2/8 means finishing last.
     // Also prefer plays that keep the remaining hand's go-out path short
     // (avoid breaking pairs/triples/straights needlessly).

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BROWSER_CONFUSION_RECEIPT_SCHEMA,
+  BROWSER_CONFUSION_SELECTION_POLICY,
   BROWSER_CONFUSION_PARENT_SCHEMA,
+  INCOMPLETE_PARENT_POLICY,
+  BrowserFixedDepthIncompleteError,
   buildCoreFromRows,
   labelAllLegalMoves,
   parseSourceTeacherRow,
@@ -13,7 +17,8 @@ import {
 } from '../../../ml/build-browser-confusion-ranking-teacher';
 import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from '../../../ml/shogi-sfen';
 import { positionKeyFromSfen } from '../../../ml/sibling-data';
-import type { UsiMultiPvResult } from '../../../ml/usi-multipv';
+import { UsiSearchTimeoutError } from '../../../ml/usi-engine';
+import { UsiFixedDepthRanksIncompleteError, type UsiMultiPvResult } from '../../../ml/usi-multipv';
 
 const START = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
 const SOURCE_SHA = 'a'.repeat(64);
@@ -79,6 +84,14 @@ function fakeTeacher(score: (move: string) => number) {
 }
 
 describe('browser-confusion all-legal ranking teacher', () => {
+  it('versions the parent-quarantine policy independently of accepted exact-depth evidence', () => {
+    expect(BROWSER_CONFUSION_RECEIPT_SCHEMA).toBe('shogi-browser-confusion-ranking-teacher-receipt-v2');
+    expect(BROWSER_CONFUSION_SELECTION_POLICY).toBe(
+      'shipped-nnue-fixed-depth-bestmove-disagrees-with-source-teacher-v2'
+    );
+    expect(INCOMPLETE_PARENT_POLICY).toBe('discard-whole-parent-only-on-typed-fixed-depth-incomplete-v1');
+  });
+
   it('requires canonical source rows with a legal strong-teacher move', () => {
     expect(parseSourceTeacherRow(source())).toEqual(source());
     expect(
@@ -178,11 +191,151 @@ describe('browser-confusion all-legal ranking teacher', () => {
     expect(result.scannedRows).toBe(2);
     expect(result.shardEligibleRows).toBe(2);
     expect(result.browserAgreements).toBe(1);
+    expect(result.rejectedBrowserIncompleteRows).toBe(0);
+    expect(result.rejectedTeacherIncompleteParents).toBe(0);
     expect(result.selected).toHaveLength(1);
     expect(result.selected[0].parent.source_line).toBe(2);
     expect(result.records).toHaveLength(
       rulesCompleteLegalMoves(positionFromSfen(START).position).length
     );
+  });
+
+  it('quarantines only a typed browser depth shortfall and continues to an exact parent', async () => {
+    let searches = 0;
+    const browser: BrowserProbe = {
+      search: () => {
+        if (++searches === 1) throw new BrowserFixedDepthIncompleteError(3, 4);
+        return fakeBrowser('2g2f').search(START, 0);
+      },
+    };
+    const fake = fakeTeacher((move) => move.charCodeAt(0));
+    async function* rows() {
+      yield { line: 1, value: source() };
+      yield { line: 2, value: source() };
+    }
+    const result = await buildCoreFromRows(rows(), {
+      sourceSha256: SOURCE_SHA,
+      targetParents: 1,
+      maxScanRows: 2,
+      teacherDepth: 3,
+      browser,
+      teacher: fake.teacher,
+    });
+
+    expect(result.rejectedBrowserIncompleteRows).toBe(1);
+    expect(result.rejectedTeacherIncompleteParents).toBe(0);
+    expect(result.selected.map((entry) => entry.parent.source_line)).toEqual([2]);
+    expect(result.selected[0].parent.browser.completed_depth).toBe(4);
+  });
+
+  it('discards an entire typed teacher-incomplete parent and continues without partial rows', async () => {
+    const exact = fakeTeacher((move) => move.charCodeAt(0));
+    let rejectFirstCandidate = true;
+    const teacher: FixedMoveTeacher = {
+      resetForParent: () => exact.teacher.resetForParent(),
+      async search(sfen, multipv, limit, searchmoves) {
+        if (rejectFirstCandidate) {
+          rejectFirstCandidate = false;
+          throw new UsiFixedDepthRanksIncompleteError(1, 3, 0, 0, 0);
+        }
+        return exact.teacher.search(sfen, multipv, limit, searchmoves);
+      },
+    };
+    async function* rows() {
+      yield { line: 1, value: source() };
+      yield { line: 2, value: source() };
+    }
+    const result = await buildCoreFromRows(rows(), {
+      sourceSha256: SOURCE_SHA,
+      targetParents: 1,
+      maxScanRows: 2,
+      teacherDepth: 3,
+      browser: fakeBrowser('2g2f'),
+      teacher,
+    });
+    const legalCount = rulesCompleteLegalMoves(positionFromSfen(START).position).length;
+
+    expect(result.rejectedBrowserIncompleteRows).toBe(0);
+    expect(result.rejectedTeacherIncompleteParents).toBe(1);
+    expect(result.selected.map((entry) => entry.parent.source_line)).toEqual([2]);
+    expect(result.records).toHaveLength(legalCount);
+    expect(new Set(result.records.map((row) => row.parent_id))).toEqual(new Set([result.selected[0].parent.parent_id]));
+  });
+
+  it('does not quarantine browser bugs, teacher timeouts, or malformed teacher evidence', async () => {
+    async function* oneRow() {
+      yield { line: 1, value: source() };
+    }
+    const browserBug = new Error('browser invariant failed');
+    await expect(
+      buildCoreFromRows(oneRow(), {
+        sourceSha256: SOURCE_SHA,
+        targetParents: 1,
+        maxScanRows: 1,
+        teacherDepth: 3,
+        browser: {
+          search: () => {
+            throw browserBug;
+          },
+        },
+        teacher: fakeTeacher(() => 0).teacher,
+      })
+    ).rejects.toBe(browserBug);
+
+    const timeout = new UsiSearchTimeoutError(120_000);
+    const timeoutTeacher: FixedMoveTeacher = {
+      async resetForParent() {},
+      async search() {
+        throw timeout;
+      },
+    };
+    await expect(
+      buildCoreFromRows(oneRow(), {
+        sourceSha256: SOURCE_SHA,
+        targetParents: 1,
+        maxScanRows: 1,
+        teacherDepth: 3,
+        browser: fakeBrowser('2g2f'),
+        teacher: timeoutTeacher,
+      })
+    ).rejects.toBe(timeout);
+
+    const malformedTeacher: FixedMoveTeacher = {
+      async resetForParent() {},
+      async search() {
+        return { depth: 2, bestmove: '7g7f', observedNodes: 1, lines: [] };
+      },
+    };
+    await expect(
+      buildCoreFromRows(oneRow(), {
+        sourceSha256: SOURCE_SHA,
+        targetParents: 1,
+        maxScanRows: 1,
+        teacherDepth: 3,
+        browser: fakeBrowser('2g2f'),
+        teacher: malformedTeacher,
+      })
+    ).rejects.toThrow(/exact contract/);
+  });
+
+  it('still fails closed when typed skips exhaust the scan bound', async () => {
+    async function* rows() {
+      yield { line: 1, value: source() };
+    }
+    await expect(
+      buildCoreFromRows(rows(), {
+        sourceSha256: SOURCE_SHA,
+        targetParents: 1,
+        maxScanRows: 1,
+        teacherDepth: 3,
+        browser: {
+          search: () => {
+            throw new BrowserFixedDepthIncompleteError(3, 4);
+          },
+        },
+        teacher: fakeTeacher(() => 0).teacher,
+      })
+    ).rejects.toThrow(/only selected 0\/1.*1 rows/);
   });
 
   it('partitions source lines into deterministic disjoint process shards', async () => {

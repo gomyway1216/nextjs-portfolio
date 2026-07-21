@@ -42,7 +42,11 @@ import {
   teToUsi,
 } from './shogi-sfen';
 import { UsiTeacherEngine, USI_TEACHER_ENGINE_CONTRACT } from './usi-engine';
-import type { ParsedUsiPv, UsiMultiPvResult } from './usi-multipv';
+import {
+  UsiFixedDepthRanksIncompleteError,
+  type ParsedUsiPv,
+  type UsiMultiPvResult,
+} from './usi-multipv';
 import {
   loadShogiWasm,
   syncWasm,
@@ -52,13 +56,15 @@ import {
 import { bucketsForByteLength } from '../wasm-spike/nnue-ref';
 
 export const BROWSER_CONFUSION_RECEIPT_SCHEMA =
-  'shogi-browser-confusion-ranking-teacher-receipt-v1' as const;
+  'shogi-browser-confusion-ranking-teacher-receipt-v2' as const;
 export const BROWSER_CONFUSION_PARENT_SCHEMA =
   'shogi-browser-confusion-ranking-parent-v1' as const;
 export const BROWSER_CONFUSION_SELECTION_POLICY =
-  'shipped-nnue-fixed-depth-bestmove-disagrees-with-source-teacher-v1' as const;
+  'shipped-nnue-fixed-depth-bestmove-disagrees-with-source-teacher-v2' as const;
 export const ALL_LEGAL_RESCORE_POLICY =
   'all-rules-complete-legal-child-positions-independent-fixed-depth-v1' as const;
+export const INCOMPLETE_PARENT_POLICY =
+  'discard-whole-parent-only-on-typed-fixed-depth-incomplete-v1' as const;
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
@@ -85,6 +91,23 @@ export interface BrowserSearchResult {
   readonly completed_depth: number;
   readonly nodes: number;
   readonly leaves: number;
+}
+
+/**
+ * A typed, position-local browser search failure. Accepted browser evidence
+ * still has to reach the requested depth exactly; callers may only quarantine
+ * the entire source parent when this specific shortfall occurs.
+ */
+export class BrowserFixedDepthIncompleteError extends Error {
+  readonly completedDepth: number;
+  readonly requiredDepth: number;
+
+  constructor(completedDepth: number, requiredDepth: number) {
+    super(`browser fixed-depth search completed depth ${completedDepth}/${requiredDepth}`);
+    this.name = 'BrowserFixedDepthIncompleteError';
+    this.completedDepth = completedDepth;
+    this.requiredDepth = requiredDepth;
+  }
 }
 
 export interface SelectedConfusionParent {
@@ -154,6 +177,8 @@ export interface BuildCoreResult {
   readonly shardEligibleRows: number;
   readonly rejectedInvalidRows: number;
   readonly rejectedForcedRows: number;
+  readonly rejectedBrowserIncompleteRows: number;
+  readonly rejectedTeacherIncompleteParents: number;
   readonly browserAgreements: number;
   readonly selected: readonly LabeledConfusionParent[];
   readonly records: readonly SiblingRecord[];
@@ -164,6 +189,7 @@ export interface BuildReceipt {
   readonly status: 'research-data-only-not-deployment-authorization';
   readonly selection_policy: typeof BROWSER_CONFUSION_SELECTION_POLICY;
   readonly label_policy: typeof ALL_LEGAL_RESCORE_POLICY;
+  readonly incomplete_parent_policy: typeof INCOMPLETE_PARENT_POLICY;
   readonly source: FileIdentity & {
     readonly audit_manifest: FileIdentity & {
       readonly schema: string;
@@ -173,6 +199,8 @@ export interface BuildReceipt {
     readonly shard_eligible_rows: number;
     readonly rejected_invalid_rows: number;
     readonly rejected_forced_rows: number;
+    readonly rejected_browser_incomplete_rows: number;
+    readonly rejected_teacher_incomplete_parents: number;
     readonly browser_agreements: number;
   };
   readonly browser: Readonly<{
@@ -458,6 +486,8 @@ export async function buildCoreFromRows(
   let shardEligibleRows = 0;
   let rejectedInvalidRows = 0;
   let rejectedForcedRows = 0;
+  let rejectedBrowserIncompleteRows = 0;
+  let rejectedTeacherIncompleteParents = 0;
   let browserAgreements = 0;
   const selected: LabeledConfusionParent[] = [];
   for await (const input of rows) {
@@ -477,17 +507,34 @@ export async function buildCoreFromRows(
       rejectedForcedRows += 1;
       continue;
     }
-    const parent = selectConfusionParent(
-      row,
-      input.line,
-      options.sourceSha256,
-      options.browser
-    );
+    let parent: SelectedConfusionParent | null;
+    try {
+      parent = selectConfusionParent(
+        row,
+        input.line,
+        options.sourceSha256,
+        options.browser
+      );
+    } catch (error) {
+      if (error instanceof BrowserFixedDepthIncompleteError) {
+        rejectedBrowserIncompleteRows += 1;
+        continue;
+      }
+      throw error;
+    }
     if (parent === null) {
       browserAgreements += 1;
       continue;
     }
-    selected.push(await labelAllLegalMoves(parent, options.teacher, options.teacherDepth));
+    try {
+      selected.push(await labelAllLegalMoves(parent, options.teacher, options.teacherDepth));
+    } catch (error) {
+      if (error instanceof UsiFixedDepthRanksIncompleteError) {
+        rejectedTeacherIncompleteParents += 1;
+        continue;
+      }
+      throw error;
+    }
   }
   if (selected.length !== options.targetParents) {
     throw new Error(
@@ -501,6 +548,8 @@ export async function buildCoreFromRows(
     shardEligibleRows,
     rejectedInvalidRows,
     rejectedForcedRows,
+    rejectedBrowserIncompleteRows,
+    rejectedTeacherIncompleteParents,
     browserAgreements,
     selected,
     records,
@@ -561,7 +610,7 @@ export function createShippedBrowserProbe(options: ShippedBrowserProbeOptions): 
       const bestmove = teToUsi(teFromWasmKey(key, parsed.position));
       const completedDepth = wasm.getSearchDepth();
       if (completedDepth !== depth) {
-        throw new Error(`browser fixed-depth search completed depth ${completedDepth}/${depth}`);
+        throw new BrowserFixedDepthIncompleteError(completedDepth, depth);
       }
       return {
         bestmove,
@@ -783,6 +832,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<BuildReceipt
     status: 'research-data-only-not-deployment-authorization',
     selection_policy: BROWSER_CONFUSION_SELECTION_POLICY,
     label_policy: ALL_LEGAL_RESCORE_POLICY,
+    incomplete_parent_policy: INCOMPLETE_PARENT_POLICY,
     source: {
       ...sourceIdentity,
       audit_manifest: sourceManifest,
@@ -790,6 +840,8 @@ export async function runCli(argv = process.argv.slice(2)): Promise<BuildReceipt
       shard_eligible_rows: core.shardEligibleRows,
       rejected_invalid_rows: core.rejectedInvalidRows,
       rejected_forced_rows: core.rejectedForcedRows,
+      rejected_browser_incomplete_rows: core.rejectedBrowserIncompleteRows,
+      rejected_teacher_incomplete_parents: core.rejectedTeacherIncompleteParents,
       browser_agreements: core.browserAgreements,
     },
     selection_shard: shard,

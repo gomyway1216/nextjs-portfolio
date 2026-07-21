@@ -10,11 +10,11 @@
 
 ## 何が起きたか
 
-| 実行 | wall time | 完了済み親 | emitted group / record | 完了dataset / result |
-| --- | ---: | ---: | ---: | ---: |
-| v1初回 | 1,194.49秒 | 1,678 / 4,800 | 1,678 / 9,993 | 0 / 0 |
-| 同一条件resume | 784.54秒 | 2,669 / 4,800 | 2,669 / 15,884 | 0 / 0 |
-| クリーンv2 | 約3,450秒 | 4,800 / 4,800 | 4,798 / 28,518 | 1 / 1 |
+| 実行           |  wall time |    完了済み親 | emitted group / record | 完了dataset / result |
+| -------------- | ---------: | ------------: | ---------------------: | -------------------: |
+| v1初回         | 1,194.49秒 | 1,678 / 4,800 |          1,678 / 9,993 |                0 / 0 |
+| 同一条件resume |   784.54秒 | 2,669 / 4,800 |         2,669 / 15,884 |                0 / 0 |
+| クリーンv2     |  約3,450秒 | 4,800 / 4,800 |         4,798 / 28,518 |                1 / 1 |
 
 どちらも12個のYaneuraOu、各1 thread、Hash 512 MiB、proposal depth 14 /
 MultiPV 6、独立rescore depth 16、1 searchあたり600,000 msを使った。
@@ -31,10 +31,10 @@ MultiPV 6、独立rescore depth 16、1 searchあたり600,000 msを使った。
 0件である。4,798親から28,518 recordを生成し、完了datasetとresultを保存した。AWS、GCP /
 Firebase、Vercelのtraining computeは0で、live weight writeも0である。
 
-| v2完了artifact | bytes |
-| --- | ---: |
+| v2完了artifact    |      bytes |
+| ----------------- | ---------: |
 | selection dataset | 23,800,461 |
-| canonical work | 35,630,716 |
+| canonical work    | 35,630,716 |
 
 dataset、work、completion、generation、runの完全なidentityは末尾の機械可読記録へ保存した。
 privateな親ID、SFEN、指し手、教師score、absolute pathは公開しない。
@@ -44,10 +44,10 @@ privateな親ID、SFEN、指し手、教師score、absolute pathは公開しな�
 24,000親の正式training教師ではtimeoutが15件、率にして0.0625%だった。この率を単純な
 Poisson近似へ置くと、4,800親で期待されるtimeoutは3件である。
 
-| 事象 | 概算確率 |
-| --- | ---: |
-| timeout 0件 | 4.98% |
-| timeout 5件以下 | 91.61% |
+| 事象            | 概算確率 |
+| --------------- | -------: |
+| timeout 0件     |    4.98% |
+| timeout 5件以下 |   91.61% |
 
 独立同分布は近似にすぎず、同じ親が2回止まった事実は決定論的なhard caseを示す。それでも
 「0件でなければ全run失敗」は、実測上ほとんど完走しない契約だった。3回目の同一resumeは
@@ -124,11 +124,28 @@ READY登録のmerge後、固定local evaluatorを初めて実行したところ�
 fresh-final holdout readは0件、live weight writeは0件だった。したがって、これは候補の勝敗でも
 棋力測定でもない。
 
-同じbranchの修正では、preflight receiptの既存3-field形をそのまま受理し、schemaはREADY registryへ
-enroll済みのtraining plan identityから取得する。教師artifactのidentityとcheckpoint preflightの
-bindingは変更していない。次はこの限定修正をreview・通常mergeしてから、stableとseed 42 / 43 / 44の
-選抜評価を同じ固定datasetで再実行する。候補選抜、holdout、正式A/B、外部校正はまだ完了しておらず、
-強くなった、高段へ到達したという証拠ではない。live weight変更は0のままである。
+この限定修正はPR #581でreview後に通常mergeした。preflight receiptの既存3-field形をそのまま受理し、
+schemaはREADY registryへenroll済みのtraining plan identityから取得する。教師artifactのidentityと
+checkpoint preflightのbindingは変更していない。
+
+## 2回目の実選抜呼び出しも評価前に安全停止した
+
+PR #581のmerge後に固定local evaluatorを再実行した。約13.2秒で候補checkpoint 3本をstrict loadし、
+fresh-selectionの28,518 recordをすべて読み、上限付きでstrict scanした。その全recordには設計どおり
+per-recordの`split`がなかった。一方、再利用したlegacy loaderは`train`または`val`を必須とするため、
+全recordを対象外として拒否した。教師dataが壊れていたのではなく、固定roleのfresh-selection形式を
+legacy loaderへ渡すadapterの橋渡しが欠けていた。
+
+checkpoint 3本の事前strict loadと、selection metric用modelのloadは別段階である。後者はstable・
+candidateとも0件で、metric評価0件、selection output 0件、fresh-final holdout read 0件、live weight
+write 0件のまま停止した。このため2回目も候補の勝敗や棋力測定ではない。
+
+同じbranchのadapter限定修正は、`split`が欠けたrecordだけを`val`へ投影したprivate `0600`一時fileを
+作り、既存`split`が1件でもあれば拒否する。元recordのidentity、順序、feature、CP、rankは維持し、
+一時fileは成功時も例外時も削除する。元の教師artifactは変更しない。次はこのadapter限定修正をreview・
+通常mergeし、stableとseed 42 / 43 / 44の選抜評価を同じ固定datasetで再実行する。候補選抜、holdout、
+正式A/B、外部校正はまだ完了しておらず、強くなった、高段へ到達したという証拠ではない。live weight
+変更は0のままである。
 
 機械可読記録:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

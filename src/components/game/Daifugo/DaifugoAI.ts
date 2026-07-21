@@ -13,7 +13,7 @@
 
 import type { DaifugoNetworkState } from './multiplayerTypes';
 import type { Card } from './types';
-import { isJoker, TWO_RANK } from './types';
+import { isJoker, JOKER_RANK, TWO_RANK } from './types';
 import { applyAction, getPlayShape, sortHand } from './gameLogic';
 import type { DaifugoPlayShape } from './gameLogic';
 
@@ -32,14 +32,20 @@ interface TierConfig {
   tactical: boolean;
   /** Whether the AI tracks opponents' hand sizes to play more aggressively. */
   opponentAware: boolean;
+  /**
+   * Top-tier planning (A/B-verified via scripts/daifugo-ai-match.ts):
+   * hand-partition go-out planning, forbidden-finish (あがり禁止) avoidance,
+   * card counting from the public play log, and guaranteed-finish detection.
+   */
+  planning: boolean;
 }
 
 const TIER: Record<DaifugoDifficulty, TierConfig> = {
-  easy: { blunderRate: 0.55, passDiscipline: false, tactical: false, opponentAware: false },
-  medium: { blunderRate: 0.28, passDiscipline: false, tactical: false, opponentAware: false },
-  hard: { blunderRate: 0.12, passDiscipline: true, tactical: true, opponentAware: false },
-  expert: { blunderRate: 0.04, passDiscipline: true, tactical: true, opponentAware: true },
-  master: { blunderRate: 0, passDiscipline: true, tactical: true, opponentAware: true },
+  easy: { blunderRate: 0.55, passDiscipline: false, tactical: false, opponentAware: false, planning: false },
+  medium: { blunderRate: 0.28, passDiscipline: false, tactical: false, opponentAware: false, planning: false },
+  hard: { blunderRate: 0.12, passDiscipline: true, tactical: true, opponentAware: false, planning: false },
+  expert: { blunderRate: 0.04, passDiscipline: true, tactical: true, opponentAware: true, planning: true },
+  master: { blunderRate: 0, passDiscipline: true, tactical: true, opponentAware: true, planning: true },
 };
 
 // ---------------------------------------------------------------------------
@@ -297,6 +303,288 @@ function isFinishingMove(state: DaifugoNetworkState, playerId: string, move: Sco
 }
 
 // ---------------------------------------------------------------------------
+// Planning helpers (top tier — every addition here is A/B-gated via
+// scripts/daifugo-ai-match.ts before it ships)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand left after playing `move`, including the cards its automatic
+ * 7渡し (give) / 10捨て (discard) side effects would remove. Playing a 7 or 10
+ * can therefore empty the hand even when the played set is smaller than it.
+ */
+function remainingAfterPlay(state: DaifugoNetworkState, playerId: string, move: ScoredMove): Card[] {
+  const remaining = (state.hands[playerId] ?? []).filter(c => !move.cardIds.includes(c.id));
+  const { giveCardIds, discardCardIds } = auxiliaryIds(state, playerId, move);
+  if (!giveCardIds && !discardCardIds) return remaining;
+  const removed = new Set([...(giveCardIds ?? []), ...(discardCardIds ?? [])]);
+  return remaining.filter(c => !removed.has(c.id));
+}
+
+function partitionGroupsOnly(cards: Card[]): Card[][] {
+  const combos: Card[][] = [];
+  for (const card of cards) {
+    if (isJoker(card)) combos.push([card]);
+  }
+  for (const group of groupByRank(cards).values()) combos.push(group);
+  return combos;
+}
+
+function partitionWithStraights(cards: Card[]): Card[][] {
+  const combos: Card[][] = [];
+  const used = new Set<string>();
+
+  for (const suitCards of groupBySuit(cards).values()) {
+    const byRank = new Map<number, Card>();
+    for (const card of suitCards) byRank.set(card.rank, card);
+    const ranks = Array.from(byRank.keys()).sort((a, b) => a - b);
+
+    let runStart = 0;
+    for (let i = 1; i <= ranks.length; i++) {
+      if (i < ranks.length && ranks[i]! === ranks[i - 1]! + 1) continue;
+      const run = ranks.slice(runStart, i);
+      if (run.length >= 3) {
+        const combo = run.map(r => byRank.get(r)!);
+        combos.push(combo);
+        for (const card of combo) used.add(card.id);
+      }
+      runStart = i;
+    }
+  }
+
+  const rest = cards.filter(c => !used.has(c.id));
+  return [...combos, ...partitionGroupsOnly(rest)];
+}
+
+/**
+ * Greedy partition of a hand into legal combos (straights, same-rank groups,
+ * joker single). Its size approximates the minimum number of turns needed to
+ * empty the hand — a short go-out path is worth protecting. Two greedy
+ * variants (straights-first vs groups-only) are compared because a straight
+ * can steal a card from a pair and make the partition worse.
+ */
+export function partitionHand(hand: Card[]): Card[][] {
+  const withStraights = partitionWithStraights(hand);
+  const groupsOnly = partitionGroupsOnly(hand);
+  return withStraights.length <= groupsOnly.length ? withStraights : groupsOnly;
+}
+
+/** Approximate number of plays needed to empty this hand (0 for empty). */
+export function estimateTurnsToGo(hand: Card[]): number {
+  if (hand.length === 0) return 0;
+  return partitionHand(hand).length;
+}
+
+/**
+ * Count unseen copies of each rank (index 3..15, joker at JOKER_RANK) using
+ * only information this player legitimately has: their own hand plus the
+ * public play log. Cards moved by 7渡し or discarded by 10捨て are never
+ * logged as plays, so they simply stay "unseen" — the estimate errs on the
+ * side of assuming opponents still hold cards.
+ */
+export function countUnseenByRank(state: DaifugoNetworkState, playerId: string): number[] {
+  const unseen = new Array<number>(JOKER_RANK + 1).fill(0);
+  for (let r = 3; r <= TWO_RANK; r++) unseen[r] = 4;
+  unseen[JOKER_RANK] = 1;
+
+  for (const card of state.hands[playerId] ?? []) {
+    const r = isJoker(card) ? JOKER_RANK : card.rank;
+    if ((unseen[r] ?? 0) > 0) unseen[r]!--;
+  }
+
+  for (const entry of state.log) {
+    if (entry.type !== 'play') continue;
+    // Skip informational entries (revolution/eleven-back notes) which carry no
+    // play payload.
+    if (!entry.playKind || !entry.cardCount || typeof entry.rankKey !== 'number') continue;
+    if (entry.playKind === 'group') {
+      unseen[entry.rankKey] = Math.max(0, (unseen[entry.rankKey] ?? 0) - entry.cardCount);
+    } else {
+      for (let r = entry.rankKey - entry.cardCount + 1; r <= entry.rankKey; r++) {
+        unseen[r] = Math.max(0, (unseen[r] ?? 0) - 1);
+      }
+    }
+  }
+
+  return unseen;
+}
+
+/** Whether the 3♠ (the only card that beats a lone joker) might still be held by an opponent. */
+function isSpade3Unseen(state: DaifugoNetworkState, playerId: string): boolean {
+  for (const card of state.hands[playerId] ?? []) {
+    if (card.suit === 'S' && card.rank === 3) return false;
+  }
+  for (const entry of state.log) {
+    if (entry.type !== 'play' || !entry.playKind || !entry.cardCount) continue;
+    if (typeof entry.rankKey !== 'number' || !entry.signature) continue;
+    if (entry.playKind === 'group') {
+      if (entry.rankKey === 3 && entry.signature.includes('S')) return false;
+    } else {
+      const startRank = entry.rankKey - entry.cardCount + 1;
+      if (entry.signature.startsWith('S') && startRank <= 3) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * True when no combination of unseen cards can beat this play on the trick it
+ * starts or continues, i.e. making it wins the trick. Conservative: しばり /
+ * 激縛り restrictions (which only shrink opponents' options) and exact suit
+ * knowledge for straights are ignored, so this may under-claim but never
+ * over-claims... except for cards hidden by 10捨て, which stay counted as
+ * unseen and therefore also only make the check stricter.
+ */
+function isUnbeatablePlay(
+  state: DaifugoNetworkState,
+  move: ScoredMove,
+  unseen: number[],
+  spade3Unseen: boolean
+): boolean {
+  return isUnbeatableShape(move.shape, state.revolution, state.jackBack, unseen, spade3Unseen);
+}
+
+/**
+ * Core of isUnbeatablePlay, parameterized on the revolution / eleven-back
+ * state *before* the play so forced-out lines can be probed several plays
+ * ahead (the play's own toggles are applied here).
+ */
+function isUnbeatableShape(
+  shape: DaifugoPlayShape,
+  revolutionBefore: boolean,
+  jackBackBefore: boolean,
+  unseen: number[],
+  spade3Unseen: boolean
+): boolean {
+  // Ordering opponents face after our play (its own revolution toggle and
+  // eleven-back included).
+  const revolutionAfter = shape.count >= 4 ? !revolutionBefore : revolutionBefore;
+  const jackBackAfter = jackBackBefore || (shape.kind !== 'straight' && shape.containsJack);
+  const reversedAfter = revolutionAfter !== jackBackAfter;
+
+  if (shape.kind === 'group' && shape.isJokerSingle) {
+    return !spade3Unseen; // only 3♠ beats a lone joker
+  }
+
+  if (shape.kind === 'straight') {
+    // A beating straight needs `count` consecutive unseen ranks whose top rank
+    // beats ours. We track counts per rank (not suits): if every rank of some
+    // window is still unseen, a same-suit run could exist there.
+    for (let top = 3 + shape.count - 1; top <= TWO_RANK; top++) {
+      const beats = !reversedAfter ? top > shape.rankKey : top < shape.rankKey;
+      if (!beats) continue;
+      let possible = true;
+      for (let r = top - shape.count + 1; r <= top; r++) {
+        if ((unseen[r] ?? 0) < 1) { possible = false; break; }
+      }
+      if (possible) return false;
+    }
+    return true;
+  }
+
+  // Same-rank group at a natural rank.
+  if (shape.count === 1 && (unseen[JOKER_RANK] ?? 0) > 0) return false; // joker beats any single
+  if (!reversedAfter) {
+    for (let r = shape.rankKey + 1; r <= TWO_RANK; r++) {
+      if ((unseen[r] ?? 0) >= shape.count) return false;
+    }
+  } else {
+    for (let r = 3; r < shape.rankKey; r++) {
+      if ((unseen[r] ?? 0) >= shape.count) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * あがり禁止 check for playing the whole `hand` as the FINAL play when leading
+ * a fresh trick (table cleared, so eleven-back is off before the play; only
+ * the play's own toggles apply).
+ */
+function isForbiddenFinishHand(hand: Card[], shape: DaifugoPlayShape, revolutionBefore: boolean): boolean {
+  const revolutionFinal = shape.count >= 4 ? !revolutionBefore : revolutionBefore;
+  const jackBackFinal = shape.kind !== 'straight' && shape.containsJack;
+  const reversedFinal = revolutionFinal !== jackBackFinal;
+  if (hand.some(isJoker)) return true;
+  if (!reversedFinal && hand.some(c => !isJoker(c) && c.rank === TWO_RANK)) return true;
+  if (reversedFinal && hand.some(c => !isJoker(c) && c.rank === 3)) return true;
+  if (shape.containsEight) return true;
+  return false;
+}
+
+/**
+ * Can we provably go out leading `hand` within `stepsLeft` plays, where every
+ * non-final play must win its trick outright (8切り clears the table, an
+ * unbeatable combo forces everyone to pass) and the final play must be a
+ * legal, non-forbidden finish?
+ *
+ * Intermediate 7 (7渡し) and 10 (10捨て) groups are excluded from the search:
+ * their automatic give/discard side effects would change the remaining hand
+ * mid-line, so lines through them are not provable here.
+ */
+function canForceOutFromLead(
+  hand: Card[],
+  revolution: boolean,
+  unseen: number[],
+  spade3Unseen: boolean,
+  stepsLeft: number
+): boolean {
+  if (hand.length === 0) return true;
+  if (stepsLeft <= 0) return false;
+
+  const whole = getPlayShape(hand);
+  if (whole && !isForbiddenFinishHand(hand, whole, revolution)) return true;
+  if (stepsLeft <= 1) return false;
+
+  const byId = new Map(hand.map(c => [c.id, c]));
+  const raw = [...generateGroupCandidates(hand), ...generateStraightCandidates(hand)];
+  const dedup = new Set<string>();
+
+  for (const cardIds of raw) {
+    const key = [...cardIds].sort().join(',');
+    if (dedup.has(key)) continue;
+    dedup.add(key);
+    if (cardIds.length === hand.length) continue; // finishing handled above
+
+    const cards = cardIds.map(id => byId.get(id)).filter(Boolean) as Card[];
+    if (cards.length !== cardIds.length) continue;
+    const shape = getPlayShape(cards);
+    if (!shape) continue;
+    if (shape.kind === 'group' && (shape.rankKey === 7 || shape.containsTen)) continue;
+
+    const winsTrick = shape.containsEight
+      || isUnbeatableShape(shape, revolution, false, unseen, spade3Unseen);
+    if (!winsTrick) continue;
+
+    const revolutionAfter = shape.count >= 4 ? !revolution : revolution;
+    const idSet = new Set(cardIds);
+    const rest = hand.filter(c => !idSet.has(c.id));
+    if (canForceOutFromLead(rest, revolutionAfter, unseen, spade3Unseen, stepsLeft - 1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Mirrors gameLogic's isForbiddenFinish (あがり禁止札) for a play that would
+ * empty our hand: joker, 2 (normal order), 3 (reversed), or any 8 as the final
+ * play demotes us to last place. Accounts for the play's own revolution toggle
+ * and eleven-back effect, exactly like the engine's post-play check.
+ */
+function isForbiddenFinishPlay(state: DaifugoNetworkState, move: ScoredMove): boolean {
+  const revolutionAfter = move.shape.count >= 4 ? !state.revolution : state.revolution;
+  const jackBackAfter = state.jackBack || (move.shape.kind !== 'straight' && move.shape.containsJack);
+  const reversedAfter = revolutionAfter !== jackBackAfter;
+
+  if (move.cards.some(isJoker)) return true;
+  if (!reversedAfter && move.cards.some(c => !isJoker(c) && c.rank === TWO_RANK)) return true;
+  if (reversedAfter && move.cards.some(c => !isJoker(c) && c.rank === 3)) return true;
+  if (move.shape.containsEight) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Main decision
 // ---------------------------------------------------------------------------
 
@@ -332,17 +620,58 @@ export function decideDaifugoAction(
   }
 
   // 1) Always take a guaranteed finish if available.
-  const finisher = legalMoves.find(m => isFinishingMove(state, playerId, m));
-  if (finisher) {
-    const aux = auxiliaryIds(state, playerId, finisher);
-    return { type: 'play', cardIds: finisher.cardIds, ...aux };
+  if (tier.planning) {
+    // Planning tiers also see finishes through 7渡し/10捨て emptying the hand,
+    // and refuse あがり禁止 finishes (those demote the player to last place).
+    const finisher = legalMoves.find(m =>
+      remainingAfterPlay(state, playerId, m).length === 0 && !isForbiddenFinishPlay(state, m)
+    );
+    if (finisher) {
+      const aux = auxiliaryIds(state, playerId, finisher);
+      return { type: 'play', cardIds: finisher.cardIds, ...aux };
+    }
+  } else {
+    const finisher = legalMoves.find(m => isFinishingMove(state, playerId, m));
+    if (finisher) {
+      const aux = auxiliaryIds(state, playerId, finisher);
+      return { type: 'play', cardIds: finisher.cardIds, ...aux };
+    }
+  }
+
+  // 1.5) Guaranteed finish lines (planning tiers): play a trick-winning move
+  //      now — an 8切り clears the table immediately, an unbeatable play wins
+  //      the trick once everyone passes — and keep the lead until the hand
+  //      can be emptied with a legal, non-forbidden final play.
+  const unseen = tier.planning ? countUnseenByRank(state, playerId) : null;
+  const s3Unseen = tier.planning ? isSpade3Unseen(state, playerId) : true;
+  if (tier.planning && unseen) {
+    for (const m of legalMoves) {
+      const remaining = remainingAfterPlay(state, playerId, m);
+      if (remaining.length === 0) continue; // direct finishes handled above
+
+      const winsTrick = m.shape.containsEight || isUnbeatablePlay(state, m, unseen, s3Unseen);
+      if (!winsTrick) continue;
+
+      const revAfterM = m.shape.count >= 4 ? !state.revolution : state.revolution;
+      if (canForceOutFromLead(remaining, revAfterM, unseen, s3Unseen, 3)) {
+        const aux = auxiliaryIds(state, playerId, m);
+        return { type: 'play', cardIds: m.cardIds, ...aux };
+      }
+    }
   }
 
   // 2) Pass discipline: when following, sometimes it is better to pass and keep
   //    strong cards, letting the trick come back to us / to a weaker opponent.
   if (!leading && tier.passDiscipline) {
-    const cheapMoves = legalMoves.filter(m => m.score < 60); // not spending 2/joker
     const mustDefend = tier.opponentAware && oppMin <= 2; // opponent about to win
+    const cheapMoves = tier.planning
+      // Planning tiers: a response is only worth a card if it is cheap AND
+      // actually shortens the go-out path (does not just break up a combo).
+      ? legalMoves.filter(m =>
+        m.score < 60 &&
+        estimateTurnsToGo(remainingAfterPlay(state, playerId, m)) < estimateTurnsToGo(hand)
+      )
+      : legalMoves.filter(m => m.score < 60); // not spending 2/joker
     if (cheapMoves.length === 0 && !mustDefend) {
       // Every legal response would burn a premium card. Hold unless the pile is
       // trivial to beat with a low card.
@@ -357,6 +686,9 @@ export function decideDaifugoAction(
     oppMin,
     reversed,
     handSize: hand.length,
+    state,
+    playerId,
+    handTurns: tier.planning ? estimateTurnsToGo(hand) : 0,
   });
 
   // 4) Blunder / noise: weaker tiers occasionally pick a non-optimal legal move.
@@ -376,11 +708,39 @@ interface RankContext {
   oppMin: number;
   reversed: boolean;
   handSize: number;
+  state: DaifugoNetworkState;
+  playerId: string;
+  /** estimateTurnsToGo(hand) for planning tiers, 0 otherwise. */
+  handTurns: number;
 }
 
 function rankMoves(moves: ScoredMove[], ctx: RankContext): ScoredMove[] {
   const scored = moves.map((m) => {
     let priority = m.score; // lower = play first
+
+    // Planning tiers: never *choose* a forbidden finish (あがり禁止) if any
+    // alternative exists — finishing with joker/2/8 means finishing last.
+    // Also prefer plays that keep the remaining hand's go-out path short
+    // (avoid breaking pairs/triples/straights needlessly).
+    const remainingPlanning = ctx.tier.planning
+      ? remainingAfterPlay(ctx.state, ctx.playerId, m)
+      : null;
+    if (remainingPlanning) {
+      if (remainingPlanning.length === 0 && isForbiddenFinishPlay(ctx.state, m)) {
+        priority += 500;
+      }
+      priority += estimateTurnsToGo(remainingPlanning) * 5;
+
+      // Endgame lead with exactly two combos left and no proven finish line:
+      // lead the STRONG combo first (it often wins the trick outright), keeping
+      // the weak combo as the final play — leading weak instead usually means
+      // never regaining the lead. `priority` starts at +m.score, so subtracting
+      // 2*score nets out to -score, genuinely inverting the ordering to
+      // strong-first (subtracting score once would only cancel the base term).
+      if (ctx.leading && ctx.handTurns === 2) {
+        priority -= 2 * m.score;
+      }
+    }
 
     // 8-cut / revolution tactics (higher tiers only).
     if (ctx.tier.tactical) {

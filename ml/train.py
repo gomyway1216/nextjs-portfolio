@@ -201,6 +201,32 @@ def cp_sigmoid_target(cp, k_sigmoid: float) -> float:
     return exp_scaled / (1.0 + exp_scaled)
 
 
+def game_outcome_target(value, context: str = "outcome") -> float:
+    """Validate one decisive/drawn game result in the row's side-to-move view."""
+    if type(value) not in (int, float):
+        raise ValueError(f"{context} must be a finite number in {{0, 0.5, 1}}")
+    outcome = float(value)
+    if not math.isfinite(outcome) or outcome not in (0.0, 0.5, 1.0):
+        raise ValueError(f"{context} must be a finite number in {{0, 0.5, 1}}")
+    return outcome
+
+
+def mixed_sigmoid_target(
+    teacher_target: float,
+    outcome: float,
+    wdl_mix: float,
+) -> float:
+    """Mix teacher evaluation and played-game result in probability space."""
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("wdl_mix must be finite and in [0, 1]")
+    if wdl_mix == 0.0:
+        return teacher_target
+    validated_outcome = game_outcome_target(outcome)
+    return (1.0 - wdl_mix) * teacher_target + wdl_mix * validated_outcome
+
+
 def kp_bucket(s: int, d: int) -> int:
     """手番側視点の自玉位置 (suji s, dan d) → バケット 0..5。
 
@@ -638,6 +664,7 @@ def _load_dataset(
     exclude_position_ids=None,
     strict: bool = False,
     capture_source_fingerprint: bool = False,
+    wdl_mix: float = 0.0,
 ):
     """JSONL → (board_idx (N,40) int64 padded, hands (N,14) float32, y (N,) float32,
                 cp (N,) float32, bucket (N,) int64)
@@ -652,6 +679,10 @@ def _load_dataset(
     pad_idx = bucket_count * BOARD_FEATS if bucketed else PAD_IDX
     if not math.isfinite(k_sigmoid) or k_sigmoid <= 0:
         raise ValueError("k_sigmoid must be finite and positive")
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("wdl_mix must be finite and in [0, 1]")
     if type(cp_clamp) is not int or cp_clamp <= 0:
         raise ValueError("cp_clamp must be a positive integer")
     if uniform_sample_limit < 0:
@@ -784,7 +815,19 @@ def _load_dataset(
                     bucket = feature_bucket(features, king_sq)
                     idx = [bucket * BOARD_FEATS + feature for feature in idx]
             cp = max(-cp_clamp, min(cp_clamp, raw_cp))
-            y = cp_sigmoid_target(cp, k_sigmoid)
+            teacher_target = cp_sigmoid_target(cp, k_sigmoid)
+            if wdl_mix > 0.0:
+                try:
+                    outcome = game_outcome_target(
+                        rec["outcome"], f"line {physical_line}: outcome"
+                    )
+                except KeyError as error:
+                    raise ValueError(
+                        f"line {physical_line}: outcome is required when wdl_mix > 0"
+                    ) from error
+                y = mixed_sigmoid_target(teacher_target, outcome, wdl_mix)
+            else:
+                y = teacher_target
             if dual_perspective:
                 idx = [
                     view[:MAX_PIECES]
@@ -897,9 +940,25 @@ def _load_dataset(
     return board, hands, y, cp_t, bucket_t, metadata, source_fingerprint
 
 
-def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0, features: str = "board"):
+def load_dataset(
+    path: str,
+    k_sigmoid: float,
+    cp_clamp: int,
+    limit: int = 0,
+    features: str = "board",
+    *,
+    wdl_mix: float = 0.0,
+):
     """Backward-compatible five-tensor loader used by export/evaluation tools."""
-    return _load_dataset(path, k_sigmoid, cp_clamp, limit, features, include_metadata=False)[:5]
+    return _load_dataset(
+        path,
+        k_sigmoid,
+        cp_clamp,
+        limit,
+        features,
+        include_metadata=False,
+        wdl_mix=wdl_mix,
+    )[:5]
 
 
 def load_dataset_with_metadata(
@@ -911,6 +970,7 @@ def load_dataset_with_metadata(
     *,
     strict: bool = False,
     include_fingerprint: bool = False,
+    wdl_mix: float = 0.0,
 ):
     """Load tensors plus provenance needed for leak-free sibling training."""
     loaded = _load_dataset(
@@ -922,6 +982,7 @@ def load_dataset_with_metadata(
         include_metadata=True,
         strict=strict,
         capture_source_fingerprint=True,
+        wdl_mix=wdl_mix,
     )
     return loaded if include_fingerprint else loaded[:6]
 
@@ -1924,6 +1985,13 @@ def validate_training_hyperparameters(args) -> None:
         raise ValueError("--val-ratio must be finite and between 0 and 1")
     if args.limit < 0:
         raise ValueError("--limit must be non-negative")
+    wdl_mix = getattr(args, "wdl_mix", 0.0)
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("--wdl-mix must be finite and in [0, 1]")
+    if wdl_mix > 0.0 and args.loss != "sigmoid":
+        raise ValueError("--wdl-mix is only supported with --loss sigmoid")
     if not math.isfinite(args.replay_ratio) or args.replay_ratio < 0:
         raise ValueError("--replay-ratio must be finite and non-negative")
     if args.replay_limit < 0:
@@ -2010,6 +2078,7 @@ def validate_int16_aware_training_contract(args) -> None:
         "limit": (args.limit, 0),
         "select_metric": (args.select_metric, "auto"),
         "allow_legacy_init": (args.allow_legacy_init, True),
+        "wdl_mix": (getattr(args, "wdl_mix", 0.0), 0.0),
     }
     problems = []
     for field, (actual, expected) in exact_values.items():
@@ -2924,6 +2993,15 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--k", type=float, default=600.0, help="sigmoid スケール K")
     ap.add_argument("--cp-clamp", type=int, default=3000)
+    ap.add_argument(
+        "--wdl-mix",
+        type=float,
+        default=0.0,
+        help=(
+            "ordinary sigmoid training only: mix teacher sigmoid targets with "
+            "the row's side-to-move outcome (0=loss, 0.5=draw, 1=win)"
+        ),
+    )
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
@@ -3190,10 +3268,16 @@ def main():
             args.features,
             strict=args.loss == "sibling-ranking",
             include_fingerprint=True,
+            wdl_mix=args.wdl_mix,
         )
     else:
         board, hands, y, cp, bucket = load_dataset(
-            args.data, args.k, args.cp_clamp, args.limit, args.features
+            args.data,
+            args.k,
+            args.cp_clamp,
+            args.limit,
+            args.features,
+            wdl_mix=args.wdl_mix,
         )
         metadata = []
         train_source_fingerprint = None
@@ -3213,6 +3297,7 @@ def main():
             args.features,
             strict=args.loss == "sibling-ranking",
             include_fingerprint=True,
+            wdl_mix=args.wdl_mix,
         )
         if vy.shape[0] < 1:
             raise SystemExit("[train] error: validation dataset has no usable positions")

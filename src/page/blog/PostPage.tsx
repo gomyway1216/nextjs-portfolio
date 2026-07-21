@@ -11,7 +11,7 @@ import * as postApi from '@/services/postsService';
 import { ArrowLeft, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import BlogPostSkeleton from './BlogPostSkeleton';
 import styles from './blog-post.module.css';
@@ -91,29 +91,51 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   // translation exists). Listening to the change event (not the current
   // value) matters: someone landing on either URL from search with the
   // "other" cookie must NOT be bounced off the page they chose.
-  useEffect(() => {
-    const handleLanguageChanged = (lng: string) => {
-      if (!post) return;
-      const language = normalizeLanguage(lng);
-      const barePath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const syncUrlToLanguage = useCallback(
+    (language: PostLanguage, target: DetailPost) => {
+      const barePath = `/blog/${encodeURIComponent(target.category)}/${encodeURIComponent(target.id)}`;
 
       if (forcedLanguage === 'ja') {
-        if (language === 'en' && post.availableLanguages.includes('en')) {
+        if (language === 'en' && target.availableLanguages.includes('en')) {
           router.push(barePath);
         }
         return;
       }
 
-      if (language === 'ja' && post.availableLanguages.includes('ja')) {
+      if (language === 'ja' && target.availableLanguages.includes('ja')) {
         router.push(`/ja${barePath}`);
       }
+    },
+    [forcedLanguage, router],
+  );
+
+  // A toggle can fire before the client fetch delivers the post (private
+  // posts, or a failed server fetch). Remember the gesture and honor it
+  // once the post arrives instead of silently dropping it.
+  const pendingToggle = useRef<PostLanguage | null>(null);
+
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      const language = normalizeLanguage(lng);
+      if (!post) {
+        pendingToggle.current = language;
+        return;
+      }
+      syncUrlToLanguage(language, post);
     };
 
     i18n.on('languageChanged', handleLanguageChanged);
     return () => {
       i18n.off('languageChanged', handleLanguageChanged);
     };
-  }, [forcedLanguage, i18n, post, router]);
+  }, [i18n, post, syncUrlToLanguage]);
+
+  useEffect(() => {
+    if (!post || pendingToggle.current === null) return;
+    const language = pendingToggle.current;
+    pendingToggle.current = null;
+    syncUrlToLanguage(language, post);
+  }, [post, syncUrlToLanguage]);
 
   const view = useMemo(() => {
     if (!post) return null;

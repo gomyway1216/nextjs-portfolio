@@ -80,13 +80,11 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
 
     query = query.limit(limitNumber);
 
-    const snapshot = await query.get();
+    const [snapshot, slugById] = await Promise.all([query.get(), getSlugMapSafe()]);
 
     if (snapshot.empty) {
       return NextResponse.json({ posts: [], lastVisibleTimestamp: null });
     }
-
-    const slugById = await getSlugMapSafe();
 
     const posts = snapshot.docs.flatMap((doc) => {
       const data = doc.data();

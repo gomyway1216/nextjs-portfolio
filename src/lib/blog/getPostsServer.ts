@@ -49,12 +49,10 @@ async function fetchPostsPage(
 
   query = query.orderBy('lastUpdated', 'desc').limit(limit);
 
-  const snapshot = await query.get();
+  const [snapshot, slugById] = await Promise.all([query.get(), getSlugMapSafe()]);
   if (snapshot.empty) {
     return { posts: [], lastVisibleTimestamp: null, hasMore: false };
   }
-
-  const slugById = await getSlugMapSafe();
 
   const posts: ServerPost[] = snapshot.docs.flatMap((doc): ServerPost[] => {
     const data = doc.data();

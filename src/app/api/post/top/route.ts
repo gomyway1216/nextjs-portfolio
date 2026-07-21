@@ -32,13 +32,14 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     const language = normalizeLanguage(request.nextUrl.searchParams.get('language'));
     const db = getFirestore();
 
-    const snapshot = await db.collection(POSTS_COLLECTION)
-      .where('isPublic', '==', true)
-      .orderBy('lastUpdated', 'desc')
-      .limit(8) // small over-fetch in case some docs lack any translation
-      .get();
-
-    const slugById = await getSlugMapSafe();
+    const [snapshot, slugById] = await Promise.all([
+      db.collection(POSTS_COLLECTION)
+        .where('isPublic', '==', true)
+        .orderBy('lastUpdated', 'desc')
+        .limit(8) // small over-fetch in case some docs lack any translation
+        .get(),
+      getSlugMapSafe(),
+    ]);
 
     const posts = snapshot.docs.flatMap((doc) => {
       const data = doc.data();

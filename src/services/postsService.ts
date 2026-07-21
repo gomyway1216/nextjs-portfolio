@@ -31,8 +31,10 @@ async function throwApiError(response: Response): Promise<never> {
 // server. The full translations map is not included to keep responses small.
 export interface ListingPost {
   id: string;
-  // Canonical URL slug; equals the id for posts without an English title.
-  // Optional because cached/older API responses may predate the field.
+  // Canonical URL slug. Falls back to the id when no English title exists,
+  // when the title-derived slug collides with another public post, or when
+  // the server-side slug index was unavailable. Optional because
+  // cached/older API responses may predate the field.
   slug?: string;
   title: string;
   body: string;

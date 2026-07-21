@@ -34,11 +34,10 @@ export const GET = withActivityLog('next_api.post.related.GET', async (request: 
     }
 
     const db = getFirestore();
-    const docs = await db.getAll(
-      ...ids.map((id) => db.collection(POSTS_COLLECTION).doc(id))
-    );
-
-    const slugById = await getSlugMapSafe();
+    const [docs, slugById] = await Promise.all([
+      db.getAll(...ids.map((id) => db.collection(POSTS_COLLECTION).doc(id))),
+      getSlugMapSafe(),
+    ]);
 
     const posts = docs.flatMap((doc) => {
       if (!doc.exists) return [];

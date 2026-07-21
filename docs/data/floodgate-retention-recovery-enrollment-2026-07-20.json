@@ -1,0 +1,88 @@
+{
+  "schema": "shogi-floodgate-retention-recovery-enrollment-evidence-v1",
+  "recorded_date": "2026-07-20",
+  "status": "operator-recovered-data-availability-only",
+  "classification": "operator-recovered",
+  "registry": {
+    "path": "ml/protocols/floodgate-q1-2026-retention-recovery-enrollment-registry.json",
+    "schema": "shogi-floodgate-retention-recovery-enrollment-registry-v1",
+    "bytes": 3910,
+    "sha256": "bc0ca4d2bfa65967f75e8c3bebcbbf920e453478602f9aea81297d814fe9a152",
+    "builder_command": "python3 ml/build_retention_recovery_enrollment_registry_candidate.py",
+    "builder_matches_checked_in_bytes": true
+  },
+  "artifacts": [
+    {
+      "role": "general_retention_intended_role",
+      "path": "$HOME/.codex/shogi-data/floodgate-q1-2026-retention-recovered-v1/holdout5m-4k.jsonl",
+      "bytes": 542594,
+      "rows": 4000,
+      "sha256": "3d25f6bf113710c8ea326c132d2fc2cc9f76f572dddbd09c1d397b78cb07d00e",
+      "mode": "0600",
+      "line_count_method": "raw-newline-count-only-no-json-or-label-field-parse"
+    },
+    {
+      "role": "opening_retention_intended_role",
+      "path": "$HOME/.codex/shogi-data/floodgate-q1-2026-retention-recovered-v1/opening-holdout-4k.jsonl",
+      "bytes": 538870,
+      "rows": 4000,
+      "sha256": "1f8d91f286eec160eb1141ba5adfd36b842af12ceec37aa4f959038a60969ce6",
+      "mode": "0600",
+      "line_count_method": "raw-newline-count-only-no-json-or-label-field-parse"
+    }
+  ],
+  "source_provenance_observations": {
+    "authenticated_by_builder": false,
+    "private_absolute_paths_and_inode_values_published": false,
+    "general_retention": {
+      "source_copies_observed": 2,
+      "same_bytes_rows_sha256_observed": true,
+      "distinct_file_identity_observed": true,
+      "independent_duplicate_evidence": true,
+      "working_tree_head_observed": "29072482b02802092ad59de2e89850b9a133eb85"
+    },
+    "opening_retention": {
+      "source_copies_observed": 1,
+      "same_bytes_rows_sha256_observed": false,
+      "distinct_file_identity_observed": false,
+      "independent_duplicate_evidence": false,
+      "branch_observed": "shogi/nnue-opening-refresh",
+      "working_tree_head_observed": "18ab9f385de084480656de0f4ed40aa36e9a100f"
+    }
+  },
+  "historical_evidence": {
+    "original_manifest_available": false,
+    "original_receipt_available": false,
+    "preregistered_hash_available": false,
+    "artifact_stored_as_git_object": false,
+    "historical_manifest_authenticated": false,
+    "historical_role_assignment_authenticated": false
+  },
+  "boundary": {
+    "local_only": true,
+    "network_requests": 0,
+    "artifact_bytes_read_for_identity": true,
+    "json_rows_parsed": 0,
+    "label_fields_accessed": 0,
+    "label_contents_displayed": false,
+    "downstream_gate_connected": false,
+    "candidate_selected": false,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weights_changed": false
+  },
+  "claims": {
+    "durable_file_identity_enrolled": true,
+    "data_availability_blocker_removed": true,
+    "row_semantics_validated": false,
+    "freshness_authenticated": false,
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false
+  },
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-retention-recovery-enrollment.md",
+    "english": "../blog-shogi-floodgate-retention-recovery-enrollment.en.md"
+  },
+  "next_step": "separate-reviewed-downstream-retention-gate-connection"
+}

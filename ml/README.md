@@ -961,6 +961,24 @@ TypeScript compile、diff checkはPASSした。これはv2 policyの
 [English article](../docs/blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)を参照。
 
+#### 旧retentionデータのoperator recovery enrollment（2026-07-20）
+
+旧general / opening retention用の2ファイルをGit worktree外のowner-only durable rootへ回収し、
+固定path・bytes・raw改行数・SHA-256・modeをpublic registryへ登録した。argumentless builderは
+symlinkを拒否し、file identityを読み取り前後で確認しながらhashと改行数だけを再計算する。
+JSON decode、label field access、内容表示は行わず、実durable filesからchecked-in registryを
+byte-for-byte再生成できる。
+
+generalは異なるfile identityの2 source copyがbytes / rows / SHA-256一致、openingは1 source
+copyのみというoperator観測を、private absolute pathとinodeを伏せて記録した。source観測は
+builder認証ではなく、元manifest / receipt / preregistered hash / Git objectも存在しない。
+したがって分類は`operator-recovered`で、row semantics、historical role、freshness、棋力向上、
+高段校正、formal A/B、live変更を認証しない。データavailability blockerだけを解消し、
+downstream gate接続は別のreview済み変更までfalseのままである。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-retention-recovery-enrollment.md) /
+[English article](../docs/blog-shogi-floodgate-retention-recovery-enrollment.en.md) /
+[machine evidence](../docs/data/floodgate-retention-recovery-enrollment-2026-07-20.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

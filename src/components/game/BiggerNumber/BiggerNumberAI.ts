@@ -20,6 +20,13 @@
  *            zero-sum matrix game for its Nash equilibrium mixed strategy, and
  *            samples from it. This is unexploitable in the limit and mixes its
  *            Dragon / high tiles unpredictably.
+ *   master — hard's equilibrium play plus safe opponent exploitation. It keeps
+ *            an empirical model of which slice of their remaining hand the
+ *            opponent tends to play (low / middle / high tiles, conditioned on
+ *            the score situation), best-responds to that estimated policy, and
+ *            blends the best response with the equilibrium mix. Trust in the
+ *            model grows with sample size and is capped, so its worst-case
+ *            exploitability stays bounded while it punishes predictable humans.
  */
 
 import type {
@@ -50,6 +57,9 @@ export interface MatchContext {
  * `rng` is injectable for deterministic testing; defaults to Math.random.
  * `context` refines the hard AI's lookahead; when omitted it optimises purely
  * for round win-rate (a sensible, still-strong default).
+ * `model` (master only) is the persistent opponent model — create it with
+ * `createOpponentModel()` and feed it via `observeOpponentPlay()` after each
+ * reveal. Without a model, master plays exactly like hard.
  */
 export function pickAICard(
   difficulty: AIDifficulty,
@@ -58,6 +68,7 @@ export function pickAICard(
   opponentHand: CardValue[],
   context?: MatchContext,
   rng: () => number = Math.random,
+  model?: OpponentModelState,
 ): AIDecision {
   if (myHand.length === 0) {
     throw new Error('AI has no cards to play');
@@ -69,6 +80,8 @@ export function pickAICard(
       return { card: pickByExpectedValue(rules, myHand, opponentHand) };
     case 'hard':
       return { card: pickNash(rules, myHand, opponentHand, context, rng) };
+    case 'master':
+      return { card: pickMaster(rules, myHand, opponentHand, context, rng, model) };
   }
 }
 
@@ -144,33 +157,93 @@ const EXACT_LOOKAHEAD_MAX_CARDS = 5;
 
 /** Solver precision: high for the strategy we actually sample, cheap for the
  *  many interior value-only nodes visited during recursion. */
-const TOP_LEVEL_ITERATIONS = 2000;
+const TOP_LEVEL_ITERATIONS = 10000;
 const INTERIOR_ITERATIONS = 300;
 
-function pickNash(
+/** Tuning knobs, exported so the offline A/B harness can compare variants.
+ *  Production callers never pass this — the defaults ARE the shipped AI. */
+export interface HardOptions {
+  /** Recursion depth for hands too large for exact lookahead (0 = myopic). */
+  heuristicDepth: number;
+  /** Leaf eval: weight on the wins-needed differential. */
+  leafScoreWeight: number;
+  /** Leaf eval: weight on remaining-hand edge × remaining rounds. */
+  leafEdgeWeight: number;
+  topIterations: number;
+  interiorIterations: number;
+  exactMaxCards: number;
+}
+
+export const DEFAULT_HARD_OPTIONS: HardOptions = {
+  // A/B-tuned via scripts/bigger-number-ai-match.ts (see PR experiment table):
+  // depth-1 recursion with this leaf weighting crushes the old myopic matrix
+  // head-to-head, restores the easy < medium < hard ladder, and no opponent
+  // in the human-model panel exploits it beyond statistical noise (maximin
+  // choice across the panel + medium).
+  heuristicDepth: 1,
+  leafScoreWeight: 0.6,
+  leafEdgeWeight: 1.0,
+  topIterations: TOP_LEVEL_ITERATIONS,
+  interiorIterations: INTERIOR_ITERATIONS,
+  exactMaxCards: EXACT_LOOKAHEAD_MAX_CARDS,
+};
+
+/**
+ * Persistent memo for exact sub-game values, keyed by the rule/solver variant.
+ * Values depend only on (hands, score context, rules, interior iterations), so
+ * they are safe to reuse across decisions and matches; this makes every exact
+ * lookahead after the first nearly free.
+ */
+const memoCache = new Map<string, Map<string, number>>();
+const MEMO_CACHE_MAX_STATES = 300000;
+
+function memoFor(rules: BiggerNumberRules, opts: HardOptions): Map<string, number> {
+  const key = `${rules.dragonRule}|${rules.tieRule}|${rules.winsToWin}|${rules.totalRounds}|${opts.interiorIterations}`;
+  let memo = memoCache.get(key);
+  if (!memo) {
+    memo = new Map();
+    memoCache.set(key, memo);
+  } else if (memo.size > MEMO_CACHE_MAX_STATES) {
+    memo.clear();
+  }
+  return memo;
+}
+
+/**
+ * The hard/master core: build the payoff matrix for the current state (exact
+ * lookahead when the hands are small enough, heuristic otherwise) and solve it
+ * for the equilibrium mixed strategy over `myHand`.
+ */
+export function computeHardStrategy(
   rules: BiggerNumberRules,
   myHand: CardValue[],
   opponentHand: CardValue[],
   context: MatchContext | undefined,
-  rng: () => number,
-): CardValue {
-  if (opponentHand.length === 0) return lowestByRank(myHand);
+  opts: HardOptions = DEFAULT_HARD_OPTIONS,
+): { matrix: number[][]; strategy: number[] } {
+  const depth = context != null ? depthFor(myHand, opponentHand, opts) : 0;
 
-  const useExact =
-    context != null &&
-    myHand.length <= EXACT_LOOKAHEAD_MAX_CARDS &&
-    opponentHand.length <= EXACT_LOOKAHEAD_MAX_CARDS;
+  const matrix =
+    depth > 0
+      ? buildLookaheadMatrix(
+          rules, myHand, opponentHand, context!, memoFor(rules, opts), opts, depth,
+        )
+      : buildOneRoundMatrix(rules, myHand, opponentHand);
 
-  const matrix = useExact
-    ? buildLookaheadMatrix(rules, myHand, opponentHand, context!, new Map())
-    : buildOneRoundMatrix(rules, myHand, opponentHand);
-
-  const { strategy } = solveZeroSumGame(matrix, TOP_LEVEL_ITERATIONS);
-  const idx = sampleFromDistribution(strategy, rng);
-  return myHand[idx];
+  const { strategy } = solveZeroSumGame(matrix, opts.topIterations);
+  return { matrix, strategy };
 }
 
-/** One-ply payoff matrix: cell = immediate round result (+1/0/-1). */
+/** Exact (unbounded) recursion inside the small-hand region, else the
+ *  configured depth-limited recursion with heuristic leaves. */
+function depthFor(myHand: CardValue[], oppHand: CardValue[], opts: HardOptions): number {
+  return myHand.length <= opts.exactMaxCards && oppHand.length <= opts.exactMaxCards
+    ? Number.POSITIVE_INFINITY
+    : opts.heuristicDepth;
+}
+
+/** One-ply payoff matrix: cell = immediate round result (+1/0/-1). Fallback
+ *  when no match context is available (or heuristicDepth is 0). */
 function buildOneRoundMatrix(
   rules: BiggerNumberRules,
   myHand: CardValue[],
@@ -180,9 +253,51 @@ function buildOneRoundMatrix(
 }
 
 /**
+ * Heuristic value of a leaf state, in the same units as exact sub-game values
+ * (expected final match result in [-1, 1] from the AI's perspective):
+ *
+ *   tanh( leafScoreWeight · (wins-needed differential)
+ *       + leafEdgeWeight  · (avg pairwise edge of the remaining hands) · rounds left )
+ *
+ * The first term captures the scoreboard; the second captures material — how
+ * the remaining tiles match up over the rounds still to be played.
+ */
+function leafValue(
+  rules: BiggerNumberRules,
+  myHand: CardValue[],
+  oppHand: CardValue[],
+  ctx: MatchContext,
+  opts: HardOptions,
+): number {
+  let sum = 0;
+  for (const a of myHand) for (const b of oppHand) sum += cellValue(rules, a, b);
+  const edge = sum / (myHand.length * oppHand.length);
+  const rounds = Math.min(ctx.roundsLeft, myHand.length, oppHand.length);
+  const needDiff = ctx.oppWinsNeeded - ctx.myWinsNeeded;
+  return Math.tanh(
+    opts.leafScoreWeight * needDiff + opts.leafEdgeWeight * edge * rounds,
+  );
+}
+
+function pickNash(
+  rules: BiggerNumberRules,
+  myHand: CardValue[],
+  opponentHand: CardValue[],
+  context: MatchContext | undefined,
+  rng: () => number,
+): CardValue {
+  if (opponentHand.length === 0) return lowestByRank(myHand);
+  const { strategy } = computeHardStrategy(rules, myHand, opponentHand, context);
+  const idx = sampleFromDistribution(strategy, rng);
+  return myHand[idx];
+}
+
+/**
  * Look-ahead payoff matrix: cell = game-theoretic value of the sub-game that
  * follows both sides committing these tiles, in units of expected final match
  * result (+1 AI wins match / -1 AI loses / 0 draw), from the AI's perspective.
+ * `depth` is the remaining recursion budget; inside the exact region it is
+ * infinite, otherwise sub-games are cut off at heuristic leaf evaluations.
  */
 function buildLookaheadMatrix(
   rules: BiggerNumberRules,
@@ -190,9 +305,13 @@ function buildLookaheadMatrix(
   oppHand: CardValue[],
   ctx: MatchContext,
   memo: Map<string, number>,
+  opts: HardOptions,
+  depth: number,
 ): number[][] {
   return myHand.map((mine) =>
-    oppHand.map((opp) => subgameValue(rules, myHand, oppHand, mine, opp, ctx, memo)),
+    oppHand.map((opp) =>
+      subgameValue(rules, myHand, oppHand, mine, opp, ctx, memo, opts, depth),
+    ),
   );
 }
 
@@ -205,6 +324,8 @@ function subgameValue(
   opp: CardValue,
   ctx: MatchContext,
   memo: Map<string, number>,
+  opts: HardOptions,
+  depth: number,
 ): number {
   const result = resolveRound(rules, mine, opp);
   const returned = result.cardsReturnedToHand;
@@ -235,7 +356,14 @@ function subgameValue(
   }
 
   const nextCtx: MatchContext = { myWinsNeeded, oppWinsNeeded, roundsLeft };
-  return solvedValue(rules, nextMyHand, nextOppHand, nextCtx, memo);
+
+  // Entering the exact region makes the budget unbounded; otherwise one ply
+  // of budget is spent (replayed ties keep the same state and budget).
+  const inExactRegion =
+    nextMyHand.length <= opts.exactMaxCards && nextOppHand.length <= opts.exactMaxCards;
+  const nextDepth = inExactRegion ? Number.POSITIVE_INFINITY : returned ? depth : depth - 1;
+  if (nextDepth <= 0) return leafValue(rules, nextMyHand, nextOppHand, nextCtx, opts);
+  return solvedValue(rules, nextMyHand, nextOppHand, nextCtx, memo, opts, nextDepth);
 }
 
 /** Nash value of a state, memoised. */
@@ -245,8 +373,11 @@ function solvedValue(
   oppHand: CardValue[],
   ctx: MatchContext,
   memo: Map<string, number>,
+  opts: HardOptions,
+  depth: number,
 ): number {
-  const key = stateKey(myHand, oppHand, ctx);
+  const key =
+    stateKey(myHand, oppHand, ctx) + (Number.isFinite(depth) ? `#d${depth}` : '');
   const cached = memo.get(key);
   if (cached !== undefined) return cached;
 
@@ -260,9 +391,9 @@ function solvedValue(
   memo.set(key, heuristic);
 
   const matrix = myHand.map((mine) =>
-    oppHand.map((opp) => subgameValue(rules, myHand, oppHand, mine, opp, ctx, memo)),
+    oppHand.map((opp) => subgameValue(rules, myHand, oppHand, mine, opp, ctx, memo, opts, depth)),
   );
-  const { value } = solveZeroSumGame(matrix, INTERIOR_ITERATIONS);
+  const { value } = solveZeroSumGame(matrix, opts.interiorIterations);
   memo.set(key, value);
   return value;
 }
@@ -344,6 +475,188 @@ export function solveZeroSumGame(matrix: number[][], iterations = 2000): GameSol
   }
 
   return { value, strategy };
+}
+
+// ---------------------------------------------------------------------------
+// Master: equilibrium play + safe exploitation of a modelled opponent.
+//
+// Every tile is played at most once per match, so the predictive signal is not
+// "which tile will they play" but "which SLICE of their remaining hand do they
+// reach for" — lowest, middle, or highest tiles. We track a small histogram of
+// that choice (bucketed relative rank, conditioned on whether the opponent is
+// behind / tied / ahead), project it onto their current hand to get a predicted
+// play distribution, and best-respond to it. The best response is blended with
+// the equilibrium mix with a weight that grows with sample size and is capped,
+// which bounds worst-case exploitability: a blend (1-w)·nash + w·br can lose at
+// most w · (payoff range) to a perfect counter-strategy, and w ≤ MASTER_MAX_TRUST.
+// ---------------------------------------------------------------------------
+
+/** Relative-rank buckets: 0 = lowest slice of hand … 4 = highest slice. */
+export const OPPONENT_MODEL_BUCKETS = 5;
+
+/** Score situations from the opponent's perspective: behind / tied / ahead. */
+const SITUATIONS = 3;
+
+/** Cap on how much probability mass the best response may take. */
+const MASTER_MAX_TRUST = 0.7;
+/** Observations at which trust reaches half its cap. */
+const MASTER_TRUST_HALF = 4;
+/** Weight given to observations from other score situations. */
+const CROSS_SITUATION_WEIGHT = 0.5;
+/** Laplace smoothing per bucket. */
+const MODEL_SMOOTHING = 0.5;
+
+export interface OpponentModelState {
+  /** counts[situation][bucket] — how often the opponent played that slice. */
+  counts: number[][];
+  /** Total observations across all situations. */
+  total: number;
+}
+
+export function createOpponentModel(): OpponentModelState {
+  return {
+    counts: Array.from({ length: SITUATIONS }, () =>
+      new Array<number>(OPPONENT_MODEL_BUCKETS).fill(0),
+    ),
+    total: 0,
+  };
+}
+
+/** Strength ordering used to rank tiles inside a hand for the model. */
+function modelStrength(card: CardValue, rules: BiggerNumberRules): number {
+  if (isDragon(card)) return rules.dragonRule === 'beats-all' ? 10 : 9.5;
+  return card;
+}
+
+/** Which relative-rank bucket does `card` occupy within `hand`? */
+export function bucketOfCard(
+  rules: BiggerNumberRules,
+  hand: CardValue[],
+  card: CardValue,
+): number {
+  if (hand.length <= 1) return Math.floor(OPPONENT_MODEL_BUCKETS / 2);
+  const sorted = [...hand].sort(
+    (a, b) => modelStrength(a, rules) - modelStrength(b, rules),
+  );
+  const idx = sorted.findIndex((c) => c === card);
+  const pos = (idx < 0 ? 0 : idx) / (hand.length - 1);
+  return Math.min(OPPONENT_MODEL_BUCKETS - 1, Math.floor(pos * OPPONENT_MODEL_BUCKETS));
+}
+
+function situationIndex(oppWins: number, myWins: number): number {
+  if (oppWins < myWins) return 0; // opponent behind
+  if (oppWins === myWins) return 1; // tied
+  return 2; // opponent ahead
+}
+
+/**
+ * Record one opponent reveal. `handBeforePlay` is the opponent's hand at the
+ * moment they chose (i.e. including the played card); `score` is the score at
+ * decision time, from the observer's ("my") perspective.
+ */
+export function observeOpponentPlay(
+  model: OpponentModelState,
+  rules: BiggerNumberRules,
+  handBeforePlay: CardValue[],
+  played: CardValue,
+  score: { oppWins: number; myWins: number },
+): void {
+  const sit = situationIndex(score.oppWins, score.myWins);
+  const bucket = bucketOfCard(rules, handBeforePlay, played);
+  model.counts[sit][bucket] += 1;
+  model.total += 1;
+}
+
+/**
+ * Project the learned slice-histogram onto the opponent's current hand.
+ * Returns the predicted play distribution over `oppHand` (index-aligned) and
+ * the trust weight in [0, MASTER_MAX_TRUST] earned by the sample size.
+ */
+export function predictOpponentDistribution(
+  model: OpponentModelState,
+  rules: BiggerNumberRules,
+  oppHand: CardValue[],
+  score: { oppWins: number; myWins: number },
+): { dist: number[]; trust: number } {
+  const sit = situationIndex(score.oppWins, score.myWins);
+
+  // Blend in-situation counts with down-weighted cross-situation counts.
+  const eff = new Array<number>(OPPONENT_MODEL_BUCKETS).fill(MODEL_SMOOTHING);
+  let nSit = 0;
+  for (let s = 0; s < SITUATIONS; s++) {
+    const w = s === sit ? 1 : CROSS_SITUATION_WEIGHT;
+    for (let b = 0; b < OPPONENT_MODEL_BUCKETS; b++) eff[b] += w * model.counts[s][b];
+    if (s === sit) nSit = model.counts[s].reduce((a, b) => a + b, 0);
+  }
+  const nEff = nSit + CROSS_SITUATION_WEIGHT * (model.total - nSit);
+
+  // Trust needs BOTH sample size and predictive sharpness. Against a
+  // well-mixing (near-equilibrium) opponent the histogram stays flat; best-
+  // responding to a flat-but-noisy estimate lands on strictly-losing rows, so
+  // entropy gating collapses trust to ~0 there while a deterministic human's
+  // spiked histogram keeps it high.
+  const effSum = eff.reduce((a, b) => a + b, 0);
+  let entropy = 0;
+  for (const e of eff) {
+    const p = e / effSum;
+    if (p > 0) entropy -= p * Math.log(p);
+  }
+  const sharpness = Math.max(0, 1 - entropy / Math.log(OPPONENT_MODEL_BUCKETS));
+  const trust =
+    MASTER_MAX_TRUST * (nEff / (nEff + MASTER_TRUST_HALF)) * sharpness;
+
+  // Cards sharing a bucket split that bucket's mass.
+  const buckets = oppHand.map((c) => bucketOfCard(rules, oppHand, c));
+  const multiplicity = new Array<number>(OPPONENT_MODEL_BUCKETS).fill(0);
+  for (const b of buckets) multiplicity[b] += 1;
+
+  const raw = buckets.map((b) => eff[b] / multiplicity[b]);
+  const sum = raw.reduce((a, b) => a + b, 0);
+  const dist = sum > 0 ? raw.map((x) => x / sum) : oppHand.map(() => 1 / oppHand.length);
+  return { dist, trust };
+}
+
+function pickMaster(
+  rules: BiggerNumberRules,
+  myHand: CardValue[],
+  opponentHand: CardValue[],
+  context: MatchContext | undefined,
+  rng: () => number,
+  model: OpponentModelState | undefined,
+): CardValue {
+  if (opponentHand.length === 0) return lowestByRank(myHand);
+
+  const { matrix, strategy } = computeHardStrategy(rules, myHand, opponentHand, context);
+  if (!model || model.total === 0) {
+    return myHand[sampleFromDistribution(strategy, rng)];
+  }
+
+  // Situation is derived from wins-needed: the side needing FEWER wins is
+  // ahead, so wins-needed values swap roles as win proxies. Only the sign of
+  // (oppWins - myWins) matters to situationIndex.
+  const score = context
+    ? { oppWins: context.myWinsNeeded, myWins: context.oppWinsNeeded }
+    : { oppWins: 0, myWins: 0 };
+  const { dist, trust } = predictOpponentDistribution(model, rules, opponentHand, score);
+
+  // Best response to the predicted policy; conserve power on exact ties.
+  let br = 0;
+  let brEv = -Infinity;
+  for (let r = 0; r < myHand.length; r++) {
+    let ev = 0;
+    for (let c = 0; c < opponentHand.length; c++) ev += dist[c] * matrix[r][c];
+    if (
+      ev > brEv + 1e-12 ||
+      (Math.abs(ev - brEv) <= 1e-12 &&
+        rankForOrdering(myHand[r]) < rankForOrdering(myHand[br]))
+    ) {
+      brEv = ev;
+      br = r;
+    }
+  }
+
+  const blended = strategy.map((p, r) => (1 - trust) * p + (r === br ? trust : 0));
+  return myHand[sampleFromDistribution(blended, rng)];
 }
 
 function sampleFromDistribution(dist: number[], rng: () => number): number {

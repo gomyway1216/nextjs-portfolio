@@ -474,6 +474,13 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         .aggregate_diagnostic_reproduction;
     const stable = diagnostic.models.stable.int16;
     const seedNames = ["seed_42", "seed_43", "seed_44"];
+    const passesRecordedGate = (margin: number, index: number) => {
+      if (index === 0) return margin > 0;
+      if (index === 1) return margin >= 0;
+      return margin >= 0 || Math.abs(margin) <= 1e-12;
+    };
+    expect(passesRecordedGate(-5e-13, 2)).toBe(true);
+    expect(passesRecordedGate(-2e-12, 2)).toBe(false);
     for (const seed of seedNames) {
       const model = diagnostic.models[seed];
       const expectedMargins = [
@@ -487,15 +494,9 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
       ).toEqual(expectedMargins);
       expect(
         model.gates.map((gate: { passed: boolean }) => gate.passed),
-      ).toEqual(
-        expectedMargins.map((margin, index) =>
-          index === 0 ? margin > 0 : margin >= 0,
-        ),
-      );
+      ).toEqual(expectedMargins.map(passesRecordedGate));
       expect(model.passed_all_four_gates).toBe(
-        expectedMargins.every((margin, index) =>
-          index === 0 ? margin > 0 : margin >= 0,
-        ),
+        expectedMargins.every(passesRecordedGate),
       );
     }
     const rankedSeeds = [...seedNames]

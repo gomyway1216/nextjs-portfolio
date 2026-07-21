@@ -5,9 +5,11 @@ import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 ML_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -27,6 +29,7 @@ from train import (  # noqa: E402
     DistillNet,
     configure_halfkp_training_scope,
     dual_views_from_normalized_features,
+    halfkp_adamw_options,
     lift_board_model_to_halfkp_factor,
     load_dataset,
     parse_sfen,
@@ -219,6 +222,77 @@ class DualHalfKPTests(unittest.TestCase):
         ):
             configure_halfkp_training_scope(
                 SimpleNamespace(features="halfkp-dual-factor"), "delta-only"
+            )
+
+    def test_dual_residual_step_changes_only_opponent_w2_columns(self):
+        with mock.patch.object(DistillNet, "H1", 4), mock.patch.object(
+            DistillNet, "H2", 3
+        ):
+            source = DistillNet("board")
+            target = DistillNet("halfkp-dual-factor")
+            with torch.no_grad():
+                source.board.weight.zero_()
+                source.board.weight[10].fill_(0.2)
+                source.hand.weight.zero_()
+                source.hand.bias.fill_(0.1)
+                source.l2.weight.fill_(0.1)
+                source.l2.bias.fill_(0.1)
+                source.l3.weight.fill_(0.2)
+                source.l3.bias.zero_()
+            lift_board_model_to_halfkp_factor(target, source)
+
+            before = {
+                name: parameter.detach().clone()
+                for name, parameter in target.named_parameters()
+            }
+            trainable = configure_halfkp_training_scope(target, "dual-residual")
+            self.assertEqual(trainable, (target.l2.weight,))
+            options = halfkp_adamw_options("dual-residual")
+            self.assertEqual(options, {"weight_decay": 0.0})
+            optimizer = torch.optim.AdamW(trainable, lr=1e-2, **options)
+
+            buckets = torch.tensor([[0, 1], [2, 3]], dtype=torch.long)
+            board = torch.full((2, 2, 2), target.pad_idx, dtype=torch.long)
+            board[:, :, 0] = buckets * BOARD_FEATS + 10
+            hands = torch.zeros((2, 2, HAND_FEATS), dtype=torch.float32)
+            desired = torch.ones(2)
+            optimizer.zero_grad(set_to_none=True)
+            loss = F.mse_loss(torch.sigmoid(target(board, hands, buckets)), desired)
+            loss.backward()
+            self.assertEqual(
+                int(torch.count_nonzero(target.l2.weight.grad[:, : target.H1])), 0
+            )
+            self.assertGreater(
+                int(torch.count_nonzero(target.l2.weight.grad[:, target.H1 :])), 0
+            )
+            optimizer.step()
+
+            after = dict(target.named_parameters())
+            for name, original in before.items():
+                if name == "l2.weight":
+                    self.assertTrue(
+                        torch.equal(original[:, : target.H1], after[name][:, : target.H1])
+                    )
+                    self.assertFalse(
+                        torch.equal(original[:, target.H1 :], after[name][:, target.H1 :])
+                    )
+                else:
+                    self.assertTrue(torch.equal(original, after[name]), name)
+
+            # Reconfiguring to the legacy all-parameter scope removes the
+            # residual gradient hook and leaves AdamW's historical defaults.
+            configure_halfkp_training_scope(target, "all")
+            target.zero_grad(set_to_none=True)
+            target(board, hands, buckets).sum().backward()
+            self.assertGreater(
+                int(torch.count_nonzero(target.l2.weight.grad[:, : target.H1])), 0
+            )
+            self.assertEqual(halfkp_adamw_options("all"), {})
+
+    def test_dual_residual_rejects_non_dual_features(self):
+        with self.assertRaisesRegex(ValueError, "requires halfkp-dual"):
+            configure_halfkp_training_scope(
+                DistillNet("halfkp-factor"), "dual-residual"
             )
 
 

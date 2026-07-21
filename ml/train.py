@@ -141,7 +141,7 @@ FACTORED_FEATURES = frozenset(
 DUAL_PERSPECTIVE_FEATURES = frozenset(
     ("halfkp-dual", "halfkp-dual-factor")
 )
-HALFKP_TRAIN_SCOPES = frozenset(("all", "delta-only"))
+HALFKP_TRAIN_SCOPES = frozenset(("all", "delta-only", "dual-residual"))
 MATE_SCORE_CP = 1_000_000
 MAX_NON_MATE_CP = 900_000
 MAX_MATE_DISTANCE = MATE_SCORE_CP - MAX_NON_MATE_CP - 1
@@ -1934,6 +1934,13 @@ def configure_halfkp_training_scope(
     tables, first-layer bias, and dense layers remain bit-identical to their
     initializer.  EmbeddingBag's ``padding_idx`` keeps the extra board row at
     zero, so it is not an effective trainable feature.
+
+    ``dual-residual`` is the preservation-first dual-perspective scope.  It
+    freezes every tensor except ``l2.weight`` and masks that tensor's gradient
+    so only the opponent-perspective columns ``H1:2*H1`` can learn.  Callers
+    must also pass :func:`halfkp_adamw_options` to AdamW: a zero gradient does
+    not by itself prevent decoupled weight decay from changing the frozen
+    us-perspective columns.
     """
     if scope not in HALFKP_TRAIN_SCOPES:
         raise ValueError(
@@ -1947,6 +1954,18 @@ def configure_halfkp_training_scope(
                 "would freeze the zero-initialized opponent dense path"
             )
         raise ValueError("delta-only training requires halfkp-factor features")
+    if scope == "dual-residual" and model.features not in DUAL_PERSPECTIVE_FEATURES:
+        raise ValueError(
+            "dual-residual training requires halfkp-dual or "
+            "halfkp-dual-factor features"
+        )
+
+    # Reconfiguration is supported by tests and research notebooks.  Remove a
+    # previous residual hook before installing a new scope so switching back to
+    # ``all`` really restores the legacy all-parameter behavior.
+    for handle in getattr(model, "_halfkp_training_scope_gradient_handles", ()):
+        handle.remove()
+    model._halfkp_training_scope_gradient_handles = ()
     if scope == "delta-only":
         # The padding row is semantically absent.  Normalize it once so
         # AdamW's decoupled weight decay cannot turn a stale checkpoint value
@@ -1955,8 +1974,37 @@ def configure_halfkp_training_scope(
             model.board.weight[model.pad_idx].zero_()
     delta_parameter_names = frozenset(("board.weight", "hand.weight"))
     for name, parameter in model.named_parameters():
-        parameter.requires_grad_(scope == "all" or name in delta_parameter_names)
+        parameter.requires_grad_(
+            scope == "all"
+            or (scope == "delta-only" and name in delta_parameter_names)
+            or (scope == "dual-residual" and name == "l2.weight")
+        )
+    if scope == "dual-residual":
+        split = model.H1
+
+        def mask_us_perspective_gradient(gradient):
+            masked = gradient.clone()
+            masked[:, :split].zero_()
+            return masked
+
+        handle = model.l2.weight.register_hook(mask_us_perspective_gradient)
+        model._halfkp_training_scope_gradient_handles = (handle,)
     return tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
+
+
+def halfkp_adamw_options(scope: str = "all") -> dict[str, float]:
+    """Return scope-specific AdamW options without changing legacy defaults.
+
+    AdamW's default weight decay is retained for ``all`` and ``delta-only``.
+    ``dual-residual`` owns one slice of a larger parameter, so its whole W2
+    tensor must use zero weight decay to keep the frozen first half bit-exact.
+    """
+    if scope not in HALFKP_TRAIN_SCOPES:
+        raise ValueError(
+            f"unsupported HalfKP training scope {scope!r}; "
+            f"expected one of {sorted(HALFKP_TRAIN_SCOPES)}"
+        )
+    return {"weight_decay": 0.0} if scope == "dual-residual" else {}
 
 
 # ---------------------------------------------------------------------------
@@ -2018,6 +2066,17 @@ def validate_training_hyperparameters(args) -> None:
             "--halfkp-train-scope delta-only requires --halfkp-lift-init "
             "so frozen shared weights start from the live-equivalent model"
         )
+    if halfkp_train_scope == "dual-residual":
+        if args.features not in DUAL_PERSPECTIVE_FEATURES:
+            raise ValueError(
+                "--halfkp-train-scope dual-residual requires --features "
+                "halfkp-dual or halfkp-dual-factor"
+            )
+        if not has_initializer:
+            raise ValueError(
+                "--halfkp-train-scope dual-residual requires --init-ckpt or "
+                "--halfkp-lift-init so the frozen path has an audited initializer"
+            )
     for field, option in (
         ("rank_weight", "--rank-weight"),
         ("policy_weight", "--policy-weight"),
@@ -3069,8 +3128,9 @@ def main():
         default="all",
         choices=sorted(HALFKP_TRAIN_SCOPES),
         help=(
-            "halfkp-factor pilot parameter scope: all parameters, or only "
-            "bucket-local board/hand delta tables"
+            "HalfKP pilot parameter scope: all parameters; only bucket-local "
+            "board/hand delta tables; or only dual W2 opponent-perspective "
+            "columns while preserving the lifted evaluator"
         ),
     )
     ap.add_argument(
@@ -3694,7 +3754,11 @@ def main():
     trainable_parameters = configure_halfkp_training_scope(
         model, args.halfkp_train_scope
     )
-    opt = torch.optim.AdamW(trainable_parameters, lr=args.lr)
+    opt = torch.optim.AdamW(
+        trainable_parameters,
+        lr=args.lr,
+        **halfkp_adamw_options(args.halfkp_train_scope),
+    )
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, args.epochs))
 
     if args.loss == "sibling-ranking":

@@ -25,6 +25,10 @@ factorized KP (--features kp-factor): 同じ KP 特徴だが、第1層を
 テーブル6倍化による過学習を抑える。推論・エクスポート形式は kp と同一
 (エクスポート時に w_shared + w_delta を合成して量子化する)。
 
+HalfKP風特徴 (--features halfkp / halfkp-factor): 6個の粗い玉バケットの代わりに、
+手番側視点に正規化した自玉の king_sq (0..80) をそのまま81バケットとして使う。
+halfkp-factor は共有テーブル + 81バケット別 delta を学習し、推論・量子化時に合成する。
+
 ネットワーク: 2282 -> 256 -> 32 -> 1 (全結合, 活性化 ClippedReLU = clamp(x,0,1))
 ターゲット:   y = sigmoid(cp / K)  (cp は手番側視点, K=600, cp は ±3000 にクランプ)
 損失:         MSE(sigmoid(out), y)   → 推論時は cp ≈ out * K
@@ -106,6 +110,17 @@ MAX_PIECES = 40  # 盤上の駒は最大 40
 
 # --- KP (King-Piece) 縮約バケット -------------------------------------------
 KP_BUCKETS = 6
+HALFKP_BUCKETS = NUM_SQ
+FEATURE_BUCKET_COUNTS = {
+    "board": 1,
+    "kp": KP_BUCKETS,
+    "kp-factor": KP_BUCKETS,
+    "halfkp": HALFKP_BUCKETS,
+    "halfkp-factor": HALFKP_BUCKETS,
+}
+BUCKETED_FEATURES = frozenset(("kp", "kp-factor", "halfkp", "halfkp-factor"))
+FACTORED_FEATURES = frozenset(("kp-factor", "halfkp-factor"))
+HALFKP_TRAIN_SCOPES = frozenset(("all", "delta-only"))
 MATE_SCORE_CP = 1_000_000
 MAX_NON_MATE_CP = 900_000
 MAX_MATE_DISTANCE = MATE_SCORE_CP - MAX_NON_MATE_CP - 1
@@ -179,6 +194,26 @@ def kp_bucket(s: int, d: int) -> int:
     if s == 5:
         return 0
     return 1 if s <= 4 else 2
+
+
+def feature_bucket_count(features: str) -> int:
+    """Return the exact king-bucket count for one feature architecture."""
+    try:
+        return FEATURE_BUCKET_COUNTS[features]
+    except KeyError as error:
+        raise ValueError(f"unsupported feature mode: {features!r}") from error
+
+
+def feature_bucket(features: str, king_sq: int) -> int:
+    """Map a normalized side-to-move king square to the selected feature bucket."""
+    bucket_count = feature_bucket_count(features)
+    if bucket_count == 1:
+        return 0
+    if type(king_sq) is not int or not 0 <= king_sq < NUM_SQ:
+        raise ValueError("bucketed feature row has no valid side-to-move king")
+    if features in ("halfkp", "halfkp-factor"):
+        return king_sq
+    return kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
 
 
 def parse_sfen(sfen: str):
@@ -533,11 +568,12 @@ def _load_dataset(
                 cp (N,) float32, bucket (N,) int64)
 
     cp はクランプ後の教師評価値 (手番側視点, cp 単位)。ランキング損失・順位一致率の計算に使う。
-    features="kp" のときは board_idx にバケットオフセット (bucket*2268) を加算済み。
-    bucket は kp 時のみ意味を持つ (board 時は全 0)。
+    bucketed features では board_idx にバケットオフセット (bucket*2268) を加算済み。
+    bucket は board 時は全 0。
     """
-    kp = features in ("kp", "kp-factor")
-    pad_idx = (KP_BUCKETS * BOARD_FEATS) if kp else PAD_IDX
+    bucket_count = feature_bucket_count(features)
+    bucketed = bucket_count > 1
+    pad_idx = bucket_count * BOARD_FEATS if bucketed else PAD_IDX
     if not math.isfinite(k_sigmoid) or k_sigmoid <= 0:
         raise ValueError("k_sigmoid must be finite and positive")
     if type(cp_clamp) is not int or cp_clamp <= 0:
@@ -599,7 +635,7 @@ def _load_dataset(
                 ):
                     excluded_rows += 1
                     continue
-                if kp and candidate_king_sq < 0:
+                if bucketed and candidate_king_sq < 0:
                     continue
                 eligible_ordinals.append(nonempty_ordinal)
                 continue
@@ -633,15 +669,15 @@ def _load_dataset(
                 n_excluded += 1
                 continue
             bucket = 0
-            if kp:
+            if bucketed:
                 if king_sq < 0:
                     n_skipped += 1
                     if strict:
                         strict_errors.append(
-                            f"line {physical_line}: KP feature row has no side-to-move king"
+                            f"line {physical_line}: bucketed feature row has no side-to-move king"
                         )
                     continue
-                bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
+                bucket = feature_bucket(features, king_sq)
                 idx = [bucket * BOARD_FEATS + feature for feature in idx]
             cp = max(-cp_clamp, min(cp_clamp, raw_cp))
             y = cp_sigmoid_target(cp, k_sigmoid)
@@ -1222,6 +1258,10 @@ def validate_training_path_isolation(args, *, output_names=None) -> None:
             getattr(args, "replay_excluded_position_ids", ""),
         ),
         ("initializer checkpoint", args.init_ckpt),
+        (
+            "HalfKP lift initializer checkpoint",
+            getattr(args, "halfkp_lift_init", ""),
+        ),
     ]
     inputs = [(label, path) for label, path in inputs if path]
     if output_names is None:
@@ -1470,11 +1510,11 @@ def sibling_metrics(outputs, child_cp, metadata, pair_min):
 
 
 class DistillNet(nn.Module):
-    """(2282 | KP:13692) -> 256 -> 32 -> 1, ClippedReLU。
+    """(board:2282 | KP:13692 | HalfKP:184842) -> 256 -> 32 -> 1。
 
     第1層は NNUE 風に EmbeddingBag(盤面 one-hot の和) + Linear(持ち駒) で表現する。
     数学的には Linear(入力次元, 256) と等価で、エクスポート時に結合する。
-    features="kp" では盤面/持ち駒とも自玉バケット (KP_BUCKETS=6) 毎の別テーブル。
+    bucketed features では盤面/持ち駒とも自玉バケット毎の別テーブル。
     """
 
     H1 = 256
@@ -1483,11 +1523,14 @@ class DistillNet(nn.Module):
     def __init__(self, features: str = "board"):
         super().__init__()
         self.features = features
-        self.kp = features in ("kp", "kp-factor")
-        self.factored = features == "kp-factor"
-        nb = KP_BUCKETS if self.kp else 1
-        self.board_feats = nb * BOARD_FEATS
-        self.hand_feats = nb * HAND_FEATS
+        self.bucket_count = feature_bucket_count(features)
+        # Keep kp as the historical public "bucketed" flag used by the
+        # exporter and fixed-point helpers.
+        self.kp = features in BUCKETED_FEATURES
+        self.halfkp = features in ("halfkp", "halfkp-factor")
+        self.factored = features in FACTORED_FEATURES
+        self.board_feats = self.bucket_count * BOARD_FEATS
+        self.hand_feats = self.bucket_count * HAND_FEATS
         self.pad_idx = self.board_feats
         self.board = nn.EmbeddingBag(self.board_feats + 1, self.H1, mode="sum", padding_idx=self.pad_idx)
         self.hand = nn.Linear(self.hand_feats, self.H1)  # bias が第1層の bias を兼ねる
@@ -1509,9 +1552,9 @@ class DistillNet(nn.Module):
                 self.board.weight[self.pad_idx].zero_()
 
     def expand_hands(self, hands, bucket):
-        """(B,14) + bucket (B,) → (B, KP_BUCKETS*14): 自玉バケットのセグメントのみ非ゼロ。"""
+        """Expand raw hand counts into the active king-bucket segment."""
         b = hands.shape[0]
-        out = hands.new_zeros(b, KP_BUCKETS, HAND_FEATS)
+        out = hands.new_zeros(b, self.bucket_count, HAND_FEATS)
         out[torch.arange(b, device=hands.device), bucket] = hands
         return out.view(b, -1)
 
@@ -1542,10 +1585,115 @@ class DistillNet(nn.Module):
             w1_hand = self.hand.weight.t().contiguous()  # (HF, H1)
             b1 = self.hand.bias
             if self.factored:
-                nb = KP_BUCKETS
+                nb = self.bucket_count
                 w1_board = w1_board + self.board_shared.weight[:BOARD_FEATS].repeat(nb, 1)
                 w1_hand = w1_hand + self.hand_shared.weight.t().repeat(nb, 1)
             return w1_board, w1_hand, b1
+
+
+def lift_board_model_to_halfkp_factor(
+    target: DistillNet, source: DistillNet
+) -> None:
+    """Lift one board model into shared HalfKP weights with zero bucket deltas.
+
+    The resulting effective first-layer table is the source board/hand table
+    repeated for every normalized king square. Dense layers and biases are
+    copied exactly, so every king bucket starts from the same evaluator.
+    """
+    if source.features != "board" or source.bucket_count != 1:
+        raise ValueError("HalfKP lift source must be a one-bucket board model")
+    if target.features != "halfkp-factor" or target.bucket_count != HALFKP_BUCKETS:
+        raise ValueError("HalfKP lift target must use halfkp-factor")
+    with torch.no_grad():
+        target.board.weight.zero_()
+        target.hand.weight.zero_()
+        target.board_shared.weight.copy_(source.board.weight)
+        target.hand_shared.weight.copy_(source.hand.weight)
+        target.hand.bias.copy_(source.hand.bias)
+        target.l2.weight.copy_(source.l2.weight)
+        target.l2.bias.copy_(source.l2.bias)
+        target.l3.weight.copy_(source.l3.weight)
+        target.l3.bias.copy_(source.l3.bias)
+
+
+def load_halfkp_lift_initializer(
+    target: DistillNet,
+    checkpoint_path: str,
+    *,
+    k_sigmoid: float,
+    allow_legacy: bool = False,
+) -> dict[str, object]:
+    """Load and validate one complete board checkpoint, then lift its model."""
+    if type(allow_legacy) is not bool:
+        raise TypeError("allow_legacy must be a boolean")
+    checkpoint, fingerprint = load_stable_torch_checkpoint(
+        os.path.realpath(checkpoint_path),
+        weights_only=True,
+    )
+    source = DistillNet("board")
+    source_arch = expected_arch(
+        features="board",
+        input_dim=source.board_feats + source.hand_feats,
+        h1=DistillNet.H1,
+        h2=DistillNet.H2,
+        k=k_sigmoid,
+        kp_buckets=1,
+    )
+    inferred_legacy_fields = []
+    try:
+        actual_arch = checkpoint["arch"]
+        if isinstance(actual_arch, dict):
+            actual_arch = dict(actual_arch)
+            if "schema" not in actual_arch and allow_legacy:
+                actual_arch["schema"] = 1
+                inferred_legacy_fields.append("schema")
+        state = checkpoint["model"]
+        validate_arch(actual_arch, source_arch)
+        source.load_state_dict(state, strict=True)
+    except (KeyError, RuntimeError, TypeError, ValueError) as error:
+        raise ValueError(f"incompatible HalfKP lift initializer: {error}") from error
+    lift_board_model_to_halfkp_factor(target, source)
+    return {
+        "mode": "board-to-halfkp-factor-shared-lift",
+        "path": os.path.abspath(checkpoint_path),
+        "sha256": fingerprint["sha256"],
+        "bytes": fingerprint["bytes"],
+        "epoch": checkpoint.get("epoch"),
+        "val_loss": checkpoint.get("val_loss"),
+        "val_mae_cp": checkpoint.get("val_mae_cp"),
+        "source_arch": source_arch,
+        "legacy_arch_inferred_fields": inferred_legacy_fields,
+    }
+
+
+def configure_halfkp_training_scope(
+    model: DistillNet, scope: str = "all"
+) -> tuple[torch.nn.Parameter, ...]:
+    """Select trainable parameters for a HalfKP pilot.
+
+    ``delta-only`` deliberately preserves the lifted evaluator: only the
+    bucket-local board and hand delta tables learn.  In particular, the shared
+    tables, first-layer bias, and dense layers remain bit-identical to their
+    initializer.  EmbeddingBag's ``padding_idx`` keeps the extra board row at
+    zero, so it is not an effective trainable feature.
+    """
+    if scope not in HALFKP_TRAIN_SCOPES:
+        raise ValueError(
+            f"unsupported HalfKP training scope {scope!r}; "
+            f"expected one of {sorted(HALFKP_TRAIN_SCOPES)}"
+        )
+    if scope == "delta-only" and model.features != "halfkp-factor":
+        raise ValueError("delta-only training requires halfkp-factor features")
+    if scope == "delta-only":
+        # The padding row is semantically absent.  Normalize it once so
+        # AdamW's decoupled weight decay cannot turn a stale checkpoint value
+        # into an apparent update of a non-feature.
+        with torch.no_grad():
+            model.board.weight[model.pad_idx].zero_()
+    delta_parameter_names = frozenset(("board.weight", "hand.weight"))
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(scope == "all" or name in delta_parameter_names)
+    return tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
 
 
 # ---------------------------------------------------------------------------
@@ -1559,8 +1707,13 @@ def validate_training_hyperparameters(args) -> None:
         raise ValueError("--k must be finite and in [1, 1000000]")
     if not 1 <= args.cp_clamp <= MATE_SCORE_CP:
         raise ValueError("--cp-clamp must be in [1, 1000000]")
-    if args.epochs < 0 or (args.epochs == 0 and not args.init_ckpt):
-        raise ValueError("--epochs must be positive unless evaluating an --init-ckpt")
+    has_initializer = bool(
+        args.init_ckpt or getattr(args, "halfkp_lift_init", "")
+    )
+    if args.epochs < 0 or (args.epochs == 0 and not has_initializer):
+        raise ValueError(
+            "--epochs must be positive unless evaluating an initializer checkpoint"
+        )
     if args.batch <= 0:
         raise ValueError("--batch must be positive")
     if not math.isfinite(args.lr) or args.lr <= 0:
@@ -1573,6 +1726,23 @@ def validate_training_hyperparameters(args) -> None:
         raise ValueError("--replay-ratio must be finite and non-negative")
     if args.replay_limit < 0:
         raise ValueError("--replay-limit must be non-negative")
+    halfkp_train_scope = getattr(args, "halfkp_train_scope", "all")
+    if halfkp_train_scope not in HALFKP_TRAIN_SCOPES:
+        raise ValueError(
+            "--halfkp-train-scope must be one of "
+            f"{sorted(HALFKP_TRAIN_SCOPES)}"
+        )
+    if halfkp_train_scope == "delta-only" and args.features != "halfkp-factor":
+        raise ValueError(
+            "--halfkp-train-scope delta-only requires --features halfkp-factor"
+        )
+    if halfkp_train_scope == "delta-only" and not getattr(
+        args, "halfkp_lift_init", ""
+    ):
+        raise ValueError(
+            "--halfkp-train-scope delta-only requires --halfkp-lift-init "
+            "so frozen shared weights start from the live-equivalent model"
+        )
     for field, option in (
         ("rank_weight", "--rank-weight"),
         ("policy_weight", "--policy-weight"),
@@ -2192,7 +2362,7 @@ def run_int16_aware_training(args) -> None:
         h1=DistillNet.H1,
         h2=DistillNet.H2,
         k=args.k,
-        kp_buckets=KP_BUCKETS if model.kp else 1,
+        kp_buckets=model.bucket_count,
     )
     try:
         initializer, initializer_fingerprint = load_stable_torch_checkpoint(
@@ -2224,10 +2394,8 @@ def run_int16_aware_training(args) -> None:
                 initializer_arch["features"] = inferred_features
                 inferred_legacy_fields.append("features")
         if "kp_buckets" not in initializer_arch and "features" in initializer_arch:
-            initializer_arch["kp_buckets"] = (
-                KP_BUCKETS
-                if initializer_arch["features"] in ("kp", "kp-factor")
-                else 1
+            initializer_arch["kp_buckets"] = FEATURE_BUCKET_COUNTS.get(
+                initializer_arch["features"], 1
             )
             inferred_legacy_fields.append("kp_buckets")
         if "schema" not in initializer_arch:
@@ -2573,9 +2741,10 @@ def main():
     ap.add_argument(
         "--features",
         default="board",
-        choices=["board", "kp", "kp-factor"],
+        choices=["board", "kp", "kp-factor", "halfkp", "halfkp-factor"],
         help="board=現行one-hot(2282), kp=自玉バケット×盤面/持ち駒 (KP縮約, 13692), "
-        "kp-factor=同特徴の分解学習 (共有+バケットデルタ, エクスポート形式はkpと同一)",
+        "kp-factor=同特徴の分解学習, halfkp=正規化自玉升×盤面/持ち駒 "
+        "(81バケット, 184842), halfkp-factor=共有+81バケットdelta",
     )
     # ランキング指向の学習: --loss ranking で同一ミニバッチ内の教師cp差 [rank-pair-min, rank-pair-max]
     # のペアに pairwise margin ranking loss を加算する (シグモイド回帰損失は常に併用)。
@@ -2594,13 +2763,47 @@ def main():
     )
     ap.add_argument("--init-ckpt", default="", help="model-only warm start; optimizer/scheduler are always fresh")
     ap.add_argument(
+        "--halfkp-lift-init",
+        default="",
+        help=(
+            "explicitly lift a complete one-bucket board checkpoint into "
+            "halfkp-factor shared weights with zero 81-bucket deltas"
+        ),
+    )
+    ap.add_argument(
+        "--halfkp-train-scope",
+        default="all",
+        choices=sorted(HALFKP_TRAIN_SCOPES),
+        help=(
+            "halfkp-factor pilot parameter scope: all parameters, or only "
+            "bucket-local board/hand delta tables"
+        ),
+    )
+    ap.add_argument(
         "--allow-legacy-init",
         action="store_true",
         help="allow an audited pre-schema checkpoint and only unambiguous legacy-field inference",
     )
     args = ap.parse_args()
 
+    if args.init_ckpt and args.halfkp_lift_init:
+        raise SystemExit(
+            "[train] --init-ckpt and --halfkp-lift-init are mutually exclusive"
+        )
+    if args.halfkp_lift_init and args.features != "halfkp-factor":
+        raise SystemExit(
+            "[train] --halfkp-lift-init requires --features halfkp-factor"
+        )
+    if args.halfkp_lift_init and args.loss == "sibling-ranking":
+        raise SystemExit(
+            "[train] sealed sibling-ranking does not accept HalfKP lift; "
+            "use the research runner"
+        )
     if args.experiment_family == INT16_AWARE_EXPERIMENT_FAMILY:
+        if args.halfkp_lift_init:
+            raise SystemExit(
+                "[train] int16-aware experiment does not accept HalfKP lift"
+            )
         run_int16_aware_training(args)
         return
 
@@ -3079,7 +3282,7 @@ def main():
         h1=DistillNet.H1,
         h2=DistillNet.H2,
         k=args.k,
-        kp_buckets=KP_BUCKETS if model.kp else 1,
+        kp_buckets=model.bucket_count,
     )
     init_metadata = None
     if args.init_ckpt:
@@ -3131,8 +3334,8 @@ def main():
                     initializer_arch["features"] = inferred_features
                     inferred_legacy_fields.append("features")
             if "kp_buckets" not in initializer_arch and "features" in initializer_arch:
-                initializer_arch["kp_buckets"] = (
-                    KP_BUCKETS if initializer_arch["features"] in ("kp", "kp-factor") else 1
+                initializer_arch["kp_buckets"] = FEATURE_BUCKET_COUNTS.get(
+                    initializer_arch["features"], 1
                 )
                 inferred_legacy_fields.append("kp_buckets")
             if "schema" not in initializer_arch:
@@ -3156,8 +3359,37 @@ def main():
             f"[train] warm start: {args.init_ckpt} sha256={init_metadata['sha256']} "
             f"epoch={init_metadata['epoch']} (fresh optimizer)"
         )
+    elif args.halfkp_lift_init:
+        lift_path = os.path.realpath(args.halfkp_lift_init)
+        if not os.path.isfile(lift_path):
+            raise SystemExit(
+                f"[train] HalfKP lift checkpoint not found: {args.halfkp_lift_init}"
+            )
+        if os.path.realpath(args.out) == os.path.dirname(lift_path):
+            raise SystemExit(
+                "[train] --out must not overwrite the HalfKP lift checkpoint directory"
+            )
+        try:
+            init_metadata = load_halfkp_lift_initializer(
+                model,
+                lift_path,
+                k_sigmoid=args.k,
+                allow_legacy=args.allow_legacy_init,
+            )
+        except (OSError, RuntimeError, TypeError, ValueError) as error:
+            raise SystemExit(
+                f"[train] failed to lift board checkpoint into HalfKP: {error}"
+            ) from error
+        print(
+            f"[train] HalfKP shared lift: {args.halfkp_lift_init} "
+            f"sha256={init_metadata['sha256']} epoch={init_metadata['epoch']} "
+            "(zero bucket deltas, fresh optimizer)"
+        )
     model = model.to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    trainable_parameters = configure_halfkp_training_scope(
+        model, args.halfkp_train_scope
+    )
+    opt = torch.optim.AdamW(trainable_parameters, lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, args.epochs))
 
     if args.loss == "sibling-ranking":

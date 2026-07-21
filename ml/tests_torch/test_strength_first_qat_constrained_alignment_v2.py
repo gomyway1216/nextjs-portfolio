@@ -15,7 +15,6 @@ ML_DIR = Path(__file__).resolve().parents[1]
 if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
-import build_strength_first_qat_constrained_alignment_v2_plan_candidate as BUILDER  # noqa: E402
 import strength_first_qat_constrained_alignment_v2_protocol as PROTOCOL  # noqa: E402
 import strength_first_quantized_cell_alignment as ALIGN  # noqa: E402
 import train as TRAIN  # noqa: E402
@@ -277,12 +276,20 @@ class AlignmentTrainerBatchIntegrationTests(unittest.TestCase):
 
 class AlignmentPreflightTests(unittest.TestCase):
     def test_dirty_tree_stops_before_any_output_slot_is_created(self):
-        plan = BUILDER.build_alignment_plan_candidate(repo_root=REPO)
+        # This test exercises a historical, immutable plan.  Loading its exact
+        # tracked bytes keeps the fixture bound to the source revision that
+        # produced it; rebuilding from today's train.py would silently turn a
+        # dirty-tree test into a source-identity migration.
+        tracked_plan_path = REPO / PROTOCOL.ALIGNMENT_PLAN_RELATIVE_PATH
+        tracked_plan_bytes = tracked_plan_path.read_bytes()
+        plan = PROTOCOL.validate_alignment_plan(
+            PROTOCOL.strict_json(tracked_plan_bytes, "tracked alignment plan")
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan_path = root / PROTOCOL.ALIGNMENT_PLAN_RELATIVE_PATH
             plan_path.parent.mkdir(parents=True)
-            plan_path.write_bytes(PROTOCOL.canonical_json_bytes(plan))
+            plan_path.write_bytes(tracked_plan_bytes)
             output = root / plan["slots"][0]["output"]
             with mock.patch.object(
                 ALIGN_TRAIN,

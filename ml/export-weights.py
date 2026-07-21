@@ -25,7 +25,8 @@ weights.bin のレイアウト (すべて int16 LE, ただし bias は int32 LE)
   [b2        int32 x 32]
   [w3        int16 x 32]
   [b3        int32 x 1]
-  BF/HF = 2268/14 (--features board) または 6*2268/6*14 (--features kp, 自玉バケット順)。
+  BF/HF = 2268/14 (--features board), 6*2268/6*14 (--features kp),
+  または 81*2268/81*14 (--features halfkp, 正規化自玉升順)。
   KP でもレイアウト構造は同一で、サイズだけがバケット数倍になる (ヘッダなし)。
 
 使い方:
@@ -63,19 +64,57 @@ kp_bucket = _train.kp_bucket
 BOARD_FEATS = _train.BOARD_FEATS
 HAND_FEATS = _train.HAND_FEATS
 KP_BUCKETS = _train.KP_BUCKETS
+HALFKP_BUCKETS = _train.HALFKP_BUCKETS
+feature_bucket = _train.feature_bucket
 PAD_IDX = _train.PAD_IDX
 
+
+def write_tensor_little_endian(
+    target,
+    tensor: torch.Tensor,
+    typecode: str,
+    *,
+    chunk_elements: int = 262_144,
+) -> None:
+    """Write one flat integer tensor without constructing a full Python list.
+
+    HalfKP's first table has about 47 million int16 values.  Keeping conversion
+    bounded to small chunks avoids a multi-gigabyte temporary list while
+    preserving the historical array-module byte encoding exactly.
+    """
+    if type(chunk_elements) is not int or chunk_elements <= 0:
+        raise ValueError("chunk_elements must be a positive integer")
+    flat = tensor.detach().cpu().contiguous().view(-1)
+    expected_itemsize = (
+        2 if typecode == "h" else 4 if typecode == "i" else None
+    )
+    if expected_itemsize is None:
+        raise ValueError(f"unsupported export typecode: {typecode!r}")
+    for start in range(0, flat.numel(), chunk_elements):
+        values = array.array(typecode, flat[start : start + chunk_elements].tolist())
+        if values.itemsize != expected_itemsize:
+            raise RuntimeError(
+                f"unexpected itemsize {values.itemsize} for {typecode!r}"
+            )
+        if sys.byteorder == "big":
+            values.byteswap()
+        target.write(values.tobytes())
+
+
 def quantize(model: DistillNet, k_sigmoid: float):
-    board_feats = model.board_feats  # 2268 (board) / 13608 (kp)
-    hand_feats = model.hand_feats  # 14 (board) / 84 (kp)
+    board_feats = model.board_feats
+    hand_feats = model.hand_feats
     # Export and QAT share this exact quantizer; this wrapper preserves the
     # public exporter API and all historical bytes/metadata.
     q = quantize_model(model)
     kp = getattr(model, "kp", False)
+    bucket_count = int(
+        getattr(model, "bucket_count", KP_BUCKETS if kp else 1)
+    )
     meta = {
         "format": "shogi-distill-v2" if kp else "shogi-distill-v1",
         "features": model.features,
-        "kp_buckets": KP_BUCKETS if kp else 1,
+        "kp_buckets": bucket_count,
         "arch": f"{board_feats + hand_feats}->256->32->1 ClippedReLU",
         "dims": {"board_feats": board_feats, "hand_feats": hand_feats, "h1": 256, "h2": 32},
         "scales": {"act": ACT_SCALE, "w2": W_SCALE, "w3": W_SCALE},
@@ -98,7 +137,7 @@ def int_forward(q, board_idx, hands, pad_idx=PAD_IDX):
     """量子化整数演算のシミュレーション (エンジン実装の参照仕様)。
 
     KP モデルでは board_idx はバケットオフセット込み、hands は拡張済み (len=84,
-    自玉バケットのセグメントのみ非ゼロ)、pad_idx=6*2268 を渡す。
+    自玉バケットのセグメントのみ非ゼロ)、pad_idx=バケット数*2268 を渡す。
     """
     return _shared_int16_forward(q, board_idx, hands, pad_idx)
 
@@ -131,15 +170,7 @@ def main():
             ("w1_board", "h"), ("w1_hand", "h"), ("b1", "i"),
             ("w2", "h"), ("b2", "i"), ("w3", "h"), ("b3", "i"),
         ]:
-            # 巨大テンソルを struct.pack(*flat) で引数展開すると引数上限に達し得るため
-            # array モジュールでまとめてバイト列化する(レイアウトは LE 固定)。
-            arr = array.array(dtype, q[name].flatten().tolist())
-            assert arr.itemsize == (2 if dtype == "h" else 4), (
-                f"unexpected itemsize {arr.itemsize} for '{dtype}'"
-            )
-            if sys.byteorder == "big":
-                arr.byteswap()
-            f.write(arr.tobytes())
+            write_tensor_little_endian(f, q[name], dtype)
     meta_path = os.path.join(out_dir, "weights.meta.json")
     with open(meta_path, "w") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -176,7 +207,7 @@ def main():
                 if model.kp:
                     if king_sq < 0:
                         continue
-                    bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
+                    bucket = feature_bucket(model.features, king_sq)
                     idx = [bucket * BOARD_FEATS + f for f in idx]
                 pad = idx[:40] + [model.pad_idx] * (40 - len(idx))
                 if model.kp:

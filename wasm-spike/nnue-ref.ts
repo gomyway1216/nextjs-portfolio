@@ -33,6 +33,8 @@ export const NNUE_BOARD_FEATS = 28 * 81; // 2268
 export const NNUE_HAND_FEATS = 14;
 /** King buckets of the reduced-KP feature set (weights.bin v2). */
 export const NNUE_KP_BUCKETS = 6;
+/** Full normalized own-king-square buckets (HalfKP-style research format). */
+export const NNUE_HALFKP_BUCKETS = 81;
 
 export interface NnueLayout {
   buckets: number;
@@ -81,13 +83,15 @@ export function layoutFor(buckets: number): NnueLayout {
 
 export const NNUE_LAYOUT = layoutFor(1); // totalBytes 1,185,988
 export const NNUE_KP_LAYOUT = layoutFor(NNUE_KP_BUCKETS); // totalBytes 7,027,908
+export const NNUE_HALFKP_LAYOUT = layoutFor(NNUE_HALFKP_BUCKETS); // totalBytes 94,656,708
 
 /** Infer the bucket count of a weights.bin blob from its byte length. */
 export function bucketsForByteLength(byteLength: number): number {
   if (byteLength === NNUE_LAYOUT.totalBytes) return 1;
   if (byteLength === NNUE_KP_LAYOUT.totalBytes) return NNUE_KP_BUCKETS;
+  if (byteLength === NNUE_HALFKP_LAYOUT.totalBytes) return NNUE_HALFKP_BUCKETS;
   throw new Error(
-    `unrecognized weights.bin size ${byteLength} (expected ${NNUE_LAYOUT.totalBytes} or ${NNUE_KP_LAYOUT.totalBytes})`
+    `unrecognized weights.bin size ${byteLength} (expected ${NNUE_LAYOUT.totalBytes}, ${NNUE_KP_LAYOUT.totalBytes}, or ${NNUE_HALFKP_LAYOUT.totalBytes})`
   );
 }
 
@@ -102,8 +106,16 @@ export function kpBucket(s: number, d: number): number {
   return s <= 4 ? 1 : 2;
 }
 
+/** Bucket for the selected model format from an stm-normalized king square. */
+export function kingBucket(s: number, d: number, buckets: number): number {
+  if (buckets === NNUE_HALFKP_BUCKETS) return (s - 1) * 9 + (d - 1);
+  if (buckets === NNUE_KP_BUCKETS) return kpBucket(s, d);
+  if (buckets === 1) return 0;
+  throw new Error(`unsupported NNUE king bucket count ${buckets}`);
+}
+
 export interface NnueWeights {
-  buckets: number; // 1 = original, 6 = reduced KP
+  buckets: number; // 1 = original, 6 = reduced KP, 81 = HalfKP research format
   w1Board: Int16Array; // (buckets*2268, 256) feature-major
   w1Hand: Int16Array; // (buckets*14, 256) feature-major
   b1: Int32Array; // (256,)
@@ -273,7 +285,7 @@ export function extractFeatures(pos: NnuePosition, buckets = 1): NnueFeatures {
       }
     }
     if (ks < 0) throw new Error('extractFeatures: side-to-move king not found (KP features need it)');
-    bucket = kpBucket(ks, kd);
+    bucket = kingBucket(ks, kd, buckets);
   }
   const boardBase = bucket * NNUE_BOARD_FEATS;
   for (let suji = 1; suji <= 9; suji++) {

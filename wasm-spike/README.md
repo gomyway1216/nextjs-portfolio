@@ -9,6 +9,7 @@
 ```
 wasm-spike/
   assembly/index.ts      # AssemblyScript エンジン本体（盤面・make/unmake・手生成・打ち歩詰め・Zobrist・perft・evaluateV3/evaluateV3Full）
+  assembly/halfkp81-research.patch # 固定した本番sourceへ研究用81-bucket差分だけを当てるpatch
   assembly/tables.ts     # 自動生成（gen-tables.mjs）。canMove/canJump/diff/komaValue/canPromote
   assembly/as-ambient.d.ts # ルート tsconfig で型チェックを通すための ambient 宣言（asc は無視する）
   gen-tables.mjs         # 既存 TS ソースからテーブルを抽出して tables.ts を生成
@@ -19,8 +20,10 @@ wasm-spike/
   nnue-parity.ts         # NNUE AS⇄TS パリティ（ダミー重み、1000 局面 + 差分アキュムレータ 1200 局面 + 探索一致）
   nnue-bench.ts          # NNUE eval 単体 + perft オーバーヘッド + 3秒探索ベンチ（full/fast/マテリアル重み比較）
   nnue-verify-reference.ts # 実重み照合（ml/dump-reference.py の出力と 3-way 照合）
+  artifacts/shogi-halfkp81-research.wasm # 81-bucket HalfKP 研究専用（本番loaderは参照しない）
+  build-halfkp81-research-wasm.mjs # temp内でpatch・compile・hash検証して研究artifactだけを更新
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
-src/components/game/ShogiImproved/wasm/shogi.wasm # ビルド成果物（25KB、フェーズ4で本番位置へ移設。ここが唯一の正）
+src/components/game/ShogiImproved/wasm/shogi.wasm # 本番固定バイナリ（HalfKP研究artifactと分離）
 src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記の base64 埋め込み（gen-wasm-base64.mjs で再生成）
 ```
 
@@ -34,18 +37,18 @@ npm install --no-save assemblyscript
 # テーブル再生成（既存TSソースが変わったときのみ必要）
 node wasm-spike/gen-tables.mjs
 
-# コンパイル（成果物は本番位置に直接出力。NNUE 推論が SIMD128 を使うので
-# --enable simd が必須。SIMD 非対応環境では WebAssembly.validate が false を
-# 返し、wasmEngine.ts が JS V20 エンジンへフォールバックする）
-npx asc wasm-spike/assembly/index.ts \
-  --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
-  -O3 --runtime stub --noAssert --enable simd
-
-# base64 埋め込みモジュールの再生成（Worker はこれをロードする）
-node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
+# HalfKP研究ビルド。本番sourceをtempへcopyして研究patchを適用し、
+# AssemblyScript 0.28.19 + SIMDでcompileして研究専用artifactだけを更新する。
+node wasm-spike/build-halfkp81-research-wasm.mjs
 ```
 
-ビルド成果物（`shogi.wasm` と `shogiWasmBase64.ts`）はリポジトリにコミットする。CI/Vercel ビルドには AssemblyScript を入れない（エンジンのソースを変えたときだけローカルで再ビルドしてコミット）。
+本番 `assembly/index.ts`、`shogi.wasm`、`shogiWasmBase64.ts` は固定したままである。
+本番WASMは35,597 bytes / SHA-256
+`e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` の固定assetのままである。
+HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない。将来、正式A/B・ブラウザ複数workerの
+メモリゲート・ロールバック条件を通過して本番昇格する別PRだけが、本番assetとbase64を同時に更新する。
+81-bucket差分は`assembly/halfkp81-research.patch`だけに隔離した。研究用artifactは35,837 bytes / SHA-256
+`1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db` で、`--wasm-path` を明示したハーネスだけが読み込む。
 
 ## ベンチ実行
 
@@ -193,7 +196,9 @@ WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局�
 ### 検証
 
 ```sh
-node -r tsx/cjs wasm-spike/nnue-parity.ts    # AS vs TS 参照実装（ダミー重み）
+node -r tsx/cjs wasm-spike/nnue-parity.ts    # 本番AS vs TS、1/6 buckets
+node -r tsx/cjs wasm-spike/nnue-parity.ts \
+  --wasm-path wasm-spike/artifacts/shogi-halfkp81-research.wasm # 研究用1/6/81 buckets
 node -r tsx/cjs wasm-spike/nnue-bench.ts     # eval 単体 10万回 + 3秒探索 nnue on/off
 # 実重み照合（torch 環境で ml/dump-reference.py を先に実行 → ml/README.md 参照）
 node -r tsx/cjs wasm-spike/nnue-verify-reference.ts <weights.bin> <reference.json>
@@ -331,7 +336,9 @@ SharedArrayBuffer で共有**する:
 # ST ビット一致（従来ゲート、全パス）
 node -r tsx/cjs wasm-spike/parity.ts          # 4,184 局面 100%
 node -r tsx/cjs wasm-spike/search-driver.ts   # 48/48 EXACT
-node -r tsx/cjs wasm-spike/nnue-parity.ts public/shogi-nnue-weights.bin
+node -r tsx/cjs wasm-spike/nnue-parity.ts
+node -r tsx/cjs wasm-spike/nnue-parity.ts \
+  --wasm-path wasm-spike/artifacts/shogi-halfkp81-research.wasm
 
 # MT 妥当性（非決定なので別ゲート）: 全手合法 / 同一局面100回の手集合 / ノードスケーリング
 node -r tsx/cjs wasm-spike/mt/mt-sanity.ts --threads 4 --repeats 100

@@ -17,6 +17,8 @@
  * Usage:
  *   node -r tsx/cjs wasm-spike/search-driver.ts            # fixed-depth verification
  *   node -r tsx/cjs wasm-spike/search-driver.ts --bench    # 3s JS-vs-WASM benchmark
+ *   node -r tsx/cjs wasm-spike/search-driver.ts \
+ *     --wasm-path wasm-spike/artifacts/shogi-halfkp81-research.wasm
  */
 
 import { readFileSync } from 'node:fs';
@@ -50,8 +52,24 @@ export interface ShogiSearchWasm {
   getSearchLeaves(): number;
 }
 
-export function loadShogiWasm(): ShogiSearchWasm {
-  const wasmBytes = readFileSync(join(__dirname, '..', 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi.wasm'));
+export const PRODUCTION_SHOGI_WASM_PATH = join(
+  __dirname,
+  '..',
+  'src',
+  'components',
+  'game',
+  'ShogiImproved',
+  'wasm',
+  'shogi.wasm'
+);
+
+/**
+ * Load an explicitly selected research runtime, or the byte-pinned production
+ * runtime when no path is provided. Research callers must pass their artifact
+ * path; this function never changes what the browser production loader uses.
+ */
+export function loadShogiWasm(wasmPath: string = PRODUCTION_SHOGI_WASM_PATH): ShogiSearchWasm {
+  const wasmBytes = readFileSync(wasmPath);
   const wasmModule = new WebAssembly.Module(wasmBytes);
   const instance = new WebAssembly.Instance(wasmModule, {
     env: {
@@ -311,7 +329,12 @@ function runBench(wasm: ShogiSearchWasm): void {
 // ---------------------------------------------------------------------------
 
 if (require.main === module) {
-  const wasm = loadShogiWasm();
+  const wasmPathIndex = process.argv.indexOf('--wasm-path');
+  const wasmPath = wasmPathIndex < 0 ? undefined : process.argv[wasmPathIndex + 1];
+  if (wasmPathIndex >= 0 && (!wasmPath || wasmPath.startsWith('--'))) {
+    throw new Error('--wasm-path requires a value');
+  }
+  const wasm = loadShogiWasm(wasmPath);
   if (process.argv.includes('--bench')) {
     runBench(wasm);
   } else {

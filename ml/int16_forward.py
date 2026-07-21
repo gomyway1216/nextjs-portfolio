@@ -56,9 +56,9 @@ def _check_int32(value: torch.Tensor, name: str) -> torch.Tensor:
 def effective_w1(model: Any) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Build the effective first layer without severing autograd.
 
-    ``kp-factor`` stores a bucket-local delta plus a shared table.  Calling its
-    historical ``materialized_w1`` helper would run under ``no_grad``; doing the
-    small composition here keeps gradients connected to every source parameter.
+    Factored KP/HalfKP models store a bucket-local delta plus a shared table.
+    Calling their historical materialized_w1 helper would run under no_grad;
+    composing here keeps gradients connected to every parameter.
     """
     try:
         board_feats = int(model.board_feats)
@@ -105,6 +105,9 @@ def effective_w1(model: Any) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         hand_buckets = hand_feats // shared_hand_feats
         if board_buckets != hand_buckets:
             raise ValueError("factored board and hand bucket counts disagree")
+        declared_buckets = getattr(model, "bucket_count", board_buckets)
+        if type(declared_buckets) is not int or declared_buckets != board_buckets:
+            raise ValueError("factored model bucket_count disagrees with its tables")
         hidden = board_weight.shape[1]
         if tuple(shared_board_weight.shape) != (shared_board_feats + 1, hidden):
             raise ValueError("model.board_shared.weight has an incompatible shape")
@@ -366,6 +369,9 @@ def _expanded_hands(
     if raw_hand_feats <= 0 or hand_feats % raw_hand_feats:
         raise ValueError("raw hand width does not divide the model hand width")
     bucket_count = hand_feats // raw_hand_feats
+    declared_buckets = getattr(model, "bucket_count", bucket_count)
+    if type(declared_buckets) is not int or declared_buckets != bucket_count:
+        raise ValueError("model bucket_count disagrees with expanded hand width")
     if bucket is None:
         raise ValueError("bucket is required for bucketed hand features")
     buckets = torch.as_tensor(bucket, device=hands.device)

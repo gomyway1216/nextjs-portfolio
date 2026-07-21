@@ -1,0 +1,215 @@
+{
+  "schema": "shogi-nnue-representation-pivot-evidence-v1",
+  "status": "halfkp81-g3-direct-screen-rejected-live-unchanged",
+  "recorded_date": "2026-07-21",
+  "articles": [
+    "docs/blog-shogi-opening-book.md",
+    "docs/blog-shogi-opening-book.en.md"
+  ],
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "representation": "board-only",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  },
+  "terminated_family": {
+    "representation": "board-only",
+    "format_bytes": 1185988,
+    "reason": "Changing data volume, initialization, scalar value loss, and sibling-ranking loss all failed direct play; proxy gains were not accepted as strength.",
+    "experiments": [
+      {
+        "id": "fresh-800k-scalar-scratch",
+        "training_rows": 800000,
+        "objective": "scalar-value",
+        "candidate_wins": 0,
+        "live_wins": 52,
+        "draws": 1,
+        "stopped_early": true,
+        "adopted": false
+      },
+      {
+        "id": "v9-sibling-child-value-scratch",
+        "training_rows": 278736,
+        "objective": "sibling-child-scalar-value",
+        "candidate_wins": 0,
+        "live_wins": 15,
+        "draws": 0,
+        "stopped_early": true,
+        "adopted": false
+      },
+      {
+        "id": "v9-sibling-ranking-scratch",
+        "training_rows": 278736,
+        "objective": "sibling-pairwise-and-listwise-ranking",
+        "candidate_wins": 0,
+        "live_wins": 11,
+        "draws": 0,
+        "stopped_early": true,
+        "adopted": false
+      }
+    ]
+  },
+  "halfkp81": {
+    "representation": "full normalized own-king-square HalfKP-style",
+    "buckets": 81,
+    "bytes": 94656708,
+    "sha256": "6586c27f848c9bcb0b8b0540c6db1c63147dbee36fe9906ec08a614959f408b6",
+    "exact_lift_required": true,
+    "g1": {
+      "status": "pass",
+      "scope": "single-instance research runtime; not a production browser pass",
+      "runtime": {
+        "path": "wasm-spike/artifacts/shogi-halfkp81-research.wasm",
+        "bytes": 35837,
+        "sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db",
+        "production_source_sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c",
+        "research_patch_path": "wasm-spike/assembly/halfkp81-research.patch",
+        "research_patch_sha256": "97a27912a2487bae000921dd754506126e1b33ff7e70dbfb846f20f869168c1d"
+      },
+      "static_positions": 1000,
+      "static_mismatches": 0,
+      "fixed_depth_cases": 6,
+      "fixed_depth_mismatches": 0,
+      "median_search_slowdown_pct": 3.986103482825537,
+      "aggregate_search_slowdown_pct": 3.485959539935146,
+      "maximum_allowed_slowdown_pct": 5,
+      "live_wasm_memory_bytes": 56623104,
+      "halfkp_wasm_memory_bytes": 151322624,
+      "halfkp_total_load_ms": 40.35062399999998
+    },
+    "g3": {
+      "status": "direct-screen-rejected",
+      "source_rows": 5892192,
+      "valid_rows": 5892140,
+      "skipped_malformed_rows": 52,
+      "train_rows": 5302926,
+      "validation_rows": 589214,
+      "epochs": 6,
+      "elapsed_seconds": 895.02,
+      "maximum_resident_set_bytes": 11077681152,
+      "process_swaps": 0,
+      "initializer": {
+        "validation_loss": 0.010629,
+        "validation_mae_cp": 373.9,
+        "validation_pair_accuracy": 0.9338
+      },
+      "selected_epoch": {
+        "epoch": 6,
+        "selection_metric": "validation-pair-accuracy",
+        "checkpoint_bytes": 191656969,
+        "checkpoint_sha256": "caeda3779b2b511a26c4bad5d6512fdec8c1aee64d67d539aa0162b4a7f3dec5",
+        "weights_bytes": 94656708,
+        "weights_sha256": "9321723100311af3440fa6ff96f825e8c1cee71bdd6f61f2316a88bb4c430e94",
+        "validation_loss": 0.01095783,
+        "validation_mae_cp": 388.76,
+        "validation_pair_accuracy": 0.934331,
+        "int16_verification_positions": 1000,
+        "float_int16_mean_absolute_cp_delta": 28.37,
+        "float_int16_max_absolute_cp_delta": 140.82
+      },
+      "direct_screen": {
+        "status": "stopped-after-mathematical-elimination",
+        "milliseconds_per_move": 500,
+        "planned_games": 28,
+        "completed_games": 27,
+        "candidate_wins": 8,
+        "live_wins": 18,
+        "draws": 1,
+        "candidate_score_rate": 0.3148148148148148,
+        "maximum_possible_final_score_rate": 0.3392857142857143,
+        "completed_color_swapped_pairs": 13,
+        "candidate_pair_sweeps": 1,
+        "live_pair_sweeps": 5,
+        "other_completed_pairs": 7,
+        "legal_searched_moves": 3181,
+        "seed_bases": [2026072801, 2026072802, 2026072803, 2026072804, 2026072805, 2026072806, 2026072807],
+        "concatenated_lane_logs_bytes": 5694,
+        "concatenated_lane_logs_sha256": "872b6fcf16ce971117e1596f7e9c7de4677276abe04c589dcb483532f314d3ea",
+        "runtime_sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db"
+      },
+      "clear_strength_gain": false,
+      "adopted": false
+    },
+    "multiworker_resource_measurement": {
+      "decision": "measurement-only-no-browser-pass",
+      "runtime_sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db",
+      "weight_sha256": "6586c27f848c9bcb0b8b0540c6db1c63147dbee36fe9906ec08a614959f408b6",
+      "maximum_instances": 4,
+      "four_instance_load_and_clone_wall_ms": 143.914042,
+      "four_instance_logical_wasm_memory_bytes": 605290496,
+      "four_instance_transient_weight_clone_bytes": 283970124,
+      "four_instance_shared_tt_bytes": 33554496,
+      "four_instance_sampled_peak_rss_bytes": 1171767296,
+      "browser_gate_passed": false,
+      "limitation": "Node worker_threads reproduce private instances and structured clones; a real-browser gate is still required before promotion."
+    },
+    "g2": {
+      "training_rows": 1000000,
+      "runtime_sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db",
+      "all_parameter_epoch_1_screen": {
+        "milliseconds_per_move": 500,
+        "seed_bases": [2026072501, 2026072502, 2026072503, 2026072504, 2026072505, 2026072506, 2026072507],
+        "concatenated_lane_logs_sha256": "af7f7377908bb3f4561834df3ff1059019d977439faacc8a714c80c9e4ae9ee7",
+        "candidate_wins": 13,
+        "live_wins": 14,
+        "draws": 1,
+        "adopted": false
+      },
+      "delta_only_screen": {
+        "milliseconds_per_move": 500,
+        "seed_bases": [2026072601, 2026072602, 2026072603, 2026072604, 2026072605, 2026072606, 2026072607],
+        "concatenated_lane_logs_sha256": "12cfbf5d201bf12124587dc39e20c99f1f3856d10f117d0f13be158e07cddd39",
+        "candidate_wins": 6,
+        "live_wins": 21,
+        "draws": 1,
+        "adopted": false
+      },
+      "selected_epoch_6": {
+        "weights_sha256": "e4b5693040d8f2f15d4559bffc7bce44d6d85158dd327128ad2a71709981da99",
+        "screen_500ms": {
+          "games": 56,
+          "seed_batches": [
+            {
+              "seed_bases": [2026072501, 2026072502, 2026072503, 2026072504, 2026072505, 2026072506, 2026072507],
+              "concatenated_lane_logs_sha256": "f5df476c80eb8922d0f51cb4af56d00769f781c57c5b6034488a6e6c3f741e13"
+            },
+            {
+              "seed_bases": [2026072601, 2026072602, 2026072603, 2026072604, 2026072605, 2026072606, 2026072607],
+              "concatenated_lane_logs_sha256": "2c67ea217db6251684b38c5897645dcce6f4b38af1d5d0a6894c7324dfdb1db6"
+            }
+          ],
+          "candidate_wins": 28,
+          "live_wins": 25,
+          "draws": 3
+        },
+        "screen_1000ms": {
+          "games": 32,
+          "seed_bases": [2026072701, 2026072702, 2026072703, 2026072704, 2026072705, 2026072706, 2026072707, 2026072708],
+          "concatenated_lane_logs_sha256": "d970d6383fc49d9e27b2ef428d14d78e6a4c82e488f2d2431c904227a3016a0d",
+          "candidate_wins": 16,
+          "live_wins": 15,
+          "draws": 1
+        },
+        "combined": {
+          "games": 88,
+          "candidate_wins": 44,
+          "live_wins": 40,
+          "draws": 4,
+          "candidate_score_rate": 0.5227272727272727,
+          "clear_strength_gain": false,
+          "adopted": false
+        }
+      }
+    },
+    "pilot_gate": "direct paired match against unchanged live weights",
+    "scale_gate": "the pilot did not pass the original clear-win scale gate; one bounded full-corpus coverage exception is recorded and cannot authorize promotion",
+    "promotion_gate": "clear direct formal A/B win plus external calibration"
+  },
+  "claims": {
+    "playing_strength_improved": false,
+    "live_model_changed": false,
+    "high_dan_calibrated": false
+  },
+  "next_step": "Do not train HalfKP81 again. Keep live unchanged and require a new representation or learning-signal hypothesis to beat live in a bounded direct screen before any formal A/B."
+}

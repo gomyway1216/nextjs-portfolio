@@ -43,7 +43,8 @@
     "shogi:floodgate-v7-local-clean-room-training-label-finalizer": "node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts",
     "shogi:formal-ab-v2-local": "python3 ml/formal_paired_ab_local_launcher.py",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
-    "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
+    "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts",
+    "daifugo:match": "node -r tsx/cjs scripts/daifugo-ai-match.ts"
   },
   "engines": {
     "node": ">=22.13.0 <24",

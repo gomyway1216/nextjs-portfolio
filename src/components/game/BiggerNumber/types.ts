@@ -25,7 +25,7 @@ export type CardValue = number | 'dragon';
 
 export const ALL_CARDS: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
 
-export type AIDifficulty = 'easy' | 'medium' | 'hard';
+export type AIDifficulty = 'easy' | 'medium' | 'hard' | 'master';
 
 export type RoundOutcome = 'p1' | 'p2' | 'tie';
 

@@ -59,7 +59,7 @@
 
 .diffGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.6rem;
 }
 .diffBtn {
@@ -95,6 +95,11 @@
   border-color: #f87171;
   background: rgba(248, 113, 113, 0.15);
   color: #fecaca;
+}
+.diffBtnActive[data-level='master'] {
+  border-color: #c084fc;
+  background: rgba(192, 132, 252, 0.15);
+  color: #e9d5ff;
 }
 .diffBtnActive .diffDesc { color: inherit; opacity: 0.85; }
 

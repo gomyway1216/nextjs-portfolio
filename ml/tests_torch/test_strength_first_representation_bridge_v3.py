@@ -247,6 +247,33 @@ class RepresentationBridgeV3SafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "enrollment drifted"):
             RUNNER._validate_public_inputs(changed_result, root)
 
+    def test_run_forwards_same_injected_fingerprint_to_prevalidation(self):
+        injected_fingerprint = mock.Mock(name="injected_fingerprint")
+        prevalidate = mock.Mock(
+            side_effect=RuntimeError("stop after fingerprint forwarding")
+        )
+        with (
+            mock.patch.object(
+                RUNNER,
+                "_runtime_registry",
+                return_value=(self.candidate, origin_for(self.candidate)),
+            ),
+            mock.patch.object(RUNNER, "_validate_public_inputs"),
+            self.assertRaisesRegex(RuntimeError, "fingerprint forwarding"),
+        ):
+            RUNNER.run_representation_bridge(
+                repo_root=ML_DIR.parent,
+                home_root=Path.home(),
+                prevalidate=prevalidate,
+                fingerprint=injected_fingerprint,
+            )
+
+        prevalidate.assert_called_once()
+        self.assertIs(
+            prevalidate.call_args.kwargs["fingerprint"],
+            injected_fingerprint,
+        )
+
     def test_transitive_source_mutations_stop_before_label_evaluation(self):
         dependencies = (
             "metric_gates",
@@ -264,11 +291,8 @@ class RepresentationBridgeV3SafetyTest(unittest.TestCase):
                 mutated = copy.deepcopy(self.candidate)
                 identity = mutated["dependencies"]["runtime_import_closure"][name]
                 identity["sha256"] = "f" * 64
-                dataset_loader_called = False
                 with self.assertRaisesRegex(ValueError, "identity mismatch"):
                     RUNNER._validate_public_inputs(mutated, root)
-                    dataset_loader_called = True
-                self.assertFalse(dataset_loader_called)
 
     def test_temp_copy_runtime_source_tampering_stops_before_labels(self):
         source_root = ML_DIR.parent
@@ -290,11 +314,8 @@ class RepresentationBridgeV3SafetyTest(unittest.TestCase):
                     ][closure_name]
                     target = copied_root / target_identity["path"]
                     target.write_bytes(target.read_bytes() + b"\n# injected mutation\n")
-                    dataset_loader_called = False
                     with self.assertRaisesRegex(ValueError, "identity mismatch"):
                         RUNNER._validate_public_inputs(self.candidate, copied_root)
-                        dataset_loader_called = True
-                    self.assertFalse(dataset_loader_called)
 
     def test_family_gate_failure_produces_no_publication(self):
         mutated = copy.deepcopy(self.report)

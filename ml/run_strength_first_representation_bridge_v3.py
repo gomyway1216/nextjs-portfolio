@@ -644,7 +644,14 @@ def run_representation_bridge(
     registry, origin_registry = _runtime_registry(root)
     _validate_public_inputs(registry, root)
 
-    prepared = dict(prevalidate(registry=registry, repo_root=root, home_root=home))
+    prepared = dict(
+        prevalidate(
+            registry=registry,
+            repo_root=root,
+            home_root=home,
+            fingerprint=fingerprint,
+        )
+    )
     if prepared.get("selection_labels_read") is not False:
         raise ValueError("model prevalidation crossed the spent-label boundary")
     spent = registry["spent_selection"]

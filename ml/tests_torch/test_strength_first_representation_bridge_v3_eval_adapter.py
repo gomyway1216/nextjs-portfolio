@@ -340,20 +340,24 @@ class RepresentationBridgeV3AdapterTest(unittest.TestCase):
 
     def test_all_six_checkpoints_and_q_tensors_validate_before_any_label_read(self):
         candidate, root, home, evaluator, fingerprints = fixture()
-        dataset_reads = 0
 
         def fingerprint(path: str):
             return fingerprints[path]
 
-        prepared = ADAPTER.prevalidate_family(
-            registry=candidate,
-            repo_root=root,
-            home_root=home,
-            evaluator=evaluator,
-            fingerprint=fingerprint,
-        )
+        with mock.patch.object(
+            ADAPTER.BASE,
+            "_load_splitless_fresh_selection_as_validation",
+            side_effect=AssertionError("prevalidation must not read selection labels"),
+        ) as label_loader:
+            prepared = ADAPTER.prevalidate_family(
+                registry=candidate,
+                repo_root=root,
+                home_root=home,
+                evaluator=evaluator,
+                fingerprint=fingerprint,
+            )
         self.assertFalse(prepared["selection_labels_read"])
-        self.assertEqual(dataset_reads, 0)
+        label_loader.assert_not_called()
         self.assertEqual(len(evaluator.loads), 7)
         self.assertEqual(len(prepared["quantized_proofs"]), 3)
         self.assertTrue(
@@ -362,8 +366,16 @@ class RepresentationBridgeV3AdapterTest(unittest.TestCase):
 
     def test_one_changed_quantized_tensor_stops_before_label_read(self):
         candidate, root, home, evaluator, fingerprints = fixture(mismatch_seed=43)
-        dataset_reads = 0
-        with self.assertRaisesRegex(ValueError, "seven-tensor equivalence failed"):
+        with (
+            mock.patch.object(
+                ADAPTER.BASE,
+                "_load_splitless_fresh_selection_as_validation",
+                side_effect=AssertionError(
+                    "q-equivalence failure must stop before selection labels"
+                ),
+            ) as label_loader,
+            self.assertRaisesRegex(ValueError, "seven-tensor equivalence failed"),
+        ):
             ADAPTER.prevalidate_family(
                 registry=candidate,
                 repo_root=root,
@@ -371,7 +383,7 @@ class RepresentationBridgeV3AdapterTest(unittest.TestCase):
                 evaluator=evaluator,
                 fingerprint=lambda path: fingerprints[path],
             )
-        self.assertEqual(dataset_reads, 0)
+        label_loader.assert_not_called()
 
     def test_result_identity_mismatch_stops_before_checkpoint_or_label_read(self):
         candidate, root, home, evaluator, fingerprints = fixture()

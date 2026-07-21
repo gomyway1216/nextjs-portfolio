@@ -114,10 +114,10 @@
         "sha256": "2dfd5b8eae90504d11b3951d183b2e5dbdeb983c9eb457b08f2efcd62ccd703a"
       },
       "runner": {
-        "bytes": 29238,
+        "bytes": 29336,
         "path": "ml/run_strength_first_representation_bridge_v3.py",
         "schema": "shogi-reviewed-python-source-v1",
-        "sha256": "aeeeade9c11911c56b432a8d1833edcfe2e404fbdf978512c0001f080015b91a"
+        "sha256": "ec3d5d432d504674f1166ff422c1ac68e2c5b1d9ef8df761c8f60beae1284fd7"
       },
       "selection_adapter": {
         "bytes": 21246,
@@ -177,10 +177,10 @@
       "sha256": "468b55b3156153b6b5d9a3bc6755d7c5199802608987f983c9cd90e9fd2e9d60"
     },
     "runner": {
-      "bytes": 29238,
+      "bytes": 29336,
       "path": "ml/run_strength_first_representation_bridge_v3.py",
       "schema": "shogi-reviewed-python-source-v1",
-      "sha256": "aeeeade9c11911c56b432a8d1833edcfe2e404fbdf978512c0001f080015b91a"
+      "sha256": "ec3d5d432d504674f1166ff422c1ac68e2c5b1d9ef8df761c8f60beae1284fd7"
     }
   },
   "inputs": {

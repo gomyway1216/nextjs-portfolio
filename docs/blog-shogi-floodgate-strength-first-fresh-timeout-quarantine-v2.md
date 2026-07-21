@@ -3,7 +3,8 @@
 > 2026年7月20日、4,800親のfresh-selection教師を12並列で実行した旧v1は、同じ非公開親局面で
 > 2回停止した。その実測を基にtimeoutを最大5件だけラベルなしで隔離するv2方針を事前固定し、
 > 13並列のクリーンなv2 runは約57分30秒で完走した。4,800親すべてをaccountし、timeout 2件、
-> 部分label 0件のまま4,798 parent group / 28,518 recordを完成させた。これは候補選抜や棋力向上、
+> 部分label 0件のまま4,798 parent group / 28,518 recordを完成させた。その後、4モデルの実選抜評価まで
+> 完了し、全候補がstableのint16 pair / top1を上回ったが、固定済みfamily gateはFAILした。候補選抜、
 > 高段到達、live weight変更を示す結果ではない。
 > English version:
 > [blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.en.md](./blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.en.md)
@@ -140,12 +141,44 @@ checkpoint 3本の事前strict loadと、selection metric用modelのloadは別�
 candidateとも0件で、metric評価0件、selection output 0件、fresh-final holdout read 0件、live weight
 write 0件のまま停止した。このため2回目も候補の勝敗や棋力測定ではない。
 
-同じbranchのadapter限定修正は、`split`が欠けたrecordだけを`val`へ投影したprivate `0600`一時fileを
-作り、既存`split`が1件でもあれば拒否する。元recordのidentity、順序、feature、CP、rankは維持し、
-一時fileは成功時も例外時も削除する。元の教師artifactは変更しない。次はこのadapter限定修正をreview・
-通常mergeし、stableとseed 42 / 43 / 44の選抜評価を同じ固定datasetで再実行する。候補選抜、holdout、
-正式A/B、外部校正はまだ完了しておらず、強くなった、高段へ到達したという証拠ではない。live weight
-変更は0のままである。
+adapter限定修正は、`split`が欠けたrecordだけを`val`へ投影したprivate `0600`一時fileを作り、既存
+`split`が1件でもあれば拒否する。元recordのidentity、順序、feature、CP、rankは維持し、一時fileは
+成功時も例外時も削除する。元の教師artifactは変更しない。この修正はPR #583でreview後に通常mergeした。
+
+## 3回目は4モデルを完走したが、固定family gateで停止した
+
+PR #583のmerge後、同じ固定datasetでstableとseed 42 / 43 / 44を評価した。正式CLIは4モデルの計算後、
+固定family gateのFAILを返してexit code 2で停止した。CLIの正確なwall timeは永続記録していないため、
+概算時間を証拠値にはしない。STOP payloadの`candidate_evaluations: 0`は全STOP理由で固定される
+fail-closed fieldで、内部work counterではない。gate判定前にはstable 1本＋candidate 3本のmetric評価4件が
+実際に完了した。その後、outputを発行しない読取専用aggregate診断で同じ計算を再現した。
+この再現診断は49,692 eligible pairを72.525秒で処理し、最大RSSは452.2 MiBだった。下表のaccuracyは
+fraction、MAEはcentipawnで、機械可読記録と同じ再現実測値である。
+
+| model   |         float pair |         int16 pair |         float top1 |         int16 top1 |          float MAE |          int16 MAE |
+| ------- | -----------------: | -----------------: | -----------------: | -----------------: | -----------------: | -----------------: |
+| stable  | 0.5927513483055623 | 0.5915841584158416 | 0.3040850354314298 | 0.3034597749062109 |  525.0306201407702 |  526.6006381934217 |
+| seed 42 |   0.60363841262175 | 0.6013040328423086 | 0.3186744476865361 | 0.3153397248853689 |  405.6228289329656 |  405.9221193632092 |
+| seed 43 |  0.602511470659261 | 0.6019882476052484 | 0.3186744476865361 | 0.3161734055856607 |   405.502088185782 |  402.7880987446525 |
+| seed 44 | 0.6018071319327055 | 0.6000563470981245 | 0.3238849520633597 | 0.3186744476865361 | 405.48167040083933 | 405.71302335367136 |
+
+gate marginは正なら通過余裕、負なら閾値超過である。stableは比較基準なので4 gateの対象外である。
+
+| seed |          int16 pair > stable |         int16 top1 >= stable |        abs float/int16 pair delta |         abs float/int16 top1 delta | 全4 gate |
+| ---- | ---------------------------: | ---------------------------: | --------------------------------: | ---------------------------------: | -------: |
+| 42   | PASS `+0.009719874426467046` | PASS `+0.011879949979157978` | **FAIL `-0.0003343797794413978`** |      PASS `+0.0016652771988327998` |     FAIL |
+| 43   | PASS `+0.010404089189406829` | PASS `+0.012713630679449806` |     PASS `+0.0014767769459873552` |      PASS `+0.0024989578991246276` | **PASS** |
+| 44   | PASS `+0.008472188682282944` | PASS `+0.015214672780325178` |     PASS `+0.0002492151654189794` | **FAIL `-0.00021050437682363244`** |     FAIL |
+
+固定順位は`43 -> 42 -> 44`で、中央値representativeはseed 42だった。しかしseed 42はpairの量子化差gateを
+外し、seed 44はtop1の量子化差gateを外した。全4 gate通過はseed 43だけの1 / 3で、最低2 seedという
+条件、representative全4通過、全seedの両量子化差gate通過をいずれも満たさず、family gateはFAILした。
+
+全候補のint16 pair / top1とMAEがこのfresh-selection dataset上でstableより良いことは有望な静的結果だが、
+family gateを通過した候補selectionではなく、対局棋力や高段を証明しない。evaluation report、receipt、
+publication resultの出力はすべて0、fresh-final holdout read、正式A/B、外部校正、live weight writeも0である。
+次は固定gateを緩めず、seed 42 / 44で外れたfloat-to-int16差を直接減らすquantization-alignment fine-tuneを
+行い、別candidateとして同じ手順で再評価する。
 
 機械可読記録:
 [floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json](./data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)

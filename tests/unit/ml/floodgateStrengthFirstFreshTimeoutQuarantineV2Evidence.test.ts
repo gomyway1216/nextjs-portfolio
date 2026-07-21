@@ -107,7 +107,7 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
   it("records the completed real v2 selection teacher without hiding timeout skips", () => {
     expect(readJson(dataPath)).toMatchObject({
       status:
-        "real-v2-fresh-selection-complete-two-selection-invocations-safely-stopped-no-live-write",
+        "real-v2-fresh-selection-complete-third-selection-static-family-gate-failed-no-live-write",
       observed_v2_selection_run: {
         terminal_status: "complete-fresh-selection-only-postflight-bound",
         fixed_parent_target: 4_800,
@@ -189,12 +189,16 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         },
       },
       observed_claims: {
-        selection_evaluator_invocations: 2,
+        selection_evaluator_invocations: 3,
         selection_safety_stops: 2,
         selection_preflight_safety_stops: 1,
         selection_dataset_format_safety_stops: 1,
-        candidate_checkpoint_strict_loads: 6,
-        selection_metric_model_evaluations: 0,
+        selection_static_family_gate_failures: 1,
+        candidate_checkpoint_strict_loads: 9,
+        selection_metric_model_evaluations: 4,
+        selection_metric_model_evaluations_scope: "formal-selection-cli-only",
+        aggregate_diagnostic_metric_model_evaluations: 4,
+        total_local_metric_model_evaluations_including_diagnostic: 8,
         selection_outputs: 0,
         candidate_selections: 0,
         fresh_final_holdout_reads: 0,
@@ -203,7 +207,7 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         high_dan_calibrated: false,
       },
       next_step:
-        "review-and-regular-merge-splitless-fresh-selection-role-adapter-then-rerun-fixed-local-selection-evaluator",
+        "quantization-alignment-fine-tune-without-relaxing-preregistered-selection-gates",
     });
   });
 
@@ -236,7 +240,9 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         fresh_final_holdout_reads: 0,
         live_weight_writes: 0,
         fix: {
-          status: "implemented-awaiting-review-and-regular-merge",
+          status: "reviewed-and-regular-merged",
+          pull_request: 583,
+          regular_merged: true,
           scope: "adapter-only",
           missing_split_projection: "val",
           temporary_directory_mode: "0700",
@@ -253,23 +259,289 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         },
       },
       observed_claims: {
-        selection_evaluator_invocations: 2,
+        selection_evaluator_invocations: 3,
         selection_safety_stops: 2,
         selection_preflight_safety_stops: 1,
         selection_dataset_format_safety_stops: 1,
-        candidate_checkpoint_strict_loads: 6,
-        selection_dataset_records_strict_scanned: 28_518,
-        stable_selection_metric_model_loads: 0,
-        candidate_selection_metric_model_loads: 0,
-        stable_selection_metric_model_evaluations: 0,
-        candidate_selection_metric_model_evaluations: 0,
-        selection_metric_model_evaluations: 0,
+        selection_static_family_gate_failures: 1,
+        candidate_checkpoint_strict_loads: 9,
+        selection_dataset_records_strict_scanned: 57_036,
+        stable_selection_metric_model_loads: 1,
+        candidate_selection_metric_model_loads: 3,
+        stable_selection_metric_model_evaluations: 1,
+        candidate_selection_metric_model_evaluations: 3,
+        selection_metric_model_evaluations: 4,
+        selection_metric_model_evaluations_scope: "formal-selection-cli-only",
+        aggregate_diagnostic_metric_model_evaluations: 4,
+        total_local_metric_model_evaluations_including_diagnostic: 8,
         selection_outputs: 0,
         candidate_selections: 0,
         fresh_final_holdout_reads: 0,
         live_weight_changes: 0,
       },
     });
+  });
+
+  it("records the third real invocation and exact static family-gate failure", () => {
+    const evidence = readJson(dataPath);
+    expect(
+      evidence.observed_third_selection_and_aggregate_diagnostic,
+    ).toMatchObject({
+      selection_cli: {
+        splitless_role_adapter_pull_request: 583,
+        splitless_role_adapter_regular_merged: true,
+        terminal_status: "static-family-gate-failed-no-publication",
+        process_exit_code: 2,
+        exact_elapsed_seconds_recorded: false,
+        candidate_checkpoint_strict_loads: 3,
+        selection_dataset_read: true,
+        stable_selection_metric_model_loads: 1,
+        candidate_selection_metric_model_loads: 3,
+        stable_selection_metric_model_evaluations: 1,
+        candidate_selection_metric_model_evaluations: 3,
+        selection_metric_model_evaluations: 4,
+        stop_payload_candidate_evaluations: 0,
+        actual_metric_model_evaluations_before_gate: 4,
+        counter_scope_difference:
+          "generic-fail-closed-stop-payload-field-not-an-internal-work-counter",
+        selection_evaluation_report_publications: 0,
+        selection_receipts: 0,
+        selection_publication_results: 0,
+        output_trio_absent_after_failure: true,
+      },
+      aggregate_diagnostic_reproduction: {
+        elapsed_seconds: 72.525,
+        max_rss_mib: 452.2,
+        source: "post-cli-read-only-aggregate-diagnostic-reproduction",
+        selection_dataset_records_evaluated: 28_518,
+        eligible_pairs: 49_692,
+        stable_selection_metric_model_loads: 1,
+        candidate_selection_metric_model_loads: 3,
+        stable_selection_metric_model_evaluations: 1,
+        candidate_selection_metric_model_evaluations: 3,
+        selection_metric_model_evaluations: 4,
+        models: {
+          stable: {
+            float: {
+              pair_accuracy: 0.5927513483055623,
+              top1_accuracy: 0.3040850354314298,
+              mae_cp: 525.0306201407702,
+            },
+            int16: {
+              pair_accuracy: 0.5915841584158416,
+              top1_accuracy: 0.3034597749062109,
+              mae_cp: 526.6006381934217,
+            },
+            selection_gates: "reference-model-not-applicable",
+          },
+          seed_42: {
+            float: {
+              pair_accuracy: 0.60363841262175,
+              top1_accuracy: 0.3186744476865361,
+              mae_cp: 405.6228289329656,
+            },
+            int16: {
+              pair_accuracy: 0.6013040328423086,
+              top1_accuracy: 0.3153397248853689,
+              mae_cp: 405.9221193632092,
+            },
+            gates: [
+              {
+                name: "candidate_pair_strictly_above_stable",
+                passed: true,
+                margin: 0.009719874426467046,
+              },
+              {
+                name: "candidate_top1_at_least_stable",
+                passed: true,
+                margin: 0.011879949979157978,
+              },
+              {
+                name: "absolute_float_to_int16_pair_delta",
+                passed: false,
+                margin: -0.0003343797794413978,
+              },
+              {
+                name: "absolute_float_to_int16_top1_delta",
+                passed: true,
+                margin: 0.0016652771988327998,
+              },
+            ],
+            passed_all_four_gates: false,
+          },
+          seed_43: {
+            float: {
+              pair_accuracy: 0.602511470659261,
+              top1_accuracy: 0.3186744476865361,
+              mae_cp: 405.502088185782,
+            },
+            int16: {
+              pair_accuracy: 0.6019882476052484,
+              top1_accuracy: 0.3161734055856607,
+              mae_cp: 402.7880987446525,
+            },
+            gates: [
+              {
+                name: "candidate_pair_strictly_above_stable",
+                passed: true,
+                margin: 0.010404089189406829,
+              },
+              {
+                name: "candidate_top1_at_least_stable",
+                passed: true,
+                margin: 0.012713630679449806,
+              },
+              {
+                name: "absolute_float_to_int16_pair_delta",
+                passed: true,
+                margin: 0.0014767769459873552,
+              },
+              {
+                name: "absolute_float_to_int16_top1_delta",
+                passed: true,
+                margin: 0.0024989578991246276,
+              },
+            ],
+            passed_all_four_gates: true,
+          },
+          seed_44: {
+            float: {
+              pair_accuracy: 0.6018071319327055,
+              top1_accuracy: 0.3238849520633597,
+              mae_cp: 405.48167040083933,
+            },
+            int16: {
+              pair_accuracy: 0.6000563470981245,
+              top1_accuracy: 0.3186744476865361,
+              mae_cp: 405.71302335367136,
+            },
+            gates: [
+              {
+                name: "candidate_pair_strictly_above_stable",
+                passed: true,
+                margin: 0.008472188682282944,
+              },
+              {
+                name: "candidate_top1_at_least_stable",
+                passed: true,
+                margin: 0.015214672780325178,
+              },
+              {
+                name: "absolute_float_to_int16_pair_delta",
+                passed: true,
+                margin: 0.0002492151654189794,
+              },
+              {
+                name: "absolute_float_to_int16_top1_delta",
+                passed: false,
+                margin: -0.00021050437682363244,
+              },
+            ],
+            passed_all_four_gates: false,
+          },
+        },
+        ranked_seed_order: [43, 42, 44],
+        representative_seed: 42,
+        family_gate: {
+          representative_passed_all_four: false,
+          seeds_passing_all_four: 1,
+          minimum_seeds_passing_all_four: 2,
+          minimum_seed_count_passed: false,
+          all_seeds_passed_both_quantization_delta_gates: false,
+          passed: false,
+        },
+        family_failure_reasons: [
+          "representative-did-not-pass-all-four",
+          "fewer-than-two-seeds-passed-all-four",
+          "not-all-seeds-passed-both-quantization-delta-gates",
+        ],
+        all_candidates_above_stable_on_int16_pair_and_top1: true,
+        candidate_selection_completed: false,
+        selection_evaluation_report_publications: 0,
+        selection_receipts: 0,
+        selection_publication_results: 0,
+        selection_outputs: 0,
+        fresh_final_holdout_reads: 0,
+        formal_ab_games: 0,
+        external_calibration_games: 0,
+        live_weight_writes: 0,
+        output_trio_absent_after_failure: true,
+        gate_thresholds_relaxed: false,
+      },
+    });
+    const diagnostic =
+      evidence.observed_third_selection_and_aggregate_diagnostic
+        .aggregate_diagnostic_reproduction;
+    const stable = diagnostic.models.stable.int16;
+    const seedNames = ["seed_42", "seed_43", "seed_44"];
+    const passesRecordedGate = (margin: number, index: number) => {
+      if (index === 0) return margin > 0;
+      if (index === 1) return margin >= 0;
+      return margin >= 0 || Math.abs(margin) <= 1e-12;
+    };
+    expect(passesRecordedGate(-5e-13, 2)).toBe(true);
+    expect(passesRecordedGate(-2e-12, 2)).toBe(false);
+    for (const seed of seedNames) {
+      const model = diagnostic.models[seed];
+      const expectedMargins = [
+        model.int16.pair_accuracy - stable.pair_accuracy,
+        model.int16.top1_accuracy - stable.top1_accuracy,
+        0.002 - Math.abs(model.int16.pair_accuracy - model.float.pair_accuracy),
+        0.005 - Math.abs(model.int16.top1_accuracy - model.float.top1_accuracy),
+      ];
+      expect(
+        model.gates.map((gate: { margin: number }) => gate.margin),
+      ).toEqual(expectedMargins);
+      expect(
+        model.gates.map((gate: { passed: boolean }) => gate.passed),
+      ).toEqual(expectedMargins.map(passesRecordedGate));
+      expect(model.passed_all_four_gates).toBe(
+        expectedMargins.every(passesRecordedGate),
+      );
+    }
+    const rankedSeeds = [...seedNames]
+      .sort((left, right) => {
+        const leftModel = diagnostic.models[left].int16;
+        const rightModel = diagnostic.models[right].int16;
+        return (
+          rightModel.pair_accuracy - leftModel.pair_accuracy ||
+          rightModel.top1_accuracy - leftModel.top1_accuracy ||
+          leftModel.mae_cp - rightModel.mae_cp ||
+          Number(left.slice("seed_".length)) -
+            Number(right.slice("seed_".length))
+        );
+      })
+      .map((seed) => Number(seed.slice("seed_".length)));
+    const passingSeeds = seedNames.filter(
+      (seed) => diagnostic.models[seed].passed_all_four_gates,
+    ).length;
+    const allDeltaGates = seedNames.every(
+      (seed) =>
+        diagnostic.models[seed].gates[2].passed &&
+        diagnostic.models[seed].gates[3].passed,
+    );
+    const representativeSeed = rankedSeeds[1];
+    const representativePassed =
+      diagnostic.models[`seed_${representativeSeed}`].passed_all_four_gates;
+    const expectedFamilyGate = {
+      representative_passed_all_four: representativePassed,
+      seeds_passing_all_four: passingSeeds,
+      minimum_seeds_passing_all_four: 2,
+      minimum_seed_count_passed: passingSeeds >= 2,
+      all_seeds_passed_both_quantization_delta_gates: allDeltaGates,
+      passed: representativePassed && passingSeeds >= 2 && allDeltaGates,
+    };
+    expect(diagnostic.ranked_seed_order).toEqual(rankedSeeds);
+    expect(diagnostic.representative_seed).toBe(representativeSeed);
+    expect(diagnostic.family_gate).toEqual(expectedFamilyGate);
+    expect(diagnostic.family_failure_reasons).toEqual([
+      "representative-did-not-pass-all-four",
+      "fewer-than-two-seeds-passed-all-four",
+      "not-all-seeds-passed-both-quantization-delta-gates",
+    ]);
+    expect(evidence.next_step).toBe(
+      "quantization-alignment-fine-tune-without-relaxing-preregistered-selection-gates",
+    );
   });
 
   it("records semantic tests and leaves all strength gates unclaimed", () => {
@@ -300,8 +572,8 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         },
         selection_splitless_role_evidence_vitest: {
           files: 1,
-          tests: 7,
-          passed: 7,
+          tests: 8,
+          passed: 8,
           failed: 0,
         },
         selection_splitless_role_python_focused: {

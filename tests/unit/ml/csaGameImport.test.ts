@@ -150,6 +150,22 @@ describe('CSA parsing and parent occurrences', () => {
     expect(game.terminal).toBe('TORYO');
   });
 
+  it('reads the final Floodgate rating field instead of a numeric player name', () => {
+    const fixture = [
+      'V2',
+      'N+910',
+      'N-Makina',
+      "'black_rate:910+e205ee2a:1418.0",
+      "'white_rate:Makina+d466d089:3706.0",
+      'PI',
+      '+',
+      '+7776FU',
+      '%TORYO',
+    ].join('\n');
+    const game = parseCsaGame(fixture, { source: 'floodgate' });
+    expect(game.ratings).toEqual({ sente: 1418, gote: 3706 });
+  });
+
   it('fails closed on wrong side, illegal moves, and non-hirate PI modifications', () => {
     expect(() =>
       parseCsaGame(['V3.0', 'PI', '+', '-3334FU,T0', '%TORYO'].join('\n'), { source: 'wcsc' })

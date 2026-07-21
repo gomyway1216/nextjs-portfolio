@@ -348,7 +348,11 @@ function assertHirate(
 }
 
 function parseRating(value: string): number | null {
-  const match = value.trim().match(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/);
+  // Floodgate uses `<player-name>+<hash>:<rating>`. Names may begin with
+  // digits, so the final colon-delimited field is authoritative.
+  const trimmed = value.trim();
+  const candidate = trimmed.slice(trimmed.lastIndexOf(':') + 1).trim();
+  const match = candidate.match(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/);
   if (!match) return null;
   const parsed = Number(match[0]);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;

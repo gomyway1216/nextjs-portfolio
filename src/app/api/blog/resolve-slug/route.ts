@@ -13,9 +13,16 @@ import { resolvePostParam } from '@/lib/blog/getSlugIndexServer';
  * auth. CDN-cached per param so repeated legacy hits don't touch
  * Firestore.
  */
+// The only shapes this codebase produces: a 20-char Firestore id or a
+// slugifyTitle() slug (lowercase alnum + hyphens, ≤80 chars). Anything
+// else is rejected before touching the index — this endpoint is public
+// and CDN-cached per param, so arbitrary values would just mint cache
+// keys and Firestore reads.
+const VALID_PARAM = /^(?:[A-Za-z0-9]{20}|[a-z0-9-]{1,80})$/;
+
 export async function GET(request: NextRequest) {
   const param = request.nextUrl.searchParams.get('param') ?? '';
-  if (!param || param.length > 200) {
+  if (!VALID_PARAM.test(param)) {
     return NextResponse.json({ error: 'invalid param' }, { status: 400 });
   }
 
@@ -33,8 +40,11 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error('[blog] resolve-slug failed:', error);
-    // 503 without caching: the middleware fails open and the page's own
-    // fallback (meta refresh) still covers the redirect.
-    return NextResponse.json({ error: 'resolution unavailable' }, { status: 503 });
+    // Explicitly uncached 503: the middleware fails open and the page's
+    // own fallback (meta refresh) still covers the redirect.
+    return NextResponse.json(
+      { error: 'resolution unavailable' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 }

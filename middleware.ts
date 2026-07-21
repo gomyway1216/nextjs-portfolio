@@ -45,7 +45,9 @@ async function legacyBlogRedirect(request: NextRequest, pathname: string) {
   try {
     const resolveUrl = new URL('/api/blog/resolve-slug', request.url);
     resolveUrl.searchParams.set('param', param);
-    const res = await fetch(resolveUrl);
+    // Bounded wait: a slow resolve (cold start, Firestore latency) must not
+    // hold up TTFB — past the deadline we fail open to the page's fallback.
+    const res = await fetch(resolveUrl, { signal: AbortSignal.timeout(2000) });
     if (!res.ok) return null;
     const data = (await res.json()) as { slug?: string; category?: string };
     if (!data.slug || !data.category || data.slug === param) return null;

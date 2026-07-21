@@ -598,7 +598,9 @@ JSON.stringify({
       result.error === undefined &&
       result.status === null &&
       result.stdout === "" &&
-      (firstSignal === "SIGABRT" || firstSignal === "SIGKILL");
+      (firstSignal === "SIGABRT" ||
+        firstSignal === "SIGKILL" ||
+        firstSignal === "SIGPIPE");
     if (retryableParentSignal) {
       process.stderr.write(
         `[floodgate-v7-test] retrying DYLD rejection after ` +

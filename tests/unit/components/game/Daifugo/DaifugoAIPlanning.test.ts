@@ -61,7 +61,7 @@ describe('partitionHand / estimateTurnsToGo', () => {
 });
 
 describe('countUnseenByRank', () => {
-  it('subtracts the player own hand from the full deck', () => {
+  it("subtracts the player's own hand from the full deck", () => {
     const state = baseState({
       hands: { p1: [card('a', 'S', 5), card('b', 'H', 5), card('j', 'J', JOKER_RANK)], p2: [] },
     });

@@ -734,9 +734,11 @@ function rankMoves(moves: ScoredMove[], ctx: RankContext): ScoredMove[] {
       // Endgame lead with exactly two combos left and no proven finish line:
       // lead the STRONG combo first (it often wins the trick outright), keeping
       // the weak combo as the final play — leading weak instead usually means
-      // never regaining the lead.
+      // never regaining the lead. `priority` starts at +m.score, so subtracting
+      // 2*score nets out to -score, genuinely inverting the ordering to
+      // strong-first (subtracting score once would only cancel the base term).
       if (ctx.leading && ctx.handTurns === 2) {
-        priority -= m.score;
+        priority -= 2 * m.score;
       }
     }
 

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -22,8 +23,12 @@ function read(file: string): string {
   return fs.readFileSync(file, "utf8");
 }
 
-function sha256(file: string): string {
-  return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+function readRevisionFile(revision: string, relativePath: string): Buffer {
+  return execFileSync(
+    "git",
+    ["show", `${revision}:${relativePath}`],
+    { cwd: repositoryRoot, encoding: "buffer" },
+  );
 }
 
 interface CompletionEvidence {
@@ -101,7 +106,7 @@ describe("Floodgate strength-first v9 teacher completion evidence", () => {
     });
   });
 
-  it("binds the two-thread decision and unchanged cross-revision sources", () => {
+  it("binds the two-thread decision and unchanged historical cross-revision sources", () => {
     const record = evidence();
     expect(record).toMatchObject({
       training_thread_benchmark: {
@@ -129,9 +134,16 @@ describe("Floodgate strength-first v9 teacher completion evidence", () => {
       record.training_thread_benchmark.cross_revision_equivalence
         .unchanged_sources;
     for (const [relativePath, identity] of Object.entries(sources)) {
-      const fullPath = path.join(repositoryRoot, relativePath);
-      expect(fs.statSync(fullPath).size).toBe(identity.bytes);
-      expect(sha256(fullPath)).toBe(identity.sha256);
+      for (const revision of [
+        "f0f943e5251bc8b511a050e614561eca3903f8ba",
+        "e9fed482e4d83a38feddaf6dabf3abd66d09aab9",
+      ]) {
+        const source = readRevisionFile(revision, relativePath);
+        expect(source.byteLength).toBe(identity.bytes);
+        expect(createHash("sha256").update(source).digest("hex")).toBe(
+          identity.sha256,
+        );
+      }
     }
   });
 

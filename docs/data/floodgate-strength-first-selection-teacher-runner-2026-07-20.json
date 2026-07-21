@@ -1,0 +1,217 @@
+{
+  "schema": "shogi-floodgate-strength-first-selection-teacher-runner-evidence-v1",
+  "status": "implementation-locally-validated-publication-time-checkpoint-registry-closed-real-selection-unread-live-unchanged",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-selection-teacher-runner.md",
+    "english": "../blog-shogi-floodgate-strength-first-selection-teacher-runner.en.md"
+  },
+  "implementation": {
+    "foundation_commit": "26dc8e08e86c75440e828964d8a655b1f05a142b",
+    "v9_core_local_cherry_pick_commit": "408fd2436ffd3fbf950423157846e3e0d0a3c5a1",
+    "generator_integration_commit": "749689746f0e6b5d626d4c54da8424a09f0b0710",
+    "argumentless_command": "npx tsx ml/run-floodgate-fresh-selection-teacher.ts",
+    "accepts_arguments_or_path_overrides": false,
+    "fixed_local_runner": true,
+    "real_sibling_generator_adapter_connected": true
+  },
+  "upstream_dependency": {
+    "strength_first_v9_proposal_rescue_source_commit": "a8ec6975113f7feacbc55bb87ba80f2d9b64dbbe",
+    "same_change_present_in_local_cherry_pick": true,
+    "exact_source_commit_present_in_branch_ancestry": true,
+    "dependency_merge_commit": "34c643cda934a262ceab06b5dc9cabcf6ff4d70f",
+    "dependency_merge_tree_matches_premerge_head": true,
+    "upstream_pull_request": null,
+    "dependency_must_be_declared_before_merge": true,
+    "nonduplicated_final_diff_must_be_confirmed": true
+  },
+  "checkpoint_gate_observed_at_publication": {
+    "registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
+    "status": "awaiting-exact-strength-first-plan-and-three-final-run-identities",
+    "artifact_identities_registered": false,
+    "selection_preflight_ready": false,
+    "registered_training_plan_identities": 0,
+    "registered_final_result_identities": 0,
+    "registered_final_checkpoint_identities": 0,
+    "strict_loaded_candidate_checkpoints": 0,
+    "direct_preflight": {
+      "command": "python3 ml/run_strength_first_selection_teacher_preflight.py",
+      "exit_code": 1,
+      "stdout_bytes": 0,
+      "status": "expected-stop-selection-registry-remains-closed"
+    },
+    "selection_source_opened_by_direct_preflight": false,
+    "torch_checkpoint_opened_by_direct_preflight": false,
+    "teacher_engine_started_by_direct_preflight": false
+  },
+  "fixed_source": {
+    "role": "fresh_selection",
+    "path": "~/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.raw.jsonl",
+    "records": 4800,
+    "games": 200,
+    "bytes": 3073306,
+    "sha256": "76e43969374704a77745fd329e5d22059d036fb8235626af91421fbeba16a4d9",
+    "game_ids_sha256": "417e2e1053d9f222e82478840f9021c68d88948fec6c9db927538ebadd77e0cb",
+    "parent_ids_sha256": "db24301a7168e84de2474939e8d2b865b670b448aa6ccba2999a4e19df111a3f",
+    "position_ids_count": 4800,
+    "position_ids_sha256": "3e0c7c049bc4e0799854a4371266278c61ce53184ae14f6be82c40ab73ef02c0",
+    "opened_during_implementation_or_validation": false
+  },
+  "ordering_contract": {
+    "formal_teacher_exclusion": {
+      "roots": [
+        "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8",
+        "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9"
+      ],
+      "acquisition_order": [
+        "v8",
+        "v9"
+      ],
+      "release_order": [
+        "v9",
+        "v8"
+      ],
+      "held_for_entire_run": true,
+      "v9_acquisition_failure_releases_v8": true,
+      "active_v8_or_v9_blocks_before_checkpoint_source_or_engine": true
+    },
+    "process_umask_changed": false,
+    "exact_clean_revision_before_checkpoint_preflight": true,
+    "all_three_checkpoints_strict_loaded_before_source_open": true,
+    "source_assets_and_policy_open_only_after_preflight": true,
+    "checkpoint_source_assets_and_policy_revalidated_after_generation": true,
+    "result_committed_last": true,
+    "candidate_selection_decision_made": false,
+    "live_weight_write_authorized": false
+  },
+  "search_policy": {
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json",
+    "engine": "YaneuraOu",
+    "parallel_processes": 12,
+    "threads_per_process": 1,
+    "hash_mib_per_process": 512,
+    "aggregate_hash_mib": 6144,
+    "proposal": {
+      "depth": 14,
+      "multipv": 6
+    },
+    "independent_exact_rescore": {
+      "depth": 16,
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "candidate_order": "utf8-bytewise-ascending"
+    },
+    "timeout_ms_per_search": 600000,
+    "network": false
+  },
+  "hash_selection_basis": {
+    "fresh_hash_64_selected": false,
+    "selected_hash_mib_per_process": 512,
+    "same_one_thread_yaneuraou_v8_measurements_reused": true,
+    "normal_nine_position_hash_512_reduction_vs_256_percent": 2.882078,
+    "production_like_parallel_processes": 12,
+    "production_like_completed": 12,
+    "production_like_failures": 0,
+    "production_like_wall_seconds": 47.557,
+    "production_like_peak_engine_rss_gib_approx": 8,
+    "production_like_system_memory_free_percent_at_peak": 45,
+    "production_like_pages_throttled": 0,
+    "hash_1024_slower_than_512_on_known_case": true,
+    "host_memory_gib": 48,
+    "host_cores": 14,
+    "reserved_cores_for_persistence_input_and_os": 2,
+    "measurement_evidence": "docs/data/floodgate-strength-first-v8-hash-recovery-2026-07-19.json"
+  },
+  "typed_incomplete_proposal_fallback": {
+    "allowed_only_when_legal_moves_at_most": 6,
+    "partial_proposal_ranks_discarded": true,
+    "mixed_partial_and_fallback_ranks_accepted": false,
+    "fallback_searches_every_legal_move_separately": true,
+    "fallback_depth": 14,
+    "fallback_multipv": 1,
+    "candidate_set_after_fallback": "all-legal-moves",
+    "every_fallback_candidate_exact_rescored": true,
+    "exact_rescore_depth": 16,
+    "timeout_in_proposal_fallback_or_rescore": "fatal-no-publication",
+    "unrescuable_incomplete_proposal": "fatal-no-publication",
+    "only_allowed_completed_skip_reason": "fewer_than_two_legal_moves"
+  },
+  "durable_output": {
+    "root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v1",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "work": "work.jsonl",
+    "dataset": "selection.jsonl",
+    "manifest": "manifest.json",
+    "authority": "authority.json",
+    "result": "result.json",
+    "parent_level_resume": true,
+    "partial_dataset_publication": false,
+    "result_is_completion_marker": true
+  },
+  "local_validation": {
+    "typescript_compile": "PASS",
+    "focused_runtime_vitest": {
+      "status": "PASS",
+      "files": 4,
+      "tests": 58
+    },
+    "publication_evidence_vitest": {
+      "status": "PASS",
+      "files": 1,
+      "tests": 4
+    },
+    "combined_focused_vitest": {
+      "status": "PASS",
+      "files": 5,
+      "tests": 62
+    },
+    "python_preflight_projection": {
+      "status": "PASS",
+      "tests": 3
+    },
+    "full_ml_stdlib": {
+      "status": "PASS",
+      "tests": 287
+    },
+    "typed_incomplete_two_legal_move_trace": {
+      "status": "PASS",
+      "incomplete_proposal_searches": 1,
+      "depth_14_all_legal_fallback_searches": 2,
+      "depth_16_exact_rescore_searches": 2,
+      "candidate_set_equals_all_legal_moves": true,
+      "unknown_trigger_field_rejected": true
+    },
+    "git_diff_check": "PASS",
+    "independent_review": "PENDING",
+    "github_ci": "PENDING"
+  },
+  "observed_counts_at_publication": {
+    "real_fresh_selection_teacher_command_invocations": 0,
+    "real_fresh_selection_source_reads": 0,
+    "real_selection_teacher_engine_processes": 0,
+    "real_selection_teacher_parent_labels": 0,
+    "complete_selection_teacher_datasets": 0,
+    "candidate_selections": 0,
+    "fresh_final_holdout_reads": 0,
+    "legacy_final_holdout_reads": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "infrastructure": {
+    "execution": "local-mac-only",
+    "runtime_network_requests": 0,
+    "cloud_services_required": [],
+    "aws_used": false,
+    "firebase_or_gcp_used": false,
+    "vercel_used_for_teacher_compute": false
+  },
+  "privacy": {
+    "private_absolute_home_path_published": false,
+    "source_root_disclosed_with_tilde": true,
+    "selection_positions_or_labels_published": false
+  },
+  "claim_boundary": "implementation-and-synthetic-validation-only-not-real-selection-labels-candidate-selection-holdout-formal-ab-external-calibration-playing-strength-or-live-promotion-evidence",
+  "next_step": "review-and-merge-after-v9-dependency-then-wait-for-three-strict-loadable-checkpoints-before-running-the-fixed-local-command"
+}

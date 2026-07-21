@@ -1,0 +1,227 @@
+{
+  "schema": "shogi-floodgate-strength-first-fresh-final-teacher-runner-evidence-v1",
+  "status": "implementation-validated-publication-time-selection-receipt-not-ready-fresh-final-unread-live-unchanged",
+  "recorded_date": "2026-07-20",
+  "articles": {
+    "japanese": "../blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.md",
+    "english": "../blog-shogi-floodgate-strength-first-fresh-final-teacher-runner.en.md"
+  },
+  "implementation": {
+    "argumentless_command": "npx tsx ml/run-floodgate-fresh-final-teacher.ts",
+    "accepts_arguments_or_path_overrides": false,
+    "fixed_local_runner": true,
+    "real_sibling_generator_adapter_connected": true,
+    "fresh_final_only_finalization": true,
+    "exact_dataset_filename": "final.jsonl"
+  },
+  "selection_gate_observed_at_publication": {
+    "registry": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-evaluator-registry.json",
+    "registry_status": "awaiting-exact-plan-three-checkpoints-and-selection-teacher",
+    "selected_candidate_receipt_enrolled": false,
+    "selected_candidate_exists": false,
+    "direct_command": {
+      "exit_code": 2,
+      "status": "STOP",
+      "reason": "selected-candidate-receipt-not-ready",
+      "selection_evaluator_registry_reads": 1,
+      "selection_receipt_reads": 0,
+      "selection_dataset_reads": 0,
+      "fresh_final_source_reads": 0,
+      "fresh_final_label_reads": 0,
+      "teacher_engines_started": 0,
+      "network_requests": 0,
+      "cloud_requests": 0,
+      "live_weight_writes": 0
+    },
+    "downstream_ready_registry_consulted": false,
+    "downstream_ready_registry_required": false,
+    "terminal_publication_required_when_ready": {
+      "status": "candidate-selected-publication-enrolled",
+      "artifacts": [
+        "selection-evaluation-report.json",
+        "selection-receipt.json",
+        "selection-publication-result.json"
+      ],
+      "completion_marker_committed_last": true,
+      "all_three_identities_review_enrolled": true,
+      "deterministic_same-dataset-four-checkpoint-replay_required": true,
+      "self_consistent_metrics_without_replay_rejected": true
+    },
+    "receipt_recomputations_when_ready": [
+      "deterministic-four-model-evaluation-report-byte-match",
+      "evaluation-report-receipt-completion-marker-identities",
+      "three-checkpoint-preflight-hash",
+      "all-three-per-seed-metric-gates",
+      "ranked-seed-order",
+      "median-representative-seed",
+      "selected-checkpoint-membership",
+      "family-gate",
+      "teacher-and-stable-artifact-bindings"
+    ]
+  },
+  "fixed_source": {
+    "role": "fresh_final_holdout",
+    "path": "~/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl",
+    "records": 4800,
+    "games": 200,
+    "bytes": 3073360,
+    "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7",
+    "game_ids_sha256": "29704e5c7b066f33209aa4a94bcc627391af5bc07e1db4c703f39264d11cc502",
+    "parent_ids_sha256": "bd7e6ab2b8147b8fe3e9df0b45310a107b819686d924d839ec632ad610ee8d65",
+    "position_ids_count": 4800,
+    "position_ids_sha256": "f09d19ac6d634fda8b4b46a40c017f14e895bad1866d56373c459bed782944cd",
+    "opened_during_implementation_or_validation": false
+  },
+  "ordering_contract": {
+    "exact_clean_revision_before_selection_preflight": true,
+    "selection_registry_validated_before_receipt_read": true,
+    "blocked_registry_stops_before_receipt_read": true,
+    "terminal-publication-three-artifact-stable-read-before-output": true,
+    "selection-evaluation-report-replayed-on-exact-dataset-and-four-checkpoints": true,
+    "selection_receipt_rebuilt-from-replayed-report-before-output-lock-source-or-engine": true,
+    "source_assets_and_shared_policy_open_only_after_selection_receipt": true,
+    "selection_receipt_source_assets_and_policy_revalidated_after_generation": true,
+    "result_committed_last": true,
+    "candidate_selection_decision_made_by_this_runner": false,
+    "formal_ab_authorized": false,
+    "live_weight_write_authorized": false
+  },
+  "local_compute": {
+    "execution": "local-mac-only",
+    "search_policy_reused_from": "ml/protocols/floodgate-q1-2026-strength-first-selection-teacher-search-policy.json",
+    "engine": "YaneuraOu",
+    "parallel_processes": 12,
+    "threads_per_process": 1,
+    "hash_mib_per_process": 512,
+    "aggregate_hash_mib": 6144,
+    "proposal": {
+      "depth": 14,
+      "multipv": 6
+    },
+    "independent_exact_rescore": {
+      "depth": 16,
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate"
+    },
+    "timeout_ms_per_search": 600000,
+    "pre_first_run_parallelism_benchmark": {
+      "required": true,
+      "timing": "after-current-24000-run-releases-cpu",
+      "sample": "public-non-holdout-positions",
+      "exact_policy_multipv": 6,
+      "process_candidates": [
+        12,
+        13
+      ],
+      "fresh_final_holdout_reads": 0,
+      "amend_reviewed_policy_only_if_13_is_measured_faster": true,
+      "existing_13_process_measurement_policy_multipv": 12,
+      "existing_measurement_claimed_applicable_to_multipv6": false
+    },
+    "runtime_network_requests": 0,
+    "cloud_services_required": [],
+    "aws_used": false,
+    "firebase_or_gcp_used": false,
+    "vercel_used_for_teacher_compute": false
+  },
+  "completion_contract": {
+    "all_4800_parents_accounted_for": true,
+    "only_allowed_completed_skip_reason": "fewer_than_two_legal_moves",
+    "timeout_or_unrescuable_incomplete_proposal": "fatal-no-publication",
+    "partial_dataset_publication": false,
+    "output_root": "~/.codex/shogi-runs/floodgate-q1-2026-strength-first-fresh-final-teacher-v1",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "work": "work.jsonl",
+    "dataset": "final.jsonl",
+    "manifest": "manifest.json",
+    "authority": "authority.json",
+    "result": "result.json",
+    "strict_existing_result_revalidation": true,
+    "existing_result_expected_fingerprint_recomputed_from": [
+      "current-clean-runner-revision",
+      "current-selection-publication-preflight",
+      "current-shared-search-policy",
+      "current-generation-fingerprint",
+      "current-engine-asset-authority"
+    ],
+    "final_jsonl_semantic_revalidation": {
+      "strict_canonical_rows": true,
+      "exact_record_count": true,
+      "exact_parent_group_count": true,
+      "minimum_two-records-per-group": true,
+      "duplicate-or-unknown-parent-rejected": true,
+      "source-order-and-metadata-bound": true,
+      "all_4800_source_parents_accounted": true,
+      "missing_parent_must-have-fewer-than-two-legal-moves": true
+    },
+    "existing_result_tamper_negatives": [
+      "dataset-byte",
+      "dataset-invalid-utf8",
+      "dataset-row",
+      "dataset-record-count",
+      "dataset-parent-group",
+      "dataset-parent-coverage",
+      "manifest",
+      "authority",
+      "completion-type",
+      "selected-checkpoint",
+      "stale-runner-revision",
+      "stale-engine-asset-receipt",
+      "stale-generation-fingerprint"
+    ]
+  },
+  "local_validation": {
+    "typescript_compile": "PASS",
+    "focused_runtime_vitest": {
+      "status": "PASS",
+      "files": 3,
+      "tests": 22
+    },
+    "publication_evidence_vitest": {
+      "status": "PASS",
+      "files": 1,
+      "tests": 4
+    },
+    "combined_focused_vitest": {
+      "status": "PASS",
+      "files": 4,
+      "tests": 26
+    },
+    "python_receipt_preflight": {
+      "status": "PASS",
+      "tests": 6
+    },
+    "production_stop_command": "PASS",
+    "git_diff_check": "PASS",
+    "independent_review": "PENDING",
+    "github_ci": "PENDING"
+  },
+  "observed_counts_at_publication": {
+    "real_selected_candidates": 0,
+    "real_selection_receipt_reads": 0,
+    "real_fresh_final_source_reads": 0,
+    "real_fresh_final_teacher_engine_processes": 0,
+    "real_fresh_final_parent_labels": 0,
+    "complete_fresh_final_teacher_datasets": 0,
+    "formal_ab_games": 0,
+    "external_calibration_games": 0,
+    "live_weight_changes": 0
+  },
+  "privacy": {
+    "private_absolute_home_path_published": false,
+    "fresh_final_positions_or_labels_published": false,
+    "selected_checkpoint_bytes_published": false
+  },
+  "nonclaims": {
+    "playing_strength_improved": false,
+    "high_dan_calibrated": false,
+    "candidate_selected": false,
+    "fresh_final_evaluated": false,
+    "formal_ab_passed": false,
+    "external_calibration_passed": false,
+    "live_weights_changed": false
+  },
+  "claim_boundary": "receipt-gated-runner-implementation-and-focused-validation-only-not-real-selection-final-labels-evaluation-ab-calibration-strength-or-live-promotion-evidence",
+  "next_step": "finish-three-seed-selection, publish and review-enroll the evaluation-report/receipt/final-marker bundle, then run the fixed deterministic four-model replay before this local teacher command can open fresh-final"
+}

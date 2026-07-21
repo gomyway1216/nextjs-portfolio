@@ -8,7 +8,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BiggerNumberTable, type RoundPhase, type RevealWinner } from './BiggerNumberTable';
 import { RuleConfigEditor } from './RuleConfigEditor';
-import { pickAICard, type MatchContext } from './BiggerNumberAI';
+import {
+  pickAICard,
+  createOpponentModel,
+  observeOpponentPlay,
+  type MatchContext,
+} from './BiggerNumberAI';
 import {
   freshHand,
   removeCard,
@@ -32,7 +37,7 @@ const BETWEEN_DELAY_MS = 1500;
 const HUMAN_ID = 'you';
 const AI_ID = 'ai';
 
-const DIFFICULTIES: AIDifficulty[] = ['easy', 'medium', 'hard'];
+const DIFFICULTIES: AIDifficulty[] = ['easy', 'medium', 'hard', 'master'];
 
 function describeResult(
   language: 'ja' | 'en',
@@ -76,6 +81,11 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
   const [revealWinner, setRevealWinner] = useState<RevealWinner>(null);
   const [lastResultText, setLastResultText] = useState<string | null>(null);
   const [finalMessage, setFinalMessage] = useState<string | null>(null);
+
+  // The master AI's opponent model. It describes the human, not the AI tier,
+  // so it persists across matches and difficulty changes for as long as the
+  // component is mounted (i.e. it keeps learning across "play again").
+  const opponentModelRef = useRef(createOpponentModel());
 
   // Track scheduled round-progression timeouts so we can cancel them on
   // unmount (or when the user leaves mid-reveal) and avoid setting state
@@ -121,7 +131,22 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
         oppWinsNeeded: Math.max(1, rules.winsToWin - youWins),
         roundsLeft: Math.max(1, rules.totalRounds - (round - 1)),
       };
-      const aiDecision = pickAICard(difficulty, rules, aiHand, youHand, context);
+      const aiDecision = pickAICard(
+        difficulty,
+        rules,
+        aiHand,
+        youHand,
+        context,
+        Math.random,
+        opponentModelRef.current,
+      );
+      // Record the human's reveal AFTER the AI has committed its own card
+      // (simultaneous play — this round's pick must not leak into this
+      // round's decision), so the master tier can learn for future rounds.
+      observeOpponentPlay(opponentModelRef.current, rules, youHand, card, {
+        oppWins: youWins,
+        myWins: aiWins,
+      });
       setAiPick(aiDecision.card);
       setRoundPhase('revealing');
 

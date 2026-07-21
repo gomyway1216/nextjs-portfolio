@@ -75,14 +75,14 @@ prefixが完成した事実はあるが、このcheckpoint単体は認証receipt
 100件の途中データを完成24,000 datasetとして扱うこともできない。
 
 このsnapshotで完了を主張しないものは、24,000 teacher dataset、seed 42 / 43 / 44の再学習、
-候補選抜、封印holdout、192 pair / 384 gameの正式A/B、外部校正、高段安定、live昇格である。
+候補選抜、封印holdout、384 pair / 768 gameの正式A/B、外部校正、高段安定、live昇格である。
 live weightは変更していない。
 
 ## 次の強さゲート
 
 runnerはoperator確認を待たず、同じrunで500、24,000へ進む。次に公開できる実証拠は
 verified milestone 500とcomplete 24,000-parent teacher datasetである。その後、固定seed
-42 / 43 / 44の再学習、候補選抜、sealed holdout、正式192 pair / 384 game A/B、外部校正を
+42 / 43 / 44の再学習、候補選抜、sealed holdout、正式384 pair / 768 game A/B、外部校正を
 順に通す。棋力改善が対局で確認され、安全な昇格条件が揃うまでlive weightは変えない。
 
 機械可読記録:

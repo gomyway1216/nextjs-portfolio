@@ -27,7 +27,7 @@ import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { SharedTT } from './sharedTT';
 import { GHI, SFU, Te } from './types';
-import { SHOGI_WASM_BASE64 } from './wasm/shogiWasmBase64';
+import { SHOGI_WASM_BASE64, SHOGI_WASM_IDENTITY } from './wasm/shogiWasmBase64';
 
 interface ShogiSearchWasm {
   memory: WebAssembly.Memory;
@@ -50,6 +50,7 @@ interface ShogiSearchWasm {
   getNnueWeightsSize(): number;
   setNnueScaleK(k: number): void;
   setNnueEnabled(flag: number): void;
+  nnueEvaluateCp(): number;
   // Lazy SMP shared-TT hooks (see sharedTT.ts).
   getSharedTtScratchPtr(): number;
   setSharedTtEnabled(flag: number): void;
@@ -116,6 +117,13 @@ function getInstance(): ShogiSearchWasm | null {
   if (initFailed) return null;
   try {
     const bytes = decodeBase64(SHOGI_WASM_BASE64);
+    if (bytes.byteLength !== SHOGI_WASM_IDENTITY.bytes) {
+      initFailed = true;
+      console.error(
+        `[wasmEngine] embedded binary size=${bytes.byteLength}, expected ${SHOGI_WASM_IDENTITY.bytes}; the JS engine will be used instead`,
+      );
+      return null;
+    }
     // The binary uses SIMD128; on an engine without SIMD support validate()
     // returns false (new WebAssembly.Module would throw a CompileError anyway,
     // this just makes the fallback reason explicit in the log). The typeof
@@ -194,6 +202,32 @@ function teFromWasmKey(key: number, k: KyokumenImproved): Te {
 /** True once the engine instantiated successfully (mostly for tests/diagnostics). */
 export function isWasmEngineReady(): boolean {
   return getInstance() !== null;
+}
+
+/** Build-time SHA-256 identity of the exact base64-embedded WASM bytes. */
+export interface EmbeddedWasmIdentity {
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+let embeddedWasmRuntimeIdentity: Promise<EmbeddedWasmIdentity> | null = null;
+
+/**
+ * Opt-in SHA-256 of the actual base64-decoded bytes used by getInstance().
+ * Ordinary engine startup never pays this hashing cost.
+ */
+export function measureEmbeddedWasmRuntimeIdentity(): Promise<EmbeddedWasmIdentity> {
+  embeddedWasmRuntimeIdentity ??= (async () => {
+    const bytes = decodeBase64(SHOGI_WASM_BASE64);
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new Error('Web Crypto SHA-256 is unavailable');
+    const digest = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return {
+      bytes: bytes.byteLength,
+      sha256: Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join(''),
+    };
+  })();
+  return embeddedWasmRuntimeIdentity;
 }
 
 /** Diagnostics for the most recent wasmSearchBestMove() call. */
@@ -429,6 +463,34 @@ export function setWasmNnueEnabled(enabled: boolean): boolean {
     }
   }
   return nnueEnabledState;
+}
+
+/**
+ * Evaluate one already authenticated position through the loaded production
+ * NNUE. This is intentionally narrow: callers receive null unless the exact
+ * NNUE path is loaded and enabled, so a static gate cannot silently use V3.
+ */
+export function wasmEvaluateNnueCp(k: KyokumenImproved): number | null {
+  const wasm = getInstance();
+  if (
+    !wasm ||
+    !nnueWeightsLoaded ||
+    !nnueEnabledState ||
+    typeof wasm.nnueEvaluateCp !== 'function'
+  ) {
+    return null;
+  }
+  try {
+    syncPosition(wasm, k);
+    const value = wasm.nnueEvaluateCp() | 0;
+    return Number.isFinite(value) ? value : null;
+  } catch (e) {
+    console.error(
+      '[wasmEngine] NNUE static evaluation failed; rejecting the diagnostic',
+      e,
+    );
+    return null;
+  }
 }
 
 /**

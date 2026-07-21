@@ -1,0 +1,172 @@
+{
+  "artifacts": {
+    "input_training": {
+      "bytes": 15369952,
+      "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+      "game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+      "games": 1000,
+      "parent_ids_sha256": "6681bd08bb282be04f47bf3157ea07fbbe2bc6a6864a100ce65902dc9cc3f08f",
+      "parents": 24000,
+      "path": "training.raw.jsonl",
+      "position_ids_count": 24000,
+      "position_ids_sha256": "a97788b608a6687c078b7fbe2172a5c4068c57a42ed322c3997692f697e73b5c",
+      "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62"
+    },
+    "model_training": {
+      "bytes": 236990586,
+      "format": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row",
+      "game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+      "games": 1000,
+      "parent_ids_sha256": "567859769957ebff0b283b5615fee5f0f51d9a98f10529398e0467ede7a3cb81",
+      "parents": 23980,
+      "path": "train.jsonl",
+      "records": 278736,
+      "semantic_position_ids_count": 302716,
+      "semantic_position_ids_sha256": "750945a6d408f5d2b27dc5e1b9ce8f235d2598d555418b1bab827b4052eb2faa",
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
+    },
+    "parent_completion": {
+      "bytes": 13293512,
+      "emitted_parent_groups": 23980,
+      "emitted_parent_ids_sha256": "567859769957ebff0b283b5615fee5f0f51d9a98f10529398e0467ede7a3cb81",
+      "forced_parent_ids_sha256": "3525269f66c3a5fc0647ee2f88bf91d36629f3d245f668a319b089e3f51c287d",
+      "forced_parents_skipped": 20,
+      "format": "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2",
+      "parent_ids_sha256": "6681bd08bb282be04f47bf3157ea07fbbe2bc6a6864a100ce65902dc9cc3f08f",
+      "path": "parent-completion.jsonl",
+      "records": 24000,
+      "sha256": "b92df8b37287010cd1314df853a0e337881c5cde573f5c3a4be9b4391639444f"
+    },
+    "replay": {
+      "bytes": 800451089,
+      "path": "runOp1-train.jsonl",
+      "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb"
+    },
+    "replay_exclusion": {
+      "bytes": 61001496,
+      "count": 847243,
+      "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+      "identifiers_sha256": "d6a95989f4cef62cd149de0c2b9aa43586f548894ca46fb66f4503437f7dce7c",
+      "path": "replay-excluded-position-ids.txt",
+      "sha256": "4efde3390dfb9bbbd447899dbebc84e624a9ab92716e15e9bae85b3694fd5275"
+    },
+    "role_bundle_manifest": {
+      "bytes": 7202,
+      "path": "manifest.json",
+      "sha256": "2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9"
+    },
+    "teacher_result": {
+      "bytes": 19911,
+      "path": "result.json",
+      "sha256": "ccdefb750896471e8fca6740801e3b86d8d5a581d00edb0add34a16fa75e5d88"
+    },
+    "warm_initializer": {
+      "bytes": 2375274,
+      "path": "runOp1-best.pt",
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+    }
+  },
+  "boundary": {
+    "candidate_selection_authorized": false,
+    "holdout_label_read_authorized": false,
+    "production_weight_write_authorized": false,
+    "selection_label_read_authorized": false,
+    "training_only": true
+  },
+  "runtime": {
+    "cpu_model": "Apple M4 Pro",
+    "deterministic_algorithms": true,
+    "deterministic_debug_mode": "error",
+    "device": "cpu",
+    "logical_cpu_count": 14,
+    "machine": "arm64",
+    "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python_version": "3.13.0",
+    "system": "Darwin",
+    "torch_interop_threads": 1,
+    "torch_threads": 2,
+    "torch_version": "2.12.1"
+  },
+  "schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
+  "slots": [
+    {
+      "id": "floodgate-strength-first-int16-aware-seed-42",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42",
+      "seed": 42
+    },
+    {
+      "id": "floodgate-strength-first-int16-aware-seed-43",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43",
+      "seed": 43
+    },
+    {
+      "id": "floodgate-strength-first-int16-aware-seed-44",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44",
+      "seed": 44
+    }
+  ],
+  "status": "exact-24000-teacher-artifacts-ready-for-three-seed-training",
+  "teacher_provenance": {
+    "cloud_services": 0,
+    "emitted_parent_groups": 23980,
+    "fewer_than_two_legal_moves": 0,
+    "forced_parents_skipped": 20,
+    "live_weight_changes": 0,
+    "local_only": true,
+    "milestone_targets": [
+      100,
+      500
+    ],
+    "network_requests": 0,
+    "private_digests_disclosed": false,
+    "private_identifiers_disclosed": false,
+    "proposal_incomplete_no_label": 5,
+    "schema": "shogi-floodgate-strength-first-v9-downstream-provenance-v1",
+    "search_timeout_no_label": 15,
+    "status": "verified-v9-teacher-source-ready-for-training-plan-review",
+    "target_parents": 24000,
+    "train_records": 278736,
+    "training_only": true
+  },
+  "training": {
+    "allow_legacy_init": true,
+    "architecture": "2282-256-32-1-clipped-relu",
+    "batch": 256,
+    "candidate_artifact": "final.pt",
+    "checkpoint_policy": "fixed-final-epoch-only",
+    "cp_clamp": 3000,
+    "device": "cpu",
+    "early_stopping": false,
+    "epoch_batch_and_replay_generator_seed": "seed+epoch",
+    "epochs": 20,
+    "family": "int16-aware",
+    "features": "board",
+    "final_holdout_labels_received": false,
+    "initializer": {
+      "bytes": 2375274,
+      "kind": "fixed-warm-model-only",
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+    },
+    "k": 600.0,
+    "learning_rate": 0.0001,
+    "loss": "sibling-ranking",
+    "objective": "0.5*float_full_task+0.5*exact_int16_ste_full_task",
+    "optimizer": "AdamW",
+    "policy_temp_cp": 200.0,
+    "policy_weight": 0.25,
+    "primary_limit": 0,
+    "python_random_seed": "seed",
+    "rank_margin_cp": 50.0,
+    "rank_pair_max": 600.0,
+    "rank_pair_min": 50.0,
+    "rank_weight": 1.0,
+    "replay_limit": 500000,
+    "replay_ratio": 1.0,
+    "replay_sample_seed": "seed+2",
+    "selection_evaluations_during_training": 0,
+    "selection_path_received": false,
+    "torch_seed": "seed",
+    "torch_threads": 2
+  }
+}

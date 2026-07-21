@@ -1,0 +1,153 @@
+{
+  "schema": "shogi-formal-paired-ab-v2-p0-foundation-evidence-v1",
+  "recorded_date": "2026-07-20",
+  "status": {
+    "formal_pairs_started": 0,
+    "formal_games_started": 0,
+    "real_worker_benchmark_rounds": 0,
+    "candidate_enrolled": false,
+    "ready_registry_bridge_implemented": false,
+    "live_weights_changed": false
+  },
+  "match_binding_contract": {
+    "schema": "shogi-formal-paired-ab-v2-wasm-match-binding-v2",
+    "engine": "production-browser-wasm-v20",
+    "clock": "none",
+    "fixed_depth": 11,
+    "quiescence_depth": 10,
+    "nnue_scale_k": 600,
+    "unused_yaneuraou_assets_required": false,
+    "required_assets": [
+      "candidate_weights",
+      "stable_weights",
+      "pair_entry",
+      "match_adapter",
+      "isolated_player",
+      "wasm_module_source"
+    ]
+  },
+  "opening_contract": {
+    "source_schema": "shogi-formal-paired-ab-v2-label-blind-source-games-v1",
+    "manifest_schema": "shogi-formal-paired-ab-v2-wasm-openings-manifest-v2",
+    "preflight_schema": "shogi-formal-paired-ab-v2-wasm-openings-preflight-v1",
+    "required_openings": 384,
+    "opening_ply": 16,
+    "label_blind_input": true,
+    "one_source_game_per_opening": true,
+    "production_rules_apply_every_move": true,
+    "illegal_move_rejected": true,
+    "terminal_position_rejected": true,
+    "fourfold_repetition_rejected": true,
+    "semantic_final_position_unique": true,
+    "pair_journal_created_by_preflight": false,
+    "engine_process_created_by_preflight": false
+  },
+  "execution_contract": {
+    "attempt_index": 0,
+    "attempt_greater_than_zero_rejected_before_journal": true,
+    "non_integer_attempt_rejected_before_journal": true,
+    "seed_minimum": 1,
+    "seed_maximum": 9007199254740991,
+    "unsafe_seed_rejected_before_journal": true,
+    "pair_worker_candidates": [2, 4, 8, 12],
+    "pair_worker_validation_in_this_change": "benchmark-eligible-membership-only",
+    "benchmark_receipt_identity_bound_before_journal": false,
+    "selected_pair_workers_equality_bound_before_journal": false,
+    "safe_maximum_pair_workers": 12,
+    "maximum_concurrent_engine_processes": 24
+  },
+  "worker_benchmark_contract": {
+    "pairs_per_round": 12,
+    "games_per_round": 24,
+    "total_pairs": 96,
+    "total_games": 192,
+    "idealized_worker_waves": 24,
+    "formal_384_pair_idealized_waves_at_12_workers": 32,
+    "repetitions_per_setting": 2,
+    "rounds": 8,
+    "sequence": [2, 4, 8, 12, 12, 8, 4, 2],
+    "two_sample_mean_representation": "exact-total-numerator-over-denominator-2",
+    "derived_throughput_is_selection_authority": false,
+    "selection_condition": "lowest-two-sample-total-elapsed-ns-after-exact-transcript-hash-equality",
+    "any_transcript_hash_drift_forbids_selection": true,
+    "any_technical_fault_forbids_selection": true,
+    "observed_peak_must_equal_requested_pair_workers": true,
+    "exact_tie_selects_lower_worker_count": true,
+    "real_benchmark_executed": false,
+    "selected_pair_workers": null
+  },
+  "implementation_artifacts": {
+    "wasm_contract": {
+      "path": "ml/formal_paired_ab_v2_wasm_contract.py",
+      "bytes": 17920,
+      "sha256": "4aa5e5384dad2701b0aa178ee59f9397cbceddf020c1a90746c6bc45027f1869"
+    },
+    "openings": {
+      "path": "ml/formal-paired-ab-v2-openings.ts",
+      "bytes": 20284,
+      "sha256": "bfc1a922152e93c90712d608c2185c9182f8f793578e85e594aea4a14f27cc48"
+    },
+    "opening_builder": {
+      "path": "ml/build-formal-paired-ab-v2-openings.ts",
+      "bytes": 2113,
+      "sha256": "22e8101731c3f17fedf60817572853b99dbafe1894cca80a0a0b26ba838ea7d0"
+    },
+    "opening_preflight": {
+      "path": "ml/run-formal-paired-ab-v2-openings-preflight.ts",
+      "bytes": 2132,
+      "sha256": "924f2ffe1dbbca0861b04f0cb2072d54d145805a4443d0762ff4a367f08a2f92"
+    },
+    "worker_benchmark": {
+      "path": "ml/formal_paired_ab_v2_worker_benchmark.py",
+      "bytes": 9631,
+      "sha256": "e894e1e0bfa171dc84f7f5b8f63a6d9bc22009c3bc68151c4921bdf447cb1b88"
+    },
+    "wasm_match_adapter": {
+      "path": "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
+      "bytes": 49959,
+      "sha256": "4d54721cd88e0c7518913f8bc899f821f60777a0720cce6b7c7ebe5ef6649562"
+    },
+    "wasm_launcher": {
+      "path": "ml/formal_paired_ab_v2_wasm_match_launcher.py",
+      "bytes": 33969,
+      "sha256": "dc0c1e25dff62143defde027fcccf6c3daa41edb763a4230db73c3bcb215fce3"
+    }
+  },
+  "validation": {
+    "python_focused_tests_passed": 15,
+    "python_focused_tests_failed": 0,
+    "typescript_focused_tests_passed": 14,
+    "typescript_focused_tests_failed": 0,
+    "twelve_pair_worker_callbacks_observed": true,
+    "transcript_drift_selection_rejection_tested": true,
+    "illegal_opening_rejection_tested": true,
+    "terminal_opening_rejection_tested": true,
+    "semantic_final_transposition_rejection_tested": true,
+    "heavy_real_wasm_benchmark_executed": false
+  },
+  "safety": {
+    "local_only": true,
+    "network": false,
+    "aws": false,
+    "gcp": false,
+    "cloud": false,
+    "external_calibration": false,
+    "live_weight_write": false,
+    "teacher_process_managed_by_this_change": false
+  },
+  "deferred_second_pull_request": [
+    "ready_registry_bridge",
+    "benchmark_receipt_identity_and_selected_worker_pre_journal_gate",
+    "argumentless_production_cli",
+    "atomic_results_publication",
+    "source_game_provenance_closure"
+  ],
+  "nonclaims": {
+    "candidate_selected": false,
+    "formal_ab_executed": false,
+    "candidate_stronger": false,
+    "high_dan_calibrated": false,
+    "promotion_authorized": false,
+    "live_weights_changed": false
+  }
+}

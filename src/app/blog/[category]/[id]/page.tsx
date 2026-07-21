@@ -1,37 +1,26 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
-import { htmlToText } from 'html-to-text';
+import { permanentRedirect } from 'next/navigation';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
+import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
-import { categoryLabel } from '@/lib/blog/categoryLabel';
-import { SITE_URL } from '@/lib/siteConfig';
+import { excerpt } from '@/lib/blog/postExcerpt';
+import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
 
 interface BlogPostParams {
+  // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
+  // to the slug); private posts have no public slug and stay id-addressed.
   params: Promise<{ category: string; id: string }>;
 }
 
-function excerpt(body: string): string {
-  // Bodies are markdown; htmlToText only handles HTML, so markdown
-  // syntax (blockquote ">", headings, emphasis) leaked into meta
-  // descriptions verbatim. Drop fenced code blocks first (their contents
-  // are noise in a description), then strip the inline markers.
-  return htmlToText(body.replace(/```[\s\S]*?(```|$)/g, ' '), { wordwrap: false })
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^[>#\s*-]+/gm, ' ')
-    .replace(/[`*_~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-}
-
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
-  const { id } = await params;
+  const { id: param } = await params;
+  const resolved = await resolvePostParamSafe(param);
 
   let post = null;
   try {
-    post = await getPublicPostCached(id);
+    post = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] generateMetadata fetch failed:', error);
   }
@@ -49,12 +38,32 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 
   const title = picked.translation.title;
   const description = excerpt(picked.translation.body);
-  const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
+  const jaPath = `/ja${canonicalPath}`;
+
+  // hreflang: with both translations, this URL is what a cookieless
+  // crawler reads in English, so it's the en + x-default alternate and
+  // the pinned /ja route carries Japanese. A ja-only post renders
+  // Japanese here too (pickTranslation fallback) — declaring it `en`
+  // would be wrong, so it instead canonicalizes onto the pinned ja URL.
+  const hasJa = post.availableLanguages.includes('ja');
+  const hasEn = post.availableLanguages.includes('en');
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalPath },
+    alternates: {
+      canonical: hasEn ? canonicalPath : jaPath,
+      ...(hasEn && hasJa
+        ? {
+            languages: {
+              en: canonicalPath,
+              ja: jaPath,
+              'x-default': canonicalPath,
+            },
+          }
+        : {}),
+    },
     openGraph: {
       type: 'article',
       title,
@@ -73,58 +82,41 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 }
 
 export default async function BlogPost({ params }: BlogPostParams) {
-  const { id } = await params;
+  const { category: rawCategory, id: param } = await params;
+
+  // Legacy id URLs (and wrong-category URLs) permanently redirect to the
+  // canonical slug URL so search engines consolidate onto one address.
+  const resolved = await resolvePostParamSafe(param);
+  if (resolved && (param !== resolved.slug || rawCategory !== resolved.category)) {
+    permanentRedirect(
+      `/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,
+    );
+  }
 
   // Public posts arrive server-side (no spinner, crawlable shell);
   // private posts fall back to PostPage's client fetch which carries the
   // admin's auth token.
   let initialPost = null;
   try {
-    initialPost = await getPublicPostCached(id);
+    initialPost = await getPublicPostCached(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
 
-  // BlogPosting + BreadcrumbList structured data for public posts, with
-  // the author pointing at the site-wide Person node from the root layout.
+  // BlogPosting + BreadcrumbList structured data for public posts, in the
+  // language the reader (and the cookieless crawler: en) receives.
   let jsonLd: object | null = null;
   if (initialPost) {
     const cookieStore = await cookies();
     const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
     const picked = pickTranslation(initialPost.translations, language);
     if (picked) {
-      const categoryUrl = `${SITE_URL}/blog/${encodeURIComponent(initialPost.category)}`;
-      const postUrl = `${categoryUrl}/${encodeURIComponent(initialPost.id)}`;
-      jsonLd = {
-        '@context': 'https://schema.org',
-        '@graph': [
-          {
-            '@type': 'BlogPosting',
-            headline: picked.translation.title,
-            description: excerpt(picked.translation.body),
-            url: postUrl,
-            mainEntityOfPage: postUrl,
-            datePublished: initialPost.created,
-            dateModified: initialPost.lastUpdated || initialPost.created,
-            inLanguage: picked.language,
-            ...(initialPost.image ? { image: initialPost.image } : {}),
-            author: { '@id': `${SITE_URL}/#person` },
-          },
-          {
-            '@type': 'BreadcrumbList',
-            itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Blog', item: `${SITE_URL}/blog` },
-              { '@type': 'ListItem', position: 2, name: categoryLabel(initialPost.category), item: categoryUrl },
-              { '@type': 'ListItem', position: 3, name: picked.translation.title, item: postUrl },
-            ],
-          },
-        ],
-      };
+      jsonLd = buildPostJsonLd(initialPost, picked.translation, picked.language, '', resolved?.slug);
     }
   }
 
-  // Key by id: client-side navigation between posts reuses the component
-  // instance, and PostPage seeds its state from initialPost on mount.
+  // Key by URL param: client-side navigation between posts reuses the
+  // component instance, and PostPage seeds its state from initialPost.
   return (
     <>
       {jsonLd && (
@@ -133,7 +125,7 @@ export default async function BlogPost({ params }: BlogPostParams) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
-      <PostPage key={id} initialPost={initialPost} />
+      <PostPage key={param} initialPost={initialPost} />
     </>
   );
 }

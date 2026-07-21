@@ -81,8 +81,8 @@ nor a playing-strength receipt. The 100-parent prefix cannot be treated as the c
 24,000-parent dataset.
 
 This snapshot makes no completion claim for the 24,000-parent teacher dataset, fixed-seed
-42 / 43 / 44 retraining, candidate selection, sealed holdouts, the formal 192-pair /
-384-game A/B, external calibration, stable high-dan strength, or live promotion. Live
+42 / 43 / 44 retraining, candidate selection, sealed holdouts, the formal 384-pair /
+768-game A/B, external calibration, stable high-dan strength, or live promotion. Live
 weights remain unchanged.
 
 ## Next strength gates
@@ -90,7 +90,7 @@ weights remain unchanged.
 Without waiting for operator confirmation, the same run advances to 500 and then 24,000.
 The next publishable real evidence is a verified milestone 500 and a complete
 24,000-parent teacher dataset. Fixed-seed 42 / 43 / 44 retraining, candidate selection,
-sealed holdouts, the formal 192-pair / 384-game A/B, and external calibration then follow in
+sealed holdouts, the formal 384-pair / 768-game A/B, and external calibration then follow in
 order. Live weights remain unchanged until games demonstrate improvement and every safe
 promotion condition is met.
 

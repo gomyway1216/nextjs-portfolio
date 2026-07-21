@@ -17,10 +17,6 @@ const englishPath = path.join(
   repositoryRoot,
   "docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md",
 );
-const planPath = path.join(
-  repositoryRoot,
-  "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
-);
 const packagePath = path.join(repositoryRoot, "package.json");
 
 function evidence(): Record<string, unknown> {
@@ -31,8 +27,7 @@ function evidence(): Record<string, unknown> {
 }
 
 describe("Floodgate strength-first three-seed training bridge evidence", () => {
-  it("keeps the future exact plan absent and records the pre-dispatch STOP", () => {
-    expect(fs.existsSync(planPath)).toBe(false);
+  it("records that the future exact plan was absent at publication and the pre-dispatch stopped", () => {
     expect(evidence()).toMatchObject({
       schema:
         "shogi-floodgate-strength-first-three-seed-training-bridge-evidence-v1",

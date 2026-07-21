@@ -4,6 +4,7 @@ import { POSTS_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
 import { getProjectPath } from '@/lib/projectRoutes';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { SITE_URL } from '@/lib/siteConfig';
 
 // Render per request. With ISR (`revalidate`) this route was emitted as a
@@ -16,6 +17,8 @@ interface BlogEntry {
   id: string;
   category: string;
   lastUpdated?: Date;
+  hasJa: boolean;
+  hasEn: boolean;
 }
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
@@ -27,11 +30,17 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 
     return snapshot.docs.map((doc) => {
       const data = doc.data();
+      const ja = data.translations?.ja;
+      const en = data.translations?.en;
       return {
         id: doc.id,
         // Empty string would render /blog//{id}; treat it like missing.
         category: typeof data.category === 'string' && data.category ? data.category : 'all',
         lastUpdated: data.lastUpdated?.toDate?.() ?? undefined,
+        // Mirrors availableLanguages(): a translation counts when it has
+        // a non-empty title or body.
+        hasJa: !!ja && (!!ja.title?.trim() || !!ja.body?.trim()),
+        hasEn: !!en && (!!en.title?.trim() || !!en.body?.trim()),
       };
     });
   } catch (error) {
@@ -50,9 +59,10 @@ async function getPublicProjects() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [posts, projects] = await Promise.all([
+  const [posts, projects, slugById] = await Promise.all([
     getPublicPosts(),
     getPublicProjects(),
+    getSlugMapSafe(),
   ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -86,12 +96,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
-    url: `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`,
-    lastModified: post.lastUpdated,
-    changeFrequency: 'monthly',
-    priority: 0.7,
-  }));
+  // Bare post URLs are the English/default entries; posts with a Japanese
+  // translation also get their language-pinned /ja URL, and both carry
+  // hreflang alternates pointing at each other. A ja-only post lists only
+  // its /ja URL — its bare URL canonicalizes there. Both URL forms use
+  // the canonical slug (falling back to the id).
+  const postRoutes: MetadataRoute.Sitemap = posts.flatMap((post) => {
+    const slug = slugById.get(post.id) ?? post.id;
+    const enUrl = `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug)}`;
+    const jaUrl = `${SITE_URL}/ja/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(slug)}`;
+    const base = {
+      lastModified: post.lastUpdated,
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    };
+
+    if (!post.hasJa) {
+      return [{ url: enUrl, ...base }];
+    }
+    if (!post.hasEn) {
+      return [{ url: jaUrl, ...base }];
+    }
+
+    const alternates = { languages: { en: enUrl, ja: jaUrl, 'x-default': enUrl } };
+    return [
+      { url: enUrl, ...base, alternates },
+      { url: jaUrl, ...base, alternates },
+    ];
+  });
 
   const projectRoutes: MetadataRoute.Sitemap = projects.map((project) => ({
     url: `${SITE_URL}${getProjectPath(project.id)}`,

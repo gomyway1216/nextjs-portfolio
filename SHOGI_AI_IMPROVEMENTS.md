@@ -7,6 +7,24 @@ This repository contains two shogi implementations:
 
 The main `/games/shogi` page now uses the opening book early and then delegates search to the fast engine for much better performance and strength.
 
+## Current training status (2026-07-20)
+
+Formal v9 is running locally from the clean merged revision
+`682e5a1dd8027519f2277ec311000bfedf4aced3`. It reached milestone 100 in
+411 seconds and milestone 500 in 1,001 seconds, with exact 500 / 500
+completion, an emitted count of 500, and zero forced skips, search timeouts, or
+fewer-than-two cases. A later monitoring sample recorded 1,003 durable work
+entries at 1,705 seconds; that sample is not an additional formal milestone or
+a final-label verification.
+
+The run uses 13 one-thread local engines with 512 MiB hash each. Observed use
+was about 9 GiB, with about 50% memory and 81 GiB storage free; cloud use and
+live-weight changes remain zero. The provisional remaining time is 9–11 hours
+and will be recalculated at 2,000 entries. The final 24,000 dataset,
+retraining, candidate selection, formal paired A/B, external calibration, and
+playing-strength evidence remain pending. See the [v9 proposal-rescue
+evidence and explanation](docs/blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md).
+
 ---
 
 ## 1) What Changed (High Level)

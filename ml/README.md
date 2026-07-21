@@ -854,6 +854,86 @@ P0 / P1 / P2 = 0 / 0 / 0だった。詳細は
 [English bridge article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-bridge.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-three-seed-training-bridge-2026-07-19.json)を参照。
 
+#### Floodgate v8 teacher → QAT provenance bridge（2026-07-19）
+
+上のv7記録は当時の履歴である。現在の学習候補builderは
+`~/.codex/shogi-runs/floodgate-q1-2026-strength-first-v8`だけを入力にし、最初に固定Node
+v22.13.0でargumentless
+`ml/verify-floodgate-strength-first-v8-downstream-provenance.ts`を実行する。検証器は認証済み
+24,000 raw親、outer result、manifest、staged result、100 / 500 milestone、全work entry、
+parent completion、train groupを一つの意味連鎖として確認する。workはstream処理し、成功時に
+出すのは親数・採用数・理由別skip数・train行数だけで、private identifier / digestは出さない。
+
+QAT plan / result / final-checkpoint schemaはv2である。planはprivacy-safe summaryとouter
+`result.json`のidentityだけを公開し、実学習入口はouter resultが束縛したprivate manifest /
+work / staged result / milestone / completion / trainを再hashする。plan候補は引き続き
+`python3 ml/build_strength_first_qat_training_plan_candidate.py`でstdoutへだけ出し、review済み
+planがない限り学習を開始しない。selection / holdout / production weight write権限も追加しない。
+
+正式v8 runは100 / 500 milestoneを完了し、500時点で499 emitted + 1
+`search-timeout-no-label`だったが、24,000完了、再学習、棋力向上、live変更はまだ0である。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-v8-downstream-provenance.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-v8-downstream-provenance.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-v8-downstream-provenance-2026-07-19.json)を参照。
+
+#### Floodgate v9 teacher → 3-seed training bridge（2026-07-20）
+
+現在の学習候補builderはv9の固定local rootとargumentless semantic verifierを使う。
+v9 verifierはfast-input preflight / postflight、v9→v8→固定asset authority、d14 proposal /
+d16 independent rescore、13 engines、3種類のskip理由、manifest fingerprint、全work row、
+100 / 500 prefix、parent completion、全train groupを再検証する。成功出力はaggregateだけで、
+private identifier / digestを出さない。hash一致だけで意味検証を省く経路はない。
+
+v8由来planのv2検証は維持し、v9由来planはgeneration取り違え防止のためv3とした。
+training result / final checkpointはv2のままで、seed 42 / 43 / 44、warm model-only、
+lr `1e-4`、20 epochs、batch 256、fixed-final-epoch policyも不変である。正式v9教師は記録時点で
+稼働中、final resultとexact planは未作成のため、実学習・選抜・live変更は0である。
+focused Python 31 testとv8/v9 semantic TypeScript 6 testを通した。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-v9-training-bridge.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-v9-training-bridge-2026-07-20.json)を参照。
+
+#### Floodgate strength-first正式3-seed学習完了（2026-07-20）
+
+正式v9教師の278,736行と固定replayを使い、seed 42 / 43 / 44を2 threadsずつ同時に
+20 epochs学習した。3 processは1,814.38秒で全てexit 0となり、3つの`final.pt`を生成した。
+学習後のregistry builderは3結果と3 checkpointをstrict loadし、独立2回の出力が
+2,965 bytes / SHA-256
+`0526b1633364db4c6e715a612823b1fc2d5375610329f017aff20d810fda88c1`
+でbyte-for-byte一致したため、そのexact identityをselection preflight registryへ登録した。
+focused Python 20 / 20、full Python 391 / 391、公開関連Vitest 13 / 13、TypeScript、
+ESLint、diff checkはPASSした。
+
+これは3候補の作成とselection入口の登録であり、棋力向上、高段校正、候補選抜、holdout、
+formal A/B、live変更の証拠ではない。live weightは0変更のまま、次は未使用fresh-selection
+4,800局面を生成してstableと3候補を同一条件で評価する。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-three-seed-training-completion.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-three-seed-training-completion-2026-07-20.json)を参照。
+
+#### fresh-selection / fresh-final timeout quarantine v2（2026-07-20）
+
+4,800-parent fresh-selection teacherは12 enginesで1,678親まで進んだ後、1親の600秒timeoutで
+停止した。同一条件resumeでも同じ非公開親がtimeoutし、2,669親までの`work.jsonl`だけを
+安全保存して停止した。24,000-parent training teacherの実測15 timeoutから、fresh 4,800親で
+timeout 0件を要求する完走確率はPoisson近似で約4.98%だった。
+
+v2はfresh-selectionとfresh-finalの両方へ、proposal / independent-rescoreのtyped timeoutだけを
+最大5件まで`search-timeout-no-label`として隔離する。部分labelは保存せず、6件目、
+proposal incomplete、all-legal fallback timeoutはfatalである。理由別親digestとcanonical workを
+completion / manifest / authority / resultへ束縛し、旧v1 checkpointはv2へ移行しない。
+同じ42局面のMultiPV 6 ABBA実測で13 enginesが12より中央値約3.94%速かったため、クリーンな
+v2実行は13 engines × 1 thread × 512 MiB Hashを使う。
+
+共通artifact validatorを新規生成と既存result再利用の両方へ接続し、resultだけが存在して
+補助artifactが欠ける状態、source順序・game数、search / score / recordの入れ子改変も
+fail-closeする。focused Vitest 4 files / 64 tests、記事証拠込み7 files / 76 tests、
+TypeScript compile、diff checkはPASSした。これはv2 policyの
+検証であり、v2 dataset完了、候補選抜、正式A/B、棋力向上、live変更の証拠ではない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.en.md) /
+[machine evidence](../docs/data/floodgate-strength-first-fresh-timeout-quarantine-v2-2026-07-20.json)を参照。
+
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。

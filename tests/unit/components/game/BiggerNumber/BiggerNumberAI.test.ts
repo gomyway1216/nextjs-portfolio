@@ -2,6 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   pickAICard,
   solveZeroSumGame,
+  computeHardStrategy,
+  createOpponentModel,
+  observeOpponentPlay,
+  predictOpponentDistribution,
+  bucketOfCard,
+  OPPONENT_MODEL_BUCKETS,
   type MatchContext,
 } from '@/components/game/BiggerNumber/BiggerNumberAI';
 import {
@@ -182,6 +188,149 @@ describe('solveZeroSumGame', () => {
       expect(sum).toBeCloseTo(1, 5);
       for (const p of strategy) expect(Number.isNaN(p)).toBe(false);
     }
+  });
+});
+
+describe('computeHardStrategy (depth-limited lookahead)', () => {
+  const fullHand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
+  const ctx: MatchContext = { myWinsNeeded: 5, oppWinsNeeded: 5, roundsLeft: 10 };
+
+  it('returns a valid mixed strategy at full 10-card hands with context', () => {
+    const { matrix, strategy } = computeHardStrategy(rules, fullHand, fullHand, ctx);
+    expect(strategy).toHaveLength(fullHand.length);
+    expect(matrix).toHaveLength(fullHand.length);
+    const sum = strategy.reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1, 5);
+    for (const p of strategy) expect(p).toBeGreaterThanOrEqual(0);
+    for (const row of matrix) {
+      for (const v of row) expect(Number.isFinite(v)).toBe(true);
+    }
+  });
+
+  it('is match-aware at big hands: values winning by 1 like winning by 8', () => {
+    // The depth-1 lookahead values a cheap round win (their tile falls to a
+    // slightly higher tile) above a wasteful one (spending the 9 on their 1).
+    // Concretely: with 6-card hands, playing 9 into their 1 must not carry a
+    // higher matrix value than playing 2 into their 1.
+    const mine: CardValue[] = [2, 3, 5, 7, 8, 9];
+    const theirs: CardValue[] = [1, 2, 4, 6, 8, 9];
+    const { matrix } = computeHardStrategy(rules, mine, theirs, ctx);
+    const cheapWin = matrix[0][0]; // my 2 beats their 1
+    const wastefulWin = matrix[5][0]; // my 9 beats their 1
+    expect(cheapWin).toBeGreaterThan(wastefulWin);
+  });
+
+  it('stays fast per decision once the memo cache is warm', () => {
+    computeHardStrategy(rules, fullHand, fullHand, ctx); // warm-up
+    const t0 = performance.now();
+    for (let i = 0; i < 10; i++) computeHardStrategy(rules, fullHand, fullHand, ctx);
+    expect((performance.now() - t0) / 10).toBeLessThan(10);
+  });
+});
+
+describe('solver exactness (best-response gap)', () => {
+  function bestResponseGap(matrix: number[][], strategy: number[], value: number): number {
+    let guaranteed = Infinity;
+    for (let c = 0; c < matrix[0].length; c++) {
+      let v = 0;
+      for (let r = 0; r < matrix.length; r++) v += strategy[r] * matrix[r][c];
+      guaranteed = Math.min(guaranteed, v);
+    }
+    return value - guaranteed;
+  }
+
+  it('produces a near-optimal strategy on the RPS cycle at production iterations', () => {
+    const m = [
+      [0, -1, 1],
+      [1, 0, -1],
+      [-1, 1, 0],
+    ];
+    const { strategy } = solveZeroSumGame(m, 10000);
+    // True game value is 0; the strategy must guarantee at least -gap.
+    expect(bestResponseGap(m, strategy, 0)).toBeLessThan(0.01);
+  });
+});
+
+describe('opponent model', () => {
+  it('buckets hand extremes: 1 lowest; 9 and dragon top-bucket (the model ranks the dragon high because it beats 8 of 9 tiles, even though 1 beats it under loses-to-1)', () => {
+    const hand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
+    expect(bucketOfCard(rules, hand, 1)).toBe(0);
+    expect(bucketOfCard(rules, hand, 'dragon')).toBe(OPPONENT_MODEL_BUCKETS - 1);
+    expect(bucketOfCard(rules, hand, 9)).toBe(OPPONENT_MODEL_BUCKETS - 1);
+    // Single-card hands land mid-bucket.
+    expect(bucketOfCard(rules, [4], 4)).toBe(Math.floor(OPPONENT_MODEL_BUCKETS / 2));
+  });
+
+  it('accumulates observations into the right situation and bucket', () => {
+    const model = createOpponentModel();
+    const hand: CardValue[] = [1, 5, 9];
+    observeOpponentPlay(model, rules, hand, 9, { oppWins: 0, myWins: 0 }); // tied
+    observeOpponentPlay(model, rules, hand, 1, { oppWins: 2, myWins: 0 }); // opp ahead
+    expect(model.total).toBe(2);
+    expect(model.counts[1][OPPONENT_MODEL_BUCKETS - 1]).toBe(1); // tied, top bucket
+    expect(model.counts[2][0]).toBe(1); // ahead, bottom bucket
+  });
+
+  it('concentrates the prediction and earns trust for a predictable opponent', () => {
+    const model = createOpponentModel();
+    const hand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
+    for (let i = 0; i < 20; i++) {
+      observeOpponentPlay(model, rules, hand, 'dragon', { oppWins: 0, myWins: 0 });
+    }
+    const { dist, trust } = predictOpponentDistribution(model, rules, [2, 5, 9], {
+      oppWins: 0,
+      myWins: 0,
+    });
+    // 9 is the top card of [2,5,9] → should dominate the prediction.
+    expect(dist[2]).toBeGreaterThan(0.6);
+    expect(trust).toBeGreaterThan(0.3);
+    expect(trust).toBeLessThanOrEqual(0.7);
+  });
+
+  it('entropy-gates trust to ~0 against a well-mixing opponent', () => {
+    const model = createOpponentModel();
+    const hand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
+    // Uniform play across all slices → flat histogram → no predictive power.
+    for (let i = 0; i < 4; i++) {
+      for (const card of hand) {
+        observeOpponentPlay(model, rules, hand, card, { oppWins: 0, myWins: 0 });
+      }
+    }
+    const { trust } = predictOpponentDistribution(model, rules, hand, {
+      oppWins: 0,
+      myWins: 0,
+    });
+    expect(trust).toBeLessThan(0.05);
+  });
+});
+
+describe('pickAICard — master (safe exploitation)', () => {
+  it('without a model plays a valid card (falls back to hard behaviour)', () => {
+    const rng = seededRng(99);
+    const hand: CardValue[] = [1, 5, 9, 'dragon'];
+    for (let i = 0; i < 20; i++) {
+      const { card } = pickAICard('master', rules, hand, [1, 2, 3], undefined, rng);
+      expect(hand).toContain(card);
+    }
+  });
+
+  it('best-responds to a learned always-plays-highest opponent', () => {
+    const model = createOpponentModel();
+    const fullHand: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'];
+    for (let i = 0; i < 30; i++) {
+      observeOpponentPlay(model, rules, fullHand, 9, { oppWins: 0, myWins: 0 });
+    }
+    // Opponent's top card is 8 → the best response 9 should dominate picks.
+    const ctx: MatchContext = { myWinsNeeded: 2, oppWinsNeeded: 2, roundsLeft: 3 };
+    let nine = 0;
+    const trials = 60;
+    for (let i = 0; i < trials; i++) {
+      const { card } = pickAICard(
+        'master', rules, [1, 5, 9], [2, 8], ctx, seededRng(500 + i * 31), model,
+      );
+      if (card === 9) nine += 1;
+    }
+    expect(nine / trials).toBeGreaterThan(0.6);
   });
 });
 

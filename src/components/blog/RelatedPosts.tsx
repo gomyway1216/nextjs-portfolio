@@ -57,7 +57,7 @@ const RelatedPosts = ({ ids }: RelatedPostsProps) => {
         {posts.map((post) => (
           <li key={post.id}>
             <Link
-              href={`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`}
+              href={`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.slug ?? post.id)}`}
               className={styles.card}
             >
               <span className={styles.cardCategory}>{post.category.replace(/-/g, ' ')}</span>

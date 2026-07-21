@@ -46,6 +46,7 @@ def prepare_local_files(repo, home):
     paths = BRIDGE.default_strength_first_local_paths(
         repo_root=repo,
         home=home,
+        teacher_generation="v9",
     )
     (repo / "ml").mkdir(parents=True, exist_ok=True)
     (repo / "ml" / "train.py").write_text("# injected smoke\n")
@@ -295,6 +296,82 @@ class StrengthFirstThreeSeedRunnerTests(unittest.TestCase):
             self.assertFalse(receipt["holdout_labels_read"])
             self.assertFalse(receipt["candidate_selected"])
             self.assertFalse(receipt["live_weights_changed"])
+
+    def test_hostile_inherited_runtime_values_are_overridden_for_every_seed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo = root / "repo"
+            home = root / "home"
+            prepare_local_files(repo, home)
+            calls = []
+
+            def factory(command, **kwargs):
+                calls.append((command, kwargs))
+                return FakeProcess()
+
+            hostile_environment = {
+                "PYTHONHASHSEED": "random",
+                "OMP_NUM_THREADS": "99",
+                "MKL_NUM_THREADS": "98",
+                "OPENBLAS_NUM_THREADS": "97",
+                "VECLIB_MAXIMUM_THREADS": "96",
+                "OMP_DYNAMIC": "TRUE",
+                "MKL_DYNAMIC": "1",
+            }
+            parent_environment_before = {
+                key: os.environ.get(key) for key in hostile_environment
+            }
+            with mock.patch.dict(
+                os.environ,
+                hostile_environment,
+                clear=False,
+            ):
+                hostile_parent_environment_before = {
+                    key: os.environ.get(key) for key in hostile_environment
+                }
+                RUNNER.run_strength_first_three_seed_training(
+                    repo_root=repo,
+                    home=home,
+                    plan_loader=plan_loader,
+                    revision_reader=lambda _root: "a" * 40,
+                    popen_factory=factory,
+                    result_validator=lambda _output, _seed: {
+                        "schema": (
+                            BRIDGE.STRENGTH_FIRST_QAT_TRAINING_RESULT_SCHEMA
+                        )
+                    },
+                    poll_interval_seconds=0,
+                )
+                self.assertEqual(
+                    {key: os.environ.get(key) for key in hostile_environment},
+                    hostile_parent_environment_before,
+                )
+
+            self.assertEqual(len(calls), 3)
+            self.assertEqual(
+                [
+                    int(command[command.index("--seed") + 1])
+                    for command, _kwargs in calls
+                ],
+                [42, 43, 44],
+            )
+            child_environments = [kwargs["env"] for _command, kwargs in calls]
+            self.assertEqual(
+                len({id(environment) for environment in child_environments}),
+                3,
+            )
+            for environment in child_environments:
+                self.assertEqual(
+                    {
+                        key: environment[key]
+                        for key in RUNNER.FIXED_TRAINING_PROCESS_ENVIRONMENT
+                    },
+                    RUNNER.FIXED_TRAINING_PROCESS_ENVIRONMENT,
+                )
+            self.assertEqual(
+                {key: os.environ.get(key) for key in hostile_environment},
+                parent_environment_before,
+            )
 
     def test_one_seed_failure_terminates_remaining_processes(self):
         with tempfile.TemporaryDirectory() as directory:

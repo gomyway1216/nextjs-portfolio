@@ -56,11 +56,13 @@ export function getStrings(language: 'ja' | 'en'): BiggerNumberStrings {
       easy: ja ? '弱い' : 'Easy',
       medium: ja ? '普通' : 'Medium',
       hard: ja ? '強い' : 'Hard',
+      master: ja ? '達人' : 'Master',
     },
     difficultyDescriptions: {
       easy: ja ? 'ランダムに出す' : 'Plays at random',
       medium: ja ? '期待値で最善手を狙う' : 'Greedy expected value',
       hard: ja ? '混合戦略で読みづらい最適手' : 'Unexploitable Nash strategy',
+      master: ja ? 'あなたの癖を学習して的確に突く' : 'Learns and punishes your habits',
     },
     startMatch: ja ? '対戦開始' : 'Start match',
     you: ja ? 'あなた' : 'You',

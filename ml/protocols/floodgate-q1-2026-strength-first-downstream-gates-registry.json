@@ -1,5 +1,5 @@
 {
-  "schema": "shogi-floodgate-strength-first-downstream-gates-registry-v1",
+  "schema": "shogi-floodgate-strength-first-downstream-gates-registry-v2",
   "status": "awaiting-branded-candidate-selection-and-exact-downstream-inputs",
   "protocol": {
     "base_plan": {
@@ -13,13 +13,19 @@
       "bytes": 5123,
       "sha256": "7bb1a6ef3116f81f6e40ea1440f40b08751e96087eadc018b48ab1d4dd910e7e",
       "schema": "shogi-floodgate-q1-2026-strength-first-teacher-amendment-v1"
+    },
+    "strength_first_v8_amendment": {
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-v8-hash-recovery-amendment.json",
+      "bytes": 7583,
+      "sha256": "cbfd73205e017673f64ef39bb95c7925ed7bf7a4fb9b061969ed85939d09d5a5",
+      "schema": "shogi-floodgate-q1-2026-strength-first-v8-hash-recovery-amendment-v1"
     }
   },
   "candidate_selection_contract": {
-    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v1",
-    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v1",
-    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v1",
-    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v1",
+    "receipt_schema": "shogi-floodgate-strength-first-three-seed-candidate-selection-receipt-v2",
+    "training_plan_schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
+    "training_result_schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+    "checkpoint_schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
     "series": "warm",
     "seeds": [42, 43, 44],
     "run_count": 3,
@@ -54,6 +60,13 @@
   },
   "enrollments": {
     "candidate_selection_receipt": null,
+    "candidate_selection_training_plan": null,
+    "candidate_selection_checkpoint_preflight_sha256": null,
+    "candidate_selection_teacher_run_fingerprint": null,
+    "candidate_selection_teacher_authority": null,
+    "candidate_selection_teacher_manifest": null,
+    "candidate_selection_teacher_result": null,
+    "candidate_selection_dataset": null,
     "candidate_checkpoint": null,
     "stable_checkpoint": null,
     "candidate_weights": null,
@@ -63,9 +76,8 @@
     "general_retention": null,
     "opening_retention": null,
     "known_regression_fixture": null,
-    "production_worker": null,
     "production_wasm": null,
-    "browser_time_budgets_ms": null
+    "local_wasm_time_budgets_ms": null
   },
   "gates": {
     "candidate_selection_receipt_enrolled": false,

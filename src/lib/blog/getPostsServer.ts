@@ -9,10 +9,12 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 
 export interface ServerPost {
   id: string;
+  slug: string;
   title: string;
   body: string;
   isPublic: boolean;
@@ -47,7 +49,7 @@ async function fetchPostsPage(
 
   query = query.orderBy('lastUpdated', 'desc').limit(limit);
 
-  const snapshot = await query.get();
+  const [snapshot, slugById] = await Promise.all([query.get(), getSlugMapSafe()]);
   if (snapshot.empty) {
     return { posts: [], lastVisibleTimestamp: null, hasMore: false };
   }
@@ -59,6 +61,7 @@ async function fetchPostsPage(
     if (!picked) return [];
     return [{
       id: doc.id,
+      slug: slugById.get(doc.id) ?? doc.id,
       title: picked.translation.title,
       body: picked.translation.body,
       isPublic: data.isPublic,

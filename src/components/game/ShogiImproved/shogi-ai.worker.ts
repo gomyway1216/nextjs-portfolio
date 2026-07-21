@@ -15,6 +15,8 @@
  *
  * Protocol:
  * - `bestMove`: compute the best move for a serialized position + difficulty.
+ * - `engineDiagnostics`: explicit, read-only identity/load-state evidence for
+ *   parity tooling; ordinary game clients never send it.
  * - `clearTT`: clears the transposition tables (call when starting a new game;
  *   the TT is intentionally kept across moves of one game).
  * - `ponderControl`: suspend/resume pondering (sent by the client on
@@ -56,8 +58,11 @@ import {
   clearWasmTT,
   enableSharedTT,
   getLastWasmSearchStats,
+  isNnueEnabled,
+  isNnueWeightsLoaded,
   isWasmEngineReady,
   loadNnueWeights,
+  measureEmbeddedWasmRuntimeIdentity,
   publishSearchGeneration,
   setSearchGeneration,
   setWasmNnueEnabled,
@@ -70,8 +75,50 @@ export type { SerializedKyokumenImproved, SerializedTeImproved };
 /** The engine route that produced a best-move response. */
 export type ShogiAiWorkerSearchPath = 'book' | 'mate' | 'wasm' | 'worker-js';
 
+/** The exact evaluator that produced a best-move response. */
+export type ShogiAiWorkerEvaluationPath = 'nnue-wasm' | 'v3-wasm' | 'worker-js' | 'not-applicable';
+
+export type ShogiAiNnueFetchStatus = 'pending' | 'loaded' | 'rejected' | 'unavailable';
+
+export interface ShogiAiSha256Identity {
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+/**
+ * Read-only browser/Worker evidence used by the post-selection parity gate.
+ * Fields stay deliberately separate: a rejected fetch has no retained byte
+ * identity, while successfully loaded weights can still be disabled for an
+ * easy/V3 search.
+ */
+export interface ShogiAiEngineDiagnostics {
+  readonly schema: 'shogi-ai-engine-diagnostics-v1';
+  readonly nnue: {
+    readonly fetchStatus: ShogiAiNnueFetchStatus;
+    readonly fetchedWeights: ShogiAiSha256Identity | null;
+    readonly loaded: boolean;
+    readonly enabled: boolean;
+  };
+  readonly wasm: {
+    readonly ready: boolean;
+    readonly embedded: ShogiAiSha256Identity;
+  };
+  readonly lastSearch: {
+    readonly requestId: number;
+    readonly searchPath: ShogiAiWorkerSearchPath;
+    readonly evaluationPath: ShogiAiWorkerEvaluationPath;
+  } | null;
+}
+
 type WorkerRequest =
-  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
+  | {
+      type: 'bestMove';
+      id: number;
+      position: SerializedKyokumenImproved;
+      difficulty: Difficulty;
+      tesu: number;
+    }
+  | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
   | { type: 'ponderControl'; action: 'suspend' | 'resume' }
   | MainThreadsInitMessage;
@@ -92,6 +139,11 @@ type WorkerResponse =
       scoreCp?: number;
       depth?: number;
       searchPath: ShogiAiWorkerSearchPath;
+    }
+  | {
+      type: 'engineDiagnosticsResult';
+      id: number;
+      diagnostics: ShogiAiEngineDiagnostics;
     }
   | { type: 'error'; id: number; message: string };
 
@@ -180,6 +232,17 @@ function difficultyUsesNnue(difficulty: Difficulty): boolean {
  * or a helper connecting — triggers the forward (see sendNnueWeightsToHelpers).
  */
 let nnueWeightsBytes: ArrayBuffer | null = null;
+let nnueFetchStatus: ShogiAiNnueFetchStatus = 'pending';
+let nnueFetchedWeightsIdentity: ShogiAiSha256Identity | null = null;
+let nnueFetchedWeightsIdentityPromise: Promise<ShogiAiSha256Identity> | null = null;
+let lastSearch: ShogiAiEngineDiagnostics['lastSearch'] = null;
+
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error('Web Crypto SHA-256 is unavailable');
+  const digest = new Uint8Array(await subtle.digest('SHA-256', bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 async function fetchNnueWeights(): Promise<void> {
   try {
@@ -191,6 +254,7 @@ async function fetchNnueWeights(): Promise<void> {
       nnueWeightsBytes = buf;
       sendNnueWeightsToHelpers();
     }
+    nnueFetchStatus = ok ? 'loaded' : 'rejected';
     if (process.env.NODE_ENV === 'development') {
       console.info(
         ok
@@ -199,13 +263,56 @@ async function fetchNnueWeights(): Promise<void> {
       );
     }
   } catch (e) {
+    nnueFetchStatus = 'unavailable';
     // Expected offline / in node tests; the V3 path is the normal fallback.
     if (process.env.NODE_ENV === 'development') {
       console.info('[shogi-ai.worker] NNUE weights unavailable; using V3 evaluation', e);
     }
   }
 }
-void fetchNnueWeights();
+const nnueStartup = fetchNnueWeights();
+
+async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {
+  // Hashing 1.18MB is opt-in: ordinary game startup/load behavior and cost are
+  // unchanged. Successful loads already retain this exact buffer for helpers.
+  if (!nnueFetchedWeightsIdentity && nnueWeightsBytes) {
+    const acceptedWeights = nnueWeightsBytes;
+    const identityPromise =
+      nnueFetchedWeightsIdentityPromise ??
+      (nnueFetchedWeightsIdentityPromise = sha256Hex(acceptedWeights).then((sha256) => ({
+        bytes: acceptedWeights.byteLength,
+        sha256,
+      })));
+    try {
+      nnueFetchedWeightsIdentity = await identityPromise;
+    } catch (identityError) {
+      if (nnueFetchedWeightsIdentityPromise === identityPromise) {
+        nnueFetchedWeightsIdentityPromise = null;
+      }
+      // Identity collection must never demote a playable engine. The explicit
+      // null makes this request's parity gate fail closed while ordinary play
+      // continues; clearing only this rejected promise lets a later explicit
+      // diagnostic retry after a transient Web Crypto failure.
+      if (process.env.NODE_ENV === 'development') {
+        console.info('[shogi-ai.worker] NNUE SHA-256 unavailable for diagnostics', identityError);
+      }
+    }
+  }
+  return {
+    schema: 'shogi-ai-engine-diagnostics-v1',
+    nnue: {
+      fetchStatus: nnueFetchStatus,
+      fetchedWeights: nnueFetchedWeightsIdentity,
+      loaded: isNnueWeightsLoaded(),
+      enabled: isNnueEnabled(),
+    },
+    wasm: {
+      ready: isWasmEngineReady(),
+      embedded: await measureEmbeddedWasmRuntimeIdentity(),
+    },
+    lastSearch,
+  };
+}
 
 /**
  * Large-scale opening book (public/shogi-opening-book.bin), fetched with the same
@@ -237,7 +344,11 @@ function nextSmpGeneration(): number {
 function sendNnueWeightsToHelpers(): void {
   if (!nnueWeightsBytes) return;
   for (const port of smpPorts) {
-    const req: HelperRequest = { type: 'nnueWeights', bytes: nnueWeightsBytes, scaleK: NNUE_SCALE_K };
+    const req: HelperRequest = {
+      type: 'nnueWeights',
+      bytes: nnueWeightsBytes,
+      scaleK: NNUE_SCALE_K,
+    };
     port.postMessage(req);
   }
 }
@@ -328,6 +439,8 @@ interface BestMoveComputation {
   depth?: number;
   /** The route that produced this result (including a null/no-legal-move result). */
   searchPath: ShogiAiWorkerSearchPath;
+  /** Exact evaluator that produced the result; distinguishes NNUE from silent V3 fallback. */
+  evaluationPath: ShogiAiWorkerEvaluationPath;
 }
 
 /** Sente-perspective mate score used when the dedicated mate solver finds a forced mate. */
@@ -355,7 +468,7 @@ function computeBestMove(
 ): BestMoveComputation {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
-  if (book) return { move: book, searchPath: 'book' };
+  if (book) return { move: book, searchPath: 'book', evaluationPath: 'not-applicable' };
 
   const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
 
@@ -364,8 +477,19 @@ function computeBestMove(
   if (shouldTryMateSolve(k)) {
     const mateStart = performance.now();
     const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
-    const mate = mateSolver.solve(k, { maxPlies: 9, maxNodes: 150_000, maxTimeMs: budgetMs });
-    if (mate) return { move: mate, scoreCp: toSenteCp(MATE_SCORE_CP, k.teban), searchPath: 'mate' };
+    const mate = mateSolver.solve(k, {
+      maxPlies: 9,
+      maxNodes: 150_000,
+      maxTimeMs: budgetMs,
+    });
+    if (mate) {
+      return {
+        move: mate,
+        scoreCp: toSenteCp(MATE_SCORE_CP, k.teban),
+        searchPath: 'mate',
+        evaluationPath: 'not-applicable',
+      };
+    }
     const spent = performance.now() - mateStart;
     searchBudgetMs = Math.max(Math.floor(budget.maxTimeMs / 2), budget.maxTimeMs - Math.ceil(spent));
   }
@@ -375,7 +499,7 @@ function computeBestMove(
   // BEFORE waking the helpers: a real switch clears the shared TT, and the
   // helpers must not be writing entries on the old eval scale meanwhile.
   const nnue = difficultyUsesNnue(difficulty);
-  setWasmNnueEnabled(nnue);
+  const nnueActuallyEnabled = setWasmNnueEnabled(nnue);
 
   // Lazy SMP: wake the helper threads on the same root position. Easy stays
   // single-thread — it is intentionally weak. Helpers stop via the published
@@ -425,9 +549,14 @@ function computeBestMove(
         scoreCp: toSenteCp(stats.score, k.teban),
         depth: stats.depth,
         searchPath: 'wasm',
+        evaluationPath: nnueActuallyEnabled ? 'nnue-wasm' : 'v3-wasm',
       };
     }
-    return { move: wasmMove, searchPath: 'wasm' };
+    return {
+      move: wasmMove,
+      searchPath: 'wasm',
+      evaluationPath: nnueActuallyEnabled ? 'nnue-wasm' : 'v3-wasm',
+    };
   }
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
@@ -438,6 +567,7 @@ function computeBestMove(
     scoreCp: fallback.scoreCp === undefined ? undefined : toSenteCp(fallback.scoreCp, k.teban),
     depth: fallback.depth,
     searchPath: 'worker-js',
+    evaluationPath: 'worker-js',
   };
 }
 
@@ -504,6 +634,24 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
     return;
   }
 
+  if (msg.type === 'engineDiagnostics') {
+    // Wait until the startup fetch, byte hash, and load decision have settled.
+    // This request is read-only and deliberately does not stop pondering.
+    void nnueStartup.then(async () => {
+      try {
+        ctx.postMessage({
+          type: 'engineDiagnosticsResult',
+          id: msg.id,
+          diagnostics: await engineDiagnostics(),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.postMessage({ type: 'error', id: msg.id, message });
+      }
+    });
+    return;
+  }
+
   // Any real request supersedes the current ponder session. Because slices are
   // short, this handler runs within ~PONDER_SLICE_MS of the message arriving.
   ponder.stop();
@@ -526,6 +674,11 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
       : null;
 
+    lastSearch = {
+      requestId: msg.id,
+      searchPath: result.searchPath,
+      evaluationPath: result.evaluationPath,
+    };
     ctx.postMessage({
       type: 'bestMoveResult',
       id: msg.id,

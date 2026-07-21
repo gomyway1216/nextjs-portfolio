@@ -106,6 +106,59 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
     );
   });
 
+  it("records the completed real v2 selection teacher without hiding timeout skips", () => {
+    expect(readJson(dataPath)).toMatchObject({
+      status:
+        "real-v2-fresh-selection-complete-timeout-quarantine-within-cap-no-live-write",
+      observed_v2_selection_run: {
+        terminal_status: "complete-fresh-selection-only-postflight-bound",
+        fixed_parent_target: 4_800,
+        completed_parents: 4_800,
+        emitted_parent_groups: 4_798,
+        wall_seconds_approx: 3_450,
+        wall_time_approx: "00:57:30",
+        forced_parents_skipped: 2,
+        forced_skip_reasons: {
+          fewer_than_two_legal_moves: 0,
+          search_timeout_no_label: 2,
+        },
+        sealed: true,
+        dataset_records: 28_518,
+        parallel_engines: 13,
+        timeout_skips: 2,
+        timeout_skip_cap: 5,
+        partial_labels_from_timeout_parents: 0,
+        dataset: {
+          artifact: "selection.jsonl",
+          bytes: 23_800_461,
+          sha256:
+            "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+        },
+        work: {
+          artifact: "work.jsonl",
+          bytes: 35_630_716,
+          sha256:
+            "64f1548ff8abc0481aed3993bfe8b0f7ccb1f5b323ba6937bdc2467438f80365",
+        },
+        completion_sha256:
+          "8751f17692d9d1f2dd3a0358a5a8cf34252acc920fa2ec3eb5bab0617ac47900",
+        generation_fingerprint:
+          "adfe4c48d524ddca737596b9ac8e12cc6c04ca5c00abd1540bb113bf74545d42",
+        run_fingerprint:
+          "ea8bb3b8c166928b6806acf9b2db92cad7543e254087ce9f50299e114380ab13",
+        complete_selection_dataset_published: true,
+        result_published: true,
+        candidate_selection_completed: false,
+        local_mac_only: true,
+        network_requests: 0,
+        live_weight_writes: 0,
+        aws_training_jobs: 0,
+        gcp_or_firebase_training_jobs: 0,
+        vercel_training_jobs: 0,
+      },
+    });
+  });
+
   it("records semantic tests and leaves all strength gates unclaimed", () => {
     expect(readJson(dataPath)).toMatchObject({
       local_validation: {
@@ -133,8 +186,8 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
           failed: 0,
         },
         python_stdlib: {
-          tests: 400,
-          passed: 400,
+          tests: 416,
+          passed: 416,
           failed: 0,
         },
         semantic_timeout_cases: {
@@ -155,8 +208,9 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         git_diff_check: "PASS",
       },
       observed_claims: {
-        real_v2_parent_labels: 0,
-        complete_v2_selection_datasets: 0,
+        real_v2_parent_labels: 4_798,
+        real_v2_label_records: 28_518,
+        complete_v2_selection_datasets: 1,
         candidate_selections: 0,
         formal_ab_games: 0,
         live_weight_changes: 0,
@@ -184,7 +238,8 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         private_parent_identifier_published: false,
         sfen_or_moves_published: false,
         teacher_scores_published: false,
-        private_work_sha256_published: false,
+        private_work_sha256_published: true,
+        private_work_contents_published: false,
       },
     });
   });

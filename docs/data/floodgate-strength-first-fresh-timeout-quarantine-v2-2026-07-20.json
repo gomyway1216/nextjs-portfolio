@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-fresh-timeout-quarantine-evidence-v2",
-  "status": "v1-timeout-confirmed-v2-strict-artifacts-semantic-bridge-and-lane-13-validated-real-v2-run-pending",
+  "status": "real-v2-fresh-selection-complete-timeout-quarantine-within-cap-no-live-write",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md",
@@ -33,6 +33,47 @@
     "manifest_published": false,
     "authority_published": false,
     "result_published": false
+  },
+  "observed_v2_selection_run": {
+    "terminal_status": "complete-fresh-selection-only-postflight-bound",
+    "wall_seconds_approx": 3450,
+    "wall_time_approx": "00:57:30",
+    "fixed_parent_target": 4800,
+    "completed_parents": 4800,
+    "emitted_parent_groups": 4798,
+    "forced_parents_skipped": 2,
+    "forced_skip_reasons": {
+      "fewer_than_two_legal_moves": 0,
+      "search_timeout_no_label": 2
+    },
+    "sealed": true,
+    "dataset_records": 28518,
+    "parallel_engines": 13,
+    "timeout_skips": 2,
+    "timeout_skip_cap": 5,
+    "partial_labels_from_timeout_parents": 0,
+    "dataset": {
+      "artifact": "selection.jsonl",
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088"
+    },
+    "work": {
+      "artifact": "work.jsonl",
+      "bytes": 35630716,
+      "sha256": "64f1548ff8abc0481aed3993bfe8b0f7ccb1f5b323ba6937bdc2467438f80365"
+    },
+    "completion_sha256": "8751f17692d9d1f2dd3a0358a5a8cf34252acc920fa2ec3eb5bab0617ac47900",
+    "generation_fingerprint": "adfe4c48d524ddca737596b9ac8e12cc6c04ca5c00abd1540bb113bf74545d42",
+    "run_fingerprint": "ea8bb3b8c166928b6806acf9b2db92cad7543e254087ce9f50299e114380ab13",
+    "complete_selection_dataset_published": true,
+    "result_published": true,
+    "candidate_selection_completed": false,
+    "local_mac_only": true,
+    "network_requests": 0,
+    "live_weight_writes": 0,
+    "aws_training_jobs": 0,
+    "gcp_or_firebase_training_jobs": 0,
+    "vercel_training_jobs": 0
   },
   "measured_rate_basis": {
     "training_teacher_parents": 24000,
@@ -120,8 +161,8 @@
       "failed": 0
     },
     "python_stdlib": {
-      "tests": 400,
-      "passed": 400,
+      "tests": 416,
+      "passed": 416,
       "failed": 0
     },
     "semantic_timeout_cases": {
@@ -149,6 +190,8 @@
   },
   "execution": {
     "local_mac_only": true,
+    "real_v2_fresh_selection_completed": true,
+    "real_v2_wall_seconds_approx": 3450,
     "parallel_engines": 13,
     "threads_per_engine": 1,
     "hash_mib_per_engine": 512,
@@ -163,11 +206,13 @@
     "private_parent_identifier_published": false,
     "sfen_or_moves_published": false,
     "teacher_scores_published": false,
-    "private_work_sha256_published": false
+    "private_work_sha256_published": true,
+    "private_work_contents_published": false
   },
   "observed_claims": {
-    "real_v2_parent_labels": 0,
-    "complete_v2_selection_datasets": 0,
+    "real_v2_parent_labels": 4798,
+    "real_v2_label_records": 28518,
+    "complete_v2_selection_datasets": 1,
     "candidate_selections": 0,
     "fresh_final_holdout_reads": 0,
     "formal_ab_games": 0,
@@ -176,5 +221,5 @@
     "strength_improved": false,
     "high_dan_calibrated": false
   },
-  "next_step": "ready-pr-ci-review-regular-merge-then-clean-argumentless-v2-fresh-selection-run"
+  "next_step": "review-and-regular-merge-byte-exact-ready-registry-then-run-fixed-local-selection-evaluator"
 }

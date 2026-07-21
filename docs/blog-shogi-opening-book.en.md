@@ -417,6 +417,12 @@ Scratch had roughly 590,000 parameters for only 9,000 training positions and its
 
 Therefore **both the 10,000-position rebuild and the incremental warm-start are rejected.** Once again validation MAE and pair accuracy pointed in a different direction from actual play. The pilot still answered its intended question before a large run: at this scale scratch is starved relative to model capacity, while warm-start adaptation damages practical move ordering learned by production. Neither model was shipped.
 
+**Root-cause audit and the switch to large scratch training:** all 9,500 new labels, teacher best moves, and played moves were legal, with no duplicate or split leakage. Consecutive evaluations flipped strongly with the side to move (`corr(cp_t, -cp_t+1)=0.935`) and matched fresh YaneuraOu probes. This was not a sign-convention bug or corrupt teacher data.
+
+The real problem was scale: roughly 590,000 parameters were fit from 9,000 positions across only 262 games, leaving 30.5% of input features unseen. Warm-start improved the narrow new validation set while worsening MAE on 20,000 positions from the old broad distribution from 354 to 499cp, a 41% regression. It was forgetting outside the new slice.
+
+Rather than repeat the same design at only five times the size, the main path now switches to a large scratch rebuild with no production initializer. After scanning 17,356 strong games, we prepared **800,000 train, 3,000 validation, and 3,000 sealed test positions** from 14,861, 678, and 669 games, with zero game or semantic-position overlap. Parent data alone is 364MB and will be roughly 0.8GB with teacher labels. This is the intended experiment: build our evaluator from scratch on a broad distribution of strong games instead of stacking changes onto a weak base. It is still not guaranteed to win; only direct matches decide adoption.
+
 ## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.

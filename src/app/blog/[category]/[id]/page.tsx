@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
-import { permanentRedirect } from 'next/navigation';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
@@ -82,16 +81,11 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 }
 
 export default async function BlogPost({ params }: BlogPostParams) {
-  const { category: rawCategory, id: param } = await params;
+  const { id: param } = await params;
 
-  // Legacy id URLs (and wrong-category URLs) permanently redirect to the
-  // canonical slug URL so search engines consolidate onto one address.
+  // Legacy id/wrong-category URLs already 308-redirected in the segment
+  // layout (above the loading boundary); here the param is canonical.
   const resolved = await resolvePostParamSafe(param);
-  if (resolved && (param !== resolved.slug || rawCategory !== resolved.category)) {
-    permanentRedirect(
-      `/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,
-    );
-  }
 
   // Public posts arrive server-side (no spinner, crawlable shell);
   // private posts fall back to PostPage's client fetch which carries the

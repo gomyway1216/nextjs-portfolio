@@ -938,6 +938,44 @@ $HOME/.codex/shogi-data/floodgate-training-venv/bin/python3 \
 [English article](../docs/blog-shogi-floodgate-strength-first-constrained-alignment-v2-completion.en.md) /
 [machine evidence](../docs/data/floodgate-strength-first-constrained-alignment-v2-completion-2026-07-20.json)を参照。
 
+#### representation bridge v3 STOPとint16-only adaptive candidate lock（2026-07-20）
+
+real representation bridge v3は12.13秒、最大RSS 739,557,376 bytes、swap 0で固定family
+gateに失敗し、exit 1でSTOPした。output rootは作られていない。診断再実行11.94秒と独立診断
+11.69秒も同じ失敗を再現し、spent-selection読取は合計3 passとなった。最初の実行はmetricを
+表示していないため、exact値は診断からのoperator転記であり、認証済みbridge PASS receiptでは
+ない。seed 42のaligned-float / parent-int16 pair方向差は
+`-0.002636239233679505`、絶対値は`0.002636239233679505`で、固定上限0.002を超えた。
+seed 43 / 44は4 gate全部を通ったが、median代表42と全seed representation条件が落ちたため、
+family gateはfalseのままである。
+
+一方、既存の固定metric ordering ruleを適用したparent-int16の観測順位は
+`43 → 42 → 44`で、3 seedすべてがstableよりpair / top-1で上だった。このspecific orderは
+事前登録値ではなく、bridge STOP後かつfresh-final前にadaptive lockへ固定する。alignment前後の
+3 seed × 7量子化tensorも完全一致しており、追加float alignmentは
+本番int16 weight、整数評価、棋力を変えない。旧bridgeを合格へ変更せず、未読fresh-final前に
+median seed 42のepoch 20 checkpoint、SHA-256
+`84ab533c7bf36183b83228c5dab5817dd730fcfae5d81be645569f45b5622a6a`を固定する別の
+post-hoc adaptive candidate-lock契約を準備した。seed 43 / 44へのfallbackは禁止し、seed 42が
+fresh-finalで失敗した場合は3-seed family全体を再学習する。
+
+real int16 model evaluation / runner、candidate-lock receipt、fresh / legacy holdout /
+retention、formal A/B、外部校正、live変更は全て0である。ただし開発初期の広い
+`rg ... ~/.codex/shogi-runs`を1 invocation実行し、既読selectionへ触れて一部raw matching
+linesをinternal tool outputへ混入させた。exact read bytes / rowsは不明で、metric計算・
+順位変更・候補判断には使っていない`development-search-1` accidental non-evaluation text
+scanである。過去3回のevaluator passとは分けて記録し、private readを0とは主張しない。
+review・merge後のargumentless runnerを実行するときだけ、既読selectionをexact 1 evaluator
+pass再認証する。成功しても候補を将来の評価用に固定するだけで、棋力選抜ではない。
+最初のprospective strength gateはsealed fresh-finalで、
+既存gateのpair strictly above stable / top-1 at least stableは変更しない。
+その後のretention / regression / production parity、384 pairs / 768 gamesのformal A/B、外部
+高段校正を省略しない。詳細は
+[日本語記事](../docs/blog-shogi-floodgate-strength-first-int16-only-candidate-amendment.md) /
+[English article](../docs/blog-shogi-floodgate-strength-first-int16-only-candidate-amendment.en.md) /
+[machine STOP evidence](../docs/data/floodgate-strength-first-representation-bridge-v3-stop-2026-07-20.json) /
+[machine readiness evidence](../docs/data/floodgate-strength-first-int16-only-candidate-amendment-readiness-2026-07-20.json)を参照。
+
 #### fresh-selection / fresh-final timeout quarantine v2（2026-07-20）
 
 4,800-parent fresh-selection teacherは12 enginesで1,678親まで進んだ後、1親の600秒timeoutで
@@ -982,7 +1020,7 @@ downstream gate接続は別のreview済み変更までfalseのままである。
 3-seed学習と候補選抜の後に使うstrength-first downstream gateも準備した。fresh / legacy
 final holdout、general / opening retention、known regression、production browser parityを
 5つの受領証として分離し、全て通過したときだけformal A/B enrollmentを準備する。
-finalはint16 pair / top-1の両方がstable以上、retentionはvalue MAEがstableの1.05倍以下かつ
+finalはint16 pairがstableをstrictly上回り、top-1がstable以上、retentionはvalue MAEがstableの1.05倍以下かつ
 pair系がstable-0.005以上、known regressionは`P*8f`をstatic / depth 11・12 /
 800・2000・4000ms各3回で拒否し、browser parityはexact candidate weight、production
 worker / WASM、全時間枠の合法手・時間内完了、console / runtime error 0を要求する。

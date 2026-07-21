@@ -1,0 +1,24 @@
+{
+  "candidate_lock_receipts": 0,
+  "claim_boundary": "operator-observed-development-incident-and-readiness-accounting-not-an-authenticated-evaluation-or-candidate-lock-receipt",
+  "date": "2026-07-20",
+  "exact_bytes_or_rows_read": "unknown-not-recorded",
+  "external_calibration_games": 0,
+  "formal_ab_games": 0,
+  "fresh_final_reads": 0,
+  "legacy_holdout_reads": 0,
+  "live_weights_changed": false,
+  "model_evaluations": 0,
+  "raw_matching_lines_rendered_in_internal_tool_output": true,
+  "real_runner_invocations": 0,
+  "retention_reads": 0,
+  "schema": "shogi-floodgate-strength-first-int16-only-candidate-amendment-readiness-evidence-v1",
+  "separate_bridge_stop_evidence": {
+    "path": "docs/data/floodgate-strength-first-representation-bridge-v3-stop-2026-07-20.json",
+    "schema": "shogi-floodgate-strength-first-representation-bridge-v3-stop-evidence-v1",
+    "spent_selection_evaluator_passes": 3
+  },
+  "spent_selection_non_evaluation_broad_search_invocations": 1,
+  "status": "ready-protocol-not-executed-candidate-not-locked",
+  "used_for_metrics_or_candidate_decision": false
+}

@@ -1,0 +1,106 @@
+{
+  "artifacts": [
+    {
+      "bytes": 542594,
+      "line_count_method": "raw-newline-count-only-no-json-or-label-field-parse",
+      "mode": "0600",
+      "path": "$HOME/.codex/shogi-data/floodgate-q1-2026-retention-recovered-v1/holdout5m-4k.jsonl",
+      "role": "general_retention_intended_role",
+      "rows": 4000,
+      "sha256": "3d25f6bf113710c8ea326c132d2fc2cc9f76f572dddbd09c1d397b78cb07d00e"
+    },
+    {
+      "bytes": 538870,
+      "line_count_method": "raw-newline-count-only-no-json-or-label-field-parse",
+      "mode": "0600",
+      "path": "$HOME/.codex/shogi-data/floodgate-q1-2026-retention-recovered-v1/opening-holdout-4k.jsonl",
+      "role": "opening_retention_intended_role",
+      "rows": 4000,
+      "sha256": "1f8d91f286eec160eb1141ba5adfd36b842af12ceec37aa4f959038a60969ce6"
+    }
+  ],
+  "boundary": {
+    "artifact_bytes_read_for_identity": true,
+    "candidate_selected": false,
+    "downstream_gate_connected": false,
+    "external_calibration_games": 0,
+    "formal_ab_games": 0,
+    "json_rows_parsed": 0,
+    "label_contents_displayed": false,
+    "label_fields_accessed": 0,
+    "live_weights_changed": false,
+    "local_only": true,
+    "network_requests": 0
+  },
+  "builder_command": "python3 ml/build_retention_recovery_enrollment_registry_candidate.py",
+  "claims": {
+    "data_availability_blocker_removed": true,
+    "durable_file_identity_enrolled": true,
+    "freshness_authenticated": false,
+    "high_dan_calibrated": false,
+    "live_model_changed": false,
+    "playing_strength_improved": false,
+    "row_semantics_validated": false
+  },
+  "classification": "operator-recovered",
+  "historical_evidence": {
+    "artifact_stored_as_git_object": false,
+    "historical_manifest_authenticated": false,
+    "historical_role_assignment_authenticated": false,
+    "original_manifest_available": false,
+    "original_receipt_available": false,
+    "preregistered_hash_available": false
+  },
+  "next_step": "separate-reviewed-downstream-retention-gate-connection",
+  "recorded_date": "2026-07-20",
+  "schema": "shogi-floodgate-retention-recovery-enrollment-registry-v1",
+  "source_provenance_observations": {
+    "absolute_legacy_source_paths_published": false,
+    "general_retention": {
+      "independent_duplicate_evidence": {
+        "authenticated_by_builder": false,
+        "distinct_file_identity_observed": true,
+        "present": true,
+        "same_bytes_rows_sha256_observed": true
+      },
+      "observed_source_copy_count": 2,
+      "observed_sources": [
+        {
+          "bytes": 542594,
+          "redacted_label": "legacy-worktree-source-a",
+          "rows": 4000,
+          "sha256": "3d25f6bf113710c8ea326c132d2fc2cc9f76f572dddbd09c1d397b78cb07d00e",
+          "working_tree_head_observed": "29072482b02802092ad59de2e89850b9a133eb85"
+        },
+        {
+          "bytes": 542594,
+          "redacted_label": "legacy-worktree-source-b",
+          "rows": 4000,
+          "sha256": "3d25f6bf113710c8ea326c132d2fc2cc9f76f572dddbd09c1d397b78cb07d00e",
+          "working_tree_head_observed": null
+        }
+      ]
+    },
+    "opening_retention": {
+      "independent_duplicate_evidence": {
+        "authenticated_by_builder": false,
+        "distinct_file_identity_observed": false,
+        "present": false,
+        "same_bytes_rows_sha256_observed": false
+      },
+      "observed_source_copy_count": 1,
+      "observed_sources": [
+        {
+          "branch_observed": "shogi/nnue-opening-refresh",
+          "bytes": 538870,
+          "redacted_label": "legacy-worktree-source-a",
+          "rows": 4000,
+          "sha256": "1f8d91f286eec160eb1141ba5adfd36b842af12ceec37aa4f959038a60969ce6",
+          "working_tree_head_observed": "18ab9f385de084480656de0f4ed40aa36e9a100f"
+        }
+      ]
+    },
+    "provenance": "operator-observed-not-authenticated-by-registry-builder"
+  },
+  "status": "operator-recovered-data-availability-only"
+}

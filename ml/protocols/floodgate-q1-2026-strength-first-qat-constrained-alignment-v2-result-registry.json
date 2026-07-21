@@ -1,0 +1,773 @@
+{
+  "boundary": {
+    "candidate_selected": false,
+    "external_calibration_games": 0,
+    "final_holdout_labels_read": false,
+    "formal_ab_games": 0,
+    "live_weights_changed": false,
+    "local_only": true,
+    "network_requests": 0,
+    "replay_rows_read": 0,
+    "selection_evaluations": 0,
+    "selection_labels_read": false
+  },
+  "builder_command": "$HOME/.codex/shogi-data/floodgate-training-venv/bin/python3 ml/build_strength_first_qat_constrained_alignment_v2_result_registry_candidate.py",
+  "claims": {
+    "exact_parent_integer_tensors_preserved": true,
+    "high_dan_calibrated": false,
+    "live_model_changed": false,
+    "playing_strength_improved": false,
+    "representation_alignment_completed": true
+  },
+  "next_step": "spent-selection-representation-check-then-untouched-fresh-final-and-formal-ab",
+  "plan": {
+    "bytes": 8912,
+    "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-constrained-alignment-v2-plan.json",
+    "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-plan-v1",
+    "sha256": "22c63df76d7024678d4c4ee6132819be3782776c8ebcdc2b2d4d376d0b954f6e"
+  },
+  "recorded_date": "2026-07-20",
+  "run_observation": {
+    "authenticated_by_builder": false,
+    "command": "python3 ml/run_strength_first_three_seed_constrained_alignment_v2.py",
+    "concurrent_processes": 3,
+    "maximum_resident_set_size_bytes": 1860321280,
+    "provenance": "operator-transcribed-from-terminal-time-output-not-authenticated-by-result-registry-builder",
+    "returncodes": {
+      "42": 0,
+      "43": 0,
+      "44": 0
+    },
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "swaps": 0,
+    "system_cpu_seconds": 63.9,
+    "threads_per_process": 2,
+    "user_cpu_seconds": 263.29,
+    "wall_seconds": 92.69
+  },
+  "runs": [
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-42/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "5140b3fb30bb028e9e035b2a9326a5b00d7c261a4d42ba4233e49ab76061fd88"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.743706458713859,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "84ab533c7bf36183b83228c5dab5817dd730fcfae5d81be645569f45b5622a6a"
+        },
+        "result": {
+          "bytes": 7700,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "c68c99eadf5081fee9370023dde2d7bd8c3430ba15d28fc0715c8a2a90809763"
+        },
+        "seed": 42,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-42"
+      },
+      "quantized_equality": {
+        "all_equal": true,
+        "candidate": {
+          "aggregate_sha256": "4d1a3d7ea308ada49b5e796b6bf053fc165ee49a08fece1ee90128005a6dc5f5",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "26abfc1d6c4e5af8098fef7d5c99959e365ca1496e83e1924d18b685c958a8a9",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "d4691c014b53701594dfca514cc08f0f6910799a5f6c82f01469aa50a03f4a9b",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "a1682e4b44f138679976b0c08b6f71ee65480e60419f19744e1bc7a123f74937",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "41b199afd3462e9b0a96c5f6ee73030e6af04481dde5a7b09ddb8c7071e25127",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "f9d1d00f203d90e0e89a7e4e760c7791513ee598313fa9b37f7b8fadfc2e26b2",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "1fe9d41e8cd6b62c70026aaf69701d98d0356aabc1d08e3fda76c52c07255861",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "ddf034baebe7f969f88189052580991b99892ee027877a1ac21fa26e9014a606",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "parent": {
+          "aggregate_sha256": "4d1a3d7ea308ada49b5e796b6bf053fc165ee49a08fece1ee90128005a6dc5f5",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "26abfc1d6c4e5af8098fef7d5c99959e365ca1496e83e1924d18b685c958a8a9",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "d4691c014b53701594dfca514cc08f0f6910799a5f6c82f01469aa50a03f4a9b",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "a1682e4b44f138679976b0c08b6f71ee65480e60419f19744e1bc7a123f74937",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "41b199afd3462e9b0a96c5f6ee73030e6af04481dde5a7b09ddb8c7071e25127",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "f9d1d00f203d90e0e89a7e4e760c7791513ee598313fa9b37f7b8fadfc2e26b2",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "1fe9d41e8cd6b62c70026aaf69701d98d0356aabc1d08e3fda76c52c07255861",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "ddf034baebe7f969f88189052580991b99892ee027877a1ac21fa26e9014a606",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "tensor_names": [
+          "w1_board",
+          "w1_hand",
+          "b1",
+          "w2",
+          "b2",
+          "w3",
+          "b3"
+        ],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8306,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-42/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "3cce48e80a7f05a75d1495a1c9fb6f0badea5820b84bd3783ce7afb78baa402b"
+      },
+      "seed": 42,
+      "source_revision": "a6fefc3f41543e35b9745da7f22fc8c7f2f6112f",
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 21,
+          "huber": 0.005862803966353373,
+          "learning_rate": 1e-05,
+          "local_epoch": 1,
+          "loss": 0.005972371423101067,
+          "parent_policy_kl": 0.00043826982699077515,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 48218,
+          "rows": 278736,
+          "seconds": 11.226000785827637,
+          "total_restored_coordinates": 332634
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 22,
+          "huber": 0.003129027975921563,
+          "learning_rate": 8.535533905932739e-06,
+          "local_epoch": 2,
+          "loss": 0.0031964031085702895,
+          "parent_policy_kl": 0.00026950053059490595,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 23217,
+          "rows": 278736,
+          "seconds": 11.272429943084717,
+          "total_restored_coordinates": 307633
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 23,
+          "huber": 0.002162692998752109,
+          "learning_rate": 5e-06,
+          "local_epoch": 3,
+          "loss": 0.002213906076088319,
+          "parent_policy_kl": 0.0002048523093448401,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 9917,
+          "rows": 278736,
+          "seconds": 11.338193893432617,
+          "total_restored_coordinates": 294077
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 24,
+          "huber": 0.0017398061452821325,
+          "learning_rate": 1.4644660940672628e-06,
+          "local_epoch": 4,
+          "loss": 0.001783607707862519,
+          "parent_policy_kl": 0.00017520625032154655,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1896,
+          "rows": 278736,
+          "seconds": 11.406322002410889,
+          "total_restored_coordinates": 286056
+        }
+      ]
+    },
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-43/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "649898e87f4ae897aa698d74f8a163dcd97fcd98048dd3a0726065f255186af9"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.786614208947867,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "6665c7de16c8f9b6b7eb9c3fccc29db58ae12271e548301b25b9233508c4bbb0"
+        },
+        "result": {
+          "bytes": 7698,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "e9681e76bd1859ebf4af9e7dbb10b2269e5c024c0d58de0e195d2ef0021cc4b6"
+        },
+        "seed": 43,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-43"
+      },
+      "quantized_equality": {
+        "all_equal": true,
+        "candidate": {
+          "aggregate_sha256": "53cea0d9d1039b8f31354b23257fc2e41749ac58aacf3aa2102dda1040c6a02e",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "07a8b9155cc3a9c73f2721d00bf5e9017b73f3006bc8938a3dee82ad925ef128",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "132c9ce88517ed6c8923cfc3807c77bce14a81b11bffb4244355e7d7415f99d8",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "9de909f043cb6cb3d2216081708a1e2eea8150f47cac5440e604ad4b90b60827",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "1af704c4b8ae8515721b7a236d2008d4aeea40023ab24117b2f14794d61f2a4f",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "8e3e717b32f73d3e256cb6c0667566e8c07af189ad22e50687a95de3e790f4cf",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "999b5ce0c9e2576a5c2bed3c2d030fda65b5cfa364fc624f4b865e22cd3066a3",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "7c3bf476df2e10dfa8602f509d006fb03050c4f3c5e0ec910abfe92aea1b46ec",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "parent": {
+          "aggregate_sha256": "53cea0d9d1039b8f31354b23257fc2e41749ac58aacf3aa2102dda1040c6a02e",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "07a8b9155cc3a9c73f2721d00bf5e9017b73f3006bc8938a3dee82ad925ef128",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "132c9ce88517ed6c8923cfc3807c77bce14a81b11bffb4244355e7d7415f99d8",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "9de909f043cb6cb3d2216081708a1e2eea8150f47cac5440e604ad4b90b60827",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "1af704c4b8ae8515721b7a236d2008d4aeea40023ab24117b2f14794d61f2a4f",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "8e3e717b32f73d3e256cb6c0667566e8c07af189ad22e50687a95de3e790f4cf",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "999b5ce0c9e2576a5c2bed3c2d030fda65b5cfa364fc624f4b865e22cd3066a3",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "7c3bf476df2e10dfa8602f509d006fb03050c4f3c5e0ec910abfe92aea1b46ec",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "tensor_names": [
+          "w1_board",
+          "w1_hand",
+          "b1",
+          "w2",
+          "b2",
+          "w3",
+          "b3"
+        ],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8307,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-43/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "1dda7687d193ab35369eff6bf447ae76da1db9917620dbf25a1f31749665cd68"
+      },
+      "seed": 43,
+      "source_revision": "a6fefc3f41543e35b9745da7f22fc8c7f2f6112f",
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 21,
+          "huber": 0.005765641824246303,
+          "learning_rate": 1e-05,
+          "local_epoch": 1,
+          "loss": 0.005871146599311712,
+          "parent_policy_kl": 0.000422019100261636,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 47824,
+          "rows": 278736,
+          "seconds": 11.490975379943848,
+          "total_restored_coordinates": 332240
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 22,
+          "huber": 0.0031021540227893643,
+          "learning_rate": 8.535533905932739e-06,
+          "local_epoch": 2,
+          "loss": 0.0031672351102025004,
+          "parent_policy_kl": 0.0002603243496525436,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 24196,
+          "rows": 278736,
+          "seconds": 11.530225992202759,
+          "total_restored_coordinates": 308356
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 23,
+          "huber": 0.0021540126009292684,
+          "learning_rate": 5e-06,
+          "local_epoch": 3,
+          "loss": 0.0022037255334414222,
+          "parent_policy_kl": 0.0001988517300486151,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 10309,
+          "rows": 278736,
+          "seconds": 11.523626327514648,
+          "total_restored_coordinates": 294469
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 24,
+          "huber": 0.0017428135298270522,
+          "learning_rate": 1.4644660940672628e-06,
+          "local_epoch": 4,
+          "loss": 0.001785641430170119,
+          "parent_policy_kl": 0.00017131160137226722,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1844,
+          "rows": 278736,
+          "seconds": 11.533054113388062,
+          "total_restored_coordinates": 286260
+        }
+      ]
+    },
+    {
+      "checkpoint": {
+        "bytes": 2381393,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-44/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-checkpoint-v1",
+        "sha256": "a3e894b46de041ab3316e7f865aa16c662e7db1f510eeb88a9b3bc5e290c02ae"
+      },
+      "integer_target_cache": {
+        "bytes": 1114944,
+        "chunk_rows": 8192,
+        "dtype": "float32",
+        "reused_local_epochs": 4,
+        "rows": 278736,
+        "seconds": 6.641101833898574,
+        "source": "seed-parent-anchor"
+      },
+      "parent": {
+        "checkpoint": {
+          "bytes": 2383633,
+          "epoch": 20,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/final.pt",
+          "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+          "sha256": "00b074439f404c1d95e77ed4d0318ab34c85106d4a18c7a18f394e21f6aabcd5"
+        },
+        "result": {
+          "bytes": 7700,
+          "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/result.json",
+          "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+          "sha256": "65b0df3892c0d86446d7febe896fb4e59bbb086223a7030ccdf8ec1f8c0a5c30"
+        },
+        "seed": 44,
+        "slot_id": "floodgate-strength-first-int16-aware-seed-44"
+      },
+      "quantized_equality": {
+        "all_equal": true,
+        "candidate": {
+          "aggregate_sha256": "77ca8000c2d29fb731ec4b169d197d54a351caa1a1222509cd7241fe3eb321e4",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "b94a8213d57ca5f1c99ae9b23e73ca95db81280eec530adc9993e4a232317825",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "39bedc81d4a9ef9e4a5aea9fd2cf35e897bb9a9cd167055919720fb323f83555",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "3334387b74d7233f9a22ab122c3a6c394d6248ed07f96018e279288ca8497c3c",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "7cf5b61bffbd4f7adf7823b21261025a87d34826eb185e428d9ee8bffdf02d94",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "677c37d01a548eb417ac0a2d4d2ea645bb374bf77437ff968e6f8b9d6d941a60",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "1022e8b06fa06d9767f31895c5cfdc6077121826c6cbd48a036ff735d507668b",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "28533ebb3489b42f06306c25cd73b9f7ce151a3f394f65a05edac249688f7809",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "equal_tensor_count": 7,
+        "method": "independent-strict-load-quantize-model-torch-equal",
+        "parent": {
+          "aggregate_sha256": "77ca8000c2d29fb731ec4b169d197d54a351caa1a1222509cd7241fe3eb321e4",
+          "schema": "shogi-strength-first-quantized-cell-anchor-v2",
+          "tensors": {
+            "b1": {
+              "dtype": "int32",
+              "sha256": "b94a8213d57ca5f1c99ae9b23e73ca95db81280eec530adc9993e4a232317825",
+              "shape": [
+                256
+              ]
+            },
+            "b2": {
+              "dtype": "int32",
+              "sha256": "39bedc81d4a9ef9e4a5aea9fd2cf35e897bb9a9cd167055919720fb323f83555",
+              "shape": [
+                32
+              ]
+            },
+            "b3": {
+              "dtype": "int32",
+              "sha256": "3334387b74d7233f9a22ab122c3a6c394d6248ed07f96018e279288ca8497c3c",
+              "shape": [
+                1
+              ]
+            },
+            "w1_board": {
+              "dtype": "int16",
+              "sha256": "7cf5b61bffbd4f7adf7823b21261025a87d34826eb185e428d9ee8bffdf02d94",
+              "shape": [
+                2268,
+                256
+              ]
+            },
+            "w1_hand": {
+              "dtype": "int16",
+              "sha256": "677c37d01a548eb417ac0a2d4d2ea645bb374bf77437ff968e6f8b9d6d941a60",
+              "shape": [
+                14,
+                256
+              ]
+            },
+            "w2": {
+              "dtype": "int16",
+              "sha256": "1022e8b06fa06d9767f31895c5cfdc6077121826c6cbd48a036ff735d507668b",
+              "shape": [
+                32,
+                256
+              ]
+            },
+            "w3": {
+              "dtype": "int16",
+              "sha256": "28533ebb3489b42f06306c25cd73b9f7ce151a3f394f65a05edac249688f7809",
+              "shape": [
+                32
+              ]
+            }
+          }
+        },
+        "tensor_names": [
+          "w1_board",
+          "w1_hand",
+          "b1",
+          "w2",
+          "b2",
+          "w3",
+          "b3"
+        ],
+        "tensors_equal": {
+          "b1": true,
+          "b2": true,
+          "b3": true,
+          "w1_board": true,
+          "w1_hand": true,
+          "w2": true,
+          "w3": true
+        }
+      },
+      "result": {
+        "bytes": 8308,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-44/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-v1",
+        "sha256": "ce5f354a9eab1c70fd4da94115afb36658a082743d47e2165b779034e35a246d"
+      },
+      "seed": 44,
+      "source_revision": "a6fefc3f41543e35b9745da7f22fc8c7f2f6112f",
+      "training_history": [
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 21,
+          "huber": 0.006098501453098577,
+          "learning_rate": 1e-05,
+          "local_epoch": 1,
+          "loss": 0.006209366102588231,
+          "parent_policy_kl": 0.000443458597958619,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 48596,
+          "rows": 278736,
+          "seconds": 11.431639909744263,
+          "total_restored_coordinates": 332756
+        },
+        {
+          "forced_padding_coordinates": 284160,
+          "global_epoch": 22,
+          "huber": 0.0032640275017452123,
+          "learning_rate": 8.535533905932739e-06,
+          "local_epoch": 2,
+          "loss": 0.0033325380370853985,
+          "parent_policy_kl": 0.00027404214136074397,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 24037,
+          "rows": 278736,
+          "seconds": 11.595307111740112,
+          "total_restored_coordinates": 308197
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 23,
+          "huber": 0.002262880152100549,
+          "learning_rate": 5e-06,
+          "local_epoch": 3,
+          "loss": 0.0023152330061643493,
+          "parent_policy_kl": 0.00020941141625520202,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 10208,
+          "rows": 278736,
+          "seconds": 11.486187934875488,
+          "total_restored_coordinates": 294624
+        },
+        {
+          "forced_padding_coordinates": 284416,
+          "global_epoch": 24,
+          "huber": 0.0018264991056793816,
+          "learning_rate": 1.4644660940672628e-06,
+          "local_epoch": 4,
+          "loss": 0.0018715131025184985,
+          "parent_policy_kl": 0.00018005598735646732,
+          "parents": 23980,
+          "quantized_crossing_coordinates": 1800,
+          "rows": 278736,
+          "seconds": 11.50236701965332,
+          "total_restored_coordinates": 286216
+        }
+      ]
+    }
+  ],
+  "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-result-registry-v1",
+  "status": "complete-representation-alignment-only"
+}

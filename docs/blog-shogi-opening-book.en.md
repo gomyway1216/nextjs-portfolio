@@ -405,6 +405,18 @@ This was not merely a case where a roughly +0.97-point pair-accuracy gain and +1
 
 The first 10,000 positions for that comparison have been prepared from Floodgate games where both players were rated at least 3,000: 9,000 train, 500 validation, and 500 sealed test positions, drawn from 262, 106, and 102 games respectively. Cross-split game overlap and semantic-position overlap are both zero. Preparation also exposed a real bug in the old Floodgate rating parser: a player name beginning with digits could be mistaken for the rating. The corpus was rebuilt after changing the parser to read the authoritative final rating field. The sealed test split will not be labeled or inspected until the candidate is fixed.
 
+**Pilot result:** all 9,000 train and 500 validation positions were labeled by YaneuraOu/Háo at depth 12, then used to train scratch and warm-start models from the same bytes. The 500 sealed test positions remain unlabeled.
+
+| model | validation MAE | validation pair accuracy | direct match vs production |
+|---|---:|---:|---:|
+| runOp1 (production) | 575.6cp | 67.30% | — |
+| scratch | 434.0cp | 61.43% | **stopped at 0–8** |
+| warm-start | **408.3cp** | **69.05%** | **stopped at 4–12 (25%)** |
+
+Scratch had roughly 590,000 parameters for only 9,000 training positions and its validation loss worsened after epoch two. Warm-start looked better than production by proxy metrics, but across eight color-swapped pairs it split four pairs, lost both colors in four, and won both colors in none. Including five additional games that completed before termination, it was still 6–15. Every checked move was legal; this was not a technical failure.
+
+Therefore **both the 10,000-position rebuild and the incremental warm-start are rejected.** Once again validation MAE and pair accuracy pointed in a different direction from actual play. The pilot still answered its intended question before a large run: at this scale scratch is starved relative to model capacity, while warm-start adaptation damages practical move ordering learned by production. Neither model was shipped.
+
 ## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.

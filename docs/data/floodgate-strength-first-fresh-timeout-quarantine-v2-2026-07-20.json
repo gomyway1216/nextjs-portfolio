@@ -1,6 +1,6 @@
 {
   "schema": "shogi-floodgate-strength-first-fresh-timeout-quarantine-evidence-v2",
-  "status": "real-v2-fresh-selection-complete-first-selection-invocation-safely-stopped-no-live-write",
+  "status": "real-v2-fresh-selection-complete-two-selection-invocations-safely-stopped-no-live-write",
   "recorded_date": "2026-07-20",
   "articles": {
     "japanese": "../blog-shogi-floodgate-strength-first-fresh-timeout-quarantine-v2.md",
@@ -80,11 +80,7 @@
     "ready_registry_regular_merged": true,
     "elapsed_seconds_approx": 4,
     "terminal_status": "pre-model-evaluation-safety-stop-training-plan-receipt-shape-mismatch",
-    "raw_preflight_training_plan_fields": [
-      "path",
-      "bytes",
-      "sha256"
-    ],
+    "raw_preflight_training_plan_fields": ["path", "bytes", "sha256"],
     "evaluator_required_fields_before_fix": [
       "path",
       "bytes",
@@ -98,15 +94,54 @@
     "fresh_final_holdout_reads": 0,
     "live_weight_writes": 0,
     "fix": {
-      "status": "implemented-awaiting-review-and-regular-merge",
-      "accepted_preflight_training_plan_fields": [
-        "path",
-        "bytes",
-        "sha256"
-      ],
+      "status": "reviewed-and-regular-merged",
+      "pull_request": 581,
+      "regular_merged": true,
+      "accepted_preflight_training_plan_fields": ["path", "bytes", "sha256"],
       "schema_source": "ready-registry-enrolled-training-plan-identity",
       "teacher_artifact_identities_changed": false,
       "checkpoint_preflight_sha256_changed": false
+    }
+  },
+  "observed_second_selection_invocation": {
+    "preflight_receipt_fix_pull_request": 581,
+    "preflight_receipt_fix_regular_merged": true,
+    "elapsed_seconds_approx": 13.2,
+    "terminal_status": "pre-selection-metric-safety-stop-splitless-fresh-role-loader-mismatch",
+    "candidate_checkpoint_strict_loads": 3,
+    "selection_dataset_read": true,
+    "selection_dataset_records_strict_scanned": 28518,
+    "selection_dataset_records_with_split": 0,
+    "selection_dataset_records_without_split": 28518,
+    "fresh_selection_split_absence_intentional": true,
+    "legacy_loader_required_splits": ["train", "val"],
+    "legacy_loader_accepted_records": 0,
+    "legacy_loader_rejected_records": 28518,
+    "teacher_data_corrupt": false,
+    "root_cause": "missing-fixed-role-fresh-selection-to-legacy-loader-format-bridge",
+    "stable_selection_metric_model_loads": 0,
+    "candidate_selection_metric_model_loads": 0,
+    "stable_selection_metric_model_evaluations": 0,
+    "candidate_selection_metric_model_evaluations": 0,
+    "selection_metric_model_evaluations": 0,
+    "selection_outputs": 0,
+    "fresh_final_holdout_reads": 0,
+    "live_weight_writes": 0,
+    "fix": {
+      "status": "implemented-awaiting-review-and-regular-merge",
+      "scope": "adapter-only",
+      "missing_split_projection": "val",
+      "temporary_directory_mode": "0700",
+      "temporary_file_mode": "0600",
+      "existing_split_disposition": "reject",
+      "preserves_original_identity": true,
+      "preserves_original_order": true,
+      "preserves_features": true,
+      "preserves_cp_values": true,
+      "preserves_ranks": true,
+      "temporary_file_deleted_on_success": true,
+      "temporary_file_deleted_on_error": true,
+      "teacher_artifacts_changed": false
     }
   },
   "measured_rate_basis": {
@@ -123,18 +158,12 @@
     "path": "ml/protocols/floodgate-q1-2026-strength-first-fresh-role-teacher-search-policy-v2.json",
     "bytes": 1661,
     "sha256": "ed18e4bff0a09deb28d481e5135e50a60f68357149f3aade87bd3e6e561c9e2a",
-    "roles": [
-      "fresh_selection",
-      "fresh_final"
-    ],
+    "roles": ["fresh_selection", "fresh_final"],
     "parent_target_per_role": 4800,
     "timeout_skip_limit_divisor": 1000,
     "maximum_timeout_skips": 5,
     "maximum_missing_share": 0.0010416666666666667,
-    "recoverable_timeout_phases": [
-      "proposal",
-      "independent-rescore"
-    ],
+    "recoverable_timeout_phases": ["proposal", "independent-rescore"],
     "partial_parent_labels_accepted": false,
     "proposal_incomplete_without_exact_fallback": "fatal-no-publication",
     "proposal_fallback_timeout": "fatal-no-publication",
@@ -194,9 +223,25 @@
       "passed": 33,
       "failed": 0
     },
+    "selection_splitless_role_evidence_vitest": {
+      "files": 1,
+      "tests": 7,
+      "passed": 7,
+      "failed": 0
+    },
+    "selection_splitless_role_python_focused": {
+      "tests": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    "selection_splitless_role_real_loader_torch": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
     "python_stdlib": {
-      "tests": 416,
-      "passed": 416,
+      "tests": 421,
+      "passed": 421,
       "failed": 0
     },
     "semantic_timeout_cases": {
@@ -247,9 +292,16 @@
     "real_v2_parent_labels": 4798,
     "real_v2_label_records": 28518,
     "complete_v2_selection_datasets": 1,
-    "selection_evaluator_invocations": 1,
+    "selection_evaluator_invocations": 2,
+    "selection_safety_stops": 2,
     "selection_preflight_safety_stops": 1,
-    "candidate_checkpoint_strict_loads": 3,
+    "selection_dataset_format_safety_stops": 1,
+    "candidate_checkpoint_strict_loads": 6,
+    "selection_dataset_records_strict_scanned": 28518,
+    "stable_selection_metric_model_loads": 0,
+    "candidate_selection_metric_model_loads": 0,
+    "stable_selection_metric_model_evaluations": 0,
+    "candidate_selection_metric_model_evaluations": 0,
     "selection_metric_model_evaluations": 0,
     "selection_outputs": 0,
     "candidate_selections": 0,
@@ -260,5 +312,5 @@
     "strength_improved": false,
     "high_dan_calibrated": false
   },
-  "next_step": "review-and-regular-merge-selection-preflight-receipt-fix-then-rerun-fixed-local-selection-evaluator"
+  "next_step": "review-and-regular-merge-splitless-fresh-selection-role-adapter-then-rerun-fixed-local-selection-evaluator"
 }

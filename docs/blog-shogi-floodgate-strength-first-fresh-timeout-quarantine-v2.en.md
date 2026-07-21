@@ -11,11 +11,11 @@
 
 ## What happened
 
-| Run | Wall time | Durable parents | Emitted groups / records | Complete dataset / result |
-| --- | ---: | ---: | ---: | ---: |
-| Initial v1 run | 1,194.49 s | 1,678 / 4,800 | 1,678 / 9,993 | 0 / 0 |
-| Exact-condition resume | 784.54 s | 2,669 / 4,800 | 2,669 / 15,884 | 0 / 0 |
-| Clean v2 run | About 3,450 s | 4,800 / 4,800 | 4,798 / 28,518 | 1 / 1 |
+| Run                    |     Wall time | Durable parents | Emitted groups / records | Complete dataset / result |
+| ---------------------- | ------------: | --------------: | -----------------------: | ------------------------: |
+| Initial v1 run         |    1,194.49 s |   1,678 / 4,800 |            1,678 / 9,993 |                     0 / 0 |
+| Exact-condition resume |      784.54 s |   2,669 / 4,800 |           2,669 / 15,884 |                     0 / 0 |
+| Clean v2 run           | About 3,450 s |   4,800 / 4,800 |           4,798 / 28,518 |                     1 / 1 |
 
 Both runs used 12 YaneuraOu processes, one thread and 512 MiB Hash per process,
 depth-14 MultiPV-6 proposals, independent depth-16 rescoring, and a 600,000 ms
@@ -35,10 +35,10 @@ accounting is exactly 4,798 emitted parent groups plus two timeout skips equals
 28,518 records and a complete dataset and result. AWS, GCP / Firebase, and
 Vercel training compute remained zero, as did live-weight writes.
 
-| Completed v2 artifact | Bytes |
-| --- | ---: |
-| Selection dataset | 23,800,461 |
-| Canonical work | 35,630,716 |
+| Completed v2 artifact |      Bytes |
+| --------------------- | ---------: |
+| Selection dataset     | 23,800,461 |
+| Canonical work        | 35,630,716 |
 
 The machine-readable record at the end preserves the complete dataset, work,
 completion, generation, and run identities. No private parent identifier,
@@ -50,10 +50,10 @@ The formal 24,000-parent training teacher observed 15 timeouts, or 0.0625%.
 Using that rate in a simple Poisson approximation gives three expected timeouts
 per 4,800 parents.
 
-| Event | Approximate probability |
-| --- | ---: |
-| Zero timeouts | 4.98% |
-| At most five timeouts | 91.61% |
+| Event                 | Approximate probability |
+| --------------------- | ----------------------: |
+| Zero timeouts         |                   4.98% |
+| At most five timeouts |                  91.61% |
 
 The approximation is not a proof of independence; two failures on the same
 parent instead suggest a deterministic hard case. It does show that a
@@ -150,12 +150,34 @@ a fourth `schema` field. Selection-metric evaluations, selection outputs,
 fresh-final holdout reads, and live-weight writes all remained zero. This was
 therefore neither a candidate result nor a playing-strength measurement.
 
-The fix on the same branch accepts the established three-field preflight
-receipt and obtains the schema from the training-plan identity already enrolled
-in the READY registry. Teacher-artifact identities and the checkpoint-preflight
-binding are unchanged. The next step is to review and regular-merge this narrow
-fix, then rerun the stable and seed 42 / 43 / 44 selection evaluation on the
-same fixed dataset. Candidate selection, holdouts, formal A/B, and external
+This narrow fix was reviewed and regular-merged in PR #581. It accepts the
+established three-field preflight receipt and obtains the schema from the
+training-plan identity already enrolled in the READY registry. Teacher-artifact
+identities and the checkpoint-preflight binding are unchanged.
+
+## The second real selection invocation also stopped safely before evaluation
+
+The fixed local evaluator was invoked again after PR #581 merged. In about 13.2
+seconds it strict-loaded all three candidate checkpoints, read all 28,518
+fresh-selection records, and strict-scanned them under the configured bounds.
+Every record intentionally lacked a per-record `split`. The reused legacy
+loader, however, requires either `train` or `val`, so it excluded and rejected
+all records. The teacher data was not corrupt; the adapter lacked the format
+bridge from a fixed-role fresh-selection dataset to the legacy loader.
+
+The three checkpoint preflight loads are a separate stage from loading models
+for selection metrics. Stable and candidate selection-metric model loads both
+remained zero, as did metric evaluations, selection outputs, fresh-final
+holdout reads, and live-weight writes. The second stop was therefore not a
+candidate result or a playing-strength measurement.
+
+The adapter-only fix on the same branch projects only records with a missing
+`split` to `val` in a private `0600` temporary file and rejects the input if any
+record already has a `split`. It preserves original identity, order, features,
+CP values, and ranks, deletes the temporary file on success or error, and does
+not change the teacher artifacts. The next step is to review and regular-merge
+this adapter-only fix, then rerun stable and seeds 42 / 43 / 44 on the same
+fixed dataset. Candidate selection, holdouts, formal A/B, and external
 calibration remain incomplete. This does not establish stronger or high-dan
 play. Live-weight changes remain zero.
 

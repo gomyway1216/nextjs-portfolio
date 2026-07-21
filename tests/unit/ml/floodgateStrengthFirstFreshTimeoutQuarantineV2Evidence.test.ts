@@ -4,9 +4,7 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  FRESH_FINAL_TEACHER_OUTPUT_RELATIVE_ROOT,
-} from "../../../ml/floodgate-fresh-final-teacher-runner";
+import { FRESH_FINAL_TEACHER_OUTPUT_RELATIVE_ROOT } from "../../../ml/floodgate-fresh-final-teacher-runner";
 import {
   FRESH_SELECTION_TEACHER_OUTPUT_RELATIVE_ROOT,
   FRESH_SELECTION_TEACHER_SEARCH_POLICY_SCHEMA,
@@ -87,9 +85,9 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
     });
     expect(strengthFirstTimeoutSkipLimit(4_800)).toBe(5);
     expect(policyRaw.byteLength).toBe(evidence.v2_policy.bytes);
-    expect(
-      createHash("sha256").update(policyRaw).digest("hex"),
-    ).toBe(evidence.v2_policy.sha256);
+    expect(createHash("sha256").update(policyRaw).digest("hex")).toBe(
+      evidence.v2_policy.sha256,
+    );
     expect(evidence.execution).toMatchObject({
       local_mac_only: true,
       parallel_engines: 13,
@@ -109,7 +107,7 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
   it("records the completed real v2 selection teacher without hiding timeout skips", () => {
     expect(readJson(dataPath)).toMatchObject({
       status:
-        "real-v2-fresh-selection-complete-first-selection-invocation-safely-stopped-no-live-write",
+        "real-v2-fresh-selection-complete-two-selection-invocations-safely-stopped-no-live-write",
       observed_v2_selection_run: {
         terminal_status: "complete-fresh-selection-only-postflight-bound",
         fixed_parent_target: 4_800,
@@ -181,21 +179,21 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         fresh_final_holdout_reads: 0,
         live_weight_writes: 0,
         fix: {
-          status: "implemented-awaiting-review-and-regular-merge",
-          accepted_preflight_training_plan_fields: [
-            "path",
-            "bytes",
-            "sha256",
-          ],
+          status: "reviewed-and-regular-merged",
+          pull_request: 581,
+          regular_merged: true,
+          accepted_preflight_training_plan_fields: ["path", "bytes", "sha256"],
           schema_source: "ready-registry-enrolled-training-plan-identity",
           teacher_artifact_identities_changed: false,
           checkpoint_preflight_sha256_changed: false,
         },
       },
       observed_claims: {
-        selection_evaluator_invocations: 1,
+        selection_evaluator_invocations: 2,
+        selection_safety_stops: 2,
         selection_preflight_safety_stops: 1,
-        candidate_checkpoint_strict_loads: 3,
+        selection_dataset_format_safety_stops: 1,
+        candidate_checkpoint_strict_loads: 6,
         selection_metric_model_evaluations: 0,
         selection_outputs: 0,
         candidate_selections: 0,
@@ -205,7 +203,72 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
         high_dan_calibrated: false,
       },
       next_step:
-        "review-and-regular-merge-selection-preflight-receipt-fix-then-rerun-fixed-local-selection-evaluator",
+        "review-and-regular-merge-splitless-fresh-selection-role-adapter-then-rerun-fixed-local-selection-evaluator",
+    });
+  });
+
+  it("records the second real selection invocation as a splitless-role safety stop", () => {
+    expect(readJson(dataPath)).toMatchObject({
+      observed_second_selection_invocation: {
+        preflight_receipt_fix_pull_request: 581,
+        preflight_receipt_fix_regular_merged: true,
+        elapsed_seconds_approx: 13.2,
+        terminal_status:
+          "pre-selection-metric-safety-stop-splitless-fresh-role-loader-mismatch",
+        candidate_checkpoint_strict_loads: 3,
+        selection_dataset_read: true,
+        selection_dataset_records_strict_scanned: 28_518,
+        selection_dataset_records_with_split: 0,
+        selection_dataset_records_without_split: 28_518,
+        fresh_selection_split_absence_intentional: true,
+        legacy_loader_required_splits: ["train", "val"],
+        legacy_loader_accepted_records: 0,
+        legacy_loader_rejected_records: 28_518,
+        teacher_data_corrupt: false,
+        root_cause:
+          "missing-fixed-role-fresh-selection-to-legacy-loader-format-bridge",
+        stable_selection_metric_model_loads: 0,
+        candidate_selection_metric_model_loads: 0,
+        stable_selection_metric_model_evaluations: 0,
+        candidate_selection_metric_model_evaluations: 0,
+        selection_metric_model_evaluations: 0,
+        selection_outputs: 0,
+        fresh_final_holdout_reads: 0,
+        live_weight_writes: 0,
+        fix: {
+          status: "implemented-awaiting-review-and-regular-merge",
+          scope: "adapter-only",
+          missing_split_projection: "val",
+          temporary_directory_mode: "0700",
+          temporary_file_mode: "0600",
+          existing_split_disposition: "reject",
+          preserves_original_identity: true,
+          preserves_original_order: true,
+          preserves_features: true,
+          preserves_cp_values: true,
+          preserves_ranks: true,
+          temporary_file_deleted_on_success: true,
+          temporary_file_deleted_on_error: true,
+          teacher_artifacts_changed: false,
+        },
+      },
+      observed_claims: {
+        selection_evaluator_invocations: 2,
+        selection_safety_stops: 2,
+        selection_preflight_safety_stops: 1,
+        selection_dataset_format_safety_stops: 1,
+        candidate_checkpoint_strict_loads: 6,
+        selection_dataset_records_strict_scanned: 28_518,
+        stable_selection_metric_model_loads: 0,
+        candidate_selection_metric_model_loads: 0,
+        stable_selection_metric_model_evaluations: 0,
+        candidate_selection_metric_model_evaluations: 0,
+        selection_metric_model_evaluations: 0,
+        selection_outputs: 0,
+        candidate_selections: 0,
+        fresh_final_holdout_reads: 0,
+        live_weight_changes: 0,
+      },
     });
   });
 
@@ -235,9 +298,25 @@ describe("strength-first fresh timeout quarantine v2 evidence", () => {
           passed: 33,
           failed: 0,
         },
+        selection_splitless_role_evidence_vitest: {
+          files: 1,
+          tests: 7,
+          passed: 7,
+          failed: 0,
+        },
+        selection_splitless_role_python_focused: {
+          tests: 8,
+          passed: 8,
+          failed: 0,
+        },
+        selection_splitless_role_real_loader_torch: {
+          tests: 1,
+          passed: 1,
+          failed: 0,
+        },
         python_stdlib: {
-          tests: 416,
-          passed: 416,
+          tests: 421,
+          passed: 421,
           failed: 0,
         },
         semantic_timeout_cases: {

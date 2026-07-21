@@ -81,8 +81,8 @@
     },
     "adapter": {
       "path": "ml/strength_first_qat_selection_eval_adapter.py",
-      "bytes": 11185,
-      "sha256": "c5a301326d2a4c23e397edd249e55666dcf3f22493983577c479ff037629bea1",
+      "bytes": 21246,
+      "sha256": "52bcb19160dee678ca5d787347eb96683decad7cae4938efd7558dd1c118c465",
       "schema": "shogi-reviewed-python-source-v1"
     },
     "preflight": {

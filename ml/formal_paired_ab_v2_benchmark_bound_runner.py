@@ -13,9 +13,11 @@ import os
 from pathlib import Path
 import pwd
 import stat
+import sys
 from typing import Any, Callable, Mapping
 
 import formal_paired_ab_local_launcher as legacy
+import formal_paired_ab_protocol_v2 as formal_protocol
 import formal_paired_ab_v2_wasm_match_launcher as immutable_wasm_launcher
 import formal_paired_ab_v2_worker_benchmark_bridge as bridge
 
@@ -29,8 +31,30 @@ FORMAL_RESULT_NAME = "formal-result.json"
 FORMAL_RUNTIME_ATTEMPT_EVENT_SCHEMA = (
     "shogi-formal-paired-ab-v2-runtime-attempt-event-v1"
 )
+FORMAL_CLI_RECEIPT_SCHEMA = "shogi-formal-paired-ab-v2-benchmark-bound-cli-receipt-v1"
 _ATTEMPT_EVENTS = frozenset(
     {"run-reserved", "attempt-started", "attempt-completed", "attempt-faulted"}
+)
+_PUBLIC_ANALYSIS_FIELDS = frozenset(
+    {
+        "schema",
+        "experiment_id",
+        "run_id",
+        "attempt_index",
+        "attempt_ledger_sha256",
+        "rerun_authorization_sha256",
+        "candidate_weights_sha256",
+        "stable_weights_sha256",
+        "match_binding_sha256",
+        "technical_fault_count",
+        "protocol_amendment_sha256",
+        "counts",
+        "point_score_rate",
+        "bootstrap",
+        "gates",
+        "authority",
+        "nonclaims",
+    }
 )
 
 
@@ -345,3 +369,102 @@ def run_pinned_ready_wasm_pairs() -> dict:
         lambda request: immutable_wasm_launcher._execute_pair_subprocess(root, request),
         lambda: bridge.validate_pinned_formal_ready_registry(root),
     )
+
+
+def _validate_public_analysis(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Accept only the preregistered aggregate, never pair-level transcripts."""
+
+    if type(value) is not dict or set(value) != _PUBLIC_ANALYSIS_FIELDS:
+        raise FormalAbV2BenchmarkBoundRunnerError(
+            "formal public analysis fields differ"
+        )
+    if (
+        value["schema"] != formal_protocol.FORMAL_AB_V2_ANALYSIS_SCHEMA
+        or value["technical_fault_count"] != 0
+    ):
+        raise FormalAbV2BenchmarkBoundRunnerError(
+            "formal public analysis header differs"
+        )
+    try:
+        legacy._require_exact_json(
+            value["counts"],
+            {
+                "pairs": formal_protocol.PAIR_COUNT,
+                "games": formal_protocol.GAME_COUNT,
+            },
+            "formal public analysis counts",
+        )
+        legacy._require_exact_json(
+            value["authority"],
+            {
+                "promotion_authorized": False,
+                "production_weight_write_authorized": False,
+            },
+            "formal public analysis authority",
+        )
+        legacy._require_exact_json(
+            value["nonclaims"],
+            {
+                "strength_improved": False,
+                "high_dan_calibrated": False,
+            },
+            "formal public analysis nonclaims",
+        )
+    except ValueError as error:
+        raise FormalAbV2BenchmarkBoundRunnerError(str(error)) from error
+    return dict(value)
+
+
+def _cli_stop(reason: str) -> dict[str, Any]:
+    return {
+        "schema": FORMAL_CLI_RECEIPT_SCHEMA,
+        "status": "STOP",
+        "reason": reason,
+        "public_analysis_emitted": False,
+        "production_weight_write_authorized": False,
+    }
+
+
+def _main_core_for_tests(
+    arguments: list[str],
+    run: Callable[[], Mapping[str, Any]],
+    analyze: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+) -> int:
+    """Injected CLI seam; production paths and authority remain fixed."""
+
+    if arguments:
+        print(
+            legacy._canonical_json(_cli_stop("arguments-forbidden")),
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        result = run()
+        analysis = _validate_public_analysis(analyze(result))
+    except bridge.FormalAbV2WorkerBenchmarkBlocked:
+        print(
+            legacy._canonical_json(_cli_stop("formal-ready-registry-blocked")),
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, RuntimeError, TypeError, ValueError):
+        print(
+            legacy._canonical_json(_cli_stop("formal-run-failed-closed")),
+            file=sys.stderr,
+        )
+        return 2
+    print(legacy._canonical_json(analysis))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    return _main_core_for_tests(
+        arguments,
+        run_pinned_ready_wasm_pairs,
+        formal_protocol.analyze_formal_paired_ab_v2,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

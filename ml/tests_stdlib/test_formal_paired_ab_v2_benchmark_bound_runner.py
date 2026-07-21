@@ -1,9 +1,12 @@
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import json
 from pathlib import Path
 import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -22,6 +25,96 @@ from test_formal_paired_ab_v2_wasm_match_launcher import (  # noqa: E402
 
 
 class FormalPairedAbV2BenchmarkBoundRunnerTest(unittest.TestCase):
+    def _run_cli(self, arguments, run, analyze):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = runner._main_core_for_tests(arguments, run, analyze)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_cli_rejects_arguments_before_the_fixed_runner(self):
+        run = mock.Mock()
+        analyze = mock.Mock()
+        code, stdout, stderr = self._run_cli(
+            ["--registry", "caller-selected.json"], run, analyze
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            json.loads(stderr),
+            {
+                "schema": runner.FORMAL_CLI_RECEIPT_SCHEMA,
+                "status": "STOP",
+                "reason": "arguments-forbidden",
+                "public_analysis_emitted": False,
+                "production_weight_write_authorized": False,
+            },
+        )
+        run.assert_not_called()
+        analyze.assert_not_called()
+
+    def test_cli_reports_the_current_closed_pin_only_on_stderr(self):
+        def blocked():
+            raise bridge.FormalAbV2WorkerBenchmarkBlocked("closed")
+
+        analyze = mock.Mock()
+        code, stdout, stderr = self._run_cli([], blocked, analyze)
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(json.loads(stderr)["reason"], "formal-ready-registry-blocked")
+        analyze.assert_not_called()
+
+    def test_cli_emits_only_the_validated_public_analysis(self):
+        private_result = {"pairs": [{"private": "must-not-reach-stdout"}]}
+        public_analysis = {
+            "schema": "shogi-floodgate-formal-paired-ab-analysis-v2",
+            "experiment_id": "sha256:" + "1" * 64,
+            "run_id": "sha256:" + "2" * 64,
+            "attempt_index": 0,
+            "attempt_ledger_sha256": "3" * 64,
+            "rerun_authorization_sha256": None,
+            "candidate_weights_sha256": "4" * 64,
+            "stable_weights_sha256": "5" * 64,
+            "match_binding_sha256": "6" * 64,
+            "technical_fault_count": 0,
+            "protocol_amendment_sha256": "7" * 64,
+            "counts": {"pairs": 384, "games": 768},
+            "point_score_rate": {
+                "numerator": 800,
+                "denominator": 1536,
+                "decimal": 800 / 1536,
+            },
+            "bootstrap": {"public": True},
+            "gates": {"formal_ab_passed": True},
+            "authority": {
+                "promotion_authorized": False,
+                "production_weight_write_authorized": False,
+            },
+            "nonclaims": {
+                "strength_improved": False,
+                "high_dan_calibrated": False,
+            },
+        }
+        analyze = mock.Mock(return_value=public_analysis)
+        code, stdout, stderr = self._run_cli([], lambda: private_result, analyze)
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, "")
+        self.assertEqual(json.loads(stdout), public_analysis)
+        self.assertNotIn("must-not-reach-stdout", stdout)
+        analyze.assert_called_once_with(private_result)
+
+    def test_cli_fails_closed_when_analysis_is_not_aggregate_only(self):
+        invalid = {
+            "schema": "shogi-floodgate-formal-paired-ab-analysis-v2",
+            "pairs": [],
+        }
+        code, stdout, stderr = self._run_cli(
+            [], lambda: {"private": True}, lambda _result: invalid
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(json.loads(stderr)["reason"], "formal-run-failed-closed")
+
     def test_production_api_is_argumentless_and_current_pin_is_closed(self):
         alternate = Path("caller-selected-formal-output")
         with self.assertRaises(TypeError):

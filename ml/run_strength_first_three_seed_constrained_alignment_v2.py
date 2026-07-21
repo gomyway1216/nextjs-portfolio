@@ -25,6 +25,7 @@ FIXED_PROCESS_ENVIRONMENT = {
     "MKL_DYNAMIC": "FALSE",
 }
 TRAINING_PYTHON_RELATIVE_HOME = ".codex/shogi-data/floodgate-training-venv/bin/python3"
+LOWERCASE_HEX_DIGITS = frozenset("0123456789abcdef")
 
 
 class AlignmentProcessFailed(RuntimeError):
@@ -34,6 +35,14 @@ class AlignmentProcessFailed(RuntimeError):
         super().__init__(
             f"constrained-alignment seed {seed} failed with exit code {returncode}"
         )
+
+
+def _is_lowercase_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in LOWERCASE_HEX_DIGITS for character in value)
+    )
 
 
 def build_alignment_command(*, seed: int, repo_root: str, home: str) -> list[str]:
@@ -100,16 +109,14 @@ def _validate_result(*, repo_root: Path, slot: Mapping[str, Any]) -> dict[str, A
         or type(quantized_invariant) is not dict
         or quantized_invariant.get("schema")
         != "shogi-strength-first-quantized-cell-anchor-v2"
-        or type(quantized_invariant.get("aggregate_sha256")) is not str
-        or len(quantized_invariant["aggregate_sha256"]) != 64
+        or not _is_lowercase_sha256(quantized_invariant.get("aggregate_sha256"))
         or type(quantized_invariant.get("tensors")) is not dict
         or type(candidate) is not dict
         or set(candidate) != {"name", "bytes", "sha256"}
         or candidate.get("name") != "final.pt"
         or type(candidate.get("bytes")) is not int
         or candidate["bytes"] < 1
-        or type(candidate.get("sha256")) is not str
-        or len(candidate["sha256"]) != 64
+        or not _is_lowercase_sha256(candidate.get("sha256"))
     ):
         raise ValueError(
             f"alignment seed {slot['seed']} result did not close training-only"

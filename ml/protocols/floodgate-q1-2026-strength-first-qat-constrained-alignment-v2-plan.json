@@ -53,10 +53,10 @@
       "sha256": "3b5cca08a358fec2e483cb3ab38ce25212673a656f64de6307bfa18116acf41e"
     },
     "alignment_launcher": {
-      "bytes": 9073,
+      "bytes": 9240,
       "path": "ml/run_strength_first_three_seed_constrained_alignment_v2.py",
       "schema": "shogi-reviewed-python-source-v1",
-      "sha256": "e43366cce9f96d361a74ea69e92bbbf58a8e61f9cc853a4000ce95b27b085c18"
+      "sha256": "fb1e876acdbdadfcf9ad47792b2e08bac9ac92b99bf75c553372345a18c2861d"
     },
     "alignment_protocol": {
       "bytes": 16856,

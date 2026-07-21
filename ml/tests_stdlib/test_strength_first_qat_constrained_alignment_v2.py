@@ -312,6 +312,27 @@ class AlignmentRunnerTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         RUNNER._validate_result(repo_root=root, slot=slot)
 
+            for field, bad in (
+                ("aggregate_sha256", "A" * 64),
+                ("aggregate_sha256", "g" * 64),
+                ("sha256", "A" * 64),
+                ("sha256", "g" * 64),
+            ):
+                with self.subTest(field=field, bad=bad[0]):
+                    mutation = copy.deepcopy(result)
+                    target = (
+                        mutation["quantized_invariant"]
+                        if field == "aggregate_sha256"
+                        else mutation["candidate_artifact"]
+                    )
+                    target[field] = bad
+                    (output / "result.json").write_text(
+                        json.dumps(mutation),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(ValueError, "training-only"):
+                        RUNNER._validate_result(repo_root=root, slot=slot)
+
             (output / "result.json").write_text(
                 json.dumps(result),
                 encoding="utf-8",

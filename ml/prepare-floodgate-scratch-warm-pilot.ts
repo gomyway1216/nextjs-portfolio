@@ -32,7 +32,7 @@ import {
   type ParsedCsaGame,
   type RawParentOccurrence,
 } from "./import-csa-games";
-import { UsiEngine } from "./generate-teacher";
+import { UsiEngine, type EvalResult } from "./generate-teacher";
 
 export type ScratchWarmSplit = "train" | "val" | "test";
 
@@ -84,7 +84,7 @@ interface LabelManifest {
   output: string;
 }
 
-interface LabelFailure {
+export interface LabelFailure {
   position_id: string;
   error: string;
 }
@@ -248,7 +248,9 @@ export function parsePrepareTargets(
   const present = explicitNames.filter((name) => argv.includes(`--${name}`));
   if (present.length > 0) {
     if (argv.includes("--target"))
-      throw new Error("--target cannot be combined with explicit split targets");
+      throw new Error(
+        "--target cannot be combined with explicit split targets",
+      );
     if (present.length !== explicitNames.length)
       throw new Error(
         "--train-target, --val-target, and --test-target must be provided together",
@@ -293,7 +295,9 @@ export function readLabelFailures(
   input: readonly PilotParentRow[],
 ): LabelFailure[] {
   if (!fs.existsSync(file)) return [];
-  const report = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<LabelFailureReport>;
+  const report = JSON.parse(
+    fs.readFileSync(file, "utf8"),
+  ) as Partial<LabelFailureReport>;
   if (
     report.schema !== "shogi-floodgate-scratch-warm-label-failures-v1" ||
     !Array.isArray(report.failures)
@@ -309,7 +313,9 @@ export function readLabelFailures(
       !inputIds.has(failure.position_id) ||
       seen.has(failure.position_id)
     )
-      throw new Error("teacher failure ledger is not bound to unique input ids");
+      throw new Error(
+        "teacher failure ledger is not bound to unique input ids",
+      );
     seen.add(failure.position_id);
   }
   return report.failures;
@@ -324,6 +330,25 @@ async function writeLabelFailures(
     failures: [...failures],
   };
   await atomicWrite(file, `${JSON.stringify(report, null, 2)}\n`);
+}
+
+/** Classify every non-successful teacher response into a durable reason. */
+export function classifyLabelFailure(
+  positionId: string,
+  result: EvalResult | null,
+  evaluationError?: string,
+): LabelFailure | null {
+  if (evaluationError)
+    return {
+      position_id: positionId,
+      error: `evaluation-error:${evaluationError}`,
+    };
+  if (!result) return { position_id: positionId, error: "teacher-no-score" };
+  if (result.bestmove === "resign")
+    return { position_id: positionId, error: "teacher-bestmove-resign" };
+  if (result.bestmove === "win")
+    return { position_id: positionId, error: "teacher-bestmove-win" };
+  return null;
 }
 
 function fileIdentity(file: string): FileIdentity {
@@ -676,6 +701,16 @@ async function labelSplit(options: {
   evalIdentity: FileIdentity;
 }): Promise<void> {
   const inputIdentity = fileIdentity(options.input);
+  const failurePath = `${options.output}.failures.json`;
+  const manifestPath = `${options.output}.manifest.json`;
+  if (
+    !fs.existsSync(manifestPath) &&
+    fs.existsSync(failurePath) &&
+    fs.statSync(failurePath).size > 0
+  )
+    throw new Error(
+      "teacher failure ledger exists without its input/teacher manifest; use a new run directory",
+    );
   const labelManifest: LabelManifest = {
     schema: "shogi-floodgate-scratch-warm-label-manifest-v1",
     input: inputIdentity,
@@ -684,13 +719,8 @@ async function labelSplit(options: {
     depth: options.depth,
     output: path.resolve(options.output),
   };
-  await ensureLabelManifest(
-    `${options.output}.manifest.json`,
-    options.output,
-    labelManifest,
-  );
+  await ensureLabelManifest(manifestPath, options.output, labelManifest);
   const input = readJsonl(options.input);
-  const failurePath = `${options.output}.failures.json`;
   const failures = readLabelFailures(failurePath, input);
   const existing = recoverAndReadTeacherRows(
     options.output,
@@ -699,6 +729,12 @@ async function labelSplit(options: {
   );
   const completed = new Set(existing.map((row) => row.position_id));
   const failed = new Set(failures.map((row) => row.position_id));
+  for (const positionId of completed) {
+    if (failed.has(positionId))
+      throw new Error(
+        `position is classified as both success and failure: ${positionId}`,
+      );
+  }
   const pending = input.filter(
     (row) => !completed.has(row.position_id) && !failed.has(row.position_id),
   );
@@ -757,16 +793,13 @@ async function labelSplit(options: {
       const output: TeacherRow[] = [];
       const windowFailures: LabelFailure[] = [];
       for (const { row, result, error } of results) {
-        if (error) {
-          windowFailures.push({ position_id: row.position_id, error });
+        const failure = classifyLabelFailure(row.position_id, result, error);
+        if (failure) {
+          windowFailures.push(failure);
           continue;
         }
-        if (
-          !result ||
-          result.bestmove === "resign" ||
-          result.bestmove === "win"
-        )
-          continue;
+        // classifyLabelFailure returns null only for a scored playing move.
+        if (!result) throw new Error("unreachable unclassified teacher result");
         output.push({
           ...row,
           schema: TEACHER_SCHEMA,

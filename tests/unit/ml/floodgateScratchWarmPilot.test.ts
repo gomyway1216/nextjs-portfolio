@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertNoCrossSplitOverlap,
+  classifyLabelFailure,
   ensureLabelManifest,
   main,
   parseLabelSplits,
@@ -69,6 +70,28 @@ function row(sfen: string, split: ScratchWarmSplit): PilotParentRow {
 }
 
 describe("Floodgate scratch/warm pilot preparation", () => {
+  it("classifies every non-playing teacher result as a durable failure", () => {
+    expect(classifyLabelFailure("p1", null)).toEqual({
+      position_id: "p1",
+      error: "teacher-no-score",
+    });
+    expect(classifyLabelFailure("p2", { cp: -30, bestmove: "resign" })).toEqual(
+      {
+        position_id: "p2",
+        error: "teacher-bestmove-resign",
+      },
+    );
+    expect(classifyLabelFailure("p3", { cp: 30, bestmove: "win" })).toEqual({
+      position_id: "p3",
+      error: "teacher-bestmove-win",
+    });
+    expect(classifyLabelFailure("p4", null, "timeout")).toEqual({
+      position_id: "p4",
+      error: "evaluation-error:timeout",
+    });
+    expect(classifyLabelFailure("p5", { cp: 12, bestmove: "7g7f" })).toBeNull();
+  });
+
   it("keeps test blind unless explicitly selected", () => {
     expect(parseLabelSplits()).toEqual(["train", "val"]);
     expect(parseLabelSplits("train,val,test")).toEqual([
@@ -235,7 +258,9 @@ describe("Floodgate scratch/warm pilot preparation", () => {
           ],
         })}\n`,
       );
-      expect(() => readLabelFailures(file, [parent])).toThrow(/unique input ids/);
+      expect(() => readLabelFailures(file, [parent])).toThrow(
+        /unique input ids/,
+      );
     } finally {
       await fs.promises.rm(directory, { recursive: true, force: true });
     }

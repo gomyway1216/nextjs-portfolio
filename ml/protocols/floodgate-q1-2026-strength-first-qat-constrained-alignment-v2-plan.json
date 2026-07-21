@@ -1,0 +1,232 @@
+{
+  "base_training": {
+    "parent_preflight_registry": {
+      "bytes": 2965,
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-selection-preflight-registry.json",
+      "schema": "shogi-floodgate-strength-first-qat-selection-preflight-registry-v1",
+      "sha256": "0526b1633364db4c6e715a612823b1fc2d5375610329f017aff20d810fda88c1"
+    },
+    "plan": {
+      "bytes": 6242,
+      "path": "ml/protocols/floodgate-q1-2026-strength-first-qat-training-plan.json",
+      "schema": "shogi-floodgate-strength-first-qat-training-plan-v3",
+      "sha256": "ab5264f14e2ccde65c2aa4a17e21c3dd20839edd268d6c4aa345291f38c5178c"
+    }
+  },
+  "boundary": {
+    "candidate_selection_authorized": false,
+    "final_holdout_label_read_authorized": false,
+    "local_only": true,
+    "network": false,
+    "production_weight_write_authorized": false,
+    "replay_read_authorized": false,
+    "selection_label_read_authorized": false,
+    "training_only": true
+  },
+  "data": {
+    "model_training": {
+      "bytes": 236990586,
+      "format": "canonical-shogi-sibling-v1-jsonl-one-lf-per-row",
+      "game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+      "games": 1000,
+      "parent_ids_sha256": "567859769957ebff0b283b5615fee5f0f51d9a98f10529398e0467ede7a3cb81",
+      "parents": 23980,
+      "path": "train.jsonl",
+      "records": 278736,
+      "semantic_position_ids_count": 302716,
+      "semantic_position_ids_sha256": "750945a6d408f5d2b27dc5e1b9ce8f235d2598d555418b1bab827b4052eb2faa",
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
+    }
+  },
+  "development": {
+    "attempt_cap": 2,
+    "attempt_index": 2,
+    "claim_limit": "float-int-alignment-only-not-playing-strength",
+    "selection_metrics_received_by_training": false,
+    "spent_selection_received_by_training": false
+  },
+  "implementation": {
+    "alignment_core": {
+      "bytes": 35894,
+      "path": "ml/strength_first_quantized_cell_alignment.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "3b5cca08a358fec2e483cb3ab38ce25212673a656f64de6307bfa18116acf41e"
+    },
+    "alignment_launcher": {
+      "bytes": 9073,
+      "path": "ml/run_strength_first_three_seed_constrained_alignment_v2.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "e43366cce9f96d361a74ea69e92bbbf58a8e61f9cc853a4000ce95b27b085c18"
+    },
+    "alignment_protocol": {
+      "bytes": 16856,
+      "path": "ml/strength_first_qat_constrained_alignment_v2_protocol.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "63b942fbb12a0da88b4416e5e29f6e839d1ea488cd50f39b5045efc8176ab81d"
+    },
+    "alignment_trainer": {
+      "bytes": 25392,
+      "path": "ml/train_strength_first_qat_constrained_alignment_v2.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "88a389e423b67f0be7961cf4d1cf185ab50bec1d0cff10c395a87a6f360d739b"
+    },
+    "base_bridge": {
+      "bytes": 45777,
+      "path": "ml/strength_first_qat_training_bridge.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "a94cb7aafca66f355cddf2eecad0900298881c0bc270544961d0121911882ad4"
+    },
+    "base_training": {
+      "bytes": 144780,
+      "path": "ml/train.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "e3be3ff47fd2185784fbf6355bf01a03706a573390cf3b1bc99c2140ca9b613d"
+    },
+    "integer_forward": {
+      "bytes": 19231,
+      "path": "ml/int16_forward.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "19e2aaf8f5ca920a0f3e4b15cc3cfb46293cd17a074f842e33c86a865e7e3c16"
+    },
+    "plan_builder": {
+      "bytes": 6670,
+      "path": "ml/build_strength_first_qat_constrained_alignment_v2_plan_candidate.py",
+      "schema": "shogi-reviewed-python-source-v1",
+      "sha256": "f7ccc7b5322b0460a764103449ac9b5de4559596e48b8d7560625deb61c6ac0b"
+    }
+  },
+  "parents": [
+    {
+      "checkpoint": {
+        "bytes": 2383633,
+        "epoch": 20,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+        "sha256": "84ab533c7bf36183b83228c5dab5817dd730fcfae5d81be645569f45b5622a6a"
+      },
+      "result": {
+        "bytes": 7700,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-42/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+        "sha256": "c68c99eadf5081fee9370023dde2d7bd8c3430ba15d28fc0715c8a2a90809763"
+      },
+      "seed": 42,
+      "slot_id": "floodgate-strength-first-int16-aware-seed-42"
+    },
+    {
+      "checkpoint": {
+        "bytes": 2383633,
+        "epoch": 20,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+        "sha256": "6665c7de16c8f9b6b7eb9c3fccc29db58ae12271e548301b25b9233508c4bbb0"
+      },
+      "result": {
+        "bytes": 7698,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-43/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+        "sha256": "e9681e76bd1859ebf4af9e7dbb10b2269e5c024c0d58de0e195d2ef0021cc4b6"
+      },
+      "seed": 43,
+      "slot_id": "floodgate-strength-first-int16-aware-seed-43"
+    },
+    {
+      "checkpoint": {
+        "bytes": 2383633,
+        "epoch": 20,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/final.pt",
+        "schema": "shogi-floodgate-strength-first-qat-final-checkpoint-v2",
+        "sha256": "00b074439f404c1d95e77ed4d0318ab34c85106d4a18c7a18f394e21f6aabcd5"
+      },
+      "result": {
+        "bytes": 7700,
+        "path": "ml/runs/floodgate-q1-2026-strength-first-int16-aware/seed-44/result.json",
+        "schema": "shogi-floodgate-strength-first-qat-training-result-v2",
+        "sha256": "65b0df3892c0d86446d7febe896fb4e59bbb086223a7030ccdf8ec1f8c0a5c30"
+      },
+      "seed": 44,
+      "slot_id": "floodgate-strength-first-int16-aware-seed-44"
+    }
+  ],
+  "runtime": {
+    "cpu_model": "Apple M4 Pro",
+    "deterministic_algorithms": true,
+    "deterministic_debug_mode": "error",
+    "device": "cpu",
+    "logical_cpu_count": 14,
+    "machine": "arm64",
+    "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python_version": "3.13.0",
+    "system": "Darwin",
+    "torch_interop_threads": 1,
+    "torch_threads": 2,
+    "torch_version": "2.12.1"
+  },
+  "schema": "shogi-floodgate-strength-first-qat-constrained-alignment-v2-plan-v1",
+  "slots": [
+    {
+      "id": "floodgate-strength-first-int16-aware-constrained-alignment-v2-seed-42",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-42",
+      "seed": 42
+    },
+    {
+      "id": "floodgate-strength-first-int16-aware-constrained-alignment-v2-seed-43",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-43",
+      "seed": 43
+    },
+    {
+      "id": "floodgate-strength-first-int16-aware-constrained-alignment-v2-seed-44",
+      "output": "ml/runs/floodgate-q1-2026-strength-first-int16-aware-constrained-alignment-v2/seed-44",
+      "seed": 44
+    }
+  ],
+  "status": "exact-parent-checkpoints-ready-for-cell-alignment",
+  "training": {
+    "amsgrad": false,
+    "architecture": "2282-256-32-1-clipped-relu",
+    "batch": 256,
+    "batch_generator_seed": "seed+global_epoch",
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "candidate_artifact": "final.pt",
+    "early_stopping": false,
+    "epoch_offset": 20,
+    "eps": 1e-08,
+    "family": "int16-aware-constrained-alignment-v2",
+    "features": "board",
+    "final_epoch": 24,
+    "huber_beta_logit": 0.015625,
+    "integer_target_cache": "precompute-once-from-seed-parent-anchor-exact-int16-forward",
+    "integer_target_cache_chunk_rows": 8192,
+    "integer_target_cache_dtype": "float32-normalized-logit",
+    "integer_target_cache_reused_local_epochs": 4,
+    "k_sigmoid": 600.0,
+    "learning_rate": 1e-05,
+    "local_epochs": 4,
+    "objective": "smooth_l1(float_logit,detached_exact_int_logit)+0.25*mean_parent_kl(exact_int_policy||float_policy)",
+    "optimizer": "AdamW",
+    "optimizer_state": "fresh-not-resumed",
+    "parent_epoch": 20,
+    "policy_consistency_weight": 0.25,
+    "policy_temperature_cp": 200.0,
+    "primary_parents": 23980,
+    "primary_rows": 278736,
+    "quantized_cell_projection": "restore-crossing-coordinates-to-seed-parent-and-clear-moments",
+    "quantized_invariant_checks": [
+      "after-every-optimizer-step",
+      "after-every-epoch",
+      "before-save",
+      "after-strict-reload"
+    ],
+    "replay_rows": 0,
+    "scheduler": "CosineAnnealingLR",
+    "scheduler_t_max": 4,
+    "selection_evaluations": 0,
+    "teacher_target_loss": false,
+    "torch_threads": 2,
+    "weight_decay": 0.0
+  }
+}

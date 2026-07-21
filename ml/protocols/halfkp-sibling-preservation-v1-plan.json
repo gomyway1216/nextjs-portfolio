@@ -1,0 +1,127 @@
+{
+  "schema": "shogi-halfkp-sibling-preservation-plan-v1",
+  "status": "prospective-research-plan-not-live-authorization",
+  "objective": "Improve search-local legal-move ordering from the strongest existing single-view HalfKP checkpoint while preserving its independent position-value behavior.",
+  "why_this_is_not_the_failed_sibling_experiment_again": {
+    "historical_lane": "board-feature warm/scratch sibling ranking; static selection failed despite small pair-accuracy gains",
+    "new_lane": "halfkp-factor warm start from the epoch-2 direct-match near-pass, equal-row value replay, independent epoch-zero-relative value gates, and fresh direct matches",
+    "forbidden_repeats": [
+      "board-feature scratch sibling training",
+      "selection by training loss",
+      "promotion from proxy metrics alone"
+    ]
+  },
+  "inputs": {
+    "initializer": {
+      "path": ".codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt",
+      "bytes": 191656969,
+      "sha256": "c7d250ab808cd8719594dae5ed69c54bd1c978fe90cb479bd0ed06594bd1cff9",
+      "features": "halfkp-factor",
+      "prior_direct_screen": "29-24-3, 61 HalfPoints; near-pass but not live-authorized"
+    },
+    "legal_sibling_training": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "rows": 278736,
+      "parents": 23980,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "legality": "generator enumerated legal moves, rejected illegal teacher moves, and derived each child SFEN by applying the recorded USI move"
+    },
+    "legal_sibling_validation": {
+      "path": ".codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "rows": 28518,
+      "parents": 4798,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088"
+    },
+    "value_replay": {
+      "path": ".codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "rows": 800000,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+      "sample_rows": 500000,
+      "target": "teacher CP; outcome is retained in source provenance but not mixed into this ranking lane"
+    },
+    "value_preservation_validation": {
+      "path": ".codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "bytes": 1576191,
+      "rows": 3000,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+      "semantic_exclusion": "Exclude every parent/child identity seen by sibling train or sibling validation before measuring preservation; the current pinned inputs exclude 203 of 3000 rows."
+    }
+  },
+  "training": {
+    "trainer": "ml/train_halfkp_sibling_preserving.py",
+    "epochs": 8,
+    "batch": 256,
+    "optimizer": "AdamW with zero weight decay",
+    "rank_pair_min_cp": 50.0,
+    "rank_pair_max_cp": 600.0,
+    "rank_margin_cp": 50.0,
+    "policy_temperature_cp": 200.0,
+    "value_replay_ratio_rows": 1.0,
+    "selection": "best sibling pair accuracy, then top-1, then preservation loss, among admitted epochs only",
+    "prospective_slots": [
+      {
+        "id": "balanced-seed42",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 1.0,
+        "policy_weight": 0.25
+      },
+      {
+        "id": "conservative-seed43",
+        "seed": 43,
+        "learning_rate": 0.000005,
+        "rank_weight": 0.75,
+        "policy_weight": 0.2
+      },
+      {
+        "id": "pair-focused-seed44",
+        "seed": 44,
+        "learning_rate": 0.00001,
+        "rank_weight": 1.25,
+        "policy_weight": 0.1
+      }
+    ]
+  },
+  "epoch_admission_relative_to_initializer": {
+    "minimum_sibling_pair_gain": 0.003,
+    "minimum_sibling_top1_gain": 0.0,
+    "maximum_value_mae_regression_cp": 10.0,
+    "maximum_value_loss_relative_increase": 0.02
+  },
+  "quantized_admission_relative_to_initializer_on_same_64_positions": {
+    "exact_runtime_parity": "64/64 out_q and cp must match Torch, TypeScript, and research WASM",
+    "maximum_mean_quantization_error_regression_cp": 5.0,
+    "maximum_worst_quantization_error_regression_cp": 20.0
+  },
+  "resource_estimate_on_recorded_m4_pro_51gb": {
+    "basis": "Prior 800k-row one-epoch HalfKP runs used 4.73-4.78 GB maximum RSS and about 41-42 seconds total; this lane holds sibling metadata plus a 500k replay sample and saves eight 183 MB checkpoints.",
+    "per_run_wall_minutes": "5-8",
+    "per_run_peak_rss_gb": "6-8",
+    "three_run_wall_minutes": "15-25 sequential; approximately 10-20 when launched together after other search jobs finish",
+    "three_run_output_storage_gb": "about 1.4 including best/last checkpoints and one export per admitted run",
+    "estimate_not_acceptance_evidence": true
+  },
+  "execution_order": [
+    "strict input and semantic-disjointness preflight",
+    "three independently seeded warm-start runs",
+    "export and exact fixed-point parity only for admitted checkpoints",
+    "fresh fixed-time 56-game screen",
+    "fresh independent 96-game confirmation",
+    "fresh formal 768-game A/B",
+    "live promotion only if every gate passes"
+  ],
+  "complete_training_commands_from_repository_root": [
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-sibling-preservation-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-sibling-preserving-balanced-seed42-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.00001 --device mps --torch-threads 2 --seed 42 --rank-weight 1.0 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.25 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02",
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-sibling-preservation-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-sibling-preserving-conservative-seed43-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.000005 --device mps --torch-threads 2 --seed 43 --rank-weight 0.75 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.20 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02",
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-sibling-preservation-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-sibling-preserving-pair-focused-seed44-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.00001 --device mps --torch-threads 2 --seed 44 --rank-weight 1.25 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.10 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02"
+  ],
+  "stop_rules": [
+    "If no seed admits an epoch, stop this lane without a match.",
+    "If the best admitted candidate fails the 56-game screen, do not scale this recipe merely by adding epochs or data.",
+    "Never write public/shogi-nnue-weights.bin from this trainer."
+  ],
+  "claim_boundary": "Prospective code/data/training/gate plan only; not a trained result, playing-strength claim, or live promotion authorization."
+}

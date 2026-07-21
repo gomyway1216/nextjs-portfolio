@@ -27,6 +27,7 @@ import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
+import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
 import {
   wasmSearchBestMove,
@@ -35,7 +36,21 @@ import {
   isNnueWeightsLoaded,
 } from '../src/components/game/ShogiImproved/wasmEngine';
 import { getOpeningMoveImproved } from '../src/components/game/ShogiImproved/OpeningBookImproved';
-import { SENTE, GOTE, Te } from '../src/components/game/ShogiImproved/types';
+import {
+  EMPTY,
+  FU,
+  KY,
+  KE,
+  GI,
+  KI,
+  KA,
+  HI,
+  OU,
+  SENTE,
+  GOTE,
+  Te,
+  getKomashu,
+} from '../src/components/game/ShogiImproved/types';
 import { toSfen } from './shogi-sfen-codec';
 
 export { toSfen } from './shogi-sfen-codec';
@@ -44,7 +59,7 @@ export { toSfen } from './shogi-sfen-codec';
 // CLI 引数
 // ---------------------------------------------------------------------------
 
-interface Args {
+export interface Args {
   target: number; // 目標局面数(ファイル内の総行数)
   out: string; // 出力 JSONL
   depth: number; // やねうら王の探索深さ
@@ -62,11 +77,51 @@ interface Args {
   nnueK: number; // NNUE の sigmoid スケール K (weights.meta.json の k_sigmoid)
 }
 
-function parseArgs(): Args {
-  const a = process.argv.slice(2);
+const VALUE_OPTIONS = new Set([
+  'target',
+  'out',
+  'depth',
+  'engines',
+  'movetime',
+  'epsilon',
+  'min-ply',
+  'max-ply',
+  'chunk',
+  'balance-cp',
+  'balance-rate',
+  'nnue-weights',
+  'nnue-k',
+]);
+const BOOLEAN_OPTIONS = new Set(['balance', 'wasm']);
+
+/** Parse generator arguments fail-closed so a misspelled capability flag cannot select another engine lane. */
+export function parseGeneratorArgs(a: readonly string[]): Args {
+  const values = new Map<string, string>();
+  const booleans = new Set<string>();
+
+  for (let i = 0; i < a.length; i++) {
+    const token = a[i];
+    if (!token.startsWith('--')) {
+      throw new Error(`[gen] unexpected positional argument: ${token}`);
+    }
+    const name = token.slice(2);
+    if (BOOLEAN_OPTIONS.has(name)) {
+      booleans.add(name);
+      continue;
+    }
+    if (!VALUE_OPTIONS.has(name)) {
+      throw new Error(`[gen] unknown option: --${name}`);
+    }
+    const value = a[i + 1];
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error(`[gen] --${name} requires a value`);
+    }
+    values.set(name, value);
+    i++;
+  }
+
   const get = (name: string, def: string): string => {
-    const i = a.indexOf(`--${name}`);
-    return i >= 0 && i + 1 < a.length ? a[i + 1] : def;
+    return values.get(name) ?? def;
   };
   return {
     target: parseInt(get('target', '10000'), 10),
@@ -80,13 +135,13 @@ function parseArgs(): Args {
     chunk: parseInt(get('chunk', '2000'), 10),
     // --balance: ラベリング後に |cp| > balance-cp の大差局面を確率的に間引き、
     // 互角圏局面の比率を上げる。追記フォーマット・再開互換は不変。
-    balance: a.includes('--balance'),
+    balance: booleans.has('balance'),
     balanceCp: parseInt(get('balance-cp', '1200'), 10),
     balanceRate: parseFloat(get('balance-rate', '0.3')),
     // --wasm: 自己対戦の指し手選択を WASM エンジンに切り替える。生成フェーズが
     // 支配的コスト (実測 gen 102s vs label 1.5s / chunk) なので、ここが ~15x 速くなる。
     // 局面の性質は同一エンジンの同一探索 (JS版とビット一致) なので分布は変わらない。
-    wasm: a.includes('--wasm'),
+    wasm: booleans.has('wasm'),
     // --nnue-weights <path>: 自己対戦の WASM 探索の leaf eval を、指定した NNUE 重み
     // (本番 public/shogi-nnue-weights.bin = runOp1 など) に切り替える。これにより
     // 「その NNUE を積んだエンジンが実際に到達する局面」を採取できる (自己対戦データ)。
@@ -94,6 +149,10 @@ function parseArgs(): Args {
     nnueWeights: get('nnue-weights', ''),
     nnueK: parseFloat(get('nnue-k', '600')),
   };
+}
+
+function parseArgs(): Args {
+  return parseGeneratorArgs(process.argv.slice(2));
 }
 
 /** 重複排除キー: 手数を除いた SFEN */
@@ -120,17 +179,107 @@ function mulberry32(seed: number): () => number {
 // 自己対戦による局面生成
 // ---------------------------------------------------------------------------
 
-interface RawPosition {
+export interface RawPosition {
   sfen: string;
   ply: number;
+}
+
+export interface SelfPlayMoveSelector {
+  getNextTe(
+    k: KyokumenImproved,
+    tesu: number,
+    options: { difficulty: 'medium'; maxDepth: number; maxTimeMs: number }
+  ): Te | null;
+}
+
+export interface PositionInvariantResult {
+  ok: boolean;
+  reason?: string;
+}
+
+const EXPECTED_NON_KING_COUNTS: Readonly<Record<number, number>> = {
+  [FU]: 18,
+  [KY]: 4,
+  [KE]: 4,
+  [GI]: 4,
+  [KI]: 4,
+  [KA]: 2,
+  [HI]: 2,
+};
+
+/**
+ * Verify the physical conservation laws of an even-game position.
+ * Promoted board pieces count as their unpromoted base type; captured pieces count in hands.
+ */
+export function validatePhysicalPositionInvariant(
+  k: Pick<KyokumenImproved, 'ban' | 'hand'>
+): PositionInvariantResult {
+  const counts = new Map<number, number>();
+  let senteKings = 0;
+  let goteKings = 0;
+
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const piece = k.ban[(suji << 4) + dan];
+      if (piece === EMPTY) continue;
+      const owner = piece & (SENTE | GOTE);
+      if (owner !== SENTE && owner !== GOTE) {
+        return { ok: false, reason: `board piece has invalid owner at ${suji}${dan}: ${piece}` };
+      }
+      const kind = getKomashu(piece);
+      if (kind === OU) {
+        if (owner === SENTE) senteKings++;
+        else goteKings++;
+        continue;
+      }
+      const baseKind = kind & 0x07;
+      if (!(baseKind in EXPECTED_NON_KING_COUNTS)) {
+        return { ok: false, reason: `board piece has invalid kind at ${suji}${dan}: ${piece}` };
+      }
+      counts.set(baseKind, (counts.get(baseKind) ?? 0) + 1);
+    }
+  }
+
+  if (senteKings !== 1 || goteKings !== 1) {
+    return {
+      ok: false,
+      reason: `expected one king per side, got sente=${senteKings} gote=${goteKings}`,
+    };
+  }
+
+  for (const kind of Object.keys(EXPECTED_NON_KING_COUNTS).map(Number)) {
+    for (const owner of [SENTE, GOTE]) {
+      const handCount = k.hand[owner + kind] ?? 0;
+      if (!Number.isInteger(handCount) || handCount < 0) {
+        return { ok: false, reason: `invalid hand count for piece ${owner + kind}: ${handCount}` };
+      }
+      counts.set(kind, (counts.get(kind) ?? 0) + handCount);
+    }
+    const expected = EXPECTED_NON_KING_COUNTS[kind];
+    const actual = counts.get(kind) ?? 0;
+    if (actual !== expected) {
+      return { ok: false, reason: `piece ${kind} count mismatch: expected=${expected} actual=${actual}` };
+    }
+  }
+
+  return { ok: true };
+}
+
+/** Return the generator-owned legal move object, never the untrusted selector object. */
+export function resolveCanonicalLegalMove(
+  selected: Te | null,
+  legal: readonly Te[]
+): Te | null {
+  if (!selected) return null;
+  return legal.find((candidate) => candidate.equals(selected)) ?? null;
 }
 
 /**
  * 1ゲームを対局し、[minPly, maxPly] の手数範囲で「手番側が王手されていない」局面を収集する。
  * 確率 epsilon でランダムな合法手を指す(分岐の多様化)。
  */
-function playOneGame(
-  ai: ShogiAIImprovedV20,
+export function playOneGame(
+  ai: SelfPlayMoveSelector,
   rng: () => number,
   args: Args,
   sink: (p: RawPosition) => void
@@ -138,6 +287,10 @@ function playOneGame(
   const k = InitialPositionImproved.createInitialPosition();
   let teban = SENTE;
   k.setTeban(teban);
+  const initialInvariant = validatePhysicalPositionInvariant(k);
+  if (!initialInvariant.ok) {
+    throw new Error(`[gen] invalid initial self-play position: ${initialInvariant.reason}`);
+  }
 
   for (let ply = 0; ply <= args.maxPly + 2; ply++) {
     k.setTeban(teban);
@@ -151,24 +304,38 @@ function playOneGame(
       }
     }
 
-    let te: Te | null = null;
+    const positionHashBeforeSelection = k.HashVal;
+    let selected: Te | null = null;
     if (rng() < args.epsilon) {
-      te = legal[Math.floor(rng() * legal.length)];
+      selected = legal[Math.floor(rng() * legal.length)];
     } else if (args.wasm) {
       // JS 版 getNextTe と同じく定跡を先に引き (分布を揃える)、外れたら WASM 探索
       // (JS 版とビット一致・~15x 速)。null (詰み/不調) は下のランダム手へ。
-      te = getOpeningMoveImproved(k, 'medium') ?? wasmSearchBestMove(k, ply, args.moveTimeMs, 4, 8);
+      selected =
+        getOpeningMoveImproved(k, 'medium') ?? wasmSearchBestMove(k, ply, args.moveTimeMs, 4, 8);
     } else {
-      te = ai.getNextTe(k, ply, {
+      selected = ai.getNextTe(k, ply, {
         difficulty: 'medium',
         maxDepth: 4,
         maxTimeMs: args.moveTimeMs,
       });
     }
-    if (!te) te = legal[Math.floor(rng() * legal.length)];
-
+    // Search/book implementations may use pooled or cached Te objects. Resolve their answer
+    // against this exact position's legal list before passing it to the unchecked low-level
+    // move() method. Returning the canonical object also guarantees an accurate capture field.
     k.setTeban(teban); // getNextTe 内で変更される可能性に備える
+    if (k.HashVal !== positionHashBeforeSelection) {
+      console.error(`[gen] discarded self-play game: selector mutated the position at ply ${ply}`);
+      return;
+    }
+    const te =
+      resolveCanonicalLegalMove(selected, legal) ?? legal[Math.floor(rng() * legal.length)];
     k.move(te);
+    const after = validatePhysicalPositionInvariant(k);
+    if (!after.ok) {
+      console.error(`[gen] discarded corrupt self-play game after ply ${ply}: ${after.reason}`);
+      return;
+    }
     teban = teban === SENTE ? GOTE : SENTE;
   }
 }

@@ -11,7 +11,7 @@
 - All three eight-epoch browser-confusion runs regressed held-out top-1. The final temperature-50 diagnostic produced **65/643** for all three arms, below the 66/643 baseline. That lane is closed
 - The new self-play pipeline has run end to end on real data. Twenty-six Vitest tests and 15 Python tests pass. The real 82-row integration corpus split into 75 training and seven validation rows with zero source/game/opening/position overlap, and both training arms completed. This proves wiring, not strength
 - The selected generator uses 12 workers, play depth 2, post-game label depth 6, one sample every four plies, and at most 24 samples per game. The 20-game dense pilot completed in 62.48 seconds with 247 positions and zero technical faults
-- Full generation of 24,000 games started at about 23:27 PDT on July 21, 2026. The first roughly three minutes produced 54 games and 612 positions while using about 1,175% aggregate CPU and 3.82 GB RSS. The 9–11 hour estimate from the short pilot was optimistic, so the current planning range is **10–24 hours on one Mac**. This is not a promised completion time
+- Full generation of 24,000 games started at about 23:27 PDT on July 21, 2026. The first roughly three minutes produced 54 games and 612 positions, but the roughly 12-minute observation was 135 games and 1,592 positions, which extrapolates to about 35 hours. The 9–11 hour estimate from the short pilot was optimistic, so the current planning range is **24–48 hours on one Mac**. This is not a promised completion time
 
 ## 1. An honest account of the week
 
@@ -66,7 +66,7 @@ Starting all 24,000 games at a high depth would risk discovering a throughput fa
 
 The dense configuration samples from ply 12 through ply 180, every four plies, with at most 24 positions per game and a game cap of 192 plies. The pilot had zero zero-sample games, zero technical faults, and 12.35 positions per game. A direct row-count projection gives 296,400 positions for 24,000 games.
 
-We have already corrected the time estimate. The 62.48-second pilot suggested 9–11 hours, but the first roughly three minutes of the full run completed 54 games, around 18 games per minute. A naive extrapolation of that point is about 22 hours. Long games and deeper labeling create a long tail, so the current planning range is 10–24 hours. It will be updated from a longer steady-state window; it is not a completion promise.
+We have already corrected the time estimate twice. The 62.48-second pilot suggested 9–11 hours. The first roughly three minutes of the full run completed 54 games, around 18 games per minute, but the roughly 12-minute observation was 135 games and 1,592 positions, around 11.5 games per minute. A naive extrapolation of the later point is about 35 hours. Long games and deeper labeling create a long tail, so the current planning range is 24–48 hours. It will be updated from a longer steady-state window; it is not a completion promise.
 
 ## 4. The fixed full-generation configuration
 

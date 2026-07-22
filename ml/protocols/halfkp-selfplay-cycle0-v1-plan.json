@@ -72,8 +72,8 @@
       "records_per_game": 12.35,
       "projected_records_for_24000_games": 296400,
       "initial_projected_wall_hours_one_mac": "9-11",
-      "current_planning_range_hours_one_mac": "10-24",
-      "reason_for_range": "The short pilot omitted the long-tail cost visible in the first full-run observation. The range must be updated from longer steady-state measurements and is not a completion-time promise.",
+      "current_planning_range_hours_one_mac": "24-48",
+      "reason_for_range": "The short pilot omitted the long-tail cost visible in the full run. At about 12 minutes the run had completed 135 games and 1592 records, a roughly 35-hour linear projection. The range must continue to be updated from longer steady-state measurements and is not a completion-time promise.",
       "projection_is_result": false
     }
   },

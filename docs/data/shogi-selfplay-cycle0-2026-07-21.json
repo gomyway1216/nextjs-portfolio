@@ -153,7 +153,7 @@
       "projection_for_24000_games": {
         "records": 296400,
         "initial_pilot_wall_hours_one_mac": "9-11",
-        "current_planning_range_hours_one_mac": "10-24",
+        "current_planning_range_hours_one_mac": "24-48",
         "is_observed_result": false
       },
       "decision": "selected-for-full24k-generation"
@@ -227,6 +227,17 @@
       "single_point_linear_projection_hours_approx": 22,
       "planning_range_hours": "10-24",
       "limitation": "This is an early rolling observation, not steady-state throughput or a completion-time promise."
+    },
+    "later_observation": {
+      "elapsed_minutes_approx": 12,
+      "completed_games": 135,
+      "records": 1592,
+      "games_per_minute_approx": 11.5,
+      "aggregate_cpu_percent_approx": 1180,
+      "resident_memory_gb_approx": 2.08,
+      "single_point_linear_projection_hours_approx": 35,
+      "planning_range_hours": "24-48",
+      "limitation": "This remains an in-progress rolling observation, not a completion-time promise."
     },
     "completion_claimed": false,
     "dataset_prepared": false,

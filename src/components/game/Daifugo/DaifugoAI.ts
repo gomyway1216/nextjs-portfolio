@@ -33,6 +33,16 @@ interface TierConfig {
   /** Whether the AI tracks opponents' hand sizes to play more aggressively. */
   opponentAware: boolean;
   /**
+   * Own-hand shape planning (weakened subset of `planning`, no hidden-card
+   * inference): hand-partition go-out shaping, forbidden-finish (あがり禁止)
+   * avoidance, and finish detection through 7渡し/10捨て side effects.
+   * Implied by `planning` — enforced by the normalization loop below the TIER
+   * table, so a tier can never have full planning without this subset. Set it
+   * explicitly to give a mid tier hand-planning without card counting /
+   * guaranteed-finish search.
+   */
+  handPlanning: boolean;
+  /**
    * Top-tier planning (A/B-verified via scripts/daifugo-ai-match.ts):
    * hand-partition go-out planning, forbidden-finish (あがり禁止) avoidance,
    * card counting from the public play log, and guaranteed-finish detection.
@@ -41,12 +51,19 @@ interface TierConfig {
 }
 
 const TIER: Record<DaifugoDifficulty, TierConfig> = {
-  easy: { blunderRate: 0.55, passDiscipline: false, tactical: false, opponentAware: false, planning: false },
-  medium: { blunderRate: 0.28, passDiscipline: false, tactical: false, opponentAware: false, planning: false },
-  hard: { blunderRate: 0.12, passDiscipline: true, tactical: true, opponentAware: false, planning: false },
-  expert: { blunderRate: 0.04, passDiscipline: true, tactical: true, opponentAware: true, planning: true },
-  master: { blunderRate: 0, passDiscipline: true, tactical: true, opponentAware: true, planning: true },
+  easy: { blunderRate: 0.55, passDiscipline: false, tactical: false, opponentAware: false, handPlanning: false, planning: false },
+  medium: { blunderRate: 0.28, passDiscipline: false, tactical: false, opponentAware: false, handPlanning: false, planning: false },
+  hard: { blunderRate: 0.12, passDiscipline: true, tactical: true, opponentAware: false, handPlanning: true, planning: false },
+  expert: { blunderRate: 0.04, passDiscipline: true, tactical: true, opponentAware: true, handPlanning: true, planning: true },
+  master: { blunderRate: 0, passDiscipline: true, tactical: true, opponentAware: true, handPlanning: true, planning: true },
 };
+
+// Invariant: full `planning` implies its own-hand subset `handPlanning`.
+// Normalized here so a future TIER edit cannot enable planning without the
+// subset the planning code paths assume.
+for (const config of Object.values(TIER)) {
+  if (config.planning) config.handPlanning = true;
+}
 
 // ---------------------------------------------------------------------------
 // Move generation
@@ -620,8 +637,8 @@ export function decideDaifugoAction(
   }
 
   // 1) Always take a guaranteed finish if available.
-  if (tier.planning) {
-    // Planning tiers also see finishes through 7渡し/10捨て emptying the hand,
+  if (tier.handPlanning) {
+    // Hand-planning tiers also see finishes through 7渡し/10捨て emptying the hand,
     // and refuse あがり禁止 finishes (those demote the player to last place).
     const finisher = legalMoves.find(m =>
       remainingAfterPlay(state, playerId, m).length === 0 && !isForbiddenFinishPlay(state, m)
@@ -638,7 +655,7 @@ export function decideDaifugoAction(
     }
   }
 
-  // 1.5) Guaranteed finish lines (planning tiers): play a trick-winning move
+  // 1.5) Guaranteed finish lines (full-planning tiers): play a trick-winning move
   //      now — an 8切り clears the table immediately, an unbeatable play wins
   //      the trick once everyone passes — and keep the lead until the hand
   //      can be emptied with a legal, non-forbidden final play.
@@ -663,16 +680,26 @@ export function decideDaifugoAction(
   // 2) Pass discipline: when following, sometimes it is better to pass and keep
   //    strong cards, letting the trick come back to us / to a weaker opponent.
   if (!leading && tier.passDiscipline) {
-    const mustDefend = tier.opponentAware && oppMin <= 2; // opponent about to win
+    // Opponent about to win: every passDiscipline tier must defend rather than
+    // hoard. (For opponentAware tiers this is the same condition as before —
+    // the flag is implied — so expert/master decisions are unchanged.)
+    const mustDefend = oppMin <= 2;
+    // Tiers without full `planning` (hard, which has only the handPlanning
+    // subset): spending a control (2/joker) to seize the lead is exactly how a
+    // short hand goes out. Only hoard controls while the hand is still big.
+    // Without this, hard NEVER played 2/joker as a follower (mustDefend used
+    // to require opponentAware) and hoarded them forever — A/B-measured at
+    // −20pp vs medium.
+    const nearOut = !tier.planning && hand.length <= 5;
     const cheapMoves = tier.planning
-      // Planning tiers: a response is only worth a card if it is cheap AND
-      // actually shortens the go-out path (does not just break up a combo).
+      // Full-planning tiers: a response is only worth a card if it is cheap
+      // AND actually shortens the go-out path (does not just break up a combo).
       ? legalMoves.filter(m =>
         m.score < 60 &&
         estimateTurnsToGo(remainingAfterPlay(state, playerId, m)) < estimateTurnsToGo(hand)
       )
       : legalMoves.filter(m => m.score < 60); // not spending 2/joker
-    if (cheapMoves.length === 0 && !mustDefend) {
+    if (cheapMoves.length === 0 && !mustDefend && !nearOut) {
       // Every legal response would burn a premium card. Hold unless the pile is
       // trivial to beat with a low card.
       return { type: 'pass' };
@@ -688,7 +715,7 @@ export function decideDaifugoAction(
     handSize: hand.length,
     state,
     playerId,
-    handTurns: tier.planning ? estimateTurnsToGo(hand) : 0,
+    handTurns: tier.handPlanning ? estimateTurnsToGo(hand) : 0,
   });
 
   // 4) Blunder / noise: weaker tiers occasionally pick a non-optimal legal move.
@@ -710,7 +737,7 @@ interface RankContext {
   handSize: number;
   state: DaifugoNetworkState;
   playerId: string;
-  /** estimateTurnsToGo(hand) for planning tiers, 0 otherwise. */
+  /** estimateTurnsToGo(hand) for hand-planning tiers, 0 otherwise. */
   handTurns: number;
 }
 
@@ -718,11 +745,11 @@ function rankMoves(moves: ScoredMove[], ctx: RankContext): ScoredMove[] {
   const scored = moves.map((m) => {
     let priority = m.score; // lower = play first
 
-    // Planning tiers: never *choose* a forbidden finish (あがり禁止) if any
+    // Hand-planning tiers: never *choose* a forbidden finish (あがり禁止) if any
     // alternative exists — finishing with joker/2/8 means finishing last.
     // Also prefer plays that keep the remaining hand's go-out path short
     // (avoid breaking pairs/triples/straights needlessly).
-    const remainingPlanning = ctx.tier.planning
+    const remainingPlanning = ctx.tier.handPlanning
       ? remainingAfterPlay(ctx.state, ctx.playerId, m)
       : null;
     if (remainingPlanning) {

@@ -430,13 +430,15 @@ describe('Shichinarabe AI difficulty tiers', () => {
   });
 
   it('expert may strategically pass to hold a key blocking card', () => {
-    // The AI's only legal card is S6, which two opponents are both waiting behind
-    // (both hold S5). Playing it would immediately free both rivals, and it does not
-    // extend the AI's own hand — so an expert holds it back by passing.
+    // The AI's only legal card is S6. From PUBLIC information alone the expert
+    // can tell that S5 is certainly in an active opponent's hand (every unseen
+    // card is), that both opponents are one card from going out, and that the
+    // corridor below S5 is ungated — so playing S6 likely hands a near-winner
+    // the game while extending nothing of its own. An expert holds it back.
     const state = multiState({
       ai: [card('s6', 'S', 6), card('c2', 'C', 2), card('c3', 'C', 3), card('c4', 'C', 4), card('c5', 'C', 5)],
-      opp1: [card('s5a', 'S', 5)],
-      opp2: [card('s5b', 'S', 5)],
+      opp1: [card('s5', 'S', 5)],
+      opp2: [card('h8', 'H', 8)],
     });
     const decision = decideShichinarabeAction(state, 'ai', 'expert');
     expect(decision).toEqual({ type: 'pass' });

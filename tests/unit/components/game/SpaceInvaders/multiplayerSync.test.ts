@@ -318,6 +318,33 @@ describe('updateJoinerGame', () => {
     expect(s.lives).toBe(2);
   });
 
+  it('a death leaves other host-owned bullets intact (no snapshot flicker)', () => {
+    const s = createGameState(1, 0, 3, 'normal');
+    s.player.x = 100; // ship away from center so the respawn recenter is observable
+    s.bullets = [
+      { // the bullet that kills us
+        x: s.player.x + s.player.width / 2,
+        y: s.player.y + 10,
+        width: 4, height: 20, isEnemy: true, remote: true,
+      },
+      { x: 600, y: 200, width: 4, height: 20, isEnemy: true, remote: true },  // other enemy fire
+      { x: 650, y: 300, width: 4, height: 15, isEnemy: false, remote: true }, // host's own shot
+      { x: 120, y: 400, width: 4, height: 15, isEnemy: false },               // joiner's own bullet
+    ];
+
+    updateJoinerGame(s, NO_INPUT, 16.67, 1000);
+
+    expect(s.lives).toBe(2);
+    // Only the bullet that hit is removed; the host-owned rest survive so the
+    // next snapshot doesn't flicker/teleport them.
+    expect(s.bullets.filter(b => b.isEnemy && b.remote)).toHaveLength(1);
+    expect(s.bullets.filter(b => !b.isEnemy && b.remote)).toHaveLength(1);
+    // Own in-flight bullet is dropped and the ship recenters on respawn.
+    expect(s.bullets.some(b => !b.remote)).toBe(false);
+    expect(s.player.x).toBe((CANVAS_WIDTH - PLAYER_WIDTH) / 2);
+    expect(s.invulnUntil).toBe(1000 + JOINER_RESPAWN_INVULN_MS);
+  });
+
   it("the host's mirrored bullets never destroy invaders on the joiner", () => {
     const s = createGameState(1, 0, 3, 'normal');
     const target = s.formation.enemies[0];

@@ -666,7 +666,13 @@ export function updateJoinerGame(
         state.bullets.splice(i, 1);
         sounds.playerHit = true;
         if (state.lives > 0) {
-          resetAfterDeath(state);
+          // Respawn: recenter the ship and drop only our own in-flight
+          // bullet. Unlike solo (resetAfterDeath), host-owned bullets are
+          // left intact — the joiner can't truly clear them (the next
+          // snapshot would just reintroduce them, causing flicker), and the
+          // invulnerability window protects the respawn instead.
+          state.player = createPlayer();
+          state.bullets = state.bullets.filter(b => b.remote);
           state.invulnUntil = now + JOINER_RESPAWN_INVULN_MS;
         }
         // lives <= 0: ship is out; the host ends the game once both are out.

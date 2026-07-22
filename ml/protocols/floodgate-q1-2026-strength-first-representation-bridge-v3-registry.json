@@ -42,10 +42,10 @@
         "sha256": "766d2fd1df7c4214a51d3fb961afeea1bcb4df4a7a45f1e4522cd3c85b330055"
       },
       "export_weights": {
-        "bytes": 9729,
+        "bytes": 11803,
         "path": "ml/export-weights.py",
         "schema": "shogi-reviewed-python-source-v1",
-        "sha256": "04bb66fd9c2747a2cdda21f0823e44cae5bd45de6ac7d1fdb749d0aa73604099"
+        "sha256": "c0e48c19d885374dd0ab4f0afa130511dbf84fb613c9c98aba0511e52020bef5"
       },
       "fresh_execution_dispatch": {
         "bytes": 59290,
@@ -72,10 +72,10 @@
         "sha256": "cb28076a860aa8351859ffd54ebb351d87478f517b4b3b674e9eb5d8303d8989"
       },
       "int16_forward": {
-        "bytes": 19680,
+        "bytes": 24694,
         "path": "ml/int16_forward.py",
         "schema": "shogi-reviewed-python-source-v1",
-        "sha256": "f31f8fcdc36daea854ada8f8cec395b676801a960473723da366038f3d6ffa1f"
+        "sha256": "336fcbf4e036d73cd17b073c4ce666a8c45f8738e5eb1907ed49d1149c6ec712"
       },
       "metric_gates": {
         "bytes": 20759,
@@ -150,10 +150,10 @@
         "sha256": "a94cb7aafca66f355cddf2eecad0900298881c0bc270544961d0121911882ad4"
       },
       "training_core": {
-        "bytes": 154469,
+        "bytes": 169091,
         "path": "ml/train.py",
         "schema": "shogi-reviewed-python-source-v1",
-        "sha256": "bc25790f14d4d5ee3ae11818cc982d007897926394c5fcbc7298b99c54c06f2e"
+        "sha256": "6530d2cbd54c49f8048f28ce18d3981faea521de2997616780ab4dd498c53184"
       }
     }
   },

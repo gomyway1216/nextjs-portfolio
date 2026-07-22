@@ -41,7 +41,7 @@ _export = _load_module("export_weights", "export-weights.py")
 
 DistillNet = _train.DistillNet
 parse_sfen = _train.parse_sfen
-kp_bucket = _train.kp_bucket
+feature_bucket = _train.feature_bucket
 BOARD_FEATS = _train.BOARD_FEATS
 HAND_FEATS = _train.HAND_FEATS
 PAD_IDX = _train.PAD_IDX
@@ -77,6 +77,25 @@ def iter_sfens(path: str):
                 yield line
 
 
+def prepare_reference_inputs(model, sfen: str):
+    """Encode one SFEN exactly as the selected trainer feature mode does."""
+    idx, hands, _, king_sq = parse_sfen(sfen)
+    bucket = 0
+    if model.kp:
+        if king_sq < 0:
+            return None
+        bucket = feature_bucket(model.features, king_sq)
+        idx = [bucket * BOARD_FEATS + feature for feature in idx]
+
+    pad = idx[:MAX_PIECES] + [model.pad_idx] * (MAX_PIECES - len(idx))
+    if model.kp:
+        hands_x = [0.0] * model.hand_feats
+        hands_x[bucket * HAND_FEATS : (bucket + 1) * HAND_FEATS] = hands
+    else:
+        hands_x = hands
+    return pad, hands, hands_x, bucket
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True)
@@ -97,19 +116,10 @@ def main():
 
     positions = []
     for sfen in iter_sfens(args.data):
-        idx, hands, _, king_sq = parse_sfen(sfen)
-        bucket = 0
-        if model.kp:
-            if king_sq < 0:
-                continue
-            bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
-            idx = [bucket * BOARD_FEATS + f for f in idx]
-        pad = idx[:MAX_PIECES] + [model.pad_idx] * (MAX_PIECES - len(idx))
-        if model.kp:
-            hands_x = [0.0] * model.hand_feats
-            hands_x[bucket * HAND_FEATS : (bucket + 1) * HAND_FEATS] = hands
-        else:
-            hands_x = hands
+        prepared = prepare_reference_inputs(model, sfen)
+        if prepared is None:
+            continue
+        pad, hands, hands_x, bucket = prepared
         with torch.no_grad():
             out_f = model(
                 torch.tensor([pad], dtype=torch.long),

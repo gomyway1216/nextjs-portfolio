@@ -108,26 +108,56 @@ def quantize(model: DistillNet, k_sigmoid: float):
     # public exporter API and all historical bytes/metadata.
     q = quantize_model(model)
     kp = getattr(model, "kp", False)
+    dual = bool(getattr(model, "dual", False))
     bucket_count = int(
         getattr(model, "bucket_count", KP_BUCKETS if kp else 1)
     )
     meta = {
-        "format": "shogi-distill-v2" if kp else "shogi-distill-v1",
+        "format": (
+            "shogi-distill-v3-dual-halfkp"
+            if dual
+            else "shogi-distill-v2"
+            if kp
+            else "shogi-distill-v1"
+        ),
         "features": model.features,
         "kp_buckets": bucket_count,
-        "arch": f"{board_feats + hand_feats}->256->32->1 ClippedReLU",
-        "dims": {"board_feats": board_feats, "hand_feats": hand_feats, "h1": 256, "h2": 32},
-        "scales": {"act": ACT_SCALE, "w2": W_SCALE, "w3": W_SCALE},
+        "arch": (
+            "shared(184842->256)x2->32->32->1 ClippedReLU"
+            if dual
+            else f"{board_feats + hand_feats}->256->32->1 ClippedReLU"
+        ),
+        "dims": {
+            "board_feats": board_feats,
+            "hand_feats": hand_feats,
+            "h1": 256,
+            "h2": 32,
+            **({"perspectives": 2, "h3": 32} if dual else {}),
+        },
+        "scales": {
+            "act": ACT_SCALE,
+            "w2": W_SCALE,
+            "w3": W_SCALE,
+            **({"w4": W_SCALE} if dual else {}),
+        },
         "k_sigmoid": k_sigmoid,
         "cp_formula": f"cp = out_q * {k_sigmoid} / {ACT_SCALE * W_SCALE}",
         "layout": [
             f"w1_board int16 x {board_feats}*256 (feature-major)",
             f"w1_hand int16 x {hand_feats}*256 (feature-major)",
             "b1 int32 x 256",
-            "w2 int16 x 32*256 (row-major)",
+            f"w2 int16 x 32*{512 if dual else 256} (row-major)",
             "b2 int32 x 32",
-            "w3 int16 x 32",
-            "b3 int32 x 1",
+            *(
+                [
+                    "w3 int16 x 32*32 (row-major)",
+                    "b3 int32 x 32",
+                    "w4 int16 x 32",
+                    "b4 int32 x 1",
+                ]
+                if dual
+                else ["w3 int16 x 32", "b3 int32 x 1"]
+            ),
         ],
     }
     return q, meta
@@ -166,10 +196,13 @@ def main():
     # --- weights.bin ---
     bin_path = os.path.join(out_dir, "weights.bin")
     with open(bin_path, "wb") as f:
-        for name, dtype in [
+        layout = [
             ("w1_board", "h"), ("w1_hand", "h"), ("b1", "i"),
             ("w2", "h"), ("b2", "i"), ("w3", "h"), ("b3", "i"),
-        ]:
+        ]
+        if model.dual:
+            layout.extend((("w4", "h"), ("b4", "i")))
+        for name, dtype in layout:
             write_tensor_little_endian(f, q[name], dtype)
     meta_path = os.path.join(out_dir, "weights.meta.json")
     with open(meta_path, "w") as f:
@@ -188,8 +221,6 @@ def main():
 
     # --- 検証: float モデル vs 整数シミュレーション ---
     if args.verify:
-        import math
-
         cp_unit = k_sigmoid / (ACT_SCALE * W_SCALE)
         diffs, n = [], 0
         with open(args.verify) as f:
@@ -200,17 +231,42 @@ def main():
                 # train.py と同様、壊れ行(書き込み中断の末尾行など)はスキップして継続する
                 try:
                     rec = json.loads(line)
-                    idx, hands, _, king_sq = parse_sfen(rec["sfen"])
+                    if model.dual:
+                        idx, hands, _, king_sq = _train.parse_sfen_dual(rec["sfen"])
+                    else:
+                        idx, hands, _, king_sq = parse_sfen(rec["sfen"])
                 except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                     continue
-                bucket = 0
+                bucket = [0, 0] if model.dual else 0
                 if model.kp:
-                    if king_sq < 0:
+                    if model.dual and any(king < 0 for king in king_sq):
                         continue
-                    bucket = feature_bucket(model.features, king_sq)
-                    idx = [bucket * BOARD_FEATS + f for f in idx]
-                pad = idx[:40] + [model.pad_idx] * (40 - len(idx))
-                if model.kp:
+                    if not model.dual and king_sq < 0:
+                        continue
+                    if model.dual:
+                        bucket = [
+                            feature_bucket(model.features, view_king)
+                            for view_king in king_sq
+                        ]
+                        idx = [
+                            [bucket[view] * BOARD_FEATS + feature for feature in idx[view]]
+                            for view in range(2)
+                        ]
+                    else:
+                        bucket = feature_bucket(model.features, king_sq)
+                        idx = [bucket * BOARD_FEATS + f for f in idx]
+                if model.dual:
+                    pad = [
+                        view[:40] + [model.pad_idx] * (40 - len(view)) for view in idx
+                    ]
+                else:
+                    pad = idx[:40] + [model.pad_idx] * (40 - len(idx))
+                if model.dual:
+                    hands_x = [[0.0] * model.hand_feats for _ in range(2)]
+                    for view in range(2):
+                        start = bucket[view] * HAND_FEATS
+                        hands_x[view][start : start + HAND_FEATS] = hands[view]
+                elif model.kp:
                     hands_x = [0.0] * model.hand_feats
                     hands_x[bucket * HAND_FEATS : (bucket + 1) * HAND_FEATS] = hands
                 else:

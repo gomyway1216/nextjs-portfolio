@@ -29,6 +29,11 @@ HalfKP風特徴 (--features halfkp / halfkp-factor): 6個の粗い玉バケッ�
 手番側視点に正規化した自玉の king_sq (0..80) をそのまま81バケットとして使う。
 halfkp-factor は共有テーブル + 81バケット別 delta を学習し、推論・量子化時に合成する。
 
+標準dual-perspective HalfKP (--features halfkp-dual / halfkp-dual-factor): 同じ
+81バケット特徴テーブルを手番側視点と相手側視点へ共有適用し、2個の256次元
+accumulatorを連結する。dense部分は 512 -> 32 -> 32 -> 1。相手側視点は色を入れ替え、
+盤を180度回転し、相手玉を自玉として決定論的に正規化する。
+
 ネットワーク: 2282 -> 256 -> 32 -> 1 (全結合, 活性化 ClippedReLU = clamp(x,0,1))
 ターゲット:   y = sigmoid(cp / K)  (cp は手番側視点, K=600, cp は ±3000 にクランプ)
 損失:         MSE(sigmoid(out), y)   → 推論時は cp ≈ out * K
@@ -117,10 +122,26 @@ FEATURE_BUCKET_COUNTS = {
     "kp-factor": KP_BUCKETS,
     "halfkp": HALFKP_BUCKETS,
     "halfkp-factor": HALFKP_BUCKETS,
+    "halfkp-dual": HALFKP_BUCKETS,
+    "halfkp-dual-factor": HALFKP_BUCKETS,
 }
-BUCKETED_FEATURES = frozenset(("kp", "kp-factor", "halfkp", "halfkp-factor"))
-FACTORED_FEATURES = frozenset(("kp-factor", "halfkp-factor"))
-HALFKP_TRAIN_SCOPES = frozenset(("all", "delta-only"))
+BUCKETED_FEATURES = frozenset(
+    (
+        "kp",
+        "kp-factor",
+        "halfkp",
+        "halfkp-factor",
+        "halfkp-dual",
+        "halfkp-dual-factor",
+    )
+)
+FACTORED_FEATURES = frozenset(
+    ("kp-factor", "halfkp-factor", "halfkp-dual-factor")
+)
+DUAL_PERSPECTIVE_FEATURES = frozenset(
+    ("halfkp-dual", "halfkp-dual-factor")
+)
+HALFKP_TRAIN_SCOPES = frozenset(("all", "delta-only", "dual-residual"))
 MATE_SCORE_CP = 1_000_000
 MAX_NON_MATE_CP = 900_000
 MAX_MATE_DISTANCE = MATE_SCORE_CP - MAX_NON_MATE_CP - 1
@@ -180,6 +201,32 @@ def cp_sigmoid_target(cp, k_sigmoid: float) -> float:
     return exp_scaled / (1.0 + exp_scaled)
 
 
+def game_outcome_target(value, context: str = "outcome") -> float:
+    """Validate one decisive/drawn game result in the row's side-to-move view."""
+    if type(value) not in (int, float):
+        raise ValueError(f"{context} must be a finite number in {{0, 0.5, 1}}")
+    outcome = float(value)
+    if not math.isfinite(outcome) or outcome not in (0.0, 0.5, 1.0):
+        raise ValueError(f"{context} must be a finite number in {{0, 0.5, 1}}")
+    return outcome
+
+
+def mixed_sigmoid_target(
+    teacher_target: float,
+    outcome: float,
+    wdl_mix: float,
+) -> float:
+    """Mix teacher evaluation and played-game result in probability space."""
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("wdl_mix must be finite and in [0, 1]")
+    if wdl_mix == 0.0:
+        return teacher_target
+    validated_outcome = game_outcome_target(outcome)
+    return (1.0 - wdl_mix) * teacher_target + wdl_mix * validated_outcome
+
+
 def kp_bucket(s: int, d: int) -> int:
     """手番側視点の自玉位置 (suji s, dan d) → バケット 0..5。
 
@@ -211,7 +258,12 @@ def feature_bucket(features: str, king_sq: int) -> int:
         return 0
     if type(king_sq) is not int or not 0 <= king_sq < NUM_SQ:
         raise ValueError("bucketed feature row has no valid side-to-move king")
-    if features in ("halfkp", "halfkp-factor"):
+    if features in (
+        "halfkp",
+        "halfkp-factor",
+        "halfkp-dual",
+        "halfkp-dual-factor",
+    ):
         return king_sq
     return kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
 
@@ -285,6 +337,55 @@ def parse_sfen(sfen: str):
             i += 1
 
     return indices, hands, black_to_move, king_sq
+
+
+def dual_views_from_normalized_features(indices, hands, king_sq: int):
+    """Build the standard us/them HalfKP views from the normalized STM view.
+
+    The first view is byte-for-byte the historical side-to-move feature vector.
+    The second swaps ownership and rotates every square by 180 degrees, making
+    the opponent the local side.  Both returned king squares are expressed in
+    their own local view and therefore select the shared 81-bucket table.
+    """
+    if type(king_sq) is not int or not 0 <= king_sq < NUM_SQ:
+        raise ValueError("dual HalfKP row has no valid side-to-move king")
+    if not isinstance(indices, (list, tuple)) or not isinstance(hands, (list, tuple)):
+        raise TypeError("normalized board and hand features must be sequences")
+    if len(hands) != HAND_FEATS:
+        raise ValueError(f"normalized hands must contain {HAND_FEATS} values")
+
+    opponent_king_sq = None
+    them_indices = []
+    for feature in indices:
+        if type(feature) is not int or not 0 <= feature < BOARD_FEATS:
+            raise ValueError("normalized board feature is out of range")
+        plane, square = divmod(feature, NUM_SQ)
+        if plane == 14 + 7:
+            if opponent_king_sq is not None:
+                raise ValueError("dual HalfKP row contains multiple opponent kings")
+            opponent_king_sq = NUM_SQ - 1 - square
+        them_plane = plane + 14 if plane < 14 else plane - 14
+        them_square = NUM_SQ - 1 - square
+        them_indices.append(them_plane * NUM_SQ + them_square)
+    if opponent_king_sq is None:
+        raise ValueError("dual HalfKP row has no valid opponent king")
+
+    us_hands = list(hands)
+    them_hands = list(hands[7:]) + list(hands[:7])
+    return (
+        [list(indices), them_indices],
+        [us_hands, them_hands],
+        [king_sq, opponent_king_sq],
+    )
+
+
+def parse_sfen_dual(sfen: str):
+    """SFEN -> two normalized HalfKP views plus both local king squares."""
+    indices, hands, black_to_move, king_sq = parse_sfen(sfen)
+    view_indices, view_hands, king_squares = dual_views_from_normalized_features(
+        indices, hands, king_sq
+    )
+    return view_indices, view_hands, black_to_move, king_squares
 
 
 def position_id_from_sfen(sfen: str) -> str:
@@ -563,6 +664,7 @@ def _load_dataset(
     exclude_position_ids=None,
     strict: bool = False,
     capture_source_fingerprint: bool = False,
+    wdl_mix: float = 0.0,
 ):
     """JSONL → (board_idx (N,40) int64 padded, hands (N,14) float32, y (N,) float32,
                 cp (N,) float32, bucket (N,) int64)
@@ -573,9 +675,14 @@ def _load_dataset(
     """
     bucket_count = feature_bucket_count(features)
     bucketed = bucket_count > 1
+    dual_perspective = features in DUAL_PERSPECTIVE_FEATURES
     pad_idx = bucket_count * BOARD_FEATS if bucketed else PAD_IDX
     if not math.isfinite(k_sigmoid) or k_sigmoid <= 0:
         raise ValueError("k_sigmoid must be finite and positive")
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("wdl_mix must be finite and in [0, 1]")
     if type(cp_clamp) is not int or cp_clamp <= 0:
         raise ValueError("cp_clamp must be a positive integer")
     if uniform_sample_limit < 0:
@@ -620,7 +727,10 @@ def _load_dataset(
                         continue
                 try:
                     candidate_sfen = rec["sfen"]
-                    _, _, _, candidate_king_sq = parse_sfen(candidate_sfen)
+                    if dual_perspective:
+                        _, _, _, candidate_king_sq = parse_sfen_dual(candidate_sfen)
+                    else:
+                        _, _, _, candidate_king_sq = parse_sfen(candidate_sfen)
                     if strict:
                         candidate_cp = rec["cp"]
                         if type(candidate_cp) is not int:
@@ -635,7 +745,11 @@ def _load_dataset(
                 ):
                     excluded_rows += 1
                     continue
-                if bucketed and candidate_king_sq < 0:
+                if bucketed and (
+                    any(king < 0 for king in candidate_king_sq)
+                    if dual_perspective
+                    else candidate_king_sq < 0
+                ):
                     continue
                 eligible_ordinals.append(nonempty_ordinal)
                 continue
@@ -656,7 +770,10 @@ def _load_dataset(
                     continue
             try:
                 sfen = rec["sfen"]
-                idx, hands, _, king_sq = parse_sfen(sfen)
+                if dual_perspective:
+                    idx, hands, _, king_sq = parse_sfen_dual(sfen)
+                else:
+                    idx, hands, _, king_sq = parse_sfen(sfen)
                 raw_cp = rec["cp"] if strict else int(rec["cp"])
             except (AttributeError, KeyError, IndexError, ValueError, TypeError) as error:
                 n_skipped += 1
@@ -668,20 +785,57 @@ def _load_dataset(
             if exclude_position_ids and position_id_from_sfen(sfen) in exclude_position_ids:
                 n_excluded += 1
                 continue
-            bucket = 0
+            bucket = [0, 0] if dual_perspective else 0
             if bucketed:
-                if king_sq < 0:
+                missing_king = (
+                    any(king < 0 for king in king_sq)
+                    if dual_perspective
+                    else king_sq < 0
+                )
+                if missing_king:
                     n_skipped += 1
                     if strict:
                         strict_errors.append(
-                            f"line {physical_line}: bucketed feature row has no side-to-move king"
+                            f"line {physical_line}: bucketed feature row has no required king"
                         )
                     continue
-                bucket = feature_bucket(features, king_sq)
-                idx = [bucket * BOARD_FEATS + feature for feature in idx]
+                if dual_perspective:
+                    bucket = [
+                        feature_bucket(features, view_king_sq)
+                        for view_king_sq in king_sq
+                    ]
+                    idx = [
+                        [
+                            bucket[view] * BOARD_FEATS + feature
+                            for feature in idx[view]
+                        ]
+                        for view in range(2)
+                    ]
+                else:
+                    bucket = feature_bucket(features, king_sq)
+                    idx = [bucket * BOARD_FEATS + feature for feature in idx]
             cp = max(-cp_clamp, min(cp_clamp, raw_cp))
-            y = cp_sigmoid_target(cp, k_sigmoid)
-            idx = idx[:MAX_PIECES] + [pad_idx] * (MAX_PIECES - len(idx))
+            teacher_target = cp_sigmoid_target(cp, k_sigmoid)
+            if wdl_mix > 0.0:
+                try:
+                    outcome = game_outcome_target(
+                        rec["outcome"], f"line {physical_line}: outcome"
+                    )
+                except KeyError as error:
+                    raise ValueError(
+                        f"line {physical_line}: outcome is required when wdl_mix > 0"
+                    ) from error
+                y = mixed_sigmoid_target(teacher_target, outcome, wdl_mix)
+            else:
+                y = teacher_target
+            if dual_perspective:
+                idx = [
+                    view[:MAX_PIECES]
+                    + [pad_idx] * (MAX_PIECES - len(view))
+                    for view in idx
+                ]
+            else:
+                idx = idx[:MAX_PIECES] + [pad_idx] * (MAX_PIECES - len(idx))
             board_rows.append(idx)
             hand_rows.append(hands)
             targets.append(y)
@@ -786,9 +940,25 @@ def _load_dataset(
     return board, hands, y, cp_t, bucket_t, metadata, source_fingerprint
 
 
-def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0, features: str = "board"):
+def load_dataset(
+    path: str,
+    k_sigmoid: float,
+    cp_clamp: int,
+    limit: int = 0,
+    features: str = "board",
+    *,
+    wdl_mix: float = 0.0,
+):
     """Backward-compatible five-tensor loader used by export/evaluation tools."""
-    return _load_dataset(path, k_sigmoid, cp_clamp, limit, features, include_metadata=False)[:5]
+    return _load_dataset(
+        path,
+        k_sigmoid,
+        cp_clamp,
+        limit,
+        features,
+        include_metadata=False,
+        wdl_mix=wdl_mix,
+    )[:5]
 
 
 def load_dataset_with_metadata(
@@ -800,6 +970,7 @@ def load_dataset_with_metadata(
     *,
     strict: bool = False,
     include_fingerprint: bool = False,
+    wdl_mix: float = 0.0,
 ):
     """Load tensors plus provenance needed for leak-free sibling training."""
     loaded = _load_dataset(
@@ -811,6 +982,7 @@ def load_dataset_with_metadata(
         include_metadata=True,
         strict=strict,
         capture_source_fingerprint=True,
+        wdl_mix=wdl_mix,
     )
     return loaded if include_fingerprint else loaded[:6]
 
@@ -1510,7 +1682,7 @@ def sibling_metrics(outputs, child_cp, metadata, pair_min):
 
 
 class DistillNet(nn.Module):
-    """(board:2282 | KP:13692 | HalfKP:184842) -> 256 -> 32 -> 1。
+    """Single-view ``256->32->1`` or dual HalfKP ``256x2->32->32->1``.
 
     第1層は NNUE 風に EmbeddingBag(盤面 one-hot の和) + Linear(持ち駒) で表現する。
     数学的には Linear(入力次元, 256) と等価で、エクスポート時に結合する。
@@ -1527,15 +1699,23 @@ class DistillNet(nn.Module):
         # Keep kp as the historical public "bucketed" flag used by the
         # exporter and fixed-point helpers.
         self.kp = features in BUCKETED_FEATURES
-        self.halfkp = features in ("halfkp", "halfkp-factor")
+        self.halfkp = features.startswith("halfkp")
         self.factored = features in FACTORED_FEATURES
+        self.dual = features in DUAL_PERSPECTIVE_FEATURES
         self.board_feats = self.bucket_count * BOARD_FEATS
         self.hand_feats = self.bucket_count * HAND_FEATS
+        self.arch_input_dim = (self.board_feats + self.hand_feats) * (
+            2 if self.dual else 1
+        )
         self.pad_idx = self.board_feats
         self.board = nn.EmbeddingBag(self.board_feats + 1, self.H1, mode="sum", padding_idx=self.pad_idx)
         self.hand = nn.Linear(self.hand_feats, self.H1)  # bias が第1層の bias を兼ねる
-        self.l2 = nn.Linear(self.H1, self.H2)
-        self.l3 = nn.Linear(self.H2, 1)
+        self.l2 = nn.Linear(self.H1 * (2 if self.dual else 1), self.H2)
+        if self.dual:
+            self.l3 = nn.Linear(self.H2, self.H2)
+            self.l4 = nn.Linear(self.H2, 1)
+        else:
+            self.l3 = nn.Linear(self.H2, 1)
         if self.factored:
             # 分解学習: board/hand はゼロ初期化のバケット別デルタになり、
             # 共通構造は共有テーブル board_shared/hand_shared が学ぶ。
@@ -1553,6 +1733,17 @@ class DistillNet(nn.Module):
 
     def expand_hands(self, hands, bucket):
         """Expand raw hand counts into the active king-bucket segment."""
+        if self.dual:
+            if hands.ndim != 3 or hands.shape[1:] != (2, HAND_FEATS):
+                raise ValueError("dual HalfKP hands must have shape (batch, 2, 14)")
+            if bucket is None or bucket.ndim != 2 or bucket.shape != hands.shape[:2]:
+                raise ValueError("dual HalfKP bucket must have shape (batch, 2)")
+            batch = hands.shape[0]
+            expanded = hands.new_zeros(batch, 2, self.bucket_count, HAND_FEATS)
+            rows = torch.arange(batch, device=hands.device).unsqueeze(1).expand(-1, 2)
+            views = torch.arange(2, device=hands.device).unsqueeze(0).expand(batch, -1)
+            expanded[rows, views, bucket] = hands
+            return expanded.view(batch, 2, -1)
         b = hands.shape[0]
         out = hands.new_zeros(b, self.bucket_count, HAND_FEATS)
         out[torch.arange(b, device=hands.device), bucket] = hands
@@ -1562,8 +1753,32 @@ class DistillNet(nn.Module):
         hands14 = hands
         if self.kp:
             hands = self.expand_hands(hands, bucket)
-        a1 = self.board(board_idx) + self.hand(hands)
-        if self.factored:
+        if self.dual:
+            if board_idx.ndim != 3 or board_idx.shape[1] != 2:
+                raise ValueError("dual HalfKP board_idx must have shape (batch, 2, active)")
+            batch, views, active = board_idx.shape
+            flat_board = board_idx.reshape(batch * views, active)
+            flat_hands = hands.reshape(batch * views, self.hand_feats)
+            if self.factored:
+                raw_idx = torch.where(
+                    flat_board == self.pad_idx,
+                    torch.full_like(flat_board, BOARD_FEATS),
+                    flat_board % BOARD_FEATS,
+                )
+                raw_hands = hands14.reshape(batch * views, HAND_FEATS)
+                base = self.board_shared(raw_idx) + F.linear(
+                    raw_hands, self.hand_shared.weight, self.hand.bias
+                )
+                delta = self.board(flat_board) + F.linear(
+                    flat_hands, self.hand.weight, None
+                )
+                a1 = (base + delta).view(batch, views, self.H1)
+            else:
+                a1 = self.board(flat_board) + self.hand(flat_hands)
+                a1 = a1.view(batch, views, self.H1)
+        else:
+            a1 = self.board(board_idx) + self.hand(hands)
+        if self.factored and not self.dual:
             # 共有テーブル: バケットオフセットを剥がした素の特徴 index で引く
             raw_idx = torch.where(
                 board_idx == self.pad_idx,
@@ -1572,7 +1787,25 @@ class DistillNet(nn.Module):
             )
             a1 = a1 + self.board_shared(raw_idx) + self.hand_shared(hands14)
         h1 = torch.clamp(a1, 0.0, 1.0)
-        h2 = torch.clamp(self.l2(h1), 0.0, 1.0)
+        if self.dual:
+            h1 = h1.reshape(h1.shape[0], 2 * self.H1)
+            # Keep the two perspective terms explicit.  Besides matching the
+            # standard two-accumulator structure, this lets an exact lift with
+            # a zero opponent half execute the us half through precisely the
+            # same 256-wide Linear arithmetic as its one-view source.
+            a2 = F.linear(
+                h1[:, : self.H1],
+                self.l2.weight[:, : self.H1],
+                self.l2.bias,
+            ) + F.linear(
+                h1[:, self.H1 :], self.l2.weight[:, self.H1 :], None
+            )
+            h2 = torch.clamp(a2, 0.0, 1.0)
+        else:
+            h2 = torch.clamp(self.l2(h1), 0.0, 1.0)
+        if self.dual:
+            h3 = torch.clamp(self.l3(h2), 0.0, 1.0)
+            return self.l4(h3).squeeze(-1)
         return self.l3(h2).squeeze(-1)  # ロジット (≈ cp / K)
 
     def materialized_w1(self):
@@ -1602,18 +1835,39 @@ def lift_board_model_to_halfkp_factor(
     """
     if source.features != "board" or source.bucket_count != 1:
         raise ValueError("HalfKP lift source must be a one-bucket board model")
-    if target.features != "halfkp-factor" or target.bucket_count != HALFKP_BUCKETS:
-        raise ValueError("HalfKP lift target must use halfkp-factor")
+    if (
+        target.features not in ("halfkp-factor", "halfkp-dual-factor")
+        or target.bucket_count != HALFKP_BUCKETS
+    ):
+        raise ValueError(
+            "HalfKP lift target must use halfkp-factor or halfkp-dual-factor"
+        )
     with torch.no_grad():
         target.board.weight.zero_()
         target.hand.weight.zero_()
         target.board_shared.weight.copy_(source.board.weight)
         target.hand_shared.weight.copy_(source.hand.weight)
         target.hand.bias.copy_(source.hand.bias)
-        target.l2.weight.copy_(source.l2.weight)
+        if target.dual:
+            target.l2.weight.zero_()
+            target.l2.weight[:, : source.H1].copy_(source.l2.weight)
+        else:
+            target.l2.weight.copy_(source.l2.weight)
         target.l2.bias.copy_(source.l2.bias)
-        target.l3.weight.copy_(source.l3.weight)
-        target.l3.bias.copy_(source.l3.bias)
+        if target.dual:
+            target.l3.weight.copy_(
+                torch.eye(
+                    target.H2,
+                    dtype=target.l3.weight.dtype,
+                    device=target.l3.weight.device,
+                )
+            )
+            target.l3.bias.zero_()
+            target.l4.weight.copy_(source.l3.weight)
+            target.l4.bias.copy_(source.l3.bias)
+        else:
+            target.l3.weight.copy_(source.l3.weight)
+            target.l3.bias.copy_(source.l3.bias)
 
 
 def load_halfkp_lift_initializer(
@@ -1654,7 +1908,11 @@ def load_halfkp_lift_initializer(
         raise ValueError(f"incompatible HalfKP lift initializer: {error}") from error
     lift_board_model_to_halfkp_factor(target, source)
     return {
-        "mode": "board-to-halfkp-factor-shared-lift",
+        "mode": (
+            "board-to-halfkp-dual-factor-exact-lift"
+            if target.dual
+            else "board-to-halfkp-factor-shared-lift"
+        ),
         "path": os.path.abspath(checkpoint_path),
         "sha256": fingerprint["sha256"],
         "bytes": fingerprint["bytes"],
@@ -1676,6 +1934,13 @@ def configure_halfkp_training_scope(
     tables, first-layer bias, and dense layers remain bit-identical to their
     initializer.  EmbeddingBag's ``padding_idx`` keeps the extra board row at
     zero, so it is not an effective trainable feature.
+
+    ``dual-residual`` is the preservation-first dual-perspective scope.  It
+    freezes every tensor except ``l2.weight`` and masks that tensor's gradient
+    so only the opponent-perspective columns ``H1:2*H1`` can learn.  Callers
+    must also pass :func:`halfkp_adamw_options` to AdamW: a zero gradient does
+    not by itself prevent decoupled weight decay from changing the frozen
+    us-perspective columns.
     """
     if scope not in HALFKP_TRAIN_SCOPES:
         raise ValueError(
@@ -1683,7 +1948,24 @@ def configure_halfkp_training_scope(
             f"expected one of {sorted(HALFKP_TRAIN_SCOPES)}"
         )
     if scope == "delta-only" and model.features != "halfkp-factor":
+        if model.features == "halfkp-dual-factor":
+            raise ValueError(
+                "delta-only training is forbidden for dual HalfKP because it "
+                "would freeze the zero-initialized opponent dense path"
+            )
         raise ValueError("delta-only training requires halfkp-factor features")
+    if scope == "dual-residual" and model.features not in DUAL_PERSPECTIVE_FEATURES:
+        raise ValueError(
+            "dual-residual training requires halfkp-dual or "
+            "halfkp-dual-factor features"
+        )
+
+    # Reconfiguration is supported by tests and research notebooks.  Remove a
+    # previous residual hook before installing a new scope so switching back to
+    # ``all`` really restores the legacy all-parameter behavior.
+    for handle in getattr(model, "_halfkp_training_scope_gradient_handles", ()):
+        handle.remove()
+    model._halfkp_training_scope_gradient_handles = ()
     if scope == "delta-only":
         # The padding row is semantically absent.  Normalize it once so
         # AdamW's decoupled weight decay cannot turn a stale checkpoint value
@@ -1692,8 +1974,37 @@ def configure_halfkp_training_scope(
             model.board.weight[model.pad_idx].zero_()
     delta_parameter_names = frozenset(("board.weight", "hand.weight"))
     for name, parameter in model.named_parameters():
-        parameter.requires_grad_(scope == "all" or name in delta_parameter_names)
+        parameter.requires_grad_(
+            scope == "all"
+            or (scope == "delta-only" and name in delta_parameter_names)
+            or (scope == "dual-residual" and name == "l2.weight")
+        )
+    if scope == "dual-residual":
+        split = model.H1
+
+        def mask_us_perspective_gradient(gradient):
+            masked = gradient.clone()
+            masked[:, :split].zero_()
+            return masked
+
+        handle = model.l2.weight.register_hook(mask_us_perspective_gradient)
+        model._halfkp_training_scope_gradient_handles = (handle,)
     return tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
+
+
+def halfkp_adamw_options(scope: str = "all") -> dict[str, float]:
+    """Return scope-specific AdamW options without changing legacy defaults.
+
+    AdamW's default weight decay is retained for ``all`` and ``delta-only``.
+    ``dual-residual`` owns one slice of a larger parameter, so its whole W2
+    tensor must use zero weight decay to keep the frozen first half bit-exact.
+    """
+    if scope not in HALFKP_TRAIN_SCOPES:
+        raise ValueError(
+            f"unsupported HalfKP training scope {scope!r}; "
+            f"expected one of {sorted(HALFKP_TRAIN_SCOPES)}"
+        )
+    return {"weight_decay": 0.0} if scope == "dual-residual" else {}
 
 
 # ---------------------------------------------------------------------------
@@ -1722,6 +2033,13 @@ def validate_training_hyperparameters(args) -> None:
         raise ValueError("--val-ratio must be finite and between 0 and 1")
     if args.limit < 0:
         raise ValueError("--limit must be non-negative")
+    wdl_mix = getattr(args, "wdl_mix", 0.0)
+    if type(wdl_mix) not in (int, float) or not math.isfinite(
+        wdl_mix
+    ) or not 0.0 <= wdl_mix <= 1.0:
+        raise ValueError("--wdl-mix must be finite and in [0, 1]")
+    if wdl_mix > 0.0 and args.loss != "sigmoid":
+        raise ValueError("--wdl-mix is only supported with --loss sigmoid")
     if not math.isfinite(args.replay_ratio) or args.replay_ratio < 0:
         raise ValueError("--replay-ratio must be finite and non-negative")
     if args.replay_limit < 0:
@@ -1733,6 +2051,11 @@ def validate_training_hyperparameters(args) -> None:
             f"{sorted(HALFKP_TRAIN_SCOPES)}"
         )
     if halfkp_train_scope == "delta-only" and args.features != "halfkp-factor":
+        if args.features == "halfkp-dual-factor":
+            raise ValueError(
+                "--halfkp-train-scope delta-only is forbidden for dual HalfKP "
+                "because it would freeze the zero-initialized opponent dense path"
+            )
         raise ValueError(
             "--halfkp-train-scope delta-only requires --features halfkp-factor"
         )
@@ -1743,6 +2066,17 @@ def validate_training_hyperparameters(args) -> None:
             "--halfkp-train-scope delta-only requires --halfkp-lift-init "
             "so frozen shared weights start from the live-equivalent model"
         )
+    if halfkp_train_scope == "dual-residual":
+        if args.features not in DUAL_PERSPECTIVE_FEATURES:
+            raise ValueError(
+                "--halfkp-train-scope dual-residual requires --features "
+                "halfkp-dual or halfkp-dual-factor"
+            )
+        if not has_initializer:
+            raise ValueError(
+                "--halfkp-train-scope dual-residual requires --init-ckpt or "
+                "--halfkp-lift-init so the frozen path has an audited initializer"
+            )
     for field, option in (
         ("rank_weight", "--rank-weight"),
         ("policy_weight", "--policy-weight"),
@@ -1803,6 +2137,7 @@ def validate_int16_aware_training_contract(args) -> None:
         "limit": (args.limit, 0),
         "select_metric": (args.select_metric, "auto"),
         "allow_legacy_init": (args.allow_legacy_init, True),
+        "wdl_mix": (getattr(args, "wdl_mix", 0.0), 0.0),
     }
     problems = []
     for field, (actual, expected) in exact_values.items():
@@ -2358,7 +2693,7 @@ def run_int16_aware_training(args) -> None:
     model = DistillNet(args.features)
     arch = expected_arch(
         features=args.features,
-        input_dim=model.board_feats + model.hand_feats,
+        input_dim=model.arch_input_dim,
         h1=DistillNet.H1,
         h2=DistillNet.H2,
         k=args.k,
@@ -2717,6 +3052,15 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--k", type=float, default=600.0, help="sigmoid スケール K")
     ap.add_argument("--cp-clamp", type=int, default=3000)
+    ap.add_argument(
+        "--wdl-mix",
+        type=float,
+        default=0.0,
+        help=(
+            "ordinary sigmoid training only: mix teacher sigmoid targets with "
+            "the row's side-to-move outcome (0=loss, 0.5=draw, 1=win)"
+        ),
+    )
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
@@ -2741,10 +3085,19 @@ def main():
     ap.add_argument(
         "--features",
         default="board",
-        choices=["board", "kp", "kp-factor", "halfkp", "halfkp-factor"],
+        choices=[
+            "board",
+            "kp",
+            "kp-factor",
+            "halfkp",
+            "halfkp-factor",
+            "halfkp-dual",
+            "halfkp-dual-factor",
+        ],
         help="board=現行one-hot(2282), kp=自玉バケット×盤面/持ち駒 (KP縮約, 13692), "
         "kp-factor=同特徴の分解学習, halfkp=正規化自玉升×盤面/持ち駒 "
-        "(81バケット, 184842), halfkp-factor=共有+81バケットdelta",
+            "(81バケット, 184842), halfkp-factor=共有+81バケットdelta, "
+            "halfkp-dual(-factor)=共有81バケットを両玉視点へ適用する256x2",
     )
     # ランキング指向の学習: --loss ranking で同一ミニバッチ内の教師cp差 [rank-pair-min, rank-pair-max]
     # のペアに pairwise margin ranking loss を加算する (シグモイド回帰損失は常に併用)。
@@ -2775,8 +3128,9 @@ def main():
         default="all",
         choices=sorted(HALFKP_TRAIN_SCOPES),
         help=(
-            "halfkp-factor pilot parameter scope: all parameters, or only "
-            "bucket-local board/hand delta tables"
+            "HalfKP pilot parameter scope: all parameters; only bucket-local "
+            "board/hand delta tables; or only dual W2 opponent-perspective "
+            "columns while preserving the lifted evaluator"
         ),
     )
     ap.add_argument(
@@ -2790,9 +3144,13 @@ def main():
         raise SystemExit(
             "[train] --init-ckpt and --halfkp-lift-init are mutually exclusive"
         )
-    if args.halfkp_lift_init and args.features != "halfkp-factor":
+    if args.halfkp_lift_init and args.features not in (
+        "halfkp-factor",
+        "halfkp-dual-factor",
+    ):
         raise SystemExit(
-            "[train] --halfkp-lift-init requires --features halfkp-factor"
+            "[train] --halfkp-lift-init requires --features halfkp-factor "
+            "or halfkp-dual-factor"
         )
     if args.halfkp_lift_init and args.loss == "sibling-ranking":
         raise SystemExit(
@@ -2970,10 +3328,16 @@ def main():
             args.features,
             strict=args.loss == "sibling-ranking",
             include_fingerprint=True,
+            wdl_mix=args.wdl_mix,
         )
     else:
         board, hands, y, cp, bucket = load_dataset(
-            args.data, args.k, args.cp_clamp, args.limit, args.features
+            args.data,
+            args.k,
+            args.cp_clamp,
+            args.limit,
+            args.features,
+            wdl_mix=args.wdl_mix,
         )
         metadata = []
         train_source_fingerprint = None
@@ -2993,6 +3357,7 @@ def main():
             args.features,
             strict=args.loss == "sibling-ranking",
             include_fingerprint=True,
+            wdl_mix=args.wdl_mix,
         )
         if vy.shape[0] < 1:
             raise SystemExit("[train] error: validation dataset has no usable positions")
@@ -3278,7 +3643,7 @@ def main():
     model = DistillNet(args.features)
     arch = expected_arch(
         features=args.features,
-        input_dim=model.board_feats + model.hand_feats,
+        input_dim=model.arch_input_dim,
         h1=DistillNet.H1,
         h2=DistillNet.H2,
         k=args.k,
@@ -3389,7 +3754,11 @@ def main():
     trainable_parameters = configure_halfkp_training_scope(
         model, args.halfkp_train_scope
     )
-    opt = torch.optim.AdamW(trainable_parameters, lr=args.lr)
+    opt = torch.optim.AdamW(
+        trainable_parameters,
+        lr=args.lr,
+        **halfkp_adamw_options(args.halfkp_train_scope),
+    )
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, args.epochs))
 
     if args.loss == "sibling-ranking":

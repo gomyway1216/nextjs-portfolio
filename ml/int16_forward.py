@@ -33,6 +33,7 @@ INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
 _QUANTIZED_NAMES = ("w1_board", "w1_hand", "b1", "w2", "b2", "w3", "b3")
+_DUAL_QUANTIZED_NAMES = _QUANTIZED_NAMES + ("w4", "b4")
 
 
 def _require_finite(value: torch.Tensor, name: str) -> None:
@@ -149,40 +150,60 @@ def _quantize_bias(value: torch.Tensor, scale: int, name: str) -> torch.Tensor:
 def quantize_model(model: Any) -> dict[str, torch.Tensor]:
     """Materialize the exact int16/int32 tensors consumed by production."""
     w1_board, w1_hand, b1 = effective_w1(model)
+    dual = bool(getattr(model, "dual", False))
     try:
         w2 = model.l2.weight
         b2 = model.l2.bias
-        w3 = model.l3.weight.squeeze(0)
+        w3 = model.l3.weight
         b3 = model.l3.bias
     except AttributeError as exc:
         raise TypeError("model does not expose the DistillNet dense-layer contract") from exc
     if b2 is None or b3 is None:
         raise ValueError("fixed-point layers require biases")
-    if model.l3.weight.ndim != 2 or model.l3.weight.shape[0] != 1:
+    if not dual and (model.l3.weight.ndim != 2 or model.l3.weight.shape[0] != 1):
         raise ValueError("model.l3.weight must have one output row")
 
-    return {
+    quantized = {
         "w1_board": _quantize_weight(w1_board, ACT_SCALE, "w1_board"),
         "w1_hand": _quantize_weight(w1_hand, ACT_SCALE, "w1_hand"),
         "b1": _quantize_bias(b1, ACT_SCALE, "b1"),
         "w2": _quantize_weight(w2, W_SCALE, "w2"),
         "b2": _quantize_bias(b2, ACT_SCALE * W_SCALE, "b2"),
-        "w3": _quantize_weight(w3, W_SCALE, "w3"),
+        "w3": _quantize_weight(w3 if dual else w3.squeeze(0), W_SCALE, "w3"),
         "b3": _quantize_bias(b3, ACT_SCALE * W_SCALE, "b3"),
     }
+    if dual:
+        try:
+            w4 = model.l4.weight
+            b4 = model.l4.bias
+        except AttributeError as exc:
+            raise TypeError("dual model is missing its output layer") from exc
+        if w4.ndim != 2 or w4.shape[0] != 1 or b4 is None:
+            raise ValueError("dual model.l4 must have one biased output row")
+        quantized["w4"] = _quantize_weight(w4.squeeze(0), W_SCALE, "w4")
+        quantized["b4"] = _quantize_bias(
+            b4, ACT_SCALE * W_SCALE, "b4"
+        )
+    return quantized
 
 
 def _validated_qweights(qweights: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    missing = [name for name in _QUANTIZED_NAMES if name not in qweights]
+    dual = "w4" in qweights or "b4" in qweights
+    names = _DUAL_QUANTIZED_NAMES if dual else _QUANTIZED_NAMES
+    missing = [name for name in names if name not in qweights]
     if missing:
         raise ValueError(f"quantized weights are missing: {', '.join(missing)}")
-    q = {name: qweights[name] for name in _QUANTIZED_NAMES}
+    q = {name: qweights[name] for name in names}
     if any(not isinstance(value, torch.Tensor) for value in q.values()):
         raise TypeError("every quantized weight must be a torch.Tensor")
-    for name in ("w1_board", "w1_hand", "w2", "w3"):
+    int16_names = ("w1_board", "w1_hand", "w2", "w3") + (
+        ("w4",) if dual else ()
+    )
+    for name in int16_names:
         if q[name].dtype != torch.int16:
             raise TypeError(f"{name} must have dtype torch.int16")
-    for name in ("b1", "b2", "b3"):
+    int32_names = ("b1", "b2", "b3") + (("b4",) if dual else ())
+    for name in int32_names:
         if q[name].dtype != torch.int32:
             raise TypeError(f"{name} must have dtype torch.int32")
     if q["w1_board"].ndim != 2 or q["w1_hand"].ndim != 2:
@@ -190,13 +211,24 @@ def _validated_qweights(qweights: Mapping[str, torch.Tensor]) -> dict[str, torch
     hidden1 = q["w1_board"].shape[1]
     if q["w1_hand"].shape[1] != hidden1 or tuple(q["b1"].shape) != (hidden1,):
         raise ValueError("first-layer quantized shapes disagree")
-    if q["w2"].ndim != 2 or q["w2"].shape[1] != hidden1:
+    expected_dense_input = hidden1 * (2 if dual else 1)
+    if q["w2"].ndim != 2 or q["w2"].shape[1] != expected_dense_input:
         raise ValueError("w2 has an incompatible shape")
     hidden2 = q["w2"].shape[0]
-    if tuple(q["b2"].shape) != (hidden2,) or tuple(q["w3"].shape) != (hidden2,):
-        raise ValueError("second/third-layer quantized shapes disagree")
-    if q["b3"].numel() != 1:
-        raise ValueError("b3 must contain exactly one value")
+    if tuple(q["b2"].shape) != (hidden2,):
+        raise ValueError("second-layer quantized shapes disagree")
+    if dual:
+        if tuple(q["w3"].shape) != (hidden2, hidden2) or tuple(
+            q["b3"].shape
+        ) != (hidden2,):
+            raise ValueError("dual third-layer quantized shapes disagree")
+        if tuple(q["w4"].shape) != (hidden2,) or q["b4"].numel() != 1:
+            raise ValueError("dual output-layer quantized shapes disagree")
+    else:
+        if tuple(q["w3"].shape) != (hidden2,):
+            raise ValueError("second/third-layer quantized shapes disagree")
+        if q["b3"].numel() != 1:
+            raise ValueError("b3 must contain exactly one value")
     devices = {value.device for value in q.values()}
     if len(devices) != 1:
         raise ValueError("all quantized tensors must be on one device")
@@ -211,20 +243,37 @@ def _integer_inputs(
     board_feats: int,
     hand_feats: int,
     pad_idx: int,
+    dual: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     board = torch.as_tensor(board_idx, device=device)
     hand_values = torch.as_tensor(hands, device=device)
-    if board.ndim == 1:
-        board = board.unsqueeze(0)
-    if hand_values.ndim == 1:
-        hand_values = hand_values.unsqueeze(0)
-    if board.ndim != 2 or hand_values.ndim != 2:
-        raise ValueError("board_idx and hands must be one- or two-dimensional")
+    if dual:
+        if board.ndim == 2 and board.shape[0] == 2:
+            board = board.unsqueeze(0)
+        if hand_values.ndim == 2 and hand_values.shape[0] == 2:
+            hand_values = hand_values.unsqueeze(0)
+        if (
+            board.ndim != 3
+            or hand_values.ndim != 3
+            or board.shape[1] != 2
+            or hand_values.shape[1] != 2
+        ):
+            raise ValueError(
+                "dual board_idx and hands must have shapes (batch,2,active) "
+                "and (batch,2,features)"
+            )
+    else:
+        if board.ndim == 1:
+            board = board.unsqueeze(0)
+        if hand_values.ndim == 1:
+            hand_values = hand_values.unsqueeze(0)
+        if board.ndim != 2 or hand_values.ndim != 2:
+            raise ValueError("board_idx and hands must be one- or two-dimensional")
     if board.shape[0] != hand_values.shape[0]:
         raise ValueError("board_idx and hands batch sizes disagree")
-    if hand_values.shape[1] != hand_feats:
+    if hand_values.shape[-1] != hand_feats:
         raise ValueError(
-            f"hands has {hand_values.shape[1]} features; expected {hand_feats}"
+            f"hands has {hand_values.shape[-1]} features; expected {hand_feats}"
         )
     if board.is_floating_point():
         if not bool(torch.isfinite(board).all().item()) or not bool(
@@ -257,6 +306,7 @@ def int16_forward_batch(
     before the next operation.
     """
     q = _validated_qweights(qweights)
+    dual = "w4" in q
     device = q["w1_board"].device
     board, hand_values = _integer_inputs(
         board_idx,
@@ -265,34 +315,61 @@ def int16_forward_batch(
         board_feats=q["w1_board"].shape[0],
         hand_feats=q["w1_hand"].shape[0],
         pad_idx=int(pad_idx),
+        dual=dual,
     )
 
     batch = board.shape[0]
-    acc = q["b1"].to(torch.int64).unsqueeze(0).expand(batch, -1).clone()
+    views = 2 if dual else 1
+    board_flat = board.reshape(batch * views, board.shape[-1])
+    hands_flat = hand_values.reshape(batch * views, hand_values.shape[-1])
+    acc = (
+        q["b1"]
+        .to(torch.int64)
+        .unsqueeze(0)
+        .expand(batch * views, -1)
+        .clone()
+    )
     _check_int32(acc, "b1 accumulator")
     # Check after each logical addition, matching an int32 production
     # accumulator even for adversarial cancellation cases.
-    for column in range(board.shape[1]):
-        feature = board[:, column]
+    for column in range(board_flat.shape[1]):
+        feature = board_flat[:, column]
         active = feature != pad_idx
         safe_feature = torch.where(active, feature, torch.zeros_like(feature))
         term = q["w1_board"][safe_feature].to(torch.int64)
         term = torch.where(active.unsqueeze(1), term, torch.zeros_like(term))
         acc = _check_int32(acc + term, f"first-layer board accumulator[{column}]")
-    for feature in range(hand_values.shape[1]):
+    for feature in range(hands_flat.shape[1]):
         term = (
             q["w1_hand"][feature].to(torch.int64).unsqueeze(0)
-            * hand_values[:, feature].unsqueeze(1)
+            * hands_flat[:, feature].unsqueeze(1)
         )
         acc = _check_int32(acc + term, f"first-layer hand accumulator[{feature}]")
     h1 = acc.clamp(0, ACT_SCALE)
+    if dual:
+        h1 = h1.reshape(batch, 2 * h1.shape[1])
 
     a2 = h1 @ q["w2"].to(torch.int64).transpose(0, 1)
     a2 = _check_int32(a2 + q["b2"].to(torch.int64), "second-layer accumulator")
     h2 = arithmetic_shift_six(a2).clamp(0, ACT_SCALE)
 
-    out_q = h2 @ q["w3"].to(torch.int64)
-    out_q = _check_int32(out_q + q["b3"].to(torch.int64).reshape(()), "output accumulator")
+    if dual:
+        a3 = h2 @ q["w3"].to(torch.int64).transpose(0, 1)
+        a3 = _check_int32(
+            a3 + q["b3"].to(torch.int64), "third-layer accumulator"
+        )
+        h3 = arithmetic_shift_six(a3).clamp(0, ACT_SCALE)
+        out_q = h3 @ q["w4"].to(torch.int64)
+        out_q = _check_int32(
+            out_q + q["b4"].to(torch.int64).reshape(()),
+            "output accumulator",
+        )
+    else:
+        out_q = h2 @ q["w3"].to(torch.int64)
+        out_q = _check_int32(
+            out_q + q["b3"].to(torch.int64).reshape(()),
+            "output accumulator",
+        )
     return out_q
 
 
@@ -363,9 +440,10 @@ def _expanded_hands(
     bucket: Any,
 ) -> torch.Tensor:
     hand_feats = int(model.hand_feats)
-    if hands.shape[1] == hand_feats:
+    dual = bool(getattr(model, "dual", False))
+    if hands.shape[-1] == hand_feats:
         return hands
-    raw_hand_feats = hands.shape[1]
+    raw_hand_feats = hands.shape[-1]
     if raw_hand_feats <= 0 or hand_feats % raw_hand_feats:
         raise ValueError("raw hand width does not divide the model hand width")
     bucket_count = hand_feats // raw_hand_feats
@@ -375,6 +453,25 @@ def _expanded_hands(
     if bucket is None:
         raise ValueError("bucket is required for bucketed hand features")
     buckets = torch.as_tensor(bucket, device=hands.device)
+    if dual:
+        if hands.ndim != 3 or hands.shape[1] != 2:
+            raise ValueError("dual raw hands must have shape (batch,2,features)")
+        if buckets.ndim != 2 or buckets.shape != hands.shape[:2]:
+            raise ValueError("dual bucket must have shape (batch,2)")
+        if buckets.is_floating_point() and not bool(
+            (buckets == torch.round(buckets)).all().item()
+        ):
+            raise ValueError("bucket must contain integers")
+        buckets = buckets.to(torch.int64)
+        if not bool(((buckets >= 0) & (buckets < bucket_count)).all().item()):
+            raise ValueError("bucket contains an out-of-range index")
+        expanded = hands.new_zeros(
+            hands.shape[0], 2, bucket_count, raw_hand_feats
+        )
+        rows = torch.arange(hands.shape[0], device=hands.device).unsqueeze(1).expand(-1, 2)
+        views = torch.arange(2, device=hands.device).unsqueeze(0).expand(hands.shape[0], -1)
+        expanded[rows, views, buckets] = hands
+        return expanded.reshape(hands.shape[0], 2, hand_feats)
     if buckets.ndim == 0:
         buckets = buckets.unsqueeze(0)
     if buckets.ndim != 1 or buckets.shape[0] != hands.shape[0]:
@@ -407,19 +504,33 @@ def int16_forward_ste(
         reference_parameter = next(model.parameters())
         device = reference_parameter.device
         board_feats = int(model.board_feats)
-        hand_feats = int(model.hand_feats)
         pad_idx = int(model.pad_idx)
     except (AttributeError, StopIteration, TypeError, ValueError) as exc:
         raise TypeError("model does not expose the DistillNet fixed-point contract") from exc
 
     board = torch.as_tensor(board_idx, device=device)
     raw_hands = torch.as_tensor(hands, device=device)
-    if board.ndim == 1:
-        board = board.unsqueeze(0)
-    if raw_hands.ndim == 1:
-        raw_hands = raw_hands.unsqueeze(0)
-    if board.ndim != 2 or raw_hands.ndim != 2 or board.shape[0] != raw_hands.shape[0]:
-        raise ValueError("board_idx and hands must be compatible batched matrices")
+    dual = bool(getattr(model, "dual", False))
+    if dual:
+        if board.ndim == 2 and board.shape[0] == 2:
+            board = board.unsqueeze(0)
+        if raw_hands.ndim == 2 and raw_hands.shape[0] == 2:
+            raw_hands = raw_hands.unsqueeze(0)
+        if (
+            board.ndim != 3
+            or raw_hands.ndim != 3
+            or board.shape[0] != raw_hands.shape[0]
+            or board.shape[1] != 2
+            or raw_hands.shape[1] != 2
+        ):
+            raise ValueError("dual board_idx and hands must be compatible batched views")
+    else:
+        if board.ndim == 1:
+            board = board.unsqueeze(0)
+        if raw_hands.ndim == 1:
+            raw_hands = raw_hands.unsqueeze(0)
+        if board.ndim != 2 or raw_hands.ndim != 2 or board.shape[0] != raw_hands.shape[0]:
+            raise ValueError("board_idx and hands must be compatible batched matrices")
     if board.is_floating_point() and (
         not bool(torch.isfinite(board).all().item())
         or not bool((board == torch.round(board)).all().item())
@@ -442,7 +553,9 @@ def int16_forward_ste(
         model.l2.bias, ACT_SCALE * W_SCALE, clamp_int16=False
     )
     qw3 = _ste_quantized_units(
-        model.l3.weight.squeeze(0), W_SCALE, clamp_int16=True
+        model.l3.weight if dual else model.l3.weight.squeeze(0),
+        W_SCALE,
+        clamp_int16=True,
     )
     qb3 = _ste_quantized_units(
         model.l3.bias, ACT_SCALE * W_SCALE, clamp_int16=False
@@ -453,12 +566,25 @@ def int16_forward_ste(
         raise ValueError("board_idx contains an out-of-range feature")
     pad_row = qw1_board.new_zeros(1, qw1_board.shape[1])
     qw1_with_pad = torch.cat((qw1_board, pad_row), dim=0)
-    a1 = qw1_with_pad[board].sum(dim=1)
+    a1 = qw1_with_pad[board].sum(dim=-2)
     a1 = a1 + hands_expanded.to(torch.float64) @ qw1_hand + qb1
     h1 = a1.clamp(0, ACT_SCALE)
+    if dual:
+        h1 = h1.reshape(h1.shape[0], 2 * h1.shape[-1])
     a2 = h1 @ qw2.transpose(0, 1) + qb2
     h2 = _ste_arithmetic_shift_six(a2).clamp(0, ACT_SCALE)
-    surrogate_logits = (h2 @ qw3 + qb3.reshape(())) / OUT_SCALE
+    if dual:
+        qw4 = _ste_quantized_units(
+            model.l4.weight.squeeze(0), W_SCALE, clamp_int16=True
+        )
+        qb4 = _ste_quantized_units(
+            model.l4.bias, ACT_SCALE * W_SCALE, clamp_int16=False
+        )
+        a3 = h2 @ qw3.transpose(0, 1) + qb3
+        h3 = _ste_arithmetic_shift_six(a3).clamp(0, ACT_SCALE)
+        surrogate_logits = (h3 @ qw4 + qb4.reshape(())) / OUT_SCALE
+    else:
+        surrogate_logits = (h2 @ qw3 + qb3.reshape(())) / OUT_SCALE
     _require_finite(surrogate_logits, "STE logits")
 
     exact_logits = out_q.to(dtype=torch.float64) / OUT_SCALE

@@ -77,16 +77,16 @@
       "sha256": "a94cb7aafca66f355cddf2eecad0900298881c0bc270544961d0121911882ad4"
     },
     "base_training": {
-      "bytes": 154469,
+      "bytes": 169091,
       "path": "ml/train.py",
       "schema": "shogi-reviewed-python-source-v1",
-      "sha256": "bc25790f14d4d5ee3ae11818cc982d007897926394c5fcbc7298b99c54c06f2e"
+      "sha256": "6530d2cbd54c49f8048f28ce18d3981faea521de2997616780ab4dd498c53184"
     },
     "integer_forward": {
-      "bytes": 19680,
+      "bytes": 24694,
       "path": "ml/int16_forward.py",
       "schema": "shogi-reviewed-python-source-v1",
-      "sha256": "f31f8fcdc36daea854ada8f8cec395b676801a960473723da366038f3d6ffa1f"
+      "sha256": "336fcbf4e036d73cd17b073c4ce666a8c45f8738e5eb1907ed49d1149c6ec712"
     },
     "plan_builder": {
       "bytes": 6670,

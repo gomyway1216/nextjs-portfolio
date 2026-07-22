@@ -132,6 +132,33 @@ class HalfkpTrainingControlsTests(unittest.TestCase):
             validate_training_hyperparameters(
                 valid_args(halfkp_train_scope="delta-only", halfkp_lift_init="")
             )
+        validate_training_hyperparameters(
+            valid_args(
+                features="halfkp-dual-factor",
+                halfkp_train_scope="dual-residual",
+            )
+        )
+        validate_training_hyperparameters(
+            valid_args(
+                features="halfkp-dual",
+                halfkp_train_scope="dual-residual",
+                init_ckpt="dual.pt",
+                halfkp_lift_init="",
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "requires --features halfkp-dual"):
+            validate_training_hyperparameters(
+                valid_args(halfkp_train_scope="dual-residual")
+            )
+        with self.assertRaisesRegex(ValueError, "requires --init-ckpt"):
+            validate_training_hyperparameters(
+                valid_args(
+                    features="halfkp-dual",
+                    halfkp_train_scope="dual-residual",
+                    init_ckpt="",
+                    halfkp_lift_init="",
+                )
+            )
 
 
 if __name__ == "__main__":

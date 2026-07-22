@@ -231,10 +231,17 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "kp-factor",
         "halfkp",
         "halfkp-factor",
+        "halfkp-dual",
+        "halfkp-dual-factor",
     ):
         raise ValueError("unsupported feature mode")
-    if halfkp_lift_init and args.features != "halfkp-factor":
-        raise ValueError("halfkp_lift_init requires halfkp-factor features")
+    if halfkp_lift_init and args.features not in (
+        "halfkp-factor",
+        "halfkp-dual-factor",
+    ):
+        raise ValueError(
+            "halfkp_lift_init requires halfkp-factor or halfkp-dual-factor features"
+        )
     if args.device == "auto":
         device = (
             "cuda"
@@ -301,7 +308,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     )
     arch = train.expected_arch(
         features=args.features,
-        input_dim=model.board_feats + model.hand_feats,
+        input_dim=model.arch_input_dim,
         h1=train.DistillNet.H1,
         h2=train.DistillNet.H2,
         k=args.k,
@@ -481,15 +488,23 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--features",
-        choices=("board", "kp", "kp-factor", "halfkp", "halfkp-factor"),
+        choices=(
+            "board",
+            "kp",
+            "kp-factor",
+            "halfkp",
+            "halfkp-factor",
+            "halfkp-dual",
+            "halfkp-dual-factor",
+        ),
         default="board",
     )
     parser.add_argument(
         "--halfkp-lift-init",
         default="",
         help=(
-            "lift an audited one-bucket board checkpoint into halfkp-factor "
-            "shared weights with zero bucket deltas before research training"
+            "lift an audited one-bucket board checkpoint into halfkp-factor or "
+            "halfkp-dual-factor shared weights before research training"
         ),
     )
     parser.add_argument(

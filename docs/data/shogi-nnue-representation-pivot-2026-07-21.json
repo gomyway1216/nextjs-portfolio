@@ -1,6 +1,6 @@
 {
   "schema": "shogi-nnue-representation-pivot-evidence-v1",
-  "status": "halfkp81-g3-direct-screen-rejected-live-unchanged",
+  "status": "halfkp81-alpha-0.5-independent96-passed-formal768-running-live-unchanged",
   "recorded_date": "2026-07-21",
   "articles": [
     "docs/blog-shogi-opening-book.md",
@@ -128,6 +128,46 @@
         "concatenated_lane_logs_sha256": "872b6fcf16ce971117e1596f7e9c7de4677276abe04c589dcb483532f314d3ea",
         "runtime_sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db"
       },
+      "early_checkpoint_audit": {
+        "status": "both-rejected",
+        "milliseconds_per_move": 500,
+        "games_per_checkpoint": 56,
+        "pass_half_points": 62,
+        "result_sha256": "8a0703da55e5378ed14808f4dc059c63d875ec047dfb0d41ccb0e7e2718a34da",
+        "epoch_1": {
+          "checkpoint_sha256": "c4e227634d2466f3cf3250780a0254abea5bd00572c2e1b0d421399bd4df5455",
+          "candidate_wins": 29,
+          "live_wins": 26,
+          "draws": 1,
+          "candidate_score_rate": 0.5267857142857143,
+          "candidate_half_points": 59,
+          "intermediate_after_16_games": {
+            "candidate_wins": 12,
+            "live_wins": 4,
+            "draws": 0,
+            "decision_value": "none; the preregistered screen continued"
+          },
+          "concatenated_lane_logs_bytes": 19186,
+          "concatenated_lane_logs_sha256": "76c3df52e6f18db903e1291f30301148abde2c8483f6e31f4658cc9e32fa0290",
+          "passed": false
+        },
+        "epoch_2": {
+          "checkpoint_sha256": "c7d250ab808cd8719594dae5ed69c54bd1c978fe90cb479bd0ed06594bd1cff9",
+          "candidate_wins": 29,
+          "live_wins": 24,
+          "draws": 3,
+          "candidate_score_rate": 0.5446428571428571,
+          "candidate_half_points": 61,
+          "concatenated_lane_logs_bytes": 19131,
+          "concatenated_lane_logs_sha256": "46696319801a63a1502689c55579fc84faaf9a6eb886d2a5af00d445d3d2271b",
+          "passed": false
+        },
+        "legal_searched_moves": 13069,
+        "all_searched_moves_legal": true,
+        "independent_96_game_confirmation_started": false,
+        "formal_ab_started": false,
+        "live_promoted": false
+      },
       "clear_strength_gain": false,
       "adopted": false
     },
@@ -206,10 +246,386 @@
     "scale_gate": "the pilot did not pass the original clear-win scale gate; one bounded full-corpus coverage exception is recorded and cannot authorize promotion",
     "promotion_gate": "clear direct formal A/B win plus external calibration"
   },
+  "dual_perspective_experiments": {
+    "status": "custom-and-bonapiece-dual-rejected",
+    "custom_halfkp": {
+      "topology": "shared dual residual HalfKP",
+      "runtime_format": 82,
+      "runtime_bytes": 37733,
+      "runtime_sha256": "b5ee2227963ba2f1221cdd41e8cc487a49b534cee8b01cf3933e3b50db9deb62",
+      "untrained_search_slowdown_pct": 33.88,
+      "maximum_allowed_slowdown_pct": 5,
+      "torch_integer_wasm_parity_positions_per_candidate": 64,
+      "wdl_25_screen": {
+        "completed_games": 36,
+        "candidate_wins": 8,
+        "live_wins": 26,
+        "draws": 2,
+        "candidate_half_points": 18,
+        "maximum_possible_final_half_points": 58,
+        "pass_half_points": 62,
+        "adopted": false
+      },
+      "scalar_cp_screen": {
+        "completed_games": 36,
+        "candidate_wins": 5,
+        "live_wins": 31,
+        "draws": 0,
+        "candidate_half_points": 10,
+        "maximum_possible_final_half_points": 50,
+        "pass_half_points": 62,
+        "adopted": false
+      }
+    },
+    "bonapiece_halfkp": {
+      "semantics_source_revision": "36e49e70c157fc4fb17813c02e63648e6284ff37",
+      "feature_dimension": 125388,
+      "topology": "[256 us, 256 them] -> 32 -> 32 -> 1",
+      "weight_format": 83,
+      "weight_bytes": 64234820,
+      "runtime_bytes": 39361,
+      "runtime_sha256": "eb6e7ec6671653288ad4823a11ba0e8c5dc0e1f8e3101a3878435133cea6e812",
+      "incremental_parity_positions": 360,
+      "incremental_parity_moves": 19171,
+      "incremental_parity_mismatches": 0,
+      "untrained_search_slowdown_pct": 62.9,
+      "outcome_audit": {
+        "records": 803000,
+        "source_games": 15539,
+        "outcome_mismatches": 0,
+        "malformed_records": 0,
+        "duplicate_records": 0,
+        "train_validation_overlap": 0
+      },
+      "best_candidate": {
+        "initializer": "semantic warm start from live",
+        "seed": 43,
+        "epochs": 1,
+        "validation_mae_cp": 376.3,
+        "validation_pair_accuracy": 0.7139,
+        "checkpoint_sha256": "02f5fd0bfbe91ea0eaa09b8cc6716486a567a380ea5b407bb8a4ab591191e020",
+        "weights_sha256": "f74a8e86d8e4839a45656bff930b846b7494bc589f204b72fee523d16e877c92"
+      },
+      "fixed_time_screen": {
+        "manifest_sha256": "709f0aac96738dd19136f369be7e28c74a1bf8276d049cd25d96bba84b047645",
+        "completed_games": 42,
+        "candidate_wins": 8,
+        "live_wins": 34,
+        "draws": 0,
+        "candidate_half_points": 16,
+        "maximum_possible_final_half_points": 44,
+        "pass_half_points": 62,
+        "all_moves_legal": true,
+        "process_faults": 0,
+        "adopted": false
+      }
+    }
+  },
+  "speed_preserving_experiments": {
+    "halfkp81_outcome_finetune": {
+      "status": "both-learning-rates-rejected",
+      "initializer_checkpoint_sha256": "c7d250ab808cd8719594dae5ed69c54bd1c978fe90cb479bd0ed06594bd1cff9",
+      "training_rows": 800000,
+      "validation_rows": 3000,
+      "wdl_mix": 0.25,
+      "epochs": 1,
+      "parity_positions_per_candidate": 64,
+      "runtime_sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db",
+      "learning_rate_0_00003": {
+        "elapsed_seconds": 40.9,
+        "validation_loss": 0.050165,
+        "validation_mae_cp": 564.1,
+        "validation_pair_accuracy": 0.6736,
+        "checkpoint_sha256": "68763b4947e37674af2eb643923cc80f6db719cf845d451a077752693264416f",
+        "weights_sha256": "c715282367682008816fa25e26c357f03f79067267fa6f569bdc416dafb62f73",
+        "screen_manifest_sha256": "ef51217fa26983a73cbbaefeeb3e09cfda659fea4d004b71695b98956dcd693c",
+        "candidate_wins": 25,
+        "live_wins": 30,
+        "draws": 1,
+        "candidate_half_points": 51,
+        "pass_half_points": 62,
+        "adopted": false
+      },
+      "learning_rate_0_00001": {
+        "elapsed_seconds": 42.19,
+        "validation_loss": 0.061272,
+        "validation_mae_cp": 603.1,
+        "validation_pair_accuracy": 0.6539,
+        "checkpoint_sha256": "cc93a7a42487a2ae85c54d9e358abb65183a21711e06da133b72291904dc910e",
+        "weights_sha256": "f7503dcbf67bf29fb840132f39682b4095e6933d0570fa010393cf47ca102993",
+        "screen_manifest_sha256": "123cbbc070064cfb91722d0ebccb54ab6ba686db32e4a4dfc5f813a112243758",
+        "candidate_wins": 28,
+        "live_wins": 26,
+        "draws": 2,
+        "candidate_half_points": 58,
+        "pass_half_points": 62,
+        "adopted": false
+      }
+    },
+    "bonapiece_single": {
+      "status": "warm-800k-direct-screen-rejected-full-5.9m-proxy-degraded-not-screened",
+      "topology": "single side-to-move 256 -> 32 -> 1",
+      "runtime_format": 84,
+      "weight_bytes": 64216260,
+      "runtime_bytes": 39516,
+      "runtime_sha256": "da093d0e6f6c2f046072784ba757de30aa2f41bae11270b7b90c5209c22fafdb",
+      "runtime_evidence_sha256": "b6f96b13635391188398958ec2a6064daf938f1f778a76f34a1e951fae835ab3",
+      "runtime_search_slowdown_pct": 4.780555,
+      "runtime_search_slowdown_limit_pct": 8,
+      "synthetic_incremental_positions": 360,
+      "synthetic_incremental_legal_moves": 19171,
+      "synthetic_incremental_mismatches": 0,
+      "warm_800k": [
+        {
+          "seed": 42,
+          "validation_loss": 0.02254037,
+          "validation_mae_cp": 382.562,
+          "validation_pair_accuracy": 0.700742,
+          "weights_sha256": "87e54199ad34b6849063ba49e6538b4fea79867a064658293df1deadebc2e372"
+        },
+        {
+          "seed": 43,
+          "validation_loss": 0.02258237,
+          "validation_mae_cp": 384.865,
+          "validation_pair_accuracy": 0.706513,
+          "weights_sha256": "09f0d430731d4ac27c7593d1b0ca11963ef4e45d37c98f0bab3107ad24e3c4b6"
+        },
+        {
+          "seed": 44,
+          "validation_loss": 0.02327991,
+          "validation_mae_cp": 388.862,
+          "validation_pair_accuracy": 0.694971,
+          "weights_sha256": "2b487ba7f3789937e1bf3de6cd7a87906c8dccef51eceb3ed359a906050b860e"
+        }
+      ],
+      "scratch_800k_seed42": {
+        "validation_loss": 0.02834676,
+        "validation_mae_cp": 436.44,
+        "validation_pair_accuracy": 0.588623,
+        "stopped_after_epoch": 1,
+        "reason": "clearly worse than every warm candidate"
+      },
+      "full_5_9m_strict_load_attempt": {
+        "status": "stopped-before-training",
+        "elapsed_seconds": 198.42,
+        "maximum_resident_set_bytes": 12483477504,
+        "process_swaps": 0,
+        "reason": "known malformed source row has five silver pieces",
+        "malformed_rows_expected_from_prior_audit": 52,
+        "valid_rows_expected_from_prior_audit": 5892140,
+        "recovery": "retain fail-closed default and retry only with an explicit counted malformed-row skip"
+      },
+      "full_5_9m_counted_skip_attempt": {
+        "status": "manually-interrupted-before-first-checkpoint",
+        "loaded_rows": 5889953,
+        "skipped_rows": 2239,
+        "skipped_json_rows": 0,
+        "skipped_sfen_rows": 2239,
+        "previous_expected_skipped_rows": 52,
+        "unexpected_additional_skips": 2187,
+        "reason": "the official-semantics parser enforced physical piece inventories that the prior syntactic audit did not; an independent reason-level audit is required before training may resume",
+        "model_promoted": false
+      },
+      "full_5_9m_inventory_audit": {
+        "status": "complete-two-independent-streaming-implementations-agree",
+        "source_rows": 5892192,
+        "source_bytes": 800451089,
+        "source_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+        "accepted_rows": 5889953,
+        "quarantined_rows": 2239,
+        "material_impossible_rows": 2099,
+        "king_only_invalid_rows": 140,
+        "parser_false_positives": 0,
+        "valid_json_rows": 5892192,
+        "valid_cp_rows": 5892192,
+        "legacy_halfkp_loader_skips": 52,
+        "additional_invalid_rows_found": 2187,
+        "project_parser_audit_sha256": "2fbaf88ef1db04e8046341dfcbfc78e2f8d94eb7fc25cddbd876b909b01be567",
+        "quarantine_jsonl_sha256": "d5e8fcdc78154c365c150b854a867bae015a37f6b37bf9b1afbfe23ea67d5f1b",
+        "independent_summary_sha256": "1559845527cd0929aa65605db5a2f6c3359140772ef9883e02d6a6d7385c772f",
+        "training_policy": "explicitly quarantine all sealed invalid rows and record loaded/skipped counts in checkpoints and exports"
+      },
+      "full_5_9m_training": {
+        "status": "complete-runtime-audited-not-screened-proxy-degraded",
+        "loaded_rows": 5889953,
+        "quarantined_rows": 2239,
+        "epochs": 2,
+        "elapsed_seconds": 392.94,
+        "maximum_resident_set_bytes": 14379270144,
+        "process_swaps": 0,
+        "epoch_1": {
+          "train_loss": 0.009256,
+          "validation_loss": 0.032008,
+          "validation_mae_cp": 551.8,
+          "validation_pair_accuracy": 0.601
+        },
+        "epoch_2": {
+          "train_loss": 0.00623,
+          "validation_loss": 0.033599,
+          "validation_mae_cp": 559.3,
+          "validation_pair_accuracy": 0.6208
+        },
+        "comparison": "both checkpoints are clearly worse on held-out proxies than the 800k warm candidates, so neither is screened",
+        "format84_two_checkpoint_audit_sha256": "deb119dc97e9d08a042ece5333b30890aec7fe6cde5659cc503e1a1109846df7",
+        "epoch_1_static_and_incremental_parity_positions": 64,
+        "epoch_2_static_and_incremental_parity_positions": 64,
+        "accumulator_mismatches": 0
+      },
+      "warm_800k_seed43_direct_screen": {
+        "status": "rejected-futility",
+        "manifest_sha256": "78b1441c587b3fa085dc995b2182114123c84a0aee46cbe8ba469024b2b8ff12",
+        "completed_games": 28,
+        "candidate_wins": 2,
+        "live_wins": 26,
+        "draws": 0,
+        "candidate_half_points": 4,
+        "maximum_possible_final_half_points": 60,
+        "pass_half_points": 62,
+        "all_moves_legal": true,
+        "technical_faults": 0
+      },
+      "live_promoted": false
+    },
+    "halfkp81_alpha_0_5_interpolation": {
+      "status": "screen56-and-independent96-passed-formal768-running",
+      "selection_protocol": "ml/protocols/halfkp81-interpolation-relative-quant-screen-v2.json",
+      "relation_to_original_selection": "The original absolute 175cp quantization cap remains failed; this is a new prospective relative-within-5-percent rule with fresh seeds.",
+      "alpha": 0.5,
+      "checkpoint_sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+      "weights_sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c",
+      "weights_bytes": 94656708,
+      "parity_positions": 64,
+      "screen56": {
+        "manifest_sha256": "6470c79b95ccf94fdd51fd017b05daab9e39b9ea98f7a22db4e8a7b72f0cc4e0",
+        "experiment_id": "sha256:d3394c58efd1c5ac02eecc64212cbf4615d8805e41f84a675eb15bfbdcf663f7",
+        "milliseconds_per_move": 1500,
+        "candidate_wins": 31,
+        "live_wins": 20,
+        "draws": 5,
+        "candidate_half_points": 67,
+        "pass_half_points": 62,
+        "score_percent": 59.82142857142857,
+        "all_moves_legal": true,
+        "all_openings_unique": true,
+        "technical_faults": 0,
+        "passed": true
+      },
+      "independent96": {
+        "status": "passed-clean-rerun-after-invalidated-technical-fault-attempt",
+        "pair_seed_start": 740001,
+        "games": 96,
+        "candidate_wins": 53,
+        "live_wins": 37,
+        "draws": 6,
+        "candidate_half_points": 112,
+        "score_denominator_half_points": 192,
+        "score_percent": 58.333333333333336,
+        "decision_rule": "one-sided 95-percent paired-bootstrap lower bound strictly above 50 percent",
+        "bootstrap_seed": 20260721,
+        "bootstrap_replicates": 100000,
+        "bootstrap_lower_half_points": 98,
+        "bootstrap_denominator_half_points": 192,
+        "bootstrap_lower_percent": 51.041666666666664,
+        "report_sha256": "5536d314cfa03d93920435159bf53924fc32fc61d15cf35c1dd5bfb8d2f92038",
+        "all_moves_legal": true,
+        "all_openings_unique": true,
+        "technical_faults": 0,
+        "passed": true
+      },
+      "formal768": {
+        "status": "running",
+        "pair_seed_start": 840001,
+        "games": 768,
+        "workers": 12,
+        "promotion_authorized_before_completion": false
+      },
+      "live_promoted": false
+    },
+    "halfkp81_sibling_preserving": {
+      "status": "three-prospective-slots-complete-no-admitted-checkpoint",
+      "protocol_sha256": "07fd7409d18244c03a738220bac17d2fa6a634f2988fc347a4665a36b0e03ef5",
+      "sibling_train_rows": 278736,
+      "sibling_validation_rows": 28518,
+      "value_replay_rows": 500000,
+      "value_preservation_rows_after_exclusion": 2797,
+      "slots": [
+        {
+          "seed": 42,
+          "result_sha256": "2769ee4cb666f7b57feec5e9cb1eb380cb5e833063f844e45bdb180e90ea6c00",
+          "final_pair_accuracy_change_points": -0.8814296063752725,
+          "final_top1_change_points": -1.4589412255106293,
+          "final_value_mae_change_cp": -154.2008073661512,
+          "admitted": false
+        },
+        {
+          "seed": 43,
+          "result_sha256": "568988404f491f0e9551f10448849d54c7435fc4fb40f241cefeb7590f38af84",
+          "final_pair_accuracy_change_points": -0.5312726394590683,
+          "final_top1_change_points": -1.1879949979157978,
+          "final_value_mae_change_cp": -121.20474364274219,
+          "admitted": false
+        },
+        {
+          "seed": 44,
+          "result_sha256": "f685987fe99f51c0885cd154bb1f5511d62101ebe3fea7c5669920b4e9ad4ed2",
+          "final_pair_accuracy_change_points": -0.939789100861299,
+          "final_top1_change_points": -1.813255523134638,
+          "final_value_mae_change_cp": -160.68105196415803,
+          "admitted": false
+        }
+      ],
+      "direct_matches_run": 0,
+      "live_promoted": false
+    },
+    "browser_confusion_ranking_teacher": {
+      "status": "builder-implemented-smoke-passed-not-yet-full-generated",
+      "selection": "production browser search disagrees with existing depth-12 teacher",
+      "labeling": "independent fixed-depth evaluation of every rules-complete legal child position",
+      "shards_supported": 8,
+      "smoke_parents": 3,
+      "smoke_legal_moves": 239,
+      "legal_set_matches": 239,
+      "derived_child_position_matches": 239,
+      "perspective_sign_matches": 239,
+      "deterministic_rerun_byte_exact": true,
+      "depth12_measured_legal_moves": 82,
+      "depth12_elapsed_seconds": 19.6,
+      "estimated_parents_per_day_at_8_shards": 35000,
+      "live_weights_changed": false
+    }
+  },
+  "teacher_generator_repair": {
+    "status": "root-cause-localized-and-regression-fixed",
+    "first_mac_rows": 4284992,
+    "first_mac_invalid_rows": 0,
+    "invalid_rows_origin": "second Mac teacher12-f-through-m JavaScript selector path",
+    "training_invalid_rows": 2239,
+    "holdout_invalid_rows": 27,
+    "proximate_cause": "unknown --wasm flag was silently ignored before the option existed, and selector moves were applied without canonical membership in the generated legal set",
+    "repairs": [
+      "reject unknown or missing-value CLI flags",
+      "hash the position before and after selector calls",
+      "canonicalize selector output against the generated legal moves",
+      "validate the complete hirate piece inventory and both kings after every move"
+    ],
+    "focused_tests_passed": 12,
+    "random_games_checked": 1000,
+    "random_game_max_plies": 120,
+    "random_game_invariant_failures": 0
+  },
   "claims": {
     "playing_strength_improved": false,
     "live_model_changed": false,
     "high_dan_calibrated": false
   },
-  "next_step": "Do not train HalfKP81 again. Keep live unchanged and require a new representation or learning-signal hypothesis to beat live in a bounded direct screen before any formal A/B."
+  "next_experiment": {
+    "status": "independent-confirmation-passed-formal768-running",
+    "representation": "single-perspective HalfKP81 alpha-0.5 parameter interpolation",
+    "arms": [
+      "the single prospectively selected alpha-0.5 interpolation candidate"
+    ],
+    "uses_published_nnue_weights": false,
+    "strength_claimed_before_direct_play": false
+  },
+  "next_step": "Keep live unchanged. Complete the 768-game formal A/B and external calibration; only those prospective passes may authorize promotion."
 }

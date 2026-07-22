@@ -1,0 +1,129 @@
+--- index.ts
++++ index.ts
+@@ -1840,7 +1840,7 @@
+ // layer-2 path: h1 is post-ClippedReLU so most entries are zero, and with a
+ // column-major layout the dot products only visit the nonzero activations.
+ // Rebuilt from the weight region by nnueRefreshAccumulators().
+-const NNUE_W2T: usize = memory.data(NNUE_H1 * NNUE_H2 * 2, 16);
++const NNUE_W2T: usize = memory.data(NNUE_H1 * 2 * NNUE_H2 * 2, 16);
+ // h1 packed to i16 lanes for the dense layer-2 dot products (nnueLayers23).
+ const NNUE_H1_I16: usize = memory.data(NNUE_H1 * 2, 16);
+ // Dual-perspective 32-wide hidden-layer scratch. These are only used by
+@@ -2232,10 +2232,10 @@
+
+ /** w2t[j][i] = w2[i][j] (column-major copy for the sparse layer-2 path). */
+ function nnueBuildW2T(): void {
+-  if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) return;
++  const inputs = nnueBuckets == NNUE_HALFKP_DUAL_FORMAT ? NNUE_H1 * 2 : NNUE_H1;
+   for (let i = 0; i < NNUE_H2; i++) {
+-    const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + (i << 9));
+-    for (let j = 0; j < NNUE_H1; j++) {
++    const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + i * inputs * 2);
++    for (let j = 0; j < inputs; j++) {
+       store<i16>(
+         NNUE_W2T + <usize>((((j << 5) + i) << 1)),
+         load<i16>(rowBase + <usize>(j << 1))
+@@ -2483,9 +2483,100 @@
+ export function nnueEvaluateFast(): i32 {
+   if (nnueBuckets == NNUE_HALFKP_DUAL_FORMAT) {
+     if (!nnueApplyPendingS() || !nnueApplyPendingG()) return nnueEvaluate();
+-    return teban == SENTE
+-      ? nnueDualLayers234(nnueAccS, nnueAccG)
+-      : nnueDualLayers234(nnueAccG, nnueAccS);
++    nnueEvalCount++;
++
++    const b2Base = NNUE_WEIGHTS + <usize>nnueB2Off;
++    let s0 = v128.load(b2Base);
++    let s1 = v128.load(b2Base, 16);
++    let s2 = v128.load(b2Base, 32);
++    let s3 = v128.load(b2Base, 48);
++    let s4 = v128.load(b2Base, 64);
++    let s5 = v128.load(b2Base, 80);
++    let s6 = v128.load(b2Base, 96);
++    let s7 = v128.load(b2Base, 112);
++    const zero = i32x4.splat(0);
++    const cap = i32x4.splat(127);
++
++    for (let half = 0; half < 2; half++) {
++      const srcBase = changetype<usize>(
++        half == 0
++          ? (teban == SENTE ? nnueAccS : nnueAccG)
++          : (teban == SENTE ? nnueAccG : nnueAccS)
++      );
++      for (let j = 0; j < NNUE_H1; j += 8) {
++        const aoff = <usize>(j << 2);
++        const lo = i32x4.min_s(i32x4.max_s(v128.load(srcBase + aoff), zero), cap);
++        const hi = i32x4.min_s(i32x4.max_s(v128.load(srcBase + aoff, 16), zero), cap);
++        if (!v128.any_true(i16x8.narrow_i32x4_s(lo, hi))) continue;
++        for (let lane = 0; lane < 8; lane++) {
++          let h = load<i32>(srcBase + aoff + (<usize>(lane << 2)));
++          if (h <= 0) continue;
++          if (h > 127) h = 127;
++          const hs = i16x8.splat(<i16>h);
++          const colBase = NNUE_W2T + (<usize>((half * NNUE_H1 + j + lane) << 6));
++          const w0 = v128.load(colBase);
++          const w1 = v128.load(colBase, 16);
++          const w2 = v128.load(colBase, 32);
++          const w3 = v128.load(colBase, 48);
++          s0 = i32x4.add(s0, i32x4.extmul_low_i16x8_s(w0, hs));
++          s1 = i32x4.add(s1, i32x4.extmul_high_i16x8_s(w0, hs));
++          s2 = i32x4.add(s2, i32x4.extmul_low_i16x8_s(w1, hs));
++          s3 = i32x4.add(s3, i32x4.extmul_high_i16x8_s(w1, hs));
++          s4 = i32x4.add(s4, i32x4.extmul_low_i16x8_s(w2, hs));
++          s5 = i32x4.add(s5, i32x4.extmul_high_i16x8_s(w2, hs));
++          s6 = i32x4.add(s6, i32x4.extmul_low_i16x8_s(w3, hs));
++          s7 = i32x4.add(s7, i32x4.extmul_high_i16x8_s(w3, hs));
++        }
++      }
++    }
++
++    const h2a = i16x8.narrow_i32x4_s(
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s0, 6), zero), cap),
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s1, 6), zero), cap)
++    );
++    const h2b = i16x8.narrow_i32x4_s(
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s2, 6), zero), cap),
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s3, 6), zero), cap)
++    );
++    const h2c = i16x8.narrow_i32x4_s(
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s4, 6), zero), cap),
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s5, 6), zero), cap)
++    );
++    const h2d = i16x8.narrow_i32x4_s(
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s6, 6), zero), cap),
++      i32x4.min_s(i32x4.max_s(i32x4.shr_s(s7, 6), zero), cap)
++    );
++    v128.store(NNUE_H1_I16, h2a);
++    v128.store(NNUE_H1_I16, h2b, 16);
++    v128.store(NNUE_H1_I16, h2c, 32);
++    v128.store(NNUE_H1_I16, h2d, 48);
++
++    for (let i = 0; i < NNUE_H2; i++) {
++      const rowBase = NNUE_WEIGHTS + <usize>(nnueW3Off + i * NNUE_H2 * 2);
++      let sum = i32x4.splat(0);
++      for (let j = 0; j < NNUE_H2; j += 8) {
++        const off = <usize>(j << 1);
++        sum = i32x4.add(
++          sum,
++          i32x4.dot_i16x8_s(v128.load(rowBase + off), v128.load(NNUE_H1_I16 + off))
++        );
++      }
++      const value =
++        load<i32>(NNUE_WEIGHTS + <usize>(nnueB3Off + (i << 2))) +
++        i32x4.extract_lane(sum, 0) +
++        i32x4.extract_lane(sum, 1) +
++        i32x4.extract_lane(sum, 2) +
++        i32x4.extract_lane(sum, 3);
++      unchecked(nnueDualH3[i] = nnueClamp127(value >> 6));
++    }
++
++    let outQ = load<i32>(NNUE_WEIGHTS + <usize>nnueB4Off);
++    for (let i = 0; i < NNUE_H2; i++) {
++      outQ +=
++        <i32>load<i16>(NNUE_WEIGHTS + <usize>(nnueW4Off + (i << 1))) *
++        unchecked(nnueDualH3[i]);
++    }
++    return outQ;
+   }
+   if (teban == SENTE) {
+     if (!nnueApplyPendingS()) return nnueEvaluate();

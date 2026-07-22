@@ -9,9 +9,10 @@
 - The live AI is not stronger yet. `public/shogi-nnue-weights.bin` has not changed
 - The HalfKP81 alpha-0.5 candidate finished its formal 768 games at **376 wins, 357 losses, 35 draws: 51.236979%**. It passed the safety condition, but its two-sided 95% lower bound was 47.72%, not above 50%, so the decision was `rejected-complete`
 - All three eight-epoch browser-confusion runs regressed held-out top-1. The final temperature-50 diagnostic produced **65/643** for all three arms, below the 66/643 baseline. That lane is closed
-- The new self-play pipeline has run end to end on real data. Twenty-six Vitest tests and 15 Python tests pass. The real 82-row integration corpus split into 75 training and seven validation rows with zero source/game/opening/position overlap, and both training arms completed. This proves wiring, not strength
+- The new self-play pipeline has run end to end on real data. Thirty-one Vitest tests and 15 Python tests pass. The real 82-row integration corpus split into 75 training and seven validation rows with zero source/game/opening/position overlap, and both training arms completed. This proves wiring, not strength
 - The selected generator uses 12 workers, play depth 2, post-game label depth 6, one sample every four plies, and at most 24 samples per game. The 20-game dense pilot completed in 62.48 seconds with 247 positions and zero technical faults
 - Full generation of 24,000 games started at about 23:27 PDT on July 21, 2026. The first roughly three minutes produced 54 games and 612 positions, but the roughly 12-minute observation was 135 games and 1,592 positions, which extrapolates to about 35 hours. The 9–11 hour estimate from the short pilot was optimistic, so the current planning range is **24–48 hours on one Mac**. This is not a promised completion time
+- At roughly 12 hours 30 minutes, with 6,219 games and 74,826 positions saved, four of the 12 workers were found stopped. The committed prefixes had zero corruption. The cause was a stale root move from an effective 30-bit WASM TT collision. A one-time clean-TT re-search only for an illegal root move crossed the failing game, and 12-worker generation resumed from 6,251 committed games
 
 ## 1. An honest account of the week
 
@@ -68,7 +69,19 @@ The dense configuration samples from ply 12 through ply 180, every four plies, w
 
 We have already corrected the time estimate twice. The 62.48-second pilot suggested 9–11 hours. The first roughly three minutes of the full run completed 54 games, around 18 games per minute, but the roughly 12-minute observation was 135 games and 1,592 positions, around 11.5 games per minute. A naive extrapolation of the later point is about 35 hours. Long games and deeper labeling create a long tail, so the current planning range is 24–48 hours. It will be updated from a longer steady-state window; it is not a completion promise.
 
-## 4. The fixed full-generation configuration
+## 4. The stop found at 6,219 games and the prefix-preserving recovery
+
+At the roughly 12-hour-30-minute observation, full generation had reached 6,219 / 24,000 games (25.91%) and 74,826 positions. Workers 1, 3, 4, and 9 had exited, leaving eight running. Cross-checking every shard's progress and position files found no duplicate, partial line, row-count mismatch, or game-ID mismatch. Every completed-game prefix remained usable.
+
+Replaying one failure, game 5193, showed the WASM returning `S*7g` at ply 111. The destination held the opposing king, so the move was unambiguously illegal. The JS and WASM position hashes, side to move, and count of 172 legal moves still matched. Searching that exact position from an empty TT consistently returned the legal `S*6h` instead.
+
+The cause was not position synchronization. The WASM search retained an effective 30-bit transposition table across plies and returned a collided stale root move without checking membership in the current root legal-move set. The host fix clears the TT and re-searches the **same position at the same depth exactly once**, only when the returned root move is outside the JS legal set. It does not substitute the first JS move or a random fallback. A second invalid result still stops generation.
+
+The fixed path completed game 5193 as a 140-ply Gote win with 24 samples, and shard 9 advanced from 432 to 438 games. Replaying already completed game 0 with the fix produced the exact stored 9,660 bytes and SHA-256. All processes were then closed on committed-game boundaries and restarted through one fixed coordinator with 12 workers from 6,251 games and 75,268 positions. This is recovery evidence, not playing-strength evidence.
+
+The permanent correction is to validate a root TT move against the WASM root legal set and use a wider hash identity. Changing the WASM would change its pinned SHA and the run fingerprint, so that change is reserved for a later cycle rather than mixed into this in-progress run.
+
+## 5. The fixed full-generation configuration
 
 | Item                           | Fixed value                                     |
 | ------------------------------ | ----------------------------------------------- |
@@ -85,7 +98,7 @@ We have already corrected the time estimate twice. The 62.48-second pilot sugges
 
 At the 23:31 PDT evidence snapshot on July 21, all 12 workers were active. The output directory is `/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1`. The completed run manifest does not exist yet. Full dataset preparation, full training, and candidate matches have not started. The presence of partial shard files is not treated as completion.
 
-## 5. Dataset splitting and both training arms passed a real integration
+## 6. Dataset splitting and both training arms passed a real integration
 
 We used the 82 sparse-pilot rows to exercise actual dataset publication:
 
@@ -105,7 +118,7 @@ The naming is easy to reverse: local `wdl_mix` is the **outcome** fraction, not 
 
 Both arms produced validated checkpoints from the 82-row fixture. This confirms the binding from authenticated input through split, initialization, fixed arguments, and artifact hashes. Those tiny checkpoints will not be played or promoted; 82 rows are not strength evidence.
 
-## 6. What will count as stronger
+## 7. What will count as stronger
 
 Completion of the 24,000 games still does not trigger a live change.
 
@@ -119,7 +132,7 @@ Completion of the 24,000 games still does not trigger a live change.
 
 Each candidate stops at its first failed gate. The family is capped at three cycles and stops after two consecutive rejected cycle candidates. We will not keep adding epochs to a failed recipe and call the extra compute progress.
 
-## 7. Current position
+## 8. Current position
 
 The confirmed outcome today is not “the AI is stronger.” It is that the no-gain static lane has been closed and the full self-play generation is genuinely using 12 local workers. Live remains unchanged, and playing-strength measurement is still ahead.
 

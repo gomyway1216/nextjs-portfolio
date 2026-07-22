@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerateMovesImproved } from "../../../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { InitialPositionImproved } from "../../../src/components/game/ShogiImproved/InitialPositionImproved";
@@ -23,6 +23,7 @@ import {
   parseSelfplayArgs,
   playAndLabelSelfplayGame,
   recoverSelfplayWorkerProgress,
+  searchPinnedFixedDepth,
   selfplayRepetitionKey,
   selfplayRunFingerprintForBinding,
   shouldSampleSelfplayPly,
@@ -41,6 +42,7 @@ const SHA_B = "b".repeat(64);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const directory of temporaryDirectories.splice(0)) {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -461,6 +463,160 @@ describe("NNUE selfplay generator", () => {
     expect(() =>
       playAndLabelSelfplayGame(config, illegalActor, new FirstLegalActor(1)),
     ).toThrow(/illegal move/);
+  });
+
+  it("retries a stale illegal WASM root move once from an empty TT", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const position = InitialPositionImproved.createInitialPosition();
+    const legal = GenerateMovesImproved.generateLegalMoves(position)[0];
+    if (!legal) throw new Error("initial position unexpectedly has no moves");
+    const moveKey = (move: Te) =>
+      (move.koma & 0x3f) |
+      ((move.from & 0xff) << 6) |
+      ((move.to & 0xff) << 14) |
+      ((move.promote ? 1 : 0) << 22);
+    const stale = new Te(legal.koma, legal.from, 0, false, 0);
+    let searches = 0;
+    let clears = 0;
+    const wasm = {
+      clearBoard() {},
+      setSquare() {},
+      setHand() {},
+      setSideToMove() {},
+      finalizePosition() {},
+      setRootTesu() {},
+      searchBestMove() {
+        searches += 1;
+        return searches === 1 ? moveKey(stale) : moveKey(legal);
+      },
+      getSearchScore: () => (searches === 1 ? 11 : 123),
+      getSearchDepth: () => 2,
+      getSearchNodes: () => 10,
+      getSearchLeaves: () => 20,
+      clearTT() {
+        clears += 1;
+      },
+    } as never;
+
+    const result = searchPinnedFixedDepth(wasm, position, 0, 2);
+
+    expect(result.move.equals(legal)).toBe(true);
+    expect(result.score).toBe(123);
+    expect(searches).toBe(2);
+    expect(clears).toBe(1);
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringMatching(/clean-TT retry.*invalid=/),
+    );
+  });
+
+  it("stops after one clean-TT retry when WASM remains illegal", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const position = InitialPositionImproved.createInitialPosition();
+    const legal = GenerateMovesImproved.generateLegalMoves(position)[0];
+    if (!legal) throw new Error("initial position unexpectedly has no moves");
+    const staleKey =
+      (legal.koma & 0x3f) | ((legal.from & 0xff) << 6) | (0xff << 14);
+    let searches = 0;
+    let clears = 0;
+    const wasm = {
+      clearBoard() {},
+      setSquare() {},
+      setHand() {},
+      setSideToMove() {},
+      finalizePosition() {},
+      setRootTesu() {},
+      searchBestMove() {
+        searches += 1;
+        return staleKey;
+      },
+      getSearchScore: () => 0,
+      getSearchDepth: () => 2,
+      getSearchNodes: () => 1,
+      getSearchLeaves: () => 1,
+      clearTT() {
+        clears += 1;
+      },
+    } as never;
+
+    expect(() => searchPinnedFixedDepth(wasm, position, 0, 2)).toThrow(
+      /illegal move after clean-TT retry/,
+    );
+    expect(searches).toBe(2);
+    expect(clears).toBe(1);
+  });
+
+  it("does not clear or repeat a legal WASM root search", () => {
+    const position = InitialPositionImproved.createInitialPosition();
+    const legal = GenerateMovesImproved.generateLegalMoves(position)[0];
+    if (!legal) throw new Error("initial position unexpectedly has no moves");
+    const legalKey =
+      (legal.koma & 0x3f) |
+      ((legal.from & 0xff) << 6) |
+      ((legal.to & 0xff) << 14) |
+      ((legal.promote ? 1 : 0) << 22);
+    let searches = 0;
+    let clears = 0;
+    const wasm = {
+      clearBoard() {},
+      setSquare() {},
+      setHand() {},
+      setSideToMove() {},
+      finalizePosition() {},
+      setRootTesu() {},
+      searchBestMove() {
+        searches += 1;
+        return legalKey;
+      },
+      getSearchScore: () => 7,
+      getSearchDepth: () => 2,
+      getSearchNodes: () => 3,
+      getSearchLeaves: () => 4,
+      clearTT() {
+        clears += 1;
+      },
+    } as never;
+
+    expect(
+      searchPinnedFixedDepth(wasm, position, 0, 2).move.equals(legal),
+    ).toBe(true);
+    expect(searches).toBe(1);
+    expect(clears).toBe(0);
+  });
+
+  it("rejects invalid first-search statistics before clearing the TT", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const position = InitialPositionImproved.createInitialPosition();
+    const legal = GenerateMovesImproved.generateLegalMoves(position)[0];
+    if (!legal) throw new Error("initial position unexpectedly has no moves");
+    const staleKey =
+      (legal.koma & 0x3f) | ((legal.from & 0xff) << 6) | (0xff << 14);
+    let searches = 0;
+    let clears = 0;
+    const wasm = {
+      clearBoard() {},
+      setSquare() {},
+      setHand() {},
+      setSideToMove() {},
+      finalizePosition() {},
+      setRootTesu() {},
+      searchBestMove() {
+        searches += 1;
+        return staleKey;
+      },
+      getSearchScore: () => 0,
+      getSearchDepth: () => 2,
+      getSearchNodes: () => -1,
+      getSearchLeaves: () => 1,
+      clearTT() {
+        clears += 1;
+      },
+    } as never;
+
+    expect(() => searchPinnedFixedDepth(wasm, position, 0, 2)).toThrow(
+      /invalid nodes/,
+    );
+    expect(searches).toBe(1);
+    expect(clears).toBe(0);
   });
 
   it("derives game-index-specific IDs and resumes flat rows only through committed game offsets", () => {

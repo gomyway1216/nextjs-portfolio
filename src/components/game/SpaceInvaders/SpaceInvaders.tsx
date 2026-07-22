@@ -25,12 +25,21 @@ import {
   PLAYER_WIDTH,
   PLAYER_HEIGHT,
 } from './types';
-import { createGameState, updateGame } from './GameEngine';
+import { createGameState, updateGame, updateJoinerGame } from './GameEngine';
 import { getSpaceInvadersStrings } from './i18n';
 import { Sounds, initAudio } from './sounds';
 import { useMultiplayer } from './useMultiplayer';
 import { MultiplayerLobby } from './MultiplayerLobby';
-import { toNetworkGameState, MultiplayerPlayer } from './multiplayerTypes';
+import {
+  toNetworkGameState,
+  applyNetworkGameState,
+  applyJoinerReport,
+  createPendingLocalEffects,
+  isTeammateAlive,
+  MultiplayerPlayer,
+  PendingLocalEffects,
+  JoinerReport,
+} from './multiplayerTypes';
 import styles from './SpaceInvaders.module.css';
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
@@ -214,6 +223,12 @@ const SpaceInvaders: React.FC = () => {
   const lastSyncRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
   const finishedRef = useRef<boolean>(false);
+  // Multiplayer sync book-keeping (joiner: pending local effects + report;
+  // host: last applied joiner UFO-kill count; joiner: last applied snapshot).
+  const pendingEffectsRef = useRef<PendingLocalEffects | null>(null);
+  const joinerReportRef = useRef<JoinerReport | null>(null);
+  const lastAppliedNetRef = useRef<number>(0);
+  const appliedUfoKillsRef = useRef<number>(0);
   // High score at the moment the current run started, so we can tell a genuine
   // beat (score strictly greater) from a tie or a run that never surpassed it.
   const runStartHighScoreRef = useRef<number>(0);
@@ -271,6 +286,10 @@ const SpaceInvaders: React.FC = () => {
     finishedRef.current = false;
     lastTimeRef.current = 0;
     lastSyncRef.current = 0;
+    pendingEffectsRef.current = null;
+    joinerReportRef.current = null;
+    lastAppliedNetRef.current = 0;
+    appliedUfoKillsRef.current = 0;
     runStartHighScoreRef.current = highScore;
     const newState = createGameState(1, 0, undefined, mode === 'multi' ? 'normal' : difficulty);
     setActiveGame(newState);
@@ -286,11 +305,7 @@ const SpaceInvaders: React.FC = () => {
   const startMultiplayerGame = useCallback(async () => {
     const newState = beginGame('multi');
     if (multiplayer.context.isHost) {
-      const networkState = toNetworkGameState(
-        newState.formation, newState.bullets, newState.ufo, newState.shields,
-        newState.level, newState.animationTick, newState.marchCounter
-      );
-      await multiplayer.startGame(networkState);
+      await multiplayer.startGame(toNetworkGameState(newState));
     }
   }, [beginGame, multiplayer]);
 
@@ -321,10 +336,12 @@ const SpaceInvaders: React.FC = () => {
     setActiveGame(createGameState(1, 0, undefined, difficulty));
   }, [difficulty, highScore, setActiveGame]);
 
-  // Toggle pause
+  // Toggle pause. Disabled in multiplayer: there is no shared pause protocol,
+  // and a locally-frozen sim would silently desync from the teammate.
   const togglePause = useCallback(() => {
+    if (gameModeRef.current === 'multi') return;
     const current = gameStateRef.current;
-    if (!current || current.gameOver || current.victory) return;
+    if (!current || current.gameOver) return;
     const next = { ...current, isPaused: !current.isPaused };
     setActiveGame(next);
   }, [setActiveGame]);
@@ -332,6 +349,10 @@ const SpaceInvaders: React.FC = () => {
   const backToMenu = useCallback(() => {
     finishedRef.current = false;
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (gameModeRef.current === 'multi') {
+      // Leaving the game screen leaves the room (fire and forget).
+      multiplayerRef.current.leaveRoom();
+    }
     setActiveGame(null);
     setGameMode('menu');
     setShowStartScreen(true);
@@ -429,19 +450,38 @@ const SpaceInvaders: React.FC = () => {
     // UFO
     if (state.ufo && state.ufo.active) drawUFO(ctx, state.ufo.x, state.ufo.y, UFO_WIDTH, UFO_HEIGHT);
 
-    // Other player (multiplayer)
-    if (otherPlayer && gameModeRef.current === 'multi') {
-      drawPlayer(ctx, otherPlayer.x, state.player.y, PLAYER_WIDTH, PLAYER_HEIGHT, otherColor);
+    // Other player (multiplayer) — position/score/lives come from the
+    // teammate's players/{id} writes; a dead teammate's ship is not drawn.
+    if (otherPlayer && gameModeRef.current === 'multi' && (otherPlayer.lives ?? 1) > 0) {
+      const otherX = otherPlayer.x ?? (CANVAS_WIDTH - PLAYER_WIDTH) / 2;
+      drawPlayer(ctx, otherX, state.player.y, PLAYER_WIDTH, PLAYER_HEIGHT, otherColor);
       ctx.fillStyle = otherColor;
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(otherPlayer.name, otherPlayer.x + PLAYER_WIDTH / 2, state.player.y - 10);
+      ctx.fillText(otherPlayer.name, otherX + PLAYER_WIDTH / 2, state.player.y - 10);
+
+      // Teammate's in-flight bullet (cosmetic mirror)
+      if (otherPlayer.bullet) {
+        ctx.fillStyle = otherColor;
+        ctx.shadowColor = otherColor;
+        ctx.shadowBlur = 8;
+        ctx.fillRect(otherPlayer.bullet.x, otherPlayer.bullet.y, 4, 15);
+        ctx.shadowBlur = 0;
+      }
     }
 
-    // Player
-    drawPlayer(ctx, state.player.x, state.player.y, state.player.width, state.player.height, myColor);
+    // Player (in multiplayer a fully dead ship is hidden; a respawn-invulnerable
+    // ship blinks)
+    const playerDead = gameModeRef.current === 'multi' && state.lives <= 0;
+    const invulnBlink = Boolean(
+      state.invulnUntil && Date.now() < state.invulnUntil && Math.floor(state.animationTick / 4) % 2 === 0
+    );
+    if (!playerDead && !invulnBlink) {
+      drawPlayer(ctx, state.player.x, state.player.y, state.player.width, state.player.height, myColor);
+    }
 
-    // Bullets
+    // Bullets. Remote player bullets (the host's shots mirrored on the joiner)
+    // render in the teammate's color.
     for (const bullet of state.bullets) {
       if (bullet.isEnemy) {
         ctx.fillStyle = '#ef4444';
@@ -454,11 +494,12 @@ const SpaceInvaders: React.FC = () => {
         ctx.lineTo(bullet.x + bullet.width / 2, bullet.y + bullet.height);
         ctx.fill();
       } else {
+        const color = bullet.remote ? otherColor : myColor;
         const gradient = ctx.createLinearGradient(bullet.x, bullet.y + bullet.height, bullet.x, bullet.y);
-        gradient.addColorStop(0, myColor);
-        gradient.addColorStop(1, lightenColor(myColor, 0.4));
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(1, lightenColor(color, 0.4));
         ctx.fillStyle = gradient;
-        ctx.shadowColor = myColor;
+        ctx.shadowColor = color;
         ctx.shadowBlur = 8;
         ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
       }
@@ -555,9 +596,74 @@ const SpaceInvaders: React.FC = () => {
       lastTimeRef.current = timestamp;
 
       const mp = multiplayerRef.current;
+      const isMulti = gameModeRef.current === 'multi';
+      // Fresh room data straight from the RTDB subscription (no re-render lag)
+      const liveRoom = isMulti ? mp.latestRoomRef.current : null;
+      const liveOther = liveRoom
+        ? Object.values(liveRoom.players || {}).find(p => p.id !== mp.context.playerId) || null
+        : null;
 
       if (!state.isPaused) {
-        const soundEvents = updateGame(state, inputRef.current, deltaTime, Date.now());
+        let soundEvents;
+
+        if (isMulti && !mp.context.isHost) {
+          // JOINER: apply the host's latest snapshot of the shared entities,
+          // then run the local-only frame (own ship/bullets + extrapolation).
+          const net = liveRoom?.gameState;
+          // (net.formation guards against the CF's bootstrap sentinel state)
+          if (net && net.formation && net.lastUpdate && net.lastUpdate !== lastAppliedNetRef.current) {
+            lastAppliedNetRef.current = net.lastUpdate;
+            if (!pendingEffectsRef.current) {
+              pendingEffectsRef.current = createPendingLocalEffects(net.level);
+            }
+            applyNetworkGameState(state, net, pendingEffectsRef.current);
+          }
+          // The host ends the game (both ships out, or invaders landed).
+          if (liveRoom?.status === 'finished') state.gameOver = true;
+
+          const frame = updateJoinerGame(state, inputRef.current, deltaTime, Date.now());
+          soundEvents = frame.sounds;
+
+          // Report locally-resolved hits to the host (level-scoped, idempotent).
+          const ev = frame.events;
+          if (ev.kills.length > 0 || ev.shieldHits.length > 0 || ev.ufoKilled) {
+            const pending = pendingEffectsRef.current
+              ?? (pendingEffectsRef.current = createPendingLocalEffects(state.level));
+            let report = joinerReportRef.current;
+            if (!report || report.level !== state.level) {
+              report = { level: state.level, ufoKills: report?.ufoKills ?? 0 };
+            }
+            for (const idx of ev.kills) {
+              pending.killedEnemies.add(idx);
+              (report.kills ??= {})[`e${idx}`] = true;
+            }
+            for (const key of ev.shieldHits) {
+              pending.destroyedBlocks.add(key);
+              (report.shieldHits ??= {})[`s${key}`] = true;
+            }
+            if (ev.ufoKilled) {
+              pending.ufoKilled = true;
+              report.ufoKills = (report.ufoKills ?? 0) + 1;
+            }
+            joinerReportRef.current = report;
+            mp.sendJoinerReport(report);
+          }
+        } else {
+          // SOLO or HOST: authoritative simulation. In co-op the sim keeps
+          // running while either ship is alive.
+          const coop = isMulti ? { teammateAlive: isTeammateAlive(liveOther) } : undefined;
+          soundEvents = updateGame(state, inputRef.current, deltaTime, Date.now(), coop);
+
+          if (isMulti) {
+            // Apply the joiner's reported kills, then publish the snapshot.
+            appliedUfoKillsRef.current = applyJoinerReport(
+              state,
+              liveOther ? liveRoom?.pendingActions?.[liveOther.id] : null,
+              appliedUfoKillsRef.current
+            );
+            mp.updateGameState(toNetworkGameState(state));
+          }
+        }
 
         if (soundEvents.playerShoot) Sounds.playerShoot();
         if (soundEvents.enemyHit) Sounds.enemyHit();
@@ -570,20 +676,15 @@ const SpaceInvaders: React.FC = () => {
         if (soundEvents.extraLife) Sounds.levelComplete();
         if (soundEvents.enemyMarch) Sounds.enemyMarch(soundEvents.marchPitch);
 
-        if (gameModeRef.current === 'multi') {
-          mp.updateMyPosition(state.player.x);
+        if (isMulti) {
+          // Publish own ship for the teammate's screen.
+          const ownBullet = state.bullets.find(b => !b.isEnemy && !b.remote) ?? null;
+          mp.updateMyPosition(state.player.x, ownBullet ? { x: ownBullet.x, y: ownBullet.y } : null);
           mp.updateMyState(state.score, state.lives);
-          if (mp.context.isHost) {
-            const networkState = toNetworkGameState(
-              state.formation, state.bullets, state.ufo, state.shields,
-              state.level, state.animationTick, state.marchCounter
-            );
-            mp.updateGameState(networkState);
-          }
         }
       }
 
-      render(ctx, state, mp.otherPlayer, mp.myColor, mp.otherColor);
+      render(ctx, state, isMulti ? liveOther : null, mp.myColor, mp.otherColor);
 
       // Sync to React ~15x/sec so the DOM HUD updates without re-mounting RAF.
       if (timestamp - lastSyncRef.current > 66) {
@@ -591,18 +692,17 @@ const SpaceInvaders: React.FC = () => {
         setGameState({ ...state });
       }
 
-      if (!state.gameOver && !state.victory) {
+      if (!state.gameOver) {
         animationFrameRef.current = requestAnimationFrame(gameLoop);
       } else if (!finishedRef.current) {
         finishedRef.current = true;
         setGameState({ ...state });
-        if (state.victory) {
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-        } else {
-          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        }
-        if (gameModeRef.current === 'multi') {
-          mp.endGame(state.victory ? mp.context.playerId : null);
+        // Endless waves — every run eventually ends in a loss (same as solo).
+        setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        if (gameModeRef.current === 'multi' && mp.context.isHost) {
+          // Only the host marks the room finished; co-op has no winner. The
+          // joiner picks the end up from room.status.
+          mp.endGame(null);
         }
       }
     };
@@ -710,7 +810,7 @@ const SpaceInvaders: React.FC = () => {
   }
 
   // ---------- Game screen ----------
-  const isOver = Boolean(gameState?.gameOver || gameState?.victory);
+  const isOver = Boolean(gameState?.gameOver);
 
   return (
     <div className={styles.page}>
@@ -749,9 +849,11 @@ const SpaceInvaders: React.FC = () => {
           />
         </div>
 
-        {/* Buttons */}
+        {/* Buttons. Multiplayer: no pause (no shared pause protocol) and no
+            in-place replay (a local restart would desync from the room) —
+            players go back to the lobby instead. */}
         <div className={styles.buttonRow}>
-          {!isOver && (
+          {!isOver && gameMode !== 'multi' && (
             <button type="button" onClick={togglePause} className={`${styles.btn} ${styles.btnSecondary}`}>
               {gameState?.isPaused ? <Play size={18} /> : <Pause size={18} />}
               {gameState?.isPaused ? t.resume : t.pause}
@@ -759,10 +861,12 @@ const SpaceInvaders: React.FC = () => {
           )}
           {isOver && (
             <>
-              <button type="button" onClick={resetGame} className={`${styles.btn} ${styles.btnPrimary}`}>
-                <RotateCcw size={18} />
-                {t.playAgain}
-              </button>
+              {gameMode !== 'multi' && (
+                <button type="button" onClick={resetGame} className={`${styles.btn} ${styles.btnPrimary}`}>
+                  <RotateCcw size={18} />
+                  {t.playAgain}
+                </button>
+              )}
               <button type="button" onClick={backToMenu} className={`${styles.btn} ${styles.btnSecondary}`}>
                 {t.difficulty}
               </button>

@@ -127,6 +127,13 @@ export interface Bullet {
   width: number;
   height: number;
   isEnemy: boolean;
+  /**
+   * Multiplayer only: bullet mirrored from the host's published game state
+   * rather than fired locally. On the joiner, remote enemy bullets can hit the
+   * local ship; remote player bullets are purely cosmetic (their hits resolve
+   * on the host). Never set in single-player.
+   */
+  remote?: boolean;
 }
 
 export interface Enemy {
@@ -212,10 +219,16 @@ export interface GameState {
   /** Score threshold for the next extra life. */
   nextExtraLifeAt: number;
   gameOver: boolean;
-  victory: boolean;
   isPaused: boolean;
   animationTick: number;
   marchCounter: number; // For enemy march sound timing
+  /**
+   * Multiplayer (joiner) only: enemy-bullet hits are ignored until this
+   * timestamp after a respawn. The joiner can't clear the host-owned enemy
+   * fire on death (the next snapshot would bring it back), so a short
+   * invulnerability window replaces single-player's bullet clear.
+   */
+  invulnUntil?: number;
 }
 
 // Input state

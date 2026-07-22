@@ -15,6 +15,7 @@ import {
   getNextPlayerId,
   sortHand,
 } from './gameLogic';
+import { daifugoErrorMessage, formatDaifugoLogCards } from './errorMessages';
 import { decideDaifugoAction } from './DaifugoAI';
 import type { DaifugoDifficulty } from './DaifugoAI';
 import { rankToLabel } from './types';
@@ -87,12 +88,10 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     discardUpTo: translate('games.daifugo.ui.discardUpTo'),
     log: translate('games.daifugo.ui.log'),
     noActionsYet: translate('games.daifugo.ui.noActionsYet'),
-    logPlayed: translate('games.daifugo.ui.logPlayed'),
     logPass: translate('games.daifugo.ui.logPass'),
     logTableCleared: translate('games.daifugo.ui.logTableCleared'),
     logRoundEnd: translate('games.daifugo.ui.logRoundEnd'),
     logNextRound: translate('games.daifugo.ui.logNextRound'),
-    logStraight: translate('games.daifugo.ui.logStraight'),
     daifugo: translate('games.daifugo.ui.ranks.daifugo'),
     fugo: translate('games.daifugo.ui.ranks.fugo'),
     heimin: translate('games.daifugo.ui.ranks.heimin'),
@@ -173,7 +172,9 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       timestamp: 0,
     };
     const result = applyAction(gameState, probe);
-    return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
+    return result.ok
+      ? { ok: true, error: null }
+      : { ok: false, error: daifugoErrorMessage(translate, result.error) };
   }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, humanId, translate]);
 
   const playerSummaries = useMemo(() => {
@@ -449,7 +450,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
     const result = applyAction(gameState, action);
     if (!result.ok) {
-      setLocalError(result.error);
+      setLocalError(daifugoErrorMessage(translate, result.error));
       return;
     }
     setGameState(result.state);
@@ -473,7 +474,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
     const result = applyAction(gameState, action);
     if (!result.ok) {
-      setLocalError(result.error);
+      setLocalError(daifugoErrorMessage(translate, result.error));
       return;
     }
     setGameState(result.state);
@@ -485,11 +486,9 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       const name = playerNameOf(entry.playerId);
       if (entry.detail) return `${name}: ${entry.detail}`;
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
-        if (entry.playKind === 'straight') {
-          const start = entry.rankKey - entry.cardCount + 1;
-          return `${name}: ${d.logStraight} ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
-        }
-        return `${name}: ${d.logPlayed} ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
+        const cards = formatDaifugoLogCards(entry);
+        const key = entry.playKind === 'straight' ? 'logStraight' : 'logPlayed';
+        return `${name}: ${translate(`games.daifugo.ui.${key}`, { cards, count: entry.cardCount })}`;
       }
       if (entry.type === 'pass') return `${name}: ${d.logPass}`;
       if (entry.type === 'trick_end') return `${name}: ${d.logTableCleared}`;
@@ -497,7 +496,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       if (entry.type === 'next_round') return `${name}: ${d.logNextRound}`;
       return `${name}: ...`;
     });
-  }, [gameState?.log, playerNameOf, d]);
+  }, [gameState?.log, playerNameOf, d, translate]);
 
   const daifugoId = useMemo(() => {
     if (!gameState?.ranks) return null;

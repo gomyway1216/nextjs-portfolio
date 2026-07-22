@@ -190,7 +190,8 @@ describe("shogi NNUE representation pivot evidence", () => {
       },
     });
     expect(evidence.next_experiment).toMatchObject({
-      status: "browser-confusion-ranking-fine-tune-stopped-no-admitted-candidate",
+      status:
+        "browser-confusion-sibling-lane-permanently-stopped-after-temperature-diagnostic",
       representation: "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
       arms: [],
       uses_published_nnue_weights: false,
@@ -304,6 +305,75 @@ describe("shogi NNUE representation pivot evidence", () => {
       matches_run: 0,
       live_weights_changed: false,
     });
+    expect(rankingFineTune.top1_temperature_50_diagnostic).toMatchObject({
+      status: "complete-all-three-arms-failed",
+      policy_temperature_cp: 50,
+      protocol_sha256:
+        "376463136fced8a3efb51e3fb38cd79ea1d62f14ee0a1160f081d819ff64f8cd",
+      epochs_per_arm: 1,
+      validation_parents: 643,
+      baseline_top1_correct: 66,
+      candidate_top1_correct_per_arm: 65,
+      top1_gain_per_arm: -0.0015552099533437114,
+      preregistered_top1_correct_minimum: 68,
+      arms: [
+        {
+          arm: "A",
+          policy_weight: 0.0625,
+          rank_weight: 0,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002455732956344603,
+          preservation_mae_improvement_cp: 33.714376425735054,
+          preservation_loss_ratio: 0.9291103994933371,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 64.8028,
+          result_sha256:
+            "47e077be5f8b679964712504df73f81ef321977ee8d536c50e9b97ac7f67248a",
+          passed: false,
+        },
+        {
+          arm: "B",
+          policy_weight: 0.125,
+          rank_weight: 0,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002382711584615671,
+          preservation_mae_improvement_cp: 34.369125443561984,
+          preservation_loss_ratio: 0.9279084257602017,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 64.221,
+          result_sha256:
+            "fb0f24ffeffd8136c12dbbd24b022600ff2684429923e473c2565d007a51f0cb",
+          passed: false,
+        },
+        {
+          arm: "C",
+          policy_weight: 0.0625,
+          rank_weight: 0.25,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002338068186733988,
+          preservation_mae_improvement_cp: 33.49957557979894,
+          preservation_loss_ratio: 0.9296824618583053,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 65.3695,
+          result_sha256:
+            "3d9e9fdaf5070cb35b0795967945efeb4dd38779466a83d805d5c9811852a7df",
+          passed: false,
+        },
+      ],
+      temperature_hypothesis_passed: false,
+      three_epoch_runs_started: 0,
+      exports_created: 0,
+      quantized_parity_started: false,
+      matches_run: 0,
+      live_weights_changed: false,
+      lane_closed_permanently: true,
+    });
     expect(rankingFineTune.runs).toHaveLength(3);
     for (const run of rankingFineTune.runs) {
       expect(run.final_sibling_pair_gain).toBeGreaterThanOrEqual(
@@ -320,7 +390,11 @@ describe("shogi NNUE representation pivot evidence", () => {
       rankingFineTune.preservation_rows_after_exclusion +
         rankingFineTune.preservation_overlap_rows_excluded,
     ).toBe(rankingFineTune.preservation_rows_before_exclusion);
-    expect(evidence.claims.playing_strength_improved).toBe(false);
+    expect(evidence.claims).toEqual({
+      playing_strength_improved: false,
+      live_model_changed: false,
+      high_dan_calibrated: false,
+    });
     expect(evidence.live_baseline.changed).toBe(false);
     expect(evidence.speed_preserving_experiments.halfkp81_alpha_0_5_interpolation.independent96).toMatchObject({
       status: "passed-clean-rerun-after-invalidated-technical-fault-attempt",
@@ -415,6 +489,12 @@ describe("shogi NNUE representation pivot evidence", () => {
       "complete-no-admitted-candidate",
       "対局数0",
       "zero games were run",
+      "全て65/643、基準比-0.1555ポイント",
+      "every arm scored 65/643, 0.1555 percentage points below baseline",
+      "3 epoch継続、export、量子化parity、対局は一度も開始せず",
+      "did not start any three-epoch continuation, export, quantized parity, or match",
+      "temperature仮説も外れた",
+      "temperature hypothesis failed",
       "13,069",
       "[256 us, 256 them] -> 32 -> 32 -> 1",
       "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",

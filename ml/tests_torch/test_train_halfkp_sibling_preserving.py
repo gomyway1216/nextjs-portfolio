@@ -123,6 +123,125 @@ def write_protocol(path, *, initializer, data, val, replay, preservation):
 
 
 class HalfkpSiblingPreservingTest(unittest.TestCase):
+    @staticmethod
+    def _metadata_rows(rows):
+        metadata = json.loads(json.dumps(rows))
+        for row in metadata:
+            row["raw_cp"] = row["cp"]
+            row["declared_child_position_id"] = row["child_position_id"]
+        return metadata
+
+    def test_metadata_validator_accepts_legacy_and_explicit_all_legal_groups(self):
+        train_meta = self._metadata_rows(
+            sibling_rows(
+                "train",
+                "train-game",
+                "train-parent",
+                TRAIN_PARENT,
+                TRAIN_CHILDREN,
+                ("7g7f", "2g2f"),
+                0,
+            )
+        )
+        for row in train_meta:
+            row["sources"] = [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE]
+        val_meta = self._metadata_rows(
+            sibling_rows(
+                "val",
+                "val-game",
+                "val-parent",
+                VAL_PARENT,
+                VAL_CHILDREN,
+                ("3c3d", "8c8d"),
+                2,
+            )
+        )
+
+        train_groups, val_groups = preserving._validate_split_metadata(
+            train_meta, val_meta
+        )
+
+        self.assertEqual(train_groups, [[0, 1]])
+        self.assertEqual(val_groups, [[0, 1]])
+        with self.assertRaisesRegex(SystemExit, "exactly one played source"):
+            train.validate_sibling_metadata(train_meta, "train")
+        self.assertEqual(
+            train.validate_sibling_metadata(
+                train_meta, "train", allow_all_legal_fixed_depth=True
+            ),
+            [[0, 1]],
+        )
+        self.assertTrue(
+            all(
+                row["sources"] == [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE]
+                for row in train_meta
+            )
+        )
+
+    def test_metadata_validator_rejects_ambiguous_all_legal_provenance(self):
+        base_train = self._metadata_rows(
+            sibling_rows(
+                "train",
+                "train-game",
+                "train-parent",
+                TRAIN_PARENT,
+                TRAIN_CHILDREN,
+                ("7g7f", "2g2f"),
+                0,
+            )
+        )
+        val_meta = self._metadata_rows(
+            sibling_rows(
+                "val",
+                "val-game",
+                "val-parent",
+                VAL_PARENT,
+                VAL_CHILDREN,
+                ("3c3d", "8c8d"),
+                2,
+            )
+        )
+        mutations = [
+            (
+                "mixed",
+                [
+                    [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE],
+                    ["teacher"],
+                ],
+            ),
+            (
+                "played",
+                [
+                    ["played", preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE],
+                    [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE],
+                ],
+            ),
+            (
+                "extra source",
+                [
+                    ["teacher", preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE],
+                    ["teacher", preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE],
+                ],
+            ),
+            ("teacher only", [["teacher"], ["teacher"]]),
+        ]
+        for name, sources in mutations:
+            with self.subTest(name=name):
+                train_meta = json.loads(json.dumps(base_train))
+                for row, row_sources in zip(train_meta, sources, strict=True):
+                    row["sources"] = row_sources
+                with self.assertRaisesRegex(
+                    ValueError, "explicit all-legal-fixed-depth-teacher group"
+                ):
+                    preserving._validate_split_metadata(train_meta, val_meta)
+
+        missing = json.loads(json.dumps(base_train))
+        for row in missing:
+            row["sources"] = [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE]
+        del missing[1]["sources"]
+        with self.assertRaisesRegex(ValueError, "sources must be a non-empty array"):
+            preserving._validate_split_metadata(missing, val_meta)
+
     def test_committed_protocol_commands_bind_every_run_to_the_protocol(self):
         path = os.path.join(
             ML_DIR, "protocols", "halfkp-sibling-preservation-v1-plan.json"

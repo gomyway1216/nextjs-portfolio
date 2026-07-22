@@ -147,6 +147,7 @@ MAX_NON_MATE_CP = 900_000
 MAX_MATE_DISTANCE = MATE_SCORE_CP - MAX_NON_MATE_CP - 1
 SIBLING_SCHEMA = "shogi-sibling-v1"
 SIBLING_SCHEMA_VERSION = 1
+ALL_LEGAL_FIXED_DEPTH_SOURCE = "all-legal-fixed-depth-teacher"
 SIBLING_SOURCE_PRIORITY = {"played": 0, "teacher": 1}
 GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -1018,7 +1019,9 @@ def reorder_metadata(metadata, order):
     return [metadata[int(i)] for i in order.tolist()]
 
 
-def validate_sibling_metadata(metadata, label: str):
+def validate_sibling_metadata(
+    metadata, label: str, *, allow_all_legal_fixed_depth: bool = False
+):
     """Validate one-candidate-per-row sibling records and return parent groups."""
     groups = defaultdict(list)
     parent_provenance = {}
@@ -1069,9 +1072,28 @@ def validate_sibling_metadata(metadata, label: str):
         raise SystemExit(f"[train] {label} parent_id {singleton} has fewer than two siblings")
     for parent_id, rows in groups.items():
         played = [index for index in rows if "played" in metadata[index]["sources"]]
-        if len(played) != 1:
+        contains_all_legal = any(
+            ALL_LEGAL_FIXED_DEPTH_SOURCE in metadata[index]["sources"]
+            for index in rows
+        )
+        legacy_played = len(played) == 1 and not contains_all_legal
+        explicit_all_legal = (
+            allow_all_legal_fixed_depth
+            and contains_all_legal
+            and not played
+            and all(
+                metadata[index]["sources"] == [ALL_LEGAL_FIXED_DEPTH_SOURCE]
+                for index in rows
+            )
+        )
+        if not legacy_played and not explicit_all_legal:
             raise SystemExit(
                 f"[train] {label} parent_id {parent_id} must have exactly one played source"
+                + (
+                    f" or be an explicit {ALL_LEGAL_FIXED_DEPTH_SOURCE} group"
+                    if allow_all_legal_fixed_depth
+                    else ""
+                )
             )
         ranks = [metadata[index]["teacher_rank"] for index in rows]
         if sorted(ranks) != list(range(1, len(rows) + 1)):

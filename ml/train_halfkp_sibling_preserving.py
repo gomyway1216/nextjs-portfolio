@@ -34,6 +34,7 @@ import train_sibling_research as sibling_research
 RESULT_SCHEMA = "shogi-halfkp-sibling-preserving-training-v1"
 FEATURES = "halfkp-factor"
 PROTOCOL_SCHEMA = "shogi-halfkp-sibling-preservation-plan-v1"
+ALL_LEGAL_FIXED_DEPTH_SOURCE = train.ALL_LEGAL_FIXED_DEPTH_SOURCE
 
 
 def _file_fingerprint(path: str) -> dict[str, object]:
@@ -256,6 +257,22 @@ def _semantic_ids(metadata) -> set[str]:
     return identities
 
 
+def _validate_split_metadata(train_meta, val_meta):
+    """Keep legacy played=1 groups and admit only explicit played=0 all-legal groups."""
+
+    try:
+        train.validate_disjoint_splits(train_meta, val_meta)
+        train_groups = train.validate_sibling_metadata(
+            train_meta, "train", allow_all_legal_fixed_depth=True
+        )
+        val_groups = train.validate_sibling_metadata(
+            val_meta, "val", allow_all_legal_fixed_depth=True
+        )
+    except SystemExit as error:
+        raise ValueError(str(error)) from error
+    return train_groups, val_groups
+
+
 def _load_initializer(path: str, model: train.DistillNet, k: float):
     checkpoint, fingerprint = train.load_stable_torch_checkpoint(
         os.path.realpath(path), weights_only=True
@@ -445,9 +462,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     )
     tb, th, ty, _tcp, tbk, train_meta, train_provenance = train_loaded
     vb, vh, vy, _vcp, vbk, val_meta, val_provenance = val_loaded
-    train_groups, val_groups = sibling_research._validate_split_metadata(
-        train_meta, val_meta
-    )
+    train_groups, val_groups = _validate_split_metadata(train_meta, val_meta)
     train_cp = train.raw_sibling_cp(train_meta)
     val_cp = train.raw_sibling_cp(val_meta)
     eligible_pairs = sibling_research._eligible_pair_count(

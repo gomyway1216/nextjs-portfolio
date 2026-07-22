@@ -89,11 +89,15 @@ const CONFIG: Record<ShichinarabeAIDifficulty, AIConfig> = {
 };
 
 /**
- * A candidate play is "safe" when the probability that it gifts an opponent an
- * immediate follow-up is below this. Before any elimination the estimator's
- * gift probabilities are exactly 0 or 1 (every unseen card is certainly in some
- * active opponent's hand), so any threshold in (0, 1) reproduces the historic
- * `gift === 0` behaviour; after eliminations it tolerates honest uncertainty.
+ * A candidate play is "safe" when its weighted gift cost (expectedOpponentGift:
+ * hold probability scaled by near-winner urgency and corridor risk, so it can
+ * exceed 1 for expert/master) is below this. The urgency/depth multipliers only
+ * ever scale the cost UP from the underlying hold probability, so a cost below
+ * this threshold implies the hold probability is below it too. Before any
+ * elimination that probability is exactly 0 or 1 (every unseen card is
+ * certainly in some active opponent's hand), so any threshold in (0, 1)
+ * reproduces the historic `gift === 0` behaviour; after eliminations it
+ * tolerates honest uncertainty.
  */
 const SAFE_GIFT_THRESHOLD = 0.25;
 
@@ -138,9 +142,12 @@ function distanceFromSeven(rank: number): number {
  * probability that the slot just past the candidate (away from 7) is held by
  * an active opponent, weighted — for tiers with `giftUrgency` — by how
  * dangerous each likely holder is (opponents with few cards left, a public
- * number, are close to going out, so gifting them is worse). Computed purely
- * from public information via the estimator; we only look one slot ahead.
- * Range [0, 1] with giftUrgency 0, up to [0, 1 + giftUrgency] otherwise.
+ * number, are close to going out, so gifting them is worse) and by corridor
+ * risk (`giftDepth`). Computed purely from public information via the
+ * estimator; we only look one slot ahead. Returns a weighted COST, not a
+ * probability: [0, 1] when giftUrgency and giftDepth are both 0 (hard), and up
+ * to (1 + giftUrgency) * (1 + giftDepth) otherwise — e.g. 2.25 for expert's
+ * 0.5/0.5 config.
  */
 function expectedOpponentGift(
   state: ShichinarabeNetworkState,
@@ -263,7 +270,8 @@ function shouldStrategicPass(
 
   const myRanks = buildSuitRankSets(myHand);
 
-  // Probability that each candidate would gift an opponent an immediate play.
+  // Weighted gift cost (hold probability x urgency x corridor risk) of each
+  // candidate handing an opponent an immediate play.
   let maxGift = 0;
   let bestBenefitsMe = false;
   let hasSafePlay = false;

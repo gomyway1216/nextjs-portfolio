@@ -607,10 +607,9 @@
       "live_promoted": false
     },
     "browser_confusion_ranking_teacher": {
-      "status": "builder-implemented-smoke-passed-not-yet-full-generated",
+      "status": "batch3-generation-complete-ranking-fine-tune-next",
       "selection": "production browser search disagrees with existing depth-12 teacher",
       "labeling": "independent fixed-depth evaluation of every rules-complete legal child position",
-      "shards_supported": 8,
       "smoke_parents": 3,
       "smoke_legal_moves": 239,
       "legal_set_matches": 239,
@@ -619,7 +618,25 @@
       "deterministic_rerun_byte_exact": true,
       "depth12_measured_legal_moves": 82,
       "depth12_elapsed_seconds": 19.6,
-      "estimated_parents_per_day_at_8_shards": 35000,
+      "shards_completed": 16,
+      "parents_per_shard": 125,
+      "parents": 2000,
+      "ranking_records": 171429,
+      "unique_games": 53,
+      "forced_positions": 27,
+      "agreement_positions": 1012,
+      "eligible_positions": 3213,
+      "typed_skips": {
+        "browser": 21,
+        "teacher": 153
+      },
+      "ranking_bytes": 146984194,
+      "parents_bytes": 211038587,
+      "ordered_shard_identity_sha256": "5a198b50a617c0c427ce87082c8ec97a917788be1ccbdb4883476ec485f83f53",
+      "elapsed_seconds": 2555,
+      "technical_faults": 0,
+      "implementation_pr": 609,
+      "implementation_pr_merged": true,
       "live_weights_changed": false
     }
   },
@@ -648,7 +665,7 @@
     "high_dan_calibrated": false
   },
   "next_experiment": {
-    "status": "confusion-teacher-regeneration-and-ranking-retraining-next",
+    "status": "browser-confusion-generation-complete-ranking-fine-tune-next",
     "representation": "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
     "arms": [
       "a prospectively selected checkpoint from regenerated browser-confusion teacher data"
@@ -656,5 +673,5 @@
     "uses_published_nnue_weights": false,
     "strength_claimed_before_direct_play": false
   },
-  "next_step": "Keep live unchanged. Regenerate the browser-confusion teacher, retrain sibling rankings, and require a new candidate to pass the direct, independent, and formal gates before external calibration or promotion."
+  "next_step": "Keep live unchanged. Prepare the completed browser-confusion batch 3 output, run the ranking fine-tune, and require a new candidate to pass the direct, independent, and formal gates before external calibration or promotion."
 }

@@ -190,11 +190,44 @@ describe("shogi NNUE representation pivot evidence", () => {
       },
     });
     expect(evidence.next_experiment).toMatchObject({
-      status: "confusion-teacher-regeneration-and-ranking-retraining-next",
+      status: "browser-confusion-generation-complete-ranking-fine-tune-next",
       representation: "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
       uses_published_nnue_weights: false,
       strength_claimed_before_direct_play: false,
     });
+    const rankingTeacher =
+      evidence.speed_preserving_experiments.browser_confusion_ranking_teacher;
+    expect(rankingTeacher).toMatchObject({
+      status: "batch3-generation-complete-ranking-fine-tune-next",
+      smoke_parents: 3,
+      smoke_legal_moves: 239,
+      shards_completed: 16,
+      parents_per_shard: 125,
+      parents: 2000,
+      ranking_records: 171429,
+      unique_games: 53,
+      forced_positions: 27,
+      agreement_positions: 1012,
+      eligible_positions: 3213,
+      typed_skips: {
+        browser: 21,
+        teacher: 153,
+      },
+      ranking_bytes: 146984194,
+      parents_bytes: 211038587,
+      ordered_shard_identity_sha256:
+        "5a198b50a617c0c427ce87082c8ec97a917788be1ccbdb4883476ec485f83f53",
+      elapsed_seconds: 2555,
+      technical_faults: 0,
+      implementation_pr: 609,
+      implementation_pr_merged: true,
+      live_weights_changed: false,
+    });
+    expect(rankingTeacher.parents).toBe(
+      rankingTeacher.shards_completed * rankingTeacher.parents_per_shard,
+    );
+    expect(rankingTeacher.elapsed_seconds).toBe(42 * 60 + 35);
+    expect(rankingTeacher).not.toHaveProperty("estimated_parents_per_day_at_8_shards");
     expect(evidence.claims.playing_strength_improved).toBe(false);
     expect(evidence.live_baseline.changed).toBe(false);
     expect(evidence.speed_preserving_experiments.halfkp81_alpha_0_5_interpolation.independent96).toMatchObject({
@@ -269,6 +302,16 @@ describe("shogi NNUE representation pivot evidence", () => {
       "48.307292%",
       "47.721354%",
       "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
+      "16 shard（各125親）",
+      "16 shards at 125 parents each",
+      "2,000親",
+      "2,000 parents",
+      "171,429 ranking records",
+      "42分35秒",
+      "42 minutes 35 seconds",
+      "技術障害0",
+      "zero technical faults",
+      "PR #609",
       "13,069",
       "[256 us, 256 them] -> 32 -> 32 -> 1",
       "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",

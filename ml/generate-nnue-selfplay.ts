@@ -1076,45 +1076,75 @@ export function searchPinnedFixedDepth(
     throw new Error("fixed-depth search requires a non-terminal position");
   const beforeHash = position.HashVal;
   const beforeSfen = toSfen(position, ply + 1);
-  syncWasm(wasm, position);
-  wasm.setRootTesu(ply);
-  const key = wasm.searchBestMove(0, depth, QUIESCENCE_DEPTH);
-  const score = wasm.getSearchScore();
-  const completedDepth = wasm.getSearchDepth();
-  const nodes = wasm.getSearchNodes();
-  const leaves = wasm.getSearchLeaves();
-  if (
-    position.HashVal !== beforeHash ||
-    toSfen(position, ply + 1) !== beforeSfen
-  ) {
-    throw new Error("fixed-depth search mutated the JS position");
-  }
-  if (key === 0)
-    throw new Error("WASM returned no move while legal moves exist");
-  for (const [label, value, minimum, maximum] of [
-    ["score", score, -MAX_SEARCH_SCORE, MAX_SEARCH_SCORE],
-    ["completed depth", completedDepth, 1, depth],
-    ["nodes", nodes, 0, 0x7fff_ffff],
-    ["leaves", leaves, 0, 0x7fff_ffff],
-  ] as const) {
-    if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
-      throw new Error(`invalid ${label}: ${value}`);
+  const runSearch = () => {
+    syncWasm(wasm, position);
+    wasm.setRootTesu(ply);
+    const key = wasm.searchBestMove(0, depth, QUIESCENCE_DEPTH);
+    return Object.freeze({
+      key,
+      score: wasm.getSearchScore(),
+      completedDepth: wasm.getSearchDepth(),
+      nodes: wasm.getSearchNodes(),
+      leaves: wasm.getSearchLeaves(),
+    });
+  };
+  const validateSearch = (result: ReturnType<typeof runSearch>): void => {
+    if (
+      position.HashVal !== beforeHash ||
+      toSfen(position, ply + 1) !== beforeSfen
+    ) {
+      throw new Error("fixed-depth search mutated the JS position");
     }
-  }
-  if (nodes + leaves <= 0)
-    throw new Error("fixed-depth search returned empty counters");
-  if (
-    completedDepth !== depth &&
-    !(completedDepth < depth && score >= WINNING_MATE_BAND)
-  ) {
-    throw new Error(
-      `fixed-depth search stopped at depth ${completedDepth}/${depth} without winning mate`,
+    for (const [label, value, minimum, maximum] of [
+      ["score", result.score, -MAX_SEARCH_SCORE, MAX_SEARCH_SCORE],
+      ["completed depth", result.completedDepth, 1, depth],
+      ["nodes", result.nodes, 0, 0x7fff_ffff],
+      ["leaves", result.leaves, 0, 0x7fff_ffff],
+    ] as const) {
+      if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+        throw new Error(`invalid ${label}: ${value}`);
+      }
+    }
+    if (result.nodes + result.leaves <= 0)
+      throw new Error("fixed-depth search returned empty counters");
+    if (
+      result.completedDepth !== depth &&
+      !(result.completedDepth < depth && result.score >= WINNING_MATE_BAND)
+    ) {
+      throw new Error(
+        `fixed-depth search stopped at depth ${result.completedDepth}/${depth} without winning mate`,
+      );
+    }
+  };
+  let raw = runSearch();
+  validateSearch(raw);
+  let decoded = raw.key === 0 ? null : teFromWasmKey(raw.key, position);
+  let move = decoded === null ? null : canonicalLegalMove(decoded, legal);
+  const firstInvalidMove =
+    raw.key === 0 ? "no move" : (decoded?.toString() ?? "undecodable move");
+  if (move === null) {
+    // A cross-ply collision in the WASM engine's effective 30-bit TT key can
+    // expose a stale packed root move. Re-search the exact same position once
+    // from an empty TT; never substitute a JS or random fallback move.
+    console.warn(
+      `[selfplay] clean-TT retry ply=${ply} invalid=${firstInvalidMove}`,
     );
+    wasm.clearTT();
+    raw = runSearch();
+    validateSearch(raw);
+    decoded = raw.key === 0 ? null : teFromWasmKey(raw.key, position);
+    move = decoded === null ? null : canonicalLegalMove(decoded, legal);
   }
-  const decoded = teFromWasmKey(key, position);
-  const move = canonicalLegalMove(decoded, legal);
+  const { key, score, completedDepth, nodes, leaves } = raw;
+  if (key === 0)
+    throw new Error(
+      `WASM returned no move while legal moves exist after clean-TT retry (first: ${firstInvalidMove})`,
+    );
   if (!move)
-    throw new Error(`WASM returned illegal move: ${decoded.toString()}`);
+    throw new Error(
+      `WASM returned illegal move after clean-TT retry: ${decoded?.toString() ?? "unknown"} ` +
+        `(first: ${firstInvalidMove})`,
+    );
   return Object.freeze({
     score,
     completedDepth,

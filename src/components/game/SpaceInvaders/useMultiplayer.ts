@@ -5,15 +5,16 @@
 
 'use client';
 
-import { setData,subscribeToPath } from '@/lib/firebaseRealtimeDb';
+import { setData,subscribeToPath,updateData } from '@/lib/firebaseRealtimeDb';
 import * as gameActionClient from '@/services/gameActionClient';
 import {
 MultiplayerContext,
 } from '@/services/gameRoomService';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { type MutableRefObject,useCallback,useEffect,useRef,useState } from 'react';
 import {
 GameRoom,
 generatePlayerId,
+JoinerReport,
 MultiplayerGameState,
 MultiplayerPlayer,
 PLAYER_COLORS,
@@ -26,6 +27,13 @@ export interface UseMultiplayerReturn {
   otherPlayer: MultiplayerPlayer | null;
   myColor: string;
   otherColor: string;
+  /**
+   * Always-fresh room data for the game loop. React state (`room`,
+   * `otherPlayer`) only updates on lobby-relevant changes; high-frequency
+   * gameplay writes (positions, gameState snapshots) land here without
+   * triggering re-renders.
+   */
+  latestRoomRef: MutableRefObject<GameRoom | null>;
 
   // Actions
   createRoom: (playerName: string, password: string) => Promise<boolean>;
@@ -33,11 +41,25 @@ export interface UseMultiplayerReturn {
   leaveRoom: () => Promise<void>;
   setReady: (ready: boolean) => Promise<boolean>;
   startGame: (initialGameState: MultiplayerGameState) => Promise<boolean>;
-  updateMyPosition: (x: number) => void;
+  updateMyPosition: (x: number, bullet: { x: number; y: number } | null) => void;
   updateMyState: (score: number, lives: number) => void;
   updateGameState: (gameState: MultiplayerGameState) => void;
+  sendJoinerReport: (report: JoinerReport) => void;
   endGame: (winnerId: string | null) => Promise<void>;
   resetMultiplayer: () => void;
+}
+
+/**
+ * Signature of the lobby-relevant parts of a room. Gameplay traffic
+ * (player x/score, gameState snapshots at 10-20Hz) is excluded so it doesn't
+ * re-render the React tree every frame — the game loop reads it from
+ * `latestRoomRef` instead.
+ */
+function roomMetaSignature(room: GameRoom): string {
+  const players = Object.values(room.players || {})
+    .map(p => [p.id, p.name, p.ready] as const)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  return JSON.stringify([room.status, room.winnerId ?? null, players]);
 }
 
 export function useMultiplayer(): UseMultiplayerReturn {
@@ -65,20 +87,29 @@ export function useMultiplayer(): UseMultiplayerReturn {
 
   const [room, setRoom] = useState<GameRoom | null>(null);
 
-  // Throttle refs for position updates
+  // Always-fresh room mirror for the game loop (no re-render on update).
+  const latestRoomRef = useRef<GameRoom | null>(null);
+  const lastRoomSigRef = useRef<string>('');
+
+  // Throttle / change-detection refs for gameplay writes
   const lastPositionUpdate = useRef<number>(0);
-  const lastStateUpdate = useRef<number>(0);
+  const lastSentPositionRef = useRef<{ x: number; hadBullet: boolean } | null>(null);
+  const lastSentStateRef = useRef<{ score: number; lives: number } | null>(null);
   const lastGameStateUpdate = useRef<number>(0);
 
   // Subscribe to room updates
   useEffect(() => {
     if (!context.roomId) return;
 
+    lastRoomSigRef.current = '';
     const unsubscribe = subscribeToPath<GameRoom>(
       `gameRooms/${context.roomId}`,
       (roomData) => {
+        latestRoomRef.current = roomData;
+
         if (!roomData) {
           // Room was deleted
+          lastRoomSigRef.current = '';
           setContext(prev => ({
             ...prev,
             roomId: null,
@@ -90,6 +121,12 @@ export function useMultiplayer(): UseMultiplayerReturn {
           return;
         }
 
+        // Only push lobby-relevant changes into React state; per-frame
+        // gameplay traffic is consumed via latestRoomRef by the RAF loop.
+        const sig = roomMetaSignature(roomData);
+        if (sig === lastRoomSigRef.current) return;
+        lastRoomSigRef.current = sig;
+
         setRoom(roomData);
         setContext(prev => ({
           ...prev,
@@ -100,7 +137,10 @@ export function useMultiplayer(): UseMultiplayerReturn {
       }
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      latestRoomRef.current = null;
+    };
   }, [context.roomId]);
 
   // Calculate other player
@@ -120,6 +160,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
       const result = await gameActionClient.createRoom({ playerId, playerName, password, gameType: 'space-invaders' });
 
       if (result.success && result.roomId) {
+        latestRoomRef.current = (result.room as GameRoom) || null;
         setContext(prev => ({
           ...prev,
           roomId: result.roomId!,
@@ -158,6 +199,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
       const result = await gameActionClient.joinRoom({ roomId, playerId, playerName, password });
 
       if (result.success && result.room) {
+        latestRoomRef.current = (result.room as GameRoom) || null;
         setContext(prev => ({
           ...prev,
           roomId,
@@ -203,6 +245,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
       error: null,
     }));
     setRoom(null);
+    latestRoomRef.current = null;
   }, [context.roomId, playerId]);
 
   // Set ready
@@ -251,28 +294,67 @@ export function useMultiplayer(): UseMultiplayerReturn {
     }
   }, [context.roomId, context.isHost, playerId]);
 
-  // Update position (throttled) - uses game state update
-  const updateMyPosition = useCallback((_x: number): void => {
+  // Reset gameplay write book-keeping whenever a match starts so the first
+  // frame of a new game always publishes fresh player state.
+  useEffect(() => {
+    if (context.lobbyState === 'playing') {
+      lastPositionUpdate.current = 0;
+      lastSentPositionRef.current = null;
+      lastSentStateRef.current = null;
+      lastGameStateUpdate.current = 0;
+    }
+  }, [context.lobbyState]);
+
+  // Publish own ship position + in-flight bullet (throttled to ~20Hz, and
+  // skipped entirely while idle with no bullet on screen).
+  const updateMyPosition = useCallback((x: number, bullet: { x: number; y: number } | null): void => {
     if (!context.roomId) return;
 
     const now = Date.now();
     if (now - lastPositionUpdate.current < 50) return; // 20 updates per second max
+
+    const rx = Math.round(x);
+    const prev = lastSentPositionRef.current;
+    if (prev && prev.x === rx && !prev.hadBullet && !bullet) return; // nothing changed
+
     lastPositionUpdate.current = now;
+    lastSentPositionRef.current = { x: rx, hadBullet: Boolean(bullet) };
 
-    // Position updates go through game state for Space Invaders
-    // This is handled by the game engine
-  }, [context.roomId]);
+    // Direct RTDB write — same rationale as updateGameState below.
+    updateData(`gameRooms/${context.roomId}/players/${playerId}`, {
+      x: rx,
+      bullet: bullet ? { x: Math.round(bullet.x), y: Math.round(bullet.y) } : null,
+      lastUpdate: now,
+    }).catch(() => {});
+  }, [context.roomId, playerId]);
 
-  // Update state (throttled)
-  const updateMyState = useCallback((_score: number, _lives: number): void => {
+  // Publish own score/lives. Change-driven: writes immediately when either
+  // value changes and never otherwise.
+  const updateMyState = useCallback((score: number, lives: number): void => {
     if (!context.roomId) return;
 
-    const now = Date.now();
-    if (now - lastStateUpdate.current < 100) return; // 10 updates per second max
-    lastStateUpdate.current = now;
+    const prev = lastSentStateRef.current;
+    if (prev && prev.score === score && prev.lives === lives) return;
+    lastSentStateRef.current = { score, lives };
 
-    // State updates are bundled with game state updates
-  }, [context.roomId]);
+    updateData(`gameRooms/${context.roomId}/players/${playerId}`, {
+      score,
+      lives,
+      lastUpdate: Date.now(),
+    }).catch(() => {});
+  }, [context.roomId, playerId]);
+
+  // Joiner → host event report (kills / shield erosion / UFO kills resolved
+  // locally on the joiner). Level-scoped and idempotent, so it's safe to
+  // rewrite the whole node on every new event.
+  const sendJoinerReport = useCallback((report: JoinerReport): void => {
+    if (!context.roomId) return;
+
+    setData(`gameRooms/${context.roomId}/pendingActions/${playerId}`, {
+      ...report,
+      lastUpdate: Date.now(),
+    }).catch(() => {});
+  }, [context.roomId, playerId]);
 
   // Update game state (host only, throttled)
   const updateGameState = useCallback((
@@ -316,6 +398,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
       error: null,
     });
     setRoom(null);
+    latestRoomRef.current = null;
   }, [playerId]);
 
   return {
@@ -324,6 +407,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
     otherPlayer,
     myColor,
     otherColor,
+    latestRoomRef,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -332,6 +416,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
     updateMyPosition,
     updateMyState,
     updateGameState,
+    sendJoinerReport,
     endGame,
     resetMultiplayer,
   };

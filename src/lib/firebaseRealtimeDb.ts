@@ -6,7 +6,7 @@
 'use client';
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getDatabase, ref, onValue, off, set, Database, DataSnapshot } from 'firebase/database';
+import { getDatabase, ref, onValue, off, set, update, Database, DataSnapshot } from 'firebase/database';
 import { ensureGameSignIn } from '@/lib/gameAuth';
 import { firebaseClientConfig, isFirebaseClientConfigured } from '@/lib/firebaseConfig';
 
@@ -72,6 +72,17 @@ export async function setData<T>(path: string, data: T): Promise<void> {
   await ensureGameSignIn();
   const db = getFirebaseDatabase();
   await set(ref(db, path), data);
+}
+
+/**
+ * Partially update data at a database path (leaves sibling keys untouched).
+ * A `null` value removes that key.
+ */
+export async function updateData(path: string, data: Record<string, unknown>): Promise<void> {
+  // Same auth requirement as setData — see comment there.
+  await ensureGameSignIn();
+  const db = getFirebaseDatabase();
+  await update(ref(db, path), data);
 }
 
 /**

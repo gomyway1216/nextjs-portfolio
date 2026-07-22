@@ -217,7 +217,7 @@ describe('updateGame integration', () => {
     const sounds = updateGame(s, NO_INPUT, 16.67, 1000);
     expect(sounds.levelComplete).toBe(true);
     expect(s.level).toBe(2);
-    expect(s.victory).toBe(false); // endless — no forced victory
+    expect(s.gameOver).toBe(false); // endless — clearing a wave never ends the game
   });
 
   it('a player bullet destroys an enemy and scores it', () => {

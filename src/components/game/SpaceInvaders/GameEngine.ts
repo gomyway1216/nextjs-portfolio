@@ -207,7 +207,6 @@ export function createGameState(
     difficulty,
     nextExtraLifeAt: EXTRA_LIFE_EVERY,
     gameOver: false,
-    victory: false,
     isPaused: false,
     animationTick: 0,
     marchCounter: 0,
@@ -265,11 +264,40 @@ export function grantExtraLives(state: GameState): boolean {
   return granted;
 }
 
+/** Options for co-op multiplayer simulation (host side). */
+export interface CoopUpdateOptions {
+  /**
+   * Whether the teammate still has lives. In co-op the shared sim keeps
+   * running while either ship is alive; the game only ends when both are out
+   * (or the invaders land).
+   */
+  teammateAlive: boolean;
+}
+
 // Update game state
-export function updateGame(state: GameState, input: InputState, deltaTime: number, now: number): SoundEvents {
+export function updateGame(
+  state: GameState,
+  input: InputState,
+  deltaTime: number,
+  now: number,
+  coop?: CoopUpdateOptions
+): SoundEvents {
   const sounds = createSoundEvents();
 
-  if (state.gameOver || state.victory || state.isPaused) return sounds;
+  if (state.gameOver || state.isPaused) return sounds;
+
+  // Co-op end condition: this ship is already out, and the teammate has now
+  // run out of lives too (reported over the network).
+  if (coop && state.lives <= 0 && !coop.teammateAlive) {
+    state.gameOver = true;
+    sounds.gameOver = true;
+    return sounds;
+  }
+
+  // In co-op a ship with no lives left is out of the action but the shared
+  // sim continues. In single-player lives <= 0 implies gameOver, so this is
+  // always true there.
+  const playerActive = state.lives > 0;
 
   const difficulty = DIFFICULTY_SETTINGS[state.difficulty];
   // Normalize to ~60fps and clamp so a long tab-switch stall can't teleport
@@ -278,15 +306,15 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
   state.animationTick++;
 
   // Move player
-  if (input.left) {
+  if (playerActive && input.left) {
     state.player.x = Math.max(0, state.player.x - PLAYER_SPEED * dt);
   }
-  if (input.right) {
+  if (playerActive && input.right) {
     state.player.x = Math.min(CANVAS_WIDTH - state.player.width, state.player.x + PLAYER_SPEED * dt);
   }
 
   // Player shooting
-  if (input.shoot && now - state.player.lastShot >= PLAYER_SHOOT_COOLDOWN) {
+  if (playerActive && input.shoot && now - state.player.lastShot >= PLAYER_SHOOT_COOLDOWN) {
     // Only allow one player bullet at a time (classic behavior)
     const hasPlayerBullet = state.bullets.some(b => !b.isEnemy);
     if (!hasPlayerBullet) {
@@ -377,7 +405,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
       }
     } else {
       // Enemy bullet hitting player
-      if (checkCollision(
+      if (playerActive && checkCollision(
         bullet.x, bullet.y, bullet.width, bullet.height,
         state.player.x, state.player.y, state.player.width, state.player.height
       )) {
@@ -386,8 +414,12 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
         sounds.playerHit = true;
 
         if (state.lives <= 0) {
-          state.gameOver = true;
-          sounds.gameOver = true;
+          if (!coop || !coop.teammateAlive) {
+            state.gameOver = true;
+            sounds.gameOver = true;
+          }
+          // Co-op with a living teammate: this ship is out, but the shared
+          // sim keeps running for the teammate.
         } else {
           resetAfterDeath(state);
         }
@@ -528,4 +560,218 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
   }
 
   return sounds;
+}
+
+// --- Multiplayer joiner simulation ---------------------------------------
+//
+// In co-op the HOST runs the authoritative sim of all shared entities
+// (invader formation, enemy fire, UFO, shields) via `updateGame` and
+// publishes snapshots. The JOINER applies those snapshots (see
+// `applyNetworkGameState` in multiplayerTypes.ts) and runs only this
+// local-only frame update in between: own ship, own bullets, and smooth
+// extrapolation of the shared entities along their known velocities.
+// Hits by the joiner's own bullets are resolved locally (instant feedback,
+// local score) and reported to the host as events so the authoritative sim
+// removes the same invader/shield block/UFO.
+
+/** Invulnerability window after a joiner respawn (see GameState.invulnUntil). */
+export const JOINER_RESPAWN_INVULN_MS = 1500;
+
+/** Events produced by a joiner frame that must be reported to the host. */
+export interface JoinerFrameEvents {
+  /** Indices (into formation.enemies) of invaders destroyed by the local player. */
+  kills: number[];
+  /** Shield block keys `<shieldIdx>_<blockIdx>` destroyed by the local player's bullets. */
+  shieldHits: string[];
+  /** True if the local player's bullet destroyed the UFO this frame. */
+  ufoKilled: boolean;
+}
+
+/**
+ * Per-frame update for the non-host player. Never spawns enemy fire or UFOs,
+ * never marches the formation authoritatively, and never sets gameOver from
+ * lives (the host decides when the game ends).
+ */
+export function updateJoinerGame(
+  state: GameState,
+  input: InputState,
+  deltaTime: number,
+  now: number
+): { sounds: SoundEvents; events: JoinerFrameEvents } {
+  const sounds = createSoundEvents();
+  const events: JoinerFrameEvents = { kills: [], shieldHits: [], ufoKilled: false };
+
+  if (state.gameOver || state.isPaused) return { sounds, events };
+
+  const difficulty = DIFFICULTY_SETTINGS[state.difficulty];
+  const dt = Math.min(deltaTime / 16.67, 2.5);
+  // Advance the tick locally for smooth star parallax; the host's
+  // authoritative tick overwrites this on the next snapshot.
+  state.animationTick++;
+
+  const playerActive = state.lives > 0;
+
+  // Move own ship
+  if (playerActive && input.left) {
+    state.player.x = Math.max(0, state.player.x - PLAYER_SPEED * dt);
+  }
+  if (playerActive && input.right) {
+    state.player.x = Math.min(CANVAS_WIDTH - state.player.width, state.player.x + PLAYER_SPEED * dt);
+  }
+
+  // Own shooting — classic one-bullet rule, counting only own bullets.
+  if (playerActive && input.shoot && now - state.player.lastShot >= PLAYER_SHOOT_COOLDOWN) {
+    const hasOwnBullet = state.bullets.some(b => !b.isEnemy && !b.remote);
+    if (!hasOwnBullet) {
+      state.bullets.push({
+        x: state.player.x + state.player.width / 2 - BULLET_WIDTH / 2,
+        y: state.player.y - BULLET_HEIGHT,
+        width: BULLET_WIDTH,
+        height: BULLET_HEIGHT,
+        isEnemy: false,
+      });
+      state.player.lastShot = now;
+      sounds.playerShoot = true;
+    }
+  }
+
+  // Move bullets and resolve what the joiner is allowed to resolve.
+  for (let i = state.bullets.length - 1; i >= 0; i--) {
+    const bullet = state.bullets[i];
+
+    if (bullet.isEnemy) {
+      bullet.y += ENEMY_BULLET_SPEED * difficulty.bulletSpeedMultiplier * dt;
+    } else {
+      bullet.y -= BULLET_SPEED * dt;
+    }
+
+    if (bullet.y < -bullet.height || bullet.y > CANVAS_HEIGHT) {
+      state.bullets.splice(i, 1);
+      continue;
+    }
+
+    if (bullet.remote) {
+      // Host-owned bullet. Enemy fire can hit the local ship; the host's own
+      // bullets are cosmetic here (their hits resolve on the host).
+      if (
+        bullet.isEnemy &&
+        playerActive &&
+        now >= (state.invulnUntil ?? 0) &&
+        checkCollision(
+          bullet.x, bullet.y, bullet.width, bullet.height,
+          state.player.x, state.player.y, state.player.width, state.player.height
+        )
+      ) {
+        state.lives--;
+        state.bullets.splice(i, 1);
+        sounds.playerHit = true;
+        if (state.lives > 0) {
+          // Respawn: recenter the ship and drop only our own in-flight
+          // bullet. Unlike solo (resetAfterDeath), host-owned bullets are
+          // left intact — the joiner can't truly clear them (the next
+          // snapshot would just reintroduce them, causing flicker), and the
+          // invulnerability window protects the respawn instead.
+          state.player = createPlayer();
+          state.bullets = state.bullets.filter(b => b.remote);
+          state.invulnUntil = now + JOINER_RESPAWN_INVULN_MS;
+        }
+        // lives <= 0: ship is out; the host ends the game once both are out.
+        return { sounds, events };
+      }
+      continue;
+    }
+
+    // Own bullet: shields first (matches host ordering), then invaders, UFO.
+    let hitShield = false;
+    for (let si = 0; si < state.shields.length; si++) {
+      const blocks = state.shields[si].blocks;
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const block = blocks[bi];
+        if (!block.active) continue;
+        if (checkCollision(
+          bullet.x, bullet.y, bullet.width, bullet.height,
+          block.x, block.y, SHIELD_BLOCK_SIZE, SHIELD_BLOCK_SIZE
+        )) {
+          block.active = false;
+          events.shieldHits.push(`${si}_${bi}`);
+          state.bullets.splice(i, 1);
+          hitShield = true;
+          break;
+        }
+      }
+      if (hitShield) break;
+    }
+    if (hitShield) continue;
+
+    let hit = false;
+    for (let ei = 0; ei < state.formation.enemies.length; ei++) {
+      const enemy = state.formation.enemies[ei];
+      if (!enemy.active) continue;
+      if (checkCollision(
+        bullet.x, bullet.y, bullet.width, bullet.height,
+        enemy.x, enemy.y, enemy.width, enemy.height
+      )) {
+        enemy.active = false;
+        state.score += pointsForEnemy(enemy.type);
+        events.kills.push(ei);
+        state.bullets.splice(i, 1);
+        sounds.enemyHit = true;
+        hit = true;
+        break;
+      }
+    }
+    if (hit) {
+      if (grantExtraLives(state)) sounds.extraLife = true;
+      continue;
+    }
+
+    if (state.ufo && state.ufo.active) {
+      if (checkCollision(
+        bullet.x, bullet.y, bullet.width, bullet.height,
+        state.ufo.x, state.ufo.y, state.ufo.width, state.ufo.height
+      )) {
+        state.score += state.ufo.points;
+        state.ufo = null;
+        events.ufoKilled = true;
+        state.bullets.splice(i, 1);
+        sounds.ufoHit = true;
+        if (grantExtraLives(state)) sounds.extraLife = true;
+      }
+    }
+  }
+
+  // Extrapolate the shared entities between snapshots so they move smoothly
+  // at the host's published velocity; the next snapshot corrects any drift.
+  const activeEnemies = state.formation.enemies.filter(e => e.active);
+  if (activeEnemies.length > 0 && !state.formation.moveDown) {
+    let minX = CANVAS_WIDTH;
+    let maxX = 0;
+    for (const enemy of activeEnemies) {
+      minX = Math.min(minX, enemy.x);
+      maxX = Math.max(maxX, enemy.x + enemy.width);
+    }
+    const currentSpeed = state.formation.speed * speedMultiplierForRemaining(activeEnemies.length);
+    const moveX = currentSpeed * state.formation.direction * dt;
+    const willHitRightWall = state.formation.direction > 0 && maxX + moveX >= CANVAS_WIDTH - 5;
+    const willHitLeftWall = state.formation.direction < 0 && minX + moveX <= 5;
+    // Don't extrapolate through a wall — the host resolves the bounce/descent.
+    if (!willHitRightWall && !willHitLeftWall) {
+      for (const enemy of activeEnemies) {
+        enemy.x += moveX;
+      }
+    }
+  }
+
+  if (state.ufo && state.ufo.active) {
+    state.ufo.x += UFO_SPEED * state.ufo.direction * dt;
+    if (state.ufo.x < -UFO_WIDTH || state.ufo.x > CANVAS_WIDTH) {
+      state.ufo = null;
+    }
+  }
+
+  if (state.score > state.highScore) {
+    state.highScore = state.score;
+  }
+
+  return { sounds, events };
 }

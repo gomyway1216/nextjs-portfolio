@@ -1,0 +1,68 @@
+{
+  "schema": "shogi-halfkp-browser-confusion-selection-v1",
+  "status": "prospective-selection-rule-not-live-authorization",
+  "registered_at_utc": "2026-07-22T04:50:07Z",
+  "registered_before_training_results": true,
+  "training_protocol": {
+    "path": "ml/protocols/halfkp-browser-confusion-alpha050-ranking-v1-plan.json",
+    "sha256_at_training_start": "46f4bd22e2d063a84db90914352396d4dad6676f2782078d3b19bf4d5789a056"
+  },
+  "slots_in_final_tie_break_order": [
+    {
+      "id": "balanced-seed42",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-balanced-seed42-v1/result.json"
+    },
+    {
+      "id": "conservative-seed43",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-conservative-seed43-v1/result.json"
+    },
+    {
+      "id": "pair-focused-seed44",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-pair-focused-seed44-v1/result.json"
+    }
+  ],
+  "eligibility": [
+    "trainer exit status is zero",
+    "result status is complete-candidate-admitted-not-authorized-for-live",
+    "best epoch is a positive integer",
+    "best selection key contains three finite numbers",
+    "best.pt exists and its recorded admission passed",
+    "protocol, initializer, and dataset identities match the prospective training plan"
+  ],
+  "selection": {
+    "primary_key_descending": [
+      "sibling_pair_accuracy",
+      "sibling_top1_accuracy",
+      "negative_preservation_value_loss"
+    ],
+    "exact_tie_break": "first slot in slots_in_final_tie_break_order",
+    "runner_up_substitution_after_quantized_gate_failure": false
+  },
+  "quantized_gate": {
+    "positions": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/parity64.sfens",
+    "positions_sha256": "481c6e065f6b6cbcaa78ab340c5182a4292e46056ea681e8823ca9501535cd83",
+    "required_exact_matches": 64,
+    "runtimes": [
+      "Torch",
+      "TypeScript",
+      "research WASM"
+    ],
+    "maximum_mean_quantization_error_regression_cp": 5.0,
+    "maximum_worst_quantization_error_regression_cp": 20.0
+  },
+  "fresh_gate": {
+    "milliseconds_per_move": 1500,
+    "screen56_seed_start": 650001,
+    "independent96_seed_start": 750001,
+    "formal768_seed_start": 850001,
+    "screen56_required_halfpoints": 62,
+    "screen56_total_halfpoints": 112
+  },
+  "stop_rules": [
+    "Stop without matches when no training run is eligible.",
+    "Stop without substituting a runner-up when the selected candidate fails the quantized gate.",
+    "Run no trial games before the screen56 manifest is frozen.",
+    "Never write public/shogi-nnue-weights.bin from this selection lane."
+  ],
+  "claim_boundary": "Selection, quantization, and fresh-match preregistration only; not playing-strength evidence or live authorization."
+}

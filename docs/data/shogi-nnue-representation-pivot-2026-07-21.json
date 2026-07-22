@@ -1,6 +1,6 @@
 {
   "schema": "shogi-nnue-representation-pivot-evidence-v1",
-  "status": "halfkp81-alpha-0.5-independent96-passed-formal768-running-live-unchanged",
+  "status": "halfkp81-alpha-0.5-formal768-rejected-live-unchanged",
   "recorded_date": "2026-07-21",
   "articles": [
     "docs/blog-shogi-opening-book.md",
@@ -487,7 +487,7 @@
       "live_promoted": false
     },
     "halfkp81_alpha_0_5_interpolation": {
-      "status": "screen56-and-independent96-passed-formal768-running",
+      "status": "screen56-and-independent96-passed-formal768-rejected",
       "selection_protocol": "ml/protocols/halfkp81-interpolation-relative-quant-screen-v2.json",
       "relation_to_original_selection": "The original absolute 175cp quantization cap remains failed; this is a new prospective relative-within-5-percent rule with fresh seeds.",
       "alpha": 0.5,
@@ -533,11 +533,40 @@
         "passed": true
       },
       "formal768": {
-        "status": "running",
+        "status": "rejected-complete",
+        "report_sha256": "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
+        "manifest_sha256": "6470c79b95ccf94fdd51fd017b05daab9e39b9ea98f7a22db4e8a7b72f0cc4e0",
         "pair_seed_start": 840001,
+        "pairs": 384,
         "games": 768,
         "workers": 12,
-        "promotion_authorized_before_completion": false
+        "candidate_wins": 376,
+        "live_wins": 357,
+        "draws": 35,
+        "candidate_half_points": 787,
+        "score_denominator_half_points": 1536,
+        "score_percent": 51.236979166666664,
+        "decision_rule": "one-sided 95-percent paired-bootstrap lower bound strictly above 45 percent for safety and two-sided 95-percent lower bound strictly above 50 percent for stronger promotion",
+        "bootstrap_seed": 20260710,
+        "bootstrap_replicates": 100000,
+        "bootstrap_denominator_half_points": 1536,
+        "one_sided_95_lower_half_points": 742,
+        "one_sided_95_lower_percent": 48.307291666666664,
+        "two_sided_95_lower_half_points": 733,
+        "two_sided_95_lower_percent": 47.721354166666664,
+        "safety_lower_bound_percent": 45,
+        "safety_passed": true,
+        "stronger_lower_bound_percent": 50,
+        "stronger_passed": false,
+        "all_moves_legal": true,
+        "all_openings_unique": true,
+        "technical_faults": 0,
+        "completed": true,
+        "decision": "rejected-complete",
+        "passed": false,
+        "promotion_authorized_before_completion": false,
+        "promotion_authorized_after_completion": false,
+        "external_calibration_started": false
       },
       "live_promoted": false
     },
@@ -619,13 +648,13 @@
     "high_dan_calibrated": false
   },
   "next_experiment": {
-    "status": "independent-confirmation-passed-formal768-running",
-    "representation": "single-perspective HalfKP81 alpha-0.5 parameter interpolation",
+    "status": "confusion-teacher-regeneration-and-ranking-retraining-next",
+    "representation": "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
     "arms": [
-      "the single prospectively selected alpha-0.5 interpolation candidate"
+      "a prospectively selected checkpoint from regenerated browser-confusion teacher data"
     ],
     "uses_published_nnue_weights": false,
     "strength_claimed_before_direct_play": false
   },
-  "next_step": "Keep live unchanged. Complete the 768-game formal A/B and external calibration; only those prospective passes may authorize promotion."
+  "next_step": "Keep live unchanged. Regenerate the browser-confusion teacher, retrain sibling rankings, and require a new candidate to pass the direct, independent, and formal gates before external calibration or promotion."
 }

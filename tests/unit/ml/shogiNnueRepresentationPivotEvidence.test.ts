@@ -190,12 +190,211 @@ describe("shogi NNUE representation pivot evidence", () => {
       },
     });
     expect(evidence.next_experiment).toMatchObject({
-      status: "confusion-teacher-regeneration-and-ranking-retraining-next",
+      status:
+        "browser-confusion-sibling-lane-permanently-stopped-after-temperature-diagnostic",
       representation: "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
+      arms: [],
       uses_published_nnue_weights: false,
       strength_claimed_before_direct_play: false,
     });
-    expect(evidence.claims.playing_strength_improved).toBe(false);
+    const rankingTeacher =
+      evidence.speed_preserving_experiments.browser_confusion_ranking_teacher;
+    expect(rankingTeacher).toMatchObject({
+      status: "batch3-generation-complete",
+      smoke_parents: 3,
+      smoke_legal_moves: 239,
+      shards_completed: 16,
+      parents_per_shard: 125,
+      parents: 2000,
+      ranking_records: 171429,
+      unique_games: 53,
+      forced_positions: 27,
+      agreement_positions: 1012,
+      eligible_positions: 3213,
+      typed_skips: {
+        browser: 21,
+        teacher: 153,
+      },
+      ranking_bytes: 146984194,
+      parents_bytes: 211038587,
+      ordered_shard_identity_sha256:
+        "5a198b50a617c0c427ce87082c8ec97a917788be1ccbdb4883476ec485f83f53",
+      elapsed_seconds: 2555,
+      technical_faults: 0,
+      implementation_pr: 609,
+      implementation_pr_merged: true,
+      live_weights_changed: false,
+    });
+    expect(rankingTeacher.parents).toBe(
+      rankingTeacher.shards_completed * rankingTeacher.parents_per_shard,
+    );
+    expect(rankingTeacher.elapsed_seconds).toBe(42 * 60 + 35);
+    expect(rankingTeacher).not.toHaveProperty("estimated_parents_per_day_at_8_shards");
+    const rankingFineTune =
+      evidence.speed_preserving_experiments.browser_confusion_ranking_fine_tune;
+    expect(rankingFineTune).toMatchObject({
+      status: "three-runs-complete-no-admitted-candidate",
+      training_rows: 112011,
+      training_parents: 1334,
+      validation_rows: 57658,
+      validation_parents: 643,
+      value_replay_rows: 500000,
+      preservation_rows_before_exclusion: 3000,
+      preservation_overlap_rows_excluded: 41,
+      preservation_rows_after_exclusion: 2959,
+      sibling_vs_preservation_semantic_overlap: 0,
+      epochs_planned_per_run: 8,
+      pair_gain_required_minimum: 0.003,
+      top1_gain_required_minimum: 0,
+      runs: [
+        {
+          slot: "balanced-seed42",
+          seed: 42,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 489.769,
+          final_sibling_pair_gain: 0.0060029797,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0062208398,
+          final_preservation_mae_improvement_cp: 69.5745,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "ff0244cfe498f30ca42776734311de21626b5cb19c7239ceed980ab2466ccf80",
+          admitted: false,
+        },
+        {
+          slot: "conservative-seed43",
+          seed: 43,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 472.128,
+          final_sibling_pair_gain: 0.0040767382,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0031104199,
+          final_preservation_mae_improvement_cp: 47.2097,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "8a5a7b3c012700aada253cda8040bb3b43d94fb491e5a43963ff8645951c5ce3",
+          admitted: false,
+        },
+        {
+          slot: "pair-focused-seed44",
+          seed: 44,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 487.72,
+          final_sibling_pair_gain: 0.0052073582,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0046656299,
+          final_preservation_mae_improvement_cp: 70.0801,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "264abd5695e52a059966150264af5032a052da19ff5ce81c5ff520f71b740d40",
+          admitted: false,
+        },
+      ],
+      eligible_runs: 0,
+      admitted_exports_created: 0,
+      quantized_parity_started: false,
+      matches_run: 0,
+      live_weights_changed: false,
+    });
+    expect(rankingFineTune.top1_temperature_50_diagnostic).toMatchObject({
+      status: "complete-all-three-arms-failed",
+      policy_temperature_cp: 50,
+      protocol_sha256:
+        "376463136fced8a3efb51e3fb38cd79ea1d62f14ee0a1160f081d819ff64f8cd",
+      epochs_per_arm: 1,
+      validation_parents: 643,
+      baseline_top1_correct: 66,
+      candidate_top1_correct_per_arm: 65,
+      top1_gain_per_arm: -0.0015552099533437114,
+      preregistered_top1_correct_minimum: 68,
+      arms: [
+        {
+          arm: "A",
+          policy_weight: 0.0625,
+          rank_weight: 0,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002455732956344603,
+          preservation_mae_improvement_cp: 33.714376425735054,
+          preservation_loss_ratio: 0.9291103994933371,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 64.8028,
+          result_sha256:
+            "47e077be5f8b679964712504df73f81ef321977ee8d536c50e9b97ac7f67248a",
+          passed: false,
+        },
+        {
+          arm: "B",
+          policy_weight: 0.125,
+          rank_weight: 0,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002382711584615671,
+          preservation_mae_improvement_cp: 34.369125443561984,
+          preservation_loss_ratio: 0.9279084257602017,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 64.221,
+          result_sha256:
+            "fb0f24ffeffd8136c12dbbd24b022600ff2684429923e473c2565d007a51f0cb",
+          passed: false,
+        },
+        {
+          arm: "C",
+          policy_weight: 0.0625,
+          rank_weight: 0.25,
+          exit_code: 0,
+          epochs_completed: 1,
+          sibling_pair_gain: 0.002338068186733988,
+          preservation_mae_improvement_cp: 33.49957557979894,
+          preservation_loss_ratio: 0.9296824618583053,
+          top1_correct: 65,
+          top1_gain: -0.0015552099533437114,
+          elapsed_seconds: 65.3695,
+          result_sha256:
+            "3d9e9fdaf5070cb35b0795967945efeb4dd38779466a83d805d5c9811852a7df",
+          passed: false,
+        },
+      ],
+      temperature_hypothesis_passed: false,
+      three_epoch_runs_started: 0,
+      exports_created: 0,
+      quantized_parity_started: false,
+      matches_run: 0,
+      live_weights_changed: false,
+      lane_closed_permanently: true,
+    });
+    expect(rankingFineTune.runs).toHaveLength(3);
+    for (const run of rankingFineTune.runs) {
+      expect(run.final_sibling_pair_gain).toBeGreaterThanOrEqual(
+        rankingFineTune.pair_gain_required_minimum,
+      );
+      expect(run.pair_gain_passed).toBe(true);
+      expect(run.best_sibling_top1_gain).toBeLessThan(
+        rankingFineTune.top1_gain_required_minimum,
+      );
+      expect(run.top1_gain_passed).toBe(false);
+      expect(run.preservation_mae_passed).toBe(true);
+    }
+    expect(
+      rankingFineTune.preservation_rows_after_exclusion +
+        rankingFineTune.preservation_overlap_rows_excluded,
+    ).toBe(rankingFineTune.preservation_rows_before_exclusion);
+    expect(evidence.claims).toEqual({
+      playing_strength_improved: false,
+      live_model_changed: false,
+      high_dan_calibrated: false,
+    });
     expect(evidence.live_baseline.changed).toBe(false);
     expect(evidence.speed_preserving_experiments.halfkp81_alpha_0_5_interpolation.independent96).toMatchObject({
       status: "passed-clean-rerun-after-invalidated-technical-fault-attempt",
@@ -269,6 +468,33 @@ describe("shogi NNUE representation pivot evidence", () => {
       "48.307292%",
       "47.721354%",
       "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
+      "16 shard（各125親）",
+      "16 shards at 125 parents each",
+      "2,000親",
+      "2,000 parents",
+      "171,429 ranking records",
+      "42分35秒",
+      "42 minutes 35 seconds",
+      "技術障害0",
+      "zero technical faults",
+      "PR #609",
+      "112,011行・1,334親",
+      "112,011 rows from 1,334 parents",
+      "57,658行・643親",
+      "57,658 rows from 643 parents",
+      "重複41行を除いた2,959行",
+      "2,959 rows after excluding 41 overlaps",
+      "+0.6003、+0.4077、+0.5207ポイント",
+      "0.6003, 0.4077, and 0.5207 percentage points",
+      "complete-no-admitted-candidate",
+      "対局数0",
+      "zero games were run",
+      "全て65/643、基準比-0.1555ポイント",
+      "every arm scored 65/643, 0.1555 percentage points below baseline",
+      "3 epoch継続、export、量子化parity、対局は一度も開始せず",
+      "did not start any three-epoch continuation, export, quantized parity, or match",
+      "temperature仮説も外れた",
+      "temperature hypothesis failed",
       "13,069",
       "[256 us, 256 them] -> 32 -> 32 -> 1",
       "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",

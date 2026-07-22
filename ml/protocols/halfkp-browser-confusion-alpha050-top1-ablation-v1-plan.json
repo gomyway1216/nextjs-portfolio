@@ -1,0 +1,115 @@
+{
+  "schema": "shogi-halfkp-sibling-preservation-plan-v1",
+  "status": "prospective-one-epoch-diagnostic-not-live-authorization",
+  "objective": "Test whether a sharper, top-1-aligned listwise target fixes the observed argmax regression without repeating the rejected eight-epoch ranking lane.",
+  "observed_mismatch": {
+    "validation_parents": 643,
+    "baseline_top1_correct_parents": 66,
+    "parents_with_top1_top2_gap_below_50cp": 361,
+    "median_top1_top2_gap_cp": 37,
+    "median_legal_moves": 84,
+    "teacher_top_probability_median_at_200cp": 0.1127,
+    "teacher_top_probability_median_at_50cp": 0.4705
+  },
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4"
+    },
+    "legal_sibling_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "rows": 112011,
+      "parents": 1334,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e"
+    },
+    "legal_sibling_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "rows": 57658,
+      "parents": 643,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca"
+    },
+    "value_replay": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "rows": 800000,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+      "sample_rows": 500000
+    },
+    "value_preservation_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "bytes": 1576191,
+      "rows": 3000,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81"
+    }
+  },
+  "training": {
+    "trainer": "ml/train_halfkp_sibling_preserving.py",
+    "epochs": 1,
+    "batch": 256,
+    "scale_k": 600.0,
+    "cp_clamp": 3000,
+    "rank_pair_min_cp": 50.0,
+    "rank_pair_max_cp": 600.0,
+    "rank_margin_cp": 50.0,
+    "policy_temperature_cp": 50.0,
+    "value_replay_ratio_rows": 1.0,
+    "prospective_slots": [
+      {
+        "id": "policy-only-gradient-0.75",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 0.0,
+        "policy_weight": 0.0625
+      },
+      {
+        "id": "policy-only-gradient-1.50",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 0.0,
+        "policy_weight": 0.125
+      },
+      {
+        "id": "policy-plus-light-rank",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 0.25,
+        "policy_weight": 0.0625
+      }
+    ]
+  },
+  "epoch_admission_relative_to_initializer": {
+    "minimum_sibling_pair_gain": 0.0,
+    "minimum_sibling_top1_gain": 0.0031104199066874,
+    "maximum_value_mae_regression_cp": 10.0,
+    "maximum_value_loss_relative_increase": 0.02
+  },
+  "diagnostic_decision_rule": {
+    "minimum_top1_correct_parents": 68,
+    "minimum_top1_gain": 0.0031104199066874,
+    "minimum_pair_gain": -0.001,
+    "require_original_value_preservation_gates": true,
+    "selection_key_descending": [
+      "top1_correct_parents",
+      "sibling_pair_gain",
+      "negative_preservation_value_loss"
+    ],
+    "exact_tie_break": "prospective_slots order",
+    "if_no_arm_passes": "permanently stop this browser-confusion sibling lane",
+    "if_an_arm_passes": "restart only the selected arm from alpha-050 for at most three epochs"
+  },
+  "full_run_boundary_if_diagnostic_passes": {
+    "maximum_epochs": 3,
+    "minimum_top1_correct_parents": 68,
+    "minimum_sibling_pair_gain": 0.003,
+    "runner_up_substitution": false
+  },
+  "stop_rules": [
+    "Do not add seeds, epochs, or data when all three one-epoch arms miss the diagnostic rule.",
+    "Do not export or run matches from a diagnostic checkpoint.",
+    "Never write public/shogi-nnue-weights.bin from this diagnostic."
+  ],
+  "claim_boundary": "One-epoch objective-alignment diagnostic only; not a candidate, playing-strength result, or live authorization."
+}

@@ -1,0 +1,119 @@
+{
+  "schema": "shogi-halfkp-sibling-preservation-plan-v1",
+  "status": "prospective-research-plan-not-live-authorization",
+  "objective": "Fine-tune the formal-gate alpha-0.5 HalfKP checkpoint on every legal move from positions where shipped browser search disagrees with the fixed-depth teacher, while preserving independent value behavior.",
+  "lineage": {
+    "initializer": "exact-lift plus epoch-2 strict 50/50 interpolation",
+    "screen56": "passed",
+    "independent96": "passed",
+    "formal768": "rejected-complete: 376 candidate wins, 357 live wins, 35 draws; superiority not established",
+    "live_promoted": false
+  },
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+      "features": "halfkp-factor",
+      "buckets": 81
+    },
+    "dataset_manifest": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/manifest.json",
+      "bytes": 21645,
+      "sha256": "3bb7dd0072e67e074d9657314410d0fc77ed08ac04582847f1de79c3b973334a",
+      "semantic_union_overlap": 0,
+      "live_weight_write_authorized": false
+    },
+    "legal_sibling_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e"
+    },
+    "legal_sibling_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "rows": 57658,
+      "parents": 643,
+      "games": 15,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca"
+    },
+    "value_replay": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "rows": 800000,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+      "sample_rows": 500000,
+      "target": "teacher CP"
+    },
+    "value_preservation_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "bytes": 1576191,
+      "rows": 3000,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81"
+    }
+  },
+  "training": {
+    "trainer": "ml/train_halfkp_sibling_preserving.py",
+    "epochs": 8,
+    "batch": 256,
+    "optimizer": "AdamW with zero weight decay",
+    "scale_k": 600.0,
+    "cp_clamp": 3000,
+    "rank_pair_min_cp": 50.0,
+    "rank_pair_max_cp": 600.0,
+    "rank_margin_cp": 50.0,
+    "policy_temperature_cp": 200.0,
+    "value_replay_ratio_rows": 1.0,
+    "selection": "best sibling pair accuracy, then top-1, then preservation loss, among admitted epochs only",
+    "prospective_slots": [
+      {
+        "id": "balanced-seed42",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 1.0,
+        "policy_weight": 0.25
+      },
+      {
+        "id": "conservative-seed43",
+        "seed": 43,
+        "learning_rate": 0.000005,
+        "rank_weight": 0.75,
+        "policy_weight": 0.2
+      },
+      {
+        "id": "pair-focused-seed44",
+        "seed": 44,
+        "learning_rate": 0.00001,
+        "rank_weight": 1.25,
+        "policy_weight": 0.1
+      }
+    ]
+  },
+  "epoch_admission_relative_to_initializer": {
+    "minimum_sibling_pair_gain": 0.003,
+    "minimum_sibling_top1_gain": 0.0,
+    "maximum_value_mae_regression_cp": 10.0,
+    "maximum_value_loss_relative_increase": 0.02
+  },
+  "quantized_admission_relative_to_initializer_on_same_64_positions": {
+    "parity_positions": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/parity64.sfens",
+    "parity_sha256": "481c6e065f6b6cbcaa78ab340c5182a4292e46056ea681e8823ca9501535cd83",
+    "exact_runtime_parity": "64/64 out_q and cp must match Torch, TypeScript, and research WASM",
+    "maximum_mean_quantization_error_regression_cp": 5.0,
+    "maximum_worst_quantization_error_regression_cp": 20.0
+  },
+  "complete_training_commands_from_repository_root": [
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-browser-confusion-alpha050-ranking-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-balanced-seed42-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.00001 --k 600 --cp-clamp 3000 --device mps --torch-threads 2 --seed 42 --rank-weight 1.0 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.25 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02",
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-browser-confusion-alpha050-ranking-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-conservative-seed43-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.000005 --k 600 --cp-clamp 3000 --device mps --torch-threads 2 --seed 43 --rank-weight 0.75 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.20 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02",
+    "ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-browser-confusion-alpha050-ranking-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-pair-focused-seed44-v1 --epochs 8 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.00001 --k 600 --cp-clamp 3000 --device mps --torch-threads 2 --seed 44 --rank-weight 1.25 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.10 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02"
+  ],
+  "stop_rules": [
+    "If no seed admits an epoch, stop this lane without a match.",
+    "If the selected candidate fails the 56-game screen, do not scale this recipe merely by adding epochs or data.",
+    "Never write public/shogi-nnue-weights.bin from this trainer."
+  ],
+  "claim_boundary": "Prospective code/data/training/gate plan only; not a trained result, playing-strength claim, or live promotion authorization."
+}

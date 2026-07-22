@@ -1,0 +1,249 @@
+{
+  "schema": "shogi-selfplay-cycle0-evidence-v1",
+  "status": "full24k-generation-in-progress-live-unchanged",
+  "recorded_at": "2026-07-21T23:31:24-07:00",
+  "articles": [
+    "docs/blog-shogi-selfplay-cycle0.md",
+    "docs/blog-shogi-selfplay-cycle0.en.md"
+  ],
+  "checked_in_control_plan": "ml/protocols/halfkp-selfplay-cycle0-v1-plan.json",
+  "prior_candidate_boundary": {
+    "candidate": "HalfKP81 alpha-0.5 interpolation",
+    "formal768": {
+      "report_sha256": "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
+      "candidate_wins": 376,
+      "live_wins": 357,
+      "draws": 35,
+      "score_percent": 51.236979166666664,
+      "one_sided_95_lower_percent": 48.307291666666664,
+      "two_sided_95_lower_percent": 47.721354166666664,
+      "safety_passed": true,
+      "superiority_passed": false,
+      "technical_faults": 0,
+      "decision": "rejected-complete"
+    },
+    "live_promoted": false,
+    "source": "docs/data/shogi-nnue-representation-pivot-2026-07-21.json"
+  },
+  "closed_static_browser_confusion_lane": {
+    "teacher_batch3": {
+      "parents": 2000,
+      "legal_move_records": 171429,
+      "unique_games": 53,
+      "elapsed_seconds": 2555,
+      "technical_faults": 0,
+      "ordered_shard_identity_sha256": "5a198b50a617c0c427ce87082c8ec97a917788be1ccbdb4883476ec485f83f53"
+    },
+    "eight_epoch_runs": {
+      "seeds": [42, 43, 44],
+      "top1_gain_in_every_epoch": "negative",
+      "admitted_candidates": 0,
+      "exports": 0,
+      "matches": 0
+    },
+    "temperature50_diagnostic": {
+      "validation_parents": 643,
+      "baseline_top1_correct": 66,
+      "required_top1_correct": 68,
+      "arms": 3,
+      "top1_correct_each_arm": 65,
+      "passed_arms": 0,
+      "lane_closed_permanently": true
+    },
+    "reason": "The data improved some average pair/value proxies but failed the preregistered held-out top-1 criterion repeatedly. More epochs in the same lane were stopped instead of being treated as progress.",
+    "source": "docs/data/shogi-nnue-representation-pivot-2026-07-21.json"
+  },
+  "selfplay_assets": {
+    "bootstrap_weights": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050-export/weights.bin",
+      "bytes": 94656708,
+      "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c",
+      "buckets": 81
+    },
+    "initializer_checkpoint": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4"
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-halfkp81-research.wasm",
+      "bytes": 35837,
+      "sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db"
+    },
+    "openings": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/training.raw.jsonl",
+      "bytes": 15369952,
+      "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62",
+      "rows": 24000,
+      "source_games": 1000
+    }
+  },
+  "speed_pilots": [
+    {
+      "id": "depth4x12",
+      "play_depth": 4,
+      "label_depth": 12,
+      "workers": 12,
+      "requested_games": 20,
+      "observation_seconds": 1222,
+      "completed_games": 0,
+      "decision": "rejected-for-speed"
+    },
+    {
+      "id": "depth3x8",
+      "play_depth": 3,
+      "label_depth": 8,
+      "workers": 12,
+      "requested_games": 20,
+      "observation_seconds": 1200,
+      "completed_games": 10,
+      "decision": "rejected-for-speed"
+    },
+    {
+      "id": "depth2x6-sparse",
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-pilot20-depth2x6-v1",
+      "manifest_bytes": 10180,
+      "manifest_sha256": "01ad12e1510c28a85745fdc0fbea64f54e9c9580693d4e1d60c81f92f2afceea",
+      "play_depth": 2,
+      "label_depth": 6,
+      "workers": 12,
+      "requested_games": 20,
+      "wall_seconds": 24.89,
+      "records": 82,
+      "completed_games": 20,
+      "terminal_reasons": {
+        "checkmate": 17,
+        "max_plies": 3,
+        "no_legal_move": 0,
+        "repetition": 0
+      },
+      "zero_sample_games": 0,
+      "decision": "pipeline-integration-fixture-too-sparse-for-full-run"
+    },
+    {
+      "id": "depth2x6-dense",
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-pilot20-depth2x6-dense-v1",
+      "manifest_bytes": 10430,
+      "manifest_sha256": "5e392aaae6e7b62a4727f49a709c0787dec40d693371d2903e5ab69e1e1cd16a",
+      "play_depth": 2,
+      "label_depth": 6,
+      "workers": 12,
+      "requested_games": 20,
+      "wall_seconds": 62.48,
+      "user_cpu_seconds": 330.69,
+      "records": 247,
+      "records_per_game": 12.35,
+      "completed_games": 20,
+      "terminal_reasons": {
+        "checkmate": 19,
+        "max_plies": 1,
+        "no_legal_move": 0,
+        "repetition": 0
+      },
+      "zero_sample_games": 0,
+      "technical_faults": 0,
+      "sampling": {
+        "quiescence_depth": 10,
+        "min_ply": 12,
+        "sample_every": 4,
+        "max_samples_per_game": 24,
+        "max_sample_ply": 180,
+        "max_plies": 192
+      },
+      "projection_for_24000_games": {
+        "records": 296400,
+        "initial_pilot_wall_hours_one_mac": "9-11",
+        "current_planning_range_hours_one_mac": "10-24",
+        "is_observed_result": false
+      },
+      "decision": "selected-for-full24k-generation"
+    }
+  ],
+  "pipeline_verification": {
+    "vitest": {
+      "passed": 26,
+      "failed": 0
+    },
+    "python": {
+      "passed": 15,
+      "failed": 0
+    },
+    "real_sparse_pilot_dataset": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-pilot20-depth2x6-v1-dataset",
+      "manifest_bytes": 12387,
+      "manifest_sha256": "e72e97ef0d65e53f12c918d0e42cde493b61216ec32fd32aca6ff762b8c2900f",
+      "train": {
+        "records": 75,
+        "games": 19,
+        "bytes": 57009,
+        "sha256": "815a716f82a324d43e069c0815be09eac0d21b53206b02747be45a7bd32fbd7a"
+      },
+      "validation": {
+        "records": 7,
+        "games": 1,
+        "bytes": 5324,
+        "sha256": "080a5ea59a77457771e344d4da510abe330c1b018a474369daaec3dc9af29b93"
+      },
+      "split_seed": "selfplay-cycle0-fixed-holdout-20260722",
+      "source_game_overlap": 0,
+      "game_overlap": 0,
+      "opening_overlap": 0,
+      "position_overlap": 0
+    },
+    "tiny_training_integration": {
+      "lambda_0_50": {
+        "status": "complete",
+        "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-pilot20-depth2x6-v1-train-lambda050/result.json",
+        "best_checkpoint_sha256": "a35766d006490d548b86d3785d601b363bfc71ca0dc08745e6fb98dc6d63ca11"
+      },
+      "lambda_0_75": {
+        "status": "complete",
+        "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-pilot20-depth2x6-v1-train-lambda075/result.json",
+        "best_checkpoint_sha256": "40922aaf56fdfca5a728d603d976047945e730b7605a37dd1a73cadd31923b60"
+      },
+      "claim_boundary": "These 82-row integrations prove only that authenticated data reaches both fixed training arms and produces rebound artifacts. They are not strength evidence and will not be matched or promoted."
+    }
+  },
+  "full24k_generation": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1",
+    "started_at_local_approx": "2026-07-21T23:27:00-07:00",
+    "state_at_recording": "in-progress",
+    "workers_observed_running": 12,
+    "games_requested": 24000,
+    "seed": 2026072205,
+    "play_depth": 2,
+    "label_depth": 6,
+    "sample_every": 4,
+    "max_samples_per_game": 24,
+    "max_sample_ply": 180,
+    "max_plies": 192,
+    "early_observation": {
+      "elapsed_minutes_approx": 3,
+      "completed_games": 54,
+      "records": 612,
+      "games_per_minute_approx": 18,
+      "aggregate_cpu_percent_approx": 1175,
+      "resident_memory_gb_approx": 3.82,
+      "single_point_linear_projection_hours_approx": 22,
+      "planning_range_hours": "10-24",
+      "limitation": "This is an early rolling observation, not steady-state throughput or a completion-time promise."
+    },
+    "completion_claimed": false,
+    "dataset_prepared": false,
+    "full_training_started": false,
+    "candidate_strength_measured": false
+  },
+  "promotion": {
+    "sequence": [
+      "screen56",
+      "independent96",
+      "formal768",
+      "external-calibration"
+    ],
+    "stop_at_first_failed_gate": true,
+    "maximum_cycles": 3,
+    "stop_after_consecutive_rejected_cycles": 2,
+    "live_weight_write_authorized": false,
+    "live_weights_changed": false
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "schema": "shogi-halfkp-selfplay-cycle-control-plan-v1",
+  "status": "prospective-cycle0-control-plan-full-generation-in-progress",
+  "recorded_at": "2026-07-21T23:31:24-07:00",
+  "objective": "Test whether a fully self-built HalfKP81 evaluation can be strengthened by deterministic self-play, deeper post-game relabeling, and direct paired play gates without changing the live evaluator before superiority is established.",
+  "claim_boundary": "This file fixes the cycle-zero generation, split, training-arm, and promotion sequence. It is not the sealed shogi-halfkp-selfplay-training-plan-v1 consumed by the trainer because the full train and validation file identities do not exist yet. It is not playing-strength evidence or live-promotion authorization.",
+  "lineage": {
+    "bootstrap_research_actor": {
+      "weights": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050-export/weights.bin",
+        "bytes": 94656708,
+        "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c",
+        "buckets": 81
+      },
+      "initializer_checkpoint": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+        "bytes": 191656679,
+        "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4"
+      },
+      "formal768": {
+        "candidate_wins": 376,
+        "live_wins": 357,
+        "draws": 35,
+        "score_percent": 51.236979166666664,
+        "superiority_passed": false,
+        "decision": "rejected-complete"
+      },
+      "role": "research bootstrap only; not the live champion"
+    },
+    "immutable_live": {
+      "path": "public/shogi-nnue-weights.bin",
+      "changed": false
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-halfkp81-research.wasm",
+      "bytes": 35837,
+      "sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db"
+    },
+    "opening_corpus": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/training.raw.jsonl",
+      "bytes": 15369952,
+      "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62",
+      "rows": 24000,
+      "source_games": 1000
+    }
+  },
+  "generation": {
+    "tool": "ml/generate-nnue-selfplay.ts",
+    "output_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1",
+    "started_at_local_approx": "2026-07-21T23:27:00-07:00",
+    "state_at_recording": "in-progress-no-completion-claim",
+    "fixed_args": {
+      "cycle": 0,
+      "game_start": 0,
+      "games": 24000,
+      "workers": 12,
+      "seed": 2026072205,
+      "expected_buckets": 81,
+      "play_depth": 2,
+      "label_depth": 6,
+      "quiescence_depth": 10,
+      "min_ply": 12,
+      "sample_every": 4,
+      "max_samples_per_game": 24,
+      "max_sample_ply": 180,
+      "max_plies": 192,
+      "wall_clock_deadline": false,
+      "random_fallback": false
+    },
+    "sampling_projection_from_20_game_pilot": {
+      "pilot_records": 247,
+      "records_per_game": 12.35,
+      "projected_records_for_24000_games": 296400,
+      "initial_projected_wall_hours_one_mac": "9-11",
+      "current_planning_range_hours_one_mac": "24-48",
+      "reason_for_range": "The short pilot omitted the long-tail cost visible in the full run. At about 12 minutes the run had completed 135 games and 1592 records, a roughly 35-hour linear projection. The range must continue to be updated from longer steady-state measurements and is not a completion-time promise.",
+      "projection_is_result": false
+    }
+  },
+  "dataset": {
+    "tool": "ml/prepare-nnue-selfplay-dataset.ts",
+    "row_schema": "shogi-nnue-selfplay-position-v1",
+    "split_seed": "selfplay-cycle0-fixed-holdout-20260722",
+    "validation_ratio": 0.05,
+    "split_unit": "source-game-first with game, opening, and position isolation",
+    "deduplication_priority": ["validation", "current", "past-accepted"],
+    "future_cycle_replay": {
+      "current_ratio": 0.75,
+      "past_accepted_ratio": 0.25,
+      "cycle0_effective_past_ratio": 0
+    },
+    "required_zero_overlaps": [
+      "source_game_id",
+      "game_id",
+      "opening_id",
+      "position_id"
+    ],
+    "publication": "fresh atomic directory; manifest written last"
+  },
+  "training": {
+    "plan_builder": "ml/build-halfkp-selfplay-training-plan.py",
+    "runner": "ml/run-halfkp-selfplay-training.py",
+    "sealed_runtime_plan_schema": "shogi-halfkp-selfplay-training-plan-v1",
+    "fixed": {
+      "features": "halfkp-factor",
+      "loss": "sigmoid",
+      "epochs": 2,
+      "batch": 256,
+      "learning_rate": 0.000003,
+      "k": 600.0,
+      "cp_clamp": 3000,
+      "device": "mps",
+      "seed": 42
+    },
+    "prospective_arms": [
+      {
+        "id": "lambda-0.50",
+        "search_score_fraction": 0.5,
+        "outcome_fraction": 0.5,
+        "trainer_wdl_mix": 0.5
+      },
+      {
+        "id": "lambda-0.75",
+        "search_score_fraction": 0.75,
+        "outcome_fraction": 0.25,
+        "trainer_wdl_mix": 0.25
+      }
+    ],
+    "selection_boundary": "A completed training process or better static loss is not strength evidence. Export and direct play are required."
+  },
+  "promotion_sequence": [
+    {
+      "gate": "screen56",
+      "scope": "paired direct play against the immutable champion",
+      "continue_only_if": "the preregistered 62 half-point threshold is met"
+    },
+    {
+      "gate": "independent96",
+      "scope": "fresh independently seeded paired confirmation",
+      "continue_only_if": "the preregistered one-sided 95-percent lower bound is strictly above 50 percent"
+    },
+    {
+      "gate": "formal768",
+      "scope": "formal paired A/B",
+      "continue_only_if": "the safety lower bound passes and the two-sided 95-percent lower bound is strictly above 50 percent"
+    },
+    {
+      "gate": "external-calibration",
+      "scope": "strength calibration outside the self-play training distribution",
+      "continue_only_if": "the registered external criterion passes"
+    }
+  ],
+  "stop_rules": [
+    "Stop a candidate at its first failed direct-play gate.",
+    "Run at most three self-play cycles.",
+    "Stop the family after two consecutive cycle candidates fail promotion.",
+    "Do not continue a failed static-data recipe merely by increasing epochs.",
+    "Never write public/shogi-nnue-weights.bin from generation, dataset preparation, training, export, or an incomplete gate."
+  ],
+  "live_weight_write_authorized": false
+}

@@ -16,6 +16,7 @@ requires the repository's paired engine-match gates before promotion.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import hashlib
 import json
 import math
@@ -34,7 +35,7 @@ import train_sibling_research as sibling_research
 RESULT_SCHEMA = "shogi-halfkp-sibling-preserving-training-v1"
 FEATURES = "halfkp-factor"
 PROTOCOL_SCHEMA = "shogi-halfkp-sibling-preservation-plan-v1"
-ALL_LEGAL_FIXED_DEPTH_SOURCE = train.ALL_LEGAL_FIXED_DEPTH_SOURCE
+ALL_LEGAL_FIXED_DEPTH_SOURCE = "all-legal-fixed-depth-teacher"
 
 
 def _file_fingerprint(path: str) -> dict[str, object]:
@@ -257,17 +258,86 @@ def _semantic_ids(metadata) -> set[str]:
     return identities
 
 
+def _validate_role_metadata(metadata, label: str):
+    """Validate legacy and explicit all-legal groups without inventing provenance."""
+
+    groups = defaultdict(list)
+    parent_provenance = {}
+    parent_moves = defaultdict(set)
+    expected_split = {"train": "train", "val": "val"}.get(label)
+    for index, row in enumerate(metadata):
+        try:
+            train._validate_strict_sibling_record(row, f"{label} row {index}")
+        except ValueError as error:
+            raise SystemExit(f"[train] {error}") from error
+        raw_cp = row.get("raw_cp")
+        if type(raw_cp) is not int or raw_cp != row["cp"]:
+            raise SystemExit(f"[train] {label} row {index} has invalid raw child cp")
+        if expected_split is not None and row["split"] != expected_split:
+            raise SystemExit(
+                f"[train] {label} row {index} has split={row['split']!r}; "
+                f"expected {expected_split!r}"
+            )
+        declared_child_position_id = row.get("declared_child_position_id")
+        if declared_child_position_id is not None and (
+            not isinstance(declared_child_position_id, str)
+            or declared_child_position_id != row["child_position_id"]
+        ):
+            raise SystemExit(
+                f"[train] {label} row {index} child_position_id does not match child SFEN"
+            )
+
+        parent_id = row["parent_id"]
+        provenance = (
+            row["game_id"],
+            row["position_id"],
+            row["parent_sfen"],
+            row["parent_ply"],
+            row["ply"],
+            row["split"],
+        )
+        if parent_id in parent_provenance and parent_provenance[parent_id] != provenance:
+            raise SystemExit(f"[train] {label} parent_id {parent_id} has inconsistent group metadata")
+        parent_provenance[parent_id] = provenance
+        if row["move"] in parent_moves[parent_id]:
+            raise SystemExit(f"[train] {label} parent_id {parent_id} repeats move {row['move']}")
+        parent_moves[parent_id].add(row["move"])
+        groups[parent_id].append(index)
+
+    for parent_id, rows in groups.items():
+        if len(rows) < 2:
+            raise SystemExit(f"[train] {label} parent_id {parent_id} has fewer than two siblings")
+        played = [index for index in rows if "played" in metadata[index]["sources"]]
+        contains_all_legal = any(
+            ALL_LEGAL_FIXED_DEPTH_SOURCE in metadata[index]["sources"] for index in rows
+        )
+        legacy_played = len(played) == 1 and not contains_all_legal
+        explicit_all_legal = not played and all(
+            metadata[index]["sources"] == [ALL_LEGAL_FIXED_DEPTH_SOURCE]
+            for index in rows
+        )
+        if not legacy_played and not explicit_all_legal:
+            raise SystemExit(
+                f"[train] {label} parent_id {parent_id} must have exactly one played source "
+                f"or be an explicit {ALL_LEGAL_FIXED_DEPTH_SOURCE} group"
+            )
+        ranks = [metadata[index]["teacher_rank"] for index in rows]
+        if sorted(ranks) != list(range(1, len(rows) + 1)):
+            raise SystemExit(f"[train] {label} parent_id {parent_id} has non-contiguous teacher ranks")
+        ranked = sorted(rows, key=lambda index: metadata[index]["teacher_rank"])
+        parent_cps = [metadata[index]["teacher_parent_cp"] for index in ranked]
+        if any(parent_cps[index - 1] < parent_cps[index] for index in range(1, len(parent_cps))):
+            raise SystemExit(f"[train] {label} parent_id {parent_id} rank/cp contradiction")
+    return list(groups.values())
+
+
 def _validate_split_metadata(train_meta, val_meta):
     """Keep legacy played=1 groups and admit only explicit played=0 all-legal groups."""
 
     try:
         train.validate_disjoint_splits(train_meta, val_meta)
-        train_groups = train.validate_sibling_metadata(
-            train_meta, "train", allow_all_legal_fixed_depth=True
-        )
-        val_groups = train.validate_sibling_metadata(
-            val_meta, "val", allow_all_legal_fixed_depth=True
-        )
+        train_groups = _validate_role_metadata(train_meta, "train")
+        val_groups = _validate_role_metadata(val_meta, "val")
     except SystemExit as error:
         raise ValueError(str(error)) from error
     return train_groups, val_groups

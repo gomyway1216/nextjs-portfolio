@@ -165,12 +165,6 @@ class HalfkpSiblingPreservingTest(unittest.TestCase):
         self.assertEqual(val_groups, [[0, 1]])
         with self.assertRaisesRegex(SystemExit, "exactly one played source"):
             train.validate_sibling_metadata(train_meta, "train")
-        self.assertEqual(
-            train.validate_sibling_metadata(
-                train_meta, "train", allow_all_legal_fixed_depth=True
-            ),
-            [[0, 1]],
-        )
         self.assertTrue(
             all(
                 row["sources"] == [preserving.ALL_LEGAL_FIXED_DEPTH_SOURCE]

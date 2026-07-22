@@ -190,15 +190,16 @@ describe("shogi NNUE representation pivot evidence", () => {
       },
     });
     expect(evidence.next_experiment).toMatchObject({
-      status: "browser-confusion-generation-complete-ranking-fine-tune-next",
+      status: "browser-confusion-ranking-fine-tune-stopped-no-admitted-candidate",
       representation: "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
+      arms: [],
       uses_published_nnue_weights: false,
       strength_claimed_before_direct_play: false,
     });
     const rankingTeacher =
       evidence.speed_preserving_experiments.browser_confusion_ranking_teacher;
     expect(rankingTeacher).toMatchObject({
-      status: "batch3-generation-complete-ranking-fine-tune-next",
+      status: "batch3-generation-complete",
       smoke_parents: 3,
       smoke_legal_moves: 239,
       shards_completed: 16,
@@ -228,6 +229,97 @@ describe("shogi NNUE representation pivot evidence", () => {
     );
     expect(rankingTeacher.elapsed_seconds).toBe(42 * 60 + 35);
     expect(rankingTeacher).not.toHaveProperty("estimated_parents_per_day_at_8_shards");
+    const rankingFineTune =
+      evidence.speed_preserving_experiments.browser_confusion_ranking_fine_tune;
+    expect(rankingFineTune).toMatchObject({
+      status: "three-runs-complete-no-admitted-candidate",
+      training_rows: 112011,
+      training_parents: 1334,
+      validation_rows: 57658,
+      validation_parents: 643,
+      value_replay_rows: 500000,
+      preservation_rows_before_exclusion: 3000,
+      preservation_overlap_rows_excluded: 41,
+      preservation_rows_after_exclusion: 2959,
+      sibling_vs_preservation_semantic_overlap: 0,
+      epochs_planned_per_run: 8,
+      pair_gain_required_minimum: 0.003,
+      top1_gain_required_minimum: 0,
+      runs: [
+        {
+          slot: "balanced-seed42",
+          seed: 42,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 489.769,
+          final_sibling_pair_gain: 0.0060029797,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0062208398,
+          final_preservation_mae_improvement_cp: 69.5745,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "ff0244cfe498f30ca42776734311de21626b5cb19c7239ceed980ab2466ccf80",
+          admitted: false,
+        },
+        {
+          slot: "conservative-seed43",
+          seed: 43,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 472.128,
+          final_sibling_pair_gain: 0.0040767382,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0031104199,
+          final_preservation_mae_improvement_cp: 47.2097,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "8a5a7b3c012700aada253cda8040bb3b43d94fb491e5a43963ff8645951c5ce3",
+          admitted: false,
+        },
+        {
+          slot: "pair-focused-seed44",
+          seed: 44,
+          exit_code: 0,
+          status: "complete-no-admitted-candidate",
+          epochs_completed: 8,
+          curve_seconds: 487.72,
+          final_sibling_pair_gain: 0.0052073582,
+          best_sibling_top1_gain: -0.00155520995,
+          final_sibling_top1_gain: -0.0046656299,
+          final_preservation_mae_improvement_cp: 70.0801,
+          best_epoch: null,
+          best_checkpoint_exists: false,
+          result_sha256:
+            "264abd5695e52a059966150264af5032a052da19ff5ce81c5ff520f71b740d40",
+          admitted: false,
+        },
+      ],
+      eligible_runs: 0,
+      admitted_exports_created: 0,
+      quantized_parity_started: false,
+      matches_run: 0,
+      live_weights_changed: false,
+    });
+    expect(rankingFineTune.runs).toHaveLength(3);
+    for (const run of rankingFineTune.runs) {
+      expect(run.final_sibling_pair_gain).toBeGreaterThanOrEqual(
+        rankingFineTune.pair_gain_required_minimum,
+      );
+      expect(run.pair_gain_passed).toBe(true);
+      expect(run.best_sibling_top1_gain).toBeLessThan(
+        rankingFineTune.top1_gain_required_minimum,
+      );
+      expect(run.top1_gain_passed).toBe(false);
+      expect(run.preservation_mae_passed).toBe(true);
+    }
+    expect(
+      rankingFineTune.preservation_rows_after_exclusion +
+        rankingFineTune.preservation_overlap_rows_excluded,
+    ).toBe(rankingFineTune.preservation_rows_before_exclusion);
     expect(evidence.claims.playing_strength_improved).toBe(false);
     expect(evidence.live_baseline.changed).toBe(false);
     expect(evidence.speed_preserving_experiments.halfkp81_alpha_0_5_interpolation.independent96).toMatchObject({
@@ -312,6 +404,17 @@ describe("shogi NNUE representation pivot evidence", () => {
       "技術障害0",
       "zero technical faults",
       "PR #609",
+      "112,011行・1,334親",
+      "112,011 rows from 1,334 parents",
+      "57,658行・643親",
+      "57,658 rows from 643 parents",
+      "重複41行を除いた2,959行",
+      "2,959 rows after excluding 41 overlaps",
+      "+0.6003、+0.4077、+0.5207ポイント",
+      "0.6003, 0.4077, and 0.5207 percentage points",
+      "complete-no-admitted-candidate",
+      "対局数0",
+      "zero games were run",
       "13,069",
       "[256 us, 256 them] -> 32 -> 32 -> 1",
       "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",

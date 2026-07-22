@@ -607,7 +607,7 @@
       "live_promoted": false
     },
     "browser_confusion_ranking_teacher": {
-      "status": "batch3-generation-complete-ranking-fine-tune-next",
+      "status": "batch3-generation-complete",
       "selection": "production browser search disagrees with existing depth-12 teacher",
       "labeling": "independent fixed-depth evaluation of every rules-complete legal child position",
       "smoke_parents": 3,
@@ -638,6 +638,86 @@
       "implementation_pr": 609,
       "implementation_pr_merged": true,
       "live_weights_changed": false
+    },
+    "browser_confusion_ranking_fine_tune": {
+      "status": "three-runs-complete-no-admitted-candidate",
+      "training_rows": 112011,
+      "training_parents": 1334,
+      "validation_rows": 57658,
+      "validation_parents": 643,
+      "value_replay_rows": 500000,
+      "preservation_rows_before_exclusion": 3000,
+      "preservation_overlap_rows_excluded": 41,
+      "preservation_rows_after_exclusion": 2959,
+      "sibling_vs_preservation_semantic_overlap": 0,
+      "epochs_planned_per_run": 8,
+      "pair_gain_required_minimum": 0.003,
+      "top1_gain_required_minimum": 0,
+      "runs": [
+        {
+          "slot": "balanced-seed42",
+          "seed": 42,
+          "exit_code": 0,
+          "status": "complete-no-admitted-candidate",
+          "epochs_completed": 8,
+          "curve_seconds": 489.769,
+          "final_sibling_pair_gain": 0.0060029797,
+          "pair_gain_passed": true,
+          "best_sibling_top1_gain": -0.00155520995,
+          "final_sibling_top1_gain": -0.0062208398,
+          "top1_gain_passed": false,
+          "final_preservation_mae_improvement_cp": 69.5745,
+          "preservation_mae_passed": true,
+          "best_epoch": null,
+          "best_checkpoint_exists": false,
+          "result_sha256": "ff0244cfe498f30ca42776734311de21626b5cb19c7239ceed980ab2466ccf80",
+          "admitted": false
+        },
+        {
+          "slot": "conservative-seed43",
+          "seed": 43,
+          "exit_code": 0,
+          "status": "complete-no-admitted-candidate",
+          "epochs_completed": 8,
+          "curve_seconds": 472.128,
+          "final_sibling_pair_gain": 0.0040767382,
+          "pair_gain_passed": true,
+          "best_sibling_top1_gain": -0.00155520995,
+          "final_sibling_top1_gain": -0.0031104199,
+          "top1_gain_passed": false,
+          "final_preservation_mae_improvement_cp": 47.2097,
+          "preservation_mae_passed": true,
+          "best_epoch": null,
+          "best_checkpoint_exists": false,
+          "result_sha256": "8a5a7b3c012700aada253cda8040bb3b43d94fb491e5a43963ff8645951c5ce3",
+          "admitted": false
+        },
+        {
+          "slot": "pair-focused-seed44",
+          "seed": 44,
+          "exit_code": 0,
+          "status": "complete-no-admitted-candidate",
+          "epochs_completed": 8,
+          "curve_seconds": 487.72,
+          "final_sibling_pair_gain": 0.0052073582,
+          "pair_gain_passed": true,
+          "best_sibling_top1_gain": -0.00155520995,
+          "final_sibling_top1_gain": -0.0046656299,
+          "top1_gain_passed": false,
+          "final_preservation_mae_improvement_cp": 70.0801,
+          "preservation_mae_passed": true,
+          "best_epoch": null,
+          "best_checkpoint_exists": false,
+          "result_sha256": "264abd5695e52a059966150264af5032a052da19ff5ce81c5ff520f71b740d40",
+          "admitted": false
+        }
+      ],
+      "eligible_runs": 0,
+      "admitted_exports_created": 0,
+      "quantized_parity_started": false,
+      "matches_run": 0,
+      "live_weights_changed": false,
+      "conclusion": "Average sibling-pair ordering and preservation MAE improved, but top-1 argmax accuracy regressed in every epoch, so the preregistered stop rule ended the lane."
     }
   },
   "teacher_generator_repair": {
@@ -665,13 +745,11 @@
     "high_dan_calibrated": false
   },
   "next_experiment": {
-    "status": "browser-confusion-generation-complete-ranking-fine-tune-next",
+    "status": "browser-confusion-ranking-fine-tune-stopped-no-admitted-candidate",
     "representation": "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
-    "arms": [
-      "a prospectively selected checkpoint from regenerated browser-confusion teacher data"
-    ],
+    "arms": [],
     "uses_published_nnue_weights": false,
     "strength_claimed_before_direct_play": false
   },
-  "next_step": "Keep live unchanged. Prepare the completed browser-confusion batch 3 output, run the ranking fine-tune, and require a new candidate to pass the direct, independent, and formal gates before external calibration or promotion."
+  "next_step": "Keep live unchanged. Stop the browser-confusion ranking lane under its preregistered no-admission rule; do not export, run quantized parity, or start matches from these runs."
 }

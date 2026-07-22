@@ -31,9 +31,11 @@ export function daifugoErrorMessage(translate: TranslateFn, error: DaifugoPlayEr
 }
 
 /**
- * Render the cards of a play-log entry, e.g. "♠4♦4" for a pair of 4s or
- * "♠3-♠5" for a straight. Log entries only carry count/rankKey/signature,
- * so the card list is reconstructed from the suit signature.
+ * Render the cards of a play-log entry, e.g. "♦4♠4" for a pair of 4s
+ * (suits follow the signature's C < D < H < S sort order from
+ * toSuitSignature) or "♠3-♠5" for a straight. Log entries only carry
+ * count/rankKey/signature, so the card list is reconstructed from the
+ * suit signature.
  */
 export function formatDaifugoLogCards(entry: DaifugoLogEntry): string {
   const { cardCount, rankKey, signature } = entry;

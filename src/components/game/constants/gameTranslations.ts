@@ -837,12 +837,10 @@ export interface DaifugoUITranslations {
   // Log
   log: string;
   noActionsYet: string;
-  logPlayed: string;
   logPass: string;
   logTableCleared: string;
   logRoundEnd: string;
   logNextRound: string;
-  logStraight: string;
   // Rank labels
   daifugo: string;
   fugo: string;
@@ -907,12 +905,10 @@ export const daifugoUITranslations: Record<GameLanguage, DaifugoUITranslations> 
     // Log
     log: 'Log',
     noActionsYet: 'No actions yet',
-    logPlayed: 'played',
     logPass: 'pass',
     logTableCleared: 'table cleared',
     logRoundEnd: 'round end',
     logNextRound: 'next round',
-    logStraight: 'straight',
     // Rank labels
     daifugo: 'Daifugo',
     fugo: 'Fugo',
@@ -975,12 +971,10 @@ export const daifugoUITranslations: Record<GameLanguage, DaifugoUITranslations> 
     // Log
     log: 'ログ',
     noActionsYet: 'まだアクションがありません',
-    logPlayed: 'を出した',
     logPass: 'パス',
     logTableCleared: '場を流した',
     logRoundEnd: 'ラウンド終了',
     logNextRound: '次のラウンド',
-    logStraight: '階段',
     // Rank labels
     daifugo: '大富豪',
     fugo: '富豪',

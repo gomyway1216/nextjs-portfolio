@@ -10,6 +10,7 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import { DaifugoMultiplayerLobby } from './DaifugoMultiplayerLobby';
 import { useDaifugoMultiplayer } from './useDaifugoMultiplayer';
 import { getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
+import { formatDaifugoLogCards } from './errorMessages';
 import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
@@ -68,12 +69,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     discardUpTo: translate('games.daifugo.ui.discardUpTo'),
     log: translate('games.daifugo.ui.log'),
     noActionsYet: translate('games.daifugo.ui.noActionsYet'),
-    logPlayed: translate('games.daifugo.ui.logPlayed'),
     logPass: translate('games.daifugo.ui.logPass'),
     logTableCleared: translate('games.daifugo.ui.logTableCleared'),
     logRoundEnd: translate('games.daifugo.ui.logRoundEnd'),
     logNextRound: translate('games.daifugo.ui.logNextRound'),
-    logStraight: translate('games.daifugo.ui.logStraight'),
     daifugo: translate('games.daifugo.ui.ranks.daifugo'),
     fugo: translate('games.daifugo.ui.ranks.fugo'),
     heimin: translate('games.daifugo.ui.ranks.heimin'),
@@ -230,8 +229,8 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   }, [selectedDiscardCardIds, tenDiscardCandidates, tenDiscardContext.discardCount, tenDiscardContext.needed]);
 
   const canPlaySelected = useMemo<{ ok: boolean; error: string | null }>(() => {
-    if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
-    if (!selectedShape) return { ok: false, error: 'Select cards' };
+    if (!gameState || !isMyTurn) return { ok: false, error: translate('games.daifugo.ui.errors.notYourTurn') };
+    if (!selectedShape) return { ok: false, error: translate('games.daifugo.ui.errors.selectCards') };
     // Soft client-side check: all selected cards are in the player's
     // hand. The server runs the full Daifugo rule check (shibari,
     // revolution, signature, …); on rejection the response error is
@@ -239,10 +238,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     const hand = gameState.hands[multiplayer.context.playerId] ?? [];
     const handIds = new Set(hand.map((c) => c.id));
     if (!effectiveSelectedCardIds.every((id) => handIds.has(id))) {
-      return { ok: false, error: 'Card not in hand' };
+      return { ok: false, error: translate('games.daifugo.ui.errors.cardNotInHand') };
     }
     return { ok: true, error: null };
-  }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, multiplayer.context.playerId]);
+  }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, multiplayer.context.playerId, translate]);
 
   const toggleCard = (cardId: string) => {
     setLocalError(null);
@@ -274,7 +273,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     if (!room || !multiplayer.context.isHost) return;
     const playerCount = Object.keys(room.players || {}).length;
     if (playerCount < 3) {
-      setLocalError('Need 3 players');
+      setLocalError(translate('games.daifugo.ui.errors.playerCount'));
       return;
     }
     const ok = await multiplayer.startGame();
@@ -343,11 +342,9 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       const name = playerNameOf(entry.playerId);
       if (entry.detail) return `${name}: ${entry.detail}`;
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
-        if (entry.playKind === 'straight') {
-          const start = entry.rankKey - entry.cardCount + 1;
-          return `${name}: ${d.logStraight} ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
-        }
-        return `${name}: ${d.logPlayed} ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
+        const cards = formatDaifugoLogCards(entry);
+        const key = entry.playKind === 'straight' ? 'logStraight' : 'logPlayed';
+        return `${name}: ${translate(`games.daifugo.ui.${key}`, { cards, count: entry.cardCount })}`;
       }
       if (entry.type === 'pass') return `${name}: ${d.logPass}`;
       if (entry.type === 'trick_end') return `${name}: ${d.logTableCleared}`;
@@ -355,7 +352,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       if (entry.type === 'next_round') return `${name}: ${d.logNextRound}`;
       return `${name}: ...`;
     });
-  }, [gameState?.log, playerNameOf, d]);
+  }, [gameState?.log, playerNameOf, d, translate]);
 
   const daifugoId = useMemo(() => {
     if (!gameState?.ranks) return null;

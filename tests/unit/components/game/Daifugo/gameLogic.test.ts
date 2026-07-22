@@ -3,12 +3,16 @@ import {
   applyAction,
   createDeck,
   createInitialDaifugoState,
+  DAIFUGO_PLAY_ERROR_CODES,
   dealHands,
   getPlayShape,
   sortHand,
 } from '@/components/game/Daifugo/gameLogic';
+import { daifugoErrorMessage, formatDaifugoLogCards } from '@/components/game/Daifugo/errorMessages';
 import { JOKER_RANK, TWO_RANK, type Card } from '@/components/game/Daifugo/types';
 import type { DaifugoNetworkState, DaifugoPile } from '@/components/game/Daifugo/multiplayerTypes';
+import enCommon from '@/locales/en/common.json';
+import jaCommon from '@/locales/ja/common.json';
 
 function card(id: string, suit: Card['suit'], rank: number): Card {
   return { id, suit, rank };
@@ -95,7 +99,7 @@ describe('Daifugo gameLogic', () => {
       };
       const state = makeState({ hands: { p1: [card('s5', 'S', 5)], p2: [] }, pile, lastPlayedBy: 'p2' });
       const res = play(state, 'p1', [card('s5', 'S', 5)]);
-      expect(res.ok).toBe(false);
+      expect(res).toMatchObject({ ok: false, error: { code: 'tooLow' } });
     });
 
     it('accepts a play that beats the pile', () => {
@@ -113,19 +117,119 @@ describe('Daifugo gameLogic', () => {
       };
       const state = makeState({ hands: { p1: [card('sk', 'S', 13)], p2: [] }, pile, lastPlayedBy: 'p2' });
       const res = play(state, 'p1', [card('sk', 'S', 13)]);
-      expect(res.ok).toBe(false);
+      expect(res).toMatchObject({ ok: false, error: { code: 'needCount', count: 2 } });
     });
 
     it('rejects playing out of turn', () => {
       const state = makeState({ hands: { p1: [card('a', 'S', 5)], p2: [card('b', 'H', 6)] }, currentTurnPlayerId: 'p1' });
       const res = play(state, 'p2', [card('b', 'H', 6)]);
-      expect(res.ok).toBe(false);
+      expect(res).toMatchObject({ ok: false, error: { code: 'notYourTurn' } });
     });
 
     it('forbids passing on an empty table', () => {
       const state = makeState({ hands: { p1: [card('a', 'S', 5)], p2: [] }, pile: null });
       const res = applyAction(state, { actionId: 't', type: 'pass', playerId: 'p1', timestamp: 0 });
-      expect(res.ok).toBe(false);
+      expect(res).toMatchObject({ ok: false, error: { code: 'cannotPassEmpty' } });
+    });
+
+    it('rejects an invalid combination and cards not in hand with codes', () => {
+      const state = makeState({ hands: { p1: [card('s4', 'S', 4), card('h5', 'H', 5)], p2: [card('z', 'D', 9)] } });
+      expect(play(state, 'p1', [card('s4', 'S', 4), card('h5', 'H', 5)]))
+        .toMatchObject({ ok: false, error: { code: 'invalidCombination' } });
+      expect(play(state, 'p1', [card('ghost', 'S', 6)]))
+        .toMatchObject({ ok: false, error: { code: 'cardNotInHand' } });
+    });
+
+    it('reports gekishiba violations with the expected rank', () => {
+      const pile: DaifugoPile = {
+        kind: 'group', cards: [card('s6', 'S', 6)], count: 1, rankKey: 6, signature: 'S', playedBy: 'p2',
+      };
+      const state = makeState({
+        hands: { p1: [card('s9', 'S', 9), card('joker', 'J', JOKER_RANK)], p2: [card('z', 'D', 4)] },
+        pile,
+        lastPlayedBy: 'p2',
+        lockSignature: 'S',
+        gekishibaNextRank: 7,
+      });
+      expect(play(state, 'p1', [card('s9', 'S', 9)]))
+        .toMatchObject({ ok: false, error: { code: 'gekishibaRankOnly', rank: 7 } });
+      expect(play(state, 'p1', [card('joker', 'J', JOKER_RANK)]))
+        .toMatchObject({ ok: false, error: { code: 'gekishibaNoJoker' } });
+    });
+  });
+
+  describe('error localization', () => {
+    type ErrorsDict = Record<string, string>;
+    const enErrors = (enCommon as { games: { daifugo: { ui: { errors: ErrorsDict } } } }).games.daifugo.ui.errors;
+    const jaErrors = (jaCommon as { games: { daifugo: { ui: { errors: ErrorsDict } } } }).games.daifugo.ui.errors;
+
+    it('has an en and ja message for every validator error code', () => {
+      for (const code of DAIFUGO_PLAY_ERROR_CODES) {
+        expect(enErrors[code], `en games.daifugo.ui.errors.${code}`).toBeTruthy();
+        expect(jaErrors[code], `ja games.daifugo.ui.errors.${code}`).toBeTruthy();
+      }
+    });
+
+    it('keeps interpolation placeholders in parameterized messages', () => {
+      for (const errors of [enErrors, jaErrors]) {
+        expect(errors.needCount).toContain('{{count}}');
+        expect(errors.selectGiveCount).toContain('{{count}}');
+        expect(errors.gekishibaRankOnly).toContain('{{rank}}');
+      }
+    });
+
+    it('daifugoErrorMessage resolves keys and params', () => {
+      const seen: Array<{ key: string; params?: Record<string, unknown> }> = [];
+      const translate = (key: string, params?: Record<string, unknown>) => {
+        seen.push({ key, params });
+        return key;
+      };
+
+      expect(daifugoErrorMessage(translate, { code: 'tooLow' })).toBe('games.daifugo.ui.errors.tooLow');
+      expect(daifugoErrorMessage(translate, { code: 'needCount', count: 3 })).toBe('games.daifugo.ui.errors.needCount');
+      expect(seen[1]?.params).toEqual({ count: 3 });
+      // Ranks are shown as card labels (J/Q/K/A/2), not raw numbers.
+      daifugoErrorMessage(translate, { code: 'gekishibaRankOnly', rank: 13 });
+      expect(seen[2]?.params).toEqual({ rank: 'K' });
+    });
+  });
+
+  describe('play log formatting', () => {
+    type UiDict = { games: { daifugo: { ui: { logPlayed: string; logStraight: string } } } };
+    const enUi = (enCommon as UiDict).games.daifugo.ui;
+    const jaUi = (jaCommon as UiDict).games.daifugo.ui;
+
+    const interpolate = (template: string, params: Record<string, string | number>) =>
+      template.replace(/\{\{(\w+)\}\}/g, (_, k: string) => String(params[k] ?? ''));
+
+    it('renders group plays as suit+rank card labels', () => {
+      const entry = {
+        id: 'l1', type: 'play' as const, playerId: 'ai2', playKind: 'group' as const,
+        cardCount: 2, rankKey: 4, signature: 'DS', timestamp: 0,
+      };
+      expect(formatDaifugoLogCards(entry)).toBe('♦4♠4');
+
+      const cards = formatDaifugoLogCards(entry);
+      expect(interpolate(jaUi.logPlayed, { cards, count: 2 })).toBe('♦4♠4 を2枚出した');
+      expect(interpolate(enUi.logPlayed, { cards, count: 2 })).toBe('played ♦4♠4');
+    });
+
+    it('renders straights as a suit-labeled range', () => {
+      const entry = {
+        id: 'l2', type: 'play' as const, playerId: 'p1', playKind: 'straight' as const,
+        cardCount: 3, rankKey: 5, signature: 'SSS', timestamp: 0,
+      };
+      expect(formatDaifugoLogCards(entry)).toBe('♠3-♠5');
+      expect(interpolate(jaUi.logStraight, { cards: '♠3-♠5', count: 3 })).toBe('♠3-♠5 の階段を出した');
+      expect(interpolate(enUi.logStraight, { cards: '♠3-♠5', count: 3 })).toBe('played a straight ♠3-♠5');
+    });
+
+    it('renders a single joker with the joker symbol', () => {
+      const entry = {
+        id: 'l3', type: 'play' as const, playerId: 'p1', playKind: 'group' as const,
+        cardCount: 1, rankKey: JOKER_RANK, signature: null, timestamp: 0,
+      };
+      expect(formatDaifugoLogCards(entry)).toBe('🃏');
     });
   });
 

@@ -49,6 +49,41 @@ export const DEFAULT_RULES: DaifugoRules = {
   tenDiscard: true,
 };
 
+/**
+ * Structured, locale-independent validation errors. Display sites map
+ * these codes to localized messages (games.daifugo.ui.errors.* keys)
+ * via daifugoErrorMessage() in errorMessages.ts.
+ */
+export const DAIFUGO_PLAY_ERROR_CODES = [
+  'alreadyPassed',
+  'needCount',
+  'typeMismatch',
+  'shibariSuitLocked',
+  'gekishibaNoJoker',
+  'gekishibaRankOnly',
+  'jokerBeatenBySpade3',
+  'onlySpade3BeatsJoker',
+  'nothingBeatsSpade3',
+  'tooLow',
+  'roundFinished',
+  'notYourTurn',
+  'playerFinished',
+  'cannotPassEmpty',
+  'invalidState',
+  'cardNotInHand',
+  'invalidCombination',
+  'selectGiveCount',
+  'giveCardNotInHand',
+] as const;
+
+export type DaifugoPlayErrorCode = (typeof DAIFUGO_PLAY_ERROR_CODES)[number];
+
+export type DaifugoPlayError =
+  | { code: 'needCount'; count: number }
+  | { code: 'selectGiveCount'; count: number }
+  | { code: 'gekishibaRankOnly'; rank: number }
+  | { code: Exclude<DaifugoPlayErrorCode, 'needCount' | 'selectGiveCount' | 'gekishibaRankOnly'> };
+
 export type DaifugoPlayShape =
   | {
     kind: 'group';
@@ -506,20 +541,20 @@ function canPlayOnPile(
   pile: DaifugoPile | null,
   play: DaifugoPlayShape,
   rules: DaifugoRules
-): { ok: true } | { ok: false; error: string } {
+): { ok: true } | { ok: false; error: DaifugoPlayError } {
   if (state.pile && state.passes.includes(state.currentTurnPlayerId)) {
-    return { ok: false, error: 'Already passed' };
+    return { ok: false, error: { code: 'alreadyPassed' } };
   }
 
   if (!pile) return { ok: true };
-  if (play.count !== pile.count) return { ok: false, error: `Need ${pile.count} card(s)` };
-  if (play.kind !== pile.kind) return { ok: false, error: 'Must play the same type' };
+  if (play.count !== pile.count) return { ok: false, error: { code: 'needCount', count: pile.count } };
+  if (play.kind !== pile.kind) return { ok: false, error: { code: 'typeMismatch' } };
 
   // しばり (suit lock)
   if (rules.shibari && state.lockSignature && play.signature !== state.lockSignature) {
     // Joker ignores shibari
     if (!(play.kind === 'group' && play.isJokerSingle)) {
-      return { ok: false, error: 'Shibari: suit locked' };
+      return { ok: false, error: { code: 'shibariSuitLocked' } };
     }
   }
 
@@ -527,10 +562,10 @@ function canPlayOnPile(
   if (rules.gekishiba && state.gekishibaNextRank !== null) {
     // Joker cannot satisfy gekishiba
     if (play.kind === 'group' && play.isJokerSingle) {
-      return { ok: false, error: '激縛り中はジョーカーは出せません' };
+      return { ok: false, error: { code: 'gekishibaNoJoker' } };
     }
     if (play.rankKey !== state.gekishibaNextRank) {
-      return { ok: false, error: `激縛り: ${state.gekishibaNextRank}のみ出せます` };
+      return { ok: false, error: { code: 'gekishibaRankOnly', rank: state.gekishibaNextRank } };
     }
   }
 
@@ -540,27 +575,27 @@ function canPlayOnPile(
     const pileIsSpade3 = pile.kind === 'group' && pile.rankKey === 3 && pile.cards.length === 1 && pile.cards[0]?.suit === 'S';
 
     if (play.isJokerSingle) {
-      if (pileIsSpade3 && rules.spade3BeatsJoker) return { ok: false, error: '3♠ beats Joker' };
+      if (pileIsSpade3 && rules.spade3BeatsJoker) return { ok: false, error: { code: 'jokerBeatenBySpade3' } };
       return { ok: true };
     }
 
     if (pileIsJoker) {
       if (rules.spade3BeatsJoker && play.isSpade3Single) return { ok: true };
-      return { ok: false, error: 'Only 3♠ can beat Joker' };
+      return { ok: false, error: { code: 'onlySpade3BeatsJoker' } };
     }
 
     if (pileIsSpade3 && rules.spade3BeatsJoker) {
-      return { ok: false, error: 'Nothing beats 3♠' };
+      return { ok: false, error: { code: 'nothingBeatsSpade3' } };
     }
 
     const reversed = effectiveReversed(state);
-    if (compareRank(play.rankKey, pile.rankKey, reversed) <= 0) return { ok: false, error: 'Too low' };
+    if (compareRank(play.rankKey, pile.rankKey, reversed) <= 0) return { ok: false, error: { code: 'tooLow' } };
     return { ok: true };
   }
 
   // Straight compare
   const reversed = effectiveReversed(state);
-  if (compareRank(play.rankKey, pile.rankKey, reversed) <= 0) return { ok: false, error: 'Too low' };
+  if (compareRank(play.rankKey, pile.rankKey, reversed) <= 0) return { ok: false, error: { code: 'tooLow' } };
   return { ok: true };
 }
 
@@ -568,16 +603,16 @@ export function applyAction(
   state: DaifugoNetworkState,
   action: DaifugoAction,
   rulesOverride?: Partial<DaifugoRules>
-): { ok: true; state: DaifugoNetworkState } | { ok: false; error: string } {
+): { ok: true; state: DaifugoNetworkState } | { ok: false; error: DaifugoPlayError } {
   const rules: DaifugoRules = { ...DEFAULT_RULES, ...(rulesOverride ?? {}) };
 
-  if (state.finished) return { ok: false, error: 'Round finished' };
-  if (action.playerId !== state.currentTurnPlayerId) return { ok: false, error: 'Not your turn' };
-  if (isPlayerOut(state, action.playerId)) return { ok: false, error: 'Player already finished' };
+  if (state.finished) return { ok: false, error: { code: 'roundFinished' } };
+  if (action.playerId !== state.currentTurnPlayerId) return { ok: false, error: { code: 'notYourTurn' } };
+  if (isPlayerOut(state, action.playerId)) return { ok: false, error: { code: 'playerFinished' } };
 
   if (action.type === 'pass') {
-    if (!state.pile) return { ok: false, error: 'Cannot pass on an empty table' };
-    if (!state.lastPlayedBy) return { ok: false, error: 'Invalid state' };
+    if (!state.pile) return { ok: false, error: { code: 'cannotPassEmpty' } };
+    if (!state.lastPlayedBy) return { ok: false, error: { code: 'invalidState' } };
 
     const alreadyPassed = state.passes.includes(action.playerId);
     const newPasses = alreadyPassed ? state.passes : [...state.passes, action.playerId];
@@ -639,10 +674,10 @@ export function applyAction(
   // play
   const hand = getPlayerHand(state, action.playerId);
   const selectedCards = getSelectedCards(hand, action.cardIds);
-  if (!selectedCards) return { ok: false, error: 'Card not in hand' };
+  if (!selectedCards) return { ok: false, error: { code: 'cardNotInHand' } };
 
   const shape = getPlayShape(selectedCards);
-  if (!shape) return { ok: false, error: 'Invalid combination' };
+  if (!shape) return { ok: false, error: { code: 'invalidCombination' } };
 
   const pileCheck = canPlayOnPile(state, state.pile, shape, rules);
   if (!pileCheck.ok) return pileCheck;
@@ -664,11 +699,11 @@ export function applyAction(
       : pickWorstCards(remainingHand, giveCount).map(c => c.id);
 
     if (giveIds.length < giveCount) {
-      return { ok: false, error: `Select ${giveCount} card(s) to give` };
+      return { ok: false, error: { code: 'selectGiveCount', count: giveCount } };
     }
 
     const selectedGiveCards = getSelectedCards(remainingHand, giveIds.slice(0, giveCount));
-    if (!selectedGiveCards) return { ok: false, error: 'Give card not in hand' };
+    if (!selectedGiveCards) return { ok: false, error: { code: 'giveCardNotInHand' } };
 
     const giveSet = new Set(selectedGiveCards.map(c => c.id));
     remainingHand = sortHand(removeCardsById(remainingHand, giveSet));

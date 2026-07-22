@@ -19,7 +19,7 @@ describe("shogi NNUE representation pivot evidence", () => {
     const evidence = JSON.parse(read(evidencePath));
     expect(evidence).toMatchObject({
       schema: "shogi-nnue-representation-pivot-evidence-v1",
-      status: "halfkp81-alpha-0.5-independent96-passed-formal768-running-live-unchanged",
+      status: "halfkp81-alpha-0.5-formal768-rejected-live-unchanged",
       live_baseline: {
         bytes: 1185988,
         sha256:
@@ -178,7 +178,7 @@ describe("shogi NNUE representation pivot evidence", () => {
     });
   });
 
-  it("records rejected dual experiments and advances only the confirmed alpha candidate", () => {
+  it("records rejected dual experiments and the completed formal rejection", () => {
     const evidence = JSON.parse(read(evidencePath));
     expect(evidence.dual_perspective_experiments).toMatchObject({
       status: "custom-and-bonapiece-dual-rejected",
@@ -190,8 +190,8 @@ describe("shogi NNUE representation pivot evidence", () => {
       },
     });
     expect(evidence.next_experiment).toMatchObject({
-      status: "independent-confirmation-passed-formal768-running",
-      representation: "single-perspective HalfKP81 alpha-0.5 parameter interpolation",
+      status: "confusion-teacher-regeneration-and-ranking-retraining-next",
+      representation: "single-perspective HalfKP81 ranking model trained on browser-confusion legal siblings",
       uses_published_nnue_weights: false,
       strength_claimed_before_direct_play: false,
     });
@@ -209,10 +209,33 @@ describe("shogi NNUE representation pivot evidence", () => {
       passed: true,
     });
     expect(evidence.speed_preserving_experiments.halfkp81_alpha_0_5_interpolation.formal768).toMatchObject({
-      status: "running",
+      status: "rejected-complete",
+      report_sha256: "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
+      manifest_sha256: "6470c79b95ccf94fdd51fd017b05daab9e39b9ea98f7a22db4e8a7b72f0cc4e0",
+      pairs: 384,
       games: 768,
       workers: 12,
+      candidate_wins: 376,
+      live_wins: 357,
+      draws: 35,
+      candidate_half_points: 787,
+      score_denominator_half_points: 1536,
+      bootstrap_seed: 20260710,
+      bootstrap_replicates: 100000,
+      bootstrap_denominator_half_points: 1536,
+      one_sided_95_lower_half_points: 742,
+      two_sided_95_lower_half_points: 733,
+      safety_passed: true,
+      stronger_passed: false,
+      all_moves_legal: true,
+      all_openings_unique: true,
+      technical_faults: 0,
+      completed: true,
+      decision: "rejected-complete",
+      passed: false,
       promotion_authorized_before_completion: false,
+      promotion_authorized_after_completion: false,
+      external_calibration_started: false,
     });
   });
 
@@ -240,6 +263,12 @@ describe("shogi NNUE representation pivot evidence", () => {
       "候補53勝、現行37勝、6分",
       "53 candidate wins, 37 production wins, and six draws",
       "51.04%",
+      "候補376勝、現行357勝、35分",
+      "376 candidate wins, 357 production wins, and 35 draws",
+      "51.236979%",
+      "48.307292%",
+      "47.721354%",
+      "1f83896df8e55c631caa475494a4ba66a10f930068d2ec8ee236c9bf4abfa8ec",
       "13,069",
       "[256 us, 256 them] -> 32 -> 32 -> 1",
       "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",

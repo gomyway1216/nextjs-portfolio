@@ -1,6 +1,6 @@
 {
   "schema": "shogi-nnue-representation-pivot-evidence-v1",
-  "status": "halfkp81-alpha-0.5-screen-passed-independent96-running-live-unchanged",
+  "status": "halfkp81-alpha-0.5-independent96-passed-formal768-running-live-unchanged",
   "recorded_date": "2026-07-21",
   "articles": [
     "docs/blog-shogi-opening-book.md",
@@ -487,7 +487,7 @@
       "live_promoted": false
     },
     "halfkp81_alpha_0_5_interpolation": {
-      "status": "screen56-passed-independent96-running",
+      "status": "screen56-and-independent96-passed-formal768-running",
       "selection_protocol": "ml/protocols/halfkp81-interpolation-relative-quant-screen-v2.json",
       "relation_to_original_selection": "The original absolute 175cp quantization cap remains failed; this is a new prospective relative-within-5-percent rule with fresh seeds.",
       "alpha": 0.5,
@@ -511,10 +511,33 @@
         "passed": true
       },
       "independent96": {
-        "status": "running",
+        "status": "passed-clean-rerun-after-invalidated-technical-fault-attempt",
         "pair_seed_start": 740001,
         "games": 96,
-        "decision_rule": "one-sided 95-percent paired-bootstrap lower bound strictly above 50 percent"
+        "candidate_wins": 53,
+        "live_wins": 37,
+        "draws": 6,
+        "candidate_half_points": 112,
+        "score_denominator_half_points": 192,
+        "score_percent": 58.333333333333336,
+        "decision_rule": "one-sided 95-percent paired-bootstrap lower bound strictly above 50 percent",
+        "bootstrap_seed": 20260721,
+        "bootstrap_replicates": 100000,
+        "bootstrap_lower_half_points": 98,
+        "bootstrap_denominator_half_points": 192,
+        "bootstrap_lower_percent": 51.041666666666664,
+        "report_sha256": "5536d314cfa03d93920435159bf53924fc32fc61d15cf35c1dd5bfb8d2f92038",
+        "all_moves_legal": true,
+        "all_openings_unique": true,
+        "technical_faults": 0,
+        "passed": true
+      },
+      "formal768": {
+        "status": "running",
+        "pair_seed_start": 840001,
+        "games": 768,
+        "workers": 12,
+        "promotion_authorized_before_completion": false
       },
       "live_promoted": false
     },
@@ -596,7 +619,7 @@
     "high_dan_calibrated": false
   },
   "next_experiment": {
-    "status": "short-screen-passed-independent-confirmation-running",
+    "status": "independent-confirmation-passed-formal768-running",
     "representation": "single-perspective HalfKP81 alpha-0.5 parameter interpolation",
     "arms": [
       "the single prospectively selected alpha-0.5 interpolation candidate"
@@ -604,5 +627,5 @@
     "uses_published_nnue_weights": false,
     "strength_claimed_before_direct_play": false
   },
-  "next_step": "Keep live unchanged. Complete the fresh independent 96-game paired-bootstrap confirmation; only a pass may advance to the 768-game formal A/B and external calibration."
+  "next_step": "Keep live unchanged. Complete the 768-game formal A/B and external calibration; only those prospective passes may authorize promotion."
 }

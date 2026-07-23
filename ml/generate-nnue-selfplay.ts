@@ -1064,6 +1064,20 @@ function canonicalLegalMove(selected: Te, legal: readonly Te[]): Te | null {
   return legal.find((move) => move.equals(selected)) ?? null;
 }
 
+function readWasmU32Counter(label: string, value: number): number {
+  // WebAssembly exposes AssemblyScript i32 exports to JavaScript as signed
+  // numbers. Search counters are non-negative bit counters, so values above
+  // INT32_MAX arrive as negative numbers and must be reinterpreted as u32.
+  if (
+    !Number.isSafeInteger(value) ||
+    value < -0x8000_0000 ||
+    value > 0x7fff_ffff
+  ) {
+    throw new Error(`invalid ${label}: ${value}`);
+  }
+  return value >>> 0;
+}
+
 /** Run one deterministic fixed-depth root search. There is deliberately no fallback move. */
 export function searchPinnedFixedDepth(
   wasm: NnueSelfplayWasm,
@@ -1084,8 +1098,8 @@ export function searchPinnedFixedDepth(
       key,
       score: wasm.getSearchScore(),
       completedDepth: wasm.getSearchDepth(),
-      nodes: wasm.getSearchNodes(),
-      leaves: wasm.getSearchLeaves(),
+      nodes: readWasmU32Counter("nodes", wasm.getSearchNodes()),
+      leaves: readWasmU32Counter("leaves", wasm.getSearchLeaves()),
     });
   };
   const validateSearch = (result: ReturnType<typeof runSearch>): void => {
@@ -1098,8 +1112,8 @@ export function searchPinnedFixedDepth(
     for (const [label, value, minimum, maximum] of [
       ["score", result.score, -MAX_SEARCH_SCORE, MAX_SEARCH_SCORE],
       ["completed depth", result.completedDepth, 1, depth],
-      ["nodes", result.nodes, 0, 0x7fff_ffff],
-      ["leaves", result.leaves, 0, 0x7fff_ffff],
+      ["nodes", result.nodes, 0, 0xffff_ffff],
+      ["leaves", result.leaves, 0, 0xffff_ffff],
     ] as const) {
       if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
         throw new Error(`invalid ${label}: ${value}`);

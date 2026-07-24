@@ -583,6 +583,36 @@ describe("NNUE selfplay generator", () => {
     expect(clears).toBe(0);
   });
 
+  it("reads wrapped signed WASM search counters as unsigned i32 values", () => {
+    const position = InitialPositionImproved.createInitialPosition();
+    const legal = GenerateMovesImproved.generateLegalMoves(position)[0];
+    if (!legal) throw new Error("initial position unexpectedly has no moves");
+    const legalKey =
+      (legal.koma & 0x3f) |
+      ((legal.from & 0xff) << 6) |
+      ((legal.to & 0xff) << 14) |
+      ((legal.promote ? 1 : 0) << 22);
+    const wasm = {
+      clearBoard() {},
+      setSquare() {},
+      setHand() {},
+      setSideToMove() {},
+      finalizePosition() {},
+      setRootTesu() {},
+      searchBestMove: () => legalKey,
+      getSearchScore: () => 7,
+      getSearchDepth: () => 2,
+      getSearchNodes: () => -0x8000_0000,
+      getSearchLeaves: () => -1_686_593_404,
+      clearTT() {},
+    } as never;
+
+    const result = searchPinnedFixedDepth(wasm, position, 0, 2);
+
+    expect(result.nodes).toBe(2_147_483_648);
+    expect(result.leaves).toBe(2_608_373_892);
+  });
+
   it("rejects invalid first-search statistics before clearing the TT", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const position = InitialPositionImproved.createInitialPosition();
@@ -605,7 +635,7 @@ describe("NNUE selfplay generator", () => {
       },
       getSearchScore: () => 0,
       getSearchDepth: () => 2,
-      getSearchNodes: () => -1,
+      getSearchNodes: () => Number.NaN,
       getSearchLeaves: () => 1,
       clearTT() {
         clears += 1;

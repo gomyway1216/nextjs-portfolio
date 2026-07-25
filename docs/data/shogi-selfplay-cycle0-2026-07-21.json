@@ -1,8 +1,8 @@
 {
   "schema": "shogi-selfplay-cycle0-evidence-v1",
-  "status": "full24k-generation-in-progress-live-unchanged",
+  "status": "prefix16255-candidates-screen56-in-progress-live-unchanged",
   "recorded_at": "2026-07-21T23:31:24-07:00",
-  "updated_at": "2026-07-22T12:11:53-07:00",
+  "updated_at": "2026-07-24T23:34:02-07:00",
   "articles": [
     "docs/blog-shogi-selfplay-cycle0.md",
     "docs/blog-shogi-selfplay-cycle0.en.md"
@@ -205,10 +205,119 @@
       "claim_boundary": "These 82-row integrations prove only that authenticated data reaches both fixed training arms and produces rebound artifacts. They are not strength evidence and will not be matched or promoted."
     }
   },
+  "prefix16255_checkpoint": {
+    "snapshot": {
+      "schema": "shogi-nnue-selfplay-prefix-snapshot-v1",
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix-snapshot-20260724-v1",
+      "receipt_sha256": "013e2704adb6224b0094991695680f3df464ae1cdced3a3dde25e753c8a445a7",
+      "completed_games": 16255,
+      "source_requested_games": 24000,
+      "completion_percent": 67.72916666666667,
+      "shard_completed_games": [
+        1906, 761, 2000, 670, 794, 2000, 829, 2000, 1545, 1711, 1794, 245
+      ],
+      "source_generator_mutated": false,
+      "claim_boundary": "This is an immutable snapshot of committed completed-game prefixes, not completion of the 24,000-game source run."
+    },
+    "dataset": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix16255-dataset-v1",
+      "manifest_sha256": "ecbf49552fb27a50681711df4d8711b04a1c214067c5c21e2b14395a3119e008",
+      "input_records": 198391,
+      "sampled_games": 16133,
+      "zero_sample_games": 122,
+      "terminal_reasons": {
+        "checkmate": 15181,
+        "max-plies": 749,
+        "no-legal-move": 0,
+        "repetition": 325
+      },
+      "current_duplicate_positions_removed": 4771,
+      "validation_duplicate_positions_removed": 151,
+      "train": {
+        "records": 186634,
+        "games": 15499,
+        "bytes": 141971042,
+        "sha256": "cf47acf257068afd71fb2a26224a41ebac0587da8a2fa5acd22978cd7876d430"
+      },
+      "validation": {
+        "records": 6818,
+        "games": 610,
+        "bytes": 5174448,
+        "sha256": "6c438cad5f3aaec2055a2eb669fd8552b98daa34724f06362b1c25bacb7ccf4f"
+      },
+      "split_seed": "selfplay-cycle0-fixed-holdout-20260722",
+      "source_game_overlap": 0,
+      "game_overlap": 0,
+      "opening_overlap": 0,
+      "position_overlap": 0,
+      "run_fingerprint_count": 1,
+      "status": "research-data-only-not-deployment-authorization"
+    },
+    "training": {
+      "plan_path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix16255-training-plan-v1.json",
+      "plan_bytes": 1673,
+      "plan_sha256": "b0955c2cba541ea1462cb785dc7ab087d6f3bdddc36c7c2c4ed60b029496d47d",
+      "device": "mps",
+      "epochs": 2,
+      "batch": 256,
+      "learning_rate": 0.000003,
+      "seed": 42,
+      "arms": {
+        "lambda_0_50": {
+          "status": "complete",
+          "initializer_val_loss": 0.078309,
+          "epoch2_val_loss": 0.076182,
+          "initializer_pair_accuracy": 0.8743,
+          "epoch2_pair_accuracy": 0.875,
+          "best_checkpoint_sha256": "785ff6ea3334c4b9e3b38e779ccb5811652571b3a45941584275e83b88130cc9"
+        },
+        "lambda_0_75": {
+          "status": "complete",
+          "initializer_val_loss": 0.045156,
+          "epoch2_val_loss": 0.043336,
+          "initializer_pair_accuracy": 0.8743,
+          "epoch2_pair_accuracy": 0.8757,
+          "best_checkpoint_sha256": "bd964ea0bab9d2ba405a06ac4a64af52e13bfe29965bf5ca1fd276b665addf8e"
+        }
+      },
+      "claim_boundary": "Lower validation loss and slightly higher pair accuracy are static training metrics, not evidence of increased playing strength."
+    },
+    "exports": {
+      "lambda_0_50": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix16255-lambda050-export-v1/weights.bin",
+        "bytes": 94656708,
+        "sha256": "f8c84d2fd163553825237bea9b7740ad656eb4fe339eb2db0f854814b40e9291",
+        "buckets": 81,
+        "verification_positions": 200,
+        "mean_quantization_error_cp": 30.81,
+        "max_quantization_error_cp": 126.4
+      },
+      "lambda_0_75": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix16255-lambda075-export-v1/weights.bin",
+        "bytes": 94656708,
+        "sha256": "99060116ce2ab98d99c472bc989752dd08f49b21b367f8e6913ece1075a50101",
+        "buckets": 81,
+        "verification_positions": 200,
+        "mean_quantization_error_cp": 30.59,
+        "max_quantization_error_cp": 124.03
+      }
+    },
+    "audit_checklist": {
+      "completed_prefix_only": true,
+      "source_run_preserved": true,
+      "single_run_fingerprint": true,
+      "four_way_holdout_overlap_zero": true,
+      "inputs_and_outputs_sha256_pinned": true,
+      "training_plan_sealed_before_training": true,
+      "gate_manifests_preregistered": true,
+      "technical_faults_fail_closed": true,
+      "live_weight_write_authorized": false
+    }
+  },
   "full24k_generation": {
     "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1",
     "started_at_local_approx": "2026-07-21T23:27:00-07:00",
-    "state_at_recording": "in-progress",
+    "state_at_recording": "temporarily-suspended-for-concurrent-screen56",
     "workers_observed_running": 12,
     "games_requested": 24000,
     "seed": 2026072205,
@@ -295,9 +404,19 @@
       "claim_boundary": "This repairs generation continuity and records the mixed host-code boundary. It is not candidate-strength evidence. A permanent WASM root-TT legality check and wider identity belong to a newly fingerprinted later cycle."
     },
     "completion_claimed": false,
-    "dataset_prepared": false,
-    "full_training_started": false,
-    "candidate_strength_measured": false
+    "full24k_completion_dataset_prepared": false,
+    "full24k_completion_training_started": false,
+    "prefix_dataset_prepared": true,
+    "prefix_training_complete": true,
+    "candidate_strength_measurement_in_progress": true,
+    "candidate_strength_measured": false,
+    "resource_switch": {
+      "source_worker_processes_preserved": 9,
+      "source_workers_suspended_in_memory": true,
+      "reason": "Concentrate local CPU on two concurrent direct-play screens.",
+      "automatic_resume_after_both_screens": true,
+      "may_suspend_again_for_pass_only_downstream_gate": true
+    }
   },
   "promotion": {
     "sequence": [
@@ -309,6 +428,47 @@
     "stop_at_first_failed_gate": true,
     "maximum_cycles": 3,
     "stop_after_consecutive_rejected_cycles": 2,
+    "current_phase": "screen56-running-both-candidates-concurrently",
+    "current_results_claimed": false,
+    "fixed_time_match": {
+      "milliseconds_per_move": 1500,
+      "book": false,
+      "mate_solver": false,
+      "games_per_pair": 2,
+      "tt_policy": "clear-before-each-game-retain-within-game"
+    },
+    "screen56": {
+      "lambda_0_50": {
+        "experiment_id": "sha256:5d40ac93b62fd1ed8ddf72f66315d9aeffae99ca3a23c26a99358b8c2f12eed7",
+        "manifest_sha256": "3785b3c5da8103e63df01f138d3a00e620b17780325f54a5b758db6222631a37",
+        "pair_workers": 7,
+        "pairs": 28,
+        "games": 56,
+        "state": "running",
+        "result": null
+      },
+      "lambda_0_75": {
+        "experiment_id": "sha256:0b5b82ba1f6ef85e197e43197d125c629dea406efa04c28f9f4a84129472c9b8",
+        "manifest_sha256": "200c7c1133aa21522b222d4004a4e61e6f5edd23da1f6919b6df031a58804c50",
+        "pair_workers": 7,
+        "pairs": 28,
+        "games": 56,
+        "state": "running",
+        "result": null
+      },
+      "pass_requirement_halfpoints": 62,
+      "concurrent": true
+    },
+    "automatic_pass_only_continuation": {
+      "independent96": "Every complete, fault-free screen56 passer runs on disjoint seeds.",
+      "formal768": "Exactly one complete, fault-free independent96 passer is selected by the preregistered rule.",
+      "formal_selection_rule": [
+        "highest independent96 one-sided 95% paired-bootstrap lower bound",
+        "highest independent96 candidate halfpoints",
+        "lexicographically smallest experiment_id"
+      ],
+      "deployment": "never automatic"
+    },
     "live_weight_write_authorized": false,
     "live_weights_changed": false
   }

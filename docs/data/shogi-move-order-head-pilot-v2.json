@@ -1,0 +1,168 @@
+{
+  "schema": "shogi-move-order-head-pilot-evidence-v2",
+  "status": "complete-static-rejected",
+  "claim_boundary": {
+    "playing_strength_improved": false,
+    "production_evaluator_changed": false,
+    "production_search_changed": false,
+    "live_weight_changed": false,
+    "research_wasm_started": false,
+    "direct_match_started": false
+  },
+  "hypothesis": "A separate 128 KiB root move-ordering head might imitate deep-teacher sibling order well enough to reduce alpha-beta search work without changing the shipped NNUE evaluator.",
+  "implementation": {
+    "feature_version": "signed-fnv1a64k-parent-move-v1",
+    "hash_buckets": 65536,
+    "side_normalization": "rotate Gote-to-move parents and moves by 180 degrees",
+    "runtime_shape": "signed int16 table lookups and int32 additions",
+    "artifact_bytes": 131072,
+    "training_device": "mps",
+    "seed": 42,
+    "epochs_considered": 64,
+    "selected_epoch": 11
+  },
+  "inputs": {
+    "training": {
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e"
+    },
+    "validation": {
+      "rows": 57658,
+      "parents": 643,
+      "games": 15,
+      "bytes": 50255278,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "role": "previously observed reject-only set; excluded from epoch selection"
+    },
+    "external_validation": {
+      "rows": 28518,
+      "parents": 4798,
+      "games": 200,
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+      "role": "cross-distribution diagnostic; excluded from epoch selection"
+    },
+    "game_disjoint_training_split": {
+      "fit_parents": 1031,
+      "tune_parents": 303
+    }
+  },
+  "runtime_seconds": {
+    "load": 6.039637707639486,
+    "epoch_selection_64_epochs": 120.28516983101144,
+    "refit_11_epochs": 19.98766949912533,
+    "known_total": 146.31247703777626
+  },
+  "internal_tune_best": {
+    "epoch": 11,
+    "parents": 303,
+    "top1_correct": 35,
+    "top1_accuracy": 0.11551155115511551,
+    "pair_accuracy_gap_50cp": 0.6566241272379135,
+    "ndcg_at_5": 0.34988756834523765
+  },
+  "metric_definition_audit_and_confirmation": {
+    "reason": "The v1 trainer counted predicted pair ties as half-correct, while the preregistered scalar reference used strict greater-than and tie-safe top-1. The original v1 protocol is preserved byte-for-byte. A fresh v2 kept every training setting and gate threshold unchanged while applying the reference metric definition and explicit overlap accounting; v2 is the primary result below.",
+    "original_executed_protocol": {
+      "bytes": 4583,
+      "sha256": "3bbd87c4b9218d906dcaaaaeca5358047c261b763d8ab525554f0ecbf99c9ae8"
+    },
+    "corrected_confirmation_protocol": {
+      "bytes": 5261,
+      "sha256": "192067a46921305a6433276bffef135a71c9b4ac52254de044cd527d10e53d39",
+      "training_hyperparameter_changes": "none",
+      "gate_threshold_changes": "none",
+      "fresh_result_sha256": "d8a3e38c8e9ea38caae08da9d32173d3e0c27082aac5f695d5fb1d758a4b283a",
+      "status": "complete-static-rejected"
+    },
+    "training_validation_overlap": {
+      "game_id": 0,
+      "parent_id": 0,
+      "position_id": 0,
+      "parent_sfen": 0
+    },
+    "external_diagnostic_overlap": {
+      "with_training": {
+        "game_id": 0,
+        "parent_id": 0,
+        "position_id": 34,
+        "parent_sfen": 33
+      },
+      "with_validation": {
+        "game_id": 0,
+        "parent_id": 0,
+        "position_id": 13,
+        "parent_sfen": 13
+      }
+    }
+  },
+  "refit_training_metrics_posthoc": {
+    "parents": 1334,
+    "top1_correct": 437,
+    "top1_accuracy": 0.3275862068965517,
+    "pair_accuracy_gap_50cp": 0.6791085426947647,
+    "validation_top1_generalization_gap_percentage_points": 21.71663002091489
+  },
+  "validation": {
+    "reference_scalar_evaluator": {
+      "top1_correct": 66,
+      "top1_accuracy": 0.1026438569206843,
+      "pair_accuracy_gap_50cp": 0.6695942122776266
+    },
+    "quantized_move_order_head": {
+      "top1_correct": 71,
+      "top1_accuracy": 0.1104199066874028,
+      "pair_accuracy_gap_50cp": 0.663359709852521,
+      "ndcg_at_5": 0.3948580991030209
+    },
+    "difference_from_scalar": {
+      "top1_correct": 5,
+      "top1_percentage_points": 0.7776049766718503,
+      "pair_percentage_points": -0.6234502425105592
+    },
+    "required": {
+      "top1_correct": 99,
+      "top1_accuracy": 0.15396578538102643,
+      "pair_accuracy_gap_50cp": 0.6895942122776266
+    }
+  },
+  "external_validation": {
+    "reference_scalar_evaluator": {
+      "top1_correct": 1458,
+      "top1_accuracy": 0.30387661525635684,
+      "pair_accuracy_gap_50cp": 0.5937776704499719
+    },
+    "quantized_move_order_head": {
+      "top1_correct": 1288,
+      "top1_accuracy": 0.2684451854939558,
+      "pair_accuracy_gap_50cp": 0.568723335748209,
+      "ndcg_at_5": 0.7336600603546451
+    },
+    "difference_from_scalar": {
+      "top1_correct": -170,
+      "top1_percentage_points": -3.5431429762401043,
+      "pair_percentage_points": -2.505433470176288
+    }
+  },
+  "quantization": {
+    "float_to_int16_validation_top1_parent_loss": 0,
+    "float_to_int16_validation_pair_drop": 0.000027685828143719782,
+    "weights_sha256": "ea5d30e8762fde096b4d7040c5a8175c9fcbe64ee6ff3026143a7e7796377da7"
+  },
+  "gates": {
+    "artifact_size": "passed",
+    "quantization": "passed",
+    "validation_top1": "failed",
+    "validation_pair_accuracy": "failed",
+    "overall": "failed"
+  },
+  "stop_rule_applied": "No extra seed, epoch extension, feature/loss variant, research-WASM integration, screen match, or live deployment for this recipe.",
+  "artifacts": {
+    "local_result_sha256": "d8a3e38c8e9ea38caae08da9d32173d3e0c27082aac5f695d5fb1d758a4b283a",
+    "local_checkpoint_sha256": "832ddad062c6bb609b612ccd08e56ff6a4e16975b575364d360ca4e0562141b4",
+    "local_weights_metadata_sha256": "5823aeded0560fe987b7f2e480bd371406e40774b6744a113e165c00c9699cf9"
+  }
+}

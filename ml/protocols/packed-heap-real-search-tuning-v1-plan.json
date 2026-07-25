@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "name": "packed-key stable heap real-search tuning screen v1",
+  "status": "fixed-before-result",
+  "claimBoundary": {
+    "tuningOnly": true,
+    "formalEvidenceEligible": false,
+    "formalV2HoldoutReused": false,
+    "strengthClaim": false,
+    "fixedTimeMatchAuthorized": false,
+    "productionChangeAuthorized": false,
+    "liveChangeAuthorized": false
+  },
+  "parentMainCommit": "f75af80a5b368b8a9a7bd07b602b2c5bea51f050",
+  "arms": {
+    "production": "production insertion-sort WASM",
+    "currentHeap": "rejected three-array stable-heap research WASM",
+    "packedHeap": "new move-plus-u64-key stable-heap research WASM"
+  },
+  "identities": {
+    "productionWasm": {
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "currentHeapWasm": {
+      "bytes": 36358,
+      "sha256": "49b66b2466c654232a6bccc5e3d7a72d69ec71d46977aa17f8644cc84361d311"
+    },
+    "packedHeapWasm": {
+      "bytes": 36284,
+      "sha256": "8d94d2d9157b3635fd62d20847c08e2c42dbdb29d23c9e4d4e47aca9bbbbad66"
+    },
+    "liveWeights": {
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "tuningFixtureV1": {
+      "bytes": 29380,
+      "sha256": "59c1a68bb5515447211ad57ec9cf1a27c8933b95656d78c8e7e8f213a130bdfc"
+    },
+    "baseResearchPatch": {
+      "bytes": 5624,
+      "sha256": "e979b5609bd8d63305037d37860b5f5914fcf641a49f7a61ae0a943af4fb3162"
+    },
+    "packedDeltaPatch": {
+      "bytes": 2985,
+      "sha256": "cc95e43f0b5274dff695da8e5d04e7fb6588902a212813754ad689a74f1f6657"
+    },
+    "runner": {
+      "bytes": 20636,
+      "sha256": "67ff5ab0fa5bc0ea44854223215753fd2ee8bcf92d2a1940d272f5c6f87649ff"
+    },
+    "builder": {
+      "bytes": 5311,
+      "sha256": "e0234cf40dded363411402c2859503970377f0d7fa81909a8daf2887f003c431"
+    }
+  },
+  "runtime": {
+    "node": "v22.13.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "heavyConcurrentWorkAllowed": false
+  },
+  "fixture": {
+    "name": "lazy move-picker tuning fixture v1",
+    "cases": 64,
+    "categories": {
+      "opening": 16,
+      "middlegame": 16,
+      "dropHeavy": 16,
+      "checkEvasion": 16
+    }
+  },
+  "search": {
+    "depth": 5,
+    "qDepth": 8,
+    "timed": false,
+    "sharedTt": false,
+    "clearTtBeforeEverySearch": true,
+    "minMoves": 64,
+    "minimumBlockMs": 25,
+    "maximumRepeats": 100,
+    "maximumRuntimeMs": 600000,
+    "timingOrder": [
+      "production",
+      "currentHeap",
+      "packedHeap",
+      "packedHeap",
+      "currentHeap",
+      "production",
+      "packedHeap",
+      "production",
+      "currentHeap",
+      "currentHeap",
+      "production",
+      "packedHeap"
+    ]
+  },
+  "gates": {
+    "threeArmExactParity": "64/64 best move, score, depth, nodes, and leaves; zero mismatches",
+    "packedActivation": "at least one activation in every category",
+    "packedVsProductionAggregatePctAtLeast": 8.5,
+    "packedVsProductionMedianPctAtLeast": 5.5,
+    "packedVsProductionP90WallRegressionPctAtMost": 2,
+    "packedVsProductionCategoryPctAtLeast": 0,
+    "packedVsCurrentHeapAggregatePctAtLeast": 1.5,
+    "packedVsCurrentHeapMedianPctAtLeast": 0,
+    "packedVsCurrentHeapCategoryPctAtLeast": -0.5,
+    "technicalFaults": 0
+  },
+  "stopGo": {
+    "fail": "reject packed-key candidate; no threshold changes, rerun, v3, fixed-time match, production change, or live change",
+    "pass": "authorize only a separately fixed fresh-v3 plan and unused holdout; no fixed-time match, production change, strength claim, or live change"
+  }
+}

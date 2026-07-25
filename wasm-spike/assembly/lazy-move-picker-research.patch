@@ -1,0 +1,154 @@
+--- index.ts
++++ index.ts
+@@ -2988,6 +2988,36 @@
+ 
+ let rootBestKey: i32 = 0;
+ let orderDepthLeft: i32 = 99;
++
++// Research-only stable lazy move picker. This source fragment is applied only
++// to an isolated research build; the production WASM and embedded base64 do
++// not contain these exports. Disabled by default even in the research build.
++let researchLazyMovePickerEnabled: bool = false;
++let researchLazyMovePickerMinMoves: i32 = 64;
++let researchLazyMovePickerNodes: i32 = 0;
++const researchHeapOrdinalBuf = new StaticArray<i32>(S_MAX_PLY * MAX_MOVES);
++
++/**
++ * Enable the research picker for main-search nodes with at least minMoves
++ * pseudo-legal moves. Move scores are still frozen for every move
++ * before the first child search. The picker only defers stable ordering.
++ */
++export function setResearchLazyMovePicker(flag: i32, minMoves: i32): void {
++  researchLazyMovePickerEnabled = flag != 0;
++  researchLazyMovePickerMinMoves = maxI(2, minI(MAX_MOVES, minMoves));
++}
++
++export function getResearchLazyMovePickerEnabled(): i32 {
++  return researchLazyMovePickerEnabled ? 1 : 0;
++}
++
++export function getResearchLazyMovePickerMinMoves(): i32 {
++  return researchLazyMovePickerMinMoves;
++}
++
++export function getResearchLazyMovePickerNodes(): i32 {
++  return researchLazyMovePickerNodes;
++}
+ 
+ // Root-only metadata (opening-like ordering heuristics).
+ let rootTesuG: i32 = 0;
+@@ -3351,15 +3376,76 @@
+   }
+ }
+ 
+-function scoreAndSortMovesAS(ply: i32, n: i32, ttMoveKey: i32, ttSecondMoveKey: i32): void {
++/** Score every move exactly once at the historical pre-search point. */
++function scoreMovesAS(ply: i32, n: i32, ttMoveKey: i32, ttSecondMoveKey: i32): void {
+   beginAttackCacheForNode(ply);
+   const base = ply * MAX_MOVES;
+   for (let i = 0; i < n; i++) {
+     unchecked(moveScoreBuf[base + i] = scoreMoveAS(unchecked(moveBuf[base + i]), ply, ttMoveKey, ttSecondMoveKey));
+   }
++}
++
++function scoreAndSortMovesAS(ply: i32, n: i32, ttMoveKey: i32, ttSecondMoveKey: i32): void {
++  scoreMovesAS(ply, n, ttMoveKey, ttSecondMoveKey);
++  const base = ply * MAX_MOVES;
+   insertionSortDesc(base, 0, n);
+ }
+ 
++/** Strict stable-order comparator: score descending, generation ordinal ascending. */
++function researchHeapHigher(base: i32, a: i32, b: i32): bool {
++  const scoreA = unchecked(moveScoreBuf[base + a]);
++  const scoreB = unchecked(moveScoreBuf[base + b]);
++  if (scoreA != scoreB) return scoreA > scoreB;
++  return unchecked(researchHeapOrdinalBuf[base + a]) <
++    unchecked(researchHeapOrdinalBuf[base + b]);
++}
++
++function researchHeapSwap(base: i32, a: i32, b: i32): void {
++  const move = unchecked(moveBuf[base + a]);
++  const score = unchecked(moveScoreBuf[base + a]);
++  const ordinal = unchecked(researchHeapOrdinalBuf[base + a]);
++  unchecked(moveBuf[base + a] = moveBuf[base + b]);
++  unchecked(moveScoreBuf[base + a] = moveScoreBuf[base + b]);
++  unchecked(researchHeapOrdinalBuf[base + a] = researchHeapOrdinalBuf[base + b]);
++  unchecked(moveBuf[base + b] = move);
++  unchecked(moveScoreBuf[base + b] = score);
++  unchecked(researchHeapOrdinalBuf[base + b] = ordinal);
++}
++
++function researchHeapSiftDown(base: i32, root: i32, size: i32): void {
++  let current = root;
++  while (true) {
++    const left = current * 2 + 1;
++    if (left >= size) return;
++    const right = left + 1;
++    let best = left;
++    if (right < size && researchHeapHigher(base, right, left)) best = right;
++    if (!researchHeapHigher(base, best, current)) return;
++    researchHeapSwap(base, current, best);
++    current = best;
++  }
++}
++
++function researchHeapBuild(ply: i32, n: i32): void {
++  const base = ply * MAX_MOVES;
++  for (let i = 0; i < n; i++) unchecked(researchHeapOrdinalBuf[base + i] = i);
++  for (let i = (n >> 1) - 1; i >= 0; i--) researchHeapSiftDown(base, i, n);
++}
++
++/** Pop the next move in exactly insertionSortDesc's stable order. */
++function researchHeapPopMove(ply: i32, size: i32): i32 {
++  const base = ply * MAX_MOVES;
++  const move = unchecked(moveBuf[base]);
++  const last = size - 1;
++  if (last > 0) {
++    unchecked(moveBuf[base] = moveBuf[base + last]);
++    unchecked(moveScoreBuf[base] = moveScoreBuf[base + last]);
++    unchecked(researchHeapOrdinalBuf[base] = researchHeapOrdinalBuf[base + last]);
++    researchHeapSiftDown(base, 0, last);
++  }
++  return move;
++}
++
+ // --- Quiescence search (port of quiescence) --------------------------------------
+ 
+ function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
+@@ -3623,8 +3733,17 @@
+   const n = generateMoves(ply);
+   const base = ply * MAX_MOVES;
+ 
++  const useResearchLazyMovePicker =
++    researchLazyMovePickerEnabled &&
++    n >= researchLazyMovePickerMinMoves;
++  if (useResearchLazyMovePicker) researchLazyMovePickerNodes++;
+   orderDepthLeft = depthLeft;
+-  scoreAndSortMovesAS(ply, n, ttMoveKey, ttSecondMoveKey);
++  scoreMovesAS(ply, n, ttMoveKey, ttSecondMoveKey);
++  if (useResearchLazyMovePicker) {
++    researchHeapBuild(ply, n);
++  } else {
++    insertionSortDesc(base, 0, n);
++  }
+   orderDepthLeft = 99;
+ 
+   // Futility pruning precompute (frontier nodes).
+@@ -3647,6 +3759,8 @@
+   const enemy = mover == SENTE ? GOTE : SENTE;
+ 
+   for (let i = 0; i < n; i++) {
+-    const m = unchecked(moveBuf[base + i]);
++    const m = useResearchLazyMovePicker
++      ? researchHeapPopMove(ply, n - i)
++      : unchecked(moveBuf[base + i]);
+     const to = m & 0xff;
+     const from = (m >> 8) & 0xff;
+@@ -3824,6 +3938,7 @@
+   stopped = false;
+   nodeCount = 0;
+   leafCount = 0;
++  researchLazyMovePickerNodes = 0;
+   rootBestKey = 0;
+   orderDepthLeft = 99;
+   repSize = 0;

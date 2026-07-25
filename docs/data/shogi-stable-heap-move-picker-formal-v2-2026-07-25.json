@@ -1,0 +1,390 @@
+{
+  "schema": "shogi-stable-heap-move-picker-formal-v2-evidence-v1",
+  "status": "complete-formal-rejected-live-unchanged",
+  "recorded_at": "2026-07-25T10:49:54Z",
+  "claim_boundary": {
+    "fixed_depth_exactness_preserved": true,
+    "measured_fixed_work_throughput_improved": true,
+    "formal_gate_passed": false,
+    "playing_strength_improved": false,
+    "fixed_time_screen_started": false,
+    "production_search_changed": false,
+    "production_evaluator_changed": false,
+    "live_weights_changed": false,
+    "high_dan_calibrated": false
+  },
+  "checked_in_control_plan": {
+    "path": "ml/protocols/stable-heap-move-picker-formal-v2-plan.json",
+    "bytes": 4953,
+    "sha256": "fddac00faed7a4cd5b9958c99f70fb458fea389b294e51f73f6490f489617388",
+    "status_at_execution": "preregistered-not-run",
+    "limitation": "The plan was fixed locally and its hash was recorded before the result was generated, but the plan and result first enter Git in the same pull request. No external timestamp or earlier commit proves ordering, so this is not externally time-proven preregistration."
+  },
+  "formal_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/stable-heap-move-picker-formal-v2/result.json",
+    "bytes": 184725,
+    "sha256": "6ce667e41bcc0f8464c6fbfae47660de48f2050e868675f260e9c877ae2f1b72",
+    "generated_at": "2026-07-25T10:44:52.923Z",
+    "schema_version": 2,
+    "gate": "stable-heap-move-picker-formal-holdout-g2",
+    "status": "fail",
+    "passed": false,
+    "production_changed": false,
+    "tracked_raw_report": {
+      "path": "docs/data/shogi-stable-heap-move-picker-formal-v2-raw-2026-07-25.json",
+      "bytes": 198184,
+      "sha256": "085aa2af0732a1bfd1d8828e68d32517b1a9f160e842f8187cfa5c4880116cd5",
+      "source_bytes": 184725,
+      "source_sha256": "6ce667e41bcc0f8464c6fbfae47660de48f2050e868675f260e9c877ae2f1b72",
+      "sanitization": "only absolute repository paths rewritten as repository-relative paths; all fixed-depth rows, timing rows, and numeric values unchanged"
+    },
+    "tracked_raw_report_sanitizer": {
+      "path": "scripts/archive-shogi-stable-heap-formal-report.mjs",
+      "bytes": 4435,
+      "sha256": "7b0a083754d91e0848c6398e67cb1eb11fb9ce955202c16d05b87204292c5887"
+    }
+  },
+  "runtime": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v22.13.0",
+    "logical_cpus": 14,
+    "cpu_model": "Apple M4 Pro"
+  },
+  "pinned_inputs": {
+    "baseline_wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "research_candidate_wasm": {
+      "path_at_execution": "wasm-spike/artifacts/shogi-lazy-move-picker-research.wasm",
+      "bytes": 36358,
+      "sha256": "49b66b2466c654232a6bccc5e3d7a72d69ec71d46977aa17f8644cc84361d311",
+      "minimum_moves": 64,
+      "window_scope": "all internal main-search windows",
+      "identity_source": "formal result and preregistered control plan; a later research candidate at the same working path must not be confused with these bytes"
+    },
+    "research_patch": {
+      "path_at_execution": "wasm-spike/assembly/lazy-move-picker-research.patch",
+      "bytes": 5624,
+      "sha256": "e979b5609bd8d63305037d37860b5f5914fcf641a49f7a61ae0a943af4fb3162",
+      "identity_source": "preregistered control plan"
+    },
+    "live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "changed": false
+    },
+    "formal_fixture": {
+      "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+      "bytes": 35586,
+      "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f",
+      "cases": 64,
+      "cases_per_category": 16,
+      "status": "formal-holdout-not-for-tuning"
+    },
+    "fixture_builder": {
+      "path": "wasm-spike/build-lazy-move-picker-fixtures.ts",
+      "bytes": 17147,
+      "sha256": "1d6eb7f395f143d722e2a3079414a882bb179e1163a15a86227f6f239df9a8af"
+    },
+    "gate_implementation": {
+      "path": "wasm-spike/lazy-move-picker-gate.ts",
+      "bytes": 23605,
+      "sha256": "9325e553011276566dc201ec764dfcd8bd7c033deda2d0494a300ed04a9b9514"
+    }
+  },
+  "measurement_protocol": {
+    "fixed_depth": 5,
+    "quiescence_depth": 8,
+    "timed_search": false,
+    "shared_transposition_table": false,
+    "clear_transposition_table_before_every_search": true,
+    "minimum_block_ms": 100,
+    "maximum_repeats": 2000,
+    "timing_order": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline",
+      "candidate",
+      "baseline",
+      "baseline",
+      "candidate"
+    ],
+    "non_vacuous_policy": "at-least-one-activation-in-each-category"
+  },
+  "formal_measurements": {
+    "exactness": {
+      "cases": 64,
+      "mismatches": 0,
+      "compared_fields": [
+        "best_move_key",
+        "score",
+        "completed_depth",
+        "nodes",
+        "leaves"
+      ],
+      "candidate_activations": 421752
+    },
+    "fixed_work_throughput": {
+      "method": "fixed-depth fixed-work, clear TT before every search, ABBA then BAAB equal-repeat blocks",
+      "baseline_aggregate_nps": 553897.271935306,
+      "candidate_aggregate_nps": 591515.4787315495,
+      "aggregate_delta_pct": 6.791549390522578,
+      "median_position_delta_pct": 2.9145266539335357,
+      "p90_position_wall_regression_pct": 1.4342180594631104,
+      "categories": {
+        "opening": {
+          "cases": 16,
+          "delta_pct": 0.015047518726296616
+        },
+        "middlegame": {
+          "cases": 16,
+          "delta_pct": 0.8008039691632662
+        },
+        "dropHeavy": {
+          "cases": 16,
+          "delta_pct": 6.149573345278636
+        },
+        "checkEvasion": {
+          "cases": 16,
+          "delta_pct": 8.506097912321753
+        }
+      }
+    },
+    "technical_faults": 0
+  },
+  "formal_gates": {
+    "fixed_depth_exact": {
+      "requirement": "64 cases and zero mismatches",
+      "passed": true
+    },
+    "non_vacuous": {
+      "requirement": "at least one activation in every category",
+      "passed": true
+    },
+    "aggregate_work_nps_delta": {
+      "required_at_least_pct": 8,
+      "observed_pct": 6.791549390522578,
+      "passed": false
+    },
+    "median_position_nps_delta": {
+      "required_at_least_pct": 5,
+      "observed_pct": 2.9145266539335357,
+      "passed": false
+    },
+    "p90_position_wall_regression": {
+      "required_at_most_pct": 2,
+      "observed_pct": 1.4342180594631104,
+      "passed": true
+    },
+    "each_category_aggregate_nps_delta": {
+      "required_at_least_pct": 0,
+      "passed": true
+    },
+    "technical_faults": {
+      "required": 0,
+      "observed": 0,
+      "passed": true
+    },
+    "overall": "failed"
+  },
+  "tuning_history_not_formal_evidence": [
+    {
+      "candidate": "copy-heap zero-window threshold64",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-heap-v1/result.json",
+      "result_bytes": 184233,
+      "result_sha256": "5b52009d16a4bef3c8535421ce30045430680f30d97a8a3c7cff83b7ec9aad70",
+      "legacy_report_status": "fail",
+      "aggregate_delta_pct": 5.678006605613439,
+      "median_delta_pct": 4.87357059894774,
+      "p90_wall_regression_pct": 1.1631107285591247,
+      "formal_evidence_eligible": false,
+      "formal_pass": false
+    },
+    {
+      "candidate": "copy-heap zero-window threshold64 posthoc confirmation",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-heap-v1-confirm/result.json",
+      "result_bytes": 184316,
+      "result_sha256": "8f3fc703dd06bde71cf683e8b89ebdb6bde2b2c53cc8342e8c9b81752fcca4f4",
+      "legacy_report_status": "pass",
+      "aggregate_delta_pct": 5.84985151208679,
+      "median_delta_pct": 5.07814129791363,
+      "p90_wall_regression_pct": 0.5749279888879189,
+      "posthoc_relaxed_thresholds": {
+        "aggregate_at_least_pct": 3,
+        "median_at_least_pct": 2,
+        "p90_wall_regression_at_most_pct": 5,
+        "category_regression_at_most_pct": 1
+      },
+      "formal_evidence_eligible": false,
+      "formal_pass": false,
+      "interpretation": "The legacy report passed only posthoc-relaxed exploratory thresholds. It is not a formal pass and does not satisfy the preregistered 8% aggregate threshold."
+    },
+    {
+      "candidate": "in-place heap zero-window threshold32",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-threshold-tuning-v1/t32/result.json",
+      "result_bytes": 183859,
+      "result_sha256": "d82ee3aaf53bed4bf1c5c3492db9353e7434988bb541a97dcbf2078c82ec1e30",
+      "legacy_report_status": "fail",
+      "aggregate_delta_pct": 6.386146602077503,
+      "median_delta_pct": 4.0019832722233195,
+      "p90_wall_regression_pct": 3.3929973772157007,
+      "formal_evidence_eligible": false,
+      "formal_pass": false
+    },
+    {
+      "candidate": "in-place heap zero-window threshold48",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-inplace-tuning-v1/t48/result.json",
+      "result_bytes": 183694,
+      "result_sha256": "27ce64c8011442d8de66bb1b160daebf75db5ddebf0546bb642847886b415967",
+      "legacy_report_status": "fail",
+      "aggregate_delta_pct": 4.587273014650761,
+      "median_delta_pct": 4.233505897897871,
+      "p90_wall_regression_pct": 1.3829126497652222,
+      "formal_evidence_eligible": false,
+      "formal_pass": false
+    },
+    {
+      "candidate": "in-place heap zero-window threshold64",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-inplace-tuning-v1/t64/result.json",
+      "result_bytes": 183651,
+      "result_sha256": "50cda6696236b57c011aec4a4e9f82bed2df2d47085cbc997b5306cb49e05fd5",
+      "legacy_report_status": "fail",
+      "aggregate_delta_pct": 6.249472729904193,
+      "median_delta_pct": 4.775623291074604,
+      "p90_wall_regression_pct": 1.5114260714319983,
+      "formal_evidence_eligible": false,
+      "formal_pass": false
+    },
+    {
+      "candidate": "in-place heap all-window threshold64",
+      "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/lazy-move-picker-all-window-tuning-v1/t64/result.json",
+      "result_bytes": 183591,
+      "result_sha256": "84202e35a0ea5de235aef5dbde56b6a8cb65edc3f0ee532c92a7a775c1ce3e11",
+      "legacy_report_status": "fail",
+      "aggregate_delta_pct": 6.86842243598873,
+      "median_delta_pct": 5.672278979140155,
+      "p90_wall_regression_pct": 1.0247496464769634,
+      "formal_evidence_eligible": false,
+      "formal_pass": false,
+      "decision": "selected exactly once for the separately pinned formal v2 holdout"
+    }
+  ],
+  "additional_microbenchmarks_not_formal_evidence": {
+    "selection_scan": {
+      "description": "Repeatedly scan the remaining unsorted suffix for the next stable-best move.",
+      "approximate_throughput_delta_pct_by_minimum_moves": {
+        "2": -0.96,
+        "16": -6.55,
+        "32": -1.03,
+        "48": -2.35,
+        "64": -1.94
+      },
+      "evidence_limitation": "Rounded values from early short-run logs; the raw report was not preserved, so they are not a formal effect-size claim.",
+      "formal_evidence_eligible": false,
+      "decision": "rejected-before-formal"
+    },
+    "index_only_heap": {
+      "description": "Swap only original u16 move indices and indirectly read score and move arrays.",
+      "tie_heavy_vectors": 1200,
+      "conditions": "n=48/64/96/128, partial and full pop",
+      "stable_order_mismatches": 0,
+      "relative_performance": "slower than the in-place heap across all eight conditions",
+      "evidence_limitation": "The exploratory raw script and report were not preserved, so no exact percentage range is claimed.",
+      "formal_evidence_eligible": false,
+      "decision": "rejected-before-formal"
+    },
+    "packed_key_heap": {
+      "description": "Swap move i32 plus one u64 priority key containing signed-score order in the high 32 bits and inverted original ordinal in the low 32 bits.",
+      "source": {
+        "path": "wasm-spike/packed-heap-microbench/bench.ts",
+        "bytes": 9035,
+        "sha256": "152c7e3aa553b8832a58f42e3acb7d2f714e37246b0717d8cfab945fd0603327"
+      },
+      "runner": {
+        "path": "wasm-spike/packed-heap-microbench/run.mjs",
+        "bytes": 11685,
+        "sha256": "92135ef246d9c6cc712fb8efc2c18574e539190adb4e05cfde051d6e80b1bcf4",
+        "assemblyscript_version": "0.28.19",
+        "build_flags": [
+          "-O3",
+          "--runtime",
+          "stub",
+          "--noAssert",
+          "--enable",
+          "simd"
+        ]
+      },
+      "result_path": "wasm-spike/packed-heap-microbench/result.json",
+      "result_bytes": 77565,
+      "result_sha256": "adc5602c49458c29ed3348c8a69a5194a58705dd94e27f6bc95ff9a5c29b4f4a",
+      "runtime": {
+        "node": "v22.13.0",
+        "architecture": "arm64",
+        "platform": "darwin",
+        "cpu_model": "Apple M4 Pro"
+      },
+      "measurement_protocol": {
+        "minimum_block_ms": 100,
+        "calibration_target_ms": 150,
+        "minimum_observed_block_ms": 151.58020799999986,
+        "timing_rounds": 3,
+        "blocks_per_arm_per_condition": 12,
+        "timing_order": [
+          "current",
+          "packed",
+          "packed",
+          "current",
+          "packed",
+          "current",
+          "current",
+          "packed"
+        ],
+        "same_work_and_seed_within_condition": true
+      },
+      "verification": {
+        "tie_heavy_vectors": 18000,
+        "signed_boundary_vectors": 12288,
+        "conditions": "n=48/64/96/128, partial 8, partial 25%, and full pop",
+        "stable_order_mismatches_current": 0,
+        "stable_order_mismatches_packed": 0,
+        "signed_boundary_mismatches_current": 0,
+        "signed_boundary_mismatches_packed": 0
+      },
+      "all_conditions_elapsed_time_reduction_pct_range": [
+        0.5138860769161588, 16.06250383082427
+      ],
+      "all_conditions_equal_work_throughput_gain_pct_range": [
+        0.5165405066615225, 19.136267537037742
+      ],
+      "candidate_threshold_partial8_elapsed_time_reduction_pct_range": [
+        0.5138860769161588, 3.5199905513966248
+      ],
+      "candidate_threshold_partial8_equal_work_throughput_gain_pct_range": [
+        0.5165405066615225, 3.6484143933171787
+      ],
+      "minimum_round_elapsed_time_reduction_pct": 0.05647213819106061,
+      "checksums_match_and_nontrivial": true,
+      "formal_evidence_eligible": false,
+      "playing_strength_evidence": false,
+      "decision": "low-priority-real-search-tuning-only",
+      "interpretation": "Full-pop kernels improved materially, but the alpha-beta-like partial-8 workload at the actual n>=64 candidate threshold improved only about 0.5% to 3.7% at the kernel level. This does not establish enough end-to-end gain to open another formal holdout.",
+      "next_step": "Only a cheap isolated real-search tuning run is justified. Do not build a v3 holdout unless end-to-end tuning materially exceeds the rejected v2 candidate."
+    }
+  },
+  "decision": {
+    "candidate": "rejected-for-production",
+    "reason": "The exact candidate improved aggregate fixed-work throughput but missed both preregistered central speed thresholds: 6.7915% was below 8%, and 2.9145% was below 5%.",
+    "fixed_time_56_game_screen_authorized": false,
+    "fixed_time_56_game_screen_started": false,
+    "production_source_modified": false,
+    "production_wasm_modified": false,
+    "embedded_base64_modified": false,
+    "live_weights_modified": false,
+    "next_step": "A materially different candidate requires a new preregistration and a fresh holdout. The failed v2 holdout cannot be reused as formal evidence."
+  }
+}

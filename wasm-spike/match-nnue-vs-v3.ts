@@ -17,7 +17,8 @@
  * Usage:
  *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
- *     [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm]
+ *     [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm] \
+ *     [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]
  *
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
  * from that file (direct NNUE-vs-NNUE A/B; side A = first positional arg,
@@ -31,14 +32,27 @@
  * (Applies to side A, and to side B when --vs is given.)
  */
 
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
-import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
-import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
-import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
-import { bucketsForByteLength } from './nnue-ref';
-import { loadShogiWasm, syncWasm, teFromWasmKey, type ShogiSearchWasm } from './search-driver';
+import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
+import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
+import {
+  EMPTY,
+  FU,
+  GOTE,
+  OU,
+  SENTE,
+  Te,
+  getKomashu,
+} from "../src/components/game/ShogiImproved/types";
+import { bucketsForByteLength } from "./nnue-ref";
+import {
+  loadShogiWasm,
+  syncWasm,
+  teFromWasmKey,
+  type ShogiSearchWasm,
+} from "./search-driver";
 
 interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   memory: WebAssembly.Memory;
@@ -49,6 +63,7 @@ interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   setNnueScaleK(k: number): void;
   setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
+  setResearchLazyMovePicker?: (flag: number, minMoves: number) => void;
 }
 
 function argNum(flag: string, def: number): number {
@@ -63,34 +78,60 @@ function argStr(flag: string): string | null {
   const i = process.argv.indexOf(flag);
   if (i < 0) return null;
   const v = process.argv[i + 1];
-  if (!v || v.startsWith('--')) throw new Error(`${flag} requires a value`);
+  if (!v || v.startsWith("--")) throw new Error(`${flag} requires a value`);
   return v;
 }
 
+function argLazyPickerMinMoves(flag: string): number {
+  const raw = argStr(flag);
+  if (raw === null) return 0;
+  if (!/^(?:0|[1-9]\d*)$/u.test(raw)) {
+    throw new Error(`${flag} must be 0 (off) or an integer from 2 through 640`);
+  }
+  const value = Number(raw);
+  if (value !== 0 && (value < 2 || value > 640)) {
+    throw new Error(`${flag} must be 0 (off) or an integer from 2 through 640`);
+  }
+  return value;
+}
+
 const weightsPath = process.argv[2];
-if (!weightsPath || weightsPath.startsWith('--')) {
+if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm]'
+    "usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
   );
   process.exit(2);
 }
-const weightsPathB = argStr('--vs');
-const GAMES = argNum('--games', 16);
-const MOVE_MS = argNum('--ms', 200);
-const SEED_BASE = argNum('--seed', 1);
-const SCALE_K = argNum('--k', 600);
-const SCALE_NUMER = argNum('--scale-numer', 1);
-const SCALE_DENOM = argNum('--scale-denom', 1);
-const WASM_PATH = argStr('--wasm-path') ?? undefined;
-const BUCKETS_A = argNum('--buckets-a', 0);
-const BUCKETS_B = argNum('--buckets-b', 0);
-const EXPECTED_SHA_A = argStr('--sha-a');
-const EXPECTED_SHA_B = argStr('--sha-b');
-const EXPECTED_WASM_SHA = argStr('--wasm-sha');
+const weightsPathB = argStr("--vs");
+const GAMES = argNum("--games", 16);
+const MOVE_MS = argNum("--ms", 200);
+const SEED_BASE = argNum("--seed", 1);
+const SCALE_K = argNum("--k", 600);
+const SCALE_NUMER = argNum("--scale-numer", 1);
+const SCALE_DENOM = argNum("--scale-denom", 1);
+const WASM_PATH = argStr("--wasm-path") ?? undefined;
+const LAZY_PICKER_A_MIN_MOVES = argLazyPickerMinMoves(
+  "--lazy-picker-a-min-moves",
+);
+const LAZY_PICKER_B_MIN_MOVES = argLazyPickerMinMoves(
+  "--lazy-picker-b-min-moves",
+);
+const BUCKETS_A = argNum("--buckets-a", 0);
+const BUCKETS_B = argNum("--buckets-b", 0);
+const EXPECTED_SHA_A = argStr("--sha-a");
+const EXPECTED_SHA_B = argStr("--sha-b");
+const EXPECTED_WASM_SHA = argStr("--wasm-sha");
 // Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
 // never masquerade as a 1/1 run.
-if (SCALE_NUMER < 1 || SCALE_DENOM < 1 || SCALE_NUMER > 1_000_000 || SCALE_DENOM > 1_000_000) {
-  throw new Error('--scale-numer/--scale-denom must be between 1 and 1,000,000');
+if (
+  SCALE_NUMER < 1 ||
+  SCALE_DENOM < 1 ||
+  SCALE_NUMER > 1_000_000 ||
+  SCALE_DENOM > 1_000_000
+) {
+  throw new Error(
+    "--scale-numer/--scale-denom must be between 1 and 1,000,000",
+  );
 }
 const OPENING_PLIES = 6;
 const MAX_PLIES = 256;
@@ -112,13 +153,22 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function pickCuratedOpeningMove(k: KyokumenImproved, moves: Te[], rnd: () => number): Te {
-  const quiet = moves.filter((m) => m.from !== 0 && m.capture === EMPTY && !m.promote);
+function pickCuratedOpeningMove(
+  k: KyokumenImproved,
+  moves: Te[],
+  rnd: () => number,
+): Te {
+  const quiet = moves.filter(
+    (m) => m.from !== 0 && m.capture === EMPTY && !m.promote,
+  );
   const pawnStartDan = k.teban === SENTE ? 7 : 3;
   const pawnNextDan = k.teban === SENTE ? 6 : 4;
 
   const pawnPush = quiet.filter(
-    (m) => getKomashu(m.koma) === FU && (m.from & 0x0f) === pawnStartDan && (m.to & 0x0f) === pawnNextDan
+    (m) =>
+      getKomashu(m.koma) === FU &&
+      (m.from & 0x0f) === pawnStartDan &&
+      (m.to & 0x0f) === pawnNextDan,
   );
   if (pawnPush.length > 0) return pawnPush[Math.floor(rnd() * pawnPush.length)];
 
@@ -146,11 +196,16 @@ function buildOpeningLine(pairIndex: number): Te[] {
 }
 
 function openingFingerprint(openingMoves: readonly Te[]): string {
-  const canonical = openingMoves.map((move) => [move.koma, move.from, move.to, move.promote ? 1 : 0]);
-  return createHash('sha256')
-    .update('shogi-nnue-fixed-time-opening-v1\0')
+  const canonical = openingMoves.map((move) => [
+    move.koma,
+    move.from,
+    move.to,
+    move.promote ? 1 : 0,
+  ]);
+  return createHash("sha256")
+    .update("shogi-nnue-fixed-time-opening-v1\0")
     .update(JSON.stringify(canonical))
-    .digest('hex');
+    .digest("hex");
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +213,10 @@ function openingFingerprint(openingMoves: readonly Te[]): string {
 // ---------------------------------------------------------------------------
 
 class WasmPlayer {
-  constructor(readonly name: string, private wasm: ShogiNnueSearchWasm) {}
+  constructor(
+    readonly name: string,
+    private wasm: ShogiNnueSearchWasm,
+  ) {}
 
   newGame(): void {
     this.wasm.clearTT();
@@ -167,7 +225,11 @@ class WasmPlayer {
   getNextTe(k: KyokumenImproved, tesu: number): Te | null {
     syncWasm(this.wasm, k);
     this.wasm.setRootTesu(tesu);
-    const key = this.wasm.searchBestMove(MOVE_MS, MAX_DEPTH, QUIESCENCE_DEPTH_MAX);
+    const key = this.wasm.searchBestMove(
+      MOVE_MS,
+      MAX_DEPTH,
+      QUIESCENCE_DEPTH_MAX,
+    );
     if (key === 0) return null;
     return teFromWasmKey(key, k);
   }
@@ -178,12 +240,26 @@ class WasmPlayer {
 // ---------------------------------------------------------------------------
 
 type PlayResult =
-  | { outcome: 'win'; winner: number; plies: number; reason: 'checkmate' | 'noMove' }
-  | { outcome: 'draw'; plies: number; reason: 'repetition' | 'maxPlies' | 'stalemate' };
+  | {
+      outcome: "win";
+      winner: number;
+      plies: number;
+      reason: "checkmate" | "noMove";
+    }
+  | {
+      outcome: "draw";
+      plies: number;
+      reason: "repetition" | "maxPlies" | "stalemate";
+    };
 
 let movesChecked = 0;
 
-function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, openingMoves: Te[]): PlayResult {
+function playOneGame(
+  nnue: WasmPlayer,
+  v3: WasmPlayer,
+  nnueIsSente: boolean,
+  openingMoves: Te[],
+): PlayResult {
   const k = new KyokumenImproved();
   k.initHirate();
   k.setTeban(SENTE);
@@ -200,7 +276,7 @@ function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, ope
   for (let ply = openingMoves.length; ply < MAX_PLIES; ply++) {
     repetition.set(k.HashVal, (repetition.get(k.HashVal) ?? 0) + 1);
     if ((repetition.get(k.HashVal) ?? 0) >= 4) {
-      return { outcome: 'draw', plies: ply, reason: 'repetition' };
+      return { outcome: "draw", plies: ply, reason: "repetition" };
     }
 
     const side = k.teban;
@@ -212,21 +288,36 @@ function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, ope
 
     if (!move) {
       if (legalMoves.length > 0) {
-        return { outcome: 'win', winner: side === SENTE ? GOTE : SENTE, plies: ply, reason: 'noMove' };
+        return {
+          outcome: "win",
+          winner: side === SENTE ? GOTE : SENTE,
+          plies: ply,
+          reason: "noMove",
+        };
       }
       const inCheck = GenerateMovesImproved.isKingInCheck(k, side);
-      if (inCheck) return { outcome: 'win', winner: side === SENTE ? GOTE : SENTE, plies: ply, reason: 'checkmate' };
-      return { outcome: 'draw', plies: ply, reason: 'stalemate' };
+      if (inCheck)
+        return {
+          outcome: "win",
+          winner: side === SENTE ? GOTE : SENTE,
+          plies: ply,
+          reason: "checkmate",
+        };
+      return { outcome: "draw", plies: ply, reason: "stalemate" };
     }
 
     // Strict legality validation for EVERY move from BOTH engines.
     const isLegal = legalMoves.some(
-      (te) => te.koma === move.koma && te.from === move.from && te.to === move.to && te.promote === move.promote
+      (te) =>
+        te.koma === move.koma &&
+        te.from === move.from &&
+        te.to === move.to &&
+        te.promote === move.promote,
     );
     if (!isLegal) {
       console.error(
         `ILLEGAL MOVE by ${player.name} at ply ${ply}: ${move.toString()} ` +
-          `(koma=${move.koma} from=${move.from.toString(16)} to=${move.to.toString(16)} promote=${move.promote})`
+          `(koma=${move.koma} from=${move.from.toString(16)} to=${move.to.toString(16)} promote=${move.promote})`,
       );
       process.exit(1);
     }
@@ -237,7 +328,7 @@ function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, ope
     k.toggleTeban();
   }
 
-  return { outcome: 'draw', plies: MAX_PLIES, reason: 'maxPlies' };
+  return { outcome: "draw", plies: MAX_PLIES, reason: "maxPlies" };
 }
 
 // ---------------------------------------------------------------------------
@@ -248,51 +339,108 @@ function setupNnueInstance(
   path: string,
   label: string,
   bucketOverride: number,
-  expectedSha256: string | null
+  expectedSha256: string | null,
 ): number {
   const weightsBin = readFileSync(path);
-  if (expectedSha256 !== null && createHash('sha256').update(weightsBin).digest('hex') !== expectedSha256) {
-    throw new Error(`${label}: weights SHA-256 differs from the preregistered asset`);
+  if (
+    expectedSha256 !== null &&
+    createHash("sha256").update(weightsBin).digest("hex") !== expectedSha256
+  ) {
+    throw new Error(
+      `${label}: weights SHA-256 differs from the preregistered asset`,
+    );
   }
-  const buckets = bucketOverride > 0 ? bucketOverride : bucketsForByteLength(weightsBin.byteLength);
+  const buckets =
+    bucketOverride > 0
+      ? bucketOverride
+      : bucketsForByteLength(weightsBin.byteLength);
   if (!Number.isInteger(buckets) || buckets < 1 || buckets > 65_535) {
-    throw new Error(`${label}: bucket selector must be an integer from 1 through 65535`);
+    throw new Error(
+      `${label}: bucket selector must be an integer from 1 through 65535`,
+    );
   }
   wasm.setNnueBuckets(buckets);
   if (weightsBin.byteLength !== wasm.getNnueWeightsSize()) {
     console.error(
-      `${label}: weights.bin size mismatch: file=${weightsBin.byteLength} wasm=${wasm.getNnueWeightsSize()}`
+      `${label}: weights.bin size mismatch: file=${weightsBin.byteLength} wasm=${wasm.getNnueWeightsSize()}`,
     );
     process.exit(1);
   }
-  new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), weightsBin.byteLength).set(weightsBin);
+  new Uint8Array(
+    wasm.memory.buffer,
+    wasm.getNnueWeightsPtr(),
+    weightsBin.byteLength,
+  ).set(weightsBin);
   wasm.setNnueScaleK(SCALE_K);
   wasm.setNnueOutputScale(SCALE_NUMER, SCALE_DENOM);
   wasm.setNnueEnabled(1);
   return buckets;
 }
 
+function configureResearchLazyMovePicker(
+  wasm: ShogiNnueSearchWasm,
+  label: "A" | "B",
+  minMoves: number,
+): void {
+  if (minMoves === 0) return;
+  if (WASM_PATH === undefined) {
+    throw new Error(
+      `lazy picker ${label} requires an explicit --wasm-path whose runtime exports setResearchLazyMovePicker`,
+    );
+  }
+  if (typeof wasm.setResearchLazyMovePicker !== "function") {
+    throw new Error(
+      `lazy picker ${label}: explicit WASM does not export setResearchLazyMovePicker`,
+    );
+  }
+  wasm.setResearchLazyMovePicker(1, minMoves);
+}
+
+function lazyPickerLogValue(minMoves: number): string {
+  return minMoves === 0 ? "off" : String(minMoves);
+}
+
 function main(): void {
   if (
     WASM_PATH !== undefined &&
     EXPECTED_WASM_SHA !== null &&
-    createHash('sha256').update(readFileSync(WASM_PATH)).digest('hex') !== EXPECTED_WASM_SHA
+    createHash("sha256").update(readFileSync(WASM_PATH)).digest("hex") !==
+      EXPECTED_WASM_SHA
   ) {
-    throw new Error('research WASM SHA-256 differs from the preregistered asset');
+    throw new Error(
+      "research WASM SHA-256 differs from the preregistered asset",
+    );
   }
   // Instance A: NNUE with real trained weights.
   const wasmA = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
-  const bucketsA = setupNnueInstance(wasmA, weightsPath, 'A', BUCKETS_A, EXPECTED_SHA_A);
+  const bucketsA = setupNnueInstance(
+    wasmA,
+    weightsPath,
+    "A",
+    BUCKETS_A,
+    EXPECTED_SHA_A,
+  );
+  configureResearchLazyMovePicker(wasmA, "A", LAZY_PICKER_A_MIN_MOVES);
 
   // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
   const wasmB = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
-  let opponentName = 'V3';
+  let opponentName = "V3";
   if (weightsPathB) {
-    const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B', BUCKETS_B, EXPECTED_SHA_B);
+    const bucketsB = setupNnueInstance(
+      wasmB,
+      weightsPathB,
+      "B",
+      BUCKETS_B,
+      EXPECTED_SHA_B,
+    );
     opponentName = `NNUE-B(buckets=${bucketsB})`;
   }
+  configureResearchLazyMovePicker(wasmB, "B", LAZY_PICKER_B_MIN_MOVES);
 
-  const nnuePlayer = new WasmPlayer(weightsPathB ? `NNUE-A(buckets=${bucketsA})` : 'NNUE', wasmA);
+  const nnuePlayer = new WasmPlayer(
+    weightsPathB ? `NNUE-A(buckets=${bucketsA})` : "NNUE",
+    wasmA,
+  );
   const v3Player = new WasmPlayer(opponentName, wasmB);
 
   let nnueWins = 0;
@@ -301,10 +449,11 @@ function main(): void {
 
   console.log(
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
-      `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : 'WASM+V3'} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
+      `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : "WASM+V3"} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
-      `runtime=${WASM_PATH ?? 'production'}, fixed-time-ms=${MOVE_MS}, ` +
-      `tt=clear-before-each-game-retain-within-game ===`
+      `runtime=${WASM_PATH ?? "production"}, fixed-time-ms=${MOVE_MS}, ` +
+      `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
+      `tt=clear-before-each-game-retain-within-game ===`,
   );
 
   for (let game = 0; game < GAMES; game++) {
@@ -319,28 +468,32 @@ function main(): void {
     const elapsed = ((performance.now() - start) / 1000).toFixed(1);
 
     let summary: string;
-    if (result.outcome === 'win') {
-      const nnueWon = nnueIsSente ? result.winner === SENTE : result.winner === GOTE;
+    if (result.outcome === "win") {
+      const nnueWon = nnueIsSente
+        ? result.winner === SENTE
+        : result.winner === GOTE;
       if (nnueWon) nnueWins++;
       else v3Wins++;
-      summary = `WIN ${nnueWon ? nnuePlayer.name : v3Player.name} (${result.reason}, ${result.winner === SENTE ? 'SENTE' : 'GOTE'})`;
+      summary = `WIN ${nnueWon ? nnuePlayer.name : v3Player.name} (${result.reason}, ${result.winner === SENTE ? "SENTE" : "GOTE"})`;
     } else {
       draws++;
       summary = `DRAW (${result.reason})`;
     }
     console.log(
-      `game ${game + 1}/${GAMES}: NNUE=${nnueIsSente ? 'SENTE' : 'GOTE'} opening=${opening} => ${summary} plies=${result.plies} time=${elapsed}s`
+      `game ${game + 1}/${GAMES}: NNUE=${nnueIsSente ? "SENTE" : "GOTE"} opening=${opening} => ${summary} plies=${result.plies} time=${elapsed}s`,
     );
   }
 
   const decisive = nnueWins + v3Wins;
   const score = nnueWins + draws / 2;
   console.log(
-    `\nresult: ${nnuePlayer.name} ${nnueWins} wins / ${v3Player.name} ${v3Wins} wins / ${draws} draws (all ${movesChecked} moves legal)`
+    `\nresult: ${nnuePlayer.name} ${nnueWins} wins / ${v3Player.name} ${v3Wins} wins / ${draws} draws (all ${movesChecked} moves legal)`,
   );
   console.log(
     `${nnuePlayer.name} score: ${score}/${GAMES} (${((score / GAMES) * 100).toFixed(1)}%)` +
-      (decisive > 0 ? `, decisive-only: ${nnueWins}/${decisive} (${((nnueWins / decisive) * 100).toFixed(1)}%)` : '')
+      (decisive > 0
+        ? `, decisive-only: ${nnueWins}/${decisive} (${((nnueWins / decisive) * 100).toFixed(1)}%)`
+        : ""),
   );
 }
 

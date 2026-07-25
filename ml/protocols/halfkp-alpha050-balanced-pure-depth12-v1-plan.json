@@ -1,0 +1,230 @@
+{
+  "schema": "shogi-halfkp-balanced-pure-depth12-plan-v1",
+  "plan_id": "B12-alpha050-balanced-pure-v1",
+  "status": "prospective-preregistered-one-arm-plan-no-compute-started",
+  "recorded_date": "2026-07-25",
+  "objective": "Measure whether one conservative value-only update of the alpha-0.50 HalfKP initializer on a deterministic color-balanced subset of the existing pure depth-12 teacher corpus improves direct play against the immutable live baseline.",
+  "hypothesis_boundary": {
+    "single_question": "Does a fixed one-epoch, one-arm value-only update pass a fresh 56-game direct-play screen?",
+    "not_claimed": [
+      "Static validation loss or teacher agreement is playing strength.",
+      "More rows, more epochs, or more hyperparameter arms are guaranteed to help.",
+      "A passing 56-game screen is sufficient for live promotion."
+    ]
+  },
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+      "features": "halfkp-factor",
+      "buckets": 81
+    },
+    "teacher_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/train.teacher.jsonl",
+      "bytes": 410752083,
+      "rows": 800000,
+      "side_rows": {
+        "b": 402090,
+        "w": 397910
+      },
+      "sha256": "51c7425bcb0c0ba7ec24570687017cbed633c224b54a1cd408d232860318ca29",
+      "manifest": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/train.teacher.jsonl.manifest.json",
+        "bytes": 828,
+        "sha256": "3a542fc99bdbb6f270d81e5299513137ceef5900f0f1b82d4e418c59d1be5586"
+      }
+    },
+    "teacher_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/val.teacher.jsonl",
+      "bytes": 1534191,
+      "rows": 3000,
+      "side_rows": {
+        "b": 1484,
+        "w": 1516
+      },
+      "sha256": "41bc47ffebedc4de6f53b6ec609191e40790e370426e3c68cb13c0f6667bde6d",
+      "manifest": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/val.teacher.jsonl.manifest.json",
+        "bytes": 822,
+        "sha256": "09709693fb105c010b532aeb808145ddfc4b7f3511f5638e3a9ec6a26f7711a0"
+      }
+    },
+    "preparation_report": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/preparation-report.json",
+      "bytes": 919,
+      "sha256": "ebb23a80b4bc3503d42188183af46bf47edf8b40a1aeab03e90be752007e0846",
+      "train_games": 14861,
+      "validation_games": 678,
+      "minimum_player_rating": 3000,
+      "cross_split_game_overlap": 0,
+      "cross_split_semantic_position_overlap": 0
+    },
+    "teacher_engine": {
+      "name": "YaneuraOu",
+      "depth": 12,
+      "binary_bytes": 700048,
+      "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
+      "evaluation_bytes": 64217066,
+      "evaluation_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782"
+    },
+    "immutable_live_baseline": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-halfkp81-research.wasm",
+      "bytes": 35837,
+      "sha256": "1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db"
+    }
+  },
+  "deterministic_dataset": {
+    "status": "not-built",
+    "sampler": {
+      "path": "ml/sample_balanced_teacher_dataset.py",
+      "schema": "shogi-balanced-strong-teacher-sample-v1"
+    },
+    "selection_seed": "B12-alpha050-balanced-pure-v1",
+    "digest": "sha256",
+    "selection_key_preimage": "UTF8('shogi-balanced-strong-teacher-sample-v1' + NUL) + UTF8(selection_seed) + NUL + ASCII(position_id)",
+    "selection_rule": "Validate the complete pinned source, reject duplicate position_id values, parse the SFEN side-to-move field, compute the selection digest, and retain the smallest required number of digests independently for b and w.",
+    "output_order": "selection digest ascending, then position_id ascending across both selected sides",
+    "training": {
+      "source": "inputs.teacher_training",
+      "output": "/Users/yudaiyaguchi/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/data/train-200k-balanced.jsonl",
+      "total_rows": 200000,
+      "side_rows": {
+        "b": 100000,
+        "w": 100000
+      },
+      "sha256": null
+    },
+    "validation": {
+      "source": "inputs.teacher_validation",
+      "output": "/Users/yudaiyaguchi/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/data/val-2968-balanced.jsonl",
+      "total_rows": 2968,
+      "side_rows": {
+        "b": 1484,
+        "w": 1484
+      },
+      "sha256": null
+    },
+    "required_checks": [
+      "All source byte counts and SHA-256 values match this plan before sampling.",
+      "Every output row is byte-identical to one pinned source row and uses its cp target only.",
+      "No WDL, game outcome, policy, rank, or sibling target is introduced.",
+      "Training and validation have the exact preregistered row and side counts.",
+      "Every position_id is unique within each pinned source.",
+      "There is no game, position_id, or normalized semantic-position overlap across splits.",
+      "The sampler writes a manifest with source and output hashes only after all checks pass."
+    ]
+  },
+  "training": {
+    "trainer": "ml/train.py",
+    "candidate_count": 1,
+    "candidate_selection": "epoch-one-only-no-best-of",
+    "fixed_arm": {
+      "id": "B12-alpha050-balanced-pure-v1",
+      "initializer": "inputs.initializer",
+      "training_data": "deterministic_dataset.training",
+      "validation_data": "deterministic_dataset.validation",
+      "features": "halfkp-factor",
+      "halfkp_train_scope": "all",
+      "epochs": 1,
+      "batch": 1024,
+      "optimizer": "AdamW using the trainer default weight decay",
+      "learning_rate": 0.00001,
+      "k": 600,
+      "cp_clamp": 3000,
+      "loss": "sigmoid",
+      "wdl_mix": 0.0,
+      "rank_weight": 0.0,
+      "policy_weight": 0.0,
+      "sibling_weight": 0.0,
+      "seed": 42,
+      "device": "mps",
+      "torch_threads": 2,
+      "selection_metric": "value-loss-diagnostic-only"
+    },
+    "output": "/Users/yudaiyaguchi/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/train",
+    "forbidden_adaptation": [
+      "No second seed, learning rate, epoch count, sample size, or training arm.",
+      "Do not select or rerun from validation loss, teacher agreement, or match trajectory.",
+      "Do not add WDL, policy, rank, sibling, or outcome supervision."
+    ]
+  },
+  "correctness_gate": {
+    "strength_metric": false,
+    "required_before_match": [
+      "All pinned input and derived-dataset fingerprints match.",
+      "All model parameters and recorded metrics are finite.",
+      "The epoch-one checkpoint exports successfully to the int16 research format.",
+      "PyTorch, TorchScript, and research WASM scores are bit-exact on at least 200 frozen positions.",
+      "The live weight file and production deployment artifacts remain byte-identical to their preregistered fingerprints."
+    ],
+    "quantization": {
+      "reference": "inputs.initializer",
+      "maximum_mean_absolute_error_ratio": 1.05,
+      "maximum_max_absolute_error_ratio": 1.05,
+      "interpretation": "Both candidate quantization-error measures must be no worse than 1.05 times the corresponding initializer measure."
+    },
+    "diagnostic_only": [
+      "Validation value loss",
+      "Validation teacher top-one agreement",
+      "Validation centipawn MAE"
+    ]
+  },
+  "direct_play_gate": {
+    "candidate": "the sole epoch-one candidate after the correctness gate",
+    "baseline": "inputs.immutable_live_baseline",
+    "games": 56,
+    "opening_pairs": 28,
+    "opening_policy": "fresh disjoint color-swapped pairs",
+    "opening_seed_start": 960001,
+    "time_limit_ms_per_move": 1500,
+    "pair_workers": 7,
+    "opening_book": false,
+    "mate_solver": false,
+    "transposition_table": "clear before every game and retain only within that game",
+    "required_integrity": {
+      "technical_fault_count": 0,
+      "illegal_move_count": 0,
+      "unique_openings": 28,
+      "complete_color_swapped_pairs": 28
+    },
+    "score_unit": "candidate halfpoints out of 112",
+    "pass_threshold": 62,
+    "pass_expression": "candidate_halfpoints >= 62",
+    "early_stop": "mathematical-futility-only",
+    "early_stop_expression": "stop only when candidate_halfpoints + remaining_halfpoints < 62",
+    "promotion_effect": "none"
+  },
+  "downstream_if_pass": {
+    "next_gate": "a separately preregistered independent 96-game fresh-opening confirmation",
+    "automatic_live_promotion": false,
+    "automatic_full_corpus_training": false
+  },
+  "stop_rules": [
+    "Stop before export or direct play if any correctness gate fails.",
+    "Stop this B12 family if the 56-game score is below 62 candidate halfpoints; do not automatically expand to 800k rows, depth 16, more epochs, seeds, or variants.",
+    "A pass authorizes only a separately preregistered independent 96-game confirmation.",
+    "Depth 16 may be reconsidered only after a separately preregistered depth-12-versus-depth-16 diagnostic shows a teacher-depth difference not drowned by student error.",
+    "Never write the live weight path from dataset preparation, training, export, or match code."
+  ],
+  "live_safety": {
+    "live_change_authorized": false,
+    "live_weights_must_remain_unchanged": true,
+    "production_deployment_authorized": false
+  },
+  "execution": {
+    "state": "not-started",
+    "dataset_preparation_started": false,
+    "training_started": false,
+    "correctness_gate_started": false,
+    "match_started": false,
+    "execution_authorized_by_this_document": false,
+    "operator_must_reverify_inputs_before_execution": true
+  },
+  "claim_boundary": "This file preregisters one prospective experiment. It contains no training result, direct-play result, playing-strength claim, or live-change authorization."
+}

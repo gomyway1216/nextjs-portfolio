@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "name": "B12 alpha-0.50 color-balanced pure depth-12 result",
+  "status": "preregistration-contract-invalid-live-unchanged",
+  "generatedAt": "2026-07-25",
+  "decision": {
+    "value": "reject-invalid-execution-contract-no-rerun-no-screen-no-live-change",
+    "decisiveGate": "correctness.preregistrationContractAndFiniteMetrics",
+    "reason": "The saved checkpoint did not bind the preregistered plan, recorded rank/policy weights differed from the fixed arm, and recorded metrics contained non-finite values. The candidate was invalid before the quantization diagnostic.",
+    "candidateEligibleFor56GameScreen": false,
+    "candidateEligibleForLivePromotion": false
+  },
+  "preregistration": {
+    "planId": "B12-alpha050-balanced-pure-v1",
+    "planStatus": "fixed-before-result",
+    "foundationCommit": "7d544aed4d2ef63e0532ea5aced7333d969c77f3",
+    "foundationPullRequest": 621,
+    "foundationPullRequestUrl": "https://github.com/gomyway1216/nextjs-portfolio/pull/621",
+    "foundationMergeCommit": "c817ffdf215add3b47e31294d32573bee2685c5d",
+    "externallyTimestampedBeforeResult": true,
+    "identity": {
+      "path": "ml/protocols/halfkp-alpha050-balanced-pure-depth12-v1-plan.json",
+      "bytes": 10138,
+      "sha256": "47bc6299975e1555ea9480565687ba4b3046017ebc4fbe266e04ce2080f9cf0e"
+    }
+  },
+  "dataset": {
+    "sampler": {
+      "path": "ml/sample_balanced_teacher_dataset.py",
+      "schema": "shogi-balanced-strong-teacher-sample-v1",
+      "algorithm": "smallest-domain-separated-sha256-ranks-per-side-v1",
+      "seed": "B12-alpha050-balanced-pure-v1"
+    },
+    "samplingElapsedSeconds": 6.45,
+    "training": {
+      "manifest": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/data/train-200k-balanced.manifest.json",
+        "bytes": 1163,
+        "sha256": "0444ea2024c9d9c437a1d552a5b158bff459b703e871d31fbe8b27e2eeb95245"
+      },
+      "source": {
+        "rows": 800000,
+        "bytes": 410752083,
+        "sha256": "51c7425bcb0c0ba7ec24570687017cbed633c224b54a1cd408d232860318ca29",
+        "availableBySide": {
+          "b": 402090,
+          "w": 397910
+        }
+      },
+      "output": {
+        "rows": 200000,
+        "bytes": 102687388,
+        "sha256": "8ae60b1c00fc4d3f4990effbe884d33981b1a991c9e0f242c7dae9e06a3026af",
+        "selectedBySide": {
+          "b": 100000,
+          "w": 100000
+        }
+      },
+      "manifestGates": {
+        "bothSidesPresent": true,
+        "inputIdentityExact": true,
+        "positionIdsUnique": true,
+        "selectedSidesEqual": true
+      }
+    },
+    "validation": {
+      "manifest": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/data/val-2968-balanced.manifest.json",
+        "bytes": 1137,
+        "sha256": "cf4fb7ab9735a7fdca661f6467f6dbaf73d11fe2e100a7605a3e6ca1ac7dcdc0"
+      },
+      "source": {
+        "rows": 3000,
+        "bytes": 1534191,
+        "sha256": "41bc47ffebedc4de6f53b6ec609191e40790e370426e3c68cb13c0f6667bde6d",
+        "availableBySide": {
+          "b": 1484,
+          "w": 1516
+        }
+      },
+      "output": {
+        "rows": 2968,
+        "bytes": 1517817,
+        "sha256": "3e60b42183e1ca1091efca03f794a5ff172cf5eef4fd227ebb568cd839997313",
+        "selectedBySide": {
+          "b": 1484,
+          "w": 1484
+        }
+      },
+      "manifestGates": {
+        "bothSidesPresent": true,
+        "inputIdentityExact": true,
+        "positionIdsUnique": true,
+        "selectedSidesEqual": true
+      }
+    }
+  },
+  "training": {
+    "status": "completed-but-preregistered-contract-invalid",
+    "candidateCount": 1,
+    "epochs": 1,
+    "processElapsedSeconds": 12.1,
+    "epochElapsedSeconds": 4.8,
+    "configuration": {
+      "features": "halfkp-factor",
+      "scope": "all",
+      "batch": 1024,
+      "learningRate": 0.00001,
+      "seed": 42,
+      "k": 600,
+      "cpClamp": 3000,
+      "loss": "sigmoid",
+      "wdlMix": 0,
+      "savedRankWeight": 1,
+      "savedPolicyWeight": 0.25,
+      "savedExperimentPlanArgument": ""
+    },
+    "executionContractAudit": {
+      "planBinding": {
+        "expected": "ml/protocols/halfkp-alpha050-balanced-pure-depth12-v1-plan.json",
+        "checkpointArgument": "",
+        "checkpointTopLevelValue": null,
+        "passed": false
+      },
+      "rankWeight": {
+        "expected": 0,
+        "checkpointArgument": 1,
+        "passed": false
+      },
+      "policyWeight": {
+        "expected": 0,
+        "checkpointArgument": 0.25,
+        "passed": false
+      },
+      "note": "The sampled rows contain no ranking or policy supervision, so these nonzero defaults are not evidence that such a loss affected this run. They still violate the fixed execution contract.",
+      "overall": false
+    },
+    "artifacts": {
+      "bestCheckpoint": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/train/best.pt",
+        "bytes": 191656969,
+        "sha256": "8cb2742fe4b7fe34ab00fb42438167f27a20efa063830799f0bdc8666b176502"
+      },
+      "lastCheckpoint": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/train/last.pt",
+        "bytes": 191656969,
+        "sha256": "8cb2742fe4b7fe34ab00fb42438167f27a20efa063830799f0bdc8666b176502"
+      },
+      "curve": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/train/curve.csv",
+        "bytes": 206,
+        "sha256": "abb15ddbb20211db48047e22224b36d7f8a88aa138688ec9dbaaa0065e9f4ab3"
+      }
+    },
+    "staticValidation": {
+      "baseline": {
+        "epoch": 0,
+        "loss": 0.062198,
+        "maeCp": 594.1,
+        "pairAccuracy": 0.6357
+      },
+      "candidate": {
+        "epoch": 1,
+        "trainLoss": 0.058297,
+        "loss": 0.053685,
+        "maeCp": 531.3,
+        "pairAccuracy": 0.6471
+      },
+      "deltaCandidateMinusBaseline": {
+        "loss": -0.008513,
+        "maeCp": -62.8,
+        "pairAccuracy": 0.0114
+      },
+      "recordedNonFiniteMetrics": [
+        "curve.epoch0.train_loss",
+        "curve.epoch0.val_sibling_pair_acc",
+        "curve.epoch0.val_sibling_top1",
+        "curve.epoch1.val_sibling_pair_acc",
+        "curve.epoch1.val_sibling_top1",
+        "checkpoint.val_sibling_pair_acc",
+        "checkpoint.val_sibling_top1"
+      ],
+      "allRecordedMetricsFinite": false,
+      "strengthInterpretation": "diagnostic-only-not-playing-strength-evidence"
+    }
+  },
+  "quantization": {
+    "status": "secondary-diagnostic-reproduced-failed",
+    "decisionRole": "secondary-only-after-primary-contract-invalid",
+    "measurement": {
+      "dataset": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/data/val-2968-balanced.jsonl",
+        "rows": 2968,
+        "bytes": 1517817,
+        "sha256": "3e60b42183e1ca1091efca03f794a5ff172cf5eef4fd227ebb568cd839997313"
+      },
+      "sampleRule": "entire-balanced-validation-file-in-stored-order",
+      "verifyN": 2968,
+      "exactCommandRecoveredFromSessionLog": true,
+      "dedicatedRuntimeReceiptAtRunRoot": false,
+      "independentFullPrecisionRecalculationCompleted": true
+    },
+    "base": {
+      "weights": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/quant-base/weights.bin",
+        "bytes": 94656708,
+        "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c"
+      },
+      "meanAbsoluteErrorCp": 29.49924202633157,
+      "maxAbsoluteErrorCp": 209.0002596847653
+    },
+    "candidate": {
+      "weights": {
+        "path": "$HOME/.codex/shogi-runs/B12-alpha050-balanced-pure-v1/quant-candidate/weights.bin",
+        "bytes": 94656708,
+        "sha256": "e385484859a811159f34b5014c99cbb0189d5b644a2dfe401e850c8be845ec80"
+      },
+      "meanAbsoluteErrorCp": 25.497765624146755,
+      "maxAbsoluteErrorCp": 229.96719146338023
+    },
+    "candidateToBaseRatio": {
+      "meanAbsoluteError": 0.8643532468185785,
+      "maxAbsoluteError": 1.1003201230957287
+    },
+    "thresholdsFromPlan": {
+      "maximumMeanAbsoluteErrorRatio": 1.05,
+      "maximumMaxAbsoluteErrorRatio": 1.05
+    },
+    "gates": {
+      "meanAbsoluteErrorRatio": true,
+      "maximumAbsoluteErrorRatio": false,
+      "overall": false
+    },
+    "roundedDisplayRobustness": {
+      "baseMeanAbsoluteErrorCp": 29.5,
+      "baseMaxAbsoluteErrorCp": 209.0,
+      "candidateMeanAbsoluteErrorCp": 25.5,
+      "candidateMaxAbsoluteErrorCp": 229.97,
+      "minimumPossibleMaxRatioFromTwoDecimalDisplay": 1.1002846821846368,
+      "stillExceedsThreshold": true
+    },
+    "evidenceBoundary": {
+      "reproducedFromBalancedValidation": true,
+      "usedForPrimaryDecision": false,
+      "usedAsSecondaryFailure": true,
+      "reason": "The dedicated run-root receipt is absent, but the exact balanced-validation command was recovered from the session log and the saved artifacts independently reproduce the full-set values. This cannot cure the earlier execution-contract failure."
+    }
+  },
+  "correctness": {
+    "datasetManifestsPassed": true,
+    "trainingCompleted": true,
+    "preregisteredExecutionContractPassed": false,
+    "allRecordedMetricsFinite": false,
+    "int16ExportsCompleted": true,
+    "quantizationGateEvaluated": "post-invalid-secondary-diagnostic",
+    "quantizationPassed": false,
+    "torchTorchScriptWasmParity": "not-run-after-contract-and-finite-metric-failure",
+    "frozenParityPositionsEvaluated": 0,
+    "overall": false
+  },
+  "screen56": {
+    "status": "not-run-preregistration-contract-invalid",
+    "gamesRun": 0,
+    "openingPairsRun": 0,
+    "candidateHalfpoints": null,
+    "strengthConclusion": "not-measured"
+  },
+  "live": {
+    "weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "weightsChanged": false,
+    "productionChanged": false,
+    "deploymentRun": false
+  },
+  "claimBoundary": {
+    "staticTeacherApproximationImproved": true,
+    "playingStrengthMeasured": false,
+    "playingStrengthGainProved": false,
+    "playingStrengthRegressionProved": false,
+    "candidatePromoted": false,
+    "liveChanged": false
+  }
+}

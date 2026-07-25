@@ -29,10 +29,12 @@ Lambda 0.75 completed 56 games at 24 wins and 32 losses (48/112). Both missed
 the 62-half-point threshold, so neither independent 96 nor formal 768 ran.
 `public/shogi-nnue-weights.bin` remains unchanged.
 
-The nine preserved source self-play workers resumed after the screens. The full
-24,000-game source run is not being called complete, and the unchanged shallow
-label recipe will not be promoted merely for reaching that count. Detailed
-synchronized evidence is in the
+Post-match audit found that `min-ply=12` and `sample-every=4` made every one of
+the 186,634 training and 6,818 validation rows Sente-to-move. The original job
+was preserved and suspended at 16,278 completed games rather than scaling that
+defect. A 480-game replacement using `sample-every=1`, seed `2026072501`, and
+12 workers is running; its first ten games produced 112 Sente and 111 Gote
+rows. Detailed synchronized evidence is in the
 [cycle-zero report](docs/blog-shogi-selfplay-cycle0.en.md) and its
 [machine-readable record](docs/data/shogi-selfplay-cycle0-2026-07-21.json).
 

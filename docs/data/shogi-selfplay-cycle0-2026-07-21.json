@@ -1,8 +1,8 @@
 {
   "schema": "shogi-selfplay-cycle0-evidence-v1",
-  "status": "prefix16255-candidates-screen56-rejected-live-unchanged",
+  "status": "screen56-rejected-sampling-parity-defect-found-corrected-pilot-running-live-unchanged",
   "recorded_at": "2026-07-21T23:31:24-07:00",
-  "updated_at": "2026-07-24T23:54:22-07:00",
+  "updated_at": "2026-07-25T00:00:46-07:00",
   "articles": [
     "docs/blog-shogi-selfplay-cycle0.md",
     "docs/blog-shogi-selfplay-cycle0.en.md"
@@ -317,8 +317,10 @@
   "full24k_generation": {
     "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1",
     "started_at_local_approx": "2026-07-21T23:27:00-07:00",
-    "state_at_recording": "resumed-after-both-screen56-candidates-rejected",
-    "workers_observed_running": 9,
+    "state_at_recording": "preserved-and-suspended-after-sampling-parity-defect",
+    "workers_observed_running": 0,
+    "completed_games_at_second_suspension": 16278,
+    "records_at_second_suspension": 198583,
     "games_requested": 24000,
     "seed": 2026072205,
     "play_depth": 2,
@@ -412,12 +414,47 @@
     "candidate_strength_measured": true,
     "resource_switch": {
       "source_worker_processes_preserved": 9,
-      "source_workers_suspended_in_memory": false,
+      "source_workers_suspended_in_memory": true,
       "reason": "Concentrate local CPU on two concurrent direct-play screens.",
       "automatic_resume_after_both_screens": true,
       "automatic_resume_observed": true,
+      "suspended_again_after_completed_games": 16278,
+      "reason_after_screen": "All prepared train and validation rows were Sente-to-move because min-ply 12 and sample-every 4 preserve parity; scaling the unchanged recipe has low expected strength value.",
       "may_suspend_again_for_pass_only_downstream_gate": true
     }
+  },
+  "sampling_parity_incident": {
+    "status": "confirmed",
+    "root_cause": "The predicate (ply - min_ply) mod sample_every = 0 with min_ply=12 and sample_every=4 retains only one ply parity.",
+    "training_rows": 186634,
+    "training_sente_to_move": 186634,
+    "training_gote_to_move": 0,
+    "validation_rows": 6818,
+    "validation_sente_to_move": 6818,
+    "validation_gote_to_move": 0,
+    "model_normalization": "side-to-move perspective without an absolute-color feature",
+    "risk": "Absolute Sente search/outcome bias can be learned as a generic side-to-move advantage.",
+    "unchanged_24k_continuation_stopped": true
+  },
+  "corrected_parity_pilot": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-depth2x6-dense-v1",
+    "state_at_recording": "running",
+    "games_requested": 480,
+    "workers": 12,
+    "seed": 2026072501,
+    "play_depth": 2,
+    "label_depth": 6,
+    "min_ply": 12,
+    "sample_every": 1,
+    "max_samples_per_game": 24,
+    "first_observation": {
+      "completed_games": 10,
+      "rows": 223,
+      "sente_to_move": 112,
+      "gote_to_move": 111
+    },
+    "post_generation_rule": "Deterministically equalize Sente and Gote row counts before one pure-search one-epoch candidate is trained.",
+    "direct_gate_if_static_checks_pass": "One new-seed screen56; stop this self-play recipe if it fails."
   },
   "promotion": {
     "sequence": [

@@ -16,6 +16,7 @@
 - We later sealed only the **16,255 / 24,000 completed games (67.73%)** as an immutable snapshot. Without mutating the source run, 198,391 positions produced 186,634 training and 6,818 validation rows after deduplication and leakage removal; two candidates were then trained and quantized
 - Lambda 0.50 and lambda 0.75 completed two MPS epochs. Validation loss and pair accuracy improved slightly, but **these static metrics are not playing-strength evidence**
 - Both screens ended with zero technical faults and legal moves throughout. Lambda 0.50 stopped mathematically after 54 games at 21 wins, 27 losses, and six draws, or 48/108 half-points. Lambda 0.75 completed 56 games at 24 wins and 32 losses, or 48/112. Both missed the 62-half-point threshold, so neither independent 96, formal 768, nor a live change was authorized
+- Post-rejection audit found that `min-ply=12` plus `sample-every=4` made all 186,634 training and 6,818 validation rows **Sente-to-move positions**. This injects absolute-color bias into a side-to-move-normalized model. The original 24,000-game job was preserved and stopped at 16,278 completed games, and the 12 CPU workers moved to a 480-game parity pilot with `sample-every=1`
 
 ## 1. An honest account of the week
 
@@ -56,6 +57,8 @@ Play the candidate directly against an immutable champion
 The 24,000 starting positions come from strong-game data so that a weak actor does not define the entire opening distribution. In-game random moves, wall-clock search cutoffs, and fallback moves are disabled. Fixed depth makes a run easier to reproduce across the two Macs than a fixed time limit.
 
 This is still not guaranteed to work. Play depth 2 is shallow, label depth 6 is not a YaneuraOu-class teacher, and a model playing itself can reinforce its own blind spots. That is why generated volume never authorizes promotion. Direct play is the only route forward.
+
+The post-match audit also found a defect in the fixed sampling interval itself. Starting at ply 12 and stepping by four preserves parity, so every one of the 186,634 training rows and 6,818 validation rows had SFEN side-to-move `b`. The model normalizes each position to the generic side-to-move perspective and therefore cannot retain an absolute-color flag. A Sente-only search/outcome bias can consequently be learned as a generic side-to-move advantage.
 
 ## 3. Speed pilots rejected depths that were too expensive
 
@@ -101,7 +104,7 @@ The permanent correction is to validate a root TT move against the WASM root leg
 
 The source output directory is `/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1`. A read-only snapshot captured completed games only at 16,255 without touching in-flight source writes. Its per-shard completed-game counts are `[1906, 761, 2000, 670, 794, 2000, 829, 2000, 1545, 1711, 1794, 245]`, totaling 16,255.
 
-While both 56-game screens ran, source-generation workers were suspended in memory so the same Mac could concentrate CPU on direct-play evidence. The nine preserved workers resumed automatically after both screens ended. This does not mark the 24,000-game source run complete. It is a compute-allocation choice that tested the 16,255-game snapshot while preserving the remaining generation work.
+While both 56-game screens ran, source-generation workers were suspended in memory so the same Mac could concentrate CPU on direct-play evidence. The nine preserved workers resumed automatically after both screens ended and advanced the committed prefix to 16,278 games. Once the sampling-parity defect was identified, continuing the unchanged job had low expected value, so its state was preserved and suspended again. No existing data was discarded.
 
 ## 6. Splitting and full training of the 16,255-game snapshot
 
@@ -112,6 +115,7 @@ We sealed an immutable snapshot from completed full-run prefixes. Its input cont
 - 4,771 duplicate current positions and 151 duplicate validation positions were removed
 - the cycle-zero holdout seed is fixed as `selfplay-cycle0-fixed-holdout-20260722`
 - future cycles request 75% current accepted data and 25% past accepted replay; cycle zero has no past accepted data, so its effective mixture is 100/0
+- all 186,634 training and 6,818 validation SFENs have side-to-move `b`; this is the deterministic consequence of fixed `min-ply=12` and `sample-every=4`, not a criterion changed after seeing match results
 
 The training plan was sealed first. Both candidates initialize from checkpoint `ea36d0b9…a8c4` and then run two MPS epochs with batch 256 and learning rate 3e-6. Only two target mixtures are allowed:
 
@@ -151,6 +155,8 @@ Each screen used seven pair workers, 1,500ms per move, and at most 28 pairs. Lam
 
 The confirmed outcome is that static metrics improved on 16,255 games of self-play, yet both trained candidates played worse than the current model. Lambda 0.50 scored 21 wins, 27 losses, and six draws; lambda 0.75 scored 24 wins and 32 losses. Each accumulated 48 half-points, below the required 62. We therefore cannot say that the AI became stronger, and live weights remain unchanged.
 
-This does not prove that self-play can never work. It does directly show that **re-searching shallow-actor positions at depth 6 and returning them to the same actor for two epochs was not enough**. The remaining source generation resumed so its already committed work is not discarded, but an unchanged teacher depth, loss, and full-update recipe will not be promoted merely because it reaches 24,000 games. A next candidate needs either a stronger teacher signal or a different hypothesis that limits excessive movement from the initializer, followed by a fresh direct-play test on new seeds.
+This does not prove that self-play can never work. It does directly show that **re-searching Sente-only shallow-actor positions at depth 6 and returning them to the same actor for two epochs was not enough**. The unchanged path to 24,000 games and another identical training run has been stopped.
+
+The replacement pilot changes only the sampling condition in existing code: `sample-every=1`, at most 24 alternating positions per game, 480 games, seed `2026072501`, and 12 workers. Its first ten games produced 223 rows split 112 Sente / 111 Gote, unlike the old 193,452 / 0 split. After completion, the sides will be deterministically equalized, exactly one pure-search one-epoch candidate will be trained, and a new-seed 56-game screen will decide whether this line continues. If that candidate also loses, we will close this self-play recipe rather than scale its volume.
 
 The design draws on the [Stockfish NNUE training documentation](https://github.com/official-stockfish/nnue-pytorch/blob/master/docs/nnue.md) and [YaneuraOu's NNUE training notes](https://yaneuraou.yaneu.com/2018/12/30/nnue%E8%A9%95%E4%BE%A1%E9%96%A2%E6%95%B0%E3%81%AE%E5%AD%A6%E7%BF%92%E6%96%B9%E6%B3%95%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/). General success elsewhere is not evidence that this candidate will improve. Our conclusion will come only from the saved data and direct games in this cycle.

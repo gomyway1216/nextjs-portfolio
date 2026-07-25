@@ -4,6 +4,8 @@
 
 [English version](./blog-shogi-stable-heap-move-picker-formal-v2.en.md)
 
+追跡結果：残ったpacked-key案も実探索で現行heap比+0.38%に留まり、[事前基準どおり不採用にした](./blog-shogi-packed-heap-real-search-tuning.md)。
+
 ---
 
 ## TL;DR

@@ -9,6 +9,8 @@
 
 ## Verdict
 
+Follow-up: the remaining packed-key idea added only 0.38% over this heap in real search and was [rejected under its fixed tuning rule](./blog-shogi-packed-heap-real-search-tuning.en.md).
+
 - The live AI did **not** get stronger from this work.
 - The formal candidate matched the production result, score, depth, node count,
   and leaf count in **64/64 positions**.

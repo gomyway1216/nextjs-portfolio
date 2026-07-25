@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "name": "packed-key stable heap real-search tuning result",
+  "status": "rejected-live-unchanged",
+  "generatedAt": "2026-07-25T11:39:58.395Z",
+  "decision": "reject-packed-key-candidate-no-v3-no-match-no-production-change",
+  "claimBoundary": {
+    "fixedDepthTreeParityProved": true,
+    "tuningScreenCompleted": true,
+    "formalEvidenceEligible": false,
+    "formalV2HoldoutReused": false,
+    "fixedTimeMatchRun": false,
+    "strengthGainProved": false,
+    "eloGainProved": false,
+    "highDanCalibrationRun": false,
+    "productionSourceChanged": false,
+    "productionWasmChanged": false,
+    "embeddedWasmChanged": false,
+    "liveNnueWeightsChanged": false,
+    "liveDeploymentChanged": false
+  },
+  "preregistration": {
+    "planStatus": "fixed-before-result",
+    "foundationCommit": "50c72dcca7454134e6c0839ef413449f397180c3",
+    "foundationPullRequest": 619,
+    "foundationPullRequestUrl": "https://github.com/gomyway1216/nextjs-portfolio/pull/619",
+    "foundationMergeCommit": "28618385e87c6fabb81bb8f9f8242a2048b5a80e",
+    "externallyTimestampedBeforeRun": true,
+    "note": "The plan, candidate, runner, and thresholds were pushed in commit 50c72dcc before the result was generated. PR 619 merged after the local run completed."
+  },
+  "runtime": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v22.13.0",
+    "logicalCpus": 14,
+    "cpuModel": "Apple M4 Pro",
+    "measuredRunElapsedMs": 299697.09075000003
+  },
+  "configuration": {
+    "fixture": "lazy move-picker tuning fixture v1",
+    "cases": 64,
+    "casesPerCategory": 16,
+    "depth": 5,
+    "quiescenceDepth": 8,
+    "minMoves": 64,
+    "timedSearch": false,
+    "sharedTranspositionTable": false,
+    "clearTranspositionTableBeforeEverySearch": true,
+    "minimumBlockMsCalibrationTarget": 25,
+    "maximumRepeatsPerBlock": 100,
+    "maximumRuntimeMs": 600000,
+    "timingOrder": [
+      "production",
+      "currentHeap",
+      "packedHeap",
+      "packedHeap",
+      "currentHeap",
+      "production",
+      "packedHeap",
+      "production",
+      "currentHeap",
+      "currentHeap",
+      "production",
+      "packedHeap"
+    ]
+  },
+  "correctness": {
+    "positions": 64,
+    "exactPositions": 64,
+    "mismatches": 0,
+    "comparedFields": [
+      "bestMove",
+      "score",
+      "completedDepth",
+      "nodes",
+      "leaves"
+    ],
+    "packedActivations": {
+      "opening": 5411,
+      "middlegame": 2923,
+      "dropHeavy": 100391,
+      "checkEvasion": 168931,
+      "total": 277656
+    },
+    "technicalFaults": 0
+  },
+  "throughput": {
+    "equalWorkPerArm": 42582768,
+    "timingBlocksPerArm": 256,
+    "packedVsProduction": {
+      "aggregatePct": 6.847911662228889,
+      "requiredAggregatePct": 8.5,
+      "aggregatePassed": false,
+      "medianPct": 5.809171818412063,
+      "requiredMedianPct": 5.5,
+      "medianPassed": true,
+      "p90WallRegressionPct": 0.03667813389585106,
+      "maximumP90WallRegressionPct": 2,
+      "p90Passed": true
+    },
+    "packedVsCurrentHeap": {
+      "aggregatePct": 0.38079545034153117,
+      "requiredAggregatePct": 1.5,
+      "aggregatePassed": false,
+      "medianPct": 0.2635625262927488,
+      "requiredMedianPct": 0,
+      "medianPassed": true
+    },
+    "categories": {
+      "opening": {
+        "packedVsProductionPct": 2.6438033116486404,
+        "packedVsCurrentHeapPct": -0.05580833937880447
+      },
+      "middlegame": {
+        "packedVsProductionPct": 2.6112377428926914,
+        "packedVsCurrentHeapPct": 0.37071262335712785
+      },
+      "dropHeavy": {
+        "packedVsProductionPct": 7.667986760198153,
+        "packedVsCurrentHeapPct": 0.5235777688199716
+      },
+      "checkEvasion": {
+        "packedVsProductionPct": 6.82543832484277,
+        "packedVsCurrentHeapPct": 0.3364952985994485
+      }
+    }
+  },
+  "gates": {
+    "exact64": true,
+    "nonVacuousEveryCategory": true,
+    "packedVsProductionAggregate": false,
+    "packedVsProductionMedian": true,
+    "packedVsProductionP90Wall": true,
+    "packedVsProductionCategories": true,
+    "packedVsCurrentHeapAggregate": false,
+    "packedVsCurrentHeapMedian": true,
+    "packedVsCurrentHeapCategories": true,
+    "technicalFaultsZero": true,
+    "overall": false
+  },
+  "measurementCaveats": {
+    "tuningFixtureWasAlreadyKnown": true,
+    "formalV2HoldoutWasNotReused": true,
+    "singleMachine": true,
+    "nodeWasmNotBrowserRuntime": true,
+    "minimumBlockMsWasCalibrationTargetNotHardFloor": true,
+    "realizedBlocksBelow25Ms": 142,
+    "realizedTimingBlocks": 768,
+    "minimumRealizedBlockMs": 20.311583000009705,
+    "positionsWithZeroPackedActivations": 3,
+    "activationGateWasPreregisteredPerCategory": true,
+    "technicalFaultCountDerivedFromCompletedReport": true
+  },
+  "identities": {
+    "productionAssemblySource": {
+      "path": "wasm-spike/assembly/index.ts",
+      "bytes": 139447,
+      "sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c"
+    },
+    "productionWasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "embeddedWasmSource": {
+      "path": "src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts",
+      "bytes": 47993,
+      "sha256": "927c46aa02af2b76fac7608e3512a3d667e96ce4b8d4d8997d9cb23e64af7960"
+    },
+    "liveWeights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "fixture": {
+      "path": "wasm-spike/lazy-move-picker-fixture-v1.json",
+      "bytes": 29380,
+      "sha256": "59c1a68bb5515447211ad57ec9cf1a27c8933b95656d78c8e7e8f213a130bdfc"
+    },
+    "baseResearchPatch": {
+      "path": "wasm-spike/assembly/lazy-move-picker-research.patch",
+      "bytes": 5624,
+      "sha256": "e979b5609bd8d63305037d37860b5f5914fcf641a49f7a61ae0a943af4fb3162"
+    },
+    "packedDeltaPatch": {
+      "path": "wasm-spike/assembly/packed-heap-move-picker-research.patch",
+      "bytes": 2985,
+      "sha256": "cc95e43f0b5274dff695da8e5d04e7fb6588902a212813754ad689a74f1f6657"
+    },
+    "currentHeapWasm": {
+      "path": "wasm-spike/artifacts/shogi-lazy-move-picker-research.wasm",
+      "bytes": 36358,
+      "sha256": "49b66b2466c654232a6bccc5e3d7a72d69ec71d46977aa17f8644cc84361d311"
+    },
+    "packedHeapWasm": {
+      "path": "wasm-spike/artifacts/shogi-lazy-move-picker-packed-research.wasm",
+      "bytes": 36284,
+      "sha256": "8d94d2d9157b3635fd62d20847c08e2c42dbdb29d23c9e4d4e47aca9bbbbad66"
+    },
+    "plan": {
+      "path": "ml/protocols/packed-heap-real-search-tuning-v1-plan.json",
+      "bytes": 3597,
+      "sha256": "efa600506c2275d42c0e2fb1d68b0ce13baf76b560ed4e80c6020349cbc19372"
+    },
+    "runner": {
+      "path": "wasm-spike/packed-heap-real-search-tuning.ts",
+      "bytes": 20636,
+      "sha256": "67ff5ab0fa5bc0ea44854223215753fd2ee8bcf92d2a1940d272f5c6f87649ff"
+    },
+    "builder": {
+      "path": "wasm-spike/build-lazy-move-picker-packed-research-wasm.mjs",
+      "bytes": 5311,
+      "sha256": "e0234cf40dded363411402c2859503970377f0d7fa81909a8daf2887f003c431"
+    },
+    "sourceRawReport": {
+      "path": "$HOME/.codex/shogi-runs/packed-heap-real-search-tuning-v1/result.json",
+      "bytes": 286144,
+      "sha256": "6dd953f6654c40dfc53f37dd3b5c7ddfd8658a55bcf79b6e6093da4b866c951f"
+    },
+    "archivedRawReport": {
+      "path": "docs/data/shogi-packed-heap-real-search-tuning-raw-2026-07-25.json",
+      "bytes": 306864,
+      "sha256": "c9a1927ceac6bc6a56f9bc1c702b778199f1c0c1c6b27e59d33a33ab0c60d3c1"
+    },
+    "archiveScript": {
+      "path": "scripts/archive-shogi-packed-heap-tuning-report.mjs",
+      "bytes": 4443,
+      "sha256": "35b55ee9f2961df5c06910f9a72c2a121bdf466eed390dd3700967dd87eabdfe"
+    }
+  },
+  "nextAction": {
+    "packedMovePickerWorkStopped": true,
+    "freshV3Authorized": false,
+    "fixedTimeMatchAuthorized": false,
+    "productionPromotionAuthorized": false,
+    "recommendedDirection": "Return compute to evaluator training candidates that can change move quality; require a fresh paired fixed-time A/B before any live promotion."
+  }
+}

@@ -7,23 +7,36 @@ This repository contains two shogi implementations:
 
 The main `/games/shogi` page now uses the opening book early and then delegates search to the fast engine for much better performance and strength.
 
-## Current training status (2026-07-20)
+## Current training status (2026-07-25)
 
-Formal v9 is running locally from the clean merged revision
-`682e5a1dd8027519f2277ec311000bfedf4aced3`. It reached milestone 100 in
-411 seconds and milestone 500 in 1,001 seconds, with exact 500 / 500
-completion, an emitted count of 500, and zero forced skips, search timeouts, or
-fewer-than-two cases. A later monitoring sample recorded 1,003 durable work
-entries at 1,705 seconds; that sample is not an additional formal milestone or
-a final-label verification.
+The local self-play cycle has now moved beyond generation-only status. A
+read-only snapshot sealed exactly 16,255 completed games from the continuing
+24,000-game source run. Those games contained 198,391 input positions and
+produced 186,634 training rows plus 6,818 validation rows after deterministic
+deduplication. Source-game, generated-game, opening, and position overlap are
+all zero.
 
-The run uses 13 one-thread local engines with 512 MiB hash each. Observed use
-was about 9 GiB, with about 50% memory and 81 GiB storage free; cloud use and
-live-weight changes remain zero. The provisional remaining time is 9–11 hours
-and will be recalculated at 2,000 entries. The final 24,000 dataset,
-retraining, candidate selection, formal paired A/B, external calibration, and
-playing-strength evidence remain pending. See the [v9 proposal-rescue
-evidence and explanation](docs/blog-shogi-floodgate-strength-first-v9-proposal-rescue.en.md).
+Two preregistered MPS training arms completed two epochs from the same
+initializer. Lambda 0.50 reached validation loss 0.076182 and pair accuracy
+0.8750; lambda 0.75 reached 0.043336 and 0.8757. Both were exported to
+94,656,708-byte HalfKP81 int16 weights. These are static measurements and are
+**not playing-strength evidence**.
+
+Both fixed-time screens ended with zero technical faults and legal moves
+throughout. Lambda 0.50 stopped under the preregistered mathematical-futility
+rule after 54 games at 21 wins, 27 losses, and six draws (48/108 half-points).
+Lambda 0.75 completed 56 games at 24 wins and 32 losses (48/112). Both missed
+the 62-half-point threshold, so neither independent 96 nor formal 768 ran.
+`public/shogi-nnue-weights.bin` remains unchanged.
+
+Post-match audit found that `min-ply=12` and `sample-every=4` made every one of
+the 186,634 training and 6,818 validation rows Sente-to-move. The original job
+was preserved and suspended at 16,278 completed games rather than scaling that
+defect. A 480-game replacement using `sample-every=1`, seed `2026072501`, and
+12 workers is running; its first ten games produced 112 Sente and 111 Gote
+rows. Detailed synchronized evidence is in the
+[cycle-zero report](docs/blog-shogi-selfplay-cycle0.en.md) and its
+[machine-readable record](docs/data/shogi-selfplay-cycle0-2026-07-21.json).
 
 ---
 

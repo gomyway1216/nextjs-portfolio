@@ -517,6 +517,33 @@ describe("NNUE self-play dataset preparation", () => {
     expect(sideCounts(publishedRows(path.join(cliDir, "train.jsonl")))).toEqual(
       { b: 2, w: 2 },
     );
+
+    const limitedDir = path.join(base, "balanced-limited");
+    await prepareNnueSelfplayDataset({
+      ...common,
+      currentShardDirs: [path.join(shardRoot, "shard-000")],
+      outDir: limitedDir,
+      balanceSideToMove: true,
+      trainRecords: 4,
+    });
+    const limitedTrain = publishedRows(path.join(limitedDir, "train.jsonl"));
+    expect(limitedTrain).toHaveLength(4);
+    expect(sideCounts(limitedTrain)).toEqual({ b: 2, w: 2 });
+  });
+
+  it("requires an even record limit when side-to-move balancing", async () => {
+    const base = root();
+    const fixture = makeCycle0Fixture(base);
+    await expect(
+      prepareNnueSelfplayDataset({
+        currentShardDirs: [fixture.shardDir],
+        cycle: 0,
+        splitSeed: SEED,
+        outDir: path.join(base, "dataset"),
+        balanceSideToMove: true,
+        trainRecords: 3,
+      }),
+    ).rejects.toThrow(/requires an even record count/);
   });
 
   it("rejects side-to-move balancing after cycle zero", async () => {

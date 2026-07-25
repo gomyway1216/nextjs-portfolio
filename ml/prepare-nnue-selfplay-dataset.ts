@@ -1226,6 +1226,7 @@ function balanceRowsBySideToMove(
   rows: readonly TaggedRow[],
   seed: string,
   role: "train" | "validation",
+  requestedTotal?: number,
 ): { rows: TaggedRow[]; accounting: SideBalanceAccounting } {
   const bySide: Record<SideToMove, TaggedRow[]> = { b: [], w: [] };
   for (const tagged of rows) bySide[rowSideToMove(tagged)].push(tagged);
@@ -1234,7 +1235,20 @@ function balanceRowsBySideToMove(
       `cycle-zero ${role} side-to-move balance requires both b and w rows`,
     );
   }
-  const selectedPerSide = Math.min(bySide.b.length, bySide.w.length);
+  if (requestedTotal !== undefined && requestedTotal % 2 !== 0) {
+    throw new Error(
+      `cycle-zero ${role} side-to-move balance requires an even record count`,
+    );
+  }
+  const selectedPerSide =
+    requestedTotal === undefined
+      ? Math.min(bySide.b.length, bySide.w.length)
+      : requestedTotal / 2;
+  if (bySide.b.length < selectedPerSide || bySide.w.length < selectedPerSide) {
+    throw new Error(
+      `cycle-zero ${role} side-to-move balance has insufficient rows per side`,
+    );
+  }
   const selected = {
     b: pickRows(
       bySide.b,
@@ -1355,6 +1369,15 @@ async function prepareCore(
   }
   if (options.trainRecords !== undefined)
     integer(options.trainRecords, "trainRecords", 1);
+  if (
+    balanceSideToMove &&
+    options.trainRecords !== undefined &&
+    options.trainRecords % 2 !== 0
+  ) {
+    throw new Error(
+      "cycle-zero train side-to-move balance requires an even record count",
+    );
+  }
   const pastDirs = options.pastAcceptedDirs ?? [];
   if (
     cycle === 0 &&
@@ -1494,12 +1517,9 @@ async function prepareCore(
       throw new Error("cycle-zero trainRecords exceeds available current rows");
     }
     const count = options.trainRecords ?? currentDedup.rows.length;
-    selectedCurrent = pickRows(
-      currentDedup.rows,
-      count,
-      splitSeed,
-      "cycle0-current",
-    );
+    selectedCurrent = balanceSideToMove
+      ? currentDedup.rows
+      : pickRows(currentDedup.rows, count, splitSeed, "cycle0-current");
     selectedPast = [];
     requestedMix = { total: count, current: count, past: 0 };
   } else {
@@ -1527,7 +1547,12 @@ async function prepareCore(
   );
   const selectedValRows = [...validationDedup.rows].sort(stableTaggedOrder);
   const trainBalance = balanceSideToMove
-    ? balanceRowsBySideToMove(selectedTrainRows, splitSeed, "train")
+    ? balanceRowsBySideToMove(
+        selectedTrainRows,
+        splitSeed,
+        "train",
+        options.trainRecords,
+      )
     : null;
   const validationBalance = balanceSideToMove
     ? balanceRowsBySideToMove(selectedValRows, splitSeed, "validation")

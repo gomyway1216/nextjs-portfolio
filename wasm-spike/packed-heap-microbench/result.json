@@ -1,0 +1,3155 @@
+{
+  "schema": 2,
+  "runtime": {
+    "nodeTargetMajor": 22,
+    "node": "v22.13.0",
+    "arch": "arm64",
+    "platform": "darwin",
+    "cpu": "Apple M4 Pro",
+    "wasmSimd": true
+  },
+  "build": {
+    "compiler": "AssemblyScript",
+    "compilerVersion": "0.28.19",
+    "flags": [
+      "-O3",
+      "--runtime",
+      "stub",
+      "--noAssert",
+      "--enable",
+      "simd"
+    ],
+    "wasmWrittenOnlyToTemporaryDirectory": true
+  },
+  "design": {
+    "scoreCardinality": 11,
+    "stableOrder": "score descending, original ordinal ascending",
+    "current": "move i32 + score i32 + ordinal i32; all three swapped",
+    "packed": "move i32 + packed u64 key; both swapped",
+    "timedWork": "input generation + representation setup + heap build + requested pops",
+    "minimumBlockMs": 100,
+    "calibrationTargetMs": 150,
+    "timingRounds": 3,
+    "timingOrder": [
+      "current",
+      "packed",
+      "packed",
+      "current",
+      "packed",
+      "current",
+      "current",
+      "packed"
+    ],
+    "sameWorkAndSeedWithinCondition": true,
+    "elapsedTimeReductionFormula": "(current_elapsed_ms - packed_elapsed_ms) / current_elapsed_ms * 100",
+    "equalWorkThroughputGainFormula": "(current_elapsed_ms / packed_elapsed_ms - 1) * 100"
+  },
+  "verification": [
+    {
+      "n": 48,
+      "mode": "partial8",
+      "vectors": 1500,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 48,
+      "mode": "partial25pct",
+      "vectors": 1500,
+      "pops": 12,
+      "failures": 0
+    },
+    {
+      "n": 48,
+      "mode": "full",
+      "vectors": 1500,
+      "pops": 48,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "partial8",
+      "vectors": 1500,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "partial25pct",
+      "vectors": 1500,
+      "pops": 16,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "full",
+      "vectors": 1500,
+      "pops": 64,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "partial8",
+      "vectors": 1500,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "partial25pct",
+      "vectors": 1500,
+      "pops": 24,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "full",
+      "vectors": 1500,
+      "pops": 96,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "partial8",
+      "vectors": 1500,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "partial25pct",
+      "vectors": 1500,
+      "pops": 32,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "full",
+      "vectors": 1500,
+      "pops": 128,
+      "failures": 0
+    }
+  ],
+  "signedBoundaryVerification": [
+    {
+      "n": 48,
+      "mode": "partial8",
+      "vectors": 1024,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 48,
+      "mode": "partial25pct",
+      "vectors": 1024,
+      "pops": 12,
+      "failures": 0
+    },
+    {
+      "n": 48,
+      "mode": "full",
+      "vectors": 1024,
+      "pops": 48,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "partial8",
+      "vectors": 1024,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "partial25pct",
+      "vectors": 1024,
+      "pops": 16,
+      "failures": 0
+    },
+    {
+      "n": 64,
+      "mode": "full",
+      "vectors": 1024,
+      "pops": 64,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "partial8",
+      "vectors": 1024,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "partial25pct",
+      "vectors": 1024,
+      "pops": 24,
+      "failures": 0
+    },
+    {
+      "n": 96,
+      "mode": "full",
+      "vectors": 1024,
+      "pops": 96,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "partial8",
+      "vectors": 1024,
+      "pops": 8,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "partial25pct",
+      "vectors": 1024,
+      "pops": 32,
+      "failures": 0
+    },
+    {
+      "n": 128,
+      "mode": "full",
+      "vectors": 1024,
+      "pops": 128,
+      "failures": 0
+    }
+  ],
+  "results": [
+    {
+      "n": 48,
+      "mode": "partial8",
+      "pops": 8,
+      "seed": 12654726,
+      "vectorsPerBlock": 303104,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 3637248,
+      "calibration": {
+        "vectors": 303104,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 2.3630829999999605,
+            "packedMs": 2.251333999999815,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 303104,
+            "currentMs": 167.03391699999997,
+            "packedMs": 156.36920800000007,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 671.4565420000001,
+          "packedMs": 614.2320829999999,
+          "elapsedTimeReductionPct": 8.522436735749347,
+          "equalWorkThroughputGainPct": 9.316422991210027
+        },
+        {
+          "round": 1,
+          "currentMs": 666.4309590000007,
+          "packedMs": 631.1315010000008,
+          "elapsedTimeReductionPct": 5.296791441527242,
+          "equalWorkThroughputGainPct": 5.59304327926422
+        },
+        {
+          "round": 2,
+          "currentMs": 668.4010830000007,
+          "packedMs": 620.5941679999996,
+          "elapsedTimeReductionPct": 7.1524293146606075,
+          "equalWorkThroughputGainPct": 7.703410290507451
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 166.74133400000005,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 153.816417,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 151.58020799999986,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 163.83620900000005,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 154.85795800000005,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 169.02129100000002,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 171.857708,
+          "checksum": 18
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 153.97749999999996,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 166.73579199999995,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 157.20924999999988,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 157.76825000000008,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 168.1479589999999,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 162.0316670000002,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 167.36570800000027,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 164.1815000000006,
+          "checksum": 18
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 154.1223340000006,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 167.30795800000033,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 156.08737500000007,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 155.1086669999995,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 170.52320899999995,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 154.47233400000005,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 165.49462500000027,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 165.0752910000001,
+          "checksum": 18
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 154.925792,
+          "checksum": 18
+        }
+      ],
+      "currentTotalMs": 2006.2885840000015,
+      "packedTotalMs": 1865.9577520000003,
+      "minimumObservedBlockMs": 151.58020799999986,
+      "elapsedTimeReductionPct": 6.994548696490073,
+      "equalWorkThroughputGainPct": 7.520579276223671,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 5.296791441527242,
+        "median": 7.1524293146606075,
+        "maximum": 8.522436735749347
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 5.59304327926422,
+        "median": 7.703410290507451,
+        "maximum": 9.316422991210027
+      }
+    },
+    {
+      "n": 48,
+      "mode": "partial25pct",
+      "pops": 12,
+      "seed": 12654730,
+      "vectorsPerBlock": 274432,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 3293184,
+      "calibration": {
+        "vectors": 274432,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 2.6053750000000946,
+            "packedMs": 2.4773330000007263,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 274432,
+            "currentMs": 175.09470899999997,
+            "packedMs": 160.6821659999996,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 698.3715840000004,
+          "packedMs": 641.5078760000015,
+          "elapsedTimeReductionPct": 8.142328425550446,
+          "equalWorkThroughputGainPct": 8.864070127176248
+        },
+        {
+          "round": 1,
+          "currentMs": 701.0898340000003,
+          "packedMs": 643.9444179999991,
+          "elapsedTimeReductionPct": 8.150940611128755,
+          "equalWorkThroughputGainPct": 8.874277717553136
+        },
+        {
+          "round": 2,
+          "currentMs": 701.5995830000029,
+          "packedMs": 639.3970410000002,
+          "elapsedTimeReductionPct": 8.865817983247357,
+          "equalWorkThroughputGainPct": 9.72831245867507
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 173.69887500000004,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 159.34491700000035,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 161.04141700000037,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 176.85133399999995,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 161.29525000000012,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 175.40137500000037,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 172.42000000000007,
+          "checksum": 24
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 159.82629200000065,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 176.43012500000077,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 160.97800000000007,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 162.38066699999945,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 175.17591699999957,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 159.04154199999994,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 174.6651670000001,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 174.81862499999988,
+          "checksum": 24
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 161.54420899999968,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 175.17454100000032,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 160.84054099999958,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 157.83287500000006,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 176.32137500000135,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 160.9097500000007,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 175.32416700000067,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 174.77950000000055,
+          "checksum": 24
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 159.81387499999983,
+          "checksum": 24
+        }
+      ],
+      "currentTotalMs": 2101.0610010000037,
+      "packedTotalMs": 1924.8493350000008,
+      "minimumObservedBlockMs": 157.83287500000006,
+      "elapsedTimeReductionPct": 8.386794382273271,
+      "equalWorkThroughputGainPct": 9.154569284769654,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 8.142328425550446,
+        "median": 8.150940611128755,
+        "maximum": 8.865817983247357
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 8.864070127176248,
+        "median": 8.874277717553136,
+        "maximum": 9.72831245867507
+      }
+    },
+    {
+      "n": 48,
+      "mode": "full",
+      "pops": 48,
+      "seed": 12654766,
+      "vectorsPerBlock": 147456,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 1769472,
+      "calibration": {
+        "vectors": 147456,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 5.431457999999111,
+            "packedMs": 4.6472499999999854,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 147456,
+            "currentMs": 191.02308300000004,
+            "packedMs": 161.84049999999843,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 780.7384159999983,
+          "packedMs": 654.2082499999997,
+          "elapsedTimeReductionPct": 16.20647369297618,
+          "equalWorkThroughputGainPct": 19.34096153633016
+        },
+        {
+          "round": 1,
+          "currentMs": 783.7589580000003,
+          "packedMs": 650.9792910000015,
+          "elapsedTimeReductionPct": 16.941390671798718,
+          "equalWorkThroughputGainPct": 20.396911059340983
+        },
+        {
+          "round": 2,
+          "currentMs": 770.1012910000009,
+          "packedMs": 654.4161240000012,
+          "elapsedTimeReductionPct": 15.022071557597155,
+          "equalWorkThroughputGainPct": 17.677615626720012
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 191.93433299999924,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.1062499999989,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.16520800000035,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 193.13054199999897,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 161.3094170000004,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 197.16858300000058,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 198.50495799999953,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 164.62737500000003,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 192.53441699999894,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 160.5505000000012,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 162.14962500000001,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 194.00058300000092,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 166.0763330000009,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 206.016791,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 191.20716700000048,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 162.20283299999937,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 193.36475000000064,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.86058299999968,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 162.61120800000026,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 193.71745799999917,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 162.26216700000077,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 190.53258300000016,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 192.4865000000009,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 164.6821660000005,
+          "checksum": 0
+        }
+      ],
+      "currentTotalMs": 2334.5986649999995,
+      "packedTotalMs": 1959.6036650000024,
+      "minimumObservedBlockMs": 160.5505000000012,
+      "elapsedTimeReductionPct": 16.06250383082427,
+      "equalWorkThroughputGainPct": 19.136267537037742,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 15.022071557597155,
+        "median": 16.20647369297618,
+        "maximum": 16.941390671798718
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 17.677615626720012,
+        "median": 19.34096153633016,
+        "maximum": 20.396911059340983
+      }
+    },
+    {
+      "n": 64,
+      "mode": "partial8",
+      "pops": 8,
+      "seed": 12656822,
+      "vectorsPerBlock": 241664,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 2899968,
+      "calibration": {
+        "vectors": 241664,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 2.846084000000701,
+            "packedMs": 2.805540999999721,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 241664,
+            "currentMs": 160.24383299999863,
+            "packedMs": 156.52150000000074,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 643.6468349999996,
+          "packedMs": 623.5681669999994,
+          "elapsedTimeReductionPct": 3.119516310524563,
+          "equalWorkThroughputGainPct": 3.219963600226583
+        },
+        {
+          "round": 1,
+          "currentMs": 641.7067079999979,
+          "packedMs": 628.4697909999977,
+          "elapsedTimeReductionPct": 2.062767434869984,
+          "equalWorkThroughputGainPct": 2.106213725712758
+        },
+        {
+          "round": 2,
+          "currentMs": 643.5347080000065,
+          "packedMs": 623.599333999995,
+          "elapsedTimeReductionPct": 3.097793134105722,
+          "equalWorkThroughputGainPct": 3.196824132594678
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 159.96629199999916,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 156.755083,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 155.70816700000069,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 164.072959000001,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 155.95449999999983,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 161.3209169999991,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 158.2866670000003,
+          "checksum": 58
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 155.15041699999892,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 160.96645799999897,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 155.57941599999867,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 157.59387499999866,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 162.69595800000025,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 155.77812500000073,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 158.34679200000028,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 159.6974999999984,
+          "checksum": 58
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 159.51837499999965,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 162.59400000000096,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 155.528624999999,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 155.3612499999981,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 159.00216700000237,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 156.0346669999999,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 159.81187500000306,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 162.1266660000001,
+          "checksum": 58
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 156.67479199999798,
+          "checksum": 58
+        }
+      ],
+      "currentTotalMs": 1928.888251000004,
+      "packedTotalMs": 1875.6372919999922,
+      "minimumObservedBlockMs": 155.15041699999892,
+      "elapsedTimeReductionPct": 2.7607073127437323,
+      "equalWorkThroughputGainPct": 2.839086172318006,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 2.062767434869984,
+        "median": 3.097793134105722,
+        "maximum": 3.119516310524563
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 2.106213725712758,
+        "median": 3.196824132594678,
+        "maximum": 3.219963600226583
+      }
+    },
+    {
+      "n": 64,
+      "mode": "partial25pct",
+      "pops": 16,
+      "seed": 12656830,
+      "vectorsPerBlock": 200704,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 2408448,
+      "calibration": {
+        "vectors": 200704,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 3.719249999998283,
+            "packedMs": 3.4190830000006827,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 200704,
+            "currentMs": 174.906167000001,
+            "packedMs": 163.86879199999748,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 695.2994170000056,
+          "packedMs": 658.0348330000052,
+          "elapsedTimeReductionPct": 5.35950168932763,
+          "equalWorkThroughputGainPct": 5.663010851585137
+        },
+        {
+          "round": 1,
+          "currentMs": 699.7887489999994,
+          "packedMs": 659.0569990000004,
+          "elapsedTimeReductionPct": 5.820578004176951,
+          "equalWorkThroughputGainPct": 6.180307630721171
+        },
+        {
+          "round": 2,
+          "currentMs": 704.8071259999997,
+          "packedMs": 658.7495830000043,
+          "elapsedTimeReductionPct": 6.534772606711041,
+          "equalWorkThroughputGainPct": 6.991661807244753
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 174.0235840000023,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 165.27979200000118,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.13504100000137,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 175.49095800000214,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 164.23045800000182,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 173.42562499999985,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 172.35925000000134,
+          "checksum": 3
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 164.3895420000008,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 174.60670799999934,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.2946669999983,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.663958000001,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 174.15929099999994,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 163.42433299999902,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 176.3452499999985,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 174.6775000000016,
+          "checksum": 3
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 166.67404100000203,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 176.3759170000012,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.62904200000048,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.1710000000021,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 176.1165000000001,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 166.6045410000006,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 176.88908399999855,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 175.42562499999985,
+          "checksum": 3
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 163.34500000000116,
+          "checksum": 3
+        }
+      ],
+      "currentTotalMs": 2099.8952920000047,
+      "packedTotalMs": 1975.8414150000099,
+      "minimumObservedBlockMs": 163.34500000000116,
+      "elapsedTimeReductionPct": 5.907622035851231,
+      "equalWorkThroughputGainPct": 6.278534099863187,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 5.35950168932763,
+        "median": 5.820578004176951,
+        "maximum": 6.534772606711041
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 5.663010851585137,
+        "median": 6.180307630721171,
+        "maximum": 6.991661807244753
+      }
+    },
+    {
+      "n": 64,
+      "mode": "full",
+      "pops": 64,
+      "seed": 12656878,
+      "vectorsPerBlock": 102400,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 1228800,
+      "calibration": {
+        "vectors": 102400,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 7.840916000001016,
+            "packedMs": 6.765332999999373,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 102400,
+            "currentMs": 190.3678749999999,
+            "packedMs": 165.91949999999997,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 767.5167089999995,
+          "packedMs": 673.9058749999967,
+          "elapsedTimeReductionPct": 12.196585807489287,
+          "equalWorkThroughputGainPct": 13.890787641523872
+        },
+        {
+          "round": 1,
+          "currentMs": 770.9187499999971,
+          "packedMs": 666.9141670000026,
+          "elapsedTimeReductionPct": 13.490991495536312,
+          "equalWorkThroughputGainPct": 15.594897836379907
+        },
+        {
+          "round": 2,
+          "currentMs": 765.2237499999974,
+          "packedMs": 663.4006249999984,
+          "elapsedTimeReductionPct": 13.306320536967043,
+          "equalWorkThroughputGainPct": 15.348662808389602
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 192.10308299999815,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 171.94145899999785,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 163.53066599999875,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 189.76033400000233,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 165.49762499999997,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 192.6838749999988,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 192.96941700000025,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 172.93612500000017,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 194.01162499999919,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 167.1772090000013,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.97208300000057,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 193.9784580000014,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 168.7440830000014,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 191.04870899999878,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 191.8799579999977,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 166.02079199999935,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 192.18983300000036,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 167.1629580000008,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.500082999999,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 190.0971669999999,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 166.0604170000006,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 190.34599999999773,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 192.5907499999994,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 165.677166999998,
+          "checksum": 0
+        }
+      ],
+      "currentTotalMs": 2303.659208999994,
+      "packedTotalMs": 2004.2206669999978,
+      "minimumObservedBlockMs": 163.53066599999875,
+      "elapsedTimeReductionPct": 12.9983871238481,
+      "equalWorkThroughputGainPct": 14.94039787785486,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 12.196585807489287,
+        "median": 13.306320536967043,
+        "maximum": 13.490991495536312
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 13.890787641523872,
+        "median": 15.348662808389602,
+        "maximum": 15.594897836379907
+      }
+    },
+    {
+      "n": 96,
+      "mode": "partial8",
+      "pops": 8,
+      "seed": 12661014,
+      "vectorsPerBlock": 176128,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 2113536,
+      "calibration": {
+        "vectors": 176128,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 4.090707999999722,
+            "packedMs": 3.9100410000028205,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 176128,
+            "currentMs": 165.71187500000087,
+            "packedMs": 160.15208300000086,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 667.8943760000002,
+          "packedMs": 647.0998329999929,
+          "elapsedTimeReductionPct": 3.11344783654942,
+          "equalWorkThroughputGainPct": 3.2134984340209893
+        },
+        {
+          "round": 1,
+          "currentMs": 666.4275420000049,
+          "packedMs": 644.9805840000008,
+          "elapsedTimeReductionPct": 3.2181980257958682,
+          "equalWorkThroughputGainPct": 3.325209863992451
+        },
+        {
+          "round": 2,
+          "currentMs": 668.4628329999978,
+          "packedMs": 640.2064999999966,
+          "elapsedTimeReductionPct": 4.22706119249584,
+          "equalWorkThroughputGainPct": 4.4136279466080675
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 172.0024999999987,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 162.40979099999822,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 162.50504199999705,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 166.8168340000011,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 160.68962499999907,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 164.2132079999974,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 164.861834000003,
+          "checksum": 74
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 161.4953749999986,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 167.20650000000023,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 161.61629200000243,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 160.83008400000108,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 166.83070800000132,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 161.19570799999929,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 166.82029200000034,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 165.570042000003,
+          "checksum": 74
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 161.33849999999802,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 167.08200000000215,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 159.01204199999847,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 159.3726659999993,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 166.70774999999776,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 161.23983399999997,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 167.50816599999962,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 167.16491699999824,
+          "checksum": 74
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 160.58195799999885,
+          "checksum": 74
+        }
+      ],
+      "currentTotalMs": 2002.7847510000029,
+      "packedTotalMs": 1932.2869169999904,
+      "minimumObservedBlockMs": 159.01204199999847,
+      "elapsedTimeReductionPct": 3.5199905513966248,
+      "equalWorkThroughputGainPct": 3.6484143933171787,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 3.11344783654942,
+        "median": 3.2181980257958682,
+        "maximum": 4.22706119249584
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 3.2134984340209893,
+        "median": 3.325209863992451,
+        "maximum": 4.4136279466080675
+      }
+    },
+    {
+      "n": 96,
+      "mode": "partial25pct",
+      "pops": 24,
+      "seed": 12661030,
+      "vectorsPerBlock": 131072,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 1572864,
+      "calibration": {
+        "vectors": 131072,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 5.728124999997817,
+            "packedMs": 5.251250000001164,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 131072,
+            "currentMs": 183.95999999999913,
+            "packedMs": 170.76729200000045,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 742.7147080000104,
+          "packedMs": 685.4288329999945,
+          "elapsedTimeReductionPct": 7.713038988318398,
+          "equalWorkThroughputGainPct": 8.357669278265734
+        },
+        {
+          "round": 1,
+          "currentMs": 746.4239999999991,
+          "packedMs": 690.690208999993,
+          "elapsedTimeReductionPct": 7.466773710385262,
+          "equalWorkThroughputGainPct": 8.069289281036651
+        },
+        {
+          "round": 2,
+          "currentMs": 747.4548339999892,
+          "packedMs": 692.862083,
+          "elapsedTimeReductionPct": 7.303819376996631,
+          "equalWorkThroughputGainPct": 7.8793099434175895
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 188.2345000000023,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 170.1375420000004,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 169.70795799999905,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 184.56262499999866,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 171.60974999999598,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 185.4886250000054,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 184.42895800000406,
+          "checksum": 91
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 173.97358299999905,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 184.9566249999989,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 170.54633399999875,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 172.11616700000013,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 187.65462499999558,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 175.15262499999517,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 185.95216600000276,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 187.86058400000184,
+          "checksum": 91
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 172.875082999999,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 188.77624999999534,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 174.66237499999988,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 171.76962500000081,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 185.091124999999,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 173.54449999999633,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 187.19308399999863,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 186.39437499999622,
+          "checksum": 91
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 172.88558300000295,
+          "checksum": 91
+        }
+      ],
+      "currentTotalMs": 2236.5935419999987,
+      "packedTotalMs": 2068.9811249999875,
+      "minimumObservedBlockMs": 169.70795799999905,
+      "elapsedTimeReductionPct": 7.494093756978723,
+      "equalWorkThroughputGainPct": 8.101205708196701,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 7.303819376996631,
+        "median": 7.466773710385262,
+        "maximum": 7.713038988318398
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 7.8793099434175895,
+        "median": 8.069289281036651,
+        "maximum": 8.357669278265734
+      }
+    },
+    {
+      "n": 96,
+      "mode": "full",
+      "pops": 96,
+      "seed": 12661102,
+      "vectorsPerBlock": 61440,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 737280,
+      "calibration": {
+        "vectors": 61440,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 13.140541000000667,
+            "packedMs": 11.374542000005022,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 61440,
+            "currentMs": 188.45387499999924,
+            "packedMs": 163.00299999999697,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 759.8211679999949,
+          "packedMs": 658.075291000001,
+          "elapsedTimeReductionPct": 13.390766312527186,
+          "equalWorkThroughputGainPct": 15.461130115580302
+        },
+        {
+          "round": 1,
+          "currentMs": 760.0850410000057,
+          "packedMs": 655.7976249999992,
+          "elapsedTimeReductionPct": 13.720493152029512,
+          "equalWorkThroughputGainPct": 15.902377810533629
+        },
+        {
+          "round": 2,
+          "currentMs": 759.4333330000081,
+          "packedMs": 660.0822079999998,
+          "elapsedTimeReductionPct": 13.082270777809967,
+          "equalWorkThroughputGainPct": 15.051326000898424
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 192.3503750000018,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.68333300000086,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.77824999999575,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 190.16233399999328,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 163.3640000000014,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 188.49975000000268,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 188.80870899999718,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 165.249708000003,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 190.6835409999985,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 164.87550000000192,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 162.1237089999995,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 189.25429200000508,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 164.6997909999991,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 191.36125000000175,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 188.7859580000004,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 164.09862499999872,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 188.7728750000024,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 165.49495800000295,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 164.85958299999766,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 193.28754100000515,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 165.78604199999972,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 188.53604199999972,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 188.83687500000087,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 163.94162499999948,
+          "checksum": 0
+        }
+      ],
+      "currentTotalMs": 2279.339542000009,
+      "packedTotalMs": 1973.955124,
+      "minimumObservedBlockMs": 162.1237089999995,
+      "elapsedTimeReductionPct": 13.39793446184191,
+      "equalWorkThroughputGainPct": 15.470686961777602,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 13.082270777809967,
+        "median": 13.390766312527186,
+        "maximum": 13.720493152029512
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 15.051326000898424,
+        "median": 15.461130115580302,
+        "maximum": 15.902377810533629
+      }
+    },
+    {
+      "n": 128,
+      "mode": "partial8",
+      "pops": 8,
+      "seed": 12665206,
+      "vectorsPerBlock": 143360,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 1720320,
+      "calibration": {
+        "vectors": 143360,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 4.818958000003477,
+            "packedMs": 4.845541999995476,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 143360,
+            "currentMs": 169.11891699999978,
+            "packedMs": 166.92191599999933,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 680.059251000006,
+          "packedMs": 679.6752070000002,
+          "elapsedTimeReductionPct": 0.05647213819106061,
+          "equalWorkThroughputGainPct": 0.0565040472346956
+        },
+        {
+          "round": 1,
+          "currentMs": 678.2306249999965,
+          "packedMs": 673.4204589999936,
+          "elapsedTimeReductionPct": 0.7092227662239466,
+          "equalWorkThroughputGainPct": 0.7142886640459256
+        },
+        {
+          "round": 2,
+          "currentMs": 681.9887909999961,
+          "packedMs": 676.6982930000013,
+          "elapsedTimeReductionPct": 0.7757455943282315,
+          "equalWorkThroughputGainPct": 0.7818104544848881
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 168.33783300000505,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 165.5949580000015,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 178.4024999999965,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 173.0824169999978,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 168.76916599999822,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 169.2455420000042,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 169.39345899999898,
+          "checksum": 33
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 166.908583000004,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 170.1773749999993,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 168.2420839999977,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 169.5485420000041,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 170.8034170000028,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 168.53899999999703,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 168.166916999995,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 169.0829159999994,
+          "checksum": 33
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 167.09083299999475,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 169.80825000000186,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 168.5132500000036,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 168.5801250000004,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 170.25045799999498,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 169.07620899999893,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 170.73924999999872,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 171.19083300000057,
+          "checksum": 33
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 170.52870899999834,
+          "checksum": 33
+        }
+      ],
+      "currentTotalMs": 2040.2786669999987,
+      "packedTotalMs": 2029.793958999995,
+      "minimumObservedBlockMs": 165.5949580000015,
+      "elapsedTimeReductionPct": 0.5138860769161588,
+      "equalWorkThroughputGainPct": 0.5165405066615225,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 0.05647213819106061,
+        "median": 0.7092227662239466,
+        "maximum": 0.7757455943282315
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 0.0565040472346956,
+        "median": 0.7142886640459256,
+        "maximum": 0.7818104544848881
+      }
+    },
+    {
+      "n": 128,
+      "mode": "partial25pct",
+      "pops": 32,
+      "seed": 12665230,
+      "vectorsPerBlock": 94208,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 1130496,
+      "calibration": {
+        "vectors": 94208,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 8.25966700000572,
+            "packedMs": 7.302166000001307,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 94208,
+            "currentMs": 179.82537500000035,
+            "packedMs": 168.0087080000012,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 724.6981670000096,
+          "packedMs": 684.5699160000004,
+          "elapsedTimeReductionPct": 5.537236442328225,
+          "equalWorkThroughputGainPct": 5.861819233086063
+        },
+        {
+          "round": 1,
+          "currentMs": 731.7590420000124,
+          "packedMs": 675.6656260000018,
+          "elapsedTimeReductionPct": 7.665558302730159,
+          "equalWorkThroughputGainPct": 8.301949047206737
+        },
+        {
+          "round": 2,
+          "currentMs": 720.3331670000043,
+          "packedMs": 681.2579160000023,
+          "elapsedTimeReductionPct": 5.424608055011549,
+          "equalWorkThroughputGainPct": 5.735750012188023
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 182.20837500000198,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 171.75266600000032,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 171.3294590000005,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 181.31349999999657,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 169.9708329999994,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 180.8466250000056,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 180.32966700000543,
+          "checksum": 23
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 171.51695800000016,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 185.2320000000036,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 169.6264169999995,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 167.14870900000096,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 180.11845800000447,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 170.5405830000018,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 183.26104200000555,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 183.1475419999988,
+          "checksum": 23
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 168.34991699999955,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 180.9950420000023,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 170.65849999999773,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 170.45987500000047,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 181.3316249999989,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 169.76041600000462,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 179.54349999999977,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 178.46300000000338,
+          "checksum": 23
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 170.37912499999948,
+          "checksum": 23
+        }
+      ],
+      "currentTotalMs": 2176.7903760000263,
+      "packedTotalMs": 2041.4934580000045,
+      "minimumObservedBlockMs": 167.14870900000096,
+      "elapsedTimeReductionPct": 6.215431650733291,
+      "equalWorkThroughputGainPct": 6.627350064230364,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 5.424608055011549,
+        "median": 5.537236442328225,
+        "maximum": 7.665558302730159
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 5.735750012188023,
+        "median": 5.861819233086063,
+        "maximum": 8.301949047206737
+      }
+    },
+    {
+      "n": 128,
+      "mode": "full",
+      "pops": 128,
+      "seed": 12665326,
+      "vectorsPerBlock": 45056,
+      "blocksPerArm": 12,
+      "equalWorkVectorsPerArm": 540672,
+      "calibration": {
+        "vectors": 45056,
+        "probes": [
+          {
+            "vectors": 4096,
+            "currentMs": 17.936500000003434,
+            "packedMs": 15.644749999999476,
+            "checksumsMatch": true
+          },
+          {
+            "vectors": 45056,
+            "currentMs": 193.997374999999,
+            "packedMs": 171.8438340000066,
+            "checksumsMatch": true
+          }
+        ]
+      },
+      "timingOrder": [
+        "current",
+        "packed",
+        "packed",
+        "current",
+        "packed",
+        "current",
+        "current",
+        "packed"
+      ],
+      "rounds": [
+        {
+          "round": 0,
+          "currentMs": 777.2389990000083,
+          "packedMs": 696.6472490000015,
+          "elapsedTimeReductionPct": 10.36897918191133,
+          "equalWorkThroughputGainPct": 11.56851622046766
+        },
+        {
+          "round": 1,
+          "currentMs": 787.6125830000019,
+          "packedMs": 685.4054160000014,
+          "elapsedTimeReductionPct": 12.976832672060072,
+          "equalWorkThroughputGainPct": 14.911928708774646
+        },
+        {
+          "round": 2,
+          "currentMs": 777.1089159999974,
+          "packedMs": 681.9486670000042,
+          "elapsedTimeReductionPct": 12.245419791322213,
+          "equalWorkThroughputGainPct": 13.95416599589785
+        }
+      ],
+      "blocks": [
+        {
+          "round": 0,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 196.05345800000214,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 172.05770800000028,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 178.5266249999986,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 195.34583300000668,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 172.24591599999985,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 194.56762499999604,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 191.27208300000348,
+          "checksum": 0
+        },
+        {
+          "round": 0,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 173.81700000000274,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 199.40033299999777,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 172.4477909999987,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 171.49500000000262,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 199.03129199999967,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 170.4927499999976,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 195.49758300000394,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 193.68337500000052,
+          "checksum": 0
+        },
+        {
+          "round": 1,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 170.9698750000025,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 0,
+          "arm": "current",
+          "elapsedMs": 193.9080829999948,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 1,
+          "arm": "packed",
+          "elapsedMs": 168.64345799999865,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 2,
+          "arm": "packed",
+          "elapsedMs": 170.24016700000357,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 3,
+          "arm": "current",
+          "elapsedMs": 196.30174999999872,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 4,
+          "arm": "packed",
+          "elapsedMs": 172.5515000000014,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 5,
+          "arm": "current",
+          "elapsedMs": 194.23912500000006,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 6,
+          "arm": "current",
+          "elapsedMs": 192.65995800000383,
+          "checksum": 0
+        },
+        {
+          "round": 2,
+          "blockIndex": 7,
+          "arm": "packed",
+          "elapsedMs": 170.5135420000006,
+          "checksum": 0
+        }
+      ],
+      "currentTotalMs": 2341.9604980000076,
+      "packedTotalMs": 2064.001332000007,
+      "minimumObservedBlockMs": 168.64345799999865,
+      "elapsedTimeReductionPct": 11.868653046768838,
+      "equalWorkThroughputGainPct": 13.467005165673008,
+      "roundElapsedTimeReductionPct": {
+        "minimum": 10.36897918191133,
+        "median": 12.245419791322213,
+        "maximum": 12.976832672060072
+      },
+      "roundEqualWorkThroughputGainPct": {
+        "minimum": 11.56851622046766,
+        "median": 13.95416599589785,
+        "maximum": 14.911928708774646
+      }
+    }
+  ],
+  "checksums": {
+    "current": 1631182029,
+    "packed": 1631182029,
+    "match": true,
+    "nontrivial": true
+  }
+}

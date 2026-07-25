@@ -4,3 +4,4 @@ ml/protocols/floodgate-q1-2026-listing-identities.tsv text eol=lf
 ml/local-external-calibration.ts text eol=lf
 tests/unit/ml/localExternalCalibration.test.ts text eol=lf
 docs/data/shogi-local-external-calibration-pilot-request-2026-07-19.json text eol=lf
+wasm-spike/assembly/lazy-move-picker-research.patch whitespace=-blank-at-eol

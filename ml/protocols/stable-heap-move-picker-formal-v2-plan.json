@@ -1,0 +1,130 @@
+{
+  "schema": "stable-heap-move-picker-formal-v2-plan",
+  "schema_version": 1,
+  "status": "preregistered-not-run",
+  "purpose": "Evaluate one all-window, stable max-heap move-ordering candidate on a source-authenticated 64-position holdout that was not used for implementation or threshold tuning.",
+  "candidate": {
+    "description": "All moves are scored at the historical pre-search point. Internal main-search nodes with at least 64 pseudo-legal moves use an in-place max-heap ordered by score descending and original generation ordinal ascending. Root and quiescence remain unchanged.",
+    "minimum_moves": 64,
+    "window_scope": "all internal main-search windows",
+    "production_enabled": false,
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-lazy-move-picker-research.wasm",
+      "bytes": 36358,
+      "sha256": "49b66b2466c654232a6bccc5e3d7a72d69ec71d46977aa17f8644cc84361d311"
+    },
+    "research_patch": {
+      "path": "wasm-spike/assembly/lazy-move-picker-research.patch",
+      "bytes": 5624,
+      "sha256": "e979b5609bd8d63305037d37860b5f5914fcf641a49f7a61ae0a943af4fb3162"
+    }
+  },
+  "baseline": {
+    "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+    "bytes": 35597,
+    "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+  },
+  "live_weights": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "formal_fixture": {
+    "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+    "bytes": 35586,
+    "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f",
+    "cases": 64,
+    "categories": {
+      "opening": 16,
+      "middlegame": 16,
+      "dropHeavy": 16,
+      "checkEvasion": 16
+    },
+    "disjoint_from_tuning": "Every canonical SFEN is disjoint. Browser-derived cases also exclude every source game used by v1.",
+    "selection_uses_engine_results": false
+  },
+  "fixture_builder": {
+    "path": "wasm-spike/build-lazy-move-picker-fixtures.ts",
+    "bytes": 17147,
+    "sha256": "1d6eb7f395f143d722e2a3079414a882bb179e1163a15a86227f6f239df9a8af"
+  },
+  "gate": {
+    "path": "wasm-spike/lazy-move-picker-gate.ts",
+    "bytes": 23605,
+    "sha256": "9325e553011276566dc201ec764dfcd8bd7c033deda2d0494a300ed04a9b9514",
+    "fixed_depth": 5,
+    "quiescence_depth": 8,
+    "timed_search": false,
+    "shared_tt": false,
+    "clear_tt_before_every_search": true,
+    "minimum_block_ms": 100,
+    "maximum_repeats": 2000,
+    "timing_order": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline",
+      "candidate",
+      "baseline",
+      "baseline",
+      "candidate"
+    ]
+  },
+  "pass_gates": {
+    "fixed_depth_exact": {
+      "cases": 64,
+      "fields": [
+        "best_move_key",
+        "score",
+        "completed_depth",
+        "nodes",
+        "leaves"
+      ],
+      "mismatches_allowed": 0
+    },
+    "non_vacuous": "The candidate must activate at least once overall and at least once in every category. Individual no-op positions remain valid controls.",
+    "aggregate_work_nps_delta_pct_at_least": 8,
+    "median_position_nps_delta_pct_at_least": 5,
+    "p90_position_wall_regression_pct_at_most": 2,
+    "each_category_aggregate_nps_delta_pct_at_least": 0,
+    "technical_faults": 0
+  },
+  "tuning_history_not_formal_evidence": [
+    {
+      "candidate": "copy-heap zero-window threshold64",
+      "aggregate_delta_pct": 5.678006605613439,
+      "median_delta_pct": 4.87357059894774,
+      "decision": "failed original aggregate threshold"
+    },
+    {
+      "candidate": "in-place heap zero-window threshold32",
+      "aggregate_delta_pct": 6.386146602077503,
+      "median_delta_pct": 4.0019832722233195,
+      "decision": "rejected for median and tail regression"
+    },
+    {
+      "candidate": "in-place heap zero-window threshold48",
+      "aggregate_delta_pct": 4.587273014650761,
+      "median_delta_pct": 4.233505897897871,
+      "p90_wall_regression_pct": 1.3829126497652222,
+      "decision": "rejected"
+    },
+    {
+      "candidate": "in-place heap zero-window threshold64",
+      "aggregate_delta_pct": 6.25,
+      "median_delta_pct": 4.78,
+      "decision": "retained threshold but expanded to exact all-window ordering"
+    },
+    {
+      "candidate": "in-place heap all-window threshold64",
+      "aggregate_delta_pct": 6.86842243598873,
+      "median_delta_pct": 5.672278979140155,
+      "p90_wall_regression_pct": 1.0247496464769634,
+      "decision": "selected once; formal v2 remains sealed"
+    }
+  ],
+  "decision": {
+    "on_pass": "Authorize a separately preregistered fixed-time 56-game candidate-on versus candidate-off screen using identical live weights and the pinned research WASM.",
+    "on_fail": "Reject this candidate for production. Do not run the fixed-time screen and do not modify production source, production WASM, embedded base64, or live weights."
+  }
+}

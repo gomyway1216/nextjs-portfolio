@@ -582,6 +582,30 @@ describe("NNUE self-play dataset preparation", () => {
     ).rejects.toThrow(/train side-to-move balance requires both b and w/);
   });
 
+  it("fails cycle-zero balancing when validation contains only one side", async () => {
+    const base = root();
+    const sfens = sfensBySide(4);
+    const rows = [
+      row(sfens.b[0], gameFor("train", "one-side-validation-train-b")),
+      row(sfens.w[0], gameFor("train", "one-side-validation-train-w")),
+      ...sfens.b
+        .slice(1, 3)
+        .map((sfen, index) =>
+          row(sfen, gameFor("val", `one-side-validation-val-${index}`)),
+        ),
+    ];
+    await expect(
+      prepareNnueSelfplayDataset({
+        currentShardDirs: [shard(base, 0, 1, 0, rows)],
+        cycle: 0,
+        splitSeed: SEED,
+        valRatio: VAL_RATIO,
+        outDir: path.join(base, "dataset"),
+        balanceSideToMove: true,
+      }),
+    ).rejects.toThrow(/validation side-to-move balance requires both b and w/);
+  });
+
   it("gives validation priority when a semantic position occurs in both roles", async () => {
     const base = root();
     const sfens = uniqueSfens(3);

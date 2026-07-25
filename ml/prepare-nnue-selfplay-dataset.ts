@@ -1222,6 +1222,26 @@ function rowSideToMove(tagged: TaggedRow): SideToMove {
   return side;
 }
 
+function requirePublishedSideBalance(
+  rows: readonly TaggedRow[],
+  role: "train" | "validation",
+  expected: SideBalanceAccounting,
+): Readonly<Record<SideToMove, number>> {
+  const counts: Record<SideToMove, number> = { b: 0, w: 0 };
+  for (const tagged of rows) counts[rowSideToMove(tagged)] += 1;
+  if (counts.b <= 0 || counts.b !== counts.w) {
+    throw new Error(
+      `published ${role} side-to-move balance requires b = w > 0`,
+    );
+  }
+  if (counts.b !== expected.selected.b || counts.w !== expected.selected.w) {
+    throw new Error(
+      `published ${role} side-to-move counts differ from balance accounting`,
+    );
+  }
+  return counts;
+}
+
 function balanceRowsBySideToMove(
   rows: readonly TaggedRow[],
   seed: string,
@@ -1560,6 +1580,33 @@ async function prepareCore(
   const trainRows = trainBalance?.rows ?? selectedTrainRows;
   const valRows = validationBalance?.rows ?? selectedValRows;
   if (trainRows.length === 0) throw new Error("training output is empty");
+  let publishedSideBalance: {
+    readonly train: SideBalanceAccounting;
+    readonly validation: SideBalanceAccounting;
+  } | null = null;
+  if (balanceSideToMove) {
+    if (!trainBalance || !validationBalance) {
+      throw new Error("cycle-zero side-to-move balance was not applied");
+    }
+    publishedSideBalance = {
+      train: {
+        ...trainBalance.accounting,
+        selected: requirePublishedSideBalance(
+          trainRows,
+          "train",
+          trainBalance.accounting,
+        ),
+      },
+      validation: {
+        ...validationBalance.accounting,
+        selected: requirePublishedSideBalance(
+          valRows,
+          "validation",
+          validationBalance.accounting,
+        ),
+      },
+    };
+  }
   const trainGames = new Set(trainRows.map((tagged) => tagged.row.game_id));
   const trainSourceGames = new Set(
     trainRows.map((tagged) => tagged.row.source_game_id),
@@ -1711,10 +1758,7 @@ async function prepareCore(
           : selectedPast.length / trainRows.length,
         ...(balanceSideToMove
           ? {
-              side_to_move_balance: {
-                train: trainBalance?.accounting,
-                validation: validationBalance?.accounting,
-              },
+              side_to_move_balance: publishedSideBalance,
             }
           : {}),
         current_run_fingerprint_count: runFingerprints.size,
@@ -1781,7 +1825,7 @@ function cliMap(argv: readonly string[]): Map<string, string> {
   ]);
   const booleanFlags = new Set(["balance-side-to-move"]);
   const values = new Map<string, string>();
-  for (let index = 0; index < argv.length;) {
+  for (let index = 0; index < argv.length; ) {
     const token = argv[index];
     if (!token?.startsWith("--")) {
       throw new Error("CLI arguments must be --name value pairs");

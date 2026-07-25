@@ -10,7 +10,7 @@
 - The HalfKP81 alpha-0.5 candidate finished its formal 768 games at **376 wins, 357 losses, 35 draws: 51.236979%**. It passed the safety condition, but its two-sided 95% lower bound was 47.72%, not above 50%, so the decision was `rejected-complete`
 - All three eight-epoch browser-confusion runs regressed held-out top-1. The final temperature-50 diagnostic produced **65/643** for all three arms, below the 66/643 baseline. That lane is closed
 - The new self-play pipeline has run end to end on real data. Thirty-one Vitest tests and 15 Python tests pass. The real 82-row integration corpus split into 75 training and seven validation rows with zero source/game/opening/position overlap, and both training arms completed. This proves wiring, not strength
-- The selected generator uses 12 workers, play depth 2, post-game label depth 6, one sample every four plies, and at most 24 samples per game. The 20-game dense pilot completed in 62.48 seconds with 247 positions and zero technical faults
+- The initially selected generator used 12 workers, play depth 2, post-game label depth 6, one sample every four plies starting at ply 12, and at most 24 samples per game. That configuration has been withdrawn: `min-ply=12` plus `sample-every=4` deterministically fixes sample parity
 - Full generation of 24,000 games started at about 23:27 PDT on July 21, 2026. The first roughly three minutes produced 54 games and 612 positions, but the roughly 12-minute observation was 135 games and 1,592 positions, which extrapolated to about 35 hours. At that point the 9–11 hour estimate from the short pilot was replaced by a **24–48 hour planning range on one Mac**; the run was later stopped at 16,278 games after the sampling defect was found
 - At roughly 12 hours 30 minutes, with 6,219 games and 74,826 positions saved, four of the 12 workers were found stopped. The committed prefixes had zero corruption. The cause was a stale root move from an effective 30-bit WASM TT collision. A one-time clean-TT re-search only for an illegal root move crossed the failing game, and 12-worker generation resumed from 6,251 committed games
 - We later sealed only the **16,255 / 24,000 completed games (67.73%)** as an immutable snapshot. Without mutating the source run, 198,391 positions produced 186,634 training and 6,818 validation rows after deduplication and leakage removal; two candidates were then trained and quantized
@@ -26,6 +26,10 @@
 Much of the work completed so far did not directly increase playing strength.
 
 Data ownership, tamper checks, keys, PR boundaries, reproducible hashes, and legal-move validation help prevent the wrong artifact from reaching production. They do not win a single extra game by themselves. We spent too long on those concerns before moving to actual training and head-to-head evidence. That ordering was wrong for the stated goal.
+
+The part that was plainly wasted was generating all the way to 16,255 games without checking the side-to-move distribution, then training and quantizing two candidates from that snapshot. All 186,634 training rows and all 6,818 validation rows were Sente-to-move, so neither the dataset nor the candidates can be reused as-is to train a general evaluator. Lambda 0.50 stopped after 54 games at 21 wins, 27 losses, and six draws; lambda 0.75 completed 56 at 24 wins and 32 losses. Both were rejected.
+
+The failed screens and post-match audit were not themselves wasted. The screens prevented a bad live promotion, and the audit isolated the cause to parity fixed by `min-ply=12` plus `sample-every=4`. A minimal corrected diagnostic then generated 480 games with `sample-every=1`, publishing 5,055 / 5,055 training rows and 206 / 206 validation rows by side to move. Its candidate still scored only 26 wins, 27 losses, and three draws, or 49.1%. The claim that fixing side balance alone would create strength was therefore also rejected. Extra ownership, key, tamper, and PR boundaries had zero direct strength effect; the match gates and root-cause audit prevented an invalid promotion, and the corrected 480-game run was the smallest useful falsification before scaling the same recipe.
 
 Some durable value remains. We followed one candidate through the complete 768-game match and did not call a visible 51.24% score “stronger” when the interval could not establish superiority. We also reproduced, across three seeds and a final bounded diagnostic, that better average pair/value proxies can coexist with worse best-move choice. That let us close the recipe instead of spending several more days scaling the same failed hypothesis.
 
@@ -113,6 +117,8 @@ While both 56-game screens ran, source-generation workers were suspended in memo
 
 We sealed an immutable snapshot from completed full-run prefixes. Its input contains 16,255 games and 198,391 positions.
 
+The training and matches below did run, but the snapshot was later found to have a side-distribution defect. It therefore does not count as valid large-scale training or reusable material for future strength work.
+
 - 186,634 training rows across 15,499 games; 6,818 validation rows across 610 games
 - zero train/validation overlap by source game, generated game, opening, and position
 - 4,771 duplicate current positions and 151 duplicate validation positions were removed
@@ -140,9 +146,15 @@ This table establishes only that loss fell and pair accuracy rose slightly. Earl
 
 The prior audit checklist remains intact: completed games only in the snapshot, one run fingerprint, zero overlap under all four holdout identities, SHA-256-pinned input/plan/checkpoint/export artifacts, and `live_weight_write_authorized=false` in both data and training evidence. These controls prevent an invalid promotion; they are not playing strength.
 
+### 6.1 Preventing recurrence
+
+Future cycle-zero publication requires `--balance-side-to-move`. It fails if either `b` or `w` is absent from train or validation and deterministically downsamples the majority side to equality.
+
+Before training, a separate side-count gate must read the manifest's available / selected / removed counts and require `train.b = train.w > 0` and `validation.b = validation.w > 0`. A failure blocks training, quantization, and match screens. A small preflight must also count actual SFEN sides before any long generation; inspecting the sampling formula by eye is not a gate.
+
 ## 7. What will count as stronger
 
-Completion of the 24,000 games still does not trigger a live change.
+The original plan assumed all 24,000 games would complete before downstream gates. That plan was abandoned when the parity defect was found. The list below records the promotion gates actually applied to the immutable 16,255-game snapshot and their outcomes.
 
 1. Verify the 16,255-game snapshot and every shard — complete
 2. Publish the fixed train/validation holdout and train both arms — complete

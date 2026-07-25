@@ -1,0 +1,75 @@
+--- index.ts
++++ index.ts
+@@ -2995,7 +2995,7 @@
+ let researchLazyMovePickerEnabled: bool = false;
+ let researchLazyMovePickerMinMoves: i32 = 64;
+ let researchLazyMovePickerNodes: i32 = 0;
+-const researchHeapOrdinalBuf = new StaticArray<i32>(S_MAX_PLY * MAX_MOVES);
++const researchHeapKeyBuf = new StaticArray<u64>(S_MAX_PLY * MAX_MOVES);
+ 
+ /**
+  * Enable the research picker for main-search nodes with at least minMoves
+@@ -3396,25 +3396,27 @@
+   insertionSortDesc(base, 0, n);
+ }
+ 
+-/** Strict stable-order comparator: score descending, generation ordinal ascending. */
++/** Pack score-descending and ordinal-ascending into one unsigned key. */
++@inline
++function researchHeapMakeKey(score: i32, ordinal: i32): u64 {
++  const scoreWord = <u32>score ^ 0x80000000;
++  const ordinalWord = 0xffffffff - <u32>ordinal;
++  return (<u64>scoreWord << 32) | <u64>ordinalWord;
++}
++
++@inline
+ function researchHeapHigher(base: i32, a: i32, b: i32): bool {
+-  const scoreA = unchecked(moveScoreBuf[base + a]);
+-  const scoreB = unchecked(moveScoreBuf[base + b]);
+-  if (scoreA != scoreB) return scoreA > scoreB;
+-  return unchecked(researchHeapOrdinalBuf[base + a]) <
+-    unchecked(researchHeapOrdinalBuf[base + b]);
++  return unchecked(researchHeapKeyBuf[base + a]) >
++    unchecked(researchHeapKeyBuf[base + b]);
+ }
+ 
+ function researchHeapSwap(base: i32, a: i32, b: i32): void {
+   const move = unchecked(moveBuf[base + a]);
+-  const score = unchecked(moveScoreBuf[base + a]);
+-  const ordinal = unchecked(researchHeapOrdinalBuf[base + a]);
++  const key = unchecked(researchHeapKeyBuf[base + a]);
+   unchecked(moveBuf[base + a] = moveBuf[base + b]);
+-  unchecked(moveScoreBuf[base + a] = moveScoreBuf[base + b]);
+-  unchecked(researchHeapOrdinalBuf[base + a] = researchHeapOrdinalBuf[base + b]);
++  unchecked(researchHeapKeyBuf[base + a] = researchHeapKeyBuf[base + b]);
+   unchecked(moveBuf[base + b] = move);
+-  unchecked(moveScoreBuf[base + b] = score);
+-  unchecked(researchHeapOrdinalBuf[base + b] = ordinal);
++  unchecked(researchHeapKeyBuf[base + b] = key);
+ }
+ 
+ function researchHeapSiftDown(base: i32, root: i32, size: i32): void {
+@@ -3433,7 +3435,12 @@
+ 
+ function researchHeapBuild(ply: i32, n: i32): void {
+   const base = ply * MAX_MOVES;
+-  for (let i = 0; i < n; i++) unchecked(researchHeapOrdinalBuf[base + i] = i);
++  for (let i = 0; i < n; i++) {
++    unchecked(
++      researchHeapKeyBuf[base + i] =
++        researchHeapMakeKey(unchecked(moveScoreBuf[base + i]), i),
++    );
++  }
+   for (let i = (n >> 1) - 1; i >= 0; i--) researchHeapSiftDown(base, i, n);
+ }
+ 
+@@ -3444,8 +3451,7 @@
+   const last = size - 1;
+   if (last > 0) {
+     unchecked(moveBuf[base] = moveBuf[base + last]);
+-    unchecked(moveScoreBuf[base] = moveScoreBuf[base + last]);
+-    unchecked(researchHeapOrdinalBuf[base] = researchHeapOrdinalBuf[base + last]);
++    unchecked(researchHeapKeyBuf[base] = researchHeapKeyBuf[base + last]);
+     researchHeapSiftDown(base, 0, last);
+   }
+   return move;

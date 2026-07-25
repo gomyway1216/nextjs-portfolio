@@ -108,6 +108,7 @@ export interface PrepareNnueSelfplayDatasetOptions {
   readonly cycle: number;
   readonly splitSeed: string;
   readonly outDir: string;
+  readonly balanceSideToMove?: boolean;
   readonly valRatio?: number;
   readonly currentRatio?: number;
   readonly pastAcceptedRatio?: number;
@@ -1205,6 +1206,76 @@ function pickRows(
     .slice(0, count);
 }
 
+type SideToMove = "b" | "w";
+
+interface SideBalanceAccounting {
+  readonly available: Readonly<Record<SideToMove, number>>;
+  readonly selected: Readonly<Record<SideToMove, number>>;
+  readonly removed: Readonly<Record<SideToMove, number>>;
+}
+
+function rowSideToMove(tagged: TaggedRow): SideToMove {
+  const side = tagged.row.sfen.trim().split(/\s+/)[1];
+  if (side !== "b" && side !== "w") {
+    throw new Error("validated sfen side-to-move must be b or w");
+  }
+  return side;
+}
+
+function balanceRowsBySideToMove(
+  rows: readonly TaggedRow[],
+  seed: string,
+  role: "train" | "validation",
+  requestedTotal?: number,
+): { rows: TaggedRow[]; accounting: SideBalanceAccounting } {
+  const bySide: Record<SideToMove, TaggedRow[]> = { b: [], w: [] };
+  for (const tagged of rows) bySide[rowSideToMove(tagged)].push(tagged);
+  if (bySide.b.length === 0 || bySide.w.length === 0) {
+    throw new Error(
+      `cycle-zero ${role} side-to-move balance requires both b and w rows`,
+    );
+  }
+  if (requestedTotal !== undefined && requestedTotal % 2 !== 0) {
+    throw new Error(
+      `cycle-zero ${role} side-to-move balance requires an even record count`,
+    );
+  }
+  const selectedPerSide =
+    requestedTotal === undefined
+      ? Math.min(bySide.b.length, bySide.w.length)
+      : requestedTotal / 2;
+  if (bySide.b.length < selectedPerSide || bySide.w.length < selectedPerSide) {
+    throw new Error(
+      `cycle-zero ${role} side-to-move balance has insufficient rows per side`,
+    );
+  }
+  const selected = {
+    b: pickRows(
+      bySide.b,
+      selectedPerSide,
+      seed,
+      `cycle0-side-to-move-balance-${role}-b`,
+    ),
+    w: pickRows(
+      bySide.w,
+      selectedPerSide,
+      seed,
+      `cycle0-side-to-move-balance-${role}-w`,
+    ),
+  };
+  return {
+    rows: [...selected.b, ...selected.w].sort(stableTaggedOrder),
+    accounting: {
+      available: { b: bySide.b.length, w: bySide.w.length },
+      selected: { b: selected.b.length, w: selected.w.length },
+      removed: {
+        b: bySide.b.length - selected.b.length,
+        w: bySide.w.length - selected.w.length,
+      },
+    },
+  };
+}
+
 function outputIdentity(
   finalFile: string,
   tempFile: string,
@@ -1263,6 +1334,16 @@ async function prepareCore(
 ): Promise<Record<string, unknown>> {
   const cycle = integer(options.cycle, "cycle");
   if (
+    options.balanceSideToMove !== undefined &&
+    typeof options.balanceSideToMove !== "boolean"
+  ) {
+    throw new Error("balanceSideToMove must be a boolean");
+  }
+  const balanceSideToMove = options.balanceSideToMove === true;
+  if (balanceSideToMove && cycle > 0) {
+    throw new Error("balanceSideToMove is supported only for cycle zero");
+  }
+  if (
     !Array.isArray(options.currentShardDirs) ||
     options.currentShardDirs.length === 0
   ) {
@@ -1288,6 +1369,15 @@ async function prepareCore(
   }
   if (options.trainRecords !== undefined)
     integer(options.trainRecords, "trainRecords", 1);
+  if (
+    balanceSideToMove &&
+    options.trainRecords !== undefined &&
+    options.trainRecords % 2 !== 0
+  ) {
+    throw new Error(
+      "cycle-zero train side-to-move balance requires an even record count",
+    );
+  }
   const pastDirs = options.pastAcceptedDirs ?? [];
   if (
     cycle === 0 &&
@@ -1427,12 +1517,9 @@ async function prepareCore(
       throw new Error("cycle-zero trainRecords exceeds available current rows");
     }
     const count = options.trainRecords ?? currentDedup.rows.length;
-    selectedCurrent = pickRows(
-      currentDedup.rows,
-      count,
-      splitSeed,
-      "cycle0-current",
-    );
+    selectedCurrent = balanceSideToMove
+      ? currentDedup.rows
+      : pickRows(currentDedup.rows, count, splitSeed, "cycle0-current");
     selectedPast = [];
     requestedMix = { total: count, current: count, past: 0 };
   } else {
@@ -1455,10 +1542,23 @@ async function prepareCore(
       `cycle${cycle}-past`,
     );
   }
-  const trainRows = [...selectedCurrent, ...selectedPast].sort(
+  const selectedTrainRows = [...selectedCurrent, ...selectedPast].sort(
     stableTaggedOrder,
   );
-  const valRows = [...validationDedup.rows].sort(stableTaggedOrder);
+  const selectedValRows = [...validationDedup.rows].sort(stableTaggedOrder);
+  const trainBalance = balanceSideToMove
+    ? balanceRowsBySideToMove(
+        selectedTrainRows,
+        splitSeed,
+        "train",
+        options.trainRecords,
+      )
+    : null;
+  const validationBalance = balanceSideToMove
+    ? balanceRowsBySideToMove(selectedValRows, splitSeed, "validation")
+    : null;
+  const trainRows = trainBalance?.rows ?? selectedTrainRows;
+  const valRows = validationBalance?.rows ?? selectedValRows;
   if (trainRows.length === 0) throw new Error("training output is empty");
   const trainGames = new Set(trainRows.map((tagged) => tagged.row.game_id));
   const trainSourceGames = new Set(
@@ -1550,6 +1650,12 @@ async function prepareCore(
         replay: NNUE_SELFPLAY_REPLAY_POLICY,
         requested_current_ratio: currentRatio,
         requested_past_accepted_ratio: pastAcceptedRatio,
+        ...(balanceSideToMove
+          ? {
+              side_to_move_balance:
+                "cycle0-deterministic-majority-downsample-per-split-v1",
+            }
+          : {}),
         publication: publicationPolicy,
         output_manifest_written_last: true,
       },
@@ -1588,11 +1694,29 @@ async function prepareCore(
         past_duplicate_positions_removed: pastDedup.removed,
         replay_available_current_records: currentDedup.rows.length,
         replay_available_past_accepted_records: pastDedup.rows.length,
-        replay_selected_current_records: selectedCurrent.length,
-        replay_selected_past_accepted_records: selectedPast.length,
-        replay_selected_total_records: requestedMix.total,
-        actual_current_ratio: selectedCurrent.length / trainRows.length,
-        actual_past_accepted_ratio: selectedPast.length / trainRows.length,
+        replay_selected_current_records: balanceSideToMove
+          ? trainRows.length
+          : selectedCurrent.length,
+        replay_selected_past_accepted_records: balanceSideToMove
+          ? 0
+          : selectedPast.length,
+        replay_selected_total_records: balanceSideToMove
+          ? trainRows.length
+          : requestedMix.total,
+        actual_current_ratio: balanceSideToMove
+          ? 1
+          : selectedCurrent.length / trainRows.length,
+        actual_past_accepted_ratio: balanceSideToMove
+          ? 0
+          : selectedPast.length / trainRows.length,
+        ...(balanceSideToMove
+          ? {
+              side_to_move_balance: {
+                train: trainBalance?.accounting,
+                validation: validationBalance?.accounting,
+              },
+            }
+          : {}),
         current_run_fingerprint_count: runFingerprints.size,
         generation_requested_games: currentGeneration.requested_games,
         generation_completed_games: currentGeneration.completed_games,
@@ -1655,19 +1779,29 @@ function cliMap(argv: readonly string[]): Map<string, string> {
     "past-accepted-ratio",
     "train-records",
   ]);
+  const booleanFlags = new Set(["balance-side-to-move"]);
   const values = new Map<string, string>();
-  if (argv.length % 2 !== 0)
-    throw new Error("CLI arguments must be --name value pairs");
-  for (let index = 0; index < argv.length; index += 2) {
+  for (let index = 0; index < argv.length;) {
     const token = argv[index];
-    const value = argv[index + 1];
-    if (!token.startsWith("--") || !value || value.startsWith("--")) {
+    if (!token?.startsWith("--")) {
       throw new Error("CLI arguments must be --name value pairs");
     }
     const name = token.slice(2);
-    if (!allowed.has(name)) throw new Error(`unknown argument --${name}`);
+    if (!allowed.has(name) && !booleanFlags.has(name)) {
+      throw new Error(`unknown argument --${name}`);
+    }
     if (values.has(name)) throw new Error(`duplicate argument --${name}`);
+    if (booleanFlags.has(name)) {
+      values.set(name, "true");
+      index += 1;
+      continue;
+    }
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error("CLI arguments must be --name value pairs");
+    }
     values.set(name, value);
+    index += 2;
   }
   return values;
 }
@@ -1704,6 +1838,7 @@ export async function runCli(
     cycle,
     splitSeed: required(values, "split-seed"),
     outDir: required(values, "out-dir"),
+    balanceSideToMove: values.has("balance-side-to-move"),
     valRatio: Number(values.get("val-ratio") ?? "0.05"),
     currentRatio: Number(values.get("current-ratio") ?? "0.75"),
     pastAcceptedRatio: Number(values.get("past-accepted-ratio") ?? "0.25"),

@@ -222,6 +222,37 @@ function makeCycle0Fixture(
   return { shardDir: shard(base, 0, 1, 0, rows), rows, trainGame, valGame };
 }
 
+function sfensBySide(
+  countPerSide: number,
+): Record<"b" | "w", readonly string[]> {
+  const sfens = uniqueSfens(countPerSide * 8);
+  const bySide: Record<"b" | "w", string[]> = { b: [], w: [] };
+  for (const sfen of sfens) {
+    const side = sfen.split(/\s+/)[1];
+    if (side === "b" || side === "w") bySide[side].push(sfen);
+  }
+  if (bySide.b.length < countPerSide || bySide.w.length < countPerSide) {
+    throw new Error(`could not generate ${countPerSide} SFENs for each side`);
+  }
+  return {
+    b: bySide.b.slice(0, countPerSide),
+    w: bySide.w.slice(0, countPerSide),
+  };
+}
+
+function sideCounts(
+  rows: readonly NnueSelfplayPosition[],
+): Record<"b" | "w", number> {
+  const counts = { b: 0, w: 0 };
+  for (const value of rows) {
+    const side = value.sfen.split(/\s+/)[1];
+    if (side !== "b" && side !== "w")
+      throw new Error(`unexpected side-to-move ${side}`);
+    counts[side] += 1;
+  }
+  return counts;
+}
+
 describe("NNUE self-play dataset preparation", () => {
   it("strictly validates generator rows and separately requires split on published rows", () => {
     const value = row(START, "game-one");
@@ -359,6 +390,196 @@ describe("NNUE self-play dataset preparation", () => {
     for (const file of ["train.jsonl", "val.jsonl", "manifest.json"]) {
       expect(fs.readFileSync(path.join(outDir, file), "utf8")).toMatch(/\n$/);
     }
+  });
+
+  it("optionally balances each cycle-zero split exactly and deterministically", async () => {
+    const base = root();
+    const sfens = sfensBySide(8);
+    const rows = [
+      ...sfens.b
+        .slice(0, 4)
+        .map((sfen, index) =>
+          row(sfen, gameFor("train", `balance-train-b-${index}`)),
+        ),
+      ...sfens.w
+        .slice(0, 2)
+        .map((sfen, index) =>
+          row(sfen, gameFor("train", `balance-train-w-${index}`)),
+        ),
+      ...sfens.b
+        .slice(4, 6)
+        .map((sfen, index) =>
+          row(sfen, gameFor("val", `balance-val-b-${index}`)),
+        ),
+      ...sfens.w
+        .slice(2, 7)
+        .map((sfen, index) =>
+          row(sfen, gameFor("val", `balance-val-w-${index}`)),
+        ),
+    ];
+    const shardDir = shard(base, 0, 1, 0, rows);
+    const common = {
+      currentShardDirs: [shardDir],
+      cycle: 0,
+      splitSeed: SEED,
+      valRatio: VAL_RATIO,
+    } as const;
+    const implicitDefaultDir = path.join(base, "implicit-default");
+    const explicitFalseDir = path.join(base, "explicit-false");
+    await prepareNnueSelfplayDataset({
+      ...common,
+      outDir: implicitDefaultDir,
+    });
+    await prepareNnueSelfplayDataset({
+      ...common,
+      outDir: explicitFalseDir,
+      balanceSideToMove: false,
+    });
+    for (const file of ["train.jsonl", "val.jsonl", "manifest.json"]) {
+      expect(fs.readFileSync(path.join(explicitFalseDir, file))).toEqual(
+        fs.readFileSync(path.join(implicitDefaultDir, file)),
+      );
+    }
+
+    const firstDir = path.join(base, "balanced-a");
+    const secondDir = path.join(base, "balanced-b");
+    const manifest = await prepareNnueSelfplayDataset({
+      ...common,
+      outDir: firstDir,
+      balanceSideToMove: true,
+    });
+    await prepareNnueSelfplayDataset({
+      ...common,
+      outDir: secondDir,
+      balanceSideToMove: true,
+    });
+    const train = publishedRows(path.join(firstDir, "train.jsonl"));
+    const validation = publishedRows(path.join(firstDir, "val.jsonl"));
+    expect(sideCounts(train)).toEqual({ b: 2, w: 2 });
+    expect(sideCounts(validation)).toEqual({ b: 2, w: 2 });
+    expect(fs.readFileSync(path.join(secondDir, "train.jsonl"))).toEqual(
+      fs.readFileSync(path.join(firstDir, "train.jsonl")),
+    );
+    expect(fs.readFileSync(path.join(secondDir, "val.jsonl"))).toEqual(
+      fs.readFileSync(path.join(firstDir, "val.jsonl")),
+    );
+    expect(manifest.policy).toMatchObject({
+      side_to_move_balance:
+        "cycle0-deterministic-majority-downsample-per-split-v1",
+    });
+    expect(manifest.accounting).toMatchObject({
+      replay_selected_current_records: 4,
+      replay_selected_past_accepted_records: 0,
+      replay_selected_total_records: 4,
+      side_to_move_balance: {
+        train: {
+          available: { b: 4, w: 2 },
+          selected: { b: 2, w: 2 },
+          removed: { b: 2, w: 0 },
+        },
+        validation: {
+          available: { b: 2, w: 5 },
+          selected: { b: 2, w: 2 },
+          removed: { b: 0, w: 3 },
+        },
+      },
+    });
+    const holdout = manifest.holdout as {
+      source_game_ids: { count: number };
+      game_ids: { count: number };
+      opening_ids: { count: number };
+      position_ids: { count: number };
+    };
+    expect(holdout.source_game_ids.count).toBe(7);
+    expect(holdout.game_ids.count).toBe(7);
+    expect(holdout.opening_ids.count).toBe(7);
+    expect(holdout.position_ids.count).toBe(7);
+
+    const shardRoot = path.join(base, "generator-run");
+    fs.mkdirSync(shardRoot);
+    fs.renameSync(shardDir, path.join(shardRoot, "shard-000"));
+    const cliDir = path.join(base, "balanced-cli");
+    await runCli([
+      "--cycle",
+      "0",
+      "--shard-root",
+      shardRoot,
+      "--shards",
+      "1",
+      "--split-seed",
+      SEED,
+      "--val-ratio",
+      String(VAL_RATIO),
+      "--out-dir",
+      cliDir,
+      "--balance-side-to-move",
+    ]);
+    expect(sideCounts(publishedRows(path.join(cliDir, "train.jsonl")))).toEqual(
+      { b: 2, w: 2 },
+    );
+
+    const limitedDir = path.join(base, "balanced-limited");
+    await prepareNnueSelfplayDataset({
+      ...common,
+      currentShardDirs: [path.join(shardRoot, "shard-000")],
+      outDir: limitedDir,
+      balanceSideToMove: true,
+      trainRecords: 4,
+    });
+    const limitedTrain = publishedRows(path.join(limitedDir, "train.jsonl"));
+    expect(limitedTrain).toHaveLength(4);
+    expect(sideCounts(limitedTrain)).toEqual({ b: 2, w: 2 });
+  });
+
+  it("requires an even record limit when side-to-move balancing", async () => {
+    const base = root();
+    const fixture = makeCycle0Fixture(base);
+    await expect(
+      prepareNnueSelfplayDataset({
+        currentShardDirs: [fixture.shardDir],
+        cycle: 0,
+        splitSeed: SEED,
+        outDir: path.join(base, "dataset"),
+        balanceSideToMove: true,
+        trainRecords: 3,
+      }),
+    ).rejects.toThrow(/requires an even record count/);
+  });
+
+  it("rejects side-to-move balancing after cycle zero", async () => {
+    await expect(
+      prepareNnueSelfplayDataset({
+        currentShardDirs: ["/does/not/need/to/exist"],
+        cycle: 1,
+        splitSeed: SEED,
+        outDir: "/does/not/need/to/exist-either",
+        balanceSideToMove: true,
+      }),
+    ).rejects.toThrow(/supported only for cycle zero/);
+  });
+
+  it("fails cycle-zero balancing when a split contains only one side", async () => {
+    const base = root();
+    const sfens = sfensBySide(4);
+    const rows = [
+      ...sfens.b
+        .slice(0, 2)
+        .map((sfen, index) =>
+          row(sfen, gameFor("train", `one-side-train-${index}`)),
+        ),
+      row(sfens.b[2], gameFor("val", "one-side-val-b")),
+      row(sfens.w[0], gameFor("val", "one-side-val-w")),
+    ];
+    await expect(
+      prepareNnueSelfplayDataset({
+        currentShardDirs: [shard(base, 0, 1, 0, rows)],
+        cycle: 0,
+        splitSeed: SEED,
+        valRatio: VAL_RATIO,
+        outDir: path.join(base, "dataset"),
+        balanceSideToMove: true,
+      }),
+    ).rejects.toThrow(/train side-to-move balance requires both b and w/);
   });
 
   it("gives validation priority when a semantic position occurs in both roles", async () => {

@@ -1,0 +1,431 @@
+{
+  "schema": "shogi-bounded-quiet-history-malus-plan-v1",
+  "plan_id": "bounded-quiet-history-malus-v1",
+  "status": "prospective-single-candidate-no-formal-correctness-gate-or-match-started",
+  "recorded_date": "2026-07-25",
+  "parent_main_commit": "a694e1483df2609ee98aa4d530fa738515ddb665",
+  "objective": "Measure whether one bounded, cutoff-local quiet-history reward-and-malus update improves fixed-time direct play while using the exact immutable live NNUE weights.",
+  "hypothesis_boundary": {
+    "single_question": "Does the sole bounded quiet-history malus candidate pass a fresh 56-game direct-play screen against the production search?",
+    "mechanism": "With the research toggle enabled, replace the historical broad cutoff-history updates with bounded updates for strict eligible quiet cutoffs: reward the cutoff move and penalize at most the first 32 eligible quiet moves actually searched before it at the same node.",
+    "not_claimed": [
+      "The candidate is guaranteed to be stronger.",
+      "A node-count, speed, static-evaluation, or short-screen improvement is proof of a stable playing-strength gain.",
+      "This experiment changes, retrains, or validates the NNUE evaluation function.",
+      "A passing 56-game screen is sufficient for a production or live promotion."
+    ]
+  },
+  "relation_to_prior_work": {
+    "rejected_history_gravity": {
+      "prior_method": "Globally halve accumulated history between iterative-deepening passes.",
+      "prior_result": "Rejected at short time controls because it discarded fresh ordering information.",
+      "why_this_is_distinct": "This candidate never performs periodic global decay. It preserves accumulated evidence, adds negative evidence only at the cutoff where a searched quiet move failed to refute, and bounds each update with a fixed saturation formula."
+    },
+    "invalid_b12_training": {
+      "plan_id": "B12-alpha050-balanced-pure-v1",
+      "status": "preregistration-contract-invalid-and-secondary-quantization-gate-failed",
+      "decision": "Do not rerun or enlarge B12. Its direct-play screen never ran, and its checkpoint is not an input to this experiment.",
+      "why_this_is_distinct": "B12 modified evaluation weights from teacher data. This experiment holds the live weights byte-identical and changes only research search ordering."
+    },
+    "excluded_families": [
+      "No NNUE or scalar-evaluator training, interpolation, quantization, or weight replacement.",
+      "No learned move-order head.",
+      "No stable heap or packed-heap move-picker variant.",
+      "No Lazy SMP, transposition-table layout, aspiration-window, full SEE, pruning, or extension change.",
+      "No second reward, malus, bound, filter, seed, or implementation arm."
+    ]
+  },
+  "pinned_inputs": {
+    "production_search_source": {
+      "path": "wasm-spike/assembly/index.ts",
+      "bytes": 139447,
+      "sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c"
+    },
+    "production_wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "immutable_live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "buckets": 1,
+      "scale_k": 600,
+      "output_scale": [1, 1]
+    },
+    "correctness_fixture": {
+      "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+      "bytes": 35586,
+      "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f",
+      "cases": 64,
+      "categories": {
+        "opening": 16,
+        "middlegame": 16,
+        "dropHeavy": 16,
+        "checkEvasion": 16
+      },
+      "use": "correctness-and-activation-only-not-playing-strength"
+    },
+    "existing_opening_evidence": {
+      "path": "ml/protocols/bounded-quiet-history-existing-openings-v1.json",
+      "bytes": 278625,
+      "sha256": "093c504ec71192d35cc900daa74906d4c0205750f270ea157f08b3ba5948ac8d"
+    }
+  },
+  "sole_candidate": {
+    "id": "bounded-quiet-history-malus-v1",
+    "candidate_count": 1,
+    "production_default": false,
+    "research_toggle_required": true,
+    "update_scope": [
+      "main quiet-history table",
+      "continuation-history table when a previous-move index exists"
+    ],
+    "eligibility_filter": {
+      "required": [
+        "ply is greater than zero",
+        "the parent position is not in check",
+        "the search node was not entered through a null move",
+        "beta is outside the mate-score bands",
+        "the move was legal and was actually searched",
+        "the move is not a capture",
+        "the move is not a promotion",
+        "the move does not give check",
+        "a non-checking drop is allowed when every other condition holds"
+      ],
+      "forbidden": [
+        "illegal moves",
+        "pruned or otherwise unsearched moves",
+        "captures",
+        "promotions",
+        "moves that give check",
+        "check evasions",
+        "moves from a different node"
+      ]
+    },
+    "cutoff_update": {
+      "reward_target": "the eligible quiet move that causes a beta cutoff",
+      "malus_targets": "the first at most 32 eligible quiet moves, in search order, actually searched before the cutoff move at the same node; later eligible quiets are counted as storage drops and are not updated",
+      "clamped_depth": "d = clamp(depth_left, 1, 32)",
+      "reward_bonus": "min(2048, 16 * d * d)",
+      "malus_bonus": "-min(1024, 8 * d * d)",
+      "maximum_absolute_history": 16384,
+      "searched_quiet_capacity_per_ply": 32,
+      "formula": "h = clamp(current, -16384, 16384); b = clamp(raw_bonus, -16384, 16384); next = clamp(h + b - trunc(h * abs(b) / 16384), -16384, 16384)",
+      "postcondition": "-16384 <= next <= 16384",
+      "extra_decay": false
+    },
+    "enabled_replacement_boundary": {
+      "replaced": [
+        "the historical unbounded main-history positive update applied at every beta cutoff",
+        "the historical unbounded continuation-history positive update applied at non-capture beta cutoffs"
+      ],
+      "new_behavior": "Only a strict eligible quiet cutoff receives the bounded main and continuation reward, and only its first at most 32 previously searched strict eligible quiets receive the bounded malus.",
+      "unchanged": [
+        "killer move updates",
+        "countermove updates",
+        "all search reductions, pruning, extensions, transposition-table behavior, and evaluation weights"
+      ],
+      "overflow_behavior": "Eligible quiet moves after the first 32 at one ply are not retained and therefore receive no malus; every such event increments storageDrops."
+    },
+    "forbidden_adaptation": [
+      "Do not add a second maximum, reward, malus, eligibility filter, seed, or candidate after seeing any gate result.",
+      "Do not tune from the 64-position correctness fixture or from partial match trajectories.",
+      "Do not combine the candidate with another search or evaluation change.",
+      "Do not alter the production source, production WASM, embedded WASM, JS fallback, or live weights during the pilot."
+    ]
+  },
+  "planned_research_artifacts": {
+    "patch": {
+      "path": "wasm-spike/assembly/quiet-history-malus-research.patch",
+      "bytes": 9981,
+      "sha256": "462eeacdfc6bb822537228349905c625350cad2e0785f9aa8a7051d48ac12ca1"
+    },
+    "builder": {
+      "path": "wasm-spike/build-quiet-history-malus-research-wasm.mjs",
+      "bytes": 5370,
+      "sha256": "4efa2d609a01b1da21062fe46a9888f6ecbcbd44581d08c953f06a9f8c43a104"
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-quiet-history-malus-research.wasm",
+      "bytes": 37475,
+      "sha256": "8b0469b220ccaf61eb2e4ab6575d73e681e007ab88367e5892a44778ac5f684c"
+    },
+    "correctness_runner": {
+      "path": "wasm-spike/quiet-history-malus-invariants.ts",
+      "bytes": 26505,
+      "sha256": "b992f67d16caa0b888681400ef9fb275750e7118675c0e17c1e5ff70525bf26e"
+    },
+    "match_runner": {
+      "path": "wasm-spike/match-search-wasm-vs-production.ts",
+      "bytes": 79346,
+      "sha256": "4a24518a9c84881f452c816cddfcf921a95bc059cf4a741023e5c586beaec1d4"
+    },
+    "identity_rule": "The generated patch, builder, research WASM, opening evidence, correctness runner, and match runner identities must all be exact before the preregistration PR is merged. The formal correctness gate and direct match must bind the merged plan SHA and may begin only after that merge."
+  },
+  "correctness_gate": {
+    "strength_metric": false,
+    "search": {
+      "fixed_depth": 5,
+      "quiescence_depth": 8,
+      "timed": false,
+      "shared_tt": false,
+      "clear_tt_before_every_search": true
+    },
+    "toggle_off": {
+      "cases": 64,
+      "required_exact_fields": [
+        "best_move",
+        "score",
+        "completed_depth",
+        "nodes",
+        "leaves"
+      ],
+      "required_mismatches": 0,
+      "state_checksum_mismatches": 0,
+      "interpretation": "The research runtime with the candidate disabled must be bit-exact with the pinned production WASM."
+    },
+    "toggle_on": {
+      "cases": 64,
+      "all_returned_moves_legal": true,
+      "repeat_runs_bit_exact": true,
+      "state_checksum_mismatches": 0,
+      "reward_updates_strictly_greater_than": 0,
+      "malus_updates_strictly_greater_than": 0,
+      "main_history_updates_strictly_greater_than": 0,
+      "continuation_history_updates_strictly_greater_than": 0,
+      "maximum_absolute_main_history_at_most": 16384,
+      "maximum_absolute_continuation_history_at_most": 16384,
+      "searched_quiet_capacity_per_ply": 32,
+      "maximum_observed_stored_quiets_at_most": 32,
+      "non_quiet_update_violation_count": 0,
+      "reward_and_malus_activated_in_each_category": true
+    },
+    "technical_fault_count": 0,
+    "failure_effect": "Stop before direct play. Reject this candidate without a changed threshold, tuned v2, production edit, live edit, or strength claim."
+  },
+  "implementation_diagnostic": {
+    "authority": "pre-merge implementation diagnostic only; not the formal correctness-gate result and not a strength metric",
+    "settings": {
+      "fixed_depth": 5,
+      "quiescence_depth": 8,
+      "fixture": "pinned_inputs.correctness_fixture"
+    },
+    "observed": {
+      "cases": 64,
+      "all_gates_true": true,
+      "off_exact_cases": 64,
+      "on_deterministic_cases": 64,
+      "on_legal_move_cases": 64,
+      "state_checksum_unchanged_cases": 64,
+      "reward_cutoff_events": 30361,
+      "malus_events": 28421,
+      "main_history_updates": 58782,
+      "continuation_history_updates": 58782,
+      "maximum_stored_quiets": 32,
+      "maximum_absolute_main_history": 14907,
+      "maximum_absolute_continuation_history": 9312,
+      "reward_and_malus_activated_in_each_category": true
+    },
+    "formal_gate_required_after_merge": true,
+    "candidate_or_threshold_change_authorized": false
+  },
+  "direct_play_gate": {
+    "candidate_runtime": "planned_research_artifacts.research_wasm with the sole candidate enabled",
+    "baseline_runtime": "pinned_inputs.production_wasm",
+    "weights_for_both_arms": "pinned_inputs.immutable_live_weights",
+    "games": 56,
+    "opening_pairs": 28,
+    "games_per_pair": 2,
+    "color_order": ["candidate-sente", "candidate-gote"],
+    "opening_policy": {
+      "seed_start": 970001,
+      "selection_rule": "Starting at seed 970001, scan upward; skip fingerprints already in the full enrolled set or already selected; accept the first 28 fresh unique fingerprints.",
+      "pair_seeds": [
+        970002, 970003, 970004, 970005, 970006, 970007, 970008, 970009, 970010,
+        970011, 970012, 970013, 970014, 970015, 970016, 970017, 970018, 970019,
+        970020, 970021, 970022, 970023, 970024, 970025, 970026, 970027, 970028,
+        970029
+      ],
+      "opening_fingerprints": [
+        "ded6692f379ed35f7b1970de64944fa0c2ea77788f1406e1d0e496b2e43ac8ad",
+        "ef052b8cfa2db3be53bab7bc27a905488a285918015a4ad87bffa6420e81ae3c",
+        "0d70d8156909953144c0bd4a224f027ea3983cc4d4d05f08bdfc479d313297cd",
+        "2c679f7bfba8c94bc4a1fc95298a5be45f65d2c034967cc0a918374ba0e7ca13",
+        "c51f3d4b046f60e05089c822fcc6979b5b3ecbdcc4eb35f105f42b1e215a3247",
+        "1c162f8b3719f55f71cc3e7bc0489e5a94197d9aaae504dc35e364b70c31ae6c",
+        "6601025ea8728f9e238e936f042ceed3277e5dbb53fba67b96fde24a7e08c9be",
+        "6938992aecf283117c9de88a600928a63cd1ddb646193949b1b0b0e548a55810",
+        "a26624d5a5f3f5f92c14201f4029ec4c93a79f67684688e82c69e9c51c216177",
+        "159adadb37d89787efe3a2dbe864038fedb34f91d9caf714bcaf15e345ad0b92",
+        "07fb3b9603f876b49db40897b4d18a427b731144060878f09da459fed98af76f",
+        "19278170a808201ba5419e9458a95552f535380b3a42432ca3015103314b34d5",
+        "d747857d124fb547ac6e01e25ac6de7f5c61f70f2006253056eca1753a8c6e56",
+        "043ec717a774c020a0bad34391add30dd82e04ade25ca3fc85d39b6ec444c949",
+        "6a530bcadea76ff58ad17b9fdbecc997873370cf8315a9e02b0b5c600ff040a5",
+        "c1ab536eecf9cedfb4140e1e2611368e39136c16f0cff6923b0d620bfd6f0995",
+        "d41e106442e8493026909dadc0d026f51b049f5251b62810961da03887fbde09",
+        "834cb3f2af18e0fd9bc2df4aef5f4bb33b0e485de602d9721d0c8928f7ee0d49",
+        "cc07d93f2f6936a3e00aea7d9715e7c1519021cd6706a7a71de7d4dac11d8bdc",
+        "85e3bff9ddb163265ae4fe93b41ddf9e2c420624e63feff8867a546de5c750da",
+        "25c5def49bb474752779816f19d62a89bc70fe962d3cfe8ed284a82820f42932",
+        "d1e8dfdd0b6b3cd933e478ee6b483f0ec3bd423d7ff1860bf926718c0c223c7f",
+        "2cc15bc1274563a2ddaec0f1aec660ec2006dc4f41034ada458db05bb4b6c18a",
+        "d9cd96d29a58a23dc88e2ef16f294f06a77384c26700af19aec897aaa74683af",
+        "c845062c838efb1de3c5de9a76a0bd6463c8d99a7bdcaaedf6c1b7482a4af02e",
+        "462a42af00f63cb1f07b770eff745112166349c53e0eaa072050fda71e8f9602",
+        "761155b8d31be99e52e5d0d4710165b59bc813a971b8511845e61911fd7fb35e",
+        "51575307089676c5fc2066af3b02f4681eb9ae0d56d762e0da12c9a546ef3c62"
+      ],
+      "existing_opening_fingerprint_count": 3198,
+      "existing_opening_fingerprints_sha256": "0dde79f19d21dbf671de9525dc87bd4e9c8a617e1a06e3a61f704f1dcbaed291",
+      "intersection_with_existing_opening_fingerprints": [],
+      "skipped_seeds": [
+        {
+          "seed": 970001,
+          "reason": "fingerprint-already-enrolled",
+          "fingerprint": "7f8787bcefee036754c220d7515f175bb38ea73642daed6d4eb3b4fe89d06eba",
+          "collides_with_manifest_pair_seeds": [810127]
+        }
+      ],
+      "evidence": "pinned_inputs.existing_opening_evidence",
+      "required_preflight": "Authenticate the complete 3,198-fingerprint enrolled-opening evidence, reproduce the deterministic first-28-fresh selection, and prove that all 28 selected fingerprints are unique and disjoint before the first match worker starts.",
+      "duplicate_effect": "STOP before direct play with no strength conclusion"
+    },
+    "time_limit_ms_per_move": 1500,
+    "pair_workers": 12,
+    "opening_book": false,
+    "mate_solver": false,
+    "transposition_table": "clear before every game and retain only within that game",
+    "heavy_concurrent_work_allowed": false,
+    "wall_clock": {
+      "target": "complete within two hours",
+      "maximum_elapsed_ms": 7200000,
+      "deadline_effect": "STOP with no strength conclusion; partial results cannot pass or authorize selective continuation"
+    },
+    "required_integrity": {
+      "technical_fault_count": 0,
+      "illegal_move_count": 0,
+      "unique_openings": 28,
+      "complete_color_swapped_pairs": 28,
+      "candidate_runtime_identity_matches": true,
+      "baseline_runtime_identity_matches": true,
+      "both_weight_identities_match": true,
+      "candidate_research_toggle_enabled": true,
+      "production_research_toggle_absent": true,
+      "every_played_move_revalidated_legal": true,
+      "perpetual_check_adjudicated_as_checker_loss": true,
+      "original_two_hour_deadline_survives_restart": true,
+      "technical_fault_and_wall_stop_are_durable": true
+    },
+    "any_fault_effect": "The complete pilot is invalid and yields no playing-strength conclusion.",
+    "score_unit": "candidate halfpoints out of 112",
+    "pass_threshold": 62,
+    "pass_expression": "candidate_halfpoints >= 62",
+    "early_stop": "mathematical-futility-only",
+    "early_stop_expression": "stop only when candidate_halfpoints + 2 * remaining_games < 62",
+    "promotion_effect": "none"
+  },
+  "execution_manifest": {
+    "schema": "shogi-search-wasm-vs-production-plan-v1",
+    "experiment_id": "bounded-quiet-history-malus-v1",
+    "assets": {
+      "runner": {
+        "path": "wasm-spike/match-search-wasm-vs-production.ts",
+        "bytes": 79346,
+        "sha256": "4a24518a9c84881f452c816cddfcf921a95bc059cf4a741023e5c586beaec1d4"
+      },
+      "candidate_wasm": {
+        "path": "wasm-spike/artifacts/shogi-quiet-history-malus-research.wasm",
+        "bytes": 37475,
+        "sha256": "8b0469b220ccaf61eb2e4ab6575d73e681e007ab88367e5892a44778ac5f684c"
+      },
+      "production_wasm": {
+        "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      },
+      "weights": {
+        "path": "public/shogi-nnue-weights.bin",
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+        "buckets": 1
+      }
+    },
+    "match": {
+      "pairs": 28,
+      "games": 56,
+      "pair_workers": 12,
+      "milliseconds_per_move": 1500,
+      "opening_plies": 6,
+      "max_plies": 256,
+      "search_depth": 32,
+      "quiescence_depth": 10,
+      "scale_k": 600,
+      "scale_numer": 1,
+      "scale_denom": 1,
+      "color_order": ["candidate-sente", "candidate-gote"],
+      "tt_policy": "clear-before-each-game-retain-within-game",
+      "book": false,
+      "mate_solver": false,
+      "fallback": false,
+      "pair_seeds": [
+        970002, 970003, 970004, 970005, 970006, 970007, 970008, 970009, 970010,
+        970011, 970012, 970013, 970014, 970015, 970016, 970017, 970018, 970019,
+        970020, 970021, 970022, 970023, 970024, 970025, 970026, 970027, 970028,
+        970029
+      ],
+      "opening_set_sha256": "5d778574025bb325242b51bf3179c67665725e1ae029b90c8e4ed1d53fa4503b",
+      "pass_halfpoints": 62,
+      "score_denominator_halfpoints": 112,
+      "early_stop": "mathematical-futility-only",
+      "wall_clock_limit_seconds": 7200,
+      "wall_clock_expiry": "STOP-no-conclusion"
+    },
+    "safety": {
+      "research_only": true,
+      "local_only": true,
+      "network": false,
+      "live_weight_write": false
+    }
+  },
+  "downstream_if_pass": {
+    "next_gate": "a separately preregistered independent 96-game confirmation with unused seeds and opening fingerprints",
+    "automatic_live_promotion": false,
+    "automatic_production_merge": false,
+    "automatic_parameter_or_variant_expansion": false
+  },
+  "live_safety": {
+    "live_change_authorized": false,
+    "production_deployment_authorized": false,
+    "forbidden_writes_during_pilot": [
+      "wasm-spike/assembly/index.ts",
+      "src/components/game/ShogiImproved/ShogiAIImprovedV20.ts",
+      "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts",
+      "public/shogi-nnue-weights.bin"
+    ],
+    "research_build_rule": "Apply the content-addressed patch only to a temporary copy of the pinned production source and emit only the separate research artifact."
+  },
+  "stop_rules": [
+    "Stop before direct play if any pinned identity, research identity, toggle-off parity, toggle-on safety, activation, cap, filter, determinism, or legality condition fails.",
+    "Stop this single candidate if the complete 56-game score is below 62 candidate halfpoints.",
+    "Allow an incomplete strength stop only when 62 halfpoints is mathematically unreachable.",
+    "A technical fault, illegal move, missing color-swapped mate or pair, duplicate opening, asset mismatch, or two-hour deadline yields STOP and no strength conclusion.",
+    "Do not use a partial result to change the candidate, threshold, seeds, filters, bounds, or continuation policy.",
+    "Never write any production or live path from the research builder, correctness gate, opening preflight, or match runner."
+  ],
+  "execution": {
+    "state": "research-build-and-premerge-diagnostic-complete-formal-gate-and-match-not-started",
+    "implementation_started": true,
+    "research_artifact_identity_complete": true,
+    "premerge_implementation_diagnostic_complete": true,
+    "correctness_gate_started": false,
+    "opening_preflight_started": true,
+    "opening_preflight_complete": true,
+    "match_started": false,
+    "execution_authorized_by_this_document": false
+  },
+  "claim_boundary": "This plan discloses a pre-merge implementation diagnostic and opening preflight, but contains no formal post-merge correctness-gate result, direct-play result, playing-strength claim, production-change authorization, or live-change authorization. The externally visible preregistration timestamp is the PR merge, which must precede the formal gate and every match worker."
+}

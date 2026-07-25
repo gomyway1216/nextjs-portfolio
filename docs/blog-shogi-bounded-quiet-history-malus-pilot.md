@@ -1,0 +1,59 @@
+# 有界quiet-history malusを1案だけ直接対局で試す
+
+_2026年7月25日_
+
+[English version](./blog-shogi-bounded-quiet-history-malus-pilot.en.md)
+
+## 今回の問い
+
+次に試すのは、評価関数の再学習ではなく探索順序の小さな変更である。候補は **bounded-quiet-history-malus-v1 の1つだけ**。現在のライブ重みを候補側と本番側の両方へ同じまま読み込み、候補の探索だけが本番探索より強くなる兆候を示すかを直接対局で測る。
+
+保証はない。historyをもっと複雑にすれば必ず強くなる、ノード数が減れば必ず勝率が上がる、56局を通れば高段になる、とは主張しない。短いpilotで見込みのない案を早く止め、有望なら別データの96局へ進めることだけが目的である。
+
+## 以前のHistory gravityとは別物
+
+現行探索は、beta cutoffを起こした全手のmain historyへ`depth²`を正加算し、取りではないcutoff手のcontinuation historyにも正加算する。一方、同じ局面でその前に調べてもcutoffを起こせなかったquiet手には、負の情報を残していない。
+
+以前に棄却した **History gravity** は、反復深化のpass間でhistory全体を半減した。短時間思考で集めた新しい情報まで一律に捨て、実対局で悪化した。今回その方法は復活させない。
+
+新案をONにすると、この広い旧加点をstrict quiet専用の有界更新へ置き換える。cutoff手を加点し、同じnodeでその前に実際に検索した対象quiet手を検索順で最大32手だけ減点する。33手目以降は保持せず、`storageDrops`へ数える。killerとcountermoveは変えない。深さは`1..32`へclampし、rewardは`min(2,048, 16×depth²)`、malusは`-min(1,024, 8×depth²)`に固定した。入力bonusを`±16,384`へclampした飽和式を使うため、履歴値が上限へ近づくほど更新は小さくなる。反復ごとの全体減衰はしない。
+
+違法手、枝刈りされて未検索の手、取り、成り、王手、王手回避、null-move nodeは新しい履歴更新の対象外である。駒打ちそのものは除外しない。他の条件をすべて満たす「王手にならない駒打ち」はstrict quietとして対象にする。各plyで先行quiet手を32手まで保持し、reward、malus、履歴絶対値、容量、超過、対象外filterが計画通り働いたかを専用counterで検査する。
+
+## なぜB12を続けないのか
+
+B12の20万局面・depth 12学習は、静的なlossや教師一致率を改善した。しかし保存された実行条件が事前登録と一致せず、非finite metricも含み、さらに再現した量子化max誤差比が上限を超えた。そのrunは無効として停止し、screen 56局へ進んでいない。再実行、80万局面化、depth 16化、追加seed探索もしない。
+
+今回の候補はB12のcheckpointを使わない。ライブ重みは容量`1,185,988` bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。したがって、B12やscalar evaluator retrainingとは独立した探索仮説になる。
+
+## 対局前の正しさ検査
+
+本番のAssemblyScript源泉、本番WASM、ライブ重み、64局面fixture v2を容量とSHA-256で固定した。研究WASMは本番源泉の一時copyへpatchを当てて別artifactとして作り、本番ファイルを上書きしない。同じPR内で研究実装とbuildまでは作成済みで、研究WASMは`37,475` bytes、SHA-256 `8b0469b220ccaf61eb2e4ab6575d73e681e007ab88367e5892a44778ac5f684c`として計画に記録した。残るrunner identityもPR mergeより前に固定し、mergeを外部から確認できる事前登録時点とする。
+
+固定深さ5、quiescence 8で、16ずつのopening、middlegame、drop-heavy、check-evasionを使う。研究toggleをOFFにした64局面は、本番WASMとbest move、score、depth、nodes、leavesが64/64完全一致しなければならない。ONでは全着手合法、同じ入力の反復結果が完全一致、検索前後の盤・持駒・手番hashが不変であることが必須である。4カテゴリすべてでrewardとmalusが発火し、両履歴の観測絶対値が`16,384`以下、保存quiet数が32以下、対象外更新0、技術故障0でなければ対局へ進まない。
+
+実装途中の診断では、同じdepth 5 / q8 / fixture v2でOFFが64/64完全一致し、ONの決定性、合法性、state hash、4カテゴリ発火、上限をすべて通った。reward/cutoffは`30,361`、malusは`28,421`、main/continuation更新は各`58,782`、保存peakは`32`、最大絶対値はmain `14,907`、continuation `9,312`だった。ただしこれはPR merge前の実装診断で、正式結果ではない。正式gateはmerge後、merge済み計画SHA、本番WASM、研究WASM、重み、fixture、runner identityを結合してもう一度実行・保存する。
+
+## 56局の直接対局
+
+正しさを通った唯一の候補を、本番WASMと次の固定条件で比較する。
+
+- 同じ不変ライブ重みを両腕に使用
+- 1手1.5秒
+- seed `970002`から`970029`までの新しい28組を先後交換し、合計56局
+- 12 pair workers
+- 定跡なし、mate solverなし
+- TTは各対局前にclearし、同じ対局内だけ保持
+- 対局中は別の重い処理を走らせない
+
+実行済みreceiptだけを見ると過去openingは607種類だったが、未実行を含む11個の全事前登録manifestを再生成すると3,198種類あった。最初の候補seed `970001`は、過去seed `810127`と同じopening fingerprintになったため除外した。強さの結果は使わず、970001から昇順に「過去と重複せず、新集合内でも重複しない最初の28個」を採る固定ルールで、`970002..970029`を選んだ。全3,198 fingerprintと選抜過程をcontent-addressed証拠へ保存し、新28件との交差0をrunner自身が再検証する。
+
+対局器は候補WASMの研究toggleがON、本番WASMにはそのtoggle自体がないことも対局前後に確認する。全着手を合法手一覧で再検証し、千日手は連続王手なら王手側の反則負け、それ以外は引分とする。最初の2時間deadline、技術故障、wall stopは消せない記録として残すため、再起動して制限や故障をリセットできない。重複、違法手、asset不一致、技術故障が1件でもあればpilot全体を無効とし、棋力結論を出さない。
+
+成否は候補halfpoints **62/112**以上だけで決める。途中停止は残り全局を候補勝ちとしても62へ届かない場合だけである。wall clockは2時間を上限とし、未完なら`STOP`で、部分結果を合格や選択的な続行に使わない。
+
+## 通過してもライブは変えない
+
+56局通過が許すのは、未使用seed・未使用openingによる別途事前登録した独立96局だけである。本番AssemblyScript、JS fallback、本番WASM、埋め込みbase64、ライブ重みはpilot中に変更しない。96局やその先の正式検証なしに、PR mergeやライブ昇格を自動では行わない。
+
+ここまでの条件は[機械可読プラン](../ml/protocols/bounded-quiet-history-malus-v1-plan.json)へ固定した。現時点では研究build、実装診断、全事前登録openingのpreflightまで完了したが、merge後の正式正しさ検査と対局は始まっていない。したがって棋力向上の結果はまだない。

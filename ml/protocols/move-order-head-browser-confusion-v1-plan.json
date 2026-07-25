@@ -1,0 +1,94 @@
+{
+  "schema": "shogi-move-order-head-plan-v1",
+  "status": "prospective-one-arm-research-plan-not-live-authorization",
+  "objective": "Train a separate 128 KiB root move-ordering head while leaving the shipped NNUE evaluator byte-for-byte unchanged.",
+  "claim_boundary": "Static metrics can only reject this head. They cannot establish playing strength or authorize live deployment.",
+  "inputs": {
+    "training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "coverage": "every legal move from each parent"
+    },
+    "validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "rows": 57658,
+      "parents": 643,
+      "games": 15,
+      "role": "previously observed static reject set; never used for epoch selection"
+    },
+    "external_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+      "rows": 28518,
+      "parents": 4798,
+      "games": 200,
+      "role": "secondary cross-distribution diagnostic; not an epoch-selection set"
+    }
+  },
+  "separation_from_evaluator": {
+    "nnue_checkpoint_loaded": false,
+    "nnue_weights_trainable": false,
+    "leaf_value_used_as_input": false,
+    "live_weight_write_authorized": false
+  },
+  "features": {
+    "version": "signed-fnv1a64k-parent-move-v1",
+    "hash_buckets": 65536,
+    "side_normalization": "rotate Gote-to-move parents and moves by 180 degrees",
+    "runtime": "signed int16 table lookups and int32 additions",
+    "maximum_artifact_bytes": 131072
+  },
+  "training": {
+    "epochs": 64,
+    "batch": 64,
+    "learning_rate": 0.02,
+    "temperature_cp": 100.0,
+    "pair_gap_cp": 50.0,
+    "pair_weight": 0.25,
+    "tune_modulus": 5,
+    "seed": 42,
+    "hash_buckets": 65536,
+    "selection": "best internal game-disjoint tune top-1, then pair accuracy, then mean regret",
+    "refit": "restart from zero and train all 38 training games for the selected epoch count"
+  },
+  "reference_scalar_baseline_on_validation": {
+    "top1_correct": 66,
+    "parents": 643,
+    "top1_accuracy": 0.1026438569206843,
+    "pair_accuracy_gap_50cp": 0.6695942122776266
+  },
+  "static_gates": {
+    "minimum_validation_top1": 0.15396578538102643,
+    "minimum_validation_top1_correct": 99,
+    "minimum_validation_pair_accuracy": 0.6895942122776266,
+    "maximum_quantized_top1_parent_loss": 1,
+    "maximum_quantized_pair_drop": 0.001,
+    "maximum_artifact_bytes": 131072
+  },
+  "conditional_next_gate": {
+    "scope": "research WASM, root only, off by default",
+    "minimum_total_fixed_depth_node_reduction": 0.08,
+    "minimum_median_fixed_depth_node_reduction": 0.1,
+    "maximum_p90_wall_time_regression": 0.05,
+    "technical_faults": 0,
+    "off_mode_must_match_production_exactly": true
+  },
+  "execution": {
+    "output": "/Users/yudaiyaguchi/.codex/shogi-runs/move-order-head-browser-confusion-v1",
+    "device": "mps",
+    "command": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/venv/bin/python ml/train_move_order_head.py --protocol ml/protocols/move-order-head-browser-confusion-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl --external-val-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --out /Users/yudaiyaguchi/.codex/shogi-runs/move-order-head-browser-confusion-v1 --epochs 64 --batch 64 --lr 0.02 --temperature-cp 100 --pair-gap-cp 50 --pair-weight 0.25 --tune-modulus 5 --seed 42 --device mps --torch-threads 4"
+  },
+  "stop_rules": [
+    "Do not change production TypeScript, production WASM, workers, or live assets before the static gate passes.",
+    "If the static gate fails, do not add seeds, epochs, or variants to this feature/loss recipe.",
+    "If the research-WASM node/speed gate fails, do not run screen56.",
+    "Only a later fresh direct-play gate can provide playing-strength evidence."
+  ]
+}

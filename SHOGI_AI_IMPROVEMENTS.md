@@ -7,7 +7,7 @@ This repository contains two shogi implementations:
 
 The main `/games/shogi` page now uses the opening book early and then delegates search to the fast engine for much better performance and strength.
 
-## Current training status (2026-07-24)
+## Current training status (2026-07-25)
 
 The local self-play cycle has now moved beyond generation-only status. A
 read-only snapshot sealed exactly 16,255 completed games from the continuing
@@ -22,20 +22,19 @@ initializer. Lambda 0.50 reached validation loss 0.076182 and pair accuracy
 94,656,708-byte HalfKP81 int16 weights. These are static measurements and are
 **not playing-strength evidence**.
 
-Both candidates are currently running concurrent 56-game fixed-time screens
-against the unchanged live weights, each with seven pair workers and 1,500ms
-per move. No match result is claimed yet. Only complete, fault-free screen
-passers automatically advance to independent 96-game confirmation on disjoint
-seeds. Exactly one independent passer can then enter the formal 768-game
-match. Live deployment is never automatic, and
+Both fixed-time screens ended with zero technical faults and legal moves
+throughout. Lambda 0.50 stopped under the preregistered mathematical-futility
+rule after 54 games at 21 wins, 27 losses, and six draws (48/108 half-points).
+Lambda 0.75 completed 56 games at 24 wins and 32 losses (48/112). Both missed
+the 62-half-point threshold, so neither independent 96 nor formal 768 ran.
 `public/shogi-nnue-weights.bin` remains unchanged.
 
-The source self-play workers are preserved in memory and temporarily suspended
-while the screens use the Mac's CPU. They resume automatically after both
-screens and pause again only if a passer enters the next direct-play gate. The
-full 24,000-game source run is therefore not being called complete. Detailed
-synchronized evidence is in the [cycle-zero report](docs/blog-shogi-selfplay-cycle0.en.md)
-and its [machine-readable record](docs/data/shogi-selfplay-cycle0-2026-07-21.json).
+The nine preserved source self-play workers resumed after the screens. The full
+24,000-game source run is not being called complete, and the unchanged shallow
+label recipe will not be promoted merely for reaching that count. Detailed
+synchronized evidence is in the
+[cycle-zero report](docs/blog-shogi-selfplay-cycle0.en.md) and its
+[machine-readable record](docs/data/shogi-selfplay-cycle0-2026-07-21.json).
 
 ---
 

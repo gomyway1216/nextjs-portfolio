@@ -1,8 +1,8 @@
 {
   "schema": "shogi-selfplay-cycle0-evidence-v1",
-  "status": "prefix16255-candidates-screen56-in-progress-live-unchanged",
+  "status": "prefix16255-candidates-screen56-rejected-live-unchanged",
   "recorded_at": "2026-07-21T23:31:24-07:00",
-  "updated_at": "2026-07-24T23:34:02-07:00",
+  "updated_at": "2026-07-24T23:54:22-07:00",
   "articles": [
     "docs/blog-shogi-selfplay-cycle0.md",
     "docs/blog-shogi-selfplay-cycle0.en.md"
@@ -317,8 +317,8 @@
   "full24k_generation": {
     "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1",
     "started_at_local_approx": "2026-07-21T23:27:00-07:00",
-    "state_at_recording": "temporarily-suspended-for-concurrent-screen56",
-    "workers_observed_running": 12,
+    "state_at_recording": "resumed-after-both-screen56-candidates-rejected",
+    "workers_observed_running": 9,
     "games_requested": 24000,
     "seed": 2026072205,
     "play_depth": 2,
@@ -408,13 +408,14 @@
     "full24k_completion_training_started": false,
     "prefix_dataset_prepared": true,
     "prefix_training_complete": true,
-    "candidate_strength_measurement_in_progress": true,
-    "candidate_strength_measured": false,
+    "candidate_strength_measurement_in_progress": false,
+    "candidate_strength_measured": true,
     "resource_switch": {
       "source_worker_processes_preserved": 9,
-      "source_workers_suspended_in_memory": true,
+      "source_workers_suspended_in_memory": false,
       "reason": "Concentrate local CPU on two concurrent direct-play screens.",
       "automatic_resume_after_both_screens": true,
+      "automatic_resume_observed": true,
       "may_suspend_again_for_pass_only_downstream_gate": true
     }
   },
@@ -428,8 +429,8 @@
     "stop_at_first_failed_gate": true,
     "maximum_cycles": 3,
     "stop_after_consecutive_rejected_cycles": 2,
-    "current_phase": "screen56-running-both-candidates-concurrently",
-    "current_results_claimed": false,
+    "current_phase": "screen56-rejected-no-passer",
+    "current_results_claimed": true,
     "fixed_time_match": {
       "milliseconds_per_move": 1500,
       "book": false,
@@ -444,8 +445,24 @@
         "pair_workers": 7,
         "pairs": 28,
         "games": 56,
-        "state": "running",
-        "result": null
+        "state": "rejected-futility",
+        "result": {
+          "completed_pairs": 27,
+          "completed_games": 54,
+          "candidate_wins": 21,
+          "candidate_draws": 6,
+          "candidate_losses": 27,
+          "candidate_halfpoints": 48,
+          "score_denominator_halfpoints": 108,
+          "maximum_possible_final_halfpoints": 52,
+          "technical_fault_count": 0,
+          "all_pairs_complete": false,
+          "all_observed_moves_legal": true,
+          "all_observed_openings_unique": true,
+          "decision": "rejected-futility",
+          "passed": false,
+          "report_sha256": "f489d0752b4a9747f61ee65ac2e98cba64b2a61485974b205375b22481738658"
+        }
       },
       "lambda_0_75": {
         "experiment_id": "sha256:0b5b82ba1f6ef85e197e43197d125c629dea406efa04c28f9f4a84129472c9b8",
@@ -453,11 +470,28 @@
         "pair_workers": 7,
         "pairs": 28,
         "games": 56,
-        "state": "running",
-        "result": null
+        "state": "rejected-complete",
+        "result": {
+          "completed_pairs": 28,
+          "completed_games": 56,
+          "candidate_wins": 24,
+          "candidate_draws": 0,
+          "candidate_losses": 32,
+          "candidate_halfpoints": 48,
+          "score_denominator_halfpoints": 112,
+          "maximum_possible_final_halfpoints": 48,
+          "technical_fault_count": 0,
+          "all_pairs_complete": true,
+          "all_observed_moves_legal": true,
+          "all_observed_openings_unique": true,
+          "decision": "rejected-complete",
+          "passed": false,
+          "report_sha256": "d641e9a511ca84078628bc87369618052599824e7f3ad3ceaff982aaf66e11e0"
+        }
       },
       "pass_requirement_halfpoints": 62,
-      "concurrent": true
+      "concurrent": true,
+      "passers": 0
     },
     "automatic_pass_only_continuation": {
       "independent96": "Every complete, fault-free screen56 passer runs on disjoint seeds.",

@@ -15,7 +15,7 @@
 - At roughly 12 hours 30 minutes, with 6,219 games and 74,826 positions saved, four of the 12 workers were found stopped. The committed prefixes had zero corruption. The cause was a stale root move from an effective 30-bit WASM TT collision. A one-time clean-TT re-search only for an illegal root move crossed the failing game, and 12-worker generation resumed from 6,251 committed games
 - We later sealed only the **16,255 / 24,000 completed games (67.73%)** as an immutable snapshot. Without mutating the source run, 198,391 positions produced 186,634 training and 6,818 validation rows after deduplication and leakage removal; two candidates were then trained and quantized
 - Lambda 0.50 and lambda 0.75 completed two MPS epochs. Validation loss and pair accuracy improved slightly, but **these static metrics are not playing-strength evidence**
-- Both candidates are now running their 56-game screens concurrently, each with seven pair workers and 1,500ms per move. No result is asserted yet. Only passers advance to independent 96-game confirmation, and exactly one subsequent passer can enter the formal 768-game match. Live deployment is not automatic
+- Both screens ended with zero technical faults and legal moves throughout. Lambda 0.50 stopped mathematically after 54 games at 21 wins, 27 losses, and six draws, or 48/108 half-points. Lambda 0.75 completed 56 games at 24 wins and 32 losses, or 48/112. Both missed the 62-half-point threshold, so neither independent 96, formal 768, nor a live change was authorized
 
 ## 1. An honest account of the week
 
@@ -101,7 +101,7 @@ The permanent correction is to validate a root TT move against the WASM root leg
 
 The source output directory is `/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-full24k-depth2x6-dense-v1`. A read-only snapshot captured completed games only at 16,255 without touching in-flight source writes. Its per-shard completed-game counts are `[1906, 761, 2000, 670, 794, 2000, 829, 2000, 1545, 1711, 1794, 245]`, totaling 16,255.
 
-While both 56-game screens run, source-generation workers are suspended in memory so the same Mac can concentrate CPU on direct-play evidence. They resume automatically when both screens finish and, if a candidate advances, pause again only for the next direct-play gate. This does not mark the 24,000-game source run complete. It is a compute-allocation choice that tests the 16,255-game snapshot now while preserving the remaining generation work.
+While both 56-game screens ran, source-generation workers were suspended in memory so the same Mac could concentrate CPU on direct-play evidence. The nine preserved workers resumed automatically after both screens ended. This does not mark the 24,000-game source run complete. It is a compute-allocation choice that tested the 16,255-game snapshot while preserving the remaining generation work.
 
 ## 6. Splitting and full training of the 16,255-game snapshot
 
@@ -140,17 +140,17 @@ Completion of the 24,000 games still does not trigger a live change.
 1. Verify the 16,255-game snapshot and every shard — complete
 2. Publish the fixed train/validation holdout and train both arms — complete
 3. Quantize both candidates and confirm runtime compatibility — complete
-4. Run a **56-game screen** against the immutable comparison model — both candidates running concurrently
-5. Automatically advance only passers to an **independent 96-game** confirmation on disjoint seeds
-6. Select exactly one independent-96 passer under the preregistered rule for the **formal 768-game** match
-7. Review formal superiority and external calibration before making a separate live-deployment decision
+4. Run a **56-game screen** against the immutable comparison model — both candidates rejected
+5. Automatically advance only passers to an **independent 96-game** confirmation on disjoint seeds — not run because there were zero passers
+6. Select exactly one independent-96 passer under the preregistered rule for the **formal 768-game** match — not run
+7. Review formal superiority and external calibration before making a separate live-deployment decision — not reached
 
-Each screen uses seven pair workers, 1,500ms per move, and 28 pairs. Independent 96 and formal 768 use separate seed sets, and only complete, fault-free passes advance. Even if both candidates pass independent 96, only one enters formal 768. Each candidate stops at its first failed gate. The family is capped at three cycles and stops after two consecutive rejected cycle candidates. We will not keep adding epochs to a failed recipe and call the extra compute progress.
+Each screen used seven pair workers, 1,500ms per move, and at most 28 pairs. Lambda 0.50 became unable to reach the threshold after 27 pairs and stopped under the preregistered futility rule with `rejected-futility`. Lambda 0.75 completed all 28 pairs and ended `rejected-complete`. There were zero technical faults, no repeated observed openings, and all moves were legal. This is not a harness failure: the cycle-zero recipe—depth-2 self-play, depth-6 labels, and two-epoch fine-tuning—failed to beat the current model in play. We will not treat more epochs or more rows under the unchanged recipe as a successful continuation.
 
 ## 8. Current position
 
-The confirmed outcome today is not “the AI is stronger.” It is that 16,255 games of real self-play have produced two candidate weights and that the work has moved from static metrics to direct play. Live weights remain unchanged.
+The confirmed outcome is that static metrics improved on 16,255 games of self-play, yet both trained candidates played worse than the current model. Lambda 0.50 scored 21 wins, 27 losses, and six draws; lambda 0.75 scored 24 wins and 32 losses. Each accumulated 48 half-points, below the required 62. We therefore cannot say that the AI became stronger, and live weights remain unchanged.
 
-The lambda-0.50 and lambda-0.75 screens are running concurrently, but this update does not pre-announce any score. Only reports backed by complete receipts, legal moves, zero technical faults, and the preregistered threshold count. Passers automatically proceed to independent 96, and exactly one selected passer can proceed to formal 768. Even a formal pass does not write live weights automatically. The goal is not to say that training ran; it is to show that a candidate **statistically beats the immutable comparison model under the same playing conditions**.
+This does not prove that self-play can never work. It does directly show that **re-searching shallow-actor positions at depth 6 and returning them to the same actor for two epochs was not enough**. The remaining source generation resumed so its already committed work is not discarded, but an unchanged teacher depth, loss, and full-update recipe will not be promoted merely because it reaches 24,000 games. A next candidate needs either a stronger teacher signal or a different hypothesis that limits excessive movement from the initializer, followed by a fresh direct-play test on new seeds.
 
 The design draws on the [Stockfish NNUE training documentation](https://github.com/official-stockfish/nnue-pytorch/blob/master/docs/nnue.md) and [YaneuraOu's NNUE training notes](https://yaneuraou.yaneu.com/2018/12/30/nnue%E8%A9%95%E4%BE%A1%E9%96%A2%E6%95%B0%E3%81%AE%E5%AD%A6%E7%BF%92%E6%96%B9%E6%B3%95%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/). General success elsewhere is not evidence that this candidate will improve. Our conclusion will come only from the saved data and direct games in this cycle.

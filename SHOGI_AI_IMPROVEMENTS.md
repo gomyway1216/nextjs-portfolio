@@ -33,8 +33,26 @@ Post-match audit found that `min-ply=12` and `sample-every=4` made every one of
 the 186,634 training and 6,818 validation rows Sente-to-move. The original job
 was preserved and suspended at 16,278 completed games rather than scaling that
 defect. A 480-game replacement using `sample-every=1`, seed `2026072501`, and
-12 workers is running; its first ten games produced 112 Sente and 111 Gote
-rows. Detailed synchronized evidence is in the
+12 workers completed with 10,766 raw positions. Deterministic balancing
+published 10,110 training rows (5,055 per side) and 412 validation rows (206
+per side), with zero source-game, game, opening, or position overlap.
+
+The single preregistered one-epoch pure-search arm changed validation pair
+accuracy only from 83.30% to 83.41%. Its fresh-seed 56-game screen completed at
+26 wins, 27 losses, and three draws: 55/112 half-points versus 62 required.
+There were zero technical faults, every observed move was legal, and every
+opening was unique. The corrected shallow self-play/value-only recipe is
+therefore closed rather than scaled. Independent 96, formal 768, and live
+deployment did not run.
+
+One final low-cost cross reused the already complete depth-16 V9 sibling corpus
+with the alpha-0.50 HalfKP initializer. Its single MPS epoch reduced independent
+sibling pair accuracy from 59.38% to 58.99% and top-1 accuracy from 30.39% to
+30.22%. It failed the preregistered static gate, so there was no export, match,
+or live change. This closes further scalar-evaluator sibling fine-tuning under
+the same recipe. The next distinct research direction is a separate small
+move-ordering head while the shipped evaluator remains frozen. Detailed
+synchronized evidence is in the
 [cycle-zero report](docs/blog-shogi-selfplay-cycle0.en.md) and its
 [machine-readable record](docs/data/shogi-selfplay-cycle0-2026-07-21.json).
 

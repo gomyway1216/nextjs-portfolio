@@ -1,8 +1,8 @@
 {
   "schema": "shogi-selfplay-cycle0-evidence-v1",
-  "status": "screen56-rejected-sampling-parity-defect-found-corrected-pilot-running-live-unchanged",
+  "status": "corrected-parity-screen56-rejected-value-only-recipe-closed-live-unchanged",
   "recorded_at": "2026-07-21T23:31:24-07:00",
-  "updated_at": "2026-07-25T00:00:46-07:00",
+  "updated_at": "2026-07-25T02:08:00-07:00",
   "articles": [
     "docs/blog-shogi-selfplay-cycle0.md",
     "docs/blog-shogi-selfplay-cycle0.en.md"
@@ -438,8 +438,10 @@
   },
   "corrected_parity_pilot": {
     "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-depth2x6-dense-v1",
-    "state_at_recording": "running",
+    "state_at_recording": "complete-screen56-rejected",
     "games_requested": 480,
+    "games_completed": 480,
+    "raw_positions": 10766,
     "workers": 12,
     "seed": 2026072501,
     "play_depth": 2,
@@ -453,8 +455,110 @@
       "sente_to_move": 112,
       "gote_to_move": 111
     },
-    "post_generation_rule": "Deterministically equalize Sente and Gote row counts before one pure-search one-epoch candidate is trained.",
-    "direct_gate_if_static_checks_pass": "One new-seed screen56; stop this self-play recipe if it fails."
+    "balanced_dataset": {
+      "manifest_sha256": "0b53ec3d83a38084b483e50e50b91dc0f374910ccc28099a6c27b99edacc797f",
+      "training_rows": 10110,
+      "training_sente_to_move": 5055,
+      "training_gote_to_move": 5055,
+      "validation_rows": 412,
+      "validation_sente_to_move": 206,
+      "validation_gote_to_move": 206,
+      "source_game_overlap": 0,
+      "game_overlap": 0,
+      "opening_overlap": 0,
+      "position_overlap": 0
+    },
+    "training": {
+      "epochs": 1,
+      "wdl_mix": 0,
+      "initializer_validation_loss": 0.033781,
+      "epoch_1_validation_loss": 0.033683,
+      "initializer_validation_mae_cp": 486.7,
+      "epoch_1_validation_mae_cp": 486.3,
+      "initializer_pair_accuracy": 0.833,
+      "epoch_1_pair_accuracy": 0.8341,
+      "checkpoint_sha256": "921aeb559deb51e9b35ccb48468da0f6db84ced48f87e40d2f43955177df0370",
+      "weights_sha256": "b4ccce3beb565ca49baf986222596c4a4b67355830c86a3fdd90e44872f108ba",
+      "quantization_verification_rows": 412,
+      "quantization_mean_absolute_cp_error": 30.66,
+      "quantization_max_absolute_cp_error": 166.14
+    },
+    "screen56": {
+      "experiment_id": "sha256:2c70031e1278261cd7eb257f17e26bf7f7f84ba32a56c78cedc08a938a86b783",
+      "manifest_sha256": "3c15845456a1f9270070153daac9d460b9ad0fecc242cdf8150283d36fbddf35",
+      "report_sha256": "b8447e1983197f8c867ab379ffe5ea185efe8535962ae4a3b453c6c3c0ea34d4",
+      "completed_pairs": 28,
+      "completed_games": 56,
+      "candidate_wins": 26,
+      "candidate_draws": 3,
+      "candidate_losses": 27,
+      "candidate_halfpoints": 55,
+      "score_denominator_halfpoints": 112,
+      "pass_halfpoints": 62,
+      "technical_fault_count": 0,
+      "all_observed_moves_legal": true,
+      "all_observed_openings_unique": true,
+      "decision": "rejected-complete",
+      "passed": false
+    },
+    "recipe_decision": "Close depth-2 self-play plus depth-6 single-value pure-search training; do not scale the same recipe.",
+    "next_bounded_direction": "Keep the shipped evaluator frozen and train a separate small move-ordering head on existing legal-child data; require held-out top-1, fixed-depth node-count, and speed gates before one fresh screen."
+  },
+  "alpha050_v9_one_arm": {
+    "status": "complete-no-admitted-candidate",
+    "novel_cross": "alpha-0.50 HalfKP initializer plus the existing V9 legal-sibling corpus, proposed at depth 14 and independently rescored at depth 16",
+    "protocol": {
+      "path": "ml/protocols/halfkp-alpha050-v9-one-arm-v1-plan.json",
+      "bytes": 4769,
+      "sha256": "f2940991a95c49f401c547c8a87eb0628269c01efd6c41694988e3ddd539bdc7"
+    },
+    "result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-alpha050-v9-one-arm-seed42-v1/result.json",
+      "bytes": 8921,
+      "sha256": "6be5487af36574caf879eb6bf3ea8099fbaeb3c1045e857a80ec4a97d4f734b0"
+    },
+    "training": {
+      "device": "mps",
+      "epochs": 1,
+      "seed": 42,
+      "learning_rate": 0.00001,
+      "rank_weight": 1.0,
+      "policy_weight": 0.25,
+      "epoch_seconds": 48.218461541924626
+    },
+    "data": {
+      "training_parents": 23980,
+      "training_rows": 278736,
+      "independent_selection_parents": 4798,
+      "independent_selection_rows": 28518,
+      "value_replay_rows": 500000,
+      "value_preservation_rows_after_exclusion": 2797,
+      "eligible_training_pairs": 892048
+    },
+    "static_gate": {
+      "pair_accuracy_before": 0.5937776704499719,
+      "pair_accuracy_after": 0.5898937454721082,
+      "pair_gain": -0.0038839249778637175,
+      "pair_gain_required": 0.003,
+      "top1_accuracy_before": 0.30387661525635684,
+      "top1_accuracy_after": 0.30220925385577324,
+      "top1_gain": -0.0016673614005836002,
+      "top1_gain_required": 0,
+      "value_mae_cp_before": 615.2130596118609,
+      "value_mae_cp_after": 552.7129374106186,
+      "passed": false
+    },
+    "diagnostic_comparison_to_prior_initializer": {
+      "pair_accuracy_baseline_advantage": 0.0027368590517589,
+      "top1_accuracy_baseline_advantage": 0.0031263026260942,
+      "post_epoch_top1_equal": true,
+      "interpretation": "The stronger alpha-0.50 starting ranking converged to the same weaker post-training top-1 as the prior initializer, implicating the scalar sibling objective rather than initializer weakness."
+    },
+    "best_checkpoint_created": false,
+    "export_ran": false,
+    "screen56_ran": false,
+    "live_weight_changed": false,
+    "decision": "Close further sibling-ranking fine-tuning of the same scalar evaluator; do not add epochs or seeds."
   },
   "promotion": {
     "sequence": [
@@ -466,7 +570,7 @@
     "stop_at_first_failed_gate": true,
     "maximum_cycles": 3,
     "stop_after_consecutive_rejected_cycles": 2,
-    "current_phase": "screen56-rejected-no-passer",
+    "current_phase": "corrected-parity-screen56-rejected-no-passer",
     "current_results_claimed": true,
     "fixed_time_match": {
       "milliseconds_per_move": 1500,
@@ -524,6 +628,31 @@
           "decision": "rejected-complete",
           "passed": false,
           "report_sha256": "d641e9a511ca84078628bc87369618052599824e7f3ad3ceaff982aaf66e11e0"
+        }
+      },
+      "corrected_parity_pure_search": {
+        "experiment_id": "sha256:2c70031e1278261cd7eb257f17e26bf7f7f84ba32a56c78cedc08a938a86b783",
+        "manifest_sha256": "3c15845456a1f9270070153daac9d460b9ad0fecc242cdf8150283d36fbddf35",
+        "pair_workers": 7,
+        "pairs": 28,
+        "games": 56,
+        "state": "rejected-complete",
+        "result": {
+          "completed_pairs": 28,
+          "completed_games": 56,
+          "candidate_wins": 26,
+          "candidate_draws": 3,
+          "candidate_losses": 27,
+          "candidate_halfpoints": 55,
+          "score_denominator_halfpoints": 112,
+          "maximum_possible_final_halfpoints": 55,
+          "technical_fault_count": 0,
+          "all_pairs_complete": true,
+          "all_observed_moves_legal": true,
+          "all_observed_openings_unique": true,
+          "decision": "rejected-complete",
+          "passed": false,
+          "report_sha256": "b8447e1983197f8c867ab379ffe5ea185efe8535962ae4a3b453c6c3c0ea34d4"
         }
       },
       "pass_requirement_halfpoints": 62,

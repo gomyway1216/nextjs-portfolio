@@ -1,0 +1,87 @@
+{
+  "schema": "shogi-halfkp-sibling-preservation-plan-v1",
+  "status": "prospective-one-arm-research-plan-not-live-authorization",
+  "objective": "Test the previously untried cross of the alpha-0.50 HalfKP initializer and the completed depth-16 V9 legal-sibling teacher corpus without generating more teacher data.",
+  "why_this_is_not_a_repeat": {
+    "v9_history": "The V9 depth-16 corpus was previously trained only from the non-interpolated epoch-2 HalfKP initializer.",
+    "alpha050_history": "The alpha-0.50 initializer was previously sibling-trained only on the depth-12 browser-confusion corpus.",
+    "new_cross": "alpha-0.50 HalfKP initializer plus V9 depth-16 corpus",
+    "forbidden_repeats": [
+      "generate another copy of the existing V9 teacher corpus",
+      "repeat the depth-12 alpha-0.50 arms",
+      "promote from static metrics alone"
+    ]
+  },
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+      "features": "halfkp-factor",
+      "buckets": 81
+    },
+    "legal_sibling_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "rows": 278736,
+      "parents": 23980,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
+    },
+    "legal_sibling_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "rows": 28518,
+      "parents": 4798,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088"
+    },
+    "value_replay": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "rows": 800000,
+      "sample_rows": 500000,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d"
+    },
+    "value_preservation_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "bytes": 1576191,
+      "rows": 3000,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81"
+    }
+  },
+  "training": {
+    "trainer": "ml/train_halfkp_sibling_preserving.py",
+    "epochs": 1,
+    "batch": 256,
+    "optimizer": "AdamW with zero weight decay",
+    "rank_pair_min_cp": 50.0,
+    "rank_pair_max_cp": 600.0,
+    "rank_margin_cp": 50.0,
+    "policy_temperature_cp": 200.0,
+    "value_replay_ratio_rows": 1.0,
+    "prospective_slots": [
+      {
+        "id": "alpha050-v9-balanced-seed42",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 1.0,
+        "policy_weight": 0.25
+      }
+    ]
+  },
+  "epoch_admission_relative_to_initializer": {
+    "minimum_sibling_pair_gain": 0.003,
+    "minimum_sibling_top1_gain": 0.0,
+    "maximum_value_mae_regression_cp": 10.0,
+    "maximum_value_loss_relative_increase": 0.02
+  },
+  "execution": {
+    "output": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-alpha050-v9-one-arm-seed42-v1",
+    "command": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/venv/bin/python ml/train_halfkp_sibling_preserving.py --protocol ml/protocols/halfkp-alpha050-v9-one-arm-v1-plan.json --data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl --val-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --replay-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl --preservation-val-data /Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl --init-ckpt /Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt --out /Users/yudaiyaguchi/.codex/shogi-runs/halfkp-alpha050-v9-one-arm-seed42-v1 --epochs 1 --batch 256 --replay-limit 500000 --replay-ratio 1.0 --lr 0.00001 --k 600 --cp-clamp 3000 --device mps --torch-threads 2 --seed 42 --rank-weight 1.0 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 --policy-weight 0.25 --policy-temp-cp 200 --min-pair-gain 0.003 --min-top1-gain 0 --max-value-mae-regression-cp 10 --max-value-loss-relative 0.02"
+  },
+  "stop_rules": [
+    "Stop without export or matches if epoch one fails any static admission gate.",
+    "If admitted, export and run exactly one fresh-seed 56-game screen before any larger gate.",
+    "Never write the live weight path from this trainer."
+  ],
+  "claim_boundary": "One prospective cross experiment only; not playing-strength evidence or live promotion authorization."
+}

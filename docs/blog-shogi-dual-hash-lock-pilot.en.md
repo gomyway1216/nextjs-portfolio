@@ -76,6 +76,26 @@ The pinned union combines 3,198 fingerprints from the enrolled-opening evidence 
 
 The floor is 82/192 candidate halfpoints, or 42.71%. This is not a “stronger” threshold. A known correctness repair should not be discarded only because a short match fluctuates, while a material strength regression still needs to stop promotion. PASS requires all 96 games to complete with zero faults, illegal moves, and opening duplicates. Only rejection may stop early, after wins in every remaining game can no longer reach 82.
 
+## Formal 96-game result (July 26, 2026)
+
+The fixed research WASM completed all 96 games at 47 wins, 47 losses, and two draws: 96/192 halfpoints, or 50.00%. It cleared the 82/192 floor by 14 halfpoints. All 48 openings were unique and the technical-fault count was zero. The candidate scored 27 wins, 20 losses, and one draw as sente, and 20 wins, 27 losses, and one draw as gote. All 11,163 move keys checked by the fixed runner belonged to the legal-move set at that point.
+
+| Metric                 |                        Result |
+| ---------------------- | ----------------------------: |
+| completed              |           48 pairs / 96 games |
+| candidate record       | 47 wins / 47 losses / 2 draws |
+| halfpoints             |                      96 / 192 |
+| pass floor             |                      82 / 192 |
+| duplicate openings     |                             0 |
+| technical faults       |                             0 |
+| runner legality checks |               11,163 / 11,163 |
+
+The [readable summary](./data/shogi-dual-hash-lock-match-result-2026-07-26.json) is separate from the unformatted [run, terminal-result, and 48 pair receipts](./data/shogi-dual-hash-lock-match-raw-2026-07-26/). Without importing the runner, an independent test recomputes the fixed-plan and correctness-receipt bindings, all 48 seed and opening-fingerprint assignments, each pair's domain seal, the aggregate, and the decision. `result_sha256` is an internal seal over a domain-prefixed canonical body that excludes that field; it is not the SHA of the complete JSON file. The file SHA is recorded separately.
+
+The evidence has limits. Pair receipts contain the plan SHA but not the correctness-receipt SHA or a run identifier, while the terminal result contains neither the run SHA nor a manifest root for the 48 pairs. The tracked test links them independently, but this is not a cryptographic proof that every receipt came from one uninterrupted run. Pair receipts retain outcomes, termination, plies, and legality-check counts rather than complete move transcripts, so the evidence cannot independently replay every move. The terminal receipt also has no authenticated finish timestamp, and no exact runtime is claimed.
+
+The 47-47-2 record supports only the conclusion that this bounded direct-play screen detected no material regression and that the candidate passed its preregistered floor. It does not show a strength gain, Elo increase, high-dan level, or full-browser-path strength. The PASS permits work on a separate production implementation and browser-validation PR. `promotion_authorized=false` remains authoritative: live changes, deployment, and weight updates are still unauthorized.
+
 ## After a pass
 
 Even passing every gate does not change live from this research PR. A separate promotion PR must apply dual identity to the production AssemblyScript, WASM, embedded base64, JS V20 fallback, shared TT, mate solver, and opening caches, followed by real-browser and rollback checks.

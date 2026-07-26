@@ -1,0 +1,170 @@
+{
+  "schema": "shogi-dual-hash-lock-match-evidence-v1",
+  "name": "Dual-hash lock formal direct-play non-regression result",
+  "status": "passed",
+  "recordedAt": "2026-07-26",
+  "recordedAtScope": "repository-report-date-only-not-an-execution-finish-timestamp",
+  "preregistration": {
+    "planId": "dual-hash-lock-v1",
+    "path": "ml/protocols/dual-hash-lock-v1-plan.json",
+    "bytes": 14242,
+    "sha256": "dfb82a42fe57565fb6f8d002c48d83530b5979051421465af1bebc1af910de63",
+    "status": "fixed-before-result",
+    "mergeCommit": "5c5b82c2b7838bc236fcaa29440cbda1f80539f7"
+  },
+  "correctnessAuthorization": {
+    "path": "docs/data/shogi-dual-hash-lock-correctness-raw-2026-07-26.json",
+    "bytes": 34210,
+    "sha256": "5529d03cc37df7c359c149d408aa4fdddb4ef95695a4b8291f83fe6e852c314e",
+    "allGatesPassed": true,
+    "directPlayAuthorized": true,
+    "liveChangeAuthorized": false,
+    "strengthMetric": false
+  },
+  "rawEvidence": {
+    "run": {
+      "trackedPath": "docs/data/shogi-dual-hash-lock-match-raw-2026-07-26/run.json",
+      "bytes": 310,
+      "fileSha256": "e9630aafac05e1fe8d7ca7be5435913721c83036fb728f73fd6f4476e76bd271",
+      "schema": "shogi-dual-hash-lock-run-v1",
+      "startedAtMs": 1785053532271,
+      "wallClockLimitSeconds": 7200,
+      "deadlineAtMs": 1785060732271
+    },
+    "result": {
+      "trackedPath": "docs/data/shogi-dual-hash-lock-match-raw-2026-07-26/result.json",
+      "bytes": 839,
+      "fileSha256": "ea24dd1c0eef2164892ed54f226154c881418033be90c1d8f0eccf56be11a492",
+      "internalContentSeal": {
+        "domain": "shogi-dual-hash-lock-result-v1\u0000",
+        "scope": "canonical result body excluding the result_sha256 field",
+        "sha256": "2780f298051d49a1b8f3a1203828b44e4a701a565c3904955e3a15cf34286296"
+      }
+    },
+    "pairReceipts": {
+      "trackedDirectory": "docs/data/shogi-dual-hash-lock-match-raw-2026-07-26/pairs",
+      "filePattern": "pair-0000.json..pair-0047.json",
+      "files": 48,
+      "totalBytes": 31572,
+      "manifest": {
+        "domain": "shogi-dual-hash-lock-terminal-pair-manifest-v1\u0000",
+        "canonicalProjection": "pair-index-sorted array of {path,bytes,sha256,receipt_sha256}",
+        "sha256": "758bce947f40cda53d14606a28e1fa2923b832c67b19f3a21e2223ba411fbb26"
+      }
+    }
+  },
+  "execution": {
+    "matchRunner": {
+      "path": "wasm-spike/match-dual-hash-lock-vs-production.ts",
+      "bytes": 60530,
+      "sha256": "3db7366e8b676b5dff39f3ca2f3d4f4a9a279897c15386a2c2d82c6c4557743f"
+    },
+    "candidateWasm": {
+      "path": "wasm-spike/artifacts/shogi-dual-hash-lock-research.wasm",
+      "bytes": 37538,
+      "sha256": "90cbf3ce43197732e1f43ca1b03a344f364d0928c58cd04ba40e62d11f7c8edf"
+    },
+    "productionBaselineWasm": {
+      "planPath": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "snapshotPath": "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      "snapshotEncoding": "base64",
+      "decodedBytes": 35597,
+      "decodedSha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "sharedWeights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "buckets": 1
+    },
+    "settings": {
+      "pairs": 48,
+      "games": 96,
+      "pairWorkers": 12,
+      "millisecondsPerMove": 1500,
+      "openingPlies": 6,
+      "maxPlies": 256,
+      "searchDepth": 32,
+      "quiescenceDepth": 10,
+      "colorOrder": ["candidate-sente", "candidate-gote"],
+      "transpositionTablePolicy": "clear-before-each-game-retain-within-game",
+      "book": false,
+      "mateSolver": false,
+      "fallback": false
+    }
+  },
+  "observed": {
+    "completedPairs": 48,
+    "completedGames": 96,
+    "missingPairs": [],
+    "candidateWins": 47,
+    "candidateDraws": 2,
+    "candidateLosses": 47,
+    "candidateHalfpoints": 96,
+    "scoreDenominatorHalfpoints": 192,
+    "scoreRate": 0.5,
+    "passHalfpoints": 82,
+    "passRate": 0.4270833333333333,
+    "maximumPossibleFinalHalfpoints": 96,
+    "plies": 11739,
+    "runnerLegalityChecks": 11163,
+    "allObservedMoveKeysPassedRunnerLegalityChecks": true,
+    "openingFingerprintsUnique": 48,
+    "openingIntersectionWithPinnedHistoricalUnion": 0,
+    "technicalFaultCount": 0,
+    "wallClockExpired": false,
+    "terminations": {
+      "noLegalMoves": 93,
+      "fourfoldRepetition": 1,
+      "perpetualCheck": 1,
+      "maxPlies": 1
+    },
+    "byCandidateColor": {
+      "sente": {
+        "wins": 27,
+        "draws": 1,
+        "losses": 20,
+        "halfpoints": 55
+      },
+      "gote": {
+        "wins": 20,
+        "draws": 1,
+        "losses": 27,
+        "halfpoints": 41
+      }
+    }
+  },
+  "decision": {
+    "status": "PASS",
+    "decision": "pass",
+    "strengthConclusionAllowed": true,
+    "meaning": "The research candidate passed the preregistered bounded non-regression screen. The 50.00% observed score does not establish a strength gain."
+  },
+  "authorization": {
+    "nextStepAllowedByPlan": "Permit work on a separate production implementation and browser-validation PR for review.",
+    "promotionAuthorized": false,
+    "mergeAuthorizedByThisResult": false,
+    "deploymentAuthorized": false,
+    "liveChangeAuthorized": false,
+    "liveWeightWriteAuthorized": false,
+    "strengthGainClaimAuthorized": false,
+    "highDanClaimAuthorized": false
+  },
+  "integrityLimitations": [
+    "Each pair receipt binds to the fixed plan SHA but does not contain the correctness receipt SHA or a run receipt identifier.",
+    "The terminal result does not contain the run.json SHA or a cryptographic root of the 48 pair receipts, so the tracked evidence test links those records independently.",
+    "Pair receipts retain outcomes, termination, plies, and legality-check counts but not complete move transcripts; independent replay of every observed move is therefore unavailable.",
+    "The run receipt contains a start and deadline but the terminal receipt contains no authenticated finish timestamp, so no exact elapsed-time claim is made.",
+    "The receipts are integrity hashes rather than an external signature or third-party execution attestation.",
+    "The match covers the isolated WASM direct-play path without the live browser host, JavaScript fallback, shared transposition table, opening book, or mate solver."
+  ],
+  "claimBoundary": {
+    "supported": "The fixed research WASM completed the preregistered direct screen at 47 wins, 47 losses, and two draws, passed its 82/192 bounded non-regression floor, and recorded zero technical faults.",
+    "notClaimed": [
+      "The candidate is stronger than production or gained Elo.",
+      "The engine has reached high-dan strength.",
+      "The live browser engine has changed or passed full-path validation.",
+      "The direct screen authorizes promotion, merge, deployment, or a live-weight change."
+    ]
+  }
+}

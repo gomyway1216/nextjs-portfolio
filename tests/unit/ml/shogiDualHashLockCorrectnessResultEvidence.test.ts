@@ -148,6 +148,10 @@ const summaryPath = join(
   root,
   "docs/data/shogi-dual-hash-lock-correctness-result-2026-07-26.json",
 );
+const productionWasmSnapshotPath = join(
+  root,
+  "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+);
 const rawBytes = readFileSync(rawPath);
 const raw = JSON.parse(rawBytes.toString("utf8")) as RawEvidence;
 const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
@@ -197,13 +201,8 @@ function aggregateThroughput(blocks: PerformanceBlock[]): number {
   return work / elapsed;
 }
 
-function instantiateMemoryBytes(artifact: AssetIdentity): number {
-  expect(identity(join(root, artifact.path))).toEqual(
-    artifactIdentity(artifact),
-  );
-  const module = new WebAssembly.Module(
-    readFileSync(join(root, artifact.path)),
-  );
+function instantiateMemoryBytesFromBytes(bytes: Uint8Array): number {
+  const module = new WebAssembly.Module(bytes);
   const instance = new WebAssembly.Instance(module, {
     env: {
       abort(_message: number, _file: number, line: number, column: number) {
@@ -218,6 +217,30 @@ function instantiateMemoryBytes(artifact: AssetIdentity): number {
   const wasm = instance.exports as unknown as { memory: WebAssembly.Memory };
   expect(wasm.memory).toBeInstanceOf(WebAssembly.Memory);
   return wasm.memory.buffer.byteLength;
+}
+
+function instantiateMemoryBytes(artifact: AssetIdentity): number {
+  expect(identity(join(root, artifact.path))).toEqual(
+    artifactIdentity(artifact),
+  );
+  return instantiateMemoryBytesFromBytes(
+    readFileSync(join(root, artifact.path)),
+  );
+}
+
+function productionWasmSnapshotBytes(): Buffer {
+  const encoded = readFileSync(productionWasmSnapshotPath, "utf8").trim();
+  const bytes = Buffer.from(encoded, "base64");
+  expect(bytes.toString("base64")).toBe(encoded);
+  expect({
+    bytes: bytes.byteLength,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  }).toEqual(artifactIdentity(plan.pinned_inputs.production_wasm));
+  return bytes;
+}
+
+function instantiateProductionMemoryBytes(): number {
+  return instantiateMemoryBytesFromBytes(productionWasmSnapshotBytes());
 }
 
 function recomputePerformance(memoryDeltaBytes: number) {
@@ -478,7 +501,6 @@ describe("dual-hash lock formal correctness evidence", () => {
     });
 
     for (const artifact of [
-      plan.pinned_inputs.production_wasm,
       plan.pinned_inputs.immutable_live_weights,
       plan.planned_research_artifacts.research_wasm,
       plan.planned_research_artifacts.correctness_runner,
@@ -488,6 +510,9 @@ describe("dual-hash lock formal correctness evidence", () => {
         artifactIdentity(artifact),
       );
     }
+    expect(productionWasmSnapshotBytes().byteLength).toBe(
+      plan.pinned_inputs.production_wasm.bytes,
+    );
     expect(summary.rawEvidence).not.toHaveProperty("startedAt");
     expect(summary.rawEvidence).not.toHaveProperty("finishedAt");
     expect(summary.rawEvidence).not.toHaveProperty("elapsedSeconds");
@@ -503,7 +528,7 @@ describe("dual-hash lock formal correctness evidence", () => {
 
     const memoryDeltaBytes =
       instantiateMemoryBytes(plan.planned_research_artifacts.research_wasm) -
-      instantiateMemoryBytes(plan.pinned_inputs.production_wasm);
+      instantiateProductionMemoryBytes();
     const performance = recomputePerformance(memoryDeltaBytes);
     expect(raw.gates).toEqual({
       ...raw.collision.gates,
@@ -631,9 +656,7 @@ describe("dual-hash lock formal correctness evidence", () => {
       expect(block.throughput).toBe(recomputedThroughput(block));
     }
 
-    const productionMemoryBytes = instantiateMemoryBytes(
-      plan.pinned_inputs.production_wasm,
-    );
+    const productionMemoryBytes = instantiateProductionMemoryBytes();
     const candidateMemoryBytes = instantiateMemoryBytes(
       plan.planned_research_artifacts.research_wasm,
     );
@@ -664,7 +687,7 @@ describe("dual-hash lock formal correctness evidence", () => {
   it("exactly projects every summary field from authenticated plan and raw evidence", () => {
     const memoryDeltaBytes =
       instantiateMemoryBytes(plan.planned_research_artifacts.research_wasm) -
-      instantiateMemoryBytes(plan.pinned_inputs.production_wasm);
+      instantiateProductionMemoryBytes();
     expect(summary).toEqual(expectedSummary(memoryDeltaBytes));
   });
 });

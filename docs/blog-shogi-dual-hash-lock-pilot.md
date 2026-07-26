@@ -76,6 +76,26 @@ p90の負値は、この測定ではcandidate側のwall timeが0.171%短かっ�
 
 合格floorは候補82/192 halfpoints、得点率42.71%とする。これは「強くなった」基準ではない。既知のcorrectness bugを直す変更を短い対局の勝率ノイズだけで棄却せず、同時に大きな棋力悪化は止めるための非退行境界である。PASSには96局完走と、故障、違法手、opening重複がすべて0であることが必須である。棄却だけは、残り全勝でも82へ届かない数学的futilityが確定した場合に早期停止できる。
 
+## 正式96局の結果（2026年7月26日）
+
+固定した研究WASMは96局を完走し、47勝47敗2分、96/192 halfpoints、得点率50.00%だった。合格floorの82/192を14 halfpoints上回り、48 openingはすべて一意、technical faultは0だった。先手では27勝20敗1分、後手では20勝27敗1分である。固定runnerが照合した11,163着手keyはすべてその時点の合法手集合に含まれた。
+
+| 指標               |            結果 |
+| ------------------ | --------------: |
+| 完了               | 48 pairs / 96局 |
+| 候補の勝敗         |     47勝47敗2分 |
+| halfpoints         |        96 / 192 |
+| 合格floor          |        82 / 192 |
+| opening重複        |               0 |
+| technical fault    |               0 |
+| runnerの合法手照合 | 11,163 / 11,163 |
+
+[読みやすい要約](./data/shogi-dual-hash-lock-match-result-2026-07-26.json)とは別に、[run、terminal result、48 pairの生receipt](./data/shogi-dual-hash-lock-match-raw-2026-07-26/)を整形せず追跡した。独立testはrunnerをimportせず、固定planとcorrectness receipt、48 seedとopening fingerprint、各pairのdomain seal、集計、合否を再計算する。`result_sha256`はJSONファイル全体のSHAではなく、同fieldを除いたcanonical bodyにdomainを付けた内部sealである。ファイル自体のSHAは別に記録した。
+
+この証拠には限界がある。pair receiptはplan SHAを持つが、correctness receipt SHAやrun IDを持たず、terminal resultもrun SHAや48 pairのmanifest rootを持たない。そのため、追跡testがこれらを独立に結び付けているが、「単一runからの全receiptであることを暗号学的に証明した」とは主張しない。またpairには完全棋譜がなく、結果、終局理由、plies、合法手照合数だけが残るため、全着手を後から独立再生した証拠ではない。terminal receiptに認証済み終了時刻もないので、正確な所要時間は主張しない。
+
+47勝47敗2分は、候補がこの限定的な直接対局で大幅退行を検出されず、事前登録した非退行screenを通過したことを示す。強化、Elo上昇、高段到達、ブラウザ全経路の強さは示していない。このPASSが許可するのは、別PRでproduction実装とブラウザ検証を行うことだけである。`promotion_authorized=false`は変わらず、ライブ変更、配信、重み更新はまだ許可されない。
+
 ## 通過後
 
 全gateを通っても、この研究PRだけではライブを変更しない。通過後の別PRで、AssemblyScript本番源泉、WASM、埋め込みbase64、JS V20 fallback、共有TT、mate solver、opening cacheへ同じdual identityを実装し、ブラウザ実機とrollback条件を確認する。

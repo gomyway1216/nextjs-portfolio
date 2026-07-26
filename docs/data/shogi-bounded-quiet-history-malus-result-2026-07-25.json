@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "name": "bounded quiet-history malus direct-play result",
+  "status": "rejected-mathematical-futility-live-unchanged",
+  "generatedAt": "2026-07-25",
+  "preregistration": {
+    "planId": "bounded-quiet-history-malus-v1",
+    "planStatus": "fixed-and-merged-before-formal-gate-and-direct-play",
+    "pullRequest": 623,
+    "pullRequestUrl": "https://github.com/gomyway1216/nextjs-portfolio/pull/623",
+    "mergeCommit": "07f623c89d70df51fae802de500f030e5d652268",
+    "identity": {
+      "path": "ml/protocols/bounded-quiet-history-malus-v1-plan.json",
+      "bytes": 21336,
+      "sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669"
+    }
+  },
+  "rawEvidence": {
+    "path": "docs/data/shogi-bounded-quiet-history-malus-raw-2026-07-25.json",
+    "bytes": 34479,
+    "sha256": "f2c285af96ab6f90b1d79bfd2df118ba97c1502da316b6ba1478b9570eb9720d"
+  },
+  "correctness": {
+    "status": "passed-direct-play-authorized-live-change-not-authorized",
+    "runArtifact": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/correctness.json",
+      "bytes": 2780,
+      "sha256": "2f961c94fafdeb37dd8e2f509985afe4bbc990802c21c5b2bc5b7a9942e9a847"
+    },
+    "cases": 64,
+    "fixedDepth": 5,
+    "quiescenceDepth": 8,
+    "totals": {
+      "cutoffs": 30361,
+      "rewards": 30361,
+      "maluses": 28421,
+      "mainUpdates": 58782,
+      "continuationUpdates": 58782,
+      "storedPeak": 32,
+      "storageDrops": 3993221,
+      "maxAbsMain": 14907,
+      "maxAbsContinuation": 9312,
+      "nonQuietViolations": 0
+    },
+    "gates": {
+      "defaultOff": true,
+      "offExact64": true,
+      "offCountersZero": true,
+      "onDeterministic64": true,
+      "onMovesLegal64": true,
+      "stateChecksumsUnchanged64": true,
+      "rewardAndMalusActivatedEveryCategory": true,
+      "historyBounded": true,
+      "searchedQuietCapRespected": true,
+      "nonQuietViolationsZero": true,
+      "allPassed": true
+    },
+    "strengthMetric": false,
+    "directPlayAuthorized": true,
+    "liveChangeAuthorized": false
+  },
+  "directPlay": {
+    "status": "REJECTED-futility",
+    "decision": "reject",
+    "strengthConclusionAllowed": true,
+    "configuration": {
+      "plannedGames": 56,
+      "plannedPairs": 28,
+      "gamesPerPair": 2,
+      "pairWorkers": 12,
+      "millisecondsPerMove": 1500,
+      "passHalfpoints": 62,
+      "scoreDenominatorHalfpoints": 112,
+      "earlyStop": "mathematical-futility-only",
+      "sameLiveWeightsBothArms": true,
+      "candidateResearchToggleEnabled": true,
+      "productionResearchToggleAbsent": true
+    },
+    "runArtifact": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/run.json",
+      "bytes": 226,
+      "sha256": "d0ca31224f2c751085401b9a22fe8ef1f1fd93a006bb31f10a1626cd5370d988"
+    },
+    "resultArtifact": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/result.json",
+      "bytes": 788,
+      "fileSha256": "0abbf8930e923e176068c2925955411a600714441139e3a9a25bfa6e850321c4",
+      "embeddedResultSha256": "c392f56c0c7c84096dd240a11106167544ec7c756c6054d5c3760350af527dac"
+    },
+    "timing": {
+      "startedAt": "2026-07-26T06:17:23.641Z",
+      "resultFileMtimeObservedAt": "2026-07-26T06:32:35.703Z",
+      "elapsedSeconds": 912.063,
+      "wallClockLimitSeconds": 7200,
+      "wallClockExpired": false
+    },
+    "outcome": {
+      "completedGames": 52,
+      "completedPairs": 26,
+      "candidateWins": 26,
+      "candidateLosses": 25,
+      "candidateDraws": 1,
+      "candidateHalfpoints": 53,
+      "observedHalfpointsDenominator": 104,
+      "observedScoreRate": 0.5096153846153846,
+      "maximumPossibleFinalHalfpoints": 61,
+      "passHalfpoints": 62,
+      "shortfallEvenIfAllRemainingGamesWon": 1,
+      "missingPairIndices": [23, 27]
+    },
+    "integrity": {
+      "technicalFaultCount": 0,
+      "allObservedMovesLegal": true,
+      "allObservedOpeningsUnique": true,
+      "completedOpeningFingerprintsUnique": 26,
+      "totalPlies": 6361,
+      "totalLegalMovesChecked": 6049,
+      "terminationCounts": {
+        "noLegalMoves": 50,
+        "perpetualCheck": 1,
+        "fourfoldRepetition": 1
+      }
+    },
+    "candidateResultsByColor": {
+      "sente": {
+        "wins": 12,
+        "losses": 14,
+        "draws": 0
+      },
+      "gote": {
+        "wins": 14,
+        "losses": 11,
+        "draws": 1
+      }
+    },
+    "pairOutcomeCountsByCandidateHalfpoints": {
+      "0": 4,
+      "1": 1,
+      "2": 16,
+      "3": 0,
+      "4": 5
+    },
+    "candidateHalfpointsByPlannedPairIndex": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      0,
+      4,
+      4,
+      2,
+      2,
+      2,
+      2,
+      1,
+      2,
+      2,
+      2,
+      0,
+      4,
+      2,
+      2,
+      2,
+      4,
+      4,
+      null,
+      0,
+      0,
+      2,
+      null
+    ],
+    "completedPairReceiptSha256": [
+      "528305c0b1c082fa211820391c75897d999214d853f8b1070a1f3ec14c1b1e35",
+      "83aa983ca9cd48ea4abf7b1d53e7990e1d3ae1cdbbc4e36a16a453dd36fe69de",
+      "5eba1ca352ad2aaa5b14a78db95ff5e4128b6ae7ed8f36fbada78cf00e4a5b2b",
+      "4edff9e9c3b335cd7a8f189b3402ad8ad6a495a81a3b24040d820c1db72cc119",
+      "5eca2a43d1920e18c68bf398da2c95f901634aedfa71884e1bae2897639d42ca",
+      "bbf481dca1d1e02cce50fc01e1a1eea8f60408e69491b513ffdc9af532d22466",
+      "6d3b7a4a88e49ec32fd68ddf0e1a90254667f09cfe21c7015434f15b30ab0f94",
+      "a89d1a79040dc40a3e38d3d4257e073a7251c53b0c0bf61d572606249661cf9b",
+      "52c89d2f1b90714a2e5a93078ab8f9f1a01596b617c75f229cc50a9811c172d7",
+      "159b251e0b7100c9b123943f2438af95d8fa4c0a9f830c96fee5c9609af9640a",
+      "bbceb50f5376a51edfe76f949864f7a559366a23e1ff7df4df7f3a465104d00a",
+      "4b4b208a754587b822383c9ee76cc9fde4ae51e286f025e86f6c51ae3885dc6f",
+      "a7e0ecb63e513698cd0097772a1472ae691088a329332545fd9e7fb2c16b79d3",
+      "4b8db5b8c29bab74bb25123d43177997adb79b739ce3c789553d250cc6510a07",
+      "1948b035f286bd79c53463ce4e5e03eccf04ce0c21aa0ec7ca14cb7aede252e8",
+      "bc90cbfaab23088d6fa23069f6ee03623c8796289944609fe0230a743636a3e0",
+      "6c04a73d5cbda85423f5d689456be7865d440f54b9567f8652c60567682baa81",
+      "394a06c43fc25a146ba217ee3eb1f5efc33d2ec8776571ef58a4126b1843251d",
+      "c2f2a38f0c0e83a3a9d4ee6815eb73d1be746deaad04177dc11cc28bfd776752",
+      "3f67c6362222dc874198bb930a03b3c763fc41453c64827ac446f206a77417b6",
+      "d3d15f790c1fd373116438ed71f85edea6da656eeb917035b64abbb6810f645f",
+      "3608d2a01587b2c3c53e0950597c6cbefa769cb29bc8274a7c63492c9d15d83b",
+      "d1f286a97a2294729aa73a4ebe5f9c746d1efbc6f6b488691855f9df39139854",
+      "a54b99b1b6e945140785df23aa5f7d906effc47d628396be367faca41cb4276d",
+      "318cbe6721976db5470d3f467dc6670dbfd824268a917c9e2864fc419f56e8e5",
+      "28f16fd90ef24374cdc4913f55990a1b2e8f70021340abddff1b53153a9de10d"
+    ]
+  },
+  "assets": {
+    "productionWasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "candidateResearchWasm": {
+      "path": "wasm-spike/artifacts/shogi-quiet-history-malus-research.wasm",
+      "bytes": 37475,
+      "sha256": "8b0469b220ccaf61eb2e4ab6575d73e681e007ab88367e5892a44778ac5f684c"
+    },
+    "liveWeights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    }
+  },
+  "decision": {
+    "value": "reject-no-independent-96-game-confirmation-no-live-change",
+    "reason": "The candidate reached only 53 halfpoints in 52 completed games. Even candidate wins in all four remaining games would produce 61/112, below the preregistered 62/112 threshold.",
+    "candidateEligibleForIndependent96GameConfirmation": false,
+    "candidateEligibleForLivePromotion": false
+  },
+  "live": {
+    "weightsChanged": false,
+    "productionSearchChanged": false,
+    "deploymentRun": false
+  },
+  "claimBoundary": {
+    "implementationCorrectnessPassed": true,
+    "playingStrengthMeasured": true,
+    "playingStrengthGainProved": false,
+    "playingStrengthRegressionProved": false,
+    "candidatePromoted": false,
+    "liveChanged": false
+  }
+}

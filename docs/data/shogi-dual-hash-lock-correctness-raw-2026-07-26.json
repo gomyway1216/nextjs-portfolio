@@ -1,0 +1,1294 @@
+{
+  "schema": "shogi-dual-hash-lock-correctness-result-v1",
+  "plan_sha256": "dfb82a42fe57565fb6f8d002c48d83530b5979051421465af1bebc1af910de63",
+  "strength_metric": false,
+  "live_change_authorized": false,
+  "direct_play_authorized": true,
+  "collision": {
+    "gates": {
+      "fixturePrimaryCollision": true,
+      "productionCollisionReproduced": true,
+      "offExactProductionAB": true,
+      "offExactProductionBA": true,
+      "onFixesAB": true,
+      "onFixesBA": true,
+      "onCleanMovesLegal": true,
+      "stateUnchanged": true,
+      "secondaryIncrementalHashes": true,
+      "secondaryLocksDiffer": true,
+      "evalCacheIsolated": true,
+      "repetitionIsolated": true,
+      "ttLockRejected": true,
+      "evalLockRejected": true,
+      "repetitionLockRejected": true
+    },
+    "tuples": {
+      "production_ab": {
+        "one": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          }
+        },
+        "two": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 5,
+            "leaves": 0
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          }
+        }
+      },
+      "production_ba": {
+        "one": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606
+          }
+        },
+        "two": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 5,
+            "leaves": 0
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606
+          }
+        }
+      },
+      "off_ab": {
+        "one": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        },
+        "two": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 5,
+            "leaves": 0
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        }
+      },
+      "off_ba": {
+        "one": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        },
+        "two": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 5,
+            "leaves": 0
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        }
+      },
+      "on_ab": {
+        "one": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        },
+        "two": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2302,
+            "leaves": 3635
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        }
+      },
+      "on_ba": {
+        "one": {
+          "result": {
+            "key": 822372,
+            "score": -1764,
+            "depth": 5,
+            "nodes": 2021,
+            "leaves": 3383
+          },
+          "before": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          },
+          "after": {
+            "ban": 583448383,
+            "hand": 884451131,
+            "teban": 32,
+            "hash": 218180606,
+            "secondaryBan": 2187881682,
+            "secondaryHand": 58900993,
+            "secondaryHash": 2179641043,
+            "secondaryHashVal": 1939556287
+          }
+        },
+        "two": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1597,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        },
+        "clean": {
+          "result": {
+            "key": 6349073,
+            "score": 3154,
+            "depth": 5,
+            "nodes": 1569,
+            "leaves": 3372
+          },
+          "before": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          },
+          "after": {
+            "ban": 552534465,
+            "hand": 770583103,
+            "teban": 16,
+            "hash": 218180606,
+            "secondaryBan": 389651208,
+            "secondaryHand": 4242473661,
+            "secondaryHash": 3957758389,
+            "secondaryHashVal": 3957758389
+          }
+        }
+      }
+    },
+    "eval": {
+      "off_a": 3157,
+      "off_b_cached": 3157,
+      "off_b_uncached": 1809,
+      "on_a": 3157,
+      "on_b_cached": 1809,
+      "on_b_uncached": 1809
+    },
+    "repetition": {
+      "off_a": [
+        1,
+        1,
+        1
+      ],
+      "off_b_after_three_a": 0,
+      "on_a": [
+        1,
+        1,
+        1
+      ],
+      "on_b_after_three_a": 1
+    },
+    "lock_rejects": {
+      "tt": 16,
+      "eval": 3,
+      "repetition": 3
+    }
+  },
+  "incremental": {
+    "transitions": 16384,
+    "all_incremental": true,
+    "resync_restore_failures": 0,
+    "gate": true
+  },
+  "legality": {
+    "rows": [
+      {
+        "id": "opening-01",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-02",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-03",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-04",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-05",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-06",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-07",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-08",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-09",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-10",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-11",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-12",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-13",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-14",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-15",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "opening-16",
+        "category": "opening",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-01",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-02",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-03",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-04",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-05",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-06",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-07",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-08",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-09",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-10",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-11",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-12",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-13",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-14",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-15",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "middlegame-16",
+        "category": "middlegame",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-01",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-02",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-03",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-04",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-05",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-06",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-07",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-08",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-09",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-10",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-11",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-12",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-13",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-14",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-15",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "dropHeavy-16",
+        "category": "dropHeavy",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-01",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-02",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-03",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-04",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-05",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-06",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-07",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-08",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-09",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-10",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-11",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-12",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-13",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-14",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-15",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      },
+      {
+        "id": "checkEvasion-16",
+        "category": "checkEvasion",
+        "off_exact": true,
+        "on_deterministic": true,
+        "on_legal": true,
+        "states_unchanged": true,
+        "secondary_incremental": true
+      }
+    ],
+    "gates": {
+      "holdout_shape": true,
+      "off_exact_64": true,
+      "on_deterministic_64": true,
+      "on_legal_64": true,
+      "states_unchanged_64": true,
+      "secondary_incremental_64": true
+    }
+  },
+  "performance": {
+    "warmup": [
+      {
+        "arm": "production",
+        "elapsedMs": 28938.183375000008,
+        "work": 15594382
+      },
+      {
+        "arm": "off",
+        "elapsedMs": 29102.940290999977,
+        "work": 15594382
+      },
+      {
+        "arm": "candidate",
+        "elapsedMs": 28965.801582999993,
+        "work": 15440236
+      }
+    ],
+    "repeats": 1,
+    "blocks": [
+      {
+        "index": 0,
+        "arm": "production",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 28930.95204199999,
+        "throughput": 539.0206992621997
+      },
+      {
+        "index": 1,
+        "arm": "candidate",
+        "repeats": 1,
+        "work": 15440236,
+        "elapsed_ms": 28881.523791999993,
+        "throughput": 534.6060031734493
+      },
+      {
+        "index": 2,
+        "arm": "off",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29111.606875000027,
+        "throughput": 535.6757552738142
+      },
+      {
+        "index": 3,
+        "arm": "candidate",
+        "repeats": 1,
+        "work": 15440236,
+        "elapsed_ms": 28815.42166599998,
+        "throughput": 535.8323809718291
+      },
+      {
+        "index": 4,
+        "arm": "production",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29053.607582999975,
+        "throughput": 536.7451169514893
+      },
+      {
+        "index": 5,
+        "arm": "off",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29103.653749999998,
+        "throughput": 535.8221388268131
+      },
+      {
+        "index": 6,
+        "arm": "production",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29152.239833,
+        "throughput": 534.9291200035799
+      },
+      {
+        "index": 7,
+        "arm": "candidate",
+        "repeats": 1,
+        "work": 15440236,
+        "elapsed_ms": 28848.62849999999,
+        "throughput": 535.2155995908091
+      },
+      {
+        "index": 8,
+        "arm": "off",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29085.767458000046,
+        "throughput": 536.1516426382196
+      },
+      {
+        "index": 9,
+        "arm": "candidate",
+        "repeats": 1,
+        "work": 15440236,
+        "elapsed_ms": 28821.809624999994,
+        "throughput": 535.7136210700372
+      },
+      {
+        "index": 10,
+        "arm": "production",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 28941.986333000008,
+        "throughput": 538.8151946647523
+      },
+      {
+        "index": 11,
+        "arm": "off",
+        "repeats": 1,
+        "work": 15594382,
+        "elapsed_ms": 29130.37525000004,
+        "throughput": 535.3306253753109
+      }
+    ],
+    "aggregate_candidate_vs_production": 0.9962207399332711,
+    "median_candidate_vs_production": 0.9942437154233468,
+    "p90_wall_regression": -0.0017084902677326763,
+    "memory_delta_bytes": 0,
+    "gates": {
+      "aggregate_candidate_vs_production_at_least": true,
+      "median_candidate_vs_production_at_least": true,
+      "p90_wall_regression_at_most": true,
+      "memory_delta_bytes_at_most": true,
+      "off_arm_completed": true
+    }
+  },
+  "gates": {
+    "fixturePrimaryCollision": true,
+    "productionCollisionReproduced": true,
+    "offExactProductionAB": true,
+    "offExactProductionBA": true,
+    "onFixesAB": true,
+    "onFixesBA": true,
+    "onCleanMovesLegal": true,
+    "stateUnchanged": true,
+    "secondaryIncrementalHashes": true,
+    "secondaryLocksDiffer": true,
+    "evalCacheIsolated": true,
+    "repetitionIsolated": true,
+    "ttLockRejected": true,
+    "evalLockRejected": true,
+    "repetitionLockRejected": true,
+    "holdout_shape": true,
+    "off_exact_64": true,
+    "on_deterministic_64": true,
+    "on_legal_64": true,
+    "states_unchanged_64": true,
+    "secondary_incremental_64": true,
+    "secondary_incremental_16384": true,
+    "aggregate_candidate_vs_production_at_least": true,
+    "median_candidate_vs_production_at_least": true,
+    "p90_wall_regression_at_most": true,
+    "memory_delta_bytes_at_most": true,
+    "off_arm_completed": true
+  },
+  "all_gates_passed": true
+}

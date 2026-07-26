@@ -1,0 +1,175 @@
+{
+  "schema": "shogi-dual-hash-lock-correctness-evidence-v1",
+  "name": "Dual-hash lock formal correctness and bounded-performance result",
+  "status": "passed",
+  "recordedAt": "2026-07-26",
+  "recordedAtScope": "repository-report-date-only-not-an-execution-timestamp",
+  "preregistration": {
+    "planId": "dual-hash-lock-v1",
+    "status": "fixed-before-result",
+    "path": "ml/protocols/dual-hash-lock-v1-plan.json",
+    "bytes": 14242,
+    "sha256": "dfb82a42fe57565fb6f8d002c48d83530b5979051421465af1bebc1af910de63",
+    "pullRequest": {
+      "number": 625,
+      "url": "https://github.com/gomyway1216/nextjs-portfolio/pull/625",
+      "mergeCommit": "5c5b82c2b7838bc236fcaa29440cbda1f80539f7"
+    }
+  },
+  "rawEvidence": {
+    "schema": "shogi-dual-hash-lock-correctness-result-v1",
+    "sourcePath": "/Users/yudaiyaguchi/.codex/shogi-runs/dual-hash-lock-v1-formal-20260726/correctness.json",
+    "trackedPath": "docs/data/shogi-dual-hash-lock-correctness-raw-2026-07-26.json",
+    "bytes": 34210,
+    "sha256": "5529d03cc37df7c359c149d408aa4fdddb4ef95695a4b8291f83fe6e852c314e"
+  },
+  "execution": {
+    "search": {
+      "fixedDepth": 5,
+      "quiescenceDepth": 8,
+      "timed": false,
+      "sharedTranspositionTable": false
+    },
+    "productionWasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "candidateWasm": {
+      "path": "wasm-spike/artifacts/shogi-dual-hash-lock-research.wasm",
+      "bytes": 37538,
+      "sha256": "90cbf3ce43197732e1f43ca1b03a344f364d0928c58cd04ba40e62d11f7c8edf"
+    },
+    "weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "buckets": 1
+    },
+    "correctnessRunner": {
+      "path": "wasm-spike/dual-hash-lock-collision-invariants.ts",
+      "bytes": 36018,
+      "sha256": "d036d03811b10222d1f36efc4f143915ab55ee61bc8ea2103512c81ea5dc5e36"
+    },
+    "matchRunner": {
+      "path": "wasm-spike/match-dual-hash-lock-vs-production.ts",
+      "bytes": 60530,
+      "sha256": "3db7366e8b676b5dff39f3ca2f3d4f4a9a279897c15386a2c2d82c6c4557743f"
+    }
+  },
+  "collision": {
+    "primaryHash": 218180606,
+    "secondaryLocks": {
+      "positionA": 3957758389,
+      "positionB": 1939556287,
+      "different": true
+    },
+    "production": {
+      "aThenB": {
+        "staleTarget": {
+          "key": 6349073,
+          "score": 3154,
+          "depth": 5
+        },
+        "cleanTarget": {
+          "key": 822372,
+          "score": -1764,
+          "depth": 5
+        }
+      },
+      "bThenA": {
+        "staleTarget": {
+          "key": 822372,
+          "score": -1764,
+          "depth": 5
+        },
+        "cleanTarget": {
+          "key": 6349073,
+          "score": 3154,
+          "depth": 5
+        }
+      }
+    },
+    "candidate": {
+      "aThenBTarget": {
+        "key": 822372,
+        "score": -1764,
+        "depth": 5,
+        "matchesCleanTarget": true
+      },
+      "bThenATarget": {
+        "key": 6349073,
+        "score": 3154,
+        "depth": 5,
+        "matchesCleanTarget": true
+      },
+      "nodesAndLeavesExcludedFromCleanParity": true,
+      "returnedMovesLegal": true,
+      "stateRestored": true
+    },
+    "cacheIsolation": {
+      "evaluationCacheIsolated": true,
+      "repetitionIdentityIsolated": true,
+      "secondaryLockRejects": {
+        "transpositionTable": 16,
+        "evaluationCache": 3,
+        "repetition": 3
+      }
+    }
+  },
+  "incrementalHash": {
+    "legalTransitions": 16384,
+    "incrementalEqualsIndependentFullRecomputation": true,
+    "resyncRestoreFailures": 0
+  },
+  "holdout": {
+    "positions": 64,
+    "categories": {
+      "opening": 16,
+      "middlegame": 16,
+      "dropHeavy": 16,
+      "checkEvasion": 16
+    },
+    "toggleOffExactProduction": 64,
+    "toggleOnDeterministic": 64,
+    "toggleOnLegal": 64,
+    "statesUnchanged": 64,
+    "secondaryIncremental": 64
+  },
+  "performance": {
+    "thresholds": {
+      "aggregateCandidateVsProductionAtLeast": 0.97,
+      "medianCandidateVsProductionAtLeast": 0.95,
+      "p90WallRegressionAtMost": 0.08,
+      "memoryDeltaBytesAtMost": 6291456
+    },
+    "observed": {
+      "aggregateCandidateVsProduction": 0.9962207399332711,
+      "medianCandidateVsProduction": 0.9942437154233468,
+      "p90WallRegression": -0.0017084902677326763,
+      "memoryDeltaBytes": 0
+    },
+    "allGatesPassed": true
+  },
+  "gates": {
+    "passed": 27,
+    "total": 27,
+    "allPassed": true
+  },
+  "authorization": {
+    "directPlayAuthorized": true,
+    "liveChangeAuthorized": false,
+    "strengthMetric": false
+  },
+  "decision": "Proceed only to the preregistered 96-game direct-play non-regression screen. Do not change production, deploy, promote, write live weights, or claim strength from this result.",
+  "claimBoundary": {
+    "knownFact": "In an isolated private-TT experiment, two distinct legal positions with primary hash 218180606 cause the production WASM search core to reuse a stale illegal move key; the browser host is expected to reject that key and fall back.",
+    "candidate": "Keep the production primary hash unchanged and require an independent full-width secondary lock for the research private transposition table, evaluation cache, and search-path repetition identity.",
+    "notClaimed": [
+      "This repair is guaranteed to increase Elo or reach high-dan strength.",
+      "The collision frequency in ordinary live games is known.",
+      "A pass at the 82/192 non-regression floor proves that the candidate is stronger.",
+      "This research plan changes any shipped runtime, JavaScript fallback, shared transposition table, opening cache, mate solver, or live NNUE weight."
+    ]
+  }
+}

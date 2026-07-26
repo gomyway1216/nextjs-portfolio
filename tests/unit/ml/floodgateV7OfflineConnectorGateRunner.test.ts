@@ -39,7 +39,11 @@ const requireFromHere = createRequire(import.meta.url);
 const TYPESCRIPT_PACKAGE_PATH = requireFromHere.resolve(
   "typescript/package.json",
 );
+const TYPESCRIPT_PACKAGE_PROBE_PATHS = (
+  requireFromHere.resolve.paths("typescript") ?? []
+).map((searchPath) => path.join(searchPath, "typescript/package.json"));
 const TSX_CJS_ENTRY_PATH = requireFromHere.resolve("tsx/cjs");
+const requireFromTsx = createRequire(TSX_CJS_ENTRY_PATH);
 const EFFECTIVE_USER_ID =
   typeof process.geteuid === "function"
     ? process.geteuid()
@@ -62,8 +66,23 @@ const TOGGLE_ASCII_CASE = (value: string): string =>
   );
 const CASE_PROBE_EXISTS = fs.existsSync(TOGGLE_ASCII_CASE(REPOSITORY_ROOT));
 const ESBUILD_VERSION = (
-  requireFromHere("esbuild/package.json") as Readonly<{ version: string }>
+  requireFromTsx("esbuild/package.json") as Readonly<{ version: string }>
 ).version;
+const ESBUILD_WORKER_PATH = fs.realpathSync.native(
+  requireFromTsx.resolve("esbuild/lib/main.js"),
+);
+const TSX_PACKAGE_PATH = requireFromHere.resolve("tsx/package.json");
+const TSX_DIST_PATH = path.join(path.dirname(TSX_PACKAGE_PATH), "dist");
+const TSX_CJS_LEXER_FILENAMES = fs
+  .readdirSync(TSX_DIST_PATH)
+  .filter((filename) => /^lexer-.+\.cjs$/.test(filename));
+if (TSX_CJS_LEXER_FILENAMES.length !== 1) {
+  throw new Error("expected exactly one TSX CommonJS lexer implementation");
+}
+const TSX_LEXER_TYPESCRIPT_PROBE_PATH = path.join(
+  TSX_DIST_PATH,
+  TSX_CJS_LEXER_FILENAMES[0].replace(/\.cjs$/, ".cts"),
+);
 const NativePromise = Promise;
 const nativePromiseThen = Promise.prototype.then;
 const nativeReflectApply = Reflect.apply;
@@ -1135,6 +1154,7 @@ const dgram = require("node:dgram");
 const workerThreads = require("node:worker_threads");
 const path = require("node:path");
 const { syncBuiltinESMExports } = require("node:module");
+const loaderRealpathSync = fs.realpathSync.native.bind(fs.realpathSync);
 const repositoryRoot = ${JSON.stringify(REPOSITORY_ROOT)};
 const toggleAsciiCase = (value) => value.replace(/[A-Za-z]/g, (character) =>
   character === character.toLowerCase()
@@ -1142,8 +1162,10 @@ const toggleAsciiCase = (value) => value.replace(/[A-Za-z]/g, (character) =>
     : character.toLowerCase(),
 );
 const upperCaseRootProbe = toggleAsciiCase(repositoryRoot);
-const esbuildWorkerPath = path.join(repositoryRoot, "node_modules/esbuild/lib/main.js");
+const esbuildWorkerPath = ${JSON.stringify(ESBUILD_WORKER_PATH)};
+const tsxLexerTypescriptProbePath = ${JSON.stringify(TSX_LEXER_TYPESCRIPT_PROBE_PATH)};
 const typescriptPackagePath = ${JSON.stringify(TYPESCRIPT_PACKAGE_PATH)};
+const typescriptPackageProbePaths = new Set(${JSON.stringify(TYPESCRIPT_PACKAGE_PROBE_PATHS)});
 const tsxEntryPath = ${JSON.stringify(TSX_CJS_ENTRY_PATH)};
 const effectiveUserId = ${JSON.stringify(EFFECTIVE_USER_ID)};
 const hasEffectiveUserIdApi = typeof process.geteuid === "function";
@@ -1229,9 +1251,15 @@ function classifyObservedLoaderCall(api, args) {
     if (typeof value === "string" && exactConfigPaths.has(value)) {
       return "exact-package-or-tsconfig-read";
     }
+    if (typescriptPackageProbePaths.has(value)) {
+      return "tsx-typescript-package-read-probe";
+    }
   }
   if (api === "realpathSync" && exactRepositorySourceCandidate(value)) {
     return "require-cache-source-realpath";
+  }
+  if (api === "existsSync" && exactRepositorySourceCandidate(value)) {
+    return "require-cache-source-exists";
   }
   if (
     api === "statSync" &&
@@ -1240,11 +1268,17 @@ function classifyObservedLoaderCall(api, args) {
   ) {
     return "exact-config-stat";
   }
+  if (api === "statSync" && typescriptPackageProbePaths.has(value)) {
+    return "tsx-typescript-package-stat-probe";
+  }
   if (api === "existsSync" && value === repositoryRoot) {
     return "tsx-exact-repository-root-exists";
   }
   if (api === "existsSync" && value === upperCaseRootProbe) {
     return "tsx-exact-uppercase-root-case-probe";
+  }
+  if (api === "existsSync" && value === tsxLexerTypescriptProbePath) {
+    return "tsx-exact-lexer-typescript-probe";
   }
   if (api === "Worker" && value === esbuildWorkerPath) {
     return "tsx-exact-esbuild-transform-worker";
@@ -1616,10 +1650,14 @@ function validatedAllowedLoaderSummary() {
   const summary = Object.assign(Object.create(null), {
     "require-cache-source-read": 0,
     "exact-package-or-tsconfig-read": 0,
+    "tsx-typescript-package-read-probe": 0,
     "require-cache-source-realpath": 0,
+    "require-cache-source-exists": 0,
     "exact-config-stat": 0,
+    "tsx-typescript-package-stat-probe": 0,
     "tsx-exact-repository-root-exists": 0,
     "tsx-exact-uppercase-root-case-probe": 0,
+    "tsx-exact-lexer-typescript-probe": 0,
     "tsx-exact-esbuild-transform-worker": 0,
     "tsx-bootstrap-effective-user-id": 0,
     "tsx-bootstrap-user-info": 0,
@@ -1656,6 +1694,23 @@ function validatedAllowedLoaderSummary() {
       ) {
         throw new Error("unvalidated exact config read allowance");
       }
+    } else if (
+      call.classification === "tsx-typescript-package-read-probe"
+    ) {
+      if (
+        call.api !== "readFileSync" ||
+        call.argument_count !== 2 ||
+        call.second_argument_type !== "string" ||
+        call.second_argument_value !== "utf8" ||
+        call.result_type !== "string" ||
+        !typescriptPackageProbePaths.has(call.input) ||
+        call.output !== null
+      ) {
+        throw new Error(
+          "unvalidated TypeScript package read probe allowance: " +
+            JSON.stringify(call),
+        );
+      }
     } else if (call.classification === "require-cache-source-realpath") {
       if (
         call.api !== "realpathSync" ||
@@ -1665,11 +1720,27 @@ function validatedAllowedLoaderSummary() {
         call.second_object_key_types?.join("") !== "symbol" ||
         call.result_type !== "string" ||
         !exactRepositorySourceCandidate(call.input) ||
-        call.input !== call.output ||
+        !exactRepositorySourceCandidate(call.output) ||
+        loaderRealpathSync(call.input) !== call.output ||
         !loadedSources.has(call.output)
       ) {
         throw new Error(
           "unvalidated require-cache realpath allowance: " +
+            JSON.stringify(call),
+        );
+      }
+    } else if (call.classification === "require-cache-source-exists") {
+      if (
+        call.api !== "existsSync" ||
+        call.argument_count !== 1 ||
+        call.second_argument_type !== "undefined" ||
+        call.result_type !== "boolean" ||
+        !exactRepositorySourceCandidate(call.input) ||
+        !loadedSources.has(call.input) ||
+        call.output !== "true"
+      ) {
+        throw new Error(
+          "unvalidated require-cache source exists allowance: " +
             JSON.stringify(call),
         );
       }
@@ -1686,6 +1757,25 @@ function validatedAllowedLoaderSummary() {
       ) {
         throw new Error(
           "unvalidated exact config stat allowance: " + JSON.stringify(call),
+        );
+      }
+    } else if (
+      call.classification === "tsx-typescript-package-stat-probe"
+    ) {
+      if (
+        call.api !== "statSync" ||
+        (call.argument_count !== 1 && call.argument_count !== 2) ||
+        (call.second_argument_type !== "undefined" &&
+          (call.stat_options?.keys?.join("") !== "throwIfNoEntry" ||
+            call.stat_options.throw_if_no_entry !== false ||
+            call.stat_options.bigint !== undefined)) ||
+        call.result_type !== "object" ||
+        !typescriptPackageProbePaths.has(call.input) ||
+        call.output !== null
+      ) {
+        throw new Error(
+          "unvalidated TypeScript package stat probe allowance: " +
+            JSON.stringify(call),
         );
       }
     } else if (call.classification === "tsx-exact-repository-root-exists") {
@@ -1709,6 +1799,17 @@ function validatedAllowedLoaderSummary() {
         call.output !== String(caseProbeExpected)
       ) {
         throw new Error("unvalidated uppercase root exists allowance");
+      }
+    } else if (call.classification === "tsx-exact-lexer-typescript-probe") {
+      if (
+        call.api !== "existsSync" ||
+        call.argument_count !== 1 ||
+        call.second_argument_type !== "undefined" ||
+        call.result_type !== "boolean" ||
+        call.input !== tsxLexerTypescriptProbePath ||
+        call.output !== "false"
+      ) {
+        throw new Error("unvalidated TSX lexer TypeScript probe allowance");
       }
     } else if (call.classification === "tsx-exact-esbuild-transform-worker") {
       if (
@@ -1802,8 +1903,6 @@ function validatedAllowedLoaderSummary() {
     summary[call.classification] += 1;
   }
   const expectedSummary = {
-    "exact-package-or-tsconfig-read": 2,
-    "exact-config-stat": 2,
     "tsx-exact-repository-root-exists": 1,
     "tsx-exact-uppercase-root-case-probe": 1,
     "tsx-exact-esbuild-transform-worker": 1,
@@ -1817,8 +1916,24 @@ function validatedAllowedLoaderSummary() {
   ] = 1;
   for (const key of Object.keys(expectedSummary)) {
     if (summary[key] !== expectedSummary[key]) {
-      throw new Error("loader allowance count changed for " + key);
+      throw new Error(
+        "loader allowance count changed for " +
+          key +
+          ": expected=" +
+          expectedSummary[key] +
+          ", actual=" +
+          summary[key],
+      );
     }
+  }
+  if (
+    summary["tsx-exact-lexer-typescript-probe"] !== 0 &&
+    summary["tsx-exact-lexer-typescript-probe"] !== 1
+  ) {
+    throw new Error(
+      "optional TSX lexer TypeScript probe count changed: actual=" +
+        summary["tsx-exact-lexer-typescript-probe"],
+    );
   }
   if (
     summary["require-cache-source-read"] <= 0 ||
@@ -1930,8 +2045,11 @@ function validatedTestBoundarySummary() {
         "validated-require-cache-source-readFileSync",
         "exact-package-and-tsconfig-readFileSync",
         "validated-require-cache-source-realpathSync",
+        "validated-require-cache-source-existsSync",
         "exact-tsconfig-and-typescript-package-statSync",
+        "exact-tsx-typescript-package-resolution-statSync",
         "exact-repository-and-uppercase-root-existsSync",
+        "exact-tsx-lexer-typescript-probe-existsSync",
         "exact-tsx-esbuild-transform-worker",
         hasEffectiveUserIdApi
           ? "exact-tsx-bootstrap-geteuid"
@@ -1981,8 +2099,11 @@ function validatedTestBoundarySummary() {
         "validated-require-cache-source-readFileSync",
         "exact-package-and-tsconfig-readFileSync",
         "validated-require-cache-source-realpathSync",
+        "validated-require-cache-source-existsSync",
         "exact-tsconfig-and-typescript-package-statSync",
+        "exact-tsx-typescript-package-resolution-statSync",
         "exact-repository-and-uppercase-root-existsSync",
+        "exact-tsx-lexer-typescript-probe-existsSync",
         "exact-tsx-esbuild-transform-worker",
         typeof process.geteuid === "function"
           ? "exact-tsx-bootstrap-geteuid"
@@ -1991,8 +2112,6 @@ function validatedTestBoundarySummary() {
         "exact-tsx-parent-ipc-Socket-connect",
       ],
       validated_loader_infrastructure_call_summary: {
-        "exact-package-or-tsconfig-read": 2,
-        "exact-config-stat": 2,
         "tsx-exact-repository-root-exists": 1,
         "tsx-exact-uppercase-root-case-probe": 1,
         "tsx-exact-esbuild-transform-worker": 1,
@@ -2032,6 +2151,28 @@ function validatedTestBoundarySummary() {
         "require-cache-source-realpath"
       ],
     ).toBeGreaterThan(0);
+    for (const optionalLoaderProbe of [
+      "exact-package-or-tsconfig-read",
+      "exact-config-stat",
+      "tsx-typescript-package-read-probe",
+      "require-cache-source-exists",
+      "tsx-typescript-package-stat-probe",
+    ]) {
+      const count =
+        parsed.validated_loader_infrastructure_call_summary[
+          optionalLoaderProbe
+        ];
+      expect(Number.isSafeInteger(count), optionalLoaderProbe).toBe(true);
+      expect(count, optionalLoaderProbe).toBeGreaterThanOrEqual(0);
+    }
+    expect(
+      [0, 1],
+      "tsx may omit its exact lexer .cts existence probe on some platforms",
+    ).toContain(
+      parsed.validated_loader_infrastructure_call_summary[
+        "tsx-exact-lexer-typescript-probe"
+      ],
+    );
     expect(
       Object.values(
         parsed.validated_test_isolation_boundary_call_summary,

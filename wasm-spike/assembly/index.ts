@@ -100,6 +100,24 @@ const HASH_SEED = new StaticArray<i32>((MAX_BAN_KOMA + 1) * BAN_SIZE); // [koma 
 const HAND_HASH_SEED = new StaticArray<i32>((MAX_HAND_KOMA + 1) * 20); // [koma * 20 + count]
 let TEBAN_HASH_SEED: i32 = 0;
 
+// Independent 32-bit secondary Zobrist stream. The primary 30-bit stream
+// above is intentionally left bit-identical to KyokumenImproved; this stream
+// only guards private caches, the TT, and path repetition against collisions.
+const SECOND_HASH_SEED = new StaticArray<i32>((MAX_BAN_KOMA + 1) * BAN_SIZE);
+const SECOND_HAND_HASH_SEED = new StaticArray<i32>((MAX_HAND_KOMA + 1) * 20);
+let SECOND_TEBAN_HASH_SEED: i32 = 0;
+let secondaryBanHash: i32 = 0;
+let secondaryHandHash: i32 = 0;
+let secondaryPrngState: u32 = 0x8f3e91c5;
+
+function rand32Secondary(): i32 {
+  secondaryPrngState = secondaryPrngState + 0x6d2b79f5;
+  let t: u32 = secondaryPrngState;
+  t = (t ^ (t >> 15)) * (t | 1);
+  t = t ^ (t + (t ^ (t >> 7)) * (t | 61));
+  return <i32>(t ^ (t >> 14));
+}
+
 let prngState: u32 = 0x6d2b79f5;
 function rand30(): i32 {
   prngState = prngState + 0x6d2b79f5;
@@ -114,6 +132,12 @@ function initSeeds(): void {
   for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++) unchecked(HAND_HASH_SEED[i] = rand30());
   const t = rand30();
   TEBAN_HASH_SEED = t == 0 ? 1 : t; // JS: `rand30() || 1`
+
+  for (let i = 0; i < (MAX_BAN_KOMA + 1) * BAN_SIZE; i++)
+    unchecked(SECOND_HASH_SEED[i] = rand32Secondary());
+  for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++)
+    unchecked(SECOND_HAND_HASH_SEED[i] = rand32Secondary());
+  SECOND_TEBAN_HASH_SEED = rand32Secondary();
 }
 initSeeds();
 
@@ -182,6 +206,8 @@ export function clearBoard(): void {
   psqtEval = 0;
   banHash = 0;
   handHash = 0;
+  secondaryBanHash = 0;
+  secondaryHandHash = 0;
 }
 
 export function setSquare(pos: i32, koma: i32): void {
@@ -202,6 +228,8 @@ export function finalizePosition(): void {
   psqtEval = 0;
   banHash = 0;
   handHash = 0;
+  secondaryBanHash = 0;
+  secondaryHandHash = 0;
   kingS = -34;
   kingG = -34;
   for (let suji = 1; suji <= 9; suji++) {
@@ -213,6 +241,7 @@ export function finalizePosition(): void {
       evalMaterial += unchecked(KOMA_VALUE[koma]);
       psqtEval += psqtValue(koma, pos);
       banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + pos]);
+      secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + pos]);
     }
   }
   // Same as KyokumenImproved.calcHash(): cumulative XOR over counts 0..n for
@@ -222,6 +251,7 @@ export function finalizePosition(): void {
     evalMaterial += unchecked(KOMA_VALUE[koma]) * n;
     for (let j = 0; j <= n; j++) {
       handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + j]);
+      secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + j]);
     }
   }
   if (nnueEnabled) nnueRefreshAccumulators();
@@ -269,6 +299,7 @@ function makeMove(m: i32): void {
 
   // Remove destination occupant from board hash.
   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
+  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[capture * BAN_SIZE + to]);
 
   if (capture != EMPTY) {
     evalMaterial -= unchecked(KOMA_VALUE[capture]);
@@ -277,6 +308,7 @@ function makeMove(m: i32): void {
     const cnt = unchecked(hand[handKoma]) + 1;
     unchecked(hand[handKoma] = cnt);
     handHash ^= unchecked(HAND_HASH_SEED[handKoma * 20 + cnt]);
+    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[handKoma * 20 + cnt]);
     evalMaterial += unchecked(KOMA_VALUE[handKoma]);
   }
 
@@ -284,11 +316,14 @@ function makeMove(m: i32): void {
     // Drop.
     const cnt = unchecked(hand[koma]);
     handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + cnt]);
+    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + cnt]);
     unchecked(hand[koma] = cnt - 1);
   } else {
     unchecked(ban[from] = EMPTY);
     banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + from]);
     banHash ^= unchecked(HASH_SEED[EMPTY * BAN_SIZE + from]);
+    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + from]);
+    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[EMPTY * BAN_SIZE + from]);
   }
 
   let placed = koma;
@@ -299,6 +334,7 @@ function makeMove(m: i32): void {
   }
   unchecked(ban[to] = placed);
   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
+  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[placed * BAN_SIZE + to]);
 
   psqtEval += psqtValue(placed, to);
 
@@ -323,6 +359,7 @@ function unmakeMove(m: i32): void {
   // Remove the moved piece (possibly promoted) from destination.
   const placed = promote != 0 ? koma | PROMOTE : koma;
   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
+  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[placed * BAN_SIZE + to]);
 
   // PSQT incremental update (parity with KyokumenImproved.back()):
   // - remove the moved piece currently sitting on `to`
@@ -333,6 +370,7 @@ function unmakeMove(m: i32): void {
   // Restore captured piece (or EMPTY).
   unchecked(ban[to] = capture);
   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
+  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[capture * BAN_SIZE + to]);
   evalMaterial += unchecked(KOMA_VALUE[capture]);
 
   if (capture != EMPTY) {
@@ -343,6 +381,7 @@ function unmakeMove(m: i32): void {
     const handKoma = (capture & 0x07) | ((capture & SENTE) != 0 ? GOTE : SENTE);
     const cnt = unchecked(hand[handKoma]);
     handHash ^= unchecked(HAND_HASH_SEED[handKoma * 20 + cnt]);
+    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[handKoma * 20 + cnt]);
     unchecked(hand[handKoma] = cnt - 1);
     evalMaterial -= unchecked(KOMA_VALUE[handKoma]);
   }
@@ -351,10 +390,13 @@ function unmakeMove(m: i32): void {
     const cnt = unchecked(hand[koma]) + 1;
     unchecked(hand[koma] = cnt);
     handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + cnt]);
+    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + cnt]);
   } else {
     unchecked(ban[from] = koma);
     banHash ^= unchecked(HASH_SEED[EMPTY * BAN_SIZE + from]);
     banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + from]);
+    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[EMPTY * BAN_SIZE + from]);
+    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + from]);
     psqtEval += psqtValue(koma, from);
     if (promote != 0) {
       evalMaterial -= unchecked(KOMA_VALUE[koma | PROMOTE]);
@@ -2598,6 +2640,27 @@ export function getHashVal(): i32 {
   return banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
 }
 
+/** Independent secondary board component, exposed for parity verification. */
+export function getSecondaryBanHash(): i32 {
+  return secondaryBanHash;
+}
+
+/** Independent secondary hand component, exposed for parity verification. */
+export function getSecondaryHandHash(): i32 {
+  return secondaryHandHash;
+}
+
+/** Secondary position key without the side to move (V3 evaluation semantics). */
+export function getSecondaryHash(): i32 {
+  return secondaryBanHash ^ secondaryHandHash;
+}
+
+/** Full secondary TT/repetition key, including the side to move. */
+export function getSecondaryHashVal(): i32 {
+  return secondaryBanHash ^ secondaryHandHash ^
+    (teban == GOTE ? SECOND_TEBAN_HASH_SEED : 0);
+}
+
 export function getTeban(): i32 {
   return teban;
 }
@@ -2673,10 +2736,10 @@ const S_MAX_PLY: i32 = 64;
 
 // @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
 @external('env', 'sharedTtProbe')
-declare function hostSharedTtProbe(hashVal: i32): i32;
+declare function hostSharedTtProbe(hashA: i32, hashB: i32): i32;
 // @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
 @external('env', 'sharedTtStore')
-declare function hostSharedTtStore(hashVal: i32, value: i32, flagDepth: i32, bestKey: i32): void;
+declare function hostSharedTtStore(hashA: i32, hashB: i32, value: i32, flagDepth: i32, bestKey: i32): void;
 // @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
 @external('env', 'sharedShouldStop')
 declare function hostSharedShouldStop(): i32;
@@ -2710,6 +2773,7 @@ const TT_LOWER: i32 = 1;
 const TT_UPPER: i32 = 2;
 
 const ttHashA = new StaticArray<i32>(TT_SIZE);
+const ttHashB = new StaticArray<i32>(TT_SIZE);
 const ttValueA = new StaticArray<i32>(TT_SIZE);
 const ttFlagA = new StaticArray<u8>(TT_SIZE);
 const ttDepthA = new StaticArray<u8>(TT_SIZE);
@@ -2733,8 +2797,9 @@ let ttHitSecond: i32 = 0;
  * the previous inline StaticArray probe (pure refactor).
  */
 function ttLookup(hashVal: i32): bool {
+  const hashB = getSecondaryHashVal();
   if (sharedTtEnabled) {
-    if (hostSharedTtProbe(hashVal) == 0) return false;
+    if (hostSharedTtProbe(hashVal, hashB) == 0) return false;
     ttHitValue = unchecked(sharedTtScratch[0]);
     const fd = unchecked(sharedTtScratch[1]);
     ttHitFlag = fd & 3;
@@ -2746,6 +2811,7 @@ function ttLookup(hashVal: i32): bool {
   const index = hashVal & TT_MASK;
   if (unchecked(ttUsedA[index]) == 0) return false;
   if (unchecked(ttHashA[index]) != hashVal) return false;
+  if (unchecked(ttHashB[index]) != hashB) return false;
   ttHitValue = unchecked(ttValueA[index]);
   ttHitFlag = <i32>unchecked(ttFlagA[index]);
   ttHitDepth = <i32>unchecked(ttDepthA[index]);
@@ -2762,19 +2828,31 @@ function ttAdd(hashVal: i32, value: i32, alpha: i32, beta: i32, bestKey: i32, re
   if (sharedTtEnabled) {
     // Depth-preferred replacement and second-move promotion happen on the JS
     // side (they need a read-modify-write of the shared entry).
-    hostSharedTtStore(hashVal, value, flag | ((remainDepth & 0xff) << 2) | SHARED_TT_USED_BIT, bestKey);
+    hostSharedTtStore(
+      hashVal,
+      getSecondaryHashVal(),
+      value,
+      flag | ((remainDepth & 0xff) << 2) | SHARED_TT_USED_BIT,
+      bestKey,
+    );
     return;
   }
 
   const index = hashVal & TT_MASK;
 
-  if (unchecked(ttUsedA[index]) != 0 && unchecked(ttHashA[index]) == hashVal) {
+  const hashB = getSecondaryHashVal();
+  if (
+    unchecked(ttUsedA[index]) != 0 &&
+    unchecked(ttHashA[index]) == hashVal &&
+    unchecked(ttHashB[index]) == hashB
+  ) {
     const oldRemain = <i32>unchecked(ttDepthA[index]);
     if (remainDepth < oldRemain) return;
     unchecked(ttSecondA[index] = ttBestA[index]);
   } else {
     unchecked(ttUsedA[index] = 1);
     unchecked(ttHashA[index] = hashVal);
+    unchecked(ttHashB[index] = hashB);
     unchecked(ttSecondA[index] = 0);
   }
 
@@ -2791,10 +2869,14 @@ const EVAL_CACHE_MASK: i32 = EVAL_CACHE_SIZE - 1;
 const EVAL_CACHE_SENTINEL: i32 = 0x7fffffff;
 
 const evalCacheKeyA = new StaticArray<i32>(EVAL_CACHE_SIZE);
+const evalCacheKeyB = new StaticArray<i32>(EVAL_CACHE_SIZE);
 const evalCacheValA = new StaticArray<i32>(EVAL_CACHE_SIZE);
 
 function initEvalCache(): void {
-  for (let i = 0; i < EVAL_CACHE_SIZE; i++) unchecked(evalCacheKeyA[i] = EVAL_CACHE_SENTINEL);
+  for (let i = 0; i < EVAL_CACHE_SIZE; i++) {
+    unchecked(evalCacheKeyA[i] = EVAL_CACHE_SENTINEL);
+    unchecked(evalCacheKeyB[i] = EVAL_CACHE_SENTINEL);
+  }
 }
 initEvalCache();
 
@@ -2810,21 +2892,31 @@ function evaluateSenteCached(): i32 {
     // stm perspective), so the cache key must include teban — unlike
     // evaluateV3Full, which is teban-independent.
     const nKey = banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
+    const nKeyB = getSecondaryHashVal();
     const nIndex = nKey & EVAL_CACHE_MASK;
-    if (unchecked(evalCacheKeyA[nIndex]) == nKey) return unchecked(evalCacheValA[nIndex]);
+    if (
+      unchecked(evalCacheKeyA[nIndex]) == nKey &&
+      unchecked(evalCacheKeyB[nIndex]) == nKeyB
+    ) return unchecked(evalCacheValA[nIndex]);
     // Same SENTE-positive convention as evaluateV3Full at the leaf slot:
     // nnueEvaluateCp() is stm-positive, so negate for GOTE.
     const stmCp = nnueEvaluateCp();
     const nValue = teban == SENTE ? stmCp : -stmCp;
     unchecked(evalCacheKeyA[nIndex] = nKey);
+    unchecked(evalCacheKeyB[nIndex] = nKeyB);
     unchecked(evalCacheValA[nIndex] = nValue);
     return nValue;
   }
   const key = banHash ^ handHash;
+  const keyB = getSecondaryHash();
   const index = key & EVAL_CACHE_MASK;
-  if (unchecked(evalCacheKeyA[index]) == key) return unchecked(evalCacheValA[index]);
+  if (
+    unchecked(evalCacheKeyA[index]) == key &&
+    unchecked(evalCacheKeyB[index]) == keyB
+  ) return unchecked(evalCacheValA[index]);
   const value = evaluateV3Full();
   unchecked(evalCacheKeyA[index] = key);
+  unchecked(evalCacheKeyB[index] = keyB);
   unchecked(evalCacheValA[index] = value);
   return value;
 }
@@ -2947,16 +3039,22 @@ function leastAttackerValueCached(target: i32, defender: i32, ply: i32): i32 {
 
 const REP_STACK_SIZE: i32 = 256;
 const repStack = new StaticArray<i32>(REP_STACK_SIZE);
+const repStackB = new StaticArray<i32>(REP_STACK_SIZE);
 let repSize: i32 = 0;
 
 function pushRepetition(hash: i32): bool {
+  const hashB = getSecondaryHashVal();
   let count = 0;
   for (let i = 0; i < repSize; i++) {
-    if (unchecked(repStack[i]) == hash) count++;
+    if (
+      unchecked(repStack[i]) == hash &&
+      unchecked(repStackB[i]) == hashB
+    ) count++;
   }
   if (count >= 3) return false;
   if (repSize < REP_STACK_SIZE) {
     unchecked(repStack[repSize] = hash);
+    unchecked(repStackB[repSize] = hashB);
     repSize++;
   }
   return true;

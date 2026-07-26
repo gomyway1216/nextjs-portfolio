@@ -53,6 +53,7 @@ interface ShogiSearchWasm {
   nnueEvaluateCp(): number;
   // Lazy SMP shared-TT hooks (see sharedTT.ts).
   getSharedTtScratchPtr(): number;
+  getSecondaryHashVal(): number;
   setSharedTtEnabled(flag: number): void;
   setSearchStartDepth(d: number): void;
 }
@@ -150,13 +151,19 @@ function getInstance(): ShogiSearchWasm | null {
         now: performance.now.bind(performance),
         // Lazy SMP shared-TT hooks. Only called while the engine's
         // sharedTtEnabled flag is on (i.e. after enableSharedTT()).
-        sharedTtProbe: (hash: number): number => {
+        sharedTtProbe: (hashA: number, hashB: number): number => {
           const tt = sharedTT;
           if (!tt || !instance) return 0;
-          return tt.probe(hash, getSharedTtScratchView(instance));
+          return tt.probe(hashA, hashB, getSharedTtScratchView(instance));
         },
-        sharedTtStore: (hash: number, value: number, flagDepth: number, best: number): void => {
-          if (sharedTT) sharedTT.store(hash, value, flagDepth, best);
+        sharedTtStore: (
+          hashA: number,
+          hashB: number,
+          value: number,
+          flagDepth: number,
+          best: number,
+        ): void => {
+          if (sharedTT) sharedTT.store(hashA, hashB, value, flagDepth, best);
         },
         sharedShouldStop: (): number => {
           const tt = sharedTT;
@@ -173,7 +180,11 @@ function getInstance(): ShogiSearchWasm | null {
   }
 }
 
-/** Copy the full JS position into the WASM engine (board / hands / side to move). */
+/**
+ * Copy the full JS position into the WASM engine (board / hands / side to
+ * move). finalizePosition() recomputes both position hashes after every input
+ * component is present; keep it last.
+ */
 function syncPosition(wasm: ShogiSearchWasm, k: KyokumenImproved): void {
   wasm.clearBoard();
   for (let suji = 1; suji <= 9; suji++) {
@@ -292,6 +303,7 @@ export function enableSharedTT(sab: SharedArrayBuffer, role: 'main' | 'helper'):
   try {
     if (
       typeof wasm.getSharedTtScratchPtr !== 'function' ||
+      typeof wasm.getSecondaryHashVal !== 'function' ||
       typeof wasm.setSharedTtEnabled !== 'function' ||
       typeof wasm.setSearchStartDepth !== 'function'
     ) {

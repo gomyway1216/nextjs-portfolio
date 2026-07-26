@@ -88,6 +88,10 @@ interface ShogiWasm {
   getBanHash(): number;
   getHandHash(): number;
   getHashVal(): number;
+  getSecondaryBanHash(): number;
+  getSecondaryHandHash(): number;
+  getSecondaryHash(): number;
+  getSecondaryHashVal(): number;
   getTeban(): number;
 }
 
@@ -101,8 +105,8 @@ const instance = new WebAssembly.Instance(wasmModule, {
     now: () => performance.now(),
     // Single-thread stubs for the Lazy SMP shared-TT hooks (never called while
     // setSharedTtEnabled stays 0, but the imports must link).
-    sharedTtProbe: () => 0,
-    sharedTtStore: () => {},
+    sharedTtProbe: (_hashA: number, _hashB: number) => 0,
+    sharedTtStore: (_hashA: number, _hashB: number, _value: number, _flagDepth: number, _best: number) => {},
     sharedShouldStop: () => 0,
   },
 });
@@ -199,7 +203,7 @@ function dumpPosition(k: KyokumenImproved, label: string): void {
   );
   console.error(
     `WASM BanHash=${wasm.getBanHash()} HandHash=${wasm.getHandHash()} ` +
-      `HashVal=${wasm.getHashVal()} eval=${wasm.getEvalMaterial()} ` +
+      `HashVal=${wasm.getHashVal()} secondary=${wasm.getSecondaryHashVal()} eval=${wasm.getEvalMaterial()} ` +
       `psqt=${wasm.getPsqtEval()} v3=${wasm.evaluateV3()} hang=${wasm.hangingThreat()}`
   );
 }
@@ -224,6 +228,18 @@ function comparePosition(k: KyokumenImproved, label: string): Te[] {
   }
   if (k.HashVal !== wasm.getHashVal()) {
     errors.push(`HashVal: JS=${k.HashVal} WASM=${wasm.getHashVal()}`);
+  }
+  if (k.SecondaryBanHash !== wasm.getSecondaryBanHash()) {
+    errors.push(`SecondaryBanHash: JS=${k.SecondaryBanHash} WASM=${wasm.getSecondaryBanHash()}`);
+  }
+  if (k.SecondaryHandHash !== wasm.getSecondaryHandHash()) {
+    errors.push(`SecondaryHandHash: JS=${k.SecondaryHandHash} WASM=${wasm.getSecondaryHandHash()}`);
+  }
+  if ((k.SecondaryBanHash ^ k.SecondaryHandHash) !== wasm.getSecondaryHash()) {
+    errors.push(`SecondaryHash: JS=${k.SecondaryBanHash ^ k.SecondaryHandHash} WASM=${wasm.getSecondaryHash()}`);
+  }
+  if (k.SecondaryHashVal !== wasm.getSecondaryHashVal()) {
+    errors.push(`SecondaryHashVal: JS=${k.SecondaryHashVal} WASM=${wasm.getSecondaryHashVal()}`);
   }
   if (k.eval !== wasm.getEvalMaterial()) {
     errors.push(`material eval: JS=${k.eval} WASM=${wasm.getEvalMaterial()}`);

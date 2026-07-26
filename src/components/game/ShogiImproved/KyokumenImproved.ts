@@ -191,11 +191,17 @@ export class KyokumenImproved {
   HashVal: number;
   BanHash: number;
   HandHash: number;
+  SecondaryHashVal: number;
+  SecondaryBanHash: number;
+  SecondaryHandHash: number;
 
   // Hash seeds (Zobrist hashing)
   static HashSeed: number[][] = [];
   static HandHashSeed: number[][] = [];
   static TebanHashSeed = 0;
+  static SecondaryHashSeed: number[][] = [];
+  static SecondaryHandHashSeed: number[][] = [];
+  static SecondaryTebanHashSeed = 0;
   static hashInitialized = false;
 
   // Piece-square tables (SENTE perspective). Indexed by (koma & 0x0f) then 81-square index.
@@ -213,6 +219,9 @@ export class KyokumenImproved {
     this.HashVal = 0;
     this.BanHash = 0;
     this.HandHash = 0;
+    this.SecondaryHashVal = 0;
+    this.SecondaryBanHash = 0;
+    this.SecondaryHandHash = 0;
 
     // Initialize board with WALL
     for (let i = 0; i < 16 * 11; i++) {
@@ -281,6 +290,32 @@ export class KyokumenImproved {
     // position would be treated as identical for both turns, which is incorrect for negamax scoring
     // and will corrupt TT cutoffs / best-move ordering.
     this.TebanHashSeed = rand30() || 1;
+
+    // Independent full-u32 stream used to lock private search caches against
+    // the production-compatible primary 30-bit hash's rare collisions.
+    let secondarySeed = 0x8f3e91c5 >>> 0;
+    const rand32Secondary = (): number => {
+      secondarySeed = (secondarySeed + 0x6d2b79f5) >>> 0;
+      let t = secondarySeed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return (t ^ (t >>> 14)) >>> 0;
+    };
+
+    this.SecondaryHashSeed = Array(GRY + 1).fill(null).map(() => new Array(16 * 11).fill(0));
+    for (let i = 0; i <= GRY; i++) {
+      for (let j = 0; j < 16 * 11; j++) {
+        this.SecondaryHashSeed[i][j] = rand32Secondary();
+      }
+    }
+
+    this.SecondaryHandHashSeed = Array(GHI + 1).fill(null).map(() => new Array(20).fill(0));
+    for (let i = 0; i <= GHI; i++) {
+      for (let j = 0; j < 20; j++) {
+        this.SecondaryHandHashSeed[i][j] = rand32Secondary();
+      }
+    }
+    this.SecondaryTebanHashSeed = rand32Secondary();
 
     this.hashInitialized = true;
   }
@@ -395,6 +430,9 @@ export class KyokumenImproved {
     k.HashVal = this.HashVal;
     k.BanHash = this.BanHash;
     k.HandHash = this.HandHash;
+    k.SecondaryHashVal = this.SecondaryHashVal;
+    k.SecondaryBanHash = this.SecondaryBanHash;
+    k.SecondaryHandHash = this.SecondaryHandHash;
 
     return k;
   }
@@ -410,6 +448,7 @@ export class KyokumenImproved {
     if (this.teban === teban) return;
     this.teban = teban;
     this.HashVal ^= KyokumenImproved.TebanHashSeed;
+    this.SecondaryHashVal ^= KyokumenImproved.SecondaryTebanHashSeed;
   }
 
   /**
@@ -419,6 +458,7 @@ export class KyokumenImproved {
   toggleTeban(): void {
     this.teban = this.teban === SENTE ? GOTE : SENTE;
     this.HashVal ^= KyokumenImproved.TebanHashSeed;
+    this.SecondaryHashVal ^= KyokumenImproved.SecondaryTebanHashSeed;
   }
 
   // Check if positions are equal
@@ -479,6 +519,7 @@ export class KyokumenImproved {
     }
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
+    this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[this.get(te.to)][te.to];
 
     // Handle capture
     if (this.get(te.to) !== EMPTY) {
@@ -497,6 +538,7 @@ export class KyokumenImproved {
         this.hand[koma]++;
         // Update hash (XOR with new count)
         this.HandHash ^= KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+        this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
         this.eval += komaValue[koma];
       } else {
         // Captured gote piece goes to sente's hand
@@ -509,6 +551,7 @@ export class KyokumenImproved {
         this.hand[koma]++;
         // Update hash (XOR with new count)
         this.HandHash ^= KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+        this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
         this.eval += komaValue[koma];
       }
     }
@@ -517,12 +560,15 @@ export class KyokumenImproved {
       // Drop move
       // Update hand hash before decrementing
       this.HandHash ^= KyokumenImproved.HandHashSeed[te.koma][this.hand[te.koma]];
+      this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[te.koma][this.hand[te.koma]];
       this.hand[te.koma]--;
     } else {
       // Regular move - remove piece from source
       this.put(te.from, EMPTY);
       this.BanHash ^= KyokumenImproved.HashSeed[te.koma][te.from];
       this.BanHash ^= KyokumenImproved.HashSeed[EMPTY][te.from];
+      this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[te.koma][te.from];
+      this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[EMPTY][te.from];
     }
 
     // Place piece at destination
@@ -536,6 +582,7 @@ export class KyokumenImproved {
     }
     this.put(te.to, koma);
     this.BanHash ^= KyokumenImproved.HashSeed[koma][te.to];
+    this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[koma][te.to];
 
     this.psqtEval += KyokumenImproved.psqtValue(koma, te.to);
 
@@ -547,6 +594,8 @@ export class KyokumenImproved {
     }
 
     this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
+    this.SecondaryHashVal = this.SecondaryBanHash ^ this.SecondaryHandHash ^
+      (this.teban === GOTE ? KyokumenImproved.SecondaryTebanHashSeed : 0);
   }
 
   // Undo a move (CRITICAL: matches Java logic exactly)
@@ -557,6 +606,7 @@ export class KyokumenImproved {
     // - restoring incremental eval and hash values
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
+    this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[this.get(te.to)][te.to];
 
     // PSQT incremental update:
     // - remove the moved piece currently sitting on `to`
@@ -567,6 +617,7 @@ export class KyokumenImproved {
     // Restore captured piece
     this.put(te.to, te.capture);
     this.BanHash ^= KyokumenImproved.HashSeed[te.capture][te.to];
+    this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[te.capture][te.to];
 
     if (te.capture !== EMPTY) {
       this.psqtEval += KyokumenImproved.psqtValue(te.capture, te.to);
@@ -585,6 +636,7 @@ export class KyokumenImproved {
         koma = koma | GOTE;
         // Update hash before decrementing
         this.HandHash ^= KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+        this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
         this.hand[koma]--;
         this.eval -= komaValue[koma];
       } else {
@@ -594,6 +646,7 @@ export class KyokumenImproved {
         koma = koma | SENTE;
         // Update hash before decrementing
         this.HandHash ^= KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+        this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
         this.hand[koma]--;
         this.eval -= komaValue[koma];
       }
@@ -603,11 +656,14 @@ export class KyokumenImproved {
       // Was a drop - restore to hand
       this.hand[te.koma]++;
       this.HandHash ^= KyokumenImproved.HandHashSeed[te.koma][this.hand[te.koma]];
+      this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[te.koma][this.hand[te.koma]];
     } else {
       // Regular move - restore piece to source
       this.put(te.from, te.koma);
       this.BanHash ^= KyokumenImproved.HashSeed[EMPTY][te.from];
       this.BanHash ^= KyokumenImproved.HashSeed[te.koma][te.from];
+      this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[EMPTY][te.from];
+      this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[te.koma][te.from];
 
       this.psqtEval += KyokumenImproved.psqtValue(te.koma, te.from);
 
@@ -627,6 +683,8 @@ export class KyokumenImproved {
     }
 
     this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
+    this.SecondaryHashVal = this.SecondaryBanHash ^ this.SecondaryHandHash ^
+      (this.teban === GOTE ? KyokumenImproved.SecondaryTebanHashSeed : 0);
   }
 
   // Initialize king positions
@@ -679,11 +737,14 @@ export class KyokumenImproved {
   calcHash(): void {
     this.HandHash = 0;
     this.BanHash = 0;
+    this.SecondaryHandHash = 0;
+    this.SecondaryBanHash = 0;
 
     // Hand hash (cumulative XOR from 0..count) so counts can be updated incrementally by XORing the old/new count seed.
     for (let i = 0; i <= GHI; i++) {
       for (let j = 0; j <= this.hand[i]; j++) {
         this.HandHash ^= KyokumenImproved.HandHashSeed[i][j];
+        this.SecondaryHandHash ^= KyokumenImproved.SecondaryHandHashSeed[i][j];
       }
     }
 
@@ -691,10 +752,13 @@ export class KyokumenImproved {
     for (let i = 1; i <= 9; i++) {
       for (let j = 1; j <= 9; j++) {
         this.BanHash ^= KyokumenImproved.HashSeed[this.ban[i * 16 + j]][i * 16 + j];
+        this.SecondaryBanHash ^= KyokumenImproved.SecondaryHashSeed[this.ban[i * 16 + j]][i * 16 + j];
       }
     }
 
     this.HashVal = this.HandHash ^ this.BanHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
+    this.SecondaryHashVal = this.SecondaryHandHash ^ this.SecondaryBanHash ^
+      (this.teban === GOTE ? KyokumenImproved.SecondaryTebanHashSeed : 0);
   }
 
   // Initialize all

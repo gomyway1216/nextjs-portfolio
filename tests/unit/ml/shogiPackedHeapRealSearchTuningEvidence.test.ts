@@ -237,18 +237,41 @@ describe("packed heap real-search tuning evidence", () => {
     expect(summary.nextAction.productionPromotionAuthorized).toBe(false);
   });
 
-  it("pins all decision-critical inputs and confirms production stayed unchanged", () => {
+  it("pins immutable evidence and fails closed after production advances", () => {
+    const mutableProductionPaths = new Set([
+      "wasm-spike/assembly/index.ts",
+      "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts",
+    ]);
     for (const item of Object.values(summary.identities) as Array<{
       path: string;
       bytes: number;
       sha256: string;
     }>) {
       if (item.path.startsWith("$HOME/")) continue;
-      expect(identity(read(...item.path.split("/")))).toEqual({
+      const current = identity(read(...item.path.split("/")));
+      const sealed = {
         bytes: item.bytes,
         sha256: item.sha256,
-      });
+      };
+      if (mutableProductionPaths.has(item.path)) {
+        expect(current, item.path).not.toEqual(sealed);
+      } else {
+        expect(current, item.path).toEqual(sealed);
+      }
     }
+    const oldProductionWasm = Buffer.from(
+      read(
+        "docs",
+        "data",
+        "shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      ).toString("utf8"),
+      "base64",
+    );
+    expect(identity(oldProductionWasm)).toEqual({
+      bytes: summary.identities.productionWasm.bytes,
+      sha256: summary.identities.productionWasm.sha256,
+    });
     expect(summary.identities.archivedRawReport).toEqual({
       path: "docs/data/shogi-packed-heap-real-search-tuning-raw-2026-07-25.json",
       ...RAW_ARCHIVE_IDENTITY,

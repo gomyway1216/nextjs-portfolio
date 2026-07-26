@@ -25,6 +25,21 @@ function identity(path: string) {
   };
 }
 
+function historicalProductionWasmIdentity() {
+  const encoded = readFileSync(
+    join(
+      root,
+      "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+    ),
+    "utf8",
+  );
+  const bytes = Buffer.from(encoded, "base64");
+  return {
+    bytes: bytes.byteLength,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 describe("bounded quiet-history malus result evidence", () => {
   const evidence = readJson(
     "docs/data/shogi-bounded-quiet-history-malus-result-2026-07-25.json",
@@ -52,12 +67,23 @@ describe("bounded quiet-history malus result evidence", () => {
       sha256: evidence.rawEvidence.sha256,
     });
 
-    for (const asset of Object.values(evidence.assets) as JsonRecord[]) {
+    for (const [name, asset] of Object.entries(evidence.assets) as Array<
+      [string, JsonRecord]
+    >) {
+      if (name === "productionWasm") continue;
       expect(identity(asset.path)).toEqual({
         bytes: asset.bytes,
         sha256: asset.sha256,
       });
     }
+    expect(identity(evidence.assets.productionWasm.path)).not.toEqual({
+      bytes: evidence.assets.productionWasm.bytes,
+      sha256: evidence.assets.productionWasm.sha256,
+    });
+    expect(historicalProductionWasmIdentity()).toEqual({
+      bytes: evidence.assets.productionWasm.bytes,
+      sha256: evidence.assets.productionWasm.sha256,
+    });
     expect(plan.pinned_inputs.immutable_live_weights).toMatchObject(
       evidence.assets.liveWeights,
     );

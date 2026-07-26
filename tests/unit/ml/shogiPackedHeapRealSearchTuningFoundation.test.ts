@@ -68,8 +68,8 @@ function instantiate(bytes: Uint8Array): WebAssembly.Exports {
 }
 
 describe("packed stable-heap real-search tuning foundation", () => {
-  it("keeps production and the archived rejected candidate byte-identical", () => {
-    expect(identity(read("wasm-spike", "assembly", "index.ts"))).toEqual(
+  it("keeps the archived baseline sealed and detects that production advanced", () => {
+    expect(identity(read("wasm-spike", "assembly", "index.ts"))).not.toEqual(
       IDENTITIES.productionSource,
     );
     expect(
@@ -83,7 +83,7 @@ describe("packed stable-heap real-search tuning foundation", () => {
           "shogi.wasm",
         ),
       ),
-    ).toEqual(IDENTITIES.productionWasm);
+    ).not.toEqual(IDENTITIES.productionWasm);
     expect(
       identity(
         read(
@@ -95,7 +95,16 @@ describe("packed stable-heap real-search tuning foundation", () => {
           "shogiWasmBase64.ts",
         ),
       ),
-    ).toEqual(IDENTITIES.productionBase64);
+    ).not.toEqual(IDENTITIES.productionBase64);
+    const historicalWasm = Buffer.from(
+      read(
+        "docs",
+        "data",
+        "shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      ).toString("utf8"),
+      "base64",
+    );
+    expect(identity(historicalWasm)).toEqual(IDENTITIES.productionWasm);
     expect(
       identity(
         read("wasm-spike", "assembly", "lazy-move-picker-research.patch"),
@@ -191,6 +200,9 @@ describe("packed stable-heap real-search tuning foundation", () => {
     );
     expect(plan.identities.runner).toEqual(IDENTITIES.runner);
     expect(plan.identities.builder).toEqual(IDENTITIES.builder);
+    expect(plan.identities.productionWasm).toEqual(
+      IDENTITIES.productionWasm,
+    );
     expect(plan.search.timingOrder).toEqual([
       "production",
       "currentHeap",

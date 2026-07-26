@@ -1,0 +1,89 @@
+{
+  "schema": "shogi-production-dual-hash-speed-benchmark-result-v1",
+  "name": "Integrated production dual-hash WASM bounded speed diagnostic",
+  "recordedAt": "2026-07-26",
+  "status": "passed-gross-regression-reference-thresholds",
+  "rawEvidence": {
+    "path": "docs/data/shogi-production-dual-hash-speed-benchmark-raw-2026-07-26.json",
+    "bytes": 12217,
+    "sha256": "6c16957c04168fda7262907e509a405c3d7a983e2997d77a50e4a983099fde3f"
+  },
+  "reproductionRunner": {
+    "path": "wasm-spike/benchmark-production-dual-hash-vs-snapshot.ts",
+    "bytes": 11705,
+    "sha256": "d881f3ce178fca5d2f5f76ad3f92ae68511d9f9f4acd07187268c78adaff1765",
+    "boundary": "The runner preserves the measurement logic but was tracked after the diagnostic execution; this is reproducible intermediate evidence, not a pre-run registration."
+  },
+  "comparison": {
+    "final": {
+      "bytes": 36545,
+      "sha256": "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
+    },
+    "baseline": {
+      "decodedBytes": 35597,
+      "decodedSha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "weightsChanged": false,
+    "weightsSha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "method": {
+    "formalHoldoutCases": 64,
+    "fixedDepth": 5,
+    "quiescenceDepth": 8,
+    "warmupPassesPerArm": 4,
+    "measuredPairedBlocksPerArm": 6,
+    "pairOrder": "alternating baseline-final / final-baseline",
+    "normalizedWork": "search nodes + quiescence leaves"
+  },
+  "observed": {
+    "allBlockAggregateFinalToBaselineThroughput": 1.0174895480046557,
+    "robustMedianFinalToBaselineThroughput": 0.9968869903399259,
+    "robustMedianRegression": 0.003113009660074106,
+    "minimumMeasuredFinalToBaselineThroughput": 0.9904750684795486,
+    "stableDescriptiveFinalToBaselineRange": {
+      "minimum": 0.9904750684795486,
+      "maximum": 0.9993380186581406
+    },
+    "p90WallRegression": -0.0003632419445199764,
+    "memoryDeltaBytes": 0,
+    "exactDecisionCases": 63,
+    "totalDecisionCases": 64,
+    "changedDecision": {
+      "id": "checkEvasion-06",
+      "finalWasDeterministicAndLegalInFormalResearchEvidence": true
+    },
+    "postflightAssetAuthenticationPassed": true
+  },
+  "aggregateDisclosure": {
+    "includedEveryMeasuredBlock": true,
+    "environmentalDrift": "The first measured baseline block took 33.005 seconds while the other five baseline blocks took 29.018 to 29.257 seconds.",
+    "effect": "The unfiltered aggregate makes final look 1.749% faster and is not used as the central estimate.",
+    "decisionStatistic": "The robust pair median indicates about 0.311% lower normalized throughput. The five descriptively stable pairs range from about 0.952% lower to 0.066% lower.",
+    "exclusionRule": "No block was removed. The stable range is explicitly post-run descriptive rather than preregistered."
+  },
+  "referenceThresholdDecision": {
+    "aggregateAtLeast": 0.97,
+    "medianAtLeast": 0.95,
+    "p90WallRegressionAtMost": 0.08,
+    "memoryDeltaBytesAtMost": 6291456,
+    "passed": true,
+    "meaning": "No gross direct-WASM performance regression was observed for the final exact binary."
+  },
+  "limitations": [
+    "This is a fixed-depth speed diagnostic, not a playing-strength metric.",
+    "The browser worker, JavaScript host, shared transposition table, opening book, and concurrent browser load were not measured.",
+    "The tracked reproduction runner was added after execution, so the result has no preregistered promotion authority.",
+    "One system-load excursion affected the first measured baseline block; every raw block remains disclosed.",
+    "The final binary performs about 0.988% less search work on this holdout because the corrected dual identity changes collision handling, so normalized throughput is more informative than wall time alone."
+  ],
+  "claimBoundary": {
+    "supported": "The integrated 36,545-byte production WASM showed approximately 0.3% lower robust-median normalized throughput, a conservative measured-block floor near 0.95% lower, zero WASM-memory delta, and no gross direct-WASM speed regression on this bounded holdout.",
+    "notSupported": [
+      "The dual-hash change made the engine stronger or gained Elo.",
+      "The engine reached stable high-dan strength.",
+      "The complete browser/shared-TT path has identical performance.",
+      "This diagnostic alone authorizes merge, deployment, or a live change."
+    ]
+  },
+  "existingSealedEvidenceChanged": false
+}

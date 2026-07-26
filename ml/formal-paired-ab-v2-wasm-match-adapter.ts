@@ -62,9 +62,9 @@ export const FORMAL_PAIRED_AB_V2_SEARCH_DEPTH = 11 as const;
 export const FORMAL_PAIRED_AB_V2_QUIESCENCE_DEPTH = 10 as const;
 export const FORMAL_PAIRED_AB_V2_NNUE_SCALE_K = 600 as const;
 export const FORMAL_PAIRED_AB_V2_NNUE_BYTES = 1_185_988 as const;
-export const FORMAL_PAIRED_AB_V2_WASM_BYTES = 35_597 as const;
+export const FORMAL_PAIRED_AB_V2_WASM_BYTES = 36_545 as const;
 export const FORMAL_PAIRED_AB_V2_WASM_SHA256 =
-  "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c" as const;
+  "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31" as const;
 export const FORMAL_PAIRED_AB_V2_STARTUP_TIMEOUT_MS = 120_000 as const;
 export const FORMAL_PAIRED_AB_V2_SEARCH_TIMEOUT_MS = 600_000 as const;
 export const FORMAL_PAIRED_AB_V2_CLEANUP_TIMEOUT_MS = 15_000 as const;

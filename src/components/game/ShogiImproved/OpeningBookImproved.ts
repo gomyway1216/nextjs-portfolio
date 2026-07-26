@@ -15,8 +15,8 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  *
  * Design:
  * - We encode a small set of curated opening lines (not exhaustive).
- * - At module load, we "replay" those lines from the initial position and build a hash -> candidates map.
- * - At runtime, we look up by `KyokumenImproved.HashVal` (includes side-to-move) and then validate by:
+ * - At module load, we replay those lines and build a primary-hash -> secondary-lock -> candidates map.
+ * - At runtime, we look up by the independent `HashVal` + `SecondaryHashVal` pair and then validate by:
  *   - legal move existence
  *   - simple static-eval threshold vs the best legal move (difficulty dependent)
  *
@@ -24,7 +24,7 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  * - The curated `OPENING_LINES` below are compiled in (regression-tested, always available).
  * - Additionally, a large-scale external book (a ~50k-position subset of やねうら王の
  *   新ペタショック定跡, MIT License) can be fetched at runtime from
- *   `public/shogi-opening-book.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
+ *   `public/shogi-opening-book-v2.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
  *   always wins for positions it covers; the external book only extends coverage. If the fetch
  *   fails (offline, node tests), everything behaves exactly as before.
  */
@@ -1127,14 +1127,31 @@ export const OPENING_LINES: OpeningLine[] = [
   },
 ];
 
-let bookCache: Map<number, BookCandidate[]> | null = null;
-const bestScoreCache = new Map<number, BestScoreInfo>();
+type DualKeyMap<T> = Map<number, Map<number, T>>;
+
+function dualKeyGet<T>(map: DualKeyMap<T>, primary: number, secondary: number): T | undefined {
+  return map.get(primary >>> 0)?.get(secondary >>> 0);
+}
+
+function dualKeySet<T>(map: DualKeyMap<T>, primary: number, secondary: number, value: T): void {
+  const primaryU32 = primary >>> 0;
+  const secondaryU32 = secondary >>> 0;
+  let bucket = map.get(primaryU32);
+  if (!bucket) {
+    bucket = new Map<number, T>();
+    map.set(primaryU32, bucket);
+  }
+  bucket.set(secondaryU32, value);
+}
+
+let bookCache: DualKeyMap<BookCandidate[]> | null = null;
+const bestScoreCache: DualKeyMap<BestScoreInfo> = new Map();
 const buildMoves = new MoveListImproved();
 const runtimeMoves = new MoveListImproved();
 
-function buildBook(): Map<number, BookCandidate[]> {
-  // Dedupe candidates per hash by move key (keep the highest priority).
-  const map = new Map<number, Map<string, BookCandidate>>();
+function buildBook(): DualKeyMap<BookCandidate[]> {
+  // Dedupe candidates per full position identity by move key (keep the highest priority).
+  const map = new Map<number, Map<number, Map<string, BookCandidate>>>();
 
   for (const line of OPENING_LINES) {
     const k = InitialPositionImproved.createInitialPosition();
@@ -1170,27 +1187,35 @@ function buildBook(): Map<number, BookCandidate[]> {
         );
       }
 
-      const hash = k.HashVal;
+      const hashA = k.HashVal;
+      const hashB = k.SecondaryHashVal;
       const cand: BookCandidate = { move: found.clone(), priority: line.priority, lineName: line.name };
       const key = moveKey(cand.move);
-      const bucket = map.get(hash) ?? new Map<string, BookCandidate>();
+      let secondaryBuckets = map.get(hashA);
+      if (!secondaryBuckets) {
+        secondaryBuckets = new Map<number, Map<string, BookCandidate>>();
+        map.set(hashA, secondaryBuckets);
+      }
+      const bucket = secondaryBuckets.get(hashB) ?? new Map<string, BookCandidate>();
       const prev = bucket.get(key);
       if (!prev || cand.priority > prev.priority) bucket.set(key, cand);
-      map.set(hash, bucket);
+      secondaryBuckets.set(hashB, bucket);
 
       k.move(found);
       k.toggleTeban();
     }
   }
 
-  const out = new Map<number, BookCandidate[]>();
-  for (const [hash, bucket] of map.entries()) {
-    out.set(hash, [...bucket.values()]);
+  const out: DualKeyMap<BookCandidate[]> = new Map();
+  for (const [hashA, secondaryBuckets] of map.entries()) {
+    for (const [hashB, bucket] of secondaryBuckets.entries()) {
+      dualKeySet(out, hashA, hashB, [...bucket.values()]);
+    }
   }
   return out;
 }
 
-function getBook(): Map<number, BookCandidate[]> {
+function getBook(): DualKeyMap<BookCandidate[]> {
   if (!bookCache) bookCache = buildBook();
   return bookCache;
 }
@@ -1214,22 +1239,20 @@ function getBook(): Map<number, BookCandidate[]> {
 // to external moves exactly as it does to curated ones.
 // ============================================================================
 
-/** Binary format magic "SBK1"; the writer is scripts/shogi-import-petashock-book.ts. */
-export const EXTERNAL_BOOK_MAGIC = 0x314b4253;
-export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book.bin';
+/** Binary format magic "SBK2"; the writer is scripts/shogi-import-petashock-book.ts. */
+export const EXTERNAL_BOOK_MAGIC = 0x324b4253;
+export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book-v2.bin';
 
 const EXTERNAL_LINE_NAME = 'ペタショック定跡';
 /** Below every curated priority (curated lines use 55..90) — only matters for tie-breaks. */
 const EXTERNAL_BASE_PRIORITY = 50;
 
 type ExternalBookEntry = {
-  /** `KyokumenImproved.BanHash & 0xffff` — guards against 30-bit HashVal collisions. */
-  check: number;
   /** Packed move triples (from, to, flags), best-first. flags: bit0 promote, bits1-3 drop type. */
   moves: Uint8Array;
 };
 
-let externalBook: Map<number, ExternalBookEntry> | null = null;
+let externalBook: DualKeyMap<ExternalBookEntry> | null = null;
 let externalBookFetch: Promise<boolean> | null = null;
 
 /**
@@ -1243,21 +1266,22 @@ export function loadExternalOpeningBook(buf: ArrayBuffer): number {
     if (dv.getUint32(0, true) !== EXTERNAL_BOOK_MAGIC) return 0;
     const count = dv.getUint32(4, true);
     const bytes = new Uint8Array(buf);
-    const map = new Map<number, ExternalBookEntry>();
+    const map: DualKeyMap<ExternalBookEntry> = new Map();
     let off = 8;
     for (let i = 0; i < count; i++) {
-      if (off + 7 > buf.byteLength) return 0;
-      const hash = dv.getUint32(off, true);
-      const check = dv.getUint16(off + 4, true);
-      const n = dv.getUint8(off + 6);
-      off += 7;
+      if (off + 9 > buf.byteLength) return 0;
+      const hashA = dv.getUint32(off, true);
+      const hashB = dv.getUint32(off + 4, true);
+      const n = dv.getUint8(off + 8);
+      off += 9;
       if (n === 0 || off + n * 3 > buf.byteLength) return 0;
-      map.set(hash, { check, moves: bytes.subarray(off, off + n * 3) });
+      if (dualKeyGet(map, hashA, hashB)) return 0;
+      dualKeySet(map, hashA, hashB, { moves: bytes.subarray(off, off + n * 3) });
       off += n * 3;
     }
     if (off !== buf.byteLength) return 0;
     externalBook = map;
-    return map.size;
+    return count;
   } catch {
     return 0;
   }
@@ -1319,9 +1343,8 @@ export function ensureExternalOpeningBookLoaded(): Promise<boolean> {
 
 /**
  * Match the packed external moves against the current legal moves. Unmatched moves are
- * silently dropped (they cannot be played anyway), so a hash collision that survived the
- * 16-bit board check still cannot inject an illegal move — and the static-eval safety
- * threshold in getOpeningMoveImproved() still applies to whatever does match.
+ * silently dropped (they cannot be played anyway). The external entry itself is selected by
+ * the full primary + secondary identity, and the static-eval safety threshold still applies.
  */
 function buildExternalCandidates(entry: ExternalBookEntry, k: KyokumenImproved, legal: Te[]): BookCandidate[] {
   const out: BookCandidate[] = [];
@@ -1394,13 +1417,12 @@ export function getOpeningMoveImproved(
   // Out of book? Bail out before doing any eval work (this is the common case).
   // The curated (compiled-in) book wins at position level; the fetched external book only
   // extends coverage to positions the curated lines do not reach.
-  let candidates = getBook().get(k.HashVal);
+  let candidates = dualKeyGet(getBook(), k.HashVal, k.SecondaryHashVal);
   let externalEntry: ExternalBookEntry | undefined;
   if (!candidates || candidates.length === 0) {
-    externalEntry = externalBook?.get(k.HashVal);
-    // 16-bit board-hash check: HashVal is only 30 bits, so an unrelated position could
-    // collide with a book entry — treat a check mismatch as out-of-book.
-    if (externalEntry && externalEntry.check !== ((k.BanHash & 0xffff) >>> 0)) externalEntry = undefined;
+    externalEntry = externalBook
+      ? dualKeyGet(externalBook, k.HashVal, k.SecondaryHashVal)
+      : undefined;
     if (!externalEntry) return null;
   }
 
@@ -1418,7 +1440,7 @@ export function getOpeningMoveImproved(
   // Cache per-position because the same early hashes reoccur across games.
   const root = k.clone();
   const evalBeforeMove = evalForSideToMove(root);
-  let bestInfo = bestScoreCache.get(k.HashVal);
+  let bestInfo = dualKeyGet(bestScoreCache, k.HashVal, k.SecondaryHashVal);
   if (!bestInfo) {
     let bestScore = -Infinity;
     let secondBestScore = -Infinity;
@@ -1434,7 +1456,7 @@ export function getOpeningMoveImproved(
       }
     }
     bestInfo = { bestScore, secondBestScore, bestIsQuiet };
-    bestScoreCache.set(k.HashVal, bestInfo);
+    dualKeySet(bestScoreCache, k.HashVal, k.SecondaryHashVal, bestInfo);
   }
 
   const threshold = openingThresholdByDifficulty(difficulty);

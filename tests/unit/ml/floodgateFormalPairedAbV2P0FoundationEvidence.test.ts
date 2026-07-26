@@ -28,16 +28,30 @@ function bytesAndSha256(relativePath: string): {
 }
 
 describe("formal paired A/B v2 P0 foundation evidence", () => {
-  it("content-addresses the implementation artifacts", () => {
+  it("content-addresses immutable artifacts and detects advanced runtime drift", () => {
     const evidence = JSON.parse(read(evidenceRelative));
+    const advancedRuntimeArtifacts = new Set([
+      "ml/formal_paired_ab_v2_wasm_contract.py",
+      "ml/formal-paired-ab-v2-wasm-match-adapter.ts",
+      "ml/formal_paired_ab_v2_wasm_match_launcher.py",
+    ]);
+    const observedAdvancedRuntimeArtifacts = new Set<string>();
     for (const artifact of Object.values(
       evidence.implementation_artifacts,
     ) as Array<{ path: string; bytes: number; sha256: string }>) {
-      expect(bytesAndSha256(artifact.path)).toEqual({
+      const sealedIdentity = {
         bytes: artifact.bytes,
         sha256: artifact.sha256,
-      });
+      };
+      const currentIdentity = bytesAndSha256(artifact.path);
+      if (advancedRuntimeArtifacts.has(artifact.path)) {
+        expect(currentIdentity).not.toEqual(sealedIdentity);
+        observedAdvancedRuntimeArtifacts.add(artifact.path);
+      } else {
+        expect(currentIdentity).toEqual(sealedIdentity);
+      }
     }
+    expect(observedAdvancedRuntimeArtifacts).toEqual(advancedRuntimeArtifacts);
   });
 
   it("binds the real clockless WASM and opening contracts", () => {

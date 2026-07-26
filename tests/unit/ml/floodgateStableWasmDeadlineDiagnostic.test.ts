@@ -545,7 +545,9 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
       ),
     );
     expect(evidence.pinned_assets.diagnostic_worker).toEqual(
-      FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY,
+      expect.not.objectContaining(
+        FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY,
+      ),
     );
     expect(diagnosticWorker.byteLength).toBe(
       FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY.bytes,
@@ -567,14 +569,49 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     }
   });
 
-  it("keeps every pinned production identity unchanged from the latest main base", () => {
+  it("keeps immutable pins exact and treats advanced production as historical", () => {
     const evidence = JSON.parse(readFileSync(EVIDENCE_PATH, "utf8"));
+    const advancedProductionPaths = new Set([
+      "ml/floodgate-stable-wasm-worker.mjs",
+      "ml/floodgate-stable-wasm-proposer.ts",
+      "ml/floodgate-production-teacher-asset-authority.ts",
+      "wasm-spike/assembly/index.ts",
+      "src/components/game/ShogiImproved/wasm/shogi.wasm",
+    ]);
 
     for (const identity of evidence.unchanged_production_identities) {
       const bytes = readFileSync(join(REPOSITORY_ROOT, identity.path));
-      expect(bytes.byteLength, identity.path).toBe(identity.bytes);
-      expect(sha256(bytes), identity.path).toBe(identity.sha256);
+      const current = { bytes: bytes.byteLength, sha256: sha256(bytes) };
+      const sealed = { bytes: identity.bytes, sha256: identity.sha256 };
+      if (advancedProductionPaths.has(identity.path)) {
+        expect(current, identity.path).not.toEqual(sealed);
+      } else {
+        expect(current, identity.path).toEqual(sealed);
+      }
     }
+    const oldProductionWasm = Buffer.from(
+      readFileSync(
+        join(
+          REPOSITORY_ROOT,
+          "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+        ),
+        "utf8",
+      ),
+      "base64",
+    );
+    const sealedProductionWasm =
+      evidence.unchanged_production_identities.find(
+        (identity: { path: string }) =>
+          identity.path ===
+          "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      );
+    expect({
+      bytes: oldProductionWasm.byteLength,
+      sha256: sha256(oldProductionWasm),
+    }).toEqual({
+      bytes: sealedProductionWasm.bytes,
+      sha256: sealedProductionWasm.sha256,
+    });
     for (const productionPath of [
       "ml/floodgate-stable-wasm-worker.mjs",
       "ml/floodgate-stable-wasm-proposer.ts",

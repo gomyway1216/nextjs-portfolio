@@ -1,5 +1,5 @@
 /**
- * Sample-verify the generated external opening book (public/shogi-opening-book.bin) against a
+ * Sample-verify the generated external opening book (public/shogi-opening-book-v2.bin) against a
  * real YaneuraOu at fixed depth: no stored move may be worse than the engine best by more than
  * HARD_FAIL_CP (100cp). Runs N engine processes in parallel (Threads=2 each).
  *

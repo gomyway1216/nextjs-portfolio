@@ -60,9 +60,30 @@ export class MateSolverImproved {
   private maxTimeMs = 0;
   private aborted = false;
 
-  // Hashes (`KyokumenImproved.HashVal`, which includes side-to-move) of every position on the
-  // current search path. Used to cut repetition loops.
-  private pathHashes = new Set<number>();
+  // Full dual-hash identities of every position on the current search path. The primary
+  // 30-bit hash remains the outer-map index; the independent full-width secondary lock
+  // prevents a collision from being mistaken for a repetition.
+  private pathHashes = new Map<number, Set<number>>();
+
+  private hasPathHash(primary: number, secondary: number): boolean {
+    return this.pathHashes.get(primary)?.has(secondary) ?? false;
+  }
+
+  private addPathHash(primary: number, secondary: number): void {
+    let bucket = this.pathHashes.get(primary);
+    if (!bucket) {
+      bucket = new Set<number>();
+      this.pathHashes.set(primary, bucket);
+    }
+    bucket.add(secondary);
+  }
+
+  private deletePathHash(primary: number, secondary: number): void {
+    const bucket = this.pathHashes.get(primary);
+    if (!bucket) return;
+    bucket.delete(secondary);
+    if (bucket.size === 0) this.pathHashes.delete(primary);
+  }
 
   private nowMs(): number {
     return typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -149,7 +170,7 @@ export class MateSolverImproved {
 
     // Never mutate the caller's position.
     const k = k0.clone();
-    this.pathHashes.add(k.HashVal);
+    this.addPathHash(k.HashVal, k.SecondaryHashVal);
 
     // Iterative deepening over the mate length: returns the *shortest* mate first and keeps
     // shallow (cheap) proofs from being drowned by the deep search.
@@ -197,11 +218,12 @@ export class MateSolverImproved {
 
       k.toggleTeban();
       let mated = false;
-      const hash = k.HashVal;
-      if (!this.pathHashes.has(hash)) {
-        this.pathHashes.add(hash);
+      const hashA = k.HashVal;
+      const hashB = k.SecondaryHashVal;
+      if (!this.hasPathHash(hashA, hashB)) {
+        this.addPathHash(hashA, hashB);
         mated = this.defend(k, pliesLeft - 1, ply + 1);
-        this.pathHashes.delete(hash);
+        this.deletePathHash(hashA, hashB);
       }
       k.toggleTeban();
       k.back(te);
@@ -244,11 +266,12 @@ export class MateSolverImproved {
 
       k.toggleTeban();
       let refuted = true;
-      const hash = k.HashVal;
-      if (!this.pathHashes.has(hash)) {
-        this.pathHashes.add(hash);
+      const hashA = k.HashVal;
+      const hashB = k.SecondaryHashVal;
+      if (!this.hasPathHash(hashA, hashB)) {
+        this.addPathHash(hashA, hashB);
         refuted = this.attack(k, pliesLeft - 1, ply + 1) === null;
-        this.pathHashes.delete(hash);
+        this.deletePathHash(hashA, hashB);
       }
       // Note: if the position repeats (`pathHashes` hit), we conservatively treat the reply as a
       // successful defense — perpetual check is a loss for the attacker under shogi rules.

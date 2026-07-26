@@ -1,0 +1,454 @@
+{
+  "schema": "shogi-production-dual-hash-speed-benchmark-raw-v1",
+  "name": "Integrated production dual-hash WASM versus immutable pre-integration production snapshot",
+  "status": "completed-local-diagnostic",
+  "startedAt": "2026-07-26T10:10:26.558Z",
+  "finishedAt": "2026-07-26T10:20:14.909Z",
+  "elapsedMs": 588350,
+  "provenance": {
+    "capture": "Exact values copied from the second completed stdout result.",
+    "reproductionRunner": {
+      "path": "wasm-spike/benchmark-production-dual-hash-vs-snapshot.ts",
+      "bytes": 11705,
+      "sha256": "d881f3ce178fca5d2f5f76ad3f92ae68511d9f9f4acd07187268c78adaff1765"
+    },
+    "runnerBoundary": "The tracked runner preserves the executed measurement logic, but it was added after this diagnostic run and is not an authenticated pre-run registration.",
+    "existingSealedEvidenceChanged": false
+  },
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpuModel": "Apple M4 Pro",
+    "logicalCpus": 14
+  },
+  "assets": {
+    "final": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 36545,
+      "sha256": "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
+    },
+    "baseline": {
+      "snapshotPath": "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      "envelopeBytes": 47465,
+      "envelopeSha256": "aace3050662db54cd979285ff55da116cf8f96779c10bfba1e7f3e824809a183",
+      "decodedBytes": 35597,
+      "decodedSha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "buckets": 1
+    },
+    "holdout": {
+      "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+      "bytes": 35586,
+      "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f",
+      "cases": 64,
+      "categories": {
+        "opening": 16,
+        "middlegame": 16,
+        "dropHeavy": 16,
+        "checkEvasion": 16
+      }
+    }
+  },
+  "method": {
+    "reusedFrom": "wasm-spike/dual-hash-lock-collision-invariants.ts",
+    "fixedDepth": 5,
+    "quiescenceDepth": 8,
+    "sharedTt": false,
+    "book": false,
+    "clearTtBeforePosition": true,
+    "work": "search nodes + quiescence leaves",
+    "decisionParityPassesPerArm": 1,
+    "additionalWarmupPassesPerArm": 3,
+    "warmupPassesPerArm": 4,
+    "pairedMeasuredBlocksPerArm": 6,
+    "pairOrder": "alternating baseline-final / final-baseline",
+    "assetAuthentication": "exact bytes and SHA-256 before and after measurement"
+  },
+  "correctness": {
+    "exactDecisionCases": 63,
+    "totalCases": 64,
+    "allExactDecisions": false,
+    "byCategory": {
+      "opening": {
+        "exact": 16,
+        "total": 16
+      },
+      "middlegame": {
+        "exact": 16,
+        "total": 16
+      },
+      "dropHeavy": {
+        "exact": 16,
+        "total": 16
+      },
+      "checkEvasion": {
+        "exact": 15,
+        "total": 16
+      }
+    },
+    "differingCases": [
+      {
+        "id": "checkEvasion-06",
+        "baseline": {
+          "key": 1414616,
+          "score": -880,
+          "depth": 5,
+          "nodes": 337331,
+          "leaves": 1295277
+        },
+        "final": {
+          "key": 1709528,
+          "score": -943,
+          "depth": 5,
+          "nodes": 304437,
+          "leaves": 1236776
+        },
+        "formalResearchCrossCheck": {
+          "path": "docs/data/shogi-dual-hash-lock-correctness-raw-2026-07-26.json",
+          "onDeterministic": true,
+          "onLegal": true,
+          "meaning": "The changed final decision is the expected legal dual-lock collision correction, not a crash or illegal move."
+        }
+      }
+    ],
+    "matchingCaseIds": [
+      "opening-01",
+      "opening-02",
+      "opening-03",
+      "opening-04",
+      "opening-05",
+      "opening-06",
+      "opening-07",
+      "opening-08",
+      "opening-09",
+      "opening-10",
+      "opening-11",
+      "opening-12",
+      "opening-13",
+      "opening-14",
+      "opening-15",
+      "opening-16",
+      "middlegame-01",
+      "middlegame-02",
+      "middlegame-03",
+      "middlegame-04",
+      "middlegame-05",
+      "middlegame-06",
+      "middlegame-07",
+      "middlegame-08",
+      "middlegame-09",
+      "middlegame-10",
+      "middlegame-11",
+      "middlegame-12",
+      "middlegame-13",
+      "middlegame-14",
+      "middlegame-15",
+      "middlegame-16",
+      "dropHeavy-01",
+      "dropHeavy-02",
+      "dropHeavy-03",
+      "dropHeavy-04",
+      "dropHeavy-05",
+      "dropHeavy-06",
+      "dropHeavy-07",
+      "dropHeavy-08",
+      "dropHeavy-09",
+      "dropHeavy-10",
+      "dropHeavy-11",
+      "dropHeavy-12",
+      "dropHeavy-13",
+      "dropHeavy-14",
+      "dropHeavy-15",
+      "dropHeavy-16",
+      "checkEvasion-01",
+      "checkEvasion-02",
+      "checkEvasion-03",
+      "checkEvasion-04",
+      "checkEvasion-05",
+      "checkEvasion-07",
+      "checkEvasion-08",
+      "checkEvasion-09",
+      "checkEvasion-10",
+      "checkEvasion-11",
+      "checkEvasion-12",
+      "checkEvasion-13",
+      "checkEvasion-14",
+      "checkEvasion-15",
+      "checkEvasion-16"
+    ]
+  },
+  "warmup": [
+    {
+      "arm": "baseline",
+      "elapsedMs": 29209.087665999992,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 533.8880206844734
+    },
+    {
+      "arm": "final",
+      "elapsedMs": 28957.621,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 533.2011217357946
+    },
+    {
+      "arm": "final",
+      "elapsedMs": 29004.81154200001,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 532.3336087752883
+    },
+    {
+      "arm": "baseline",
+      "elapsedMs": 29180.773083000007,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 534.4060609924313
+    },
+    {
+      "arm": "baseline",
+      "elapsedMs": 29177.241083,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 534.4707525855144
+    },
+    {
+      "arm": "final",
+      "elapsedMs": 32278.326292000012,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 478.3468591376985
+    }
+  ],
+  "blocks": [
+    {
+      "index": 0,
+      "pair": 0,
+      "order": 0,
+      "arm": "baseline",
+      "elapsedMs": 33005.059708000015,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 472.4845868471529
+    },
+    {
+      "index": 1,
+      "pair": 0,
+      "order": 1,
+      "arm": "final",
+      "elapsedMs": 29046.146707999986,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 531.5760522461109
+    },
+    {
+      "index": 2,
+      "pair": 1,
+      "order": 0,
+      "arm": "final",
+      "elapsedMs": 28987.10704099998,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 532.6587430115396
+    },
+    {
+      "index": 3,
+      "pair": 1,
+      "order": 1,
+      "arm": "baseline",
+      "elapsedMs": 29257.116333000013,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 533.0115867369543
+    },
+    {
+      "index": 4,
+      "pair": 2,
+      "order": 0,
+      "arm": "baseline",
+      "elapsedMs": 29112.18174999999,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 535.6651773445323
+    },
+    {
+      "index": 5,
+      "pair": 2,
+      "order": 1,
+      "arm": "final",
+      "elapsedMs": 28852.081417000038,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 535.1515468448112
+    },
+    {
+      "index": 6,
+      "pair": 3,
+      "order": 0,
+      "arm": "final",
+      "elapsedMs": 29105.007041000004,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 530.5010226676618
+    },
+    {
+      "index": 7,
+      "pair": 3,
+      "order": 1,
+      "arm": "baseline",
+      "elapsedMs": 29115.583042000013,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 535.6026007620965
+    },
+    {
+      "index": 8,
+      "pair": 4,
+      "order": 0,
+      "arm": "baseline",
+      "elapsedMs": 29018.385874999978,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 537.3966032147545
+    },
+    {
+      "index": 9,
+      "pair": 4,
+      "order": 1,
+      "arm": "final",
+      "elapsedMs": 28910.300916999928,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 534.0738598442184
+    },
+    {
+      "index": 10,
+      "pair": 5,
+      "order": 0,
+      "arm": "final",
+      "elapsedMs": 28908.538833,
+      "nodes": 2967885,
+      "leaves": 12472351,
+      "work": 15440236,
+      "throughput": 534.1064136515433
+    },
+    {
+      "index": 11,
+      "pair": 5,
+      "order": 1,
+      "arm": "baseline",
+      "elapsedMs": 29106.253250000067,
+      "nodes": 3010833,
+      "leaves": 12583549,
+      "work": 15594382,
+      "throughput": 535.7742841737956
+    }
+  ],
+  "paired": [
+    {
+      "pair": 0,
+      "finalToBaselineThroughput": 1.1250653821181131,
+      "finalToBaselineWall": 0.8800513304619038
+    },
+    {
+      "pair": 1,
+      "finalToBaselineThroughput": 0.9993380186581406,
+      "finalToBaselineWall": 0.9907711584105957
+    },
+    {
+      "pair": 2,
+      "finalToBaselineThroughput": 0.9990411351690485,
+      "finalToBaselineWall": 0.99106558432365
+    },
+    {
+      "pair": 3,
+      "finalToBaselineThroughput": 0.9904750684795486,
+      "finalToBaselineWall": 0.99963675805548
+    },
+    {
+      "pair": 4,
+      "finalToBaselineThroughput": 0.9938169624618781,
+      "finalToBaselineWall": 0.9962752939303503
+    },
+    {
+      "pair": 5,
+      "finalToBaselineThroughput": 0.9968869903399259,
+      "finalToBaselineWall": 0.9932071498415871
+    }
+  ],
+  "observed": {
+    "baselineWorkPerBlock": 15594382,
+    "finalWorkPerBlock": 15440236,
+    "finalWorkFraction": 0.9901152863896755,
+    "aggregateBaselineThroughput": 523.8446493113912,
+    "aggregateFinalThroughput": 533.0064554525048,
+    "aggregateFinalToBaselineThroughput": 1.0174895480046557,
+    "robustMedianFinalToBaselineThroughput": 0.9968869903399259,
+    "minimumFinalToBaselineThroughput": 0.9904750684795486,
+    "maximumFinalToBaselineThroughput": 1.1250653821181131,
+    "p90WallRegression": -0.0003632419445199764,
+    "baselineMemoryBytes": 56623104,
+    "finalMemoryBytes": 56623104,
+    "memoryDeltaBytes": 0
+  },
+  "stabilityObservation": {
+    "allBlocksIncludedInAggregate": true,
+    "environmentalDriftBlock": {
+      "pair": 0,
+      "baselineElapsedMs": 33005.059708000015,
+      "finalElapsedMs": 29046.146707999986,
+      "effect": "The isolated slow baseline block makes the all-block aggregate optimistic for final."
+    },
+    "stableDescriptivePairs": [1, 2, 3, 4, 5],
+    "stableDescriptiveFinalToBaselineThroughputRange": {
+      "minimum": 0.9904750684795486,
+      "maximum": 0.9993380186581406
+    },
+    "boundary": "The stable range is a transparent post-run description, not a preregistered exclusion rule. No raw block was removed."
+  },
+  "referenceThresholds": {
+    "source": "ml/protocols/dual-hash-lock-v1-plan.json",
+    "aggregateFinalToBaselineAtLeast": 0.97,
+    "medianFinalToBaselineAtLeast": 0.95,
+    "p90WallRegressionAtMost": 0.08,
+    "memoryDeltaBytesAtMost": 6291456,
+    "diagnosticPass": true,
+    "authorizationMeaning": "Reference-only gross-regression check; this post-hoc diagnostic does not inherit the preregistered plan's promotion authority."
+  },
+  "postflight": {
+    "finalIdentityMatched": true,
+    "baselineEnvelopeIdentityMatched": true,
+    "baselineDecodedIdentityMatched": true,
+    "weightsIdentityMatched": true
+  },
+  "claimBoundary": {
+    "strengthMetric": false,
+    "directWasmOnly": true,
+    "browserHostMeasured": false,
+    "sharedTtMeasured": false,
+    "playingStrengthMeasured": false,
+    "deploymentAuthorized": false
+  }
+}

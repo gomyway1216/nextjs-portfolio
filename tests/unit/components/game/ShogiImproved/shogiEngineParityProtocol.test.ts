@@ -113,7 +113,7 @@ describe("Shogi browser Worker parity protocol", () => {
     expect(getOpeningMoveImproved(position, "hard")).toBeNull();
 
     const externalBook = readFileSync(
-      join(process.cwd(), "public", "shogi-opening-book.bin"),
+      join(process.cwd(), "public", "shogi-opening-book-v2.bin"),
     );
     const arrayBuffer = externalBook.buffer.slice(
       externalBook.byteOffset,

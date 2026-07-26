@@ -66,7 +66,7 @@
 		import { MateSolverImproved } from './MateSolverImproved';
 		import { MoveListImproved } from './MoveListImproved';
 		import { getOpeningMoveImproved } from './OpeningBookImproved';
-		import { TranspositionTableImprovedPacked } from './TranspositionTableImprovedPacked';
+		import { TranspositionTableImprovedPackedDual } from './TranspositionTableImprovedPackedDual';
 		import { Difficulty } from '../common/types';
 
 export interface ShogiAISearchOptions {
@@ -145,15 +145,19 @@ export class ShogiAIImprovedV20 {
   private static readonly EVAL_CACHE_SIZE = 1 << 18;
   private static readonly EVAL_CACHE_SENTINEL = 0x7fffffff;
 
-  private tt: TranspositionTableImprovedPacked;
+  private tt: TranspositionTableImprovedPackedDual;
 
   private evalCacheKeyV1: Int32Array;
+  private evalCacheSecondaryKeyV1: Int32Array;
   private evalCacheValV1: Int32Array;
   private evalCacheKeyV2: Int32Array;
+  private evalCacheSecondaryKeyV2: Int32Array;
   private evalCacheValV2: Int32Array;
   private evalCacheKeyV3: Int32Array;
+  private evalCacheSecondaryKeyV3: Int32Array;
   private evalCacheValV3: Int32Array;
   private evalCacheKeyV3T: Int32Array;
+  private evalCacheSecondaryKeyV3T: Int32Array;
   private evalCacheValV3T: Int32Array;
 
   private leaf = 0;
@@ -164,11 +168,12 @@ export class ShogiAIImprovedV20 {
   private evaluationMode: 'v1' | 'v2' | 'v3' | 'v3t' = 'v3';
 
   // Repetition handling (sennichite) within the current search path.
-  // HashVal already includes side-to-move, so a repeated `HashVal` means an actual repetition state.
+  // Both keys include side-to-move, so a repeated pair means an actual repetition state.
   private enableRepetition = true;
   private drawContempt = 0;
-  private repetitionCount = new Map<number, number>();
-  private repetitionStack: number[] = [];
+  private repetitionCount = new Map<number, Map<number, number>>();
+  private repetitionPrimaryStack: number[] = [];
+  private repetitionSecondaryStack: number[] = [];
 
   // Null-move pruning (enabled only for higher difficulties to keep early levels stable).
   private enableNullMove = false;
@@ -273,31 +278,43 @@ export class ShogiAIImprovedV20 {
   /**
    * `tt` is injected so callers can reuse a transposition table across moves (stronger) or create a fresh one (clean).
    */
-  constructor(tt: TranspositionTableImprovedPacked = new TranspositionTableImprovedPacked()) {
+  constructor(tt: TranspositionTableImprovedPackedDual = new TranspositionTableImprovedPackedDual()) {
     this.tt = tt;
 
     this.evalCacheKeyV1 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheSecondaryKeyV1 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheSecondaryKeyV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheSecondaryKeyV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheKeyV3T = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheSecondaryKeyV3T = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheValV3T = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
 
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
     this.tt.clear();
     // Also clear eval caches for reproducibility across games (optional but helps deterministic benchmarks).
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheSecondaryKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -401,37 +418,47 @@ export class ShogiAIImprovedV20 {
 
   private evaluateSenteCached(k: KyokumenImproved): number {
     const key = (k.BanHash ^ k.HandHash) | 0;
+    // All four evaluators are SENTE-perspective and do not inspect turn.
+    const secondaryKey = (k.SecondaryBanHash ^ k.SecondaryHandHash) | 0;
     const index = key & (ShogiAIImprovedV20.EVAL_CACHE_SIZE - 1);
 
     if (this.evaluationMode === 'v1') {
-      if (this.evalCacheKeyV1[index] === key) return this.evalCacheValV1[index] | 0;
+      if (this.evalCacheKeyV1[index] === key && this.evalCacheSecondaryKeyV1[index] === secondaryKey)
+        return this.evalCacheValV1[index] | 0;
       const value = k.evaluateV1() | 0;
       this.evalCacheKeyV1[index] = key;
+      this.evalCacheSecondaryKeyV1[index] = secondaryKey;
       this.evalCacheValV1[index] = value;
       return value;
     }
 
     if (this.evaluationMode === 'v2') {
-      if (this.evalCacheKeyV2[index] === key) return this.evalCacheValV2[index] | 0;
+      if (this.evalCacheKeyV2[index] === key && this.evalCacheSecondaryKeyV2[index] === secondaryKey)
+        return this.evalCacheValV2[index] | 0;
       const value = k.evaluate() | 0;
       this.evalCacheKeyV2[index] = key;
+      this.evalCacheSecondaryKeyV2[index] = secondaryKey;
       this.evalCacheValV2[index] = value;
       return value;
     }
 
     // v3t (candidate weights for tuning A/B; same structure as v3, separate cache)
     if (this.evaluationMode === 'v3t') {
-      if (this.evalCacheKeyV3T[index] === key) return this.evalCacheValV3T[index] | 0;
+      if (this.evalCacheKeyV3T[index] === key && this.evalCacheSecondaryKeyV3T[index] === secondaryKey)
+        return this.evalCacheValV3T[index] | 0;
       const value = (k.evaluateV3Tuned() + this.hangingThreatSente(k)) | 0;
       this.evalCacheKeyV3T[index] = key;
+      this.evalCacheSecondaryKeyV3T[index] = secondaryKey;
       this.evalCacheValV3T[index] = value;
       return value;
     }
 
     // v3 (V20: includes the hanging-piece threat term; cached together with the base eval)
-    if (this.evalCacheKeyV3[index] === key) return this.evalCacheValV3[index] | 0;
+    if (this.evalCacheKeyV3[index] === key && this.evalCacheSecondaryKeyV3[index] === secondaryKey)
+      return this.evalCacheValV3[index] | 0;
     const value = (k.evaluateV3() + this.hangingThreatSente(k)) | 0;
     this.evalCacheKeyV3[index] = key;
+    this.evalCacheSecondaryKeyV3[index] = secondaryKey;
     this.evalCacheValV3[index] = value;
     return value;
   }
@@ -464,24 +491,31 @@ export class ShogiAIImprovedV20 {
     return Math.max(0, Math.abs(komaValue[promoted]) - Math.abs(komaValue[te.koma]));
   }
 
-  private pushRepetition(hash: number): boolean {
+  private pushRepetition(primaryHash: number, secondaryHash: number): boolean {
     // Shogi sennichite is 4 occurrences of the same position+turn.
     // If we've already seen this position 3 times on the current path, the 4th would be a draw.
-    const prev = this.repetitionCount.get(hash) ?? 0;
+    const secondaryCounts = this.repetitionCount.get(primaryHash);
+    const prev = secondaryCounts?.get(secondaryHash) ?? 0;
     if (prev >= 3) return false;
 
-    this.repetitionCount.set(hash, prev + 1);
-    this.repetitionStack.push(hash);
+    if (secondaryCounts) secondaryCounts.set(secondaryHash, prev + 1);
+    else this.repetitionCount.set(primaryHash, new Map([[secondaryHash, 1]]));
+    this.repetitionPrimaryStack.push(primaryHash);
+    this.repetitionSecondaryStack.push(secondaryHash);
     return true;
   }
 
   private popRepetition(): void {
-    const hash = this.repetitionStack.pop();
-    if (hash === undefined) return;
+    const primaryHash = this.repetitionPrimaryStack.pop();
+    const secondaryHash = this.repetitionSecondaryStack.pop();
+    if (primaryHash === undefined || secondaryHash === undefined) return;
 
-    const prev = this.repetitionCount.get(hash) ?? 0;
-    if (prev <= 1) this.repetitionCount.delete(hash);
-    else this.repetitionCount.set(hash, prev - 1);
+    const secondaryCounts = this.repetitionCount.get(primaryHash);
+    if (!secondaryCounts) return;
+    const prev = secondaryCounts.get(secondaryHash) ?? 0;
+    if (prev <= 1) secondaryCounts.delete(secondaryHash);
+    else secondaryCounts.set(secondaryHash, prev - 1);
+    if (secondaryCounts.size === 0) this.repetitionCount.delete(primaryHash);
   }
 
   private moveKey(te: Te): number {
@@ -983,7 +1017,7 @@ export class ShogiAIImprovedV20 {
     this.leaf++;
     this.maybeThrowOnTime();
 
-    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal) : true;
+    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal, k.SecondaryHashVal) : true;
     if (!pushed) return this.repetitionDrawScore(k);
 
     try {
@@ -1009,7 +1043,7 @@ export class ShogiAIImprovedV20 {
 
       // V20: use the TT best move for quiescence ordering too (cheap probe, big cutoff gains
       // because many quiescence positions were already searched at depth >= 1).
-      const qTtIndex = this.tt.probe(k.HashVal);
+      const qTtIndex = this.tt.probe(k.HashVal, k.SecondaryHashVal);
       const qTtMoveKey = qTtIndex >= 0 ? this.tt.bestKey[qTtIndex] | 0 : 0;
 
       // Quiescence nodes are all "frontier": skip the expensive per-move attack scans in ordering
@@ -1175,7 +1209,7 @@ export class ShogiAIImprovedV20 {
     this.node++;
     this.maybeThrowOnTime();
 
-    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal) : true;
+    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal, k.SecondaryHashVal) : true;
     if (!pushed) return this.repetitionDrawScore(k);
 
     try {
@@ -1190,7 +1224,7 @@ export class ShogiAIImprovedV20 {
       if (alpha >= beta) return alpha;
 
 	      // Transposition table probe (packed).
-	      const ttIndex = this.tt.probe(k.HashVal);
+      const ttIndex = this.tt.probe(k.HashVal, k.SecondaryHashVal);
 	      let ttMoveKey = 0;
 	      let ttSecondMoveKey = 0;
 	      if (ttIndex >= 0) {
@@ -1202,12 +1236,17 @@ export class ShogiAIImprovedV20 {
 	          const ttValue = this.tt.value[ttIndex] | 0;
 	          const ttFlag = this.tt.flag[ttIndex] | 0;
 
-	          if (ttFlag === TranspositionTableImprovedPacked.EXACTLY_VALUE) {
-	            if (ply === 0 && ttMoveKey !== 0) this.rootBest = this.teFromMoveKey(ttMoveKey, k);
-	            return ttValue;
-	          }
-	          if (ttFlag === TranspositionTableImprovedPacked.LOWER_BOUND && ttValue >= beta) return ttValue;
-	          if (ttFlag === TranspositionTableImprovedPacked.UPPER_BOUND && ttValue <= alpha) return ttValue;
+          if (ttFlag === TranspositionTableImprovedPackedDual.EXACTLY_VALUE) {
+            if (ply === 0 && ttMoveKey !== 0) {
+              const legalRootMove = GenerateMovesImproved.generateLegalMoves(k).find(
+                (move) => this.moveKey(move) === ttMoveKey
+              );
+              if (legalRootMove) this.rootBest = legalRootMove.clone();
+            }
+            return ttValue;
+          }
+          if (ttFlag === TranspositionTableImprovedPackedDual.LOWER_BOUND && ttValue >= beta) return ttValue;
+          if (ttFlag === TranspositionTableImprovedPackedDual.UPPER_BOUND && ttValue <= alpha) return ttValue;
 	        }
 	      }
 
@@ -1219,7 +1258,7 @@ export class ShogiAIImprovedV20 {
       // first so the TT gives us a good first move. Ordering quality dominates alpha-beta efficiency.
       if (ttMoveKey === 0 && depthLeft >= 5 && !parentInCheck) {
         this.search(k, depthLeft - 2, alpha, beta, ply);
-        const iidIndex = this.tt.probe(k.HashVal);
+        const iidIndex = this.tt.probe(k.HashVal, k.SecondaryHashVal);
         if (iidIndex >= 0) {
           ttMoveKey = this.tt.bestKey[iidIndex] | 0;
           ttSecondMoveKey = this.tt.secondKey[iidIndex] | 0;
@@ -1468,7 +1507,7 @@ export class ShogiAIImprovedV20 {
         return alpha;
       }
 
-	      this.tt.add(k.HashVal, alpha, alphaOrig, beta, bestMove ? this.moveKey(bestMove) : 0, depthLeft);
+      this.tt.add(k.HashVal, k.SecondaryHashVal, alpha, alphaOrig, beta, bestMove ? this.moveKey(bestMove) : 0, depthLeft);
 	      return alpha;
     } finally {
       if (this.enableRepetition) this.popRepetition();
@@ -1632,7 +1671,8 @@ export class ShogiAIImprovedV20 {
     this.contHist.fill(0);
     this.prevPtByPly.fill(-1);
     this.repetitionCount.clear();
-    this.repetitionStack.length = 0;
+    this.repetitionPrimaryStack.length = 0;
+    this.repetitionSecondaryStack.length = 0;
 
     const start = this.nowMs();
     this.startTime = start;
@@ -1654,7 +1694,7 @@ export class ShogiAIImprovedV20 {
     const rootMoves = GenerateMovesImproved.generateLegalMovesPooled(position, this.moveLists[0]);
     if (rootMoves.length === 0) return { move: null, depth: 0, kind: 'search' };
 
-	    const ttIndexAtRoot = this.tt.probe(position.HashVal);
+    const ttIndexAtRoot = this.tt.probe(position.HashVal, position.SecondaryHashVal);
 	    const ttMoveKeyAtRoot = ttIndexAtRoot >= 0 ? (this.tt.bestKey[ttIndexAtRoot] | 0) : 0;
 	    const ttSecondMoveKeyAtRoot = ttIndexAtRoot >= 0 ? (this.tt.secondKey[ttIndexAtRoot] | 0) : 0;
 	    this.scoreAndSortMoves(position, rootMoves, 0, ttMoveKeyAtRoot, ttSecondMoveKeyAtRoot);

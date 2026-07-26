@@ -101,3 +101,5 @@ The 47-47-2 record supports only the conclusion that this bounded direct-play sc
 Even passing every gate does not change live from this research PR. A separate promotion PR must apply dual identity to the production AssemblyScript, WASM, embedded base64, JS V20 fallback, shared TT, mate solver, and opening caches, followed by real-browser and rollback checks.
 
 This fix cannot guarantee high-dan strength. It does remove a reproduced hole that can reuse another position's search result and make the search core emit an illegal move key—a concrete foundation to repair before spending more compute on training.
+
+The subsequent production-path implementation, fail-closed SBK2 migration, asset identities, and pre-deployment claim boundary are documented in the [production dual-hash integration](./blog-shogi-production-dual-hash-integration.en.md).

@@ -140,8 +140,8 @@ describe("bounded quiet-history + malus research candidate", () => {
     }
   });
 
-  it("pins every protected production input and isolated research artifact", () => {
-    expect(identity(read("wasm-spike", "assembly", "index.ts"))).toEqual(
+  it("pins the historical research lineage and fails closed after production advances", () => {
+    expect(identity(read("wasm-spike", "assembly", "index.ts"))).not.toEqual(
       IDENTITIES.productionSource,
     );
     expect(
@@ -155,7 +155,7 @@ describe("bounded quiet-history + malus research candidate", () => {
           "shogi.wasm",
         ),
       ),
-    ).toEqual(IDENTITIES.productionWasm);
+    ).not.toEqual(IDENTITIES.productionWasm);
     expect(
       identity(
         read(
@@ -167,7 +167,7 @@ describe("bounded quiet-history + malus research candidate", () => {
           "shogiWasmBase64.ts",
         ),
       ),
-    ).toEqual(IDENTITIES.productionBase64);
+    ).not.toEqual(IDENTITIES.productionBase64);
     expect(
       identity(
         read(
@@ -178,7 +178,29 @@ describe("bounded quiet-history + malus research candidate", () => {
           "ShogiAIImprovedV20.ts",
         ),
       ),
-    ).toEqual(IDENTITIES.jsReference);
+    ).not.toEqual(IDENTITIES.jsReference);
+    const historicalWasm = Buffer.from(
+      read(
+        "docs",
+        "data",
+        "shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      ).toString("utf8"),
+      "base64",
+    );
+    expect(identity(historicalWasm)).toEqual(IDENTITIES.productionWasm);
+    const sealedPlan = JSON.parse(
+      read(
+        "ml",
+        "protocols",
+        "bounded-quiet-history-malus-v1-plan.json",
+      ).toString("utf8"),
+    );
+    expect(sealedPlan.pinned_inputs.production_search_source).toMatchObject(
+      IDENTITIES.productionSource,
+    );
+    expect(sealedPlan.pinned_inputs.production_wasm).toMatchObject(
+      IDENTITIES.productionWasm,
+    );
     expect(identity(read("public", "shogi-nnue-weights.bin"))).toEqual(
       IDENTITIES.liveWeights,
     );

@@ -1542,7 +1542,7 @@ var init_floodgate_stable_wasm_deadline_public_calibration = __esm({
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS = 18e4;
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY = Object.freeze({
       bytes: 13014,
-      sha256: "55efa07a5e94cffe5615e423e2a20a7d67cbebeafe75f1882eee9e08823a5ab0"
+      sha256: "d701fad6fb376ee96c0d2606f43d6757796c90cb4d9e4796c328d7cb4cd0ad96"
     });
     WORKER_BOOTSTRAP_SOURCE2 = 'import { readFileSync } from "node:fs";const source=readFileSync(3);const encoded=Buffer.from(source).toString("base64");await import("data:text/javascript;base64,"+encoded);';
     MAX_WORKER_STDOUT_BYTES2 = 256;

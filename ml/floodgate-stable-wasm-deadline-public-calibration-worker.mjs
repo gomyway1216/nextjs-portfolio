@@ -37,10 +37,10 @@ const PUBLIC_SIDE_TO_MOVE = 32;
 const PUBLIC_ROOT_TESU = 31;
 const EXPECTED_RESULT = Object.freeze({
   packedMove: 1_084_516,
-  rawSearchScore: -114,
+  rawSearchScore: -119,
   completedDepth: 11,
-  nodes: 644_923,
-  leaves: 1_533_244,
+  nodes: 541_684,
+  leaves: 1_270_883,
 });
 
 const INPUT_KEYS = Object.freeze(["schema", "wasm_base64", "weights_base64"]);

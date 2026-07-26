@@ -1905,7 +1905,6 @@ function validatedAllowedLoaderSummary() {
   const expectedSummary = {
     "tsx-exact-repository-root-exists": 1,
     "tsx-exact-uppercase-root-case-probe": 1,
-    "tsx-exact-lexer-typescript-probe": 1,
     "tsx-exact-esbuild-transform-worker": 1,
     "tsx-parent-ipc-pipe": 1,
     "tsx-parent-ipc-socket-connect": 1,
@@ -1926,6 +1925,15 @@ function validatedAllowedLoaderSummary() {
           summary[key],
       );
     }
+  }
+  if (
+    summary["tsx-exact-lexer-typescript-probe"] !== 0 &&
+    summary["tsx-exact-lexer-typescript-probe"] !== 1
+  ) {
+    throw new Error(
+      "optional TSX lexer TypeScript probe count changed: actual=" +
+        summary["tsx-exact-lexer-typescript-probe"],
+    );
   }
   if (
     summary["require-cache-source-read"] <= 0 ||
@@ -2111,7 +2119,6 @@ function validatedTestBoundarySummary() {
       validated_loader_infrastructure_call_summary: {
         "tsx-exact-repository-root-exists": 1,
         "tsx-exact-uppercase-root-case-probe": 1,
-        "tsx-exact-lexer-typescript-probe": 1,
         "tsx-exact-esbuild-transform-worker": 1,
         [typeof process.geteuid === "function"
           ? "tsx-bootstrap-effective-user-id"
@@ -2172,6 +2179,14 @@ function validatedTestBoundarySummary() {
         "tsx-typescript-package-stat-probe"
       ],
     ).toBeGreaterThan(0);
+    expect(
+      [0, 1],
+      "tsx may omit its exact lexer .cts existence probe on some platforms",
+    ).toContain(
+      parsed.validated_loader_infrastructure_call_summary[
+        "tsx-exact-lexer-typescript-probe"
+      ],
+    );
     expect(
       Object.values(
         parsed.validated_test_isolation_boundary_call_summary,

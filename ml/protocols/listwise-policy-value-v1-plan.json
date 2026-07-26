@@ -1,0 +1,205 @@
+{
+  "schema": "shogi-listwise-policy-value-plan-v1",
+  "status": "prospective-one-seed-static-pilot-not-live-authorization",
+  "objective": "Test a collision-free explicit parent/move residual over the frozen live NNUE on existing V9 and browser-confusion legal-sibling labels, without generating more teacher data or changing the deployed evaluator.",
+  "not_a_repeat": {
+    "closed_scalar_lane": "The prior board/HalfKP sibling lanes changed a child-position scalar evaluator and lost held-out top-1 or direct play.",
+    "closed_hash_lane": "The prior 128 KiB head was a signed feature-hashed linear model, did not use live child value, and failed browser and cross-distribution static gates.",
+    "new_hypothesis": "Use the exact live int16 child evaluation as a frozen value anchor and learn only a non-hashed explicit parent/move residual with a nonlinear 32-unit head.",
+    "forbidden_retries": [
+      "no extra seed, epoch extension, feature variant, or threshold change after a static rejection",
+      "no teacher regeneration for this pilot",
+      "no runtime integration, match, or deployment before every static gate passes"
+    ]
+  },
+  "claim_boundary": "A pass is static root-ordering proxy evidence only. It is not playing-strength, node-count, speed, browser-runtime, live-weight, or deployment evidence.",
+  "inputs": {
+    "live_nnue": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "role": "frozen exact int16 child-value anchor; never trainable or rewritten"
+    },
+    "v9_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "rows": 278736,
+      "parents": 23980,
+      "games": 1000,
+      "candidate_coverage": "depth-14 proposal plus independently depth-16-rescored played move; 2-13 candidates"
+    },
+    "browser_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "candidate_coverage": "every rules-complete legal move independently depth-12 rescored"
+    },
+    "browser_reject": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "rows": 57658,
+      "parents": 643,
+      "games": 15,
+      "role": "previously observed reject-only set; forbidden for epoch selection"
+    },
+    "v9_reject": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+      "rows": 28518,
+      "parents": 4798,
+      "games": 200,
+      "role": "previously observed cross-distribution reject-only set; forbidden for epoch selection"
+    }
+  },
+  "semantic_partition": {
+    "policy": "protect both reject sets; browser training wins remaining cross-training conflicts; drop the whole lower-priority parent",
+    "browser_training_parents_kept": 1220,
+    "browser_training_parents_dropped": 114,
+    "browser_dropped_parent_ids_sha256": "09a0b42fd0fabd8eb7b2ce6ada1c6ed95d39303d881daeab576311c2505ced13",
+    "v9_training_parents_kept": 23807,
+    "v9_training_parents_dropped": 173,
+    "v9_dropped_parent_ids_sha256": "5e24556a840f7cb64f7d40d1d1f4c05f712efdc6b227600cb459927fdf418b58",
+    "training_domain_semantic_overlap": 0,
+    "fit_tune": "Inside each retained domain, union all parents sharing a game_id or any parent/child semantic_position_id. Canonicalize each whole connected component as sorted games, parents, and semantic IDs; assign tune iff the first 8 bytes of sha256(seed:sha256(canonical_component_json)) modulo 5 equal zero, otherwise fit. Fail if either side is empty; require zero game and semantic overlap.",
+    "fit_tune_receipt": "Record component counts, parent/game counts, zero overlaps, and sha256 of the sorted component-digest/assignment rows for each domain.",
+    "fit_tune_registered_receipts": {
+      "v9": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 1000,
+        "fit_components": 816,
+        "tune_components": 184,
+        "fit_parents": 19459,
+        "tune_parents": 4348,
+        "fit_games": 816,
+        "tune_games": 184,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "6c1ff46ad0bb7aeb147f48bbd9274a58a8a4f24ddc481c9a8dc4745ea5197294"
+      },
+      "browser": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 29,
+        "fit_components": 23,
+        "tune_components": 6,
+        "fit_parents": 922,
+        "tune_parents": 298,
+        "fit_games": 25,
+        "tune_games": 13,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "2ebd27e42f9badf2e3ada2a5fb169fbeb051a4236724cb7026680df5174587fd"
+      }
+    },
+    "reject_sets_used_for_epoch_selection": false
+  },
+  "architecture": {
+    "schema": "shogi-listwise-policy-value-v1",
+    "feature_version": "explicit-parent-piece-square-move-v1",
+    "hash_functions": 0,
+    "hash_buckets": 0,
+    "live_score": "base_parent_cp = -trunc_toward_zero(exact_int16_live_nnue_out_q(child_sfen) * 600 / 8128), byte-for-byte production/WASM cp semantics",
+    "parent": {
+      "piece_square": "2268 collision-free normalized piece-square indices -> 12 dimensions, summed",
+      "hands": "14 exact normalized hand counts -> 12 dimensions",
+      "padding": "one fixed zero row"
+    },
+    "move": [
+      "from square 0-80 plus one drop token",
+      "to square 0-80",
+      "moved and captured piece types",
+      "drop/promotion/capture action bits",
+      "clipped file/rank displacement",
+      "destination relation to both kings as two explicit 17x17 tables",
+      "piece occupancy in eight origin and eight destination neighbors",
+      "16-bucket parent ply"
+    ],
+    "head": "73 explicit inputs -> tanh 32 -> one clipped residual in [-1200,1200] cp",
+    "quantization": "per-tensor symmetric int16 research artifact",
+    "maximum_artifact_bytes": 131072,
+    "production_nnue_asset": "unchanged exact 1185988-byte file; head is separate and cannot enter a leaf/TT value"
+  },
+  "loss": {
+    "parent_weighting": "each parent contributes equally regardless of candidate count",
+    "combined_score_cp": "frozen_live_parent_cp + learned_residual_cp",
+    "listwise": "cross entropy from teacher softmax to combined-score softmax at 100 cp",
+    "value": "SmoothL1(combined_score/600, teacher_parent_cp/600, beta=0.25), weight 0.25",
+    "pair": "strict logistic ordering for teacher gaps >=50 cp, weight 0.10",
+    "residual_shrink": "mean squared residual/600, weight 0.02"
+  },
+  "training": {
+    "epochs": 8,
+    "batch_parents": 64,
+    "learning_rate": 0.0003,
+    "temperature_cp": 100.0,
+    "pair_gap_cp": 50.0,
+    "value_weight": 0.25,
+    "pair_weight": 0.1,
+    "residual_l2_weight": 0.02,
+    "v9_per_browser": 3,
+    "selection_parent_sampling": "each selection epoch visits every browser fit parent once and a deterministic 3:1 V9 fit sample",
+    "tune_modulus": 5,
+    "seed": 42,
+    "epoch_selection": "maximize the worst per-domain tune top-1 gain, then worst pair gain, then worst regret change",
+    "refit": "restart from the same seed and train all retained training parents for the selected epoch count",
+    "refit_parent_coverage": "all retained V9 and browser parents exactly once per epoch",
+    "refit_scheduler": "same CosineAnnealingLR recipe and original preregistered T_max=8; stop after the selected epoch without shortening the schedule"
+  },
+  "static_gates": {
+    "registered_live_baselines": {
+      "browser_reject": {
+        "parents": 643,
+        "top1_correct": 63,
+        "top1_accuracy": 0.09797822706065319,
+        "pair_count": 2889565,
+        "pair_accuracy": 0.6675554971076961,
+        "mean_regret_cp": 11533.304821150856
+      },
+      "v9_reject": {
+        "parents": 4798,
+        "top1_correct": 1456,
+        "top1_accuracy": 0.3034597749062109,
+        "pair_count": 49692,
+        "pair_accuracy": 0.5915841584158416,
+        "mean_regret_cp": 7316.745310546061
+      }
+    },
+    "thresholds": {
+      "browser_reject": {
+        "minimum_top1_correct": 96,
+        "minimum_pair_accuracy": 0.6875554971076961,
+        "mean_regret": "must not exceed exact live baseline on the same parents"
+      },
+      "v9_reject": {
+        "minimum_top1_correct": 1456,
+        "minimum_pair_accuracy": 0.5915841584158416,
+        "mean_regret": "must not exceed exact live baseline on the same parents"
+      }
+    },
+    "maximum_quantized_top1_parent_loss": 1,
+    "maximum_quantized_pair_drop": 0.001,
+    "maximum_artifact_bytes": 131072,
+    "all_checks_required": true
+  },
+  "execution": {
+    "output": "/Users/yudaiyaguchi/.codex/shogi-runs/listwise-policy-value-v1-seed42",
+    "command": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/venv/bin/python ml/train_listwise_policy_value.py --protocol ml/protocols/listwise-policy-value-v1-plan.json --live-nnue public/shogi-nnue-weights.bin --v9-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl --browser-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl --browser-reject-data /Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl --v9-reject-data /Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl --out /Users/yudaiyaguchi/.codex/shogi-runs/listwise-policy-value-v1-seed42 --epochs 8 --batch-parents 64 --lr 0.0003 --temperature-cp 100 --pair-gap-cp 50 --value-weight 0.25 --pair-weight 0.10 --residual-l2-weight 0.02 --v9-per-browser 3 --tune-modulus 5 --seed 42 --device mps --torch-threads 4"
+  },
+  "failure_conditions": [
+    "STOP before optimization on any byte/hash/count/schema/source-profile/rank/child-identity/semantic-partition drift",
+    "STOP this exact recipe if either reject distribution misses top-1, pair, or regret requirements",
+    "STOP before research WASM if float-to-int16 or artifact-size gates fail",
+    "A pass permits only an off-by-default research-WASM root-ordering node/time test",
+    "Do not modify public/shogi-nnue-weights.bin, production WASM, workers, or live code from this runner",
+    "Do not add seeds, epochs, threshold changes, or more teacher labels after a failure"
+  ]
+}

@@ -1,0 +1,467 @@
+{
+  "schema": "shogi-evaluator-recovery-two-pilots-evidence-v1",
+  "as_of": "2026-07-26",
+  "status": "both-pilots-complete-static-rejected-live-unchanged",
+  "artifact_policy": {
+    "mode": "references-and-fingerprints-only",
+    "raw_binary_or_result_copies_added_to_repository": false
+  },
+  "claim_boundary": "Static held-out ranking evidence only. These pilots do not establish playing-strength gain, live-weight gain, runtime integration, or deployment.",
+  "live_asset": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "unchanged_after_both_pilots": true
+  },
+  "registered_inputs": {
+    "shared": {
+      "browser_dataset_manifest": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/manifest.json",
+        "bytes": 21645,
+        "sha256": "3bb7dd0072e67e074d9657314410d0fc77ed08ac04582847f1de79c3b973334a"
+      },
+      "browser_train": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+        "bytes": 97820193,
+        "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+        "rows": 112011,
+        "parents": 1334,
+        "games": 38
+      },
+      "browser_reject_validation": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+        "bytes": 50255278,
+        "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+        "rows": 57658,
+        "parents": 643,
+        "games": 15
+      }
+    },
+    "main_board_warmstart_only": {
+      "protocol": {
+        "path": "ml/protocols/board-all-legal-warmstart-v1-plan.json",
+        "bytes": 13159,
+        "sha256": "636a7569e317182593e34d024c94d7a4f354f714f64c5202c7d64f6ac75f33b5"
+      },
+      "initializer": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
+        "bytes": 2375274,
+        "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+      },
+      "replay": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+        "bytes": 421952083,
+        "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+        "source_rows": 800000,
+        "sampled_rows": 500000
+      },
+      "preservation": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+        "bytes": 1576191,
+        "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+        "source_rows": 3000,
+        "rows_after_exclusion": 2959,
+        "excluded_rows": 41
+      }
+    },
+    "explicit_residual_policy_only": {
+      "protocol": {
+        "path": "ml/protocols/listwise-policy-value-v1-plan.json",
+        "bytes": 11094,
+        "sha256": "cce7dc21996e8823a0d10352f8128a28826c47c6c906e3fb7cd0df05f22bdbdd"
+      },
+      "v9_training": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+        "bytes": 236990586,
+        "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+        "rows": 278736,
+        "parents": 23980,
+        "games": 1000
+      },
+      "v9_reject_validation": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+        "bytes": 23800461,
+        "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+        "rows": 28518,
+        "parents": 4798,
+        "games": 200
+      }
+    }
+  },
+  "pilots": {
+    "main_board_warmstart": {
+      "status": "complete-static-rejected",
+      "device": "mps",
+      "seed": 42,
+      "candidate_epoch": 3,
+      "best_epoch": null,
+      "artifacts": {
+        "result": {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-runs/board-all-legal-warmstart-v1-seed42/result.json",
+          "bytes": 8632,
+          "sha256": "b0126349fbea12f1756cb70b1ef710c452d4410fceeb234147c88bf6d0422b21"
+        },
+        "last_checkpoint": {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-runs/board-all-legal-warmstart-v1-seed42/last.pt",
+          "bytes": 2387473,
+          "sha256": "c5df9024316c5415f41b24331adaca001383f982099b3b3647c89e329b57e242"
+        },
+        "candidate_export_observation": {
+          "written_as_promotable_artifact": false,
+          "reason": "static-gate-rejected",
+          "bytes": 1185988,
+          "sha256": "75bad23fe5fef2e646bdde7549293d774e4fce2d488d5d6261e5e68faf35dbdb",
+          "roundtrip_equal_samples": 200,
+          "roundtrip_samples": 200
+        }
+      },
+      "split_receipt": {
+        "rows": {
+          "sibling_train": 112011,
+          "sibling_validation": 57658,
+          "replay": 500000,
+          "preservation": 2959
+        },
+        "protected_sibling_position_ids": 170634,
+        "replay_excluded_position_ids": 173593,
+        "sibling_vs_preservation_overlap_excluded": 41,
+        "final_semantic_overlap": 0
+      },
+      "training": {
+        "epoch_seconds": [
+          25.52089558262378,
+          11.887043042108417,
+          10.94672529073432
+        ],
+        "epoch_losses": [
+          0.8153755955253809,
+          0.7539964185328907,
+          0.7292199331166098
+        ],
+        "total_seconds": 48.35466391546652
+      },
+      "metrics": {
+        "live_baseline": {
+          "parents": 643,
+          "top1": {
+            "correct": 63,
+            "accuracy": 0.09797822706065319
+          },
+          "recall_at_3": {
+            "correct": 152,
+            "accuracy": 0.2363919129082426
+          },
+          "recall_at_5": {
+            "correct": 243,
+            "accuracy": 0.37791601866251945
+          },
+          "ndcg_at_5": 0.3735565967562515,
+          "pair50": {
+            "correct": 1928945,
+            "total": 2889565,
+            "accuracy": 0.6675554971076961
+          },
+          "pair200": {
+            "correct": 1539896,
+            "total": 2224457,
+            "accuracy": 0.6922570317160548
+          },
+          "value_loss": 0.06424225121736526,
+          "value_mae": 609.3575477600098
+        },
+        "candidate_exported_int16": {
+          "top1": {
+            "correct": 61,
+            "accuracy": 0.09486780715396578
+          },
+          "recall_at_3": {
+            "correct": 164,
+            "accuracy": 0.25505443234836706
+          },
+          "recall_at_5": {
+            "correct": 233,
+            "accuracy": 0.36236391912908245
+          },
+          "ndcg_at_5": 0.37838576283170255,
+          "pair50": {
+            "correct": 1935236,
+            "total": 2889565,
+            "accuracy": 0.669732641418345
+          },
+          "pair200": {
+            "correct": 1545545,
+            "total": 2224457,
+            "accuracy": 0.6947965278717457
+          },
+          "value_loss": 0.06061146780848503,
+          "value_mae": 580.631697177887
+        },
+        "candidate_float": {
+          "top1": {
+            "correct": 59,
+            "accuracy": 0.09175738724727839
+          },
+          "recall_at_3": {
+            "correct": 166,
+            "accuracy": 0.2581648522550544
+          },
+          "recall_at_5": {
+            "correct": 244,
+            "accuracy": 0.37947122861586313
+          },
+          "ndcg_at_5": 0.37942422599626324,
+          "pair50": {
+            "correct": 1935815,
+            "total": 2889565,
+            "accuracy": 0.6699330175995348
+          },
+          "pair200": {
+            "correct": 1545757,
+            "total": 2224457,
+            "accuracy": 0.6948918320291199
+          }
+        }
+      },
+      "static_gate": {
+        "passed": false,
+        "failed": [
+          {
+            "check": "top1",
+            "observed_correct": 61,
+            "required_correct": 73
+          },
+          {
+            "check": "top1_accuracy",
+            "observed": 0.09486780715396578,
+            "required": 0.11353032659409021
+          },
+          {
+            "check": "recall_at_5",
+            "observed": 0.36236391912908245,
+            "required": 0.39791601866251945
+          },
+          {
+            "check": "ndcg_at_5",
+            "observed": 0.37838576283170255,
+            "required": 0.3835565967562515
+          },
+          {
+            "check": "pair50",
+            "observed": 0.669732641418345,
+            "required": 0.6725942122776266
+          }
+        ],
+        "passed_checks": [
+          "coverage",
+          "export_bytes",
+          "export_roundtrip_parity",
+          "faults",
+          "finite",
+          "float_to_int16_ndcg",
+          "float_to_int16_pair50",
+          "float_to_int16_top1",
+          "pair200",
+          "recall_at_3",
+          "semantic_overlap",
+          "value_loss",
+          "value_mae"
+        ]
+      },
+      "safety": {
+        "matches_started": false,
+        "live_weight_changed": false,
+        "live_before_after_byte_exact": true,
+        "live_write_attempted": false
+      },
+      "closed_lane_next_step": "stop-this-preregistered-lane-without-more-tuning; no screen, match, or live promotion"
+    },
+    "explicit_residual_policy": {
+      "status": "complete-static-rejected",
+      "device": "mps",
+      "seed": 42,
+      "selected_epoch": 1,
+      "claim_boundary": "static-policy-ordering-proxy-only-not-playing-strength-live-weight-runtime-integration-or-deployment-evidence",
+      "artifacts": {
+        "result": {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-runs/listwise-policy-value-v1-seed42/result.json",
+          "bytes": 26232,
+          "sha256": "1e81c0e759f12694c19555d47cc39a95bc2b6dec037ba74531e5ac5b91c49b07"
+        },
+        "research_weights": {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-runs/listwise-policy-value-v1-seed42/quantized/weights.bin",
+          "bytes": 70614,
+          "sha256": "df6065d1215c476f4f9339ccb536648205e511ee9dcc1cff89529344edf911ef"
+        },
+        "best_checkpoint": {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-runs/listwise-policy-value-v1-seed42/best.pt",
+          "bytes": 154405,
+          "sha256": "43dc77ef1464689d9234ba659b978a26c32b8a210fc6aab2cfb99a914b8707ff"
+        }
+      },
+      "split_receipts": {
+        "training_vs_reject_semantic_partition": {
+          "browser_kept_parents": 1220,
+          "browser_dropped_parents": 114,
+          "browser_dropped_id_sha256": "09a0b42fd0fabd8eb7b2ce6ada1c6ed95d39303d881daeab576311c2505ced13",
+          "v9_kept_parents": 23807,
+          "v9_dropped_parents": 173,
+          "v9_dropped_id_sha256": "5e24556a840f7cb64f7d40d1d1f4c05f712efdc6b227600cb459927fdf418b58",
+          "training_domain_semantic_overlap": 0
+        },
+        "browser_fit_tune": {
+          "algorithm": "game-semantic-connected-components-sha256-v1",
+          "fit_parents": 922,
+          "tune_parents": 298,
+          "components": 29,
+          "fit_components": 23,
+          "tune_components": 6,
+          "fit_games": 25,
+          "tune_games": 13,
+          "seed": 42,
+          "modulus": 5,
+          "game_overlap": 0,
+          "semantic_position_overlap": 0,
+          "assignment_sha256": "2ebd27e42f9badf2e3ada2a5fb169fbeb051a4236724cb7026680df5174587fd"
+        },
+        "v9_fit_tune": {
+          "algorithm": "game-semantic-connected-components-sha256-v1",
+          "fit_parents": 19459,
+          "tune_parents": 4348,
+          "components": 1000,
+          "fit_components": 816,
+          "tune_components": 184,
+          "fit_games": 816,
+          "tune_games": 184,
+          "seed": 42,
+          "modulus": 5,
+          "game_overlap": 0,
+          "semantic_position_overlap": 0,
+          "assignment_sha256": "6c1ff46ad0bb7aeb147f48bbd9274a58a8a4f24ddc481c9a8dc4745ea5197294"
+        }
+      },
+      "training": {
+        "selection_epoch_seconds": [
+          64.33983812527731,
+          14.83725070906803,
+          14.212797916959971,
+          13.10636966722086,
+          14.054260749835521,
+          12.896949124988168,
+          13.194163583219051,
+          13.122111749835312
+        ],
+        "selection_total_seconds": 159.76374162640423,
+        "refit_epoch_seconds": [
+          78.12533000018448
+        ],
+        "refit_total_seconds": 78.12533000018448
+      },
+      "metrics": {
+        "browser_reject": {
+          "live_baseline": {
+            "top1": {
+              "correct": 63,
+              "accuracy": 0.09797822706065319
+            },
+            "pair": {
+              "correct": 1928945,
+              "total": 2889565,
+              "accuracy": 0.6675554971076961
+            },
+            "mean_regret": 11533.304821150856
+          },
+          "quantized_candidate": {
+            "top1": {
+              "correct": 63,
+              "accuracy": 0.09797822706065319
+            },
+            "pair": {
+              "correct": 1929925,
+              "total": 2889565,
+              "accuracy": 0.6678946485024563
+            },
+            "mean_regret": 11532.10730948678
+          }
+        },
+        "v9_reject": {
+          "live_baseline": {
+            "top1": {
+              "correct": 1456,
+              "accuracy": 0.3034597749062109
+            },
+            "pair": {
+              "correct": 29397,
+              "total": 49692,
+              "accuracy": 0.5915841584158416
+            },
+            "mean_regret": 7316.745310546061
+          },
+          "quantized_candidate": {
+            "top1": {
+              "correct": 1460,
+              "accuracy": 0.3042934556065027
+            },
+            "pair": {
+              "correct": 29433,
+              "total": 49692,
+              "accuracy": 0.592308621106013
+            },
+            "mean_regret": 7316.581283868279
+          }
+        }
+      },
+      "static_gate": {
+        "passed": false,
+        "failed": [
+          {
+            "check": "browser_reject_pair",
+            "observed": 0.6678946485024563,
+            "required": 0.6875554971076961
+          },
+          {
+            "check": "browser_reject_top1",
+            "observed_correct": 63,
+            "required_correct": 96
+          }
+        ],
+        "passed_checks": [
+          "artifact_bytes",
+          "browser_quantized_pair_drop",
+          "browser_quantized_top1_drop",
+          "browser_regret",
+          "v9_pair",
+          "v9_top1",
+          "v9_regret",
+          "v9_quantized_pair_drop",
+          "v9_quantized_top1_drop"
+        ]
+      },
+      "safety": {
+        "matches_started": false,
+        "live_nnue_changed": false,
+        "public_asset_changed": false,
+        "wasm_changed": false,
+        "teacher_generation_started": false,
+        "export_runtime_scope": "research-root-move-order-only",
+        "live_nnue_embedded": false,
+        "live_before_after_byte_exact": true
+      },
+      "closed_lane_next_step": "close-this-explicit-feature-loss-recipe-without-runtime-integration-or-match",
+      "required_next_gate": null
+    }
+  },
+  "combined_safety": {
+    "matches_started": false,
+    "live_weight_changed": false,
+    "public_asset_changed": false,
+    "wasm_changed": false,
+    "live_asset_bytes_and_sha256_reverified": true,
+    "deployment_attempted": false
+  },
+  "conclusion": {
+    "main_board_warmstart": "Rejected: modest pairwise and value improvements did not meet preregistered top1, recall@5, NDCG@5, or pair50 gates.",
+    "explicit_residual_policy": "Rejected: preserved top1 and slightly improved pairwise ordering, but missed both preregistered browser-reject improvement gates.",
+    "live_action": "none",
+    "lane_action": "close both exact recipes; do not spend more compute tuning them or promote either candidate"
+  }
+}

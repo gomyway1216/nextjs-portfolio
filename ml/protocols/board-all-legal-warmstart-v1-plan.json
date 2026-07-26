@@ -1,0 +1,254 @@
+{
+  "schema": "shogi-board-all-legal-warmstart-plan-v1",
+  "status": "preregistered-single-arm-static-reject-gate-not-live-authorization",
+  "objective": "Test one exact live-compatible one-bucket board evaluator warm-started from the shipped model and trained on every independently depth-12-scored legal child, without reopening the rejected V9, HalfKP, or hashed-policy recipes.",
+  "claim_boundary": "A complete static pass authorizes only the fail-closed screen56 match. It is not playing-strength, high-dan, production, or live-promotion evidence.",
+  "difference_from_prior_lanes": {
+    "v9": "V9 used the one-bucket board representation but trained from depth-16 MultiPV/top-candidate labels rather than a complete legal-move set.",
+    "halfkp": "The HalfKP browser-confusion lane used the complete depth-12 legal-move set but an 81-bucket approximately 94.7 MiB representation that cannot be shipped as the current browser asset.",
+    "this_pilot": "This is the untested cross: the exact shipped one-bucket 2282-256-32-1 evaluator, exact live warm start, complete all-legal sibling labels, value replay, and an exact 1185988-byte export.",
+    "data_freshness": "The 643-parent validation set has already had aggregate metrics exposed. It is prospective reject-only evidence, not a fresh or sealed strength holdout."
+  },
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-best.pt",
+      "bytes": 2375274,
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+      "epoch": 27,
+      "role": "only trainable warm initializer"
+    },
+    "live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "role": "read-only exact int16 baseline and export-layout authority"
+    },
+    "dataset_manifest": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/manifest.json",
+      "bytes": 21645,
+      "sha256": "3bb7dd0072e67e074d9657314410d0fc77ed08ac04582847f1de79c3b973334a"
+    },
+    "legal_sibling_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38
+    },
+    "legal_sibling_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "rows": 57658,
+      "parents": 643,
+      "games": 15,
+      "role": "reject-only final static evaluation; forbidden for epoch or hyperparameter selection"
+    },
+    "value_replay": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+      "rows": 800000,
+      "sample_rows": 500000
+    },
+    "value_preservation_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "bytes": 1576191,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+      "source_rows": 3000,
+      "rows_after_sibling_semantic_exclusion": 2959,
+      "excluded_rows": 41
+    }
+  },
+  "input_consistency": {
+    "initializer_export_is_byte_exact_live_weights": true,
+    "initializer_export_bytes": 1185988,
+    "initializer_export_sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "sibling_parent_and_child_semantic_ids": 170634,
+    "training_validation_game_overlap": 0,
+    "training_validation_parent_overlap": 0,
+    "training_validation_position_overlap": 0,
+    "training_validation_semantic_union_overlap": 0,
+    "all_legal_source_required_on_every_sibling_row": "all-legal-fixed-depth-teacher",
+    "any_mismatch_action": "STOP before optimizer creation"
+  },
+  "registered_baselines": {
+    "exact_live_int16_on_643_parents": {
+      "source_checkpoint_sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+      "source_weights_sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "validation_sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "metric_implementation": "ml/train_board_all_legal_warmstart.py ranking_metrics; exact production cp_int=trunc(out_q*600/8128) toward zero; pessimistic ties",
+      "parents": 643,
+      "rows": 57658,
+      "top1_correct": 63,
+      "top1": 0.09797822706065319,
+      "recall_at_3_correct": 152,
+      "recall_at_3": 0.2363919129082426,
+      "recall_at_5_correct": 243,
+      "recall_at_5": 0.37791601866251945,
+      "ndcg_at_5": 0.3735565967562515,
+      "pair50_correct": 1928945,
+      "pair50_total": 2889565,
+      "pair50": 0.6675554971076961,
+      "pair200_correct": 1539896,
+      "pair200_total": 2224457,
+      "pair200": 0.6922570317160548
+    },
+    "historical_66_of_643_reference": {
+      "reason_for_separate_registration": "The previously reported 66/643 is not the live one-bucket int16 score. It is the alpha-0.5 HalfKP initializer result and is retained only as a stronger absolute top-1 hurdle.",
+      "initializer": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+        "bytes": 191656679,
+        "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4"
+      },
+      "result_evidence": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp-browser-confusion-alpha050-balanced-seed42-v1/result.json",
+        "bytes": 17030,
+        "sha256": "ff0244cfe498f30ca42776734311de21626b5cb19c7239ceed980ab2466ccf80"
+      },
+      "parents": 643,
+      "top1_correct": 66,
+      "top1": 0.1026438569206843,
+      "recall_at_3_correct": 155,
+      "recall_at_3": 0.2410575427682737,
+      "recall_at_5_correct": 244,
+      "recall_at_5": 0.37947122861586313,
+      "ndcg_at_5": 0.37227559015380135,
+      "pair50": 0.6695942122776266,
+      "pair200": 0.6943236034681722
+    },
+    "exact_live_int16_value_on_2959_rows": {
+      "holdout_sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+      "rows": 2959,
+      "value_loss": 0.06424225121736526,
+      "value_mae_cp": 609.3575477600098,
+      "value_loss_kind": "mean squared error between sigmoid(cp_int/600) and sigmoid(clamped_teacher_cp/600), where cp_int=trunc(out_q*600/8128) toward zero"
+    }
+  },
+  "model": {
+    "features": "board",
+    "bucket_count": 1,
+    "architecture": "2282-256-32-1-clipped-relu",
+    "k": 600.0,
+    "candidate_export_bytes": 1185988,
+    "candidate_export_layout": "exact production seven-tensor little-endian int16/int32 layout",
+    "architecture_change_forbidden": true
+  },
+  "training": {
+    "arm_count": 1,
+    "epochs": 3,
+    "batch": 256,
+    "optimizer": "AdamW",
+    "weight_decay": 0.0,
+    "device": "mps",
+    "torch_threads": 14,
+    "replay_limit": 500000,
+    "replay_ratio": 1.0,
+    "k": 600.0,
+    "cp_clamp": 3000,
+    "rank_pair_min_cp": 50.0,
+    "rank_pair_max_cp": 600.0,
+    "rank_margin_cp": 50.0,
+    "policy_temperature_cp": 50.0,
+    "prospective_slots": [
+      {
+        "id": "only-arm-seed42",
+        "seed": 42,
+        "learning_rate": 0.00001,
+        "rank_weight": 0.25,
+        "policy_weight": 0.0625
+      }
+    ],
+    "checkpoint_policy": "fixed-final-epoch-3-only",
+    "early_stopping": false,
+    "candidate_validation_evaluations_before_final_checkpoint_freeze": 0,
+    "live_baseline_evaluations_before_optimizer_creation": 1,
+    "candidate_validation_path_used_by_optimizer": false,
+    "replay_sample": "uniform without replacement after sibling and value-holdout semantic exclusion",
+    "replay_sample_seed": 1051,
+    "preservation_exclusion_seed": 2045,
+    "retune_policy": "No extra seed, arm, epoch, learning-rate, loss weight, temperature, data, architecture, or threshold after dispatch or rejection.",
+    "trainer_and_evaluator_source_hashes_must_be_recorded_before_optimizer_creation": true
+  },
+  "metric_definitions": {
+    "top1": "A parent is correct only when every move tied at candidate maximum is teacher-best.",
+    "recall_at_k": "Use pessimistic rank: all non-teacher-best moves tied with the best-scoring teacher-best move count ahead of it.",
+    "ndcg_at_5": "Teacher relevance is exp(clamp(teacher_cp-best_cp,-1200,0)/100); candidate ties use deterministic teacher-worst-first ordering.",
+    "pair50_and_pair200": "Micro-average unequal teacher pairs at or above the CP gap; predicted ties are incorrect because teacher_delta*predicted_delta must be strictly positive.",
+    "production_cp": "For every quantized ranking, value, and export-parity claim use cp_int=trunc(out_q*600/8128) toward zero; value logits are cp_int/600.",
+    "static_comparator": "candidate exact exported production cp_int against exact live production cp_int on identical rows and parents"
+  },
+  "static_gate": {
+    "all_checks_required": true,
+    "failure_is_closed": true,
+    "validation_parents": 643,
+    "minimum_top1_correct_parents": 73,
+    "minimum_top1_accuracy": 0.11353032659409021,
+    "minimum_recall_at_3_gain": 0.0,
+    "minimum_recall_at_5_gain": 0.02,
+    "minimum_ndcg_at_5_gain": 0.01,
+    "minimum_pair50": 0.6725942122776266,
+    "minimum_pair200_gain": 0.0,
+    "maximum_value_loss_ratio": 1.02,
+    "maximum_value_loss": 0.06552709624171257,
+    "maximum_value_mae_regression_cp": 10.0,
+    "maximum_value_mae_cp": 619.3575477600098,
+    "maximum_float_to_int16_top1_loss_parents": 1,
+    "maximum_float_to_int16_pair50_drop": 0.001,
+    "maximum_float_to_int16_ndcg_at_5_drop": 0.002,
+    "expected_export_bytes": 1185988,
+    "minimum_export_roundtrip_parity_positions": 200,
+    "parity_position_selection": "first 200 validation child rows in the exact authenticated file order",
+    "maximum_faults": 0,
+    "maximum_semantic_overlap": 0,
+    "ndcg_temperature_cp": 100.0,
+    "ndcg_clamp_cp": 1200.0,
+    "candidate_source": "fixed final epoch 3 only; no validation-selected checkpoint",
+    "on_failure": "Permanently reject this exact single-arm recipe before screen56; do not reinterpret metrics or add a retry."
+  },
+  "pre_screen_runtime_safety": {
+    "same_fixed_depth_workload": true,
+    "minimum_evaluator_positions_per_second_ratio_vs_live": 0.98,
+    "node_reduction_is_a_strength_gate": false,
+    "reason": "A direct evaluator changes tree values and therefore the visited node set; node reduction is not an apples-to-apples strength proxy.",
+    "faults_illegal_moves_or_incomplete_positions_allowed": 0
+  },
+  "screen56": {
+    "precondition": "Every static, value, quantization, export, parity, coverage, semantic, and runtime-safety check passed.",
+    "runner": "ml/run_nnue_fixed_time_gate.py screen56",
+    "candidate": "exact admitted 1185988-byte candidate export",
+    "stable": "exact e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc live weights",
+    "opening_pairs": 28,
+    "games": 56,
+    "color_swapped_two_game_pairs": true,
+    "milliseconds_per_move": 1500,
+    "score_unit": "candidate halfpoints out of 112",
+    "pass_halfpoints": 62,
+    "pass_expression": "candidate_halfpoints >= 62",
+    "technical_faults_allowed": 0,
+    "illegal_moves_allowed": 0,
+    "missing_or_duplicate_opening_pairs_allowed": 0,
+    "early_stop": "Only mathematical futility is allowed: stop when candidate_halfpoints + 2*remaining_games < 62.",
+    "on_failure": "STOP this candidate and this exact recipe; no threshold or opening substitution.",
+    "on_pass": "Authorize only a separately registered independent96 continuation, never a live write."
+  },
+  "authorization": {
+    "live_asset_write_authorized": false,
+    "live_asset_path": "public/shogi-nnue-weights.bin",
+    "training_may_write_live_asset": false,
+    "static_evaluator_may_write_live_asset": false,
+    "screen56_may_write_live_asset": false,
+    "production_activation_authorized": false,
+    "allowed_candidate_output_root": "/Users/yudaiyaguchi/.codex/shogi-runs/board-all-legal-warmstart-v1-seed42",
+    "candidate_and_live_assets_must_remain_distinct": true
+  },
+  "stop_rules": [
+    "STOP before optimizer creation on any input byte, SHA-256, row, parent, game, schema, source, rank, sign, legal-set, or semantic-isolation mismatch.",
+    "Train exactly one arm and one seed, freeze epoch 3 before reading validation labels, and evaluate the reject set once.",
+    "Do not select among epochs 1, 2, and 3; only the fixed final epoch is a candidate.",
+    "Require every static gate conjunct; missing, non-finite, incomplete, or malformed evidence is failure.",
+    "Do not start screen56 unless static admission and the read-only runtime-safety check both pass.",
+    "Never write or replace public/shogi-nnue-weights.bin from this plan."
+  ]
+}

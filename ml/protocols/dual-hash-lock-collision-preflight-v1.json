@@ -1,0 +1,155 @@
+{
+  "schema": "shogi-dual-hash-lock-collision-preflight-v1",
+  "status": "collision-reproduced",
+  "recorded_date": "2026-07-25",
+  "discovery": {
+    "read_only": true,
+    "master_seed": 20260725,
+    "game_seed_derivation": "u32(masterSeed + imul(gameIndex, 0x9e3779b9))",
+    "prng": "Mulberry32 identical to the existing opening generator",
+    "position_source": "KyokumenImproved initialized with initHirate, followed only by moves returned by GenerateMovesImproved.generateLegalMoves",
+    "move_selection": "uniform floor(random * legalMoves.length)",
+    "maximum_plies_per_game": 192,
+    "bounds": {
+      "maximum_positions": 150000,
+      "maximum_wall_time_ms": 175000
+    },
+    "observed": {
+      "positions_examined": 52067,
+      "unique_primary_hashes_before_collision": 51496,
+      "elapsed_ms": 2812
+    },
+    "repository_files_modified": false
+  },
+  "primary_hash": {
+    "bits": 30,
+    "key_space": 1073741824,
+    "value": 218180606
+  },
+  "assets": {
+    "production_wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "scale_k": 600,
+      "output_scale": [1, 1]
+    }
+  },
+  "positions": {
+    "a": {
+      "game_index": 178,
+      "game_seed": 63425047,
+      "ply": 88,
+      "sfen": "1nk1s2n1/l1rs1+P3/+Pgp5N/1P1pp1ppl/p4P3/1GPPS+bP1p/B3P2P1/L3GG3/1NK1RS2L b 2P 89",
+      "semantic_sfen": "1nk1s2n1/l1rs1+P3/+Pgp5N/1P1pp1ppl/p4P3/1GPPS+bP1p/B3P2P1/L3GG3/1NK1RS2L b 2P",
+      "sfen_sha256": "42226116fceb27d58816ab2cb6f242cb31d703ea59a8e265e99fd4239ac9c04c",
+      "canonical_roundtrip": true,
+      "physical_invariant": {
+        "ok": true
+      },
+      "js_primary_hash": 218180606,
+      "production_wasm_primary_hash": 218180606,
+      "legal_moves": {
+        "js": 51,
+        "production_wasm": 51
+      }
+    },
+    "b": {
+      "game_index": 275,
+      "game_seed": 4140624176,
+      "ply": 55,
+      "sfen": "1sk3s1l/2g2r+B2/l1n1pp1+B1/p1p3p2/3p3np/PpP4P1/2NPPPP1P/R2SGG1S1/L4K1NL w GPp 56",
+      "semantic_sfen": "1sk3s1l/2g2r+B2/l1n1pp1+B1/p1p3p2/3p3np/PpP4P1/2NPPPP1P/R2SGG1S1/L4K1NL w GPp",
+      "sfen_sha256": "e6b8759b6d231c5f8b41fa751663c982eb0392b586fb6b990d7f48453c238553",
+      "canonical_roundtrip": true,
+      "physical_invariant": {
+        "ok": true
+      },
+      "js_primary_hash": 218180606,
+      "production_wasm_primary_hash": 218180606,
+      "legal_moves": {
+        "js": 36,
+        "production_wasm": 36
+      }
+    },
+    "distinct_semantic_positions": true
+  },
+  "independent_reproduction": {
+    "fresh_wasm_instance": true,
+    "search": {
+      "maximum_time_ms": 0,
+      "fixed_depth": 2,
+      "quiescence_depth": 2,
+      "root_tesu": 0,
+      "shared_tt": false
+    },
+    "sequence": [
+      "synchronize position A, clear TT and evaluation cache, then search A",
+      "synchronize position B without clearing TT or evaluation cache, then search B",
+      "synchronize position B again, clear TT and evaluation cache, then search B"
+    ],
+    "a_after_clear": {
+      "clear_tt_before_search": true,
+      "primary_hash": 218180606,
+      "returned_key": 6349073,
+      "returned_usi": "8d8c+",
+      "returned_key_legal": true,
+      "score": 3178,
+      "completed_depth": 2,
+      "nodes": 30,
+      "leaves": 130,
+      "legal_move_count": 51
+    },
+    "b_after_a_without_clear": {
+      "clear_tt_before_search": false,
+      "primary_hash": 218180606,
+      "returned_key": 6349073,
+      "returned_usi": null,
+      "returned_key_legal": false,
+      "score": 3178,
+      "completed_depth": 2,
+      "nodes": 2,
+      "leaves": 0,
+      "legal_move_count": 36
+    },
+    "b_after_clear": {
+      "clear_tt_before_search": true,
+      "primary_hash": 218180606,
+      "returned_key": 822372,
+      "returned_usi": "3a3b",
+      "returned_key_legal": true,
+      "score": -1409,
+      "completed_depth": 2,
+      "nodes": 28,
+      "leaves": 145,
+      "legal_move_count": 36
+    },
+    "gates": {
+      "primary_hashes_equal": true,
+      "uncleared_b_reused_a_key": true,
+      "uncleared_b_returned_illegal_key": true,
+      "cleared_b_returned_legal_key": true,
+      "uncleared_b_differs_from_cleared_b": true
+    }
+  },
+  "claim_boundary": {
+    "proves": [
+      "Two distinct canonical, physically valid positions generated through legal moves have the same current 30-bit production primary hash.",
+      "With the exact production WASM and current live weights, deliberately retaining A's cache state before searching B causes the primary-only TT lookup to reuse A's root key and score.",
+      "The reused key is not legal in B, while clearing the caches before B returns a legal and different result."
+    ],
+    "does_not_prove": [
+      "The frequency of harmful primary-hash collisions in ordinary live games.",
+      "That an illegal root key has been observed in production traffic or in the completed bounded quiet-history match.",
+      "A separate evaluation-cache collision effect isolated from the TT effect.",
+      "That a particular secondary-lock implementation is correct, fast enough, or stronger.",
+      "Any Elo, dan-rank, direct-play, external-calibration, or production-promotion result."
+    ],
+    "authorization": "This preflight supports implementing and preregistering one isolated secondary-lock candidate. It does not authorize a live asset or weight change."
+  }
+}

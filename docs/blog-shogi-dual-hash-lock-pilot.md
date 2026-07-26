@@ -1,0 +1,66 @@
+# 30bit局面hash衝突を実証し、第2lockで直す
+
+_2026年7月25日_
+
+[English version](./blog-shogi-dual-hash-lock-pilot.en.md)
+
+## 先に結論
+
+次に直す対象は評価関数の係数でもhistoryの再調整でもない。現行の本番WASM探索コアで、**異なる2局面が同じ30bit局面hashになり、前の局面の着手と評価を再利用して違法な着手keyを返す**ことを再現した。
+
+これは理論上の心配ではない。固定seedの合法手だけで52,067局面を生成すると、hash `218180606`で衝突した。本番WASMと現在のライブ重みを使い、局面Aを探索してTTを残したまま局面Bを探索すると、Aの`8d8c+`とscore `3178`をBでも返した。`8d8c+`はBでは違法である。TTを消してBを単独探索すると、合法な`3a3b`とscore `-1409`を返した。現在のブラウザhostには返却手の合法性を再確認し、失敗時にJSへfallbackする防御があるため、この証拠だけからライブ画面が違法手を実際に指したとは主張しない。
+
+この不具合を、現在の30bit hashを変えずに独立した32bitの第2lockを追加して直す。まず研究WASMだけで正しさ、速度、非退行対局を検証する。ライブ重みと本番配信物は、証拠が揃うまで変更しない。
+
+## 前の候補はここで終える
+
+bounded quiet-history malusは、正式52局で26勝25敗1分、53/104 halfpoints、得点率50.96%だった。残り4局を全勝しても61/112で、事前合格点62へ届かないため不採用にした。壊れてはいなかったが、明確な強化を示さなかった。同じ案の係数調整や追加seedは行わない。
+
+今回のdual-hash lockはその探索heuristicを引き継がない。重み、枝刈り、move ordering、思考時間を変えず、別局面のcache値を同一局面だと誤認する具体的なidentity不具合だけを対象にする。
+
+## 何が衝突したか
+
+衝突した2局面は、平手初期局面から`GenerateMovesImproved.generateLegalMoves`が返した合法手だけを選んで到達した。両方ともcanonical SFENへround-tripでき、物理条件を満たし、JSと本番WASMの合法手数も一致した。
+
+- A: `1nk1s2n1/l1rs1+P3/+Pgp5N/1P1pp1ppl/p4P3/1GPPS+bP1p/B3P2P1/L3GG3/1NK1RS2L b 2P 89`
+- B: `1sk3s1l/2g2r+B2/l1n1pp1+B1/p1p3p2/3p3np/PpP4P1/2NPPPP1P/R2SGG1S1/L4K1NL w GPp 56`
+
+現行hashは約10.7億通りしかない。TTは約100万entry、評価cacheは約26万entryを持ち、同じ対局内で保持される。primary hashが完全一致するとindexも一致するため、primaryだけを照合する現在のTTは別局面を区別できない。
+
+発見方法、asset identity、2局面、探索結果、主張できる範囲は[機械可読の衝突証拠](../ml/protocols/dual-hash-lock-collision-preflight-v1.json)へ固定した。この証拠は通常対局での発生頻度やEloを示さない。本番trafficで実際に同じ違法手が出たとも主張しない。
+
+## 修正方法
+
+現在のprimary hashとそのseed生成順は変更しない。既存のopening bookや過去証拠との互換性を守るためである。別seed・別streamでfull 32bitのsecondary lockを作り、盤、持駒、手番の変更に合わせてincrementalに更新する。
+
+候補をONにした研究WASMでは、次のidentity判定が`primary + secondary`の両方を要求する。
+
+- private transposition table
+- NNUEを含む評価cache
+- 探索path内の千日手判定
+
+共有TT、JS fallback、mate solver、opening cacheを含むライブ全経路への適用は、研究WASMのgateを通った後の別PRで行う。primary hashだけでindexを選ぶ点は変えず、同じindexのentryが同じ局面かを第2lockでも確認する。
+
+## 対局前の必須gate
+
+研究toggleはdefault OFFとする。OFFは本番と固定64局面でbest move、score、depth、nodes、leavesが64/64完全一致しなければならない。
+
+ONでは、衝突局面をA→BとB→Aの両順序で探索し、cacheを残した対象局面のbest move、score、depthが、その局面をcache clear後に単独探索した結果と一致し、返した手が合法でなければならない。正当な別entry再利用でnodesとleavesは変わり得るため、そこはONの同一条件に含めない。TT、評価cache、千日手は別々のtest seamでprimary一致・secondary不一致を必ず検出する。
+
+第2hashはWASM自身の値だけを信じない。TypeScript側の独立実装で、少なくとも16,384合法遷移についてincremental値と毎回のfull recomputationを照合し、各trajectory後に平手を再同期して4つのhashが復元することも確認する。固定64局面のON探索は64件の返却手がすべて合法、決定的、state復元、技術故障0であることが必須である。
+
+速度はproduction、toggle OFF、candidate ONを交互に測る。candidate/productionのaggregate throughputは0.97以上、medianは0.95以上、p90 wall regressionは8%以下、WASM memory増は6MiB以下を要求する。研究候補は共有TTを使わない。これは棋力ではなく、正しい修正が時間制御を壊さないためのgateである。
+
+## 96局は強化証明ではなく非退行gate
+
+正しさと速度を通った候補は、新しい48 openingを先後交換した96局で本番と比較する。対局ランナーは、同じ固定plan SHAへ結び付いた全gate合格のcorrectness receiptを必須入力として再認証する。両腕は同じライブ重み、1手1.5秒、12 pair workers、定跡なし、mate solverなしとする。
+
+固定証拠に含まれる3,198 enrolled openingと、直前の固定planにある28 openingの和集合を使う。集合は3,226種類、seed `980001..980048`はすべてfreshで交差0である。
+
+合格floorは候補82/192 halfpoints、得点率42.71%とする。これは「強くなった」基準ではない。既知のcorrectness bugを直す変更を短い対局の勝率ノイズだけで棄却せず、同時に大きな棋力悪化は止めるための非退行境界である。PASSには96局完走と、故障、違法手、opening重複がすべて0であることが必須である。棄却だけは、残り全勝でも82へ届かない数学的futilityが確定した場合に早期停止できる。
+
+## 通過後
+
+全gateを通っても、この研究PRだけではライブを変更しない。通過後の別PRで、AssemblyScript本番源泉、WASM、埋め込みbase64、JS V20 fallback、共有TT、mate solver、opening cacheへ同じdual identityを実装し、ブラウザ実機とrollback条件を確認する。
+
+この修正は高段を保証しない。しかし、別局面の探索結果を誤って使い、探索コアが違法な着手keyまで返すことがある現行の穴を残したまま学習量だけ増やすより、先に直すべき明確な土台である。

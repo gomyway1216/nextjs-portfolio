@@ -1,0 +1,415 @@
+--- index.ts
++++ index.ts
+@@ -100,6 +100,25 @@
+ const HAND_HASH_SEED = new StaticArray<i32>((MAX_HAND_KOMA + 1) * 20); // [koma * 20 + count]
+ let TEBAN_HASH_SEED: i32 = 0;
+
++// Research-only second Zobrist stream.  It is deliberately independent from
++// the production-compatible 30-bit stream above: a distinct initial state and
++// the full 32-bit output of the same deterministic mixer are used.  Nothing in
++// the production hash path reads these tables.
++const SECOND_HASH_SEED = new StaticArray<i32>((MAX_BAN_KOMA + 1) * BAN_SIZE);
++const SECOND_HAND_HASH_SEED = new StaticArray<i32>((MAX_HAND_KOMA + 1) * 20);
++let SECOND_TEBAN_HASH_SEED: i32 = 0;
++let secondaryBanHash: i32 = 0;
++let secondaryHandHash: i32 = 0;
++let secondaryPrngState: u32 = 0x8f3e91c5;
++
++function rand32Secondary(): i32 {
++  secondaryPrngState = secondaryPrngState + 0x6d2b79f5;
++  let t: u32 = secondaryPrngState;
++  t = (t ^ (t >> 15)) * (t | 1);
++  t = t ^ (t + (t ^ (t >> 7)) * (t | 61));
++  return <i32>(t ^ (t >> 14));
++}
++
+ let prngState: u32 = 0x6d2b79f5;
+ function rand30(): i32 {
+   prngState = prngState + 0x6d2b79f5;
+@@ -114,6 +133,12 @@
+   for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++) unchecked(HAND_HASH_SEED[i] = rand30());
+   const t = rand30();
+   TEBAN_HASH_SEED = t == 0 ? 1 : t; // JS: `rand30() || 1`
++
++  for (let i = 0; i < (MAX_BAN_KOMA + 1) * BAN_SIZE; i++)
++    unchecked(SECOND_HASH_SEED[i] = rand32Secondary());
++  for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++)
++    unchecked(SECOND_HAND_HASH_SEED[i] = rand32Secondary());
++  SECOND_TEBAN_HASH_SEED = rand32Secondary();
+ }
+ initSeeds();
+
+@@ -182,6 +207,8 @@
+   psqtEval = 0;
+   banHash = 0;
+   handHash = 0;
++  secondaryBanHash = 0;
++  secondaryHandHash = 0;
+ }
+
+ export function setSquare(pos: i32, koma: i32): void {
+@@ -202,6 +229,8 @@
+   psqtEval = 0;
+   banHash = 0;
+   handHash = 0;
++  secondaryBanHash = 0;
++  secondaryHandHash = 0;
+   kingS = -34;
+   kingG = -34;
+   for (let suji = 1; suji <= 9; suji++) {
+@@ -213,6 +242,7 @@
+       evalMaterial += unchecked(KOMA_VALUE[koma]);
+       psqtEval += psqtValue(koma, pos);
+       banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + pos]);
++      secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + pos]);
+     }
+   }
+   // Same as KyokumenImproved.calcHash(): cumulative XOR over counts 0..n for
+@@ -222,6 +252,7 @@
+     evalMaterial += unchecked(KOMA_VALUE[koma]) * n;
+     for (let j = 0; j <= n; j++) {
+       handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + j]);
++      secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + j]);
+     }
+   }
+   if (nnueEnabled) nnueRefreshAccumulators();
+@@ -269,6 +300,7 @@
+
+   // Remove destination occupant from board hash.
+   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
++  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[capture * BAN_SIZE + to]);
+
+   if (capture != EMPTY) {
+     evalMaterial -= unchecked(KOMA_VALUE[capture]);
+@@ -277,6 +309,7 @@
+     const cnt = unchecked(hand[handKoma]) + 1;
+     unchecked(hand[handKoma] = cnt);
+     handHash ^= unchecked(HAND_HASH_SEED[handKoma * 20 + cnt]);
++    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[handKoma * 20 + cnt]);
+     evalMaterial += unchecked(KOMA_VALUE[handKoma]);
+   }
+
+@@ -284,11 +317,14 @@
+     // Drop.
+     const cnt = unchecked(hand[koma]);
+     handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + cnt]);
++    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + cnt]);
+     unchecked(hand[koma] = cnt - 1);
+   } else {
+     unchecked(ban[from] = EMPTY);
+     banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + from]);
+     banHash ^= unchecked(HASH_SEED[EMPTY * BAN_SIZE + from]);
++    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + from]);
++    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[EMPTY * BAN_SIZE + from]);
+   }
+
+   let placed = koma;
+@@ -299,6 +335,7 @@
+   }
+   unchecked(ban[to] = placed);
+   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
++  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[placed * BAN_SIZE + to]);
+
+   psqtEval += psqtValue(placed, to);
+
+@@ -323,6 +360,7 @@
+   // Remove the moved piece (possibly promoted) from destination.
+   const placed = promote != 0 ? koma | PROMOTE : koma;
+   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
++  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[placed * BAN_SIZE + to]);
+
+   // PSQT incremental update (parity with KyokumenImproved.back()):
+   // - remove the moved piece currently sitting on `to`
+@@ -333,6 +371,7 @@
+   // Restore captured piece (or EMPTY).
+   unchecked(ban[to] = capture);
+   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
++  secondaryBanHash ^= unchecked(SECOND_HASH_SEED[capture * BAN_SIZE + to]);
+   evalMaterial += unchecked(KOMA_VALUE[capture]);
+
+   if (capture != EMPTY) {
+@@ -343,6 +382,7 @@
+     const handKoma = (capture & 0x07) | ((capture & SENTE) != 0 ? GOTE : SENTE);
+     const cnt = unchecked(hand[handKoma]);
+     handHash ^= unchecked(HAND_HASH_SEED[handKoma * 20 + cnt]);
++    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[handKoma * 20 + cnt]);
+     unchecked(hand[handKoma] = cnt - 1);
+     evalMaterial -= unchecked(KOMA_VALUE[handKoma]);
+   }
+@@ -351,10 +391,13 @@
+     const cnt = unchecked(hand[koma]) + 1;
+     unchecked(hand[koma] = cnt);
+     handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + cnt]);
++    secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + cnt]);
+   } else {
+     unchecked(ban[from] = koma);
+     banHash ^= unchecked(HASH_SEED[EMPTY * BAN_SIZE + from]);
+     banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + from]);
++    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[EMPTY * BAN_SIZE + from]);
++    secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + from]);
+     psqtEval += psqtValue(koma, from);
+     if (promote != 0) {
+      evalMaterial -= unchecked(KOMA_VALUE[koma | PROMOTE]);
+@@ -2596,8 +2639,87 @@
+ /** Full TT key — same formula as KyokumenImproved: BanHash ^ HandHash ^ (teban seed if GOTE). */
+ export function getHashVal(): i32 {
+   return banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
++}
++
++// ---------------------------------------------------------------------------
++// Research-only dual-hash collision lock.  The switch is OFF by default; OFF
++// preserves every primary-key lookup and ordering decision.  ON is confined to
++// this isolated WASM artifact and protects only private caches/TT/repetition.
++// ---------------------------------------------------------------------------
++
++let researchDualHashLockEnabled: bool = false;
++let researchDualHashTtLockRejects: i32 = 0;
++let researchDualHashEvalLockRejects: i32 = 0;
++let researchDualHashRepetitionLockRejects: i32 = 0;
++
++function recomputeSecondaryHashes(): void {
++  secondaryBanHash = 0;
++  secondaryHandHash = 0;
++  for (let suji = 1; suji <= 9; suji++) {
++    for (let dan = 1; dan <= 9; dan++) {
++      const pos = (suji << 4) + dan;
++      const koma = unchecked(ban[pos]);
++      secondaryBanHash ^= unchecked(SECOND_HASH_SEED[koma * BAN_SIZE + pos]);
++    }
++  }
++  for (let koma = 0; koma <= MAX_HAND_KOMA; koma++) {
++    const n = unchecked(hand[koma]);
++    for (let j = 0; j <= n; j++) {
++      secondaryHandHash ^= unchecked(SECOND_HAND_HASH_SEED[koma * 20 + j]);
++    }
++  }
++}
++
++export function getResearchSecondaryBanHash(): i32 {
++  return secondaryBanHash;
++}
++
++export function getResearchSecondaryHandHash(): i32 {
++  return secondaryHandHash;
++}
++
++export function getResearchSecondaryHash(): i32 {
++  return secondaryBanHash ^ secondaryHandHash;
++}
++
++export function getResearchSecondaryHashVal(): i32 {
++  return secondaryBanHash ^ secondaryHandHash ^
++    (teban == GOTE ? SECOND_TEBAN_HASH_SEED : 0);
++}
++
++export function resetResearchDualHashLockCounters(): void {
++  researchDualHashTtLockRejects = 0;
++  researchDualHashEvalLockRejects = 0;
++  researchDualHashRepetitionLockRejects = 0;
++}
++
++export function getResearchDualHashTtLockRejects(): i32 {
++  return researchDualHashTtLockRejects;
++}
++
++export function getResearchDualHashEvalLockRejects(): i32 {
++  return researchDualHashEvalLockRejects;
+ }
+
++export function getResearchDualHashRepetitionLockRejects(): i32 {
++  return researchDualHashRepetitionLockRejects;
++}
++
++export function setResearchDualHashLock(flag: i32): void {
++  const next = flag != 0;
++  if (next == researchDualHashLockEnabled) return;
++  researchDualHashLockEnabled = next;
++  // A transition is an explicit cache epoch boundary. Rebuilding here also
++  // makes the diagnostic stream independent of any preceding OFF search.
++  recomputeSecondaryHashes();
++  clearTT();
++  repSize = 0;
++}
++
++export function getResearchDualHashLockEnabled(): i32 {
++  return researchDualHashLockEnabled ? 1 : 0;
++}
++
+ export function getTeban(): i32 {
+   return teban;
+ }
+@@ -2710,6 +2832,7 @@
+ const TT_UPPER: i32 = 2;
+
+ const ttHashA = new StaticArray<i32>(TT_SIZE);
++const ttHashB = new StaticArray<i32>(TT_SIZE);
+ const ttValueA = new StaticArray<i32>(TT_SIZE);
+ const ttFlagA = new StaticArray<u8>(TT_SIZE);
+ const ttDepthA = new StaticArray<u8>(TT_SIZE);
+@@ -2733,7 +2856,9 @@
+  * the previous inline StaticArray probe (pure refactor).
+  */
+ function ttLookup(hashVal: i32): bool {
+-  if (sharedTtEnabled) {
++  // The host shared table has a one-word public ABI. In dual-lock research
++  // mode we deliberately stay in the private table so both keys are checked.
++  if (sharedTtEnabled && !researchDualHashLockEnabled) {
+     if (hostSharedTtProbe(hashVal) == 0) return false;
+     ttHitValue = unchecked(sharedTtScratch[0]);
+     const fd = unchecked(sharedTtScratch[1]);
+@@ -2746,6 +2871,10 @@
+   const index = hashVal & TT_MASK;
+   if (unchecked(ttUsedA[index]) == 0) return false;
+   if (unchecked(ttHashA[index]) != hashVal) return false;
++  if (researchDualHashLockEnabled && unchecked(ttHashB[index]) != getResearchSecondaryHashVal()) {
++    researchDualHashTtLockRejects++;
++    return false;
++  }
+   ttHitValue = unchecked(ttValueA[index]);
+   ttHitFlag = <i32>unchecked(ttFlagA[index]);
+   ttHitDepth = <i32>unchecked(ttDepthA[index]);
+@@ -2759,7 +2888,7 @@
+   if (value <= alpha) flag = TT_UPPER;
+   else if (value >= beta) flag = TT_LOWER;
+
+-  if (sharedTtEnabled) {
++  if (sharedTtEnabled && !researchDualHashLockEnabled) {
+     // Depth-preferred replacement and second-move promotion happen on the JS
+     // side (they need a read-modify-write of the shared entry).
+     hostSharedTtStore(hashVal, value, flag | ((remainDepth & 0xff) << 2) | SHARED_TT_USED_BIT, bestKey);
+@@ -2775,9 +2904,12 @@
+   } else {
+     unchecked(ttUsedA[index] = 1);
+     unchecked(ttHashA[index] = hashVal);
++    unchecked(ttHashB[index] = getResearchSecondaryHashVal());
+     unchecked(ttSecondA[index] = 0);
+   }
+
++  if (researchDualHashLockEnabled) unchecked(ttHashB[index] = getResearchSecondaryHashVal());
++
+   unchecked(ttBestA[index] = bestKey);
+   unchecked(ttValueA[index] = value);
+  unchecked(ttFlagA[index] = <u8>flag);
+@@ -2791,10 +2923,14 @@
+ const EVAL_CACHE_SENTINEL: i32 = 0x7fffffff;
+
+ const evalCacheKeyA = new StaticArray<i32>(EVAL_CACHE_SIZE);
++const evalCacheKeyB = new StaticArray<i32>(EVAL_CACHE_SIZE);
+ const evalCacheValA = new StaticArray<i32>(EVAL_CACHE_SIZE);
+
+ function initEvalCache(): void {
+-  for (let i = 0; i < EVAL_CACHE_SIZE; i++) unchecked(evalCacheKeyA[i] = EVAL_CACHE_SENTINEL);
++  for (let i = 0; i < EVAL_CACHE_SIZE; i++) {
++    unchecked(evalCacheKeyA[i] = EVAL_CACHE_SENTINEL);
++    unchecked(evalCacheKeyB[i] = EVAL_CACHE_SENTINEL);
++  }
+ }
+ initEvalCache();
+
+@@ -2802,29 +2938,62 @@
+ export function clearTT(): void {
+   for (let i = 0; i < TT_SIZE; i++) unchecked(ttUsedA[i] = 0);
+   initEvalCache();
++}
++
++export function researchDualHashClearCaches(): void {
++  clearTT();
++  repSize = 0;
++}
++
++function evaluateSenteUncached(): i32 {
++  if (nnueEnabled) {
++    const stmCp = nnueEvaluateCp();
++    return teban == SENTE ? stmCp : -stmCp;
++  }
++  return evaluateV3Full();
+ }
+
++export function researchDualHashCachedEval(): i32 {
++  return evaluateSenteCached();
++}
++
++export function researchDualHashUncachedEval(): i32 {
++  return evaluateSenteUncached();
++}
++
+ function evaluateSenteCached(): i32 {
+   if (nnueEnabled) {
+     // NNUE output depends on the side to move (the board is normalized to the
+     // stm perspective), so the cache key must include teban — unlike
+     // evaluateV3Full, which is teban-independent.
+     const nKey = banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
++    const nKeyB = getResearchSecondaryHashVal();
+     const nIndex = nKey & EVAL_CACHE_MASK;
+-    if (unchecked(evalCacheKeyA[nIndex]) == nKey) return unchecked(evalCacheValA[nIndex]);
++    if (unchecked(evalCacheKeyA[nIndex]) == nKey) {
++      if (!researchDualHashLockEnabled || unchecked(evalCacheKeyB[nIndex]) == nKeyB)
++        return unchecked(evalCacheValA[nIndex]);
++      researchDualHashEvalLockRejects++;
++    }
+     // Same SENTE-positive convention as evaluateV3Full at the leaf slot:
+     // nnueEvaluateCp() is stm-positive, so negate for GOTE.
+     const stmCp = nnueEvaluateCp();
+     const nValue = teban == SENTE ? stmCp : -stmCp;
+     unchecked(evalCacheKeyA[nIndex] = nKey);
++    unchecked(evalCacheKeyB[nIndex] = nKeyB);
+     unchecked(evalCacheValA[nIndex] = nValue);
+     return nValue;
+   }
+   const key = banHash ^ handHash;
++  const keyB = getResearchSecondaryHash();
+   const index = key & EVAL_CACHE_MASK;
+-  if (unchecked(evalCacheKeyA[index]) == key) return unchecked(evalCacheValA[index]);
++  if (unchecked(evalCacheKeyA[index]) == key) {
++    if (!researchDualHashLockEnabled || unchecked(evalCacheKeyB[index]) == keyB)
++      return unchecked(evalCacheValA[index]);
++    researchDualHashEvalLockRejects++;
++  }
+   const value = evaluateV3Full();
+   unchecked(evalCacheKeyA[index] = key);
++  unchecked(evalCacheKeyB[index] = keyB);
+   unchecked(evalCacheValA[index] = value);
+   return value;
+ }
+@@ -2947,16 +3116,25 @@
+
+ const REP_STACK_SIZE: i32 = 256;
+ const repStack = new StaticArray<i32>(REP_STACK_SIZE);
++const repStackB = new StaticArray<i32>(REP_STACK_SIZE);
+ let repSize: i32 = 0;
+
+ function pushRepetition(hash: i32): bool {
++  const hashB = getResearchSecondaryHashVal();
+   let count = 0;
+   for (let i = 0; i < repSize; i++) {
+-    if (unchecked(repStack[i]) == hash) count++;
++    if (unchecked(repStack[i]) == hash) {
++      if (!researchDualHashLockEnabled || unchecked(repStackB[i]) == hashB) {
++        count++;
++      } else {
++        researchDualHashRepetitionLockRejects++;
++      }
++    }
+   }
+   if (count >= 3) return false;
+   if (repSize < REP_STACK_SIZE) {
+     unchecked(repStack[repSize] = hash);
++    unchecked(repStackB[repSize] = hashB);
+     repSize++;
+   }
+   return true;
+@@ -2966,6 +3144,14 @@
+   if (repSize > 0) repSize--;
+ }
+
++export function researchDualHashResetRepetition(): void {
++  repSize = 0;
++}
++
++export function researchDualHashPushRepetition(): i32 {
++  return pushRepetition(getHashVal()) ? 1 : 0;
++}
++
+ // --- Search runtime state --------------------------------------------------------
+
+ let nodeCount: i32 = 0;

@@ -6,3 +6,4 @@ tests/unit/ml/localExternalCalibration.test.ts text eol=lf
 docs/data/shogi-local-external-calibration-pilot-request-2026-07-19.json text eol=lf
 wasm-spike/assembly/lazy-move-picker-research.patch whitespace=-blank-at-eol
 wasm-spike/assembly/packed-heap-move-picker-research.patch whitespace=-blank-at-eol
+wasm-spike/assembly/quiet-history-malus-research.patch whitespace=-blank-at-eol

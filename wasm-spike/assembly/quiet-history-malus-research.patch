@@ -1,0 +1,295 @@
+--- index.ts
++++ index.ts
+@@ -2882,6 +2882,132 @@
+ 
+ const CONT_DIM: i32 = 1296;
+ const contHist = new StaticArray<i32>(CONT_DIM * CONT_DIM);
++
++// Research-only bounded quiet-history + malus pilot. This source fragment is
++// applied only to an isolated research build. It is disabled by default, and
++// the disabled branch executes the historical unbounded updates verbatim.
++const RESEARCH_QUIET_HISTORY_MAX: i32 = 16_384;
++const RESEARCH_QUIET_CAP: i32 = 32;
++const researchSearchedQuietBuf =
++  new StaticArray<i32>(S_MAX_PLY * RESEARCH_QUIET_CAP);
++const researchNullNodeByPly = new StaticArray<i32>(S_MAX_PLY);
++
++let researchQuietHistoryMalusEnabled: bool = false;
++let researchQuietCutoffEvents: i32 = 0;
++let researchQuietRewardMoveEvents: i32 = 0;
++let researchQuietMalusMoveEvents: i32 = 0;
++let researchQuietMainUpdates: i32 = 0;
++let researchQuietContinuationUpdates: i32 = 0;
++let researchQuietStoredPeak: i32 = 0;
++let researchQuietStorageDrops: i32 = 0;
++let researchQuietMaxAbsMain: i32 = 0;
++let researchQuietMaxAbsContinuation: i32 = 0;
++let researchQuietNonQuietUpdateViolations: i32 = 0;
++
++export function setResearchQuietHistoryMalus(flag: i32): void {
++  researchQuietHistoryMalusEnabled = flag != 0;
++}
++
++export function getResearchQuietHistoryMalusEnabled(): i32 {
++  return researchQuietHistoryMalusEnabled ? 1 : 0;
++}
++
++export function getResearchQuietHistoryMax(): i32 {
++  return RESEARCH_QUIET_HISTORY_MAX;
++}
++
++export function getResearchQuietHistoryCap(): i32 {
++  return RESEARCH_QUIET_CAP;
++}
++
++export function getResearchQuietCutoffEvents(): i32 {
++  return researchQuietCutoffEvents;
++}
++
++export function getResearchQuietRewardMoveEvents(): i32 {
++  return researchQuietRewardMoveEvents;
++}
++
++export function getResearchQuietMalusMoveEvents(): i32 {
++  return researchQuietMalusMoveEvents;
++}
++
++export function getResearchQuietMainUpdates(): i32 {
++  return researchQuietMainUpdates;
++}
++
++export function getResearchQuietContinuationUpdates(): i32 {
++  return researchQuietContinuationUpdates;
++}
++
++export function getResearchQuietStoredPeak(): i32 {
++  return researchQuietStoredPeak;
++}
++
++export function getResearchQuietStorageDrops(): i32 {
++  return researchQuietStorageDrops;
++}
++
++export function getResearchQuietMaxAbsMain(): i32 {
++  return researchQuietMaxAbsMain;
++}
++
++export function getResearchQuietMaxAbsContinuation(): i32 {
++  return researchQuietMaxAbsContinuation;
++}
++
++export function getResearchQuietNonQuietUpdateViolations(): i32 {
++  return researchQuietNonQuietUpdateViolations;
++}
++
++/** Pure probe used by the research unit test to exhaust the update boundary. */
++export function researchQuietHistoryUpdateProbe(current: i32, rawBonus: i32): i32 {
++  const h = maxI(-RESEARCH_QUIET_HISTORY_MAX, minI(RESEARCH_QUIET_HISTORY_MAX, current));
++  const bonus =
++    maxI(-RESEARCH_QUIET_HISTORY_MAX, minI(RESEARCH_QUIET_HISTORY_MAX, rawBonus));
++  const magnitude = absI(bonus);
++  const damping = <i32>(
++    (<i64>h * <i64>magnitude) / <i64>RESEARCH_QUIET_HISTORY_MAX
++  );
++  return maxI(
++    -RESEARCH_QUIET_HISTORY_MAX,
++    minI(RESEARCH_QUIET_HISTORY_MAX, h + bonus - damping),
++  );
++}
++
++function researchQuietHistoryUpdate(
++  table: StaticArray<i32>,
++  idx: i32,
++  rawBonus: i32,
++  continuation: bool,
++  strictQuiet: bool,
++): void {
++  if (!strictQuiet) {
++    researchQuietNonQuietUpdateViolations++;
++    return;
++  }
++  const next = researchQuietHistoryUpdateProbe(unchecked(table[idx]), rawBonus);
++  unchecked(table[idx] = next);
++  const magnitude = absI(next);
++  if (continuation) {
++    researchQuietContinuationUpdates++;
++    researchQuietMaxAbsContinuation =
++      maxI(researchQuietMaxAbsContinuation, magnitude);
++  } else {
++    researchQuietMainUpdates++;
++    researchQuietMaxAbsMain = maxI(researchQuietMaxAbsMain, magnitude);
++  }
++}
++
++function researchQuietReward(depthLeft: i32): i32 {
++  const d = maxI(1, minI(32, depthLeft));
++  return minI(2_048, 16 * d * d);
++}
++
++function researchQuietMalus(depthLeft: i32): i32 {
++  const d = maxI(1, minI(32, depthLeft));
++  return -minI(1_024, 8 * d * d);
++}
+ 
+ const prevKeyByPly = new StaticArray<i32>(S_MAX_PLY);
+ const prevPtByPly = new StaticArray<i32>(S_MAX_PLY);
+@@ -3605,7 +3731,14 @@
+ 
+       const mover = teban;
+       teban = mover == SENTE ? GOTE : SENTE;
++      let savedNullNode = 0;
++      if (researchQuietHistoryMalusEnabled && ply + 1 < S_MAX_PLY) {
++        savedNullNode = unchecked(researchNullNodeByPly[ply + 1]);
++        unchecked(researchNullNodeByPly[ply + 1] = 1);
++      }
+       const score = -searchNodeAS(reducedDepth, -beta, -beta + 1, ply + 1);
++      if (researchQuietHistoryMalusEnabled && ply + 1 < S_MAX_PLY)
++        unchecked(researchNullNodeByPly[ply + 1] = savedNullNode);
+       teban = mover;
+       if (stopped) {
+         popRepetition();
+@@ -3638,6 +3771,7 @@
+   let searched = 0;
+   let legalTried = 0;
+   let prunedAny = false;
++  let researchSearchedQuietCount = 0;
+ 
+   // Late Move Pruning precompute.
+   const lmpApplicable = !parentInCheck && depthLeft <= 3 && alpha > -S_MATE + 10_000;
+@@ -3712,6 +3846,15 @@
+     }
+ 
+     const baseDepthNext = depthLeft - 1;
++    const researchQuietCandidate =
++      researchQuietHistoryMalusEnabled &&
++      ply > 0 &&
++      !parentInCheck &&
++      unchecked(researchNullNodeByPly[ply]) == 0 &&
++      beta > -S_MATE + 10_000 &&
++      beta < S_MATE - 10_000 &&
++      capture == EMPTY &&
++      promote == 0;
+     const canCheckExtend = ply <= CHECK_EXTENSION_MAX_PLY;
+     const canLMRBase =
+       !parentInCheck &&
+@@ -3721,7 +3864,11 @@
+       capture == EMPTY &&
+       promote == 0;
+ 
+-    const givesCheck = canCheckExtend || canLMRBase ? isKingInCheck(teban) : false;
++    const givesCheck =
++      canCheckExtend || canLMRBase || researchQuietCandidate
++        ? isKingInCheck(teban)
++        : false;
++    const researchStrictQuiet = researchQuietCandidate && !givesCheck;
+ 
+     const depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+     let score = 0;
+@@ -3768,18 +3915,79 @@
+           if (ply > 0 && ply < S_MAX_PLY) {
+             const prevKey = unchecked(prevKeyByPly[ply]);
+             if (prevKey != 0) unchecked(counterMoveTable[moveKeyCompact(prevKey)] = key);
+-            const prevPt = unchecked(prevPtByPly[ply]);
+-            if (prevPt >= 0) {
++            const previousPt = unchecked(prevPtByPly[ply]);
++            if (previousPt >= 0 && !researchQuietHistoryMalusEnabled) {
+-              const idx = prevPt * CONT_DIM + pieceToIndexOf(m);
++              const idx = previousPt * CONT_DIM + pieceToIndexOf(m);
+               unchecked(contHist[idx] = contHist[idx] + depthLeft * depthLeft);
+             }
+           }
+         }
+-        const hIdx = moveKeyCompact(key);
+-        unchecked(historyTable[hIdx] = historyTable[hIdx] + depthLeft * depthLeft);
++        if (researchQuietHistoryMalusEnabled) {
++          if (researchStrictQuiet) {
++            researchQuietCutoffEvents++;
++            researchQuietRewardMoveEvents++;
++            const reward = researchQuietReward(depthLeft);
++            researchQuietHistoryUpdate(
++              historyTable,
++              moveKeyCompact(key),
++              reward,
++              false,
++              researchStrictQuiet,
++            );
++            const previousPt = unchecked(prevPtByPly[ply]);
++            if (previousPt >= 0) {
++              researchQuietHistoryUpdate(
++                contHist,
++                previousPt * CONT_DIM + pieceToIndexOf(m),
++                reward,
++                true,
++                researchStrictQuiet,
++              );
++            }
++            const malus = researchQuietMalus(depthLeft);
++            const quietBase = ply * RESEARCH_QUIET_CAP;
++            for (let quiet = 0; quiet < researchSearchedQuietCount; quiet++) {
++              const prior = unchecked(researchSearchedQuietBuf[quietBase + quiet]);
++              researchQuietMalusMoveEvents++;
++              researchQuietHistoryUpdate(
++                historyTable,
++                moveKeyCompact(jsMoveKeyOf(prior)),
++                malus,
++                false,
++                true,
++              );
++              if (previousPt >= 0) {
++                researchQuietHistoryUpdate(
++                  contHist,
++                  previousPt * CONT_DIM + pieceToIndexOf(prior),
++                  malus,
++                  true,
++                  true,
++                );
++              }
++            }
++          }
++        } else {
++          const hIdx = moveKeyCompact(key);
++          unchecked(historyTable[hIdx] = historyTable[hIdx] + depthLeft * depthLeft);
++        }
+         break;
+       }
+     }
++    if (researchStrictQuiet) {
++      if (researchSearchedQuietCount < RESEARCH_QUIET_CAP) {
++        unchecked(
++          researchSearchedQuietBuf[
++            ply * RESEARCH_QUIET_CAP + researchSearchedQuietCount
++          ] = m,
++        );
++        researchSearchedQuietCount++;
++        researchQuietStoredPeak =
++          maxI(researchQuietStoredPeak, researchSearchedQuietCount);
++      } else {
++        researchQuietStorageDrops++;
++      }
++    }
+   }
+ 
+   // Mate detection with lazy legality.
+@@ -3829,11 +4037,22 @@
+   rootBestKey = 0;
+   orderDepthLeft = 99;
+   repSize = 0;
++  researchQuietCutoffEvents = 0;
++  researchQuietRewardMoveEvents = 0;
++  researchQuietMalusMoveEvents = 0;
++  researchQuietMainUpdates = 0;
++  researchQuietContinuationUpdates = 0;
++  researchQuietStoredPeak = 0;
++  researchQuietStorageDrops = 0;
++  researchQuietMaxAbsMain = 0;
++  researchQuietMaxAbsContinuation = 0;
++  researchQuietNonQuietUpdateViolations = 0;
+   for (let i = 0; i < S_MAX_PLY; i++) {
+     unchecked(killer1[i] = 0);
+     unchecked(killer2[i] = 0);
+     unchecked(prevKeyByPly[i] = 0);
+     unchecked(prevPtByPly[i] = -1);
++    unchecked(researchNullNodeByPly[i] = 0);
+   }
+   for (let i = 0; i < HIST_SIZE; i++) {
+     unchecked(historyTable[i] = 0);

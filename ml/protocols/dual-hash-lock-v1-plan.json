@@ -1,0 +1,289 @@
+{
+  "schema": "shogi-dual-hash-lock-plan-v1",
+  "plan_id": "dual-hash-lock-v1",
+  "status": "fixed-before-result",
+  "recorded_date": "2026-07-25",
+  "parent_main_commit": "1d81055666f1570b0288e0a7f77764f2eaea161b",
+  "objective": "Repair a reproduced production 30-bit position-hash collision with an independent secondary lock, prove correctness and bounded performance, then measure direct-play non-regression without changing the live NNUE weights.",
+  "claim_boundary": {
+    "known_fact": "In an isolated private-TT experiment, two distinct legal positions with primary hash 218180606 cause the production WASM search core to reuse a stale illegal move key; the browser host is expected to reject that key and fall back.",
+    "candidate": "Keep the production primary hash unchanged and require an independent full-width secondary lock for the research private transposition table, evaluation cache, and search-path repetition identity.",
+    "not_claimed": [
+      "This repair is guaranteed to increase Elo or reach high-dan strength.",
+      "The collision frequency in ordinary live games is known.",
+      "A pass at the 82/192 non-regression floor proves that the candidate is stronger.",
+      "This research plan changes any shipped runtime, JavaScript fallback, shared transposition table, opening cache, mate solver, or live NNUE weight."
+    ]
+  },
+  "pinned_inputs": {
+    "production_search_source": {
+      "path": "wasm-spike/assembly/index.ts",
+      "bytes": 139447,
+      "sha256": "0a522e5e167e9a6070d2d1f339ceaada48f623493a827038b744b2b49163115c"
+    },
+    "production_wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 35597,
+      "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+    },
+    "production_base64": {
+      "path": "src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts",
+      "bytes": 47993,
+      "sha256": "927c46aa02af2b76fac7608e3512a3d667e96ce4b8d4d8997d9cb23e64af7960"
+    },
+    "js_reference": {
+      "path": "src/components/game/ShogiImproved/ShogiAIImprovedV20.ts",
+      "bytes": 78406,
+      "sha256": "7b4592da2b348bc38dcc9a70027bb73251052b16bed1c07933e1df16cbd505e3"
+    },
+    "immutable_live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "buckets": 1
+    },
+    "correctness_fixture": {
+      "path": "wasm-spike/dual-hash-lock-collision-fixture-v1.json",
+      "bytes": 1592,
+      "sha256": "47aebb2bbb225dae448a6e158a5cc955ed3dc797a65c1f1cc7c22dd894cbd0d6"
+    },
+    "collision_preflight": {
+      "path": "ml/protocols/dual-hash-lock-collision-preflight-v1.json",
+      "bytes": 5625,
+      "sha256": "672108c70cfeafc219992d0466484ef6a4ab0f8edd9313cab733c0523227dee7"
+    },
+    "existing_opening_evidence": {
+      "path": "ml/protocols/bounded-quiet-history-existing-openings-v1.json",
+      "bytes": 278625,
+      "sha256": "093c504ec71192d35cc900daa74906d4c0205750f270ea157f08b3ba5948ac8d"
+    },
+    "predecessor_opening_plan": {
+      "path": "ml/protocols/bounded-quiet-history-malus-v1-plan.json",
+      "bytes": 21336,
+      "sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669"
+    }
+  },
+  "planned_research_artifacts": {
+    "research_patch": {
+      "path": "wasm-spike/assembly/dual-hash-lock-research.patch",
+      "bytes": 15102,
+      "sha256": "fff3bae8e979a144e559eb6b33f74b8d148b9f374ddaa38262bc7a9fd0224c88"
+    },
+    "builder": {
+      "path": "wasm-spike/build-dual-hash-lock-research-wasm.mjs",
+      "bytes": 4346,
+      "sha256": "beb54239a0b004e7e6ce26fe264591a00f8e3d83e3401893651547977da16b99"
+    },
+    "research_wasm": {
+      "path": "wasm-spike/artifacts/shogi-dual-hash-lock-research.wasm",
+      "bytes": 37538,
+      "sha256": "90cbf3ce43197732e1f43ca1b03a344f364d0928c58cd04ba40e62d11f7c8edf"
+    },
+    "correctness_runner": {
+      "path": "wasm-spike/dual-hash-lock-collision-invariants.ts",
+      "bytes": 36018,
+      "sha256": "d036d03811b10222d1f36efc4f143915ab55ee61bc8ea2103512c81ea5dc5e36"
+    },
+    "match_runner": {
+      "path": "wasm-spike/match-dual-hash-lock-vs-production.ts",
+      "bytes": 60530,
+      "sha256": "3db7366e8b676b5dff39f3ca2f3d4f4a9a279897c15386a2c2d82c6c4557743f"
+    }
+  },
+  "correctness_gate": {
+    "strength_metric": false,
+    "search": {
+      "fixed_depth": 5,
+      "quiescence_depth": 8,
+      "timed": false,
+      "shared_tt": false
+    },
+    "collision_fixture": {
+      "path": "wasm-spike/dual-hash-lock-collision-fixture-v1.json",
+      "bytes": 1592,
+      "sha256": "47aebb2bbb225dae448a6e158a5cc955ed3dc797a65c1f1cc7c22dd894cbd0d6"
+    },
+    "required": [
+      "production and toggle-OFF exact A-to-B and B-to-A search parity",
+      "toggle-ON clean-target best-move, score, and depth parity plus legal moves in both collision orders",
+      "distinct secondary full locks for collision positions A and B",
+      "secondary-lock rejection activation for TT, evaluation cache, and repetition",
+      "independent TypeScript full recomputation over at least 16384 legal incremental transitions",
+      "deterministic legal searches and restored state on all 64 holdout positions",
+      "zero technical faults"
+    ],
+    "failure_effect": "Stop before direct play with no live change, threshold change, tuned replacement, or strength conclusion."
+  },
+  "performance_gate": {
+    "fixed_depth": 5,
+    "quiescence_depth": 8,
+    "timing_order": [
+      "production",
+      "candidate",
+      "off",
+      "candidate",
+      "production",
+      "off",
+      "production",
+      "candidate",
+      "off",
+      "candidate",
+      "production",
+      "off"
+    ],
+    "min_block_ms": 25,
+    "max_repeats": 64,
+    "max_runtime_ms": 600000,
+    "aggregate_candidate_vs_production_at_least": 0.97,
+    "median_candidate_vs_production_at_least": 0.95,
+    "p90_wall_regression_at_most": 0.08,
+    "memory_delta_bytes_at_most": 6291456
+  },
+  "direct_play_gate": {
+    "purpose": "Bounded strength non-regression only; not a proof that the repair is stronger.",
+    "required_authorization": "An immutable shogi-dual-hash-lock-correctness-result-v1 receipt bound to this exact plan SHA, with the exact complete gate set true and direct_play_authorized true, must be authenticated before and after the match; its SHA-256 must persist in the durable run and terminal result.",
+    "candidate_runtime": "planned_research_artifacts.research_wasm with dual-hash lock enabled",
+    "baseline_runtime": "pinned_inputs.production_wasm",
+    "weights_for_both_arms": "pinned_inputs.immutable_live_weights",
+    "games": 96,
+    "opening_pairs": 48,
+    "games_per_pair": 2,
+    "pair_workers": 12,
+    "milliseconds_per_move": 1500,
+    "pass_halfpoints": 82,
+    "score_denominator_halfpoints": 192,
+    "early_stop": "mathematical-futility-only",
+    "opening_policy": {
+      "pair_seeds": [
+        980001, 980002, 980003, 980004, 980005, 980006, 980007, 980008, 980009,
+        980010, 980011, 980012, 980013, 980014, 980015, 980016, 980017, 980018,
+        980019, 980020, 980021, 980022, 980023, 980024, 980025, 980026, 980027,
+        980028, 980029, 980030, 980031, 980032, 980033, 980034, 980035, 980036,
+        980037, 980038, 980039, 980040, 980041, 980042, 980043, 980044, 980045,
+        980046, 980047, 980048
+      ],
+      "opening_fingerprints": [
+        "90652459b0e42baa1504c46454e4b6cd684ff2c7ea318ad58a09f313850c80b8",
+        "0e80967a8eb99750d171446dba6d87df453ded3b12e9129b5d61568a194b15ee",
+        "eeb40e795c7fde42e330dc5b11ca58acaee6306754a74f193e605b9e8da82f90",
+        "a89e55482658966ff2458be8e2ac39cfbe51dad110dcd0cce00cf7bdd90edcf7",
+        "09e9efa168775389774e75c0486d3a36af7b6073fc5b57472b5db9036b2d36b4",
+        "8769f21dafec3ca0db876d5e17627cbc7aade78f9c4041d2717e9d4fc00e976a",
+        "a955764d3edde433837054d78c48a670a6b83f39b580a666ee442fceedc8a3d5",
+        "72f992b38ca5b67c958a5acd817aa6b64152e3bdbc12d53054b3f0465c75c72f",
+        "4d5020f2d4a5ff3dae0406f92b8f4f2727c6ebf16297f0533bbe580d109e54a0",
+        "c5e72787345076439f2f0ea2084fc6a664e7dba4bf69f83db9a624afe59d4b55",
+        "10648be23a1c631c97a89e58d8277d1f14c9ad06ae3ab9082f626fd47a4d278d",
+        "275f551d60f075a27497992f0d0b47f53cf63d06c64dfeaf4420f2ff51134a05",
+        "500b5bb7275480d8db855de65d5aec3f03a083fba576323764ceb2bb6e962148",
+        "abd3bbb15774c69a260f607d2736dd8172b1f6f05977b1755bbaa1eb7127d814",
+        "0bb3eb5cb030af3746c455f52080f8a7c432b0cbea2a42bf5544c518612702dd",
+        "b1d5193439505ef7c71cc600bfee0a4df9a53eb8311690c89879c3ba4236583b",
+        "c01d69db343eb6339baed32c822501782a233034bef45d7d10162b9f0d7e53f1",
+        "07eb0789cadbcc46e1dd60557bbdf94e8fcfe7a79f07e419e5be107f301f78a1",
+        "942a80f42f8a88e9057248b15bee32cee21d45ebaa5a1bc8264205101051bd0f",
+        "111d60e9a7edf874a45a13e422538660611703c8831290dfeb0bf4fd71466bc4",
+        "c0132d7cc8802bfe1335ff6eb6c8645e95680a98631083b9ff72dd1918e79182",
+        "41eb3c7c22276de9e22aea9f58da104de6fd5370155c2f7889bf49d98cbb1ac8",
+        "61a25facef82861beb617ec197ec303f96b85be310e4d3c1ddf7dc16ed3a67c9",
+        "517853524c471cf2e9f4b1b0680d73aca2f8ca98788ec6d9ad603a23f463e646",
+        "df7c767f4aeb89f89bb878272ffb7a93a85ff6a794695c96fdd1906e700989c9",
+        "35ba198f6ceb4c6c09d93994b0ec498e3cddb347a7f9602db4ce594af437bdad",
+        "61ab51a33d5d237cce6ba33f71b4eff8caf3f9f0dfe667f95ac512a0c4ff466f",
+        "9115e3fea6ebf449917c6d66ab7e1ebf261fbb0b9179739535704ad2dd804aa8",
+        "89728cba2b194d9f16569706f3f0b845e3ed8c5ab02fb71a292395c845200ef8",
+        "946731ab65caf812e6089c667420ac516abbd12452b385c895397bc0404b90b6",
+        "d5e30ebaea201438730ae9f93cb4ce6c8b658ee6d037202782233e1de00fa78c",
+        "55f87adff1bdebcdd3e2948da73f11156b73605903e0d9c067398965ad36435c",
+        "05435dfcffb7dde19db7f0e671de880a64f993923d5c17ff204dd75076b3ab83",
+        "1a62ee0d424b833e5c7e36be872ce1043520c124f0decd6e68a86e56cf6c048e",
+        "dafc06a7f6030b5132a0177102c856ad836d6690081a2c49b957c5f32d9b322a",
+        "cd21f1c8f703af55dbfe07c5a1edf299e0748105711beda1194783778740cc44",
+        "4b22cfebbc122760408eb06138769280a3b2aa6cd40701ddafabc6a18d8bc718",
+        "9e2a7f0e8491873f57cf515efe6ca132b206645bba83765d7dcaeb71ec224900",
+        "0a43eac23c461b0e743fedcb4804868006de5a1057b009d4a2175832dfc0e34c",
+        "f110b9fd41a50208a1450542614f84c33dcafbeaf888c8b79c6cde1244ab3cef",
+        "6af0fff16a4b900a8c5aaddbe9a43983213f749dd51de9222f96d45eb8ad3106",
+        "a2c0b061c281d381e846931bfa1798beb366a1d143b40fbae51515205a2b9e46",
+        "d75defda4428f52a6ce78dac73bb26d442800efef476b44428a86bcf7110bf55",
+        "4055ae62c3f3f31fea0d7eaffe74a4442f903339745790b1378b4557a50cd1fc",
+        "76cb2f2ec80c49f656b0394cefbefbdc01cb33ee829a98b8b077bedcea3743ca",
+        "816414da76a0d46b99cadc80a31928af2bfea821faf16fd91b9d4a908060df6b",
+        "974560706de0037820adaa79ec8dee7b7d69bcdb6ffb5456aaf39f9a77f399eb",
+        "62a30660bad1c017ad4d73efb074cff16a25f446df9286492eb8cd0b1e8805c0"
+      ],
+      "existing_opening_fingerprint_count": 3198,
+      "predecessor_opening_fingerprint_count": 28,
+      "predecessor_and_existing_union_count": 3226,
+      "predecessor_and_existing_union_sha256": "443b84303c4891b35b36b576c93a4f21c1cd7eb481699117facf3819700d124a",
+      "intersection_with_predecessor_and_existing_count": 0
+    },
+    "pass_effect": "Permit work on a separate production implementation and browser-validation PR for review. The match result's promotion_authorized=false remains authoritative: neither merge, deployment, live promotion, strength claim, nor live-weight write is authorized by this screen.",
+    "failure_effect": "Reject the candidate or record no conclusion without changing production or live weights."
+  },
+  "execution_manifest": {
+    "schema": "shogi-dual-hash-lock-execution-manifest-v1",
+    "experiment_id": "dual-hash-lock-v1",
+    "assets": {
+      "runner": {
+        "path": "wasm-spike/match-dual-hash-lock-vs-production.ts",
+        "bytes": 60530,
+        "sha256": "3db7366e8b676b5dff39f3ca2f3d4f4a9a279897c15386a2c2d82c6c4557743f"
+      },
+      "candidate_wasm": {
+        "path": "wasm-spike/artifacts/shogi-dual-hash-lock-research.wasm",
+        "bytes": 37538,
+        "sha256": "90cbf3ce43197732e1f43ca1b03a344f364d0928c58cd04ba40e62d11f7c8edf"
+      },
+      "production_wasm": {
+        "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      },
+      "weights": {
+        "path": "public/shogi-nnue-weights.bin",
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+        "buckets": 1
+      }
+    },
+    "match": {
+      "pairs": 48,
+      "games": 96,
+      "pair_workers": 12,
+      "milliseconds_per_move": 1500,
+      "opening_plies": 6,
+      "max_plies": 256,
+      "search_depth": 32,
+      "quiescence_depth": 10,
+      "scale_k": 600,
+      "scale_numer": 1,
+      "scale_denom": 1,
+      "color_order": ["candidate-sente", "candidate-gote"],
+      "tt_policy": "clear-before-each-game-retain-within-game",
+      "book": false,
+      "mate_solver": false,
+      "fallback": false,
+      "pair_seeds": [
+        980001, 980002, 980003, 980004, 980005, 980006, 980007, 980008, 980009,
+        980010, 980011, 980012, 980013, 980014, 980015, 980016, 980017, 980018,
+        980019, 980020, 980021, 980022, 980023, 980024, 980025, 980026, 980027,
+        980028, 980029, 980030, 980031, 980032, 980033, 980034, 980035, 980036,
+        980037, 980038, 980039, 980040, 980041, 980042, 980043, 980044, 980045,
+        980046, 980047, 980048
+      ],
+      "opening_set_sha256": "6d535f8c6e97f7ba83e8331ee9b23aeebe6825c6ec2fd43608d7715db8309a42",
+      "pass_halfpoints": 82,
+      "score_denominator_halfpoints": 192,
+      "early_stop": "mathematical-futility-only",
+      "wall_clock_limit_seconds": 7200,
+      "wall_clock_expiry": "STOP-no-conclusion"
+    },
+    "safety": {
+      "research_only": true,
+      "local_only": true,
+      "network": false,
+      "live_weight_write": false
+    }
+  }
+}

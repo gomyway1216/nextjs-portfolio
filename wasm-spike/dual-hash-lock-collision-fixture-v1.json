@@ -1,0 +1,52 @@
+{
+  "schema": "shogi-dual-hash-lock-collision-fixture-v1",
+  "status": "derived-read-only-from-collision-preflight",
+  "source_preflight": {
+    "path": "ml/protocols/dual-hash-lock-collision-preflight-v1.json",
+    "bytes": 5625,
+    "sha256": "672108c70cfeafc219992d0466484ef6a4ab0f8edd9313cab733c0523227dee7"
+  },
+  "search": {
+    "maximum_time_ms": 0,
+    "fixed_depth": 2,
+    "quiescence_depth": 2,
+    "root_tesu": 0,
+    "shared_tt": false
+  },
+  "primary_hash": {
+    "bits": 30,
+    "value": 218180606
+  },
+  "legality_holdout": {
+    "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+    "bytes": 35586,
+    "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f",
+    "case_count": 64,
+    "categories": {
+      "opening": 16,
+      "middlegame": 16,
+      "dropHeavy": 16,
+      "checkEvasion": 16
+    }
+  },
+  "positions": {
+    "a": {
+      "sfen": "1nk1s2n1/l1rs1+P3/+Pgp5N/1P1pp1ppl/p4P3/1GPPS+bP1p/B3P2P1/L3GG3/1NK1RS2L b 2P 89",
+      "tesu": 88,
+      "primary_hash": 218180606,
+      "expected_clean_key": 6349073,
+      "expected_legal_moves": 51
+    },
+    "b": {
+      "sfen": "1sk3s1l/2g2r+B2/l1n1pp1+B1/p1p3p2/3p3np/PpP4P1/2NPPPP1P/R2SGG1S1/L4K1NL w GPp 56",
+      "tesu": 55,
+      "primary_hash": 218180606,
+      "expected_clean_key": 822372,
+      "expected_legal_moves": 36
+    }
+  },
+  "required_sequences": [
+    "clear; synchronize A; search A; synchronize B; search B without clear; clear; synchronize B; search B",
+    "clear; synchronize B; search B; synchronize A; search A without clear; clear; synchronize A; search A"
+  ]
+}

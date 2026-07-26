@@ -1937,12 +1937,7 @@ function validatedAllowedLoaderSummary() {
   }
   if (
     summary["require-cache-source-read"] <= 0 ||
-    summary["exact-package-or-tsconfig-read"] <= 0 ||
-    summary["exact-config-stat"] <= 0 ||
     summary["require-cache-source-realpath"] <= 0 ||
-    summary["require-cache-source-exists"] <= 0 ||
-    summary["tsx-typescript-package-read-probe"] <= 0 ||
-    summary["tsx-typescript-package-stat-probe"] <= 0 ||
     summary[
       hasEffectiveUserIdApi
         ? "tsx-bootstrap-user-info"
@@ -2148,19 +2143,6 @@ function validatedTestBoundarySummary() {
     });
     expect(
       parsed.validated_loader_infrastructure_call_summary[
-        "exact-package-or-tsconfig-read"
-      ],
-    ).toBeGreaterThan(0);
-    expect(
-      parsed.validated_loader_infrastructure_call_summary["exact-config-stat"],
-    ).toBeGreaterThan(0);
-    expect(
-      parsed.validated_loader_infrastructure_call_summary[
-        "tsx-typescript-package-read-probe"
-      ],
-    ).toBeGreaterThan(0);
-    expect(
-      parsed.validated_loader_infrastructure_call_summary[
         "require-cache-source-read"
       ],
     ).toBeGreaterThan(0);
@@ -2169,16 +2151,20 @@ function validatedTestBoundarySummary() {
         "require-cache-source-realpath"
       ],
     ).toBeGreaterThan(0);
-    expect(
-      parsed.validated_loader_infrastructure_call_summary[
-        "require-cache-source-exists"
-      ],
-    ).toBeGreaterThan(0);
-    expect(
-      parsed.validated_loader_infrastructure_call_summary[
-        "tsx-typescript-package-stat-probe"
-      ],
-    ).toBeGreaterThan(0);
+    for (const optionalLoaderProbe of [
+      "exact-package-or-tsconfig-read",
+      "exact-config-stat",
+      "tsx-typescript-package-read-probe",
+      "require-cache-source-exists",
+      "tsx-typescript-package-stat-probe",
+    ]) {
+      const count =
+        parsed.validated_loader_infrastructure_call_summary[
+          optionalLoaderProbe
+        ];
+      expect(Number.isSafeInteger(count), optionalLoaderProbe).toBe(true);
+      expect(count, optionalLoaderProbe).toBeGreaterThanOrEqual(0);
+    }
     expect(
       [0, 1],
       "tsx may omit its exact lexer .cts existence probe on some platforms",

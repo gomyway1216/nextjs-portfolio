@@ -1186,8 +1186,8 @@ var init_floodgate_stable_wasm_deadline_diagnostic = __esm({
     FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_REQUESTS = 12;
     FLOODGATE_STABLE_WASM_DIAGNOSTIC_MAX_CONCURRENT_CHILDREN = 6;
     FLOODGATE_STABLE_WASM_DIAGNOSTIC_WASM_IDENTITY = Object.freeze({
-      bytes: 35597,
-      sha256: "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      bytes: 36545,
+      sha256: "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
     });
     FLOODGATE_STABLE_WASM_DIAGNOSTIC_WEIGHTS_IDENTITY = Object.freeze({
       bytes: 1185988,
@@ -1195,7 +1195,7 @@ var init_floodgate_stable_wasm_deadline_diagnostic = __esm({
     });
     FLOODGATE_STABLE_WASM_DIAGNOSTIC_WORKER_IDENTITY = Object.freeze({
       bytes: 17346,
-      sha256: "7d085ddfce1c55e8ad792be13e44e48cd34344fe8a876c67fe89389271db16ca"
+      sha256: "2b03648bed0912e0332a4254022a91d2f6ef056ed881ebef72036bb63e7d8a39"
     });
     COUNTER_BUCKETS = Object.freeze([
       "0",
@@ -1542,7 +1542,7 @@ var init_floodgate_stable_wasm_deadline_public_calibration = __esm({
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WATCHDOG_MS = 18e4;
     FLOODGATE_STABLE_WASM_DEADLINE_PUBLIC_CALIBRATION_WORKER_IDENTITY = Object.freeze({
       bytes: 13014,
-      sha256: "899c9eaea9dcc5478ad833a840232cc6aadf584f6bc2682ca5869832d12acbb6"
+      sha256: "55efa07a5e94cffe5615e423e2a20a7d67cbebeafe75f1882eee9e08823a5ab0"
     });
     WORKER_BOOTSTRAP_SOURCE2 = 'import { readFileSync } from "node:fs";const source=readFileSync(3);const encoded=Buffer.from(source).toString("base64");await import("data:text/javascript;base64,"+encoded);';
     MAX_WORKER_STDOUT_BYTES2 = 256;
@@ -2201,8 +2201,8 @@ var init_floodgate_stable_wasm_deadline_read_only_assets = __esm({
     ]);
     FLOODGATE_STABLE_WASM_DEADLINE_READ_ONLY_ASSET_IDENTITIES = Object.freeze({
       wasm: Object.freeze({
-        bytes: 35597,
-        sha256: "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+        bytes: 36545,
+        sha256: "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
       }),
       weights: Object.freeze({
         bytes: 1185988,
@@ -4325,6 +4325,15 @@ var init_KyokumenImproved = __esm({
         this.TebanHashSeed = 0;
       }
       static {
+        this.SecondaryHashSeed = [];
+      }
+      static {
+        this.SecondaryHandHashSeed = [];
+      }
+      static {
+        this.SecondaryTebanHashSeed = 0;
+      }
+      static {
         this.hashInitialized = false;
       }
       static {
@@ -4345,6 +4354,9 @@ var init_KyokumenImproved = __esm({
         this.HashVal = 0;
         this.BanHash = 0;
         this.HandHash = 0;
+        this.SecondaryHashVal = 0;
+        this.SecondaryBanHash = 0;
+        this.SecondaryHandHash = 0;
         for (let i = 0; i < 16 * 11; i++) {
           this.ban[i] = WALL;
         }
@@ -4395,6 +4407,27 @@ var init_KyokumenImproved = __esm({
           }
         }
         this.TebanHashSeed = rand30() || 1;
+        let secondarySeed = 2403242437 >>> 0;
+        const rand32Secondary = () => {
+          secondarySeed = secondarySeed + 1831565813 >>> 0;
+          let t = secondarySeed;
+          t = Math.imul(t ^ t >>> 15, t | 1);
+          t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+          return (t ^ t >>> 14) >>> 0;
+        };
+        this.SecondaryHashSeed = Array(GRY + 1).fill(null).map(() => new Array(16 * 11).fill(0));
+        for (let i = 0; i <= GRY; i++) {
+          for (let j = 0; j < 16 * 11; j++) {
+            this.SecondaryHashSeed[i][j] = rand32Secondary();
+          }
+        }
+        this.SecondaryHandHashSeed = Array(GHI + 1).fill(null).map(() => new Array(20).fill(0));
+        for (let i = 0; i <= GHI; i++) {
+          for (let j = 0; j < 20; j++) {
+            this.SecondaryHandHashSeed[i][j] = rand32Secondary();
+          }
+        }
+        this.SecondaryTebanHashSeed = rand32Secondary();
         this.hashInitialized = true;
       }
       /**
@@ -4478,6 +4511,9 @@ var init_KyokumenImproved = __esm({
         k.HashVal = this.HashVal;
         k.BanHash = this.BanHash;
         k.HandHash = this.HandHash;
+        k.SecondaryHashVal = this.SecondaryHashVal;
+        k.SecondaryBanHash = this.SecondaryBanHash;
+        k.SecondaryHandHash = this.SecondaryHandHash;
         return k;
       }
       /**
@@ -4491,6 +4527,7 @@ var init_KyokumenImproved = __esm({
         if (this.teban === teban) return;
         this.teban = teban;
         this.HashVal ^= _KyokumenImproved.TebanHashSeed;
+        this.SecondaryHashVal ^= _KyokumenImproved.SecondaryTebanHashSeed;
       }
       /**
        * Toggle side-to-move while keeping `HashVal` consistent.
@@ -4499,6 +4536,7 @@ var init_KyokumenImproved = __esm({
       toggleTeban() {
         this.teban = this.teban === SENTE2 ? GOTE2 : SENTE2;
         this.HashVal ^= _KyokumenImproved.TebanHashSeed;
+        this.SecondaryHashVal ^= _KyokumenImproved.SecondaryTebanHashSeed;
       }
       // Check if positions are equal
       equals(k) {
@@ -4540,6 +4578,7 @@ var init_KyokumenImproved = __esm({
           this.psqtEval -= _KyokumenImproved.psqtValue(te.koma, te.from);
         }
         this.BanHash ^= _KyokumenImproved.HashSeed[this.get(te.to)][te.to];
+        this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[this.get(te.to)][te.to];
         if (this.get(te.to) !== EMPTY) {
           this.eval -= komaValue[this.get(te.to)];
           if (isSente(this.get(te.to))) {
@@ -4548,6 +4587,7 @@ var init_KyokumenImproved = __esm({
             koma2 = koma2 | GOTE2;
             this.hand[koma2]++;
             this.HandHash ^= _KyokumenImproved.HandHashSeed[koma2][this.hand[koma2]];
+            this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[koma2][this.hand[koma2]];
             this.eval += komaValue[koma2];
           } else {
             let koma2 = this.get(te.to);
@@ -4555,16 +4595,20 @@ var init_KyokumenImproved = __esm({
             koma2 = koma2 | SENTE2;
             this.hand[koma2]++;
             this.HandHash ^= _KyokumenImproved.HandHashSeed[koma2][this.hand[koma2]];
+            this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[koma2][this.hand[koma2]];
             this.eval += komaValue[koma2];
           }
         }
         if (te.from === 0) {
           this.HandHash ^= _KyokumenImproved.HandHashSeed[te.koma][this.hand[te.koma]];
+          this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[te.koma][this.hand[te.koma]];
           this.hand[te.koma]--;
         } else {
           this.put(te.from, EMPTY);
           this.BanHash ^= _KyokumenImproved.HashSeed[te.koma][te.from];
           this.BanHash ^= _KyokumenImproved.HashSeed[EMPTY][te.from];
+          this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[te.koma][te.from];
+          this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[EMPTY][te.from];
         }
         let koma = te.koma;
         if (te.promote) {
@@ -4574,6 +4618,7 @@ var init_KyokumenImproved = __esm({
         }
         this.put(te.to, koma);
         this.BanHash ^= _KyokumenImproved.HashSeed[koma][te.to];
+        this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[koma][te.to];
         this.psqtEval += _KyokumenImproved.psqtValue(koma, te.to);
         if (te.koma === SOU) {
           this.kingS = te.to;
@@ -4581,13 +4626,16 @@ var init_KyokumenImproved = __esm({
           this.kingG = te.to;
         }
         this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE2 ? _KyokumenImproved.TebanHashSeed : 0);
+        this.SecondaryHashVal = this.SecondaryBanHash ^ this.SecondaryHandHash ^ (this.teban === GOTE2 ? _KyokumenImproved.SecondaryTebanHashSeed : 0);
       }
       // Undo a move (CRITICAL: matches Java logic exactly)
       back(te) {
         this.BanHash ^= _KyokumenImproved.HashSeed[this.get(te.to)][te.to];
+        this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[this.get(te.to)][te.to];
         this.psqtEval -= _KyokumenImproved.psqtValue(this.get(te.to), te.to);
         this.put(te.to, te.capture);
         this.BanHash ^= _KyokumenImproved.HashSeed[te.capture][te.to];
+        this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[te.capture][te.to];
         if (te.capture !== EMPTY) {
           this.psqtEval += _KyokumenImproved.psqtValue(te.capture, te.to);
         }
@@ -4598,6 +4646,7 @@ var init_KyokumenImproved = __esm({
             koma = koma & 7;
             koma = koma | GOTE2;
             this.HandHash ^= _KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+            this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
             this.hand[koma]--;
             this.eval -= komaValue[koma];
           } else {
@@ -4605,6 +4654,7 @@ var init_KyokumenImproved = __esm({
             koma = koma & 7;
             koma = koma | SENTE2;
             this.HandHash ^= _KyokumenImproved.HandHashSeed[koma][this.hand[koma]];
+            this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[koma][this.hand[koma]];
             this.hand[koma]--;
             this.eval -= komaValue[koma];
           }
@@ -4612,10 +4662,13 @@ var init_KyokumenImproved = __esm({
         if (te.from === 0) {
           this.hand[te.koma]++;
           this.HandHash ^= _KyokumenImproved.HandHashSeed[te.koma][this.hand[te.koma]];
+          this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[te.koma][this.hand[te.koma]];
         } else {
           this.put(te.from, te.koma);
           this.BanHash ^= _KyokumenImproved.HashSeed[EMPTY][te.from];
           this.BanHash ^= _KyokumenImproved.HashSeed[te.koma][te.from];
+          this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[EMPTY][te.from];
+          this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[te.koma][te.from];
           this.psqtEval += _KyokumenImproved.psqtValue(te.koma, te.from);
           if (te.promote) {
             const koma = te.koma | PROMOTE;
@@ -4629,6 +4682,7 @@ var init_KyokumenImproved = __esm({
           this.kingG = te.from;
         }
         this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE2 ? _KyokumenImproved.TebanHashSeed : 0);
+        this.SecondaryHashVal = this.SecondaryBanHash ^ this.SecondaryHandHash ^ (this.teban === GOTE2 ? _KyokumenImproved.SecondaryTebanHashSeed : 0);
       }
       // Initialize king positions
       initKingPos() {
@@ -4672,17 +4726,22 @@ var init_KyokumenImproved = __esm({
       calcHash() {
         this.HandHash = 0;
         this.BanHash = 0;
+        this.SecondaryHandHash = 0;
+        this.SecondaryBanHash = 0;
         for (let i = 0; i <= GHI; i++) {
           for (let j = 0; j <= this.hand[i]; j++) {
             this.HandHash ^= _KyokumenImproved.HandHashSeed[i][j];
+            this.SecondaryHandHash ^= _KyokumenImproved.SecondaryHandHashSeed[i][j];
           }
         }
         for (let i = 1; i <= 9; i++) {
           for (let j = 1; j <= 9; j++) {
             this.BanHash ^= _KyokumenImproved.HashSeed[this.ban[i * 16 + j]][i * 16 + j];
+            this.SecondaryBanHash ^= _KyokumenImproved.SecondaryHashSeed[this.ban[i * 16 + j]][i * 16 + j];
           }
         }
         this.HashVal = this.HandHash ^ this.BanHash ^ (this.teban === GOTE2 ? _KyokumenImproved.TebanHashSeed : 0);
+        this.SecondaryHashVal = this.SecondaryHandHash ^ this.SecondaryBanHash ^ (this.teban === GOTE2 ? _KyokumenImproved.SecondaryTebanHashSeed : 0);
       }
       // Initialize all
       initAll() {
@@ -7205,7 +7264,7 @@ function assetSpecifications(homeDirectory) {
     Object.freeze({
       label: "runtime.stable-wasm",
       path: path8.join(assetRoot, ...STABLE_WASM_RELATIVE_PATH),
-      maximumBytes: 35597
+      maximumBytes: 36545
     }),
     Object.freeze({
       label: "runtime.stable-weights",

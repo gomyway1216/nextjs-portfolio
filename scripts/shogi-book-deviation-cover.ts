@@ -23,14 +23,14 @@
  * emitted meta re-measures replies against a fresh MultiPV-4 search.
  *
  * Progress is appended per seed to --results (resumable). When all seeds are done it emits:
- *   --out       merged binary book  = input book + deviation entries (same SBK1 format)
+ *   --out       merged binary book  = input book + deviation entries (same SBK2 format)
  *   --meta      deviation meta JSONL {sfen, ply, best, moves:[{usi, value}]} — the same shape
  *               shogi-petashock-book-verify.ts consumes, so replies can be independently
  *               re-verified: node -r tsx/cjs scripts/shogi-petashock-book-verify.ts <meta>
  *
  * Usage:
  *   YANE_BIN=... YANE_EVAL_DIR=... node -r tsx/cjs scripts/shogi-book-deviation-cover.ts \
- *     --book public/shogi-opening-book.bin --results <results.jsonl> \
+ *     --book public/shogi-opening-book-v2.bin --results <results.jsonl> \
  *     --out <merged.bin> --meta <deviations.jsonl> \
  *     [--max-seed-ply 12] [--max-seeds 900] [--multipv 12] [--window 300] [--depth 18] [--procs 4]
  */
@@ -55,7 +55,7 @@ function argValue(name: string, def: string): string {
   return next && !next.startsWith('-') ? next : def;
 }
 
-const BOOK_PATH = argValue('--book', path.resolve(__dirname, '../public/shogi-opening-book.bin'));
+const BOOK_PATH = argValue('--book', path.resolve(__dirname, '../public/shogi-opening-book-v2.bin'));
 const RESULTS_PATH = argValue('--results', '');
 const OUT_PATH = argValue('--out', '');
 const META_PATH = argValue('--meta', '');
@@ -162,46 +162,54 @@ function packOf(te: Te): [number, number, number] {
   ];
 }
 
-// --- Binary book I/O (SBK1; format doc in scripts/shogi-import-petashock-book.ts) ------------
+// --- Binary book I/O (SBK2; format doc in scripts/shogi-import-petashock-book.ts) ------------
 
 interface BookEntry {
-  hash: number;
-  check: number;
+  hashA: number;
+  hashB: number;
   moves: Array<[number, number, number]>;
 }
 
-function readBook(p: string): Map<number, BookEntry> {
+function identityKey(hashA: number, hashB: number): string {
+  return `${hashA >>> 0}:${hashB >>> 0}`;
+}
+
+function positionIdentityKey(k: KyokumenImproved): string {
+  return identityKey(k.HashVal, k.SecondaryHashVal);
+}
+
+function readBook(p: string): Map<string, BookEntry> {
   const buf = fs.readFileSync(p);
-  if (buf.readUInt32LE(0) !== 0x314b4253) throw new Error(`${p}: bad magic`);
+  if (buf.readUInt32LE(0) !== 0x324b4253) throw new Error(`${p}: bad magic`);
   const count = buf.readUInt32LE(4);
-  const map = new Map<number, BookEntry>();
+  const map = new Map<string, BookEntry>();
   let o = 8;
   for (let i = 0; i < count; i++) {
-    const hash = buf.readUInt32LE(o); o += 4;
-    const check = buf.readUInt16LE(o); o += 2;
+    const hashA = buf.readUInt32LE(o); o += 4;
+    const hashB = buf.readUInt32LE(o); o += 4;
     const n = buf.readUInt8(o); o += 1;
     const moves: Array<[number, number, number]> = [];
     for (let j = 0; j < n; j++) {
       moves.push([buf.readUInt8(o), buf.readUInt8(o + 1), buf.readUInt8(o + 2)]);
       o += 3;
     }
-    map.set(hash, { hash, check, moves });
+    map.set(identityKey(hashA, hashB), { hashA, hashB, moves });
   }
   if (o !== buf.length) throw new Error(`${p}: trailing bytes`);
   return map;
 }
 
 function writeBook(p: string, entries: BookEntry[]): number {
-  const sorted = [...entries].sort((a, b) => a.hash - b.hash);
+  const sorted = [...entries].sort((a, b) => a.hashA - b.hashA || a.hashB - b.hashB);
   let bytes = 8;
-  for (const e of sorted) bytes += 7 + e.moves.length * 3;
+  for (const e of sorted) bytes += 9 + e.moves.length * 3;
   const buf = Buffer.alloc(bytes);
-  buf.writeUInt32LE(0x314b4253, 0);
+  buf.writeUInt32LE(0x324b4253, 0);
   buf.writeUInt32LE(sorted.length, 4);
   let o = 8;
   for (const e of sorted) {
-    buf.writeUInt32LE(e.hash >>> 0, o); o += 4;
-    buf.writeUInt16LE(e.check, o); o += 2;
+    buf.writeUInt32LE(e.hashA >>> 0, o); o += 4;
+    buf.writeUInt32LE(e.hashB >>> 0, o); o += 4;
     buf.writeUInt8(e.moves.length, o); o += 1;
     for (const [from, to, flags] of e.moves) {
       buf.writeUInt8(from, o); o += 1;
@@ -222,7 +230,7 @@ interface Seed {
   k: KyokumenImproved;
 }
 
-function collectSeeds(book: Map<number, BookEntry>): Seed[] {
+function collectSeeds(book: Map<string, BookEntry>): Seed[] {
   interface Node {
     k: KyokumenImproved;
     ply: number;
@@ -237,9 +245,8 @@ function collectSeeds(book: Map<number, BookEntry>): Seed[] {
   for (let ply = 0; ply <= MAX_SEED_PLY; ply++) {
     const next = new Map<string, Node>();
     for (const [sfen, node] of level) {
-      const h = node.k.HashVal >>> 0;
-      const entry = book.get(h);
-      const inBook = !!entry && entry.check === ((node.k.BanHash & 0xffff) >>> 0);
+      const entry = book.get(positionIdentityKey(node.k));
+      const inBook = !!entry;
       if (!inBook && ply > 0) continue; // dead end (should not happen: children are pre-filtered)
       if (inBook) {
         const prev = seeds.get(sfen);
@@ -254,9 +261,8 @@ function collectSeeds(book: Map<number, BookEntry>): Seed[] {
         const child = node.k.clone();
         child.move(te);
         child.toggleTeban();
-        const ch = child.HashVal >>> 0;
-        const ce = book.get(ch);
-        if (!ce || ce.check !== ((child.BanHash & 0xffff) >>> 0)) continue;
+        const ce = book.get(positionIdentityKey(child));
+        if (!ce) continue;
         children.push({ sfen: sfenOf(child), k: child });
       }
       if (children.length === 0) continue;
@@ -421,8 +427,8 @@ interface DeviationRow {
   cp: number; // its cp at the seed (side-to-move = human)
   childSfen: string;
   childPly: number;
-  childHash: number;
-  childCheck: number;
+  childHashA: number;
+  childHashB: number;
   response: string; // engine depth-D best reply (usi)
   responseCp: number; // from the child side-to-move (= AI) perspective
   pack: [number, number, number];
@@ -440,7 +446,7 @@ interface SeedResult {
 
 async function runWorker(
   seeds: Seed[],
-  book: Map<number, BookEntry>,
+  book: Map<string, BookEntry>,
   writeResult: (r: SeedResult) => void,
   progress: () => void
 ): Promise<void> {
@@ -474,16 +480,11 @@ async function runWorker(
         const child = seed.k.clone();
         child.move(te);
         child.toggleTeban();
-        const childHash = child.HashVal >>> 0;
-        const childCheck = (child.BanHash & 0xffff) >>> 0;
-        const existing = book.get(childHash);
-        if (existing && existing.check === childCheck) {
-          inBook++;
-          continue;
-        }
+        const childHashA = child.HashVal >>> 0;
+        const childHashB = child.SecondaryHashVal >>> 0;
+        const existing = book.get(identityKey(childHashA, childHashB));
         if (existing) {
-          // 30-bit hash collision with an unrelated book position — cannot add safely.
-          skipped.push(pv.move);
+          inBook++;
           continue;
         }
         const childSfen = sfenOf(child);
@@ -511,8 +512,8 @@ async function runWorker(
           cp: pv.cp,
           childSfen,
           childPly: seed.ply + 1,
-          childHash,
-          childCheck,
+          childHashA,
+          childHashB,
           response: reply[0].move,
           responseCp: reply[0].cp,
           pack: packOf(rte),
@@ -590,7 +591,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const deviationByHash = new Map<number, { row: DeviationRow; seedSfen: string }>();
+  const deviationByHash = new Map<string, { row: DeviationRow; seedSfen: string }>();
   let dupes = 0;
   const stats = { candidates: 0, inBook: 0, added: 0, skipped: 0 };
   for (const r of results) {
@@ -598,23 +599,24 @@ async function main(): Promise<void> {
     stats.inBook += r.inBook;
     stats.skipped += r.skipped.length;
     for (const d of r.deviations) {
-      if (book.has(d.childHash)) {
-        // The book grew (or a collision appeared) since this result was produced — drop it.
+      const childKey = identityKey(d.childHashA, d.childHashB);
+      if (book.has(childKey)) {
+        // The book grew since this result was produced — drop the now-covered pair.
         dupes++;
         continue;
       }
-      if (deviationByHash.has(d.childHash)) {
+      if (deviationByHash.has(childKey)) {
         dupes++; // same successor reached from two seeds (transposition) — keep the first
         continue;
       }
-      deviationByHash.set(d.childHash, { row: d, seedSfen: r.sfen });
+      deviationByHash.set(childKey, { row: d, seedSfen: r.sfen });
       stats.added++;
     }
   }
 
   const merged: BookEntry[] = [...book.values()];
   for (const { row } of deviationByHash.values()) {
-    merged.push({ hash: row.childHash, check: row.childCheck, moves: [row.pack] });
+    merged.push({ hashA: row.childHashA, hashB: row.childHashB, moves: [row.pack] });
   }
   const bytes = writeBook(OUT_PATH, merged);
 

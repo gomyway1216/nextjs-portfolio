@@ -1523,9 +1523,9 @@ describe("Floodgate stable-WASM real child pool", () => {
       search: {
         completed_depth: 11,
         termination: "requested-depth-complete",
-        raw_search_score: -114,
-        nodes: 644_923,
-        leaves: 1_533_244,
+        raw_search_score: -119,
+        nodes: 541_684,
+        leaves: 1_270_883,
       },
     });
     expect(
@@ -1985,7 +1985,15 @@ describe("Floodgate stable-WASM reusable proposal pool", () => {
     for (const workers of [1, 2, 3]) {
       const pool = await createFloodgateStableWasmReusableProposalPool(
         pinnedWorkerSearchAssets(),
-        { ...REUSABLE_POOL_OPTIONS, workers, queueBound: 3 },
+        {
+          ...REUSABLE_POOL_OPTIONS,
+          workers,
+          queueBound: 3,
+          // This test exercises row determinism, not the operational startup
+          // deadline. Full-suite process contention can starve a child for
+          // longer than the production 30-second boundary.
+          startupTimeoutMilliseconds: 60_000,
+        },
       );
       const rows = await Promise.all([
         pool.propose(shared),
@@ -2005,5 +2013,5 @@ describe("Floodgate stable-WASM reusable proposal pool", () => {
         raw_search_score: 89_999_999,
       },
     });
-  }, 60_000);
+  }, 120_000);
 });

@@ -79,8 +79,8 @@ export function loadShogiWasm(wasmPath: string = PRODUCTION_SHOGI_WASM_PATH): Sh
       now: () => performance.now(),
     // Single-thread stubs for the Lazy SMP shared-TT hooks (never called while
     // setSharedTtEnabled stays 0, but the imports must link).
-    sharedTtProbe: () => 0,
-    sharedTtStore: () => {},
+    sharedTtProbe: (_hashA: number, _hashB: number) => 0,
+    sharedTtStore: (_hashA: number, _hashB: number, _value: number, _flagDepth: number, _best: number) => {},
     sharedShouldStop: () => 0,
     },
   });

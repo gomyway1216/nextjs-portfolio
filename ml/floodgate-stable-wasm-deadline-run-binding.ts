@@ -471,7 +471,7 @@ function assetSpecifications(
     Object.freeze({
       label: "runtime.stable-wasm",
       path: path.join(assetRoot, ...STABLE_WASM_RELATIVE_PATH),
-      maximumBytes: 35_597,
+      maximumBytes: 36_545,
     }),
     Object.freeze({
       label: "runtime.stable-weights",

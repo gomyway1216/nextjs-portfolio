@@ -35,9 +35,9 @@ export const RESULT_SCHEMA =
   "shogi-floodgate-strength-first-downstream-wasm-probe-result-v1" as const;
 export const FIXTURE_SCHEMA =
   "shogi-floodgate-strength-first-known-regression-fixture-v1" as const;
-export const WASM_BYTES = 35_597 as const;
+export const WASM_BYTES = 36_545 as const;
 export const WASM_SHA256 =
-  "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c" as const;
+  "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31" as const;
 
 const MAX_STDIN_BYTES = 128 * 1024;
 const MAX_ARTIFACT_BYTES = 4 * 1024 * 1024;

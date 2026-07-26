@@ -1,7 +1,7 @@
 /**
  * generate-opening-teacher.ts — 序盤特化の教師データ生成スクリプト (追い焚き用)
  *
- * 供給源: ペタショック定跡 (public/shogi-opening-book.bin, 約5万局面・〜24手目) を
+ * 供給源: ペタショック定跡 (public/shogi-opening-book-v2.bin, 約10万局面・〜30手目) を
  * BFS 展開した「定跡内の全局面 + 定跡を1手出た直後の局面」。さらに各局面から
  * 自作エンジン(WASM) + ランダム分岐のロールアウトで数手進め、「定跡を出た直後」
  * の局面 (NNUE の序盤バイアスが出る領域そのもの) を収集する。
@@ -73,7 +73,7 @@ function parseArgs(): Args {
   }
   return {
     out: get('out', path.join(__dirname, 'data', 'opening-teacher.jsonl')),
-    book: get('book', path.join(__dirname, '..', 'public', 'shogi-opening-book.bin')),
+    book: get('book', path.join(__dirname, '..', 'public', 'shogi-opening-book-v2.bin')),
     depth: parseInt(get('depth', '12'), 10),
     engines: parseInt(get('engines', '2'), 10),
     moveTimeMs: parseInt(get('movetime', '25'), 10),
@@ -112,29 +112,36 @@ function sfenKey(sfen: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// 定跡バイナリ (SBK1) のロード — フォーマットは
+// 定跡バイナリ (SBK2) のロード — フォーマットは
 // scripts/shogi-import-petashock-book.ts / OpeningBookImproved.loadExternalOpeningBook 参照
 // ---------------------------------------------------------------------------
 
 interface BookEntry {
-  check: number;
   moves: Uint8Array; // (from, to, flags) x n — best-first
 }
 
-function loadBook(file: string): Map<number, BookEntry> {
+function bookKey(hashA: number, hashB: number): string {
+  return `${hashA >>> 0}:${hashB >>> 0}`;
+}
+
+function loadBook(file: string): Map<string, BookEntry> {
   const buf = fs.readFileSync(file);
+  if (buf.byteLength < 8) throw new Error('book is truncated');
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  if (dv.getUint32(0, true) !== 0x314b4253) throw new Error('bad book magic');
+  if (dv.getUint32(0, true) !== 0x324b4253) throw new Error('bad book magic');
   const count = dv.getUint32(4, true);
-  const map = new Map<number, BookEntry>();
+  const map = new Map<string, BookEntry>();
   let off = 8;
   for (let i = 0; i < count; i++) {
-    const hash = dv.getUint32(off, true);
-    const check = dv.getUint16(off + 4, true);
-    const n = dv.getUint8(off + 6);
-    off += 7;
-    map.set(hash, {
-      check,
+    if (off + 9 > buf.byteLength) throw new Error(`book entry ${i} is truncated`);
+    const hashA = dv.getUint32(off, true);
+    const hashB = dv.getUint32(off + 4, true);
+    const n = dv.getUint8(off + 8);
+    off += 9;
+    if (n === 0 || off + n * 3 > buf.byteLength) throw new Error(`book entry ${i} has invalid moves`);
+    const key = bookKey(hashA, hashB);
+    if (map.has(key)) throw new Error(`book entry ${i} duplicates ${key}`);
+    map.set(key, {
       moves: new Uint8Array(buf.buffer, buf.byteOffset + off, n * 3),
     });
     off += n * 3;
@@ -191,7 +198,7 @@ function replay(path: Te[]): KyokumenImproved {
   return k;
 }
 
-function enumerateBookNodes(book: Map<number, BookEntry>): BookNode[] {
+function enumerateBookNodes(book: Map<string, BookEntry>): BookNode[] {
   const visited = new Set<string>();
   const nodes: BookNode[] = [];
   const queue: Te[][] = [[]];
@@ -204,8 +211,8 @@ function enumerateBookNodes(book: Map<number, BookEntry>): BookNode[] {
     const key = sfenKey(toSfen(k, path.length + 1));
     if (visited.has(key)) continue;
     visited.add(key);
-    const entry = book.get(k.HashVal);
-    const inBook = entry !== undefined && entry.check === ((k.BanHash & 0xffff) >>> 0);
+    const entry = book.get(bookKey(k.HashVal, k.SecondaryHashVal));
+    const inBook = entry !== undefined;
     nodes.push({ path, ply: path.length, inBook });
     if (!inBook) continue; // 定跡を出た局面: 収集はするが展開しない
     const legal = GenerateMovesImproved.generateLegalMoves(k);

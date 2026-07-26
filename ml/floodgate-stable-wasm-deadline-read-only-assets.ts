@@ -20,9 +20,9 @@ export const FLOODGATE_STABLE_WASM_DEADLINE_READ_ONLY_ASSET_ROOT_COMPONENTS =
 export const FLOODGATE_STABLE_WASM_DEADLINE_READ_ONLY_ASSET_IDENTITIES =
   Object.freeze({
     wasm: Object.freeze({
-      bytes: 35_597,
+      bytes: 36_545,
       sha256:
-        "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c",
+        "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31",
     }),
     weights: Object.freeze({
       bytes: 1_185_988,

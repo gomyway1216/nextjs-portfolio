@@ -24,7 +24,7 @@
  *
  * Usage:
  *   YANE_BIN=... YANE_EVAL_DIR=... node -r tsx/cjs scripts/shogi-petashock-book-fullcheck.ts \
- *     <meta.jsonl> --results <results.jsonl> [--out public/shogi-opening-book.bin] \
+ *     <meta.jsonl> --results <results.jsonl> [--out public/shogi-opening-book-v2.bin] \
  *     [--verified-meta <path>] [--procs 12] [--depth 18] [--prune-gap 90]
  */
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
@@ -42,7 +42,7 @@ if (!META_PATH || META_PATH.startsWith('--')) {
   process.exit(2);
 }
 const RESULTS_PATH = argValue('--results', META_PATH.replace(/\.jsonl$/, '') + '-fullcheck.jsonl');
-const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-opening-book.bin'));
+const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-opening-book-v2.bin'));
 const VERIFIED_META_PATH = argValue('--verified-meta', META_PATH.replace(/\.jsonl$/, '') + '-verified.jsonl');
 const PROCS = Number(argValue('--procs', '12'));
 const DEPTH = Number(argValue('--depth', '18'));
@@ -60,8 +60,8 @@ interface MetaMove {
 interface MetaEntry {
   sfen: string;
   ply: number;
-  hash: number;
-  check: number;
+  hashA: number;
+  hashB: number;
   best: number;
   moves: MetaMove[];
 }
@@ -76,8 +76,8 @@ interface ResultMove {
 interface ResultEntry {
   sfen: string;
   ply: number;
-  hash: number;
-  check: number;
+  hashA: number;
+  hashB: number;
   bestCp: number;
   moves: ResultMove[];
 }
@@ -239,7 +239,7 @@ async function runWorker(
       if (top.length === 0) {
         // No PV (should not happen for book positions) — keep nothing, flag via gap=99999.
         writeResult({
-          sfen: e.sfen, ply: e.ply, hash: e.hash, check: e.check, bestCp: 0,
+          sfen: e.sfen, ply: e.ply, hashA: e.hashA, hashB: e.hashB, bestCp: 0,
           moves: e.moves.map((m) => ({ usi: m.usi, pack: m.pack, gap: 99999, keep: false })),
         });
         progress();
@@ -263,7 +263,7 @@ async function runWorker(
         const gap = bestCp - ownCp;
         moves.push({ usi: m.usi, pack: m.pack, gap, keep: gap <= PRUNE_GAP });
       }
-      writeResult({ sfen: e.sfen, ply: e.ply, hash: e.hash, check: e.check, bestCp, moves });
+      writeResult({ sfen: e.sfen, ply: e.ply, hashA: e.hashA, hashB: e.hashB, bestCp, moves });
       progress();
     }
   } finally {
@@ -273,8 +273,8 @@ async function runWorker(
 
 function emitBook(results: ResultEntry[]): void {
   interface OutEntry {
-    hash: number;
-    check: number;
+    hashA: number;
+    hashB: number;
     moves: Array<[number, number, number]>;
   }
   const out: OutEntry[] = [];
@@ -287,19 +287,19 @@ function emitBook(results: ResultEntry[]): void {
     prunedMoves += r.moves.length - kept.length;
     keptMoves += kept.length;
     if (kept.length === 0) continue;
-    out.push({ hash: r.hash, check: r.check, moves: kept.map((m) => m.pack) });
+    out.push({ hashA: r.hashA, hashB: r.hashB, moves: kept.map((m) => m.pack) });
   }
-  out.sort((a, b) => a.hash - b.hash);
+  out.sort((a, b) => a.hashA - b.hashA || a.hashB - b.hashB);
 
   let bytes = 8;
-  for (const e of out) bytes += 7 + e.moves.length * 3;
+  for (const e of out) bytes += 9 + e.moves.length * 3;
   const buf = Buffer.alloc(bytes);
-  buf.writeUInt32LE(0x314b4253, 0); // "SBK1"
+  buf.writeUInt32LE(0x324b4253, 0); // "SBK2"
   buf.writeUInt32LE(out.length, 4);
   let o = 8;
   for (const e of out) {
-    buf.writeUInt32LE(e.hash >>> 0, o); o += 4;
-    buf.writeUInt16LE(e.check, o); o += 2;
+    buf.writeUInt32LE(e.hashA >>> 0, o); o += 4;
+    buf.writeUInt32LE(e.hashB >>> 0, o); o += 4;
     buf.writeUInt8(e.moves.length, o); o += 1;
     for (const [from, to, flags] of e.moves) {
       buf.writeUInt8(from, o); o += 1;

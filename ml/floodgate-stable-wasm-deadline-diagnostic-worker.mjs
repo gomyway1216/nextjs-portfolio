@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 
 const SCHEMA = "shogi-floodgate-stable-wasm-deadline-diagnostic-worker-v1";
-const WASM_BYTES = 35_597;
+const WASM_BYTES = 36_545;
 const WASM_SHA256 =
-  "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c";
+  "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31";
 const WEIGHTS_BYTES = 1_185_988;
 const WEIGHTS_SHA256 =
   "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc";

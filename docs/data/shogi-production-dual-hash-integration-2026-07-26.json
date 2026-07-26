@@ -1,0 +1,170 @@
+{
+  "schema": "shogi-production-dual-hash-integration-evidence-v1",
+  "name": "Production dual-hash runtime integration and safe opening-book migration",
+  "recordedAt": "2026-07-26",
+  "recordedAtScope": "repository-report-date-only-not-a-deployment-timestamp",
+  "status": "local-integration-validated-deployment-pending",
+  "antecedentDirectPlay": {
+    "evidencePath": "docs/data/shogi-dual-hash-lock-match-result-2026-07-26.json",
+    "completedPairs": 48,
+    "completedGames": 96,
+    "candidateWins": 47,
+    "candidateLosses": 47,
+    "candidateDraws": 2,
+    "candidateHalfpoints": 96,
+    "scoreDenominatorHalfpoints": 192,
+    "scoreRate": 0.5,
+    "technicalFaultCount": 0,
+    "decision": "passed-bounded-non-regression-floor",
+    "meaning": "The isolated research candidate did not show a material regression in this preregistered screen.",
+    "candidateWasm": {
+      "bytes": 37538,
+      "sha256": "90cbf3ce43197732e1f43ca1b03a344f364d0928c58cd04ba40e62d11f7c8edf"
+    },
+    "candidateIsByteIdenticalToIntegratedProductionWasm": false,
+    "strengthGainProven": false,
+    "highDanProven": false
+  },
+  "productionAssets": {
+    "wasm": {
+      "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+      "bytes": 36545,
+      "sha256": "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31",
+      "change": "Production search now maintains and checks an independent secondary position identity."
+    },
+    "nnueWeights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "changed": false
+    },
+    "openingBook": {
+      "path": "public/shogi-opening-book-v2.bin",
+      "format": "SBK2",
+      "identity": "primary-30-bit-and-independent-secondary-32-bit-pair",
+      "positions": 97522,
+      "bytes": 1785509,
+      "sha256": "ec41836b563be4ca3ed7b79f70614f8183f5e6bf01a32c9cfada10514dcc7530"
+    }
+  },
+  "openingBookMigration": {
+    "sourceFormat": "SBK1",
+    "sourceLegacyIdentities": 97767,
+    "keptIndependentPairs": 97522,
+    "omittedLegacyIdentities": {
+      "disconnectedFromBookInducedTraversal": 175,
+      "ambiguousUnderIndependentSecondaryIdentity": 68,
+      "invalidStoredMovePayload": 2,
+      "total": 245
+    },
+    "coverageLossFraction": 0.002505958043102478,
+    "coverageLossPercentRounded": 0.251,
+    "policy": "fail-closed",
+    "meaning": "No ambiguous legacy move payload is copied onto multiple independent identities, and no recovered entry with an illegal stored move is emitted.",
+    "notClaimed": "Disconnected entries are not proven unreachable after arbitrary off-book play."
+  },
+  "localValidation": {
+    "jsWasmSecondaryIdentity": {
+      "positions": 4184,
+      "matched": 4184,
+      "result": "pass"
+    },
+    "fixedDepthSearch": {
+      "cases": 48,
+      "exactMatches": 48,
+      "comparison": "JavaScript V20 versus production WASM",
+      "result": "pass"
+    },
+    "productionBrowserBuild": {
+      "origin": "http://localhost:3100",
+      "harness": "browser-worker-nnue-v1",
+      "status": "pass",
+      "crossOriginIsolated": true,
+      "sharedArrayBuffer": true,
+      "evaluationPath": "nnue-wasm",
+      "searchPath": "wasm",
+      "legalResult": true,
+      "workerResponse": true,
+      "embeddedWasm": {
+        "bytes": 36545,
+        "sha256": "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
+      },
+      "fetchedWeights": {
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+      }
+    },
+    "interactiveSmoke": {
+      "level": 5,
+      "humanMove": "7g7f",
+      "engineReply": "8c8d",
+      "statusAfterReply": "human-to-move",
+      "result": "pass"
+    },
+    "runtimeCoverage": [
+      "JavaScript V20 transposition and evaluation caches",
+      "JavaScript repetition and mate-solver identity paths",
+      "WASM private and shared transposition tables",
+      "shared transposition-table host storage",
+      "SBK2 external opening-book lookup"
+    ],
+    "correctnessGain": "Cache and book reuse require both independent position identities instead of accepting a primary-hash match alone."
+  },
+  "finalBinarySpeedDiagnostic": {
+    "resultEvidence": {
+      "path": "docs/data/shogi-production-dual-hash-speed-benchmark-result-2026-07-26.json",
+      "bytes": 4513,
+      "sha256": "db19ec215986e4462e26a44a0ecd11eacfa5eee672e7053b1be04f9201585df9"
+    },
+    "rawEvidence": {
+      "path": "docs/data/shogi-production-dual-hash-speed-benchmark-raw-2026-07-26.json",
+      "bytes": 12217,
+      "sha256": "6c16957c04168fda7262907e509a405c3d7a983e2997d77a50e4a983099fde3f"
+    },
+    "comparison": "Integrated 36,545-byte production WASM versus the decoded immutable 35,597-byte pre-integration production snapshot",
+    "formalHoldoutCases": 64,
+    "warmupPassesPerArm": 4,
+    "measuredPairedBlocksPerArm": 6,
+    "allBlockAggregateFinalToBaselineThroughput": 1.0174895480046557,
+    "aggregateBoundary": "The all-block aggregate is disclosed but optimistic because one baseline block had an isolated system-load delay.",
+    "robustMedianFinalToBaselineThroughput": 0.9968869903399259,
+    "stableDescriptiveFinalToBaselineRange": {
+      "minimum": 0.9904750684795486,
+      "maximum": 0.9993380186581406
+    },
+    "p90WallRegression": -0.0003632419445199764,
+    "memoryDeltaBytes": 0,
+    "exactDecisionCases": 63,
+    "totalDecisionCases": 64,
+    "changedDecisionWasDeterministicAndLegal": true,
+    "grossDirectWasmRegressionObserved": false,
+    "strengthMetric": false,
+    "browserHostMeasured": false,
+    "sharedTtMeasured": false,
+    "promotionAuthority": false
+  },
+  "live": {
+    "reflectedAtRecordingTime": false,
+    "productionPullRequestMerged": false,
+    "deploymentVerified": false,
+    "reason": "The production-integration branch had not yet completed its pull-request, merge, deployment, and post-deployment verification sequence."
+  },
+  "claimBoundary": {
+    "supported": [
+      "The production-source candidate closes the reproduced primary-hash-only identity hole across the listed runtime paths.",
+      "The production WASM and SBK2 asset have the recorded byte counts and SHA-256 identities.",
+      "The NNUE weights are byte-for-byte unchanged.",
+      "The earlier isolated research candidate passed only a bounded non-regression floor.",
+      "The final exact production WASM showed no gross direct-WASM speed regression in the bounded local diagnostic."
+    ],
+    "notSupported": [
+      "The engine gained Elo or is stronger because of the dual-hash change.",
+      "The engine has reached stable high-dan strength.",
+      "The integrated 36,545-byte production WASM itself completed the earlier 96-game match.",
+      "The live site already serves these assets.",
+      "The 0.251% opening-book coverage loss is guaranteed never to affect a game.",
+      "The short direct-WASM diagnostic proves browser-host or shared-TT performance."
+    ]
+  },
+  "nextGate": "Merge only after the current integration validation is complete, then verify the deployed asset identities and browser engine path before marking the change live."
+}

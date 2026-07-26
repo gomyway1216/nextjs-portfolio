@@ -101,3 +101,5 @@ p90の負値は、この測定ではcandidate側のwall timeが0.171%短かっ�
 全gateを通っても、この研究PRだけではライブを変更しない。通過後の別PRで、AssemblyScript本番源泉、WASM、埋め込みbase64、JS V20 fallback、共有TT、mate solver、opening cacheへ同じdual identityを実装し、ブラウザ実機とrollback条件を確認する。
 
 この修正は高段を保証しない。しかし、別局面の探索結果を誤って使い、探索コアが違法な着手keyまで返すことがある現行の穴を残したまま学習量だけ増やすより、先に直すべき明確な土台である。
+
+後続の本番経路への実装、SBK2定跡のfail-closed移行、asset identity、ライブ反映前の境界は[production dual-hash integration](./blog-shogi-production-dual-hash-integration.md)へ分離した。

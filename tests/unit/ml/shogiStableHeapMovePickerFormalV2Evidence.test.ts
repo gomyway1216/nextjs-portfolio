@@ -74,12 +74,11 @@ describe("stable heap move-picker formal v2 evidence", () => {
     });
   });
 
-  it("binds the preregistered plan and unchanged production inputs", () => {
+  it("binds immutable inputs and fails closed after production advances", () => {
     const evidence = JSON.parse(read(evidencePath));
 
     for (const artifact of [
       evidence.checked_in_control_plan,
-      evidence.pinned_inputs.baseline_wasm,
       evidence.pinned_inputs.live_weights,
       evidence.pinned_inputs.formal_fixture,
       evidence.pinned_inputs.fixture_builder,
@@ -89,6 +88,32 @@ describe("stable heap move-picker formal v2 evidence", () => {
       expect(readFileSync(artifactPath).byteLength).toBe(artifact.bytes);
       expect(sha256(artifactPath)).toBe(artifact.sha256);
     }
+
+    const baseline = evidence.pinned_inputs.baseline_wasm;
+    const currentBaselinePath = join(root, baseline.path);
+    expect({
+      bytes: readFileSync(currentBaselinePath).byteLength,
+      sha256: sha256(currentBaselinePath),
+    }).not.toEqual({
+      bytes: baseline.bytes,
+      sha256: baseline.sha256,
+    });
+    const oldProductionWasm = Buffer.from(
+      read(
+        join(
+          root,
+          "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+        ),
+      ),
+      "base64",
+    );
+    expect({
+      bytes: oldProductionWasm.byteLength,
+      sha256: createHash("sha256").update(oldProductionWasm).digest("hex"),
+    }).toEqual({
+      bytes: baseline.bytes,
+      sha256: baseline.sha256,
+    });
 
     expect(evidence.checked_in_control_plan.status_at_execution).toBe(
       "preregistered-not-run",

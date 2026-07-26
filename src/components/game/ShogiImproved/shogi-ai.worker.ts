@@ -315,7 +315,7 @@ async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {
 }
 
 /**
- * Large-scale opening book (public/shogi-opening-book.bin), fetched with the same
+ * Large-scale opening book (public/shogi-opening-book-v2.bin), fetched with the same
  * static-asset pattern as the NNUE weights. Until it resolves, the compiled-in curated
  * book covers the first moves; on any failure the curated book keeps working alone.
  */

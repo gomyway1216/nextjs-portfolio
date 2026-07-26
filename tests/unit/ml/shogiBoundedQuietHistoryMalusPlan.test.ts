@@ -22,10 +22,8 @@ const sha256 = (bytes: Buffer) =>
   createHash("sha256").update(bytes).digest("hex");
 
 describe("bounded quiet-history malus preregistration", () => {
-  it("pins the production source, runtime, live weights, and 64-case fixture", () => {
+  it("preserves immutable inputs and fails closed after production advances", () => {
     for (const key of [
-      "production_search_source",
-      "production_wasm",
       "immutable_live_weights",
       "correctness_fixture",
       "existing_opening_evidence",
@@ -35,6 +33,33 @@ describe("bounded quiet-history malus preregistration", () => {
       expect(bytes.byteLength).toBe(input.bytes);
       expect(sha256(bytes)).toBe(input.sha256);
     }
+
+    for (const key of ["production_search_source", "production_wasm"]) {
+      const input = plan.pinned_inputs[key];
+      const current = readFileSync(path.join(root, input.path));
+      expect(
+        { bytes: current.byteLength, sha256: sha256(current) },
+        `${key} must not be silently treated as the sealed runtime`,
+      ).not.toEqual({ bytes: input.bytes, sha256: input.sha256 });
+    }
+
+    const oldProductionWasm = Buffer.from(
+      readFileSync(
+        path.join(
+          root,
+          "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+        ),
+        "utf8",
+      ),
+      "base64",
+    );
+    expect({
+      bytes: oldProductionWasm.byteLength,
+      sha256: sha256(oldProductionWasm),
+    }).toEqual({
+      bytes: plan.pinned_inputs.production_wasm.bytes,
+      sha256: plan.pinned_inputs.production_wasm.sha256,
+    });
 
     expect(plan.parent_main_commit).toBe(
       "a694e1483df2609ee98aa4d530fa738515ddb665",

@@ -173,25 +173,36 @@ function pair(
 }
 
 describe("search WASM vs production research runner", () => {
-  it("authenticates the outer preregistration and repo-relative real assets", () => {
+  it("fails closed when the live production WASM advances beyond the historical preregistration", () => {
     const path = resolve(
       process.cwd(),
       "ml/protocols/bounded-quiet-history-malus-v1-plan.json",
     );
     const bytes = readFileSync(path);
-    const loaded = loadSearchWasmPlan(
-      path,
-      createHash("sha256").update(bytes).digest("hex"),
-    );
+    const plan = JSON.parse(bytes.toString("utf8"));
+    expect(() =>
+      loadSearchWasmPlan(
+        path,
+        createHash("sha256").update(bytes).digest("hex"),
+      ),
+    ).toThrow(/production WASM file identity differs/);
 
-    expect(loaded.plan.experiment_id).toBe("bounded-quiet-history-malus-v1");
-    expect(loaded.plan.assets.runner.path).toBe(SEARCH_WASM_RUNNER_PATH);
-    expect(loaded.plan.match.pair_workers).toBe(12);
-    expect(loaded.plan.match.pair_seeds).toEqual(
-      Array.from({ length: 28 }, (_, index) => 970_002 + index),
+    // The exact old production bytes remain independently authenticated for the historical
+    // receipts; silently re-running that sealed experiment against the promoted runtime is
+    // forbidden.
+    const encoded = readFileSync(
+      resolve(
+        process.cwd(),
+        "docs/data/shogi-dual-hash-lock-production-wasm-2026-07-25.base64",
+      ),
+      "utf8",
     );
-    expect(loaded.plan.match.opening_set_sha256).toBe(
-      "5d778574025bb325242b51bf3179c67665725e1ae029b90c8e4ed1d53fa4503b",
+    const snapshot = Buffer.from(encoded, "base64");
+    expect(snapshot.byteLength).toBe(
+      plan.execution_manifest.assets.production_wasm.bytes,
+    );
+    expect(createHash("sha256").update(snapshot).digest("hex")).toBe(
+      plan.execution_manifest.assets.production_wasm.sha256,
     );
   });
 

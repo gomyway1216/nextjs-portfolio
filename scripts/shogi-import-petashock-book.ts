@@ -1,7 +1,7 @@
 /**
  * Import a YaneuraOu "petashock" opening book (.db, YANEURAOU-DB2016 text format)
  * into the compact binary book consumed by OpeningBookImproved at runtime
- * (public/shogi-opening-book.bin).
+ * (public/shogi-opening-book-v2.bin).
  *
  * Data source (MIT License, redistribution permitted):
  *   新ペタショック定跡 233万局面 — https://github.com/yaneurao/YaneuraOu/releases/tag/new_petabook233
@@ -24,14 +24,14 @@
  * NOTE: the candidate book is NOT the shipped book. The petashock minimax values disagree
  * with single depth-18 searches for ~1.5% of moves (style/eval differences), so every stored
  * move is then depth-18-checked and pruned by scripts/shogi-petashock-book-fullcheck.ts,
- * which rewrites public/shogi-opening-book.bin with only engine-approved moves.
+ * which rewrites public/shogi-opening-book-v2.bin with only engine-approved moves.
  *
  * Binary format (little-endian), decoder: loadExternalOpeningBook():
- *   uint32 magic "SBK1" (0x314b4253)
+ *   uint32 magic "SBK2" (0x324b4253)
  *   uint32 count
  *   count * entry:
- *     uint32 hash   — KyokumenImproved.HashVal (side-to-move included)
- *     uint16 check  — KyokumenImproved.BanHash & 0xffff (guards 30-bit hash collisions)
+ *     uint32 hashA  — KyokumenImproved.HashVal (side-to-move included)
+ *     uint32 hashB  — KyokumenImproved.SecondaryHashVal (independent full-width lock)
  *     uint8  nMoves
  *     nMoves * { uint8 from, uint8 to, uint8 flags }
  *       from/to: (suji<<4)|dan, from=0 for drops
@@ -39,7 +39,7 @@
  *
  * Usage:
  *   node -r tsx/cjs scripts/shogi-import-petashock-book.ts <path/to/user_book1.db> \
- *     [--out public/shogi-opening-book.bin] [--meta <path>] [--max-ply 24] [--max-positions 40000]
+ *     [--out public/shogi-opening-book-v2.bin] [--meta <path>] [--max-ply 24] [--max-positions 40000]
  */
 import * as fs from 'fs';
 import * as os from 'os';
@@ -64,7 +64,7 @@ if (!DB_PATH || DB_PATH.startsWith('--')) {
   console.error('usage: node -r tsx/cjs scripts/shogi-import-petashock-book.ts <user_book1.db> [--out ...] [--meta ...]');
   process.exit(2);
 }
-const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-opening-book.bin'));
+const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-opening-book-v2.bin'));
 const META_PATH = argValue('--meta', path.join(os.tmpdir(), 'shogi-opening-book-meta.jsonl'));
 const MAX_PLY = Number(argValue('--max-ply', '24'));
 const MAX_POSITIONS = Number(argValue('--max-positions', '40000'));
@@ -292,8 +292,8 @@ interface StoredMove {
 }
 
 interface StoredEntry {
-  hash: number;
-  check: number;
+  hashA: number;
+  hashB: number;
   ply: number;
   sfen: string; // full sfen of the position in OUR orientation (with ply 1 appended for USI use)
   moves: StoredMove[];
@@ -315,7 +315,7 @@ function main(): void {
   console.log(`  indexed ${index.size} positions in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   const visited = new Set<string>();
-  const storedByHash = new Map<number, StoredEntry>();
+  const storedByIdentity = new Map<string, StoredEntry>();
   let hashCollisions = 0;
   let lookupMisses = 0;
   let unmatchedMoves = 0;
@@ -378,16 +378,18 @@ function main(): void {
         }
       }
 
-      if (stored.length > 0 && storedByHash.size < MAX_POSITIONS) {
-        const hash = k.HashVal >>> 0;
-        if (storedByHash.has(hash)) {
-          // 30-bit Zobrist collision between two different book positions: keep the
-          // shallower entry (already stored — BFS is level-ordered), drop this one.
+      if (stored.length > 0 && storedByIdentity.size < MAX_POSITIONS) {
+        const hashA = k.HashVal >>> 0;
+        const hashB = k.SecondaryHashVal >>> 0;
+        const identity = `${hashA}:${hashB}`;
+        if (storedByIdentity.has(identity)) {
+          // Same full identity reached by another line: keep the shallower entry
+          // (already stored — BFS is level-ordered), drop this duplicate.
           hashCollisions++;
         } else {
-          storedByHash.set(hash, {
-            hash,
-            check: (k.BanHash & 0xffff) >>> 0,
+          storedByIdentity.set(identity, {
+            hashA,
+            hashB,
             ply: node.ply,
             sfen: `${sfenKeyOf(k, false)} 1`,
             moves: stored,
@@ -396,7 +398,7 @@ function main(): void {
           perPlyStored[node.ply]++;
         }
       }
-      if (storedByHash.size >= MAX_POSITIONS) {
+      if (storedByIdentity.size >= MAX_POSITIONS) {
         stop = true;
         break;
       }
@@ -415,23 +417,25 @@ function main(): void {
     }
 
     console.log(
-      `ply ${String(ply).padStart(2)}: stored total=${storedByHash.size}, frontier next=${next.length}`
+      `ply ${String(ply).padStart(2)}: stored total=${storedByIdentity.size}, frontier next=${next.length}`
     );
     frontier = next;
   }
 
   // --- emit ------------------------------------------------------------------
 
-  const entries = [...storedByHash.values()].sort((a, b) => a.hash - b.hash);
+  const entries = [...storedByIdentity.values()].sort(
+    (a, b) => a.hashA - b.hashA || a.hashB - b.hashB,
+  );
   let bytes = 8;
-  for (const e of entries) bytes += 7 + e.moves.length * 3;
+  for (const e of entries) bytes += 9 + e.moves.length * 3;
   const out = Buffer.alloc(bytes);
-  out.writeUInt32LE(0x314b4253, 0); // "SBK1"
+  out.writeUInt32LE(0x324b4253, 0); // "SBK2"
   out.writeUInt32LE(entries.length, 4);
   let o = 8;
   for (const e of entries) {
-    out.writeUInt32LE(e.hash, o); o += 4;
-    out.writeUInt16LE(e.check, o); o += 2;
+    out.writeUInt32LE(e.hashA, o); o += 4;
+    out.writeUInt32LE(e.hashB, o); o += 4;
     out.writeUInt8(e.moves.length, o); o += 1;
     for (const m of e.moves) {
       const flags = (m.te.promote ? 1 : 0) | (m.te.from === 0 ? (getKomashu(m.te.koma) & 7) << 1 : 0);
@@ -447,8 +451,8 @@ function main(): void {
       JSON.stringify({
         sfen: e.sfen,
         ply: e.ply,
-        hash: e.hash,
-        check: e.check,
+        hashA: e.hashA,
+        hashB: e.hashB,
         best: e.bestValue,
         moves: e.moves.map((m) => ({
           usi: m.usi,

@@ -721,7 +721,7 @@ describe("stable-WASM deadline narrow stable-asset authority", () => {
       async (assets) => {
         capturedWasm = assets.bytes.wasm;
         capturedWeights = assets.bytes.weights;
-        expect(assets.bytes.wasm.byteLength).toBe(35_597);
+        expect(assets.bytes.wasm.byteLength).toBe(36_545);
         expect(assets.bytes.weights.byteLength).toBe(1_185_988);
       },
     );

@@ -299,9 +299,9 @@ export const FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY: FloodgateProductionTea
           "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af",
       }),
       wasm: Object.freeze({
-        bytes: 35_597,
+        bytes: 36_545,
         sha256:
-          "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c",
+          "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31",
       }),
       weights: Object.freeze({
         bytes: 1_185_988,
@@ -311,7 +311,7 @@ export const FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY: FloodgateProductionTea
       worker: Object.freeze({
         bytes: 19_216,
         sha256:
-          "d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3",
+          "08f205b803ce073226ca96e62f8c6ad8fcf9c076cf8e42587acced9ca26bc418",
       }),
     }),
   });

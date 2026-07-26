@@ -51,6 +51,23 @@ ONでは、衝突局面をA→BとB→Aの両順序で探索し、cacheを残し
 
 速度はproduction、toggle OFF、candidate ONを交互に測る。candidate/productionのaggregate throughputは0.97以上、medianは0.95以上、p90 wall regressionは8%以下、WASM memory増は6MiB以下を要求する。研究候補は共有TTを使わない。これは棋力ではなく、正しい修正が時間制御を壊さないためのgateである。
 
+## 正しさ・速度gateの正式結果（2026年7月26日）
+
+事前計画を固定した[PR #625](https://github.com/gomyway1216/nextjs-portfolio/pull/625)のmerge後、そのplan SHA `dfb82a42…de63`に結び付いた正式結果は、登録済みの27 gateを27/27合格した。追跡した[生receipt](./data/shogi-dual-hash-lock-correctness-raw-2026-07-26.json)は34,210 bytes、SHA-256 `5529d03c…314e`で、[読みやすい要約](./data/shogi-dual-hash-lock-correctness-result-2026-07-26.json)とは別に、出力byteを整形せず保存している。生receipt自体には開始・終了時刻を含む実行時間envelopeがないため、この記事では所要時間を主張しない。
+
+衝突のprimary hashは両局面とも`218180606`だが、第2lockはA=`3957758389`、B=`1939556287`に分離した。toggle OFFはA→B、B→Aの両方向でproductionとbest move key、score、depth、nodes、leavesが完全一致した。productionでは後から探索した局面に先の局面のkeyとscoreが残った一方、toggle ONは両方向とも対象局面のclean探索とkey、score、depthが一致し、返却手は合法だった。正当なcache再利用で変わり得るnodesとleavesは、計画どおりONのclean一致条件には含めていない。
+
+評価cacheと千日手の独立seamも合格し、secondary不一致による拒否はTT 16回、評価cache 3回、千日手3回を実測した。TypeScriptの独立full recomputationとWASMのincremental第2hashは16,384合法遷移すべてで一致し、再同期失敗は0。固定64局面も各カテゴリ16件ずつで、OFFの5項目完全一致、ONの決定性・合法性、state復元、incremental一致が64/64だった。
+
+| 速度・memory指標               |  必須条件 |    実測 |
+| ------------------------------ | --------: | ------: |
+| aggregate candidate/production |   97%以上 | 99.622% |
+| median candidate/production    |   95%以上 | 99.424% |
+| p90 wall regression            |    8%以下 | -0.171% |
+| WASM memory増                  | 6 MiB以下 | 0 bytes |
+
+p90の負値は、この測定ではcandidate側のwall timeが0.171%短かったことを表す。ただし、これは固定深さ・固定workの性能安全性であり、棋力向上の測定ではない。このreceiptが許可したのは、固定済み96局の非退行対局を開始することだけである。ライブ変更、productionへの反映、重み更新、昇格、「強くなった」という結論は許可していない。
+
 ## 96局は強化証明ではなく非退行gate
 
 正しさと速度を通った候補は、新しい48 openingを先後交換した96局で本番と比較する。対局ランナーは、同じ固定plan SHAへ結び付いた全gate合格のcorrectness receiptを必須入力として再認証する。両腕は同じライブ重み、1手1.5秒、12 pair workers、定跡なし、mate solverなしとする。

@@ -51,6 +51,23 @@ The runner does not trust a WASM self-check alone. An independent TypeScript imp
 
 Performance alternates production, toggle OFF, and candidate ON. Candidate/production aggregate throughput must be at least 0.97, the median at least 0.95, p90 wall regression at most 8%, and additional WASM memory at most 6 MiB. The research candidate does not use the shared TT. These are timing-safety gates, not strength claims.
 
+## Formal correctness and performance result (July 26, 2026)
+
+After the preregistered plan in [PR #625](https://github.com/gomyway1216/nextjs-portfolio/pull/625) was merged, the formal result bound to plan SHA `dfb82a42…de63` passed all 27 of 27 registered gates. The tracked [raw receipt](./data/shogi-dual-hash-lock-correctness-raw-2026-07-26.json) is 34,210 bytes with SHA-256 `5529d03c…314e`; its output bytes are preserved without reformatting, separately from the [readable summary](./data/shogi-dual-hash-lock-correctness-result-2026-07-26.json). Because the raw receipt does not include an execution-time envelope with start and finish timestamps, this article makes no runtime-duration claim.
+
+Both collision positions retain primary hash `218180606`, while the secondary lock separates A=`3957758389` from B=`1939556287`. Toggle OFF matched production exactly for best-move key, score, depth, nodes, and leaves in both A→B and B→A order. Production left the first position's key and score on the second position, whereas toggle ON matched the target's clean-cache key, score, and depth in both orders and returned legal moves. As preregistered, nodes and leaves are excluded from ON clean parity because valid cached entries may change them.
+
+The independent evaluation-cache and repetition seams also passed. Secondary mismatches activated 16 TT rejections, three evaluation-cache rejections, and three repetition rejections. The independent TypeScript full recomputation matched the incremental WASM secondary hash on all 16,384 legal transitions, with zero resynchronization failures. Across the fixed 64-position holdout—16 positions in each category—OFF achieved 64/64 five-field exact parity, while ON achieved 64/64 determinism, legality, state restoration, and incremental-hash agreement.
+
+| Performance or memory metric   |      Required | Observed |
+| ------------------------------ | ------------: | -------: |
+| aggregate candidate/production |  at least 97% |  99.622% |
+| median candidate/production    |  at least 95% |  99.424% |
+| p90 wall regression            |    at most 8% |  -0.171% |
+| additional WASM memory         | at most 6 MiB |  0 bytes |
+
+The negative p90 means the candidate wall time was 0.171% shorter in this measurement. This is fixed-depth, fixed-work performance safety—not a playing-strength measurement. The receipt authorizes only the fixed 96-game non-regression screen. It does not authorize a live change, production integration, weight update, promotion, or a claim that the engine became stronger.
+
 ## The 96 games are a non-regression gate
 
 A correctness- and performance-passing candidate will face production in 48 fresh color-swapped pairs. The match runner must reauthenticate an all-passing correctness receipt bound to the same fixed plan SHA. The match uses 96 games, identical live weights, 1.5 seconds per move, 12 pair workers, no book, and no mate solver.

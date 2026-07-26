@@ -1,8 +1,14 @@
-# Directly testing one bounded quiet-history malus candidate
+# Result of directly testing bounded quiet-history malus
 
 _July 25, 2026_
 
 [日本語版](./blog-shogi-bounded-quiet-history-malus-pilot.md)
+
+## Conclusion
+
+The candidate was **rejected**. It passed every formal correctness gate, but direct play ended after 52 games at 26 wins, 25 losses, and one draw: 53/104 halfpoints, or 50.96%. Even candidate wins in all four remaining games would have produced only 61/112, below the preregistered 62/112 pass threshold. The runner therefore stopped on mathematical futility exactly as planned.
+
+This does not prove that the candidate is weaker. The point estimate is essentially even; the result is that it did not show a clear strength gain. It does not advance to the independent 96 games, extra seeds, nearby coefficient trials, or production. Live weights and production search remain unchanged.
 
 ## The question
 
@@ -56,4 +62,34 @@ Passing requires at least **62/112** candidate halfpoints. Early stopping is all
 
 A pass authorizes only a separately preregistered independent 96-game confirmation using unused seeds and openings. The production AssemblyScript, JS fallback, production WASM, embedded base64, and live weights remain untouched throughout the pilot. Neither a PR merge nor live promotion follows automatically without the independent and later formal evidence.
 
-These conditions are fixed in the [machine-readable plan](../ml/protocols/bounded-quiet-history-malus-v1-plan.json). The research build, implementation diagnostic, and full enrolled-opening preflight now exist. The post-merge formal correctness gate and direct games have not started, so there is still no playing-strength result.
+These conditions are fixed in the [machine-readable plan](../ml/protocols/bounded-quiet-history-malus-v1-plan.json). The text above records the plan fixed before play. The formal gate and direct match ran only after PR #623 merged.
+
+## Formal correctness result
+
+All gates passed on the fixed 64-position fixture. Toggle OFF was bit-exact with production in all 64 cases. Toggle ON was deterministic and legal in all 64 cases, and every state hash was unchanged across search. There were 30,361 reward/cutoff events, 28,421 maluses, and 58,782 main and continuation updates each. Retained quiet moves peaked at 32; maximum absolute values were 14,907 for main and 9,312 for continuation history; ineligible updates were zero.
+
+The rejection was therefore not caused by a broken implementation. This gate establishes that direct play is valid, not that the candidate is stronger.
+
+## Formal direct-play result
+
+Twelve parallel workers ran for about 15 minutes 12 seconds and completed 26 pairs, or 52 games.
+
+| Item                   |                     Result |
+| ---------------------- | -------------------------: |
+| Candidate wins         |                         26 |
+| Production wins        |                         25 |
+| Draws                  |                          1 |
+| Candidate score        | 53/104 halfpoints (50.96%) |
+| Technical faults       |                          0 |
+| Observed illegal moves |                          0 |
+| Duplicate openings     |                          0 |
+
+As sente, the candidate scored 12 wins and 14 losses. As gote, it scored 14 wins, 11 losses, and one draw. Terminations were 50 no-legal-move results, one perpetual-check loss, and one ordinary fourfold-repetition draw. The match played 6,361 plies and checked 6,049 post-opening moves against the legal-move list.
+
+The four unplayed games belong to pairs 23 and 27. At the futility stop the candidate had 53 halfpoints. Candidate wins in all four could add at most eight halfpoints, producing 61, one short of 62. This was the sole preregistered early-stop rule, not selective stopping on a convenient intermediate score.
+
+## What this establishes, and what stops
+
+The bounded quiet-history implementation worked and played approximately even with production. It did not provide evidence of a clear gain over production. There will be no extra games for this candidate, nearby coefficient tuning, or independent 96-game confirmation. The result changes no production search source, live weight, browser asset, or deployment.
+
+The formal result and summaries of all 26 completed pairs are preserved in the [machine-readable result data](./data/shogi-bounded-quiet-history-malus-result-2026-07-25.json). The formal correctness, run, result, and all 26 receipts are also preserved in the [raw evidence archive](./data/shogi-bounded-quiet-history-malus-raw-2026-07-25.json). Pair receipts do not contain full move lists, so this article does not claim an independent post-hoc replay of every game. The evidence boundary is that every move was revalidated during execution and each completed pair has an authenticated durable receipt.

@@ -1,0 +1,1021 @@
+{
+  "archiveSchema": "shogi-bounded-quiet-history-malus-raw-evidence-v1",
+  "experimentId": "bounded-quiet-history-malus-v1",
+  "recordedDate": "2026-07-25",
+  "sourceRunRoot": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725",
+  "sourceArtifactIdentities": {
+    "correctness": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/correctness.json",
+      "bytes": 2780,
+      "sha256": "2f961c94fafdeb37dd8e2f509985afe4bbc990802c21c5b2bc5b7a9942e9a847"
+    },
+    "run": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/run.json",
+      "bytes": 226,
+      "sha256": "d0ca31224f2c751085401b9a22fe8ef1f1fd93a006bb31f10a1626cd5370d988"
+    },
+    "result": {
+      "path": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/result.json",
+      "bytes": 788,
+      "sha256": "0abbf8930e923e176068c2925955411a600714441139e3a9a25bfa6e850321c4"
+    },
+    "pairs": {
+      "directory": "$HOME/.codex/shogi-runs/bounded-quiet-history-malus-v1-20260725/pairs",
+      "count": 26,
+      "totalBytes": 17398,
+      "canonicalIdentityManifestEncoding": "UTF-8 compact JSON of the ordered [{path,bytes,sha256}] array",
+      "canonicalIdentityManifestSha256": "ab888bf96cbf8263842c35c1261651ac52650566bf7868a42e30689a18054764",
+      "files": [
+        {
+          "path": "pairs/pair-0000.json",
+          "bytes": 668,
+          "sha256": "339aeaf94e90df8d2b691bffa5d9300888e394d8e08180c46880189d19ba722f"
+        },
+        {
+          "path": "pairs/pair-0001.json",
+          "bytes": 667,
+          "sha256": "798ed878c99e3e1c1794105268d75be8a0a5ed274db3c77478757fbb4a39e484"
+        },
+        {
+          "path": "pairs/pair-0002.json",
+          "bytes": 669,
+          "sha256": "3fbd0132714bf82dd3430183481d28a27157b5234a64ab8dfe1233573143567c"
+        },
+        {
+          "path": "pairs/pair-0003.json",
+          "bytes": 667,
+          "sha256": "ed92e9fad577f46a3f319d04064dfc61b2c83208abba616944418928892bbec0"
+        },
+        {
+          "path": "pairs/pair-0004.json",
+          "bytes": 669,
+          "sha256": "dd71289cc5b6b997e024e3d68b867b1db1a20b7bbcd58a0ca284df168aeae23f"
+        },
+        {
+          "path": "pairs/pair-0005.json",
+          "bytes": 670,
+          "sha256": "7f95ac90e161ca8004fe73ab9d7598e6ebdeb9e0779e42a5c99969e5bda64d5c"
+        },
+        {
+          "path": "pairs/pair-0006.json",
+          "bytes": 668,
+          "sha256": "56fd9c0a3cd63815c33623cf2f2a831bab5a8e61bb6974e48962d9637ad73f9d"
+        },
+        {
+          "path": "pairs/pair-0007.json",
+          "bytes": 666,
+          "sha256": "f3610e7e71bbb002ffe4af602ee25fd95545683bcb48d91268a4f2ee95279305"
+        },
+        {
+          "path": "pairs/pair-0008.json",
+          "bytes": 667,
+          "sha256": "7f46c753fd934f206bf3e316a9d9b200be770c064f5d74ecdb1abca39776c595"
+        },
+        {
+          "path": "pairs/pair-0009.json",
+          "bytes": 669,
+          "sha256": "18e2130aed0feff49ced5bb23cb7ecf59254b9b051609d6ba9c32fad67233d81"
+        },
+        {
+          "path": "pairs/pair-0010.json",
+          "bytes": 670,
+          "sha256": "e8c0aae8269ff87f9761285e7cdd398a6211369229b1af0075318425a6691659"
+        },
+        {
+          "path": "pairs/pair-0011.json",
+          "bytes": 671,
+          "sha256": "34966e35a7839f204459ee6b2ba38a4d7c70b57ddda1deefc6fc4d09051ae231"
+        },
+        {
+          "path": "pairs/pair-0012.json",
+          "bytes": 675,
+          "sha256": "186040c6636a7abcaa9b7c11c797dbef838a51aed38b86912e237947250ca7c8"
+        },
+        {
+          "path": "pairs/pair-0013.json",
+          "bytes": 670,
+          "sha256": "a50a4cf2d996c985e0292da6dee6389ab6611b1f517899478a8068bd714fb5fb"
+        },
+        {
+          "path": "pairs/pair-0014.json",
+          "bytes": 670,
+          "sha256": "dcf2c40ad813791e1a1bf363c7b2c03514e539e85a35a628026621742c7af918"
+        },
+        {
+          "path": "pairs/pair-0015.json",
+          "bytes": 669,
+          "sha256": "25d02f3af0b6552b6908829a9dd902b8175d5013d651ef0260677248e041ab08"
+        },
+        {
+          "path": "pairs/pair-0016.json",
+          "bytes": 671,
+          "sha256": "86934327ef5f5a7e3da1eaf426df570eba4da5caf5c26540aa5238a8645848f9"
+        },
+        {
+          "path": "pairs/pair-0017.json",
+          "bytes": 667,
+          "sha256": "b97dc4f3ca2ec73ba28cfcffaba829798ea1bd78d3c6bb25629cac5b95ba1a17"
+        },
+        {
+          "path": "pairs/pair-0018.json",
+          "bytes": 670,
+          "sha256": "63c6ece5013de49e0d8d92a9d94a1d093905b94513f329299034f6ff078b7df9"
+        },
+        {
+          "path": "pairs/pair-0019.json",
+          "bytes": 669,
+          "sha256": "3166e3bf048b5ce87e8f871aae24ce6623262d701d09f0b065c67b27b951537b"
+        },
+        {
+          "path": "pairs/pair-0020.json",
+          "bytes": 670,
+          "sha256": "18fdcd2a6e9b877374d6c3c85cc5165a569df6e72a48cd9f9ddbce008933ae10"
+        },
+        {
+          "path": "pairs/pair-0021.json",
+          "bytes": 669,
+          "sha256": "7feaee982017563ed7eac375692a704d29bce2e6bfa7054f689c16d302e0e927"
+        },
+        {
+          "path": "pairs/pair-0022.json",
+          "bytes": 669,
+          "sha256": "b3168ed92520dd48df2c9d171278b45ed7d75089ad9d8337d3af8c8217a16b93"
+        },
+        {
+          "path": "pairs/pair-0024.json",
+          "bytes": 669,
+          "sha256": "91e817e93260ca05915c948bf86b7862b39e7ced50a2eb86d5ee2b7407927b05"
+        },
+        {
+          "path": "pairs/pair-0025.json",
+          "bytes": 670,
+          "sha256": "afdd6b441bd827e79b7ba75584396e709ad0549219c735154c3d65d993648928"
+        },
+        {
+          "path": "pairs/pair-0026.json",
+          "bytes": 669,
+          "sha256": "7b232e0153991e2ef54efd4eccb1bf45475165bb700f1759f0d21d1fc13b75f2"
+        }
+      ]
+    }
+  },
+  "correctness": {
+    "schema": "shogi-bounded-quiet-history-correctness-result-v1",
+    "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+    "strength_metric": false,
+    "depth": 5,
+    "quiescence_depth": 8,
+    "cases": 64,
+    "assets": {
+      "productionWasm": {
+        "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "bytes": 35597,
+        "sha256": "e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c"
+      },
+      "researchWasm": {
+        "path": "wasm-spike/artifacts/shogi-quiet-history-malus-research.wasm",
+        "bytes": 37475,
+        "sha256": "8b0469b220ccaf61eb2e4ab6575d73e681e007ab88367e5892a44778ac5f684c"
+      },
+      "liveWeights": {
+        "path": "public/shogi-nnue-weights.bin",
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+      },
+      "fixture": {
+        "path": "wasm-spike/lazy-move-picker-fixture-v2.json",
+        "bytes": 35586,
+        "sha256": "d942aee3de2449a9e811862cf88eef3981e2b49bad5122c71e529630b905786f"
+      },
+      "runner": {
+        "path": "wasm-spike/quiet-history-malus-invariants.ts",
+        "bytes": 26505,
+        "sha256": "b992f67d16caa0b888681400ef9fb275750e7118675c0e17c1e5ff70525bf26e"
+      }
+    },
+    "totals": {
+      "cutoffs": 30361,
+      "rewards": 30361,
+      "maluses": 28421,
+      "mainUpdates": 58782,
+      "continuationUpdates": 58782,
+      "storedPeak": 32,
+      "storageDrops": 3993221,
+      "maxAbsMain": 14907,
+      "maxAbsContinuation": 9312,
+      "nonQuietViolations": 0
+    },
+    "activation_by_category": {
+      "opening": {
+        "cutoffs": 5480,
+        "rewards": 5480,
+        "maluses": 3065,
+        "mainUpdates": 8545,
+        "continuationUpdates": 8545
+      },
+      "middlegame": {
+        "cutoffs": 3304,
+        "rewards": 3304,
+        "maluses": 3752,
+        "mainUpdates": 7056,
+        "continuationUpdates": 7056
+      },
+      "dropHeavy": {
+        "cutoffs": 13379,
+        "rewards": 13379,
+        "maluses": 11387,
+        "mainUpdates": 24766,
+        "continuationUpdates": 24766
+      },
+      "checkEvasion": {
+        "cutoffs": 8198,
+        "rewards": 8198,
+        "maluses": 10217,
+        "mainUpdates": 18415,
+        "continuationUpdates": 18415
+      }
+    },
+    "gates": {
+      "fixtureShape": true,
+      "defaultOff": true,
+      "offExact64": true,
+      "offCountersZero": true,
+      "onDeterministic64": true,
+      "onMovesLegal64": true,
+      "stateChecksumsUnchanged64": true,
+      "rewardActivated": true,
+      "malusActivated": true,
+      "mainHistoryActivated": true,
+      "continuationHistoryActivated": true,
+      "rewardAndMalusActivatedEveryCategory": true,
+      "historyBounded": true,
+      "searchedQuietCapRespected": true,
+      "nonQuietViolationsZero": true
+    },
+    "all_gates_passed": true,
+    "direct_play_authorized": true,
+    "live_change_authorized": false
+  },
+  "run": {
+    "deadline_at_ms": 1785053843641,
+    "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+    "schema": "shogi-search-wasm-vs-production-run-v1",
+    "started_at_ms": 1785046643641,
+    "wall_clock_limit_seconds": 7200
+  },
+  "result": {
+    "all_observed_moves_legal": true,
+    "all_observed_openings_unique": true,
+    "candidate_draws": 1,
+    "candidate_halfpoints": 53,
+    "candidate_losses": 25,
+    "candidate_wins": 26,
+    "completed_games": 52,
+    "completed_pairs": 26,
+    "decision": "reject",
+    "experiment_id": "bounded-quiet-history-malus-v1",
+    "live_weight_write_authorized": false,
+    "maximum_possible_final_halfpoints": 61,
+    "missing_pairs": [23, 27],
+    "pass_halfpoints": 62,
+    "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+    "promotion_authorized": false,
+    "result_sha256": "c392f56c0c7c84096dd240a11106167544ec7c756c6054d5c3760350af527dac",
+    "schema": "shogi-search-wasm-vs-production-result-v1",
+    "score_denominator_halfpoints": 112,
+    "status": "REJECTED-futility",
+    "strength_conclusion_allowed": true,
+    "technical_fault_count": 0,
+    "wall_clock_expired": false
+  },
+  "pairs": [
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 94,
+          "plies": 100,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 160,
+          "plies": 166,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "ded6692f379ed35f7b1970de64944fa0c2ea77788f1406e1d0e496b2e43ac8ad",
+      "pair_index": 0,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "528305c0b1c082fa211820391c75897d999214d853f8b1070a1f3ec14c1b1e35",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970002,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 71,
+          "plies": 77,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 105,
+          "plies": 111,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "ef052b8cfa2db3be53bab7bc27a905488a285918015a4ad87bffa6420e81ae3c",
+      "pair_index": 1,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "83aa983ca9cd48ea4abf7b1d53e7990e1d3ae1cdbbc4e36a16a453dd36fe69de",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970003,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 106,
+          "plies": 112,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 120,
+          "plies": 126,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "0d70d8156909953144c0bd4a224f027ea3983cc4d4d05f08bdfc479d313297cd",
+      "pair_index": 2,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "5eba1ca352ad2aaa5b14a78db95ff5e4128b6ae7ed8f36fbada78cf00e4a5b2b",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970004,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 96,
+          "plies": 102,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 98,
+          "plies": 104,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "2c679f7bfba8c94bc4a1fc95298a5be45f65d2c034967cc0a918374ba0e7ca13",
+      "pair_index": 3,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "4edff9e9c3b335cd7a8f189b3402ad8ad6a495a81a3b24040d820c1db72cc119",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970005,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 174,
+          "plies": 180,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 108,
+          "plies": 114,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "c51f3d4b046f60e05089c822fcc6979b5b3ecbdcc4eb35f105f42b1e215a3247",
+      "pair_index": 4,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "5eca2a43d1920e18c68bf398da2c95f901634aedfa71884e1bae2897639d42ca",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970006,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 0,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 120,
+          "plies": 126,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 103,
+          "plies": 109,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "1c162f8b3719f55f71cc3e7bc0489e5a94197d9aaae504dc35e364b70c31ae6c",
+      "pair_index": 5,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "bbf481dca1d1e02cce50fc01e1a1eea8f60408e69491b513ffdc9af532d22466",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970007,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 4,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 199,
+          "plies": 205,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 128,
+          "plies": 134,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "6601025ea8728f9e238e936f042ceed3277e5dbb53fba67b96fde24a7e08c9be",
+      "pair_index": 6,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "6d3b7a4a88e49ec32fd68ddf0e1a90254667f09cfe21c7015434f15b30ab0f94",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970008,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 4,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 93,
+          "plies": 99,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 118,
+          "plies": 124,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "6938992aecf283117c9de88a600928a63cd1ddb646193949b1b0b0e548a55810",
+      "pair_index": 7,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "a89d1a79040dc40a3e38d3d4257e073a7251c53b0c0bf61d572606249661cf9b",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970009,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 144,
+          "plies": 150,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 66,
+          "plies": 72,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "a26624d5a5f3f5f92c14201f4029ec4c93a79f67684688e82c69e9c51c216177",
+      "pair_index": 8,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "52c89d2f1b90714a2e5a93078ab8f9f1a01596b617c75f229cc50a9811c172d7",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970010,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 123,
+          "plies": 129,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 159,
+          "plies": 165,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "159adadb37d89787efe3a2dbe864038fedb34f91d9caf714bcaf15e345ad0b92",
+      "pair_index": 9,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "159b251e0b7100c9b123943f2438af95d8fa4c0a9f830c96fee5c9609af9640a",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970011,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 104,
+          "plies": 110,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 128,
+          "plies": 134,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "07fb3b9603f876b49db40897b4d18a427b731144060878f09da459fed98af76f",
+      "pair_index": 10,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "bbceb50f5376a51edfe76f949864f7a559366a23e1ff7df4df7f3a465104d00a",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970012,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 103,
+          "plies": 109,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 110,
+          "plies": 116,
+          "termination": "perpetual-check"
+        }
+      ],
+      "opening_fingerprint": "19278170a808201ba5419e9458a95552f535380b3a42432ca3015103314b34d5",
+      "pair_index": 11,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "4b4b208a754587b822383c9ee76cc9fde4ae51e286f025e86f6c51ae3885dc6f",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970013,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 1,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 126,
+          "plies": 132,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "draw",
+          "game_index": 1,
+          "legal_moves_checked": 97,
+          "plies": 103,
+          "termination": "fourfold-repetition"
+        }
+      ],
+      "opening_fingerprint": "d747857d124fb547ac6e01e25ac6de7f5c61f70f2006253056eca1753a8c6e56",
+      "pair_index": 12,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "a7e0ecb63e513698cd0097772a1472ae691088a329332545fd9e7fb2c16b79d3",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970014,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 138,
+          "plies": 144,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 126,
+          "plies": 132,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "043ec717a774c020a0bad34391add30dd82e04ade25ca3fc85d39b6ec444c949",
+      "pair_index": 13,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "4b8db5b8c29bab74bb25123d43177997adb79b739ce3c789553d250cc6510a07",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970015,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 119,
+          "plies": 125,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 147,
+          "plies": 153,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "6a530bcadea76ff58ad17b9fdbecc997873370cf8315a9e02b0b5c600ff040a5",
+      "pair_index": 14,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "1948b035f286bd79c53463ce4e5e03eccf04ce0c21aa0ec7ca14cb7aede252e8",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970016,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 114,
+          "plies": 120,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 96,
+          "plies": 102,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "c1ab536eecf9cedfb4140e1e2611368e39136c16f0cff6923b0d620bfd6f0995",
+      "pair_index": 15,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "bc90cbfaab23088d6fa23069f6ee03623c8796289944609fe0230a743636a3e0",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970017,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 0,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 106,
+          "plies": 112,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 133,
+          "plies": 139,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "d41e106442e8493026909dadc0d026f51b049f5251b62810961da03887fbde09",
+      "pair_index": 16,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "6c04a73d5cbda85423f5d689456be7865d440f54b9567f8652c60567682baa81",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970018,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 4,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 105,
+          "plies": 111,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 86,
+          "plies": 92,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "834cb3f2af18e0fd9bc2df4aef5f4bb33b0e485de602d9721d0c8928f7ee0d49",
+      "pair_index": 17,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "394a06c43fc25a146ba217ee3eb1f5efc33d2ec8776571ef58a4126b1843251d",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970019,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 109,
+          "plies": 115,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 103,
+          "plies": 109,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "cc07d93f2f6936a3e00aea7d9715e7c1519021cd6706a7a71de7d4dac11d8bdc",
+      "pair_index": 18,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "c2f2a38f0c0e83a3a9d4ee6815eb73d1be746deaad04177dc11cc28bfd776752",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970020,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 96,
+          "plies": 102,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 148,
+          "plies": 154,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "85e3bff9ddb163265ae4fe93b41ddf9e2c420624e63feff8867a546de5c750da",
+      "pair_index": 19,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "3f67c6362222dc874198bb930a03b3c763fc41453c64827ac446f206a77417b6",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970021,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 133,
+          "plies": 139,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 141,
+          "plies": 147,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "25c5def49bb474752779816f19d62a89bc70fe962d3cfe8ed284a82820f42932",
+      "pair_index": 20,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "d3d15f790c1fd373116438ed71f85edea6da656eeb917035b64abbb6810f645f",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970022,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 4,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 133,
+          "plies": 139,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 112,
+          "plies": 118,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "d1e8dfdd0b6b3cd933e478ee6b483f0ec3bd423d7ff1860bf926718c0c223c7f",
+      "pair_index": 21,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "3608d2a01587b2c3c53e0950597c6cbefa769cb29bc8274a7c63492c9d15d83b",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970023,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 4,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 103,
+          "plies": 109,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "win",
+          "game_index": 1,
+          "legal_moves_checked": 120,
+          "plies": 126,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "2cc15bc1274563a2ddaec0f1aec660ec2006dc4f41034ada458db05bb4b6c18a",
+      "pair_index": 22,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "d1f286a97a2294729aa73a4ebe5f9c746d1efbc6f6b488691855f9df39139854",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970024,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 0,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 122,
+          "plies": 128,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 81,
+          "plies": 87,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "c845062c838efb1de3c5de9a76a0bd6463c8d99a7bdcaaedf6c1b7482a4af02e",
+      "pair_index": 24,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "a54b99b1b6e945140785df23aa5f7d906effc47d628396be367faca41cb4276d",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970026,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 0,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "loss",
+          "game_index": 0,
+          "legal_moves_checked": 96,
+          "plies": 102,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 107,
+          "plies": 113,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "462a42af00f63cb1f07b770eff745112166349c53e0eaa072050fda71e8f9602",
+      "pair_index": 25,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "318cbe6721976db5470d3f467dc6670dbfd824268a917c9e2864fc419f56e8e5",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970027,
+      "technical_fault": false
+    },
+    {
+      "candidate_halfpoints": 2,
+      "games": [
+        {
+          "candidate_color": "sente",
+          "candidate_result": "win",
+          "game_index": 0,
+          "legal_moves_checked": 125,
+          "plies": 131,
+          "termination": "no-legal-moves"
+        },
+        {
+          "candidate_color": "gote",
+          "candidate_result": "loss",
+          "game_index": 1,
+          "legal_moves_checked": 97,
+          "plies": 103,
+          "termination": "no-legal-moves"
+        }
+      ],
+      "opening_fingerprint": "761155b8d31be99e52e5d0d4710165b59bc813a971b8511845e61911fd7fb35e",
+      "pair_index": 26,
+      "plan_sha256": "35aedd927797d1eedc09542eb0820f91c1b0a7f7e10b75c59d88a6591117d669",
+      "receipt_sha256": "28f16fd90ef24374cdc4913f55990a1b2e8f70021340abddff1b53153a9de10d",
+      "schema": "shogi-search-wasm-vs-production-pair-v1",
+      "seed": 970028,
+      "technical_fault": false
+    }
+  ]
+}

@@ -223,3 +223,5 @@ browser tuneのbaselineは22/298、V9 tuneは1,056/4,348だった。browser Top-
 今回の2本は採用candidateを生まなかった。ただし、失敗を成功に言い換えず、どこまで改善し、どこで止まったかを数値で固定できた。次の計算資源は、その境界を越えられる仮説だけに使う。
 
 全入力・artifactのSHA-256、分割レシート、学習時間、静的ゲートの機械可読証跡は [shogi-evaluator-recovery-two-pilots-2026-07-26.json](./data/shogi-evaluator-recovery-two-pilots-2026-07-26.json) に固定した。
+
+追記：この方針に基づき、旧residualの168.6倍にあたる5,953,522パラメータのcapacity診断、既知評価を除いたfit/tune、未ラベルsealed derivative、停止ゲートを事前登録した。詳細は[大型policy/value capacity診断計画](./blog-shogi-capacity-policy-value-plan.md)に記録している。

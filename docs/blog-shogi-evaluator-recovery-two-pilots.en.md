@@ -108,3 +108,5 @@ The honest current conclusion is:
 Rejecting weak candidates is not the same as making the engine stronger. It is the point where we stop counting infrastructure and tiny offline movements as strength, and require direct evidence before changing the live game.
 
 The machine-readable record of input and artifact hashes, split receipts, training time, and every static-gate result is [shogi-evaluator-recovery-two-pilots-2026-07-26.json](./data/shogi-evaluator-recovery-two-pilots-2026-07-26.json).
+
+Update: this direction is now preregistered as a 5,953,522-parameter capacity diagnostic—168.6 times the rejected residual—with known-evaluation exclusions, leak-free fit/tune partitions, a still-unlabeled sealed derivative, and explicit stop gates. See the [large policy/value capacity plan](./blog-shogi-capacity-policy-value-plan.en.md).

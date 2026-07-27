@@ -1,0 +1,152 @@
+{
+  "schema": "shogi-capacity-policy-value-public-plan-evidence-v1",
+  "status": "prospective-implemented-not-trained-live-unchanged",
+  "date": "2026-07-26",
+  "conclusion": {
+    "live_ai_stronger": false,
+    "high_dan_demonstrated": false,
+    "next_question": "Can a 5,953,522-parameter offline parent-position policy/value model learn the legal-move teacher ordering that the rejected small models did not improve?",
+    "forbidden_retries": [
+      "rejected board all-legal warm-start",
+      "rejected 35,307-parameter residual",
+      "post-failure extra seeds, epochs, feature variants, or threshold changes"
+    ]
+  },
+  "live": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  },
+  "model": {
+    "schema": "shogi-capacity-policy-value-v1",
+    "feature_version": "dense-43-plane-resnet-set-policy-v1",
+    "parameters": 5953522,
+    "fp32_weight_bytes": 23814088,
+    "old_residual_parameters": 35307,
+    "parameter_ratio_vs_old_residual": 168.62,
+    "browser_loadable": false,
+    "quantized": false
+  },
+  "data": {
+    "known_eval_union": {
+      "semantic_ids": 98420,
+      "canonical_bytes": 7086240,
+      "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+      "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+    },
+    "browser": {
+      "input_parents": 1334,
+      "retained_parents": 1071,
+      "dropped_parents": 263,
+      "fit_parents": 875,
+      "tune_parents": 196,
+      "fit_games": 28,
+      "tune_games": 8,
+      "component_assignments_sha256": "c6d88fb8170a9fff280acc848c8cf95bfe98c5e7c64f8f9e0e60d7b3ba455746"
+    },
+    "v9": {
+      "input_parents": 23980,
+      "retained_parents": 23675,
+      "dropped_parents": 305,
+      "fit_parents": 19264,
+      "tune_parents": 4411,
+      "fit_games": 812,
+      "tune_games": 188,
+      "component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32"
+    },
+    "overlap": {
+      "fit_tune_game": 0,
+      "fit_tune_semantic": 0,
+      "browser_v9_semantic": 0
+    }
+  },
+  "live_tune_baseline": {
+    "browser": {
+      "parents": 196,
+      "top1_correct": 16,
+      "top1_accuracy": 0.08163265306122448,
+      "pair_count": 855841,
+      "pair_accuracy": 0.663703888923293,
+      "mean_regret_cp": 15924.158163265307
+    },
+    "v9": {
+      "parents": 4411,
+      "top1_correct": 1078,
+      "top1_accuracy": 0.24438902743142144,
+      "pair_count": 212123,
+      "pair_accuracy": 0.5984640986597398,
+      "mean_regret_cp": 4863.386080253911
+    }
+  },
+  "gates": {
+    "sentinel": {
+      "browser_parents": 256,
+      "v9_parents": 1024,
+      "epochs": 40,
+      "minimum_top1_accuracy_each": 0.85,
+      "minimum_pair_accuracy_each": 0.98
+    },
+    "seed42_tune": {
+      "browser_minimum_top1_correct": 26,
+      "browser_minimum_pair_accuracy": 0.673703888923293,
+      "browser_regret_non_regression": true,
+      "v9_minimum_top1_accuracy": 0.23938902743142144,
+      "v9_minimum_pair_accuracy": 0.5964640986597398
+    },
+    "replication_seed": 314159,
+    "sealed": {
+      "parents": 512,
+      "minimum_top1_correct_gain": 26,
+      "minimum_pair_accuracy_gain": 0.01,
+      "minimum_ndcg_at_5_gain": 0.01,
+      "mcnemar_one_sided_maximum_p": 0.05,
+      "both_seeds_required": true
+    }
+  },
+  "clean_sealed_derivative": {
+    "status": "label-blind-computed-not-yet-published-or-labeled",
+    "source_games": 200,
+    "contaminated_games_dropped_whole": 59,
+    "games": 141,
+    "parents": 3384,
+    "bytes": 2165346,
+    "sha256": "d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626",
+    "protected_semantic_ids": 284117,
+    "known_eval_semantic_overlap": 0,
+    "labels_generated": false
+  },
+  "execution": {
+    "machine": "Apple M4 Pro, 14 CPU cores, 20 GPU cores, 48 GB unified memory",
+    "training_device": "MPS only; no CPU fallback",
+    "move_padding_buckets": [
+      16,
+      32,
+      64,
+      96,
+      128,
+      192,
+      272
+    ],
+    "estimated_eight_epoch_minutes": [
+      20,
+      60
+    ],
+    "mps_smoke": {
+      "forward_backward_optimizer_steps": 1,
+      "parameters": 5953522,
+      "loss": 1.4732881784439087,
+      "seconds_including_first_graph_compile": 4.280780500266701,
+      "passed": true
+    },
+    "training_started": false,
+    "sealed_teacher_started": false,
+    "matches_started": false,
+    "wasm_changed": false
+  },
+  "protocol": {
+    "path": "ml/protocols/capacity-policy-value-v1-plan.json",
+    "bytes": 17358,
+    "sha256": "30b4aab6689679a98a6f86fa835610a5f0fcfd3157d8fc44d4029152d1f7eaf3"
+  }
+}

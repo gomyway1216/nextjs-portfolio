@@ -1,105 +1,94 @@
-# 将棋child-board capacity v3：表現だけを変える固定診断
+# 将棋child-board capacity v3の結果：Top-1とregretは大幅改善、pairで棄却
 
-> capacity v1とobjective-only v2は、固定した訓練内sentinelの4条件をすべて通れなかった。v3は各合法手を指した後の盤面を直接encodeし、architectureだけを変えて表現不足の仮説を検証する。まだ実行しておらず、棋力向上も合格も主張しない。[English](./blog-shogi-child-board-capacity-v3-plan.en.md)
+> 各合法手を指した後の盤面を直接encodeすると、訓練内Top-1とregretはv2から大幅に改善した。しかしpairは両domainで固定98%ゲートへ届かず、v3全体は事前登録どおり棄却した。本学習、2つ目のseed、sealed教師、ライブ変更には進んでいない。[English](./blog-shogi-child-board-capacity-v3-plan.en.md)
 
-## なぜv3へ進むのか
+## 結論
 
-v1とv2は同じ5,953,522-parameterモデル、同じデータ、同じ1,280親、同じ40 epochで実行した。v2ではlossを合否指標へ合わせた結果、Top-1は両domainでゲートを通ったが、pairは両方とも届かなかった。
+child-board capacity v3は `complete-sentinel-rejected` で終了した。
 
-| 指標 | v1 | v2 | 固定ゲート |
+| 指標 | v1 | v2 | v3 | v3−v2 | v3ゲート | 判定 |
+|---|---:|---:|---:|---:|---:|---|
+| Browser Top-1 | 179/256（69.92%） | 222/256（86.72%） | 244/256（95.31%） | +22親、+8.59pt | 85%以上 | PASS |
+| Browser pair | 73.85% | 73.08% | 75.45% | +2.38pt | 98%以上 | FAIL |
+| V9 Top-1 | 811/1,024（79.20%） | 921/1,024（89.94%） | 995/1,024（97.17%） | +74親、+7.23pt | 85%以上 | PASS |
+| V9 pair | 87.00% | 84.85% | 88.84% | +3.98pt | 98%以上 | FAIL |
+
+v3はTop-1をBrowserでゲートより10.31pt、V9で12.17pt上まで押し上げた。pairもv2より改善したが、Browserはゲートより22.55pt、V9は9.16pt低い。4条件すべて必須なので、2つのpair FAILにより総合判定は棄却である。
+
+これは固定した訓練内1,280親のcapacity診断である。未見局面、対局勝率、Elo、高段、ブラウザ実行性能を測っておらず、Top-1の高さだけをライブ棋力の証拠にはできない。
+
+## v3で変えたもの
+
+v3はv2のobjectiveと全データを固定し、各合法手の認証済み `child_sfen` を読む小型child-board encoderだけを追加した。
+
+- 合法手後の局面を既存と同じ43 planesへ変換
+- 全合法手で共有する16-channel CNN、2 residual blocks、128次元projection
+- 既存721次元move inputへchild vectorを連結
+- v2より214,608 parameters増え、合計6,168,130 parameters
+
+親盤面encoder、Set Transformer、policy/value heads、live CP anchor、objective、データ、sentinel親、seed、optimizer、40 epoch、ゲートはv2から変更していない。v1/v2の棄却weightsも使わず、固定seedから初期化した。v2とv3の `data_receipt` とlive baselineは完全一致し、評価pair数もBrowser 1,042,139、V9 49,889で一致した。
+
+外部 `result.json` は25,096バイト、SHA-256 `e9db86a37320345cc8418eb1f405dd5ef4e0c4187fcc8a1afff2f0e8fe4dd6d3`。固定protocolは24,326バイト、SHA-256 `4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6` である。
+
+## regretは何を示したか
+
+mean regretは「modelが選んだ手が、教師最善手より何cp低かったか」の親平均で、低いほどよい。
+
+| domain | v2 | v3 | 改善 |
 |---|---:|---:|---:|
-| Browser Top-1 | 179/256（69.92%） | 222/256（86.72%） | 85%以上 |
-| Browser pair | 73.85% | 73.08% | 98%以上 |
-| V9 Top-1 | 811/1,024（79.20%） | 921/1,024（89.94%） | 85%以上 |
-| V9 pair | 87.00% | 84.85% | 98%以上 |
+| Browser | 3,965.14cp | 4.25cp | -3,960.88cp（99.89%減） |
+| V9 | 19.40cp | 2.00cp | -17.40cp（89.68%減） |
 
-v2のobjective変更はTop-1へは効いたが、pairの不足を解消しなかった。これは「child-board encoderなら通る」という証拠ではない。ただし、同じobjectiveのepoch追加や閾値緩和をせず、次にarchitectureの表現だけを変える理由にはなる。
+child-board表現は「最善手を選ぶ」側には明確に効いた。ただしregretはsentinel通過条件ではなく、全eligible pairの順序が正しいことも保証しない。今回まさに、低regret・高Top-1とpair 98%未達が同時に起きた。
 
-v1の外部結果は25,048バイト、SHA-256 `d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2`。v2の外部結果は25,053バイト、SHA-256 `1f16f030d52d2aff1d8009614aaeb2183a68b462e212933924fae594c2136e3a` で、どちらも `complete-sentinel-rejected` で閉じた。
+## 40 epochの実測曲線
 
-## v3で変えるもの
+lossは12.2260から2.6532まで下がり、最小値はepoch 40だった。
 
-変更は、各合法手の認証済み `child_sfen` を読む小型child-board encoderだけである。
+| epoch | loss | 秒 | epoch | loss | 秒 |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 12.226017 | 26.161 | 21 | 3.159286 | 14.407 |
+| 2 | 11.423282 | 15.382 | 22 | 3.100904 | 14.308 |
+| 3 | 10.052526 | 15.460 | 23 | 3.097815 | 14.569 |
+| 4 | 8.765924 | 14.753 | 24 | 3.054755 | 14.838 |
+| 5 | 7.512476 | 14.606 | 25 | 3.071482 | 14.664 |
+| 6 | 6.359787 | 14.810 | 26 | 3.033433 | 14.375 |
+| 7 | 5.443164 | 14.857 | 27 | 2.973301 | 14.491 |
+| 8 | 4.831686 | 14.532 | 28 | 2.889371 | 14.925 |
+| 9 | 4.585317 | 14.648 | 29 | 2.874196 | 14.342 |
+| 10 | 4.303420 | 14.683 | 30 | 2.905264 | 14.207 |
+| 11 | 4.080350 | 15.284 | 31 | 2.953073 | 14.405 |
+| 12 | 3.856972 | 14.669 | 32 | 2.839793 | 14.697 |
+| 13 | 3.708324 | 14.132 | 33 | 2.780360 | 14.354 |
+| 14 | 3.599492 | 14.240 | 34 | 2.817171 | 14.173 |
+| 15 | 3.546697 | 14.070 | 35 | 2.764802 | 14.339 |
+| 16 | 3.514746 | 14.607 | 36 | 2.747147 | 14.576 |
+| 17 | 3.460974 | 14.296 | 37 | 2.741664 | 14.181 |
+| 18 | 3.320444 | 14.585 | 38 | 2.710544 | 14.609 |
+| 19 | 3.294253 | 14.699 | 39 | 2.711923 | 15.196 |
+| 20 | 3.299778 | 14.544 | 40 | 2.653237 | 15.089 |
 
-1. 各合法手後の局面を、既存と同じ43 planesへ変換する。
-   - 手番側正規化した駒配置28 planes
-   - 物理最大値で正規化した持駒14 planes
-   - clipした手数1 plane
-2. validな合法手だけを、全手で共有する16-channel CNNへ通す。
-   - 43→16の3×3 convolution、GroupNorm 4、GELU
-   - 16-channel residual blockを2個
-   - 16×9×9をflattenし、Linear 1296→128、LayerNorm 128
-3. 128次元のchild-board vectorを既存の721次元move inputへ連結し、849→256へ射影する。
+記録されたepoch時間の合計は595.77秒（9分55.77秒）。epoch 1は26.16秒、epoch 2〜40は合計569.60秒、中央値14.58秒/epochだった。v2より合計280.98秒、89.26%長いが、これはchild-board encoderを加えたこの固定sentinelの2run比較であり、全工程の所要時間や一般的なGPU倍率ではない。
 
-`child_sfen` は新しいデータでも新しい教師labelでもない。既存rowに含まれる決定論的なviewであり、`parent_sfen`へ合法手を適用した結果、`child_sfen`、`child_position_id`が一致しなければoptimizer作成前に停止する。
+## 何が分かったか
 
-## パラメータ差分
+v3は「各手後の盤面表現がTop-1とregretのボトルネックだった」という仮説を強く支持した。parent-board＋手特徴だけのv2より、最善手をほぼ再現できている。
 
-| 項目 | parameters |
-|---|---:|
-| v2本体 | 5,953,522 |
-| child stem | 6,224 |
-| 16-channel residual blocks × 2 | 9,344 |
-| child projection + normalization | 166,272 |
-| move projectionの721→849拡張 | 32,768 |
-| v3追加分 | 214,608 |
-| v3合計 | 6,168,130 |
+一方、「小さなchild-board encoderを足せば全pair順位も98%まで暗記できる」という仮説は棄却された。Browserで約104万、V9で約5万ある50cp以上のpairすべてを高精度に並べる課題は、最善手だけを当てる課題より残っている。
 
-追加はv2比214,608 parameters、約3.60%である。fp32 weight bytesは23,814,088から24,672,520へ増える。
+この結果だけでは、残差がモデル容量、pair objective、教師scoreの細かい順位、固定epoch数、または98%という診断閾値のどれによるかを区別できない。結果を見た後にv3のepoch、seed、幅、gateを変えることはしない。
 
-親盤面の64-channel・6 residual block encoder、4-layer Set Transformer、policy/value heads、frozen live CP anchor、出力の意味は変更しない。v1/v2の棄却weightsも使わず、v3は固定seedから一から初期化する。
+## 停止境界
 
-## v2から固定するもの
+v3 protocolの規則どおり、sentinel weightsを破棄し、このlaneを閉じる。
 
-architecture以外はv2と同一である。
+- v3正式candidate本学習：開始しない
+- seed 42 candidateとseed 314159：開始しない
+- known-tune candidate選択：開始しない
+- sealed教師生成：開始しない
+- 蒸留、WASM、対局A/B：開始しない
+- ライブ重み：変更しない
 
-| 項目 | v3固定値 |
-|---|---|
-| objective | `gate-aligned-micro-pair-hard-negative-v2` |
-| loss | listwise 1、domain-micro pair 1、tie-aware hardest-negative 1、move-value 0.20、state-value 0 |
-| sentinel | Browser 256親、V9 1,024親 |
-| sentinel parent receipt | Browser `2396e593...d6c4`、V9 `66bc3669...5a3` |
-| sentinel seed / epochs | `20260726` / 40 |
-| batch | Browser 32、V9 256 |
-| optimizer | AdamW、learning rate 0.0003、weight decay 0.0001、gradient clip 5 |
-| sentinel gate | 両domainでTop-1 85%以上、pair 98%以上。4条件すべて必須 |
-| full training | V9 pretrain 4 epochs + mixed 12 epochs |
-| candidate seeds | 42。known-tune全条件通過後だけ314159 |
+次の学習を行う場合は、v3を延長するのではなく、pair未達を説明する別の仮説と停止条件を新protocolで結果を見る前に固定する必要がある。
 
-入力ファイル、bytes/hash、protected-position union、game-semantic split、fit/tune件数、live baseline、known-tune gate、replication、512-parent sealed条件もv2から完全固定する。known-eval、tune、sealedのlabelやcandidate結果はv3設計に使っていない。
-
-## 判定後の分岐
-
-最初に実行するのは40-epoch sentinelだけである。
-
-- 4条件のうち1つでもFAIL：weightsを破棄し、本学習、seed 42、seed 314159、known-tune candidate選択、sealed教師生成、蒸留、WASM、対局、ライブ変更をすべて停止する。epoch追加、seed追加、gate緩和、child encoderの拡幅・追加追試もしない。
-- 4条件すべてPASS：同じprotocolのV9 pretrain 4 + mixed 12によるseed 42本学習だけを許可する。これはライブ変更の許可ではない。
-- seed 42がknown-tune全条件をPASS：初めてseed 314159を許可する。
-- 両seedが独立にPASSしcheckpoint hashが固定：初めて既存512-parent sealed評価を開ける。
-- sealedをPASSしても、棋力や高段を名乗るには別登録のruntime・直接対局証拠が必要である。
-
-この順序は「静的指標がよかったからそのままライブへ置く」ことを防ぐための境界である。
-
-## 固定protocol
-
-v3 protocolは [capacity-policy-value-v3-plan.json](../ml/protocols/capacity-policy-value-v3-plan.json) に事前登録した。
-
-- schema：`shogi-capacity-policy-value-plan-v3`
-- model variant：`child-board-encoder-v3`
-- feature version：`dense-43-plane-resnet-set-policy-child16x2-v3`
-- bytes：24,326
-- SHA-256：`4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6`
-
-結果を見た後にarchitecture、objective、40 epoch、gateを変更することはできない。
-
-## 現在地
-
-- v1 sentinel：棄却、閉鎖
-- v2 sentinel：Top-1 2条件PASS、pair 2条件FAIL、総合棄却、閉鎖
-- v3 protocol：固定済み
-- v3 sentinel：未実行
-- v3本学習、seed 314159、sealed教師生成：未許可・未開始
-- 蒸留、WASM、対局A/B：未開始
-- ライブ重み：未変更
-
-v2の実測と失敗理由は [objective-only v2記事](./blog-shogi-capacity-objective-v2-plan.md)、v1からの経緯は [capacity v1記事](./blog-shogi-capacity-policy-value-plan.md) に記録している。
+完全な40 epoch曲線とv1/v2比較は [shogi-capacity-policy-value-v3-result-2026-07-28.json](./data/shogi-capacity-policy-value-v3-result-2026-07-28.json)、直前の実験は [objective-only v2記事](./blog-shogi-capacity-objective-v2-plan.md) に記録した。

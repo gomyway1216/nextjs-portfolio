@@ -434,6 +434,24 @@ class CapacityPolicyValueTests(unittest.TestCase):
         self.assertEqual(
             protocol["loss"]["id"], cpv.OBJECTIVE_V2
         )
+        v1_protocol = json.loads(
+            capacity_runner.TRACKED_PROTOCOL_PATH.read_bytes()
+        )
+        for field in (
+            "inputs",
+            "data_receipt",
+            "architecture",
+            "training",
+            "sentinel",
+            "live_baseline",
+            "gates",
+            "sealed_holdout",
+        ):
+            self.assertEqual(
+                protocol[field],
+                v1_protocol[field],
+                f"objective v2 changed fixed protocol field {field}",
+            )
         binding = capacity_runner._protocol_binding(
             capacity_runner.TRACKED_PROTOCOL_V2_PATH
         )

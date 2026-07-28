@@ -36,7 +36,7 @@ TRACKED_PROTOCOL_V2_PATH = (
 )
 # Filled by the prospective protocol commit before objective-v2 may execute.
 TRACKED_PROTOCOL_V2_SHA256 = (
-    "de420c4d5fbd9b8b9571971afd53af8371b0ce93728d34a499bb65a329fc3a21"
+    "15e7c8ffee90a9ad2d6caad41267d9e788984ffd97627a4f1c734aa49954d3d8"
 )
 
 PROTOCOL_BINDINGS = (

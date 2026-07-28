@@ -382,7 +382,7 @@
         "mean_regret": "must not exceed the registered exact live baseline"
       },
       "v9_tune": {
-        "minimum_top1_accuracy": 0.23938902743142143,
+        "minimum_top1_accuracy": 0.23938902743142144,
         "minimum_pair_accuracy": 0.5964640986597398
       },
       "all_checks_required": true

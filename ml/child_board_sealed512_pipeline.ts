@@ -124,6 +124,8 @@ export interface LabelShardOptions {
   readonly shardDirectory: string;
   readonly receiptDirectory: string;
   readonly teacher: FixedMoveTeacher;
+  /** Synthetic fixtures only; production must retain the default true. */
+  readonly verifyBindingFiles?: boolean;
   readonly labeler?: (
     parent: SelectedConfusionParent,
     teacher: FixedMoveTeacher,
@@ -584,6 +586,21 @@ async function readIdentity(file: string): Promise<Readonly<{ identity: FileIden
   return Object.freeze({ identity: identity(file, bytes), bytes });
 }
 
+async function verifyShardBindingFiles(binding: ShardBinding): Promise<void> {
+  for (const [label, registered] of [
+    ["legal enumerator", binding.legalEnumerator],
+    ["teacher receipt", binding.teacherReceipt],
+  ] as const) {
+    const actual = await readIdentity(registered.path);
+    if (
+      actual.identity.bytes !== registered.bytes ||
+      actual.identity.sha256 !== registered.sha256
+    ) {
+      throw new Error(`${label} byte/SHA identity mismatch`);
+    }
+  }
+}
+
 function parseJson(bytes: Uint8Array, label: string): Record<string, unknown> {
   if (
     bytes.byteLength === 0 ||
@@ -727,6 +744,12 @@ export async function labelAndPublishShard(
   options: LabelShardOptions,
 ): Promise<PublishedShard> {
   const shape = exactShape(options.shape ?? fixedShape());
+  if (options.shape === undefined && options.binding.depth !== FIXED_TEACHER_DEPTH) {
+    throw new Error("production sealed teacher depth must remain 12");
+  }
+  if (options.verifyBindingFiles !== false) {
+    await verifyShardBindingFiles(options.binding);
+  }
   if (
     !Number.isSafeInteger(options.shardIndex) ||
     options.shardIndex < 0 ||
@@ -802,6 +825,9 @@ export async function labelAndPublishShard(
       .join(""),
     "utf8",
   );
+  if (options.verifyBindingFiles !== false) {
+    await verifyShardBindingFiles(options.binding);
+  }
   const outputIdentity = identity(outputPath, outputBytes);
   const receipt = Object.freeze({
     schema: LABEL_SHARD_RECEIPT_SCHEMA,
@@ -866,13 +892,27 @@ export async function finalizeLabelShards(
     );
     const labels = await readIdentity(options.labelsPath);
     const output = receipt.output as Record<string, unknown> | undefined;
+    const ordered = receipt.ordered_shards;
+    const expectedOrdered = options.shards.map((shard) => ({
+      index: shard.index,
+      content_address: shard.contentAddress,
+      output: shard.output,
+      receipt: shard.receipt,
+      records: shard.records,
+    }));
     if (
       receipt.schema !== LABEL_RECEIPT_SCHEMA ||
       receipt.status !== "complete-sealed512-labels-candidate-scoring-locked" ||
+      receipt.parents !== options.expectedParents ||
+      receipt.shards !== options.shards.length ||
+      receipt.records !==
+        options.shards.reduce((total, shard) => total + shard.records, 0) ||
+      canonicalJson(ordered) !== canonicalJson(expectedOrdered) ||
       output?.path !== labels.identity.path ||
       output?.bytes !== labels.identity.bytes ||
       output?.sha256 !== labels.identity.sha256 ||
-      receipt.candidate_scores_opened !== false
+      receipt.candidate_scores_opened !== false ||
+      receipt.live_weights_changed !== false
     ) {
       throw new Error("existing final label receipt mismatch");
     }
@@ -882,9 +922,12 @@ export async function finalizeLabelShards(
   const shardSnapshots = [];
   for (const shard of options.shards) {
     const output = await readIdentity(shard.output.path);
+    const receipt = await readIdentity(shard.receipt.path);
     if (
       output.identity.bytes !== shard.output.bytes ||
-      output.identity.sha256 !== shard.output.sha256
+      output.identity.sha256 !== shard.output.sha256 ||
+      receipt.identity.bytes !== shard.receipt.bytes ||
+      receipt.identity.sha256 !== shard.receipt.sha256
     ) {
       throw new Error(`shard ${shard.index} changed before finalization`);
     }

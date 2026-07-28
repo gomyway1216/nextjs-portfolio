@@ -268,6 +268,7 @@ describe("child-board sealed512 pipeline", () => {
       receiptDirectory: path.join(root, "receipts"),
       teacher: unusedTeacher,
       labeler: syntheticLabeler,
+      verifyBindingFiles: false,
     };
     const first = await labelAndPublishShard(options);
     expect(first.recovered).toBe(false);
@@ -318,6 +319,43 @@ describe("child-board sealed512 pipeline", () => {
     await expect(labelAndPublishShard(options)).rejects.toThrow(/receipt mismatch/);
   });
 
+  it("verifies legal-enumerator and teacher-receipt bytes before shard recovery", async () => {
+    const root = temporaryRoot();
+    const legalPath = path.join(root, "shogi-sfen.ts");
+    const teacherPath = path.join(root, "teacher-receipt.json");
+    fs.writeFileSync(legalPath, "fixed legal enumerator");
+    fs.writeFileSync(teacherPath, "fixed teacher receipt");
+    const boundIdentity = (file: string): FileIdentity => {
+      const bytes = fs.readFileSync(file);
+      return {
+        path: file,
+        bytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+    };
+    const verifiedBinding: ShardBinding = {
+      ...binding(),
+      legalEnumerator: boundIdentity(legalPath),
+      teacherReceipt: boundIdentity(teacherPath),
+    };
+    const options = {
+      selectedRows: selectedRows(2),
+      shardIndex: 0,
+      shape: { parents: 2, shards: 1, parentsPerShard: 2 },
+      binding: verifiedBinding,
+      shardDirectory: path.join(root, "shards"),
+      receiptDirectory: path.join(root, "receipts"),
+      teacher: unusedTeacher,
+      labeler: syntheticLabeler,
+    };
+    const published = await labelAndPublishShard(options);
+    expect(published.recovered).toBe(false);
+    fs.appendFileSync(teacherPath, "tamper");
+    await expect(labelAndPublishShard(options)).rejects.toThrow(
+      /teacher receipt byte\/SHA identity mismatch/,
+    );
+  });
+
   it("terminalizes complete labels after a crash without relabeling shards", async () => {
     const root = temporaryRoot();
     const shape: ShardShape = { parents: 4, shards: 2, parentsPerShard: 2 };
@@ -334,6 +372,7 @@ describe("child-board sealed512 pipeline", () => {
           receiptDirectory: path.join(root, "receipts"),
           teacher: unusedTeacher,
           labeler: syntheticLabeler,
+          verifyBindingFiles: false,
         }),
       );
     }

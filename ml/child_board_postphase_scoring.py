@@ -387,7 +387,7 @@ def parse_score_bundle(
             or type(teacher_cp) not in (int, float)
             or not math.isfinite(float(teacher_cp))
             or type(scores) is not dict
-            or list(scores) != list(score_keys)
+            or set(scores) != set(score_keys)
         ):
             raise ScoringError(f"score row {line_number} fields mismatch")
         captured_scores: dict[str, float] = {}
@@ -1196,6 +1196,12 @@ def run_one_shot(
             artifact_receipt=artifact_receipt,
             artifact_receipt_identity=artifact_identity,
             bundle_receipt_identity=bundle_receipt_identity,
+        )
+    if verify_artifact_files:
+        _verify_artifact_files(
+            artifact_receipt,
+            artifact_names=artifact_names,
+            reference_name=reference_name,
         )
     result_raw = _canonical_json(result)
     _atomic_create(pending_path, result_raw)

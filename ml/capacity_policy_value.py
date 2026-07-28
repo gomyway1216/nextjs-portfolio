@@ -42,6 +42,8 @@ MOVE_INPUT_DIM = 721
 CP_SCALE = 600.0
 TARGET_CLAMP_CP = 3_000.0
 HAND_MAXIMA = (18.0, 4.0, 4.0, 4.0, 4.0, 2.0, 2.0) * 2
+OBJECTIVE_V1 = "legacy-capacity-policy-value-v1"
+OBJECTIVE_V2 = "gate-aligned-micro-pair-hard-negative-v2"
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,14 @@ class LossWeights:
     best_margin: float = 0.25
     move_value: float = 0.20
     state_value: float = 0.10
+
+
+V2_LOSS_WEIGHTS = LossWeights(
+    pair=1.0,
+    best_margin=1.0,
+    move_value=0.20,
+    state_value=0.0,
+)
 
 
 class SpatialResidualBlock(nn.Module):
@@ -287,7 +297,8 @@ def policy_value_loss(
     temperature_cp: float,
     pair_gap_cp: float,
     best_margin_cp: float,
-    weights: LossWeights = LossWeights(),
+    weights: LossWeights | None = None,
+    objective: str = OBJECTIVE_V1,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     if (
         combined_cp.shape != residual_cp.shape
@@ -300,6 +311,14 @@ def policy_value_loss(
         raise ValueError("every capacity parent must contain a legal move")
     if temperature_cp <= 0 or pair_gap_cp <= 0 or best_margin_cp <= 0:
         raise ValueError("capacity loss scales must be positive")
+    if objective not in (OBJECTIVE_V1, OBJECTIVE_V2):
+        raise ValueError(f"unknown capacity objective: {objective}")
+    if weights is None:
+        weights = (
+            LossWeights() if objective == OBJECTIVE_V1 else V2_LOSS_WEIGHTS
+        )
+    elif objective == OBJECTIVE_V2 and weights != V2_LOSS_WEIGHTS:
+        raise ValueError("capacity objective v2 weights are fixed")
 
     negative = torch.finfo(combined_cp.dtype).min
     teacher_masked = teacher_cp.masked_fill(~valid, negative)
@@ -315,37 +334,65 @@ def policy_value_loss(
     ).sum(dim=1)
 
     pair_losses: list[torch.Tensor] = []
+    pair_micro_losses: list[torch.Tensor] = []
     best_margin_losses: list[torch.Tensor] = []
     move_value_losses: list[torch.Tensor] = []
     for row in range(combined_cp.shape[0]):
-        count = int(valid[row].sum().item())
-        teacher = teacher_cp[row, :count]
-        prediction = combined_cp[row, :count]
+        if objective == OBJECTIVE_V1:
+            count = int(valid[row].sum().item())
+            teacher = teacher_cp[row, :count]
+            prediction = combined_cp[row, :count]
+        else:
+            teacher = teacher_cp[row, valid[row]]
+            prediction = combined_cp[row, valid[row]]
         teacher_delta = teacher.unsqueeze(1) - teacher.unsqueeze(0)
         pair_mask = teacher_delta >= pair_gap_cp
         prediction_delta = prediction.unsqueeze(1) - prediction.unsqueeze(0)
-        pair_losses.append(
-            F.softplus(-prediction_delta[pair_mask] / temperature_cp).mean()
-            if bool(pair_mask.any())
-            else prediction.sum() * 0.0
+        eligible_pair_losses = F.softplus(
+            -prediction_delta[pair_mask] / temperature_cp
         )
-
-        best_index = teacher.argmax()
-        rest = torch.ones(count, dtype=torch.bool, device=teacher.device)
-        rest[best_index] = False
-        if bool(rest.any()):
-            best_margin_losses.append(
-                F.relu(
-                    best_margin_cp
-                    - (
-                        prediction[best_index]
-                        - prediction[rest]
-                    )
-                ).mean()
-                / temperature_cp
+        if objective == OBJECTIVE_V1:
+            pair_losses.append(
+                eligible_pair_losses.mean()
+                if bool(pair_mask.any())
+                else prediction.sum() * 0.0
             )
+
+            best_index = teacher.argmax()
+            rest = torch.ones(
+                count, dtype=torch.bool, device=teacher.device
+            )
+            rest[best_index] = False
+            if bool(rest.any()):
+                best_margin_losses.append(
+                    F.relu(
+                        best_margin_cp
+                        - (
+                            prediction[best_index]
+                            - prediction[rest]
+                        )
+                    ).mean()
+                    / temperature_cp
+                )
+            else:
+                best_margin_losses.append(prediction.sum() * 0.0)
         else:
-            best_margin_losses.append(prediction.sum() * 0.0)
+            if bool(pair_mask.any()):
+                pair_micro_losses.append(eligible_pair_losses)
+            teacher_best_mask = teacher == teacher.max()
+            teacher_negative_mask = ~teacher_best_mask
+            if bool(teacher_negative_mask.any()):
+                strongest_best = prediction[teacher_best_mask].max()
+                hardest_negative = prediction[teacher_negative_mask].max()
+                best_margin_losses.append(
+                    F.relu(
+                        best_margin_cp
+                        - (strongest_best - hardest_negative)
+                    )
+                    / temperature_cp
+                )
+            else:
+                best_margin_losses.append(prediction.sum() * 0.0)
 
         move_value_losses.append(
             F.smooth_l1_loss(
@@ -363,20 +410,36 @@ def policy_value_loss(
         state_target / CP_SCALE,
         beta=0.25,
     )
+    pair_component = (
+        torch.stack(pair_losses).mean()
+        if objective == OBJECTIVE_V1
+        else torch.cat(pair_micro_losses).mean()
+        if pair_micro_losses
+        else combined_cp.sum() * 0.0
+    )
     components = {
         "policy": policy_per_parent.mean(),
-        "pair": torch.stack(pair_losses).mean(),
+        "pair": pair_component,
         "best_margin": torch.stack(best_margin_losses).mean(),
         "move_value": torch.stack(move_value_losses).mean(),
         "state_value": state_value,
     }
-    total = (
-        components["policy"]
-        + weights.pair * components["pair"]
-        + weights.best_margin * components["best_margin"]
-        + weights.move_value * components["move_value"]
-        + weights.state_value * components["state_value"]
-    )
+    if objective == OBJECTIVE_V1:
+        total = (
+            components["policy"]
+            + weights.pair * components["pair"]
+            + weights.best_margin * components["best_margin"]
+            + weights.move_value * components["move_value"]
+            + weights.state_value * components["state_value"]
+        )
+    else:
+        # A zero state weight means no state-head gradient or AdamW decay.
+        total = (
+            components["policy"]
+            + weights.pair * components["pair"]
+            + weights.best_margin * components["best_margin"]
+            + weights.move_value * components["move_value"]
+        )
     if not bool(torch.isfinite(total).item()):
         raise ValueError("capacity loss became non-finite")
     return total, components

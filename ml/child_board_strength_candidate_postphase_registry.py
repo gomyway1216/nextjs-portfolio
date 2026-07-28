@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""Validate the fixed post-phase paths, schemas, metrics, and publications."""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Mapping, Sequence
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+
+REGISTRY_RELATIVE_PATH = (
+    "ml/protocols/child-board-strength-candidate-postphase-v1-registry.json"
+)
+REGISTRY_BYTES = 7_879
+REGISTRY_SHA256 = (
+    "5bb6bd907d766d720cc04661e99196ebbdd7c7aaec2f55a9bd01e32bdc5eea2e"
+)
+REGISTRY_SCHEMA = (
+    "shogi-child-board-strength-candidate-postphase-registry-v1"
+)
+REGISTRY_STATUS = (
+    "prospective-postphase-interfaces-fixed-protected-data-locked"
+)
+PARENT_PROTOCOL_RELATIVE_PATH = (
+    "ml/protocols/child-board-strength-candidate-v1-plan.json"
+)
+PARENT_PROTOCOL_BYTES = 42_427
+PARENT_PROTOCOL_SHA256 = (
+    "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2"
+)
+
+_EXPECTED_TOP_LEVEL_KEYS = {
+    "schema",
+    "status",
+    "authority",
+    "parent_protocol",
+    "student_protocol",
+    "binding_receipt",
+    "outputs",
+    "sealed_label_shards",
+    "metric_definitions",
+    "publication_rules",
+    "protected_state_at_registration",
+}
+_SUBTREE_SHA256 = {
+    "parent_protocol": (
+        "4804909fd3e36d66f1c3cd398f8d25452cbabe49aae07f6591f07f56d8c4b2a8"
+    ),
+    "student_protocol": (
+        "226639f40c7c069b87b10756633f5906b39ff1d3b521d536f96efa8bc9a5e4b1"
+    ),
+    "binding_receipt": (
+        "b3561115db50c08b1045924114315241f5213a302f4919d494baf801a8b43161"
+    ),
+    "outputs": (
+        "d8a1dbe44cf56509f3de63efecb1c9bedcfdd7eb0842ed8773e375589be0fbd6"
+    ),
+    "sealed_label_shards": (
+        "3ee9b71ec454c508c50624267862e84c3a49a580f0c58d3027c2216097bb4ae2"
+    ),
+    "metric_definitions": (
+        "94393f02b43b9c4cabb2dc0eaf60fb6f8b85f4114f58304ac4176387aaf3007a"
+    ),
+    "publication_rules": (
+        "39f4e9d1bfc43c8adb896fd025932c99fa0acccf413b934fc805cdaa42fb9742"
+    ),
+    "protected_state_at_registration": (
+        "ece60c217d99a7f660bdbce21510c3e6780bb7e8a0f2a08a1f102b1c9cb7dc13"
+    ),
+}
+
+
+class RegistryError(ValueError):
+    """The post-phase registry does not match its prospective contract."""
+
+
+def _reject_constant(value: str) -> None:
+    raise RegistryError(f"non-finite JSON number is forbidden: {value}")
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise RegistryError(f"duplicate JSON key is forbidden: {key}")
+        result[key] = value
+    return result
+
+
+def _strict_json(raw: bytes, label: str) -> dict[str, Any]:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RegistryError(f"{label} is not UTF-8") from error
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=_unique_object,
+            parse_constant=_reject_constant,
+        )
+    except (json.JSONDecodeError, RegistryError) as error:
+        raise RegistryError(f"{label} is not strict JSON: {error}") from error
+    if type(value) is not dict:
+        raise RegistryError(f"{label} root must be an object")
+    return value
+
+
+def _canonical_sha256(value: object) -> str:
+    raw = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _mapping(value: object, label: str) -> Mapping[str, Any]:
+    if type(value) is not dict:
+        raise RegistryError(f"{label} must be an object")
+    return value
+
+
+def validate_registry_document(document: Mapping[str, Any]) -> None:
+    """Validate exact registered subtrees plus their critical relationships."""
+
+    if type(document) is not dict or set(document) != _EXPECTED_TOP_LEVEL_KEYS:
+        raise RegistryError("registry top-level keys mismatch")
+    if document["schema"] != REGISTRY_SCHEMA:
+        raise RegistryError("registry schema mismatch")
+    if document["status"] != REGISTRY_STATUS:
+        raise RegistryError("registry status mismatch")
+    if document["authority"] != (
+        "path-schema-metric-and-publication-contract-only"
+    ):
+        raise RegistryError("registry authority mismatch")
+    for key, expected_sha256 in _SUBTREE_SHA256.items():
+        if _canonical_sha256(document[key]) != expected_sha256:
+            raise RegistryError(f"registered {key} contract mismatch")
+
+    outputs = _mapping(document["outputs"], "outputs")
+    sealed = _mapping(outputs["sealed"], "outputs.sealed")
+    schemas = _mapping(sealed["schemas"], "outputs.sealed.schemas")
+    if any(
+        type(value) is not str or not value.startswith("shogi-")
+        for value in schemas.values()
+    ):
+        raise RegistryError("every sealed output schema must be explicit")
+    for key in (
+        "clean_derivative",
+        "clean_derivative_receipt",
+        "selected_parent_ids",
+        "selection_receipt",
+        "label_shards_directory",
+        "labels",
+        "label_receipt",
+        "result",
+    ):
+        if not str(sealed[key]).startswith(str(sealed["root"]) + "/"):
+            raise RegistryError(f"sealed output escapes fixed root: {key}")
+
+    shards = _mapping(
+        document["sealed_label_shards"], "sealed_label_shards"
+    )
+    if (
+        type(shards["parents"]) is not int
+        or type(shards["shards"]) is not int
+        or type(shards["parents_per_shard"]) is not int
+        or shards["shards"] * shards["parents_per_shard"]
+        != shards["parents"]
+        or shards["parents"] != 512
+    ):
+        raise RegistryError("sealed shard arithmetic mismatch")
+
+    metrics = _mapping(document["metric_definitions"], "metric_definitions")
+    top1 = _mapping(metrics["candidate_top1_tie"], "candidate_top1_tie")
+    pair = _mapping(metrics["pair_accuracy"], "pair_accuracy")
+    ndcg = _mapping(metrics["ndcg_at_5"], "ndcg_at_5")
+    mcnemar = _mapping(metrics["mcnemar_one_sided"], "mcnemar_one_sided")
+    if (
+        "every move" not in top1["correct"]
+        or pair["candidate_tie"] != "incorrect"
+        or "teacher CP ascending" not in ndcg["candidate_order"]
+        or mcnemar["continuity_correction"] is not False
+        or mcnemar["maximum_p"] != 0.05
+        or mcnemar["exact_pass_comparison"]
+        != "20 * sum(comb(n,k), k=b..n) <= 2**n"
+    ):
+        raise RegistryError("tie or exact McNemar definition mismatch")
+
+    public = _mapping(
+        outputs["public_student_assets"], "outputs.public_student_assets"
+    )
+    if (
+        public["tensor_path"]
+        != "public/shogi-root-policy-student-v1.f32.bin"
+        or public["manifest_path"]
+        != "public/shogi-root-policy-student-v1.manifest.json"
+        or public["tensor_url"] != "/shogi-root-policy-student-v1.f32.bin"
+        or public["manifest_url"]
+        != "/shogi-root-policy-student-v1.manifest.json"
+    ):
+        raise RegistryError("public student asset path/URL mismatch")
+
+    formal = _mapping(outputs["formal"], "outputs.formal")
+    if (
+        formal["pairs"] != 384
+        or formal["games"] != 768
+        or formal["games"] != 2 * formal["pairs"]
+        or formal["pair_workers"] != 12
+        or not str(formal["result"]).startswith(
+            str(formal["output_root"]) + "/"
+        )
+    ):
+        raise RegistryError("formal output or pair contract mismatch")
+
+    state = _mapping(
+        document["protected_state_at_registration"],
+        "protected_state_at_registration",
+    )
+    if any(
+        state[key] is not False
+        for key in (
+            "tune_opened",
+            "sealed_labels_generated",
+            "sealed_scores_opened",
+            "live_weights_changed",
+        )
+    ) or any(
+        type(state[key]) is not int or state[key] != 0
+        for key in ("formal_games_played", "external_games_played")
+    ):
+        raise RegistryError("protected registration state is not closed")
+
+
+def validate_registry_bytes(raw: bytes) -> dict[str, Any]:
+    if len(raw) != REGISTRY_BYTES or hashlib.sha256(raw).hexdigest() != (
+        REGISTRY_SHA256
+    ):
+        raise RegistryError("tracked registry byte/SHA identity mismatch")
+    document = _strict_json(raw, "post-phase registry")
+    validate_registry_document(document)
+    return document
+
+
+def validate_checked_in_registry(
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    root = (
+        repo_root
+        if repo_root is not None
+        else Path(__file__).resolve().parent.parent
+    )
+    registry_path = root / REGISTRY_RELATIVE_PATH
+    document = validate_registry_bytes(registry_path.read_bytes())
+    parent = _mapping(document["parent_protocol"], "parent_protocol")
+    parent_path = root / str(parent["path"])
+    parent_raw = parent_path.read_bytes()
+    if (
+        len(parent_raw) != PARENT_PROTOCOL_BYTES
+        or hashlib.sha256(parent_raw).hexdigest() != PARENT_PROTOCOL_SHA256
+    ):
+        raise RegistryError("parent protocol byte/SHA identity mismatch")
+    return document
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=Path)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        document = validate_checked_in_registry(args.repo_root)
+    except (OSError, RegistryError) as error:
+        raise SystemExit(f"post-phase registry invalid: {error}") from error
+    print(
+        json.dumps(
+            {
+                "schema": document["schema"],
+                "status": document["status"],
+                "bytes": REGISTRY_BYTES,
+                "sha256": REGISTRY_SHA256,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

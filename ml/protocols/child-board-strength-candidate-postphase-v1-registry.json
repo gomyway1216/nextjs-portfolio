@@ -1,0 +1,139 @@
+{
+  "schema": "shogi-child-board-strength-candidate-postphase-registry-v1",
+  "status": "prospective-postphase-interfaces-fixed-protected-data-locked",
+  "authority": "path-schema-metric-and-publication-contract-only",
+  "parent_protocol": {
+    "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
+    "bytes": 42427,
+    "sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+    "schema": "shogi-child-board-strength-candidate-plan-v1"
+  },
+  "student_protocol": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "prebind_bytes": 57496,
+    "prebind_sha256": "e011bfd0d415ef580d80983e33bd88fd970af92d2c944dddd01784160d61fc47",
+    "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
+  },
+  "binding_receipt": {
+    "path": "ml/protocols/child-board-root-policy-student-teacher-binding-v1-receipt.json",
+    "schema": "shogi-child-board-root-policy-student-teacher-binding-v1"
+  },
+  "outputs": {
+    "student_runtime": {
+      "root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/result.json",
+      "result_schema": "shogi-child-board-root-policy-student-runtime-result-v1"
+    },
+    "tune": {
+      "root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/result.json",
+      "result_schema": "shogi-child-board-strength-candidate-tune-result-v1"
+    },
+    "sealed": {
+      "root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512",
+      "clean_derivative": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/clean-derivative.jsonl",
+      "clean_derivative_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/clean-derivative-receipt.json",
+      "selected_parent_ids": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/selected-parent-ids.txt",
+      "selection_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/selection-receipt.json",
+      "label_shards_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/label-shards",
+      "labels": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/labels.jsonl",
+      "label_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/label-receipt.json",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/result.json",
+      "schemas": {
+        "clean_derivative_receipt": "shogi-child-board-strength-candidate-sealed-clean-derivative-receipt-v1",
+        "selection_receipt": "shogi-child-board-strength-candidate-sealed-selection-receipt-v1",
+        "label_shard": "shogi-child-board-strength-candidate-sealed-label-shard-v1",
+        "label_receipt": "shogi-child-board-strength-candidate-sealed-label-receipt-v1",
+        "result": "shogi-child-board-strength-candidate-sealed-result-v1"
+      }
+    },
+    "public_student_assets": {
+      "tensor_path": "public/shogi-root-policy-student-v1.f32.bin",
+      "tensor_url": "/shogi-root-policy-student-v1.f32.bin",
+      "tensor_media_type": "application/octet-stream",
+      "manifest_path": "public/shogi-root-policy-student-v1.manifest.json",
+      "manifest_url": "/shogi-root-policy-student-v1.manifest.json",
+      "manifest_schema": "shogi-child-board-root-policy-student-manifest-v1"
+    },
+    "formal": {
+      "registry_path": "ml/protocols/child-board-root-policy-student-formal-v1-registry.json",
+      "registry_schema": "shogi-child-board-root-policy-student-formal-registry-v1",
+      "output_root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-formal-v1",
+      "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-formal-v1/result.json",
+      "result_schema": "shogi-child-board-root-policy-student-formal-result-v1",
+      "pairs": 384,
+      "games": 768,
+      "pair_workers": 12
+    }
+  },
+  "sealed_label_shards": {
+    "parents": 512,
+    "shards": 16,
+    "parents_per_shard": 32,
+    "membership": "the fixed selected-parent list is split into 16 consecutive exact slices of 32 parents",
+    "shard_order": "integer shard 0 through 15",
+    "within_shard_order": "selected-parent order, then legal USI in ascending UTF-8 byte order",
+    "content_address": "sha256 of parent protocol SHA-256, clean-derivative receipt SHA-256, selection receipt SHA-256, shard integer, ordered parent IDs, legal-move enumerator receipt, YaneuraOu binary/eval/config receipt, depth 12, and label-shard schema",
+    "publication": "each shard and receipt is create-only and immutable; final labels concatenate shards 0 through 15 and the final receipt is published atomically before any candidate score",
+    "resume": "before candidate inference, retain only exact valid immutable shards and generate missing shards; any final-path mismatch stops the lane"
+  },
+  "metric_definitions": {
+    "artifacts": [
+      "seed42_teacher",
+      "seed314159_teacher",
+      "frozen_student"
+    ],
+    "reference": "exact live NNUE root ordering",
+    "teacher_best_set": "all legal moves tied at the maximum depth-12 teacher CP",
+    "candidate_top1_tie": {
+      "ordering": "maximum candidate combined CP",
+      "correct": "every move tied for maximum candidate combined CP belongs to the teacher-best set",
+      "incorrect": "at least one maximum-candidate-CP tied move is outside the teacher-best set"
+    },
+    "pair_accuracy": {
+      "eligible": "each unordered legal-move pair whose absolute teacher CP difference is at least 50 CP",
+      "correct": "the candidate score difference has the same strict sign as the teacher score difference",
+      "candidate_tie": "incorrect",
+      "aggregation": "micro-average correct eligible pairs over all parents"
+    },
+    "ndcg_at_5": {
+      "teacher_relevance": "exp(clamp(teacher_cp - teacher_best_cp, -1200, 0) / 100)",
+      "candidate_order": "candidate combined CP descending, then teacher CP ascending, then legal USI ascending by UTF-8 bytes",
+      "ideal_order": "teacher CP descending, then legal USI ascending by UTF-8 bytes",
+      "gain": "teacher_relevance",
+      "discount": "1 / log2(rank + 1) for one-based rank",
+      "cutoff": 5,
+      "zero_ideal_dcg": "score 0",
+      "aggregation": "arithmetic mean of per-parent NDCG@5"
+    },
+    "mcnemar_one_sided": {
+      "unit": "one sealed parent",
+      "correctness": "candidate_top1_tie correctness above",
+      "b": "artifact correct and exact-live reference incorrect",
+      "c": "artifact incorrect and exact-live reference correct",
+      "n": "b + c",
+      "alternative": "artifact has greater top1 correctness probability than exact live",
+      "p_value": "sum(comb(n,k), k=b..n) / 2**n; when n is 0, p is 1",
+      "continuity_correction": false,
+      "maximum_p": 0.05,
+      "exact_pass_comparison": "20 * sum(comb(n,k), k=b..n) <= 2**n"
+    }
+  },
+  "publication_rules": {
+    "json": "strict UTF-8 JSON with duplicate keys and non-finite numbers forbidden",
+    "atomic": "temporary sibling, fsync file, create-only atomic publication, then parent-directory fsync",
+    "partial_results_displayed": false,
+    "tune_rerun": false,
+    "sealed_scoring_rerun": false,
+    "live_weights_changed": false,
+    "deployment_authorized": false
+  },
+  "protected_state_at_registration": {
+    "tune_opened": false,
+    "sealed_labels_generated": false,
+    "sealed_scores_opened": false,
+    "formal_games_played": 0,
+    "external_games_played": 0,
+    "live_weights_changed": false
+  }
+}

@@ -3,7 +3,7 @@
   "status": "prospective-scratch-strength-candidate-lane-only",
   "result_schema": "shogi-child-board-strength-candidate-result-v1",
   "objective": "Train two new child-board root-policy teachers from scratch, freeze both final checkpoints before any held-out score is opened, and use prospective held-out, sealed, production-student, direct-play, and external-calibration gates instead of the closed v3 in-sample all-pairs sentinel.",
-  "claim_boundary": "Phase 1 produces only two frozen offline teacher checkpoints. Tune passage authorizes only sealed evaluation. Sealed passage authorizes only the separately preregistered root-policy student/runtime lane. Formal direct-play superiority and external calibration remain mandatory before any strength, rank, live-weight, or deployment claim.",
+  "claim_boundary": "Phase 1 produces only two frozen offline teacher checkpoints. Phase 1b separately fixes and fit-only trains the production root-ordering student before tune. Tune passage authorizes only sealed evaluation. Sealed passage authorizes only runtime admission checks for the already frozen student. Formal direct-play superiority and external calibration remain mandatory before any strength, rank, live-weight, or deployment claim.",
   "protocol_identity": {
     "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
     "schema": "shogi-child-board-strength-candidate-plan-v1"
@@ -336,7 +336,7 @@
     "technical_crash_recovery": {
       "allowed": true,
       "purpose": "continue the same preregistered fit-only run after a ChatGPT, host, runner, or MPS process crash without opening tune or creating a statistically selectable retry",
-      "checkpoint_cadence": "atomically replace the unique last-completed-epoch checkpoint after every completed V9 pretrain or mixed-fit epoch",
+      "checkpoint_cadence": "atomically replace the unique last-completed-epoch checkpoint after every completed V9 pretrain or mixed-fit epoch; publication of that atomic checkpoint is the definition of epoch completion",
       "atomic_checkpoint_requires": [
         "complete model state",
         "complete optimizer state",
@@ -351,6 +351,11 @@
       "resume_source": "the unique latest valid atomic checkpoint under the fixed output_path only",
       "validation_before_resume": "exactly match the fixed resolved output path, protocol bytes and SHA-256, fit-only data receipt, model and optimizer schemas, seed, phase, last completed epoch, and all stored RNG states before optimizer creation or any protected-data read",
       "continuation_point": "the epoch immediately after the recorded last completed epoch",
+      "terminal_transition_windows": {
+        "seed42_final_published_before_seed314159_initialization": "validate the published seed-42 mixed-epoch-12 final checkpoint, never replay seed 42, initialize seed 314159 once from its fixed scratch seed, and continue at seed-314159 V9 pretrain epoch 1",
+        "seed314159_final_published_before_terminal_result": "validate both published final checkpoint receipts and perform terminalize-only recovery: create no optimizer, read no fit, tune, sealed, or protected data, run no model forward pass, and atomically emit the terminal phase-1 result",
+        "terminal_result_published": "the run is complete and no recovery or retry is allowed"
+      },
       "tune_or_sealed_must_remain_unopened": true,
       "statistical_selection": false,
       "forbidden": [
@@ -444,6 +449,13 @@
       "production_role": "root move ordering only; live NNUE remains the leaf evaluator"
     },
     "scoring_policy": "open both tune domains exactly once for both frozen teacher checkpoints and the frozen production student under one bound evaluator invocation",
+    "atomic_result_policy": {
+      "artifacts": "seed 42, seed 314159, and the frozen student",
+      "domains": "Browser tune 196 and V9 tune 4411",
+      "publication": "compute without displaying or publishing any artifact/domain score, then atomically publish one complete result containing every metric, gate decision, input receipt, evaluator receipt, and artifact hash",
+      "partial_or_incomplete": "close the lane without sealed generation, retry, resume, threshold change, or result completion",
+      "rerun": false
+    },
     "forbidden_after_open": [
       "training or resuming either teacher",
       "changing the student/runtime core",
@@ -482,6 +494,8 @@
     },
     "seed_policy": "seed 42, seed 314159, and the frozen production student must independently pass every existing capacity-tune check and every V9 overlay check",
     "seed_selection": "none; seed 42 is preregistered as the later distillation teacher and seed 314159 is replication evidence only",
+    "atomic_all_or_nothing_result_required": true,
+    "partial_or_incomplete_result": "close the lane before sealed labels; no exact-resume or rerun authority",
     "any_miss": "close the lane before sealed labels, student artifact admission, direct A/B, external calibration, or live change"
   },
   "sealed_gate": {
@@ -515,7 +529,16 @@
         "selection": "sort each clean parent by sha256('capacity-sealed-v1:' + parent_id), take at most four per game, then take the lowest 512 globally",
         "labels": "enumerate every rules-complete legal move and independently rescore each child with the pinned YaneuraOu depth-12 teacher used by the Browser dataset",
         "parallelism": "independent parent shards may run in parallel after both capacity seeds pass",
-        "forbidden_before_freeze": true
+        "forbidden_before_freeze": true,
+        "content_addressed_resume": {
+          "allowed_only_before_candidate_scoring": true,
+          "shard_identity": "sha256 of the exact sorted parent-ID slice, legal-move enumerator identity, YaneuraOu binary/eval/config receipt, depth, and protocol SHA-256",
+          "completed_shard": "immutable shard bytes and SHA-256 must validate exactly; missing shards alone may be generated",
+          "partial_or_mismatched_shard": "discard that uncommitted shard and regenerate the same content address without changing membership, teacher, depth, or candidate",
+          "finalization": "after exactly 512 complete parent labels validate, atomically publish one final label receipt binding ordered shard hashes, total bytes, parent IDs, legal moves, and label bytes",
+          "candidate_score_opened": false,
+          "forbidden": "candidate inference, candidate metric display, alternate shard membership, relabeling a valid shard, or more than one final label receipt"
+        }
       }
     },
     "gate": {
@@ -532,7 +555,12 @@
       "both teacher checkpoint hashes and the student artifact hash remain unchanged",
       "the student/runtime protocol core identity remains the exact pre-tune merged identity"
     ],
-    "scoring_policy": "generate the registered 512-parent all-legal teacher labels once and evaluate both frozen teacher checkpoints and the already frozen production student without retraining",
+    "scoring_policy": "after the atomic final label receipt exists, evaluate both frozen teacher checkpoints and the already frozen production student under one invocation without retraining or publishing partial scores; atomically publish one complete three-artifact result",
+    "atomic_scoring_result": {
+      "required": true,
+      "partial_or_incomplete": "close the lane before runtime admission; no resume, rerun, result completion, threshold change, or alternate artifact",
+      "rerun": false
+    },
     "seed_policy": "both teacher seeds and the production student must pass every existing sealed check independently",
     "auxiliary_metrics": "may be reported but cannot override, weaken, or rescue the registered gate",
     "any_miss": "close before student promotion, runtime integration, direct A/B, external calibration, or live change"
@@ -550,21 +578,40 @@
     },
     "student_training_data": "fit-only teacher outputs; tune and sealed labels are forbidden",
     "student_checkpoint_selection": "fixed final checkpoint declared in the separate pre-tune protocol core and frozen before the one-shot tune opening",
-    "admission": "the student must satisfy its preregistered parity, latency, tune, sealed, and no-leaf-value-contamination checks before direct A/B enrollment",
+    "admission": "after the already frozen student passes tune and sealed, sealed passage authorizes exactly one execution of its preregistered parity, latency, static, determinism, and no-leaf-value-contamination checks; all must pass before direct A/B enrollment",
     "no_automatic_authority": "teacher tune or sealed passage alone does not authorize student training results, direct play, production enrollment, or live change"
   },
   "formal_direct_ab": {
-    "contract": {
-      "registry": {
+    "inherited_execution_only": {
+      "source_registry": {
         "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
         "bytes": 3480,
         "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9"
       },
-      "amendment": {
+      "source_amendment": {
         "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
         "bytes": 4459,
         "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c"
-      }
+      },
+      "inherit_only": "384 color-swapped opening pairs, 768 games, search controls, zero-fault analyzability, and pair-bootstrap procedure; the legacy single-weight candidate adapter and candidate registry are explicitly not inherited"
+    },
+    "student_candidate_contract": {
+      "required_registry_path": "ml/protocols/child-board-root-policy-student-formal-v1-registry.json",
+      "required_registry_schema": "shogi-child-board-root-policy-student-formal-registry-v1",
+      "required_adapter_schema": "shogi-child-board-root-policy-student-candidate-adapter-v1",
+      "must_bind_before_formal_game1": [
+        "frozen student runtime tensor path, bytes, and SHA-256",
+        "frozen student runtime manifest path, bytes, and SHA-256",
+        "frozen live NNUE path, bytes, and SHA-256",
+        "student-capable worker JavaScript path, bytes, and SHA-256",
+        "student-capable WASM path, bytes, and SHA-256",
+        "runtime feature and root-only adapter schemas",
+        "student parity and M4 Pro latency result paths, bytes, and SHA-256",
+        "stable and candidate public-main Git commits"
+      ],
+      "candidate_identity": "student artifact plus unchanged live NNUE plus the exact student-capable worker/WASM build; a single NNUE weights hash is insufficient",
+      "freeze": "registry, adapter, student, NNUE, worker, WASM, search controls, and opening schedule freeze before game 1",
+      "drift": "STOP before game 1 or mark the whole run faulted and unanalyzable"
     },
     "candidate": "the admitted root-ordering student, with the exact live NNUE still used for leaf evaluation",
     "stable": "the current production engine and root ordering",
@@ -607,6 +654,15 @@
       "bytes": 12146,
       "sha256": "459e7b5741c61cd63737c3b86bdd5ddbff47e0396b71eb39717a2fa4bb0deb92"
     },
+    "required_candidate_assets": [
+      "exact admitted student tensor path, bytes, and SHA-256",
+      "exact admitted student manifest path, bytes, and SHA-256",
+      "exact frozen live NNUE path, bytes, and SHA-256",
+      "exact student-capable worker JavaScript path, bytes, and SHA-256",
+      "exact student-capable WASM path, bytes, and SHA-256",
+      "student formal registry and adapter paths, bytes, SHA-256, and public-main Git commit",
+      "formal result path, bytes, SHA-256, and candidate trace provenance"
+    ],
     "open_requirement": "formal direct A/B stronger-claim gate passes and the exact student/runtime candidate is committed to public main before game 1",
     "platform": "81Dojo",
     "account_prefix": "COM_",
@@ -628,17 +684,27 @@
     {
       "phase": 1,
       "pass": "both scratch final checkpoint hashes freeze with no tune or sealed access",
-      "authorizes_only": "merge of the separate student/runtime protocol core"
+      "authorizes_only": "mechanical teacher-hash binding and public-main merge of the separately preregistered student/runtime protocol core"
+    },
+    {
+      "phase": "1b",
+      "pass": "the student/runtime core is publicly merged with both teacher hashes bound and no tune or sealed access",
+      "authorizes_only": "one fixed fit-only student distillation, training, final-checkpoint freeze, and runtime-artifact freeze"
+    },
+    {
+      "phase": "1c",
+      "pass": "the fit-only student final checkpoint and all required artifact hashes freeze with no tune or sealed access",
+      "authorizes_only": "one atomic all-or-nothing tune invocation for both teachers and the student"
     },
     {
       "phase": 2,
-      "pass": "student/runtime core is publicly merged, its fit-only student artifact is frozen, and both teachers plus the student pass the one-shot tune plus overlay gates",
+      "pass": "both teachers and the student independently pass every one-shot tune plus overlay gate",
       "authorizes_only": "registered sealed-512 teacher generation and evaluation"
     },
     {
       "phase": 3,
       "pass": "both teachers and the already frozen student pass every sealed-512 check",
-      "authorizes_only": "execution of the already fixed student runtime parity and latency gates"
+      "authorizes_only": "runtime admission of the already frozen student through the exact parity, latency, static, determinism, and no-contamination gates"
     },
     {
       "phase": 4,
@@ -660,8 +726,11 @@
     "STOP before optimizer creation on any protocol, input, data receipt, architecture, parameter-count, objective, split, source-role, or protected-union drift.",
     "STOP if either seed is not a fresh independent initialization or if any v1/v2/v3 state is loaded.",
     "STOP phase 1 if either fixed training schedule does not complete exactly through mixed epoch 12; do not open tune.",
-    "STOP before tune unless both checkpoint hashes and the separately merged student/runtime core are fixed.",
+    "STOP before tune unless both checkpoint hashes, the separately merged student/runtime core, the fit-only final student checkpoint, and every runtime artifact hash are fixed.",
+    "STOP on any partial or incomplete tune result; do not resume, rerun, complete, or generate sealed labels.",
     "STOP on any tune or V9 overlay miss; do not generate sealed labels.",
+    "STOP on sealed-label shard drift; content-addressed recovery is allowed only before any candidate score opens and final labels must publish one atomic receipt.",
+    "STOP on any partial or incomplete sealed scoring result; do not resume, rerun, or execute runtime admission.",
     "STOP on any sealed miss; do not promote the already frozen student or run direct A/B.",
     "STOP on any student parity, latency, static, contamination, or runtime fault; do not run direct A/B.",
     "STOP on any incomplete or faulted formal run without a strength conclusion; do not begin external calibration.",
@@ -672,8 +741,10 @@
   "current_state": {
     "phase1_training_started": false,
     "phase1_checkpoints_frozen": 0,
-    "tune_opened": false,
     "student_runtime_protocol_core_merged": false,
+    "phase1b_student_training_started": false,
+    "phase1b_student_artifacts_frozen": false,
+    "tune_opened": false,
     "sealed_labels_generated": false,
     "student_artifact_admitted": false,
     "formal_pairs_played": 0,

@@ -1,6 +1,6 @@
 # 将棋child-board strength candidate v1：未見評価と実戦を権威にする
 
-> child-board capacity v3は訓練内Top-1とregretを大きく改善したが、事前固定したall-pairs 98% sentinelを通らず閉じた。次はv3を救済・再開せず、同じchild-board形状を新しい2 seedで一から学習し、未見tune、sealed 512、production student、正式768局、外部200局を順番に通す独立laneを使う。まだoptimizerも対局も実行しておらず、ライブ重みも変更していない。[English](./blog-shogi-child-board-strength-candidate-v1-plan.en.md)
+> child-board capacity v3は訓練内Top-1とregretを大きく改善したが、事前固定したall-pairs 98% sentinelを通らず閉じた。次はv3を救済・再開せず、同じchild-board形状を新しい2 seedで一から学習し、fit-only production student、未見tune、sealed 512、正式768局、外部200局を順番に通す独立laneを使う。まだoptimizerも対局も実行しておらず、ライブ重みも変更していない。[English](./blog-shogi-child-board-strength-candidate-v1-plan.en.md)
 
 ## v3から分かったこと
 
@@ -45,9 +45,11 @@ outputは `/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-
 
 各pretrain/mixed epoch完了時に、model、optimizer、CPU/MPS RNG、seed、phase、完了epoch、protocol bytes/SHA、fit-only data receiptを含むlast checkpointをatomicに置換する。ChatGPT、Mac、runner、MPS processが落ちた場合は、固定path上のその1個だけを検証し、記録済みの次epochから同じrunを続けてよい。これはtune未開封の技術復旧であり、候補選抜ではない。
 
+atomic checkpointの公開をepoch完了と定義する。seed 42のfinal公開直後に落ちた場合はseed 42を再実行せず、固定seed 314159のscratch初期化から進む。seed 314159のfinal公開直後に落ちた場合はoptimizerもdataもmodel forwardも使わず、2つのfinal receiptを検証してterminal resultをatomicに書く `terminalize-only` 復旧だけを許す。
+
 best epoch選抜、early stop、seed 42によるseed 314159の中止、tune監視はない。別output、同じseedのscratch再実行、複数checkpointからの選択、古いepochへの巻戻し、完了epochの再実行、検証不能checkpointの利用、terminal complete後のretryはすべて禁止する。成功statusは `complete-phase1-two-scratch-checkpoints-frozen-tune-locked`。phase 1はtuneもsealedも開かずに終了する。
 
-## tuneを開く前にstudent/runtimeを固定する
+## Phase 1b：tuneを開く前にstudent/runtimeを固定する
 
 2 checkpointが固定されても、まだtuneは読めない。先に別の `child-board-root-policy-student-runtime-v1` protocol coreをpublic `main`へmergeし、次を固定する。
 
@@ -60,6 +62,8 @@ best epoch選抜、early stop、seed 42によるseed 314159の中止、tune監�
 そのcoreに従ってfit-only studentを学習し、student artifact hashも固定する。tune/sealedのlabelやscoreはstudent学習へ使えない。
 
 この順番により、teacherのtune結果を見てstudentを作り直すことも、studentの結果を見てarchitectureを差し替えることもできない。
+
+authorityも分ける。phase 1の2 teacher固定はcoreのhash bindとmergeだけを許す。merge済みcoreだけが1回のfit-only student学習・final checkpoint・runtime artifact固定を許す。それらが全部固定されたphase 1b完了だけがtuneを許す。
 
 ## one-shot held-out tune
 
@@ -83,9 +87,13 @@ V9既存gateはliveよりわずかな低下を許していたため、新laneで
 
 seed 42、seed 314159、studentの3 artifactsがすべて全条件を独立にPASSしなければ終了する。scoreを見た後の再学習、seed選抜、checkpoint選抜、閾値変更、採用目的のtune再実行は禁止する。seed 42は結果によらずdistillation teacher、seed 314159はreplication専用である。
 
+6組（3 artifacts × 2 domains）のmetricと判定を、途中表示なしで1つのresultへatomicに公開する。partialまたはincompleteになった時点でlaneを閉じ、resume、rerun、後からresultを完成させることはできない。
+
 ## sealed 512
 
 3 artifactsがone-shot tuneを通った場合だけ、既存のlabel-blind clean derivativeから512親を固定規則で選び、全合法手をdepth-12 teacherで初めてlabelする。
+
+label生成はcandidate scoreを一切開く前に限り、parent集合、teacher、depth、protocolでcontent addressした独立shardのexact resumeを許す。検証済みshardは不変で、欠けたshardだけを生成し、512親が揃った時にordered shard hashを束縛するfinal label receiptを1回だけatomicに公開する。その後の3-artifact scoringは途中表示なしのatomic resultだけを許し、partial/incomplete scoringはlane closeである。
 
 各artifactに対し、live比で次をすべて要求する。
 
@@ -104,7 +112,9 @@ studentはrootで合法手を並べるためだけに使う。student protocol�
 
 ## 正式768局
 
-studentの全static/runtime gate通過後だけ、既設formal v2 contractへ登録する。
+studentの全static/runtime gate通過後だけ、student対応の新candidate adapter/registryへ登録する。既設formal v2から継承するのは対局数、探索条件、opening pair、bootstrapだけで、単一weights hash前提の旧adapterは使わない。
+
+新registryは、student tensor/manifest hash、凍結live NNUE hash、student対応worker JavaScript/WASM hash、parity/latency receipt、stable/candidate commitをgame 1前に束縛する。
 
 - 384 unique opening pairs、candidate先手・後手を1局ずつ、合計768局
 - fixed depth 11、quiescence 10、`K=600`
@@ -116,7 +126,7 @@ studentの全static/runtime gate通過後だけ、既設formal v2 contractへ登
 
 ## 外部200局
 
-正式A/Bのstronger gate通過後だけ、既設81Dojo protocolへexact student/runtimeをbindする。
+正式A/Bのstronger gate通過後だけ、既設81Dojo protocolへexact student/runtimeをbindする。外部200局にもstudent tensor/manifest、live NNUE、worker/WASM、formal registry/adapter、formal resultの全provenanceを持ち越す。
 
 - 公式 `COM_` accountと公式client
 - 人によるmanual relay、server/UI automationなし
@@ -130,9 +140,9 @@ primary判定は171局目から200局目まで、各局後ratingがすべて2050
 
 機械可読planは [child-board-strength-candidate-v1-plan.json](../ml/protocols/child-board-strength-candidate-v1-plan.json) に固定した。
 
-- bytes：36,225
-- SHA-256：`9f5d1cc419525412ec39ba59bcb2bc9248eec8cb5ca1550e194cb63d410465ec`
+- bytes：42,427
+- SHA-256：`b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2`
 
-現在はphase 1未開始、checkpoint 0/2、tune未開封、student protocol未merge、sealed label 0、formal 0/768、external 0/200、ライブ変更0である。どの静的gateも単独ではライブ変更を許可しない。
+現在はphase 1未開始、checkpoint 0/2、phase 1b未開始、tune未開封、student protocol未merge、sealed label 0、formal 0/768、external 0/200、ライブ変更0である。どの静的gateも単独ではライブ変更を許可しない。
 
 v3の実測は [child-board capacity v3記事](./blog-shogi-child-board-capacity-v3-plan.md)、外部校正の境界は [81Dojo readiness記事](./blog-shogi-external-81dojo-calibration-readiness.md) に記録している。

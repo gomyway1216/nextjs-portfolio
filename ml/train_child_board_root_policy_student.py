@@ -206,6 +206,54 @@ def _atomic_publish_torch(path: Path, value: object) -> None:
     _atomic_replace_torch(path, value)
 
 
+def _torch_semantic_equal(observed: object, expected: object) -> bool:
+    """Compare a torch artifact without depending on serialization bytes."""
+
+    if isinstance(expected, torch.Tensor):
+        return (
+            isinstance(observed, torch.Tensor)
+            and observed.shape == expected.shape
+            and observed.dtype == expected.dtype
+            and torch.equal(observed.cpu(), expected.cpu())
+        )
+    if isinstance(expected, Mapping):
+        return (
+            isinstance(observed, Mapping)
+            and list(observed.keys()) == list(expected.keys())
+            and all(
+                _torch_semantic_equal(observed[key], value)
+                for key, value in expected.items()
+            )
+        )
+    if isinstance(expected, list):
+        return (
+            isinstance(observed, list)
+            and len(observed) == len(expected)
+            and all(
+                _torch_semantic_equal(observed_value, expected_value)
+                for observed_value, expected_value in zip(
+                    observed,
+                    expected,
+                    strict=True,
+                )
+            )
+        )
+    if isinstance(expected, tuple):
+        return (
+            isinstance(observed, tuple)
+            and len(observed) == len(expected)
+            and all(
+                _torch_semantic_equal(observed_value, expected_value)
+                for observed_value, expected_value in zip(
+                    observed,
+                    expected,
+                    strict=True,
+                )
+            )
+        )
+    return type(observed) is type(expected) and observed == expected
+
+
 def _verified_protocol() -> tuple[dict[str, object], dict[str, object]]:
     raw = PROTOCOL_PATH.read_bytes()
     identity = {
@@ -1843,21 +1891,7 @@ def terminalize_only(
         map_location="cpu",
         weights_only=False,
     )
-    observed_model = (
-        observed_final.get("model")
-        if type(observed_final) is dict
-        else None
-    )
-    if (
-        type(observed_final) is not dict
-        or observed_final.get("checkpoint_schema") != FINAL_CHECKPOINT_SCHEMA
-        or not isinstance(observed_model, Mapping)
-        or observed_model.keys() != model_state.keys()
-        or any(
-            not torch.equal(observed_model[name], model_state[name])
-            for name in model_state
-        )
-    ):
+    if not _torch_semantic_equal(observed_final, final_value):
         raise ValueError("student final checkpoint semantic drift")
     payload, tensors = _state_payload(model_state)
     tensor_path = output / TENSOR_PATH.name

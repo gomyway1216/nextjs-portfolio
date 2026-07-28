@@ -675,6 +675,24 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 ),
                 result,
             )
+            tampered_final = dict(final)
+            tampered_final["protocol"] = {"tampered": True}
+            runner._atomic_replace_torch(
+                root / runner.FINAL_CHECKPOINT_PATH.name,
+                tampered_final,
+            )
+            (root / runner.RESULT_PATH.name).unlink()
+            with self.assertRaisesRegex(
+                ValueError,
+                "final checkpoint semantic drift",
+            ):
+                runner.terminalize_only(
+                    output=root,
+                    protocol_identity=protocol,
+                    distillation_receipt=distillation_receipt,
+                    parity_receipt=parity_receipt,
+                    teacher_hashes=teachers,
+                )
 
     def test_mixed12_checkpoint_never_recreates_model_or_optimizer(self):
         with tempfile.TemporaryDirectory() as directory:

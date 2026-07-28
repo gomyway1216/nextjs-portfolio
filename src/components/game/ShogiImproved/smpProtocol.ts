@@ -18,6 +18,7 @@
 
 import type { Difficulty } from '../common/types';
 import type { SerializedKyokumenImproved } from './serializedPosition';
+import type { WasmRootPolicyRankReceipt } from './wasmEngine';
 
 /** Client -> helper worker, once, right after spawning it. */
 export type HelperInitMessage = {
@@ -51,6 +52,10 @@ export type HelperRequest =
       quiescenceDepthMax: number;
       /** Whether this search must run on the NNUE eval (same as the main). */
       nnue: boolean;
+      /** Same-build role switch; helpers never infer independently. */
+      student_enabled: boolean;
+      /** Exact immutable receipt computed once by the main worker. */
+      rootPolicyRank: WasmRootPolicyRankReceipt | null;
       difficulty: Difficulty;
     }
   | { type: 'clearTT' }

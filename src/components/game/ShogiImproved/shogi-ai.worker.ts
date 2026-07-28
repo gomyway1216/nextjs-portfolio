@@ -50,12 +50,15 @@ import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
 import { ensureExternalOpeningBookLoaded, getOpeningMoveImproved } from './OpeningBookImproved';
 import { PonderController } from './ponderController';
+import { computeRootPolicyRanks } from './rootPolicyRank';
 import { buildPosition, type SerializedKyokumenImproved, type SerializedTeImproved } from './serializedPosition';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 import type { HelperRequest, HelperResponse, MainThreadsInitMessage } from './smpProtocol';
 import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
 import {
   clearWasmTT,
+  clearWasmRootPolicyRank,
+  createWasmRootPolicyRankReceipt,
   enableSharedTT,
   getLastWasmSearchStats,
   isNnueEnabled,
@@ -117,6 +120,8 @@ type WorkerRequest =
       position: SerializedKyokumenImproved;
       difficulty: Difficulty;
       tesu: number;
+      /** Exact same-build candidate/stable role switch. */
+      student_enabled: boolean;
     }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
@@ -333,12 +338,19 @@ void ensureExternalOpeningBookLoaded();
 
 let smpPorts: MessagePort[] = [];
 let smpGenCounter = 0;
+let rootPolicySequenceCounter = 0;
 
 function nextSmpGeneration(): number {
   // Skip 0 (idle marker) on wrap-around.
   smpGenCounter = (smpGenCounter + 1) | 0;
   if (smpGenCounter === 0) smpGenCounter = 1;
   return smpGenCounter;
+}
+
+function nextRootPolicySequence(): number {
+  rootPolicySequenceCounter = (rootPolicySequenceCounter + 1) | 0;
+  if (rootPolicySequenceCounter <= 0) rootPolicySequenceCounter = 1;
+  return rootPolicySequenceCounter;
 }
 
 function sendNnueWeightsToHelpers(): void {
@@ -464,7 +476,8 @@ function computeBestMove(
   k: KyokumenImproved,
   raw: SerializedKyokumenImproved,
   difficulty: Difficulty,
-  tesu: number
+  tesu: number,
+  studentEnabled: boolean,
 ): BestMoveComputation {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
@@ -500,6 +513,22 @@ function computeBestMove(
   // helpers must not be writing entries on the old eval scale meanwhile.
   const nnue = difficultyUsesNnue(difficulty);
   const nnueActuallyEnabled = setWasmNnueEnabled(nnue);
+  // Student features are defined against the exact live NNUE child CP. A
+  // requested candidate role without that evaluator is not a degraded model:
+  // it is a typed fail-closed stable-order search with zero provider calls.
+  const effectiveStudentEnabled = studentEnabled && nnueActuallyEnabled;
+
+  // One inference boundary per enabled root, in the MAIN worker only. The
+  // current provider is a deterministic identity stub until the frozen
+  // student export is available. Its integer rank receipt is bound to both
+  // WASM position hashes and reused verbatim by all Lazy-SMP helpers.
+  const rankSequence = effectiveStudentEnabled ? nextRootPolicySequence() : 0;
+  const computedRanks = effectiveStudentEnabled
+    ? computeRootPolicyRanks(k, rankSequence, true)
+    : null;
+  const rootPolicyRank = computedRanks
+    ? createWasmRootPolicyRankReceipt(k, rankSequence, computedRanks)
+    : null;
 
   // Lazy SMP: wake the helper threads on the same root position. Easy stays
   // single-thread — it is intentionally weak. Helpers stop via the published
@@ -518,6 +547,8 @@ function computeBestMove(
       maxTimeMs: searchBudgetMs,
       quiescenceDepthMax: budget.quiescenceDepthMax,
       nnue,
+      student_enabled: effectiveStudentEnabled,
+      rootPolicyRank,
       difficulty,
     };
     for (const port of smpPorts) port.postMessage(go);
@@ -525,7 +556,14 @@ function computeBestMove(
 
   let wasmMove: Te | null = null;
   try {
-    wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
+    wasmMove = wasmSearchBestMove(
+      k,
+      tesu,
+      searchBudgetMs,
+      32,
+      budget.quiescenceDepthMax,
+      rootPolicyRank,
+    );
   } finally {
     // Stop the helpers even if the search trapped, and sync our OWN local
     // generation back to the idle value. Without the setSearchGeneration(0)
@@ -589,6 +627,9 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   // and its search is not slice-friendly at these budgets).
   if (difficulty === 'easy') return;
   if (!isWasmEngineReady()) return;
+  // A real-move rank is scoped to exactly one search. Pondering must always
+  // use the unchanged stable root ordering.
+  clearWasmRootPolicyRank();
 
   k.move(best);
   k.toggleTeban();
@@ -668,7 +709,13 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   try {
     const k = buildPosition(msg.position);
-    const result = computeBestMove(k, msg.position, msg.difficulty, msg.tesu | 0);
+    const result = computeBestMove(
+      k,
+      msg.position,
+      msg.difficulty,
+      msg.tesu | 0,
+      msg.student_enabled === true,
+    );
     const best = result.move;
     const move: SerializedTeImproved | null = best
       ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
@@ -691,6 +738,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
     // Answer first, then start thinking on the opponent's time.
     if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
   } catch (e) {
+    clearWasmRootPolicyRank();
     const message = e instanceof Error ? e.message : String(e);
     ctx.postMessage({ type: 'error', id: msg.id, message });
   }

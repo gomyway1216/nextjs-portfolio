@@ -31,6 +31,8 @@ type WorkerRequest =
       position: SerializedKyokumenImproved;
       difficulty: Difficulty;
       tesu: number;
+      /** Same-build role switch. The live client stays disabled until admission. */
+      student_enabled: boolean;
     }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
@@ -500,6 +502,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
           position,
           difficulty,
           tesu: tesu | 0,
+          student_enabled: false,
         };
         worker.postMessage(req);
       } catch (err) {

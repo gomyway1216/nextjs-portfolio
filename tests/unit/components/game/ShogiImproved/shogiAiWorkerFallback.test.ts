@@ -47,7 +47,9 @@ vi.mock('@/components/game/ShogiImproved/MateSolverImproved', () => ({
 }));
 
 vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
+  clearWasmRootPolicyRank: vi.fn(),
   clearWasmTT: vi.fn(),
+  createWasmRootPolicyRankReceipt: vi.fn(() => null),
   enableSharedTT: vi.fn(() => false),
   getLastWasmSearchStats: vi.fn(() => null),
   isNnueEnabled: vi.fn(() => false),

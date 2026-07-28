@@ -22,6 +22,7 @@
 import { buildPosition } from './serializedPosition';
 import type { HelperInitMessage, HelperRequest, HelperResponse } from './smpProtocol';
 import {
+  clearWasmRootPolicyRank,
   clearWasmTT,
   enableSharedTT,
   loadNnueWeights,
@@ -70,10 +71,22 @@ function runHelper(init: HelperInitMessage): void {
     try {
       // Same eval as the main thread this move: shared TT entries carry eval
       // scores, so V3-scaled and NNUE-scaled values must never mix.
-      setWasmNnueEnabled(msg.nnue);
+      const nnueActuallyEnabled = setWasmNnueEnabled(msg.nnue);
       setSearchGeneration(msg.gen);
       const k = buildPosition(msg.position);
-      wasmSearchBestMove(k, msg.tesu, msg.maxTimeMs + HELPER_TIME_MARGIN_MS, 32, msg.quiescenceDepthMax);
+      // The main worker is the only inference boundary. Every helper consumes
+      // the identical dual-hash/sequence-bound rank receipt, or null on a
+      // disabled/faulted root.
+      wasmSearchBestMove(
+        k,
+        msg.tesu,
+        msg.maxTimeMs + HELPER_TIME_MARGIN_MS,
+        32,
+        msg.quiescenceDepthMax,
+        msg.student_enabled === true && nnueActuallyEnabled
+          ? msg.rootPolicyRank
+          : null,
+      );
       const stats = getLastWasmSearchStats();
       const response: HelperResponse = {
         type: 'stats',
@@ -85,6 +98,8 @@ function runHelper(init: HelperInitMessage): void {
     } catch {
       // Never let a helper failure surface anywhere; the main search is
       // complete without us.
+    } finally {
+      clearWasmRootPolicyRank();
     }
   };
 

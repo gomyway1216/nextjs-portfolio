@@ -36,7 +36,9 @@ vi.mock('@/components/game/ShogiImproved/OpeningBookImproved', () => ({
 }));
 
 vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
+  clearWasmRootPolicyRank: vi.fn(),
   clearWasmTT: vi.fn(),
+  createWasmRootPolicyRankReceipt: vi.fn(() => null),
   enableSharedTT: vi.fn(() => false),
   getLastWasmSearchStats: vi.fn(() => ({ score: 42, depth: 7, nodes: 100, leaves: 50 })),
   isNnueEnabled: engine.enabled,

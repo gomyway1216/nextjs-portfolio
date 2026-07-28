@@ -1,0 +1,148 @@
+{
+  "schema": "shogi-capacity-policy-value-v1-result-summary-v1",
+  "claim": "The fixed in-sample sentinel was rejected. This is not a playing-strength result.",
+  "external_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/capacity-policy-value-v1-seed42/result.json",
+    "bytes": 25048,
+    "sha256": "d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2",
+    "schema": "shogi-capacity-policy-value-result-v1",
+    "status": "complete-sentinel-rejected"
+  },
+  "protocol": {
+    "bytes": 17358,
+    "sha256": "30b4aab6689679a98a6f86fa835610a5f0fcfd3157d8fc44d4029152d1f7eaf3"
+  },
+  "sentinel": {
+    "browser_parents": 256,
+    "v9_parents": 1024,
+    "epochs": 40,
+    "weights_discarded": true,
+    "gate_passed": false,
+    "metrics": {
+      "browser": {
+        "top1_correct": 179,
+        "top1_accuracy": 0.69921875,
+        "top1_required_minimum": 0.85,
+        "pair_count": 1042139,
+        "pair_accuracy": 0.7385473530882157,
+        "pair_required_minimum": 0.98,
+        "mean_regret_cp_not_a_sentinel_gate": 3955.30078125
+      },
+      "v9": {
+        "top1_correct": 811,
+        "top1_accuracy": 0.7919921875,
+        "top1_required_minimum": 0.85,
+        "pair_count": 49889,
+        "pair_accuracy": 0.8700114253643088,
+        "pair_required_minimum": 0.98,
+        "mean_regret_cp_not_a_sentinel_gate": 17.33984375
+      }
+    },
+    "timing_seconds": {
+      "recorded_epoch_sum": 246.33080762438476,
+      "epoch_1_including_initial_graph_compile": 41.088631332851946,
+      "epochs_2_through_40_sum": 205.24217629153281,
+      "epochs_2_through_40_median": 5.120760374702513,
+      "scope": "Recorded epoch intervals only; excludes input loading and preflight audit wall time."
+    },
+    "curve": [
+      {"epoch": 1, "loss": 6.484437812458385, "seconds": 41.088631332851946},
+      {"epoch": 2, "loss": 5.967679804021662, "seconds": 6.975601041689515},
+      {"epoch": 3, "loss": 5.266509402881969, "seconds": 5.383215541951358},
+      {"epoch": 4, "loss": 4.6075569499622695, "seconds": 5.589896124787629},
+      {"epoch": 5, "loss": 4.000121420080012, "seconds": 7.062278250232339},
+      {"epoch": 6, "loss": 3.6390327757055108, "seconds": 6.105915958993137},
+      {"epoch": 7, "loss": 3.5257738503542813, "seconds": 6.163395166397095},
+      {"epoch": 8, "loss": 3.224987962029197, "seconds": 5.363068374805152},
+      {"epoch": 9, "loss": 3.081868063319813, "seconds": 5.126494749914855},
+      {"epoch": 10, "loss": 2.9844145341352983, "seconds": 5.133681291714311},
+      {"epoch": 11, "loss": 2.8817596435546875, "seconds": 5.167933291289955},
+      {"epoch": 12, "loss": 2.828364285555753, "seconds": 5.463182041887194},
+      {"epoch": 13, "loss": 2.745177073912187, "seconds": 5.230043665971607},
+      {"epoch": 14, "loss": 2.7103872299194336, "seconds": 5.104191791266203},
+      {"epoch": 15, "loss": 2.677353100343184, "seconds": 5.161149333231151},
+      {"epoch": 16, "loss": 2.663599729537964, "seconds": 5.086210709065199},
+      {"epoch": 17, "loss": 2.6606175249273125, "seconds": 5.025783583987504},
+      {"epoch": 18, "loss": 2.608999815854159, "seconds": 5.089968666899949},
+      {"epoch": 19, "loss": 2.590426791797985, "seconds": 5.070660416036844},
+      {"epoch": 20, "loss": 2.538418401371349, "seconds": 5.120760374702513},
+      {"epoch": 21, "loss": 2.537276029586792, "seconds": 5.15184612525627},
+      {"epoch": 22, "loss": 2.480719414624301, "seconds": 5.012614458799362},
+      {"epoch": 23, "loss": 2.5120007775046607, "seconds": 5.131129541900009},
+      {"epoch": 24, "loss": 2.4352301250804556, "seconds": 5.09750495897606},
+      {"epoch": 25, "loss": 2.4218703400004995, "seconds": 4.980363000184298},
+      {"epoch": 26, "loss": 2.413801518353549, "seconds": 5.003190166782588},
+      {"epoch": 27, "loss": 2.468017989938909, "seconds": 4.993374457582831},
+      {"epoch": 28, "loss": 2.4524811506271362, "seconds": 5.056736208032817},
+      {"epoch": 29, "loss": 2.4126086235046387, "seconds": 4.899711749982089},
+      {"epoch": 30, "loss": 2.375253980809992, "seconds": 4.962798667140305},
+      {"epoch": 31, "loss": 2.366158875552091, "seconds": 4.91584120830521},
+      {"epoch": 32, "loss": 2.404752666299993, "seconds": 4.922137541230768},
+      {"epoch": 33, "loss": 2.3467343828894873, "seconds": 4.975179500412196},
+      {"epoch": 34, "loss": 2.339329025962136, "seconds": 5.1836277497932315},
+      {"epoch": 35, "loss": 2.331683180548928, "seconds": 5.196263958700001},
+      {"epoch": 36, "loss": 2.40757831660184, "seconds": 4.939608208835125},
+      {"epoch": 37, "loss": 2.3520841381766577, "seconds": 5.149229458067566},
+      {"epoch": 38, "loss": 2.321472471410578, "seconds": 5.078976165968925},
+      {"epoch": 39, "loss": 2.2930288206447256, "seconds": 4.951617124956101},
+      {"epoch": 40, "loss": 2.262851043180986, "seconds": 5.216995665803552}
+    ]
+  },
+  "post_rejection_audit": {
+    "scope": "The exact pinned sentinel inputs and labels; no label or threshold changes.",
+    "browser": {
+      "duplicate_position_ids": 0,
+      "normalized_43_plane_input_collisions": 0,
+      "contradictory_labels_for_identical_model_inputs": 0,
+      "teacher_score_oracle_top1_accuracy": 1.0,
+      "teacher_score_oracle_pair_accuracy": 1.0,
+      "parents_with_tied_teacher_best": 3
+    },
+    "v9": {
+      "duplicate_position_ids": 0,
+      "normalized_43_plane_input_collisions": 0,
+      "contradictory_labels_for_identical_model_inputs": 0,
+      "teacher_score_oracle_top1_accuracy": 1.0,
+      "teacher_score_oracle_pair_accuracy": 1.0,
+      "parents_with_tied_teacher_best": 13
+    },
+    "cross_domain_semantic_overlap": 0,
+    "objective_metric_mismatch": {
+      "v1_training_pair_reduction": "mean eligible pairs inside each parent, then mean parents",
+      "admission_pair_reduction": "micro aggregate every eligible pair across each domain",
+      "v1_best_margin_tie_handling": "one argmax teacher-best move",
+      "admission_top1_tie_handling": "all teacher-best tied moves form the correct set"
+    },
+    "interpretation_limit": "The oracle establishes label/scorer consistency, not perfect teacher playing strength."
+  },
+  "lifecycle": {
+    "full_candidate_training_started": false,
+    "second_seed_authorized": false,
+    "sealed_teacher_authorized": false,
+    "wasm_changed": false,
+    "live_weights_changed": false
+  },
+  "objective_only_v2": {
+    "claim": "A prospective one-variable diagnostic plan, not a measured result.",
+    "loss_weights": {
+      "listwise_policy": 1.0,
+      "domain_batch_micro_pair_logistic": 1.0,
+      "tied_best_set_hardest_negative_top1_margin": 1.0,
+      "move_value": 0.2,
+      "state_value": 0.0
+    },
+    "held_constant_from_v1": [
+      "model",
+      "data",
+      "sentinel parents",
+      "seed",
+      "AdamW",
+      "learning rate",
+      "batching",
+      "ordering",
+      "40 epochs",
+      "top1 >= 0.85 and pair >= 0.98 in both domains"
+    ],
+    "failure_branch": "Do not extend epochs or relax gates; run a small child-board-encoder capacity diagnostic."
+  }
+}

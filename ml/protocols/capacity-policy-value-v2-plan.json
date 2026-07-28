@@ -398,6 +398,7 @@
     }
   },
   "loss": {
+    "id": "gate-aligned-micro-pair-hard-negative-v2",
     "parent_weighting": "Browser and V9 remain separate padded microbatches. Listwise, tie-aware hardest-negative margin, and move-value terms contribute one equal value per parent; the pair term is microaveraged over all eligible ordered pairs inside each domain microbatch.",
     "listwise": "teacher relative CP clamped to [-2000,0], softmax temperature 100 CP, equal-parent mean, weight 1.0",
     "pair": "all ordered teacher gaps at least 50 CP, logistic softplus, microaverage across all eligible ordered pairs in the current Browser or V9 domain microbatch, weight 1.0",

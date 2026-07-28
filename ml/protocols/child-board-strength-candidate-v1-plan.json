@@ -1,0 +1,684 @@
+{
+  "schema": "shogi-child-board-strength-candidate-plan-v1",
+  "status": "prospective-scratch-strength-candidate-lane-only",
+  "result_schema": "shogi-child-board-strength-candidate-result-v1",
+  "objective": "Train two new child-board root-policy teachers from scratch, freeze both final checkpoints before any held-out score is opened, and use prospective held-out, sealed, production-student, direct-play, and external-calibration gates instead of the closed v3 in-sample all-pairs sentinel.",
+  "claim_boundary": "Phase 1 produces only two frozen offline teacher checkpoints. Tune passage authorizes only sealed evaluation. Sealed passage authorizes only the separately preregistered root-policy student/runtime lane. Formal direct-play superiority and external calibration remain mandatory before any strength, rank, live-weight, or deployment claim.",
+  "protocol_identity": {
+    "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
+    "schema": "shogi-child-board-strength-candidate-plan-v1"
+  },
+  "spent_development_evidence": {
+    "v3_result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/capacity-policy-value-v3-seed42/result.json",
+      "bytes": 25096,
+      "sha256": "e9db86a37320345cc8418eb1f405dd5ef4e0c4187fcc8a1afff2f0e8fe4dd6d3",
+      "schema": "shogi-capacity-policy-value-result-v3",
+      "status": "complete-sentinel-rejected",
+      "protocol": {
+        "path": "ml/protocols/capacity-policy-value-v3-plan.json",
+        "bytes": 24326,
+        "sha256": "4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6"
+      },
+      "sentinel": {
+        "browser": {
+          "parents": 256,
+          "top1_correct": 244,
+          "top1_accuracy": 0.953125,
+          "pair_accuracy": 0.7545231490233069,
+          "mean_regret_cp": 4.25390625
+        },
+        "v9": {
+          "parents": 1024,
+          "top1_correct": 995,
+          "top1_accuracy": 0.9716796875,
+          "pair_accuracy": 0.8883721862534827,
+          "mean_regret_cp": 2.001953125
+        },
+        "gate_passed": false,
+        "weights_discarded": true
+      },
+      "role": "spent design evidence only; the high in-sample top1 and low regret alongside sub-0.98 pair accuracy motivate moving authority to unseen and direct-play gates, but do not admit, rescue, resume, or continue v3"
+    }
+  },
+  "closed_lanes": [
+    "Capacity v1, objective-only v2, and child-board capacity v3 are permanently closed.",
+    "Never load, resume, average, distill, quantize, or otherwise reuse a v3 checkpoint, optimizer state, RNG state, sentinel curve, or discarded weight.",
+    "Never rerun the v3 sentinel, extend its epochs, relax its 0.98 gate, or relabel this strength-candidate lane as a v3 continuation.",
+    "Never train, select an epoch, alter a threshold, add a seed, or change the student/runtime plan after a tune or sealed score is opened.",
+    "Never put the large child-board teacher into the production leaf-evaluation or transposition-table value path."
+  ],
+  "design_firewall": {
+    "allowed_design_evidence": [
+      "the fixed v1, v2, and v3 sentinel result receipts",
+      "the already preregistered v3 inputs, authenticated partitions, architecture, objective, training recipe, tune gate, sealed gate, formal A/B, and external calibration contracts"
+    ],
+    "forbidden_design_evidence": [
+      "any seed-42 or seed-314159 strength-candidate tune score",
+      "any strength-candidate sealed teacher label or candidate score",
+      "any student/runtime candidate score",
+      "any direct A/B or external-calibration outcome"
+    ],
+    "one_shot_rule": "All thresholds and branches in this file are fixed before phase-1 optimizer creation. Once any protected result is opened, no retraining, new candidate, alternate seed, checkpoint shopping, threshold change, or minor retry is permitted."
+  },
+  "inputs": {
+    "live_nnue": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "role": "frozen exact production child-score anchor; never trainable or writable"
+    },
+    "browser_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "role": "all rules-complete legal moves independently depth-12 rescored"
+    },
+    "v9_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "rows": 278736,
+      "parents": 23980,
+      "games": 1000,
+      "role": "depth-14 proposal plus independently depth-16-rescored played move"
+    },
+    "fresh_final_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.protected-position-ids.txt",
+      "bytes": 29751912,
+      "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+      "count": 413221,
+      "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+    },
+    "fresh_selection_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.protected-position-ids.txt",
+      "bytes": 30624768,
+      "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+      "count": 425344,
+      "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+    },
+    "known_eval_sources": [
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 50255278,
+        "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+        "rows": 57658
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 23800461,
+        "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+        "rows": 28518
+      },
+      {
+        "path": "ml/data/wcsc36/sealed-partition-6d541f1/siblings.model-selection.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 3319397,
+        "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+        "rows": 3912
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+        "role": "known-eval-scalar",
+        "bytes": 1576191,
+        "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+        "rows": 3000
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-balanced-dataset-v1/val.jsonl",
+        "role": "known-eval-scalar",
+        "bytes": 311811,
+        "sha256": "26ef1e6295c05bea313c388633ff035536c422d327a28a89f0adfc72957963fd",
+        "rows": 412
+      }
+    ],
+    "known_eval_union": {
+      "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+      "count": 98420,
+      "bytes": 7086240,
+      "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+      "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+    }
+  },
+  "data_receipt": {
+    "sources": {
+      "browser": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+        "bytes": 97820193,
+        "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+        "rows": 112011,
+        "parents": 1334,
+        "games": 38
+      },
+      "v9": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+        "bytes": 236990586,
+        "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+        "rows": 278736,
+        "parents": 23980,
+        "games": 1000
+      },
+      "protected_position_ids": [
+        {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.protected-position-ids.txt",
+          "bytes": 29751912,
+          "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+          "count": 413221,
+          "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+        },
+        {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.protected-position-ids.txt",
+          "bytes": 30624768,
+          "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+          "count": 425344,
+          "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+        }
+      ],
+      "known_eval_position_ids": {
+        "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+        "sources": [
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 50255278,
+            "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+            "rows": 57658
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 23800461,
+            "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+            "rows": 28518
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/data/wcsc36/sealed-partition-6d541f1/siblings.model-selection.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 3319397,
+            "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+            "rows": 3912
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+            "role": "known-eval-scalar",
+            "bytes": 1576191,
+            "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+            "rows": 3000
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-balanced-dataset-v1/val.jsonl",
+            "role": "known-eval-scalar",
+            "bytes": 311811,
+            "sha256": "26ef1e6295c05bea313c388633ff035536c422d327a28a89f0adfc72957963fd",
+            "rows": 412
+          }
+        ],
+        "count": 98420,
+        "bytes": 7086240,
+        "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+        "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+      }
+    },
+    "partition": {
+      "browser_input_parents": 1334,
+      "browser_kept_parents": 1071,
+      "browser_dropped_parents": 263,
+      "browser_dropped_parent_ids_sha256": "c80de002f54ca6eac40111e516e77ccbc70bde75e60c43a401b5431f75287572",
+      "v9_input_parents": 23980,
+      "v9_kept_parents": 23675,
+      "v9_dropped_parents": 305,
+      "v9_dropped_parent_ids_sha256": "4db3d41ce8befbb737c1db0b04707538d9ece97f283a27169105fce5d50deab1",
+      "cross_domain_semantic_overlap": 0
+    },
+    "fit_tune": {
+      "algorithm": "game-semantic-connected-components-sha256-v1",
+      "split_seed": 42,
+      "tune_modulus": 5,
+      "browser": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 33,
+        "fit_components": 25,
+        "tune_components": 8,
+        "fit_parents": 875,
+        "tune_parents": 196,
+        "fit_games": 28,
+        "tune_games": 8,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "c6d88fb8170a9fff280acc848c8cf95bfe98c5e7c64f8f9e0e60d7b3ba455746"
+      },
+      "v9": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 1000,
+        "fit_components": 812,
+        "tune_components": 188,
+        "fit_parents": 19264,
+        "tune_parents": 4411,
+        "fit_games": 812,
+        "tune_games": 188,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32"
+      }
+    }
+  },
+  "architecture": {
+    "schema": "shogi-child-board-strength-candidate-v1",
+    "model_variant": "child-board-strength-candidate-v1",
+    "feature_version": "dense-43-plane-resnet-set-policy-child16x2-v3",
+    "parameters": 6168130,
+    "fp32_weight_bytes": 24672520,
+    "parent_input": "side-to-move-normalized 28 piece occupancy planes, 14 physically normalized hand-count planes, and one clipped exact-ply plane",
+    "child_input": "for each valid legal move, the authenticated child_sfen encoded with the identical side-to-move-normalized 28 piece occupancy planes, 14 physically normalized hand-count planes, and one clipped exact-ply plane; padded moves are never encoded",
+    "child_transition_contract": "child_sfen must remain byte/semantic consistent with child_sfen_after_usi(parent_sfen, move) and child_position_id before optimizer creation; it is a deterministic view of registered input rows, not a new data source or label",
+    "state_encoder": "64-channel stem, six residual blocks, flattened 384-dimensional global state",
+    "child_board_encoder": "one shared trainable Conv2d 43 to 16, 3x3, padding 1, no bias; GroupNorm 4 and GELU; two 16-channel residual blocks with two bias-free 3x3 convolutions and GroupNorm 4 per block; flatten 16x9x9; Linear 1296 to 128; LayerNorm 128",
+    "move_encoder": "the unchanged 721-dimensional v2 parent, source/destination, explicit move-category, and frozen exact live-CP features concatenated with the 128-dimensional child-board vector; Linear 849 to 256 and unchanged LayerNorm/GELU",
+    "legal_move_set": "four permutation-equivariant Transformer encoder layers, d_model 256, eight heads, FFN 1024, padding mask, no positional embedding",
+    "outputs": "unclipped unquantized learned policy residual added to the frozen exact live CP anchor, plus an offline parent value",
+    "initialization": "initialize every parameter independently from scratch under phase seed 42 or 314159; preserve the registered reset rules including zero initialization of final policy and state-value output layers; never load v1, v2, v3, or inter-seed weights",
+    "production_constraints": "none; this is a capacity diagnostic and cannot be loaded by the browser"
+  },
+  "architecture_binding": {
+    "source_feature_version": "dense-43-plane-resnet-set-policy-child16x2-v3",
+    "source_parameters": 6168130,
+    "source_fp32_weight_bytes": 24672520,
+    "tensor_shape_and_forward_semantics": "byte-exact with the registered v3 child16x2 architecture",
+    "only_identity_change": "new lane schema and model_variant distinguish newly initialized strength-candidate weights from closed v3 weights",
+    "production_role": "offline root-policy teacher only; not a production leaf evaluator"
+  },
+  "loss": {
+    "id": "gate-aligned-micro-pair-hard-negative-v2",
+    "parent_weighting": "Browser and V9 remain separate padded microbatches. Listwise, tie-aware hardest-negative margin, and move-value terms contribute one equal value per parent; the pair term is microaveraged over all eligible ordered pairs inside each domain microbatch.",
+    "listwise": "teacher relative CP clamped to [-2000,0], softmax temperature 100 CP, equal-parent mean, weight 1.0",
+    "pair": "all ordered teacher gaps at least 50 CP, logistic softplus, microaverage across all eligible ordered pairs in the current Browser or V9 domain microbatch, weight 1.0",
+    "tie_aware_hardest_negative_margin": "teacher-max ties form the complete best set and are excluded from negatives; compare max predicted CP within that best set against max predicted CP among all non-best legal moves, apply ReLU(50 CP - (best-set predicted max - non-best predicted max)) / 100 CP, equal-parent mean, weight 1.0; a parent with no non-best move contributes exact zero",
+    "move_value": "SmoothL1 of predicted and teacher move CP clamped to +/-3000 and scaled by 600, beta 0.25, equal-parent mean, weight 0.20",
+    "state_value": "same v1 parent-value target and scaling, weight 0.0; the state-value head remains architecturally present but this objective supplies it no direct loss"
+  },
+  "sentinel_bypass_authorization": {
+    "authorized": true,
+    "authority": "new-scratch-strength-candidate-lane-not-v3-continuation",
+    "reason": "v3 demonstrated that the in-sample all-pairs 0.98 check can reject checkpoints with 95.31/97.17 percent top1 and 4.25/2.00 CP regret; this lane does not reinterpret that v3 verdict and instead prospectively moves admission authority to unseen data and direct play",
+    "sentinel_execution": "forbidden",
+    "sentinel_result_reuse": "forbidden",
+    "v3_checkpoint_or_optimizer_reuse": "forbidden",
+    "scratch_seeds": [
+      42,
+      314159
+    ],
+    "both_checkpoints_must_freeze_before_tune": true
+  },
+  "phase1_training": {
+    "status_boundary": "ends after both final checkpoint hashes and receipts are fixed; tune and sealed scoring remain locked",
+    "success_status": "complete-phase1-two-scratch-checkpoints-frozen-tune-locked",
+    "incomplete_status": "stopped-phase1-incomplete-no-tune-authority",
+    "runner_invocation": "one logical invocation and one MPS process executes seed 42 through its frozen final checkpoint, then unconditionally executes seed 314159 through its frozen final checkpoint, then emits one terminal phase-1 result binding both hashes; a process restart is allowed only by the exact technical-crash recovery contract below",
+    "output_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1",
+    "output_directory_policy": {
+      "exact_resolved_path_required": true,
+      "create_only_before_first_optimizer_or_protected_read": true,
+      "preexisting_file_or_symlink": "STOP",
+      "preexisting_directory": "STOP unless it contains the unique incomplete run and exact latest atomic epoch checkpoint accepted by technical_crash_recovery",
+      "resume_existing_output": "exact technical-crash recovery only",
+      "alternate_output_path": false,
+      "second_attempt": false
+    },
+    "technical_crash_recovery": {
+      "allowed": true,
+      "purpose": "continue the same preregistered fit-only run after a ChatGPT, host, runner, or MPS process crash without opening tune or creating a statistically selectable retry",
+      "checkpoint_cadence": "atomically replace the unique last-completed-epoch checkpoint after every completed V9 pretrain or mixed-fit epoch",
+      "atomic_checkpoint_requires": [
+        "complete model state",
+        "complete optimizer state",
+        "CPU RNG state",
+        "MPS RNG state",
+        "seed",
+        "training phase",
+        "last completed epoch",
+        "protocol bytes and SHA-256",
+        "fit-only data receipt"
+      ],
+      "resume_source": "the unique latest valid atomic checkpoint under the fixed output_path only",
+      "validation_before_resume": "exactly match the fixed resolved output path, protocol bytes and SHA-256, fit-only data receipt, model and optimizer schemas, seed, phase, last completed epoch, and all stored RNG states before optimizer creation or any protected-data read",
+      "continuation_point": "the epoch immediately after the recorded last completed epoch",
+      "tune_or_sealed_must_remain_unopened": true,
+      "statistical_selection": false,
+      "forbidden": [
+        "a second output directory or alternate path",
+        "starting the same seed again from scratch",
+        "choosing among two or more checkpoints or attempts",
+        "resuming from an older epoch than the unique latest valid checkpoint",
+        "rolling back or replaying a completed epoch",
+        "continuing from a partially written or unverifiable checkpoint",
+        "retrying after the terminal complete phase-1 result exists",
+        "opening tune, sealed, sentinel, or candidate scores before recovery"
+      ],
+      "validation_failure": "STOP with stopped-phase1-incomplete-no-tune-authority"
+    },
+    "device": "MPS",
+    "concurrent_gpu_training": false,
+    "execution_order": [
+      42,
+      314159
+    ],
+    "seeds": [
+      42,
+      314159
+    ],
+    "initialization": "independent full scratch initialization for every parameter; no v1/v2/v3 or inter-seed weight, optimizer, scheduler, RNG, gradient, or checkpoint reuse",
+    "v9_pretrain_epochs": 4,
+    "mixed_epochs": 12,
+    "browser_batch": 32,
+    "v9_batch": 256,
+    "mixed_parent_ratio": "every Browser fit parent exactly once and exactly three rotating V9 fit parents per Browser parent per epoch",
+    "move_padding_buckets": [
+      16,
+      32,
+      64,
+      96,
+      128,
+      192,
+      272
+    ],
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "temperature_cp": 100,
+    "pair_gap_cp": 50,
+    "best_margin_cp": 50,
+    "gradient_clip": 5,
+    "optimizer": "AdamW",
+    "checkpoint_selection": "mixed epoch 12 final checkpoint only",
+    "checkpoint_resume": "only the exact latest-epoch technical-crash recovery defined above; no candidate retry or checkpoint selection",
+    "best_checkpoint_selection": false,
+    "early_stopping": false,
+    "tune_monitoring": false,
+    "seed42_gate_before_seed314159": false,
+    "sequential_single_mps_process": true,
+    "checkpoint_receipt_requires": [
+      "seed",
+      "model variant",
+      "architecture parameter count",
+      "objective ID",
+      "protocol SHA-256",
+      "fit-only data receipt",
+      "completed pretrain epoch 4",
+      "completed mixed epoch 12",
+      "checkpoint bytes and SHA-256"
+    ],
+    "phase1_result_must_record": {
+      "sentinel_executed": false,
+      "sentinel_bypass_authorization_verified": true,
+      "v3_weights_reused": false,
+      "tune_opened": false,
+      "sealed_opened": false,
+      "live_weights_changed": false
+    }
+  },
+  "tune_lock": {
+    "protected_sets": [
+      "Browser tune 196",
+      "V9 tune 4411"
+    ],
+    "before_open_requirements": [
+      "both phase-1 final checkpoint hashes are fixed",
+      "phase-1 result records zero tune or sealed access",
+      "a separate student/runtime protocol core is merged to public main and its exact Git/path/bytes/SHA identity is fixed",
+      "the student/runtime core binds both teacher checkpoint hashes, a fit-only distillation or quantization recipe, fixed-final student selection, runtime parity, latency, direct-play role, and fail-closed gates",
+      "the fit-only student recipe has completed and the exact final student artifact hash is fixed without tune or sealed access"
+    ],
+    "student_runtime_protocol_core": {
+      "required_path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+      "required_schema": "shogi-child-board-root-policy-student-runtime-plan-v1",
+      "merge_timing": "after both teacher checkpoint hashes freeze and before any tune candidate score is computed or displayed",
+      "tune_or_sealed_data_for_student_training": false,
+      "production_role": "root move ordering only; live NNUE remains the leaf evaluator"
+    },
+    "scoring_policy": "open both tune domains exactly once for both frozen teacher checkpoints and the frozen production student under one bound evaluator invocation",
+    "forbidden_after_open": [
+      "training or resuming either teacher",
+      "changing the student/runtime core",
+      "adding or replacing a seed",
+      "selecting a checkpoint or seed by tune score",
+      "changing any tune or sealed threshold",
+      "rerunning tune for adoption authority"
+    ]
+  },
+  "tune_gates": {
+    "existing_capacity_tune_exact": {
+      "browser_tune": {
+        "minimum_top1_correct": 26,
+        "minimum_pair_accuracy": 0.673703888923293,
+        "mean_regret": "must not exceed the registered exact live baseline"
+      },
+      "v9_tune": {
+        "minimum_top1_accuracy": 0.23938902743142144,
+        "minimum_pair_accuracy": 0.5964640986597398
+      },
+      "all_checks_required": true
+    },
+    "v9_exact_live_non_regression_overlay": {
+      "parents": 4411,
+      "minimum_top1_correct": 1078,
+      "minimum_top1_accuracy": 0.24438902743142144,
+      "minimum_pair_accuracy": 0.5984640986597398,
+      "maximum_mean_regret_cp": 4863.386080253911,
+      "all_checks_required": true
+    },
+    "browser_effective_gate": {
+      "parents": 196,
+      "minimum_top1_correct": 26,
+      "minimum_pair_accuracy": 0.673703888923293,
+      "maximum_mean_regret_cp": 15924.158163265307
+    },
+    "seed_policy": "seed 42, seed 314159, and the frozen production student must independently pass every existing capacity-tune check and every V9 overlay check",
+    "seed_selection": "none; seed 42 is preregistered as the later distillation teacher and seed 314159 is replication evidence only",
+    "any_miss": "close the lane before sealed labels, student artifact admission, direct A/B, external calibration, or live change"
+  },
+  "sealed_gate": {
+    "source": {
+      "source_raw": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl",
+        "bytes": 3073360,
+        "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7",
+        "parents": 4800,
+        "games": 200
+      },
+      "clean_derivative": {
+        "policy": "drop an entire source game if any parent or rules-complete legal child semantic ID intersects the preregistered known-eval union; preserve surviving raw lines byte-for-byte",
+        "status": "label-blind-computed-not-yet-published-or-labeled",
+        "bytes": 2165346,
+        "sha256": "d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626",
+        "parents": 3384,
+        "games": 141,
+        "game_ids_sha256": "1c02e592751f3bebca9090128318382a667fd0d2703f367b16b03f5db694e269",
+        "parent_ids_sha256": "027cf1f4973d9ad52ed449989d6d476227920075d55fe8b381f8149c26bbf9e1",
+        "position_ids_sha256": "aff5c3c1c944e8657fcefb1305797a8f8e4f1de8f3508570fa0534d70396fa79",
+        "protected_position_ids": {
+          "count": 284117,
+          "bytes": 20456424,
+          "sha256": "4ea185dffa0922ed80a5b28052dedb95afbd46cebd67894ac492c8c154fed21f",
+          "identifiers_sha256": "20382142589260783d48e66fc7e0fa4fe42289caa2d27032f4ac70530a889d4c"
+        },
+        "known_eval_semantic_overlap": 0
+      },
+      "teacher_after_candidate_freeze": {
+        "selection": "sort each clean parent by sha256('capacity-sealed-v1:' + parent_id), take at most four per game, then take the lowest 512 globally",
+        "labels": "enumerate every rules-complete legal move and independently rescore each child with the pinned YaneuraOu depth-12 teacher used by the Browser dataset",
+        "parallelism": "independent parent shards may run in parallel after both capacity seeds pass",
+        "forbidden_before_freeze": true
+      }
+    },
+    "gate": {
+      "open_only_after_both_checkpoint_hashes_are_fixed": true,
+      "parents": 512,
+      "minimum_top1_correct_gain": 26,
+      "minimum_pair_accuracy_gain": 0.01,
+      "minimum_ndcg_at_5_gain": 0.01,
+      "mcnemar_one_sided_maximum_p": 0.05,
+      "both_seeds_must_pass_every_check": true
+    },
+    "open_requirements": [
+      "both frozen teachers and the frozen production student pass every tune and overlay check",
+      "both teacher checkpoint hashes and the student artifact hash remain unchanged",
+      "the student/runtime protocol core identity remains the exact pre-tune merged identity"
+    ],
+    "scoring_policy": "generate the registered 512-parent all-legal teacher labels once and evaluate both frozen teacher checkpoints and the already frozen production student without retraining",
+    "seed_policy": "both teacher seeds and the production student must pass every existing sealed check independently",
+    "auxiliary_metrics": "may be reported but cannot override, weaken, or rescue the registered gate",
+    "any_miss": "close before student promotion, runtime integration, direct A/B, external calibration, or live change"
+  },
+  "student_runtime_boundary": {
+    "large_teacher_role": "offline root-policy teacher only",
+    "designated_teacher_seed": 42,
+    "replication_seed": 314159,
+    "production_student_role": "a separately preregistered parent-plus-move-plus-child root-ordering module; never a leaf evaluator",
+    "leaf_evaluator": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "remains_frozen_through_teacher_and_student_static_gates": true
+    },
+    "student_training_data": "fit-only teacher outputs; tune and sealed labels are forbidden",
+    "student_checkpoint_selection": "fixed final checkpoint declared in the separate pre-tune protocol core and frozen before the one-shot tune opening",
+    "admission": "the student must satisfy its preregistered parity, latency, tune, sealed, and no-leaf-value-contamination checks before direct A/B enrollment",
+    "no_automatic_authority": "teacher tune or sealed passage alone does not authorize student training results, direct play, production enrollment, or live change"
+  },
+  "formal_direct_ab": {
+    "contract": {
+      "registry": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+        "bytes": 3480,
+        "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9"
+      },
+      "amendment": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+        "bytes": 4459,
+        "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c"
+      }
+    },
+    "candidate": "the admitted root-ordering student, with the exact live NNUE still used for leaf evaluation",
+    "stable": "the current production engine and root ordering",
+    "pairs": 384,
+    "games": 768,
+    "games_per_pair": 2,
+    "colors_per_pair": [
+      "candidate-sente",
+      "candidate-gote"
+    ],
+    "search": {
+      "clock": false,
+      "fixed_depth": 11,
+      "quiescence_depth": 10,
+      "k": 600,
+      "clear_tt_before_every_move": true,
+      "opening_book": false,
+      "fallback": false,
+      "maximum_plies": 512
+    },
+    "bootstrap": {
+      "seed": 20260710,
+      "replicates": 100000,
+      "resampling_unit": "two-game-color-swapped-opening-pair"
+    },
+    "analyzable_only_if": "exactly 384 complete pairs and 768 games with zero technical faults",
+    "safety_gate": "one-sided 95 percent lower bound strictly above 0.45",
+    "stronger_claim_gate": "two-sided 95 percent lower bound strictly above 0.50",
+    "external_calibration_authority": "requires the stronger-claim gate; the safety gate alone is insufficient",
+    "partial_or_faulted_result": "cannot authorize a strength claim, external calibration, production change, or retry selected after result unblinding"
+  },
+  "external_calibration": {
+    "policy": {
+      "path": "ml/protocols/floodgate-q1-2026-external-81dojo-calibration-policy.json",
+      "bytes": 4472,
+      "sha256": "d88fc1dc40742c701af14197764c6e6760d64bb7f5d6015d1b0f82c8a92b5731"
+    },
+    "readiness_evidence": {
+      "path": "docs/data/shogi-external-81dojo-calibration-readiness-2026-07-20.json",
+      "bytes": 12146,
+      "sha256": "459e7b5741c61cd63737c3b86bdd5ddbff47e0396b71eb39717a2fa4bb0deb92"
+    },
+    "open_requirement": "formal direct A/B stronger-claim gate passes and the exact student/runtime candidate is committed to public main before game 1",
+    "platform": "81Dojo",
+    "account_prefix": "COM_",
+    "official_client_only": true,
+    "relay": "manual-official-client-only",
+    "rated": true,
+    "initial_position": "hirate",
+    "time_control": {
+      "main_minutes": 10,
+      "byoyomi_seconds": 30
+    },
+    "pairing": "official-auto-match-without-selected-opponents",
+    "games": 200,
+    "primary_decision": "post-game rating must be at least 2050 after every game 171 through 200",
+    "missing_selected_faulted_or_trace_mismatch": "STOP",
+    "claim_boundary": "this exact candidate maintained the preregistered 81Dojo five-dan threshold under this account, hardware, client, time control, and pairing protocol only"
+  },
+  "staged_authority": [
+    {
+      "phase": 1,
+      "pass": "both scratch final checkpoint hashes freeze with no tune or sealed access",
+      "authorizes_only": "merge of the separate student/runtime protocol core"
+    },
+    {
+      "phase": 2,
+      "pass": "student/runtime core is publicly merged, its fit-only student artifact is frozen, and both teachers plus the student pass the one-shot tune plus overlay gates",
+      "authorizes_only": "registered sealed-512 teacher generation and evaluation"
+    },
+    {
+      "phase": 3,
+      "pass": "both teachers and the already frozen student pass every sealed-512 check",
+      "authorizes_only": "execution of the already fixed student runtime parity and latency gates"
+    },
+    {
+      "phase": 4,
+      "pass": "student parity, latency, one-shot tune, sealed, and no-leaf-contamination gates pass",
+      "authorizes_only": "formal 384-pair/768-game direct A/B enrollment"
+    },
+    {
+      "phase": 5,
+      "pass": "formal A/B two-sided 95 percent lower bound is strictly above 0.50 with zero faults",
+      "authorizes_only": "candidate-bound 81Dojo external calibration"
+    },
+    {
+      "phase": 6,
+      "pass": "all 200 external games complete and every post-game rating for games 171 through 200 is at least 2050",
+      "authorizes_only": "the bounded external-calibration claim; live activation still requires a separate rollback and staged-live protocol"
+    }
+  ],
+  "failure_conditions": [
+    "STOP before optimizer creation on any protocol, input, data receipt, architecture, parameter-count, objective, split, source-role, or protected-union drift.",
+    "STOP if either seed is not a fresh independent initialization or if any v1/v2/v3 state is loaded.",
+    "STOP phase 1 if either fixed training schedule does not complete exactly through mixed epoch 12; do not open tune.",
+    "STOP before tune unless both checkpoint hashes and the separately merged student/runtime core are fixed.",
+    "STOP on any tune or V9 overlay miss; do not generate sealed labels.",
+    "STOP on any sealed miss; do not promote the already frozen student or run direct A/B.",
+    "STOP on any student parity, latency, static, contamination, or runtime fault; do not run direct A/B.",
+    "STOP on any incomplete or faulted formal run without a strength conclusion; do not begin external calibration.",
+    "STOP if the formal stronger-claim gate misses; the safety gate cannot authorize external calibration.",
+    "STOP external calibration on any missing, selected-opponent, faulted, discontinuous, or trace-mismatched game.",
+    "No phase authorizes a live write. Live weights and production leaf evaluation remain unchanged unless a later separately preregistered rollout and rollback protocol passes."
+  ],
+  "current_state": {
+    "phase1_training_started": false,
+    "phase1_checkpoints_frozen": 0,
+    "tune_opened": false,
+    "student_runtime_protocol_core_merged": false,
+    "sealed_labels_generated": false,
+    "student_artifact_admitted": false,
+    "formal_pairs_played": 0,
+    "formal_games_played": 0,
+    "external_games_played": 0,
+    "live_weights_changed": false
+  }
+}

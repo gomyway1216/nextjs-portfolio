@@ -527,6 +527,141 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             ):
                 runner.run("prepare")
             load.assert_not_called()
+
+    def test_downstream_checkpoint_and_missing_shard_stop_before_teacher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            protocol = {"teacher_checkpoint_bindings": {}}
+            protocol_identity = {
+                "path": "protocol.json",
+                "bytes": 1,
+                "sha256": "a" * 64,
+            }
+            finals = {42: {"checkpoint": {"sha256": "b" * 64}}}
+            teacher_identity = {
+                "path": "teacher.pt",
+                "bytes": 2,
+                "sha256": "b" * 64,
+            }
+            move_universe_receipt = {
+                "schema": runner.MOVE_UNIVERSE_RECEIPT_SCHEMA,
+                "artifact": {
+                    "path": "move-universe.jsonl",
+                    "bytes": 3,
+                    "sha256": "e" * 64,
+                },
+            }
+            store = runner.DistillationShardStore(
+                root,
+                protocol_identity=protocol_identity,
+                teacher_identity=teacher_identity,
+                fit_sources={},
+                feature_sources=[],
+                move_universe_receipt=move_universe_receipt,
+            )
+            keys_by_shard = {
+                shard: [] for shard in range(runner.SHARDS)
+            }
+            for shard, keys in keys_by_shard.items():
+                store.publish(shard, keys, [])
+            distillation_path = (
+                root / runner.DISTILLATION_PATH.name
+            )
+            distillation_receipt_path = (
+                root / runner.DISTILLATION_RECEIPT_PATH.name
+            )
+            store.finalize(
+                keys_by_shard,
+                output_path=distillation_path,
+                receipt_path=distillation_receipt_path,
+            )
+            missing_shard = 17
+            missing_path, _receipt_path, _address = store.paths(
+                missing_shard,
+                [],
+            )
+            missing_path.unlink()
+            parity_path = root / runner.PARITY_PATH.name
+            parity_receipt_path = (
+                root / runner.PARITY_RECEIPT_PATH.name
+            )
+            parity_path.write_bytes(b"{}\n")
+            parity_receipt_path.write_bytes(b"{}\n")
+            (root / runner.LAST_CHECKPOINT_PATH.name).touch()
+
+            with mock.patch.object(
+                runner,
+                "OUTPUT",
+                root,
+            ), mock.patch.object(
+                runner,
+                "DISTILLATION_PATH",
+                distillation_path,
+            ), mock.patch.object(
+                runner,
+                "DISTILLATION_RECEIPT_PATH",
+                distillation_receipt_path,
+            ), mock.patch.object(
+                runner,
+                "PARITY_PATH",
+                parity_path,
+            ), mock.patch.object(
+                runner,
+                "PARITY_RECEIPT_PATH",
+                parity_receipt_path,
+            ), mock.patch.object(
+                runner,
+                "_verified_protocol",
+                return_value=(protocol, protocol_identity),
+            ), mock.patch.object(
+                runner,
+                "_verified_phase1",
+                return_value=({}, finals),
+            ), mock.patch.object(
+                runner,
+                "_validate_pinned_sources",
+            ), mock.patch.object(
+                runner,
+                "_identities",
+                return_value=(
+                    {"seed42": "b" * 64, "seed314159": "c" * 64},
+                    [],
+                    {
+                        "fit_sources": {},
+                        "teacher_identity": teacher_identity,
+                    },
+                ),
+            ), mock.patch.object(
+                runner,
+                "_load_fit_groups_from_phase1",
+                return_value={"browser": [], "v9": []},
+            ), mock.patch.object(
+                runner,
+                "_project_fit_groups",
+                return_value={"browser": [], "v9": []},
+            ), mock.patch.object(
+                runner,
+                "validate_existing_production_move_universe",
+                return_value=move_universe_receipt,
+            ), mock.patch.object(
+                runner,
+                "verify_production_move_universe",
+            ) as verify, mock.patch.object(
+                runner.torch.backends.mps,
+                "is_available",
+            ) as mps_available, mock.patch.object(
+                runner,
+                "load_teacher",
+            ) as load:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    f"incomplete immutable distillation shard {missing_shard}",
+                ):
+                    runner.run("prepare")
+                verify.assert_not_called()
+                mps_available.assert_not_called()
+                load.assert_not_called()
+
     def test_shard_receipt_requires_full_expected_value(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

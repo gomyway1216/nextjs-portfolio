@@ -1426,6 +1426,86 @@ def generate_distillation(
     )
 
 
+def _distillation_parent_keys_by_shard(
+    projected_fit: Mapping[str, Sequence[student.ProjectedParent]],
+) -> dict[int, list[tuple[str, str]]]:
+    keys: dict[int, list[tuple[str, str]]] = {
+        shard: [] for shard in range(SHARDS)
+    }
+    for domain in ("browser", "v9"):
+        for projected in projected_fit[domain]:
+            parent_id = projected.group.parent_id
+            keys[shard_for_parent(domain, parent_id)].append(
+                (domain, parent_id)
+            )
+    for shard in range(SHARDS):
+        keys[shard].sort(
+            key=lambda row: (
+                DOMAIN_ORDINAL[row[0]],
+                row[1].encode("ascii"),
+            )
+        )
+    return keys
+
+
+def _downstream_artifacts_exist(output: Path) -> bool:
+    return any(
+        path.exists() or path.is_symlink()
+        for path in (
+            output / LAST_CHECKPOINT_PATH.name,
+            output / FINAL_CHECKPOINT_PATH.name,
+            output / TENSOR_PATH.name,
+            output / MANIFEST_PATH.name,
+            output / RESULT_PATH.name,
+        )
+    )
+
+
+def _require_existing_regular_file(path: Path, label: str) -> None:
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"existing downstream state requires {label}")
+
+
+def _validate_existing_preparation(
+    projected_fit: Mapping[str, Sequence[student.ProjectedParent]],
+    store: DistillationShardStore,
+    *,
+    distillation_path: Path,
+    distillation_receipt_path: Path,
+    parity_path: Path,
+    parity_receipt_path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    _require_existing_regular_file(
+        distillation_path,
+        "complete final distillation artifact",
+    )
+    _require_existing_regular_file(
+        distillation_receipt_path,
+        "complete final distillation receipt",
+    )
+    _require_existing_regular_file(parity_path, "complete parity artifact")
+    _require_existing_regular_file(
+        parity_receipt_path,
+        "complete parity receipt",
+    )
+    distillation_receipt = store.validate_final(
+        output_path=distillation_path,
+        receipt_path=distillation_receipt_path,
+        expected_parent_keys_by_shard=_distillation_parent_keys_by_shard(
+            projected_fit
+        ),
+    )
+    # The publisher is also the full immutable parity validator: both files
+    # already exist, so it can only accept their exact recomputed bytes.
+    parity_receipt = publish_parity_fixture(
+        distillation_path,
+        distillation_receipt,
+        output_path=parity_path,
+        receipt_path=parity_receipt_path,
+    )
+    return distillation_receipt, parity_receipt
+
+
 def _read_distillation_records(path: Path) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
     previous: tuple[int, bytes] | None = None
@@ -2152,43 +2232,74 @@ def run(mode: str) -> dict[str, object]:
     distillation_receipt: dict[str, object]
     parity_receipt: dict[str, object]
     if mode in ("prepare", "all"):
-        if not torch.backends.mps.is_available():
-            raise ValueError("student preparation requires available MPS")
         fit = _load_fit_groups_from_phase1(phase1)
         projected_fit = _project_fit_groups(fit)
-        move_universe_receipt = verify_production_move_universe(
-            projected_fit,
-            protocol=protocol,
-            protocol_identity=protocol_identity,
-            output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
-            receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
-        )
-        store = DistillationShardStore(
-            OUTPUT,
-            protocol_identity=protocol_identity,
-            teacher_identity=identities["teacher_identity"],
-            fit_sources=identities["fit_sources"],
-            feature_sources=feature_sources,
-            move_universe_receipt=move_universe_receipt,
-        )
-        # Teacher checkpoint bytes cannot be opened until every fit parent has
-        # matched the independent production JS and actual pinned-WASM sets.
-        teacher_model = load_teacher(finals[42], device="mps")
-        distillation_receipt = generate_distillation(
-            projected_fit,
-            teacher_model,
-            store,
-            device="mps",
-            output_path=DISTILLATION_PATH,
-            receipt_path=DISTILLATION_RECEIPT_PATH,
-        )
-        del teacher_model
-        parity_receipt = publish_parity_fixture(
-            DISTILLATION_PATH,
-            distillation_receipt,
-            output_path=PARITY_PATH,
-            receipt_path=PARITY_RECEIPT_PATH,
-        )
+        if _downstream_artifacts_exist(OUTPUT):
+            move_universe_receipt = (
+                validate_existing_production_move_universe(
+                    protocol=protocol,
+                    protocol_identity=protocol_identity,
+                    output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
+                    receipt_path=(
+                        OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name
+                    ),
+                )
+            )
+            store = DistillationShardStore(
+                OUTPUT,
+                protocol_identity=protocol_identity,
+                teacher_identity=identities["teacher_identity"],
+                fit_sources=identities["fit_sources"],
+                feature_sources=feature_sources,
+                move_universe_receipt=move_universe_receipt,
+            )
+            (
+                distillation_receipt,
+                parity_receipt,
+            ) = _validate_existing_preparation(
+                projected_fit,
+                store,
+                distillation_path=DISTILLATION_PATH,
+                distillation_receipt_path=DISTILLATION_RECEIPT_PATH,
+                parity_path=PARITY_PATH,
+                parity_receipt_path=PARITY_RECEIPT_PATH,
+            )
+        else:
+            if not torch.backends.mps.is_available():
+                raise ValueError("student preparation requires available MPS")
+            move_universe_receipt = verify_production_move_universe(
+                projected_fit,
+                protocol=protocol,
+                protocol_identity=protocol_identity,
+                output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
+                receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
+            )
+            store = DistillationShardStore(
+                OUTPUT,
+                protocol_identity=protocol_identity,
+                teacher_identity=identities["teacher_identity"],
+                fit_sources=identities["fit_sources"],
+                feature_sources=feature_sources,
+                move_universe_receipt=move_universe_receipt,
+            )
+            # Teacher checkpoint bytes cannot be opened until every fit parent
+            # has matched the production JS and actual pinned-WASM sets.
+            teacher_model = load_teacher(finals[42], device="mps")
+            distillation_receipt = generate_distillation(
+                projected_fit,
+                teacher_model,
+                store,
+                device="mps",
+                output_path=DISTILLATION_PATH,
+                receipt_path=DISTILLATION_RECEIPT_PATH,
+            )
+            del teacher_model
+            parity_receipt = publish_parity_fixture(
+                DISTILLATION_PATH,
+                distillation_receipt,
+                output_path=PARITY_PATH,
+                receipt_path=PARITY_RECEIPT_PATH,
+            )
         if mode == "prepare":
             return {
                 "production_move_universe": move_universe_receipt,

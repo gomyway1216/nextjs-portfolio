@@ -1,76 +1,123 @@
-# Shogi evaluator next step: test whether a large model can learn the task
+# Large-capacity shogi evaluator diagnostic: rejected after 40 epochs
 
-> The live AI is not stronger yet. The all-legal warm-start and 70 KB residual were rejected by their static gates, and the live weights remain unchanged. The next experiment replaces repeated small-model tuning with a 5.95-million-parameter offline capacity diagnostic. [日本語](./blog-shogi-capacity-policy-value-plan.md)
+> The 5.95-million-parameter model did not meet any of the four fixed sentinel thresholds. Full candidate training, the second seed, and sealed teacher generation did not start, and the live weights remain unchanged. The post-failure audit points to a mismatch between the training objective and the admission metrics as the next narrow change, rather than a simple data collision. [日本語](./blog-shogi-capacity-policy-value-plan.md)
 
 ## Bottom line
 
-The new model and prospective protocol answer one question before more expensive work: can a materially larger representation learn the authenticated legal-move teacher ordering?
+Capacity-policy-value v1 ended with `complete-sentinel-rejected`. This does not mean the AI became stronger, nor does it prove that a large model cannot become stronger. It means the model failed an earlier diagnostic: reproducing the teacher ordering well enough on 1,280 fixed training parents.
 
-- If it cannot even fit a fixed sentinel, stop and inspect the representation, loss, or labels.
-- If it improves a leak-free internal tune set, repeat the exact recipe with a second seed.
-- Only if both seeds pass may a new sealed holdout be labeled once.
-- Distillation, WASM work, paired play, and live promotion remain downstream and unauthorized.
+| Gate | Observed | Required | Gap | Result |
+|---|---:|---:|---:|---|
+| Browser top-1 | 179/256 (69.92%) | 85% | -15.08 points | FAIL |
+| Browser pair | 73.85% | 98% | -24.15 points | FAIL |
+| V9 top-1 | 811/1,024 (79.20%) | 85% | -5.80 points | FAIL |
+| V9 pair | 87.00% | 98% | -11.00 points | FAIL |
 
-The production `public/shogi-nnue-weights.bin` remains 1,185,988 bytes with SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`.
+All four checks missed, not just one. Under the prospective stop rule, the sentinel weights were discarded. The 19,264-parent V9 pretraining, mixed training including 875 Browser parents, seed 314159, and new sealed all-legal teacher generation did not begin.
 
-## Why this is different
+Production `public/shogi-nnue-weights.bin` remains 1,185,988 bytes with SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`. WASM is also unchanged.
 
-The rejected explicit residual had only 35,307 parameters. The new model has 5,953,522 parameters, 168.6 times as many. Its fp32 weights occupy 22.71 MiB, and weights, gradients, and AdamW moments total about 90.84 MiB, well within the 48 GB M4 Pro.
+## What ran
 
-It consumes 43 side-to-move-normalized 9×9 planes, applies a 64-channel six-block residual state encoder, and produces a 384-dimensional global state. Explicit source, destination, move, king-relation, and exact live-score features are projected to 256 dimensions. Four permutation-equivariant Set Transformer layers compare the complete legal-move set before producing an unbounded policy residual and a separate parent value.
+V1 used a 5,953,522-parameter offline model, materially larger than both the live NNUE and the previous 35,307-parameter residual.
 
-The model is deliberately not browser-sized and has no quantized export. Capacity comes first; compression is allowed only after the teacher task is shown to be learnable.
+| Part | Design |
+|---|---|
+| State input | 43 side-to-move-normalized 9×9 planes |
+| State encoder | 64-channel stem, six residual blocks, 384-dimensional global state |
+| Legal-move set | 256 dimensions, four Set Transformer layers, eight heads, FFN 1024 |
+| Outputs | Policy residual over exact live CP plus a separate parent value |
+| Sentinel | 256 Browser parents plus 1,024 V9 parents, 40 epochs |
+| Fixed gate | At least 85% top-1 and 98% pair accuracy in both domains |
 
-## Data audit
+The external `result.json` is 25,048 bytes with SHA-256 `d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2`. It verified the 17,358-byte protocol with SHA-256 `30b4aab6689679a98a6f86fa835610a5f0fcfd3157d8fc44d4029152d1f7eaf3`.
 
-Known evaluations, fresh selection semantics, and fresh final semantics are excluded before fitting.
+`model_training_started: false` in that result means full candidate training, separate from the sentinel, never began. The sentinel itself completed 40 epochs and records `weights_discarded: true`.
 
-| Distribution | Input | Retained | Dropped | Fit | Tune |
-|---|---:|---:|---:|---:|---:|
-| Browser all-legal | 1,334 parents | 1,071 | 263 | 875 | 196 |
-| V9 | 23,980 parents | 23,675 | 305 | 19,264 | 4,411 |
+## Measured 40-epoch curve
 
-The split operates on whole game-plus-semantic connected components. Game overlap, parent/child semantic overlap, and cross-domain semantic overlap are all zero.
+Loss fell from 6.4844 to 2.2629, but the admission decision was fixed to the four metrics above rather than loss. Recorded epoch time totals 246.33 seconds (4:06.33). Epoch 1, including initial MPS graph compilation, took 41.09 seconds. Epochs 2–40 totaled 205.24 seconds with a 5.12-second median. This is the sum of recorded epoch intervals, not total wall time including input loading and preflight audits.
 
-The original label-free fresh-final role also needed correction. Although its labels had never been generated, 59 of 200 games touched semantic positions exposed by later evaluations. Dropping each contaminated game whole, without looking at a teacher label, leaves 141 games and 3,384 parents:
+| epoch | loss | seconds | epoch | loss | seconds |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 6.484438 | 41.089 | 21 | 2.537276 | 5.152 |
+| 2 | 5.967680 | 6.976 | 22 | 2.480719 | 5.013 |
+| 3 | 5.266509 | 5.383 | 23 | 2.512001 | 5.131 |
+| 4 | 4.607557 | 5.590 | 24 | 2.435230 | 5.098 |
+| 5 | 4.000121 | 7.062 | 25 | 2.421870 | 4.980 |
+| 6 | 3.639033 | 6.106 | 26 | 2.413802 | 5.003 |
+| 7 | 3.525774 | 6.163 | 27 | 2.468018 | 4.993 |
+| 8 | 3.224988 | 5.363 | 28 | 2.452481 | 5.057 |
+| 9 | 3.081868 | 5.126 | 29 | 2.412609 | 4.900 |
+| 10 | 2.984415 | 5.134 | 30 | 2.375254 | 4.963 |
+| 11 | 2.881760 | 5.168 | 31 | 2.366159 | 4.916 |
+| 12 | 2.828364 | 5.463 | 32 | 2.404753 | 4.922 |
+| 13 | 2.745177 | 5.230 | 33 | 2.346734 | 4.975 |
+| 14 | 2.710387 | 5.104 | 34 | 2.339329 | 5.184 |
+| 15 | 2.677353 | 5.161 | 35 | 2.331683 | 5.196 |
+| 16 | 2.663600 | 5.086 | 36 | 2.407578 | 4.940 |
+| 17 | 2.660618 | 5.026 | 37 | 2.352084 | 5.149 |
+| 18 | 2.609000 | 5.090 | 38 | 2.321472 | 5.079 |
+| 19 | 2.590427 | 5.071 | 39 | 2.293029 | 4.952 |
+| 20 | 2.538418 | 5.121 | 40 | 2.262851 | 5.217 |
 
-| Clean derivative | Value |
+For context, final mean regret was 3,955.30 cp on Browser and 17.34 cp on V9. Regret was not a sentinel admission check and therefore cannot override the four failures.
+
+## Audit: was the data itself impossible?
+
+The unchanged sentinel was audited after rejection.
+
+| Audit | Browser | V9 |
+|---|---:|---:|
+| Duplicate position IDs | 0 | 0 |
+| Collisions in normalized 43-plane state input | 0 | 0 |
+| Contradictory teacher labels for identical model input | 0 | 0 |
+| Teacher-score oracle top-1 | 100% | 100% |
+| Teacher-score oracle pair | 100% | 100% |
+| Parents with tied teacher-best moves | 3/256 | 13/1,024 |
+
+Cross-domain semantic overlap was also zero. Tied teacher-best moves do exist, but the scorer treats every tied best move as correct. Pairs separated by less than 50 cp are excluded, so directly supplying teacher scores reaches 100% on both metrics. The miss therefore cannot be explained solely by duplicate IDs, contradictory labels on identical inputs, or an evaluator that is mathematically unable to reach 100%.
+
+This oracle does not prove that the teacher plays perfect shogi. It only verifies internal consistency between the supplied labels and the scorer.
+
+## Why could loss fall while the gate still failed?
+
+The v1 objective did not exactly match its admission metrics.
+
+1. **Macro/micro mismatch for pairs.**
+   Training averaged eligible pairs within each parent and then weighted parents equally. Admission pooled every eligible pair across the domain. The final score included 1,042,139 Browser pairs and 49,889 V9 pairs. Parents with many legal moves have much more weight in the admission metric than they had in the objective.
+
+2. **A small tied-best inconsistency.**
+   The scorer accepts every teacher-tied best move, but v1 best-margin loss selected one tied move with `argmax` and required margin over every remaining move. Only 3 Browser and 13 V9 parents had this tie, but the contradiction is unnecessary.
+
+3. **Regression terms not directly used for admission.**
+   V1 optimized move-value and state-value regression together with policy, pair, and best-margin losses. Lower total loss did not guarantee enough improvement in top-1 and micro pair accuracy.
+
+This does not prove that the objective is the only cause. Representation, optimization, and teacher distribution remain possible limitations. It does rule out simple input collisions and an unreachable oracle, and it supports changing only the objective next. There is no evidence for rerunning v1 with more epochs or seeds.
+
+## Next: objective-only v2
+
+The next diagnostic holds the model and data constant and changes only the objective:
+
+| Term | V2 weight |
 |---|---:|
-| Raw bytes | 2,165,346 |
-| SHA-256 | `d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626` |
-| Protected semantic IDs | 284,117 |
-| Known-evaluation overlap | 0 |
+| Listwise policy | 1.0 |
+| Logistic loss over all eligible pairs pooled within each domain batch | 1.0 |
+| Hardest-negative top-1 margin treating tied teacher-best moves as a set | 1.0 |
+| Move value | 0.20 |
+| State value | 0 |
 
-No labels are generated for this derivative until both capacity seeds have been frozen.
+The model, data, sentinel parents, seed, AdamW, learning rate, batches, ordering, 40 epochs, and 85% top-1 / 98% pair gates remain identical to v1. A pass would show that aligning the objective helped. A miss will not trigger a simple epoch extension or threshold relaxation; the next branch would be a small capacity diagnostic that encodes the child board after each legal move.
 
-## Registered gates
-
-First, a fixed 256-parent Browser plus 1,024-parent V9 sentinel runs for 40 epochs. Both domains must reach at least 85% top-1 and 98% pairwise accuracy. The sentinel weights are discarded. A miss stops the experiment before full training.
-
-The internal tune gate is:
-
-| Tune domain | Exact live baseline | Required candidate |
-|---|---|---|
-| Browser, 196 parents | top-1 16/196; pair 0.663704 | top-1 at least 26/196; pair at least 0.673704; no regret regression |
-| V9, 4,411 parents | top-1 24.44%; pair 0.598464 | top-1 loss no more than 0.5 points; pair loss no more than 0.002 |
-
-Seed 314159 runs only if seed 42 passes every check. No extra seed, epoch, feature variant, or threshold relaxation is permitted after observing a failure.
-
-After both checkpoint hashes are fixed, a deterministic 512-parent sample spread across at least 128 clean games receives all-legal independent depth-12 labels. Each seed must beat live by 26 top-1 parents, 0.01 pair accuracy, and 0.01 NDCG@5, with one-sided McNemar `p≤0.05`.
-
-## Compute plan
-
-Browser parents average 83.97 legal moves and reach 267; V9 averages 11.62 and reaches 13. They use separate microbatches and fixed move-count buckets of 16/32/64/96/128/192/272. This avoids padding V9 to Browser shapes and reduces repeated MPS graph compilation.
-
-One heavy MPS training process uses the M4 Pro. Running several jobs against the same integrated GPU would compete for the same compute and memory. CPU data validation, tests, documentation, and review work can continue in parallel. The pre-implementation estimate is 20–60 minutes for an eight-epoch-class run; the full seed-42 estimate will be updated from the first measured steps.
+The fixed v2 plan is recorded separately in the [objective-only v2 article](./blog-shogi-capacity-objective-v2-plan.en.md).
 
 ## Current state
 
-- Pre-optimizer audit over the real inputs: complete.
-- 5,953,522-parameter model and runner: implemented.
-- Tests for live-baseline initialization, permutation equivariance, padding invariance, loss direction, tiny fitting, canonical identities, deterministic batching, protocol identity, and all-required gates: implemented.
-- One MPS forward/backward/optimizer smoke step: passed in 4.28 seconds including first graph compilation.
-- MPS training: not started until the prospective implementation is fixed in Git.
-- Sealed teacher generation, WASM integration, matches, and live mutation: not started.
+- Capacity v1 sentinel: 40 epochs complete, rejected.
+- Full v1 candidate training: not started.
+- Seed 314159: unauthorized and not started.
+- Sealed teacher generation: unauthorized and not started.
+- Distillation, WASM, paired play: not started.
+- Live weights: unchanged.
 
-The machine-readable inputs, hashes, split receipts, baselines, architecture, and gates are in [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json).
+The full measured curve and audit summary are in [shogi-capacity-policy-value-v1-result-2026-07-27.json](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json). Prospective input hashes and split receipts remain in [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json).

@@ -21,13 +21,39 @@ import listwise_policy_value as lpv
 
 
 PROTOCOL_SCHEMA = "shogi-capacity-policy-value-plan-v1"
+PROTOCOL_SCHEMA_V2 = "shogi-capacity-policy-value-plan-v2"
 RESULT_SCHEMA = "shogi-capacity-policy-value-result-v1"
+RESULT_SCHEMA_V2 = "shogi-capacity-policy-value-result-v2"
 TRACKED_PROTOCOL_PATH = (
     Path(__file__).parent / "protocols" / "capacity-policy-value-v1-plan.json"
 )
 # Filled only after the prospective protocol bytes are committed.
 TRACKED_PROTOCOL_SHA256 = (
     "30b4aab6689679a98a6f86fa835610a5f0fcfd3157d8fc44d4029152d1f7eaf3"
+)
+TRACKED_PROTOCOL_V2_PATH = (
+    Path(__file__).parent / "protocols" / "capacity-policy-value-v2-plan.json"
+)
+# Filled by the prospective protocol commit before objective-v2 may execute.
+TRACKED_PROTOCOL_V2_SHA256 = (
+    "15e7c8ffee90a9ad2d6caad41267d9e788984ffd97627a4f1c734aa49954d3d8"
+)
+
+PROTOCOL_BINDINGS = (
+    {
+        "path": TRACKED_PROTOCOL_PATH,
+        "sha256": TRACKED_PROTOCOL_SHA256,
+        "schema": PROTOCOL_SCHEMA,
+        "status": "prospective-capacity-diagnostic-only",
+        "objective": cpv.OBJECTIVE_V1,
+    },
+    {
+        "path": TRACKED_PROTOCOL_V2_PATH,
+        "sha256": TRACKED_PROTOCOL_V2_SHA256,
+        "schema": PROTOCOL_SCHEMA_V2,
+        "status": "prospective-objective-v2-capacity-diagnostic-only",
+        "objective": cpv.OBJECTIVE_V2,
+    },
 )
 
 
@@ -62,20 +88,31 @@ def _fingerprint(path: str | Path) -> dict[str, object]:
     return lpv.file_fingerprint(path)
 
 
+def _protocol_binding(path: str | Path) -> Mapping[str, object]:
+    requested = Path(path).resolve()
+    for binding in PROTOCOL_BINDINGS:
+        tracked = binding["path"]
+        if isinstance(tracked, Path) and requested == tracked.resolve():
+            return binding
+    raise ValueError("capacity runner accepts only a tracked protocol")
+
+
 def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
-    if Path(args.protocol).resolve() != TRACKED_PROTOCOL_PATH.resolve():
-        raise ValueError("capacity runner accepts only its tracked protocol")
-    raw = TRACKED_PROTOCOL_PATH.read_bytes()
-    actual_protocol_sha = hashlib.sha256(raw).hexdigest()
-    if (
-        TRACKED_PROTOCOL_SHA256 == "PENDING"
-        or actual_protocol_sha != TRACKED_PROTOCOL_SHA256
-    ):
+    binding = _protocol_binding(args.protocol)
+    tracked_path = binding["path"]
+    expected_sha = binding["sha256"]
+    if not isinstance(tracked_path, Path) or not isinstance(expected_sha, str):
+        raise ValueError("capacity protocol binding is malformed")
+    if expected_sha == "PENDING":
         raise ValueError("tracked capacity protocol identity mismatch")
-    protocol = _strict_json(TRACKED_PROTOCOL_PATH)
-    if protocol.get("schema") != PROTOCOL_SCHEMA:
+    raw = tracked_path.read_bytes()
+    actual_protocol_sha = hashlib.sha256(raw).hexdigest()
+    if actual_protocol_sha != expected_sha:
+        raise ValueError("tracked capacity protocol identity mismatch")
+    protocol = _strict_json(tracked_path)
+    if protocol.get("schema") != binding["schema"]:
         raise ValueError("capacity protocol schema mismatch")
-    if protocol.get("status") != "prospective-capacity-diagnostic-only":
+    if protocol.get("status") != binding["status"]:
         raise ValueError("capacity protocol is not prospective")
     architecture = protocol.get("architecture")
     if type(architecture) is not dict:
@@ -133,6 +170,14 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
     registered_training = protocol.get("training")
     if type(registered_training) is not dict:
         raise ValueError("capacity training controls are absent")
+    objective = binding["objective"]
+    if objective == cpv.OBJECTIVE_V2:
+        registered_loss = protocol.get("loss")
+        if (
+            type(registered_loss) is not dict
+            or registered_loss.get("id") != objective
+        ):
+            raise ValueError("capacity objective v2 identity mismatch")
     actual_training = {
         "split_seed": args.split_seed,
         "tune_modulus": args.tune_modulus,
@@ -160,15 +205,18 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
     seeds = registered_training.get("seeds")
     if type(seeds) is not list or args.seed not in seeds:
         raise ValueError("capacity model seed is not registered")
-    return {
+    verified = {
         "protocol": {
-            "path": str(TRACKED_PROTOCOL_PATH.resolve()),
+            "path": str(tracked_path.resolve()),
             "bytes": len(raw),
             "sha256": actual_protocol_sha,
         },
         "document": protocol,
         "verified_inputs": verified_inputs,
     }
+    if objective == cpv.OBJECTIVE_V2:
+        verified["objective"] = objective
+    return verified
 
 
 def _load_and_partition(
@@ -252,6 +300,7 @@ def _loss(
     *,
     device: str,
     pad_moves_to: int,
+    objective: str,
     args: argparse.Namespace,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     batch = cpv.make_batch(
@@ -267,6 +316,7 @@ def _loss(
         temperature_cp=args.temperature_cp,
         pair_gap_cp=args.pair_gap_cp,
         best_margin_cp=args.best_margin_cp,
+        objective=objective,
     )
 
 
@@ -291,6 +341,7 @@ def _paired_epoch(
     epoch: int,
     seed: int,
     equal_domain_weight: bool,
+    objective: str,
     args: argparse.Namespace,
 ) -> dict[str, object]:
     browser_batches = data_contract.bucketed_batches(
@@ -323,6 +374,7 @@ def _paired_epoch(
             browser_batch,
             device=args.device,
             pad_moves_to=browser_bucket,
+            objective=objective,
             args=args,
         )
         v9_loss, v9_parts = _loss(
@@ -330,6 +382,7 @@ def _paired_epoch(
             v9_batch,
             device=args.device,
             pad_moves_to=16,
+            objective=objective,
             args=args,
         )
         if equal_domain_weight:
@@ -376,6 +429,7 @@ def _v9_epoch(
     *,
     epoch: int,
     seed: int,
+    objective: str,
     args: argparse.Namespace,
 ) -> dict[str, object]:
     batches = data_contract.bucketed_batches(
@@ -394,6 +448,7 @@ def _v9_epoch(
             batch,
             device=args.device,
             pad_moves_to=boundary,
+            objective=objective,
             args=args,
         )
         loss.backward()
@@ -510,6 +565,14 @@ def _sentinel_gate(
 
 def run(args: argparse.Namespace) -> dict[str, object]:
     protocol = _verify_protocol(args)
+    objective = protocol.get("objective", cpv.OBJECTIVE_V1)
+    if not isinstance(objective, str):
+        raise ValueError("capacity objective binding is malformed")
+    result_schema = (
+        RESULT_SCHEMA_V2
+        if objective == cpv.OBJECTIVE_V2
+        else RESULT_SCHEMA
+    )
     if args.seed not in (42, 314159):
         raise ValueError("capacity model seed is not registered")
     if args.seed == 314159 and not args.seed42_result:
@@ -566,6 +629,14 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             or first.get("seed") != 42
         ):
             raise ValueError("first capacity seed did not authorize replication")
+        if objective == cpv.OBJECTIVE_V2 and (
+            first.get("schema") != RESULT_SCHEMA_V2
+            or first.get("objective") != objective
+            or first.get("protocol") != protocol["protocol"]
+        ):
+            raise ValueError(
+                "first capacity seed used a different objective or protocol"
+            )
         first_sentinel = first.get("sentinel")
         if type(first_sentinel) is not dict:
             raise ValueError("first capacity seed lost its sentinel receipt")
@@ -598,6 +669,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                 epoch=epoch,
                 seed=args.sentinel_seed,
                 equal_domain_weight=True,
+                objective=objective,
                 args=args,
             )
             sentinel_curve.append(row)
@@ -617,8 +689,13 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     output.mkdir(parents=True)
     if not sentinel_gate["passed"]:
         result = {
-            "schema": RESULT_SCHEMA,
+            "schema": result_schema,
             "status": "complete-sentinel-rejected",
+            **(
+                {"objective": objective}
+                if objective == cpv.OBJECTIVE_V2
+                else {}
+            ),
             "protocol": protocol["protocol"],
             "data_receipt": data_receipt,
             "baseline": baseline,
@@ -651,6 +728,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             v9_fit,
             epoch=epoch,
             seed=args.seed,
+            objective=objective,
             args=args,
         )
         v9_curve.append(row)
@@ -673,6 +751,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             epoch=epoch,
             seed=args.seed,
             equal_domain_weight=False,
+            objective=objective,
             args=args,
         )
         tune = _metrics(model, browser_tune, v9_tune, args)
@@ -698,6 +777,11 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             output / "last.pt",
             {
                 "schema": cpv.SCHEMA,
+                **(
+                    {"objective": objective}
+                    if objective == cpv.OBJECTIVE_V2
+                    else {}
+                ),
                 "seed": args.seed,
                 "phase": "mixed",
                 "completed_epoch": epoch,
@@ -726,6 +810,11 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "schema": cpv.SCHEMA,
             "feature_version": cpv.FEATURE_VERSION,
             "parameters": cpv.OfflineCapacityPolicyValue.parameter_count(),
+            **(
+                {"objective": objective}
+                if objective == cpv.OBJECTIVE_V2
+                else {}
+            ),
             "seed": args.seed,
             "selected_epoch": best_epoch,
             "model": best_state,
@@ -746,8 +835,13 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         else "complete-capacity-tune-rejected"
     )
     result = {
-        "schema": RESULT_SCHEMA,
+        "schema": result_schema,
         "status": status,
+        **(
+            {"objective": objective}
+            if objective == cpv.OBJECTIVE_V2
+            else {}
+        ),
         "seed": args.seed,
         "protocol": protocol["protocol"],
         "data_receipt": data_receipt,

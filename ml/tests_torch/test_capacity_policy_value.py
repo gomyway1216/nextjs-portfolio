@@ -156,6 +156,156 @@ class CapacityPolicyValueTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(good.grad).all())
         self.assertTrue(torch.isfinite(parent_value.grad).all())
 
+    def test_default_loss_is_exactly_objective_v1(self):
+        valid = torch.tensor(
+            [[True, True, True], [True, True, False]]
+        )
+        teacher = torch.tensor(
+            [[300.0, 0.0, -200.0], [100.0, -50.0, 0.0]]
+        )
+        prediction = torch.tensor(
+            [[250.0, 10.0, -150.0], [80.0, -20.0, 0.0]]
+        )
+        residual = torch.zeros_like(prediction)
+        parent_value = torch.tensor([250.0, 80.0])
+        kwargs = {
+            "temperature_cp": 100.0,
+            "pair_gap_cp": 50.0,
+            "best_margin_cp": 50.0,
+        }
+        default_total, default_parts = cpv.policy_value_loss(
+            prediction,
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            **kwargs,
+        )
+        explicit_total, explicit_parts = cpv.policy_value_loss(
+            prediction,
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            objective=cpv.OBJECTIVE_V1,
+            **kwargs,
+        )
+        self.assertTrue(torch.equal(default_total, explicit_total))
+        for name in default_parts:
+            self.assertTrue(
+                torch.equal(default_parts[name], explicit_parts[name])
+            )
+
+    def test_objective_v2_pair_loss_is_domain_batch_microaverage(self):
+        valid = torch.tensor(
+            [[True, True, True], [True, True, False]]
+        )
+        teacher = torch.tensor(
+            [[300.0, 200.0, 100.0], [300.0, 0.0, 0.0]]
+        )
+        prediction = torch.tensor(
+            [[300.0, 200.0, 100.0], [0.0, 300.0, 0.0]]
+        )
+        residual = torch.zeros_like(prediction)
+        parent_value = torch.zeros(2)
+        kwargs = {
+            "temperature_cp": 100.0,
+            "pair_gap_cp": 50.0,
+            "best_margin_cp": 50.0,
+        }
+        _total, parts = cpv.policy_value_loss(
+            prediction,
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            objective=cpv.OBJECTIVE_V2,
+            **kwargs,
+        )
+        expected_pairs = torch.cat(
+            (
+                torch.nn.functional.softplus(
+                    -torch.tensor([100.0, 200.0, 100.0]) / 100.0
+                ),
+                torch.nn.functional.softplus(
+                    -torch.tensor([-300.0]) / 100.0
+                ),
+            )
+        ).mean()
+        self.assertTrue(torch.allclose(parts["pair"], expected_pairs))
+
+        _v1_total, v1_parts = cpv.policy_value_loss(
+            prediction,
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            objective=cpv.OBJECTIVE_V1,
+            **kwargs,
+        )
+        self.assertFalse(torch.allclose(parts["pair"], v1_parts["pair"]))
+
+    def test_objective_v2_margin_treats_all_teacher_best_ties_as_positive(self):
+        valid = torch.tensor([[True, True, True]])
+        teacher = torch.tensor([[300.0, 300.0, 0.0]])
+        residual = torch.zeros_like(teacher)
+        parent_value = torch.zeros(1)
+        kwargs = {
+            "temperature_cp": 100.0,
+            "pair_gap_cp": 50.0,
+            "best_margin_cp": 50.0,
+            "objective": cpv.OBJECTIVE_V2,
+        }
+        _total, parts = cpv.policy_value_loss(
+            torch.tensor([[0.0, 200.0, 180.0]]),
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            **kwargs,
+        )
+        _swapped_total, swapped_parts = cpv.policy_value_loss(
+            torch.tensor([[200.0, 0.0, 180.0]]),
+            residual,
+            parent_value,
+            teacher,
+            valid,
+            **kwargs,
+        )
+        self.assertAlmostEqual(float(parts["best_margin"]), 0.30, places=6)
+        self.assertTrue(
+            torch.equal(parts["best_margin"], swapped_parts["best_margin"])
+        )
+
+    def test_objective_v2_has_no_state_value_gradient(self):
+        valid = torch.tensor([[True, True, True]])
+        teacher = torch.tensor([[300.0, 0.0, -200.0]])
+        prediction = torch.tensor(
+            [[100.0, 0.0, -100.0]], requires_grad=True
+        )
+        parent_value = torch.tensor([0.0], requires_grad=True)
+        total, parts = cpv.policy_value_loss(
+            prediction,
+            torch.zeros_like(prediction),
+            parent_value,
+            teacher,
+            valid,
+            temperature_cp=100.0,
+            pair_gap_cp=50.0,
+            best_margin_cp=50.0,
+            objective=cpv.OBJECTIVE_V2,
+        )
+        expected = (
+            parts["policy"]
+            + parts["pair"]
+            + parts["best_margin"]
+            + 0.20 * parts["move_value"]
+        )
+        self.assertTrue(torch.equal(total, expected))
+        total.backward()
+        self.assertTrue(torch.isfinite(prediction.grad).all())
+        self.assertIsNone(parent_value.grad)
+
     def test_full_model_can_fit_a_tiny_conflicting_policy_sample(self):
         torch.manual_seed(7)
         groups = [
@@ -270,6 +420,47 @@ class CapacityPolicyValueTests(unittest.TestCase):
             cpv.FEATURE_VERSION,
         )
         self.assertEqual(protocol["training"]["seeds"], [42, 314159])
+
+    def test_objective_v2_protocol_path_hash_and_loss_are_exact(self):
+        raw = capacity_runner.TRACKED_PROTOCOL_V2_PATH.read_bytes()
+        self.assertEqual(
+            hashlib.sha256(raw).hexdigest(),
+            capacity_runner.TRACKED_PROTOCOL_V2_SHA256,
+        )
+        protocol = json.loads(raw)
+        self.assertEqual(
+            protocol["schema"], capacity_runner.PROTOCOL_SCHEMA_V2
+        )
+        self.assertEqual(
+            protocol["loss"]["id"], cpv.OBJECTIVE_V2
+        )
+        v1_protocol = json.loads(
+            capacity_runner.TRACKED_PROTOCOL_PATH.read_bytes()
+        )
+        for field in (
+            "inputs",
+            "data_receipt",
+            "architecture",
+            "training",
+            "sentinel",
+            "live_baseline",
+            "gates",
+            "sealed_holdout",
+        ):
+            self.assertEqual(
+                protocol[field],
+                v1_protocol[field],
+                f"objective v2 changed fixed protocol field {field}",
+            )
+        binding = capacity_runner._protocol_binding(
+            capacity_runner.TRACKED_PROTOCOL_V2_PATH
+        )
+        self.assertEqual(binding["objective"], cpv.OBJECTIVE_V2)
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, "tracked protocol"):
+                capacity_runner._protocol_binding(
+                    Path(temporary) / "lookalike.json"
+                )
 
     def test_capacity_gate_requires_every_registered_distribution(self):
         baseline = {

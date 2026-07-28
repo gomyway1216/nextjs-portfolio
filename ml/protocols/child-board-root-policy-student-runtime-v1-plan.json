@@ -29,14 +29,14 @@
     },
     "designated_distillation_teacher": {
       "seed": 42,
-      "checkpoint_sha256": "__BIND_PHASE1_SEED_42_FINAL_CHECKPOINT_SHA256__",
+      "checkpoint_sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a",
       "source_selector": "/training/final_checkpoints unique array member with integer seed 42, then /checkpoint/sha256",
       "checkpoint_path_and_bytes": "read without transformation from the unique seed-42 final-checkpoint receipt in phase1_terminal_result and verify against checkpoint_sha256",
       "role": "the only teacher whose fit-only logits may train the student; fixed independently of every later score"
     },
     "replication_teacher": {
       "seed": 314159,
-      "checkpoint_sha256": "__BIND_PHASE1_SEED_314159_FINAL_CHECKPOINT_SHA256__",
+      "checkpoint_sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293",
       "source_selector": "/training/final_checkpoints unique array member with integer seed 314159, then /checkpoint/sha256",
       "checkpoint_path_and_bytes": "read without transformation from the unique seed-314159 final-checkpoint receipt in phase1_terminal_result and verify against checkpoint_sha256",
       "role": "replication evidence only; never averaged, ensembled, selected, or used as a student target"

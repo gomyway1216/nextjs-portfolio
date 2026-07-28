@@ -1,0 +1,85 @@
+{
+  "schema": "shogi-child-board-root-policy-student-runtime-binding-v1",
+  "status": "complete-mechanical-two-teacher-binding",
+  "binding_commit_identity": "the Git commit whose tree contains this receipt; a self-referential commit hash is intentionally not embedded",
+  "prebind_protocol": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "bytes": 64020,
+    "sha256": "fd05bffa3f1200beb0a0db2ad7345bea4034f1e3d73b3b6cab20a206afd37086",
+    "git_commit": "cb1210064a1c54697e4dac58e0baa00a307e0e97"
+  },
+  "phase1_terminal_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/result.json",
+    "bytes": 33615,
+    "sha256": "97c60e28f7f7cf6cd7b3c5d83fb87349afaae2759a280ef9c7dbe026c56bfb9d",
+    "schema": "shogi-child-board-strength-candidate-result-v1",
+    "status": "complete-phase1-two-scratch-checkpoints-frozen-tune-locked",
+    "parent_protocol_sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+    "tune_opened": false,
+    "sealed_opened": false,
+    "live_weights_changed": false
+  },
+  "substitutions": [
+    {
+      "json_pointer": "/teacher_checkpoint_bindings/designated_distillation_teacher/checkpoint_sha256",
+      "old_value": "__BIND_PHASE1_SEED_42_FINAL_CHECKPOINT_SHA256__",
+      "new_value": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a",
+      "source_selector": "/training/final_checkpoints unique array member with integer seed 42, then /checkpoint/sha256",
+      "checkpoint": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/seed-42-final.pt",
+        "bytes": 24720230,
+        "sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a"
+      }
+    },
+    {
+      "json_pointer": "/teacher_checkpoint_bindings/replication_teacher/checkpoint_sha256",
+      "old_value": "__BIND_PHASE1_SEED_314159_FINAL_CHECKPOINT_SHA256__",
+      "new_value": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293",
+      "source_selector": "/training/final_checkpoints unique array member with integer seed 314159, then /checkpoint/sha256",
+      "checkpoint": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/seed-314159-final.pt",
+        "bytes": 24720794,
+        "sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293"
+      }
+    }
+  ],
+  "postbind_protocol": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "bytes": 64050,
+    "sha256": "7ec5fa3a0946f1dc832836bf71df6826f4487b3c56f09af9ff908e8a18b4d2c8",
+    "remaining_placeholders": 0
+  },
+  "unchanged_articles": [
+    {
+      "path": "docs/blog-shogi-child-board-root-policy-student-runtime-v1-plan.md",
+      "bytes": 17829,
+      "sha256": "e9866ace0e6b2510604816d4bf5d97ee9ee1feb7047cb3be7a2014af22a4b587"
+    },
+    {
+      "path": "docs/blog-shogi-child-board-root-policy-student-runtime-v1-plan.en.md",
+      "bytes": 17709,
+      "sha256": "f3e71acbbe2e66ab374968a57bf9cc25c1939f77c909a3f3b4331e6cf2841e94"
+    }
+  ],
+  "mechanical_diff_verification": {
+    "protocol_lines_added": 2,
+    "protocol_lines_deleted": 2,
+    "changed_json_values": 2,
+    "changed_json_pointers": [
+      "/teacher_checkpoint_bindings/designated_distillation_teacher/checkpoint_sha256",
+      "/teacher_checkpoint_bindings/replication_teacher/checkpoint_sha256"
+    ],
+    "other_protocol_values_changed": 0,
+    "articles_changed": 0
+  },
+  "authority": {
+    "authorizes_only": "implementation and fit-only seed-42 projected-set teacher-output generation under the bound protocol after all implementation gates validate",
+    "tune": false,
+    "sealed": false,
+    "runtime_admission": false,
+    "formal": false,
+    "external": false,
+    "deployment": false,
+    "live_weights_write": false
+  }
+}

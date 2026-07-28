@@ -1,0 +1,56 @@
+{
+  "schema": "shogi-child-board-root-policy-student-postphase-registry-v1",
+  "status": "teacher-binding-complete-student-implementation-not-started",
+  "recorded_stage": "mechanical teacher binding before student implementation",
+  "bound_protocol": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "bytes": 64050,
+    "sha256": "7ec5fa3a0946f1dc832836bf71df6826f4487b3c56f09af9ff908e8a18b4d2c8"
+  },
+  "phase1_terminal_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/result.json",
+    "bytes": 33615,
+    "sha256": "97c60e28f7f7cf6cd7b3c5d83fb87349afaae2759a280ef9c7dbe026c56bfb9d"
+  },
+  "binding_receipt": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-binding.json",
+    "bytes": 3891,
+    "sha256": "b979cfb064d320807c909519d199e4a9f88496b7b932b6304d6683c6ebe81d8a"
+  },
+  "teachers": {
+    "seed42": {
+      "role": "only fit-only distillation target",
+      "checkpoint_sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a"
+    },
+    "seed314159": {
+      "role": "replication only and never a training target",
+      "checkpoint_sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293"
+    }
+  },
+  "state_at_publication": {
+    "student_implementation_complete": false,
+    "fit_distillation_parents": 0,
+    "student_training_started": false,
+    "student_completed_epoch": 0,
+    "student_final_checkpoint_frozen": false,
+    "student_runtime_artifacts_frozen": false,
+    "production_build_frozen": false,
+    "tune_opened": false,
+    "sealed_opened": false,
+    "runtime_admission_executed": false,
+    "formal_games": 0,
+    "external_games": 0,
+    "live_weights_changed": false
+  },
+  "next_authorized_work": [
+    "implement and validate the teacher-hash-independent student model, production move-universe projection, distillation generator, trainer, exact crash resume, and terminalize-only exporter",
+    "after implementation receipts validate, generate seed-42 fit-only projected-set outputs under the bound protocol"
+  ],
+  "not_authorized": [
+    "opening tune or sealed data",
+    "student candidate selection or retraining based on a score",
+    "runtime admission",
+    "formal or external play",
+    "deployment or live weight changes"
+  ]
+}

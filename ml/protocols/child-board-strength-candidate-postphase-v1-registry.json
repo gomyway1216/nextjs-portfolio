@@ -146,6 +146,12 @@
     "artifact_receipt_schema": "shogi-child-board-strength-candidate-artifact-set-v1",
     "score_row_schema": "shogi-child-board-strength-candidate-score-row-v1",
     "score_bundle_receipt_schema": "shogi-child-board-strength-candidate-score-bundle-receipt-v1",
+    "score_bundle_receipt": {
+      "source_receipts": "exact domain-name mapping to path/bytes/SHA-256 identities for the authenticated tune partitions or final sealed label receipt",
+      "artifact_receipt_sha256": "SHA-256 of the exact frozen four-role artifact receipt",
+      "bundle": "path/bytes/SHA-256 of the complete canonically ordered score bundle",
+      "completeness": "exact registered domain order and parent count plus the actual total move-row count"
+    },
     "score_row": {
       "exact_keys": [
         "schema",

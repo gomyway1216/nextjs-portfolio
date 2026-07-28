@@ -14,9 +14,9 @@ from typing import Any
 REGISTRY_RELATIVE_PATH = (
     "ml/protocols/child-board-strength-candidate-postphase-v1-registry.json"
 )
-REGISTRY_BYTES = 15_009
+REGISTRY_BYTES = 15_487
 REGISTRY_SHA256 = (
-    "97fac6d997aff5af9a0cce6f9c16323b5423053492f4b2b7990b9702d43bfc1c"
+    "a0cc3ae2eab07a039c5f1659af6f908ed882df222f23d453df332c2ade281bf6"
 )
 REGISTRY_SCHEMA = (
     "shogi-child-board-strength-candidate-postphase-registry-v1"
@@ -66,7 +66,7 @@ _SUBTREE_SHA256 = {
         "c577425ca566eaa1d2a8279ecf439eacea0d461dfe8c9e3f9015a6cad0e3581c"
     ),
     "execution_contract": (
-        "a3b05898ad03301be9f953e4dd3c2999295e1a0fce51befa822045b0d9aab1f3"
+        "3def384c810250c756dbabc57f66d67d7611888f065119128874a0747d1b4cbc"
     ),
     "publication_rules": (
         "39f4e9d1bfc43c8adb896fd025932c99fa0acccf413b934fc805cdaa42fb9742"
@@ -238,6 +238,10 @@ def validate_registry_document(document: Mapping[str, Any]) -> None:
     ] or execution["reference_name"] != "exact_live":
         raise RegistryError("execution artifact roles mismatch")
     score_row = _mapping(execution["score_row"], "execution_contract.score_row")
+    score_receipt = _mapping(
+        execution["score_bundle_receipt"],
+        "execution_contract.score_bundle_receipt",
+    )
     if score_row["score_keys"] != [
         "exact_live",
         "seed42_teacher",
@@ -245,6 +249,11 @@ def validate_registry_document(document: Mapping[str, Any]) -> None:
         "frozen_student",
     ]:
         raise RegistryError("score-row completeness keys mismatch")
+    if (
+        "exact domain-name mapping" not in score_receipt["source_receipts"]
+        or "actual total move-row count" not in score_receipt["completeness"]
+    ):
+        raise RegistryError("score-bundle receipt binding mismatch")
     tune = _mapping(execution["tune"], "execution_contract.tune")
     domains = tune["domains"]
     if (

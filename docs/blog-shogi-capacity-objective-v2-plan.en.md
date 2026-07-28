@@ -74,22 +74,31 @@ The result does not yet distinguish among these possibilities:
 
 It is therefore too strong to conclude that a large model can never work. There is also no evidence for adding epochs or seeds to the same v2 recipe.
 
-## Next: child-board encoder diagnostic
+## Child-board v3 result
 
-V2 closes here under its preregistered stop rule. The next separately registered experiment is a small capacity diagnostic that encodes the board after applying each legal move.
+The next fixed diagnostic, v3, added only a small encoder over the board after applying each legal move.
 
-Its purpose is to test whether adding the missing “board after the move” representation lets the model learn pair ordering as well as top-1. It starts with another fixed sentinel and cannot proceed to full training after a miss. Architecture and gates must be frozen in a new protocol before observing its result.
+| Metric | V2 | V3 | V3−V2 | V3 result |
+|---|---:|---:|---:|---|
+| Browser top-1 | 86.72% | 95.31% | +8.59 points | PASS |
+| Browser pair | 73.08% | 75.45% | +2.38 points | FAIL |
+| V9 top-1 | 89.94% | 97.17% | +7.23 points | PASS |
+| V9 pair | 84.85% | 88.84% | +3.98 points | FAIL |
+
+Mean regret also fell from 3,965.14 cp to 4.25 cp on Browser and from 19.40 cp to 2.00 cp on V9. Board-after-move representation was therefore a limitation for top-1 and regret. Pair accuracy improved but remained below the fixed 98%, so v3 was also rejected overall.
 
 ## Current state
 
 - V2 sentinel: 40 epochs complete; two top-1 checks passed, two pair checks failed; overall rejected.
+- Child-board v3 sentinel: 40 epochs complete; two top-1 checks passed, two pair checks failed; overall rejected.
 - Full v2 candidate training: not started.
+- Full v3 candidate training: not started.
 - Seed 314159: unauthorized and not started.
 - Sealed teacher generation: unauthorized and not started.
 - Distillation, WASM, and paired play: not started.
 - Live weights: unchanged.
-- Next stage: small child-board encoder capacity diagnostic.
+- V3 extension: forbidden by its stop rule.
 
 The complete 40-epoch curve and v1 comparison are in [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json). V1 is documented in the [capacity v1 article](./blog-shogi-capacity-policy-value-plan.en.md).
 
-The next architecture-only experiment is preregistered in the [child-board capacity v3 plan](./blog-shogi-child-board-capacity-v3-plan.en.md).
+The measured architecture-only experiment is in the [child-board capacity v3 result](./blog-shogi-child-board-capacity-v3-plan.en.md).

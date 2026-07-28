@@ -1,105 +1,94 @@
-# Shogi child-board capacity v3: change representation only
+# Shogi child-board capacity v3 result: major top-1 and regret gains, pair gate failed
 
-> Capacity v1 and objective-only v2 both missed at least one of the four fixed in-sample sentinel checks. V3 directly encodes the board after each legal move and changes architecture only, testing the representation-limit hypothesis. It has not run yet and makes no claim of a pass or stronger play. [日本語](./blog-shogi-child-board-capacity-v3-plan.md)
+> Directly encoding the board after each legal move substantially improved in-sample top-1 and regret over v2. Pair accuracy still missed the fixed 98% gate in both domains, so v3 was rejected as preregistered. Full training, the second seed, sealed labels, and live mutation did not begin. [日本語](./blog-shogi-child-board-capacity-v3-plan.md)
 
-## Why v3 is next
+## Bottom line
 
-V1 and v2 used the same 5,953,522-parameter model, data, 1,280 parents, and 40 epochs. Aligning the v2 loss with the gates made top-1 pass on both domains, while pair accuracy still missed on both.
+Child-board capacity v3 ended with `complete-sentinel-rejected`.
 
-| Metric | V1 | V2 | Fixed gate |
+| Metric | V1 | V2 | V3 | V3−V2 | V3 gate | Result |
+|---|---:|---:|---:|---:|---:|---|
+| Browser top-1 | 179/256 (69.92%) | 222/256 (86.72%) | 244/256 (95.31%) | +22 parents, +8.59 points | at least 85% | PASS |
+| Browser pair | 73.85% | 73.08% | 75.45% | +2.38 points | at least 98% | FAIL |
+| V9 top-1 | 811/1,024 (79.20%) | 921/1,024 (89.94%) | 995/1,024 (97.17%) | +74 parents, +7.23 points | at least 85% | PASS |
+| V9 pair | 87.00% | 84.85% | 88.84% | +3.98 points | at least 98% | FAIL |
+
+V3 put Browser top-1 10.31 points above its gate and V9 12.17 points above. Pair accuracy also improved over v2, but remained 22.55 points below the Browser gate and 9.16 points below the V9 gate. All four checks were mandatory, so the two pair failures reject the experiment overall.
+
+This was a capacity diagnostic over 1,280 fixed training parents. It did not measure unseen positions, match win rate, Elo, high-dan strength, or browser runtime. High top-1 on this sentinel is not evidence that the live AI became stronger.
+
+## What v3 changed
+
+V3 fixed the v2 objective and all data, adding only a small child-board encoder over authenticated `child_sfen` for every legal move.
+
+- Convert the position after each legal move into the existing 43-plane form.
+- Use one shared 16-channel CNN, two residual blocks, and a 128-dimensional projection.
+- Concatenate the child vector to the existing 721-dimensional move input.
+- Add 214,608 parameters over v2 for a total of 6,168,130.
+
+The parent-board encoder, Set Transformer, policy/value heads, live-CP anchor, objective, data, sentinel parents, seed, optimizer, 40 epochs, and gates were unchanged from v2. V3 did not load discarded v1 or v2 weights and initialized from the fixed seed. The v2 and v3 `data_receipt` and live baseline are exactly equal. Evaluation pair counts also match: 1,042,139 for Browser and 49,889 for V9.
+
+The external `result.json` is 25,096 bytes with SHA-256 `e9db86a37320345cc8418eb1f405dd5ef4e0c4187fcc8a1afff2f0e8fe4dd6d3`. The fixed protocol is 24,326 bytes with SHA-256 `4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6`.
+
+## What regret shows
+
+Mean regret is the average teacher-score gap between the selected move and the teacher-best move. Lower is better.
+
+| Domain | V2 | V3 | Improvement |
 |---|---:|---:|---:|
-| Browser top-1 | 179/256 (69.92%) | 222/256 (86.72%) | at least 85% |
-| Browser pair | 73.85% | 73.08% | at least 98% |
-| V9 top-1 | 811/1,024 (79.20%) | 921/1,024 (89.94%) | at least 85% |
-| V9 pair | 87.00% | 84.85% | at least 98% |
+| Browser | 3,965.14 cp | 4.25 cp | -3,960.88 cp (99.89% reduction) |
+| V9 | 19.40 cp | 2.00 cp | -17.40 cp (89.68% reduction) |
 
-The v2 objective change affected top-1 but did not resolve the pair deficit. That is not evidence that a child-board encoder will pass. It does justify changing representation next instead of adding epochs to the same objective or relaxing a threshold.
+Child-board representation clearly helped with selecting a best move. Regret was not a sentinel gate, however, and does not guarantee correct ordering of every eligible pair. This run exhibited exactly that combination: low regret and high top-1 alongside pair accuracy below 98%.
 
-The external v1 result is 25,048 bytes with SHA-256 `d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2`. The external v2 result is 25,053 bytes with SHA-256 `1f16f030d52d2aff1d8009614aaeb2183a68b462e212933924fae594c2136e3a`. Both closed as `complete-sentinel-rejected`.
+## Measured 40-epoch curve
 
-## What v3 changes
+Loss fell from 12.2260 to 2.6532, with its minimum at epoch 40.
 
-The only change is a small child-board encoder that reads the authenticated `child_sfen` for every legal move.
+| epoch | loss | seconds | epoch | loss | seconds |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 12.226017 | 26.161 | 21 | 3.159286 | 14.407 |
+| 2 | 11.423282 | 15.382 | 22 | 3.100904 | 14.308 |
+| 3 | 10.052526 | 15.460 | 23 | 3.097815 | 14.569 |
+| 4 | 8.765924 | 14.753 | 24 | 3.054755 | 14.838 |
+| 5 | 7.512476 | 14.606 | 25 | 3.071482 | 14.664 |
+| 6 | 6.359787 | 14.810 | 26 | 3.033433 | 14.375 |
+| 7 | 5.443164 | 14.857 | 27 | 2.973301 | 14.491 |
+| 8 | 4.831686 | 14.532 | 28 | 2.889371 | 14.925 |
+| 9 | 4.585317 | 14.648 | 29 | 2.874196 | 14.342 |
+| 10 | 4.303420 | 14.683 | 30 | 2.905264 | 14.207 |
+| 11 | 4.080350 | 15.284 | 31 | 2.953073 | 14.405 |
+| 12 | 3.856972 | 14.669 | 32 | 2.839793 | 14.697 |
+| 13 | 3.708324 | 14.132 | 33 | 2.780360 | 14.354 |
+| 14 | 3.599492 | 14.240 | 34 | 2.817171 | 14.173 |
+| 15 | 3.546697 | 14.070 | 35 | 2.764802 | 14.339 |
+| 16 | 3.514746 | 14.607 | 36 | 2.747147 | 14.576 |
+| 17 | 3.460974 | 14.296 | 37 | 2.741664 | 14.181 |
+| 18 | 3.320444 | 14.585 | 38 | 2.710544 | 14.609 |
+| 19 | 3.294253 | 14.699 | 39 | 2.711923 | 15.196 |
+| 20 | 3.299778 | 14.544 | 40 | 2.653237 | 15.089 |
 
-1. Convert each position after a legal move into the existing 43-plane form:
-   - 28 side-to-move-normalized piece-occupancy planes
-   - 14 hand-count planes normalized by physical maxima
-   - one clipped ply plane
-2. Encode valid legal moves only with one CNN shared by every move:
-   - 43-to-16 3×3 convolution, GroupNorm 4, and GELU
-   - two 16-channel residual blocks
-   - flatten 16×9×9, then Linear 1296-to-128 and LayerNorm 128
-3. Concatenate the 128-dimensional child-board vector to the existing 721-dimensional move input and project 849-to-256.
+Recorded epoch time totals 595.77 seconds (9:55.77). Epoch 1 took 26.16 seconds. Epochs 2–40 totaled 569.60 seconds with a 14.58-second median. The total is 280.98 seconds, or 89.26%, longer than v2. This is a comparison of the two fixed sentinel runs after adding the child-board encoder, not a general GPU multiplier or end-to-end project duration.
 
-`child_sfen` is neither a new dataset nor a new teacher label. It is a deterministic view already carried by each registered row. Training must stop before optimizer creation unless applying the legal move to `parent_sfen` agrees with both `child_sfen` and `child_position_id`.
+## What the result establishes
 
-## Parameter delta
+V3 strongly supports the hypothesis that board-after-move representation was a bottleneck for top-1 and regret. It nearly reproduced the best move, materially outperforming v2's parent-board-plus-move representation.
 
-| Item | Parameters |
-|---|---:|
-| V2 model | 5,953,522 |
-| Child stem | 6,224 |
-| Two 16-channel residual blocks | 9,344 |
-| Child projection and normalization | 166,272 |
-| Move-projection widening from 721 to 849 | 32,768 |
-| Added in v3 | 214,608 |
-| V3 total | 6,168,130 |
+It rejects the hypothesis that a small child-board encoder is sufficient to memorize the full pair ordering to 98%. Ordering more than one million Browser pairs and about fifty thousand V9 pairs remains a different problem from selecting only the best move.
 
-The increase is 214,608 parameters, about 3.60% over v2. FP32 weight bytes rise from 23,814,088 to 24,672,520.
+The run cannot distinguish whether the remaining deficit comes from model capacity, the pair objective, fine-grained teacher-score ordering, the fixed epoch count, or the 98% diagnostic threshold. V3 epochs, seeds, width, and gates will not be changed after observing this result.
 
-The 64-channel, six-block parent encoder, four-layer Set Transformer, policy/value heads, frozen live-CP anchor, and output semantics remain unchanged. V3 may not load discarded v1 or v2 weights; it initializes from scratch under the fixed seed.
+## Stop boundary
 
-## What remains fixed from v2
+Under the v3 protocol, the sentinel weights are discarded and this lane closes.
 
-Everything except architecture is identical to v2.
-
-| Item | Fixed v3 value |
-|---|---|
-| Objective | `gate-aligned-micro-pair-hard-negative-v2` |
-| Loss | listwise 1, domain-micro pair 1, tie-aware hardest-negative 1, move value 0.20, state value 0 |
-| Sentinel | 256 Browser parents and 1,024 V9 parents |
-| Sentinel parent receipts | Browser `2396e593...d6c4`; V9 `66bc3669...5a3` |
-| Sentinel seed / epochs | `20260726` / 40 |
-| Batch | Browser 32; V9 256 |
-| Optimizer | AdamW, learning rate 0.0003, weight decay 0.0001, gradient clip 5 |
-| Sentinel gate | Top-1 at least 85% and pair at least 98% on both domains; all four mandatory |
-| Full training | four V9-pretrain epochs plus 12 mixed epochs |
-| Candidate seeds | 42; 314159 only after every known-tune check passes |
-
-Input files and byte/hash receipts, the protected-position union, game-semantic split, fit/tune counts, live baseline, known-tune gate, replication rule, and 512-parent sealed rule are also byte-exact with v2. No known-eval, tune, or sealed labels or candidate outcomes were used to design v3.
-
-## Branches after the verdict
-
-The first and only initial run is the 40-epoch sentinel.
-
-- If any of four checks fails: discard the weights and stop before full training, seed 42, seed 314159, known-tune candidate selection, sealed teacher generation, distillation, WASM, direct play, or a live change. Do not add epochs or seeds, relax gates, widen the child encoder, or make a minor follow-up retry.
-- If all four checks pass: authorize only the registered four-epoch V9 pretrain plus 12 mixed epochs for seed 42. This is not permission to change live weights.
-- If seed 42 passes every known-tune check: authorize seed 314159 for the first time.
-- If both seeds pass independently and both checkpoint hashes are fixed: allow the existing 512-parent sealed evaluation to open.
-- Even a sealed pass needs separately registered runtime and direct-play evidence before any playing-strength or high-dan claim.
-
-This sequence prevents a favorable static metric from being promoted directly into production.
-
-## Fixed protocol
-
-The v3 protocol was preregistered in [capacity-policy-value-v3-plan.json](../ml/protocols/capacity-policy-value-v3-plan.json).
-
-- Schema: `shogi-capacity-policy-value-plan-v3`
-- Model variant: `child-board-encoder-v3`
-- Feature version: `dense-43-plane-resnet-set-policy-child16x2-v3`
-- Bytes: 24,326
-- SHA-256: `4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6`
-
-Architecture, objective, 40 epochs, and gates cannot be changed after observing the result.
-
-## Current state
-
-- V1 sentinel: rejected and closed.
-- V2 sentinel: two top-1 checks passed, two pair checks failed; overall rejected and closed.
-- V3 protocol: fixed.
-- V3 sentinel: not run.
-- V3 full training, seed 314159, and sealed teacher generation: unauthorized and not started.
+- Full v3 candidate training: not started.
+- Seed-42 candidate and seed 314159: not started.
+- Known-tune candidate selection: not started.
+- Sealed teacher generation: not started.
 - Distillation, WASM, and paired play: not started.
 - Live weights: unchanged.
 
-The measured v2 result and failure analysis are in the [objective-only v2 article](./blog-shogi-capacity-objective-v2-plan.en.md). The earlier history is in the [capacity v1 article](./blog-shogi-capacity-policy-value-plan.en.md).
+Any later training requires a different hypothesis and stop rule fixed in a new protocol before seeing its result; it may not be an extension of v3.
+
+The complete 40-epoch curve and v1/v2 comparison are in [shogi-capacity-policy-value-v3-result-2026-07-28.json](./data/shogi-capacity-policy-value-v3-result-2026-07-28.json). The preceding experiment is in the [objective-only v2 article](./blog-shogi-capacity-objective-v2-plan.en.md).

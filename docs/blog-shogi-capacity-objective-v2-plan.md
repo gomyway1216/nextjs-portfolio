@@ -74,22 +74,31 @@ v2は「v1のobjective不一致を直せば4ゲートをすべて通る」とい
 
 したがって「大型モデルでも不可能」とは結論しない。一方、同じv2へepochやseedを追加する根拠もない。
 
-## 次はchild-board encoder診断
+## child-board v3の結果
 
-事前登録した停止規則どおり、v2はここで閉じる。次は別protocolで、各合法手を実際に適用した後の盤面をencodeする小規模child-board capacity診断を行う。
+次の固定診断v3では、各合法手を指した後の盤面をencodeする小型encoderだけを追加した。
 
-目的は、現行のparent-board＋手特徴に欠ける「指した後の盤面」表現を与えると、Top-1だけでなくpairも訓練内で学べるかを分離することである。まず固定sentinelだけを実行し、通らなければ本学習へ進まない。アーキテクチャやゲートは新protocolで結果を見る前に固定する。
+| 指標 | v2 | v3 | v3−v2 | v3判定 |
+|---|---:|---:|---:|---|
+| Browser Top-1 | 86.72% | 95.31% | +8.59pt | PASS |
+| Browser pair | 73.08% | 75.45% | +2.38pt | FAIL |
+| V9 Top-1 | 89.94% | 97.17% | +7.23pt | PASS |
+| V9 pair | 84.85% | 88.84% | +3.98pt | FAIL |
+
+mean regretもBrowser 3,965.14cpから4.25cp、V9 19.40cpから2.00cpへ大幅に下がった。したがって「指した後の盤面」表現はTop-1とregretの制約だったと分かった。一方、pairは改善しても固定98%へ届かず、v3も総合棄却された。
 
 ## 現在地
 
 - v2 sentinel：40 epoch完了、Top-1 2条件PASS・pair 2条件FAIL、総合棄却
+- child-board v3 sentinel：40 epoch完了、Top-1 2条件PASS・pair 2条件FAIL、総合棄却
 - v2正式candidate本学習：未開始
+- v3正式candidate本学習：未開始
 - seed 314159：未許可・未開始
 - sealed教師生成：未許可・未開始
 - 蒸留、WASM、対局A/B：未開始
 - ライブ重み：未変更
-- 次工程：child-board encoderの小規模capacity診断
+- v3延長：停止規則により不可
 
 完全な40 epoch曲線とv1比較は [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json)、v1結果は [capacity v1記事](./blog-shogi-capacity-policy-value-plan.md) に記録した。
 
-architectureだけを変える次工程は [child-board capacity v3計画](./blog-shogi-child-board-capacity-v3-plan.md) に事前登録した。
+architectureだけを変えた次工程の実測は [child-board capacity v3結果](./blog-shogi-child-board-capacity-v3-plan.md) に記録した。

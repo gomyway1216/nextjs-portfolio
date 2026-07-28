@@ -1,0 +1,175 @@
+{
+  "schema": "shogi-capacity-policy-value-v3-result-summary-v1",
+  "claim": "Child-board v3 substantially improved in-sample top-1 and regret, but failed both pair checks and was rejected. This is not a playing-strength result.",
+  "external_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/capacity-policy-value-v3-seed42/result.json",
+    "bytes": 25096,
+    "sha256": "e9db86a37320345cc8418eb1f405dd5ef4e0c4187fcc8a1afff2f0e8fe4dd6d3",
+    "schema": "shogi-capacity-policy-value-result-v3",
+    "status": "complete-sentinel-rejected",
+    "objective": "gate-aligned-micro-pair-hard-negative-v2"
+  },
+  "protocol": {
+    "bytes": 24326,
+    "sha256": "4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6",
+    "model_variant": "child-board-encoder-v3",
+    "parameters": 6168130
+  },
+  "sentinel": {
+    "browser_parents": 256,
+    "v9_parents": 1024,
+    "epochs": 40,
+    "weights_discarded": true,
+    "gate_passed": false,
+    "metrics": {
+      "browser": {
+        "top1_correct": 244,
+        "top1_accuracy": 0.953125,
+        "top1_required_minimum": 0.85,
+        "top1_passed": true,
+        "pair_count": 1042139,
+        "pair_accuracy": 0.7545231490233069,
+        "pair_required_minimum": 0.98,
+        "pair_passed": false,
+        "mean_regret_cp_not_a_sentinel_gate": 4.25390625
+      },
+      "v9": {
+        "top1_correct": 995,
+        "top1_accuracy": 0.9716796875,
+        "top1_required_minimum": 0.85,
+        "top1_passed": true,
+        "pair_count": 49889,
+        "pair_accuracy": 0.8883721862534827,
+        "pair_required_minimum": 0.98,
+        "pair_passed": false,
+        "mean_regret_cp_not_a_sentinel_gate": 2.001953125
+      }
+    },
+    "timing_seconds": {
+      "recorded_epoch_sum": 595.7657528342679,
+      "epoch_1": 26.16089095780626,
+      "epochs_2_through_40_sum": 569.6048618764617,
+      "epochs_2_through_40_median": 14.584871833212674,
+      "scope": "Recorded epoch intervals only; excludes input loading and preflight audit wall time."
+    },
+    "curve_fields": [
+      "epoch",
+      "loss",
+      "seconds"
+    ],
+    "curve": [
+      {"epoch": 1, "loss": 12.226017431779342, "seconds": 26.16089095780626},
+      {"epoch": 2, "loss": 11.423281582919033, "seconds": 15.38243283284828},
+      {"epoch": 3, "loss": 10.052525780417703, "seconds": 15.459681208711118},
+      {"epoch": 4, "loss": 8.765924280340021, "seconds": 14.752846667077392},
+      {"epoch": 5, "loss": 7.512476097453725, "seconds": 14.605683458037674},
+      {"epoch": 6, "loss": 6.3597869006070225, "seconds": 14.810362707823515},
+      {"epoch": 7, "loss": 5.443164045160467, "seconds": 14.856705834157765},
+      {"epoch": 8, "loss": 4.831686410036954, "seconds": 14.532220834400505},
+      {"epoch": 9, "loss": 4.585317394950173, "seconds": 14.648423625156283},
+      {"epoch": 10, "loss": 4.303419546647505, "seconds": 14.683200750034302},
+      {"epoch": 11, "loss": 4.080349813808095, "seconds": 15.283787209074944},
+      {"epoch": 12, "loss": 3.8569721308621494, "seconds": 14.669388624839485},
+      {"epoch": 13, "loss": 3.708324345675382, "seconds": 14.132331624627113},
+      {"epoch": 14, "loss": 3.59949237650091, "seconds": 14.240333083085716},
+      {"epoch": 15, "loss": 3.546697269786488, "seconds": 14.069598709233105},
+      {"epoch": 16, "loss": 3.5147464275360107, "seconds": 14.606750292237848},
+      {"epoch": 17, "loss": 3.4609740647402676, "seconds": 14.295670750085264},
+      {"epoch": 18, "loss": 3.320443933660334, "seconds": 14.584871833212674},
+      {"epoch": 19, "loss": 3.2942532409321177, "seconds": 14.699449916370213},
+      {"epoch": 20, "loss": 3.2997777462005615, "seconds": 14.54445204185322},
+      {"epoch": 21, "loss": 3.159286455674605, "seconds": 14.40714979218319},
+      {"epoch": 22, "loss": 3.100904421372847, "seconds": 14.30795424990356},
+      {"epoch": 23, "loss": 3.097814776680686, "seconds": 14.568675125017762},
+      {"epoch": 24, "loss": 3.0547554926438765, "seconds": 14.837917667347938},
+      {"epoch": 25, "loss": 3.0714818130839956, "seconds": 14.663902749773115},
+      {"epoch": 26, "loss": 3.0334329388358374, "seconds": 14.375261415727437},
+      {"epoch": 27, "loss": 2.9733013890006323, "seconds": 14.49135058419779},
+      {"epoch": 28, "loss": 2.8893705823204736, "seconds": 14.924794791731983},
+      {"epoch": 29, "loss": 2.874195835807107, "seconds": 14.342484290711582},
+      {"epoch": 30, "loss": 2.905264453454451, "seconds": 14.207363332621753},
+      {"epoch": 31, "loss": 2.9530729163776743, "seconds": 14.40540837496519},
+      {"epoch": 32, "loss": 2.839793183586814, "seconds": 14.696616499684751},
+      {"epoch": 33, "loss": 2.780360070141879, "seconds": 14.354108625091612},
+      {"epoch": 34, "loss": 2.8171712810342964, "seconds": 14.172927625011653},
+      {"epoch": 35, "loss": 2.764801567251032, "seconds": 14.33922474971041},
+      {"epoch": 36, "loss": 2.747146714817394, "seconds": 14.576264124829322},
+      {"epoch": 37, "loss": 2.7416643662886186, "seconds": 14.180922000203282},
+      {"epoch": 38, "loss": 2.7105443586002695, "seconds": 14.608957916963845},
+      {"epoch": 39, "loss": 2.711922970685092, "seconds": 15.196395791135728},
+      {"epoch": 40, "loss": 2.653237386183305, "seconds": 15.088990166783333}
+    ],
+    "components": {
+      "epoch_1": {
+        "best_margin": 4.987483761527321,
+        "move_value": 0.9276529550552368,
+        "pair": 1.3811021067879417,
+        "policy": 5.671900749206543,
+        "state_value_reported_but_zero_weighted": 0.5088552805510435
+      },
+      "epoch_40": {
+        "best_margin": 0.07253253324465318,
+        "move_value": 0.7538723187013106,
+        "pair": 0.45232160931283777,
+        "policy": 1.9776087565855547,
+        "state_value_reported_but_zero_weighted": 0.5064895857464183
+      }
+    }
+  },
+  "v2_comparison": {
+    "v2_external_result": {
+      "bytes": 25053,
+      "sha256": "1f16f030d52d2aff1d8009614aaeb2183a68b462e212933924fae594c2136e3a"
+    },
+    "data_receipt_exactly_equal": true,
+    "live_baseline_exactly_equal": true,
+    "evaluation_pair_counts_equal": true,
+    "browser": {
+      "top1_correct_delta": 22,
+      "top1_accuracy_points_delta": 8.59375,
+      "pair_accuracy_points_delta": 2.3758826797576904,
+      "mean_regret_cp_delta": -3960.8828125,
+      "mean_regret_reduction_percent": 99.89271728689998
+    },
+    "v9": {
+      "top1_correct_delta": 74,
+      "top1_accuracy_points_delta": 7.2265625,
+      "pair_accuracy_points_delta": 3.9828419090380596,
+      "mean_regret_cp_delta": -17.3955078125,
+      "mean_regret_reduction_percent": 89.67930322710568
+    },
+    "recorded_epoch_seconds_delta": 280.9812278742902,
+    "recorded_epoch_seconds_percent_delta": 89.26144889429195,
+    "interpretation": "Child-board representation materially improved top-1, regret, and pair accuracy over v2, but pair accuracy remained below both fixed 0.98 gates."
+  },
+  "v1_comparison": {
+    "browser": {
+      "top1_correct_delta": 65,
+      "top1_accuracy_points_delta": 25.390625,
+      "pair_accuracy_points_delta": 1.597579593509113,
+      "mean_regret_cp_delta": -3951.046875
+    },
+    "v9": {
+      "top1_correct_delta": 184,
+      "top1_accuracy_points_delta": 17.96875,
+      "pair_accuracy_points_delta": 1.8360760889173933,
+      "mean_regret_cp_delta": -15.337890625
+    }
+  },
+  "lifecycle": {
+    "full_candidate_training_started": false,
+    "second_seed_authorized": false,
+    "sealed_teacher_authorized": false,
+    "wasm_changed": false,
+    "live_weights_changed": false
+  },
+  "stop_rule": {
+    "v3_extension_authorized": false,
+    "actions": [
+      "Discard sentinel weights.",
+      "Do not extend epochs, add seeds, relax gates, or widen the v3 child encoder.",
+      "Do not start full training, known-tune candidate selection, sealed labels, distillation, WASM integration, paired play, or live mutation.",
+      "Require a separately preregistered hypothesis and stop rule before any later training."
+    ]
+  }
+}

@@ -91,3 +91,5 @@ v2は「v1のobjective不一致を直せば4ゲートをすべて通る」とい
 - 次工程：child-board encoderの小規模capacity診断
 
 完全な40 epoch曲線とv1比較は [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json)、v1結果は [capacity v1記事](./blog-shogi-capacity-policy-value-plan.md) に記録した。
+
+architectureだけを変える次工程は [child-board capacity v3計画](./blog-shogi-child-board-capacity-v3-plan.md) に事前登録した。

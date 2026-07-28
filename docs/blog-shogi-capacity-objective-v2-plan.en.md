@@ -91,3 +91,5 @@ Its purpose is to test whether adding the missing “board after the move” rep
 - Next stage: small child-board encoder capacity diagnostic.
 
 The complete 40-epoch curve and v1 comparison are in [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json). V1 is documented in the [capacity v1 article](./blog-shogi-capacity-policy-value-plan.en.md).
+
+The next architecture-only experiment is preregistered in the [child-board capacity v3 plan](./blog-shogi-child-board-capacity-v3-plan.en.md).

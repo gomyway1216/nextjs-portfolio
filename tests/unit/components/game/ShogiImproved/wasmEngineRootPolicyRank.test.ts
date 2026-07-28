@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import {
   computeRootPolicyRanks,
@@ -10,13 +9,14 @@ import {
   createWasmRootPolicyRankReceipt,
   getLastWasmRootPolicyRankDiagnostics,
   getLastWasmSearchStats,
+  type WasmRootPolicyRankReceipt,
   wasmSearchBestMove,
 } from '@/components/game/ShogiImproved/wasmEngine';
 
 afterEach(() => setRootPolicyRankProvider(null));
 
-describe('wasmEngine root-policy rank plumbing', () => {
-  it('preserves exact fixed-depth behavior when disabled', () => {
+describe('wasmEngine root-policy rank production enrollment boundary', () => {
+  it('preserves exact fixed-depth behavior before the candidate binary is enrolled', () => {
     const position = InitialPositionImproved.createInitialPosition();
 
     clearWasmTT();
@@ -31,16 +31,15 @@ describe('wasmEngine root-policy rank plumbing', () => {
 
     expect(second).toEqual(first);
     expect(secondStats).toEqual(firstStats);
-    expect(firstRank).toEqual({
-      accepted: false,
-      applyCount: 0,
-      nonRootApplyCount: 0,
-      fault: 0,
-    });
+    // The checked-in production WASM remains the previously authenticated
+    // binary. It deliberately has no root-rank exports until the frozen
+    // student, candidate WASM and same-build admission receipt are enrolled
+    // together.
+    expect(firstRank).toBeNull();
     expect(secondRank).toEqual(firstRank);
   });
 
-  it('persists the same rank through initial and iterative root sorts only', () => {
+  it('fails closed when asked to create a receipt against the stable production binary', () => {
     const position = InitialPositionImproved.createInitialPosition();
     setRootPolicyRankProvider(({ moveKeys }) =>
       [...moveKeys].reverse().map((moveKey, rank) => ({ moveKey, rank })),
@@ -48,57 +47,34 @@ describe('wasmEngine root-policy rank plumbing', () => {
     const ranks = computeRootPolicyRanks(position, 41, true);
     expect(ranks).not.toBeNull();
     const receipt = createWasmRootPolicyRankReceipt(position, 41, ranks!);
-    expect(receipt).not.toBeNull();
-
-    clearWasmTT();
-    const move = wasmSearchBestMove(position, 0, 0, 3, 8, receipt);
-    const diagnostics = getLastWasmRootPolicyRankDiagnostics();
-
-    expect(move).not.toBeNull();
-    expect(
-      GenerateMovesImproved.generateLegalMoves(position).some(
-        (legal) =>
-          legal.koma === move!.koma &&
-          legal.from === move!.from &&
-          legal.to === move!.to &&
-          legal.promote === move!.promote,
-      ),
-    ).toBe(true);
-    expect(diagnostics?.accepted).toBe(true);
-    // One eager legal-root sort plus at least one ply-zero search sort.
-    expect(diagnostics?.applyCount).toBeGreaterThanOrEqual(2);
-    expect(diagnostics?.nonRootApplyCount).toBe(0);
-    expect(diagnostics?.fault).toBe(0);
+    expect(receipt).toBeNull();
+    expect(getLastWasmRootPolicyRankDiagnostics()).toBeNull();
   });
 
-  it('rejects a stale dual-hash receipt and searches with stable ordering', () => {
-    const original = InitialPositionImproved.createInitialPosition();
-    const ranks = computeRootPolicyRanks(original, 73, true);
-    const stale = createWasmRootPolicyRankReceipt(original, 73, ranks!);
-    expect(stale).not.toBeNull();
-
+  it('ignores even a well-shaped rank receipt until candidate WASM enrollment', () => {
     const position = InitialPositionImproved.createInitialPosition();
-    const firstMove = GenerateMovesImproved.generateLegalMoves(position)[0];
-    firstMove.capture = position.get(firstMove.to);
-    position.move(firstMove);
-    position.toggleTeban();
+    const ranks = computeRootPolicyRanks(position, 73, true);
+    expect(ranks).not.toBeNull();
+    const unenrolledReceipt: WasmRootPolicyRankReceipt = {
+      schema: 'shogi-root-policy-rank-receipt-v1',
+      sequence: 73,
+      positionHashA: 1,
+      positionHashB: 1,
+      moveCount: ranks!.length,
+      ranks: ranks!,
+    };
 
     clearWasmTT();
-    const fallback = wasmSearchBestMove(position, 1, 0, 2, 8, stale);
+    const fallback = wasmSearchBestMove(position, 0, 0, 2, 8, unenrolledReceipt);
     const fallbackStats = getLastWasmSearchStats();
     const diagnostics = getLastWasmRootPolicyRankDiagnostics();
 
     clearWasmTT();
-    const stable = wasmSearchBestMove(position, 1, 0, 2, 8);
+    const stable = wasmSearchBestMove(position, 0, 0, 2, 8);
     const stableStats = getLastWasmSearchStats();
 
     expect(fallback).toEqual(stable);
     expect(fallbackStats).toEqual(stableStats);
-    expect(diagnostics).toMatchObject({
-      accepted: false,
-      applyCount: 0,
-      nonRootApplyCount: 0,
-    });
-    expect(diagnostics!.fault).toBeGreaterThan(0);
+    expect(diagnostics).toBeNull();
   });
 });
